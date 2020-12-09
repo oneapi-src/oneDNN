@@ -17,8 +17,6 @@
 #ifndef CPU_X64_JIT_UNI_TBB_BATCH_NORMALIZATION_HPP
 #define CPU_X64_JIT_UNI_TBB_BATCH_NORMALIZATION_HPP
 
-#include <assert.h>
-
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"

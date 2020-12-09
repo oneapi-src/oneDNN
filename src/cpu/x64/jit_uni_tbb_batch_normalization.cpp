@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <assert.h>
-
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
@@ -42,56 +40,57 @@ using namespace memory_tracking::names;
 using namespace Xbyak;
 using acc_data_t = float;
 
-#define PARAM_ADDR(x) (reg_param + offsetof(call_params_t, x))
+constexpr int bits_per_byte = 8;
+
+#define PARAM_ADDR(x) (reg_param_ + offsetof(call_params_t, x))
 template <cpu_isa_t isa>
 struct jit_bnorm_process_tail_t {
-    using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
-            Ymm, Zmm>::type;
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
     jit_bnorm_process_tail_t(const batch_normalization_pd_t *bdesc,
             jit_generator *host, Reg64 reg_tmp, Reg64 reg_blk_has_tail,
             Reg64 reg_C, Vmm vtail_mask, Opmask ktail_mask)
-        : h(host)
+        : h_(host)
         , reg_tmp_(reg_tmp)
         , reg_blk_has_tail_(reg_blk_has_tail)
         , reg_C_(reg_C)
         , vtail_mask_(vtail_mask)
         , ktail_mask_(ktail_mask) {
         const memory_desc_wrapper data_d(bdesc->src_md());
-        c_is_padded = bdesc->C() != data_d.padded_dims()[1];
+        c_is_padded_ = bdesc->C() != data_d.padded_dims()[1];
 
         const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
-        tail = bdesc->C() % (int)(vlen / sizeof(float));
+        tail_ = bdesc->C() % (int)(vlen / sizeof(float));
     }
 
-    jit_generator *const h;
-    Reg64 reg_tmp_;
-    Reg64 reg_blk_has_tail_;
-    Reg64 reg_C_;
-    Vmm vtail_mask_;
-    Opmask ktail_mask_;
-    bool c_is_padded;
-    int tail;
+    jit_generator *const h_;
+    const Reg64 reg_tmp_;
+    const Reg64 reg_blk_has_tail_;
+    const Reg64 reg_C_;
+    const Vmm vtail_mask_;
+    const Opmask ktail_mask_;
+    bool c_is_padded_;
+    int tail_;
 
     void prepare_tail_mask_avx512_common() {
-        if (!c_is_padded) return;
+        if (!c_is_padded_) return;
 
-        const int mask = (1 << tail) - 1;
+        const int mask = (1 << tail_) - 1;
 
         Reg32 regw_tmp = reg_tmp_.cvt32();
-        h->mov(regw_tmp, mask);
-        h->kmovw(ktail_mask_, regw_tmp);
+        h_->mov(regw_tmp, mask);
+        h_->kmovw(ktail_mask_, regw_tmp);
     }
 
     void prepare_tail_mask_avx2_common() {
-        if (!c_is_padded) return;
+        if (!c_is_padded_) return;
 
         static const uint32_t mask[16] = {0xffffffff, 0xffffffff, 0xffffffff,
                 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0,
                 0, 0, 0, 0, 0, 0, 0};
 
-        h->mov(reg_tmp_, reinterpret_cast<size_t>(&mask[8 - tail]));
-        h->vmovups(vtail_mask_, h->ptr[reg_tmp_]);
+        h_->mov(reg_tmp_, reinterpret_cast<size_t>(&mask[8 - tail_]));
+        h_->vmovups(vtail_mask_, h_->ptr[reg_tmp_]);
     }
 
     void prepare_tail() {
@@ -104,107 +103,106 @@ struct jit_bnorm_process_tail_t {
     void uni_vmovups_tail_avx2_common(
             const Operand &dst, const Operand &src, Label &l_ret) {
         if (dst.isMEM()) {
-            h->vmaskmovps(dst.getAddress(), vtail_mask_, Vmm(src.getIdx()));
+            h_->vmaskmovps(dst.getAddress(), vtail_mask_, Vmm(src.getIdx()));
         } else {
-            h->vmaskmovps(Vmm(dst.getIdx()), vtail_mask_, src.getAddress());
+            h_->vmaskmovps(Vmm(dst.getIdx()), vtail_mask_, src.getAddress());
         }
-        h->jmp(l_ret);
+        h_->jmp(l_ret);
     }
 
     void uni_vmovups_tail_avx512_common(
             const Operand &dst, const Operand &src, Label &l_ret) {
         if (dst.isMEM())
-            h->uni_vmovups(
-                    dst.getAddress() | ktail_mask_ | h->T_z, Vmm(src.getIdx()));
+            h_->uni_vmovups(dst.getAddress() | ktail_mask_ | h_->T_z,
+                    Vmm(src.getIdx()));
         else
-            h->uni_vmovups(
-                    Vmm(dst.getIdx()) | ktail_mask_ | h->T_z, src.getAddress());
+            h_->uni_vmovups(Vmm(dst.getIdx()) | ktail_mask_ | h_->T_z,
+                    src.getAddress());
 
-        h->jmp(l_ret);
+        h_->jmp(l_ret);
     }
 
     void uni_vmovups_maybe_tail(const Operand &dst, const Operand &src) {
         Label l_no_mask, l_ret;
-        if (c_is_padded) {
-            h->cmp(reg_blk_has_tail_, 0);
-            h->jz(l_no_mask);
+        if (c_is_padded_) {
+            h_->cmp(reg_blk_has_tail_, 0);
+            h_->jz(l_no_mask);
 
-            h->cmp(reg_C_, 1);
-            h->jne(l_no_mask);
+            h_->cmp(reg_C_, 1);
+            h_->jne(l_no_mask);
             assert(isa == avx512_common || isa == avx2);
             if (isa == avx512_common)
                 uni_vmovups_tail_avx512_common(dst, src, l_ret);
             else if (isa == avx2)
                 uni_vmovups_tail_avx2_common(dst, src, l_ret);
         }
-        h->L(l_no_mask);
+        h_->L(l_no_mask);
         if (dst.isMEM())
-            h->uni_vmovups(dst.getAddress(), Vmm(src.getIdx()));
+            h_->uni_vmovups(dst.getAddress(), Vmm(src.getIdx()));
         else
-            h->uni_vmovups(Vmm(dst.getIdx()), src.getAddress());
+            h_->uni_vmovups(Vmm(dst.getIdx()), src.getAddress());
 
-        h->L(l_ret);
+        h_->L(l_ret);
     }
 };
 
 template <cpu_isa_t isa>
 struct jit_bnorm_process_relu_t {
-    using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
-            Ymm, Zmm>::type;
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
     jit_bnorm_process_relu_t(const batch_normalization_pd_t *bdesc,
             jit_generator *host, Reg64 reg_off_dat, Reg64 reg_tmp,
             Reg64 reg_ptr_ws, Vmm vzero, Vmm vstore_mask, Opmask kstore_mask)
-        : h(host)
+        : h_(host)
         , reg_off_dat_(reg_off_dat)
         , reg_tmp_(reg_tmp)
         , reg_ptr_ws_(reg_ptr_ws)
         , vzero_(vzero)
         , vstore_mask_(vstore_mask)
         , kstore_mask_(kstore_mask) {
-        with_relu = bdesc->with_relu_post_op() || bdesc->fuse_norm_relu();
-        with_relu_inf_only = with_relu
+        with_relu_ = bdesc->with_relu_post_op() || bdesc->fuse_norm_relu();
+        with_relu_inf_only_ = with_relu_
                 && !(bdesc->fuse_norm_relu() && bdesc->is_training());
-        is_bf16_ = bdesc->desc()->data_desc.data_type == data_type::bf16;
-        bit_shift = 5 - is_bf16_;
+
+        bit_shift_ = static_cast<int>(log2(bits_per_byte
+                * types::data_type_size(bdesc->desc()->data_desc.data_type)));
     }
 
-    jit_generator *const h;
-    Reg64 reg_off_dat_;
-    Reg64 reg_tmp_;
-    Reg64 reg_ptr_ws_;
-    Vmm vzero_, vstore_mask_;
-    Opmask kstore_mask_;
-    Label l_relu_mask_avx2;
-    bool with_relu, with_relu_inf_only;
-    int bit_shift;
-    bool is_bf16_;
+    jit_generator *const h_;
+    const Reg64 reg_off_dat_;
+    const Reg64 reg_tmp_;
+    const Reg64 reg_ptr_ws_;
+    const Vmm vzero_, vstore_mask_;
+    const Opmask kstore_mask_;
+    Label l_relu_mask_avx2_;
+    bool with_relu_, with_relu_inf_only_;
+    int bit_shift_;
 
     void fwd_prepare_relu() {
-        if (with_relu) { h->uni_vpxor(vzero_, vzero_, vzero_); }
+        if (with_relu_) { h_->uni_vpxor(vzero_, vzero_, vzero_); }
     }
 
     void bwd_prepare_relu() {
-        if (with_relu) {
-            h->uni_vpxor(vzero_, vzero_, vzero_);
+        if (with_relu_) {
+            h_->uni_vpxor(vzero_, vzero_, vzero_);
             if (isa == avx2) prepare_l_relu_mask_avx2();
         }
     }
 
     void prepare_l_relu_mask_avx2() {
         Label l_mask_after;
-        h->jmp(l_mask_after);
-        h->align(32);
-        h->L(l_relu_mask_avx2); /* [0x80 0x40 0x20 0x10 0x08 0x04 0x02 0x01] */
+        h_->jmp(l_mask_after);
+        h_->align(32);
+        h_->L(l_relu_mask_avx2_); /* [0x80 0x40 0x20 0x10 0x08 0x04 0x02 0x01] */
         for (int i = 0; i < 8; ++i)
-            h->dd(1 << i);
-        h->L(l_mask_after);
+            h_->dd(1 << i);
+        h_->L(l_mask_after);
     }
 
     void fwd_process_relu(Vmm v) {
-        if (with_relu_inf_only) {
-            h->uni_vmaxps(v, v, vzero_);
-        } else if (with_relu) {
+        if (with_relu_inf_only_) {
+            h_->uni_vmaxps(v, v, vzero_);
+        } else if (with_relu_) {
             if (isa == avx512_common)
                 fwd_process_relu_avx512_common(v);
             else if (isa == avx2)
@@ -215,7 +213,7 @@ struct jit_bnorm_process_relu_t {
     }
 
     void bwd_process_relu(Vmm v) {
-        if (with_relu) {
+        if (with_relu_) {
             if (isa == avx512_common)
                 bwd_process_relu_avx512_common(v);
             else if (isa == avx2)
@@ -227,61 +225,60 @@ struct jit_bnorm_process_relu_t {
 
     void fwd_process_relu_avx2(Vmm vdst) {
         Reg64 reg_store_mask = reg_tmp_;
-        h->shr(reg_off_dat_, bit_shift);
-        h->vcmpps(vstore_mask_, vzero_, vdst, jit_generator::_cmp_lt_os);
-        h->vmovmskps(reg_store_mask, vstore_mask_);
-        h->mov(h->ptr[reg_ptr_ws_ + reg_off_dat_], reg_store_mask.cvt8());
-        h->vblendvps(vdst, vzero_, vdst, vstore_mask_);
-        h->shl(reg_off_dat_, bit_shift);
+        h_->shr(reg_off_dat_, bit_shift_);
+        h_->vcmpps(vstore_mask_, vzero_, vdst, jit_generator::_cmp_lt_os);
+        h_->vmovmskps(reg_store_mask, vstore_mask_);
+        h_->mov(h_->ptr[reg_ptr_ws_ + reg_off_dat_], reg_store_mask.cvt8());
+        h_->vblendvps(vdst, vzero_, vdst, vstore_mask_);
+        h_->shl(reg_off_dat_, bit_shift_);
     }
 
     void fwd_process_relu_avx512_common(Vmm vdst) {
-        h->shr(reg_off_dat_, bit_shift);
-        h->vcmpps(kstore_mask_, vzero_, vdst, jit_generator::_cmp_lt_os);
-        h->kmovw(h->ptr[reg_ptr_ws_ + reg_off_dat_], kstore_mask_);
-        h->vblendmps(vdst | kstore_mask_, vzero_, vdst);
-        h->shl(reg_off_dat_, bit_shift);
+        h_->shr(reg_off_dat_, bit_shift_);
+        h_->vcmpps(kstore_mask_, vzero_, vdst, jit_generator::_cmp_lt_os);
+        h_->kmovw(h_->ptr[reg_ptr_ws_ + reg_off_dat_], kstore_mask_);
+        h_->vblendmps(vdst | kstore_mask_, vzero_, vdst);
+        h_->shl(reg_off_dat_, bit_shift_);
     }
 
     void bwd_process_relu_avx2(Vmm vdiff_dst) {
-        h->shr(reg_off_dat_, bit_shift);
-        h->vpbroadcastb(vstore_mask_, h->ptr[reg_ptr_ws_ + reg_off_dat_]);
-        h->vpand(vstore_mask_, vstore_mask_,
-                h->ptr[Xbyak::util::rip + l_relu_mask_avx2]);
-        h->vpcmpeqd(vstore_mask_, vstore_mask_,
-                h->ptr[Xbyak::util::rip + l_relu_mask_avx2]);
-        h->vblendvps(vdiff_dst, vzero_, vdiff_dst, vstore_mask_);
-        h->shl(reg_off_dat_, bit_shift);
+        h_->shr(reg_off_dat_, bit_shift_);
+        h_->vpbroadcastb(vstore_mask_, h_->ptr[reg_ptr_ws_ + reg_off_dat_]);
+        h_->vpand(vstore_mask_, vstore_mask_,
+                h_->ptr[Xbyak::util::rip + l_relu_mask_avx2_]);
+        h_->vpcmpeqd(vstore_mask_, vstore_mask_,
+                h_->ptr[Xbyak::util::rip + l_relu_mask_avx2_]);
+        h_->vblendvps(vdiff_dst, vzero_, vdiff_dst, vstore_mask_);
+        h_->shl(reg_off_dat_, bit_shift_);
     }
 
     void bwd_process_relu_avx512_common(Vmm vdiff_dst) {
-        h->shr(reg_off_dat_, bit_shift);
-        h->kmovw(kstore_mask_, h->ptr[reg_ptr_ws_ + reg_off_dat_]);
-        h->vmovups(vdiff_dst | kstore_mask_ | h->T_z, vdiff_dst);
-        h->shl(reg_off_dat_, bit_shift);
+        h_->shr(reg_off_dat_, bit_shift_);
+        h_->kmovw(kstore_mask_, h_->ptr[reg_ptr_ws_ + reg_off_dat_]);
+        h_->vmovups(vdiff_dst | kstore_mask_ | h_->T_z, vdiff_dst);
+        h_->shl(reg_off_dat_, bit_shift_);
     }
 };
 
 template <cpu_isa_t isa>
 struct jit_bnorm_bf16_emulation_t {
-    using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
-            Ymm, Zmm>::type;
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
     jit_bnorm_bf16_emulation_t(const batch_normalization_pd_t *bdesc,
             jit_generator *host, Zmm zmm_reserved_1, Zmm zmm_reserved_2,
             Zmm zmm_reserved_3, Zmm zmm_reserved_4, Reg64 reg_tmp)
-        : h(host) {
+        : h_(host), bf16_emu_(nullptr) {
         is_bf16_ = bdesc->desc()->data_desc.data_type == data_type::bf16;
         if (is_bf16_ && !mayiuse(avx512_core_bf16)) {
-            bf16_emu_ = new bf16_emulation_t(h, zmm_reserved_1, zmm_reserved_2,
-                    zmm_reserved_3, reg_tmp, zmm_reserved_4, zmm_reserved_4);
+            bf16_emu_ = utils::make_unique<bf16_emulation_t>(h_, zmm_reserved_1,
+                    zmm_reserved_2, zmm_reserved_3, reg_tmp, zmm_reserved_4,
+                    zmm_reserved_4);
             bf16_emu_->init_vcvtneps2bf16();
         }
     }
-    ~jit_bnorm_bf16_emulation_t() { delete bf16_emu_; }
 
-    jit_generator *const h;
-    bf16_emulation_t *bf16_emu_ = nullptr;
+    jit_generator *const h_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
     bool is_bf16_;
 
     void uni_vmovups_data(const Operand &dst, const Operand &src) {
@@ -294,22 +291,22 @@ struct jit_bnorm_bf16_emulation_t {
                         src_reg {src.getIdx()};
 
                 // convert f32 output to bf16
-                if (mayiuse(avx512_core_bf16))
-                    h->vcvtneps2bf16(dst_reg, src_reg);
+                if (!bf16_emu_)
+                    h_->vcvtneps2bf16(dst_reg, src_reg);
                 else
                     bf16_emu_->vcvtneps2bf16(dst_reg, src_reg);
 
-                h->vmovdqu16(dst.getAddress(), dst_reg);
+                h_->vmovdqu16(dst.getAddress(), dst_reg);
             } else {
-                h->uni_vmovups(dst.getAddress(), Vmm(src.getIdx()));
+                h_->uni_vmovups(dst.getAddress(), Vmm(src.getIdx()));
             }
         } else {
             if (is_bf16_) {
                 // convert bf16 input to f32
-                h->vpmovzxwd(Vmm(dst.getIdx()), src.getAddress());
-                h->vpslld(Vmm(dst.getIdx()), Vmm(dst.getIdx()), 0x10);
+                h_->vpmovzxwd(Vmm(dst.getIdx()), src.getAddress());
+                h_->vpslld(Vmm(dst.getIdx()), Vmm(dst.getIdx()), 0x10);
             } else {
-                h->uni_vmovups(Vmm(dst.getIdx()), src.getAddress());
+                h_->uni_vmovups(Vmm(dst.getIdx()), src.getAddress());
             }
         }
     }
@@ -321,8 +318,7 @@ private:
 template <cpu_isa_t isa>
 struct jit_bnorm_fwd_statistics_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_fwd_statistics_t)
-    using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
-            Ymm, Zmm>::type;
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
     const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
     const int simd_w = vlen / sizeof(acc_data_t);
@@ -338,166 +334,180 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         size_t do_normalise;
     };
 
-    Reg64 reg_param = abi_param1;
-    Reg64 reg_tmp = abi_not_param1;
-    Reg64 reg_N = rsi;
-    Reg64 reg_S = rax;
-    Reg64 reg_C = rdx;
-    Reg64 reg_off_c = rbx;
-    Reg64 reg_blk_has_tail = rbp;
+    const Reg64 &reg_param_ = abi_param1;
+    const Reg64 &reg_tmp_ = abi_not_param1;
+    const Reg64 &reg_N_ = rsi;
+    const Reg64 &reg_S_ = rax;
+    const Reg64 &reg_C_ = rdx;
+    const Reg64 &reg_off_c_ = rbx;
+    const Reg64 &reg_blk_has_tail_ = rbp;
 
-    Reg64 reg_off_dat = r8;
-    Reg64 reg_off_dat_save = r9;
-    Reg64 reg_ptr_mean = r10;
-    Reg64 reg_ptr_var = r11;
-    Reg64 reg_ptr_src = r12;
-    Reg64 reg_do_normalise = r13;
-    Reg64 reg_ptr_stat = r14;
+    const Reg64 &reg_off_dat_ = r8;
+    const Reg64 &reg_off_dat_save_ = r9;
+    const Reg64 &reg_ptr_mean_ = r10;
+    const Reg64 &reg_ptr_var_ = r11;
+    const Reg64 &reg_ptr_src_ = r12;
+    const Reg64 &reg_do_normalise_ = r13;
+    const Reg64 &reg_ptr_stat_ = r14;
 
-    Vmm vzero = Vmm(0);
-    Vmm vmean = Vmm(1);
-    Vmm vstat = Vmm(2);
-    Vmm v = Vmm(3);
-    Vmm vtail_mask = Vmm(4);
-    Vmm vNS = Vmm(5);
-    Vmm vtmp = Vmm(6);
-    Vmm vtmp1 = Vmm(7);
+    const Vmm vzero_ = Vmm(0);
+    const Vmm vmean_ = Vmm(1);
+    const Vmm vstat_ = Vmm(2);
+    const Vmm v_ = Vmm(3);
+    const Vmm vtail_mask_ = Vmm(4);
+    const Vmm vNS_ = Vmm(5);
+    const Vmm vtmp_ = Vmm(6);
+    const Vmm vtmp1_ = Vmm(7);
 
-    Opmask ktail_mask = Opmask(2);
+    const Opmask &ktail_mask_ = k2;
 
     const batch_normalization_pd_t *bdesc_;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
-    int stride_N_, stride_C_;
+    int stride_N_, stride_S_, stride_C_;
     size_t data_type_size_, acc_type_size_;
 
     void load_common_params() {
 #define PARAM_PTR(x) ptr[PARAM_ADDR(x)]
-        mov(reg_ptr_src, PARAM_PTR(src));
-        mov(reg_ptr_mean, PARAM_PTR(mean));
-        mov(reg_ptr_var, PARAM_PTR(var));
+        mov(reg_ptr_src_, PARAM_PTR(src));
+        mov(reg_ptr_mean_, PARAM_PTR(mean));
+        mov(reg_ptr_var_, PARAM_PTR(var));
 #undef PARAM_PTR
-        mov(reg_blk_has_tail, dword[PARAM_ADDR(blk_has_tail)]);
-        mov(reg_do_normalise, dword[PARAM_ADDR(do_normalise)]);
+        mov(reg_blk_has_tail_, dword[PARAM_ADDR(blk_has_tail)]);
+        mov(reg_do_normalise_, dword[PARAM_ADDR(do_normalise)]);
     }
 
     void zeroise() {
         Label label_zeroise;
-        xor_(reg_off_c, reg_off_c);
-        uni_vpxor(vzero, vzero, vzero);
-        mov(reg_C, dword[PARAM_ADDR(C)]);
+        xor_(reg_off_c_, reg_off_c_);
+        uni_vpxor(vzero_, vzero_, vzero_);
+        mov(reg_C_, dword[PARAM_ADDR(C)]);
         L(label_zeroise);
         {
             jit_tail_.uni_vmovups_maybe_tail(
-                    vmmword[reg_ptr_stat + reg_off_c], vzero);
+                    vmmword[reg_ptr_stat_ + reg_off_c_], vzero_);
             if (isa == sse41) {
                 jit_tail_.uni_vmovups_maybe_tail(
-                        vmmword[reg_ptr_stat + reg_off_c + vlen / 2], vzero);
+                        vmmword[reg_ptr_stat_ + reg_off_c_ + vlen / 2], vzero_);
             }
-            add(reg_off_c, simd_w * acc_type_size_);
-            dec(reg_C);
+            add(reg_off_c_, simd_w * acc_type_size_);
+            dec(reg_C_);
             jnz(label_zeroise);
         }
     }
 
-    void compute_channels(bool compute_mean) {
+    void load_stat(bool compute_mean) {
+        jit_tail_.uni_vmovups_maybe_tail(
+                vstat_, vmmword[reg_ptr_stat_ + reg_off_c_]);
+
+        if (!compute_mean)
+            jit_tail_.uni_vmovups_maybe_tail(
+                    vmean_, vmmword[reg_ptr_mean_ + reg_off_c_]);
+    }
+
+    void compute_stat(bool compute_mean) {
+        jit_bf16_emu_.uni_vmovups_data(
+                v_, vmmword[reg_ptr_src_ + reg_off_dat_]);
+
+        if (compute_mean) {
+            uni_vaddps(vstat_, vstat_, v_);
+        } else {
+            uni_vsubps(vtmp_, v_, vmean_, vtmp1_);
+            uni_vfmadd231ps(vstat_, vtmp_, vtmp_);
+        }
+    }
+
+    void store_stat() {
+        jit_tail_.uni_vmovups_maybe_tail(
+                vmmword[reg_ptr_stat_ + reg_off_c_], vstat_);
+    }
+
+    void compute_blocked(bool compute_mean) {
         Label label_C, label_S;
-        mov(reg_C, dword[PARAM_ADDR(C)]);
+        mov(reg_C_, dword[PARAM_ADDR(C)]);
         L(label_C);
         {
-            mov(reg_off_dat, reg_off_dat_save);
-            jit_tail_.uni_vmovups_maybe_tail(
-                    vstat, vmmword[reg_ptr_stat + reg_off_c]);
+            mov(reg_off_dat_, reg_off_dat_save_);
 
-            if (!compute_mean)
-                jit_tail_.uni_vmovups_maybe_tail(
-                        vmean, vmmword[reg_ptr_mean + reg_off_c]);
+            load_stat(compute_mean);
 
-            mov(reg_S, dword[PARAM_ADDR(S)]);
+            mov(reg_S_, dword[PARAM_ADDR(S)]);
             L(label_S);
             {
-                jit_bf16_emu_.uni_vmovups_data(
-                        v, vmmword[reg_ptr_src + reg_off_dat]);
+                compute_stat(compute_mean);
 
-                if (compute_mean) {
-                    uni_vaddps(vstat, vstat, v);
-                } else {
-                    uni_vsubps(vtmp, v, vmean, vtmp1);
-                    uni_vfmadd231ps(vstat, vtmp, vtmp);
-                }
+                add(reg_off_dat_, stride_S_ * data_type_size_);
 
-                add(reg_off_dat, simd_w * data_type_size_);
-
-                dec(reg_S);
+                dec(reg_S_);
                 jnz(label_S);
             }
-            jit_tail_.uni_vmovups_maybe_tail(
-                    vmmword[reg_ptr_stat + reg_off_c], vstat);
 
-            add(reg_off_dat_save, stride_C_ * data_type_size_);
-            add(reg_off_c, simd_w * acc_type_size_);
+            store_stat();
 
-            dec(reg_C);
+            add(reg_off_dat_save_, stride_C_ * data_type_size_);
+            add(reg_off_c_, simd_w * acc_type_size_);
+
+            dec(reg_C_);
             jnz(label_C);
         }
     }
 
     void compute(bool compute_mean) {
         Label label_N;
-        mov(reg_N, dword[PARAM_ADDR(N)]);
+        mov(reg_N_, dword[PARAM_ADDR(N)]);
         L(label_N);
         {
-            xor_(reg_off_dat_save, reg_off_dat_save);
-            xor_(reg_off_c, reg_off_c);
+            xor_(reg_off_dat_save_, reg_off_dat_save_);
+            xor_(reg_off_c_, reg_off_c_);
 
-            compute_channels(compute_mean);
+            compute_blocked(compute_mean);
 
             if (isa == sse41) {
-                xor_(reg_off_dat_save, reg_off_dat_save);
-                xor_(reg_off_c, reg_off_c);
-                add(reg_off_dat_save, vlen / 2);
-                add(reg_off_c, vlen / 2);
+                xor_(reg_off_dat_save_, reg_off_dat_save_);
+                xor_(reg_off_c_, reg_off_c_);
+                add(reg_off_dat_save_, vlen / 2);
+                add(reg_off_c_, vlen / 2);
 
-                compute_channels(compute_mean);
+                compute_blocked(compute_mean);
             }
 
-            add(reg_ptr_src, stride_N_ * data_type_size_);
-            dec(reg_N);
+            add(reg_ptr_src_, stride_N_ * data_type_size_);
+            dec(reg_N_);
             jnz(label_N);
         }
     }
 
     void normalize() {
         Label label_ret, label_normalise;
-        cmp(reg_do_normalise, 0);
+        cmp(reg_do_normalise_, 0);
         jz(label_ret);
 
         const int S = bdesc_->D() * bdesc_->H() * bdesc_->W();
-        mov(reg_tmp, float2int(bdesc_->MB() * S));
-        Xmm xtmp = Xmm(vtmp.getIdx());
-        uni_vmovq(xtmp, reg_tmp);
-        uni_vbroadcastss(vNS, xtmp);
+        mov(reg_tmp_, float2int(bdesc_->MB() * S));
+        Xmm xtmp = Xmm(vtmp_.getIdx());
+        uni_vmovq(xtmp, reg_tmp_);
+        uni_vbroadcastss(vNS_, xtmp);
 
-        xor_(reg_off_c, reg_off_c);
-        mov(reg_C, dword[PARAM_ADDR(C)]);
+        xor_(reg_off_c_, reg_off_c_);
+        mov(reg_C_, dword[PARAM_ADDR(C)]);
         L(label_normalise);
         {
             jit_tail_.uni_vmovups_maybe_tail(
-                    v, vmmword[reg_ptr_stat + reg_off_c]);
-            uni_vdivps(v, v, vNS);
+                    v_, vmmword[reg_ptr_stat_ + reg_off_c_]);
+            uni_vdivps(v_, v_, vNS_);
             jit_tail_.uni_vmovups_maybe_tail(
-                    vmmword[reg_ptr_stat + reg_off_c], v);
+                    vmmword[reg_ptr_stat_ + reg_off_c_], v_);
 
             if (isa == sse41) {
                 jit_tail_.uni_vmovups_maybe_tail(
-                        v, vmmword[reg_ptr_stat + reg_off_c + vlen / 2]);
-                uni_vdivps(v, v, vNS);
+                        v_, vmmword[reg_ptr_stat_ + reg_off_c_ + vlen / 2]);
+                uni_vdivps(v_, v_, vNS_);
                 jit_tail_.uni_vmovups_maybe_tail(
-                        vmmword[reg_ptr_stat + reg_off_c + vlen / 2], v);
+                        vmmword[reg_ptr_stat_ + reg_off_c_ + vlen / 2], v_);
             }
 
-            add(reg_off_c, simd_w * acc_type_size_);
-            dec(reg_C);
+            add(reg_off_c_, simd_w * acc_type_size_);
+            dec(reg_C_);
             jnz(label_normalise);
         }
 
@@ -506,15 +516,16 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
 
     jit_bnorm_fwd_statistics_t(const batch_normalization_pd_t *bdesc)
         : bdesc_(bdesc)
-        , jit_tail_(bdesc, this, reg_tmp, reg_blk_has_tail, reg_C, vtail_mask,
-                  ktail_mask)
+        , jit_tail_(bdesc, this, reg_tmp_, reg_blk_has_tail_, reg_C_,
+                  vtail_mask_, ktail_mask_)
         , jit_bf16_emu_(
-                  bdesc, this, Zmm(16), Zmm(17), Zmm(18), Zmm(19), reg_tmp) {
+                  bdesc, this, Zmm(16), Zmm(17), Zmm(18), Zmm(19), reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
                 "unsupported isa");
         stride_C_ = bdesc_->D() * bdesc_->H() * bdesc_->W() * simd_w;
         const int C_PADDED = bdesc_->src_md()->padded_dims[1];
         stride_N_ = (C_PADDED / simd_w) * stride_C_;
+        stride_S_ = simd_w;
         data_type_size_
                 = types::data_type_size(bdesc->desc()->data_desc.data_type);
         acc_type_size_ = sizeof(acc_data_t);
@@ -532,7 +543,7 @@ struct jit_bnorm_fwd_mean_t : jit_bnorm_fwd_statistics_t<isa> {
     void generate() override {
         this->preamble();
         this->load_common_params();
-        this->mov(this->reg_ptr_stat, this->reg_ptr_mean);
+        this->mov(this->reg_ptr_stat_, this->reg_ptr_mean_);
         this->jit_tail_.prepare_tail();
         this->zeroise();
         this->compute(true);
@@ -552,7 +563,7 @@ struct jit_bnorm_fwd_var_t : jit_bnorm_fwd_statistics_t<isa> {
     void generate() override {
         this->preamble();
         this->load_common_params();
-        this->mov(this->reg_ptr_stat, this->reg_ptr_var);
+        this->mov(this->reg_ptr_stat_, this->reg_ptr_var_);
         this->jit_tail_.prepare_tail();
         this->zeroise();
         this->compute(false);
@@ -564,8 +575,7 @@ struct jit_bnorm_fwd_var_t : jit_bnorm_fwd_statistics_t<isa> {
 template <cpu_isa_t isa>
 struct jit_bnorm_fwd_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_fwd_t)
-    using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
-            Ymm, Zmm>::type;
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
     const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
     const int simd_w = vlen / sizeof(acc_data_t);
@@ -581,174 +591,183 @@ struct jit_bnorm_fwd_t : public jit_generator {
         size_t blk_has_tail;
     };
 
-    Reg64 reg_param = abi_param1;
-    Reg64 reg_tmp = abi_not_param1;
-    Reg64 reg_N = rsi;
-    Reg64 reg_S = rax;
-    Reg64 reg_C = rdx;
-    Reg64 reg_off_c = rbx;
-    Reg64 reg_blk_has_tail = rbp;
+    const Reg64 &reg_param_ = abi_param1;
+    const Reg64 &reg_tmp_ = abi_not_param1;
+    const Reg64 &reg_N_ = rsi;
+    const Reg64 &reg_S_ = rax;
+    const Reg64 &reg_C_ = rdx;
+    const Reg64 &reg_off_c_ = rbx;
+    const Reg64 &reg_blk_has_tail_ = rbp;
 
-    Reg64 reg_off_dat = r8;
-    Reg64 reg_off_dat_save = r9;
-    Reg64 reg_ptr_ws = r10;
-    Reg64 reg_ptr_scale_shift = r11;
-    Reg64 reg_ptr_var = r12;
-    Reg64 reg_ptr_mean = r13;
-    Reg64 reg_ptr_dst = r14;
-    Reg64 reg_ptr_src = r15;
+    const Reg64 &reg_off_dat_ = r8;
+    const Reg64 &reg_off_dat_save_ = r9;
+    const Reg64 &reg_ptr_ws_ = r10;
+    const Reg64 &reg_ptr_scale_shift_ = r11;
+    const Reg64 &reg_ptr_var_ = r12;
+    const Reg64 &reg_ptr_mean_ = r13;
+    const Reg64 &reg_ptr_dst_ = r14;
+    const Reg64 &reg_ptr_src_ = r15;
 
-    Vmm vzero = Vmm(0);
-    Vmm vone = Vmm(1);
-    Vmm vmean = Vmm(2);
-    Vmm vvar = Vmm(3);
-    Vmm vsqrtvar = Vmm(4);
-    Vmm vgamma = Vmm(5);
-    Vmm vbeta = Vmm(6);
-    Vmm veps = Vmm(7);
-    Vmm vtmp = Vmm(8);
-    Vmm v = Vmm(9);
-    Vmm vtail_mask = Vmm(10);
-    Vmm vstore_mask = vtmp;
+    const Vmm vzero_ = Vmm(0);
+    const Vmm vone_ = Vmm(1);
+    const Vmm vmean_ = Vmm(2);
+    const Vmm vvar_ = Vmm(3);
+    const Vmm vsqrtvar_ = Vmm(4);
+    const Vmm vgamma_ = Vmm(5);
+    const Vmm vbeta_ = Vmm(6);
+    const Vmm veps_ = Vmm(7);
+    const Vmm vtmp_ = Vmm(8);
+    const Vmm v_ = Vmm(9);
+    const Vmm vtail_mask_ = Vmm(10);
+    const Vmm vstore_mask_ = vtmp_;
 
-    Opmask kstore_mask = Opmask(1);
-    Opmask ktail_mask = Opmask(2);
+    const Opmask &kstore_mask_ = k1;
+    const Opmask &ktail_mask_ = k2;
 
     const batch_normalization_pd_t *bdesc_;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
     jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
-    int stride_N_, stride_C_;
+    int stride_N_, stride_S_, stride_C_;
     size_t data_type_size_, acc_type_size_;
 
     void load_common_params() {
 #define PARAM_PTR(x) ptr[PARAM_ADDR(x)]
-        mov(reg_ptr_src, PARAM_PTR(src));
-        mov(reg_ptr_dst, PARAM_PTR(dst));
-        mov(reg_ptr_mean, PARAM_PTR(mean));
-        mov(reg_ptr_var, PARAM_PTR(var));
-        mov(reg_ptr_scale_shift, PARAM_PTR(scale_shift));
-        mov(reg_ptr_ws, PARAM_PTR(ws));
+        mov(reg_ptr_src_, PARAM_PTR(src));
+        mov(reg_ptr_dst_, PARAM_PTR(dst));
+        mov(reg_ptr_mean_, PARAM_PTR(mean));
+        mov(reg_ptr_var_, PARAM_PTR(var));
+        mov(reg_ptr_scale_shift_, PARAM_PTR(scale_shift));
+        mov(reg_ptr_ws_, PARAM_PTR(ws));
 #undef PARAM_PTR
 
-        Xmm x = Xmm(v.getIdx());
+        Xmm x = Xmm(v_.getIdx());
 
-        mov(reg_tmp, float2int(bdesc_->desc()->batch_norm_epsilon));
-        uni_vmovq(x, reg_tmp);
-        uni_vbroadcastss(veps, x);
+        mov(reg_tmp_, float2int(bdesc_->desc()->batch_norm_epsilon));
+        uni_vmovq(x, reg_tmp_);
+        uni_vbroadcastss(veps_, x);
 
-        mov(reg_tmp, float2int(1.f));
-        uni_vmovq(x, reg_tmp);
-        uni_vbroadcastss(vone, x);
+        mov(reg_tmp_, float2int(1.f));
+        uni_vmovq(x, reg_tmp_);
+        uni_vbroadcastss(vone_, x);
 
-        mov(reg_blk_has_tail, dword[PARAM_ADDR(blk_has_tail)]);
+        mov(reg_blk_has_tail_, dword[PARAM_ADDR(blk_has_tail)]);
     }
 
-    void compute_channels(bool stream_store_allowed) {
+    void load_c_specifics() {
+        jit_tail_.uni_vmovups_maybe_tail(
+                vmean_, vmmword[reg_ptr_mean_ + reg_off_c_]);
+        jit_tail_.uni_vmovups_maybe_tail(
+                vvar_, vmmword[reg_ptr_var_ + reg_off_c_]);
+
+        uni_vmovups(vsqrtvar_, vvar_);
+        uni_vaddps(vsqrtvar_, vsqrtvar_, veps_);
+        uni_vsqrtps(vsqrtvar_, vsqrtvar_);
+
+        if (isa == sse41) {
+            movups(vtmp_, vone_);
+            divps(vtmp_, vsqrtvar_);
+            movups(vsqrtvar_, vtmp_);
+        } else
+            vdivps(vsqrtvar_, vone_, vsqrtvar_);
+
+        if (bdesc_->use_scaleshift()) {
+            jit_tail_.uni_vmovups_maybe_tail(
+                    vgamma_, vmmword[reg_ptr_scale_shift_ + reg_off_c_]);
+            int beta_off = bdesc_->C() * acc_type_size_;
+            jit_tail_.uni_vmovups_maybe_tail(vbeta_,
+                    vmmword[reg_ptr_scale_shift_ + reg_off_c_ + beta_off]);
+        }
+    }
+
+    void compute_bnorm(bool stream_store_allowed) {
+        jit_bf16_emu_.uni_vmovups_data(
+                v_, vmmword[reg_ptr_src_ + reg_off_dat_]);
+        uni_vsubps(v_, v_, vmean_);
+        uni_vmulps(v_, v_, vsqrtvar_);
+
+        if (bdesc_->use_scaleshift()) uni_vfmadd213ps(v_, vgamma_, vbeta_);
+
+        jit_relu_.fwd_process_relu(v_);
+
+        if (stream_store_allowed) {
+            uni_vmovntps(vmmword[reg_ptr_dst_ + reg_off_dat_], v_);
+        } else {
+            jit_bf16_emu_.uni_vmovups_data(
+                    vmmword[reg_ptr_dst_ + reg_off_dat_], v_);
+        }
+    }
+
+    void compute_blocked(bool stream_store_allowed) {
         Label label_C, label_S;
-        mov(reg_C, dword[PARAM_ADDR(C)]);
+        mov(reg_C_, dword[PARAM_ADDR(C)]);
         L(label_C);
         {
-            mov(reg_off_dat, reg_off_dat_save);
+            mov(reg_off_dat_, reg_off_dat_save_);
 
-            jit_tail_.uni_vmovups_maybe_tail(
-                    vmean, vmmword[reg_ptr_mean + reg_off_c]);
-            jit_tail_.uni_vmovups_maybe_tail(
-                    vvar, vmmword[reg_ptr_var + reg_off_c]);
+            load_c_specifics();
 
-            uni_vmovups(vsqrtvar, vvar);
-            uni_vaddps(vsqrtvar, vsqrtvar, veps);
-            uni_vsqrtps(vsqrtvar, vsqrtvar);
-
-            if (isa == sse41) {
-                movups(vtmp, vone);
-                divps(vtmp, vsqrtvar);
-                movups(vsqrtvar, vtmp);
-            } else
-                vdivps(vsqrtvar, vone, vsqrtvar);
-
-            if (bdesc_->use_scaleshift()) {
-                jit_tail_.uni_vmovups_maybe_tail(
-                        vgamma, vmmword[reg_ptr_scale_shift + reg_off_c]);
-                int beta_off = bdesc_->C() * acc_type_size_;
-                jit_tail_.uni_vmovups_maybe_tail(vbeta,
-                        vmmword[reg_ptr_scale_shift + reg_off_c + beta_off]);
-            }
-
-            mov(reg_S, dword[PARAM_ADDR(S)]);
+            mov(reg_S_, dword[PARAM_ADDR(S)]);
             L(label_S);
             {
-                jit_bf16_emu_.uni_vmovups_data(
-                        v, vmmword[reg_ptr_src + reg_off_dat]);
-                uni_vsubps(v, v, vmean);
-                uni_vmulps(v, v, vsqrtvar);
+                compute_bnorm(stream_store_allowed);
 
-                if (bdesc_->use_scaleshift()) uni_vfmadd213ps(v, vgamma, vbeta);
+                add(reg_off_dat_, stride_S_ * data_type_size_);
 
-                jit_relu_.fwd_process_relu(v);
-
-                if (stream_store_allowed) {
-                    uni_vmovntps(vmmword[reg_ptr_dst + reg_off_dat], v);
-                } else {
-                    jit_bf16_emu_.uni_vmovups_data(
-                            vmmword[reg_ptr_dst + reg_off_dat], v);
-                }
-
-                add(reg_off_dat, simd_w * data_type_size_);
-
-                dec(reg_S);
+                dec(reg_S_);
                 jnz(label_S);
             }
 
-            add(reg_off_dat_save, stride_C_ * data_type_size_);
-            add(reg_off_c, simd_w * acc_type_size_);
+            add(reg_off_dat_save_, stride_C_ * data_type_size_);
+            add(reg_off_c_, simd_w * acc_type_size_);
 
-            dec(reg_C);
+            dec(reg_C_);
             jnz(label_C);
         }
     }
 
     void compute(bool stream_store_allowed) {
         Label label_N;
-        mov(reg_N, dword[PARAM_ADDR(N)]);
+        mov(reg_N_, dword[PARAM_ADDR(N)]);
         L(label_N);
         {
-            xor_(reg_off_dat_save, reg_off_dat_save);
-            xor_(reg_off_c, reg_off_c);
+            xor_(reg_off_dat_save_, reg_off_dat_save_);
+            xor_(reg_off_c_, reg_off_c_);
 
-            compute_channels(stream_store_allowed);
+            compute_blocked(stream_store_allowed);
 
             if (isa == sse41) {
-                xor_(reg_off_dat_save, reg_off_dat_save);
-                xor_(reg_off_c, reg_off_c);
-                add(reg_off_dat_save, vlen / 2);
-                add(reg_off_c, vlen / 2);
+                xor_(reg_off_dat_save_, reg_off_dat_save_);
+                xor_(reg_off_c_, reg_off_c_);
+                add(reg_off_dat_save_, vlen / 2);
+                add(reg_off_c_, vlen / 2);
 
-                compute_channels(stream_store_allowed);
+                compute_blocked(stream_store_allowed);
             }
 
-            add(reg_ptr_src, stride_N_ * data_type_size_);
-            add(reg_ptr_dst, stride_N_ * data_type_size_);
-            add(reg_ptr_ws, stride_N_ / 8);
+            add(reg_ptr_src_, stride_N_ * data_type_size_);
+            add(reg_ptr_dst_, stride_N_ * data_type_size_);
+            add(reg_ptr_ws_, stride_N_ / bits_per_byte);
 
-            dec(reg_N);
+            dec(reg_N_);
             jnz(label_N);
         }
     }
 
     jit_bnorm_fwd_t(const batch_normalization_pd_t *bdesc)
         : bdesc_(bdesc)
-        , jit_tail_(bdesc, this, reg_tmp, reg_blk_has_tail, reg_C, vtail_mask,
-                  ktail_mask)
-        , jit_relu_(bdesc, this, reg_off_dat, reg_tmp, reg_ptr_ws, vzero,
-                  vstore_mask, kstore_mask)
+        , jit_tail_(bdesc, this, reg_tmp_, reg_blk_has_tail_, reg_C_,
+                  vtail_mask_, ktail_mask_)
+        , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
+                  vstore_mask_, kstore_mask_)
         , jit_bf16_emu_(
-                  bdesc, this, Zmm(16), Zmm(17), Zmm(18), Zmm(19), reg_tmp) {
+                  bdesc, this, Zmm(16), Zmm(17), Zmm(18), Zmm(19), reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
                 "unsupported isa");
         stride_C_ = bdesc_->D() * bdesc_->H() * bdesc_->W() * simd_w;
         const int C_PADDED = bdesc_->src_md()->padded_dims[1];
         stride_N_ = (C_PADDED / simd_w) * stride_C_;
+        stride_S_ = simd_w;
         data_type_size_
                 = types::data_type_size(bdesc->desc()->data_desc.data_type);
         acc_type_size_ = sizeof(acc_data_t);
@@ -762,7 +781,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
         jit_tail_.prepare_tail();
 
         Label normal_store, end_store;
-        test(reg_ptr_dst, vlen - 1);
+        test(reg_ptr_dst_, vlen - 1);
         jnz(normal_store, T_NEAR);
         compute(!is_bf16);
         jmp(end_store, T_NEAR);
@@ -777,8 +796,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
 template <cpu_isa_t isa>
 struct jit_bnorm_bwd_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_bwd_t)
-    using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
-            Ymm, Zmm>::type;
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
     const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
     const int simd_w = vlen / sizeof(acc_data_t);
@@ -794,182 +812,187 @@ struct jit_bnorm_bwd_t : public jit_generator {
         size_t blk_has_tail;
     };
 
-    Reg64 reg_param = abi_param1;
-    Reg64 reg_tmp = abi_not_param1;
-    Reg64 reg_N = rsi;
-    Reg64 reg_S = rax;
-    Reg64 reg_C = rdx;
-    Reg64 reg_off_c = rbx;
-    Reg64 reg_blk_has_tail = rbp;
+    const Reg64 &reg_param_ = abi_param1;
+    const Reg64 &reg_tmp_ = abi_not_param1;
+    const Reg64 &reg_N_ = rsi;
+    const Reg64 &reg_S_ = rax;
+    const Reg64 &reg_C_ = rdx;
+    const Reg64 &reg_off_c_ = rbx;
+    const Reg64 &reg_blk_has_tail_ = rbp;
 
-    Reg64 reg_off_dat = r8;
-    Reg64 reg_off_dat_save = r9;
-    Reg64 reg_ptr_c = r10;
-    Reg64 reg_ptr_ws = r11;
-    Reg64 reg_ptr_diff_dst = r12;
-    Reg64 reg_ptr_diff_src = r13;
-    Reg64 reg_ptr_src = r14;
+    const Reg64 &reg_off_dat_ = r8;
+    const Reg64 &reg_off_dat_save_ = r9;
+    const Reg64 &reg_ptr_c_ = r10;
+    const Reg64 &reg_ptr_ws_ = r11;
+    const Reg64 &reg_ptr_diff_dst_ = r12;
+    const Reg64 &reg_ptr_diff_src_ = r13;
+    const Reg64 &reg_ptr_src_ = r14;
 
-    Vmm vzero = Vmm(0);
-    Vmm vone = Vmm(1);
-    Vmm vmean = Vmm(2);
-    Vmm vsqrtvar = Vmm(3);
-    Vmm vgamma = Vmm(4);
-    Vmm vdiff_gamma = Vmm(5);
-    Vmm vdiff_beta = Vmm(6);
-    Vmm veps = Vmm(7);
-    Vmm vNS = Vmm(8);
-    Vmm vtmp = Vmm(9);
-    Vmm v = Vmm(10);
-    Vmm vtail_mask = Vmm(11);
-    Vmm vstore_mask = vtmp;
+    const Vmm vzero_ = Vmm(0);
+    const Vmm vone_ = Vmm(1);
+    const Vmm vmean_ = Vmm(2);
+    const Vmm vsqrtvar_ = Vmm(3);
+    const Vmm vgamma_ = Vmm(4);
+    const Vmm vdiff_gamma_ = Vmm(5);
+    const Vmm vdiff_beta_ = Vmm(6);
+    const Vmm veps_ = Vmm(7);
+    const Vmm vNS_ = Vmm(8);
+    const Vmm vtmp_ = Vmm(9);
+    const Vmm v_ = Vmm(10);
+    const Vmm vtail_mask_ = Vmm(11);
+    const Vmm vstore_mask_ = vtmp_;
 
-    Opmask kstore_mask = Opmask(1);
-    Opmask ktail_mask = Opmask(2);
+    const Opmask &kstore_mask_ = k1;
+    const Opmask &ktail_mask_ = k2;
 
     const batch_normalization_pd_t *bdesc_;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
     jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
-    int stride_N_, stride_C_;
+    int stride_N_, stride_S_, stride_C_;
     size_t data_type_size_, acc_type_size_;
 
     void load_common_params() {
 #define PARAM_PTR(x) ptr[PARAM_ADDR(x)]
-        mov(reg_ptr_src, PARAM_PTR(src));
-        mov(reg_ptr_diff_src, PARAM_PTR(diff_src));
-        mov(reg_ptr_diff_dst, PARAM_PTR(diff_dst));
-        mov(reg_ptr_ws, PARAM_PTR(ws));
+        mov(reg_ptr_src_, PARAM_PTR(src));
+        mov(reg_ptr_diff_src_, PARAM_PTR(diff_src));
+        mov(reg_ptr_diff_dst_, PARAM_PTR(diff_dst));
+        mov(reg_ptr_ws_, PARAM_PTR(ws));
 #undef PARAM_PTR
 
-        Xmm x = Xmm(v.getIdx());
+        Xmm x = Xmm(v_.getIdx());
 
-        mov(reg_tmp, float2int(bdesc_->desc()->batch_norm_epsilon));
-        uni_vmovq(x, reg_tmp);
-        uni_vbroadcastss(veps, x);
+        mov(reg_tmp_, float2int(bdesc_->desc()->batch_norm_epsilon));
+        uni_vmovq(x, reg_tmp_);
+        uni_vbroadcastss(veps_, x);
 
-        mov(reg_tmp, float2int(1.f));
-        uni_vmovq(x, reg_tmp);
-        uni_vbroadcastss(vone, x);
+        mov(reg_tmp_, float2int(1.f));
+        uni_vmovq(x, reg_tmp_);
+        uni_vbroadcastss(vone_, x);
 
         const int S = bdesc_->D() * bdesc_->H() * bdesc_->W();
-        mov(reg_tmp, float2int(bdesc_->MB() * S));
-        uni_vmovq(x, reg_tmp);
-        uni_vbroadcastss(vNS, x);
+        mov(reg_tmp_, float2int(bdesc_->MB() * S));
+        uni_vmovq(x, reg_tmp_);
+        uni_vbroadcastss(vNS_, x);
 
-        mov(reg_blk_has_tail, dword[PARAM_ADDR(blk_has_tail)]);
+        mov(reg_blk_has_tail_, dword[PARAM_ADDR(blk_has_tail)]);
     }
 
     void load_c_specifics() {
-        mov(reg_ptr_c, ptr[PARAM_ADDR(mean)]);
-        jit_tail_.uni_vmovups_maybe_tail(vmean, vmmword[reg_ptr_c + reg_off_c]);
-
-        mov(reg_ptr_c, ptr[PARAM_ADDR(var)]);
+        mov(reg_ptr_c_, ptr[PARAM_ADDR(mean)]);
         jit_tail_.uni_vmovups_maybe_tail(
-                vsqrtvar, vmmword[reg_ptr_c + reg_off_c]);
-        uni_vaddps(vsqrtvar, vsqrtvar, veps);
-        uni_vsqrtps(vsqrtvar, vsqrtvar);
+                vmean_, vmmword[reg_ptr_c_ + reg_off_c_]);
+
+        mov(reg_ptr_c_, ptr[PARAM_ADDR(var)]);
+        jit_tail_.uni_vmovups_maybe_tail(
+                vsqrtvar_, vmmword[reg_ptr_c_ + reg_off_c_]);
+        uni_vaddps(vsqrtvar_, vsqrtvar_, veps_);
+        uni_vsqrtps(vsqrtvar_, vsqrtvar_);
 
         if (isa == sse41) {
-            movups(vtmp, vone);
-            divps(vtmp, vsqrtvar);
-            movups(vsqrtvar, vtmp);
+            movups(vtmp_, vone_);
+            divps(vtmp_, vsqrtvar_);
+            movups(vsqrtvar_, vtmp_);
         } else
-            vdivps(vsqrtvar, vone, vsqrtvar);
+            vdivps(vsqrtvar_, vone_, vsqrtvar_);
 
         if (bdesc_->use_scaleshift()) {
-            mov(reg_ptr_c, ptr[PARAM_ADDR(scale_shift)]);
+            mov(reg_ptr_c_, ptr[PARAM_ADDR(scale_shift)]);
             jit_tail_.uni_vmovups_maybe_tail(
-                    vgamma, vmmword[reg_ptr_c + reg_off_c]);
+                    vgamma_, vmmword[reg_ptr_c_ + reg_off_c_]);
         }
 
         if (calculate_diff_stats()) {
-            mov(reg_ptr_c, ptr[PARAM_ADDR(diff_scale_shift)]);
+            mov(reg_ptr_c_, ptr[PARAM_ADDR(diff_scale_shift)]);
             jit_tail_.uni_vmovups_maybe_tail(
-                    vdiff_gamma, vmmword[reg_ptr_c + reg_off_c]);
-            uni_vmulps(vdiff_gamma, vdiff_gamma, vsqrtvar);
-            uni_vdivps(vdiff_gamma, vdiff_gamma, vNS);
+                    vdiff_gamma_, vmmword[reg_ptr_c_ + reg_off_c_]);
+            uni_vmulps(vdiff_gamma_, vdiff_gamma_, vsqrtvar_);
+            uni_vdivps(vdiff_gamma_, vdiff_gamma_, vNS_);
             int off = bdesc_->C() * acc_type_size_;
             jit_tail_.uni_vmovups_maybe_tail(
-                    vdiff_beta, vmmword[reg_ptr_c + reg_off_c + off]);
-            uni_vdivps(vdiff_beta, vdiff_beta, vNS);
+                    vdiff_beta_, vmmword[reg_ptr_c_ + reg_off_c_ + off]);
+            uni_vdivps(vdiff_beta_, vdiff_beta_, vNS_);
         }
     }
 
-    void compute_channels(bool stream_store_allowed) {
+    void compute_bnorm(bool stream_store_allowed) {
+        jit_bf16_emu_.uni_vmovups_data(
+                v_, vmmword[reg_ptr_diff_dst_ + reg_off_dat_]);
+        jit_relu_.bwd_process_relu(v_);
+
+        if (calculate_diff_stats()) {
+            uni_vsubps(v_, v_, vdiff_beta_);
+            jit_bf16_emu_.uni_vmovups_data(
+                    vtmp_, vmmword[reg_ptr_src_ + reg_off_dat_]);
+            uni_vsubps(vtmp_, vtmp_, vmean_);
+            uni_vmulps(vtmp_, vtmp_, vdiff_gamma_);
+            uni_vsubps(v_, v_, vtmp_);
+        }
+
+        if (bdesc_->use_scaleshift()) uni_vmulps(v_, v_, vgamma_);
+        uni_vmulps(v_, v_, vsqrtvar_);
+
+        if (stream_store_allowed) {
+            uni_vmovntps(vmmword[reg_ptr_diff_src_ + reg_off_dat_], v_);
+        } else {
+            jit_bf16_emu_.uni_vmovups_data(
+                    vmmword[reg_ptr_diff_src_ + reg_off_dat_], v_);
+        }
+    }
+
+    void compute_blocked(bool stream_store_allowed) {
         Label label_C, label_S;
-        mov(reg_C, dword[PARAM_ADDR(C)]);
+        mov(reg_C_, dword[PARAM_ADDR(C)]);
         L(label_C);
         {
-            mov(reg_off_dat, reg_off_dat_save);
+            mov(reg_off_dat_, reg_off_dat_save_);
 
             load_c_specifics();
 
-            mov(reg_S, dword[PARAM_ADDR(S)]);
+            mov(reg_S_, dword[PARAM_ADDR(S)]);
             L(label_S);
             {
-                jit_bf16_emu_.uni_vmovups_data(
-                        v, vmmword[reg_ptr_diff_dst + reg_off_dat]);
-                jit_relu_.bwd_process_relu(v);
+                compute_bnorm(stream_store_allowed);
 
-                if (calculate_diff_stats()) {
-                    uni_vsubps(v, v, vdiff_beta);
-                    jit_bf16_emu_.uni_vmovups_data(
-                            vtmp, vmmword[reg_ptr_src + reg_off_dat]);
-                    uni_vsubps(vtmp, vtmp, vmean);
-                    uni_vmulps(vtmp, vtmp, vdiff_gamma);
-                    uni_vsubps(v, v, vtmp);
-                }
+                add(reg_off_dat_, stride_S_ * data_type_size_);
 
-                if (bdesc_->use_scaleshift()) uni_vmulps(v, v, vgamma);
-                uni_vmulps(v, v, vsqrtvar);
-
-                if (stream_store_allowed) {
-                    uni_vmovntps(vmmword[reg_ptr_diff_src + reg_off_dat], v);
-                } else {
-                    jit_bf16_emu_.uni_vmovups_data(
-                            vmmword[reg_ptr_diff_src + reg_off_dat], v);
-                }
-
-                add(reg_off_dat, simd_w * data_type_size_);
-
-                dec(reg_S);
+                dec(reg_S_);
                 jnz(label_S);
             }
 
-            add(reg_off_dat_save, stride_C_ * data_type_size_);
-            add(reg_off_c, simd_w * acc_type_size_);
+            add(reg_off_dat_save_, stride_C_ * data_type_size_);
+            add(reg_off_c_, simd_w * acc_type_size_);
 
-            dec(reg_C);
+            dec(reg_C_);
             jnz(label_C);
         }
     }
 
     void compute(bool stream_store_allowed) {
         Label label_N;
-        mov(reg_N, dword[PARAM_ADDR(N)]);
+        mov(reg_N_, dword[PARAM_ADDR(N)]);
         L(label_N);
         {
-            xor_(reg_off_dat_save, reg_off_dat_save);
-            xor_(reg_off_c, reg_off_c);
+            xor_(reg_off_dat_save_, reg_off_dat_save_);
+            xor_(reg_off_c_, reg_off_c_);
 
-            compute_channels(stream_store_allowed);
+            compute_blocked(stream_store_allowed);
 
             if (isa == sse41) {
-                xor_(reg_off_dat_save, reg_off_dat_save);
-                xor_(reg_off_c, reg_off_c);
-                add(reg_off_dat_save, vlen / 2);
-                add(reg_off_c, vlen / 2);
+                xor_(reg_off_dat_save_, reg_off_dat_save_);
+                xor_(reg_off_c_, reg_off_c_);
+                add(reg_off_dat_save_, vlen / 2);
+                add(reg_off_c_, vlen / 2);
 
-                compute_channels(stream_store_allowed);
+                compute_blocked(stream_store_allowed);
             }
 
-            add(reg_ptr_src, stride_N_ * data_type_size_);
-            add(reg_ptr_diff_src, stride_N_ * data_type_size_);
-            add(reg_ptr_diff_dst, stride_N_ * data_type_size_);
-            add(reg_ptr_ws, stride_N_ / 8);
+            add(reg_ptr_src_, stride_N_ * data_type_size_);
+            add(reg_ptr_diff_src_, stride_N_ * data_type_size_);
+            add(reg_ptr_diff_dst_, stride_N_ * data_type_size_);
+            add(reg_ptr_ws_, stride_N_ / bits_per_byte);
 
-            dec(reg_N);
+            dec(reg_N_);
             jnz(label_N);
         }
     }
@@ -978,17 +1001,18 @@ struct jit_bnorm_bwd_t : public jit_generator {
 
     jit_bnorm_bwd_t(const batch_normalization_pd_t *bdesc)
         : bdesc_(bdesc)
-        , jit_tail_(bdesc, this, reg_tmp, reg_blk_has_tail, reg_C, vtail_mask,
-                  ktail_mask)
-        , jit_relu_(bdesc, this, reg_off_dat, reg_tmp, reg_ptr_ws, vzero,
-                  vstore_mask, kstore_mask)
+        , jit_tail_(bdesc, this, reg_tmp_, reg_blk_has_tail_, reg_C_,
+                  vtail_mask_, ktail_mask_)
+        , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
+                  vstore_mask_, kstore_mask_)
         , jit_bf16_emu_(
-                  bdesc, this, Zmm(16), Zmm(17), Zmm(18), Zmm(19), reg_tmp) {
+                  bdesc, this, Zmm(16), Zmm(17), Zmm(18), Zmm(19), reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
                 "unsupported isa");
         stride_C_ = bdesc_->D() * bdesc_->H() * bdesc_->W() * simd_w;
         const int C_PADDED = bdesc_->src_md()->padded_dims[1];
         stride_N_ = (C_PADDED / simd_w) * stride_C_;
+        stride_S_ = simd_w;
         data_type_size_
                 = types::data_type_size(bdesc->desc()->data_desc.data_type);
         acc_type_size_ = sizeof(acc_data_t);
@@ -1002,7 +1026,7 @@ struct jit_bnorm_bwd_t : public jit_generator {
         jit_tail_.prepare_tail();
 
         Label normal_store, end_store;
-        test(reg_ptr_diff_src, vlen - 1);
+        test(reg_ptr_diff_src_, vlen - 1);
         jnz(normal_store, T_NEAR);
         compute(!is_bf16);
         jmp(end_store, T_NEAR);
@@ -1017,8 +1041,7 @@ struct jit_bnorm_bwd_t : public jit_generator {
 template <cpu_isa_t isa>
 struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_bwd_diff_ss_t)
-    using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
-            Ymm, Zmm>::type;
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
     const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
     const int simd_w = vlen / sizeof(acc_data_t);
@@ -1034,206 +1057,216 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         size_t blk_has_tail;
     };
 
-    Reg64 reg_param = abi_param1;
-    Reg64 reg_tmp = abi_not_param1;
-    Reg64 reg_N = rsi;
-    Reg64 reg_S = rax;
-    Reg64 reg_C = rdx;
-    Reg64 reg_off_c = rbx;
-    Reg64 reg_blk_has_tail = rbp;
+    const Reg64 &reg_param_ = abi_param1;
+    const Reg64 &reg_tmp_ = abi_not_param1;
+    const Reg64 &reg_N_ = rsi;
+    const Reg64 &reg_S_ = rax;
+    const Reg64 &reg_C_ = rdx;
+    const Reg64 &reg_off_c_ = rbx;
+    const Reg64 &reg_blk_has_tail_ = rbp;
 
-    Reg64 reg_off_dat = r8;
-    Reg64 reg_off_dat_save = r9;
-    Reg64 reg_ptr_c = r10;
-    Reg64 reg_ptr_diff_gamma = r11;
-    Reg64 reg_ptr_diff_beta = r12;
-    Reg64 reg_ptr_ws = r13;
-    Reg64 reg_ptr_diff_dst = r14;
-    Reg64 reg_ptr_src = r15;
+    const Reg64 &reg_off_dat_ = r8;
+    const Reg64 &reg_off_dat_save_ = r9;
+    const Reg64 &reg_ptr_c_ = r10;
+    const Reg64 &reg_ptr_diff_gamma_ = r11;
+    const Reg64 &reg_ptr_diff_beta_ = r12;
+    const Reg64 &reg_ptr_ws_ = r13;
+    const Reg64 &reg_ptr_diff_dst_ = r14;
+    const Reg64 &reg_ptr_src_ = r15;
 
-    Vmm vzero = Vmm(0);
-    Vmm vone = Vmm(1);
-    Vmm vmean = Vmm(2);
-    Vmm vsqrtvar = Vmm(3);
-    Vmm vgamma = Vmm(4);
-    Vmm vdiff_gamma = Vmm(5);
-    Vmm vdiff_beta = Vmm(6);
-    Vmm veps = Vmm(7);
-    Vmm vtmp = Vmm(8);
-    Vmm v = Vmm(9);
-    Vmm vtail_mask = Vmm(10);
-    Vmm vstore_mask = vtmp;
+    const Vmm vzero_ = Vmm(0);
+    const Vmm vone_ = Vmm(1);
+    const Vmm vmean_ = Vmm(2);
+    const Vmm vsqrtvar_ = Vmm(3);
+    const Vmm vgamma_ = Vmm(4);
+    const Vmm vdiff_gamma_ = Vmm(5);
+    const Vmm vdiff_beta_ = Vmm(6);
+    const Vmm veps_ = Vmm(7);
+    const Vmm vtmp_ = Vmm(8);
+    const Vmm v_ = Vmm(9);
+    const Vmm vtail_mask_ = Vmm(10);
+    const Vmm vstore_mask_ = vtmp_;
 
-    Opmask kstore_mask = Opmask(1);
-    Opmask ktail_mask = Opmask(2);
+    const Opmask &kstore_mask_ = k1;
+    const Opmask &ktail_mask_ = k2;
 
     const batch_normalization_pd_t *bdesc_;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
     jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
-    int stride_N_, stride_C_;
+    int stride_N_, stride_S_, stride_C_;
     size_t data_type_size_, acc_type_size_;
 
     void load_common_params() {
 #define PARAM_PTR(x) ptr[PARAM_ADDR(x)]
-        mov(reg_ptr_src, PARAM_PTR(src));
-        mov(reg_ptr_diff_dst, PARAM_PTR(diff_dst));
-        mov(reg_ptr_ws, PARAM_PTR(ws));
-        mov(reg_ptr_diff_gamma, PARAM_PTR(diff_gamma));
-        mov(reg_ptr_diff_beta, PARAM_PTR(diff_beta));
+        mov(reg_ptr_src_, PARAM_PTR(src));
+        mov(reg_ptr_diff_dst_, PARAM_PTR(diff_dst));
+        mov(reg_ptr_ws_, PARAM_PTR(ws));
+        mov(reg_ptr_diff_gamma_, PARAM_PTR(diff_gamma));
+        mov(reg_ptr_diff_beta_, PARAM_PTR(diff_beta));
 #undef PARAM_PTR
 
-        Xmm x = Xmm(v.getIdx());
+        Xmm x = Xmm(v_.getIdx());
 
-        mov(reg_tmp, float2int(bdesc_->desc()->batch_norm_epsilon));
-        uni_vmovq(x, reg_tmp);
-        uni_vbroadcastss(veps, x);
+        mov(reg_tmp_, float2int(bdesc_->desc()->batch_norm_epsilon));
+        uni_vmovq(x, reg_tmp_);
+        uni_vbroadcastss(veps_, x);
 
-        mov(reg_tmp, float2int(1.f));
-        uni_vmovq(x, reg_tmp);
-        uni_vbroadcastss(vone, x);
+        mov(reg_tmp_, float2int(1.f));
+        uni_vmovq(x, reg_tmp_);
+        uni_vbroadcastss(vone_, x);
 
-        mov(reg_blk_has_tail, dword[PARAM_ADDR(blk_has_tail)]);
+        mov(reg_blk_has_tail_, dword[PARAM_ADDR(blk_has_tail)]);
     }
 
     void load_c_specifics() {
-        mov(reg_ptr_c, ptr[PARAM_ADDR(mean)]);
-        jit_tail_.uni_vmovups_maybe_tail(vmean, vmmword[reg_ptr_c + reg_off_c]);
-
-        mov(reg_ptr_c, ptr[PARAM_ADDR(var)]);
+        mov(reg_ptr_c_, ptr[PARAM_ADDR(mean)]);
         jit_tail_.uni_vmovups_maybe_tail(
-                vsqrtvar, vmmword[reg_ptr_c + reg_off_c]);
-        uni_vaddps(vsqrtvar, vsqrtvar, veps);
-        uni_vsqrtps(vsqrtvar, vsqrtvar);
+                vmean_, vmmword[reg_ptr_c_ + reg_off_c_]);
+
+        mov(reg_ptr_c_, ptr[PARAM_ADDR(var)]);
+        jit_tail_.uni_vmovups_maybe_tail(
+                vsqrtvar_, vmmword[reg_ptr_c_ + reg_off_c_]);
+        uni_vaddps(vsqrtvar_, vsqrtvar_, veps_);
+        uni_vsqrtps(vsqrtvar_, vsqrtvar_);
 
         if (isa == sse41) {
-            movups(vtmp, vone);
-            divps(vtmp, vsqrtvar);
-            movups(vsqrtvar, vtmp);
+            movups(vtmp_, vone_);
+            divps(vtmp_, vsqrtvar_);
+            movups(vsqrtvar_, vtmp_);
         } else
-            vdivps(vsqrtvar, vone, vsqrtvar);
+            vdivps(vsqrtvar_, vone_, vsqrtvar_);
 
-        uni_vpxor(vdiff_gamma, vdiff_gamma, vdiff_gamma);
-        uni_vpxor(vdiff_beta, vdiff_beta, vdiff_beta);
+        uni_vpxor(vdiff_gamma_, vdiff_gamma_, vdiff_gamma_);
+        uni_vpxor(vdiff_beta_, vdiff_beta_, vdiff_beta_);
     }
 
     void zeroise() {
         Label label_zeroise;
-        xor_(reg_off_c, reg_off_c);
-        uni_vpxor(vzero, vzero, vzero);
-        mov(reg_C, dword[PARAM_ADDR(C)]);
+        xor_(reg_off_c_, reg_off_c_);
+        uni_vpxor(vzero_, vzero_, vzero_);
+        mov(reg_C_, dword[PARAM_ADDR(C)]);
         L(label_zeroise);
         {
             jit_tail_.uni_vmovups_maybe_tail(
-                    vmmword[reg_ptr_diff_gamma + reg_off_c], vzero);
+                    vmmword[reg_ptr_diff_gamma_ + reg_off_c_], vzero_);
             jit_tail_.uni_vmovups_maybe_tail(
-                    vmmword[reg_ptr_diff_beta + reg_off_c], vzero);
+                    vmmword[reg_ptr_diff_beta_ + reg_off_c_], vzero_);
             if (isa == sse41) {
                 jit_tail_.uni_vmovups_maybe_tail(
-                        vmmword[reg_ptr_diff_gamma + reg_off_c + vlen / 2],
-                        vzero);
+                        vmmword[reg_ptr_diff_gamma_ + reg_off_c_ + vlen / 2],
+                        vzero_);
                 jit_tail_.uni_vmovups_maybe_tail(
-                        vmmword[reg_ptr_diff_beta + reg_off_c + vlen / 2],
-                        vzero);
+                        vmmword[reg_ptr_diff_beta_ + reg_off_c_ + vlen / 2],
+                        vzero_);
             }
-            add(reg_off_c, simd_w * acc_type_size_);
-            dec(reg_C);
+            add(reg_off_c_, simd_w * acc_type_size_);
+            dec(reg_C_);
             jnz(label_zeroise);
         }
     }
 
-    void compute_channels() {
+    void compute_diff_beta_and_diff_gamma() {
+        jit_bf16_emu_.uni_vmovups_data(
+                v_, vmmword[reg_ptr_diff_dst_ + reg_off_dat_]);
+
+        jit_relu_.bwd_process_relu(v_);
+
+        uni_vaddps(vdiff_beta_, vdiff_beta_, v_);
+
+        jit_bf16_emu_.uni_vmovups_data(
+                vtmp_, vmmword[reg_ptr_src_ + reg_off_dat_]);
+        uni_vsubps(vtmp_, vtmp_, vmean_);
+        uni_vfmadd231ps(vdiff_gamma_, vtmp_, v_);
+    }
+
+    void store_diff_beta_and_diff_gamma() {
+        uni_vmulps(vdiff_gamma_, vdiff_gamma_, vsqrtvar_);
+
+        jit_tail_.uni_vmovups_maybe_tail(
+                vtmp_, vmmword[reg_ptr_diff_gamma_ + reg_off_c_]);
+        uni_vaddps(vdiff_gamma_, vdiff_gamma_, vtmp_);
+        jit_tail_.uni_vmovups_maybe_tail(
+                vtmp_, vmmword[reg_ptr_diff_beta_ + reg_off_c_]);
+        uni_vaddps(vdiff_beta_, vdiff_beta_, vtmp_);
+        jit_tail_.uni_vmovups_maybe_tail(
+                vmmword[reg_ptr_diff_gamma_ + reg_off_c_], vdiff_gamma_);
+        jit_tail_.uni_vmovups_maybe_tail(
+                vmmword[reg_ptr_diff_beta_ + reg_off_c_], vdiff_beta_);
+    }
+
+    void compute_blocked() {
         Label label_C, label_S;
-        mov(reg_C, dword[PARAM_ADDR(C)]);
+        mov(reg_C_, dword[PARAM_ADDR(C)]);
         L(label_C);
         {
-            mov(reg_off_dat, reg_off_dat_save);
+            mov(reg_off_dat_, reg_off_dat_save_);
 
             load_c_specifics();
 
-            mov(reg_S, dword[PARAM_ADDR(S)]);
+            mov(reg_S_, dword[PARAM_ADDR(S)]);
             L(label_S);
             {
-                jit_bf16_emu_.uni_vmovups_data(
-                        v, vmmword[reg_ptr_diff_dst + reg_off_dat]);
+                compute_diff_beta_and_diff_gamma();
 
-                jit_relu_.bwd_process_relu(v);
+                add(reg_off_dat_, stride_S_ * data_type_size_);
 
-                uni_vaddps(vdiff_beta, vdiff_beta, v);
-
-                jit_bf16_emu_.uni_vmovups_data(
-                        vtmp, vmmword[reg_ptr_src + reg_off_dat]);
-                uni_vsubps(vtmp, vtmp, vmean);
-                uni_vfmadd231ps(vdiff_gamma, vtmp, v);
-
-                add(reg_off_dat, simd_w * data_type_size_);
-
-                dec(reg_S);
+                dec(reg_S_);
                 jnz(label_S);
             }
 
-            uni_vmulps(vdiff_gamma, vdiff_gamma, vsqrtvar);
+            store_diff_beta_and_diff_gamma();
 
-            jit_tail_.uni_vmovups_maybe_tail(
-                    vtmp, vmmword[reg_ptr_diff_gamma + reg_off_c]);
-            uni_vaddps(vdiff_gamma, vdiff_gamma, vtmp);
-            jit_tail_.uni_vmovups_maybe_tail(
-                    vtmp, vmmword[reg_ptr_diff_beta + reg_off_c]);
-            uni_vaddps(vdiff_beta, vdiff_beta, vtmp);
-            jit_tail_.uni_vmovups_maybe_tail(
-                    vmmword[reg_ptr_diff_gamma + reg_off_c], vdiff_gamma);
-            jit_tail_.uni_vmovups_maybe_tail(
-                    vmmword[reg_ptr_diff_beta + reg_off_c], vdiff_beta);
+            add(reg_off_dat_save_, stride_C_ * data_type_size_);
+            add(reg_off_c_, simd_w * acc_type_size_);
 
-            add(reg_off_dat_save, stride_C_ * data_type_size_);
-            add(reg_off_c, simd_w * acc_type_size_);
-
-            dec(reg_C);
+            dec(reg_C_);
             jnz(label_C);
         }
     }
 
     void compute() {
         Label label_N;
-        mov(reg_N, dword[PARAM_ADDR(N)]);
+        mov(reg_N_, dword[PARAM_ADDR(N)]);
         L(label_N);
         {
-            xor_(reg_off_dat_save, reg_off_dat_save);
-            xor_(reg_off_c, reg_off_c);
+            xor_(reg_off_dat_save_, reg_off_dat_save_);
+            xor_(reg_off_c_, reg_off_c_);
 
-            compute_channels();
+            compute_blocked();
 
             if (isa == sse41) {
-                xor_(reg_off_dat_save, reg_off_dat_save);
-                xor_(reg_off_c, reg_off_c);
-                add(reg_off_dat_save, vlen / 2);
-                add(reg_off_c, vlen / 2);
+                xor_(reg_off_dat_save_, reg_off_dat_save_);
+                xor_(reg_off_c_, reg_off_c_);
+                add(reg_off_dat_save_, vlen / 2);
+                add(reg_off_c_, vlen / 2);
 
-                compute_channels();
+                compute_blocked();
             }
 
-            add(reg_ptr_src, stride_N_ * data_type_size_);
-            add(reg_ptr_diff_dst, stride_N_ * data_type_size_);
-            add(reg_ptr_ws, stride_N_ / 8);
+            add(reg_ptr_src_, stride_N_ * data_type_size_);
+            add(reg_ptr_diff_dst_, stride_N_ * data_type_size_);
+            add(reg_ptr_ws_, stride_N_ / bits_per_byte);
 
-            dec(reg_N);
+            dec(reg_N_);
             jnz(label_N);
         }
     }
 
     jit_bnorm_bwd_diff_ss_t(const batch_normalization_pd_t *bdesc)
         : bdesc_(bdesc)
-        , jit_tail_(bdesc, this, reg_tmp, reg_blk_has_tail, reg_C, vtail_mask,
-                  ktail_mask)
-        , jit_relu_(bdesc, this, reg_off_dat, reg_tmp, reg_ptr_ws, vzero,
-                  vstore_mask, kstore_mask)
+        , jit_tail_(bdesc, this, reg_tmp_, reg_blk_has_tail_, reg_C_,
+                  vtail_mask_, ktail_mask_)
+        , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
+                  vstore_mask_, kstore_mask_)
         , jit_bf16_emu_(
-                  bdesc, this, Zmm(16), Zmm(17), Zmm(18), Zmm(19), reg_tmp) {
+                  bdesc, this, Zmm(16), Zmm(17), Zmm(18), Zmm(19), reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
                 "unsupported isa");
         stride_C_ = bdesc_->D() * bdesc_->H() * bdesc_->W() * simd_w;
         const int C_PADDED = bdesc_->src_md()->padded_dims[1];
         stride_N_ = (C_PADDED / simd_w) * stride_C_;
+        stride_S_ = simd_w;
         data_type_size_
                 = types::data_type_size(bdesc->desc()->data_desc.data_type);
         acc_type_size_ = sizeof(acc_data_t);
@@ -1324,6 +1357,7 @@ public:
             const void *src, acc_data_t *mean, acc_data_t *var,
             acc_data_t *rbuf, bool blk_has_tail) {
         const size_t stride_C = (size_t)S_ * simd_w;
+        const size_t stride_S = (size_t)simd_w;
         const size_t stride_N = (size_t)C_blks_ * stride_C;
 
         const int nthr_NS = nthr.N * nthr.S;
@@ -1363,7 +1397,7 @@ public:
             c.S = stop.S - start.S;
 
             const size_t d_off = start.N * stride_N + start.C * stride_C
-                    + start.S * simd_w;
+                    + start.S * stride_S;
             c.src = (void *)((char *)src + d_off * dt_size_);
             const int ithr_NS = ithr.N * nthr.S + ithr.S;
             c.mean = &r_mean[ithr_NS * size_C_stat + start.C * simd_w];
@@ -1389,7 +1423,7 @@ public:
             c.S = stop.S - start.S;
 
             const size_t d_off = start.N * stride_N + start.C * stride_C
-                    + start.S * simd_w;
+                    + start.S * stride_S;
             c.src = (void *)((char *)src + d_off * dt_size_);
             const int ithr_NS = ithr.N * nthr.S + ithr.S;
             c.mean = &mean[start.C * simd_w];
@@ -1408,7 +1442,9 @@ public:
             const acc_data_t *scale_shift, const acc_data_t *mean,
             const acc_data_t *var, uint8_t *ws, bool blk_has_tail) {
         const size_t stride_C = (size_t)S_ * simd_w;
+        const size_t stride_S = (size_t)simd_w;
         const size_t stride_N = (size_t)C_blks_ * stride_C;
+
         parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
             assert(nthr_glob == nthr.glob);
             const auto ithr = map_thread(ithr_glob, nthr);
@@ -1421,10 +1457,10 @@ public:
             c.S = stop.S - start.S;
 
             const size_t d_off = start.N * stride_N + start.C * stride_C
-                    + start.S * simd_w;
+                    + start.S * stride_S;
             c.src = (void *)((char *)src + d_off * dt_size_);
             c.dst = (void *)((char *)dst + d_off * dt_size_);
-            c.ws = &ws[d_off / 8];
+            c.ws = &ws[d_off / bits_per_byte];
             c.mean = &mean[start.C * simd_w];
             c.var = &var[start.C * simd_w];
             c.scale_shift = &scale_shift[start.C * simd_w];
@@ -1468,7 +1504,8 @@ public:
                     (void *)((char *)src + (C_blk_st * stride_C) * dt_size_),
                     (void *)((char *)dst + (C_blk_st * stride_C) * dt_size_),
                     scale_shift + C_blk_st * simd_w, mean + C_blk_st * simd_w,
-                    var + C_blk_st * simd_w, ws + C_blk_st * stride_C / 8,
+                    var + C_blk_st * simd_w,
+                    ws + C_blk_st * stride_C / bits_per_byte,
                     (C_blk_st + C_blk_step) * simd_w > C_);
         }
     }
@@ -1478,6 +1515,7 @@ public:
             const acc_data_t *var, const uint8_t *ws, acc_data_t *diff_ss,
             acc_data_t *rbuf, bool blk_has_tail) {
         const size_t stride_C = (size_t)S_ * simd_w;
+        const size_t stride_S = (size_t)simd_w;
         const size_t stride_N = (size_t)C_blks_ * stride_C;
         const dim_t tail_size = blk_has_tail ? C_ % simd_w : simd_w;
         const dim_t size_C_stat = (C_blks - 1) * simd_w + tail_size;
@@ -1532,10 +1570,10 @@ public:
             c.S = stop.S - start.S;
 
             const size_t d_off = start.N * stride_N + start.C * stride_C
-                    + start.S * simd_w;
+                    + start.S * stride_S;
             c.src = (void *)((char *)src + d_off * dt_size_);
             c.diff_dst = (void *)((char *)diff_dst + d_off * dt_size_);
-            c.ws = &ws[d_off / 8];
+            c.ws = &ws[d_off / bits_per_byte];
             c.mean = &mean[start.C * simd_w];
             c.var = &var[start.C * simd_w];
             c.diff_gamma = &loc_diff_gamma[start.C * simd_w];
@@ -1554,6 +1592,7 @@ public:
             const uint8_t *ws, const acc_data_t *scale_shift,
             const acc_data_t *diff_ss, bool blk_has_tail) {
         const size_t stride_C = (size_t)S_ * simd_w;
+        const size_t stride_S = (size_t)simd_w;
         const size_t stride_N = (size_t)C_blks_ * stride_C;
 
         parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
@@ -1568,11 +1607,11 @@ public:
             c.S = stop.S - start.S;
 
             const size_t d_off = start.N * stride_N + start.C * stride_C
-                    + start.S * simd_w;
+                    + start.S * stride_S;
             c.src = (void *)((char *)src + d_off * dt_size_);
             c.diff_src = (void *)((char *)diff_src + d_off * dt_size_);
             c.diff_dst = (void *)((char *)diff_dst + d_off * dt_size_);
-            c.ws = &ws[d_off / 8];
+            c.ws = &ws[d_off / bits_per_byte];
             c.mean = &mean[start.C * simd_w];
             c.var = &var[start.C * simd_w];
             c.scale_shift = &scale_shift[start.C * simd_w];
@@ -1611,7 +1650,7 @@ public:
                     (void *)((char *)diff_dst
                             + (C_blk_st * stride_C) * dt_size_),
                     mean + C_blk_st * simd_w, var + C_blk_st * simd_w,
-                    ws + C_blk_st * stride_C / 8,
+                    ws + C_blk_st * stride_C / bits_per_byte,
                     diff_scale_shift + C_blk_st * simd_w, rbuf,
                     (C_blk_st + C_blk_step) * simd_w > C_);
 
@@ -1622,7 +1661,7 @@ public:
                     (void *)((char *)diff_dst
                             + (C_blk_st * stride_C) * dt_size_),
                     mean + C_blk_st * simd_w, var + C_blk_st * simd_w,
-                    ws + C_blk_st * stride_C / 8,
+                    ws + C_blk_st * stride_C / bits_per_byte,
                     scale_shift + C_blk_st * simd_w,
                     diff_scale_shift + C_blk_st * simd_w,
                     (C_blk_st + C_blk_step) * simd_w > C_);
@@ -1721,7 +1760,7 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
             ? isa == avx512_common ? nChw16c : nChw8c
             : isa == avx512_common ? nCdhw16c : nCdhw8c;
 
-    bool ok = true && mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
+    const bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
             && one_of(ndims(), 4, 5) && one_of(src_md()->data_type, f32, bf16)
             && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
             && check_scale_shift_data_type()
@@ -1798,7 +1837,7 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
             ? one_of(isa, sse41, avx2) ? nChw8c : nChw16c
             : one_of(isa, sse41, avx2) ? nCdhw8c : nCdhw16c;
 
-    bool ok = true && mayiuse(isa) && is_bwd() && !has_zero_dim_memory()
+    const bool ok = mayiuse(isa) && is_bwd() && !has_zero_dim_memory()
             && one_of(ndims(), 4, 5) && set_default_formats_common()
             && one_of(true,
                     everyone_is(
