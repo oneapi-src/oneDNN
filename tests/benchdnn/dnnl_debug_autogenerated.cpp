@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "oneapi/dnnl/dnnl_debug.h"
+
 #include "dnnl_debug.hpp"
 
 #include "src/common/z_magic.hpp"
@@ -187,6 +188,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(ABcde4b32a4b);
     CASE(ABcde4b64a4b);
     CASE(ABcde16b16a4b);
+    CASE(ABcde16b16a2b);
     CASE(ABcde2b8a4b);
     CASE(aBcde16b);
     CASE(ABcde16b16a);
@@ -239,6 +241,8 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(aBCdef16b16c);
     CASE(aBCdef16c16b);
     CASE(aBCdef4c16b4c);
+    CASE(aBCdef16c16b4c);
+    CASE(aBCdef16c16b2c);
     CASE(aBCdef2c8b4c);
     CASE(aBCdef4c8b2c);
     CASE(aBCdef2b4c2b);
@@ -473,6 +477,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(OIdhw4i32o4i);
     CASE(OIdhw4i64o4i);
     CASE(OIdhw16i16o4i);
+    CASE(OIdhw16i16o2i);
     CASE(OIdhw2i8o4i);
     CASE(OIdhw8o8i);
     CASE(OIdhw8o4i);
@@ -564,7 +569,9 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(gOdhwi8o);
     CASE(gOIdhw16i16o);
     CASE(gOIdhw4i16o4i);
+    CASE(gOIdhw16i16o4i);
     CASE(gOIdhw2i8o4i);
+    CASE(gOIdhw16i16o2i);
     CASE(gOIdhw16o16i);
     CASE(gOidhw16o);
     CASE(gOIdhw4i4o);
