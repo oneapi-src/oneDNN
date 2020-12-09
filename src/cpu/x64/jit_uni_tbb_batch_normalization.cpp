@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cassert>
+#include <cmath>
+
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
@@ -41,6 +44,45 @@ using namespace Xbyak;
 using acc_data_t = float;
 
 constexpr int bits_per_byte = 8;
+
+dim_t get_c_padded(const batch_normalization_pd_t *bdesc) {
+    return bdesc->src_md()->padded_dims[1];
+}
+
+template <cpu_isa_t isa>
+int get_vlen(jit_memory_tag_kind_t tag_kind) {
+    return isa == sse41 && tag_kind == jit_memory_tag_kind_t::blocked
+            ? 32
+            : cpu_isa_traits<isa>::vlen;
+}
+
+template <cpu_isa_t isa>
+int get_simd_w(jit_memory_tag_kind_t tag_kind) {
+    return get_vlen<isa>(tag_kind) / sizeof(acc_data_t);
+}
+
+template <cpu_isa_t isa>
+std::tuple<dim_t, dim_t, dim_t> get_data_strides(
+        const batch_normalization_pd_t *bdesc, jit_memory_tag_kind_t tag_kind) {
+    const int simd_w = get_simd_w<isa>(tag_kind);
+    size_t stride_N, stride_S, stride_C;
+
+    if (tag_kind == jit_memory_tag_kind_t::nspc) {
+        stride_C = static_cast<size_t>(simd_w);
+        stride_S = static_cast<size_t>(bdesc->C());
+        stride_N = static_cast<size_t>(bdesc->D() * bdesc->H() * bdesc->W())
+                * stride_S;
+    } else {
+        const size_t C_blks = static_cast<size_t>(get_c_padded(bdesc) / simd_w);
+
+        stride_C = static_cast<size_t>(
+                bdesc->D() * bdesc->H() * bdesc->W() * simd_w);
+        stride_S = static_cast<size_t>(simd_w);
+        stride_N = C_blks * stride_C;
+    }
+
+    return std::make_tuple(stride_N, stride_S, stride_C);
+}
 
 #define PARAM_ADDR(x) (reg_param_ + offsetof(call_params_t, x))
 template <cpu_isa_t isa>
@@ -199,51 +241,53 @@ struct jit_bnorm_process_relu_t {
         h_->L(l_mask_after);
     }
 
-    void fwd_process_relu(Vmm v) {
+    void fwd_process_relu(Vmm v, const int off = 0) {
         if (with_relu_inf_only_) {
             h_->uni_vmaxps(v, v, vzero_);
         } else if (with_relu_) {
             if (isa == avx512_common)
-                fwd_process_relu_avx512_common(v);
+                fwd_process_relu_avx512_common(v, off);
             else if (isa == avx2)
-                fwd_process_relu_avx2(v);
+                fwd_process_relu_avx2(v, off);
             else
                 assert(false);
         }
     }
 
-    void bwd_process_relu(Vmm v) {
+    void bwd_process_relu(Vmm v, const int off = 0) {
         if (with_relu_) {
             if (isa == avx512_common)
-                bwd_process_relu_avx512_common(v);
+                bwd_process_relu_avx512_common(v, off);
             else if (isa == avx2)
-                bwd_process_relu_avx2(v);
+                bwd_process_relu_avx2(v, off);
             else
                 assert(false);
         }
     }
 
-    void fwd_process_relu_avx2(Vmm vdst) {
+    void fwd_process_relu_avx2(Vmm vdst, const int off = 0) {
         Reg64 reg_store_mask = reg_tmp_;
         h_->shr(reg_off_dat_, bit_shift_);
         h_->vcmpps(vstore_mask_, vzero_, vdst, jit_generator::_cmp_lt_os);
         h_->vmovmskps(reg_store_mask, vstore_mask_);
-        h_->mov(h_->ptr[reg_ptr_ws_ + reg_off_dat_], reg_store_mask.cvt8());
+        h_->mov(h_->ptr[reg_ptr_ws_ + reg_off_dat_ + off],
+                reg_store_mask.cvt8());
         h_->vblendvps(vdst, vzero_, vdst, vstore_mask_);
         h_->shl(reg_off_dat_, bit_shift_);
     }
 
-    void fwd_process_relu_avx512_common(Vmm vdst) {
+    void fwd_process_relu_avx512_common(Vmm vdst, const int off = 0) {
         h_->shr(reg_off_dat_, bit_shift_);
         h_->vcmpps(kstore_mask_, vzero_, vdst, jit_generator::_cmp_lt_os);
-        h_->kmovw(h_->ptr[reg_ptr_ws_ + reg_off_dat_], kstore_mask_);
+        h_->kmovw(h_->ptr[reg_ptr_ws_ + reg_off_dat_ + off], kstore_mask_);
         h_->vblendmps(vdst | kstore_mask_, vzero_, vdst);
         h_->shl(reg_off_dat_, bit_shift_);
     }
 
-    void bwd_process_relu_avx2(Vmm vdiff_dst) {
+    void bwd_process_relu_avx2(Vmm vdiff_dst, const int off = 0) {
         h_->shr(reg_off_dat_, bit_shift_);
-        h_->vpbroadcastb(vstore_mask_, h_->ptr[reg_ptr_ws_ + reg_off_dat_]);
+        h_->vpbroadcastb(
+                vstore_mask_, h_->ptr[reg_ptr_ws_ + reg_off_dat_ + off]);
         h_->vpand(vstore_mask_, vstore_mask_,
                 h_->ptr[Xbyak::util::rip + l_relu_mask_avx2_]);
         h_->vpcmpeqd(vstore_mask_, vstore_mask_,
@@ -252,9 +296,9 @@ struct jit_bnorm_process_relu_t {
         h_->shl(reg_off_dat_, bit_shift_);
     }
 
-    void bwd_process_relu_avx512_common(Vmm vdiff_dst) {
+    void bwd_process_relu_avx512_common(Vmm vdiff_dst, const int off = 0) {
         h_->shr(reg_off_dat_, bit_shift_);
-        h_->kmovw(kstore_mask_, h_->ptr[reg_ptr_ws_ + reg_off_dat_]);
+        h_->kmovw(kstore_mask_, h_->ptr[reg_ptr_ws_ + reg_off_dat_ + off]);
         h_->vmovups(vdiff_dst | kstore_mask_ | h_->T_z, vdiff_dst);
         h_->shl(reg_off_dat_, bit_shift_);
     }
@@ -320,8 +364,8 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_fwd_statistics_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
-    const int simd_w = vlen / sizeof(acc_data_t);
+    const int vlen;
+    const int simd_w;
     const AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
@@ -350,18 +394,27 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
     const Reg64 &reg_do_normalise_ = r13;
     const Reg64 &reg_ptr_stat_ = r14;
 
-    const Vmm vzero_ = Vmm(0);
-    const Vmm vmean_ = Vmm(1);
-    const Vmm vstat_ = Vmm(2);
-    const Vmm v_ = Vmm(3);
-    const Vmm vtail_mask_ = Vmm(4);
-    const Vmm vNS_ = Vmm(5);
-    const Vmm vtmp_ = Vmm(6);
-    const Vmm vtmp1_ = Vmm(7);
+    const Vmm v_ = Vmm(0);
+    const Vmm vtmp_ = Vmm(1);
+    const Vmm vtail_mask_ = Vmm(2);
+    const Vmm vNS_ = Vmm(3);
+    const Vmm vzero_ = Vmm(4);
+    // When variance is computed then two vmms(one for variance and
+    // one for mean) are needed to unroll one c block at any moment,
+    // therefore the number of registers which are used to unrolling
+    // must to be divisible by two.
+    static constexpr int min_idx_to_unroll_ = 4;
+    static constexpr int max_idx_to_unroll_ = isa == avx512_common ? 28 : 16;
+    static constexpr int number_of_vmms_to_unrolling_variables_
+            = max_idx_to_unroll_ - min_idx_to_unroll_;
+    static_assert(number_of_vmms_to_unrolling_variables_ % 2 == 0
+                    && number_of_vmms_to_unrolling_variables_ != 0,
+            "Number of register to unrolling must to be divisible by 2.");
 
     const Opmask &ktail_mask_ = k2;
 
     const batch_normalization_pd_t *bdesc_;
+    const jit_memory_tag_kind_t tag_kind_;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
     int stride_N_, stride_S_, stride_C_;
@@ -386,7 +439,7 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         {
             jit_tail_.uni_vmovups_maybe_tail(
                     vmmword[reg_ptr_stat_ + reg_off_c_], vzero_);
-            if (isa == sse41) {
+            if (isa == sse41 && tag_kind_ == jit_memory_tag_kind_t::blocked) {
                 jit_tail_.uni_vmovups_maybe_tail(
                         vmmword[reg_ptr_stat_ + reg_off_c_ + vlen / 2], vzero_);
             }
@@ -396,30 +449,66 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         }
     }
 
-    void load_stat(bool compute_mean) {
-        jit_tail_.uni_vmovups_maybe_tail(
-                vstat_, vmmword[reg_ptr_stat_ + reg_off_c_]);
+    void load_stat(bool compute_mean, const int c_blks_to_unroll = 1) {
+        int start_idx = min_idx_to_unroll_;
+        int end_idx = c_blks_to_unroll + min_idx_to_unroll_;
+        const int step = simd_w * acc_type_size_;
 
-        if (!compute_mean)
+        // load mean or variance
+        for (int idx = start_idx, off = 0; idx < end_idx; idx++, off += step) {
+            const Vmm vstat = Vmm(idx);
             jit_tail_.uni_vmovups_maybe_tail(
-                    vmean_, vmmword[reg_ptr_mean_ + reg_off_c_]);
-    }
+                    vstat, vmmword[reg_ptr_stat_ + reg_off_c_ + off]);
+        }
 
-    void compute_stat(bool compute_mean) {
-        jit_bf16_emu_.uni_vmovups_data(
-                v_, vmmword[reg_ptr_src_ + reg_off_dat_]);
+        // if variance is counted then mean also is needed
+        if (!compute_mean) {
+            start_idx = min_idx_to_unroll_ + c_blks_to_unroll;
+            end_idx = min_idx_to_unroll_ + 2 * c_blks_to_unroll;
 
-        if (compute_mean) {
-            uni_vaddps(vstat_, vstat_, v_);
-        } else {
-            uni_vsubps(vtmp_, v_, vmean_, vtmp1_);
-            uni_vfmadd231ps(vstat_, vtmp_, vtmp_);
+            for (int idx = start_idx, off = 0; idx < end_idx;
+                    idx++, off += step) {
+                const Vmm vmean = Vmm(idx);
+                jit_tail_.uni_vmovups_maybe_tail(
+                        vmean, vmmword[reg_ptr_mean_ + reg_off_c_ + off]);
+            }
         }
     }
 
-    void store_stat() {
-        jit_tail_.uni_vmovups_maybe_tail(
-                vmmword[reg_ptr_stat_ + reg_off_c_], vstat_);
+    void compute_stat(bool compute_mean, const int c_blks_to_unroll = 1) {
+        const int start_idx = min_idx_to_unroll_;
+        const int end_idx = c_blks_to_unroll + min_idx_to_unroll_;
+        const int step = simd_w * data_type_size_;
+
+        for (int idx = start_idx, off = 0; idx < end_idx; idx++, off += step) {
+            const Vmm vstat = Vmm(idx);
+
+            jit_bf16_emu_.uni_vmovups_data(
+                    v_, vmmword[reg_ptr_src_ + reg_off_dat_ + off]);
+
+            if (compute_mean) {
+                uni_vaddps(vstat, vstat, v_);
+            } else {
+                const Vmm vmean = Vmm(idx + c_blks_to_unroll);
+
+                // var += (src - mean)^2
+                uni_vsubps(vtmp_, v_, vmean, vtmp_);
+                uni_vfmadd231ps(vstat, vtmp_, vtmp_);
+            }
+        }
+    }
+
+    void store_stat(const int c_blks_to_unroll = 1) {
+        const int start_idx = min_idx_to_unroll_;
+        const int end_idx = c_blks_to_unroll + min_idx_to_unroll_;
+        const int step = simd_w * acc_type_size_;
+
+        for (int idx = start_idx, off = 0; idx < end_idx; idx++, off += step) {
+            const Vmm vstat = Vmm(idx);
+
+            jit_tail_.uni_vmovups_maybe_tail(
+                    vmmword[reg_ptr_stat_ + reg_off_c_ + off], vstat);
+        }
     }
 
     void compute_blocked(bool compute_mean) {
@@ -452,6 +541,52 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         }
     }
 
+    void compute_nspc(bool compute_mean) {
+        mov(reg_C_, dword[PARAM_ADDR(C)]);
+
+        // When a variance is computed, two values are unrolled: mean and variance,
+        // so number_of_vmms_to_unrolling_variables_ is divided by 2.
+        const int max_of_unrolled_c_blks = compute_mean
+                ? number_of_vmms_to_unrolling_variables_
+                : number_of_vmms_to_unrolling_variables_ / 2;
+        std::vector<Label> c_unroll_label(max_of_unrolled_c_blks + 1);
+
+        for (int c_blks_to_unroll = max_of_unrolled_c_blks;
+                c_blks_to_unroll > 0; --c_blks_to_unroll) {
+            L(c_unroll_label[c_blks_to_unroll]);
+            {
+                cmp(reg_C_, c_blks_to_unroll);
+                jl(c_unroll_label[c_blks_to_unroll - 1], T_NEAR);
+
+                mov(reg_off_dat_, reg_off_dat_save_);
+
+                load_stat(compute_mean, c_blks_to_unroll);
+
+                Label label_S;
+                mov(reg_S_, dword[PARAM_ADDR(S)]);
+                L(label_S);
+                {
+                    compute_stat(compute_mean, c_blks_to_unroll);
+
+                    add(reg_off_dat_, stride_S_ * data_type_size_);
+
+                    dec(reg_S_);
+                    jnz(label_S);
+                }
+
+                store_stat(c_blks_to_unroll);
+
+                add(reg_off_c_, c_blks_to_unroll * simd_w * acc_type_size_);
+                add(reg_off_dat_save_,
+                        c_blks_to_unroll * stride_C_ * data_type_size_);
+
+                sub(reg_C_, c_blks_to_unroll);
+                jmp(c_unroll_label[c_blks_to_unroll], T_NEAR);
+            }
+        }
+        L(c_unroll_label[0]);
+    }
+
     void compute(bool compute_mean) {
         Label label_N;
         mov(reg_N_, dword[PARAM_ADDR(N)]);
@@ -460,9 +595,11 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
             xor_(reg_off_dat_save_, reg_off_dat_save_);
             xor_(reg_off_c_, reg_off_c_);
 
-            compute_blocked(compute_mean);
+            tag_kind_ == jit_memory_tag_kind_t::nspc
+                    ? compute_nspc(compute_mean)
+                    : compute_blocked(compute_mean);
 
-            if (isa == sse41) {
+            if (isa == sse41 && tag_kind_ == jit_memory_tag_kind_t::blocked) {
                 xor_(reg_off_dat_save_, reg_off_dat_save_);
                 xor_(reg_off_c_, reg_off_c_);
                 add(reg_off_dat_save_, vlen / 2);
@@ -498,7 +635,7 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
             jit_tail_.uni_vmovups_maybe_tail(
                     vmmword[reg_ptr_stat_ + reg_off_c_], v_);
 
-            if (isa == sse41) {
+            if (isa == sse41 && tag_kind_ == jit_memory_tag_kind_t::blocked) {
                 jit_tail_.uni_vmovups_maybe_tail(
                         v_, vmmword[reg_ptr_stat_ + reg_off_c_ + vlen / 2]);
                 uni_vdivps(v_, v_, vNS_);
@@ -514,18 +651,21 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         L(label_ret);
     }
 
-    jit_bnorm_fwd_statistics_t(const batch_normalization_pd_t *bdesc)
+    jit_bnorm_fwd_statistics_t(const batch_normalization_pd_t *bdesc,
+            const jit_memory_tag_kind_t tag_kind)
         : bdesc_(bdesc)
+        , tag_kind_(tag_kind)
+        , vlen(get_vlen<isa>(tag_kind))
+        , simd_w(get_simd_w<isa>(tag_kind))
         , jit_tail_(bdesc, this, reg_tmp_, reg_blk_has_tail_, reg_C_,
                   vtail_mask_, ktail_mask_)
-        , jit_bf16_emu_(
-                  bdesc, this, Zmm(16), Zmm(17), Zmm(18), Zmm(19), reg_tmp_) {
+        , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
                 "unsupported isa");
-        stride_C_ = bdesc_->D() * bdesc_->H() * bdesc_->W() * simd_w;
-        const int C_PADDED = bdesc_->src_md()->padded_dims[1];
-        stride_N_ = (C_PADDED / simd_w) * stride_C_;
-        stride_S_ = simd_w;
+
+        std::tie(stride_N_, stride_S_, stride_C_)
+                = get_data_strides<isa>(bdesc_, tag_kind);
+
         data_type_size_
                 = types::data_type_size(bdesc->desc()->data_desc.data_type);
         acc_type_size_ = sizeof(acc_data_t);
@@ -537,8 +677,9 @@ struct jit_bnorm_fwd_mean_t : jit_bnorm_fwd_statistics_t<isa> {
     using call_params_t =
             typename jit_bnorm_fwd_statistics_t<isa>::call_params_t;
 
-    jit_bnorm_fwd_mean_t(const batch_normalization_pd_t *bdesc)
-        : jit_bnorm_fwd_statistics_t<isa>(bdesc) {}
+    jit_bnorm_fwd_mean_t(const batch_normalization_pd_t *bdesc,
+            const jit_memory_tag_kind_t tag_kind)
+        : jit_bnorm_fwd_statistics_t<isa>(bdesc, tag_kind) {}
 
     void generate() override {
         this->preamble();
@@ -557,8 +698,9 @@ struct jit_bnorm_fwd_var_t : jit_bnorm_fwd_statistics_t<isa> {
     using call_params_t =
             typename jit_bnorm_fwd_statistics_t<isa>::call_params_t;
 
-    jit_bnorm_fwd_var_t(const batch_normalization_pd_t *bdesc)
-        : jit_bnorm_fwd_statistics_t<isa>(bdesc) {}
+    jit_bnorm_fwd_var_t(const batch_normalization_pd_t *bdesc,
+            const jit_memory_tag_kind_t tag_kind)
+        : jit_bnorm_fwd_statistics_t<isa>(bdesc, tag_kind) {}
 
     void generate() override {
         this->preamble();
@@ -577,8 +719,8 @@ struct jit_bnorm_fwd_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_fwd_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
-    const int simd_w = vlen / sizeof(acc_data_t);
+    const int vlen;
+    const int simd_w;
     const AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
@@ -625,6 +767,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
     const Opmask &ktail_mask_ = k2;
 
     const batch_normalization_pd_t *bdesc_;
+    const jit_memory_tag_kind_t tag_kind_;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
     jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
@@ -726,6 +869,35 @@ struct jit_bnorm_fwd_t : public jit_generator {
         }
     }
 
+    void compute_nspc(bool stream_store_allowed) {
+        Label label_C, label_S;
+        mov(reg_S_, dword[PARAM_ADDR(S)]);
+        L(label_S);
+        {
+            mov(reg_off_dat_, reg_off_dat_save_);
+            xor_(reg_off_c_, reg_off_c_);
+
+            mov(reg_C_, dword[PARAM_ADDR(C)]);
+            L(label_C);
+            {
+                load_c_specifics();
+
+                compute_bnorm(stream_store_allowed);
+
+                add(reg_off_c_, simd_w * acc_type_size_);
+                add(reg_off_dat_, stride_C_ * data_type_size_);
+
+                dec(reg_C_);
+                jnz(label_C);
+            }
+
+            add(reg_off_dat_save_, stride_S_ * data_type_size_);
+
+            dec(reg_S_);
+            jnz(label_S);
+        }
+    }
+
     void compute(bool stream_store_allowed) {
         Label label_N;
         mov(reg_N_, dword[PARAM_ADDR(N)]);
@@ -734,9 +906,11 @@ struct jit_bnorm_fwd_t : public jit_generator {
             xor_(reg_off_dat_save_, reg_off_dat_save_);
             xor_(reg_off_c_, reg_off_c_);
 
-            compute_blocked(stream_store_allowed);
+            tag_kind_ == jit_memory_tag_kind_t::nspc
+                    ? compute_nspc(stream_store_allowed)
+                    : compute_blocked(stream_store_allowed);
 
-            if (isa == sse41) {
+            if (isa == sse41 && tag_kind_ == jit_memory_tag_kind_t::blocked) {
                 xor_(reg_off_dat_save_, reg_off_dat_save_);
                 xor_(reg_off_c_, reg_off_c_);
                 add(reg_off_dat_save_, vlen / 2);
@@ -754,20 +928,23 @@ struct jit_bnorm_fwd_t : public jit_generator {
         }
     }
 
-    jit_bnorm_fwd_t(const batch_normalization_pd_t *bdesc)
+    jit_bnorm_fwd_t(const batch_normalization_pd_t *bdesc,
+            const jit_memory_tag_kind_t tag_kind)
         : bdesc_(bdesc)
+        , tag_kind_(tag_kind)
+        , vlen(get_vlen<isa>(tag_kind))
+        , simd_w(get_simd_w<isa>(tag_kind))
         , jit_tail_(bdesc, this, reg_tmp_, reg_blk_has_tail_, reg_C_,
                   vtail_mask_, ktail_mask_)
         , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_)
-        , jit_bf16_emu_(
-                  bdesc, this, Zmm(16), Zmm(17), Zmm(18), Zmm(19), reg_tmp_) {
+        , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
                 "unsupported isa");
-        stride_C_ = bdesc_->D() * bdesc_->H() * bdesc_->W() * simd_w;
-        const int C_PADDED = bdesc_->src_md()->padded_dims[1];
-        stride_N_ = (C_PADDED / simd_w) * stride_C_;
-        stride_S_ = simd_w;
+
+        std::tie(stride_N_, stride_S_, stride_C_)
+                = get_data_strides<isa>(bdesc_, tag_kind);
+
         data_type_size_
                 = types::data_type_size(bdesc->desc()->data_desc.data_type);
         acc_type_size_ = sizeof(acc_data_t);
@@ -775,6 +952,11 @@ struct jit_bnorm_fwd_t : public jit_generator {
 
     void generate() override {
         bool is_bf16 = bdesc_->desc()->data_desc.data_type == data_type::bf16;
+        const bool is_tail_in_nspc_format
+                = tag_kind_ == jit_memory_tag_kind_t::nspc
+                && jit_tail_.tail_ != 0;
+        const bool stream_store_allowed = !is_bf16 && !is_tail_in_nspc_format;
+
         preamble();
         load_common_params();
         jit_relu_.fwd_prepare_relu();
@@ -783,7 +965,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
         Label normal_store, end_store;
         test(reg_ptr_dst_, vlen - 1);
         jnz(normal_store, T_NEAR);
-        compute(!is_bf16);
+        compute(stream_store_allowed);
         jmp(end_store, T_NEAR);
         L(normal_store);
         { compute(false); }
@@ -798,8 +980,8 @@ struct jit_bnorm_bwd_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_bwd_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
-    const int simd_w = vlen / sizeof(acc_data_t);
+    const int vlen;
+    const int simd_w;
     const AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
@@ -846,6 +1028,7 @@ struct jit_bnorm_bwd_t : public jit_generator {
     const Opmask &ktail_mask_ = k2;
 
     const batch_normalization_pd_t *bdesc_;
+    const jit_memory_tag_kind_t tag_kind_;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
     jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
@@ -968,6 +1151,35 @@ struct jit_bnorm_bwd_t : public jit_generator {
         }
     }
 
+    void compute_nspc(bool stream_store_allowed) {
+        Label label_C, label_S;
+        mov(reg_S_, dword[PARAM_ADDR(S)]);
+        L(label_S);
+        {
+            mov(reg_off_dat_, reg_off_dat_save_);
+            xor_(reg_off_c_, reg_off_c_);
+
+            mov(reg_C_, dword[PARAM_ADDR(C)]);
+            L(label_C);
+            {
+                load_c_specifics();
+
+                compute_bnorm(stream_store_allowed);
+
+                add(reg_off_c_, simd_w * acc_type_size_);
+                add(reg_off_dat_, stride_C_ * data_type_size_);
+
+                dec(reg_C_);
+                jnz(label_C);
+            }
+
+            add(reg_off_dat_save_, stride_S_ * data_type_size_);
+
+            dec(reg_S_);
+            jnz(label_S);
+        }
+    }
+
     void compute(bool stream_store_allowed) {
         Label label_N;
         mov(reg_N_, dword[PARAM_ADDR(N)]);
@@ -976,9 +1188,11 @@ struct jit_bnorm_bwd_t : public jit_generator {
             xor_(reg_off_dat_save_, reg_off_dat_save_);
             xor_(reg_off_c_, reg_off_c_);
 
-            compute_blocked(stream_store_allowed);
+            tag_kind_ == jit_memory_tag_kind_t::nspc
+                    ? compute_nspc(stream_store_allowed)
+                    : compute_blocked(stream_store_allowed);
 
-            if (isa == sse41) {
+            if (isa == sse41 && tag_kind_ == jit_memory_tag_kind_t::blocked) {
                 xor_(reg_off_dat_save_, reg_off_dat_save_);
                 xor_(reg_off_c_, reg_off_c_);
                 add(reg_off_dat_save_, vlen / 2);
@@ -999,20 +1213,23 @@ struct jit_bnorm_bwd_t : public jit_generator {
 
     bool calculate_diff_stats() const { return !bdesc_->use_global_stats(); }
 
-    jit_bnorm_bwd_t(const batch_normalization_pd_t *bdesc)
+    jit_bnorm_bwd_t(const batch_normalization_pd_t *bdesc,
+            const jit_memory_tag_kind_t tag_kind)
         : bdesc_(bdesc)
+        , tag_kind_(tag_kind)
+        , vlen(get_vlen<isa>(tag_kind))
+        , simd_w(get_simd_w<isa>(tag_kind))
         , jit_tail_(bdesc, this, reg_tmp_, reg_blk_has_tail_, reg_C_,
                   vtail_mask_, ktail_mask_)
         , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_)
-        , jit_bf16_emu_(
-                  bdesc, this, Zmm(16), Zmm(17), Zmm(18), Zmm(19), reg_tmp_) {
+        , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
                 "unsupported isa");
-        stride_C_ = bdesc_->D() * bdesc_->H() * bdesc_->W() * simd_w;
-        const int C_PADDED = bdesc_->src_md()->padded_dims[1];
-        stride_N_ = (C_PADDED / simd_w) * stride_C_;
-        stride_S_ = simd_w;
+
+        std::tie(stride_N_, stride_S_, stride_C_)
+                = get_data_strides<isa>(bdesc_, tag_kind);
+
         data_type_size_
                 = types::data_type_size(bdesc->desc()->data_desc.data_type);
         acc_type_size_ = sizeof(acc_data_t);
@@ -1020,6 +1237,11 @@ struct jit_bnorm_bwd_t : public jit_generator {
 
     void generate() override {
         bool is_bf16 = bdesc_->desc()->data_desc.data_type == data_type::bf16;
+        const bool is_tail_in_nspc_format
+                = tag_kind_ == jit_memory_tag_kind_t::nspc
+                && jit_tail_.tail_ != 0;
+        const bool stream_store_allowed = !is_bf16 && !is_tail_in_nspc_format;
+
         preamble();
         load_common_params();
         jit_relu_.bwd_prepare_relu();
@@ -1028,7 +1250,7 @@ struct jit_bnorm_bwd_t : public jit_generator {
         Label normal_store, end_store;
         test(reg_ptr_diff_src_, vlen - 1);
         jnz(normal_store, T_NEAR);
-        compute(!is_bf16);
+        compute(stream_store_allowed);
         jmp(end_store, T_NEAR);
         L(normal_store);
         { compute(false); }
@@ -1043,8 +1265,8 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_bwd_diff_ss_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
-    const int simd_w = vlen / sizeof(acc_data_t);
+    const int vlen;
+    const int simd_w;
     const AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
@@ -1074,23 +1296,33 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
     const Reg64 &reg_ptr_diff_dst_ = r14;
     const Reg64 &reg_ptr_src_ = r15;
 
-    const Vmm vzero_ = Vmm(0);
-    const Vmm vone_ = Vmm(1);
-    const Vmm vmean_ = Vmm(2);
-    const Vmm vsqrtvar_ = Vmm(3);
-    const Vmm vgamma_ = Vmm(4);
-    const Vmm vdiff_gamma_ = Vmm(5);
-    const Vmm vdiff_beta_ = Vmm(6);
-    const Vmm veps_ = Vmm(7);
-    const Vmm vtmp_ = Vmm(8);
-    const Vmm v_ = Vmm(9);
-    const Vmm vtail_mask_ = Vmm(10);
+    const Vmm vtail_mask_ = Vmm(0);
+    const Vmm v_ = Vmm(1);
+    const Vmm vtmp_ = Vmm(2);
     const Vmm vstore_mask_ = vtmp_;
+    const Vmm vzero_ = Vmm(3);
+    const Vmm veps_ = Vmm(4);
+    const Vmm vone_ = Vmm(5);
+    // Diff_beta, diff_gamma and one of the statistic values(mean or sqrtvar)
+    // are unrolled i.e.three vmms are needed to unroll one c block at any moment,
+    // therefore the number of registers which are used to unrolling must to be
+    // divisible by three.
+    static constexpr int min_idx_to_unroll_ = 6;
+    static constexpr int max_idx_to_unroll_ = isa == avx512_common ? 27 : 15;
+    static constexpr int number_of_unrolled_variables_ = 3;
+    static constexpr int number_of_vmms_to_unrolling_variables_
+            = max_idx_to_unroll_ - min_idx_to_unroll_;
+    static_assert(number_of_vmms_to_unrolling_variables_
+                                    % number_of_unrolled_variables_
+                            == 0
+                    && number_of_vmms_to_unrolling_variables_ != 0,
+            "Number of register to unrolling must to be divisible by 3.");
 
     const Opmask &kstore_mask_ = k1;
     const Opmask &ktail_mask_ = k2;
 
     const batch_normalization_pd_t *bdesc_;
+    const jit_memory_tag_kind_t tag_kind_;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
     jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
@@ -1119,28 +1351,6 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         mov(reg_blk_has_tail_, dword[PARAM_ADDR(blk_has_tail)]);
     }
 
-    void load_c_specifics() {
-        mov(reg_ptr_c_, ptr[PARAM_ADDR(mean)]);
-        jit_tail_.uni_vmovups_maybe_tail(
-                vmean_, vmmword[reg_ptr_c_ + reg_off_c_]);
-
-        mov(reg_ptr_c_, ptr[PARAM_ADDR(var)]);
-        jit_tail_.uni_vmovups_maybe_tail(
-                vsqrtvar_, vmmword[reg_ptr_c_ + reg_off_c_]);
-        uni_vaddps(vsqrtvar_, vsqrtvar_, veps_);
-        uni_vsqrtps(vsqrtvar_, vsqrtvar_);
-
-        if (isa == sse41) {
-            movups(vtmp_, vone_);
-            divps(vtmp_, vsqrtvar_);
-            movups(vsqrtvar_, vtmp_);
-        } else
-            vdivps(vsqrtvar_, vone_, vsqrtvar_);
-
-        uni_vpxor(vdiff_gamma_, vdiff_gamma_, vdiff_gamma_);
-        uni_vpxor(vdiff_beta_, vdiff_beta_, vdiff_beta_);
-    }
-
     void zeroise() {
         Label label_zeroise;
         xor_(reg_off_c_, reg_off_c_);
@@ -1152,7 +1362,7 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
                     vmmword[reg_ptr_diff_gamma_ + reg_off_c_], vzero_);
             jit_tail_.uni_vmovups_maybe_tail(
                     vmmword[reg_ptr_diff_beta_ + reg_off_c_], vzero_);
-            if (isa == sse41) {
+            if (isa == sse41 && tag_kind_ == jit_memory_tag_kind_t::blocked) {
                 jit_tail_.uni_vmovups_maybe_tail(
                         vmmword[reg_ptr_diff_gamma_ + reg_off_c_ + vlen / 2],
                         vzero_);
@@ -1166,33 +1376,129 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         }
     }
 
-    void compute_diff_beta_and_diff_gamma() {
-        jit_bf16_emu_.uni_vmovups_data(
-                v_, vmmword[reg_ptr_diff_dst_ + reg_off_dat_]);
+    void load_mean(const int c_blks_to_unroll = 1) {
+        mov(reg_ptr_c_, ptr[PARAM_ADDR(mean)]);
 
-        jit_relu_.bwd_process_relu(v_);
+        const int start_idx = min_idx_to_unroll_;
+        const int end_idx = number_of_unrolled_variables_ * c_blks_to_unroll
+                + min_idx_to_unroll_;
+        const int step = simd_w * acc_type_size_;
 
-        uni_vaddps(vdiff_beta_, vdiff_beta_, v_);
+        for (int idx = start_idx, off = 0; idx < end_idx;
+                idx += number_of_unrolled_variables_, off += step) {
+            const Vmm vmean = Vmm(idx);
 
-        jit_bf16_emu_.uni_vmovups_data(
-                vtmp_, vmmword[reg_ptr_src_ + reg_off_dat_]);
-        uni_vsubps(vtmp_, vtmp_, vmean_);
-        uni_vfmadd231ps(vdiff_gamma_, vtmp_, v_);
+            jit_tail_.uni_vmovups_maybe_tail(
+                    vmean, vmmword[reg_ptr_c_ + reg_off_c_ + off]);
+        }
     }
 
-    void store_diff_beta_and_diff_gamma() {
-        uni_vmulps(vdiff_gamma_, vdiff_gamma_, vsqrtvar_);
+    void zeroise_diff_beta_and_diff_gamma(const int c_blks_to_unroll = 1) {
+        const int start_idx = min_idx_to_unroll_;
+        const int end_idx = number_of_unrolled_variables_ * c_blks_to_unroll
+                + min_idx_to_unroll_;
 
-        jit_tail_.uni_vmovups_maybe_tail(
-                vtmp_, vmmword[reg_ptr_diff_gamma_ + reg_off_c_]);
-        uni_vaddps(vdiff_gamma_, vdiff_gamma_, vtmp_);
-        jit_tail_.uni_vmovups_maybe_tail(
-                vtmp_, vmmword[reg_ptr_diff_beta_ + reg_off_c_]);
-        uni_vaddps(vdiff_beta_, vdiff_beta_, vtmp_);
-        jit_tail_.uni_vmovups_maybe_tail(
-                vmmword[reg_ptr_diff_gamma_ + reg_off_c_], vdiff_gamma_);
-        jit_tail_.uni_vmovups_maybe_tail(
-                vmmword[reg_ptr_diff_beta_ + reg_off_c_], vdiff_beta_);
+        for (int idx = start_idx; idx < end_idx;
+                idx += number_of_unrolled_variables_) {
+            const Vmm vdiff_beta = Vmm(idx + 1);
+            const Vmm vdiff_gamma = Vmm(idx + 2);
+
+            uni_vpxor(vdiff_beta, vdiff_beta, vdiff_beta);
+            uni_vpxor(vdiff_gamma, vdiff_gamma, vdiff_gamma);
+        }
+    }
+
+    void load_and_prepare_sqrtvar(const int c_blks_to_unroll = 1) {
+        mov(reg_ptr_c_, ptr[PARAM_ADDR(var)]);
+
+        const int start_idx = min_idx_to_unroll_;
+        const int end_idx = number_of_unrolled_variables_ * c_blks_to_unroll
+                + min_idx_to_unroll_;
+        const int step = simd_w * acc_type_size_;
+
+        for (int idx = start_idx, off = 0; idx < end_idx;
+                idx += number_of_unrolled_variables_, off += step) {
+            const Vmm vsqrtvar = Vmm(idx);
+
+            jit_tail_.uni_vmovups_maybe_tail(
+                    vsqrtvar, vmmword[reg_ptr_c_ + reg_off_c_ + off]);
+
+            // 1.0 / sqrt(var + eps)
+            uni_vaddps(vsqrtvar, vsqrtvar, veps_);
+            uni_vsqrtps(vsqrtvar, vsqrtvar);
+
+            if (isa == sse41) {
+                movups(vtmp_, vone_);
+                divps(vtmp_, vsqrtvar);
+                movups(vsqrtvar, vtmp_);
+            } else
+                vdivps(vsqrtvar, vone_, vsqrtvar);
+        }
+    }
+
+    void compute_diff_beta_and_diff_gamma(const int c_blks_to_unroll = 1) {
+        const int start_idx = min_idx_to_unroll_;
+        const int end_idx = number_of_unrolled_variables_ * c_blks_to_unroll
+                + min_idx_to_unroll_;
+        const int step = simd_w * data_type_size_;
+
+        for (int idx = start_idx, off = 0; idx < end_idx;
+                idx += number_of_unrolled_variables_, off += step) {
+            const Vmm vmean = Vmm(idx);
+            const Vmm vdiff_beta = Vmm(idx + 1);
+            const Vmm vdiff_gamma = Vmm(idx + 2);
+
+            jit_bf16_emu_.uni_vmovups_data(
+                    v_, vmmword[reg_ptr_diff_dst_ + reg_off_dat_ + off]);
+
+            jit_relu_.bwd_process_relu(
+                    v_, off / (bits_per_byte * data_type_size_));
+
+            // diff_beta
+            uni_vaddps(vdiff_beta, vdiff_beta, v_);
+
+            jit_bf16_emu_.uni_vmovups_data(
+                    vtmp_, vmmword[reg_ptr_src_ + reg_off_dat_ + off]);
+
+            // diff_gamma, note that diff_gamma will be multiplied
+            // by sqrtvar before store
+            uni_vsubps(vtmp_, vtmp_, vmean);
+            uni_vfmadd231ps(vdiff_gamma, vtmp_, v_);
+        }
+    }
+
+    void store_diff_beta_and_diff_gamma(const int c_blks_to_unroll = 1) {
+        const int start_idx = min_idx_to_unroll_;
+        const int end_idx = number_of_unrolled_variables_ * c_blks_to_unroll
+                + min_idx_to_unroll_;
+        const int step = simd_w * acc_type_size_;
+
+        for (int idx = start_idx, off = 0; idx < end_idx;
+                idx += number_of_unrolled_variables_, off += step) {
+            const Vmm vdiff_beta = Vmm(idx + 1);
+
+            jit_tail_.uni_vmovups_maybe_tail(
+                    vtmp_, vmmword[reg_ptr_diff_beta_ + reg_off_c_ + off]);
+            uni_vaddps(vdiff_beta, vdiff_beta, vtmp_);
+            jit_tail_.uni_vmovups_maybe_tail(
+                    vmmword[reg_ptr_diff_beta_ + reg_off_c_ + off], vdiff_beta);
+        }
+
+        for (int idx = start_idx, off = 0; idx < end_idx;
+                idx += number_of_unrolled_variables_, off += step) {
+            const Vmm vsqrtvar = Vmm(idx);
+            const Vmm vdiff_gamma = Vmm(idx + 2);
+
+            // multiply diff_gamma by 1.0/sqrt(var + eps)
+            uni_vmulps(vdiff_gamma, vdiff_gamma, vsqrtvar);
+
+            jit_tail_.uni_vmovups_maybe_tail(
+                    vtmp_, vmmword[reg_ptr_diff_gamma_ + reg_off_c_ + off]);
+            uni_vaddps(vdiff_gamma, vdiff_gamma, vtmp_);
+            jit_tail_.uni_vmovups_maybe_tail(
+                    vmmword[reg_ptr_diff_gamma_ + reg_off_c_ + off],
+                    vdiff_gamma);
+        }
     }
 
     void compute_blocked() {
@@ -1202,7 +1508,8 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         {
             mov(reg_off_dat_, reg_off_dat_save_);
 
-            load_c_specifics();
+            load_mean();
+            zeroise_diff_beta_and_diff_gamma();
 
             mov(reg_S_, dword[PARAM_ADDR(S)]);
             L(label_S);
@@ -1215,6 +1522,7 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
                 jnz(label_S);
             }
 
+            load_and_prepare_sqrtvar();
             store_diff_beta_and_diff_gamma();
 
             add(reg_off_dat_save_, stride_C_ * data_type_size_);
@@ -1225,6 +1533,52 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         }
     }
 
+    void compute_nspc() {
+        mov(reg_C_, dword[PARAM_ADDR(C)]);
+
+        constexpr int max_of_unrolled_c_blks
+                = number_of_vmms_to_unrolling_variables_
+                / number_of_unrolled_variables_;
+        std::vector<Label> c_unroll_label(max_of_unrolled_c_blks + 1);
+
+        for (int c_blks_to_unroll = max_of_unrolled_c_blks;
+                c_blks_to_unroll > 0; --c_blks_to_unroll) {
+            L(c_unroll_label[c_blks_to_unroll]);
+            {
+                cmp(reg_C_, c_blks_to_unroll);
+                jl(c_unroll_label[c_blks_to_unroll - 1], T_NEAR);
+
+                mov(reg_off_dat_, reg_off_dat_save_);
+
+                load_mean(c_blks_to_unroll);
+                zeroise_diff_beta_and_diff_gamma(c_blks_to_unroll);
+
+                Label label_S;
+                mov(reg_S_, dword[PARAM_ADDR(S)]);
+                L(label_S);
+                {
+                    compute_diff_beta_and_diff_gamma(c_blks_to_unroll);
+
+                    add(reg_off_dat_, stride_S_ * data_type_size_);
+
+                    dec(reg_S_);
+                    jnz(label_S);
+                }
+
+                load_and_prepare_sqrtvar(c_blks_to_unroll);
+                store_diff_beta_and_diff_gamma(c_blks_to_unroll);
+
+                add(reg_off_c_, c_blks_to_unroll * simd_w * acc_type_size_);
+                add(reg_off_dat_save_,
+                        c_blks_to_unroll * stride_C_ * data_type_size_);
+
+                sub(reg_C_, c_blks_to_unroll);
+                jmp(c_unroll_label[c_blks_to_unroll], T_NEAR);
+            }
+        }
+        L(c_unroll_label[0]);
+    }
+
     void compute() {
         Label label_N;
         mov(reg_N_, dword[PARAM_ADDR(N)]);
@@ -1233,9 +1587,10 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
             xor_(reg_off_dat_save_, reg_off_dat_save_);
             xor_(reg_off_c_, reg_off_c_);
 
-            compute_blocked();
+            tag_kind_ == jit_memory_tag_kind_t::nspc ? compute_nspc()
+                                                     : compute_blocked();
 
-            if (isa == sse41) {
+            if (isa == sse41 && tag_kind_ == jit_memory_tag_kind_t::blocked) {
                 xor_(reg_off_dat_save_, reg_off_dat_save_);
                 xor_(reg_off_c_, reg_off_c_);
                 add(reg_off_dat_save_, vlen / 2);
@@ -1253,20 +1608,23 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         }
     }
 
-    jit_bnorm_bwd_diff_ss_t(const batch_normalization_pd_t *bdesc)
+    jit_bnorm_bwd_diff_ss_t(const batch_normalization_pd_t *bdesc,
+            const jit_memory_tag_kind_t tag_kind)
         : bdesc_(bdesc)
+        , tag_kind_(tag_kind)
+        , vlen(get_vlen<isa>(tag_kind))
+        , simd_w(get_simd_w<isa>(tag_kind))
         , jit_tail_(bdesc, this, reg_tmp_, reg_blk_has_tail_, reg_C_,
                   vtail_mask_, ktail_mask_)
         , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_)
-        , jit_bf16_emu_(
-                  bdesc, this, Zmm(16), Zmm(17), Zmm(18), Zmm(19), reg_tmp_) {
+        , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
                 "unsupported isa");
-        stride_C_ = bdesc_->D() * bdesc_->H() * bdesc_->W() * simd_w;
-        const int C_PADDED = bdesc_->src_md()->padded_dims[1];
-        stride_N_ = (C_PADDED / simd_w) * stride_C_;
-        stride_S_ = simd_w;
+
+        std::tie(stride_N_, stride_S_, stride_C_)
+                = get_data_strides<isa>(bdesc_, tag_kind);
+
         data_type_size_
                 = types::data_type_size(bdesc->desc()->data_desc.data_type);
         acc_type_size_ = sizeof(acc_data_t);
@@ -1296,7 +1654,11 @@ private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(driver_t);
 
 public:
-    driver_t(const batch_normalization_pd_t *bdesc) : bdesc_(bdesc) {
+    driver_t(const batch_normalization_pd_t *bdesc,
+            const jit_memory_tag_kind_t tag_kind)
+        : bdesc_(bdesc)
+        , tag_kind_(tag_kind)
+        , simd_w(get_simd_w<isa>(tag_kind)) {
         nthr_ = dnnl_get_max_threads();
         N_ = bdesc_->MB();
         S_ = bdesc_->D() * bdesc_->H() * bdesc_->W();
@@ -1309,29 +1671,37 @@ public:
         const size_t working_set_size
                 = dt_size_ * N_ * S_ * simd_w * num_tensors;
 
-        do_blocking_ = working_set_size * C_blks_ >= l3_size / 2 && l3_size > 0;
+        do_blocking_ = tag_kind_ == jit_memory_tag_kind_t::nspc
+                ? false
+                : working_set_size * C_blks_ >= l3_size / 2 && l3_size > 0;
 
-        C_blk_step_ = l3_size / working_set_size;
-        C_blk_step_ = nstl::max<dim_t>(C_blk_step_, 1);
-        C_blk_step_ = nstl::min<dim_t>(C_blk_step_, C_blks_);
+        if (tag_kind_ == jit_memory_tag_kind_t::nspc) {
+            C_blk_step_ = C_blks_;
+        } else {
+            C_blk_step_ = l3_size / working_set_size;
+            C_blk_step_ = nstl::max<dim_t>(C_blk_step_, 1);
+            C_blk_step_ = nstl::min<dim_t>(C_blk_step_, C_blks_);
+        }
     }
 
     status_t create_kernel() {
         if (bdesc_->is_fwd()) {
-            CHECK(safe_ptr_assign(ker_fwd_, new jit_bnorm_fwd_t<isa>(bdesc_)));
+            CHECK(safe_ptr_assign(
+                    ker_fwd_, new jit_bnorm_fwd_t<isa>(bdesc_, tag_kind_)));
             CHECK(ker_fwd_->create_kernel());
             if (!bdesc_->stats_is_src()) {
-                CHECK(safe_ptr_assign(
-                        ker_fwd_mean_, new jit_bnorm_fwd_mean_t<isa>(bdesc_)));
-                CHECK(safe_ptr_assign(
-                        ker_fwd_var_, new jit_bnorm_fwd_var_t<isa>(bdesc_)));
+                CHECK(safe_ptr_assign(ker_fwd_mean_,
+                        new jit_bnorm_fwd_mean_t<isa>(bdesc_, tag_kind_)));
+                CHECK(safe_ptr_assign(ker_fwd_var_,
+                        new jit_bnorm_fwd_var_t<isa>(bdesc_, tag_kind_)));
                 CHECK(ker_fwd_mean_->create_kernel());
                 CHECK(ker_fwd_var_->create_kernel());
             }
         } else {
-            CHECK(safe_ptr_assign(ker_bwd_, new jit_bnorm_bwd_t<isa>(bdesc_)));
+            CHECK(safe_ptr_assign(
+                    ker_bwd_, new jit_bnorm_bwd_t<isa>(bdesc_, tag_kind_)));
             CHECK(safe_ptr_assign(ker_bwd_diff_ss_,
-                    new jit_bnorm_bwd_diff_ss_t<isa>(bdesc_)));
+                    new jit_bnorm_bwd_diff_ss_t<isa>(bdesc_, tag_kind_)));
             CHECK(ker_bwd_->create_kernel());
             CHECK(ker_bwd_diff_ss_->create_kernel());
         }
@@ -1356,9 +1726,9 @@ public:
     void exec_fwd_step_stats(const dim_t C_blks, const bnorm_dims_t &nthr,
             const void *src, acc_data_t *mean, acc_data_t *var,
             acc_data_t *rbuf, bool blk_has_tail) {
-        const size_t stride_C = (size_t)S_ * simd_w;
-        const size_t stride_S = (size_t)simd_w;
-        const size_t stride_N = (size_t)C_blks_ * stride_C;
+        size_t stride_C, stride_N, stride_S;
+        std::tie(stride_N, stride_S, stride_C)
+                = get_data_strides<isa>(bdesc_, tag_kind_);
 
         const int nthr_NS = nthr.N * nthr.S;
         const bool need_reduction = nthr_NS > 1;
@@ -1441,9 +1811,9 @@ public:
             const bnorm_dims_t &nthr, const void *src, void *dst,
             const acc_data_t *scale_shift, const acc_data_t *mean,
             const acc_data_t *var, uint8_t *ws, bool blk_has_tail) {
-        const size_t stride_C = (size_t)S_ * simd_w;
-        const size_t stride_S = (size_t)simd_w;
-        const size_t stride_N = (size_t)C_blks_ * stride_C;
+        size_t stride_C, stride_N, stride_S;
+        std::tie(stride_N, stride_S, stride_C)
+                = get_data_strides<isa>(bdesc_, tag_kind_);
 
         parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
             assert(nthr_glob == nthr.glob);
@@ -1479,7 +1849,9 @@ public:
             var = sbuf + C_blks_ * simd_w;
         }
 
-        const size_t stride_C = (size_t)S_ * simd_w;
+        size_t stride_C;
+        std::tie(std::ignore, std::ignore, stride_C)
+                = get_data_strides<isa>(bdesc_, tag_kind_);
 
         dim_t C_blk_step = C_blk_step_;
         auto nthr = bnorm_dims_t();
@@ -1514,9 +1886,10 @@ public:
             const void *src, const void *diff_dst, const acc_data_t *mean,
             const acc_data_t *var, const uint8_t *ws, acc_data_t *diff_ss,
             acc_data_t *rbuf, bool blk_has_tail) {
-        const size_t stride_C = (size_t)S_ * simd_w;
-        const size_t stride_S = (size_t)simd_w;
-        const size_t stride_N = (size_t)C_blks_ * stride_C;
+        size_t stride_C, stride_N, stride_S;
+        std::tie(stride_N, stride_S, stride_C)
+                = get_data_strides<isa>(bdesc_, tag_kind_);
+
         const dim_t tail_size = blk_has_tail ? C_ % simd_w : simd_w;
         const dim_t size_C_stat = (C_blks - 1) * simd_w + tail_size;
 
@@ -1591,9 +1964,9 @@ public:
             const void *diff_dst, const acc_data_t *mean, const acc_data_t *var,
             const uint8_t *ws, const acc_data_t *scale_shift,
             const acc_data_t *diff_ss, bool blk_has_tail) {
-        const size_t stride_C = (size_t)S_ * simd_w;
-        const size_t stride_S = (size_t)simd_w;
-        const size_t stride_N = (size_t)C_blks_ * stride_C;
+        size_t stride_C, stride_N, stride_S;
+        std::tie(stride_N, stride_S, stride_C)
+                = get_data_strides<isa>(bdesc_, tag_kind_);
 
         parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
             assert(nthr_glob == nthr.glob);
@@ -1632,7 +2005,9 @@ public:
             diff_scale_shift = pbuf;
         }
 
-        const size_t stride_C = (size_t)S_ * simd_w;
+        size_t stride_C;
+        std::tie(std::ignore, std::ignore, stride_C)
+                = get_data_strides<isa>(bdesc_, tag_kind_);
 
         dim_t C_blk_step = C_blk_step_;
         auto nthr = bnorm_dims_t();
@@ -1669,12 +2044,6 @@ public:
     }
 
 private:
-    enum {
-        simd_w = isa == sse41 ? 8
-                              : cpu_isa_traits<isa>::vlen
-                        / sizeof(acc_data_t) // BF16 will expand to FP32
-    };
-
     static bool use_tmp_stats(const batch_normalization_pd_t *bdesc) {
         return true && !bdesc->stats_is_src()
                 && bdesc->desc()->prop_kind == prop_kind::forward_inference;
@@ -1686,20 +2055,27 @@ private:
                 || bdesc->desc()->prop_kind == prop_kind::backward_data;
     }
 
-    static dim_t get_c_padded(const batch_normalization_pd_t *bdesc) {
-        return bdesc->src_md()->padded_dims[1];
-    }
-
     void thread_distribution(dim_t C_blks, bnorm_dims_t &nthr) {
         if (do_blocking_) {
             nthr.N = nstl::min<dim_t>(N_, nthr_);
             nthr.C = nstl::min<dim_t>(C_blks, nthr_ / nthr.N);
         } else {
-            nthr.C = math::gcd((dim_t)nthr_, C_blks);
-            nthr.N = nstl::max<dim_t>(1, nstl::min(N_, nthr_ / nthr.C));
+            if (tag_kind_ == jit_memory_tag_kind_t::nspc) {
+                if ((nthr_ <= C_blks && nthr_ == 1) || C_blks <= 8)
+                    nthr.C = 1;
+                else if (nthr_ >= 8 && C_blks <= 32)
+                    nthr.C = 8;
+                else {
+                    nthr.C = math::gcd((dim_t)nthr_, C_blks);
+                    // Unroll by channels in JIT kernel
+                    if ((nthr.C == C_blks) || (nthr.C == nthr_)) nthr.C = 1;
+                }
+            } else {
+                nthr.C = math::gcd((dim_t)nthr_, C_blks);
+            }
+            nthr.N = utils::saturate((dim_t)1, N_, nthr_ / nthr.C);
         }
-        nthr.S = nstl::max<dim_t>(
-                1, nstl::min<dim_t>(S_, nthr_ / nthr.C / nthr.N));
+        nthr.S = utils::saturate((dim_t)1, S_, nthr_ / (nthr.C * nthr.N));
         nthr.glob = nthr.N * nthr.C * nthr.S;
     }
 
@@ -1728,7 +2104,10 @@ private:
         balance211(S_, nthr.S, ithr.S, start.S, stop.S);
     }
 
+    const int simd_w;
+
     const batch_normalization_pd_t *bdesc_;
+    const jit_memory_tag_kind_t tag_kind_;
 
     bool do_blocking_;
 
@@ -1756,17 +2135,34 @@ using namespace utils;
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
         engine_t *engine) {
-    auto desired_fmt_tag = (ndims() == 4)
-            ? isa == avx512_common ? nChw16c : nChw8c
-            : isa == avx512_common ? nCdhw16c : nCdhw8c;
 
     const bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
             && one_of(ndims(), 4, 5) && one_of(src_md()->data_type, f32, bf16)
-            && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
+            && IMPLICATION(src_md()->data_type == bf16,
+                    is_superset(isa, avx512_common) && mayiuse(avx512_core))
             && check_scale_shift_data_type()
-            && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
             && (attr()->has_default_values() || this->with_relu_post_op());
     if (!ok) return status::unimplemented;
+
+    const format_tag_t blocked_tag = is_superset(isa, avx512_common)
+            ? utils::pick(ndims() - 4, nChw16c, nCdhw16c)
+            : utils::pick(ndims() - 4, nChw8c, nCdhw8c);
+
+    const format_tag_t blocked_format
+            = memory_desc_matches_tag(*src_md(), blocked_tag)
+            ? blocked_tag
+            : format_tag::undef;
+    const format_tag_t nspc_format
+            = memory_desc_matches_one_of_tag(*src_md(), nhwc, ndhwc);
+
+    if (memory_desc_matches_tag(*dst_md(), blocked_format))
+        tag_kind_ = jit_memory_tag_kind_t::blocked;
+    else if (memory_desc_matches_tag(*dst_md(), nspc_format)) {
+        tag_kind_ = jit_memory_tag_kind_t::nspc;
+        const int simd_w = get_simd_w<isa>(tag_kind_);
+        if (C() % simd_w != 0) return status::unimplemented;
+    } else
+        return status::unimplemented;
 
     const bool isa_supports_avx2 = is_superset(isa, avx2);
     if (is_training() && fuse_norm_relu()) {
@@ -1791,8 +2187,8 @@ jit_uni_tbb_batch_normalization_fwd_t<
 
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(
-            bnorm_driver_, new bnorm_tbb_impl::driver_t<isa>(pd())));
+    CHECK(safe_ptr_assign(bnorm_driver_,
+            new bnorm_tbb_impl::driver_t<isa>(pd(), pd()->tag_kind_)));
     return bnorm_driver_->create_kernel();
 }
 
@@ -1833,9 +2229,6 @@ template struct jit_uni_tbb_batch_normalization_fwd_t<avx512_common>;
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
         engine_t *engine) {
-    auto desired_fmt_tag = (ndims() == 4)
-            ? one_of(isa, sse41, avx2) ? nChw8c : nChw16c
-            : one_of(isa, sse41, avx2) ? nCdhw8c : nCdhw16c;
 
     const bool ok = mayiuse(isa) && is_bwd() && !has_zero_dim_memory()
             && one_of(ndims(), 4, 5) && set_default_formats_common()
@@ -1844,12 +2237,30 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
                             f32, src_md()->data_type, diff_src_md()->data_type),
                     everyone_is(bf16, src_md()->data_type,
                             diff_src_md()->data_type))
-            && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
-            && check_scale_shift_data_type()
-            && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
-            && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag)
-            && attr()->has_default_values();
+            && IMPLICATION(src_md()->data_type == bf16,
+                    is_superset(isa, avx512_common) && mayiuse(avx512_core))
+            && check_scale_shift_data_type() && attr()->has_default_values();
     if (!ok) return status::unimplemented;
+
+    const format_tag_t blocked_tag = is_superset(isa, avx512_common)
+            ? utils::pick(ndims() - 4, nChw16c, nCdhw16c)
+            : utils::pick(ndims() - 4, nChw8c, nCdhw8c);
+
+    const format_tag_t blocked_format
+            = memory_desc_matches_tag(*src_md(), blocked_tag)
+            ? blocked_tag
+            : format_tag::undef;
+    const format_tag_t nspc_format
+            = memory_desc_matches_one_of_tag(*src_md(), nhwc, ndhwc);
+
+    if (memory_desc_matches_tag(*diff_src_md(), blocked_format))
+        tag_kind_ = jit_memory_tag_kind_t::blocked;
+    else if (memory_desc_matches_tag(*diff_src_md(), nspc_format)) {
+        tag_kind_ = jit_memory_tag_kind_t::nspc;
+        const int simd_w = get_simd_w<isa>(tag_kind_);
+        if (C() % simd_w != 0) return status::unimplemented;
+    } else
+        return status::unimplemented;
 
     const bool isa_supports_avx2 = is_superset(isa, avx2);
     if (memory_desc_wrapper(src_md()).padded_dims()[1] != C()
@@ -1875,8 +2286,8 @@ jit_uni_tbb_batch_normalization_bwd_t<
 
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(
-            bnorm_driver_, new bnorm_tbb_impl::driver_t<isa>(pd())));
+    CHECK(safe_ptr_assign(bnorm_driver_,
+            new bnorm_tbb_impl::driver_t<isa>(pd(), pd()->tag_kind_)));
     return bnorm_driver_->create_kernel();
 }
 
