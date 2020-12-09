@@ -100,15 +100,19 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             = data_mdw.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c);
     const bool is_blocked_16n16c
             = data_mdw.matches_one_of_tag(NCw16n16c, NChw16n16c, NCdhw16n16c);
+    const bool is_blocked_32n16c
+            = data_mdw.matches_one_of_tag(NCw32n16c, NChw32n16c, NCdhw32n16c);
     const bool is_nhwc = conf.ic % 16 == 0
             && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc);
 
     conf.use_nhwc = is_nhwc;
 
-    if (has_padding || !(is_blocked_16c || is_blocked_16n16c || is_nhwc))
+    if (has_padding
+            || !(is_blocked_16c || is_blocked_16n16c || is_blocked_32n16c
+                    || is_nhwc))
         return status::unimplemented;
 
-    conf.mb_block = is_blocked_16n16c ? 16 : 1;
+    conf.mb_block = is_blocked_32n16c ? 32 : is_blocked_16n16c ? 16 : 1;
 
     if (is_nhwc) {
         // reshape to xc
