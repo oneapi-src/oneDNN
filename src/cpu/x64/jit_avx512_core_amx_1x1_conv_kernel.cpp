@@ -673,8 +673,6 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     bool is_1d = ndims == 3;
     bool is_3d = ndims == 5;
 
-    if (is_3d) return status::unimplemented;
-
     const bool is_bf16_convolution
             = everyone_is(true, src_d.data_type() == data_type::bf16,
                     weights_d.data_type() == data_type::bf16,
@@ -702,28 +700,37 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
     jcp.ic_without_padding = jcp.ic;
+    jcp.id = is_3d ? src_d.dims()[2] : 1;
     jcp.ih = !is_1d ? src_d.dims()[ndims - 2] : 1;
     jcp.iw = src_d.dims()[ndims - 1];
+    jcp.od = is_3d ? dst_d.dims()[2] : 1;
     jcp.oh = !is_1d ? dst_d.dims()[ndims - 2] : 1;
     jcp.ow = dst_d.dims()[ndims - 1];
+    jcp.kd = is_3d ? weights_d.dims()[with_groups + 2] : 1;
     jcp.kh = !is_1d ? weights_d.dims()[with_groups + ndims - 2] : 1;
     jcp.kw = weights_d.dims()[with_groups + ndims - 1];
+    jcp.f_pad = is_3d ? cd.padding[0][0] : 0;
     jcp.t_pad = !is_1d ? cd.padding[0][ndims - 4] : 0;
     jcp.l_pad = cd.padding[0][ndims - 3];
+    jcp.stride_d = is_3d ? cd.strides[0] : 1;
     jcp.stride_h = !is_1d ? cd.strides[ndims - 4] : 1;
     jcp.stride_w = cd.strides[ndims - 3];
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
-    if (!(jcp.kh == 1 && jcp.kw == 1)) return status::unimplemented;
+    if (!(jcp.kd == 1 && jcp.kh == 1 && jcp.kw == 1))
+        return status::unimplemented;
 
-    if (!(jcp.t_pad == 0 && jcp.l_pad == 0)) return status::unimplemented;
+    if (!(jcp.f_pad == 0 && jcp.t_pad == 0 && jcp.l_pad == 0))
+        return status::unimplemented;
 
+    jcp.dilate_d = is_3d ? cd.dilates[0] : 0;
     jcp.dilate_h = is_1d ? 0 : cd.dilates[ndims - 4];
     jcp.dilate_w = cd.dilates[ndims - 3];
 
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
 
-    if (jcp.dilate_h != 0 || jcp.dilate_w != 0) return status::unimplemented;
+    if (jcp.dilate_d != 0 || jcp.dilate_h != 0 || jcp.dilate_w != 0)
+        return status::unimplemented;
     if (jcp.is_depthwise)
         return status::unimplemented; // TODO: add support of DW convolution
     if (jcp.ngroups > 1)
@@ -752,7 +759,8 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     bool args_ok = true && jcp.ic % 4 == 0
             && (jcp.ow == jcp.iw && jcp.stride_w == 1)
-            && (jcp.oh == jcp.ih && jcp.stride_h == 1);
+            && (jcp.oh == jcp.ih && jcp.stride_h == 1)
+            && (jcp.od == jcp.id && jcp.stride_d == 1);
     if (!args_ok) return status::unimplemented;
 
     if (jcp.ngroups == 1) {
@@ -773,9 +781,11 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         format_tag_t wei_tag;
         wei_tag = (is_bf16_convolution)
                 ? pick(with_groups + 2 * (ndims - 3), OIw16i16o2i, gOIw16i16o2i,
-                        OIhw16i16o2i, gOIhw16i16o2i)
+                        OIhw16i16o2i, gOIhw16i16o2i, OIdhw16i16o2i,
+                        gOIdhw16i16o2i)
                 : pick(with_groups + 2 * (ndims - 3), OIw16i16o4i, gOIw16i16o4i,
-                        OIhw16i16o4i, gOIhw16i16o4i);
+                        OIhw16i16o4i, gOIhw16i16o4i, OIdhw16i16o4i,
+                        gOIdhw16i16o4i);
         memory_desc_t want_wei_md = weights_md;
         memory_desc_init_by_tag(want_wei_md, wei_tag);
 
@@ -793,8 +803,8 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     if (!set_or_check_wei_format()) { return status::unimplemented; }
 
-    format_tag_t dat_tag
-            = utils::pick(ndims - 3, format_tag::nwc, format_tag::nhwc);
+    format_tag_t dat_tag = utils::pick(
+            ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
 
     if (src_d.format_kind() == format_kind::any) {
         CHECK(memory_desc_init_by_tag(src_md, dat_tag));
@@ -831,8 +841,8 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     const int size_treshold = 32;
     const int min_width
             = 1; // TODO: Possible optimizations: do not use small values
-    const int spatial = jcp.oh;
-    const int os = jcp.oh * jcp.ow;
+    const int spatial = jcp.od * jcp.oh;
+    const int os = jcp.od * jcp.oh * jcp.ow;
 
     jcp.tile_width = 1;
     for (int s_size = jcp.max_width; s_size >= min_width; s_size--) {
