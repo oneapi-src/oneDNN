@@ -19,6 +19,9 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+// On Windows, near and far may be defined as empty macros in minwindef.h
+#undef near
+#undef far
 #elif defined(__GLIBC__)
 #include <sched.h>
 #endif
