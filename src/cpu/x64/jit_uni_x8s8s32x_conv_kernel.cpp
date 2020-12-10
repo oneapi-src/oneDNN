@@ -251,7 +251,6 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
             load_data(data_type::s32, vmm_zp_comp, reg_zp_compensation,
                     zp_offset, load_size);
             uni_vpmulld(vmm_zp_comp, vmm_zp_comp, vmm_zp);
-            uni_vcvtdq2ps(vmm_zp_comp, vmm_zp_comp);
         }
         /* add to ymm_accum: compensation, zero_point, bias and permute */
         if (mask_flag) {
@@ -267,11 +266,11 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
 
             /* add comp in s32 to avoid loss of precision
                when convert s32 to f32 in integer (2^24)
-               TODO: do the same to zero_point and bias */
+               TODO: do the same to bias */
             if (jcp.signed_input) uni_vpaddd(vmm, vmm, vmm_comp);
+            if (jcp.src_zero_point) uni_vpaddd(vmm, vmm, vmm_zp_comp);
             uni_vcvtdq2ps(vmm, vmm);
 
-            if (jcp.src_zero_point) uni_vaddps(vmm, vmm, vmm_zp_comp);
             if (jcp.with_bias) uni_vaddps(vmm, vmm, vmm_bias);
 
             uni_vmulps(vmm, vmm, vmm_scale);
