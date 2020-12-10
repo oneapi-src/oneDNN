@@ -169,13 +169,12 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
         if (jcp.src_zero_point) {
             // zero_point: conv(src_x8, wei_s8) - src_shift_s32 * compensation_s32
             int zp_offset = sizeof(int32_t) * k * oc_block;
-            vmovups(vmm_zp, EVEX_compress_addr(reg_zp_compensation, zp_offset));
-            vpmulld(vmm_zp, vmm_zp,
+            Vmm vmm_zp_ = vmm_mask(vmm_zp, mask_flag);
+            vmovups(vmm_zp_,
+                    EVEX_compress_addr(reg_zp_compensation, zp_offset));
+            vpmulld(vmm_zp_, vmm_zp_,
                     EVEX_compress_addr(
                             reg_src_zero_point, 0, jcp.zp_src_is_common));
-            // upscale to f32
-            Vmm vmm_ = vmm_mask(vmm_zp, mask_flag);
-            vcvtdq2ps(vmm_, vmm_);
         }
         /* add to zmm_accum: compensation, zero_point, bias and permute */
         for (int j = 0; j < ur_w; j++) {
@@ -184,10 +183,10 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
                 vpermd(zmm_out(j, k), zmm_permute, zmm_out(j, k));
             /* add comp in s32 to avoid loss of precision
                when convert s32 to f32 in integer(2^24)
-               TODO: do the same to zero_point and  bias */
+               TODO: do the same to bias */
             if (jcp.signed_input) vpaddd(vmm, vmm, vmm_comp);
+            if (jcp.src_zero_point) vpaddd(vmm, vmm, vmm_zp);
             vcvtdq2ps(vmm, vmm);
-            if (jcp.src_zero_point) vaddps(vmm, vmm, vmm_zp);
 
             if (jcp.with_bias) vaddps(vmm, vmm, vmm_bias);
 
