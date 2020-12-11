@@ -163,6 +163,7 @@ enum {
     key_brgemm_primitive_buffer,
     key_brgemm_primitive_buffer_a,
     key_brgemm_primitive_buffer_b,
+    key_brgemm_primitive_buffer_comp,
     key_concat_iptrs,
     key_concat_istrides,
     key_concat_nelems,

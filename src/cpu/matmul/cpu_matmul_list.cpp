@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,12 @@
 #include "cpu/matmul/gemm_x8s8s32x_matmul.hpp"
 #include "cpu/matmul/ref_matmul.hpp"
 
+#if DNNL_X64
+#include "cpu/x64/matmul/brgemm_matmul.hpp"
+using namespace dnnl::impl::cpu::x64::matmul;
+using namespace dnnl::impl::cpu::x64;
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -36,6 +42,7 @@ const pd_create_f impl_list[] = {
         CPU_INSTANCE(gemm_f32_matmul_t)
         CPU_INSTANCE(gemm_bf16_matmul_t<f32>)
         CPU_INSTANCE(gemm_bf16_matmul_t<bf16>)
+        CPU_INSTANCE_X64(brgemm_matmul_t<avx512_core_bf16_amx_int8>)
         CPU_INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, f32>)
         CPU_INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, s32>)
         CPU_INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, s8>)
