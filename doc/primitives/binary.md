@@ -74,16 +74,19 @@ The following attributes are supported:
 
 ### Data Types Support
 
-The source and destination tensors may have `f32`, `bf16`, or `int8` data types.
+The source and destination tensors may have `f32`, `bf16`, `f16` or `s8/u8`
+data types.
 The binary primitive supports the following combinations of data types:
 
 | Source 0 / 1         | Destination
 | :--                  | :--
-| f32                  | f32
 | bf16                 | bf16
-| f16                  | f16
-| s8, u8, f32          | s8, u8
-| s8, u8, f32          | s8, u8
+| s8, u8, f16, f32     | s8, u8, f16, f32
+
+@warning
+    There might be hardware and/or implementation specific restrictions.
+    Check [Implementation Limitations](@ref dg_binary_impl_limits) section
+    below.
 
 ### Data Representation
 
@@ -92,10 +95,15 @@ The binary primitive supports the following combinations of data types:
 The binary primitive works with arbitrary data tensors. There is no special
 meaning associated with any of tensors dimensions.
 
+@anchor dg_binary_impl_limits
 ## Implementation Limitations
 
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
+
+2. **CPU**
+   - For `f32` destination type source 0 and source 1 tensors must have `f32`
+     data type.
 
 ## Performance Tips
 
