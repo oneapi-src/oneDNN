@@ -1606,8 +1606,10 @@ struct jit_uni_reorder_t : public primitive_t {
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
+        status_t status = status::success;
         auto in = CTX_IN_MEM(const char *, DNNL_ARG_FROM);
-        auto out = CTX_OUT_MEM(char *, DNNL_ARG_TO);
+        auto out = CTX_OUT_CLEAN_MEM(char *, DNNL_ARG_TO, status);
+        CHECK(status);
         DEFINE_SCALES_BUFFER(scales);
 
         omp_driver(in, out, scales);

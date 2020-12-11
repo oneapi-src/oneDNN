@@ -98,12 +98,11 @@ struct nhwc_pooling_fwd_t : public primitive_t {
     using ker_data_t = typename prec_traits<data_type::f32>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
-    void execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward(const exec_ctx_t &ctx) const;
     void array_div_by_const(const int n, const ker_data_t *src,
             const size_t num, ker_data_t *dst) const;
     void array_add(const int n, const ker_data_t *src, ker_data_t *dst) const;
@@ -172,12 +171,11 @@ struct nhwc_pooling_bwd_t : public primitive_t {
     typedef typename prec_traits<d_type>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward(ctx);
-        return status::success;
+        return execute_backward(ctx);
     }
 
 private:
-    void execute_backward(const exec_ctx_t &ctx) const;
+    status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 

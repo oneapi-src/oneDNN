@@ -47,9 +47,12 @@ public:
     status_t create_kernel() override { return ker_->create_kernel(); }
 
     status_t execute(const exec_ctx_t &ctx) const override {
+        status_t status = status::success;
         const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-        const auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-        const auto ws = CTX_OUT_MEM(data_t *, DNNL_ARG_WORKSPACE);
+        const auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+        CHECK(status);
+        const auto ws = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_WORKSPACE, status);
+        CHECK(status);
 
         const auto ker = ker_.get();
         parallel_nd(N_, H_ * W_, [&](int n, int pixel_id) {
@@ -96,8 +99,10 @@ public:
     status_t create_kernel() override { return ker_->create_kernel(); }
 
     status_t execute(const exec_ctx_t &ctx) const override {
+        status_t status = status::success;
         auto src = CTX_IN_MEM(data_t *, DNNL_ARG_SRC);
-        auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+        auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+        CHECK(status);
         auto diff_dst = CTX_IN_MEM(data_t *, DNNL_ARG_DIFF_DST);
         auto ws = CTX_IN_MEM(data_t *, DNNL_ARG_WORKSPACE);
 

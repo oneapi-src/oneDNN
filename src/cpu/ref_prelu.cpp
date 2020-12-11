@@ -102,12 +102,14 @@ static dim_t weights_offset(
     return offset(mem, wei_dims);
 }
 
-void ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
-    if (pd()->has_zero_dim_memory()) return;
+status_t ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
+    if (pd()->has_zero_dim_memory()) return status::success;
 
+    status_t status = status::success;
     const auto src = CTX_IN_MEM(const byte *, DNNL_ARG_SRC);
     const auto weights = CTX_IN_MEM(const byte *, DNNL_ARG_WEIGHTS);
-    auto dst = CTX_OUT_MEM(byte *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(byte *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->src_md(0));
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -144,6 +146,7 @@ void ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                     off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
         }
     });
+    return status::success;
 }
 
 static float reduce(float *mem, dim_t size) {
@@ -384,19 +387,23 @@ void ref_prelu_bwd_t::calculate_shared_axes(const byte *src,
     });
 }
 
-void ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
+status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
-    if (pd()->has_zero_dim_memory()) return;
+    if (pd()->has_zero_dim_memory()) return status::success;
 
     const auto scratchpad = ctx.get_scratchpad_grantor();
     auto scratchpad_buf = scratchpad.template get<float>(
             memory_tracking::names::key_prelu_reduction);
 
+    status_t status = status::success;
     const auto src = CTX_IN_MEM(const byte *, DNNL_ARG_SRC);
     const auto weights = CTX_IN_MEM(const byte *, DNNL_ARG_WEIGHTS);
-    auto diff_weights = CTX_OUT_MEM(const byte *, DNNL_ARG_DIFF_WEIGHTS);
+    auto diff_weights
+            = CTX_OUT_CLEAN_MEM(const byte *, DNNL_ARG_DIFF_WEIGHTS, status);
+    CHECK(status);
     const auto diff_dst = CTX_IN_MEM(const byte *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(byte *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(byte *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper data_d(pd()->src_md(0));
@@ -420,6 +427,7 @@ void ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
             break;
         default: assert(!"unsupported broadcast type");
     }
+    return status::success;
 }
 
 } // namespace cpu

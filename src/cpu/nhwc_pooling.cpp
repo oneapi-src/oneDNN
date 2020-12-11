@@ -154,13 +154,17 @@ using namespace nstl;
 using namespace nhwc_pooling;
 
 template <data_type_t d_type>
-void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
+status_t nhwc_pooling_fwd_t<d_type>::execute_forward(
+        const exec_ctx_t &ctx) const {
 
     const auto alg = pd()->desc()->alg_kind;
 
+    status_t status = status::success;
     const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-    auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
+    auto ws = CTX_OUT_CLEAN_MEM(unsigned char *, DNNL_ARG_WORKSPACE, status);
+    CHECK(status);
 
     const memory_desc_wrapper MEM_D(src)(pd()->src_md());
     const memory_desc_wrapper MEM_D(dst)(pd()->dst_md());
@@ -310,17 +314,21 @@ void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
             }
         }
     });
+    return status::success;
 }
 
 template <>
-void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
+status_t nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
         const exec_ctx_t &ctx) const {
 
     const auto alg = pd()->desc()->alg_kind;
 
+    status_t status = status::success;
     const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-    auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
+    auto ws = CTX_OUT_CLEAN_MEM(unsigned char *, DNNL_ARG_WORKSPACE, status);
+    CHECK(status);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     float *const bf16cvt_src_wsp = scratchpad.template get<float>(
@@ -483,13 +491,17 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
                 }
                 cvt_float_to_bfloat16(dst + dst_offset_init, dst_f32, OC);
             });
+    return status::success;
 }
 
 template <data_type_t d_type>
-void nhwc_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
+status_t nhwc_pooling_bwd_t<d_type>::execute_backward(
+        const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const memory_desc_wrapper MEM_D(diff_src)(pd()->diff_src_md());
     const memory_desc_wrapper MEM_D(diff_dst)(pd()->diff_dst_md());
@@ -618,15 +630,18 @@ void nhwc_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
             }
         }
     });
+    return status::success;
 }
 
 template <>
-void nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
+status_t nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
         const exec_ctx_t &ctx) const {
 
+    status_t status = status::success;
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     float *bf16cvt_dsrc = scratchpad.template get<float>(
@@ -776,6 +791,7 @@ void nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
                             &diff_src[src_offset_init], diff_src_fp32, OC);
                 }
             });
+    return status::success;
 }
 
 template struct nhwc_pooling_fwd_t<data_type::f32>;

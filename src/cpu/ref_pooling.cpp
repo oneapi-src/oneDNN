@@ -44,12 +44,16 @@ static inline dim_t get_offset(
 using namespace nstl;
 
 template <data_type_t data_type, data_type_t acc_type>
-void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
+status_t ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
         const exec_ctx_t &ctx) const {
 
+    status_t status = status::success;
+
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-    auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
+    auto ws = CTX_OUT_CLEAN_MEM(unsigned char *, DNNL_ARG_WORKSPACE, status);
+    CHECK(status);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -200,15 +204,19 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
                     dst[data_p_off] = cpu::saturate_and_round<data_t>(res);
                 });
     }
+    return status::success;
 }
 
 template <data_type_t data_type>
-void ref_pooling_bwd_t<data_type>::execute_backward(
+status_t ref_pooling_bwd_t<data_type>::execute_backward(
         const exec_ctx_t &ctx) const {
+
+    status_t status = status::success;
 
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
@@ -351,6 +359,7 @@ void ref_pooling_bwd_t<data_type>::execute_backward(
             }
         });
     }
+    return status::success;
 }
 
 template struct ref_pooling_fwd_t<data_type::f32>;

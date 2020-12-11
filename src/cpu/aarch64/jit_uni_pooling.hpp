@@ -83,9 +83,12 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override;
 
     status_t execute(const exec_ctx_t &ctx) const override {
+        status_t status = status::success;
         auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-        auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-        auto ws = CTX_OUT_MEM(char *, DNNL_ARG_WORKSPACE);
+        auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+        CHECK(status);
+        auto ws = CTX_OUT_CLEAN_MEM(char *, DNNL_ARG_WORKSPACE, status);
+        CHECK(status);
 
         if (pd()->ndims() == 5)
             execute_forward_3d(src, dst, ws, ctx);
@@ -148,9 +151,11 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
     status_t init(engine_t *engine) override;
 
     status_t execute(const exec_ctx_t &ctx) const override {
+        status_t status = status::success;
         auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
         auto ws = CTX_IN_MEM(const char *, DNNL_ARG_WORKSPACE);
-        auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+        auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+        CHECK(status);
 
         if (pd()->ndims() == 5)
             execute_backward_3d(diff_dst, ws, diff_src, ctx);

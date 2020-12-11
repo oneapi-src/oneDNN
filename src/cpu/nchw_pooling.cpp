@@ -37,11 +37,15 @@ nchw_pooling_fwd_t<d_type>::nchw_pooling_fwd_t(const pd_t *apd)
     : primitive_t(apd), ref_post_ops_(pd()->attr()->post_ops_) {}
 
 template <data_type_t d_type>
-void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
+status_t nchw_pooling_fwd_t<d_type>::execute_forward(
+        const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     const auto alg = pd()->desc()->alg_kind;
     const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-    auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
+    auto ws = CTX_OUT_CLEAN_MEM(unsigned char *, DNNL_ARG_WORKSPACE, status);
+    CHECK(status);
 
     const memory_desc_wrapper ws_d(pd()->workspace_md());
     const data_type_t ws_dt = ws ? ws_d.data_type() : data_type::undef;
@@ -170,17 +174,22 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
                     d[0] = saturate_and_round<data_t>(res);
                 });
     }
+
+    return status::success;
 }
 
 template <>
-void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
+status_t nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
         const exec_ctx_t &ctx) const {
 
     auto alg = pd()->desc()->alg_kind;
 
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const bfloat16_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(bfloat16_t *, DNNL_ARG_DST);
-    auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
+    auto dst = CTX_OUT_CLEAN_MEM(bfloat16_t *, DNNL_ARG_DST, status);
+    CHECK(status);
+    auto ws = CTX_OUT_CLEAN_MEM(unsigned char *, DNNL_ARG_WORKSPACE, status);
+    CHECK(status);
     memory_desc_wrapper dst_d(pd()->dst_md());
 
     auto scratchpad = ctx.get_scratchpad_grantor();
@@ -324,15 +333,20 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
                     dst[dst_offset] = static_cast<bfloat16_t>(d_fp32);
                 });
     }
+
+    return status::success;
 }
 
 template <data_type_t d_type>
-void nchw_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
+status_t nchw_pooling_bwd_t<d_type>::execute_backward(
+        const exec_ctx_t &ctx) const {
     auto alg = pd()->desc()->alg_kind;
     const bool is_3d = pd()->desc()->diff_src_desc.ndims == 5;
     const bool is_2d = pd()->desc()->diff_src_desc.ndims == 4;
 
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    status_t status = status::success;
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
 
@@ -467,17 +481,21 @@ void nchw_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
             }
         });
     }
+
+    return status::success;
 }
 
 template <>
-void nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
+status_t nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
         const exec_ctx_t &ctx) const {
 
     auto alg = pd()->desc()->alg_kind;
     const bool is_3d = pd()->desc()->diff_src_desc.ndims == 5;
     const bool is_2d = pd()->desc()->diff_src_desc.ndims == 4;
 
-    auto diff_src = CTX_OUT_MEM(bfloat16_t *, DNNL_ARG_DIFF_SRC);
+    status_t status = status::success;
+    auto diff_src = CTX_OUT_CLEAN_MEM(bfloat16_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
     auto diff_dst = CTX_IN_MEM(const bfloat16_t *, DNNL_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
 
@@ -666,6 +684,8 @@ void nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
                             diff_src_fp32, src_sp_size * curr_c_block);
                 });
     }
+
+    return status::success;
 }
 template struct nchw_pooling_fwd_t<data_type::f32>;
 template struct nchw_pooling_bwd_t<data_type::f32>;

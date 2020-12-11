@@ -97,12 +97,11 @@ struct nspc_batch_normalization_fwd_t : public primitive_t {
     ~nspc_batch_normalization_fwd_t() {}
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
-    void execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
@@ -169,12 +168,11 @@ struct nspc_batch_normalization_bwd_t : public primitive_t {
     ~nspc_batch_normalization_bwd_t() {}
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward(ctx);
-        return status::success;
+        return execute_backward(ctx);
     }
 
 private:
-    void execute_backward(const exec_ctx_t &ctx) const;
+    status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 

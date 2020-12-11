@@ -70,8 +70,10 @@ struct conv_req_comp {}; // {s8, u8: asymmetric quantization}
 #define SIMPLE_REORDER_TEMPL_CALL type_i, tag_i, type_o, tag_o, order_keep
 
 #define DECLARE_COMMON_PARAMS() \
+    status_t status = status::success; \
     auto input = CTX_IN_MEM(const data_t<type_i> *, DNNL_ARG_FROM); \
-    auto output = CTX_OUT_MEM(data_t<type_o> *, DNNL_ARG_TO); \
+    auto output = CTX_OUT_CLEAN_MEM(data_t<type_o> *, DNNL_ARG_TO, status); \
+    CHECK(status); \
     const auto &scratchpad = ctx.get_scratchpad_grantor(); \
     MAYBE_UNUSED(scratchpad); \
     const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM, pd->src_md()); \
@@ -1722,8 +1724,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         // function.
         auto pd = [pd_object]() { return pd_object; };
 
+        status_t status = status::success;
         auto input = CTX_IN_MEM(const data_t<type_i> *, DNNL_ARG_FROM);
-        auto output = CTX_OUT_MEM(data_t<type_o> *, DNNL_ARG_TO);
+        auto output = CTX_OUT_CLEAN_MEM(data_t<type_o> *, DNNL_ARG_TO, status);
+        CHECK(status);
 
         const float beta = pd()->beta();
         DEFINE_SCALES_BUFFER(scales);

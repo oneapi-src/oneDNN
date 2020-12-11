@@ -57,12 +57,15 @@ inline acc_data_t fast_negative_powf(acc_data_t omega, acc_data_t beta) {
 
 template <impl::data_type_t d_type>
 template <impl::format_tag_t tag>
-void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
+status_t ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     using namespace alg_kind;
     using namespace format_tag;
 
+    status_t status = status::success;
+
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->src_md());
 
@@ -163,6 +166,7 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
                     ker(&dst[off], mb, c, d, h, w);
                 });
     }
+    return status::success;
 }
 
 // Backward LRN formula (refer to Forward LRN formula):
@@ -179,13 +183,16 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
 
 template <impl::data_type_t d_type>
 template <dnnl_format_tag_t tag>
-void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
+status_t ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
     using namespace alg_kind;
     using namespace format_tag;
 
+    status_t status = status::success;
+
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->src_md());
 
@@ -326,58 +333,69 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
                     ker(&diff_src[off], mb, c, d, h, w);
                 });
     }
+    return status::success;
 }
 
-template void
+template status_t
 ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nChw16c>(
         const exec_ctx_t &ctx) const;
-template void
+template status_t
 ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nChw8c>(
         const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nchw>(
+template status_t
+ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nchw>(
         const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nhwc>(
+template status_t
+ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nhwc>(
         const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::any>(
+template status_t
+ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::any>(
         const exec_ctx_t &ctx) const;
-template void
+template status_t
 ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nChw16c>(
         const exec_ctx_t &ctx) const;
-template void
+template status_t
 ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nChw8c>(
         const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nchw>(
+template status_t
+ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nchw>(
         const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nhwc>(
+template status_t
+ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nhwc>(
         const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::any>(
+template status_t
+ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::any>(
         const exec_ctx_t &ctx) const;
 
-template void
+template status_t
 ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::nChw16c>(
         const exec_ctx_t &ctx) const;
-template void
+template status_t
 ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::nChw8c>(
         const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::nchw>(
+template status_t
+ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::nchw>(
         const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::nhwc>(
+template status_t
+ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::nhwc>(
         const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::any>(
+template status_t
+ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::any>(
         const exec_ctx_t &ctx) const;
-template void
+template status_t
 ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::nChw16c>(
         const exec_ctx_t &ctx) const;
-template void
+template status_t
 ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::nChw8c>(
         const exec_ctx_t &ctx) const;
-template void
+template status_t
 ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::nchw>(
         const exec_ctx_t &ctx) const;
-template void
+template status_t
 ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::nhwc>(
         const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::any>(
+template status_t
+ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::any>(
         const exec_ctx_t &ctx) const;
 
 } // namespace cpu

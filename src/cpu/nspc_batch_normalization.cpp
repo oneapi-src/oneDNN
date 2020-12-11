@@ -38,7 +38,7 @@ using namespace memory_tracking::names;
 using namespace data_type;
 
 template <data_type_t d_type>
-void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
+status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     const bool save_stats = pd()->is_training();
     const bool is_training = pd()->is_training();
@@ -51,6 +51,8 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
     auto tmp_var = scratchpad.template get<acc_data_t>(key_bnorm_tmp_var);
     auto *ws_reduce = scratchpad.template get<acc_data_t>(key_bnorm_reduction);
 
+    status_t status = status::success;
+
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto scaleshift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
 
@@ -62,16 +64,21 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                 CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE));
     } else {
         if (save_stats) {
-            mean = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_MEAN);
-            variance = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_VARIANCE);
+            mean = CTX_OUT_CLEAN_MEM(acc_data_t *, DNNL_ARG_MEAN, status);
+            CHECK(status);
+            variance = CTX_OUT_CLEAN_MEM(
+                    acc_data_t *, DNNL_ARG_VARIANCE, status);
+            CHECK(status);
         } else {
             mean = tmp_mean;
             variance = tmp_var;
         }
     }
 
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-    auto ws = CTX_OUT_MEM(uint8_t *, DNNL_ARG_WORKSPACE);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
+    auto ws = CTX_OUT_CLEAN_MEM(uint8_t *, DNNL_ARG_WORKSPACE, status);
+    CHECK(status);
     acc_data_t *tmp_data_ = d_type == bf16
             ? scratchpad.template get<acc_data_t>(key_bnorm_bf16cvt)
             : nullptr;
@@ -230,14 +237,16 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
             }
         }
     });
+    return status::success;
 }
 
 template struct nspc_batch_normalization_fwd_t<f32>;
 template struct nspc_batch_normalization_fwd_t<bf16>;
 
 template <data_type_t d_type>
-void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
+status_t nspc_batch_normalization_bwd_t<d_type>::execute_backward(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto mean = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN);
     auto variance = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE);
@@ -245,8 +254,11 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
     auto scaleshift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
     auto ws = CTX_IN_MEM(const uint8_t *, DNNL_ARG_WORKSPACE);
 
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
-    auto diff_scaleshift = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SCALE_SHIFT);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
+    auto diff_scaleshift = CTX_OUT_CLEAN_MEM(
+            acc_data_t *, DNNL_ARG_DIFF_SCALE_SHIFT, status);
+    CHECK(status);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     auto tmp_diff_ss
@@ -433,6 +445,7 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
             }
         }
     });
+    return status::success;
 }
 
 template struct nspc_batch_normalization_bwd_t<f32>;

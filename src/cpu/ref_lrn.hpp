@@ -63,18 +63,18 @@ struct ref_lrn_fwd_t : public primitive_t {
     status_t execute(const exec_ctx_t &ctx) const override {
         using namespace format_tag;
         switch (pd()->dat_tag_) {
-            case nChw16c: execute_forward<nChw16c>(ctx); break;
-            case nChw8c: execute_forward<nChw8c>(ctx); break;
-            case nchw: execute_forward<nchw>(ctx); break;
-            case nhwc: execute_forward<nhwc>(ctx); break;
-            default: execute_forward<any>(ctx);
+            case nChw16c: return execute_forward<nChw16c>(ctx); break;
+            case nChw8c: return execute_forward<nChw8c>(ctx); break;
+            case nchw: return execute_forward<nchw>(ctx); break;
+            case nhwc: return execute_forward<nhwc>(ctx); break;
+            default: return execute_forward<any>(ctx);
         }
         return status::success;
     }
 
 private:
     template <format_tag_t tag>
-    void execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
@@ -111,18 +111,18 @@ struct ref_lrn_bwd_t : public primitive_t {
     status_t execute(const exec_ctx_t &ctx) const override {
         using namespace format_tag;
         switch (pd()->dat_tag_) {
-            case nChw16c: execute_backward<nChw16c>(ctx); break;
-            case nChw8c: execute_backward<nChw8c>(ctx); break;
-            case nchw: execute_backward<nchw>(ctx); break;
-            case nhwc: execute_backward<nhwc>(ctx); break;
-            default: execute_backward<any>(ctx);
+            case nChw16c: return execute_backward<nChw16c>(ctx); break;
+            case nChw8c: return execute_backward<nChw8c>(ctx); break;
+            case nchw: return execute_backward<nchw>(ctx); break;
+            case nhwc: return execute_backward<nhwc>(ctx); break;
+            default: return execute_backward<any>(ctx);
         }
         return status::success;
     }
 
 private:
     template <format_tag_t tag>
-    void execute_backward(const exec_ctx_t &ctx) const;
+    status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 

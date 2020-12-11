@@ -86,9 +86,11 @@ struct ref_shuffle_t : public primitive_t {
     status_t execute(const exec_ctx_t &ctx) const override {
         const data_type_t data_type = pd()->data_md()->data_type;
         switch (types::data_type_size(data_type)) {
-            case sizeof(float): execute_<sizeof(float)>(ctx); break;
-            case sizeof(bfloat16_t): execute_<sizeof(bfloat16_t)>(ctx); break;
-            case sizeof(int8_t): execute_<sizeof(int8_t)>(ctx); break;
+            case sizeof(float): return execute_<sizeof(float)>(ctx); break;
+            case sizeof(bfloat16_t):
+                return execute_<sizeof(bfloat16_t)>(ctx);
+                break;
+            case sizeof(int8_t): return execute_<sizeof(int8_t)>(ctx); break;
             default: assert(!"unsupported data type size");
         }
         return status::success;
@@ -96,7 +98,7 @@ struct ref_shuffle_t : public primitive_t {
 
 private:
     template <int data_type_size>
-    void execute_(const exec_ctx_t &ctx) const;
+    status_t execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     int *rev_transposed_ = nullptr;
 };

@@ -65,12 +65,11 @@ struct ref_prelu_fwd_t : public primitive_t {
     ref_prelu_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
-    void execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
@@ -139,12 +138,11 @@ struct ref_prelu_bwd_t : public primitive_t {
     ref_prelu_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward(ctx);
-        return status::success;
+        return execute_backward(ctx);
     }
 
 private:
-    void execute_backward(const exec_ctx_t &ctx) const;
+    status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     float ker(const byte *src, const byte *weights, const byte *diff_dst,

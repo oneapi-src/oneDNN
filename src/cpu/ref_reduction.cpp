@@ -102,8 +102,10 @@ void ref_reduction_t<src_type, dst_type, acc_type>::finalize(
 template <data_type_t src_type, data_type_t dst_type, data_type_t acc_type>
 status_t ref_reduction_t<src_type, dst_type, acc_type>::execute_ref(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const src_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(dst_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(dst_t *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const memory_desc_wrapper src_mdw(pd()->src_md());
     const memory_desc_wrapper dst_mdw(pd()->dst_md());

@@ -785,9 +785,11 @@ jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::~jit_uni_i8i8_binary_t()
 template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
 status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     const auto src0 = CTX_IN_MEM(const char *, DNNL_ARG_SRC_0);
     const auto src1 = CTX_IN_MEM(const char *, DNNL_ARG_SRC_1);
-    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(char *, DNNL_ARG_DST, status);
+    CHECK(status);
     const auto &post_ops = pd()->attr()->post_ops_;
     const auto post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(post_ops, ctx);

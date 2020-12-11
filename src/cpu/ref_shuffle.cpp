@@ -30,17 +30,19 @@ namespace cpu {
 using namespace format_tag;
 
 template <int data_type_size>
-void ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
+status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
     using namespace prop_kind;
     using namespace utils;
     using data_t = typename typesize_traits<data_type_size>::type;
 
     const memory_desc_wrapper data_d(pd()->data_md());
 
+    status_t status = status::success;
     auto i_arg = pd()->is_fwd() ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
     auto o_arg = pd()->is_fwd() ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
     auto input = CTX_IN_MEM(const data_t *, i_arg);
-    auto output = CTX_OUT_MEM(data_t *, o_arg);
+    auto output = CTX_OUT_CLEAN_MEM(data_t *, o_arg, status);
+    CHECK(status);
 
     const int axis = pd()->axis();
     const int axis_size = pd()->axis_size();
@@ -126,13 +128,14 @@ void ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
                             off + rev_transposed_[a] * inner_size)];
                 });
     }
+    return status::success;
 }
 
-template void ref_shuffle_t::execute_<sizeof(float)>(
+template status_t ref_shuffle_t::execute_<sizeof(float)>(
         const exec_ctx_t &ctx) const;
-template void ref_shuffle_t::execute_<sizeof(bfloat16_t)>(
+template status_t ref_shuffle_t::execute_<sizeof(bfloat16_t)>(
         const exec_ctx_t &ctx) const;
-template void ref_shuffle_t::execute_<sizeof(int8_t)>(
+template status_t ref_shuffle_t::execute_<sizeof(int8_t)>(
         const exec_ctx_t &ctx) const;
 
 } // namespace cpu

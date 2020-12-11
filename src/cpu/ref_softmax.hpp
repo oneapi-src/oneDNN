@@ -88,15 +88,14 @@ struct ref_softmax_fwd_t : public primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (use_dense_)
-            execute_forward_dense(ctx);
+            return execute_forward_dense(ctx);
         else
-            execute_forward_generic(ctx);
-        return status::success;
+            return execute_forward_generic(ctx);
     }
 
 private:
-    void execute_forward_dense(const exec_ctx_t &ctx) const;
-    void execute_forward_generic(const exec_ctx_t &ctx) const;
+    status_t execute_forward_dense(const exec_ctx_t &ctx) const;
+    status_t execute_forward_generic(const exec_ctx_t &ctx) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
@@ -149,15 +148,14 @@ struct ref_softmax_bwd_t : public primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (use_dense_)
-            execute_backward_dense(ctx);
+            return execute_backward_dense(ctx);
         else
-            execute_backward_generic(ctx);
-        return status::success;
+            return execute_backward_generic(ctx);
     }
 
 private:
-    void execute_backward_dense(const exec_ctx_t &ctx) const;
-    void execute_backward_generic(const exec_ctx_t &ctx) const;
+    status_t execute_backward_dense(const exec_ctx_t &ctx) const;
+    status_t execute_backward_generic(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     bool use_dense_;

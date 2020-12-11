@@ -39,10 +39,12 @@ namespace cpu {
                                                                     h, w))))
 
 template <impl::data_type_t data_type>
-void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
+status_t ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->data_md());
     const blocking_desc_t &blk = data_d.blocking_desc();
@@ -72,16 +74,20 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
                 ker(dst[d_off + v], src[d_off + v]);
         }
     });
+
+    return status::success;
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_fwd_t<data_type>::execute_forward_generic(
+status_t ref_eltwise_fwd_t<data_type>::execute_forward_generic(
         const exec_ctx_t &ctx) const {
     /* fast return */
-    if (pd()->has_zero_dim_memory()) return;
+    if (pd()->has_zero_dim_memory()) return status::success;
 
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->data_md());
 
@@ -110,13 +116,16 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic(
 
                 dst[data_p_off] = cpu::saturate_and_round<data_t>(res);
             });
+    return status::success;
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_fwd_t<data_type>::execute_forward_dense(
+status_t ref_eltwise_fwd_t<data_type>::execute_forward_dense(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->data_md());
 
@@ -134,25 +143,28 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense(
             float res = math::relu_fwd(src[e], alpha);
             dst[e] = cpu::saturate_and_round<data_t>(res);
         });
-        return;
+        return status::success;
     }
 
     parallel_nd(nelems, [&](dim_t e) {
         float res = compute_eltwise_scalar_fwd(alg_kind, src[e], alpha, beta);
         dst[e] = cpu::saturate_and_round<data_t>(res);
     });
+    return status::success;
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_bwd_t<data_type>::execute_backward_generic(
+status_t ref_eltwise_bwd_t<data_type>::execute_backward_generic(
         const exec_ctx_t &ctx) const {
     /* fast return */
-    if (pd()->has_zero_dim_memory()) return;
+    if (pd()->has_zero_dim_memory()) return status::success;
 
+    status_t status = status::success;
     auto src = pd()->use_dst() ? CTX_IN_MEM(const data_t *, DNNL_ARG_DST)
                                : CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->data_md());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
@@ -176,15 +188,18 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic(
                 data_t &ds = diff_src[diff_data_off];
                 ds = compute_eltwise_scalar_bwd(alg_kind, dd, s, alpha, beta);
             });
+    return status::success;
 }
 
 template <>
-void ref_eltwise_bwd_t<data_type::f32>::execute_backward_dense(
+status_t ref_eltwise_bwd_t<data_type::f32>::execute_backward_dense(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = pd()->use_dst() ? CTX_IN_MEM(const data_t *, DNNL_ARG_DST)
                                : CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->data_md());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
@@ -208,17 +223,20 @@ void ref_eltwise_bwd_t<data_type::f32>::execute_backward_dense(
                     alg_kind, diff_dst[i], src[i], alpha, beta);
         }
     });
+    return status::success;
 }
 
 template <>
-void ref_eltwise_bwd_t<data_type::bf16>::execute_backward_dense(
+status_t ref_eltwise_bwd_t<data_type::bf16>::execute_backward_dense(
         const exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
 
+    status_t status = status::success;
     auto src = pd()->use_dst() ? CTX_IN_MEM(const data_t *, DNNL_ARG_DST)
                                : CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     auto s_f = scratchpad.template get<float>(key_eltwise_src);
@@ -251,6 +269,7 @@ void ref_eltwise_bwd_t<data_type::bf16>::execute_backward_dense(
 
         cvt_float_to_bfloat16(diff_src + start, dd_f + start, end - start);
     });
+    return status::success;
 }
 
 template struct ref_eltwise_fwd_t<data_type::f32>;

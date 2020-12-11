@@ -34,9 +34,11 @@ namespace cpu {
 template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
 status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     const auto src0 = CTX_IN_MEM(const src0_data_t *, DNNL_ARG_SRC_0);
     const auto src1 = CTX_IN_MEM(const src1_data_t *, DNNL_ARG_SRC_1);
-    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(dst_data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));

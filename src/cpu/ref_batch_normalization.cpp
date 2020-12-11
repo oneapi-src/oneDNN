@@ -56,24 +56,30 @@ inline float maybe_up_convert<bfloat16_t>(bfloat16_t x) {
 using namespace data_type;
 
 template <impl::data_type_t d_type>
-void ref_batch_normalization_fwd_t<d_type>::execute_forward(
+status_t ref_batch_normalization_fwd_t<d_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     /* fast return */
-    if (this->pd()->has_zero_dim_memory()) return;
+    if (this->pd()->has_zero_dim_memory()) return status::success;
+
+    status_t status = status::success;
 
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto scaleshift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
 
     auto mean = pd()->stats_is_src()
             ? const_cast<acc_data_t *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN))
-            : CTX_OUT_MEM(float *, DNNL_ARG_MEAN);
+            : CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_MEAN, status);
+    CHECK(status);
     auto variance = pd()->stats_is_src()
             ? const_cast<acc_data_t *>(
                     CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE))
-            : CTX_OUT_MEM(float *, DNNL_ARG_VARIANCE);
+            : CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_VARIANCE, status);
+    CHECK(status);
 
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-    auto ws = CTX_OUT_MEM(uint8_t *, DNNL_ARG_WORKSPACE);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
+    auto ws = CTX_OUT_CLEAN_MEM(uint8_t *, DNNL_ARG_WORKSPACE, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const memory_desc_wrapper scaleshift_d(pd()->weights_md());
@@ -99,7 +105,7 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
                 mean[c] = 0;
                 variance[c] = 0;
             }
-        return;
+        return status::success;
     }
 
     const bool with_relu = pd()->with_relu_post_op();
@@ -165,6 +171,7 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
             }
         }
     });
+    return status::success;
 }
 
 template struct ref_batch_normalization_fwd_t<s8>;
@@ -172,8 +179,9 @@ template struct ref_batch_normalization_fwd_t<f32>;
 template struct ref_batch_normalization_fwd_t<bf16>;
 
 template <impl::data_type_t d_type>
-void ref_batch_normalization_bwd_t<d_type>::execute_backward(
+status_t ref_batch_normalization_bwd_t<d_type>::execute_backward(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto mean = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN);
     auto variance = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE);
@@ -181,8 +189,11 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
     auto scaleshift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
     auto ws = CTX_IN_MEM(const uint8_t *, DNNL_ARG_WORKSPACE);
 
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
-    auto diff_scaleshift = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SCALE_SHIFT);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
+    auto diff_scaleshift = CTX_OUT_CLEAN_MEM(
+            acc_data_t *, DNNL_ARG_DIFF_SCALE_SHIFT, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
@@ -209,7 +220,7 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
                 diff_scaleshift[diff_scaleshift_d.off(1, c)] = 0;
             }
         }
-        return;
+        return status::success;
     }
 
     parallel_nd(C, [&](dim_t c) {
@@ -264,6 +275,7 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
             diff_src[dd_off] = v_diff_src;
         }
     });
+    return status::success;
 }
 
 template struct ref_batch_normalization_bwd_t<f32>;

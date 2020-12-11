@@ -229,8 +229,10 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::init(engine_t *engine) {
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_fwd_t<isa, d_type>::execute(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const auto nelems = data_d.nelems(true);
@@ -302,10 +304,12 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::init(engine_t *engine) {
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_bwd_t<isa, d_type>::execute(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = pd()->use_dst() ? CTX_IN_MEM(const data_t *, DNNL_ARG_DST)
                                : CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_md());

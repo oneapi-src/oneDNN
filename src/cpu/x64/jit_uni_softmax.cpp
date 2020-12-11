@@ -698,8 +698,10 @@ status_t jit_uni_softmax_fwd_t<isa>::init(engine_t *engine) {
 
 template <cpu_isa_t isa>
 status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(char *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const auto data_type_size = data_d.data_type() == data_type::bf16
@@ -741,9 +743,11 @@ status_t jit_uni_softmax_bwd_t<isa>::init(engine_t *engine) {
 
 template <cpu_isa_t isa>
 status_t jit_uni_softmax_bwd_t<isa>::execute(const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto dst = CTX_IN_MEM(const char *, DNNL_ARG_DST);
     auto diff_dst = CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(char *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->dst_md());
     const auto data_type_size = data_d.data_type() == data_type::bf16

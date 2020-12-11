@@ -29,10 +29,12 @@ namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
-void ref_softmax_fwd_t<data_type>::execute_forward_dense(
+status_t ref_softmax_fwd_t<data_type>::execute_forward_dense(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const auto ou_stride = pd()->outer_stride();
 
@@ -123,14 +125,17 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
             }
         }
     });
+    return status::success;
 }
 
 template <impl::data_type_t data_type>
-void ref_softmax_fwd_t<data_type>::execute_forward_generic(
+status_t ref_softmax_fwd_t<data_type>::execute_forward_generic(
         const exec_ctx_t &ctx) const {
 
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->src_md());
 
@@ -183,6 +188,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
             }
         }
     });
+    return status::success;
 }
 
 template struct ref_softmax_fwd_t<data_type::bf16>;
@@ -190,11 +196,13 @@ template struct ref_softmax_fwd_t<data_type::f32>;
 
 // softmax along last physical dimension
 template <impl::data_type_t data_type>
-void ref_softmax_bwd_t<data_type>::execute_backward_dense(
+status_t ref_softmax_bwd_t<data_type>::execute_backward_dense(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DST);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const auto ou_stride = pd()->outer_stride();
 
@@ -213,14 +221,17 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense(
                 diff_src[loff] = diff_dst[loff] - expf(dst[loff]) * sbr;
         }
     });
+    return status::success;
 }
 
 template <impl::data_type_t data_type>
-void ref_softmax_bwd_t<data_type>::execute_backward_generic(
+status_t ref_softmax_bwd_t<data_type>::execute_backward_generic(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DST);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const memory_desc_wrapper diff_d(pd()->diff_src_md());
     const memory_desc_wrapper data_d(pd()->dst_md());
@@ -249,6 +260,7 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic(
             }
         }
     });
+    return status::success;
 }
 
 template struct ref_softmax_bwd_t<data_type::bf16>;

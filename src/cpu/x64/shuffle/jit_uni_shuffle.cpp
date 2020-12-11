@@ -279,12 +279,14 @@ status_t jit_uni_shuffle_t<data_type_size>::execute(
     using namespace prop_kind;
     using namespace utils;
 
+    status_t status = status::success;
     const memory_desc_wrapper data_d(pd()->data_md());
 
     const auto i_arg = pd()->is_fwd() ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
     const auto o_arg = pd()->is_fwd() ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
     auto input = CTX_IN_MEM(const data_t *, i_arg);
-    auto output = CTX_OUT_MEM(data_t *, o_arg);
+    auto output = CTX_OUT_CLEAN_MEM(data_t *, o_arg, status);
+    CHECK(status);
 
     const dim_t MB = pd()->MB();
     const dim_t SP = pd()->SP_;

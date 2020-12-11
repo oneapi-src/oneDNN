@@ -77,9 +77,12 @@ public:
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
+        status_t status = status::success;
         const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-        const auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-        const auto ws = CTX_OUT_MEM(data_t *, DNNL_ARG_WORKSPACE);
+        const auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+        CHECK(status);
+        const auto ws = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_WORKSPACE, status);
+        CHECK(status);
 
         const auto ker = ker_.get();
         const auto ker_first = ker_first_.get();
@@ -212,10 +215,13 @@ public:
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
+        status_t status = status::success;
         const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
         const auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
         const auto ws = CTX_IN_MEM(const data_t *, DNNL_ARG_WORKSPACE);
-        const auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+        const auto diff_src
+                = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+        CHECK(status);
 
         const auto ker = ker_.get();
         const auto ker_first = ker_first_.get();

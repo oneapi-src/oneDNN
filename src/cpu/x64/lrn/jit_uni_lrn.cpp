@@ -97,13 +97,17 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::init(engine_t *engine) {
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_fwd_t<isa, d_type>::execute_forward(
+status_t jit_uni_lrn_fwd_t<isa, d_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     using namespace alg_kind;
 
+    status_t status = status::success;
+
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-    auto ws = CTX_OUT_MEM(data_t *, DNNL_ARG_WORKSPACE);
+    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
+    CHECK(status);
+    auto ws = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_WORKSPACE, status);
+    CHECK(status);
 
     const int N = pd()->MB();
     const int C = pd()->C();
@@ -158,6 +162,7 @@ void jit_uni_lrn_fwd_t<isa, d_type>::execute_forward(
             (*ker)(&args);
         });
     }
+    return status::success;
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
@@ -258,12 +263,14 @@ status_t jit_uni_lrn_bwd_t<isa, d_type>::init(engine_t *engine) {
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_bwd_t<isa, d_type>::execute_backward(
+status_t jit_uni_lrn_bwd_t<isa, d_type>::execute_backward(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const data_t *, DNNL_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const int N = pd()->MB();
     const int C = pd()->C();
@@ -320,6 +327,7 @@ void jit_uni_lrn_bwd_t<isa, d_type>::execute_backward(
                 (*ker)(&args);
         });
     }
+    return status::success;
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
