@@ -44,7 +44,7 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
             const memory_desc_t & /* dst_md */) const override;
 
 private:
-    void apply_postops(const Xbyak::Reg64 &reg_dst_, const int idx);
+    void apply_postops(const Xbyak::Reg64 &reg_dst, const int idx);
     void generate() override;
     void append_zp_src_comp(size_t offset, int idx, bool apply_mask);
     int vreg_dst_idx(const int idx) const noexcept;
@@ -86,6 +86,7 @@ private:
     size_t number_of_reserved_zmm_regs_;
     const size_t bias_data_type_size_;
     const size_t dst_data_type_size_;
+    const bool saturation_needed_;
 
     const Xbyak::Reg64 &reg_param_ = abi_param1;
     const Xbyak::Reg64 &reg_dst_ = rdx;
@@ -105,7 +106,6 @@ private:
 
     const Xbyak::Zmm vreg_zero_;
     const Xbyak::Zmm vreg_scale_;
-    const Xbyak::Zmm vreg_nslope_;
     const Xbyak::Zmm vreg_sum_scale_;
     const Xbyak::Zmm vreg_signed_scale_;
     const Xbyak::Zmm vreg_saturation_ubound_;
@@ -127,12 +127,15 @@ jit_pp_ker_t::jit_pp_ker_t(
                       ? types::data_type_size(jcp.bias_data_type)
                       : 0u)
     , dst_data_type_size_(types::data_type_size(jcp.dst_data_type))
-    , vreg_zero_(reserve_zmm())
+    , saturation_needed_(utils::one_of(
+              jcp_.dst_data_type, data_type::u8, data_type::s8, data_type::s32))
+    , vreg_zero_((jcp_.with_eltwise || saturation_needed_) ? reserve_zmm()
+                                                           : Xbyak::Zmm(0))
     , vreg_scale_(reserve_zmm())
-    , vreg_nslope_(reserve_zmm())
-    , vreg_sum_scale_(reserve_zmm())
-    , vreg_signed_scale_(reserve_zmm())
-    , vreg_saturation_ubound_(reserve_zmm())
+    , vreg_sum_scale_(jcp_.with_sum ? reserve_zmm() : Xbyak::Zmm(0))
+    , vreg_signed_scale_(jcp_.signed_input ? reserve_zmm() : Xbyak::Zmm(0))
+    , vreg_saturation_ubound_(
+              saturation_needed_ ? reserve_zmm() : Xbyak::Zmm(0))
     , zmm_step_(jcp.with_sum ? 3u : 2u)
     , max_unroll_((cpu_isa_traits<avx512_core>::n_vregs
                           - number_of_reserved_zmm_regs_)
@@ -330,10 +333,11 @@ void jit_pp_ker_t::generate() {
 
     if (jcp_.zp.dst_exists)
         mov(reg_zp_dst_, ptr[reg_param_ + PARAM_OFF(zp_dst)]);
-
-    vbroadcastss(vreg_nslope_, ptr[reg_param_ + PARAM_OFF(nslope)]);
-    vbroadcastss(vreg_sum_scale_, ptr[reg_param_ + PARAM_OFF(sum_scale)]);
-    vbroadcastss(vreg_signed_scale_, ptr[reg_param_ + PARAM_OFF(signed_scale)]);
+    if (jcp_.with_sum)
+        vbroadcastss(vreg_sum_scale_, ptr[reg_param_ + PARAM_OFF(sum_scale)]);
+    if (jcp_.signed_input)
+        vbroadcastss(
+                vreg_signed_scale_, ptr[reg_param_ + PARAM_OFF(signed_scale)]);
     if (jcp_.scale_idx_mult == 0) vbroadcastss(vreg_scale_, dword[reg_scales_]);
 #undef PARAM_OFF
 
@@ -343,8 +347,9 @@ void jit_pp_ker_t::generate() {
     kmovq(kreg_rem_mask_vlen_, reg_rem_mask_vlen_);
 
     if (jcp_.with_eltwise) vxorps(vreg_zero_, vreg_zero_, vreg_zero_);
-    init_saturate_f32(vreg_zero_, vreg_saturation_ubound_, reg_tmp_comp_,
-            data_type::f32, jcp_.dst_data_type);
+    if (saturation_needed_)
+        init_saturate_f32(vreg_zero_, vreg_saturation_ubound_, reg_tmp_comp_,
+                data_type::f32, jcp_.dst_data_type);
 
     if (jcp_.with_binary) set_binary_postops_off(reg_oc_offset_);
 
@@ -427,8 +432,7 @@ void jit_pp_ker_t::generate() {
             vaddps(vreg_dst_, vreg_dst_, vreg_zp_dst_);
         }
 
-        if (one_of(jcp_.dst_data_type, data_type::u8, data_type::s8,
-                    data_type::s32)) {
+        if (saturation_needed_) {
             saturate_f32(get_vreg_dst(idx), vreg_zero_, vreg_saturation_ubound_,
                     jcp_.dst_data_type);
             vcvtps2dq(get_vreg_dst(idx), get_vreg_dst(idx));
