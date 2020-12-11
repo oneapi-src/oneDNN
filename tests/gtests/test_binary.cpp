@@ -22,6 +22,7 @@
 namespace dnnl {
 
 using tag = memory::format_tag;
+using data_type = memory::data_type;
 
 struct binary_test_params_t {
     std::vector<tag> srcs_format;
@@ -37,7 +38,7 @@ template <typename src0_data_t, typename src1_data_t = src0_data_t,
 class binary_test_t : public ::testing::TestWithParam<binary_test_params_t> {
 private:
     binary_test_params_t p;
-    memory::data_type src0_dt, src1_dt, dst_dt;
+    data_type src0_dt, src1_dt, dst_dt;
 
 protected:
     void SetUp() override {
@@ -53,6 +54,13 @@ protected:
         SKIP_IF(unsupported_data_type(src1_dt),
                 "Engine does not support this data type.");
 
+        SKIP_IF(unsupported_data_type(dst_dt),
+                "Engine does not support this data type.");
+
+        SKIP_IF_CUDA(
+                !cuda_check_data_types_combination(src0_dt, src1_dt, dst_dt),
+                "Engine does not support this data type combination.");
+
         for (auto tag : p.srcs_format) {
             MAYBE_UNUSED(tag);
             SKIP_IF_CUDA(!cuda_check_format_tag(tag),
@@ -63,6 +71,15 @@ protected:
 
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+
+    bool cuda_check_data_types_combination(
+            data_type src0_dt, data_type src1_dt, data_type dst_dt) {
+        bool correct_input_dt = src0_dt == data_type::f32 || src0_dt == dst_dt
+                || dst_dt == data_type::f32;
+        bool inputs_same_dt = src0_dt == src1_dt;
+
+        return inputs_same_dt && correct_input_dt;
     }
 
     bool cuda_check_format_tag(tag atag) {

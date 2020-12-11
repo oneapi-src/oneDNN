@@ -323,6 +323,7 @@ TEST_F(runtime_attr_test_t, TestPool) {
 }
 
 TEST_F(runtime_attr_test_t, TestPReLU) {
+    SKIP_IF_CUDA(true, "Unsupported primitive not supported for CUDA");
     memory::desc data_md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
     memory::desc weights_md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
     prelu_forward::desc op_d(prop_kind::forward, data_md, weights_md);
