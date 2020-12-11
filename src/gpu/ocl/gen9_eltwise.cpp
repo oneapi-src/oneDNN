@@ -62,8 +62,11 @@ status_t gen9_eltwise_fwd_t::pd_t::init_kernel_ctx(
 
 status_t gen9_eltwise_fwd_t::execute_forward_dense(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
+
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
-    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
+    CHECK(status);
 
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
@@ -80,7 +83,7 @@ status_t gen9_eltwise_fwd_t::execute_forward_dense(
             pd()->conf.vector_size);
     compute::nd_range_t nd_range({utils::rnd_up(total_wi, lws)}, {lws});
 
-    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     if (!gpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
                 pd()->desc()->alg_kind, alpha, beta)) {
@@ -123,10 +126,13 @@ status_t gen9_eltwise_bwd_t::pd_t::init_kernel_ctx(
 
 status_t gen9_eltwise_bwd_t::execute_backward_dense(
         const exec_ctx_t &ctx) const {
+    status_t status = status::success;
+
     auto &src = pd()->use_dst() ? CTX_IN_STORAGE(DNNL_ARG_DST)
                                 : CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
-    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
+    auto &diff_src = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
 
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
@@ -144,7 +150,7 @@ status_t gen9_eltwise_bwd_t::execute_backward_dense(
             pd()->conf.vector_size);
     compute::nd_range_t nd_range({utils::rnd_up(total_wi, lws)}, {lws});
 
-    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     if (!gpu_eltwise_bwd_pd_t::eltwise_preserves_zero(
                 pd()->desc()->alg_kind, alpha, beta)) {

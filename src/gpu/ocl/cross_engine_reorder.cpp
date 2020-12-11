@@ -82,8 +82,11 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
+    status_t status = status::success;
+
     auto &src = CTX_IN_STORAGE(DNNL_ARG_FROM);
-    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_TO);
+    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_TO, status);
+    CHECK(status);
 
     std::unique_ptr<memory_t> wspace;
     if (pd()->do_reorder_) {
@@ -114,7 +117,6 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
         return reorder_->execute(r_ctx);
     };
 
-    status_t status = status::success;
     if (pd()->desc()->src_engine_kind == engine_kind::gpu) {
         // GPU -> CPU or GPU -> GPU
         memory_desc_wrapper dst_mdw(pd()->dst_md());

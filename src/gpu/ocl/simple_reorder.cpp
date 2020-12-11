@@ -519,16 +519,17 @@ void simple_reorder_t::pd_t::init_scratchpad() {
 
 status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
 
+    status_t status = status::success;
+
     auto &src = CTX_IN_STORAGE(DNNL_ARG_FROM);
-    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_TO);
+    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_TO, status);
+    CHECK(status);
 
     const auto &conf = pd()->conf;
     if (conf.nelems == 0) return status::success;
 
     float alpha = pd()->alpha();
     float beta = pd()->beta();
-
-    status_t status = status::success;
 
     std::unique_ptr<memory_storage_t> scales;
     if (conf.scale_quant) {

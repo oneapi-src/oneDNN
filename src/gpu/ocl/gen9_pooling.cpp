@@ -181,9 +181,13 @@ status_t gen9_pooling_fwd_t::pd_t::init_kernel_ctx(
 
 status_t gen9_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
+    status_t status = status::success;
+
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
-    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
-    auto &ws = CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE);
+    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
+    CHECK(status);
+    auto &ws = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_WORKSPACE, status);
+    CHECK(status);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -194,7 +198,7 @@ status_t gen9_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
-    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;
 }
@@ -210,7 +214,9 @@ status_t gen9_pooling_bwd_t::pd_t::init_kernel_ctx(
 
 status_t gen9_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
-    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
+    status_t status = status::success;
+    auto &diff_src = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
     auto &ws = CTX_IN_STORAGE(DNNL_ARG_WORKSPACE);
 
@@ -221,7 +227,7 @@ status_t gen9_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
-    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;
 }

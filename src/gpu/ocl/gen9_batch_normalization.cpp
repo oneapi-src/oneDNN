@@ -245,18 +245,25 @@ void gen9_batch_normalization_fwd_t::pd_t::init_scratchpad() {
 status_t gen9_batch_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
 
+    status_t status = status::success;
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
 
-    auto &mean_ = pd()->stats_is_src() ? CTX_IN_STORAGE(DNNL_ARG_MEAN)
-                                       : CTX_OUT_STORAGE(DNNL_ARG_MEAN);
+    auto &mean_ = pd()->stats_is_src()
+            ? CTX_IN_STORAGE(DNNL_ARG_MEAN)
+            : CTX_OUT_CLEAN_STORAGE(DNNL_ARG_MEAN, status);
+    CHECK(status);
 
-    auto &variance_ = pd()->stats_is_src() ? CTX_IN_STORAGE(DNNL_ARG_VARIANCE)
-                                           : CTX_OUT_STORAGE(DNNL_ARG_VARIANCE);
+    auto &variance_ = pd()->stats_is_src()
+            ? CTX_IN_STORAGE(DNNL_ARG_VARIANCE)
+            : CTX_OUT_CLEAN_STORAGE(DNNL_ARG_VARIANCE, status);
+    CHECK(status);
 
     auto &scaleshift = CTX_IN_STORAGE(DNNL_ARG_SCALE_SHIFT);
 
-    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
-    auto &ws = CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE);
+    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
+    CHECK(status);
+    auto &ws = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_WORKSPACE, status);
+    CHECK(status);
 
     const auto &conf = pd()->conf;
 
@@ -278,7 +285,6 @@ status_t gen9_batch_normalization_fwd_t::execute_forward(
     auto &variance = *variance_ptr;
 
     if (conf.calculate_stats) {
-        status_t status;
         compute::kernel_arg_list_t calc_mean_arg_list;
         calc_mean_arg_list.set(0, src);
         calc_mean_arg_list.set(1, *temp_reduce);
@@ -332,7 +338,7 @@ status_t gen9_batch_normalization_fwd_t::execute_forward(
 
     auto nd_range = conf.dispatch.nd_range();
 
-    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    status = parallel_for(ctx, nd_range, kernel_, arg_list);
     return status;
 }
 
@@ -356,6 +362,8 @@ void gen9_batch_normalization_bwd_t::pd_t::init_scratchpad() {
 status_t gen9_batch_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
 
+    status_t status = status::success;
+
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &mean = CTX_IN_STORAGE(DNNL_ARG_MEAN);
     auto &variance = CTX_IN_STORAGE(DNNL_ARG_VARIANCE);
@@ -363,8 +371,11 @@ status_t gen9_batch_normalization_bwd_t::execute_backward(
     auto &scaleshift = CTX_IN_STORAGE(DNNL_ARG_SCALE_SHIFT);
     auto &ws = CTX_IN_STORAGE(DNNL_ARG_WORKSPACE);
 
-    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
-    auto &diff_scaleshift_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SCALE_SHIFT);
+    auto &diff_src = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
+    auto &diff_scaleshift_
+            = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SCALE_SHIFT, status);
+    CHECK(status);
 
     const auto &conf = pd()->conf;
 
@@ -374,8 +385,6 @@ status_t gen9_batch_normalization_bwd_t::execute_backward(
 
     auto &diff_scaleshift
             = (!conf.diff_scaleshift) ? *temp_reduce : diff_scaleshift_;
-
-    status_t status;
 
     compute::kernel_arg_list_t calc_stats_arg_list;
     calc_stats_arg_list.set(0, src);
