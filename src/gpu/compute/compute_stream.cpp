@@ -74,7 +74,7 @@ status_t compute_stream_t::zero_pad(
         std::string stamp;
         if (get_verbose_timestamp()) stamp = "," + std::to_string(start_ms);
 
-        printf("dnnl_verbose%s,exec,%s,%s,%s,%s,%g\n", stamp.c_str(),
+        printf("dnnl_verbose%s,exec,%s,%s,undef,%s,,,%s,%g\n", stamp.c_str(),
                 "gpu,zero_pad", zero_pad_primitive->pd()->name(), md_fmt,
                 md_dim, duration_ms);
 
