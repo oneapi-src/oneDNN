@@ -17,17 +17,6 @@
 #ifndef COMMON_DNNL_THREAD_HPP
 #define COMMON_DNNL_THREAD_HPP
 
-#if defined(_WIN32)
-#include <windows.h>
-// On Windows, 'near' and 'far' may be defined as empty macros in minwindef.h
-// 'interface' may be defined as a 'struct' in combaseapi.h
-#undef near
-#undef far
-#undef interface
-#elif defined(__GLIBC__)
-#include <sched.h>
-#endif
-
 #include <algorithm>
 
 #include "utils.hpp"
@@ -105,35 +94,15 @@ inline int dnnl_get_max_threads() {
     using namespace dnnl::impl::threadpool_utils;
     dnnl::threadpool_interop::threadpool_iface *tp = get_active_threadpool();
     // This is the maximum number of threads oneDNN would use
-    static int def_max_threads;
-    // get_num_cores() will return the number of physical cores in a socket. If
-    // running in a VM, a limited number of cores will be used (e.g., 4 or 8)
-    // depending on the configuration of the cpuid mask. It is expected that the
-    // number of threads in user's threadpool will not exceed this value.
-    int num_cores_per_socket = (int)dnnl::impl::cpu::platform::get_num_cores();
-#if defined(_WIN32)
-    if (def_max_threads == 0) {
-        DWORD_PTR proc_affinity_mask;
-        DWORD_PTR sys_affinity_mask;
-        if (GetProcessAffinityMask(GetCurrentProcess(), &proc_affinity_mask,
-                    &sys_affinity_mask))
-            for (int i = 0; i < CHAR_BIT * sizeof(proc_affinity_mask);
-                    i++, proc_affinity_mask >>= 1) {
-                def_max_threads += proc_affinity_mask & 1;
-            }
-    }
-#elif defined(__GLIBC__)
-    if (def_max_threads == 0) {
-        cpu_set_t cpu_set;
-        // Check if the affinity of the process has been set using, e.g.,
-        // numactl.
-        if (::sched_getaffinity(0, sizeof(cpu_set_t), &cpu_set) == 0)
-            def_max_threads
-                    = std::min(CPU_COUNT(&cpu_set), num_cores_per_socket);
-    }
-#else
-    if (def_max_threads == 0) def_max_threads = num_cores_per_socket;
-#endif
+    static int def_max_threads = 0;
+    // get_max_threads_to_use() will return the number of physical cores in a
+    // socket. If running in a VM, a limited number of cores will be used (e.g.,
+    // 4 or 8) depending on the configuration of the cpuid mask. It is expected
+    // that the number of threads in user's threadpool will not exceed this
+    // value.
+    if (def_max_threads == 0)
+        def_max_threads
+                = (int)dnnl::impl::cpu::platform::get_max_threads_to_use();
     assert(def_max_threads > 0);
     // Use the default value if the threadpool-provided is outside the range
     // [1, def_max_threads]

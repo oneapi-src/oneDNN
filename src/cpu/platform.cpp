@@ -15,6 +15,16 @@
 * limitations under the License.
 *******************************************************************************/
 
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include <algorithm>
+
+#if defined(_WIN32)
+#include <windows.h>
+#elif defined(__GLIBC__)
+#include <sched.h>
+#endif
+#endif
+
 #include "cpu/platform.hpp"
 
 #if DNNL_X64
@@ -108,6 +118,38 @@ unsigned get_num_cores() {
     return 1;
 #endif
 }
+
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+// The purpose of this function is to return the potential maximum number of
+// threads in user's threadpool. It is assumed that the number of threads in an
+// actual threadpool will not exceed the number cores in a socket reported by
+// the OS, which may or may not be equal to the number of total physical cores
+// in a socket depending on the OS configuration (read -- VM environment). In
+// order to simulate the number of cores available in such environment, this
+// function supports process affinity.
+unsigned get_max_threads_to_use() {
+    int num_cores_per_socket = (int)dnnl::impl::cpu::platform::get_num_cores();
+#if defined(_WIN32)
+    DWORD_PTR proc_affinity_mask;
+    DWORD_PTR sys_affinity_mask;
+    if (GetProcessAffinityMask(
+                GetCurrentProcess(), &proc_affinity_mask, &sys_affinity_mask)) {
+        int masked_nthr = 0;
+        for (int i = 0; i < CHAR_BIT * sizeof(proc_affinity_mask);
+                i++, proc_affinity_mask >>= 1)
+            masked_nthr += proc_affinity_mask & 1;
+        return std::min(masked_nthr, num_cores_per_socket);
+    }
+#elif defined(__GLIBC__)
+    cpu_set_t cpu_set;
+    // Check if the affinity of the process has been set using, e.g.,
+    // numactl.
+    if (::sched_getaffinity(0, sizeof(cpu_set_t), &cpu_set) == 0)
+        return std::min(CPU_COUNT(&cpu_set), num_cores_per_socket);
+#endif
+    return num_cores_per_socket;
+}
+#endif
 
 int get_vector_register_size() {
 #if DNNL_X64

@@ -97,7 +97,10 @@ bool DNNL_API has_data_type_support(data_type_t data_type);
 float s8s8_weights_scale_factor();
 
 unsigned get_per_core_cache_size(int level);
-unsigned DNNL_API get_num_cores();
+unsigned get_num_cores();
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+unsigned DNNL_API get_max_threads_to_use();
+#endif
 
 constexpr int get_cache_line_size() {
     return 64;

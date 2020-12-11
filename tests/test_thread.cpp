@@ -29,11 +29,6 @@
 #include "tests/test_thread.hpp"
 
 #if !defined(DNNL_TEST_THREADPOOL_USE_TBB)
-#if defined(__GLIBC__)
-#include <sched.h>
-#endif
-
-#include <algorithm>
 
 #include "src/cpu/platform.hpp"
 namespace dnnl {
@@ -59,25 +54,7 @@ inline int read_num_threads_from_env() {
         if (*endp == '\0') num_threads = nt;
     }
     if (num_threads <= 0) {
-        num_threads = (int)dnnl::impl::cpu::platform::get_num_cores();
-#if defined(_WIN32)
-        DWORD_PTR proc_affinity_mask;
-        DWORD_PTR sys_affinity_mask;
-        if (GetProcessAffinityMask(GetCurrentProcess(), &proc_affinity_mask,
-                    &sys_affinity_mask)) {
-            int masked_nthr = 0;
-            for (int i = 0; i < CHAR_BIT * sizeof(proc_affinity_mask);
-                    i++, proc_affinity_mask >>= 1)
-                masked_nthr += proc_affinity_mask & 1;
-            num_threads = std::min(masked_nthr, num_threads);
-        }
-#elif defined(__GLIBC__)
-        cpu_set_t cpu_set;
-        // Check if the affinity of the process has been set using, e.g.,
-        // numactl.
-        if (::sched_getaffinity(0, sizeof(cpu_set_t), &cpu_set) == 0)
-            num_threads = std::min(CPU_COUNT(&cpu_set), num_threads);
-#endif
+        num_threads = (int)dnnl::impl::cpu::platform::get_max_threads_to_use();
     }
     return num_threads;
 }
