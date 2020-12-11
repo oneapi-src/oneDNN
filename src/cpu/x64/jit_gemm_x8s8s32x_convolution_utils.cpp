@@ -53,6 +53,7 @@ private:
     Xbyak::Zmm get_vreg_prev_dst(int idx) const;
     Xbyak::Zmm get_vreg_zp_comp_src(int idx) const;
     Xbyak::Zmm get_masked_vreg_dst(int idx, bool apply_mask) const;
+    Xbyak::Zmm reserve_zmm();
 
     template <typename T>
     void advance_binary_postops_off(const T &offset);
@@ -82,15 +83,15 @@ private:
     std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
             postops_injector_;
 
+    size_t number_of_reserved_zmm_regs_;
     const size_t bias_data_type_size_;
     const size_t dst_data_type_size_;
-    // TODO: clean-up
+
     const Xbyak::Reg64 &reg_param_ = abi_param1;
     const Xbyak::Reg64 &reg_dst_ = rdx;
     const Xbyak::Reg64 &reg_acc_ = rax;
     const Xbyak::Reg64 &reg_bias_ = rbx;
     const Xbyak::Reg64 &reg_scales_ = rsi;
-
     const Xbyak::Reg64 &reg_len_ = r8;
     const Xbyak::Reg64 &reg_oc_offset_ = r9;
     const Xbyak::Reg64 &reg_rem_mask_short_ = r10;
@@ -98,32 +99,44 @@ private:
     const Xbyak::Reg64 &reg_tmp_comp_
             = r12; // used to broadcast scalar values to vreg
     const Xbyak::Reg64 &reg_g_oc_off_ = reg_tmp_comp_;
+    const Xbyak::Reg64 &reg_zp_src_ = r13;
+    const Xbyak::Reg64 &reg_zp_src_comp_ = r14;
+    const Xbyak::Reg64 &reg_zp_dst_ = r15;
 
-    const Xbyak::Zmm vreg_zero_ = Xbyak::Zmm(0);
-    const Xbyak::Zmm vreg_scale_ = Xbyak::Zmm(1);
-    const Xbyak::Zmm vreg_nslope_ = Xbyak::Zmm(2);
-    const Xbyak::Zmm vreg_sum_scale_ = Xbyak::Zmm(3);
-    const Xbyak::Zmm vreg_signed_scale_ = Xbyak::Zmm(4);
-    const Xbyak::Zmm vreg_saturation_ubound_ = Xbyak::Zmm(5);
+    const Xbyak::Zmm vreg_zero_;
+    const Xbyak::Zmm vreg_scale_;
+    const Xbyak::Zmm vreg_nslope_;
+    const Xbyak::Zmm vreg_sum_scale_;
+    const Xbyak::Zmm vreg_signed_scale_;
+    const Xbyak::Zmm vreg_saturation_ubound_;
 
-    const Xbyak::Reg64 &reg_zp_src_ = this->r13;
-    const Xbyak::Reg64 &reg_zp_src_comp_ = this->r14;
-    const Xbyak::Reg64 &reg_zp_dst_ = this->r15;
     const Xbyak::Opmask &kreg_rem_mask_short_ = k1;
     const Xbyak::Opmask &kreg_rem_mask_vlen_ = k3;
+
     static constexpr size_t def_unroll_ = 4u;
-    size_t max_unroll_ = 12u;
-    size_t zmm_step_ = 2u;
+    const size_t zmm_step_;
+    const size_t max_unroll_;
     int dst_l_offset_ = 0;
 };
 
 jit_pp_ker_t::jit_pp_ker_t(
         const convolution_pd_t *pd, const conv_gemm_conf_t &jcp)
     : pp_ker_t(pd, jcp)
+    , number_of_reserved_zmm_regs_(0)
     , bias_data_type_size_(jcp.bias_data_type != data_type::undef
                       ? types::data_type_size(jcp.bias_data_type)
                       : 0u)
-    , dst_data_type_size_(types::data_type_size(jcp.dst_data_type)) {
+    , dst_data_type_size_(types::data_type_size(jcp.dst_data_type))
+    , vreg_zero_(reserve_zmm())
+    , vreg_scale_(reserve_zmm())
+    , vreg_nslope_(reserve_zmm())
+    , vreg_sum_scale_(reserve_zmm())
+    , vreg_signed_scale_(reserve_zmm())
+    , vreg_saturation_ubound_(reserve_zmm())
+    , zmm_step_(jcp.with_sum ? 3u : 2u)
+    , max_unroll_((cpu_isa_traits<avx512_core>::n_vregs
+                          - number_of_reserved_zmm_regs_)
+              / zmm_step_) {
 
     if (jcp.with_eltwise || jcp.with_binary) {
         using namespace binary_injector;
@@ -212,8 +225,12 @@ void jit_pp_ker_t::set_binary_postops_off(const Xbyak::Reg64 &reg) {
     dst_l_offset_ = 0;
 }
 
+Xbyak::Zmm jit_pp_ker_t::reserve_zmm() {
+    return Xbyak::Zmm(number_of_reserved_zmm_regs_++);
+}
+
 int jit_pp_ker_t::vreg_dst_idx(const int idx) const noexcept {
-    return (6 + idx * zmm_step_ + 0);
+    return (number_of_reserved_zmm_regs_ + idx * zmm_step_);
 }
 
 Xbyak::Zmm jit_pp_ker_t::get_vreg_dst(int idx) const {
@@ -295,11 +312,6 @@ void jit_pp_ker_t::generate() {
 
     size_t vlen = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     for (; vlen >= 1 && (jcp_.oc % vlen != 0); --vlen) {}
-
-    if (jcp_.with_sum) {
-        max_unroll_ = 8;
-        zmm_step_ = 3;
-    }
 
     preamble();
 
