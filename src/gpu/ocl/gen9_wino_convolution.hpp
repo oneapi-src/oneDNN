@@ -55,9 +55,8 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
 
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
-            bool ok = set_default_alg_kind(alg_kind::convolution_winograd)
-                    && utils::one_of(this->desc()->prop_kind, forward_training,
-                            forward_inference)
+            bool ok = utils::one_of(this->desc()->prop_kind, forward_training,
+                              forward_inference)
                     && this->desc()->alg_kind == alg_kind::convolution_winograd
                     && utils::one_of(true,
                             expect_data_types(f32, f32, f32, f32, f32),
