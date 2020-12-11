@@ -62,6 +62,18 @@ namespace x64 {
 
 namespace tr {
 
+static bool prb_has_small_strides(const prb_t &prb) {
+    constexpr ptrdiff_t max_stride = (1LL << 31) - 1;
+    for (int d = 0; d < prb.ndims; ++d) {
+        const ptrdiff_t cms = max_stride / prb.nodes[d].n;
+        const bool small_strides = true
+                && prb.nodes[d].is < cms / (int)data_type_size(prb.itype)
+                && prb.nodes[d].os < cms / (int)data_type_size(prb.otype);
+        if (!small_strides) return false;
+    }
+    return true;
+}
+
 /** Minimal reasonable/desirable kernel size.
  * The constant might be used to determine how a problem should be split
  * between kernel and threading driver. */
@@ -135,19 +147,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
                 && simple_impl_desc_init(p, nullptr) && mayiuse(sse41)
                 && IMPLICATION((p.itype == bf16 || p.otype == bf16),
-                        mayiuse(avx512_core));
-        if (!ok) return false;
+                        mayiuse(avx512_core))
+                && prb_has_small_strides(p);
 
-        const ptrdiff_t max_stride = (1LL << 31) - 1;
-        for (int d = 0; d < p.ndims; ++d) {
-            const ptrdiff_t cms = max_stride / p.nodes[d].n;
-            bool strides_ok = true
-                    && p.nodes[d].is < cms / (int)data_type_size(p.itype)
-                    && p.nodes[d].os < cms / (int)data_type_size(p.otype);
-            if (!strides_ok) return false;
-        }
-
-        return true;
+        return ok;
     }
 
     int n(int d) {
@@ -994,7 +997,8 @@ struct jit_single_blk_kernel_t : public jit_generator {
         bool ok = p.ndims >= 2 && mayiuse(avx2)
                 && p.scale_type == scale_type_t::NONE
                 && utils::one_of(p.itype, f32) && utils::one_of(p.otype, f32)
-                && utils::everyone_is(0, p.ioff, p.ooff) && p.beta == 0.f;
+                && utils::everyone_is(0, p.ioff, p.ooff) && p.beta == 0.f
+                && prb_has_small_strides(p);
         if (!ok) return false;
 
         int64_t n0 = p.nodes[0].n;
