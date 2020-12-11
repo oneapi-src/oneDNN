@@ -364,16 +364,17 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 
     REORDER_BLOCK(block_size, src_mem, src_all, d5);
 
-#elif TRANSPOSE_16X16
+#elif TRANSPOSE_NXN
     // Fast reorder that uses intel_sub_group_read/write functions
     // to guarantee good memory bandwidth. Supports many layouts,
     // see details in simple_reorder.cpp
     //
-    // Uses subgroup size 16.
-    // Each subgroup will read 16 sets of 16 values. Sets are strided in src by
+    // Uses subgroup size = N = 8 or 16.
+    // Each subgroup will read N sets of N values. Sets are strided in src by
     // the dimension that'll be last in dst.
-    // The 16x16 data piece is shared between subgroup's work items and transposed
-    // Each subgroup will write 16 sets of 16 values. Sets are adjacent in dst.
+    // The NxN data piece is shared between subgroup's work items and transposed
+    // Each subgroup will write N sets of N values.
+#define BATCH_SIZE SUB_GROUP_SIZE
     int sgId = get_sub_group_local_id();
 
     const int d0 = GWS_GET_D0();
@@ -405,18 +406,19 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         int src_off = SRC_OFF(
                 d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5 + d5i);
 #else
-        int src_off = SRC_OFF(d0, d1, d2, d3, d4, d5) + 16 * iter;
+        int src_off = SRC_OFF(d0, d1, d2, d3, d4, d5)
+                + SIZE_COEFF * BATCH_SIZE * iter;
 #endif
         src_buf[iter] = SRC_BLOCK_READ(&src[src_off]);
     }
 
     // Share and transpose. Each work item keeps 1 own value and
-    // gets 15 values from other work items
+    // gets (N-1) values from other work items
     dst_buf[sgId] = src_buf[sgId];
     for (int i = 1; i < SUB_GROUP_SIZE; i++) {
-        send_buf = src_buf[(i + sgId) % 16];
-        dst_buf[(16 + sgId - i) % 16]
-                = intel_sub_group_shuffle(send_buf, (16 + sgId - i) % 16);
+        send_buf = src_buf[(i + sgId) % BATCH_SIZE];
+        dst_buf[(BATCH_SIZE + sgId - i) % BATCH_SIZE] = intel_sub_group_shuffle(
+                send_buf, (BATCH_SIZE + sgId - i) % BATCH_SIZE);
     }
 
     for_(int d0i = 0; d0i < d0_block; d0i++)
@@ -427,7 +429,8 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     for (int d5i = 0; d5i < d5_block; d5i++) {
         int iter = d0i + d1i + d2i + d3i + d4i + d5i;
 #if PLAIN_TO_BLOCK
-        int dst_off = DST_OFF(d0, d1, d2, d3, d4, d5) + 16 * iter;
+        int dst_off = DST_OFF(d0, d1, d2, d3, d4, d5)
+                + SIZE_COEFF * BATCH_SIZE * iter;
 #else
         int dst_off = DST_OFF(
                 d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5 + d5i);

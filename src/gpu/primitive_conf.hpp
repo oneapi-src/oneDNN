@@ -567,6 +567,8 @@ enum reorder_kernel_t {
     vectorize_last_dim,
     plain_to_ABxx8ayb,
     plain_xFxE_to_abcdef,
+    transpose8x8_a,
+    transpose8x8_b,
     transpose16x16_a,
     transpose16x16_b,
     reorder_nchw,

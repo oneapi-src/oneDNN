@@ -74,17 +74,17 @@ int innermost_block(dnnl_blocking_desc_t blk) {
     return blk.inner_blks[last];
 }
 
-bool matches_one_16x16_layout(
-        const memory_desc_wrapper &src, const memory_desc_wrapper &dst) {
+bool matches_one_NxN_layout(
+        const memory_desc_wrapper &src, const memory_desc_wrapper &dst, int n) {
     if (dst.ndims() < 2) { return false; }
     if (!src.is_blocking_desc() || !dst.is_blocking_desc()) { return false; }
     auto dst_last = get_Nth_last_dim_or_block(dst, 0);
     auto src_last = get_Nth_last_dim_or_block(src, 0);
     auto dst_next_last = get_Nth_last_dim_or_block(dst, 1);
 
-    if (dst_last.size != 16) { return false; }
-    if (dst_next_last.size % 16 != 0) { return false; }
-    if (src_last.size % 16 != 0) { return false; }
+    if (dst_last.size % n != 0) { return false; }
+    if (dst_next_last.size % n != 0) { return false; }
+    if (src_last.size % n != 0) { return false; }
     if (dst_next_last.idx != src_last.idx) { return false; }
     return true;
 }
@@ -95,11 +95,11 @@ bool matches_one_16x16_layout(
 // Returns 0 if no match
 // Returns 1 if src is plain and dst is blocked
 // Returns 2 if src is blocked and dst is plain
-int matches_16x16_layout(
-        const memory_desc_wrapper &src, const memory_desc_wrapper &dst) {
-    if (matches_one_16x16_layout(src, dst)) {
+int matches_NxN_layout(
+        const memory_desc_wrapper &src, const memory_desc_wrapper &dst, int n) {
+    if (matches_one_NxN_layout(src, dst, n)) {
         return 1;
-    } else if (matches_one_16x16_layout(dst, src)) {
+    } else if (matches_one_NxN_layout(dst, src, n)) {
         return 2;
     } else {
         return 0;
@@ -155,10 +155,16 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
             = !conf.has_padding && !conf.scale_quant && !type_s8_u8;
 
     if (!has_padding_or_scale_quant) {
-        auto temp = matches_16x16_layout(src_mdw, dst_mdw);
+        auto temp = matches_NxN_layout(src_mdw, dst_mdw, 16);
         if (temp == 1) { return reorder_kernel_t::transpose16x16_a; }
         if (temp == 2) { return reorder_kernel_t::transpose16x16_b; }
     }
+    if (!has_padding_or_scale_quant) {
+        auto temp = matches_NxN_layout(src_mdw, dst_mdw, 8);
+        if (temp == 1) { return reorder_kernel_t::transpose8x8_a; }
+        if (temp == 2) { return reorder_kernel_t::transpose8x8_b; }
+    }
+
     if (src_mdw.matches_one_of_tag(nhwc) && dst_mdw.matches_one_of_tag(nchw)
             && padded_dims[last] % 16 == 0
             && dim_is_div_by_16_or_less_than_16(dst_mdw, 1)) {
@@ -330,6 +336,18 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             vect_dim = 4;
             vect_size = 16;
             break;
+        case transpose8x8_a:
+            conf.sub_group_size = 8;
+            blocks[get_Nth_last_dim_or_block(dst_mdw).idx] = 8;
+            vect_dim = get_Nth_last_dim_or_block(src_mdw).idx;
+            vect_size = 8;
+            break;
+        case transpose8x8_b:
+            conf.sub_group_size = 8;
+            blocks[get_Nth_last_dim_or_block(src_mdw).idx] = 8;
+            vect_dim = get_Nth_last_dim_or_block(dst_mdw).idx;
+            vect_size = 8;
+            break;
         case transpose16x16_a:
             conf.sub_group_size = 16;
             blocks[get_Nth_last_dim_or_block(dst_mdw).idx] = 16;
@@ -463,12 +481,24 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
                 "BLK_L", innermost_block(dst_mdw.md_->format_desc.blocking));
     }
 
-    if (conf.implementation == transpose16x16_a
+    if (conf.implementation == transpose8x8_a
+            || conf.implementation == transpose8x8_b
+            || conf.implementation == transpose16x16_a
             || conf.implementation == transpose16x16_b) {
-        kernel_ctx.define_int("TRANSPOSE_16X16", 1);
-        if (conf.implementation == transpose16x16_a) {
-            kernel_ctx.define_int("PLAIN_TO_BLOCK", 1);
-        }
+        kernel_ctx.define_int("TRANSPOSE_NXN", 1);
+
+        const bool direction_a = conf.implementation == transpose8x8_a
+                || conf.implementation == transpose16x16_a;
+        const bool is8 = conf.implementation == transpose8x8_a
+                || conf.implementation == transpose8x8_b;
+
+        const auto size
+                = get_Nth_last_dim_or_block(direction_a ? dst_mdw : src_mdw, 0)
+                          .size;
+        const auto div = (is8) ? 8 : 16;
+        kernel_ctx.define_int("SIZE_COEFF", size / div);
+
+        if (direction_a) { kernel_ctx.define_int("PLAIN_TO_BLOCK", 1); }
     }
 
     if (conf.implementation == reorder_nchw) {
