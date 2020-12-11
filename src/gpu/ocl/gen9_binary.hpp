@@ -48,12 +48,14 @@ struct gen9_binary_t : public gpu_primitive_t {
             const auto attr_skip_mask = sm::post_ops | sm::scales;
 
             bool ok = set_default_params() == status::success && is_broadcast()
-                    && (utils::everyone_is(f32, src_md(0)->data_type,
+                    && (utils::everyone_is(bf16, src_md(0)->data_type,
                                 src_md(1)->data_type, dst_md()->data_type)
-                            || utils::everyone_is(bf16, src_md(0)->data_type,
-                                    src_md(1)->data_type, dst_md()->data_type)
-                            || utils::everyone_is(f16, src_md(0)->data_type,
-                                    src_md(1)->data_type, dst_md()->data_type))
+                            || (utils::one_of(
+                                        src_md(0)->data_type, f16, f32, s8, u8)
+                                    && utils::one_of(src_md(1)->data_type, f16,
+                                            f32, s8, u8)
+                                    && utils::one_of(dst_md()->data_type, f16,
+                                            f32, s8, u8)))
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             utils::one_of(dst_md()->data_type, s8, u8)
                                     && utils::one_of(
