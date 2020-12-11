@@ -61,7 +61,7 @@ if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STRE
         PROPERTIES COMPILE_FLAGS "/bigobj")
 endif()
 
-if(DNNL_SYCL_DPCPP)
+if(DNNL_WITH_SYCL)
     set(FILES_WITHNO_OPT)
     foreach(src in ${SOURCES})
         string(REGEX MATCH ".*jit.*kern.cpp" match ${src})

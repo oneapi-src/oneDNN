@@ -169,7 +169,7 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
     dnnl::engine eng = mem.get_engine();
     size_t size = mem.get_desc().get_size();
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
     bool is_cpu_sycl = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
             && eng.get_kind() == dnnl::engine::kind::cpu);
     bool is_gpu_sycl = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
@@ -226,7 +226,7 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
     dnnl::engine eng = mem.get_engine();
     size_t size = mem.get_desc().get_size();
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
     bool is_cpu_sycl = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
             && eng.get_kind() == dnnl::engine::kind::cpu);
     bool is_gpu_sycl = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL

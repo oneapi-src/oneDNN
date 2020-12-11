@@ -302,7 +302,7 @@ bool is_gpu(const dnnl_engine_t &engine) {
 }
 
 bool is_nvidia_gpu(const dnnl_engine_t &engine) {
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
     if (!is_gpu(engine)) return false;
     constexpr int nvidia_vendor_id = 0x10DE;
     auto eng = dnnl::engine(engine, true);

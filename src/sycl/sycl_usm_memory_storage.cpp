@@ -16,8 +16,6 @@
 
 #include "sycl/sycl_usm_memory_storage.hpp"
 
-#ifdef DNNL_SYCL_DPCPP
-
 #include <CL/sycl.hpp>
 
 #include "common/guard_manager.hpp"
@@ -80,5 +78,3 @@ status_t sycl_usm_memory_storage_t::unmap_data(
 } // namespace sycl
 } // namespace impl
 } // namespace dnnl
-
-#endif

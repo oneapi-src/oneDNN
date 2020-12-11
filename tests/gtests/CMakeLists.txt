@@ -15,7 +15,7 @@
 #===============================================================================
 
 # XXX: Intel(R) oneAPI DPC++ Compiler doesn't support SEH with -fsycl option
-if(WIN32 AND DNNL_SYCL_DPCPP)
+if(WIN32 AND DNNL_WITH_SYCL)
     add_definitions(-DGTEST_HAS_SEH=0)
 endif()
 
@@ -141,7 +141,7 @@ if(WIN32 AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
 endif()
 
 # Higher optimization levels cause access violation in _CxxThrowException.
-if(WIN32 AND DNNL_SYCL_DPCPP)
+if(WIN32 AND DNNL_WITH_SYCL)
     set_source_files_properties(
             test_iface_runtime_dims.cpp
             PROPERTIES COMPILE_FLAGS "-O1")
@@ -176,7 +176,7 @@ function(register_gtest exe src)
 endfunction()
 
 set(skip_usm_pattern "^$") # no skip by default
-if(DNNL_SYCL_DPCPP)
+if(DNNL_WITH_SYCL)
     # - cross_engine_reorder creates usm pointers on CPU and GPU that belong to
     #   the different context, which causes synchronization issues.
     #   FIXME: the library should handle this case gracefully.
@@ -190,7 +190,7 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     endif()
 
     # Create additional buffer targets for SYCL.
-    if(DNNL_SYCL_DPCPP)
+    if(DNNL_WITH_SYCL)
         register_gtest(${exe}_buffer ${TEST_FILE})
         target_compile_definitions(${exe}_buffer PUBLIC -DTEST_DNNL_DPCPP_BUFFER)
     endif()

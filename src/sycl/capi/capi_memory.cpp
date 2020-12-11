@@ -52,10 +52,10 @@ status_t dnnl_sycl_interop_memory_create(memory_t **memory,
     bool is_usm = memory_kind == memory_kind::usm;
 
     std::unique_ptr<memory_storage_t> mem_storage;
-#ifdef DNNL_SYCL_DPCPP
-    if (is_usm) mem_storage.reset(new sycl_usm_memory_storage_t(engine));
-#endif
-    if (!is_usm) mem_storage.reset(new sycl_buffer_memory_storage_t(engine));
+    if (is_usm)
+        mem_storage.reset(new sycl_usm_memory_storage_t(engine));
+    else
+        mem_storage.reset(new sycl_buffer_memory_storage_t(engine));
     if (!mem_storage) return status::out_of_memory;
 
     CHECK(mem_storage->init(flags, size, handle_ptr));

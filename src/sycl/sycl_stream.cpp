@@ -38,30 +38,11 @@ status_t sycl_stream_t::init() {
         auto &sycl_ctx = sycl_engine.context();
         auto &sycl_dev = sycl_engine.device();
 
-#ifdef DNNL_SYCL_DPCPP
         cl::sycl::property_list props = (flags() & stream_flags::in_order)
                 ? cl::sycl::
                         property_list {cl::sycl::property::queue::in_order {}}
                 : cl::sycl::property_list {};
         queue_.reset(new cl::sycl::queue(sycl_ctx, sycl_dev, props));
-#else
-        // XXX: Create a queue based on the SYCL context and engine kind.
-        // This is not reliable but there is no constructor from
-        // context and device in SYCL 1.2.1.
-        if (sycl_dev.is_cpu()) {
-            assert(sycl_engine.kind() == engine_kind::cpu);
-            queue_.reset(
-                    new cl::sycl::queue(sycl_ctx, cl::sycl::cpu_selector {}));
-        } else if (sycl_dev.is_host()) {
-            assert(sycl_engine.kind() == engine_kind::cpu);
-            queue_.reset(
-                    new cl::sycl::queue(sycl_ctx, cl::sycl::host_selector {}));
-        } else {
-            assert(sycl_engine.kind() == engine_kind::gpu);
-            queue_.reset(
-                    new cl::sycl::queue(sycl_ctx, cl::sycl::gpu_selector {}));
-        }
-#endif
     } else {
         // TODO: Compare device and context of the engine with those of the
         // queue after SYCL adds support for device/context comparison.

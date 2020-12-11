@@ -19,8 +19,6 @@
 
 #include "oneapi/dnnl/dnnl_config.h"
 
-#ifdef DNNL_SYCL_DPCPP
-
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
 #include "sycl/sycl_engine_base.hpp"
@@ -134,7 +132,5 @@ private:
 } // namespace sycl
 } // namespace impl
 } // namespace dnnl
-
-#endif
 
 #endif // SYCL_USM_MEMORY_STORAGE_HPP

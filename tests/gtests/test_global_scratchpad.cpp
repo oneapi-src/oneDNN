@@ -78,7 +78,7 @@ conv_ctx_t global_conv_ctx1;
 conv_ctx_t global_conv_ctx2;
 
 HANDLE_EXCEPTIONS_FOR_TEST(global_scratchpad_t, TestGlobalScratchpad) {
-#if DNNL_WITH_SYCL && defined(TEST_DNNL_DPCPP_BUFFER)
+#if defined(DNNL_WITH_SYCL) && defined(TEST_DNNL_DPCPP_BUFFER)
     // It seems static USM data doesn't get along with OpenCL runtime.
     // TODO: investigate.
     if (get_test_engine_kind() == engine::kind::gpu) return;

@@ -102,7 +102,7 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
     CHECK(dnnl_memory_get_memory_desc(mem, &md));
     size_t bytes = dnnl_memory_desc_get_size(md);
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
     bool is_cpu_sycl
             = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_cpu);
     bool is_gpu_sycl
@@ -165,7 +165,7 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
     CHECK(dnnl_memory_get_memory_desc(mem, &md));
     size_t bytes = dnnl_memory_desc_get_size(md);
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
     bool is_cpu_sycl
             = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_cpu);
     bool is_gpu_sycl

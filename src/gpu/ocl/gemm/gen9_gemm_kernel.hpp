@@ -44,7 +44,7 @@ struct gen9_gemm_kernel_t {
 
         kernel_ctx.add_option("-cl-mad-enable");
         kernel_ctx.add_option("-cl-strict-aliasing");
-#if defined(CL_VERSION_2_0) && !defined(DNNL_SYCL_COMPUTECPP)
+#if defined(CL_VERSION_2_0)
         kernel_ctx.add_option("-cl-std=CL2.0");
 #else
         kernel_ctx.add_option("-Dget_enqueued_local_size=get_local_size");

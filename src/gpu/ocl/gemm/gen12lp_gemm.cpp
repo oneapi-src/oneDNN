@@ -83,10 +83,9 @@ status_t gen12lp_gemm_t::launch_x8x8s32(gemm_exec_ctx_t ctx,
     size_t lthreads_x = 2;
     size_t lthreads_y = 8;
 
-// TODO: remove DNNL_SYCL_DPCPP from the condition once non-uniform
+// TODO: remove DNNL_WITH_SYCL from the condition once non-uniform
 // work-groups are fixed in the compiler.
-#if !defined(CL_VERSION_2_0) || defined(DNNL_SYCL_COMPUTECPP) \
-        || defined(DNNL_SYCL_DPCPP)
+#if !defined(CL_VERSION_2_0) || defined(DNNL_WITH_SYCL)
     while (nthreads_x % lthreads_x)
         lthreads_x--;
     while (nthreads_y % lthreads_y)

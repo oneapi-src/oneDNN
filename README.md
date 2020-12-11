@@ -373,7 +373,6 @@ terms.
 Apache License Version 2.0:
 * [Font Roboto](https://fonts.google.com/specimen/Roboto)
 * [MathJax](https://github.com/mathjax/MathJax)
-* [ComputeCPP SDK](https://github.com/codeplaysoftware/computecpp-sdk)
 * [Xbyak_aarch64](https://github.com/fujitsu/xbyak_aarch64)
 
 Boost Software License, Version 1.0:

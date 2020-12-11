@@ -156,8 +156,7 @@ cl::sycl::buffer<T, ndims> get_buffer(const memory &amemory) {
     error::wrap_c_api(dnnl_memory_get_data_handle(amemory.get(), &handle_ptr),
             "could not get SYCL buffer object");
 
-    // XXX: workaround for ComputeCpp
-    // ComputeCpp fails to construct zero-range buffer
+    // XXX: workaround: zero-range buffer cannot be constructed.
     if (!handle_ptr) return cl::sycl::buffer<T, ndims>(cl::sycl::range<1>(1));
 
     auto &buf_u8 = *static_cast<cl::sycl::buffer<uint8_t, 1> *>(handle_ptr);

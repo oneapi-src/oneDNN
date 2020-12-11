@@ -196,11 +196,6 @@ TEST_P(sycl_memory_buffer_test, InteropReorder) {
     }
 }
 
-// FIXME: Intel(R) oneAPI DPC++ Compiler does not support compilation with host
-// compiler and
-// Intel(R) oneAPI DPC++ Compiler does not support mixing fat binaries and host
-// binaries. So the test is enabled for ComputeCpp SYCL only
-#ifdef DNNL_SYCL_COMPUTECPP
 TEST_P(sycl_memory_buffer_test, InteropReorderAndUserKernel) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
@@ -266,8 +261,6 @@ TEST_P(sycl_memory_buffer_test, InteropReorderAndUserKernel) {
         EXPECT_EQ(buf_host[i], -data[i]);
     }
 }
-
-#endif
 
 TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
     engine::kind eng_kind = GetParam();

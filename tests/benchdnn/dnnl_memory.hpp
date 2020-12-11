@@ -239,7 +239,7 @@ private:
             is_data_owner_ = false;
             data_ = NULL;
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
             // XXX: A hack to mitigate the issue from create_from_host_ptr when
             // perform a CPU reorder due to USM in not supported on Nvidia, but
             // it's not allowed to convert host_ptr to SYCL buffer.

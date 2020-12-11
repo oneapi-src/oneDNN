@@ -141,7 +141,7 @@ inline test_params make_test_params_pack(
     return params;
 }
 
-#if defined(DNNL_SYCL_DPCPP)
+#if defined(DNNL_WTIH_SYCL)
 bool is_memory_kind_buffer(const test_memory &mem) {
     return sycl_interop::get_memory_kind(mem.get())
             == sycl_interop::memory_kind::buffer;

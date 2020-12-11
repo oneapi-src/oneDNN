@@ -28,8 +28,6 @@ using namespace cl::sycl;
 
 namespace dnnl {
 
-#ifdef DNNL_SYCL_DPCPP
-
 class fill_kernel;
 
 class sycl_memory_usm_test : public ::testing::TestWithParam<engine::kind> {
@@ -167,7 +165,5 @@ struct PrintToStringParamName {
 INSTANTIATE_TEST_SUITE_P(Simple, sycl_memory_usm_test,
         ::testing::Values(engine::kind::cpu, engine::kind::gpu),
         PrintToStringParamName());
-
-#endif
 
 } // namespace dnnl

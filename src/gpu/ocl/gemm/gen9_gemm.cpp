@@ -216,10 +216,9 @@ status_t gen9_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     size_t lthreads_y = 8;
     size_t lthreads_z = 1;
 
-    // TODO: remove DNNL_SYCL_DPCPP from the condition once non-uniform
+    // TODO: remove DNNL_WITH_SYCL from the condition once non-uniform
     // work-groups are fixed in the compiler.
-#if !defined(CL_VERSION_2_0) || defined(DNNL_SYCL_COMPUTECPP) \
-        || defined(DNNL_SYCL_DPCPP)
+#if !defined(CL_VERSION_2_0) || defined(DNNL_WITH_SYCL)
     while (nthreads_x % lthreads_x)
         lthreads_x--;
     while (nthreads_y % lthreads_y)

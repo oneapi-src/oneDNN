@@ -73,23 +73,9 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
     if (engine()->kind() == engine_kind::cpu) {
         storage->buffer_ = buffer_;
     } else {
-#ifdef DNNL_SYCL_DPCPP
         buffer_u8_t *sub_buffer = buffer_
                 ? new buffer_u8_t(parent_buffer(), base_offset_ + offset, size)
                 : nullptr;
-#endif
-#ifdef DNNL_SYCL_COMPUTECPP
-        // XXX: Workaround for ComputeCpp. Sub-buffers support is broken in
-        // ComputeCpp compiler so we either return the existing buffer (if
-        // offset is 0) or create a new buffer (assuming the caller doesn't
-        // request the memory several times).
-        // Apparently this workaround does NOT work in general case but at
-        // least covers all the existing cases in the library at the moment.
-        auto sub_buffer = (!buffer_ || size == 0) ? nullptr
-                                                  : (base_offset_ + offset != 0)
-                        ? new buffer_u8_t(cl::sycl::range<1>(size))
-                        : new buffer_u8_t(*buffer_);
-#endif
         storage->buffer_.reset(sub_buffer);
         storage->base_offset_ = base_offset_ + offset;
     }

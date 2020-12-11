@@ -103,10 +103,6 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             return status;
         };
         status_t status = execute_func();
-#ifndef DNNL_SYCL_DPCPP
-        // Emulate in-order behavior
-        if (flags() & stream_flags::in_order) wait();
-#endif
         return status;
     }
 
@@ -123,7 +119,6 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         bool usm_dst = sycl_dst->memory_kind() == memory_kind::usm;
         cl::sycl::event e;
 
-#ifdef DNNL_SYCL_DPCPP
         if (usm_src && usm_dst) {
             auto *usm_src
                     = utils::downcast<const sycl_usm_memory_storage_t *>(&src);
@@ -159,9 +154,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                         = b_src.get_access<cl::sycl::access::mode::read>(cgh);
                 cgh.copy(acc_src, usm_dst->usm_ptr());
             });
-        } else // if (!usm_src && !usm_dst)
-#endif
-        {
+        } else { // if (!usm_src && !usm_dst)
             assert(!usm_src && !usm_dst && "USM is not supported yet");
             auto *buffer_src
                     = utils::downcast<const sycl_buffer_memory_storage_t *>(
@@ -194,7 +187,6 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         cl::sycl::event out_event;
         std::vector<cl::sycl::event> in_deps = get_deps();
 
-#ifdef DNNL_SYCL_DPCPP
         if (usm) {
             auto *usm_dst
                     = utils::downcast<const sycl_usm_memory_storage_t *>(&dst);
@@ -205,9 +197,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 register_deps(cgh, in_deps);
                 cgh.memset(dst_ptr, pattern, size);
             });
-        } else
-#endif
-        {
+        } else {
             auto *buffer_dst
                     = utils::downcast<const sycl_buffer_memory_storage_t *>(
                             &dst);
@@ -225,7 +215,6 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         return status::success;
     }
 
-#ifdef DNNL_SYCL_DPCPP
     const std::vector<cl::sycl::event> &get_deps() const { return deps_; }
     void set_deps(const std::vector<cl::sycl::event> &deps) { deps_ = deps; }
     void add_dep(const cl::sycl::event &dep) { deps_.push_back(dep); }
@@ -249,23 +238,6 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
     void register_deps(cl::sycl::handler &cgh) const {
         register_deps(cgh, get_deps());
     }
-#else
-    // Here, we use only buffers, so dependency tracking is handled
-    // via buffers and events tracking is useless. However, if we
-    // really wanted to, we could gather events by creating a dummy
-    // sycl buffer from dummy cl_mem and deps_ events, enqueue a dummy
-    // kernel, and return the output event
-    const std::vector<cl::sycl::event> &get_deps() const {
-        static std::vector<cl::sycl::event> empty_list = {};
-        return empty_list;
-    }
-    void set_deps(const std::vector<cl::sycl::event> &) {}
-    void add_dep(const cl::sycl::event &) {}
-    cl::sycl::event get_output_event() const { return cl::sycl::event(); }
-    void register_deps(cl::sycl::handler &cgh,
-            const std::vector<cl::sycl::event> &event_list) const {}
-    void register_deps(cl::sycl::handler &cgh) const {}
-#endif
 
 protected:
     sycl_stream_t(engine_t *engine, unsigned flags)

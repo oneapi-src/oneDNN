@@ -131,7 +131,6 @@ void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
         if (a.second.mem->engine()->runtime_kind() == runtime_kind::sycl) {
             auto *mem_storage = a.second.mem->memory_storage();
             if (!mem_storage->is_null()) {
-#ifdef DNNL_SYCL_DPCPP
                 // Skip USM memory storages as they do not require special
                 // handling and can be accessed directly
                 auto mem_api_kind
@@ -139,7 +138,6 @@ void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
                                 mem_storage)
                                   ->memory_kind();
                 if (mem_api_kind == memory_kind::usm) continue;
-#endif
                 sycl_mem_storages.push_back(mem_storage);
             }
         }

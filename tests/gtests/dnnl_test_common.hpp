@@ -39,11 +39,11 @@
 #include "oneapi/dnnl/dnnl_threadpool.hpp"
 #endif
 
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL || DNNL_WITH_SYCL
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL || defined(DNNL_WITH_SYCL)
 #include "dnnl_test_common_ocl.hpp"
 #endif
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
 #include "oneapi/dnnl/dnnl_sycl.hpp"
 #endif
 
@@ -98,7 +98,7 @@ inline int get_vendor_id(const std::string &vendor) {
 }
 
 inline bool is_nvidia_gpu(const dnnl::engine &eng) {
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
     const int nvidia_vendor_id = get_vendor_id("nvidia");
     const auto device = dnnl::sycl_interop::get_device(eng);
     const auto eng_vendor_id

@@ -183,7 +183,9 @@ class c_api_memory_test_t : public ::testing::Test {
 };
 
 TEST_F(c_api_memory_test_t, TestZeroPadBoom) {
-    SKIP_IF(DNNL_WITH_SYCL, "Test does not support SYCL.");
+#ifdef DNNL_WITH_SYCL
+    SKIP_IF(true, "Test does not support SYCL.");
+#endif
 
     dnnl_memory_desc_t md;
     memset(&md, 0xcc, sizeof(md));

@@ -49,7 +49,7 @@ if($ENV{DNNL_WERROR})
     set(DNNL_WERROR $ENV{DNNL_WERROR})
 endif()
 
-if(WIN32 AND DNNL_SYCL_DPCPP)
+if(WIN32 AND DNNL_WITH_SYCL)
     # XXX: Intel oneAPI DPC++ Compiler defines __GNUC__ and __STDC__ macros on
     # Windows. It is not aligned with clang behavior so manually undefine them.
     add_definitions(-U__GNUC__ -U__STDC__)

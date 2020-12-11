@@ -55,7 +55,7 @@
 #include "gpu/ocl/verbose.hpp"
 #endif
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
 #include "sycl/verbose.hpp"
 #endif
 
@@ -86,7 +86,7 @@ int get_verbose() {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         gpu::ocl::print_verbose_header();
 #endif
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
         sycl::print_verbose_header();
 #endif
         printf("dnnl_verbose,info,prim_template:");

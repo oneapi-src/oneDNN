@@ -31,7 +31,7 @@
 #include "gpu/ocl/ocl_engine.hpp"
 #endif
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
 #include "sycl/sycl_engine.hpp"
 #endif
 
@@ -50,7 +50,7 @@ static inline std::unique_ptr<engine_factory_t> get_engine_factory(
                 new gpu::ocl::ocl_engine_factory_t(kind));
     }
 #endif
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
     if (runtime_kind == runtime_kind::sycl)
         return sycl::get_engine_factory(kind);
 #endif

@@ -23,7 +23,7 @@
 #include <limits>
 #include <new>
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
 #include "oneapi/dnnl/dnnl_sycl.hpp"
 #include <CL/sycl.hpp>
 #endif
@@ -86,7 +86,7 @@ TEST_P(memory_test_cpp, OutOfMemory) {
     bool is_sycl = is_sycl_engine(eng_kind_c);
 
     auto sz = std::numeric_limits<memory::dim>::max();
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
     if (is_sycl) {
         auto dev = sycl_interop::get_device(eng);
         auto max_alloc_size

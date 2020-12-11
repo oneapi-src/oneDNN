@@ -83,7 +83,7 @@ else()
     endif()
 endif()
 
-if(WIN32 AND DNNL_SYCL_DPCPP)
+if(WIN32 AND DNNL_WITH_SYCL)
     # Ignore warning LNK4078: multiple '__CLANG_OFFLOAD_BUNDLE__sycl-spi'
     # sections found with different attributes
     append(CMAKE_EXE_LINKER_FLAGS "-Xlinker /IGNORE:4078")

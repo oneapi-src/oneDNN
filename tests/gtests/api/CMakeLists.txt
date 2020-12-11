@@ -25,7 +25,7 @@ if(NOT DNNL_SYCL_CUDA)
 endif()
 
 # Create DPC++ buffer target.
-if(DNNL_SYCL_DPCPP AND NOT DNNL_SYCL_CUDA)
+if(DNNL_WITH_SYCL AND NOT DNNL_SYCL_CUDA)
     register_exe(${TEST_EXE}_buffer "${TEST_SOURCES}" "test" "dnnl_gtest")
     target_compile_definitions(${TEST_EXE}_buffer PUBLIC -DTEST_DNNL_DPCPP_BUFFER)
 endif()

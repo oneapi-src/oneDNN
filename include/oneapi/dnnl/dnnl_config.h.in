@@ -82,13 +82,6 @@
 #error "BOTH DNNL_CPU_RUNTIME and DNNL_GPU_RUNTIME must be defined"
 #endif
 
-#if (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL) \
-        || (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL)
-#define DNNL_WITH_SYCL 1
-#else
-#define DNNL_WITH_SYCL 0
-#endif
-
 // For SYCL CPU, a primitive may be created and executed in different threads
 // hence the global scratchpad does not work. This enables concurrent execution
 // when CPU runtime is SYCL to avoid the issue.
@@ -98,11 +91,8 @@
 #endif
 #endif
 
-// When defined, oneAPI DPC++ Compiler is used.
-#cmakedefine DNNL_SYCL_DPCPP
-
-// When defined, ComputeCpp SYCL is used.
-#cmakedefine DNNL_SYCL_COMPUTECPP
+// When defined, DPCPP is supported.
+#cmakedefine DNNL_WITH_SYCL
 
 // When defined, Level Zero is supported.
 #cmakedefine DNNL_WITH_LEVEL_ZERO

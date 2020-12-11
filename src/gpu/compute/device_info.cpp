@@ -22,7 +22,7 @@
 #include "cpu/platform.hpp"
 #include "gpu/jit/binary_format.hpp"
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
 #include "sycl/sycl_engine_base.hpp"
 #endif
 
@@ -92,7 +92,7 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
     hw_threads_ = eu_count_ * threads_per_eu;
 
     mayiuse_non_uniform_work_groups_ = true;
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
     if (engine->runtime_kind() == runtime_kind::sycl) {
         auto *sycl_engine
                 = utils::downcast<const sycl::sycl_engine_base_t *>(engine);

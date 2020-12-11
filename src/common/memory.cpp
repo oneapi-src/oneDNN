@@ -21,7 +21,7 @@
 #include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl.hpp"
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
 #include "oneapi/dnnl/dnnl_sycl.h"
 #endif
 
@@ -501,7 +501,7 @@ size_t dnnl_memory_desc_get_size(const memory_desc_t *md) {
 
 status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
         engine_t *engine, void *handle) {
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
     return dnnl_sycl_interop_memory_create(
             memory, md, engine, dnnl_sycl_interop_usm, handle);
 #else

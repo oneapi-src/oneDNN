@@ -26,12 +26,5 @@ file(GLOB_RECURSE SOURCES
 set(OBJ_LIB ${LIB_NAME}_sycl)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 
-if(DNNL_SYCL_COMPUTECPP)
-    add_sycl_to_target(
-        TARGET ${TARGET_NAME}
-        SOURCES ${SOURCES}
-    )
-endif()
-
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
