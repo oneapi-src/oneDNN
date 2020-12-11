@@ -47,6 +47,11 @@
 --stag=aBx4b,aBx8b --dtag=aBx16b 2x71x16x16 2x72x16x16 2x73x16x16
 --stag=aBx16b      --dtag=aBx8b  2x71x16x16 2x72x16x16 2x73x16x16
 
+# shape with large strides
+--reset
+--sdt=f32 --ddt=f32
+--stag=abx --dtag=aBx8b 2x16x19200x19200
+
 # f16
 --reset
 --attr-oscale=per_dim_1:0.5
