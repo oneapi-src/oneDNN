@@ -112,7 +112,9 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
             case 4:
                 if (is_dw) return execute_forward_2d_dw(ctx);
                 return execute_forward_2d(ctx);
-            case 5: return execute_forward_3d(ctx);
+            case 5:
+                if (is_dw) return execute_forward_3d_dw(ctx);
+                return execute_forward_3d(ctx);
         }
         return status::unimplemented;
     }
@@ -122,6 +124,7 @@ private:
     status_t execute_forward_2d(const exec_ctx_t &ctx) const;
     status_t execute_forward_3d(const exec_ctx_t &ctx) const;
     status_t execute_forward_2d_dw(const exec_ctx_t &ctx) const;
+    status_t execute_forward_3d_dw(const exec_ctx_t &ctx) const;
     const pd_t *pd() const {
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }

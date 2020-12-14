@@ -112,8 +112,12 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
                 return execute_forward_2d_dw(ctx);
             else
                 return execute_forward_2d(ctx);
-        else if (_pd->ndims() == 5)
-            return execute_forward_3d(ctx);
+        else if (_pd->ndims() == 5) {
+            if (_pd->jcp_.is_depthwise)
+                return execute_forward_3d_dw(ctx);
+            else
+                return execute_forward_3d(ctx);
+        }
         return status::unimplemented;
     }
 
@@ -122,6 +126,7 @@ private:
     status_t execute_forward_2d(const exec_ctx_t &ctx) const;
     status_t execute_forward_2d_dw(const exec_ctx_t &ctx) const;
     status_t execute_forward_3d(const exec_ctx_t &ctx) const;
+    status_t execute_forward_3d_dw(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     const float *adjust_oscales(const memory_tracking::grantor_t &scratchpad,
             const float *src_scales, const float *wei_scales) const;
