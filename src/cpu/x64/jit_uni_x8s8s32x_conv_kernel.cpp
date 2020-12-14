@@ -39,7 +39,7 @@ void pick_loop_order(jit_conv_conf_t &jcp) {
     jcp.loop_order = loop_cwgn;
     if (jcp.ngroups > 1) {
         jcp.loop_order = loop_ngcw;
-        if (jcp.mb < jcp.nthr)
+        if (jcp.mb < jcp.nthr && jcp.ndims != 5)
             jcp.loop_order = jcp.ndims == 3 ? loop_nwcg : loop_nhwcg;
     } else if (jcp.mb >= jcp.nthr && jcp.ic_without_padding <= 8) {
         jcp.loop_order = loop_ngcw;
@@ -294,7 +294,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
     };
 
     auto kernel_offset = [=](int ci, int ki) {
-        return jcp.typesize_in * ((ci * jcp.kh * jcp.kw + ki) * jcp.ch_block);
+        return jcp.typesize_in * ((ci * jcp.kd * jcp.kh * jcp.kw + ki) * jcp.ch_block);
     };
 
     auto compute = [=](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
@@ -1171,8 +1171,6 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
     jcp.signed_input = src_d.data_type() == data_type::s8;
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
 
-    if (is_3d && jcp.is_depthwise) return status::unimplemented;
-
     jcp.with_input_zp = !attr.input_zero_points_.has_default_values();
     jcp.with_weights_zp = !attr.weights_zero_points_.has_default_values();
 
@@ -1242,7 +1240,8 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
                 wei_tag = with_groups ? jcp.is_depthwise ? Goihw8g : gOIhw2i8o4i
                                       : OIhw2i8o4i;
             } else {
-                wei_tag = with_groups ? gOIdhw2i8o4i : OIdhw2i8o4i;
+                wei_tag = with_groups ? jcp.is_depthwise ? Goidhw8g : gOIdhw2i8o4i
+                                      : OIdhw2i8o4i;
             }
         } else {
             if (is_avx2) {
