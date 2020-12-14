@@ -164,7 +164,7 @@ static inline int get_Vtrans_ic0(int lx, int ly) {
 }
 static inline int get_Vtrans_ih0(int lx, int ly) {
     // Must be zero (without wino tile blocking) to perform the V transform
-    // since the transformation uses a linear combination of the height value;
+    // since the transformation uses a linear combination of the height values;
     return 0;
 }
 static inline int get_Vtrans_iw0(int lx, int ly) {
@@ -175,7 +175,8 @@ static inline int get_Vcomp_ic0(int lx, int ly) {
     return 8 * (lx % 2);
 }
 static inline int get_Vcomp_ih0(int lx, int ly) {
-    // Relies on the fact that WINO_D = 8
+    // Relies on the fact that WINO_D = 8 to get full utilization of the local
+    // workgroup.
     return ly;
 }
 static inline int get_Vcomp_iw0(int lx, int ly) {
@@ -223,6 +224,7 @@ static inline int get_out_oc0(int lx, int ly) {
     return lx;
 }
 
+#if WINO_M == 6
 static inline void wino_U_transform(
         UTRANS_DATA_T U[WINO_D], UTRANS_DATA_T wei[WINO_R]) {
     U[0] = wei[0];
@@ -292,11 +294,71 @@ static inline void wino_m_transform(
     C[4] = x0 + TO_TYPE(16.f) * x2 + TO_TYPE(0.0625f) * x4;
     C[5] = x1 + TO_TYPE(32.f) * x3 + TO_TYPE(0.03125f) * x5 + M[7];
 }
+#elif WINO_M == 4
+static inline void wino_U_transform(
+        UTRANS_DATA_T U[WINO_D], UTRANS_DATA_T wei[WINO_R]) {
+    U[0] = wei[0] / 4;
+    U[1] = (wei[0] + wei[1] + wei[2]) / (-6);
+    U[2] = (wei[0] - wei[1] + wei[2]) / (-6);
+    U[3] = (wei[0] + 2 * wei[1] + 4 * wei[2]) / 24;
+    U[4] = (wei[0] - 2 * wei[1] + 4 * wei[2]) / 24;
+    U[5] = wei[2];
+}
+
+static inline void wino_V_transform(
+        __local VTRANS_DATA_T *V, const VTRANS_DATA_T src[WINO_D]) {
+    // Compute Winograd f4x3 data transform and store components in SLM.
+    V[V_off(0, 0, 0, VTRANS_BLOCK)] = 4 * src[0] - 5 * src[2] + src[4];
+    V[V_off(0, 1, 0, VTRANS_BLOCK)] = -4 * (src[1] + src[2]) + src[3] + src[4];
+    V[V_off(0, 2, 0, VTRANS_BLOCK)] = 4 * (src[1] - src[2]) - src[3] + src[4];
+    V[V_off(0, 3, 0, VTRANS_BLOCK)]
+            = -2 * src[1] - src[2] + 2 * src[3] + src[4];
+    V[V_off(0, 4, 0, VTRANS_BLOCK)] = 2 * src[1] - src[2] - 2 * src[3] + src[4];
+    V[V_off(0, 5, 0, VTRANS_BLOCK)] = 4 * src[1] - 5 * src[3] + src[5];
+}
+
+static inline void wino_m_transform(
+        OUT_BLOCK_DATA_T C[WINO_M], OUT_BLOCK_DATA_T M[WINO_D]) {
+    OUT_BLOCK_DATA_T x0 = M[1] + M[2];
+    OUT_BLOCK_DATA_T x1 = M[1] - M[2];
+    OUT_BLOCK_DATA_T x2 = M[3] + M[4];
+    OUT_BLOCK_DATA_T x3 = M[3] - M[4];
+
+    C[0] = M[0] + x0 + x2;
+    C[1] = x1 + 2 * x3;
+    C[2] = x0 + 4 * x2;
+    C[3] = x1 + 8 * x3 + M[5];
+}
+#elif WINO_M == 2
+static inline void wino_U_transform(
+        UTRANS_DATA_T U[WINO_D], UTRANS_DATA_T wei[WINO_R]) {
+    U[0] = wei[0];
+    U[1] = (wei[0] + wei[1] + wei[2]) / 2;
+    U[2] = (wei[0] - wei[1] + wei[2]) / 2;
+    U[3] = wei[2];
+}
+
+static inline void wino_V_transform(
+        __local VTRANS_DATA_T *V, const VTRANS_DATA_T src[WINO_D]) {
+    // Compute Winograd f2x3 data transform and store components in SLM.
+    V[V_off(0, 0, 0, VTRANS_BLOCK)] = src[0] - src[2];
+    V[V_off(0, 1, 0, VTRANS_BLOCK)] = src[1] + src[2];
+    V[V_off(0, 2, 0, VTRANS_BLOCK)] = -src[1] + src[2];
+    V[V_off(0, 3, 0, VTRANS_BLOCK)] = src[1] - src[3];
+}
+
+static inline void wino_m_transform(
+        OUT_BLOCK_DATA_T C[WINO_M], OUT_BLOCK_DATA_T M[WINO_D]) {
+    C[0] = M[0] + M[1] + M[2];
+    C[1] = M[1] - M[2] - M[3];
+}
+#else
+#error "Unsupported Winograd Tile Size"
+#endif
 
 __attribute__((reqd_work_group_size(OC_BLOCK, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(OC_BLOCK))) __kernel void
-gen9_wino_wei_transform_6x3(
-        __global DATA_T *U, const __global DATA_T *weights) {
+gen9_wino_wei_transform(__global DATA_T *U, const __global DATA_T *weights) {
     const uint weights_tile_width = 1;
     const uint weights_tile_height = WINO_M;
     const uint in_kw = get_global_id(1) * weights_tile_width;
@@ -335,7 +397,7 @@ gen9_wino_wei_transform_6x3(
 
 __attribute__((reqd_work_group_size(16, 8, 1)))
 __attribute__((intel_reqd_sub_group_size(16))) __kernel void
-gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
+gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
         const __global DATA_T *U_param,
         const __global DATA_T *bias POST_OP_ARGS) {
     const uint slm_size = (WINO_IC_BLOCK * WINO_D * IW_BLOCK) / VTRANS_BLOCK;
@@ -354,8 +416,8 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
     const int lx = get_local_id(0);
     const int ly = get_local_id(1);
 
-    // Load ic32ih8iw16 input tile, with 2 pixel overlap in ih and iw.
-    // Compute oc16oh6ow14 output tile.
+    // Load ic32ih'WINO_D'iw'IW_BLOCK' input tile, with 2 pixel overlap in ih
+    // and iw. Compute oc'OC_BLOCK'oh'WINO_M'ow'OW_BLOCK' output tile.
 
     // Initialize variables to accumulate intermediate output tile
     const int M_size = OW_BLOCK;
@@ -370,10 +432,8 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
     // Between these stages, the dimensions handled by local work groups
     // changes.
 
-    // Buffers used to load and transform ic32ih8iw16 src tile into V
+    // Buffers used to load and transform ic32ih'WINO_D'iw16 src tile into V
     // Each local thread transforms a block with dimensions c4h8w1
-    // For the computation, src_i traverses ih dimension, ly * 2 + lx/8
-    // traverses iw dimension, and lx % 8 traverses ic dimension
     const int Vtrans_ic = get_Vtrans_ic0(lx, ly);
     const int Vtrans_ih = get_Vtrans_ih0(lx, ly);
     const int Vtrans_iw = get_Vtrans_iw0(lx, ly);
@@ -386,10 +446,9 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
             = V_off(Vtrans_ic, Vtrans_ih, Vtrans_iw, VTRANS_BLOCK);
     __local VTRANS_DATA_T *V_write = &V[V_write_idx];
 
-    // Buffers used to compute oc16oh8ow14 intermediate output tile. Each
-    // local thread transforms a block with dimensions c1h1w14. For the
-    // computed output, M_i traverses ow dimension, ly traverses oh
-    // dimension, and lx traverses oc dimension.
+    // Buffers used to compute oc'OC_BLOCK'oh'WINO_D'ow'OW_BLOCK' intermediate
+    // output tile. Each local thread transforms a block with dimensions
+    // c1h1w`OW_BLOCK`.
     const int U_oc = oc0 + get_Ucomp_oc0(lx, ly);
     const int U_ic = get_Ucomp_ic0(lx, ly);
     const int U_kh = get_Ucomp_kh0(lx, ly);
@@ -404,7 +463,7 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
 
     __attribute__((opencl_unroll_hint(1))) for (uint c = 0; c < IC;
                                                 c += WINO_IC_BLOCK) {
-        // Load and transform ic32ih8iw16 src tile into V
+        // Load and transform ic32ih'WINO_D'iw'IW_BLOCK' src tile into V
         if (IW_BLOCK == 16 || Vtrans_iw < IW_BLOCK) {
             bool x_in = 0 <= src_iw && src_iw < IW && src_ic + c < IC;
             VTRANS_DATA_T src[WINO_D];
@@ -426,12 +485,14 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
         src_load += src_off(0, WINO_IC_BLOCK, 0, 0, 0);
         barrier(CLK_LOCAL_MEM_FENCE);
 
-        // Accumulate oc16oh8ow14 intermediate output tile stored in the M_i
+        // Accumulate oc'OC_BLOCK'oh'WINO_D'ow'OW_BLOCK' intermediate output
+        // tile stored in the M_i
         __local const COMP_DATA_T *V_read_outer = V_read;
 
         const int outer_c_blocking = COMP_UNROLL * COMP_BLOCK;
         __attribute__((opencl_unroll_hint(
-                1))) for (uint c_outer = 0; c_outer < WINO_IC_BLOCK;
+                1))) for (uint c_outer = 0; c_outer < WINO_IC_BLOCK
+                          && (WINO_D == 8 || ly < WINO_D);
                           c_outer += outer_c_blocking) {
             // Fetch input components, spread across subgroup.
             DATA_T V_block[outer_c_blocking];
@@ -494,7 +555,10 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    // Transform and store final oc16oh6ow14 output tile.
+    // Transform and store final oc'OC_BLOCK'oh'WINO_M'ow'OW_BLOCK' output tile.
+    // Each local thread transforms a block with dimensions
+    // c1h`WINO_D`w`OUT_TYPE_BLOCK` to the final output with dimensions
+    // c1h`WINO_M`w`OUT_TYPE_BLOCK`.
     if (get_out_ow0(lx, ly) < OW_BLOCK) {
         // Load multiplies from SLM.
         const int M_oc = get_out_oc0(lx, ly);

@@ -44,9 +44,9 @@ static void fwd_compute_block_sizes(conv_conf_t &conf) {
     }
 
     //Using F(m, r) for r = 3 and tile_size = m + r - 1
-    const int m = 6;
+    const int m = conf.oh > 8 ? 6 : conf.oh > 2 ? 4 : 2;
     const int r = 3;
-    conf.is_fused = (m == 6);
+    conf.is_fused = true;
 
     conf.wino_m = m;
     conf.wino_r = r;
