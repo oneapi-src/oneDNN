@@ -553,7 +553,7 @@ status_t gen12lp_x8s8x_convolution_fwd_t::execute_forward(
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     if (!post_ops_preserves_zeroes(ctx, conf.attr_info.all_post_ops)) {
-        ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
+        ctx.zero_pad_output(DNNL_ARG_DST);
     }
     return status;
 }

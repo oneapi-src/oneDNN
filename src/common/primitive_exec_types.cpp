@@ -79,6 +79,13 @@ memory_t *exec_ctx_t::output(int arg) const {
     return ma.mem;
 }
 
+status_t exec_ctx_t::zero_pad_output(int arg) const {
+    memory_t *mem = this->output(arg);
+    if (mem == nullptr) return status::success;
+
+    return mem->zero_pad(*this);
+}
+
 memory_t *exec_ctx_t::memory(int arg) const {
     assert(args_.count(arg) == 1);
     const auto ma = args_.at(arg);

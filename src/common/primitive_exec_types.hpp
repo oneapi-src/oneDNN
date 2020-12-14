@@ -79,6 +79,8 @@ struct exec_ctx_t {
     memory_t *output(int arg) const;
     memory_t *memory(int arg) const;
 
+    status_t zero_pad_output(int arg) const;
+
     void register_memory_mapping(void *handle, void *host_ptr);
 
     void *host_ptr(int arg) const;

@@ -87,7 +87,7 @@ status_t gen9_eltwise_fwd_t::execute_forward_dense(
 
     if (!gpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
                 pd()->desc()->alg_kind, alpha, beta)) {
-        ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
+        ctx.zero_pad_output(DNNL_ARG_DST);
     }
 
     return status;
@@ -154,7 +154,7 @@ status_t gen9_eltwise_bwd_t::execute_backward_dense(
 
     if (!gpu_eltwise_bwd_pd_t::eltwise_preserves_zero(
                 pd()->desc()->alg_kind, alpha, beta)) {
-        ctx.memory(DNNL_ARG_DIFF_SRC)->zero_pad(ctx.stream());
+        ctx.zero_pad_output(DNNL_ARG_DIFF_SRC);
     }
 
     return status;

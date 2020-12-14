@@ -144,7 +144,7 @@ void jit_sse41_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
         }
     });
 
-    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad(ctx);
+    if (pd()->wants_zero_pad_dst()) ctx.zero_pad_output(DNNL_ARG_DST);
 }
 
 } // namespace x64

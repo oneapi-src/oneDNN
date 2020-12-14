@@ -370,7 +370,7 @@ status_t gen9_wino_convolution_fwd_t::execute_forward(
             && !gpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
                     attr_info.eltwise_alg, attr_info.eltwise_alpha,
                     attr_info.eltwise_beta)) {
-        ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
+        ctx.zero_pad_output(DNNL_ARG_DST);
     }
     return status;
 }
