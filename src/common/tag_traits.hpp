@@ -309,6 +309,7 @@ DECL_TRAITS(aBCde2b8c8b2c, _BC, _2b8c8b2c, 5);
 DECL_TRAITS(aBdec32b, _B, _32b, 5);
 DECL_TRAITS(aCBdef16c16b, _BC, _16c16b, 6);
 DECL_TRAITS(aCBdef16b16c, _BC, _16b16c, 6);
+DECL_TRAITS(Abcdef8a, _A, _8a, 6);
 DECL_TRAITS(Abcdef16a, _A, _16a, 6);
 DECL_TRAITS(aCBd16c16b, _BC, _16c16b, 4);
 DECL_TRAITS(aCBde16c16b, _BC, _16c16b, 4);
