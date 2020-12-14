@@ -285,8 +285,8 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
 
                 if (postops_in_matmul) {
                     (*pp_kernel_)(curr_dst, curr_acc, bias, scales, 0, M * N,
-                            (size_t)N, ldc, &dst_zero_point_f32, nullptr,
-                            nullptr, ctx, *pd()->dst_md());
+                            static_cast<size_t>(N), ldc, &dst_zero_point_f32,
+                            nullptr, nullptr, ctx, *pd()->dst_md());
                 }
                 utils::dim_iterator(dst_d.dims(), d_dims_idx, batch_ndims);
             }

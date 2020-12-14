@@ -189,8 +189,8 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                     const float *pp_scales
                             = params.get_post_processing_scales(scales);
                     (*pp_kernel_)(curr_dst, curr_dst, bias, pp_scales, 0, M * N,
-                            (size_t)N, ldc, nullptr, nullptr, nullptr, ctx,
-                            *pd()->dst_md());
+                            static_cast<size_t>(N), ldc, nullptr, nullptr,
+                            nullptr, ctx, *pd()->dst_md());
                 }
                 utils::dim_iterator(dst_d.dims(), d_dims_idx, batch_ndims);
             }
