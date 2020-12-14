@@ -90,8 +90,9 @@
 --stag=goidhw --dtag=dhwigo,gOIdhw4i16o4i,gOIdhw2i8o4i,gOIdhw4o4i
 --oflag=gconv_s8s8,gconv_zp_comp,gconv_s8s8:gconv_zp_comp  16x32x32x3x3x3
 
-# shape with large strides
+# test if jit kernels properly handle large stride problems
 --reset
+--skip-impl="ref:simple" # ! test jit version only
 --sdt=f32 --ddt=f32
 --stag=abx --dtag=aBx8b 2x16x19200x19200
 
