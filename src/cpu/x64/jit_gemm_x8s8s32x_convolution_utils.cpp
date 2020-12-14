@@ -36,17 +36,20 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
     void operator()(void *void_dst, const acc_data_t *acc, const char *bias,
-            const float *scales, float nslope, float sum_scale,
-            float signed_scale, int g, size_t start, size_t end,
-            const int32_t *zp_src, const int32_t *zp_dst,
-            const int32_t *zp_src_comp, const void *post_ops_binary_rhs_arg_vec,
-            const void *dst_orig, const exec_ctx_t & /* ctx */,
+            const float *scales, float sum_scale, float signed_scale, int g,
+            size_t start, size_t end, const int32_t *zp_src,
+            const int32_t *zp_dst, const int32_t *zp_src_comp,
+            const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
+            const exec_ctx_t & /* ctx */,
             const memory_desc_t & /* dst_md */) const override;
 
 private:
     void apply_postops(const Xbyak::Reg64 &reg_dst, const int idx);
     void generate() override;
     void append_zp_src_comp(size_t offset, int idx, bool apply_mask);
+    void load_as_f32(const Xbyak::Zmm &dst, const Xbyak::Opmask &mask,
+            const Xbyak::Address &src_addr, const data_type_t &src_dt);
+
     int vreg_dst_idx(const int idx) const noexcept;
     Xbyak::Zmm get_vreg_dst(int idx) const;
     Xbyak::Zmm get_vreg_bias(int idx) const;
@@ -67,7 +70,6 @@ private:
         const acc_data_t *acc;
         const char *bias;
         const float *scales;
-        float nslope;
         float sum_scale;
         float signed_scale;
         size_t len;
@@ -169,7 +171,7 @@ jit_pp_ker_t::jit_pp_ker_t(
 }
 
 void jit_pp_ker_t::operator()(void *void_dst, const acc_data_t *acc,
-        const char *bias, const float *scales, float nslope, float sum_scale,
+        const char *bias, const float *scales, float sum_scale,
         float signed_scale, int g, size_t start, size_t end,
         const int32_t *zp_src, const int32_t *zp_dst,
         const int32_t *zp_src_comp, const void *post_ops_binary_rhs_arg_vec,
@@ -196,7 +198,6 @@ void jit_pp_ker_t::operator()(void *void_dst, const acc_data_t *acc,
     args.zp_src_comp = zp_src_comp + g_oc_offset;
     args.zp_dst = zp_dst;
     args.scales = scales + jcp_.scale_idx_mult * g_oc_offset;
-    args.nslope = nslope;
     args.sum_scale = sum_scale;
     args.signed_scale = signed_scale;
     args.len = end - start;
@@ -309,6 +310,24 @@ void jit_pp_ker_t::apply_postops(const Xbyak::Reg64 &reg_dst, const int idx) {
 #undef PARAM_OFF
 }
 
+void jit_pp_ker_t::load_as_f32(const Xbyak::Zmm &dst,
+        const Xbyak::Opmask &mask_reg, const Xbyak::Address &src_addr,
+        const data_type_t &src_dt) {
+
+    const auto dst_masked = dst | mask_reg;
+
+    switch (src_dt) {
+        case data_type::s8: vpmovsxbd(dst_masked, src_addr); break;
+        case data_type::u8: vpmovzxbd(dst_masked, src_addr); break;
+        case data_type::s32: vcvtdq2ps(dst_masked, src_addr); break;
+        case data_type::f32: vmovups(dst_masked, src_addr); break;
+        default: assert(!"unimplemented");
+    }
+
+    if (utils::one_of(src_dt, data_type::s8, data_type::u8))
+        vcvtdq2ps(dst_masked, dst);
+}
+
 void jit_pp_ker_t::generate() {
     using namespace Xbyak;
     using namespace utils;
@@ -377,50 +396,31 @@ void jit_pp_ker_t::generate() {
             }
             kmovq(opmask_binary, mask_reg);
         }
-        const auto vreg_dst_ = get_masked_vreg_dst(idx, apply_mask);
-        vcvtdq2ps(vreg_dst_, acc_addr);
+        const auto vreg_dst_masked = get_masked_vreg_dst(idx, apply_mask);
+        const auto vreg_dst = get_vreg_dst(idx);
+        vcvtdq2ps(vreg_dst_masked, acc_addr);
 
         if (jcp_.zp.src_exists) append_zp_src_comp(offset, idx, apply_mask);
 
         if (jcp_.signed_input)
-            vmulps(get_vreg_dst(idx), get_vreg_dst(idx), vreg_signed_scale_);
+            vmulps(vreg_dst_masked, vreg_dst, vreg_signed_scale_);
 
         if (jcp_.with_bias) {
             const auto bias_addr
                     = ptr[reg_bias_ + offset * bias_data_type_size_];
-            const auto vreg_bias = get_vreg_bias(idx) | mask_reg;
-
-            switch (jcp_.bias_data_type) {
-                case data_type::s8: vpmovsxbd(vreg_bias, bias_addr); break;
-                case data_type::u8: vpmovzxbd(vreg_bias, bias_addr); break;
-                case data_type::s32:
-                case data_type::f32: vmovups(vreg_bias, bias_addr); break;
-                default: assert(!"unimplemented");
-            }
-            if (jcp_.bias_data_type != data_type::f32)
-                vcvtdq2ps(get_vreg_bias(idx), get_vreg_bias(idx));
-            vaddps(get_vreg_dst(idx), get_vreg_dst(idx), get_vreg_bias(idx));
+            const auto vreg_bias = get_vreg_bias(idx);
+            load_as_f32(vreg_bias, mask_reg, bias_addr, jcp_.bias_data_type);
+            vaddps(vreg_dst_masked, vreg_dst, vreg_bias);
         }
 
-        vmulps(get_vreg_dst(idx), get_vreg_dst(idx), vreg_scale_);
+        vmulps(vreg_dst_masked, vreg_dst, vreg_scale_);
 
         const auto dst_addr = ptr[reg_dst_ + offset * dst_data_type_size_];
 
         if (jcp_.with_sum) {
-            const auto vreg_prev_dst = get_vreg_prev_dst(idx) | mask_reg;
-
-            switch (jcp_.dst_data_type) {
-                case data_type::f32:
-                case data_type::s32: vmovups(vreg_prev_dst, dst_addr); break;
-                case data_type::s8: vpmovsxbd(vreg_prev_dst, dst_addr); break;
-                case data_type::u8: vpmovzxbd(vreg_prev_dst, dst_addr); break;
-                default: assert(!"unsupported data type");
-            }
-            if (jcp_.dst_data_type != data_type::f32)
-                vcvtdq2ps(get_vreg_prev_dst(idx), get_vreg_prev_dst(idx));
-
-            vfmadd231ps(
-                    get_vreg_dst(idx), get_vreg_prev_dst(idx), vreg_sum_scale_);
+            const auto vreg_prev_dst = get_vreg_prev_dst(idx);
+            load_as_f32(vreg_prev_dst, mask_reg, dst_addr, jcp_.dst_data_type);
+            vfmadd231ps(vreg_dst_masked, vreg_prev_dst, vreg_sum_scale_);
         }
 
         apply_postops(reg_dst_, idx);
@@ -429,20 +429,20 @@ void jit_pp_ker_t::generate() {
             const auto vreg_zp_dst_ = get_vreg_bias(idx);
             vbroadcastss(vreg_zp_dst_, ptr[reg_zp_dst_]);
             vcvtdq2ps(vreg_zp_dst_, vreg_zp_dst_);
-            vaddps(vreg_dst_, vreg_dst_, vreg_zp_dst_);
+            vaddps(vreg_dst_masked, vreg_dst, vreg_zp_dst_);
         }
 
         if (saturation_needed_) {
             saturate_f32(get_vreg_dst(idx), vreg_zero_, vreg_saturation_ubound_,
                     jcp_.dst_data_type);
-            vcvtps2dq(get_vreg_dst(idx), get_vreg_dst(idx));
+            vcvtps2dq(vreg_dst_masked, vreg_dst);
         }
 
         switch (jcp_.dst_data_type) {
-            case data_type::s8: vpmovsdb(dst_addr, vreg_dst_); break;
-            case data_type::u8: vpmovusdb(dst_addr, vreg_dst_); break;
+            case data_type::s8: vpmovsdb(dst_addr, vreg_dst_masked); break;
+            case data_type::u8: vpmovusdb(dst_addr, vreg_dst_masked); break;
             case data_type::f32:
-            case data_type::s32: vmovups(dst_addr, vreg_dst_); break;
+            case data_type::s32: vmovups(dst_addr, vreg_dst_masked); break;
             default: assert(!"unimplemented");
         }
     };

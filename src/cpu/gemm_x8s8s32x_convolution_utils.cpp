@@ -46,12 +46,11 @@ struct ref_pp_ker_t : pp_ker_t {
     using acc_data_t = pp_ker_t::acc_data_t;
 
     void operator()(void *dst, const acc_data_t *acc, const char *bias,
-            const float *scales, float nslope, float sum_scale,
-            float signed_scale, int g, size_t start, size_t end,
-            const int32_t *zp_src, const int32_t *zp_dst,
-            const int32_t *zp_src_comp, const void *post_ops_binary_rhs_arg_vec,
-            const void *dst_orig, const exec_ctx_t &ctx,
-            const memory_desc_t &dst_md) const override;
+            const float *scales, float sum_scale, float signed_scale, int g,
+            size_t start, size_t end, const int32_t *zp_src,
+            const int32_t *zp_dst, const int32_t *zp_src_comp,
+            const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
+            const exec_ctx_t &ctx, const memory_desc_t &dst_md) const override;
 
 private:
     std::unique_ptr<ref_post_ops_t> ref_post_ops_;
@@ -59,7 +58,7 @@ private:
 
 template <typename dst_data_t>
 void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
-        const char *bias, const float *scales, float nslope, float sum_scale,
+        const char *bias, const float *scales, float sum_scale,
         float signed_scale, int g, size_t start, size_t end,
         const int32_t *zp_src, const int32_t *zp_dst,
         const int32_t *zp_src_comp,

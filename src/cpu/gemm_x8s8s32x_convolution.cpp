@@ -113,15 +113,6 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
     const bool do_sum = post_ops.contain(primitive_kind::sum, 0);
     const float sum_scale = do_sum ? post_ops.entry_[0].sum.scale : 0;
 
-    float nslope = 0;
-    for (int idx = 0; idx < post_ops.len(); ++idx) {
-        const auto &e = post_ops.entry_[idx];
-        if (e.is_relu(true, false)) {
-            nslope = e.eltwise.alpha;
-            break;
-        }
-    }
-
     uint8_t *__restrict col = scratchpad.get<uint8_t>(key_conv_gemm_col)
             + (ptrdiff_t)ithr * jcp.im2col_sz;
     src_data_t *__restrict imtr = scratchpad.get<src_data_t>(key_conv_gemm_imtr)
@@ -214,7 +205,7 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
                 size_t _start, _end;
                 balance211((size_t)N * jcp.oc, nthr, ithr, _start, _end);
 
-                (*pp_ker_)(dst, acc, bia_base, scales, nslope, sum_scale,
+                (*pp_ker_)(dst, acc, bia_base, scales, sum_scale,
                         1.f / wei_adj_scale, g, _start, _end, zp_src, zp_dst,
                         zp_src_comp, post_ops_binary_rhs_arg_vec, dst_base, ctx,
                         *pd()->dst_md());

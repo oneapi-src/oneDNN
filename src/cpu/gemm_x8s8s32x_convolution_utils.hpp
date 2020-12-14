@@ -33,12 +33,11 @@ struct pp_ker_t {
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
     virtual void operator()(void *dst, const acc_data_t *acc, const char *bias,
-            const float *scales, float nslope, float sum_scale,
-            float signed_scale, int g, size_t start, size_t end,
-            const int32_t *zp_src, const int32_t *zp_dst,
-            const int32_t *zp_src_comp, const void *post_ops_binary_rhs_arg_vec,
-            const void *dst_orig, const exec_ctx_t &ctx,
-            const memory_desc_t &dst_md) const = 0;
+            const float *scales, float sum_scale, float signed_scale, int g,
+            size_t start, size_t end, const int32_t *zp_src,
+            const int32_t *zp_dst, const int32_t *zp_src_comp,
+            const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
+            const exec_ctx_t &ctx, const memory_desc_t &dst_md) const = 0;
 
     virtual status_t create_kernel() { return status::success; }
 
