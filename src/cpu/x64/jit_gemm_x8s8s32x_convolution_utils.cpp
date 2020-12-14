@@ -111,6 +111,8 @@ private:
     const Xbyak::Zmm vreg_sum_scale_;
     const Xbyak::Zmm vreg_signed_scale_;
     const Xbyak::Zmm vreg_saturation_ubound_;
+    const Xbyak::Zmm vreg_zp_src_common_;
+    const Xbyak::Zmm vreg_zp_dst_common_;
 
     const Xbyak::Opmask &kreg_rem_mask_short_ = k1;
     const Xbyak::Opmask &kreg_rem_mask_vlen_ = k3;
@@ -138,6 +140,10 @@ jit_pp_ker_t::jit_pp_ker_t(
     , vreg_signed_scale_(jcp_.signed_input ? reserve_zmm() : Xbyak::Zmm(0))
     , vreg_saturation_ubound_(
               saturation_needed_ ? reserve_zmm() : Xbyak::Zmm(0))
+    , vreg_zp_src_common_(jcp_.zp.src_exists && jcp_.zp.src_is_common
+                      ? reserve_zmm()
+                      : Xbyak::Zmm(0))
+    , vreg_zp_dst_common_(jcp_.zp.dst_exists ? reserve_zmm() : Xbyak::Zmm(0))
     , zmm_step_(jcp.with_sum ? 3u : 2u)
     , max_unroll_((cpu_isa_traits<avx512_core>::n_vregs
                           - number_of_reserved_zmm_regs_)
@@ -271,12 +277,15 @@ void jit_pp_ker_t::append_zp_src_comp(size_t offset, int idx, bool apply_mask) {
     const auto vreg_zp_src_comp_masked = vreg_zp_src_comp
             | (apply_mask ? kreg_rem_mask_short_ : kreg_rem_mask_vlen_);
 
-    vmovups(vreg_zp_src_comp_masked, zp_src_comp_addr);
-    vpmulld(vreg_zp_src_comp_masked, vreg_zp_src_comp,
-            EVEX_compress_addr(
-                    reg_zp_src_, zp_src_offset, jcp_.zp.src_is_common));
-    vcvtdq2ps(vreg_zp_src_comp, vreg_zp_src_comp);
-    vaddps(vreg_dst_masked, get_vreg_dst(idx), vreg_zp_src_comp);
+    if (jcp_.zp.src_is_common) {
+        vpmulld(vreg_zp_src_comp_masked, vreg_zp_src_common_, zp_src_comp_addr);
+    } else {
+        vmovups(vreg_zp_src_comp_masked, zp_src_comp_addr);
+        vpmulld(vreg_zp_src_comp_masked, vreg_zp_src_comp,
+                ptr[reg_zp_src_ + zp_src_offset]);
+    }
+
+    vpaddd(vreg_dst_masked, get_vreg_dst(idx), vreg_zp_src_comp);
 }
 
 void jit_pp_ker_t::apply_postops(const Xbyak::Reg64 &reg_dst, const int idx) {
@@ -348,10 +357,15 @@ void jit_pp_ker_t::generate() {
     if (jcp_.zp.src_exists) {
         mov(reg_zp_src_, ptr[reg_param_ + PARAM_OFF(zp_src)]);
         mov(reg_zp_src_comp_, ptr[reg_param_ + PARAM_OFF(zp_src_comp)]);
+        if (jcp_.zp.src_is_common)
+            vbroadcastss(vreg_zp_src_common_, ptr[reg_zp_src_]);
     }
 
-    if (jcp_.zp.dst_exists)
+    if (jcp_.zp.dst_exists) {
         mov(reg_zp_dst_, ptr[reg_param_ + PARAM_OFF(zp_dst)]);
+        vcvtdq2ps(vreg_zp_dst_common_, ptr_b[reg_zp_dst_]);
+    }
+
     if (jcp_.with_sum)
         vbroadcastss(vreg_sum_scale_, ptr[reg_param_ + PARAM_OFF(sum_scale)]);
     if (jcp_.signed_input)
@@ -398,9 +412,13 @@ void jit_pp_ker_t::generate() {
         }
         const auto vreg_dst_masked = get_masked_vreg_dst(idx, apply_mask);
         const auto vreg_dst = get_vreg_dst(idx);
-        vcvtdq2ps(vreg_dst_masked, acc_addr);
-
-        if (jcp_.zp.src_exists) append_zp_src_comp(offset, idx, apply_mask);
+        if (jcp_.zp.src_exists) {
+            vmovups(vreg_dst_masked, acc_addr);
+            append_zp_src_comp(offset, idx, apply_mask);
+            vcvtdq2ps(vreg_dst_masked, vreg_dst);
+        } else {
+            vcvtdq2ps(vreg_dst_masked, acc_addr);
+        }
 
         if (jcp_.signed_input)
             vmulps(vreg_dst_masked, vreg_dst, vreg_signed_scale_);
@@ -426,10 +444,7 @@ void jit_pp_ker_t::generate() {
         apply_postops(reg_dst_, idx);
 
         if (jcp_.zp.dst_exists) {
-            const auto vreg_zp_dst_ = get_vreg_bias(idx);
-            vbroadcastss(vreg_zp_dst_, ptr[reg_zp_dst_]);
-            vcvtdq2ps(vreg_zp_dst_, vreg_zp_dst_);
-            vaddps(vreg_dst_masked, vreg_dst, vreg_zp_dst_);
+            vaddps(vreg_dst_masked, vreg_dst, vreg_zp_dst_common_);
         }
 
         if (saturation_needed_) {
