@@ -320,3 +320,12 @@ status_t memory_t::zero_pad(const exec_ctx_t &ctx) const {
 
     return status;
 }
+
+extern "C" dnnl_status_t DNNL_API dnnl_impl_zero_pad(
+        const memory_t *memory, stream_t *stream) {
+    if (memory == nullptr || stream == nullptr)
+        return status::invalid_arguments;
+    memory_arg_t mem_arg = {const_cast<memory_t *>(memory), true};
+    exec_args_t args = {{0, mem_arg}};
+    return memory->zero_pad(exec_ctx_t(stream, std::move(args)));
+}

@@ -23,6 +23,11 @@
 
 #include "zeropad/zeropad.hpp"
 
+extern "C" {
+dnnl_status_t dnnl_impl_zero_pad(
+        const dnnl::impl::memory_t *memory, dnnl::impl::stream_t *stream);
+}
+
 namespace zeropad {
 
 static int compare(const dnn_mem_t &test_mem, res_t *res) {
@@ -108,9 +113,7 @@ static int compare(const dnn_mem_t &test_mem, res_t *res) {
 
 static dnnl_status_t perf_func(
         const dnnl_stream_t &stream, const std::vector<dnnl_exec_arg_t> &args) {
-    void *ret_handle = nullptr;
-    dnnl_memory_get_data_handle(args[0].memory, &ret_handle);
-    return dnnl_memory_set_data_handle_v2(args[0].memory, ret_handle, stream);
+    return dnnl_impl_zero_pad(args[0].memory, stream);
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
@@ -142,8 +145,12 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t test_mem(data_md, test_engine);
 
+    args_t args;
+    args.set(0, test_mem);
+    perf_function_t perf_func_ = &perf_func;
+
     if (bench_mode & CORR) {
-        // Implicitly relies on zero_pad happening when test_mem is created
+        execute_and_wait(perf_func_, test_engine, args);
         SAFE(compare(test_mem, res), WARN);
     }
     if (bench_mode & PERF) {
@@ -157,10 +164,6 @@ int doit(const prb_t *prb, res_t *res) {
         res->obytes = dnnl_memory_desc_get_size(&data_md)
                 - dnnl_memory_desc_get_size(&plain_data_md);
     }
-
-    args_t args;
-    args.set(0, test_mem);
-    perf_function_t perf_func_ = &perf_func;
 
     measure_perf(res->timer, perf_func_, args);
 

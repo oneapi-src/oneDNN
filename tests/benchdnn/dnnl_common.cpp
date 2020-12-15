@@ -100,22 +100,13 @@ void execute_map_args(const args_t &args) {
         if (!args.dnn_mem(i).is_mapped()) args.dnn_mem(i).map();
 }
 
-int execute_and_wait(dnnl_primitive_t prim, const args_t &args) {
-    const_dnnl_primitive_desc_t pd;
-    dnnl_engine_t engine;
-
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &pd), CRIT);
-
-    DNN_SAFE(
-            dnnl_primitive_desc_query(pd, dnnl_query_engine, 0, &engine), CRIT);
-
+int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
+        const args_t &args) {
     stream_t stream(engine);
     std::vector<dnnl_exec_arg_t> dnnl_args;
     execute_unmap_args(args, dnnl_args);
 
-    DNN_SAFE(dnnl_primitive_execute(
-                     prim, stream, (int)dnnl_args.size(), dnnl_args.data()),
-            CRIT);
+    DNN_SAFE(exec_func(stream, dnnl_args), CRIT);
     DNN_SAFE(dnnl_stream_wait(stream), CRIT);
 
     execute_map_args(args);
@@ -127,6 +118,28 @@ int execute_and_wait(dnnl_primitive_t prim, const args_t &args) {
     }
 
     return OK;
+}
+
+dnnl_status_t primitive_executor(dnnl_primitive_t prim,
+        const dnnl_stream_t &stream,
+        const std::vector<dnnl_exec_arg_t> &dnnl_args) {
+    return dnnl_primitive_execute(
+            prim, stream, (int)dnnl_args.size(), dnnl_args.data());
+}
+
+int execute_and_wait(dnnl_primitive_t prim, const args_t &args) {
+    perf_function_t exec_func = std::bind(&primitive_executor, prim,
+            std::placeholders::_1, std::placeholders::_2);
+
+    const_dnnl_primitive_desc_t pd;
+    dnnl_engine_t engine;
+
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &pd), CRIT);
+
+    DNN_SAFE(
+            dnnl_primitive_desc_query(pd, dnnl_query_engine, 0, &engine), CRIT);
+
+    return execute_and_wait(exec_func, engine, args);
 }
 
 inline bool should_stop(const benchdnn_timer_t &t) {
@@ -210,13 +223,6 @@ int measure_perf(
         if (ret == OK) execute_map_args(args);
     }
     return ret;
-}
-
-dnnl_status_t primitive_executor(dnnl_primitive_t prim,
-        const dnnl_stream_t &stream,
-        const std::vector<dnnl_exec_arg_t> &dnnl_args) {
-    return dnnl_primitive_execute(
-            prim, stream, (int)dnnl_args.size(), dnnl_args.data());
 }
 
 int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args) {

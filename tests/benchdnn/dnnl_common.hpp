@@ -313,11 +313,13 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *prb,
     return OK;
 }
 
-int execute_and_wait(dnnl_primitive_t prim, const args_t &args);
-
 typedef std::function<dnnl_status_t(
         const dnnl_stream_t &, const std::vector<dnnl_exec_arg_t> &)>
         perf_function_t;
+
+int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
+        const args_t &args);
+int execute_and_wait(dnnl_primitive_t prim, const args_t &args);
 
 int measure_perf(benchdnn_timer_t &t, perf_function_t &perf_func, args_t &args);
 int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args);
