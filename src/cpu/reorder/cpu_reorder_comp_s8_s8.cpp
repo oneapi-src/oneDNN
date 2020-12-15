@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -127,6 +127,8 @@ const impl_list_map_t comp_s8_s8_impl_list_map {
         REG_SR(s8, hwigo, s8, gOhwI16o4i, fmt_order::keep, spec::conv_req_comp),
         REG_SR(s8, goihw, s8, gOIhw16i16o4i, fmt_order::keep, spec::conv_req_comp),
         REG_SR(s8, hwigo, s8, gOIhw16i16o4i, fmt_order::keep, spec::conv_req_comp),
+        REG_SR(s8, oidhw, s8, OdhwI16o4i, fmt_order::keep, spec::conv_req_comp),
+        REG_SR(s8, dhwio, s8, OdhwI16o4i, fmt_order::keep, spec::conv_req_comp),
 
         nullptr,
     }},
@@ -135,6 +137,7 @@ const impl_list_map_t comp_s8_s8_impl_list_map {
         REG_SR(s8, goidhw, s8, gOIdhw4i16o4i, fmt_order::keep, spec::conv_req_comp),
         REG_SR(s8, goidhw, s8, gOIdhw2i8o4i, fmt_order::keep, spec::conv_req_comp),
         REG_SR(s8, goidhw, s8, gOIdhw4o4i, fmt_order::keep, spec::conv_req_comp),
+        REG_SR(s8, goidhw, s8, gOdhwI16o4i, fmt_order::keep, spec::conv_req_comp),
 
         nullptr,
     }},

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -605,7 +605,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         || (utils::one_of(
                                     tag_i, format_tag::goihw, format_tag::hwigo)
                                 && utils::one_of(tag_o, format_tag::gOhwI16o4i,
-                                        format_tag::gOIhw16i16o4i)),
+                                        format_tag::gOIhw16i16o4i))
+                        || (utils::one_of(
+                                    tag_i, format_tag::dhwio, format_tag::oidhw)
+                                && utils::one_of(tag_o, format_tag::OdhwI16o4i,
+                                        format_tag::OIdhw16i16o4i))
+                        || (utils::one_of(tag_i, format_tag::goidhw)
+                                && utils::one_of(tag_o, format_tag::gOdhwI16o4i,
+                                        format_tag::gOIdhw16i16o4i)),
                 spec::conv_req_comp>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -615,8 +622,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (input_d.has_runtime_dims_or_strides()) return false;
 
-        const bool w_groups = !one_of(
-                tag_o, OwI16o4i, OIw16i16o4i, OhwI16o4i, OIhw16i16o4i);
+        const bool w_groups = !one_of(tag_o, OwI16o4i, OIw16i16o4i, OhwI16o4i,
+                OIhw16i16o4i, OdhwI16o4i, OIdhw16i16o4i);
 
         // Current formats are only used in jit kernels that natively
         // support s8 instructions, hence, there is no need for signed
@@ -647,11 +654,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         DECLARE_COMMON_PARAMS();
         using namespace format_tag;
 
-        static constexpr bool w_groups = !utils::one_of(
-                tag_o, OwI16o4i, OIw16i16o4i, OhwI16o4i, OIhw16i16o4i);
+        static constexpr bool w_groups
+                = !utils::one_of(tag_o, OwI16o4i, OIw16i16o4i, OhwI16o4i,
+                        OIhw16i16o4i, OdhwI16o4i, OIdhw16i16o4i);
         constexpr int is_1d = utils::one_of(
                 tag_o, OwI16o4i, gOwI16o4i, OIw16i16o4i, gOIw16i16o4i);
-        const bool is_3d = false; // TODO once enabled
+        const bool is_3d = utils::one_of(
+                tag_o, OdhwI16o4i, gOdhwI16o4i, OIdhw16i16o4i, gOIdhw16i16o4i);
 
         constexpr int oc_blksize = 16;
         constexpr int ic_blksize = utils::one_of(tag_traits<tag_o>::inner_blks,

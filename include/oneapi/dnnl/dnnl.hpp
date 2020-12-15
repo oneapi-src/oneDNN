@@ -1628,6 +1628,8 @@ struct memory : public handle<dnnl_memory_t> {
         aBdeC16b4c = dnnl_aBdeC16b4c,
         AcB16a4b = dnnl_AcB16a4b,
         AcdB16a2b = dnnl_AcdB16a2b,
+        aBdefC16b4c = dnnl_aBdefC16b4c,
+        AcdeB16a4b = dnnl_AcdeB16a4b,
 
         format_tag_last = dnnl_format_tag_last,
 
@@ -1836,6 +1838,8 @@ struct memory : public handle<dnnl_memory_t> {
         OhwI16o4i = dnnl_OhwI16o4i,
         gOwI16o4i = dnnl_gOwI16o4i,
         gOhwI16o4i = dnnl_gOhwI16o4i,
+        OdhwI16o4i = dnnl_OdhwI16o4i,
+        gOdhwI16o4i = dnnl_gOdhwI16o4i,
     };
 
     /// A memory descriptor.
