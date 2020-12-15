@@ -84,18 +84,9 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     const int kh = wei_d.dims()[with_groups + ndims - 2];
     const int kw = wei_d.dims()[with_groups + ndims - 1];
 
-    // left, right, top, bottom padding
-    const int l_pad = cd.padding[0][1];
-    const int r_pad = cd.padding[1][1];
-    const int t_pad = cd.padding[0][0];
-    const int b_pad = cd.padding[1][0];
-
     // height and width strides
     const int stride_h = cd.strides[ndims - 4];
     const int stride_w = cd.strides[ndims - 3];
-
-    acp.padstride_info = arm_compute::PadStrideInfo(stride_w, stride_h, l_pad,
-            r_pad, t_pad, b_pad, arm_compute::DimensionRoundingType::FLOOR);
 
     // height and width dilations
     int dilate_h = cd.dilates[ndims - 4];
@@ -107,6 +98,21 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     dilate_w += 1;
 
     acp.dilation_info = arm_compute::Size2D(dilate_w, dilate_h);
+
+    // left, right, top, bottom padding
+    const int l_pad = cd.padding[0][1];
+    const int t_pad = cd.padding[0][0];
+    // Compute Library assumes the padding to be \geq 0, and r(b)_pad may be
+    // equal to -1 in oneDNN for some cases, when the very right (bottom)
+    // spatial elements of the input tensor are not used in the convolution.
+    // On the other hand l(t)_pad are guaranteed to be non-negative.
+    const int r_pad = std::max(static_cast<int>(cd.padding[1][1]), 0);
+    const int b_pad = std::max(static_cast<int>(cd.padding[1][0]), 0);
+
+    acp.padstride_info = arm_compute::PadStrideInfo(stride_w, stride_h,
+            static_cast<unsigned int>(l_pad), static_cast<unsigned int>(r_pad),
+            static_cast<unsigned int>(t_pad), static_cast<unsigned int>(b_pad),
+            arm_compute::DimensionRoundingType::FLOOR);
 
     acp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
