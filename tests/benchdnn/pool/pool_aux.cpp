@@ -142,6 +142,7 @@ int str2desc(desc_t *desc, const char *str) {
         if (!d.od) {
             if (d.pd < 0) d.pd = 0;
             d.od = compute_out(d.id, d.kd, d.dd, d.sd, d.pd);
+            if (d.od <= 0) return FAIL;
         } else if (d.pd < 0)
             d.pd = compute_pad(d.od, d.id, d.kd, d.dd, d.sd);
     }
@@ -151,6 +152,7 @@ int str2desc(desc_t *desc, const char *str) {
         if (!d.oh) {
             if (d.ph < 0) d.ph = 0;
             d.oh = compute_out(d.ih, d.kh, d.dh, d.sh, d.ph);
+            if (d.oh <= 0) return FAIL;
         } else if (d.ph < 0)
             d.ph = compute_pad(d.oh, d.ih, d.kh, d.dh, d.sh);
     }
@@ -160,6 +162,7 @@ int str2desc(desc_t *desc, const char *str) {
         if (!d.ow) {
             if (d.pw < 0) d.pw = 0;
             d.ow = compute_out(d.iw, d.kw, d.dw, d.sw, d.pw);
+            if (d.ow <= 0) return FAIL;
         } else if (d.pw < 0)
             d.pw = compute_pad(d.ow, d.iw, d.kw, d.dw, d.sw);
     }
