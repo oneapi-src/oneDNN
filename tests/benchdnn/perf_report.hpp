@@ -60,7 +60,10 @@ struct base_perf_report_t {
             return ops() / t.sec(mode) / unit;
         };
 
-        auto get_bw = [&]() -> double { return get_flops(); };
+        auto get_bw = [&]() -> double {
+            if (!t.sec(mode)) return 0;
+            return (r->ibytes + r->obytes) / t.sec(mode) / unit;
+        };
 
         auto get_freq = [&]() -> double {
             if (!t.sec(mode)) return 0;
@@ -104,6 +107,9 @@ struct base_perf_report_t {
         HANDLE("ops", s << ops() / unit);
         HANDLE("time", s << t.ms(mode) / unit);
         HANDLE("impl", s << r->impl_name);
+        HANDLE("ibytes", s << r->ibytes / unit);
+        HANDLE("obytes", s << r->obytes / unit);
+        HANDLE("iobytes", s << (r->ibytes + r->obytes) / unit);
 
 #undef HANDLE
 

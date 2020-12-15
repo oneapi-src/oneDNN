@@ -522,6 +522,61 @@ static int validate_mem_size(size_t total_mem_size) {
     return fits_device_ram ? OK : FAIL;
 }
 
+static size_t get_md_size(
+        const dnnl_memory_desc_t *md, bool add_ref_size = false) {
+    const auto mem_size = dnnl_memory_desc_get_size(md);
+    // runtime mem size is not defined
+    if (mem_size == 0 || mem_size == DNNL_RUNTIME_SIZE_VAL) return 0;
+    if (!add_ref_size) return mem_size;
+
+    // reference memories are always fp32, hence need rescaling factor
+    size_t ref_mem_factor = 1;
+    if (md->data_type != dnnl_data_type_undef)
+        ref_mem_factor = ::sizeof_dt(dnnl_f32) / ::sizeof_dt(md->data_type);
+    // all memory is mapped once it is created and unmapped only before
+    // primitive execution. Device memory requires additional buffer for mapped
+    // memory.
+    // XXX: In DPC++ build oneDNN uses USM memory, which shouldn't require an
+    // additional buffer, so mapped_mem_factor should be equal to 0 for DPC++.
+    // However due to a driver issue oneDNN pretends that shared USM is not
+    // accessible on the host, hence map will allocate an extra memory.
+    const size_t mapped_mem_factor = engine_tgt_kind == dnnl_cpu ? 0 : 1;
+    return (1 + mapped_mem_factor + ref_mem_factor) * mem_size;
+}
+
+static size_t get_memory_bytes(const_dnnl_primitive_desc_t const_pd,
+        bool want_input, bool add_ref_size = false) {
+    const int n_idx = dnnl_primitive_desc_query_s32(const_pd,
+            want_input ? dnnl_query_num_of_inputs_s32
+                       : dnnl_query_num_of_outputs_s32,
+            0);
+
+    dnnl_prop_kind_t prop_kind;
+    dnnl_primitive_desc_query(const_pd, dnnl_query_prop_kind, 0, &prop_kind);
+    const bool is_fwd = prop_kind == dnnl_forward_training
+            || prop_kind == dnnl_forward_inference;
+
+#define MD(name) dnnl_query_##name##_md
+    std::vector<dnnl_query_t> query_fwd_in_mds {MD(src), MD(weights)};
+    std::vector<dnnl_query_t> query_fwd_out_mds {MD(dst), MD(workspace)};
+    std::vector<dnnl_query_t> query_bwd_in_mds {
+            MD(src), MD(weights), MD(dst), MD(diff_dst), MD(workspace)};
+    std::vector<dnnl_query_t> query_bwd_out_mds {
+            MD(diff_src), MD(diff_weights)};
+    std::vector<dnnl_query_t> query_mds = is_fwd
+            ? (want_input ? query_fwd_in_mds : query_fwd_out_mds)
+            : (want_input ? query_bwd_in_mds : query_bwd_out_mds);
+#undef MD
+
+    size_t total_mem_size = 0;
+    for_(const auto query : query_mds)
+    for (int idx = 0; idx < n_idx; ++idx) {
+        const auto md = dnnl_primitive_desc_query_md(const_pd, query, idx);
+        total_mem_size += get_md_size(md, add_ref_size);
+    }
+    return total_mem_size;
+}
+
 int check_mem_size(const dnnl_memory_desc_t &md) {
     if (!mem_check) return OK;
 
@@ -533,45 +588,15 @@ int check_mem_size(const dnnl_memory_desc_t &md) {
 int check_mem_size(const_dnnl_primitive_desc_t const_pd) {
     if (!mem_check) return OK;
 
-    // get all amount of memories to collect mem_size over all of them
-    const int n_memories = dnnl_primitive_desc_query_s32(
-                                   const_pd, dnnl_query_num_of_inputs_s32, 0)
-            + dnnl_primitive_desc_query_s32(
-                    const_pd, dnnl_query_num_of_outputs_s32, 0);
+    bool add_ref_size = true;
+    bool inputs = true;
+    bool outputs = !inputs;
+    size_t total_mem_size = get_memory_bytes(const_pd, inputs, add_ref_size)
+            + get_memory_bytes(const_pd, outputs, add_ref_size);
 
-    const auto get_mem_size = [const_pd](dnnl_query_t query, int index = 0) {
-        const auto md = dnnl_primitive_desc_query_md(const_pd, query, index);
-        auto mem_size = dnnl_memory_desc_get_size(md);
-        // reference memories are always fp32, hence need rescaling factor
-        size_t ref_mem_factor = 1;
-        if (md->data_type != dnnl_data_type_undef)
-            ref_mem_factor = ::sizeof_dt(dnnl_f32) / ::sizeof_dt(md->data_type);
-        // runtime mem size is not defined
-        if (mem_size == DNNL_RUNTIME_SIZE_VAL) mem_size = 0;
-        // all memory is mapped once it is created and unmapped only
-        // before primitive execution. Device memory requires additional buffer
-        // for mapped memory.
-        // XXX: In DPC++ build oneDNN uses USM memory, which shouldn't require
-        // an additional buffer, so mapped_mem_factor should be equal to 0 for
-        // DPC++. However due to a driver issue oneDNN pretends that shared USM
-        // is not accessible on the host, hence map will allocate an extra
-        // memory.
-        const size_t mapped_mem_factor = engine_tgt_kind == dnnl_cpu ? 0 : 1;
-        return (1 + mapped_mem_factor + ref_mem_factor) * mem_size;
-    };
-
-    size_t total_mem_size = 0;
-
-#define MD(name) dnnl_query_##name##_md
-    for (auto query : {MD(src), MD(diff_src), MD(weights), MD(diff_weights),
-                 MD(dst), MD(diff_dst)}) {
-        for (int idx = 0; idx < n_memories; ++idx)
-            total_mem_size += get_mem_size(query, idx);
-    }
-
-    for (auto query : {MD(workspace), MD(scratchpad)})
-        total_mem_size += get_mem_size(query);
-#undef MD
+    const auto scratchpad = dnnl_primitive_desc_query_md(
+            const_pd, dnnl_query_scratchpad_md, 0);
+    total_mem_size += get_md_size(scratchpad, add_ref_size);
 
     int64_t library_internal_mem_size = 0;
     dnnl_primitive_desc_query(const_pd, dnnl_query_memory_consumption_s64, 0,
@@ -579,4 +604,28 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd) {
     total_mem_size += library_internal_mem_size;
 
     return validate_mem_size(total_mem_size);
+}
+
+int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
+    res->ibytes = get_memory_bytes(const_pd, /* want_input = */ true);
+    res->obytes = get_memory_bytes(const_pd, /* want_input = */ false);
+
+    // Update read bytes with dst bytes in case of sum post-op.
+    const_dnnl_primitive_attr_t const_attr;
+    DNN_SAFE(dnnl_primitive_desc_get_attr(const_pd, &const_attr), WARN);
+
+    const_dnnl_post_ops_t const_attr_po;
+    DNN_SAFE(
+            dnnl_primitive_attr_get_post_ops(const_attr, &const_attr_po), WARN);
+
+    auto po_len = dnnl_post_ops_len(const_attr_po);
+    for (int idx = 0; idx < po_len; ++idx) {
+        const auto kind = dnnl_post_ops_get_kind(const_attr_po, idx);
+        if (kind == dnnl_sum) {
+            const auto dst_md = dnnl_primitive_desc_query_md(
+                    const_pd, dnnl_query_dst_md, 0);
+            res->ibytes += get_md_size(dst_md);
+        }
+    }
+    return OK;
 }

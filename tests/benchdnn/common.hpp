@@ -213,6 +213,7 @@ struct res_t {
     benchdnn_timer_t timer;
     std::string impl_name;
     skip_reason_t reason;
+    size_t ibytes, obytes;
 };
 
 void parse_result(

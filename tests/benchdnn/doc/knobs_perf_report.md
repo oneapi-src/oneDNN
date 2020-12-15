@@ -56,9 +56,12 @@ Options supported:
 | %@flops%      | Ops based                                          | Ops per second (modifier extended)
 | %@freq%       | All                                                | Effective cpu frequency computed as clocks[@] / time[@]
 | %group%       | Shuffle                                            | Shuffle group
+| %@ibytes%     | All                                                | Number of input memories bytes of a problem (modifier extended)
 | %impl%        | All                                                | Library implementation name for a given problem
+| %@iobytes%    | All                                                | Number of input and output memories bytes of a problem (modifier extended)
 | %mb%          | Problem desc based, Eltwise, Softmax               | Mini-batch value from user input. Prints `0` in case of input `--mb=0`.
 | %name%        | Problem desc based                                 | Problem name
+| %@obytes%     | All                                                | Number of output memories bytes of a problem (modifier extended)
 | %@ops%        | Ops based                                          | Number of ops required (padding is not taken into account)
 | %prb%         | All                                                | Canonical problem (options and descriptor in REPRO style)
 | %prop%        | RNN                                                | RNN prop kind

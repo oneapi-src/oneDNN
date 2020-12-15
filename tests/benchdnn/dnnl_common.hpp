@@ -257,6 +257,8 @@ inline const engine_t &get_cpu_engine() {
     return instance;
 }
 
+int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
+
 template <typename func_t, typename prb_t>
 int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *prb,
         res_t *res, dir_t dir = FLAG_FWD,
@@ -292,6 +294,8 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *prb,
     // the global test engine.
     SAFE(init_pd_func(get_test_engine(), prb, pd, res, dir, hint), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    // Collect memory footprint for a given primitive descriptor.
+    SAFE(get_memory_footprint(pd, res), WARN);
     // This primitive is expected to come from the cache.
     DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
     DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(pd), WARN, cleanup_prim);
