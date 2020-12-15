@@ -51,6 +51,7 @@
 #include "gpu/ocl/ref_softmax.hpp"
 #include "gpu/ocl/ref_zero_pad.hpp"
 #include "gpu/ocl/rnn/ref_rnn.hpp"
+#include "gpu/ocl/shuffle_by_reorder.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -132,6 +133,7 @@ const pd_create_f gpu_impl_list[] = {
         INSTANCE(ocl::ref_rnn_bwd_t),
 
         // Shuffle
+        INSTANCE(ocl::shuffle_by_reorder_t),
         INSTANCE(ocl::ref_shuffle_t),
 
         // Layer Normalization
