@@ -255,26 +255,26 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
                 && (brg->ldb2_tail <= 1 && brg->ldb2 == 0);
 
         int ld_block = (brg->ldb2 != 0) ? brg->ld_block2 : brg->ldb2_tail;
+        int adj_ld_block = (ld_block == 0) ? (ld_block + 1) : ld_block;
 
         const int max_avx512_regs = 32;
         const int max_bcst_regs = 1;
-        int max_regs = max_avx512_regs - (ld_block + max_bcst_regs);
+        int max_regs = max_avx512_regs - (adj_ld_block + max_bcst_regs);
         int max_block
                 = (brg->embd_bcst ? 28
                                   : ((brg->beta == 1.f || brg->beta == 0.f)
                                                   ? max_regs
                                                   : max_regs - 1));
         max_block -= brg->req_s8s8_compensation;
-        max_block /= ((ld_block == 0) ? (ld_block + 1) : ld_block);
+        max_block /= adj_ld_block;
         int min_block = 1;
         float best_bd_block_eff = 0.f;
         brg->bd_block = 1;
         for (int bd_block = max_block; bd_block >= min_block; bd_block--) {
             const auto bd_block_disb
                     = (float)brg->bcast_dim / rnd_up(brg->bcast_dim, bd_block);
-            const auto brgemm_microkernel_eff
-                    = ((float)(ld_block + 1) * bd_block)
-                    / (((ld_block + 1) + bd_block) * max_block);
+            const auto brgemm_microkernel_eff = ((float)(adj_ld_block)*bd_block)
+                    / (((adj_ld_block) + bd_block) * max_block);
             const auto bd_block_eff = bd_block_disb * brgemm_microkernel_eff;
 
             float block_foot_print
