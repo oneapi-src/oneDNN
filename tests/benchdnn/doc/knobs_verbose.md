@@ -19,6 +19,8 @@ following information is printed for certain verbosity levels:
     * The library implementation name if it hits the --skip-impl match.
 * Level 5.
     * The library implementation name picked to compute the given problem.
+* Level 6.
+    * The problem memory footprint and RAM capacity on devices.
 * Level 50.
     * Full path of batch file used.
 * Level 99.

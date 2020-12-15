@@ -508,16 +508,16 @@ static int validate_mem_size(size_t total_mem_size) {
     assert(benchdnn_limit > 0);
 
     const bool fits_device_ram = total_mem_size <= benchdnn_limit;
-    if (!fits_device_ram) {
-        auto GB = [](double bytes) { return bytes / powf(2, 30); };
+    auto GB = [](double bytes) { return bytes / powf(2, 30); };
 
-        BENCHDNN_PRINT(2,
-                "benchdnn: not enough RAM for a problem.\nRequested: %g GB, "
-                "benchdnn limit: %g GB, CPU RAM capacity: %g GB, GPU RAM "
-                "capacity: %g GB\n",
-                GB(total_mem_size), GB(benchdnn_limit), GB(cpu_device_capacity),
-                GB(gpu_device_capacity));
-    }
+    if (!fits_device_ram)
+        BENCHDNN_PRINT(2, "%s\n", "benchdnn: not enough RAM for a problem.");
+
+    BENCHDNN_PRINT((!fits_device_ram ? 2 : 6),
+            "Requested: %g GB, benchdnn limit: %g GB, CPU RAM capacity: %g GB, "
+            "GPU RAM capacity: %g GB\n",
+            GB(total_mem_size), GB(benchdnn_limit), GB(cpu_device_capacity),
+            GB(gpu_device_capacity));
 
     return fits_device_ram ? OK : FAIL;
 }
