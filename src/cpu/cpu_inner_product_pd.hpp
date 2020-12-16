@@ -193,8 +193,8 @@ protected:
             /* with batch = 1, no transpose to use the faster gemv kernels */
             /* otherwise, we transpose the weights to improve efficiency of
              * no-copy kernels */
-            if (MB() > 1 && transpose_leading_dim(OC(), IC_total()))
-                transpose_md(weights_md_);
+//            if (MB() > 1 && transpose_leading_dim(OC(), IC_total()))
+//                transpose_md(weights_md_);
             return status::success;
         };
 
