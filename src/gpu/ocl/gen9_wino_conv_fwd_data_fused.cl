@@ -403,8 +403,8 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
     const uint slm_size = (WINO_IC_BLOCK * WINO_D * IW_BLOCK) / VTRANS_BLOCK;
     __local VTRANS_DATA_T V[slm_size]; // 8 KB
 
-    const DATA_T sc = TO_TYPE(0.1);
-    const DATA_T scl = TO_TYPE(1.0) / sc;
+    const DATA_T scl = TO_TYPE(16);
+    const DATA_T sc = TO_TYPE(1) / scl;
     const VTRANS_DATA_T scl_vec = (VTRANS_DATA_T)(sc, sc, sc, sc);
 
     const int ow0 = get_group_id(0) * OW_BLOCK;
