@@ -458,6 +458,7 @@ inline bool operator==(const prelu_desc_t &lhs, const prelu_desc_t &rhs) {
     const bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)
             && COMPARE_DESC_MEMBERS(data_desc)
+            && COMPARE_DESC_MEMBERS(weights_desc)
             && COMPARE_DESC_MEMBERS(diff_data_desc)
             && COMPARE_DESC_MEMBERS(diff_weights_desc);
     return ret;
