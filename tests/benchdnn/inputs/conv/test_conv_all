@@ -8,6 +8,7 @@
 --batch=test_conv_attrs_f32_nxc
 --batch=test_conv_bfloat16
 --batch=test_conv_bfloat16_nxc
+--batch=test_conv_ci
 --batch=test_conv_depthwise
 --batch=test_conv_dilated
 --batch=test_conv_dilated_f32_nxc
@@ -20,6 +21,7 @@
 --batch=test_conv_gemm_dt_nxc
 --batch=test_conv_gemm_int8
 --batch=test_conv_gpu
+--batch=test_conv_gpu_ci
 --batch=test_conv_int8
 --batch=test_conv_regression
 --batch=test_conv_wino_f32
