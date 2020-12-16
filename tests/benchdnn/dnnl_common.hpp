@@ -336,4 +336,9 @@ inline bool is_nvidia_eltwise_ok(
     return is_nvidia_eltwise_ok(dir, e.kind, e.eltwise.alpha);
 }
 
+int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
+        dnnl_data_type_t data_type, const std::string &tag);
+int check_mem_size(const dnnl_memory_desc_t &md);
+int check_mem_size(const_dnnl_primitive_desc_t const_pd);
+
 #endif

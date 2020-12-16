@@ -134,7 +134,7 @@ int doit(const prb_t *prb, res_t *res) {
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    if (dnn_mem_t::check_mem_size(data_md) != OK) {
+    if (check_mem_size(data_md) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 

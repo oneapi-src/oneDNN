@@ -287,7 +287,7 @@ int doit(const prb_t *prb, res_t *res) {
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(rp, &const_pd), CRIT);
 
-    if (dnn_mem_t::check_mem_size(const_pd) != OK) {
+    if (check_mem_size(const_pd) != OK) {
         DNN_SAFE_V(dnnl_primitive_destroy(rp));
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }

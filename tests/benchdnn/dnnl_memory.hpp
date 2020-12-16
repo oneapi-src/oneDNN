@@ -23,9 +23,6 @@
 
 #include "dnnl_common.hpp"
 
-int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
-        dnnl_data_type_t data_type, const std::string &tag);
-
 #define dnnl_mem_default_value 0xFF
 
 struct dnn_mem_t {
@@ -190,9 +187,6 @@ struct dnn_mem_t {
         DNN_SAFE_V(dnnl_memory_unmap_data(m_, mapped_ptr_));
         mapped_ptr_ = NULL;
     }
-
-    static int check_mem_size(const dnnl_memory_desc_t &md);
-    static int check_mem_size(const_dnnl_primitive_desc_t const_pd);
 
     static dnn_mem_t create_from_host_ptr(
             const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *host_ptr);

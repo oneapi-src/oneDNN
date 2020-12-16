@@ -263,7 +263,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     // Check memory requirements only for original problem though it's broken
     // due to quering not by arg md.
-    if (dnn_mem_t::check_mem_size(const_pd) != OK) {
+    if (check_mem_size(const_pd) != OK) {
         DNN_SAFE_V(dnnl_primitive_destroy(c));
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
