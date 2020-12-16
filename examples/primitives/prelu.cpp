@@ -98,8 +98,15 @@ void prelu_example(dnnl::engine::kind engine_kind) {
     auto prelu_d = prelu_forward::desc(
             prop_kind::forward_training, src_md, weights_md);
 
-    // Create primitive descriptor.
-    auto prelu_pd = prelu_forward::primitive_desc(prelu_d, engine);
+    prelu_forward::primitive_desc prelu_pd;
+    try {
+        // Create primitive descriptor.
+        prelu_pd = prelu_forward::primitive_desc(prelu_d, engine);
+    } catch (error &e) {
+        if (e.status == dnnl_unimplemented)
+            throw example_allows_unimplemented {
+                    "PReLU is not available for this engine.\n"};
+    }
 
     // For now, assume that the weights memory layout generated
     // by the primitive and the one provided by the user are identical.

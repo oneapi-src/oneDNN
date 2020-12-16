@@ -116,6 +116,7 @@ meaning associated with any logical dimensions.
 ## Implementation Limitations
 
 Current implementation only supports 1D, 2D and 3D tensors.
+GPU is not supported.
 
 ## Performance Tips
 
@@ -126,6 +127,6 @@ data memory format.
 
 ## Examples
 
-| Engine  | Name                     | Comments
-| :--     | :--                      | :--
-| CPU/GPU | @ref prelu_example_cpp   | @copydetails prelu_example_cpp_short
+| Engine | Name                     | Comments
+| :--    | :--                      | :--
+| CPU    | @ref prelu_example_cpp   | @copydetails prelu_example_cpp_short

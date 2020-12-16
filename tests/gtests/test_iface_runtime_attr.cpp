@@ -318,6 +318,9 @@ TEST_F(runtime_attr_test_t, TestPool) {
 }
 
 TEST_F(runtime_attr_test_t, TestPReLU) {
+    auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind != engine::kind::cpu,
+            "PReLU only supported on CPU engine");
     memory::desc data_md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
     memory::desc weights_md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
     prelu_forward::desc op_d(prop_kind::forward, data_md, weights_md);
