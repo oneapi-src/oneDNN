@@ -258,10 +258,9 @@ inline const engine_t &get_cpu_engine() {
 }
 
 template <typename func_t, typename prb_t>
-int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *p,
+int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *prb,
         res_t *res, dir_t dir = FLAG_FWD,
         const_dnnl_primitive_desc_t hint = nullptr) {
-    int status = OK;
     dnnl_primitive_desc_t pd {};
     dnnl_primitive_t return_prim {};
 
@@ -282,8 +281,7 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *p,
 
     // The first primitive creation using a temporary engine.
     engine_t engine(engine_tgt_kind);
-    status = init_pd_func(engine, p, pd, res, dir, hint);
-    if (status != OK) return status;
+    SAFE(init_pd_func(engine, prb, pd, res, dir, hint), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
     DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(pd), WARN, cleanup_prim);
@@ -292,8 +290,7 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *p,
 #endif
     // The second (if the cache is enabled) primitive creation using
     // the global test engine.
-    status = init_pd_func(get_test_engine(), p, pd, res, dir, hint);
-    if (status != OK) return status;
+    SAFE(init_pd_func(get_test_engine(), prb, pd, res, dir, hint), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     // This primitive is expected to come from the cache.
     DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
