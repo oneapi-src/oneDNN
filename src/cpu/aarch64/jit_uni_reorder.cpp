@@ -29,7 +29,7 @@
 
 #include "cpu/aarch64/jit_uni_reorder.hpp"
 #include "cpu/cpu_primitive.hpp"
-#include "cpu/cpu_reorder_pd.hpp"
+#include "cpu/reorder/cpu_reorder_pd.hpp"
 
 #include "cpu/aarch64/jit_generator.hpp"
 

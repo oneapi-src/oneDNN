@@ -19,6 +19,7 @@ file(GLOB SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp)
 file(GLOB_RECURSE SOURCES_EXTRA
     ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/matmul/*.[ch]pp
+    ${CMAKE_CURRENT_SOURCE_DIR}/reorder/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/rnn/*.[ch]pp
     )
 
@@ -55,7 +56,7 @@ endif()
 if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STREQUAL "Intel"))
     file(GLOB FILES_REQUIRED_BIGOBJ
         ${CMAKE_CURRENT_SOURCE_DIR}/cpu_engine.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/cpu_reorder.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/reorder/cpu_reorder_regular_f32_f32.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/cpu_convolution_list.cpp)
     set_source_files_properties(${FILES_REQUIRED_BIGOBJ}
         PROPERTIES COMPILE_FLAGS "/bigobj")

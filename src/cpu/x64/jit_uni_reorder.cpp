@@ -27,7 +27,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
-#include "cpu/cpu_reorder_pd.hpp"
+#include "cpu/reorder/cpu_reorder_pd.hpp"
 #include "cpu/x64/jit_uni_reorder.hpp"
 
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"

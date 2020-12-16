@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_SIMPLE_REORDER_HPP
-#define CPU_SIMPLE_REORDER_HPP
+#ifndef CPU_REORDER_SIMPLE_REORDER_HPP
+#define CPU_REORDER_SIMPLE_REORDER_HPP
 
 #include <assert.h>
 
@@ -30,7 +30,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
-#include "cpu/cpu_reorder_pd.hpp"
+#include "cpu/reorder/cpu_reorder_pd.hpp"
 
 #include "cpu/simple_q10n.hpp"
 
@@ -92,20 +92,20 @@ template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
 struct simple_reorder_impl {};
 
 namespace {
-bool simple_fmt_check(bool order_keep, impl::format_tag_t tag_i,
+static inline bool simple_fmt_check(bool order_keep, impl::format_tag_t tag_i,
         impl::format_tag_t tag_o, const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d) {
     if (input_d.has_runtime_dims_or_strides()) return false;
     return input_d.matches_tag(order_keep ? tag_i : tag_o)
             && output_d.matches_tag(order_keep ? tag_o : tag_i);
 }
-bool simple_po_check(const primitive_attr_t *attr) {
+static inline bool simple_po_check(const primitive_attr_t *attr) {
     const auto &po = attr->post_ops_;
     return po.len() == 0
             || (po.len() == 1 && po.contain(primitive_kind::sum, 0));
 }
-bool simple_attr_check(const primitive_attr_t *attr, bool many_scales_support,
-        bool sum_support) {
+static inline bool simple_attr_check(const primitive_attr_t *attr,
+        bool many_scales_support, bool sum_support) {
     using smask_t = primitive_attr_t::skip_mask_t;
     smask_t skip_mask = smask_t::oscale;
     if (sum_support) skip_mask = skip_mask | smask_t::post_ops;

@@ -25,8 +25,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/cpu_reorder_pd.hpp"
 #include "cpu/platform.hpp"
+#include "cpu/reorder/cpu_reorder_pd.hpp"
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/gemm/gemm_pack.hpp"
@@ -35,7 +35,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-inline void init_dims(int &L, int &D, int &I, int &G, int &O,
+static inline void init_dims(int &L, int &D, int &I, int &G, int &O,
         const memory_desc_wrapper &mdw) {
     auto dims = mdw.dims();
     auto ndims = mdw.ndims();
@@ -58,8 +58,9 @@ inline void init_dims(int &L, int &D, int &I, int &G, int &O,
 };
 
 template <data_type_t type_i>
-void quantize_igo(int8_t *scratch_quantized, const memory_desc_wrapper &src_d,
-        const float *src, int mask, float *scales) {
+static inline void quantize_igo(int8_t *scratch_quantized,
+        const memory_desc_wrapper &src_d, const float *src, int mask,
+        float *scales) {
     typedef typename prec_traits<type_i>::type in_data_t;
 
     // TODO: trivial strides assumes here.
@@ -82,8 +83,9 @@ void quantize_igo(int8_t *scratch_quantized, const memory_desc_wrapper &src_d,
 }
 
 template <data_type_t type_i>
-void quantize_goi(int8_t *scratch_quantized, const memory_desc_wrapper &src_d,
-        const float *src, int mask, float *scales) {
+static inline void quantize_goi(int8_t *scratch_quantized,
+        const memory_desc_wrapper &src_d, const float *src, int mask,
+        float *scales) {
     typedef typename prec_traits<type_i>::type in_data_t;
 
     // TODO: trivial strides assumes here.
@@ -103,9 +105,9 @@ void quantize_goi(int8_t *scratch_quantized, const memory_desc_wrapper &src_d,
     });
 }
 
-void compensate_igo(float *compensation, const memory_desc_wrapper &src_d,
-        int8_t *scratch_quantized, int32_t *scratch_compensation,
-        size_t scratch_comp_sz) {
+static inline void compensate_igo(float *compensation,
+        const memory_desc_wrapper &src_d, int8_t *scratch_quantized,
+        int32_t *scratch_compensation, size_t scratch_comp_sz) {
     // TODO: trivial strides assumed here.
     //       Use proper strides where appropriate
     int L, D, I, G, O;
@@ -159,8 +161,8 @@ void compensate_igo(float *compensation, const memory_desc_wrapper &src_d,
     });
 }
 
-void compensate_goi(float *compensation, const memory_desc_wrapper &src_d,
-        int8_t *scratch_quantized) {
+static inline void compensate_goi(float *compensation,
+        const memory_desc_wrapper &src_d, int8_t *scratch_quantized) {
     // TODO: trivial strides assumed here.
     //       Use proper strides where appropriate
     int L, D, I, G, O;
