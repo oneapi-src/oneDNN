@@ -1,5 +1,6 @@
 --reset
 
+--scales=0.25,1,4
 --ddt=f32,bf16
 --sdt=bf16:bf16
 --dtag=undef,abx,axb,aBx16b

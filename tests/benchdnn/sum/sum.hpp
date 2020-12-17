@@ -43,7 +43,7 @@ struct settings_t {
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
     std::vector<std::vector<std::string>> stag {{tag::abx}};
     std::vector<std::string> dtag {tag::undef};
-    std::vector<std::vector<float>> scales {{0.25}, {1}, {4}};
+    std::vector<std::vector<float>> scales {{1}};
     std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
             dnnl_scratchpad_mode_library};
 

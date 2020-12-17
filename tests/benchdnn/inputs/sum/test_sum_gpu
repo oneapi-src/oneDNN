@@ -1,6 +1,7 @@
 # f32
 --reset
 
+--scales=0.25,1,4
 --ddt=f32,bf16,s8
 --dtag=undef,abx
 --sdt=f32:f32,bf16:bf16,s8:s8

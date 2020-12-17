@@ -1,4 +1,6 @@
 --reset
+
+--scales=0.25,1,4
 --ddt=f32,s32,s8,u8
 --sdt=f32:f32,f32:s32,f32:s8,f32:u8,s32:s8,s32:u8,s8:u8
 --dtag=undef,abx,axb,aBx8b,aBx16b
