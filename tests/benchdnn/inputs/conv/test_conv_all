@@ -6,8 +6,8 @@
 --batch=test_conv_all_topologies_f32_nxc
 --batch=test_conv_attrs
 --batch=test_conv_attrs_f32_nxc
---batch=test_conv_bfloat16
---batch=test_conv_bfloat16_nxc
+#--batch=test_conv_bfloat16 # included in test_conv_dt
+#--batch=test_conv_bfloat16_nxc # included in test_conv_dt_nxc
 --batch=test_conv_ci
 --batch=test_conv_depthwise
 --batch=test_conv_dilated
@@ -15,8 +15,8 @@
 --batch=test_conv_dt
 --batch=test_conv_dt_nxc
 --batch=test_conv_function
---batch=test_conv_gemm_bfloat16
---batch=test_conv_gemm_bfloat16_nxc
+#--batch=test_conv_gemm_bfloat16 # included in test_conv_gemm_dt
+#--batch=test_conv_gemm_bfloat16_nxc # included in test_conv_gemm_dt_nxc
 --batch=test_conv_gemm_dt
 --batch=test_conv_gemm_dt_nxc
 --batch=test_conv_gemm_int8
