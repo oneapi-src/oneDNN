@@ -1617,6 +1617,11 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     const auto &oscales = attr.output_scales_;
     jcp.is_oc_scale = oscales.mask_ == 1 << 1;
 
+    // Note: currently unsupported, results in seg-fault
+    const int l_pad_output = nstl::min(jcp.ow, div_up(jcp.l_pad, jcp.stride_w));
+    if (!jcp.is_relo && (l_pad_output > jcp.ow_block))
+        return status::unimplemented;
+
     return status::success;
 }
 
