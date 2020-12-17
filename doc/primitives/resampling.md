@@ -31,9 +31,14 @@ factors in each spatial dimension.
 The following formulas show how oneDNN computes resampling for nearest neighbor
 and bilinear interpolation methods.
 To further simplify the formulas, we assume the following:
-- \f$\src(n, ic, ih, iw) = 0\f$ if \f$ih < 0\f$ or \f$iw < 0\f$,
-- \f$\src(n, ic, ih, iw) = \src(n, ic, IH - 1, iw)\f$ if \f$ih \geq IH\f$,
-- \f$\src(n, ic, ih, iw) = \src(n, ic, ih, IW - 1)\f$ if \f$iw \geq IW\f$.
+\f$\src(n, ic, ih, iw) = \begin{cases}
+\src(n, ic, ih, 0), & \text{if}\ iw < 0 \\
+\src(n, ic, ih, iw), & \text{if}\ IW - 1 \geq iw \geq 0 \\
+\src(n, ic, ih, IW - 1), & \text{if}\ iw > IW - 1
+\end{cases}\f$
+
+Same assumptions apply for \f$ih\f$. Definitions of \f$ih\f$ and \f$iw\f$ are
+provided below with a correspondent algorithm.
 
 ### Forward
 
@@ -50,10 +55,10 @@ where
 
 \f[
     \dst(n, c, oh, ow) =
-            \src(n, c, ih_0, iw_0) \cdot W_{ih} \cdot W_{iw} + \\
-            \src(n, c, ih_1, iw_0) \cdot (1 - W_{ih}) \cdot W_{iw} + \\
-            \src(n, c, ih_0, iw_1) \cdot W_{ih} \cdot (1 - W_{iw}) + \\
-            \src(n, c, ih_1, iw_1) \cdot (1 - W_{ih}) \cdot (1 - W_{iw}) \\
+            \src(n, c, ih_0, iw_0) \cdot (1 - W_{ih}) \cdot (1 - W_{iw}) + \\
+            \src(n, c, ih_1, iw_0) \cdot W_{ih} \cdot (1 - W_{iw}) + \\
+            \src(n, c, ih_0, iw_1) \cdot (1 - W_{ih}) \cdot W_{iw} + \\
+            \src(n, c, ih_1, iw_1) \cdot W_{ih} \cdot W_{iw} \\
 \f]
 
 where
