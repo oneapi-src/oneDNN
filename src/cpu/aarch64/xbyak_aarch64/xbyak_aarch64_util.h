@@ -56,7 +56,10 @@ public:
   static const Type tADVSIMD = 1 << 1;
   static const Type tFP = 1 << 2;
   static const Type tSVE = 1 << 3;
+  static const Type tATOMIC = 1 << 4;
 
+  static const uint64_t ID_AA64ISAR0_EL1_ATOMIC_SHIFT = 20;
+  static const uint64_t ID_AA64ISAR0_EL1_ATOMIC_MASK = 0xf;
   static const uint64_t ID_AA64PFR0_EL1_SVE_SHIFT = 32;
   static const uint64_t ID_AA64PFR0_EL1_SVE_MASK = 0xf;
   static const uint64_t ID_AA64PFR0_EL1_ADVSIMD_SHIFT = 20;
@@ -72,6 +75,13 @@ public:
 
   Cpu() : type_(tNONE), sveLen_(SVE_NONE) {
     uint64_t regVal = 0;
+
+    __asm__ __volatile__("mrs %0, id_aa64isar0_el1" : "=r"(regVal));
+
+    if (SYS_REG_FIELD(regVal, ID_AA64ISAR0_EL1, ATOMIC) == 0x2) {
+      type_ |= tATOMIC;
+    }
+
     __asm__ __volatile__("mrs %0, id_aa64pfr0_el1" : "=r"(regVal));
 
     if (SYS_REG_FIELD(regVal, ID_AA64PFR0_EL1, FP) == 0x1) {
@@ -94,6 +104,7 @@ public:
 
   bool has(Type type) const { return (type & type_) != 0; }
   uint64_t getSveLen() const { return sveLen_; }
+  bool isAtomicSupported() const { return type_ & tATOMIC; }
 };
 } // namespace util
 } // namespace Xbyak_aarch64
