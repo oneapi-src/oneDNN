@@ -1,6 +1,6 @@
 --reset
 
---tag=abx,aBx16b,ABx16a16b
+--tag=abx,aBx16b,ABx16a16b,ABx32a16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=shapes_1d --batch=shapes_3d
 --dir=FWD_D        --flags=GS,S    --attr-post-ops=relu --batch=shapes_1d
 --dir=BWD_D        --flags=        --attr-post-ops=       --batch=shapes_1d
@@ -18,7 +18,7 @@
 --reset
 
 --mb=48
---tag=ABx16a16b
+--tag=ABx16a16b,ABx32a16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=shapes_topologies_small
 --dir=FWD_D        --flags=GS,S    --attr-post-ops=relu --batch=shapes_topologies_small
 --dir=BWD_D        --flags=        --attr-post-ops=       --batch=shapes_topologies_small
@@ -37,7 +37,7 @@
 --dt=f16,bf16
 --mb=2
 --dir=FWD_I,FWD_D
---tag=abx,aBx16b,ABx16a16b
+--tag=abx,aBx16b,ABx16a16b,ABx32a16b
 --flags=,S,C
 --batch=shapes_1d
 --batch=shapes_topologies_small
@@ -61,7 +61,7 @@
 --reset
 --mb=32
 --dt=f32,bf16
---tag=axb,ABx16a16b
+--tag=axb,ABx16a16b,ABx32a16b
 --dir=BWD_D,BWD_W,BWD_WB,BWD_DW     --flags=        --batch=shapes_topologies_small
 --dir=BWD_W,BWD_WB,BWD_DW           --flags=SR,GS,S --batch=shapes_topologies_small
 
