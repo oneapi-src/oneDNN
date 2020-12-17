@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,8 +51,6 @@ struct ref_prelu_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             bool ok = is_fwd() && set_default_formats()
-                    && utils::one_of(src_md(0)->data_type, f32, bf16)
-                    && utils::one_of(weights_md(0)->data_type, f32, bf16)
                     && src_md(0)->ndims <= max_supported_ndims
                     && platform::has_data_type_support(src_md(0)->data_type)
                     && platform::has_data_type_support(weights_md(0)->data_type)
@@ -85,8 +83,6 @@ struct ref_prelu_bwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             bool ok = !is_fwd() && set_default_formats()
-                    && utils::one_of(src_md(0)->data_type, f32, bf16)
-                    && utils::one_of(weights_md(0)->data_type, f32, bf16)
                     && diff_src_md(0)->data_type == src_md(0)->data_type
                     && diff_weights_md(0)->data_type == weights_md(0)->data_type
                     && src_md(0)->ndims <= max_supported_ndims

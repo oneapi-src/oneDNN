@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,9 +38,19 @@ using namespace data_type;
 static float load(data_type_t src_dtype, const byte *base, dim_t offset) {
     switch (src_dtype) {
         case f32: return reinterpret_cast<const float *>(base)[offset];
+        case s32:
+            return static_cast<float>(
+                    reinterpret_cast<const int32_t *>(base)[offset]);
         case bf16:
             return static_cast<float>(
                     reinterpret_cast<const bfloat16_t *>(base)[offset]);
+        case s8:
+            return static_cast<float>(
+                    reinterpret_cast<const int8_t *>(base)[offset]);
+        case u8:
+            return static_cast<float>(
+                    reinterpret_cast<const uint8_t *>(base)[offset]);
+
         default: assert(!"Unsupported data type");
     }
     return -1;
@@ -51,9 +61,21 @@ static void store(data_type_t dst_dtype, float val, byte *base, dim_t offset) {
         case f32:
             *reinterpret_cast<float *>(base + sizeof(float) * offset) = val;
             break;
+        case s32:
+            *reinterpret_cast<int32_t *>(base + sizeof(int32_t) * offset)
+                    = cpu::saturate_and_round<int32_t>(val);
+            break;
         case bf16:
             *reinterpret_cast<bfloat16_t *>(base + sizeof(bfloat16_t) * offset)
                     = cpu::saturate_and_round<bfloat16_t>(val);
+            break;
+        case s8:
+            *reinterpret_cast<int8_t *>(base + sizeof(int8_t) * offset)
+                    = cpu::saturate_and_round<int8_t>(val);
+            break;
+        case u8:
+            *reinterpret_cast<uint8_t *>(base + sizeof(uint8_t) * offset)
+                    = cpu::saturate_and_round<uint8_t>(val);
             break;
         default: assert(!"Unsupported data type");
     }
