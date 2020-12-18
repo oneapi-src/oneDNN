@@ -2,7 +2,8 @@
 
 ## Operators
 
-All the operators defined in [oneDNN Graph Specification](https://spec.oneapi.com/onednn-graph/latest/ops/index.html) are supported. Including:
+Supported operation refers to operation which can be converted to oneDNN Graph OP and thus can be part of oneDNN Graph partition.
+The preview supports the following operations as part of Opset defined in oneDNN Graph Spec.  It supports FP32/FP16/BF16 data type.  For complete OP definition, please refer to [oneDNN Graph Specification](https://spec.oneapi.com/onednn-graph/latest/ops/index.html).
 
 - AvgPool
 - AvgPoolBackprop
