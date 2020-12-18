@@ -55,6 +55,10 @@ struct jit_uni_fork_softmax_fwd_t : public primitive_t {
 
             format_tag_t dat_tag = utils::pick(ndims - 3, format_tag::ncw, format_tag::nchw, format_tag::ncdhw);
 
+            // TODO: disabled because of failed test (case: for axis == 0, batch == 2). Needs to be debugged.
+            if (ndims == 3)
+                return status::unimplemented;
+
             using namespace data_type;
             bool ok = src_d == dst_d && mayiuse(isa) && is_fwd()
                       && !has_zero_dim_memory()
