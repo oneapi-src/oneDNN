@@ -129,6 +129,8 @@ const impl_list_map_t comp_f32_s8_impl_list_map {
         REG_SR(f32, hwigo, s8, gOIhw16i16o4i, fmt_order::keep, spec::conv_req_comp),
         REG_SR(f32, oidhw, s8, OdhwI16o4i, fmt_order::keep, spec::conv_req_comp),
         REG_SR(f32, dhwio, s8, OdhwI16o4i, fmt_order::keep, spec::conv_req_comp),
+        REG_SR(f32, oidhw, s8, OIdhw16i16o4i, fmt_order::keep, spec::conv_req_comp),
+        REG_SR(f32, oidhw, s8, OIdhw16i16o4i, fmt_order::keep, spec::conv_req_comp),
 
         nullptr,
     }},
@@ -138,6 +140,7 @@ const impl_list_map_t comp_f32_s8_impl_list_map {
         REG_SR(f32, goidhw, s8, gOIdhw2i8o4i, fmt_order::keep, spec::conv_req_comp),
         REG_SR(f32, goidhw, s8, gOIdhw4o4i, fmt_order::keep, spec::conv_req_comp),
         REG_SR(f32, goidhw, s8, gOdhwI16o4i, fmt_order::keep, spec::conv_req_comp),
+        REG_SR(f32, goidhw, s8, gOIdhw16i16o4i, fmt_order::keep, spec::conv_req_comp),
 
         nullptr,
     }},
