@@ -95,9 +95,9 @@ struct settings_t {
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%sdt%,%ddt%,%stag%,%dtag%,%flags%,%attr%,%"
-              "DESC%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+              "DESC%,%-time%,%0time%";
     const char *perf_template_def
-            = "perf,%engine%,%impl%,%prb%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+            = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
     const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
@@ -116,10 +116,8 @@ struct prb_t {
         , oflag(oflag)
         , cross_engine(cross_engine)
         , runtime_dim_mask(runtime_dim_mask)
-        , ops(0)
         , ndims((int)reorder.dims.size()) {
         this->attr.oscale.scale = scale;
-        count_ops();
         scales = generate_oscales();
         src_zp = generate_zero_points(DNNL_ARG_SRC);
         dst_zp = generate_zero_points(DNNL_ARG_DST);
@@ -138,7 +136,6 @@ struct prb_t {
     uint64_t oflag;
     cross_engine_t cross_engine;
     unsigned runtime_dim_mask;
-    double ops;
     int ndims;
     float *scales;
     int32_t *src_zp, *dst_zp;
@@ -146,13 +143,6 @@ struct prb_t {
     bool is_reorder_with_compensation() const {
         return alg == ALG_BOOT && oflag != FLAG_NONE;
     }
-    void count_ops() {
-        if (ops > 0) return;
-
-        ops = 1;
-        for (int d = 0; d < ndims; ++d)
-            ops *= reorder.dims[d];
-    };
     float *generate_oscales();
     int32_t *generate_zero_points(int arg);
 };
@@ -191,7 +181,6 @@ struct perf_report_t : public base_perf_report_t {
         s << flag2str(p_->oflag);
     }
 
-    double ops() const override { return p_->ops; }
     const attr_t *attr() const override { return &p_->attr; }
     const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }
     const dnnl_data_type_t *ddt() const override { return &ddt_; }

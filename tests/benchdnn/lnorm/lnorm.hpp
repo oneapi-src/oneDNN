@@ -65,9 +65,9 @@ struct settings_t {
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%dir%,%dt%,%tag%,%stat_tag%,%flags%,%DESC%,"
-              "%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+              "%-time%,%0time%,";
     const char *perf_template_def
-            = "perf,%engine%,%impl%,%prb%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+            = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
     const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
@@ -87,13 +87,11 @@ struct prb_t {
         , flags(flags)
         , inplace(inplace)
         , attr(attr)
-        , ops(0)
         , ndims((int)dims.size()) {
         n = std::accumulate(
                 dims.begin(), dims.end() - 1, 1, std::multiplies<int64_t>());
         c = dims[ndims - 1];
         eps = 1.f / 16;
-        count_ops();
     }
     ~prb_t() {}
 
@@ -107,21 +105,7 @@ struct prb_t {
     bool inplace;
     attr_t attr;
     float eps;
-    double ops;
     int ndims;
-
-    void count_ops() {
-        if (ops > 0) return;
-        bool use_scaleshift = flags & USE_SCALESHIFT;
-        if (dir & FLAG_FWD) {
-            ops = sizeof_dt(dt)
-                    * ((2 - inplace) * n * c + 2 * n + use_scaleshift * 2 * c);
-        } else {
-            ops = sizeof_dt(dt)
-                    * ((3 - inplace) * n * c + 2 * n + use_scaleshift * 2 * c
-                            + 2 * c);
-        }
-    };
 };
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
@@ -144,7 +128,6 @@ struct perf_report_t : public base_perf_report_t {
         s << flags2str(p_->flags);
     }
 
-    double ops() const override { return p_->ops; }
     const dir_t *dir() const override { return &p_->dir; }
     const dnnl_data_type_t *dt() const override { return &p_->dt; }
     const std::string *tag() const override { return &tag_; }
