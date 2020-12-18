@@ -1,0 +1,6 @@
+# These problems are ported from corresponding inner product forward
+# ip mb=128
+128x768:768x2304n"BERT:0*1"
+128x768:768x768n"BERT:1*1"
+128x768:768x3072n"BERT:2*1"
+128x3072:3072x768n"BERT:3*1"

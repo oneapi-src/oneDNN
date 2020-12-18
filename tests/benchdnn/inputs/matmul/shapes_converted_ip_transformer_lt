@@ -1,0 +1,14 @@
+# These problems are ported from corresponding inner product forward
+# encoder
+5120x1024:1024x1024n"transformer_lt:encoder:SA*2"
+5120x1024:1024x4096n"transformer_lt:encoder:FF1"
+5120x4096:4096x1024n"transformer_lt:encoder:FF2"
+20480x1024:1024x1024n"transformer_lt:encoder:SA-precompute"
+# decoder
+512x1024:1024x1024n"transformer_lt:decoder:SA1"
+# mb5120ic1024oc1024n"transformer_lt:decoder:SA10"
+10240x1024:1024x1024n"transformer_lt:decoder:SA20"
+512x1024:1024x4096n"transformer_lt:decoder:FF1"
+512x4096:4096x1024n"transformer_lt:decoder:FF2"
+# vocabulary
+512x10246:10246x33945n"transformer_lt:output_logits"

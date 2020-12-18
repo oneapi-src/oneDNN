@@ -33,3 +33,10 @@ mb2m10n4k30
 --attr-oscale=common:2.25*,per_oc:2.25*
 --attr-zero-points=src:common:1*_wei:common:-1*_dst:per_dim_1:2*
 mb2m10n4k31
+
+--reset
+--skip-impl=ref
+--cfg=u8s8u8,s8s8s8
+--attr-oscale=common:0.25 --attr-post-ops='sum:1.5;relu:3'
+--bia_dt=s8 --bia_mask=2
+--batch=shapes_2d_ci
