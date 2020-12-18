@@ -6,71 +6,88 @@
 ```
 
 where:
- - def -- default template. Has problem name, problem dump, ops (if applied),
+ - `def` -- default template. Has problem name, problem dump, ops (if applied),
           minimum and average time and GFLOPS (if applied)
- - csv -- comma-separated values style template. Same as default, but dumps
+ - `csv` -- comma-separated values style template. Same as default, but dumps
           problem and descriptor values with comma delimiter.
- - CUSTOM_TEMPLATE -- user-defined template. Should consist of special options
+ - `CUSTOM_TEMPLATE` -- user-defined template. Should consist of special options
                       supported by specific driver. Refer to the list of
                       options supported below.
 
 
 **benchdnn** supports both out-of-the-box and custom performance reports.
 A custom template should be passed via the command line and consists of terminal
-and nonterminal symbols.
-Nonterminal symbols are printed as-is.
-Descriptions of terminal symbols are given below.
-There is also a notion of modifiers (marked as @) that change the meaning of
-terminal symbols; for example, the sign '-' means minimum of (in terms of time).
-See the table of modifiers below.
-
-> **Caution:** Threads must be pinned in order to get consistent frequency.
-
-Options supported:
+and nonterminal symbols. Nonterminal symbols are printed as-is. Descriptions of
+terminal symbols are given below.
 
 > **Note:** Following generalized types are used below:
 >
->           * 'Data md based' = {Bnorm, Eltwise, Lnorm, Lrn, Shuffle, Softmax}
->           * 'Problem desc based' = {Bnorm, Conv, IP, Lrn, Matmul, Pool, RNN}
->           * 'Ops based' = {Conv, IP, Lnorm, Matmul, Reorder, RNN}
+> * 'Data md based' = {Bnorm, Eltwise, Lnorm, Lrn, Prelu, Shuffle, Softmax}
+> * 'Problem desc based' = {Bnorm, Conv, IP, Lrn, Matmul, Pool, Resampling, RNN}
+> * 'Ops based' = {Conv, IP, Matmul, RNN}
 
-| Syntax        | Primitives                                         | Description
-| :--           | :--                                                | :--
-| %activation%  | RNN                                                | RNN activation function
-| %alg%         | Binary, Conv, Eltwise, Lrn, Pool, Reorder, RNN     | Primitive algorithm
-| %attr%        | Binary, Bnorm, Conv, IP, Matmul, Reorder           | Primitive attributes
-| %axis%        | Concat, Shuffle, Softmax                           | Primitive axis
-| %@bw%         | Ops based                                          | Bytes per second (modifier extended)
-| %cfg%         | Conv, IP, Matmul, Pool, RNN                        | Config, describes data types and filling rules
-| %@clocks%     | All                                                | Time in clocks (modifier extended)
-| %desc%        | All                                                | String style problem descriptor
-| %DESC%        | All                                                | CSV-style problem descriptor (mostly dimensions)
-| %ddt%         | Binary, Concat, Reorder, Sum                       | Destination data types (precision)
-| %dir%         | All, except Concat, RNN, Reorder, Sum              | Primitive prop kind
-| %direction%   | RNN                                                | RNN direction execution
-| %driver%      | All                                                | Name of the current driver (e.g. conv, reorder)
-| %dt%          | Data md based                                      | Data type (precision)
-| %dtag%        | Concat, Conv, IP, Matmul, Reorder, Sum             | Destination format tag (physical memory layout)
-| %engine%      | All                                                | Engine kind
-| %flags%       | Bnorm, Lnorm, Reorder                              | Primitive flags
-| %@flops%      | Ops based                                          | Ops per second (modifier extended)
-| %@freq%       | All                                                | Effective cpu frequency computed as clocks[@] / time[@]
-| %group%       | Shuffle                                            | Shuffle group
-| %@ibytes%     | All                                                | Number of input memories bytes of a problem (modifier extended)
-| %impl%        | All                                                | Library implementation name for a given problem
-| %@iobytes%    | All                                                | Number of input and output memories bytes of a problem (modifier extended)
-| %mb%          | Problem desc based, Eltwise, Softmax               | Mini-batch value from user input. Prints `0` in case of input `--mb=0`.
-| %name%        | Problem desc based                                 | Problem name
-| %@obytes%     | All                                                | Number of output memories bytes of a problem (modifier extended)
-| %@ops%        | Ops based                                          | Number of ops required (padding is not taken into account)
-| %prb%         | All                                                | Canonical problem (options and descriptor in REPRO style)
-| %prop%        | RNN                                                | RNN prop kind
-| %sdt%         | Binary, Concat, Reorder, Sum                       | Source data types (precision)
-| %stag%        | Binary, Concat, Conv, IP, Matmul, Reorder, Sum     | Source format tag (physical memory layout)
-| %stat_tag%    | Lnorm                                              | Layer Normalization statistics (mean and variance) format tag (physical memory layout)
-| %tag%         | Data md based, Pool                                | Data format tag (physical memory layout)
-| %wtag%        | Conv, IP, Matmul                                   | Weights format tag (physical memory layout)
-| %@time%       | All                                                | Time in ms (modifier extended)
+Data types options supported:
+
+| Syntax | Primitives                                     | Description
+| :--    | :--                                            | :--
+| %cfg%  | Conv, IP, Matmul, Pool, RNN                    | Config which describes data types and filling rules
+| %dt%   | Data md based, Resampling, Zeropad             | Source and Destination Data type (precision)
+| %ddt%  | Binary, Concat, Reduction, Reorder, Sum        | Destination data types (precision)
+| %sdt%  | Binary, Concat, Prelu, Reduction, Reorder, Sum | Source data types (precision)
+
+Format tags (physical memory layout) options supported:
+
+| Syntax     | Primitives                                                       | Description
+| :--        | :--                                                              | :--
+| %tag%      | Data md based, Pool, Resampling, Zeropad                         | Source and Destination format tag
+| %dtag%     | Binary, Concat, Conv, IP, Matmul, Reduction, Reorder, Sum        | Destination format tag
+| %stag%     | Binary, Concat, Conv, IP, Matmul, Prelu, Reduction, Reorder, Sum | Source format tag
+| %wtag%     | Conv, IP, Matmul                                                 | Weights format tag
+| %stat_tag% | Lnorm                                                            | Layer Normalization statistics (mean and variance) format tag
+
+Other problem specific options supported:
+
+| Syntax       | Primitives                                                            | Description
+| :--          | :--                                                                   | :--
+| %activation% | RNN                                                                   | RNN activation function
+| %alg%        | Binary, Conv, Eltwise, Lrn, Pool, Reduction, Reorder, Resampling, RNN | Primitive algorithm
+| %attr%       | All                                                                   | Primitive attributes
+| %axis%       | Concat, Shuffle, Softmax                                              | Primitive axis
+| %desc%       | All                                                                   | String style problem descriptor
+| %DESC%       | All                                                                   | CSV-style problem descriptor values only
+| %dir%        | All, except Concat, RNN, Reorder, Sum                                 | Primitive prop kind
+| %direction%  | RNN                                                                   | RNN direction execution
+| %driver%     | All                                                                   | Name of the current driver (e.g. conv, reorder)
+| %engine%     | All                                                                   | Engine kind
+| %flags%      | Bnorm, Lnorm, Reorder                                                 | Primitive flags
+| %group%      | Shuffle                                                               | Shuffle group
+| %impl%       | All                                                                   | Library implementation name for a given problem
+| %mb%         | Problem desc based, Eltwise, Softmax                                  | Mini-batch value from user input. Prints `0` in case of input `--mb=0`
+| %name%       | Problem desc based                                                    | Problem name
+| %prb%        | All                                                                   | Canonical problem (options and descriptor in REPRO style)
+| %prop%       | RNN                                                                   | RNN prop kind
+
+Performance profiling. All options are modifier extended (see below). Modifiers
+change the meaning of terminal symbols. I.e., the sign '-' means minimum of
+(in terms of time). Extensions should be specified after first percent,
+describing the option in a specific order: first is time modifier, second is
+unit modifier. I.e. `%-Gflops%`, not `%G-flops%`.
+
+> **Caution:** Threads must be pinned in order to get consistent frequency.
+
+Performance profiling options supported:
+
+| Syntax     | Primitives | Description
+| :--        | :--        | :--
+| %@time%    | All        | Time in milliseconds
+| %@clocks%  | All        | Time in clocks
+| %@freq%    | All        | Effective CPU frequency computed as `clocks / time`
+| %@ibytes%  | All        | Number of input memories bytes of a problem
+| %@obytes%  | All        | Number of output memories bytes of a problem
+| %@iobytes% | All        | Number of input and output memories bytes of a problem
+| %@bw%      | All        | Bandwidth computed as `iobytes / time`
+| %@ops%     | Ops based  | Number of ops required (padding is not taken into account)
+| %@flops%   | Ops based  | FLOPS computed as `ops / time`
 
 Modifiers supported:
 
@@ -85,10 +102,6 @@ Modifiers supported:
 | K     | Kilo (1e3)
 | M     | Mega (1e6)
 | G     | Giga (1e9)
-
-Each primitive has its own descriptor type with options supported. Dimensions
-description can be found within each primitive hpp-file.
-
 
 ## Examples
 
@@ -115,7 +128,7 @@ perf,cpu,"resnet:ip1",FWD_B,f32,,112,1000,2048,1,1,0.458752,0,0.520264,881.768,0
 ```
 
 Runs a set of inner products measuring performance and dumping custom template -
-reporting descriptor, minimum time, and corresponding gigaFLOPs. Note: ',' is
+reporting descriptor, minimum time, and corresponding gigaFLOPS. Note: ',' is
 not a special symbol here; any other delimiter can be used:
 ``` sh
     ./benchdnn --ip --mode=p --perf-template=%prb%,%-time%,%-Gflops% \
