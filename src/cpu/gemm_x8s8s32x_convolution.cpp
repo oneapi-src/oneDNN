@@ -129,6 +129,13 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
             : nullptr;
     const bool should_apply_zp_src_comp_pad = jcp.zp.src_exists
             && jit_gemm_convolution_utils::padding_exists(jcp);
+    const bool should_apply_zp_src_comp_pad_jit_pp
+            = should_apply_zp_src_comp_pad
+            && gemm_x8s8s32x_convolution_utils::mayiuse_jit_pp_kernel();
+    const bool should_apply_zp_src_comp_outside_pp
+            = should_apply_zp_src_comp_pad
+            && !gemm_x8s8s32x_convolution_utils::mayiuse_jit_pp_kernel();
+
     int g {0}, n {0}, ohb {0}, owb {0};
     size_t start = 0, end = 0;
 
@@ -197,9 +204,15 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
                     ? wei_md.extra().scale_adjust
                     : 1.f;
 
-            if (should_apply_zp_src_comp_pad)
+            if (should_apply_zp_src_comp_outside_pp)
                 apply_zp_src_comp_pad(jcp, g, od, oh, ow, h_step, w_step, acc,
                         zp_src_pad_comp);
+
+            const single_gemm_conv_chunk_desc_t chunk_desc
+                    = should_apply_zp_src_comp_pad_jit_pp
+                    ? single_gemm_conv_chunk_desc_t {od, 1, oh, h_step, ow,
+                            w_step}
+                    : single_gemm_conv_chunk_desc_t {};
 
             parallel(0, [&](int ithr, int nthr) {
                 size_t _start, _end;
@@ -207,8 +220,9 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
 
                 (*pp_ker_)(dst, acc, bia_base, scales, sum_scale,
                         1.f / wei_adj_scale, g, _start, _end, zp_src, zp_dst,
-                        zp_src_comp, post_ops_binary_rhs_arg_vec, dst_base, ctx,
-                        *pd()->dst_md());
+                        zp_src_comp, zp_src_pad_comp,
+                        post_ops_binary_rhs_arg_vec, dst_base, ctx,
+                        *pd()->dst_md(), chunk_desc);
             });
         }
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups, ohb, nb_oh, owb, nb_ow);

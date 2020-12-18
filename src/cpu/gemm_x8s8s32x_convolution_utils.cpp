@@ -49,8 +49,10 @@ struct ref_pp_ker_t : pp_ker_t {
             const float *scales, float sum_scale, float signed_scale, int g,
             size_t start, size_t end, const int32_t *zp_src,
             const int32_t *zp_dst, const int32_t *zp_src_comp,
+            const int32_t *zp_src_pad_comp,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
-            const exec_ctx_t &ctx, const memory_desc_t &dst_md) const override;
+            const exec_ctx_t &ctx, const memory_desc_t &dst_md,
+            const single_gemm_conv_chunk_desc_t &chunk_desc) const override;
 
 private:
     std::unique_ptr<ref_post_ops_t> ref_post_ops_;
@@ -61,10 +63,11 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
         const char *bias, const float *scales, float sum_scale,
         float signed_scale, int g, size_t start, size_t end,
         const int32_t *zp_src, const int32_t *zp_dst,
-        const int32_t *zp_src_comp,
+        const int32_t *zp_src_comp, const int32_t *zp_src_pad_comp,
         const void * /* post_ops_binary_rhs_arg_vec */,
         const void * /* dst_orig */, const exec_ctx_t &ctx,
-        const memory_desc_t &dst_md) const {
+        const memory_desc_t &dst_md,
+        const single_gemm_conv_chunk_desc_t &chunk_desc) const {
 
     if (end <= start) return;
 
@@ -155,6 +158,14 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d) {
     const auto dst_md = memory_desc_wrapper(dst_d);
     return post_ops_ok(post_ops, &dst_md);
+}
+
+bool mayiuse_jit_pp_kernel() noexcept {
+#if DNNL_X64
+    return x64::gemm_x8s8s32x_convolution_utils::mayiuse_jit_pp_kernel();
+#else
+    return false;
+#endif
 }
 
 } // namespace gemm_x8s8s32x_convolution_utils

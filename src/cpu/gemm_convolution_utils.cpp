@@ -36,6 +36,15 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+single_gemm_conv_chunk_desc_t::single_gemm_conv_chunk_desc_t(dim_t d_off,
+        dim_t d_size, dim_t h_off, dim_t h_size, dim_t w_off, dim_t w_size)
+    : d_off_(d_off)
+    , d_size_(d_size)
+    , h_off_(h_off)
+    , h_size_(h_size)
+    , w_off_(w_off)
+    , w_size_(w_size) {}
+
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
 using namespace prop_kind;

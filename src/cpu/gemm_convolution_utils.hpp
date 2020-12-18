@@ -69,6 +69,19 @@ struct conv_gemm_conf_t {
     size_t scale_idx_mult;
 };
 
+struct single_gemm_conv_chunk_desc_t {
+    single_gemm_conv_chunk_desc_t() = default;
+    single_gemm_conv_chunk_desc_t(dim_t d_off, dim_t d_size, dim_t h_off,
+            dim_t h_size, dim_t w_off, dim_t w_size);
+
+    dim_t d_off_ = 0;
+    dim_t d_size_ = 0;
+    dim_t h_off_ = 0;
+    dim_t h_size_ = 0;
+    dim_t w_off_ = 0;
+    dim_t w_size_ = 0;
+};
+
 namespace jit_gemm_convolution_utils {
 template <typename data_type_t>
 void im2col_3d(const conv_gemm_conf_t &jcp, const data_type_t *im,

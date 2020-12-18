@@ -38,8 +38,10 @@ struct pp_ker_t {
             const float *scales, float sum_scale, float signed_scale, int g,
             size_t start, size_t end, const int32_t *zp_src,
             const int32_t *zp_dst, const int32_t *zp_src_comp,
+            const int32_t *zp_src_pad_comp,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
-            const exec_ctx_t &ctx, const memory_desc_t &dst_md) const = 0;
+            const exec_ctx_t &ctx, const memory_desc_t &dst_md,
+            const single_gemm_conv_chunk_desc_t &chunk_desc) const = 0;
 
     virtual status_t create_kernel() { return status::success; }
 
@@ -51,6 +53,7 @@ protected:
 
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d);
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d);
+bool mayiuse_jit_pp_kernel() noexcept;
 
 } // namespace gemm_x8s8s32x_convolution_utils
 } // namespace cpu
