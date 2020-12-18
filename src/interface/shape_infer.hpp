@@ -286,6 +286,7 @@ status_t infer_conv_output_shape(node_t *n,
     auto out0 = logical_tensor_wrapper(outputs[0]);
 
     // get attr value
+    const int64_t groups = n->get_attr<int64_t>("groups");
     const std::vector<int64_t> &strides
             = n->get_attr<std::vector<int64_t>>("strides");
     const std::vector<int64_t> &dilations
@@ -298,10 +299,10 @@ status_t infer_conv_output_shape(node_t *n,
     const std::vector<int64_t> weight_dims = in1.vdims();
     std::string filter_format = n->get_attr<std::string>("filter_format");
     std::string src_format = n->get_attr<std::string>("data_format");
-    // check if src channel == weight input channel
-    if (get_src_c(src_format, src_dims)
+    // check if src channel / groups == weight input channel
+    if (get_src_c(src_format, src_dims) / groups
             != get_weight_i(filter_format, weight_dims)) {
-        // src channel is not equal to weights input channel
+        // src channel divide groups is not equal to weights input channel
         return status::invalid_shape;
     }
     std::vector<int64_t> src_spatial_dims
@@ -357,6 +358,7 @@ status_t infer_conv_bprop_data_output_shape(node_t *n,
     auto out0 = logical_tensor_wrapper(outputs[0]);
 
     // get attr value
+    const int64_t groups = n->get_attr<int64_t>("groups");
     const std::vector<int64_t> &strides
             = n->get_attr<std::vector<int64_t>>("strides");
     const std::vector<int64_t> &pads_begin
@@ -369,10 +371,10 @@ status_t infer_conv_bprop_data_output_shape(node_t *n,
     const std::vector<int64_t> weight_dims = in1.vdims();
     std::string filter_format = n->get_attr<std::string>("filter_format");
     std::string src_format = n->get_attr<std::string>("data_format");
-    // check if src channel == weight input channel
-    if (get_src_c(src_format, src_dims)
+    // check if src channel / groups == weight input channel
+    if (get_src_c(src_format, src_dims) / groups
             != get_weight_i(filter_format, weight_dims)) {
-        // src channel is not equal to weights input channel
+        // src channel divide groups is not equal to weights input channel
         return status::invalid_shape;
     }
     std::vector<int64_t> src_spatial_dims

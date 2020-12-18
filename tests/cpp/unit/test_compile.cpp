@@ -2272,6 +2272,60 @@ TEST(operator_compile, ConvolutionBF16BF16F32) {
     conv_op->execute(&conv_node, &strm, {src_ts, weight_ts}, {dst_ts});
 }
 
+TEST(operator_kernel, group_convolution) {
+    using dims = impl::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+
+    impl::node_t conv_node(impl::op_kind::Convolution);
+    conv_node.set_attr<dims>("strides", dims {1, 1});
+    conv_node.set_attr<dims>("dilations", dims {1, 1});
+    conv_node.set_attr<dims>("pads_begin", dims {0, 0});
+    conv_node.set_attr<dims>("pads_end", dims {0, 0});
+    conv_node.set_attr<int64_t>("groups", 4);
+    conv_node.set_attr<std::string>("backend", "dnnl");
+    conv_node.set_attr<std::string>("data_format", "NCX");
+    conv_node.set_attr<std::string>("filter_format", "OIX");
+
+    // prepare logical tensor
+    impl::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
+            0, {8, 32, 16, 16}, impl::data_type::f32);
+    impl::logical_tensor_t conv_weight_lt = utils::logical_tensor_init(
+            1, {32, 8, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
+            2, {8, 32, 16, 16}, impl::data_type::f32);
+
+    std::vector<impl::logical_tensor_t> conv_inputs {
+            conv_src_lt, conv_weight_lt};
+    std::vector<impl::logical_tensor_t> conv_outputs {conv_dst_lt};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto conv_op = op_factory.create_kernel(conv_node);
+
+    conv_op->compile(&conv_node, &eng, conv_inputs, conv_outputs);
+    ASSERT_EQ(conv_outputs[0].layout_type, impl::layout_type::strided);
+
+    test::vector<float> conv_src(8 * 32 * 16 * 16, 1);
+    test::vector<float> conv_weight(32 * 8 * 1 * 1, 1);
+    test::vector<float> relu_dst(8 * 32 * 16 * 16, 1);
+    auto dnnl_backend = impl::backend_manager::get_backend("dnnl");
+    size_t conv_dst_size = dnnl_backend->get_mem_size(conv_outputs[0]);
+    test::vector<float> conv_dst(conv_dst_size / sizeof(float), 1);
+
+    impl::tensor conv_src_ts(conv_src_lt, conv_src.data());
+    impl::tensor conv_weight_ts(conv_weight_lt, conv_weight.data());
+    impl::tensor conv_dst_ts(conv_outputs[0], conv_dst.data());
+
+    impl::stream &strm = get_stream();
+    conv_op->execute(
+            &conv_node, &strm, {conv_src_ts, conv_weight_ts}, {conv_dst_ts});
+
+    for (size_t i = 0; i < relu_dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(conv_dst[i], 8);
+    }
+}
+
 TEST(operator_kernel, ConvolutionBackpropData) {
     using dims = llga::impl::dnnl_impl::dims;
 

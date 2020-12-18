@@ -404,12 +404,12 @@ public:
                     if (expected_weights_.is_empty()) {
                         expected_weights_ = tensor {pd.weights_desc(), *eng};
                     }
-                    updated_weights_.reorder_to(expected_weights_);
+                    updated_weights_.make_grouped_weights(params_.groups)
+                            .reorder_to(expected_weights_);
                 } else {
-                    expected_weights_ = updated_weights_;
+                    expected_weights_ = updated_weights_.make_grouped_weights(
+                            params_.groups);
                 }
-
-                expected_weights_.make_grouped_weights(params_.groups);
 
                 if (updated_bias_.get_desc() != pd.bias_desc()) {
                     if (expected_bias_.is_empty()) {
@@ -435,11 +435,12 @@ public:
                     if (expected_weights_.is_empty()) {
                         expected_weights_ = tensor {pd.weights_desc(), *eng};
                     }
-                    weight.reorder_to(expected_weights_);
+                    weight.make_grouped_weights(params_.groups)
+                            .reorder_to(expected_weights_);
                 } else {
-                    expected_weights_ = weight;
+                    expected_weights_
+                            = weight.make_grouped_weights(params_.groups);
                 }
-                expected_weights_.make_grouped_weights(params_.groups);
             }
         }
 
