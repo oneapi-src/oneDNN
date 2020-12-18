@@ -1516,17 +1516,27 @@ static inline void adjust_thread_count(dim_t m, dim_t n, dim_t k, int *nthrs) {
     auto veclen = get_vector_length<T>();
     const double fp_per_cycle = 2.0 * 2.0 * veclen;
 
-    if (mayiuse(avx2) && !mayiuse(avx512_core))
+    const bool is_f32 = data_traits<T>::data_type == data_type::f32;
+
+    const bool is_avx512_mic = mayiuse(avx512_mic);
+    const bool is_avx512 = mayiuse(avx512_core);
+    const bool is_avx = mayiuse(avx);
+    const bool is_only_avx2 = mayiuse(avx2) && !is_avx512;
+
+    if (is_avx512_mic) return;
+
+    // Some sgemm cases still benefit from using all threads.
+    const bool use_all_threads = is_f32 && n > 50
+            && ((is_avx && m <= 3) || (is_avx512 && m <= 10));
+    if (use_all_threads) return;
+
+    if (is_only_avx2)
         if (m > 10 * n && n < *nthrs)
             if (m / *nthrs < veclen * 3)
                 *nthrs = nstl::max(m / veclen / 3, dim_t(1));
 
     double gemm_cycles = m * n * k / fp_per_cycle;
-    if (data_traits<T>::data_type == data_type::f32) {
-        gemm_cycles *= 2.0;
-    } else {
-        gemm_cycles *= 8.0;
-    }
+    gemm_cycles *= is_f32 ? 2.0 : 8.0;
 
     int i = *nthrs;
 
