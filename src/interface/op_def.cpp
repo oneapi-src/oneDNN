@@ -1145,6 +1145,27 @@ DNNL_GRAPH_OP_SCHEMA(Conv_relu, 1,
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(BatchNorm_relu, 1,
+        op_schema()
+                .set_num_inputs(5)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "gamma", "gamma scaling for normalized value")
+                .set_input(
+                        2, "beta", "beta added to the scaled normalized value")
+                .set_input(3, "mean", "value for mean normalization")
+                .set_input(4, "variance", "value for variance normalization")
+                .set_output(0, "output", "output tensor")
+                .set_attr("epsilon",
+                        "the number to be added to the variance to avoid "
+                        "division by zero",
+                        true)
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, "NXC")
+                .set_shape_inference_function(infer_identity_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(MatMul_bias, 1,
         op_schema()
                 .set_num_inputs(3)

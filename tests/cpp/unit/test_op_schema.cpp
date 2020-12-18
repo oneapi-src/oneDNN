@@ -1220,37 +1220,43 @@ TEST(op_schema_test, matmul_bias_add_infer_shape) {
 }
 
 TEST(op_schema_test, BatchNormInference_infer_shape) {
-    const op_schema *bn_op_schema
-            = op_schema_registry::get_op_schema(op_kind::BatchNormInference);
-    EXPECT_TRUE(nullptr != bn_op_schema);
-    node_t bn_node {op_kind::BatchNormInference};
-    bn_node.set_attr("epsilon", 0.001f);
+    std::set<op_kind_t> bn_kinds
+            = {op_kind::BatchNormInference, op_kind::bn_relu};
+    for (auto cur_kind : bn_kinds) {
+        const op_schema *bn_op_schema
+                = op_schema_registry::get_op_schema(cur_kind);
+        EXPECT_TRUE(nullptr != bn_op_schema);
+        node_t bn_node {cur_kind};
+        bn_node.set_attr("epsilon", 0.001f);
 
-    logical_tensor_t lt_data
-            = logical_tensor_init(0, {1, 256, 64, 64}, data_type::f32);
-    logical_tensor_t lt_gamma
-            = logical_tensor_init(1, {1, 256}, data_type::f32);
-    logical_tensor_t lt_beta = logical_tensor_init(2, {1, 256}, data_type::f32);
-    logical_tensor_t lt_mean = logical_tensor_init(3, {1, 256}, data_type::f32);
-    logical_tensor_t lt_variance
-            = logical_tensor_init(4, {1, 256}, data_type::f32);
-    logical_tensor_t lt_o
-            = logical_tensor_init(5, data_type::f32, layout_type::strided);
-    std::vector<logical_tensor_t *> lt_in {
-            &lt_data, &lt_gamma, &lt_beta, &lt_mean, &lt_variance};
-    std::vector<logical_tensor_t *> lt_out {&lt_o};
+        logical_tensor_t lt_data
+                = logical_tensor_init(0, {1, 256, 64, 64}, data_type::f32);
+        logical_tensor_t lt_gamma
+                = logical_tensor_init(1, {1, 256}, data_type::f32);
+        logical_tensor_t lt_beta
+                = logical_tensor_init(2, {1, 256}, data_type::f32);
+        logical_tensor_t lt_mean
+                = logical_tensor_init(3, {1, 256}, data_type::f32);
+        logical_tensor_t lt_variance
+                = logical_tensor_init(4, {1, 256}, data_type::f32);
+        logical_tensor_t lt_o
+                = logical_tensor_init(5, data_type::f32, layout_type::strided);
+        std::vector<logical_tensor_t *> lt_in {
+                &lt_data, &lt_gamma, &lt_beta, &lt_mean, &lt_variance};
+        std::vector<logical_tensor_t *> lt_out {&lt_o};
 
-    bn_op_schema->shape_infer(&bn_node, lt_in, lt_out);
-    const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper(lt_o).vdims();
-    const std::vector<int64_t> expected_out_shape = {1, 256, 64, 64};
-    EXPECT_EQ(infered_out_shape, expected_out_shape);
+        bn_op_schema->shape_infer(&bn_node, lt_in, lt_out);
+        const std::vector<int64_t> infered_out_shape
+                = logical_tensor_wrapper(lt_o).vdims();
+        const std::vector<int64_t> expected_out_shape = {1, 256, 64, 64};
+        EXPECT_EQ(infered_out_shape, expected_out_shape);
 
-    const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper(lt_o).vstrides();
-    const std::vector<int64_t> expected_out_strides
-            = compute_dense_strides(expected_out_shape);
-    EXPECT_EQ(infered_out_strides, expected_out_strides);
+        const std::vector<int64_t> infered_out_strides
+                = logical_tensor_wrapper(lt_o).vstrides();
+        const std::vector<int64_t> expected_out_strides
+                = compute_dense_strides(expected_out_shape);
+        EXPECT_EQ(infered_out_strides, expected_out_strides);
+    }
 }
 
 TEST(op_schema_test, conv_bn_relu_infer_shape) {

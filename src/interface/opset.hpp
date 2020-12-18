@@ -101,6 +101,7 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_bn, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_bn_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_bn_add_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(BatchNorm_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_bias, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_bias_add, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_bias_add_relu, 1);
@@ -220,6 +221,7 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         Conv_bn_add_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(BatchNorm_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_bias, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         MatMul_bias_add, 1)>());
