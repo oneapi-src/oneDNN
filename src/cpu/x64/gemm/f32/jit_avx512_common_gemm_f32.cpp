@@ -1894,8 +1894,9 @@ dnnl_status_t jit_avx512_common_gemm_f32(int nthrs, const char *transa,
         return ref_gemm(transa, transb, p_m, p_n, p_k, p_alpha, A, p_lda, B,
                 p_lda, p_beta, C, p_ldc, bias);
 
-    bool is_transa = *transa == 'T';
-    bool is_transb = *transb == 'T';
+    int nthr_max = dnnl_get_current_num_threads();
+    int nthr_to_use = nstl::min(nthrs, nthr_max);
+
     dim_t m = *p_m;
     dim_t n = *p_n;
     dim_t k = *p_k;
@@ -1904,10 +1905,6 @@ dnnl_status_t jit_avx512_common_gemm_f32(int nthrs, const char *transa,
     dim_t ldc = *p_ldc;
     float beta = *p_beta;
     dim_t MB, NB, KB;
-
-    int nthr_max = dnnl_get_current_num_threads();
-    bool use_max_nthr = !is_transa && !is_transb && m <= 10 && n >= 50;
-    int nthr_to_use = use_max_nthr ? nthr_max : nstl::min(nthrs, nthr_max);
 
     int nthr_m = 1, nthr_n = 1, nthr_k = 1, nthr_mn = 1;
 
