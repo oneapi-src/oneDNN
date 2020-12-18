@@ -337,13 +337,13 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
     /// Prepare SYCL USM buffer (code outside of oneDNN graph)
     /// @snippet sycl_simple_pattern.cpp Prepare USM
     //[Prepare USM]
-    auto conv0_src_data = (float *)malloc_device(static_cast<size_t>(product(input_dims)) * sizeof(float), q.get_device(), q.get_context());
-    auto conv0_weight_data = (float *)malloc_device(static_cast<size_t>(product(weight_dims)) * sizeof(float), q.get_device(), q.get_context());
-    auto conv0_bias_data = (float *)malloc_device(static_cast<size_t>(product(bias_dims)) * sizeof(float), q.get_device(), q.get_context());
-    auto relu0_dst_data = (float *)malloc_device(cp0.query_logical_tensor(logical_id[5]).get_mem_size(), q.get_device(), q.get_context());
-    auto conv1_weight_data = (float *)malloc_device(static_cast<size_t>(product(weight1_dims)) * sizeof(float), q.get_device(), q.get_context());
-    auto conv1_bias_data = (float *)malloc_device(static_cast<size_t>(product(bias1_dims)) * sizeof(float), q.get_device(), q.get_context());
-    auto relu1_dst_data = (float *)malloc_device(cp1.query_logical_tensor(logical_id[10]).get_mem_size(), q.get_device(), q.get_context());
+    auto conv0_src_data = (float *)malloc_shared(static_cast<size_t>(product(input_dims)) * sizeof(float), q.get_device(), q.get_context());
+    auto conv0_weight_data = (float *)malloc_shared(static_cast<size_t>(product(weight_dims)) * sizeof(float), q.get_device(), q.get_context());
+    auto conv0_bias_data = (float *)malloc_shared(static_cast<size_t>(product(bias_dims)) * sizeof(float), q.get_device(), q.get_context());
+    auto relu0_dst_data = (float *)malloc_shared(cp0.query_logical_tensor(logical_id[5]).get_mem_size(), q.get_device(), q.get_context());
+    auto conv1_weight_data = (float *)malloc_shared(static_cast<size_t>(product(weight1_dims)) * sizeof(float), q.get_device(), q.get_context());
+    auto conv1_bias_data = (float *)malloc_shared(static_cast<size_t>(product(bias1_dims)) * sizeof(float), q.get_device(), q.get_context());
+    auto relu1_dst_data = (float *)malloc_shared(cp1.query_logical_tensor(logical_id[10]).get_mem_size(), q.get_device(), q.get_context());
     //[Prepare USM]
 
     fill_buffer<float>(q, conv0_src_data, product(input_dims), 1.0f);

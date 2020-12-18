@@ -244,25 +244,25 @@ int main(int argc, char **argv) {
     // Step 5: Prepare tensor and execute compiled partitions
     std::cout << "Prepare tensor and execute compiled partitions-";
 
-    auto conv0_src_data = (float *)malloc_device(
+    auto conv0_src_data = (float *)malloc_shared(
             static_cast<size_t>(product(input_dims)) * sizeof(float),
             q.get_device(), q.get_context());
-    auto conv0_weight_data = (float *)malloc_device(
+    auto conv0_weight_data = (float *)malloc_shared(
             static_cast<size_t>(product(weight_dims)) * sizeof(float),
             q.get_device(), q.get_context());
-    auto conv0_bias_data = (float *)malloc_device(
+    auto conv0_bias_data = (float *)malloc_shared(
             static_cast<size_t>(product(bias_dims)) * sizeof(float),
             q.get_device(), q.get_context());
-    auto relu0_dst_data = (float *)malloc_device(
+    auto relu0_dst_data = (float *)malloc_shared(
             cp0.query_logical_tensor(logical_id[4]).get_mem_size(),
             q.get_device(), q.get_context());
-    auto conv1_weight_data = (float *)malloc_device(
+    auto conv1_weight_data = (float *)malloc_shared(
             static_cast<size_t>(product(weight1_dims)) * sizeof(float),
             q.get_device(), q.get_context());
-    auto conv1_bias_data = (float *)malloc_device(
+    auto conv1_bias_data = (float *)malloc_shared(
             static_cast<size_t>(product(bias1_dims)) * sizeof(float),
             q.get_device(), q.get_context());
-    auto relu1_dst_data = (float *)malloc_device(
+    auto relu1_dst_data = (float *)malloc_shared(
             cp1.query_logical_tensor(logical_id[8]).get_mem_size(),
             q.get_device(), q.get_context());
 

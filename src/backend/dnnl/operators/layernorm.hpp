@@ -59,10 +59,20 @@ public:
 
             auto *scale_shift_buf
                     = static_cast<char *>(scale_shift_.get_data_handle());
+#if DNNL_GRAPH_WITH_SYCL
+            stream s(eng);
+            cl::sycl::queue q = dnnl::sycl_interop::get_queue(s);
+            q.memcpy(scale_shift_buf, scale.get_data_handle(), scale.get_size())
+                    .wait();
+            q.memcpy(scale_shift_buf + scale.get_size(),
+                     shift.get_data_handle(), shift.get_size())
+                    .wait();
+#else
             std::memcpy(
                     scale_shift_buf, scale.get_data_handle(), scale.get_size());
             std::memcpy(scale_shift_buf + scale.get_size(),
                     shift.get_data_handle(), shift.get_size());
+#endif
         }
 
         stream s(eng);

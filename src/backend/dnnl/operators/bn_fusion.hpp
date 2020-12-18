@@ -69,8 +69,13 @@ struct bn_fusion {
             float epsilon, const engine &eng) {
         const data_type weights_dtype = weights.get_data_type();
         BACKEND_DNNL_TYPE_DISPATCH(weights_dtype, dtype, {
+#ifdef DNNL_GRAPH_WITH_SYCL
+            folding_sycl_impl<dtype>(updated_weights, updated_bias, weights,
+                    bias, mean, variance, scale, shift, epsilon, eng);
+#else
             folding_impl<dtype>(updated_weights, updated_bias, weights, bias,
                     mean, variance, scale, shift, epsilon);
+#endif
         });
     }
 
@@ -146,28 +151,24 @@ private:
                 = static_cast<dtype *>(updated_weights->get_data_handle());
         dtype *updated_bias_ptr
                 = static_cast<dtype *>(updated_bias->get_data_handle());
-        tensor alpha {{{1}, data_type::f32, format_tag::a}, eng};
-        auto alpha_ptr = static_cast<dtype *>(alpha.get_data_handle());
         q.submit([&](sycl::handler &h) {
              h.parallel_for(sycl::range<1> {num_channel}, [=](sycl::id<1> it) {
                  const int i = it[0];
-                 alpha_ptr[0]
+                 dtype alpha
                          = scale_ptr[i] / sycl::sqrt(variance_ptr[i] + epsilon);
 
                  auto nth_src = weights_ptr + i * volume_per_channel;
                  auto nth_dst = updated_weights_ptr + i * volume_per_channel;
 
                  for (size_t k = 0; k < volume_per_channel; ++k) {
-                     nth_dst[k] = alpha_ptr[0] * nth_src[k];
+                     nth_dst[k] = alpha * nth_src[k];
                  }
 
                  if (bias_ptr) {
-                     updated_bias_ptr[i]
-                             = alpha_ptr[0] * (bias_ptr[i] - mean_ptr[i])
+                     updated_bias_ptr[i] = alpha * (bias_ptr[i] - mean_ptr[i])
                              + shift_ptr[i];
                  } else {
-                     updated_bias_ptr[i]
-                             = shift_ptr[i] - alpha_ptr[0] * mean_ptr[i];
+                     updated_bias_ptr[i] = shift_ptr[i] - alpha * mean_ptr[i];
                  }
              });
          }).wait();

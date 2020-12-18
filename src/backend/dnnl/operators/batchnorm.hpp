@@ -181,10 +181,20 @@ private:
                 scale_shift_ = tensor {pd_.weights_desc(), aengine};
             auto *scale_shift_buf
                     = static_cast<char *>(scale_shift_.get_data_handle());
+#if DNNL_GRAPH_WITH_SYCL
+            stream s(aengine);
+            cl::sycl::queue q = dnnl::sycl_interop::get_queue(s);
+            q.memcpy(scale_shift_buf, scale.get_data_handle(), scale.get_size())
+                    .wait();
+            q.memcpy(scale_shift_buf + scale.get_size(),
+                     shift.get_data_handle(), shift.get_size())
+                    .wait();
+#else
             std::memcpy(
                     scale_shift_buf, scale.get_data_handle(), scale.get_size());
             std::memcpy(scale_shift_buf + scale.get_size(),
                     shift.get_data_handle(), shift.get_size());
+#endif
         }
 
         auto expected_src = src.reorder_if_differ_in(pd_.src_desc());
@@ -328,14 +338,23 @@ private:
         scale_shift_ = tensor {pd_.weights_desc(), eng};
         auto *scale_shift_buf
                 = static_cast<char *>(scale_shift_.get_data_handle());
+        stream s(eng);
+#if DNNL_GRAPH_WITH_SYCL
+        cl::sycl::queue q = dnnl::sycl_interop::get_queue(s);
+        q.memcpy(scale_shift_buf, scale.get_data_handle(), scale.get_size())
+                .wait();
+        q.memcpy(scale_shift_buf + scale.get_size(), shift.get_data_handle(),
+                 shift.get_size())
+                .wait();
+#else
         std::memcpy(scale_shift_buf, scale.get_data_handle(), scale.get_size());
         std::memcpy(scale_shift_buf + scale.get_size(), shift.get_data_handle(),
                 shift.get_size());
+#endif
 
         mean.reinit_if_possible(pd_.mean_desc());
         variance.reinit_if_possible(pd_.variance_desc());
         dst.reinit_if_possible(pd_.dst_desc());
-        stream s(eng);
         super(pd_).execute(s,
                 {{DNNL_ARG_SRC, src}, {DNNL_ARG_SCALE_SHIFT, scale_shift_},
                         {DNNL_ARG_MEAN, mean}, {DNNL_ARG_VARIANCE, variance},
@@ -360,10 +379,21 @@ private:
         // copy data
         batch_mean.reinit_if_possible(mean.get_desc());
         batch_var.reinit_if_possible(variance.get_desc());
+#if DNNL_GRAPH_WITH_SYCL
+        stream s(eng);
+        cl::sycl::queue q = dnnl::sycl_interop::get_queue(s);
+        q.memcpy(batch_mean.get_data_handle(), mean.get_data_handle(),
+                 batch_mean.get_size())
+                .wait();
+        q.memcpy(batch_var.get_data_handle(), variance.get_data_handle(),
+                 batch_var.get_size())
+                .wait();
+#else
         std::memcpy(batch_mean.get_data_handle(), mean.get_data_handle(),
                 batch_mean.get_size());
         std::memcpy(batch_var.get_data_handle(), variance.get_data_handle(),
                 batch_var.get_size());
+#endif
     }
 };
 
@@ -502,11 +532,23 @@ private:
         diff_shift.reinit_if_possible(scale.get_desc());
         auto *diff_scale_shift_buf
                 = static_cast<char *>(diff_scale_shift_.get_data_handle());
+#if DNNL_GRAPH_WITH_SYCL
+        stream s(aengine);
+        cl::sycl::queue q = dnnl::sycl_interop::get_queue(s);
+        q.memcpy(diff_scale.get_data_handle(), diff_scale_shift_buf,
+                 diff_scale.get_size())
+                .wait();
+        q.memcpy(diff_shift.get_data_handle(),
+                 diff_scale_shift_buf + diff_scale.get_size(),
+                 diff_shift.get_size())
+                .wait();
+#else
         std::memcpy(diff_scale.get_data_handle(), diff_scale_shift_buf,
                 diff_scale.get_size());
         std::memcpy(diff_shift.get_data_handle(),
                 diff_scale_shift_buf + diff_scale.get_size(),
                 diff_shift.get_size());
+#endif
     }
 };
 

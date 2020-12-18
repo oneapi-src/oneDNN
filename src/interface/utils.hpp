@@ -119,7 +119,7 @@ public:
             dnnl_graph_allocator_attr_t attr) {
         size_t alignment
                 = attr.alignment == 0 ? DEFAULT_ALIGNMENT : attr.alignment;
-        return cl::sycl::aligned_alloc_device(alignment, size,
+        return cl::sycl::aligned_alloc_shared(alignment, size,
                 *static_cast<const cl::sycl::device *>(dev),
                 *static_cast<const cl::sycl::context *>(ctx));
     }
