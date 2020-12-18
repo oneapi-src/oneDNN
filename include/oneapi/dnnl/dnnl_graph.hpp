@@ -1197,7 +1197,8 @@ public:
     using partition_vec = std::vector<partition>;
     /// Get filtered partitions
     ///
-    /// @param policy Partition policy, defaults to #partition::policy::fusion
+    /// @param policy Partition policy, defaults to
+    ///     #dnnl::graph::partition::policy::fusion
     /// @return partition_vec A vector storing the partitions
     partition_vec get_partitions(
             partition::policy policy = partition::policy::fusion) {
