@@ -317,6 +317,8 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
 
     const auto ndims = pd()->desc()->diff_src_desc.ndims;
 
+    const auto &p = pd()->attr()->post_ops_;
+
     using namespace data_type;
     bool is_int_conv = utils::one_of(diff_dst_type, s32, s8, u8);
 
@@ -455,6 +457,19 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
                     a += ker_plain(g, mb, ic, id, ih, iw);
                 else
                     a += ker(g, mb, ic, id, ih, iw);
+
+                int depthwise_inj_idx = 0;
+                for (int i = 0; i < p.len(); i++) {
+                    auto &post_op = p.entry_[i];
+                    if (post_op.is_depthwise()) {
+                        auto depthwise_weights = post_op.depthwise.weights_data;
+                        auto depthwise_bias = post_op.depthwise.biases_data;
+
+                        a = depthwise_injectors[depthwise_inj_idx]->compute_scalar(a, depthwise_weights + g * IC + ic, depthwise_bias + g * IC + ic);
+                    }
+                    depthwise_inj_idx++;
+                }
+
                 maybe_oscale(a, g, ic);
                 if (is_int_conv)
                     diff_src[ds_idx] = saturate_and_round<diff_src_data_t>(a);

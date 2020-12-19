@@ -27,6 +27,7 @@
 #include "cpu/primitive_attr_postops.hpp"
 
 #include "cpu/cpu_convolution_pd.hpp"
+#include "ref_depthwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -144,8 +145,10 @@ struct ref_convolution_bwd_data_t : public primitive_t {
                     && platform::has_data_type_support(wei_type)
                     && platform::has_data_type_support(diff_dst_type)
                     && set_default_formats()
+                    && is_supported_post_ops()
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale)
+                            primitive_attr_t::skip_mask_t::oscale |
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && output_scales_mask_ok();
 
             return ok ? status::success : status::unimplemented;
@@ -172,9 +175,41 @@ struct ref_convolution_bwd_data_t : public primitive_t {
                            attr()->output_scales_.has_default_values())
                     && (mask == 0 || mask == 1 << 1);
         }
+
+        bool is_supported_post_ops() const {
+            const auto &p = this->attr()->post_ops_;
+            if (p.len() > 1)
+                return false;
+
+            auto all_post_ops_supported = [&]() {
+                bool ok = true;
+
+                for (int i = 0; i < p.len(); i++) {
+                    ok = ok && utils::one_of(p.entry_[i].kind, primitive_kind::depthwise);
+                }
+                return ok;
+            };
+
+            return all_post_ops_supported();
+        }
     };
 
-    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {
+        const auto &post_ops = pd()->attr()->post_ops_;
+
+        for (int i = 0; i < post_ops.len(); i++) {
+            auto &post_op = post_ops.entry_[i];
+            if (post_op.is_depthwise()) {
+                depthwise_injectors.push_back(new ref_depthwise_scalar_fwd_t(post_op.depthwise.alg));
+            }
+        }
+    }
+
+    ~ref_convolution_bwd_data_t() {
+        for (auto inj : depthwise_injectors)
+            delete inj;
+        depthwise_injectors.clear();
+    }
 
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -188,6 +223,8 @@ struct ref_convolution_bwd_data_t : public primitive_t {
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    nstl::vector<ref_depthwise_scalar_fwd_t*> depthwise_injectors;
 };
 
 template <data_type_t src_type, data_type_t diff_wei_type,
