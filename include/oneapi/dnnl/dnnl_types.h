@@ -192,11 +192,9 @@ typedef enum {
 
     dnnl_abdc, ///< permuted 4D tensor
     dnnl_abdec, ///< permuted 5D tensor
-    dnnl_abdfce, ///< permuted 6D tensor
     dnnl_acb, ///< permuted 3D tensor
     dnnl_acbde, ///< permuted 5D tensor
     dnnl_acbdef, ///< permuted 6D tensor
-    dnnl_abdefc, ///< permuted 6D tensor
     dnnl_acdb, ///< permuted 4D tensor
     dnnl_acdeb, ///< permuted 5D tensor
     dnnl_ba, ///< permuted 2D tensor
@@ -230,36 +228,19 @@ typedef enum {
     /// 3D tensor blocked by 2nd dimension with block size 16
     dnnl_aBc16b,
     dnnl_ABc16b16a,
-    dnnl_ABc16b32a,
-    dnnl_ABc16b64a,
     dnnl_Abc4a,
     /// 3D tensor blocked by 2nd dimension with block size 32
     dnnl_aBc32b,
     /// 3D tensor blocked by 2nd dimension with block size 4
     dnnl_aBc4b,
     dnnl_ABc4b16a4b,
-    dnnl_ABc4b32a4b,
-    dnnl_ABc4b64a4b,
     dnnl_ABc2b8a4b,
-    dnnl_ABc16a16b2a,
     dnnl_ABc16b16a4b,
     dnnl_ABc16b16a2b,
     dnnl_ABc4b4a,
     dnnl_ABc8a16b2a,
-    dnnl_ABc8b32a2b,
-    dnnl_ABc8b64a2b,
     dnnl_ABc8a8b,
     dnnl_ABc8a4b,
-    dnnl_AB16b16a,
-    dnnl_AB16b32a,
-    dnnl_AB16b64a,
-    dnnl_AB8b16a2b,
-    dnnl_AB8b32a2b,
-    dnnl_AB8b64a2b,
-    dnnl_AB4b16a4b,
-    dnnl_AB4b32a4b,
-    dnnl_AB4b64a4b,
-    dnnl_AB16b16a4b,
     /// 3D tensor blocked by 2nd dimension with block size 8
     dnnl_aBc8b,
     dnnl_ABc8b16a2b,
@@ -273,8 +254,6 @@ typedef enum {
     /// 4D tensor blocked by 2nd dimension with block size 16
     dnnl_aBcd16b,
     dnnl_ABcd16b16a,
-    dnnl_ABcd16b32a,
-    dnnl_ABcd16b64a,
     dnnl_aBCd16b16c,
     dnnl_aBCd16c16b,
     dnnl_Abcd4a,
@@ -283,9 +262,6 @@ typedef enum {
     /// 4D tensor blocked by 2nd dimension with block size 4
     dnnl_aBcd4b,
     dnnl_ABcd4b16a4b,
-    dnnl_ABcd4b32a4b,
-    dnnl_ABcd4b64a4b,
-    dnnl_ABcd16a16b2a,
     dnnl_ABcd16b16a4b,
     dnnl_ABcd16b16a2b,
     dnnl_ABcd4b4a,
@@ -294,7 +270,6 @@ typedef enum {
     dnnl_aBCd4b8c2b,
     dnnl_aBCd4c16b4c,
     dnnl_aBCd2c8b4c,
-    dnnl_aBCd16b16c2b,
     dnnl_aBCd16c16b4c,
     dnnl_aBCd16c16b2c,
     dnnl_aBCd4c4b,
@@ -307,8 +282,6 @@ typedef enum {
     dnnl_aBcd8b,
     dnnl_aBCd4c8b2c,
     dnnl_ABcd8b16a2b,
-    dnnl_ABcd8b32a2b,
-    dnnl_ABcd8b64a2b,
     dnnl_aBCd8b16c2b,
     dnnl_BAcd8a16b2a,
     /// 4D tensor blocked by 1st and 2nd dimension with block size 8
@@ -327,17 +300,11 @@ typedef enum {
     dnnl_aBCd2b4c2b,
     /// 5D tensor blocked by 1st dimension with block size 16
     dnnl_ABcde4b16a4b,
-    dnnl_ABcde4b32a4b,
-    dnnl_ABcde4b64a4b,
-    dnnl_ABcde16b16a4b,
-    dnnl_ABcde16b16a2b,
     /// 5D tensor blocked by 1st dimension with block size 8
     dnnl_ABcde2b8a4b,
     /// 5D tensor blocked by 2nd dimension with block size 16
     dnnl_aBcde16b,
     dnnl_ABcde16b16a,
-    dnnl_ABcde16b32a,
-    dnnl_ABcde16b64a,
     dnnl_aBCde16b16c,
     dnnl_aBCde16c16b,
     dnnl_aBCde2c8b4c,
@@ -352,7 +319,6 @@ typedef enum {
     dnnl_aBCde2c4b2c,
     dnnl_aBCde4b8c2b,
     dnnl_aBCde4c16b4c,
-    dnnl_aBCde16b16c2b,
     dnnl_aBCde16c16b4c,
     dnnl_aBCde16c16b2c,
     dnnl_aBCde4c4b,
@@ -363,8 +329,6 @@ typedef enum {
     /// 5D tensor blocked by 2nd dimension with block size 8
     dnnl_aBcde8b,
     dnnl_ABcde8b16a2b,
-    dnnl_ABcde8b32a2b,
-    dnnl_ABcde8b64a2b,
     dnnl_aBCde8b16c2b,
     dnnl_aBCde4c8b2c,
     dnnl_aCBde8b16c2b,
@@ -391,8 +355,6 @@ typedef enum {
     dnnl_aBCdef16b16c,
     dnnl_aBCdef16c16b,
     dnnl_aBCdef4c16b4c,
-    dnnl_aBCdef16c16b4c,
-    dnnl_aBCdef16c16b2c,
     /// 6D tensor blocked by 2nd dimension with block size 8
     dnnl_aBCdef2c8b4c,
     dnnl_aBCdef4c8b2c,
@@ -459,6 +421,40 @@ typedef enum {
     dnnl_aCBdef4c8b8c4b,
     dnnl_BAcde16a16b,
     dnnl_aCBdef16b16c,
+    dnnl_abdfce, ///< permuted 6D tensor
+    dnnl_abdefc, ///< permuted 6D tensor
+    dnnl_ABc16b32a,
+    dnnl_ABc16b64a,
+    dnnl_ABc4b32a4b,
+    dnnl_ABc4b64a4b,
+    dnnl_ABc8b32a2b,
+    dnnl_ABc8b64a2b,
+    dnnl_AB16b16a,
+    dnnl_AB16b32a,
+    dnnl_AB16b64a,
+    dnnl_AB8b16a2b,
+    dnnl_AB8b32a2b,
+    dnnl_AB8b64a2b,
+    dnnl_AB4b16a4b,
+    dnnl_AB4b32a4b,
+    dnnl_AB4b64a4b,
+    dnnl_AB16b16a4b,
+    dnnl_ABcd16b32a,
+    dnnl_ABcd16b64a,
+    dnnl_ABcd4b32a4b,
+    dnnl_ABcd4b64a4b,
+    dnnl_ABcd8b32a2b,
+    dnnl_ABcd8b64a2b,
+    dnnl_ABcde4b32a4b,
+    dnnl_ABcde4b64a4b,
+    dnnl_ABcde16b16a4b,
+    dnnl_ABcde16b16a2b,
+    dnnl_ABcde16b32a,
+    dnnl_ABcde16b64a,
+    dnnl_ABcde8b32a2b,
+    dnnl_ABcde8b64a2b,
+    dnnl_aBCdef16c16b4c,
+    dnnl_aBCdef16c16b2c,
     dnnl_AB32a32b8a4b,
     dnnl_AB8a4b,
     dnnl_AB32a32b8a2b,
@@ -470,6 +466,10 @@ typedef enum {
     dnnl_abdEC32e4c,
     dnnl_aBdefC16b4c,
     dnnl_AcdeB16a4b,
+    dnnl_ABcd16a16b2a,
+    dnnl_ABc16a16b2a,
+    dnnl_aBCd16b16c2b,
+    dnnl_aBCde16b16c2b,
 
     /// Just a sentinel, not real memory format tag. Must be changed after new
     /// format tag is added.
@@ -2406,7 +2406,6 @@ typedef enum {
     dnnl_query_eltwise_d, ///< eltwise descriptor
     dnnl_query_softmax_d, ///< softmax descriptor
     dnnl_query_pooling_d, ///< pooling descriptor
-    dnnl_query_prelu_d, ///< prelu descriptor
     dnnl_query_lrn_d, ///< lrn descriptor
     dnnl_query_batch_normalization_d, ///< batch normalization descriptor
     dnnl_query_layer_normalization_d, ///< layer normalization descriptor
@@ -2419,6 +2418,7 @@ typedef enum {
     dnnl_query_resampling_d, ///< resampling descriptor
     dnnl_query_pooling_v2_d, ///< pooling version 2 descriptor
     dnnl_query_reduction_d, ///< reduction descriptor
+    dnnl_query_prelu_d, ///< prelu descriptor
 
     // memory descriptor section
     dnnl_query_some_md = 128, ///< stub
