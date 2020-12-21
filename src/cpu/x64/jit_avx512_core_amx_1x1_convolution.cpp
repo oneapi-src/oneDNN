@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -119,7 +119,8 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
 
-    const size_t work_amount = jcp.mb * jcp.ngroups * os_chunks * oc_chunks;
+    const size_t work_amount
+            = (size_t)jcp.mb * jcp.ngroups * os_chunks * oc_chunks;
     kernel_->tile_configure(tcfg);
 
     parallel(0, [&](const int ithr, const int nthr) {
