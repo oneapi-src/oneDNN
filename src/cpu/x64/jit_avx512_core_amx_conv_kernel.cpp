@@ -2859,14 +2859,17 @@ size_t jit_avx512_core_amx_bwd_data_kernel_t::get_wei_kh_step() const {
     return (size_t)jcp.typesize_in * jcp.kw * jcp.oc_block_int * jcp.ic_block;
 }
 size_t jit_avx512_core_amx_bwd_data_kernel_t::get_wei_ocb_step() const {
-    return (size_t)jcp.typesize_in * jcp.nb_ic * jcp.kh * jcp.kw
-            * jcp.oc_block_int * jcp.ic_block;
+    const bool is_deconv = jcp.prop_kind != prop_kind::backward_data;
+    return (size_t)jcp.typesize_in * (is_deconv ? 1 : jcp.nb_ic) * jcp.kh
+            * jcp.kw * jcp.oc_block_int * jcp.ic_block;
 }
 size_t jit_avx512_core_amx_bwd_data_kernel_t::get_wei_offset(
         int icb, int kh, int kw) const {
+    const bool is_deconv = jcp.prop_kind != prop_kind::backward_data;
     const size_t wei_kw_stride = jcp.oc_block_int * jcp.ic_block;
     const size_t wei_kh_stride = jcp.kw * wei_kw_stride;
-    const size_t wei_icb_stride = jcp.kh * wei_kh_stride;
+    const size_t wei_icb_stride
+            = (is_deconv ? jcp.nb_oc_int : 1) * jcp.kh * wei_kh_stride;
     return jcp.typesize_in
             * (icb * wei_icb_stride + kh * wei_kh_stride + kw * wei_kw_stride);
 }
@@ -3362,13 +3365,20 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     if (is_3d) return status::unimplemented;
 
-    const bool is_bf16_convolution = everyone_is(true,
-            diff_dst_d.data_type() == data_type::bf16,
-            weights_d.data_type() == data_type::bf16,
-            one_of(diff_src_d.data_type(), data_type::bf16, data_type::f32));
+    using namespace data_type;
+    const bool is_deconv = cd.prop_kind != prop_kind::backward_data;
+    const bool is_bf16_convolution = !is_deconv
+            && everyone_is(true, diff_dst_d.data_type() == bf16,
+                    weights_d.data_type() == bf16,
+                    one_of(diff_src_d.data_type(), bf16, f32));
+    const bool is_int8_deconvolution = is_deconv
+            && everyone_is(true, one_of(diff_dst_d.data_type(), s8, u8),
+                    weights_d.data_type() == s8,
+                    one_of(diff_src_d.data_type(), f32, s32, s8, u8));
 
-    // TODO: support int8 deconvolution
-    bool supported = is_bf16_convolution && mayiuse(avx512_core_bf16_amx_bf16);
+    bool supported = false
+            || (is_bf16_convolution && mayiuse(avx512_core_bf16_amx_bf16))
+            || (is_int8_deconvolution && mayiuse(avx512_core_bf16_amx_int8));
     if (!supported) return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
@@ -3412,8 +3422,13 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
         return status::unimplemented;
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
-    jcp.ddst_dt = cd.diff_dst_desc.data_type;
-    jcp.dsrc_dt = cd.diff_src_desc.data_type;
+    if (is_deconv) {
+        jcp.ddst_dt = cd.src_desc.data_type;
+        jcp.dsrc_dt = cd.dst_desc.data_type;
+    } else {
+        jcp.ddst_dt = cd.diff_dst_desc.data_type;
+        jcp.dsrc_dt = cd.diff_src_desc.data_type;
+    }
     jcp.wei_dt = cd.weights_desc.data_type;
 
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
@@ -3441,6 +3456,7 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
         return status::unimplemented;
 
     jcp.is_nspc = jcp.src_tag == dat_tag_nspc;
+    assert(IMPLICATION(is_int8_deconvolution, jcp.is_nspc));
 
     // TODO: enable support for nChw16c
     if (!jcp.is_nspc) return status::unimplemented;
@@ -3480,8 +3496,17 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     auto set_or_check_wei_format = [&]() {
         using namespace format_tag;
-        format_tag_t wei_tag = pick(with_groups + 2 * (ndims - 3), OIw16o16i2o,
-                gOIw16o16i2o, OIhw16o16i2o, gOIhw16o16i2o);
+        format_tag_t wei_tag;
+        if (is_bf16_convolution)
+            wei_tag = pick(with_groups + 2 * (ndims - 3), OIw16o16i2o,
+                    gOIw16o16i2o, OIhw16o16i2o, gOIhw16o16i2o);
+        else if (is_int8_deconvolution)
+            wei_tag = pick(with_groups + 2 * (ndims - 3), OIw16i16o4i,
+                    gOIw16i16o4i, OIhw16i16o4i, gOIhw16i16o4i);
+        else {
+            assert(!"unsupported combination");
+            return false;
+        }
 
         memory_desc_t want_wei_md = weights_md;
         memory_desc_init_by_tag(want_wei_md, wei_tag);

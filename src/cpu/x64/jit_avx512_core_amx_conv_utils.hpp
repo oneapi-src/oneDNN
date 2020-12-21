@@ -41,6 +41,7 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
         const memory_desc_wrapper &diff_src_d) {
     assert(jcp.nb_ic % jcp.nb_ic_blocking == 0);
 
+    const bool is_deconv = jcp.prop_kind != prop_kind::backward_data;
     const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
 
     const size_t diff_dst_dt_size = jcp.typesize_in;
@@ -49,7 +50,9 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
     const size_t diff_src_dt_size = jcp.typesize_out;
 
     const dim_t wei_g_shift = wht_blk_off(weights_d, 1, 0);
-    const dim_t wei_ic_shift = wht_blk_off(weights_d, 0, 0, jcp.nb_ic_blocking);
+    const dim_t wei_ic_shift = is_deconv
+            ? wht_blk_off(weights_d, 0, jcp.nb_ic_blocking)
+            : wht_blk_off(weights_d, 0, 0, jcp.nb_ic_blocking);
 
     auto inp_p_buffer = ctx.get_scratchpad_grantor().template get<char>(
             key_conv_amx_inp_buffer);
@@ -93,6 +96,8 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
             assert(IMPLICATION(
                     jcp.ngroups > 1, jcp.oc == jcp.oc_without_padding));
             const int ocb = g * (jcp.is_nspc ? jcp.oc : jcp.nb_oc);
+            auto bias_w = bias ? bias + (bias_d.blk_off(ic) * bia_dt_size)
+                               : nullptr;
 
             const int ih_b = ihc * jcp.ih_blk_size;
             const int ih_e = nstl::min(jcp.ih, ih_b + jcp.ih_blk_size);
@@ -167,6 +172,7 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
                 p.src = diff_src + diff_src_dt_size * diff_src_offset;
                 p.filt = weights
                         + wei_dt_size * (g * wei_g_shift + icc * wei_ic_shift);
+                p.bias = bias_w;
                 p.scales = &oscales[jcp.is_ic_scale * ic];
                 p.acc_s32 = wsp + ithr * jcp.wsp_buffer_size;
                 p.last_h = (ih + ih_step <= ih_e);
