@@ -128,9 +128,9 @@ status_t ref_reduction_t<src_type, dst_type, acc_type>::execute_ref(
         }
     }
 
-    parallel_nd(idle_size, [&](dim_t f) {
+    parallel_nd(idle_size, [&](dim_t l_offset) {
         dims_t idle_pos, reduce_pos;
-        utils::l_dims_by_l_offset(idle_pos, f, dst_mdw.dims(), ndims);
+        utils::l_dims_by_l_offset(idle_pos, l_offset, dst_mdw.dims(), ndims);
         const dim_t dst_off = dst_mdw.off_v(idle_pos);
         const dim_t src_idle_off = src_mdw.off_v(idle_pos);
         acc_t acc {0};
@@ -142,7 +142,16 @@ status_t ref_reduction_t<src_type, dst_type, acc_type>::execute_ref(
             accumulate(acc, src[src_off], alg, p);
         }
         finalize(acc, alg, p, eps, reduce_size);
-        dst[dst_off] = saturate_and_round<dst_t>(acc);
+
+        ref_post_ops_t::args_t args;
+        args.dst_val = dst[dst_off];
+        args.ctx = &ctx;
+        args.l_offset = l_offset;
+        args.dst_md = pd()->dst_md();
+        float acc_f32 = static_cast<float>(acc);
+        ref_post_ops->execute(acc_f32, args);
+
+        dst[dst_off] = saturate_and_round<dst_t>(acc_f32);
     });
 
     return status::success;

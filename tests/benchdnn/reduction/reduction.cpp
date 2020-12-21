@@ -24,6 +24,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+#include "binary/binary.hpp"
 #include "reduction/reduction.hpp"
 
 namespace reduction {
@@ -46,6 +47,8 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
             WARN);
 
     attr_args_t attr_args;
+    attr_args.prepare_binary_post_op_mds(
+            prb->attr, prb->ndims, prb->dst_dims.data());
     const auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args);
 
     dnnl_status_t init_status
@@ -64,7 +67,7 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
     return OK;
 }
 
-int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     const auto dt = mem_dt.dt();
     const int range = prb->alg == alg_t::MUL
@@ -177,20 +180,29 @@ int doit(const prb_t *prb, res_t *res) {
     const auto &src_md = q(DNNL_ARG_SRC);
     dnn_mem_t src_fp(src_md, fp_dt, abx_tag, test_engine);
     dnn_mem_t src_dt(src_md, test_engine);
-    SAFE(fill_src(prb, src_dt, src_fp), WARN);
+    SAFE(fill_mem(prb, src_dt, src_fp), WARN);
 
     const auto &dst_md = q(DNNL_ARG_DST);
     dnn_mem_t dst_fp(dst_md, fp_dt, abx_tag, test_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
+    if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
+        SAFE(fill_mem(prb, dst_dt, dst_fp), WARN);
+
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
+    SAFE(binary::setup_binary_po(
+                 const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+            WARN);
 
     args_t args;
     args.set(DNNL_ARG_SRC, src_dt);
     args.set(DNNL_ARG_DST, dst_dt);
+    args.set(binary_po_args, binary_po_dt);
 
     SAFE(execute_and_wait(reduction, args), WARN);
 
     if (bench_mode & CORR) {
-        compute_ref(prb, src_fp, dst_fp);
+        compute_ref(prb, src_fp, binary_po_fp, dst_fp);
         compare::compare_t cmp;
         // `5` is a temporary magic const for GPU to pass norm algs.
         // TODO: consider change the filling with power-of-two values for better

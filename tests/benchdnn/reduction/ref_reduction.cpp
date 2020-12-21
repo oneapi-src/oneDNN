@@ -73,7 +73,8 @@ void finalize(float &dst, alg_t alg, float p, float eps, dnnl_dim_t n) {
     }
 }
 
-void compute_ref(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
+void compute_ref(const prb_t *prb, const dnn_mem_t &src,
+        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst) {
     float *dst_ptr = (float *)dst;
     const float *src_ptr = (const float *)src;
 
@@ -100,6 +101,7 @@ void compute_ref(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
 
     if (reduce_size == 1) return;
 
+    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
     dnnl::impl::parallel_nd(idle_size, [&](int64_t f) {
         dims_t idle_pos = off2dims_idx(dst_dims, f);
         const int64_t dst_off = md_off_v(dst.md_, idle_pos.data());
@@ -113,6 +115,15 @@ void compute_ref(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
             accumulate(acc, src_ptr[src_off], alg, p, eps);
         }
         finalize(acc, alg, p, eps, reduce_size);
+        std::vector<float> v_binary_vals;
+        v_binary_vals.reserve(v_bin_po_mask.size());
+        for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
+            const auto bin_po_offset
+                    = dst.get_scale_idx(dst_off, v_bin_po_mask[d]);
+            const float binary_val = binary_po[d].get_elem(bin_po_offset);
+            v_binary_vals.push_back(binary_val);
+        }
+        maybe_post_ops(prb->attr, acc, dst_ptr[dst_off], v_binary_vals);
         dst_ptr[dst_off] = acc;
     });
 }

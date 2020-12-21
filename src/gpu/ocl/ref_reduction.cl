@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
 #if defined(IS_MAX)
@@ -57,7 +58,8 @@
 #define DST_OFF(n, c, d, h, w) (n)
 #endif
 
-__kernel void ref_reduce(__global SRC_DATA_T *src, __global DST_DATA_T *dst) {
+__kernel void ref_reduce(
+        __global SRC_DATA_T *src, __global DST_DATA_T *dst POST_OP_ARGS) {
     int n = GWS_GET_IN();
     int c = GWS_GET_IC();
     int d = GWS_GET_ID();
@@ -77,5 +79,11 @@ __kernel void ref_reduce(__global SRC_DATA_T *src, __global DST_DATA_T *dst) {
     }
 
     acc = FINALIZE(acc);
+    float dst_val;
+#if WITH_SUM
+    dst_val = DST_TO_REF(dst[DST_OFF(n, c, d, h, w)]);
+#endif
+    APPLY_POST_OPS_SERIAL(
+            acc, float, dst_val, float, n, 1, c, 1, d, 1, h, 1, w, 1, 0, 1);
     dst[DST_OFF(n, c, d, h, w)] = TO_DST(acc);
 }

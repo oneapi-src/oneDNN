@@ -19,8 +19,10 @@
 
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
+
 #include "cpu/cpu_reduction_pd.hpp"
 #include "cpu/platform.hpp"
+#include "cpu/primitive_attr_postops.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,6 +36,8 @@ struct ref_reduction_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_reduction_t);
 
         status_t init(engine_t *engine) {
+            using sm = primitive_attr_t::skip_mask_t;
+
             bool ok = src_type == src_md()->data_type
                     && dst_type == dst_md()->data_type
                     && acc_type
@@ -42,7 +46,7 @@ struct ref_reduction_t : public primitive_t {
                     && platform::has_data_type_support(src_type)
                     && platform::has_data_type_support(dst_type)
                     && set_default_params() == status::success
-                    && attr()->has_default_values();
+                    && attr()->has_default_values(sm::post_ops);
             if (!ok) return status::unimplemented;
 
             return status::success;
@@ -50,6 +54,13 @@ struct ref_reduction_t : public primitive_t {
     };
 
     ref_reduction_t(const pd_t *apd) : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
+        ref_post_ops
+                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
+        if (!ref_post_ops) return status::out_of_memory;
+        return status::success;
+    }
 
     using src_t = typename prec_traits<src_type>::type;
     using acc_t = typename prec_traits<acc_type>::type;
@@ -62,6 +73,7 @@ struct ref_reduction_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
+    std::unique_ptr<ref_post_ops_t> ref_post_ops;
 
     void accumulate(
             acc_t &acc, const src_t &src, alg_kind_t alg_kind, float p) const;

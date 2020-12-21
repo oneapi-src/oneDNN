@@ -554,6 +554,7 @@ struct reduction_conf_t {
     compute::dispatch_t dispatch;
     memory_desc_info_t src_md_info, dst_md_info;
     offsets_t off;
+    attr_info_t attr_info;
 };
 
 // Reorder

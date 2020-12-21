@@ -27,6 +27,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_ddt : s.ddt)
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_dtag : s.dtag)
+    for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_alg : s.alg)
     for_(const auto &i_p : s.p)
     for_(const auto &i_eps : s.eps)
@@ -35,6 +36,7 @@ void check_correctness(const settings_t &s) {
         if (!ok) SAFE_V(FAIL);
 
         attr_t attr;
+        attr.insert(i_post_ops);
         const prb_t prb(
                 s.dims, i_sdt, i_ddt, i_stag, i_dtag, i_alg, i_p, i_eps, attr);
         std::stringstream ss;
@@ -70,6 +72,7 @@ int bench(int argc, char **argv) {
                 || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
+                || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_vector_option(s.p, def.p, atof, argv[0], "p")
                 || parse_vector_option(s.eps, def.eps, atof, argv[0], "eps")

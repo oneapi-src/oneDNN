@@ -74,7 +74,7 @@ struct reduction_pd_t : public primitive_desc_t {
         return index == 0 ? &dst_md_ : &glob_zero_md;
     }
 
-    int n_inputs() const override { return 1; }
+    int n_inputs() const override { return 1 + n_binary_po_inputs(); }
     int n_outputs() const override { return 1; }
 
     static void memory_desc_reduce_dim(memory_desc_t &md, int dim) {

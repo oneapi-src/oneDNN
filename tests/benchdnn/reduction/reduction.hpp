@@ -55,6 +55,7 @@ struct settings_t {
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
     std::vector<std::string> stag {tag::abx};
     std::vector<std::string> dtag {tag::any};
+    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     std::vector<alg_t> alg {alg_t::SUM};
     std::vector<float> p {1.0f}, eps {0.0f};
     std::vector<int64_t> mb {0};
@@ -127,7 +128,8 @@ private:
     std::string dtag_;
 };
 
-void compute_ref(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst);
+void compute_ref(const prb_t *prb, const dnn_mem_t &src,
+        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

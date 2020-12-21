@@ -72,6 +72,7 @@ status_t ref_reduction_t::pd_t::init_conf(engine_t *engine) {
             "IW", 0, ndims >= 3 ? conf.dst_dims[ndims - 1] : 1);
     conf.dispatch.generate(false);
 
+    conf.attr_info = attr_info_t::create(pd->attr());
     set_offsets(src_mdw, conf.off.src_off);
     set_offsets(dst_mdw, conf.off.dst_off);
 
@@ -135,6 +136,8 @@ static status_t init_kernel_ctx_common(
     def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
+    def_attr_info(kernel_ctx, conf.attr_info);
+
     def_dispatch(kernel_ctx, conf.dispatch);
 
     return status::success;
@@ -155,6 +158,8 @@ status_t ref_reduction_t::execute_ref(const exec_ctx_t &ctx) const {
 
     reduction_arg_list.set(0, src);
     reduction_arg_list.set(1, dst);
+    append_post_ops_to_arg_list(
+            ctx, reduction_arg_list, 2, conf.attr_info.all_post_ops);
 
     auto nd_range = conf.dispatch.nd_range();
 

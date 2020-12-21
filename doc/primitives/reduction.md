@@ -54,10 +54,11 @@ where \f$eps\_op\f$ can be max and sum.
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
-| Primitive input/output | Execution argument index |
-| ---                    | ---                      |
-| \src                   | DNNL_ARG_SRC             |
-| \dst                   | DNNL_ARG_DST             |
+| Primitive input/output      | Execution argument index |
+| ---                         | ---                      |
+| \src                        | DNNL_ARG_SRC             |
+| \dst                        | DNNL_ARG_DST             |
+| \f$\text{binary post-op}\f$ | DNNL_ARG_ATTR_MULTIPLE_POST_OP(binary_post_op_position) \| DNNL_ARG_SRC_1 |
 
 ## Implementation Details
 
@@ -67,7 +68,17 @@ argument index as specified by the following table.
    will derive the most appropriate memory format based on the format of the
    source tensor.
 
-### Data Type Support
+### Post-ops and Attributes
+
+The following attributes are supported:
+
+| Type    | Operation                                      | Description                                                                    | Restrictions
+| :--     | :--                                            | :--                                                                            | :--
+| Post-op | [Sum](@ref dnnl::post_ops::append_sum)         | Adds the operation result to the destination tensor instead of overwriting it. |                                     |
+| Post-op | [Eltwise](@ref dnnl::post_ops::append_eltwise) | Applies an @ref dnnl_api_eltwise operation to the result.                      |                                     |
+| Post-op | [Binary](@ref dnnl::post_ops::append_binary)   | Applies a @ref dnnl_api_binary operation to the result                         | General binary post-op restrictions |
+
+### Data Types Support
 
 The source and destination tensors may have `f32`, `bf16`, or `int8` data types.
 See @ref dev_guide_data_types page for more details.

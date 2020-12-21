@@ -1,6 +1,7 @@
 --reset
 
 --stag=abx,axb --dtag=abx,axb,any
+--attr-post-ops='','sum;linear:2:1;add:f32'
 
 --sdt=f32 --ddt=f32
 --batch=option_set_all_algs_ci

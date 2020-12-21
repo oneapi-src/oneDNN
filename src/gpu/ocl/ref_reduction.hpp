@@ -39,8 +39,12 @@ struct ref_reduction_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T("reduction_ref:any", ref_reduction_t);
 
         status_t init(engine_t *engine) {
-            bool ok = set_default_params() == status::success
-                    && attr()->has_default_values();
+            using sm = primitive_attr_t::skip_mask_t;
+            const auto attr_skip_mask = sm::post_ops;
+
+            const bool ok = set_default_params() == status::success
+                    && attr()->has_default_values(attr_skip_mask)
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5);
             if (!ok) return status::unimplemented;
 
             return init_conf(engine);

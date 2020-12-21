@@ -60,7 +60,10 @@ protected:
         // reduction specific types and values
         using op_desc_t = reduction::desc;
         using pd_t = reduction::primitive_desc;
-        allows_attr_t aa {false}; // doesn't support anything
+        allows_attr_t allowed_attributes {false}; // doesn't support anything
+        allowed_attributes.po_sum = true;
+        allowed_attributes.po_eltwise = true;
+        allowed_attributes.po_binary = true;
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
@@ -78,7 +81,8 @@ protected:
         // regular pd ctor
         ASSERT_NO_THROW(pd = pd_t(op_desc, eng));
         // test all pd ctors
-        test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, aa);
+        test_fwd_pd_constructors<op_desc_t, pd_t>(
+                op_desc, pd, allowed_attributes);
 
         // default primitive ctor
         auto prim = reduction();
