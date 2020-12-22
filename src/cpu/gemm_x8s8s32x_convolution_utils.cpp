@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,9 +47,7 @@ struct ref_pp_ker_t : pp_ker_t {
 
     void operator()(void *dst, const acc_data_t *acc, const char *bias,
             const float *scales, float sum_scale, float signed_scale, int g,
-            size_t start, size_t end, const int32_t *zp_src,
-            const int32_t *zp_dst, const int32_t *zp_src_comp,
-            const int32_t *zp_src_pad_comp,
+            size_t start, size_t end, const zero_point_call_params_t &zp,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
             const exec_ctx_t &ctx, const memory_desc_t &dst_md,
             const single_gemm_conv_chunk_desc_t &chunk_desc) const override;
@@ -62,8 +60,7 @@ template <typename dst_data_t>
 void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
         const char *bias, const float *scales, float sum_scale,
         float signed_scale, int g, size_t start, size_t end,
-        const int32_t *zp_src, const int32_t *zp_dst,
-        const int32_t *zp_src_comp, const int32_t *zp_src_pad_comp,
+        const zero_point_call_params_t &zp,
         const void * /* post_ops_binary_rhs_arg_vec */,
         const void * /* dst_orig */, const exec_ctx_t &ctx,
         const memory_desc_t &dst_md,
@@ -80,7 +77,7 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
     const size_t last_oc = dv_end.rem;
     const size_t first_os = dv_start.quot;
     const size_t last_os = dv_end.quot;
-    const int32_t zp_dst_val = jcp_.zp.dst_exists ? *zp_dst : 0;
+    const int32_t zp_dst_val = jcp_.zp.dst_exists ? *(zp.dst) : 0;
 
     ref_post_ops_t::args_t args;
     args.ctx = &ctx;
@@ -97,8 +94,8 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
             if (jcp_.zp.src_exists) {
                 const auto oc_offset = g * jcp_.oc + oc;
                 const int32_t &zp_src_val
-                        = jcp_.zp.src_is_common ? *zp_src : zp_src[oc_offset];
-                const int32_t &zp_src_comp_val = zp_src_comp[oc_offset];
+                        = jcp_.zp.src_is_common ? *(zp.src) : zp.src[oc_offset];
+                const int32_t &zp_src_comp_val = zp.src_comp[oc_offset];
                 data += static_cast<float>(zp_src_val * zp_src_comp_val);
             }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -115,7 +115,8 @@ private:
 
     const Xbyak::Reg64 &reg_zp_pad_comp_;
     const Xbyak::Reg64 &reg_zp_pad_comp_tmp_;
-
+    // 10 * 4 (qword_size) + 5 * 1 (byte size) = 85
+    // 85 aligned to 4 = 88
     static constexpr dim_t reserved_stack_size_ = 88;
 };
 

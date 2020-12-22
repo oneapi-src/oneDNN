@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,9 +40,7 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
     status_t create_kernel() override { return jit_generator::create_kernel(); }
     void operator()(void *void_dst, const acc_data_t *acc, const char *bias,
             const float *scales, float sum_scale, float signed_scale, int g,
-            size_t start, size_t end, const int32_t *zp_src,
-            const int32_t *zp_dst, const int32_t *zp_src_comp,
-            const int32_t *zp_src_pad_comp,
+            size_t start, size_t end, const zero_point_call_params_t &zp,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
             const exec_ctx_t & /* ctx */, const memory_desc_t & /* dst_md */,
             const single_gemm_conv_chunk_desc_t &) const override;
@@ -205,8 +203,7 @@ jit_pp_ker_t::jit_pp_ker_t(
 void jit_pp_ker_t::operator()(void *void_dst, const acc_data_t *acc,
         const char *bias, const float *scales, float sum_scale,
         float signed_scale, int g, size_t start, size_t end,
-        const int32_t *zp_src, const int32_t *zp_dst,
-        const int32_t *zp_src_comp, const int32_t *zp_src_pad_comp,
+        const zero_point_call_params_t &zp,
         const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
         const exec_ctx_t & /* ctx */, const memory_desc_t & /* dst_md */,
         const single_gemm_conv_chunk_desc_t &chunk_desc) const {
@@ -227,9 +224,9 @@ void jit_pp_ker_t::operator()(void *void_dst, const acc_data_t *acc,
     const ptrdiff_t g_oc_offset = g * jcp_.oc;
     const ptrdiff_t g_oc_offset_prologue = g_oc_offset + oc_offset;
     args.bias = bias + g_oc_offset_prologue * bias_data_type_size_;
-    args.zp_src = zp_src + (jcp_.zp.src_is_common ? 0 : g_oc_offset_prologue);
-    args.zp_src_comp = zp_src_comp + g_oc_offset_prologue;
-    args.zp_dst = zp_dst;
+    args.zp_src = zp.src + (jcp_.zp.src_is_common ? 0 : g_oc_offset_prologue);
+    args.zp_src_comp = zp.src_comp + g_oc_offset_prologue;
+    args.zp_dst = zp.dst;
     args.scales = scales + jcp_.scale_idx_mult * g_oc_offset_prologue;
     args.sum_scale = sum_scale;
     args.signed_scale = signed_scale;
@@ -249,7 +246,7 @@ void jit_pp_ker_t::operator()(void *void_dst, const acc_data_t *acc,
         args.w = hw.rem + chunk_desc.w_off_;
         args.w_size = chunk_desc.w_size_ + chunk_desc.w_off_;
         args.w_off = chunk_desc.w_off_;
-        args.zp_src_pad_comp = zp_src_pad_comp;
+        args.zp_src_pad_comp = zp.src_pad_comp;
         const auto zp_src_pad_com_d
                 = zp_pad_comp_helper_->calculate_zp_src_pad_com_d(
                         chunk_desc.d_off_);

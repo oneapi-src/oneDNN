@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,6 +36,11 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::utils;
+using namespace prop_kind;
+using namespace data_type;
+
 single_gemm_conv_chunk_desc_t::single_gemm_conv_chunk_desc_t(dim_t d_off,
         dim_t d_size, dim_t h_off, dim_t h_size, dim_t w_off, dim_t w_size)
     : d_off_(d_off)
@@ -44,11 +49,6 @@ single_gemm_conv_chunk_desc_t::single_gemm_conv_chunk_desc_t(dim_t d_off,
     , h_size_(h_size)
     , w_off_(w_off)
     , w_size_(w_size) {}
-
-using namespace dnnl::impl::status;
-using namespace dnnl::impl::utils;
-using namespace prop_kind;
-using namespace data_type;
 
 namespace jit_gemm_convolution_utils {
 

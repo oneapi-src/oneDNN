@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,6 +70,17 @@ struct zero_point_config_t {
     zero_point_pad_comp_config_t src_pad_comp;
 
     bool zp_exists() const noexcept;
+};
+
+struct zero_point_call_params_t {
+    zero_point_call_params_t() = default;
+    zero_point_call_params_t(const int32_t *src, const int32_t *dst,
+            const int32_t *src_comp, const int32_t *src_pad_comp);
+
+    const int32_t *src = nullptr;
+    const int32_t *dst = nullptr;
+    const int32_t *src_comp = nullptr;
+    const int32_t *src_pad_comp = nullptr;
 };
 
 bool zero_points_valid(const primitive_attr_t *attr) noexcept;

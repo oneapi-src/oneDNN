@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
 
-            bool ok = true && is_fwd()
+            const bool ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(
                             src_type, s8, data_type::undef, dst_type, s32)
@@ -111,9 +111,9 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     status_t execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src_base, const wei_data_t *wei_base,
-            const char *bia_base, const int32_t *zp_src,
-            const int32_t *zp_src_pad_comp, const int32_t *zp_dst,
-            dst_data_t *dst_base, const memory_tracking::grantor_t &scratchpad,
+            const char *bia_base, dst_data_t *dst_base,
+            const zero_point_call_params_t &zp,
+            const memory_tracking::grantor_t &scratchpad,
             const void *post_ops_binary_rhs_arg_vec,
             const exec_ctx_t &ctx) const;
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,9 +36,7 @@ struct pp_ker_t {
 
     virtual void operator()(void *dst, const acc_data_t *acc, const char *bias,
             const float *scales, float sum_scale, float signed_scale, int g,
-            size_t start, size_t end, const int32_t *zp_src,
-            const int32_t *zp_dst, const int32_t *zp_src_comp,
-            const int32_t *zp_src_pad_comp,
+            size_t start, size_t end, const zero_point_call_params_t &zp,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
             const exec_ctx_t &ctx, const memory_desc_t &dst_md,
             const single_gemm_conv_chunk_desc_t &chunk_desc) const = 0;
