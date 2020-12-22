@@ -1853,10 +1853,10 @@ TEST(operator_kernel, max_pool) {
     test::vector<float> dst(ref_dst.size(), 0.0);
 
     impl::node_t max_pool_node(impl::op_kind::MaxPool);
-    max_pool_node.set_attr<dims>("strides", dims {2, 2});
-    max_pool_node.set_attr<dims>("kernel", dims {2, 2});
-    max_pool_node.set_attr<dims>("pads_begin", dims {0, 0});
-    max_pool_node.set_attr<dims>("pads_end", dims {0, 0});
+    max_pool_node.set_attr<dims>("strides", {2, 2});
+    max_pool_node.set_attr<dims>("kernel", {2, 2});
+    max_pool_node.set_attr<dims>("pads_begin", {0, 0});
+    max_pool_node.set_attr<dims>("pads_end", {0, 0});
     max_pool_node.set_attr<std::string>("data_format", "NCX");
     max_pool_node.set_attr<std::string>("backend", "dnnl");
 
@@ -1889,20 +1889,22 @@ TEST(operator_kernel, max_pool) {
     }
 }
 
-TEST(operator_kernel, avg_pool) {
+TEST(operator_kernel, avg_pool_exclude_pad) {
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             3.0, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> ref_dst {-1.25, 1.25, 1.5, 0.5};
+    test::vector<float> ref_dst {
+            -2.0, 0.25, 0.5, 0.75, 0.5, 0.75, 3.0, -1.5, 4.0};
     test::vector<float> dst(ref_dst.size(), 0.0);
 
     impl::node_t avg_pool_node(impl::op_kind::AvgPool);
-    avg_pool_node.set_attr<dims>("strides", dims {2, 2});
-    avg_pool_node.set_attr<dims>("kernel", dims {2, 2});
-    avg_pool_node.set_attr<dims>("pads_begin", dims {0, 0});
-    avg_pool_node.set_attr<dims>("pads_end", dims {0, 0});
+    avg_pool_node.set_attr<dims>("strides", {2, 2});
+    avg_pool_node.set_attr<dims>("kernel", {2, 2});
+    avg_pool_node.set_attr<dims>("pads_begin", {1, 1});
+    avg_pool_node.set_attr<dims>("pads_end", {1, 1});
+    avg_pool_node.set_attr<bool>("exclude_pad", true);
     avg_pool_node.set_attr<std::string>("data_format", "NCX");
     avg_pool_node.set_attr<std::string>("backend", "dnnl");
 
@@ -1913,7 +1915,54 @@ TEST(operator_kernel, avg_pool) {
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+            1, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
+
+    std::vector<impl::logical_tensor_t> inputs {src_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto avg_pool_op = op_factory.create_kernel(avg_pool_node);
+
+    avg_pool_op->compile(&avg_pool_node, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    impl::tensor src_ts(src_lt, src.data());
+    impl::tensor dst_ts(outputs[0], dst.data());
+
+    impl::stream &strm = get_stream();
+    avg_pool_op->execute(&avg_pool_node, &strm, {src_ts}, {dst_ts});
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, avg_pool_include_pad) {
+    using dims = impl::dnnl_impl::dims;
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+            3.0, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
+    test::vector<float> ref_dst {
+            -0.5, 0.125, 0.125, 0.375, 0.5, 0.375, 0.75, -0.75, 1.0};
+    test::vector<float> dst(ref_dst.size(), 0.0);
+
+    impl::node_t avg_pool_node(impl::op_kind::AvgPool);
+    avg_pool_node.set_attr<dims>("strides", {2, 2});
+    avg_pool_node.set_attr<dims>("kernel", {2, 2});
+    avg_pool_node.set_attr<dims>("pads_begin", {1, 1});
+    avg_pool_node.set_attr<dims>("pads_end", {1, 1});
+    avg_pool_node.set_attr<std::string>("data_format", "NCX");
+    avg_pool_node.set_attr<bool>("exclude_pad", false);
+    avg_pool_node.set_attr<std::string>("backend", "dnnl");
+
+    impl::partition apartition;
+    apartition.init(&avg_pool_node, eng.kind());
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            1, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
 
     std::vector<impl::logical_tensor_t> inputs {src_lt};
     std::vector<impl::logical_tensor_t> outputs {dst_lt};
@@ -3747,22 +3796,24 @@ TEST(operator_kernel, softmax_backward) {
     }
 }
 
-TEST(operator_kernel, avg_pool_backward) {
+TEST(operator_kernel, avg_pool_backward_exclude_pad) {
     using dims = llga::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             3.0, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> diff_src(src.size(), 0.0);
-    test::vector<float> ref_diff_src {1.0, 1.0, 4.0, 4.0, 1.0, 1.0, 4.0, 4.0,
-            2.0, 2.0, 3.0, 3.0, 2.0, 2.0, 3.0, 3.0};
-    test::vector<float> diff_dst {4.0, 16.0, 8.0, 12.0};
+    test::vector<float> ref_diff_src {-1.0, 1.5, 1.5, 10.0, 2.0, 4.0, 4.0, 4.0,
+            2.0, 4.0, 4.0, 4.0, 12.0, -2.5, -2.5, -3.0};
+    test::vector<float> diff_dst {
+            -1.0, 3.0, 10.0, 4.0, 16.0, 8.0, 12.0, -5.0, -3.0};
 
     impl::node_t avg_pool_bwd_node(impl::op_kind::AvgPoolBackprop);
-    avg_pool_bwd_node.set_attr<dims>("strides", dims {2, 2});
-    avg_pool_bwd_node.set_attr<dims>("kernel", dims {2, 2});
-    avg_pool_bwd_node.set_attr<dims>("pads_begin", dims {0, 0});
-    avg_pool_bwd_node.set_attr<dims>("pads_end", dims {0, 0});
+    avg_pool_bwd_node.set_attr<dims>("strides", {2, 2});
+    avg_pool_bwd_node.set_attr<dims>("kernel", {2, 2});
+    avg_pool_bwd_node.set_attr<dims>("pads_begin", {1, 1});
+    avg_pool_bwd_node.set_attr<dims>("pads_end", {1, 1});
+    avg_pool_bwd_node.set_attr<bool>("exclude_pad", true);
     avg_pool_bwd_node.set_attr<std::string>("backend", "dnnl");
 
     // prepare logical tensor
@@ -3771,7 +3822,56 @@ TEST(operator_kernel, avg_pool_backward) {
     impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
             0, {1, 1, 4, 4}, impl::data_type::f32, impl::layout_type::any);
     impl::logical_tensor_t diff_dst_lt
-            = utils::logical_tensor_init(1, {1, 1, 2, 2}, impl::data_type::f32);
+            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
+
+    std::vector<impl::logical_tensor_t> inputs {src_lt, diff_dst_lt};
+    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto avg_pool_bwd_op = op_factory.create_kernel(avg_pool_bwd_node);
+
+    avg_pool_bwd_op->compile(&avg_pool_bwd_node, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    impl::tensor src_ts(src_lt, src.data());
+    impl::tensor diff_dst_ts(diff_dst_lt, diff_dst.data());
+    impl::tensor diff_src_ts(outputs[0], diff_src.data());
+
+    impl::stream &strm = get_stream();
+    avg_pool_bwd_op->execute(
+            &avg_pool_bwd_node, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    for (size_t i = 0; i < diff_src.size(); ++i) {
+        ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
+    }
+}
+
+TEST(operator_kernel, avg_pool_backward_include_pad) {
+    using dims = llga::impl::dnnl_impl::dims;
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+            3.0, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
+    test::vector<float> diff_src(src.size(), 0.0);
+    test::vector<float> ref_diff_src {-0.25, 0.75, 0.75, 2.5, 1.0, 4.0, 4.0,
+            2.0, 1.0, 4.0, 4.0, 2.0, 3.0, -1.25, -1.25, -3.0 / 4};
+    test::vector<float> diff_dst {
+            -1.0, 3.0, 10.0, 4.0, 16.0, 8.0, 12.0, -5.0, -3.0};
+
+    impl::node_t avg_pool_bwd_node(impl::op_kind::AvgPoolBackprop);
+    avg_pool_bwd_node.set_attr<dims>("strides", {2, 2});
+    avg_pool_bwd_node.set_attr<dims>("kernel", {2, 2});
+    avg_pool_bwd_node.set_attr<dims>("pads_begin", {1, 1});
+    avg_pool_bwd_node.set_attr<dims>("pads_end", {1, 1});
+    avg_pool_bwd_node.set_attr<bool>("exclude_pad", false);
+    avg_pool_bwd_node.set_attr<std::string>("backend", "dnnl");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t diff_dst_lt
+            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
 
     std::vector<impl::logical_tensor_t> inputs {src_lt, diff_dst_lt};
     std::vector<impl::logical_tensor_t> outputs {diff_src_lt};

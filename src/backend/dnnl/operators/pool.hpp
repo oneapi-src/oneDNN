@@ -113,7 +113,9 @@ public:
         if (kind == op_kind::MaxPool) {
             algo_ = algorithm::pooling_max;
         } else if (kind == op_kind::AvgPool) {
-            algo_ = algorithm::pooling_avg;
+            bool exclude_pad = anode->get_attr<bool>("exclude_pad");
+            algo_ = exclude_pad ? algorithm::pooling_avg_exclude_padding
+                                : algorithm::pooling_avg_include_padding;
         } else {
             BACKEND_DNNL_ENFORCE(0, "Unsupported pool op.");
         }
@@ -235,7 +237,9 @@ public:
         kind_ = anode->get_op_kind();
         algorithm algo;
         if (kind_ == op_kind::AvgPoolBackprop) {
-            algo = algorithm::pooling_avg;
+            bool exclude_pad = anode->get_attr<bool>("exclude_pad");
+            algo = exclude_pad ? algorithm::pooling_avg_exclude_padding
+                               : algorithm::pooling_avg_include_padding;
         } else if (kind_ == op_kind::MaxPoolBackprop) {
             algo = algorithm::pooling_max;
         } else {
