@@ -68,3 +68,6 @@ set(OBJ_LIB ${LIB_NAME}_cpu_x64)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
+if(TARGET openvino::conditional_compilation)
+    target_link_libraries(${OBJ_LIB} openvino::conditional_compilation)
+endif()

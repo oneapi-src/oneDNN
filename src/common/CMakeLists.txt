@@ -25,6 +25,9 @@ set(OBJ_LIB ${LIB_NAME}_common)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
+if(TARGET openvino::conditional_compilation)
+    target_link_libraries(${OBJ_LIB} openvino::conditional_compilation)
+endif()
 
 if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STREQUAL "Intel"))
     file(GLOB FILES_REQUIRED_BIGOBJ
