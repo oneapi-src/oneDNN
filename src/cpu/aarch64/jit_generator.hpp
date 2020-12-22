@@ -115,6 +115,10 @@ public:
     const Xbyak_aarch64::PReg P_MSB_384 = p14;
     const Xbyak_aarch64::PReg P_ALL_ONE = p15;
 
+    const std::vector<Xbyak_aarch64::XReg> x_tmp_vec
+            = {X_TMP_0, X_TMP_1, X_TMP_2, X_TMP_3, X_TMP_4};
+    const int x_tmp_vec_size = x_tmp_vec.size();
+
     const Xbyak_aarch64::XReg param1 = abi_param1;
     constexpr static size_t translator_stack_offset = 1024 * 128;
     constexpr static uint32_t DUMMY_IDX = 99;

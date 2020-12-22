@@ -1238,10 +1238,6 @@ private:
     ZReg z_tmp6 = z26;
     ZReg z_tmp7 = z27;
 
-    const std::vector<XReg> x_tmp_vec
-            = {X_TMP_0, X_TMP_1, X_TMP_2, X_TMP_3, X_TMP_4};
-    constexpr static int x_tmp_vec_size = 5;
-
     const std::vector<ZReg> z_tmp_vec
             = {z_tmp0, z_tmp1, z_tmp2, z_tmp3, z_tmp4, z_tmp5, z_tmp6, z_tmp7};
     constexpr static int z_tmp_vec_size = 8;
