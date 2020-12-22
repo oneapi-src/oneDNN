@@ -23,9 +23,9 @@
 #endif
 
 TEST(allocator_test, default_cpu_allocator) {
-    llga::impl::allocator alloc {};
+    llga::impl::allocator_t alloc {};
 
-    llga::impl::allocator::attribute attr {
+    llga::impl::allocator_t::attribute attr {
             llga::impl::allocator_lifetime::persistent, 4096};
     void *mem_ptr = alloc.allocate(static_cast<size_t>(16));
     ASSERT_NE(mem_ptr, nullptr);
@@ -33,7 +33,7 @@ TEST(allocator_test, default_cpu_allocator) {
 }
 
 TEST(allocator_test, create_attr) {
-    llga::impl::allocator::attribute attr {
+    llga::impl::allocator_t::attribute attr {
             llga::impl::allocator_lifetime::output, 1024};
 
     ASSERT_EQ(attr.data.alignment, 1024);
@@ -44,10 +44,10 @@ TEST(allocator_test, create_attr) {
 TEST(allocator_test, default_sycl_allocator) {
     namespace sycl = cl::sycl;
     namespace impl = llga::impl;
-    impl::allocator alloc {};
+    impl::allocator_t alloc {};
     sycl::queue q {sycl::gpu_selector {}};
 
-    impl::allocator::attribute attr {
+    impl::allocator_t::attribute attr {
             impl::allocator_lifetime::persistent, 4096};
     void *mem_ptr = alloc.allocate(
             static_cast<size_t>(16), q.get_device(), q.get_context(), attr);
@@ -86,11 +86,11 @@ TEST(allocator_test, sycl_allocator) {
     std::unique_ptr<sycl::context> sycl_ctx;
 
     auto platform_list = sycl::platform::get_platforms();
-    llga::impl::allocator::attribute alloc_attr {
+    llga::impl::allocator_t::attribute alloc_attr {
             llga::impl::allocator_lifetime::persistent, 1024};
     ASSERT_EQ(alloc_attr.data.type, llga::impl::allocator_lifetime::persistent);
     ASSERT_EQ(alloc_attr.data.alignment, 1024);
-    llga::impl::allocator sycl_alloc {sycl_malloc_wrapper, sycl_free_wrapper};
+    llga::impl::allocator_t sycl_alloc {sycl_malloc_wrapper, sycl_free_wrapper};
     for (const auto &plt : platform_list) {
         auto device_list = plt.get_devices();
         for (const auto &dev : device_list) {

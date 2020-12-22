@@ -117,10 +117,4 @@ private:
 #endif
 };
 
-namespace llga {
-namespace impl {
-using allocator = ::dnnl_graph_allocator;
-} // namespace impl
-} // namespace llga
-
 #endif

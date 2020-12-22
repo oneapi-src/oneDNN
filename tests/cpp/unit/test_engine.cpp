@@ -44,7 +44,7 @@ TEST(engine_test, create_with_default_allocator) {
     sycl::queue q {sycl::gpu_selector {}};
     impl::engine_t eng(impl::engine_kind::gpu, q.get_device(), q.get_context());
 
-    impl::allocator::attribute attr {impl::allocator_lifetime::output, 128};
+    impl::allocator_t::attribute attr {impl::allocator_lifetime::output, 128};
     ASSERT_EQ(attr.data.type, impl::allocator_lifetime::output);
     ASSERT_EQ(attr.data.alignment, 128);
 

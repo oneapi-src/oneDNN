@@ -91,7 +91,7 @@ struct engine : public dnnl::engine {
         : dnnl::engine(static_cast<kind>(eng.kind()),
                 static_cast<size_t>(eng.device_id())) {
 #endif
-        impl::allocator *allocator = eng.get_allocator();
+        impl::allocator_t *allocator = eng.get_allocator();
         if (eng.kind() == llga::impl::engine_kind::cpu) {
             this->malloc = [this, allocator](size_t size) {
                 // Now, we always have a default allocator for CPU.
