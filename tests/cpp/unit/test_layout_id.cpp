@@ -25,7 +25,7 @@
 namespace impl = llga::impl;
 namespace dnnl_impl = llga::impl::dnnl_impl;
 
-TEST(layout_id_test, opaque_md_index_mapping) {
+TEST(layout_id_test, opaque_md_layout_id_mapping) {
     using tensor = dnnl_impl::tensor;
     using data_type = dnnl_impl::tensor::desc::data_type;
     using format_tag = dnnl_impl::tensor::desc::format_tag;
@@ -35,9 +35,8 @@ TEST(layout_id_test, opaque_md_index_mapping) {
                     impl::backend_manager::get_backend("dnnl"))
                       ->get_layout_id_manager();
 
-    // opaque md should be cached and generate a index which value should
-    // is greater or equal to llga_first_non_plain_layout, and the later index
-    // should be greater than the former index
+    // opaque md should be cached and generate a layout id, and the later
+    // layout id should be greater than the former one
     tensor::desc md1({8, 3, 224, 224}, data_type::f32, format_tag::nChw16c);
     auto id1 = mgr.set_mem_desc(md1);
     ASSERT_TRUE(id1.has_value());
@@ -48,8 +47,8 @@ TEST(layout_id_test, opaque_md_index_mapping) {
 
     ASSERT_GT(id2.value(), id1.value());
 
-    // for cached opaque md, we should be able to get them out according
-    // to thier index
+    // we should be able to get cached opaque md out according to the
+    // layout id
     auto recovered_md1 = mgr.get_mem_desc(id1.value());
     ASSERT_TRUE(recovered_md1.has_value());
     ASSERT_EQ(llga::impl::utils::any_cast<tensor::desc>(recovered_md1.value()),
