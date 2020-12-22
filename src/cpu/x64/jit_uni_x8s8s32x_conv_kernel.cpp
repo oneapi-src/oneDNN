@@ -1256,7 +1256,9 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
                             ? jcp.is_depthwise ? Goihw4g : gOIhw4o4i
                             : OIhw4o4i;
                 } else {
-                    wei_tag = with_groups ? gOIdhw4o4i : OIdhw4o4i;
+                    wei_tag = with_groups
+                            ? jcp.is_depthwise ? Goidhw4g : gOIdhw4o4i
+                            : OIdhw4o4i;
                 }
             }
         }
