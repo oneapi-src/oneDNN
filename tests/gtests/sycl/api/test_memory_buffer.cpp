@@ -200,6 +200,11 @@ TEST_P(sycl_memory_buffer_test, InteropReorderAndUserKernel) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
+#ifdef DNNL_SYCL_CUDA
+    SKIP_IF(eng_kind == engine::kind::gpu,
+            "OpenCL features are not supported on CUDA backend");
+#endif
+
     const size_t N = 2;
     const size_t C = 3;
     const size_t H = 4;
