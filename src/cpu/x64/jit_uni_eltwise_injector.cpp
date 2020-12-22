@@ -1213,6 +1213,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_gprs_count() {
         case eltwise_tanh_use_dst_for_bwd:
         case eltwise_tanh:
         case eltwise_gelu_tanh: return isa == sse41 ? 4 : 0;
+        case eltwise_mish: return isa == sse41 ? 4 : 0;
         default: return 0;
     }
     return 0;
