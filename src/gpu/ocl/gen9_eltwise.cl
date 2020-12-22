@@ -83,6 +83,8 @@ __kernel void gen9_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
     const uint lid = get_sub_group_local_id();
 
     ptrdiff_t offset = (grid * grsize + sgid * SIMD) * VECT_DT_N;
+    //TODO: It should be implemented two distinct offsets
+    //The one for src and the second for diff_src
 
     // grsize is a multiple of 16, SIMD is 16 -> offset mod 16 = 0
     // -> read_pos correctly aligned for block reads
