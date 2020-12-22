@@ -18,25 +18,48 @@
 
 #include "cpu/ref_concat.hpp"
 #include "cpu/simple_concat.hpp"
+#include "common/mkldnn_sel_build.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 using cpd_create_f = dnnl::impl::engine_t::concat_primitive_desc_create_f;
+using namespace dnnl::impl::data_type;
 
 namespace {
 // clang-format off
-#define INSTANCE(...) __VA_ARGS__::pd_t::create,
+#if defined(SELECTIVE_BUILD_ANALYZER)
+
+MKLDNN_DEF_OBJ_BUILDER(cpd_builder,
+            cpd_create_f,
+            dnnl::impl::concat_pd_t **,
+            dnnl::impl::engine_t *,
+            const dnnl::impl::primitive_attr_t *,
+            const dnnl::impl::memory_desc_t *,
+            int,
+            int,
+            const dnnl::impl::memory_desc_t *);
+
+# define CPD_INSTANCE(...) REG_MKLDNN_FN(cpd_builder, __VA_ARGS__)
+
+#else   // SELECTIVE_BUILD == ON || SELECTIVE_BUILD == OFF
+
+# define CPD_INSTANCE REG_MKLDNN_FN
+
+#endif
+
+#define INSTANCE CPD_INSTANCE
 const cpd_create_f cpu_concat_impl_list[] = {
-        INSTANCE(simple_concat_t<data_type::f32>)
-        INSTANCE(simple_concat_t<data_type::u8>)
-        INSTANCE(simple_concat_t<data_type::s8>)
-        INSTANCE(simple_concat_t<data_type::s32>)
-        INSTANCE(simple_concat_t<data_type::bf16>)
+        INSTANCE(simple_concat_t, f32)
+        INSTANCE(simple_concat_t, u8)
+        INSTANCE(simple_concat_t, s8)
+        INSTANCE(simple_concat_t, s32)
+        INSTANCE(simple_concat_t, bf16)
         INSTANCE(ref_concat_t)
         nullptr,
 };
+#undef CPD_INSTANCE
 #undef INSTANCE
 // clang-format on
 } // namespace

@@ -51,73 +51,41 @@ using x64_wino_reorder_t = x64::wino_reorder_t<type_i, type_o>;
 constexpr bool fmt_order_keep = fmt_order::keep;
 constexpr bool fmt_order_reverse = fmt_order::reverse;
 constexpr bool fmt_order_any = fmt_order::any;
-const auto& x64_jit_uni_reorder_create = x64::jit_uni_reorder_create;
+
+struct uni_reorder_t {
+    struct pd_t {
+        static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
+                const primitive_attr_t *attr, engine_t *src_engine,
+                const memory_desc_t *src_md, engine_t *dst_engine,
+                const memory_desc_t *dst_md) {
+                    return x64::jit_uni_reorder_create(reorder_pd, engine, attr, src_engine, src_md, dst_engine, dst_md);
+                }
+    };
+};
 
 #if defined(SELECTIVE_BUILD_ANALYZER)
 
-std::string rpd_fn_to_string(rpd_create_f fn) {
-    const size_t size = sizeof(fn);
-    const uint8_t *ptr = reinterpret_cast<const uint8_t *>(fn);
-    std::string res;
-    res.reserve(size * 2);
-    static const char hex[] = "0123456789abcdef";
-    for(size_t i = 0; i < size; ++i)
-    {
-        res += hex[ptr[i] & 0xF];
-        res += hex[(ptr[i] >> 4) & 0xF];
-    }
-    return res;
-}
+MKLDNN_DEF_OBJ_BUILDER(rpd_builder,
+            rpd_create_f,
+            dnnl::impl::reorder_pd_t **,
+            dnnl::impl::engine_t *,
+            const dnnl::impl::primitive_attr_t *,
+            dnnl::impl::engine_t *,
+            const dnnl::impl::memory_desc_t *,
+            dnnl::impl::engine_t *,
+            const dnnl::impl::memory_desc_t *);
 
-template<rpd_create_f fn>
-status_t rpd_create(
-            dnnl::impl::reorder_pd_t **reorder_pd,
-            dnnl::impl::engine_t *engine,
-            const dnnl::impl::primitive_attr_t *attr,
-            dnnl::impl::engine_t *src_engine,
-            const dnnl::impl::memory_desc_t *src_md,
-            dnnl::impl::engine_t *dst_engine,
-            const dnnl::impl::memory_desc_t *dst_md) {
-    MKLDNN_ITT_SCOPED_TASK(mkldnn::impl::domains::CC2_MKLDNN, std::string("CREATE$CPUReorder$") + rpd_fn_to_string(fn));
-    return fn(reorder_pd, engine, attr, src_engine, src_md, dst_engine, dst_md);
-}
+# define REG_REORDER_FN(...) REG_MKLDNN_FN(rpd_builder, __VA_ARGS__)
 
-template<rpd_create_f fn>
-rpd_create_f rpd_builder(char const *name) {
-    MKLDNN_ITT_SCOPED_TASK(
-        mkldnn::impl::domains::CC2_MKLDNN,
-        mkldnn::impl::handle(std::string("REG$CPUReorder$") + rpd_fn_to_string(fn) + "$" + name));
-    return rpd_create<fn>;
-}
+# define REG_SR_5(idt, ifmt, odt, ofmt, order) REG_MKLDNN_FN_7(rpd_builder, simple_reorder_t, idt, ifmt, odt, ofmt, order)
+# define REG_SR_6(idt, ifmt, odt, ofmt, order, spec) REG_MKLDNN_FN_8(rpd_builder, simple_reorder_t, idt, ifmt, odt, ofmt, order, spec)
 
-# define REG_REORDER_FN(...) MKLDNN_MACRO_OVERLOAD(REG_REORDER_FN, __VA_ARGS__)
-# define REG_REORDER_FN_1(name) rpd_builder<name>(OV_CC_TOSTRING(name)),
-# define REG_REORDER_FN_2(name, T1) rpd_builder<name<T1>::pd_t::create>(OV_CC_TOSTRING(name ## _ ## T1)),
-# define REG_REORDER_FN_3(name, T1, T2) rpd_builder<name<T1, T2>::pd_t::create>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2)),
-# define REG_REORDER_FN_6(name, T1, T2, T3, T4, T5) rpd_builder<name<T1, T2, T3, T4, T5>::pd_t::create>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2 ## _ ## T3 ## _ ## T4 ## _ ## T5)),
-# define REG_REORDER_FN_7(name, T1, T2, T3, T4, T5, T6) rpd_builder<name<T1, T2, T3, T4, T5, T6>::pd_t::create>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2 ## _ ## T3 ## _ ## T4 ## _ ## T5 ## _ ## T6)),
+#else   // SELECTIVE_BUILD == ON || SELECTIVE_BUILD == OFF
 
-#elif defined(SELECTIVE_BUILD)
+# define REG_REORDER_FN REG_MKLDNN_FN
 
-# define RPD_BUILDER_0(...)
-# define RPD_BUILDER_1(...) __VA_ARGS__,
-# define RPD_BUILDER(name, ...) OV_CC_EXPAND(OV_CC_CAT(RPD_BUILDER_, OV_CC_SCOPE_IS_ENABLED(OV_CC_CAT(MKLDNN_, name)))(__VA_ARGS__))
-
-# define REG_REORDER_FN(...) MKLDNN_MACRO_OVERLOAD(REG_REORDER_FN, __VA_ARGS__)
-# define REG_REORDER_FN_1(name) RPD_BUILDER(name, name)
-# define REG_REORDER_FN_2(name, T1) RPD_BUILDER(name ## _ ## T1, &name<T1>::pd_t::create)
-# define REG_REORDER_FN_3(name, T1, T2) RPD_BUILDER(name ## _ ## T1 ## _ ## T2, &name<T1, T2>::pd_t::create)
-# define REG_REORDER_FN_6(name, T1, T2, T3, T4, T5) RPD_BUILDER(name ## _ ## T1 ## _ ## T2 ## _ ## T3 ## _ ## T4 ## _ ## T5, &name<T1, T2, T3, T4, T5>::pd_t::create)
-# define REG_REORDER_FN_7(name, T1, T2, T3, T4, T5, T6) RPD_BUILDER(name ## _ ## T1 ## _ ## T2 ## _ ## T3 ## _ ## T4 ## _ ## T5 ## _ ## T6, &name<T1, T2, T3, T4, T5, T6>::pd_t::create)
-
-#else
-
-# define REG_REORDER_FN(...) MKLDNN_MACRO_OVERLOAD(REG_REORDER_FN, __VA_ARGS__)
-# define REG_REORDER_FN_1(name) name,
-# define REG_REORDER_FN_2(name, T1) name<T1>::pd_t::create,
-# define REG_REORDER_FN_3(name, T1, T2) name<T1, T2>::pd_t::create,
-# define REG_REORDER_FN_6(name, T1, T2, T3, T4, T5) name<T1, T2, T3, T4, T5>::pd_t::create,
-# define REG_REORDER_FN_7(name, T1, T2, T3, T4, T5, T6) name<T1, T2, T3, T4, T5, T6>::pd_t::create,
+# define REG_SR_5(idt, ifmt, odt, ofmt, order) REG_MKLDNN_FN_6(simple_reorder_t, idt, ifmt, odt, ofmt, order)
+# define REG_SR_6(idt, ifmt, odt, ofmt, order, spec) REG_MKLDNN_FN_7(simple_reorder_t, idt, ifmt, odt, ofmt, order, spec)
 
 #endif
 
@@ -141,8 +109,6 @@ private:
 using impl_list_map_t = std::map<reorder_impl_key_t, std::vector<rpd_create_f>>;
 
 #define REG_SR(...) MKLDNN_MACRO_OVERLOAD(REG_SR, __VA_ARGS__)
-#define REG_SR_5(idt, ifmt, odt, ofmt, order) REG_REORDER_FN_6(simple_reorder_t, idt, ifmt, odt, ofmt, order)
-#define REG_SR_6(idt, ifmt, odt, ofmt, order, spec) REG_REORDER_FN_7(simple_reorder_t, idt, ifmt, odt, ofmt, order, spec)
 
 #define REG_SR_BIDIR(idt, ifmt, odt, ofmt) \
     REG_SR(idt, ifmt, odt, ofmt, fmt_order_keep) \
@@ -179,7 +145,7 @@ const impl_list_map_t regular_impl_list_map {
     {{f32, bf16, 0}, {
         REG_REORDER_FN(rnn_weights_reorder_t, f32, bf16)
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR_BIDIR(f32, any, bf16, nChw16c)
         REG_SR_BIDIR(f32, any, bf16, nCdhw16c)
@@ -209,7 +175,7 @@ const impl_list_map_t regular_impl_list_map {
     {{f32, f32, 0}, {
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR(f32, any, f32, any, fmt_order_any, spec_reference)
 
@@ -218,7 +184,7 @@ const impl_list_map_t regular_impl_list_map {
     {{f32, f32, 3}, {
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR_BIDIR(f32, any, f32, nCw16c)
         REG_SR_BIDIR(f32, any, f32, nCw8c)
@@ -245,7 +211,7 @@ const impl_list_map_t regular_impl_list_map {
 
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR_BIDIR(f32, any, f32, nChw16c)
         REG_SR_BIDIR(f32, any, f32, nChw8c)
@@ -290,7 +256,7 @@ const impl_list_map_t regular_impl_list_map {
 
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR_BIDIR(f32, any, f32, nCdhw16c)
         REG_SR_BIDIR(f32, any, f32, nCdhw8c)
@@ -335,7 +301,7 @@ const impl_list_map_t regular_impl_list_map {
     {{f32, f32, 6}, {
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR_BIDIR(f32, any, f32, gOIdhw4i4o)
         REG_SR_BIDIR(f32, any, f32, gOIdhw4o4i)
@@ -359,7 +325,7 @@ const impl_list_map_t regular_impl_list_map {
     {{f32, s32, 0}, {
         REG_FAST_DIRECT_COPY_COMMA(f32, s32)
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR_BIDIR(f32, any, s32, nChw16c)
         REG_SR_BIDIR(f32, any, s32, nChw8c)
@@ -376,7 +342,7 @@ const impl_list_map_t regular_impl_list_map {
 
         REG_FAST_DIRECT_COPY_COMMA(f32, s8)
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR_BIDIR(f32, any, s8, nChw16c)
         REG_SR_BIDIR(f32, any, s8, nChw8c)
@@ -394,7 +360,7 @@ const impl_list_map_t regular_impl_list_map {
 
 //        REG_FAST_DIRECT_COPY_COMMA(f32, u8)
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR_BIDIR(f32, any, u8, nChw16c)
 
@@ -409,7 +375,7 @@ const impl_list_map_t regular_impl_list_map {
     {{bf16, data_type::undef, 0}, {
         REG_REORDER_FN(rnn_weights_reorder_t, bf16, bf16)
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR_BIDIR(bf16, any, f32, nChw16c)
         REG_SR_BIDIR(bf16, any, f32, nCdhw16c)
@@ -455,7 +421,7 @@ const impl_list_map_t regular_impl_list_map {
         REG_FAST_DIRECT_COPY_COMMA(s32, s8)
         REG_FAST_DIRECT_COPY_COMMA(s32, u8)
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR_BIDIR(s32, any, f32, nChw16c)
         REG_SR_BIDIR(s32, any, s32, nChw16c)
@@ -485,7 +451,7 @@ const impl_list_map_t regular_impl_list_map {
         REG_FAST_DIRECT_COPY_COMMA(s8, s8)
         REG_FAST_DIRECT_COPY_COMMA(s8, u8)
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR_BIDIR(s8, any, f32, nChw16c)
         REG_SR_BIDIR(s8, any, s32, nChw16c)
@@ -522,7 +488,7 @@ const impl_list_map_t regular_impl_list_map {
         REG_FAST_DIRECT_COPY_COMMA(u8, s8)
         REG_FAST_DIRECT_COPY_COMMA(u8, u8)
 
-        DNNL_X64_ONLY(REG_REORDER_FN(x64_jit_uni_reorder_create))
+        DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
         REG_SR_BIDIR(u8, any, f32, nChw16c)
         REG_SR_BIDIR(u8, any, s32, nChw16c)

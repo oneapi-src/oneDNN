@@ -35,7 +35,7 @@ namespace impl {
 namespace cpu {
 
 template<typename pd_t>
-pd_create_f primitive_desc_builder(const char *name) {
+engine_t::primitive_desc_create_f primitive_desc_builder(const char *name) {
     OV_ITT_SCOPED_TASK(
         dnnl::FACTORY_MKLDNN,
         openvino::itt::handle<pd_t>(std::string("REG$CPUEngine$") + typeid(pd_t).name() + "$" + name));
