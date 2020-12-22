@@ -84,8 +84,8 @@ TEST(api_partition, partition_test) {
             logical_tensor::layout_type::any};
 
     //compile partition
-    std::vector<logical_tensor> in0 = {lt1_plain, lt2_plain, lt3_plain};
-    std::vector<logical_tensor> out0 = {lt4_plain};
+    std::vector<logical_tensor> in0({lt1_plain, lt2_plain, lt3_plain});
+    std::vector<logical_tensor> out0({lt4_plain});
 
     //infer_shape
     partitions[0].infer_shape(in0, out0);

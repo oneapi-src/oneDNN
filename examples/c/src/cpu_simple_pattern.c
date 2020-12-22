@@ -60,14 +60,19 @@ void op_map_add(example_op_t *e_op, dnnl_graph_op_t *l_op) {
     o_map_num++;
 }
 
-example_op_t *find_example_op_by_dnnl_graph_op_id(size_t lp_id) {
+example_result_t find_example_op_by_dnnl_graph_op_id(
+        example_op_t **op, size_t lp_id) {
     for (int k = 0; k < o_map_num; k++) {
         size_t temp_id;
         DNNL_GRAPH_CHECK(
                 dnnl_graph_op_get_id(o_map[k].dnnl_graph_op_, &temp_id));
-        if (temp_id == lp_id) { return o_map[k].example_op_; }
+        if (temp_id == lp_id) {
+            *op = o_map[k].example_op_;
+            if (*op == NULL) return example_result_error_common_fail;
+            return example_result_success;
+        }
     }
-    return NULL;
+    return example_result_error_common_fail;
 }
 
 void partition_map_add(example_op_t *e_op, dnnl_graph_partition_t *l_p) {
@@ -267,8 +272,9 @@ int main(int argc, char **argv) {
         // op, cut off its connection in the example graph and re-connect its inputs
         // and outputs to the new fake node.
         for (int j = 0; j < ops_num; j++) {
-            example_op_t *e_op_erase
-                    = find_example_op_by_dnnl_graph_op_id(partition_ops_ids[j]);
+            example_op_t *e_op_erase;
+            CHECK_EXAMPLE(find_example_op_by_dnnl_graph_op_id(
+                    &e_op_erase, partition_ops_ids[j]));
 
             for (int k = 0; k < e_op_erase->inputs_num_; k++) {
                 example_tensor_t *input = e_op_erase->inputs_[k];
@@ -298,8 +304,9 @@ int main(int argc, char **argv) {
             int32_t found = 0;
 
             for (int k = 0; k < ops_num; k++) {
-                example_op_t *e_op_erase = find_example_op_by_dnnl_graph_op_id(
-                        partition_ops_ids[k]);
+                example_op_t *e_op_erase;
+                CHECK_EXAMPLE(find_example_op_by_dnnl_graph_op_id(
+                        &e_op_erase, partition_ops_ids[k]));
                 if (example_graph->ops_[j] == e_op_erase) {
                     found = 1;
                     break;

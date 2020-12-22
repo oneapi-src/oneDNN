@@ -30,6 +30,7 @@ example_result_t example_tensor_create(example_tensor_t **created_tensor,
         example_data_type_t type, int32_t ndims, const int64_t *dims,
         int64_t layout_id) {
     *created_tensor = (example_tensor_t *)malloc(sizeof(example_tensor_t));
+    if (*created_tensor == NULL) return example_result_error_common_fail;
 
     (*created_tensor)->dtype_ = type;
     (*created_tensor)->ndims_ = ndims;

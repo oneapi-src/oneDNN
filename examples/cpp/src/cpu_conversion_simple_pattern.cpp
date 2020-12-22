@@ -297,6 +297,7 @@ int cpu_conversion_simple_pattern_tutorial(engine::kind engine_kind) {
     std::cout << "Check correctness------------------------------";
     for (auto v : relu0_dst_data) {
         if (std::abs(v - 256.0) > 1e-6f) {
+            if (buffer) deallocate(buffer);
             throw std::runtime_error(
                     "output result is not equal to excepted "
                     "results");

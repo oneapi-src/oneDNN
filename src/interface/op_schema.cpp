@@ -281,7 +281,7 @@ op_schema::attribute::attribute(std::string name, std::string description,
     // when attribute is not required, will use default value,
     // but if no default value used, this attribute should not
     // be registed in op_schema
-    if (!required) { attr_ = attr_value; }
+    attr_ = required ? utils::any() : attr_value;
 }
 
 op_schema_registry::op_schema_registry_once::op_schema_registry_once(

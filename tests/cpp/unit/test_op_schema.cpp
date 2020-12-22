@@ -1784,6 +1784,12 @@ TEST(op_schema_test, conv_bprop_data_ncx_oix_infer_shape) {
     std::string filter_format = "OIX";
 
     std::vector<int64_t> groups_vec {1, 2, 4};
+    // data shape {N, IC, H, W}
+    std::vector<int64_t> in_data {1, 3, 224, 224};
+    // weight shape {OC, IC, KH, KW}
+    std::vector<int64_t> in_weight {16, 3, 3, 3};
+    std::vector<int64_t> in_output_shape {};
+    std::vector<int64_t> expected_out_shape {1, 16, 452, 452};
 
     for (auto groups : groups_vec) {
         // data shape {N, IC, H, W}
@@ -1806,6 +1812,12 @@ TEST(op_schema_test, conv_bprop_data_nxc_oix_infer_shape) {
     std::string filter_format = "OIX";
 
     std::vector<int64_t> groups_vec {1, 2, 4};
+    // data shape {N, H, W, IC}
+    std::vector<int64_t> in_data {1, 224, 224, 3};
+    // weight shape {OC, IC, KH, KW}
+    std::vector<int64_t> in_weight {16, 3, 3, 3};
+    std::vector<int64_t> in_output_shape {};
+    std::vector<int64_t> expected_out_shape {1, 452, 452, 16};
 
     for (auto groups : groups_vec) {
         // data shape {N, H, W, IC}
@@ -1828,6 +1840,12 @@ TEST(op_schema_test, conv_bprop_data_nxc_xio_infer_shape) {
     std::string filter_format = "XIO";
 
     std::vector<int64_t> groups_vec {1, 2, 4};
+    // data shape {N, H, W, IC}
+    std::vector<int64_t> in_data {1, 224, 224, 3};
+    // weight shape {OC, IC, KH, KW}
+    std::vector<int64_t> in_weight {3, 3, 3, 16};
+    std::vector<int64_t> in_output_shape {};
+    std::vector<int64_t> expected_out_shape {1, 452, 452, 16};
 
     for (auto groups : groups_vec) {
         // data shape {N, H, W, IC}
@@ -1850,14 +1868,13 @@ TEST(op_schema_test, conv_bprop_data_ncx_xio_infer_shape) {
     std::string filter_format = "XIO";
 
     std::vector<int64_t> groups_vec {1, 2, 4};
-
     for (auto groups : groups_vec) {
         // data shape {N, IC, H, W}
-        const std::vector<int64_t> &in_data = {1, 32, 224, 224};
+        std::vector<int64_t> in_data {1, 32, 224, 224};
         // weight shape {OC, IC, KH, KW}
-        const std::vector<int64_t> &in_weight = {3, 3, 32 / groups, 16};
-        const std::vector<int64_t> &in_output_shape = {};
-        const std::vector<int64_t> &expected_out_shape = {1, 16, 452, 452};
+        std::vector<int64_t> in_weight {3, 3, 32 / groups, 16};
+        std::vector<int64_t> in_output_shape {};
+        std::vector<int64_t> expected_out_shape {1, 16, 452, 452};
 
         verify_shape_infer_for_conv_bprop_data(op_kind_, data_format,
                 filter_format, groups, in_data, in_weight, in_output_shape,

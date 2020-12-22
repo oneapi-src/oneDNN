@@ -14,24 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
+#ifndef LLGA_TESTS_CPP_API_TEST_API_COMMON_H
+#define LLGA_TESTS_CPP_API_TEST_API_COMMON_H
+
 #include <gtest/gtest.h>
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
-#include "test_api_common.h"
-
-TEST(c_api_test, create_graph_by_device) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
-
-#define CREATE_GRAPH_BY_DEVICE_DESTROY \
+#define ASSERT_EQ_SAFE(val1, val2, ...) \
     do { \
-        dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
-    } while (0);
+        auto result = (val1); \
+        if (result != (val2)) { {__VA_ARGS__} ASSERT_EQ(result, val2); } \
+    } while (0)
 
-    ASSERT_EQ_SAFE(dnnl_graph_graph_create(&agraph, engine),
-            dnnl_graph_result_success, CREATE_GRAPH_BY_DEVICE_DESTROY);
-    CREATE_GRAPH_BY_DEVICE_DESTROY;
-#undef CREATE_GRAPH_BY_DEVICE_DESTROY
-}
+#endif

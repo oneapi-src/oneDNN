@@ -542,9 +542,8 @@ public:
     /// @param aengine Engine.
     /// @param ahandle handle.
     tensor(const desc &adesc, void *ahandle, const engine &aengine)
-        : memory(adesc, aengine, ahandle) {
+        : memory(adesc, aengine, ahandle), eng_(aengine) {
         buffer_.reset();
-        eng_ = aengine;
     }
 
     /// Constructs a memory.
@@ -552,36 +551,35 @@ public:
     /// @param desc tensor descriptor.
     /// @param aengine Engine.
     tensor(const desc &adesc, const engine &aengine)
-        : memory(adesc, aengine, aengine.malloc(adesc.get_size())) {
+        : memory(adesc, aengine, aengine.malloc(adesc.get_size()))
+        , eng_(aengine) {
         buffer_.reset(this->get_data_handle(), aengine.free);
-        eng_ = aengine;
     }
 
     // format_tag, buffer
     tensor(const dims &adims, data_type adata_type, format_tag aformat_tag,
             void *ahandle, const engine &aengine)
-        : memory({adims, adata_type, aformat_tag}, aengine, ahandle) {
+        : memory({adims, adata_type, aformat_tag}, aengine, ahandle)
+        , eng_(aengine) {
         buffer_.reset();
-        eng_ = aengine;
     }
 
     // format_tag, no buffer
     tensor(const dims &adims, data_type adata_type, format_tag aformat_tag,
             const engine &aengine)
         : memory({adims, adata_type, aformat_tag}, aengine,
-                aengine.malloc(
-                        desc(adims, adata_type, aformat_tag).get_size())) {
+                aengine.malloc(desc(adims, adata_type, aformat_tag).get_size()))
+        , eng_(aengine) {
         buffer_.reset(this->get_data_handle(), aengine.free);
-        eng_ = aengine;
     }
 
     // no format_tag, buffer
     tensor(const dims &adims, data_type adata_type, void *ahandle,
             const engine &aengine)
         : memory({adims, adata_type, get_default_format(adims)}, aengine,
-                ahandle) {
+                ahandle)
+        , eng_(aengine) {
         buffer_.reset();
-        eng_ = aengine;
     }
 
     // no format_tag, no buffer
@@ -589,9 +587,9 @@ public:
         : memory({adims, adata_type, get_default_format(adims)}, aengine,
                 aengine.malloc(
                         desc(adims, adata_type, get_default_format(adims))
-                                .get_size())) {
+                                .get_size()))
+        , eng_(aengine) {
         buffer_.reset(this->get_data_handle(), aengine.free);
-        eng_ = aengine;
     }
 
     // construct backend::tensor by impl::tensor
@@ -601,20 +599,20 @@ public:
                         ? impl_tensor.get_void_data_handle_if_is(
                                 impl_tensor.get_logical_tensor().data_type)
                         : aengine.malloc(desc(impl_tensor.get_logical_tensor())
-                                                 .get_size())) {
+                                                 .get_size()))
+        , eng_(aengine) {
         impl_tensor ? buffer_.reset()
                     : buffer_.reset(this->get_data_handle(), aengine.free);
-        eng_ = aengine;
     }
 
     tensor(const impl::logical_tensor_t &lt, void *ahandle,
             const engine &aengine)
         : memory(desc(lt), aengine,
                 ahandle != nullptr ? ahandle
-                                   : aengine.malloc(desc(lt).get_size())) {
+                                   : aengine.malloc(desc(lt).get_size()))
+        , eng_(aengine) {
         ahandle ? buffer_.reset()
                 : buffer_.reset(this->get_data_handle(), aengine.free);
-        eng_ = aengine;
     }
 
     // legacy API for caffe2

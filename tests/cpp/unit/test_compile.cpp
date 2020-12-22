@@ -1100,11 +1100,11 @@ TEST(operator_kernel, matmul_ndx2d) {
     auto &op_factory = get_dnnl_kernel_registry();
     auto matmul_op = op_factory.create_kernel(matmul_node);
 
-    std::vector<std::vector<int64_t>> weight_shapes = {{16}, {16, 1}};
-    std::vector<std::vector<int64_t>> src_shapes
-            = {{4, 2, 16}, {6, 4, 2, 16}, {8, 6, 4, 2, 16}};
-    std::vector<std::vector<int64_t>> dst_shapes
-            = {{4, 2, 1}, {6, 4, 2, 1}, {8, 6, 4, 2, 1}};
+    std::vector<std::vector<int64_t>> weight_shapes {{16}, {16, 1}};
+    std::vector<std::vector<int64_t>> src_shapes {
+            {4, 2, 16}, {6, 4, 2, 16}, {8, 6, 4, 2, 16}};
+    std::vector<std::vector<int64_t>> dst_shapes {
+            {4, 2, 1}, {6, 4, 2, 1}, {8, 6, 4, 2, 1}};
 
     // Initialize
     std::default_random_engine generator;

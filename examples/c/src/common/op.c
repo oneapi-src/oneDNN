@@ -24,6 +24,8 @@ static size_t s_op_id = 10000;
 example_result_t example_op_attr_create(example_attr_t **created_op_attr,
         const char *name, example_attr_kind_t kind, void *data, size_t num) {
     *created_op_attr = (example_attr_t *)malloc(sizeof(example_attr_t));
+    if (*created_op_attr == NULL) return example_result_error_common_fail;
+
     (*created_op_attr)->name_ = name;
     (*created_op_attr)->kind_ = kind;
     (*created_op_attr)->data_num_ = (int64_t)(num);
@@ -49,6 +51,7 @@ void example_op_attr_destroy(example_attr_t *attr) {
 example_result_t example_op_create_base(
         example_op_t **created_op, const char *name, example_op_kind_t kind) {
     *created_op = (example_op_t *)malloc(sizeof(example_op_t));
+    if (*created_op == NULL) return example_result_error_common_fail;
     (*created_op)->name_ = name;
     (*created_op)->kind_ = kind;
 
@@ -83,7 +86,7 @@ static example_result_t example_op_create(example_op_t **created_op,
         example_attr_t **attrs, size_t attr_num) {
 
     // create op base
-    example_op_create_base(created_op, name, kind);
+    CHECK_EXAMPLE(example_op_create_base(created_op, name, kind));
 
     // add inputs
     uint64_t to_offset = 0;

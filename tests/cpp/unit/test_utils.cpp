@@ -35,6 +35,7 @@ TEST(utils_test, any) {
     llga::impl::utils::any a = 1;
     ASSERT_EQ(llga::impl::utils::any_cast<int>(a), 1);
     int *i = llga::impl::utils::any_cast<int>(&a);
+    ASSERT_NE(i, nullptr);
     ASSERT_EQ(*i, 1);
     a = 3.14;
     ASSERT_EQ(llga::impl::utils::any_cast<double>(a), 3.14);

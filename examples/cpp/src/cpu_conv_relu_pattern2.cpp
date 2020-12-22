@@ -152,7 +152,7 @@ int main(int argc, char **argv) {
     std::cout << "Infer shape------------------------------------\n";
     std::vector<logical_tensor> in0 {
             conv0_src_desc_plain, conv0_weight_desc_plain};
-    std::vector<logical_tensor> out0 {relu0_dst_desc_plain};
+    std::vector<logical_tensor> out0({relu0_dst_desc_plain});
     partitions[0].infer_shape(in0, out0);
     std::cout << "Success!\n";
     std::vector<int64_t> infered_relu0_dst_dims = out0[0].get_dims();
