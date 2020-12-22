@@ -37,11 +37,11 @@ void verify_op_schema(const op_kind_t op_kind_, const size_t expected_in_size,
     const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
     EXPECT_TRUE(nullptr != op_schema_);
 
-    const size_t input_size = op_schema_->get_inputs().size();
-    EXPECT_EQ(input_size, expected_in_size);
+    const std::set<size_t> input_size = op_schema_->get_num_inputs();
+    EXPECT_TRUE(input_size.find(expected_in_size) != input_size.end());
 
-    size_t output_size = op_schema_->get_outputs().size();
-    EXPECT_EQ(output_size, expected_out_size);
+    const std::set<size_t> output_size = op_schema_->get_num_outputs();
+    EXPECT_TRUE(output_size.find(expected_out_size) != output_size.end());
 
     size_t attr_size = op_schema_->get_attrs().size();
     EXPECT_EQ(attr_size, expected_attr_size);
@@ -186,6 +186,55 @@ void verify_shape_infer_for_conv(const op_kind_t op_kind_,
     logical_tensor_t lt_weight
             = logical_tensor_init(1, in_weight, data_type::f32);
     std::vector<logical_tensor_t *> in {&lt_data, &lt_weight};
+    logical_tensor_t lt_out = logical_tensor_init(2, data_type::f32);
+    std::vector<logical_tensor_t *> out {&lt_out};
+
+    // shape inference without explicitly setting auto_broadcast
+    // should be enabled by default
+    op_schema_->shape_infer(&node_, in, out);
+    const std::vector<int64_t> infered_out_shape
+            = logical_tensor_wrapper(lt_out).vdims();
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+    auto &unchanged_pads_begin
+            = node_.get_attr<std::vector<int64_t>>("pads_begin");
+    auto &unchanged_pads_end = node_.get_attr<std::vector<int64_t>>("pads_end");
+    EXPECT_EQ(unchanged_pads_begin, pads_begin);
+    EXPECT_EQ(unchanged_pads_end, pads_end);
+
+    // if output shape is known, infer auto pad
+    op_schema_->shape_infer(&node_, in, out);
+    auto &infered_pads_begin
+            = node_.get_attr<std::vector<int64_t>>("pads_begin");
+    auto &infered_pads_end = node_.get_attr<std::vector<int64_t>>("pads_end");
+    const std::vector<int64_t> expected_pads = {0, 0};
+    EXPECT_EQ(infered_pads_begin, expected_pads);
+    EXPECT_EQ(infered_pads_end, expected_pads);
+}
+
+void verify_shape_infer_for_conv(const op_kind_t op_kind_,
+        std::string data_format, std::string filter_format, int64_t groups,
+        const std::vector<int64_t> &in_data,
+        const std::vector<int64_t> &in_weight,
+        const std::vector<int64_t> &in_bias,
+        const std::vector<int64_t> &expected_out_shape) {
+    const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
+    node_t node_ {op_kind_};
+
+    std::vector<int64_t> strides = {2, 2};
+    std::vector<int64_t> pads_begin = {1, 1};
+    std::vector<int64_t> pads_end = {2, 2};
+    std::vector<int64_t> dilations = {1, 1};
+    std::string auto_pad = "VALID";
+
+    set_conv_common_attr(node_, strides, pads_begin, pads_end, dilations,
+            auto_pad, data_format, filter_format, groups);
+
+    logical_tensor_t lt_data = logical_tensor_init(0, in_data, data_type::f32);
+    logical_tensor_t lt_weight
+            = logical_tensor_init(1, in_weight, data_type::f32);
+    logical_tensor_t lt_bias = logical_tensor_init(0, in_bias, data_type::f32);
+    std::vector<logical_tensor_t *> in {&lt_data, &lt_weight, &lt_bias};
     logical_tensor_t lt_out = logical_tensor_init(2, data_type::f32);
     std::vector<logical_tensor_t *> out {&lt_out};
 
@@ -372,16 +421,17 @@ TEST(op_schema_test, exceeded_num_outputs) {
 
 TEST(op_schema_test, Convolution) {
     const op_kind_t op_kind_ = op_kind::Convolution;
-    const size_t expected_in_size = 2;
+    const std::set<size_t> expected_in_sizes = {2, 3};
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 8;
     const std::map<std::string, bool> attrs_data
             = {{"strides", true}, {"pads_begin", true}, {"pads_end", true},
                     {"dilations", true}, {"auto_pad", false}, {"groups", false},
                     {"data_format", false}, {"filter_format", false}};
-
-    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
-            expected_attr_size, attrs_data);
+    for (auto expected_in_size : expected_in_sizes) {
+        verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+                expected_attr_size, attrs_data);
+    }
 }
 
 TEST(op_schema_test, Conv_bias) {
@@ -646,6 +696,10 @@ TEST(op_schema_test, conv_ncx_oix_infer_shape) {
 
         verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
                 groups, in_data, in_weight, expected_out_shape);
+
+        const std::vector<int64_t> &in_bias = {16};
+        verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
+                groups, in_data, in_weight, in_bias, expected_out_shape);
     }
 }
 
@@ -739,6 +793,10 @@ TEST(op_schema_test, conv_nxc_oix_infer_shape) {
 
         verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
                 groups, in_data, in_weight, expected_out_shape);
+
+        const std::vector<int64_t> &in_bias = {16};
+        verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
+                groups, in_data, in_weight, in_bias, expected_out_shape);
     }
 }
 
@@ -759,6 +817,10 @@ TEST(op_schema_test, conv_nxc_xio_infer_shape) {
 
         verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
                 groups, in_data, in_weight, expected_out_shape);
+
+        const std::vector<int64_t> &in_bias = {16};
+        verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
+                groups, in_data, in_weight, in_bias, expected_out_shape);
     }
 }
 
@@ -779,6 +841,10 @@ TEST(op_schema_test, conv_ncx_xio_infer_shape) {
 
         verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
                 groups, in_data, in_weight, expected_out_shape);
+
+        const std::vector<int64_t> &in_bias = {16};
+        verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
+                groups, in_data, in_weight, in_bias, expected_out_shape);
     }
 }
 
@@ -1257,6 +1323,60 @@ TEST(op_schema_test, BatchNormInference_infer_shape) {
                 = compute_dense_strides(expected_out_shape);
         EXPECT_EQ(infered_out_strides, expected_out_strides);
     }
+}
+
+TEST(op_schema_test, conv_bn_infer_shape) {
+    const op_schema *a_op_schema
+            = op_schema_registry::get_op_schema(op_kind::conv_bn);
+    EXPECT_TRUE(nullptr != a_op_schema);
+    node_t a_node {op_kind::conv_bn};
+    std::vector<int64_t> strides = {2, 2};
+    std::vector<int64_t> pads_begin = {1, 1};
+    std::vector<int64_t> pads_end = {2, 2};
+    std::vector<int64_t> dilations = {1, 1};
+    float epsilon = 0.001f;
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    int64_t groups = 1;
+
+    set_conv_common_attr(a_node, strides, pads_begin, pads_end, dilations,
+            "None", data_format, filter_format, groups);
+    a_node.set_attr("epsilon", epsilon);
+
+    logical_tensor_t lt_data
+            = logical_tensor_init(0, {1, 256, 64, 64}, data_type::f32);
+    logical_tensor_t lt_weight
+            = logical_tensor_init(1, {512, 256, 3, 3}, data_type::f32);
+    logical_tensor_t lt_bias = logical_tensor_init(1, {512}, data_type::f32);
+    logical_tensor_t lt_gamma
+            = logical_tensor_init(1, {1, 512}, data_type::f32);
+    logical_tensor_t lt_beta = logical_tensor_init(2, {1, 512}, data_type::f32);
+    logical_tensor_t lt_mean = logical_tensor_init(3, {1, 512}, data_type::f32);
+    logical_tensor_t lt_variance
+            = logical_tensor_init(4, {1, 512}, data_type::f32);
+    logical_tensor_t lt_o
+            = logical_tensor_init(5, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight, &lt_bias,
+            &lt_gamma, &lt_beta, &lt_mean, &lt_variance};
+    std::vector<logical_tensor_t *> lt_out {&lt_o};
+    a_op_schema->shape_infer(&a_node, lt_in, lt_out);
+    auto &unchanged_pads_begin
+            = a_node.get_attr<std::vector<int64_t>>("pads_begin");
+    auto &unchanged_pads_end
+            = a_node.get_attr<std::vector<int64_t>>("pads_end");
+    EXPECT_EQ(unchanged_pads_begin, pads_begin);
+    EXPECT_EQ(unchanged_pads_end, pads_end);
+
+    const std::vector<int64_t> infered_out_shape
+            = logical_tensor_wrapper(lt_o).vdims();
+    const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+    const std::vector<int64_t> infered_out_strides
+            = logical_tensor_wrapper(lt_o).vstrides();
+    const std::vector<int64_t> expected_out_strides
+            = compute_dense_strides(expected_out_shape);
+    EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
 TEST(op_schema_test, conv_bn_relu_infer_shape) {
@@ -2242,15 +2362,16 @@ TEST(op_schema_test, Maximum_with_broadcast_infer_shape) {
 TEST(op_schema_test, MaxPoolBackprop) {
     const op_kind_t op_kind_ = op_kind::MaxPoolBackprop;
 
-    const size_t expected_in_size = 3;
+    const std::set<size_t> expected_in_sizes = {2, 3};
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 7;
     const std::map<std::string, bool> attrs_data = {{"strides", true},
             {"pads_begin", true}, {"pads_end", true}, {"kernel", true},
             {"auto_pad", false}, {"dilations", false}, {"data_format", false}};
-
-    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
-            expected_attr_size, attrs_data);
+    for (auto expected_in_size : expected_in_sizes) {
+        verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+                expected_attr_size, attrs_data);
+    }
 }
 
 TEST(op_schema_test, MaxPoolBackprop_infer_shape) {

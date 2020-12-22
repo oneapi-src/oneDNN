@@ -236,7 +236,8 @@ DNNL_GRAPH_OP_SCHEMA(Convolution, 1,
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
-                .set_input(1, "weight", "weight tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
                 .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
@@ -389,6 +390,9 @@ DNNL_GRAPH_OP_SCHEMA(Interpolate, 4,
                         "1D tensor describing output shape for spatial axes")
                 .set_input(2, "scales",
                         "1D tensor describing scales for spatial axes")
+                .set_input(3, "axes",
+                        "1D tensor specifying dimension indices where "
+                        "interpolation is applied")
                 .set_output(0, "output",
                         "a tensor with selected data from input tensor")
                 .set_attr("mode", "specifies type of interpolation", true)
@@ -430,6 +434,9 @@ DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 4,
                         "1D tensor describing output shape for spatial axes")
                 .set_input(3, "scales",
                         "1D tensor describing scales for spatial axes")
+                .set_input(4, "axes",
+                        "1D tensor specifying dimension indices where "
+                        "interpolation is applied")
                 .set_output(0, "output",
                         "a tensor with selected data from input tensor")
                 .set_attr("mode", "specifies type of interpolation", true)
@@ -612,7 +619,8 @@ DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
 
 DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
         op_schema()
-                .set_num_inputs(3)
+                .set_inputs_option(op_schema::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
                 .set_input(1, "output_forward_indices",
