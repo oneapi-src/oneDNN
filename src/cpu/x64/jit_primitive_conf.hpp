@@ -188,6 +188,19 @@ struct jit_conv_conf_t {
     bool src_zero_point;
     bool dst_zero_point;
     bool zp_src_is_common; // common, otherwise (TODO) per-channel
+    bool req_zero_point_buffer; // used for calculating padding compensation
+    int ow_pad, oh_pad; // output elements with padding & filter overlap
+
+    //output elements requiring zero-point padding compensation
+    int t_pad_output, b_pad_output;
+    int l_pad_output, r_pad_output;
+    // The number of output blocks corresponding to {l_pad, no_pad, r_pad}
+    int l_pad_blk, no_pad_w_blk, r_pad_blk;
+
+    bool oh_mid, ow_mid; // indicate if there is overlap between the width and
+            // height padded regions
+
+    size_t h_blk_limits[5]; // pre-computed limits for output height block
 
     bool uses_permw_transposition;
     bool transpose_src;
@@ -401,6 +414,7 @@ struct jit_conv_call_s {
     const void *compensation;
     const int32_t *zp_compensation;
     const int32_t *src_zero_point;
+    const int32_t *zero_point_pbuff;
     const int32_t *dst_zero_point;
     const void *tile_cfg;
     const void *tile_cfg_tail;
@@ -432,6 +446,7 @@ struct jit_conv_call_s {
     size_t iwb_prf;
     size_t owb;
     size_t owb_prf;
+    size_t ohb;
     size_t kw_padding;
     size_t channel;
     size_t channel_prf;

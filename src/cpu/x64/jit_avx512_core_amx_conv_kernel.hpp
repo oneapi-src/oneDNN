@@ -30,6 +30,73 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+/* This struct computes the compensation for src_zero_point related to
+ * padding */
+struct jit_avx512_core_amx_compute_zp_pbuff_t : public jit_generator {
+
+    using reg64_t = const Xbyak::Reg64;
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_compute_zp_pbuff_t)
+
+    jit_avx512_core_amx_compute_zp_pbuff_t(const jit_conv_conf_t &ajcp)
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        , jcp(ajcp) {}
+
+    static const int max_regs_ur = 30;
+
+private:
+    jit_conv_conf_t jcp;
+
+    typedef enum { no_last_block, last_ic_block } ic_block_t;
+    const int ic_inner_block = 4;
+
+    Xbyak::Label permb_idx_label;
+    Xbyak::Label ic_mask_label;
+
+    const reg64_t reg_zp_pbuff = r8;
+    const reg64_t reg_src_zero_point = r9;
+    const reg64_t reg_filt = r10;
+    const reg64_t aux_reg_filt = r11;
+
+    const reg64_t reg_oc_blocks = r12;
+    const reg64_t reg_icb = r13;
+    const reg64_t reg_oi = r14;
+    const reg64_t reg_kj = rax;
+    const reg64_t reg_overflow = reg_kj;
+    const reg64_t reg_scratch = rsi;
+
+    const Xbyak::Zmm zmm_one = Xbyak::Zmm(31);
+    const Xbyak::Zmm zmm_permb = Xbyak::Zmm(30);
+
+    const Xbyak::Opmask kmask_ic_block = Xbyak::Opmask(1);
+    const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
+
+    void prepare_output(int ur_w);
+    void store_output(int ur_w, bool last_oc_block_flag);
+    void compute_ker(int ur_w, int pad_l, int pad_r,
+            ic_block_t last_ic_block_flag, bool h_padded);
+    void kh_loop(int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag,
+            bool handle_h_pad);
+    void icb_loop(int ur_w, int pad_l, int pad_r, bool handle_h_pad);
+    void unroll_width(const bool h_padding);
+
+    void generate() override;
+
+    Xbyak::Zmm zmm_out(int i_ur, int i_oc) {
+        int idx = i_ur * jcp.nb_oc_blocking + i_oc;
+        assert(idx < max_regs_ur);
+        return Xbyak::Zmm(idx);
+    }
+    int get_ow_start(int ki, int pad_l) {
+        return nstl::max(0,
+                utils::div_up(pad_l - ki * (jcp.dilate_w + 1), jcp.stride_w));
+    }
+    int get_ow_end(int ur_w, int ki, int pad_r) {
+        int filter_overlap = pad_r - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1);
+        return ur_w - nstl::max(0, utils::div_up(filter_overlap, jcp.stride_w));
+    }
+};
+
 struct jit_avx512_core_amx_copy_to_wbuffer_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_copy_to_wbuffer_t)
 
@@ -126,7 +193,8 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
         , jcp(ajcp)
         , attr_(attr)
         , eltwise_injector_(nullptr)
-        , copy_to_wbuffer_(nullptr) {
+        , copy_to_wbuffer_(nullptr)
+        , zp_pbuff_kernel_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, jcp.eltwise);
@@ -139,12 +207,18 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
         CHECK(jit_generator::create_kernel());
         CHECK(copy_to_pbuffer_->create_kernel());
         if (jcp.is_relo) CHECK(copy_to_wbuffer_->create_kernel());
+        if (jcp.req_zero_point_buffer) {
+            CHECK(safe_ptr_assign(zp_pbuff_kernel_,
+                    new jit_avx512_core_amx_compute_zp_pbuff_t(jcp)));
+            CHECK(zp_pbuff_kernel_->create_kernel());
+        }
         return status::success;
     }
     ~jit_avx512_core_amx_fwd_kernel_t() {
         delete eltwise_injector_;
         delete copy_to_pbuffer_;
         delete copy_to_wbuffer_;
+        delete zp_pbuff_kernel_;
     }
 
     static bool post_ops_ok(
@@ -157,6 +231,58 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
+    inline int accum_with_upper_bound(
+            int upper_bound, int lower_value, int upper_value) {
+        return nstl::min(upper_bound,
+                nstl::min(upper_bound, lower_value)
+                        + nstl::max(0, upper_bound - upper_value));
+    }
+
+    /*  Calculate and store the limits relevant to 'ow_block'. These limits
+     * allow the driver code to determine which 'ow_block' is currently being
+     * executed. There can be at most 5 different 'ow_block', each corresponding
+     * to:
+     * - l_pad block
+     * - middle block (no padding)
+     * - middle & r_pad shift block
+     * - r_pad (full) block
+     * - r_pad tail
+     *  */
+    static void set_ow_blk_limits(jit_conv_conf_t &jcp);
+
+    /*  Calculate and store the limits relevant to each 'oh_block'. Each
+     * 'oh_block' size is 'nb_oh_blocking * oh_per_tile'. These limits allow
+     * the driver code to determine which 'oh_block' is currently being
+     * executed, and what is the oh value required to advance the limits index.
+     *
+     *  There can be at most 6 different 'oh_blk', depending on the sizes of
+     * 't_pad_output', 'b_pad_output' and their overlap with
+     * 'nb_oh_blocking * oh_per_tile'.
+     *
+     *  For example, given the following input dimensions of {height_size = 12,
+     * oh_blk_size = 2, top_padding = 5 (t_pad), bottom_padding = 2 (b_pad)},
+     * the 4 output height blocks and limits are:
+     *
+     *          H: _           H_blks:_  Limits:
+     *          0 | |               0|X|
+     *          1 | |                |X|_4
+     *          2 | | t_pad
+     *          3 | |                 _
+     *          4 |_|               1|X|
+     *          5 | |                |_|_5
+     *          6 | |               2| |
+     *          7 | |                |_|_9
+     *          8 | |
+     *          9 |_|                 _
+     *          10| | b_pad         3|X|
+     *          11|_|                |X|_11
+     *
+     *                        -where 'x' represents
+     *                        an 'h_blk' with output
+     *                        padding.
+     *  */
+    static void set_oh_blk_limits(jit_conv_conf_t &jcp);
+
     void tile_configure(char *tcfg_buff);
 
     jit_conv_conf_t jcp;
@@ -168,11 +294,15 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
     const jit_avx512_core_amx_copy_to_wbuffer_t &copy_to_wbuffer() const {
         return *copy_to_wbuffer_;
     }
+    const jit_avx512_core_amx_compute_zp_pbuff_t &zp_pbuff_kernel() const {
+        return *zp_pbuff_kernel_;
+    }
 
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
     jit_avx512_core_amx_copy_to_pbuffer_t *copy_to_pbuffer_;
     jit_avx512_core_amx_copy_to_wbuffer_t *copy_to_wbuffer_;
+    jit_avx512_core_amx_compute_zp_pbuff_t *zp_pbuff_kernel_;
 
     enum {
         zmm_idx_limit_bf16 = 29,
@@ -202,10 +332,12 @@ private:
     // zero-point computation
     const Xbyak::Reg64 reg_zp_compensation = rax;
     const Xbyak::Reg64 reg_src_zero_point = r8;
+    const Xbyak::Reg64 reg_zero_point_pbuff = rsi;
     const Xbyak::Reg64 reg_dst_zero_point = abi_not_param1;
 
     // rbp - reserved for EVEX compression
     const Xbyak::Reg64 reg_last_h = abi_not_param1;
+    const Xbyak::Reg64 reg_jmp_blk = reg_last_h;
 
     // temporary, used in generate() function only
     const Xbyak::Reg64 reg_oc_blocks = rax;
@@ -229,15 +361,18 @@ private:
     size_t get_inp_h_step() const;
     size_t get_wei_d_step() const;
     size_t get_wei_h_step() const;
-    size_t get_out_ocb_offset(int ohb, int ocb) const;
-    size_t get_out_row_offset(int ohb, int ocb, int j) const;
-    size_t get_out_shift(int width) const;
+    size_t get_out_ocb_offset(int ohb, int ocb, size_t typesize) const;
+    size_t get_out_row_offset(int ohb, int ocb, int j, size_t typesize) const;
+    size_t get_out_shift(int width, size_t typesize) const;
     size_t get_wsp_ocb_offset(int ohb, int ocb) const;
     size_t get_wsp_row_offset(int ohb, int ocb, int j) const;
     size_t get_wsp_shift() const;
     size_t get_wei_offset(int ocb, int kw) const;
     size_t get_inp_shift() const;
     size_t get_inp_offset(int ohb, int kw) const;
+    size_t get_zp_comp_offset(int ocb, int zp_h, int zp_w) const;
+    int get_zp_index_offset(
+            int index, int mid, int s_pad_output, int e_pad_output);
 
     int get_out_tensor(int h, int i, bool is_h_tail = false) const;
     int get_inp_tensor(int h, bool is_h_tail = false) const;
@@ -245,8 +380,10 @@ private:
 
     void prepare_output(int tail);
     void init_runtime_counters(bool start_with_last_tile_block);
-
     bool maybe_eltwise(int position);
+    size_t reduce_to_block(const int block_size, const int pad_output);
+    size_t reduce_to_blocked_dims(const int dim_size, const int block_size,
+            const int s_pad_output, const int e_pad_output);
     void cvt2ps(data_type_t type_in, Xbyak::Zmm ymm_in,
             const Xbyak::Operand &op, bool mask_flag);
     Xbyak::Zmm zmm_out(const int idx) {
@@ -264,12 +401,16 @@ private:
 
     void store_output_vector_bf16(
             const Xbyak::Zmm zmm_out, int ocb, int h, int w);
-    void store_output_vector_int8(
-            const Xbyak::Zmm zmm_out, int ocb, int h, int w);
-    void store_output_vector(const Xbyak::Zmm zmm_out, int ocb, int h, int w);
-    void store_output(int width, int tail, bool do_store);
+    void store_output_vector_int8(const Xbyak::Zmm zmm_out, int ocb, int h,
+            int w, const bool compute_zp, const int zp_h, const int zp_w);
+    void store_output_vector(const Xbyak::Zmm zmm_out, int ocb, int h, int w,
+            const bool compute_zp = false, const int zp_h = 0,
+            const int zp_w = 0);
+    void store_output(int width, int tail, bool do_store,
+            const int l_pad_output, const int r_pad_output);
     void interleave_store(int width);
-    void compute_icb_loop(int width, bool do_store);
+    void compute_icb_loop(int width, bool do_store, const int l_pad_output,
+            const int r_pad_output);
     void compute_ow_loop();
 
     void generate() override;
