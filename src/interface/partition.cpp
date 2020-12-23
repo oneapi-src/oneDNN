@@ -247,6 +247,8 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
         return status::invalid_argument;
 
     std::vector<dnnl_graph_tensor_t> ins, outs;
+    ins.reserve(num_inputs);
+    outs.reserve(num_inputs);
 
     for (size_t i = 0; i < num_inputs; ++i) {
         ins.emplace_back(**(inputs + i));
