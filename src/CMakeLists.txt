@@ -74,6 +74,16 @@ if(UNIX)
     endif()
 endif()
 
+macro(enable_conditional_compilation4 target)
+    if(TARGET openvino::conditional_compilation)
+        target_link_libraries(${target} openvino::conditional_compilation)
+        if(SELECTIVE_BUILD STREQUAL "ON")
+            # After disabling a block of code, some variables might be unused.
+            target_compile_options(${target} PRIVATE -Wno-unused-variable)
+        endif()
+    endif()
+endmacro()
+
 add_subdirectory(common)
 add_subdirectory(cpu)
 
