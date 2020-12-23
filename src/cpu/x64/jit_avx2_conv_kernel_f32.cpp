@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -64,8 +64,9 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(
 
                 for (int ii = 0; ii < oc_blocks; ii++) {
                     vmovups(ymm15,
-                            ptr[aux_reg_kernel
-                                    + get_kernel_offset(ii, ki, ifm2)]);
+                            make_safe_addr(aux_reg_kernel,
+                                    get_kernel_offset(ii, ki, ifm2),
+                                    reg_long_offt));
                     for (int jj = jj_start; jj < jj_end; jj++)
                         if (mayiuse(avx2))
                             vfmadd231ps(Ymm(ur_w * ii + jj),
@@ -122,7 +123,8 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(
             }
             for (int ii = 0; ii < oc_blocks; ii++) {
                 vmovups(ymm15,
-                        ptr[aux_reg_kernel + get_kernel_offset(ii, 0, ifm2)]);
+                        make_safe_addr(aux_reg_kernel,
+                                get_kernel_offset(ii, 0, ifm2), reg_long_offt));
                 for (int jj = jj_start; jj < jj_end; jj++)
                     if (mayiuse(avx2))
                         vfmadd231ps(Ymm(ur_w * ii + jj),
@@ -133,8 +135,9 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(
                     }
             }
         }
-        add(aux_reg_kernel, get_kernel_offset(0, 1, 0));
-        add(aux_reg_input, get_input_offset(0, filter_w_to_input(1)));
+        safe_add(aux_reg_kernel, get_kernel_offset(0, 1, 0), reg_long_offt);
+        safe_add(aux_reg_input, get_input_offset(0, filter_w_to_input(1)),
+                reg_long_offt);
 
         inc(ki_iter);
         cmp(ki_iter, kw);
@@ -278,8 +281,10 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
                             - get_input_offset(0, filter_w_to_input(kw)));
         } else {
             oh_step_unroll_kw(ur_w, pad_l, pad_r, oc_blocks);
-            add(aux_reg_kernel, get_kernel_offset(0, kw, 0));
-            add(aux_reg_input, get_input_offset(0, filter_h_to_input(1)));
+            safe_add(
+                    aux_reg_kernel, get_kernel_offset(0, kw, 0), reg_long_offt);
+            safe_add(aux_reg_input, get_input_offset(0, filter_h_to_input(1)),
+                    reg_long_offt);
         }
 
         dec(kj);
@@ -290,8 +295,10 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
     L(skip_kh_loop);
 
     if (jcp.ndims == 5) {
-        add(aux_reg_inp_d, get_input_offset(0, filter_d_to_input(1)));
-        add(aux_reg_ker_d, get_kernel_offset(0, jcp.kw * jcp.kh, 0));
+        safe_add(aux_reg_inp_d, get_input_offset(0, filter_d_to_input(1)),
+                reg_long_offt);
+        safe_add(aux_reg_ker_d, get_kernel_offset(0, jcp.kw * jcp.kh, 0),
+                reg_long_offt);
 
         dec(reg_ki);
         cmp(reg_ki, 0);
