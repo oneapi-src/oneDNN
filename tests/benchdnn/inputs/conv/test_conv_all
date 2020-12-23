@@ -8,6 +8,7 @@
 --batch=test_conv_attrs_f32_nxc
 #--batch=test_conv_bfloat16 # included in test_conv_dt
 #--batch=test_conv_bfloat16_nxc # included in test_conv_dt_nxc
+#--batch=test_conv_bfloat16_ymm # excluded as it sets global state
 --batch=test_conv_ci
 --batch=test_conv_depthwise
 --batch=test_conv_dilated
