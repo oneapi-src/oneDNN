@@ -38,6 +38,11 @@ using namespace nstl;
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
 
+#define mem_blk_off(md, ndims, n, c, d, h, w) \
+    (ndims) == 3 ? (md).blk_off((n), (c), (w)) \
+                 : (ndims) == 4 ? (md).blk_off((n), (c), (h), (w)) \
+                                : (md).blk_off((n), (c), (d), (h), (w))
+
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
 void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
         dst_type>::prepare_padded_bias(const char *&bias,
@@ -279,8 +284,10 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
 
     // TODO: use block offset instead of hand-calculated one
     //size_t wei_oc_shift = wht_blk_off(weights_d, 0, 1);
-    size_t wei_oc_shift = (size_t)jcp.nb_oc_blocking * jcp.nb_ic_int * jcp.kh
-            * jcp.kw * jcp.ic_block_int_np * jcp.oc_block;
+    const size_t wei_oc_shift = (size_t)jcp.nb_oc_blocking * jcp.nb_ic_int
+            * jcp.kd * jcp.kh * jcp.kw * jcp.ic_block_int_np * jcp.oc_block;
+    const size_t wei_d_shift
+            = (size_t)jcp.kh * jcp.kw * jcp.ic_block_int_np * jcp.oc_block;
 
     auto inp_p_buffer = ctx.get_scratchpad_grantor().template get<src_data_t>(
             key_conv_amx_inp_buffer); // fix the template
@@ -297,27 +304,28 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
 
     const int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     const int oh_chunks = utils::div_up(jcp.oh, jcp.oh_blk_size);
-    const int work_amount
-            = jcp.mb * jcp.ngroups * oh_chunks * jcp.nb_ow * oc_chunks;
+    const size_t work_amount = (size_t)jcp.mb * jcp.ngroups * jcp.od * oh_chunks
+            * jcp.nb_ow * oc_chunks;
 
     // Initialize the tile configuration in memory, so that each thread can
     // load this configuration from memory via `amx_tile_configure(tcfg)`.
     kernel_->tile_configure(tcfg);
-    const bool is_1d = pd()->ndims() == 3;
+    const int ndims = pd()->ndims();
 
     // TODO: implement 2D parallelization driver (g * spatial x oc) to increase
     // input data reuse and parallelize input data reorders
     parallel(0, [&](const int ithr, const int nthr) {
-        int start {0}, end {0};
+        size_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
 
         auto p = jit_conv_call_s();
         amx_tile_configure(tcfg);
 
-        int mb {0}, g {0}, ohc {0}, owb {0}, occ {0};
-        nd_iterator_init(start, mb, jcp.mb, g, jcp.ngroups, ohc, oh_chunks, owb,
-                jcp.nb_ow, occ, oc_chunks);
+        int mb {0}, g {0}, odc {0}, ohc {0}, owb {0}, occ {0};
+        nd_iterator_init(start, mb, jcp.mb, g, jcp.ngroups, odc, jcp.od, ohc,
+                oh_chunks, owb, jcp.nb_ow, occ, oc_chunks);
         int last_copied_mb = -1;
+        int last_copied_odc = -1;
         int last_copied_ohc = -1;
         int last_copied_owb = -1;
         int last_copied_g = -1;
@@ -335,11 +343,22 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
             p.src_zero_point = jcp.src_zero_point ? src_zero_point : nullptr;
             p.dst_zero_point = jcp.dst_zero_point ? dst_zero_point : nullptr;
 
+            const int id_s = odc * jcp.stride_d - jcp.f_pad;
+            const int dilate_d = jcp.dilate_d + 1;
+            const int d_f_overflow
+                    = nstl::min(jcp.kd, div_up(max(0, -id_s), dilate_d));
+            const int d_back_overflow = nstl::min(jcp.kd,
+                    div_up(max(0, id_s - jcp.id + (jcp.kd - 1) * dilate_d + 1),
+                            dilate_d));
+            const size_t inp_src_d_stride
+                    = mem_blk_off(src_d, ndims, 0, 0, 1, 0, 0);
+            p.kd_padding
+                    = nstl::max(0, jcp.kd - d_f_overflow - d_back_overflow);
             int oh_s = ohc * jcp.oh_blk_size;
             int oh_e = nstl::min(jcp.oh, oh_s + jcp.oh_blk_size);
             bool is_inp_buffer_relevant = true && last_copied_mb == mb
-                    && last_copied_ohc == ohc && last_copied_owb == owb
-                    && last_copied_g == g;
+                    && last_copied_odc == odc && last_copied_ohc == ohc
+                    && last_copied_owb == owb && last_copied_g == g;
 
             int oh_step = jcp.nb_oh_blocking * jcp.oh_per_tile;
             for (int oh = oh_s; oh < oh_e; oh += oh_step) {
@@ -383,9 +402,9 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                         p.b_overflow = ih_zero_bottom;
                         p.owb = owb;
                         int ih = nstl::max(ih_copy_start, 0);
-                        size_t inp_offset = is_1d
-                                ? src_d.blk_off(mb, icb, iw)
-                                : src_d.blk_off(mb, icb, ih, iw);
+                        size_t inp_offset = mem_blk_off(src_d, ndims, mb, icb,
+                                                    id_s, ih, iw)
+                                + d_f_overflow * dilate_d * inp_src_d_stride;
                         p.src = src + src_dt_size * inp_offset;
                         // inp_buffer has physical padding
                         int ih_buf = continuous_copy
@@ -405,11 +424,13 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                 p.src = inp_buffer
                         + (size_t)ih_buf * jcp.iwp * jcp.ic_block_int_np;
 
-                size_t dst_offset = is_1d ? dst_d.blk_off(mb, ocb, ow)
-                                          : dst_d.blk_off(mb, ocb, oh, ow);
+                size_t dst_offset
+                        = mem_blk_off(dst_d, ndims, mb, ocb, odc, oh, ow);
                 p.dst = dst + dst_dt_size * dst_offset;
                 p.filt = weights
-                        + wei_dt_size * (g * oc_chunks + occ) * wei_oc_shift;
+                        + ((g * oc_chunks + occ) * wei_oc_shift
+                                  + d_f_overflow * wei_d_shift)
+                                * wei_dt_size;
                 p.bias = bias_w;
                 p.scales = &oscales[jcp.is_oc_scale * oc];
 
@@ -421,12 +442,13 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                 (*kernel_)(&p);
             }
             last_copied_mb = mb;
+            last_copied_odc = odc;
             last_copied_ohc = ohc;
             last_copied_owb = owb;
             last_copied_g = g;
             ++start;
-            nd_iterator_step(mb, jcp.mb, g, jcp.ngroups, ohc, oh_chunks, owb,
-                    jcp.nb_ow, occ, oc_chunks);
+            nd_iterator_step(mb, jcp.mb, g, jcp.ngroups, odc, jcp.od, ohc,
+                    oh_chunks, owb, jcp.nb_ow, occ, oc_chunks);
         }
     });
     return status::success;

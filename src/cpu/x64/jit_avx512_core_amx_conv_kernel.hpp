@@ -87,6 +87,8 @@ private:
     /* relow stuff */
 
     /* non-relow stuff */
+    const reg64_t reg_kdp = abi_not_param1;
+    const reg64_t reg_kdc = rbp;
     const reg64_t reg_khc = r11;
 
     const reg64_t reg_icb = r9;
@@ -187,6 +189,8 @@ private:
     const Xbyak::Reg64 reg_out_ptr = r13;
     const Xbyak::Reg64 reg_wsp_ptr = r12;
 
+    const Xbyak::Reg64 reg_kd = rsi;
+
     const Xbyak::Reg64 reg_bias = r11;
     const Xbyak::Reg64 reg_ptr_scales = r10;
     const Xbyak::Reg64 reg_ptr_sum_scale = r9;
@@ -199,7 +203,6 @@ private:
     const Xbyak::Reg64 reg_src_zero_point = r8;
     const Xbyak::Reg64 reg_dst_zero_point = abi_not_param1;
 
-    // rsi - free and available
     // rbp - reserved for EVEX compression
     const Xbyak::Reg64 reg_last_h = abi_not_param1;
 
@@ -221,7 +224,9 @@ private:
     // AUX: Steps, shifts and offsets
     size_t get_inp_icb_step() const;
     size_t get_wei_icb_step() const;
+    size_t get_inp_d_step() const;
     size_t get_inp_h_step() const;
+    size_t get_wei_d_step() const;
     size_t get_wei_h_step() const;
     size_t get_out_ocb_offset(int ohb, int ocb) const;
     size_t get_out_row_offset(int ohb, int ocb, int j) const;
