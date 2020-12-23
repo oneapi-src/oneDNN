@@ -47,11 +47,6 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
                     is_fwd() ? src_md() : diff_dst_md());
             const memory_desc_t *md_src = is_fwd() ? src_md() : diff_dst_md();
 
-            auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine);
-
-            memory_desc_t reshape_md;
-
             bool ok = true && attr()->has_default_values()
                     && IMPLICATION(!is_fwd(), set_default_formats_common());
             if (!ok) return status::unimplemented;
@@ -130,7 +125,6 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
-        engine_t *engine = ctx.stream()->engine();
         exec_args_t r_args;
 
         auto src = pd()->is_fwd() ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
