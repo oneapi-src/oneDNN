@@ -67,33 +67,33 @@ struct jit_avx512_core_amx_copy_to_pbuffer_t : public jit_generator {
 private:
     jit_conv_conf_t jcp;
 
-    const reg64_t inp_ptr = r15;
-    const reg64_t out_ptr = r14;
+    const reg64_t reg_inp_ptr = r15;
+    const reg64_t reg_out_ptr = r14;
 
-    const reg64_t aux_inp_ptr = r13;
-    const reg64_t aux_out_ptr = r12;
+    const reg64_t reg_aux_inp_ptr = r13;
+    const reg64_t reg_aux_out_ptr = r12;
+
+    const reg64_t reg_khp = r10;
 
     /* relow stuff */
     const reg64_t reg_kht = r11;
-    const reg64_t reg_khp = r10;
     const reg64_t reg_tov = r9;
     const reg64_t reg_bov = r8;
     const reg64_t reg_kwp = rax;
-    const reg64_t reg_lov = aux_inp_ptr;
+    const reg64_t reg_lov = reg_aux_inp_ptr;
     const reg64_t reg_rov = rbx;
-    const reg64_t save_out_ptr = rdx;
+    const reg64_t reg_save_out_ptr = rdx;
     const reg64_t reg_cnt = rbp;
     /* relow stuff */
 
     /* non-relow stuff */
-    const reg64_t khp = r11;
-    const reg64_t khc = r10;
+    const reg64_t reg_khc = r11;
 
     const reg64_t reg_icb = r9;
 
-    const reg64_t kh_over = r8;
-    const reg64_t tover = rax;
-    const reg64_t bover = rbx;
+    const reg64_t reg_kh_over = r8;
+    const reg64_t reg_tover = rax;
+    const reg64_t reg_bover = rbx;
 
     const reg64_t reg_owb = rdx;
     /* non-relow stuff */
@@ -182,15 +182,15 @@ private:
     bool is_buffer_empty_;
 
     /* data regs */
-    const Xbyak::Reg64 inp_ptr = r15;
-    const Xbyak::Reg64 wei_ptr = r14;
-    const Xbyak::Reg64 out_ptr = r13;
-    const Xbyak::Reg64 wsp_ptr = r12;
+    const Xbyak::Reg64 reg_inp_ptr = r15;
+    const Xbyak::Reg64 reg_wei_ptr = r14;
+    const Xbyak::Reg64 reg_out_ptr = r13;
+    const Xbyak::Reg64 reg_wsp_ptr = r12;
 
     const Xbyak::Reg64 reg_bias = r11;
     const Xbyak::Reg64 reg_ptr_scales = r10;
     const Xbyak::Reg64 reg_ptr_sum_scale = r9;
-    const Xbyak::Reg64 aux_reg_saturation = reg_ptr_sum_scale;
+    const Xbyak::Reg64 reg_aux_saturation = reg_ptr_sum_scale;
 
     const Xbyak::Reg64 reg_inp_stride = rbx;
     const Xbyak::Reg64 reg_wei_stride = rdx;

@@ -145,7 +145,7 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_body(
                     = (size_t)jcp.typesize_in * iwp_idx * jcp.ic_block_int_np;
             if (iw_idx < 0 || iw_idx >= iw_len) {
                 // left or right padding
-                vmovups(ptr[aux_out_ptr + out_base_offset], zmm_zero);
+                vmovups(ptr[reg_aux_out_ptr + out_base_offset], zmm_zero);
             } else if (jcp.is_nspc) {
                 size_t inp_w_offset = (size_t)jcp.typesize_in * iw_idx
                         * jcp.ngroups * jcp.ic_without_padding;
@@ -156,11 +156,12 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_body(
                         ? zmm_tmp
                         : zmm_tmp | ktail_mask | T_z;
                 if (is_bf16) {
-                    vmovdqu16(zmm_tmp_mask, ptr[aux_inp_ptr + inp_w_offset]);
-                    vmovdqu16(ptr[aux_out_ptr + out_base_offset], zmm_tmp);
+                    vmovdqu16(
+                            zmm_tmp_mask, ptr[reg_aux_inp_ptr + inp_w_offset]);
+                    vmovdqu16(ptr[reg_aux_out_ptr + out_base_offset], zmm_tmp);
                 } else {
-                    vmovdqu8(zmm_tmp_mask, ptr[aux_inp_ptr + inp_w_offset]);
-                    vmovdqu8(ptr[aux_out_ptr + out_base_offset], zmm_tmp);
+                    vmovdqu8(zmm_tmp_mask, ptr[reg_aux_inp_ptr + inp_w_offset]);
+                    vmovdqu8(ptr[reg_aux_out_ptr + out_base_offset], zmm_tmp);
                 }
             } else {
                 assert(is_bf16);
@@ -172,13 +173,14 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_body(
                                     * jcp.iw * jcp.ic_block
                             + inp_w_offset;
                     if (ic + jcp.ic_block <= jcp.ic) {
-                        vmovdqu16(ymm_tmp, ptr[aux_inp_ptr + inp_c_w_offset]);
+                        vmovdqu16(
+                                ymm_tmp, ptr[reg_aux_inp_ptr + inp_c_w_offset]);
                     } else {
                         vpxord(ymm_tmp, ymm_tmp, ymm_tmp);
                     }
                     size_t out_offset = out_base_offset
                             + (size_t)jcp.typesize_in * j * jcp.ic_block;
-                    vmovdqu16(ptr[aux_out_ptr + out_offset], ymm_tmp);
+                    vmovdqu16(ptr[reg_aux_out_ptr + out_offset], ymm_tmp);
                 }
             }
         }
@@ -292,9 +294,9 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
     };
 
     // pointer to 1st needed element in src buffer
-    mov(inp_ptr, ptr[param1 + GET_OFF(src)]);
+    mov(reg_inp_ptr, ptr[param1 + GET_OFF(src)]);
     // pointer to 1st needed element in dst buffer
-    mov(out_ptr, ptr[param1 + GET_OFF(dst)]);
+    mov(reg_out_ptr, ptr[param1 + GET_OFF(dst)]);
 
     // total number of rows to copy
     mov(reg_kht, ptr[param1 + GET_OFF(kh_offset)]);
@@ -322,16 +324,16 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
         L(label_lov); // handle left or right overflow
         {
             Label label_lov_inner;
-            mov(aux_out_ptr, out_ptr);
+            mov(reg_aux_out_ptr, reg_out_ptr);
             mov(reg_cnt, reg_kht);
             L(label_lov_inner);
             {
-                zero_it(aux_out_ptr);
-                add(aux_out_ptr, out_h_step);
+                zero_it(reg_aux_out_ptr);
+                add(reg_aux_out_ptr, out_h_step);
                 dec(reg_cnt);
                 jnz(label_lov_inner, T_NEAR);
             }
-            add(out_ptr, out_w_step);
+            add(reg_out_ptr, out_w_step);
             dec(reg_lov);
             jnz(label_lov, T_NEAR);
         }
@@ -339,7 +341,7 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
     }
 
     // save output pointer for later use
-    mov(save_out_ptr, out_ptr);
+    mov(reg_save_out_ptr, reg_out_ptr);
 
     // just in case there is no meat...
     Label label_kwp_end;
@@ -361,16 +363,16 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
     L(label_tov); // handle top overflow
     {
         Label label_tov_inner;
-        mov(aux_out_ptr, out_ptr);
+        mov(reg_aux_out_ptr, reg_out_ptr);
         mov(reg_cnt, reg_kwp);
         L(label_tov_inner);
         {
-            zero_it(aux_out_ptr);
-            add(aux_out_ptr, out_w_step);
+            zero_it(reg_aux_out_ptr);
+            add(reg_aux_out_ptr, out_w_step);
             dec(reg_cnt);
             jnz(label_tov_inner, T_NEAR);
         }
-        add(out_ptr, out_h_step);
+        add(reg_out_ptr, out_h_step);
         dec(reg_tov);
         jnz(label_tov, T_NEAR);
     }
@@ -379,8 +381,8 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
     L(label_khp); // handle kh padding (not fully unrolled)
     {
         Label label_khp_inner;
-        mov(aux_inp_ptr, inp_ptr);
-        mov(aux_out_ptr, out_ptr);
+        mov(reg_aux_inp_ptr, reg_inp_ptr);
+        mov(reg_aux_out_ptr, reg_out_ptr);
         mov(reg_cnt, reg_kwp);
         L(label_khp_inner);
         {
@@ -393,20 +395,20 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
                 Zmm zmm_load = masked ? zmm_tmp | ktail_mask | T_z : zmm_tmp;
                 Zmm zmm_store = masked ? zmm_tmp | ktail_mask : zmm_tmp;
                 if (is_bf16) {
-                    vmovdqu16(zmm_load, ptr[aux_inp_ptr + offset]);
-                    vmovdqu16(ptr[aux_out_ptr + offset], zmm_store);
+                    vmovdqu16(zmm_load, ptr[reg_aux_inp_ptr + offset]);
+                    vmovdqu16(ptr[reg_aux_out_ptr + offset], zmm_store);
                 } else {
-                    vmovdqu8(zmm_load, ptr[aux_inp_ptr + offset]);
-                    vmovdqu8(ptr[aux_out_ptr + offset], zmm_store);
+                    vmovdqu8(zmm_load, ptr[reg_aux_inp_ptr + offset]);
+                    vmovdqu8(ptr[reg_aux_out_ptr + offset], zmm_store);
                 }
             }
-            add(aux_inp_ptr, inp_w_step);
-            add(aux_out_ptr, out_w_step);
+            add(reg_aux_inp_ptr, inp_w_step);
+            add(reg_aux_out_ptr, out_w_step);
             dec(reg_cnt);
             jnz(label_khp_inner, T_NEAR);
         }
-        add(inp_ptr, inp_h_step);
-        add(out_ptr, out_h_step);
+        add(reg_inp_ptr, inp_h_step);
+        add(reg_out_ptr, out_h_step);
         dec(reg_khp);
         jnz(label_khp, T_NEAR);
     }
@@ -416,16 +418,16 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
     L(label_bov); // handle bottom overflow
     {
         Label label_bov_inner;
-        mov(aux_out_ptr, out_ptr);
+        mov(reg_aux_out_ptr, reg_out_ptr);
         mov(reg_cnt, reg_kwp);
         L(label_bov_inner);
         {
-            zero_it(aux_out_ptr);
-            add(aux_out_ptr, out_w_step);
+            zero_it(reg_aux_out_ptr);
+            add(reg_aux_out_ptr, out_w_step);
             dec(reg_cnt);
             jnz(label_bov_inner, T_NEAR);
         }
-        add(out_ptr, out_h_step);
+        add(reg_out_ptr, out_h_step);
         dec(reg_bov);
         jnz(label_bov, T_NEAR);
     }
@@ -434,11 +436,11 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
     { // Handle Right Overflow
         Label label_rov, label_rov_skip;
         // retrieve output pointer
-        mov(out_ptr, save_out_ptr);
+        mov(reg_out_ptr, reg_save_out_ptr);
         // calculate the shift
         imul(reg_tmp, reg_kwp, out_w_step);
         // shift past the body
-        add(out_ptr, reg_tmp);
+        add(reg_out_ptr, reg_tmp);
         // skip if no right overflow
         test(reg_rov, reg_rov);
         jz(label_rov_skip, T_NEAR);
@@ -446,16 +448,16 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
         L(label_rov); // handle left or right overflow
         {
             Label label_rov_inner;
-            mov(aux_out_ptr, out_ptr);
+            mov(reg_aux_out_ptr, reg_out_ptr);
             mov(reg_cnt, reg_kht);
             L(label_rov_inner);
             {
-                zero_it(aux_out_ptr);
-                add(aux_out_ptr, out_h_step);
+                zero_it(reg_aux_out_ptr);
+                add(reg_aux_out_ptr, out_h_step);
                 dec(reg_cnt);
                 jnz(label_rov_inner, T_NEAR);
             }
-            add(out_ptr, out_w_step);
+            add(reg_out_ptr, out_w_step);
             dec(reg_rov);
             jnz(label_rov, T_NEAR);
         }
@@ -467,10 +469,10 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
     if (is_bf16) {
         // shift forward to align h index to end of needed buffer
         imul(reg_tmp, reg_kht, out_h_step);
-        add(out_ptr, reg_tmp);
+        add(reg_out_ptr, reg_tmp);
         // shift backward to align w index to end of needed buffer
-        sub(out_ptr, out_w_step);
-        vmovdqu16(ptr[out_ptr], zmm_zero);
+        sub(reg_out_ptr, out_w_step);
+        vmovdqu16(ptr[reg_out_ptr], zmm_zero);
     }
 }
 
@@ -487,11 +489,11 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::generate() {
 
     preamble();
 
-    mov(inp_ptr, ptr[param1 + GET_OFF(src)]);
-    mov(out_ptr, ptr[param1 + GET_OFF(dst)]);
-    mov(khp, ptr[param1 + GET_OFF(kh_padding)]);
-    mov(tover, ptr[param1 + GET_OFF(t_overflow)]);
-    mov(bover, ptr[param1 + GET_OFF(b_overflow)]);
+    mov(reg_inp_ptr, ptr[param1 + GET_OFF(src)]);
+    mov(reg_out_ptr, ptr[param1 + GET_OFF(dst)]);
+    mov(reg_khp, ptr[param1 + GET_OFF(kh_padding)]);
+    mov(reg_tover, ptr[param1 + GET_OFF(t_overflow)]);
+    mov(reg_bover, ptr[param1 + GET_OFF(b_overflow)]);
     mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
 
     vpxord(zmm_zero, zmm_zero, zmm_zero);
@@ -508,34 +510,34 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::generate() {
         Xbyak::Label kh_tover_label, kh_bover_label;
         Xbyak::Label no_kh_tover_label, no_kh_bover_label;
 
-        mov(aux_inp_ptr, inp_ptr);
-        mov(aux_out_ptr, out_ptr);
+        mov(reg_aux_inp_ptr, reg_inp_ptr);
+        mov(reg_aux_out_ptr, reg_out_ptr);
 
-        cmp(khp, 0);
+        cmp(reg_khp, 0);
         jle(no_kh_bover_label, T_NEAR); // nothing to do
-        mov(khc, khp);
+        mov(reg_khc, reg_khp);
 
-        cmp(tover, 0);
+        cmp(reg_tover, 0);
         jle(no_kh_tover_label, T_NEAR);
 
-        mov(kh_over, tover);
+        mov(reg_kh_over, reg_tover);
         L(kh_tover_label);
         {
             // TODO: adjust step to improve zeroing efficiency for small ic
             for (int iw = 0; iw < jcp.iwp; iw++)
-                vmovups(ptr[aux_out_ptr
+                vmovups(ptr[reg_aux_out_ptr
                                 + jcp.typesize_in * iw * jcp.ic_block_int_np],
                         zmm_zero);
             int out_h_offset = jcp.typesize_in * jcp.iwp * jcp.ic_block_int_np;
-            add(aux_out_ptr, out_h_offset);
+            add(reg_aux_out_ptr, out_h_offset);
 
-            dec(kh_over);
+            dec(reg_kh_over);
             jnz(kh_tover_label, T_NEAR);
         }
-        sub(khc, tover);
+        sub(reg_khc, reg_tover);
         L(no_kh_tover_label);
 
-        cmp(khc, bover);
+        cmp(reg_khc, reg_bover);
         jle(no_kh_label, T_NEAR);
 
         L(kh_label);
@@ -548,29 +550,29 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::generate() {
             size_t out_h_offset
                     = (size_t)jcp.typesize_in * jcp.iwp * jcp.ic_block_int_np;
 
-            add(aux_inp_ptr, inp_h_offset);
-            add(aux_out_ptr, out_h_offset);
+            add(reg_aux_inp_ptr, inp_h_offset);
+            add(reg_aux_out_ptr, out_h_offset);
 
-            dec(khc);
-            cmp(khc, bover);
+            dec(reg_khc);
+            cmp(reg_khc, reg_bover);
             jg(kh_label, T_NEAR);
         }
         L(no_kh_label);
 
-        cmp(khc, 0);
+        cmp(reg_khc, 0);
         jle(no_kh_bover_label, T_NEAR);
 
         L(kh_bover_label);
         {
             // TODO: adjust step to improve zeroing efficiency for small ic
             for (int iw = 0; iw < jcp.iwp; iw++)
-                vmovups(ptr[aux_out_ptr
+                vmovups(ptr[reg_aux_out_ptr
                                 + jcp.typesize_in * iw * jcp.ic_block_int_np],
                         zmm_zero);
             int out_h_offset = jcp.typesize_in * jcp.iwp * jcp.ic_block_int_np;
-            add(aux_out_ptr, out_h_offset);
+            add(reg_aux_out_ptr, out_h_offset);
 
-            dec(khc);
+            dec(reg_khc);
             jnz(kh_bover_label, T_NEAR);
         }
         L(no_kh_bover_label);
@@ -583,8 +585,8 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::generate() {
         size_t out_cb_offset = (size_t)jcp.typesize_in * jcp.ihp * jcp.iwp
                 * jcp.ic_block_int_np;
 
-        add(inp_ptr, inp_cb_offset);
-        add(out_ptr, out_cb_offset);
+        add(reg_inp_ptr, inp_cb_offset);
+        add(reg_out_ptr, out_cb_offset);
     }
 
     postamble();
@@ -793,7 +795,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_bf16(
     const bool mask_flag = jcp.is_nspc && jcp.oc_without_padding != jcp.oc
             && ocb == (jcp.nb_oc_blocking - 1);
 
-    auto addr = EVEX_compress_addr(out_ptr, get_out_row_offset(h, ocb, w));
+    auto addr = EVEX_compress_addr(reg_out_ptr, get_out_row_offset(h, ocb, w));
 
     const auto &p = attr_.post_ops_;
 
@@ -838,7 +840,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_int8(
     const bool mask_flag = true && jcp.oc_without_padding != jcp.oc
             && ocb == (nb_oc_block - 1);
 
-    auto addr = EVEX_compress_addr(out_ptr, get_out_row_offset(h, ocb, w));
+    auto addr = EVEX_compress_addr(reg_out_ptr, get_out_row_offset(h, ocb, w));
 
     const auto &p = attr_.post_ops_;
     const int sum_idx = p.find(primitive_kind::sum);
@@ -889,7 +891,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_int8(
     // Properly saturate the accumulators for integer datatypes
     if (one_of(jcp.dst_dt, u8, s8, s32)) {
         init_saturate_f32(
-                zmm_zero, zmm_saturation, aux_reg_saturation, f32, jcp.dst_dt);
+                zmm_zero, zmm_saturation, reg_aux_saturation, f32, jcp.dst_dt);
         saturate_f32(zmm_out, zmm_zero, zmm_saturation, jcp.dst_dt);
         vcvtps2dq(zmm_out, zmm_out);
     }
@@ -949,7 +951,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output(
         for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
             for (int ohb = 0; ohb < h_blks; ohb++) {
                 /* Formats: Workspace: [NBOC][W][16OC] */
-                tilestored(ptr[wsp_ptr + reg_wei_stride
+                tilestored(ptr[reg_wsp_ptr + reg_wei_stride
                                    + get_wsp_ocb_offset(ohb, ocb)],
                         Tmm(get_out_tensor(ohb, ocb, tail)));
                 is_buffer_empty_ = false;
@@ -964,7 +966,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output(
                     if (oh_index < h_tail && ow_index < jcp.ow) {
                         Zmm zmm_r = zmm_out(tw);
                         vmovups(zmm_r,
-                                ptr[wsp_ptr
+                                ptr[reg_wsp_ptr
                                         + get_wsp_row_offset(ohb, ocb, tw)]);
                         store_output_vector(zmm_r, ocb, oh_index, ow_index);
                     }
@@ -988,7 +990,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output(
         store_output_block(width, tail, do_store, false);
         L(label_done);
     }
-    if (do_store) add(out_ptr, get_out_shift(width));
+    if (do_store) add(reg_out_ptr, get_out_shift(width));
 }
 
 void jit_avx512_core_amx_fwd_kernel_t::interleave_store(int width) {
@@ -1001,13 +1003,13 @@ void jit_avx512_core_amx_fwd_kernel_t::interleave_store(int width) {
         int ohb = (row_count_ / prv_width_) / jcp.nb_oc_blocking;
 
         Zmm zmm_r = zmm_out(tw);
-        vmovups(zmm_r, ptr[wsp_ptr + get_wsp_row_offset(ohb, ocb, tw)]);
+        vmovups(zmm_r, ptr[reg_wsp_ptr + get_wsp_row_offset(ohb, ocb, tw)]);
         store_output_vector(zmm_r, ocb, ohb, tw);
         row_count_++;
 
         if (row_count_
                 == prv_width_ * jcp.nb_oc_blocking * jcp.nb_oh_blocking) {
-            add(out_ptr, get_out_shift(prv_width_));
+            add(reg_out_ptr, get_out_shift(prv_width_));
             row_count_ = 0;
             is_store_done_ = true;
             prv_width_ = width;
@@ -1053,17 +1055,19 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(
         const int nreduce = jcp.nreduce;
         const int stride = jcp.ic_block_int; // ie 64 (32) for int8 (bf16)
 
-        push(inp_ptr);
-        push(wei_ptr);
+        push(reg_inp_ptr);
+        push(reg_wei_ptr);
 
         for (int ireduce = 0; ireduce < nreduce; ireduce += stride) {
             for (int ohb = 0; ohb < jcp.nb_oh_blocking; ohb++) {
                 tileloadd(Tmm(get_inp_tensor(ohb, tail)),
-                        ptr[inp_ptr + get_inp_offset(ohb, 0) + reg_inp_stride]);
+                        ptr[reg_inp_ptr + get_inp_offset(ohb, 0)
+                                + reg_inp_stride]);
             }
             for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
                 tileloadd(Tmm(get_wei_tensor(ocb)),
-                        ptr[wei_ptr + get_wei_offset(ocb, 0) + reg_wei_stride]);
+                        ptr[reg_wei_ptr + get_wei_offset(ocb, 0)
+                                + reg_wei_stride]);
                 for (int ohb = 0; ohb < jcp.nb_oh_blocking; ohb++) {
                     tdpbxxd(Tmm(get_out_tensor(ohb, ocb, tail)),
                             Tmm(get_inp_tensor(ohb, tail)),
@@ -1072,16 +1076,16 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(
                 }
             }
             if (ireduce + stride < nreduce) {
-                add(inp_ptr, stride * jcp.typesize_in);
-                add(wei_ptr, stride * jcp.oc_block * jcp.typesize_in);
+                add(reg_inp_ptr, stride * jcp.typesize_in);
+                add(reg_wei_ptr, stride * jcp.oc_block * jcp.typesize_in);
             }
         }
-        pop(wei_ptr);
-        pop(inp_ptr);
+        pop(reg_wei_ptr);
+        pop(reg_inp_ptr);
 
         store_output(width, tail, do_store);
 
-        add(inp_ptr, get_inp_shift());
+        add(reg_inp_ptr, get_inp_shift());
         return;
     }
 
@@ -1103,12 +1107,12 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(
                 for (int kw = set_idx; kw < jcp.kw; kw += jcp.kw_step) {
                     for (int ohb = 0; ohb < jcp.nb_oh_blocking; ohb++) {
                         tileloadd(Tmm(get_inp_tensor(ohb, tail)),
-                                ptr[inp_ptr + inp_offset(icb, ohb, kh, kw)
+                                ptr[reg_inp_ptr + inp_offset(icb, ohb, kh, kw)
                                         + reg_inp_stride]);
                     }
                     for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
                         tileloadd(Tmm(get_wei_tensor(ocb)),
-                                ptr[wei_ptr + wei_offset(icb, ocb, kh, kw)
+                                ptr[reg_wei_ptr + wei_offset(icb, ocb, kh, kw)
                                         + reg_wei_stride]);
                         for (int ohb = 0; ohb < jcp.nb_oh_blocking; ohb++) {
                             tdpbxxd(Tmm(get_out_tensor(ohb, ocb, tail)),
@@ -1124,7 +1128,7 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(
 
     store_output(width, tail, do_store);
 
-    add(inp_ptr, get_inp_shift());
+    add(reg_inp_ptr, get_inp_shift());
 }
 
 void jit_avx512_core_amx_fwd_kernel_t::compute_ow_loop() {
@@ -1167,10 +1171,10 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_ow_loop() {
 void jit_avx512_core_amx_fwd_kernel_t::generate() {
     preamble();
 
-    mov(inp_ptr, ptr[param1 + GET_OFF(src)]);
-    mov(wei_ptr, ptr[param1 + GET_OFF(filt)]);
-    mov(out_ptr, ptr[param1 + GET_OFF(dst)]);
-    mov(wsp_ptr, ptr[param1 + GET_OFF(acc_s32)]);
+    mov(reg_inp_ptr, ptr[param1 + GET_OFF(src)]);
+    mov(reg_wei_ptr, ptr[param1 + GET_OFF(filt)]);
+    mov(reg_out_ptr, ptr[param1 + GET_OFF(dst)]);
+    mov(reg_wsp_ptr, ptr[param1 + GET_OFF(acc_s32)]);
 
     mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
     mov(reg_ptr_scales, ptr[param1 + GET_OFF(scales)]);
