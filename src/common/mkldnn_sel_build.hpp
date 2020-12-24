@@ -25,47 +25,36 @@ namespace dnnl {
 
 OV_CC_DOMAINS(MKLDNN)
 
-template<typename Fn>
-std::string fn_to_string(Fn fn) {
-    const size_t size = sizeof(fn);
-    const uint8_t *ptr = reinterpret_cast<const uint8_t *>(fn);
-    std::string res;
-    res.reserve(size * 2);
-    static const char hex[] = "0123456789abcdef";
-    for(size_t i = 0; i < size; ++i)
-    {
-        res += hex[ptr[i] & 0xF];
-        res += hex[(ptr[i] >> 4) & 0xF];
-    }
-    return res;
-}
+namespace impl {
 
-template<typename Fn, Fn fn, typename ... Args>
-dnnl::impl::status_t object_create(Args ... args) {
+template<typename pd_t, typename ... Args>
+dnnl::impl::status_t pd_create(Args ... args) {
     OV_ITT_SCOPED_TASK(
         dnnl::FACTORY_MKLDNN,
-        openvino::itt::handle(std::string("CREATE$MKLDNN$") + dnnl::fn_to_string(fn)));
-    return fn(args...);
+        openvino::itt::handle(std::string("CREATE$PDFactory$") + typeid(pd_t).name()));
+    return pd_t::create(args...);
 }
 
-#define MKLDNN_DEF_OBJ_BUILDER(Name, FnT, ...)                  \
-    template<FnT fn>                                            \
-    FnT Name(char const *name) {                                \
+}   // namespace impl
+
+#define MKLDNN_DEF_PD_BUILDER(PDBuilderName, FnT, ...)          \
+    template<typename pd_t>                                     \
+    FnT PDBuilderName(char const *name) {                       \
         OV_ITT_SCOPED_TASK(                                     \
             dnnl::FACTORY_MKLDNN,                               \
-            openvino::itt::handle(std::string("REG$MKLDNN$")    \
-                + dnnl::fn_to_string(fn) + "$" + name));        \
-        return object_create<FnT, fn, __VA_ARGS__>;             \
+            openvino::itt::handle(std::string("REG$PDFactory$") \
+                + typeid(pd_t).name() + "$" + name));           \
+        return dnnl::impl::pd_create<pd_t, __VA_ARGS__>;        \
     }
 
 # define REG_MKLDNN_FN(...) MKLDNN_MACRO_OVERLOAD(REG_MKLDNN_FN, __VA_ARGS__)
-# define REG_MKLDNN_FN_2(builder, name) builder<name::pd_t::create>(OV_CC_TOSTRING(name)),
-# define REG_MKLDNN_FN_3(builder, name, T1) builder<name<T1>::pd_t::create>(OV_CC_TOSTRING(name ## _ ## T1)),
-# define REG_MKLDNN_FN_4(builder, name, T1, T2) builder<name<T1, T2>::pd_t::create>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2)),
-# define REG_MKLDNN_FN_5(builder, name, T1, T2, T3) builder<name<T1, T2, T3>::pd_t::create>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2 ## _ ## T3)),
-# define REG_MKLDNN_FN_6(builder, name, T1, T2, T3, T4) builder<name<T1, T2, T3, T4>::pd_t::create>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2 ## _ ## T3 ## _ ## T4)),
-# define REG_MKLDNN_FN_7(builder, name, T1, T2, T3, T4, T5) builder<name<T1, T2, T3, T4, T5>::pd_t::create>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2 ## _ ## T3 ## _ ## T4 ## _ ## T5)),
-# define REG_MKLDNN_FN_8(builder, name, T1, T2, T3, T4, T5, T6) builder<name<T1, T2, T3, T4, T5, T6>::pd_t::create>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2 ## _ ## T3 ## _ ## T4 ## _ ## T5 ## _ ## T6)),
+# define REG_MKLDNN_FN_2(builder, name) builder<name::pd_t>(OV_CC_TOSTRING(name)),
+# define REG_MKLDNN_FN_3(builder, name, T1) builder<name<T1>::pd_t>(OV_CC_TOSTRING(name ## _ ## T1)),
+# define REG_MKLDNN_FN_4(builder, name, T1, T2) builder<name<T1, T2>::pd_t>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2)),
+# define REG_MKLDNN_FN_5(builder, name, T1, T2, T3) builder<name<T1, T2, T3>::pd_t>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2 ## _ ## T3)),
+# define REG_MKLDNN_FN_6(builder, name, T1, T2, T3, T4) builder<name<T1, T2, T3, T4>::pd_t>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2 ## _ ## T3 ## _ ## T4)),
+# define REG_MKLDNN_FN_7(builder, name, T1, T2, T3, T4, T5) builder<name<T1, T2, T3, T4, T5>::pd_t>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2 ## _ ## T3 ## _ ## T4 ## _ ## T5)),
+# define REG_MKLDNN_FN_8(builder, name, T1, T2, T3, T4, T5, T6) builder<name<T1, T2, T3, T4, T5, T6>::pd_t>(OV_CC_TOSTRING(name ## _ ## T1 ## _ ## T2 ## _ ## T3 ## _ ## T4 ## _ ## T5 ## _ ## T6)),
 
 } // namespace dnnl
 

@@ -65,7 +65,7 @@ struct uni_reorder_t {
 
 #if defined(SELECTIVE_BUILD_ANALYZER)
 
-MKLDNN_DEF_OBJ_BUILDER(rpd_builder,
+MKLDNN_DEF_PD_BUILDER(rpd_builder,
             rpd_create_f,
             dnnl::impl::reorder_pd_t **,
             dnnl::impl::engine_t *,

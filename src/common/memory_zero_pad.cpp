@@ -21,9 +21,11 @@
 #include "stream.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+#include "mkldnn_sel_build.hpp"
 
 #include "memory.hpp"
 
+using namespace dnnl;
 using namespace dnnl::impl;
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::status;
@@ -213,9 +215,11 @@ status_t typed_zero_pad(const memory_t *memory, stream_t *stream) {
 #define CASE(blksize_, blk_kind) \
     do { \
         if (blksize == (blksize_)) { \
-            typed_zero_pad_blk<dt, blk_kind, blksize_>(mdw, data); \
-            status = memory_storage->unmap_data(mapped_ptr, stream); \
-            assert(status == status::success); \
+            MKLDNN_CSCOPE(MKLDNN_MACRO_CAT3(typed_zero_pad_blk_, blksize_, blk_kind), \
+                typed_zero_pad_blk<dt, blk_kind, blksize_>(mdw, data); \
+                status = memory_storage->unmap_data(mapped_ptr, stream); \
+                assert(status == status::success); \
+            ); \
             return success; \
         } \
     } while (0)

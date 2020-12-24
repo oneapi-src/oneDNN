@@ -31,7 +31,7 @@ namespace {
 // clang-format off
 #if defined(SELECTIVE_BUILD_ANALYZER)
 
-MKLDNN_DEF_OBJ_BUILDER(cpd_builder,
+MKLDNN_DEF_PD_BUILDER(cpd_builder,
             cpd_create_f,
             dnnl::impl::concat_pd_t **,
             dnnl::impl::engine_t *,

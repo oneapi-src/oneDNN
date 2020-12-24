@@ -25,6 +25,8 @@
 
 #define MKLDNN_MACRO_CAT_(x, y) x ## y
 #define MKLDNN_MACRO_CAT(x, y) MKLDNN_MACRO_CAT_(x, y)
+#define MKLDNN_MACRO_CAT3_(x, y, z) x ## y ## z
+#define MKLDNN_MACRO_CAT3(x, y, z) MKLDNN_MACRO_CAT3_(x, y, z)
 
 #define MKLDNN_MACRO_TOSTRING(...) MKLDNN_MACRO_TOSTRING_(__VA_ARGS__)
 #define MKLDNN_MACRO_TOSTRING_(...) #__VA_ARGS__
