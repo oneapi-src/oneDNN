@@ -364,8 +364,6 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_fwd_statistics_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const int vlen;
-    const int simd_w;
     const AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
@@ -415,6 +413,8 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
 
     const batch_normalization_pd_t *bdesc_;
     const jit_memory_tag_kind_t tag_kind_;
+    const int vlen;
+    const int simd_w;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
     int stride_N_, stride_S_, stride_C_;
@@ -719,8 +719,6 @@ struct jit_bnorm_fwd_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_fwd_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const int vlen;
-    const int simd_w;
     const AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
@@ -768,6 +766,8 @@ struct jit_bnorm_fwd_t : public jit_generator {
 
     const batch_normalization_pd_t *bdesc_;
     const jit_memory_tag_kind_t tag_kind_;
+    const int vlen;
+    const int simd_w;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
     jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
@@ -980,8 +980,6 @@ struct jit_bnorm_bwd_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_bwd_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const int vlen;
-    const int simd_w;
     const AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
@@ -1029,6 +1027,8 @@ struct jit_bnorm_bwd_t : public jit_generator {
 
     const batch_normalization_pd_t *bdesc_;
     const jit_memory_tag_kind_t tag_kind_;
+    const int vlen;
+    const int simd_w;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
     jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
@@ -1265,8 +1265,6 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_bwd_diff_ss_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const int vlen;
-    const int simd_w;
     const AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
@@ -1323,6 +1321,8 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
 
     const batch_normalization_pd_t *bdesc_;
     const jit_memory_tag_kind_t tag_kind_;
+    const int vlen;
+    const int simd_w;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
     jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
@@ -2104,10 +2104,9 @@ private:
         balance211(S_, nthr.S, ithr.S, start.S, stop.S);
     }
 
-    const int simd_w;
-
     const batch_normalization_pd_t *bdesc_;
     const jit_memory_tag_kind_t tag_kind_;
+    const int simd_w;
 
     bool do_blocking_;
 
