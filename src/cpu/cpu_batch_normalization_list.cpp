@@ -25,7 +25,9 @@
 #include "cpu/x64/jit_uni_batch_normalization_s8.hpp"
 #include "cpu/x64/jit_uni_tbb_batch_normalization.hpp"
 using namespace dnnl::impl::cpu::x64;
-#elif defined(DNNL_AARCH64)
+#endif
+
+#if DNNL_AARCH64
 #include "cpu/aarch64/jit_uni_batch_normalization.hpp"
 using namespace dnnl::impl::cpu::aarch64;
 #endif
