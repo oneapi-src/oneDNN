@@ -91,7 +91,7 @@ private:
     reg64_t aux_reg_output_data = abi_not_param1;
     reg64_t reg_bcast_loop_iter = rdx;
     reg64_t reg_load_loop_work = r13;
-    reg64_t reduce_loop_iter = rsi;
+    reg64_t reduce_loop_iter = abi_param1;
     reg64_t reg_load_dim_tail_mask = aux_reg_load_data;
 
     reg64_t imm_addr64 = aux_reg_load_data;
@@ -130,7 +130,7 @@ private:
     Xbyak::Label dst_prm_table;
     reg64_t reg_oc_off = abi_param1;
     reg64_t reg_d_weights = imm_addr64;
-    reg64_t reg_d_bias = rsi;
+    reg64_t reg_d_bias = aux_reg_bcast_data;
 
     nstl::vector<jit_uni_eltwise_injector_f32<avx512_common>*> eltwise_injectors;
     nstl::vector<jit_uni_depthwise_injector_f32<avx512_common>*> depthwise_injectors;

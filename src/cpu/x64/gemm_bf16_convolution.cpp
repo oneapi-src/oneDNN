@@ -294,7 +294,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
     add(reg_acc_base, reg_acc_str);
     if (do_bias_) add(reg_bias, sizeof(acc_data_t));
 
-    add(reg_oc_offset, sizeof(acc_data_t));
+    add(reg_oc_offset, sizeof(float));
 
     dec(reg_oc_iter);
     jnz(oc_loop, T_NEAR); // oc_loop end
@@ -342,7 +342,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
     args.acc_stride_in_bytes = acc_stride_in_elements * sizeof(acc_data_t);
     args.spatial_length = sp_len;
     args.oc_work = oc_len;
-    args.oc_offset = (start_oc + g_offset) * sizeof(acc_data_t);
+    args.oc_offset = (start_oc + g_offset) * sizeof(float);
     jit_generator::operator()(&args);
 }
 

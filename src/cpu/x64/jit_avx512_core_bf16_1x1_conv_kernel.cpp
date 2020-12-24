@@ -758,6 +758,8 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
     mov(aux_reg_bcast_data, aux1_reg_bcast_data);
     init();
 
+    push(reg_oc_off);
+
     mov(reduce_loop_iter, reg_reduce_loop_work);
     Label reduce_loop_exit;
     cmp(reduce_loop_iter, jcp.reduce_loop_unroll);
@@ -779,6 +781,9 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
 
     fma_block(true);
     L(reduce_loop_exit);
+
+    pop(reg_oc_off);
+
     store();
 }
 
@@ -971,7 +976,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
         mov(reg_load_loop_work, ptr[rsp + reg_load_loop_work_off]);
 
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
-        add(reg_oc_off, load_loop_blk * jcp.oc_block * jcp.typesize_out);
+        add(reg_oc_off, load_loop_blk * jcp.oc_block * sizeof(float));
         switch (jcp.prop_kind) {
             case forward_training:
             case forward_inference:
