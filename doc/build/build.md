@@ -4,6 +4,10 @@
 
 Check out the branch from oneDNN repository and update the third party modules.
 
+~~~sh
+git clone https://github.com/oneapi-src/oneDNN.git --branch dev-graph --recursive
+~~~
+
 ## Build the Library
 
 Ensure that all software dependencies are in place and have at least the
