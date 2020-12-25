@@ -53,7 +53,6 @@ struct binary : public dnnl::binary, public kernel_base {
 
 private:
     primitive_desc pd_;
-    engine eng_;
     std::string auto_broadcast_ {"numpy"};
     bool unidirectional_broadcast_ {false};
     bool multidirectional_broadcast_ {false};
@@ -63,6 +62,8 @@ private:
     tensor expected_src0_;
     tensor expected_src1_;
     tensor expected_dst_;
+
+    dnnl::engine eng_;
 
     bool swapped_ {false};
 
@@ -315,9 +316,9 @@ public:
                 assert(!"can't perform broadcast for current inputs shape");
         }
 
-        auto eng = engine_manager::get()->get_engine(*aengine);
+        eng_ = make_dnnl_engine(*aengine);
         pd_ = primitive_desc(
-                {alg_kind, src0_desc, src1_desc, dst_desc_any}, *eng);
+                {alg_kind, src0_desc, src1_desc, dst_desc_any}, eng_);
 
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         impl::logical_tensor_t *orgi_dst_lt
@@ -330,19 +331,19 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
-        auto eng = engine_manager::get()->get_engine(*(astream->get_engine()));
+        impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         size_t src0_index = bin::kSrc0, src1_index = bin::kSrc1;
         if (swapped_) { std::swap(src0_index, src1_index); }
 
-        const tensor src0 {inputs.at(src0_index), *eng};
-        tensor src1 {inputs.at(src1_index), *eng};
-        tensor dst {outputs.at(bin::kDst), *eng};
+        const tensor src0 {inputs.at(src0_index), eng_, alc};
+        tensor src1 {inputs.at(src1_index), eng_, alc};
+        tensor dst {outputs.at(bin::kDst), eng_, alc};
 
         if (pd_.src0_desc() != src0.get_desc()) {
             // allocate memory for optimal layout src0 in the first iteration
             if (expected_src0_.is_empty()) {
-                expected_src0_ = tensor {pd_.src0_desc(), *eng};
+                expected_src0_ = tensor {pd_.src0_desc(), eng_, alc};
             }
             src0.reorder_to(expected_src0_);
         } else {
@@ -352,13 +353,14 @@ public:
         tensor plain_src1;
         if (unidirectional_broadcast_) {
             if (!src1.get_desc().is_plain()) {
-                plain_src1 = tensor(src1.get_desc().to_default_format(), *eng);
+                plain_src1 = tensor(
+                        src1.get_desc().to_default_format(), eng_, alc);
                 src1.reorder_to(plain_src1);
-                expected_src1_ = tensor(
-                        pd_.src1_desc(), plain_src1.get_data_handle(), *eng);
+                expected_src1_ = tensor(pd_.src1_desc(), eng_, alc,
+                        plain_src1.get_data_handle());
             } else {
-                expected_src1_
-                        = tensor(pd_.src1_desc(), src1.get_data_handle(), *eng);
+                expected_src1_ = tensor(
+                        pd_.src1_desc(), eng_, alc, src1.get_data_handle());
             }
 
         } else if (multidirectional_broadcast_) {
@@ -368,7 +370,7 @@ public:
                 // allocate memory for optimal layout src1
                 // in the first iteration
                 if (expected_src1_.is_empty()) {
-                    expected_src1_ = tensor {pd_.src1_desc(), *eng};
+                    expected_src1_ = tensor {pd_.src1_desc(), eng_, alc};
                 }
                 src1.reorder_to(expected_src1_);
             } else {
@@ -378,13 +380,13 @@ public:
 
         if (pd_.dst_desc() != dst.get_desc()) {
             if (expected_dst_.is_empty()) {
-                expected_dst_ = tensor {pd_.dst_desc(), *eng};
+                expected_dst_ = tensor {pd_.dst_desc(), eng_, alc};
             }
         } else {
             expected_dst_ = dst;
         }
 
-        stream s(*eng);
+        dnnl::stream s(eng_);
         super(pd_).execute(s,
                 {{DNNL_ARG_SRC_0, expected_src0_},
                         {DNNL_ARG_SRC_1, expected_src1_},

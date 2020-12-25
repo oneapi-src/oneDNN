@@ -66,12 +66,12 @@ struct bn_fusion {
     static void folding(tensor *updated_weights, tensor *updated_bias,
             const tensor &weights, const tensor &bias, const tensor &mean,
             const tensor &variance, const tensor &scale, const tensor &shift,
-            float epsilon, const engine &eng) {
+            float epsilon, const dnnl::engine &eng, impl::allocator_t *alc) {
         const data_type weights_dtype = weights.get_data_type();
         BACKEND_DNNL_TYPE_DISPATCH(weights_dtype, dtype, {
 #ifdef DNNL_GRAPH_WITH_SYCL
             folding_sycl_impl<dtype>(updated_weights, updated_bias, weights,
-                    bias, mean, variance, scale, shift, epsilon, eng);
+                    bias, mean, variance, scale, shift, epsilon, eng, alc);
 #else
             folding_impl<dtype>(updated_weights, updated_bias, weights, bias,
                     mean, variance, scale, shift, epsilon);
@@ -129,7 +129,7 @@ private:
     static void folding_sycl_impl(tensor *updated_weights, tensor *updated_bias,
             const tensor &weights, const tensor &bias, const tensor &mean,
             const tensor &variance, const tensor &scale, const tensor &shift,
-            float epsilon, const engine &eng) {
+            float epsilon, const dnnl::engine &eng, impl::allocator_t *alc) {
         sycl::queue q(dnnl::sycl_interop::get_context(eng),
                 dnnl::sycl_interop::get_device(eng));
         const size_t num_channel = static_cast<size_t>(mean.get_dim(0));

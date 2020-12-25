@@ -29,7 +29,7 @@ struct sum : public dnnl::sum {
     using super = dnnl::sum;
 
     static void compute(const scale_t &scales, const std::vector<tensor> &srcs,
-            tensor &dst, const engine &aengine) {
+            tensor &dst, const dnnl::engine &aengine, impl::allocator_t *alc) {
         auto src_descs = utils::fmap(srcs, [](const tensor &t) {
             // "upcast" vector<tensor::desc> to vector<memory::desc>
             return static_cast<memory::desc>(t.get_desc());
@@ -43,7 +43,7 @@ struct sum : public dnnl::sum {
             args.insert(
                     {DNNL_ARG_MULTIPLE_SRC + i, srcs[static_cast<size_t>(i)]});
         }
-        stream s(aengine);
+        dnnl::stream s(aengine);
         super(pd).execute(s, args);
     }
 };

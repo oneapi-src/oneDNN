@@ -18,6 +18,7 @@
 
 #if DNNL_GRAPH_WITH_SYCL
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
+#include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 
 void *sycl_alloc(size_t n, const void *dev, const void *ctx,
         dnnl_graph_allocator_attr_t attr) {
@@ -86,6 +87,22 @@ int set_global_engine_kind() {
     api_test_engine_kind = dnnl_graph_cpu;
 #endif
     return 0;
+}
+
+dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
+        dnnl::graph::engine::kind engine_kind) {
+#if DNNL_GRAPH_WITH_SYCL
+    static cl::sycl::device dev {cl::sycl::gpu_selector {}};
+    static cl::sycl::context ctx {dev};
+    static dnnl::graph::allocator alloc
+            = dnnl::graph::sycl_interop::make_allocator(sycl_alloc, sycl_free);
+    static dnnl::graph::engine eng
+            = dnnl::graph::sycl_interop::make_engine(dev, ctx);
+    eng.set_allocator(alloc);
+#else
+    static dnnl::graph::engine eng(engine_kind, 0);
+#endif // DNNL_GRAPH_WITH_SYCL
+    return eng;
 }
 
 int any = set_global_engine_kind();

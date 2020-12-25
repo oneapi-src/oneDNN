@@ -25,6 +25,7 @@
 #include <gtest/gtest.h>
 
 #include "oneapi/dnnl/dnnl_graph.h"
+#include "oneapi/dnnl/dnnl_graph.hpp"
 
 #if DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
@@ -146,5 +147,8 @@ void api_test_dnnl_graph_engine_create(
 
 void api_test_dnnl_graph_graph_create(
         dnnl_graph_graph_t **graph, dnnl_graph_engine_kind_t engine_kind);
+
+dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
+        dnnl::graph::engine::kind engine_kind);
 
 #endif

@@ -185,9 +185,11 @@ bool dnnl_backend::to_public_impl(const impl::tensor &input,
     // only accept strided output
     if (!ltw(output.get_logical_tensor()).is_strided()) return false;
 
-    auto eng = engine_manager::get()->get_engine(aengine);
-    dnnl_impl::tensor src {input, *eng};
-    dnnl_impl::tensor dst {output, *eng};
+    const dnnl::engine eng = make_dnnl_engine(aengine);
+    impl::allocator_t *alc = aengine.get_allocator();
+
+    dnnl_impl::tensor src {input, eng, alc};
+    dnnl_impl::tensor dst {output, eng, alc};
     src.reorder_to(dst);
     return true;
 }

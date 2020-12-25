@@ -20,11 +20,19 @@
 
 #include "unit_test_common.hpp"
 
-using namespace llga::impl::dnnl_impl;
+namespace impl = llga::impl;
+namespace dnnl_impl = llga::impl::dnnl_impl;
+
+using tensor = dnnl_impl::tensor;
+using dim = dnnl_impl::tensor::desc::dim;
+using dims = dnnl_impl::tensor::desc::dims;
+using data_type = dnnl_impl::tensor::desc::data_type;
+using format_tag = dnnl_impl::tensor::desc::format_tag;
 
 TEST(dnnl_tensor, create) {
-    llga::impl::engine_t graph_eng = get_engine();
-    engine dnnl_eng = engine(graph_eng);
+    impl::engine_t graph_eng = get_engine();
+    dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
+    impl::allocator_t *alc = graph_eng.get_allocator();
 
     const dims adims {8, 32, 64, 64};
     const data_type adata_type = data_type::f32;
@@ -32,29 +40,26 @@ TEST(dnnl_tensor, create) {
 
     // create tensor without buffer (alloc internal)
     tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng};
+    tensor t1 {td, dnnl_eng, alc};
     ASSERT_FALSE(t1.is_empty());
 
     // create tensor with buffer
     test::vector<float> buffer(td.get_size());
-    tensor t2 {td, buffer.data(), dnnl_eng};
+    tensor t2 {td, dnnl_eng, alc, buffer.data()};
     ASSERT_FALSE(t2.is_empty());
 }
 
 TEST(dnnl_tensor, reinit) {
-    llga::impl::engine_t graph_eng = get_engine();
-    engine dnnl_eng = engine(graph_eng);
+    impl::engine_t graph_eng = get_engine();
+    dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
+    impl::allocator_t *alc = graph_eng.get_allocator();
 
     const dims adims = {8, 32, 64, 64};
     const data_type adata_type = data_type::f32;
     const format_tag aformat_tag = format_tag::abcd;
 
     tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng};
-
-    tensor t2;
-    t2.reinit_like(t1);
-    ASSERT_FALSE(t2.is_empty());
+    tensor t1 {td, dnnl_eng, alc};
 
     // empty tensor have no engine, so can't be
     // reinit through this method
@@ -66,21 +71,22 @@ TEST(dnnl_tensor, reinit) {
     // reinit method will alloc new memory
     tensor::desc td4 {adims, adata_type, format_tag::abdc};
     test::vector<float> buffer(td4.get_size());
-    tensor t4(td4, buffer.data(), dnnl_eng);
+    tensor t4(td4, dnnl_eng, alc, buffer.data());
     t4.reinit_if_possible(td);
     ASSERT_NE(buffer.data(), t4.get_data_handle());
 }
 
 TEST(dnnl_tensor, reorder) {
-    llga::impl::engine_t graph_eng = get_engine();
-    engine dnnl_eng = engine(graph_eng);
+    impl::engine_t graph_eng = get_engine();
+    dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
+    impl::allocator_t *alc = graph_eng.get_allocator();
 
     const dims adims = {8, 32, 64, 64};
     const data_type adata_type = data_type::f32;
     const format_tag aformat_tag = format_tag::abcd;
 
     tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng};
+    tensor t1 {td, dnnl_eng, alc};
 
     tensor::desc td2 {adims, adata_type, format_tag::abdc};
     tensor t2 = t1.reorder_if_differ_in(td2);
@@ -88,50 +94,33 @@ TEST(dnnl_tensor, reorder) {
 }
 
 TEST(dnnl_tensor, make_grouped_weight) {
-    llga::impl::engine_t graph_eng = get_engine();
-    engine dnnl_eng = engine(graph_eng);
+    impl::engine_t graph_eng = get_engine();
+    dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
+    impl::allocator_t *alc = graph_eng.get_allocator();
 
     const dims adims = {8, 32, 3, 3};
     const data_type adata_type = data_type::f32;
     const format_tag aformat_tag = format_tag::abcd;
 
     tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng};
+    tensor t1 {td, dnnl_eng, alc};
 
     dim groups = 2;
     tensor t2 = t1.make_grouped_weights(groups);
     ASSERT_FALSE(t2.is_empty());
 }
 
-TEST(dnnl_tensor, resize) {
-    llga::impl::engine_t graph_eng = get_engine();
-    engine dnnl_eng = engine(graph_eng);
-
-    const dims adims = {8, 32, 3, 3};
-    const data_type adata_type = data_type::f32;
-    const format_tag aformat_tag = format_tag::abcd;
-
-    tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng};
-
-    const dims new_dims = {16, 32, 3, 3};
-    const data_type new_data_type = data_type::f16;
-
-    t1.resize(new_dims, new_data_type);
-    ASSERT_EQ(t1.get_dim(0), 16);
-    ASSERT_EQ(t1.get_data_type(), data_type::f16);
-}
-
 TEST(dnnl_tensor, reshape) {
-    llga::impl::engine_t graph_eng = get_engine();
-    engine dnnl_eng = engine(graph_eng);
+    impl::engine_t graph_eng = get_engine();
+    dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
+    impl::allocator_t *alc = graph_eng.get_allocator();
 
     const dims adims = {8, 32, 4, 4};
     const data_type adata_type = data_type::f32;
     const format_tag aformat_tag = format_tag::abcd;
 
     tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng};
+    tensor t1 {td, dnnl_eng, alc};
 
     const dims new_shape = {16, 16, 2, 8};
 
@@ -140,30 +129,32 @@ TEST(dnnl_tensor, reshape) {
 }
 
 TEST(dnnl_tensor, to_format) {
-    llga::impl::engine_t graph_eng = get_engine();
-    engine dnnl_eng = engine(graph_eng);
+    impl::engine_t graph_eng = get_engine();
+    dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
+    impl::allocator_t *alc = graph_eng.get_allocator();
 
     const dims adims = {8, 32, 4, 4};
     const data_type adata_type = data_type::f32;
     const format_tag aformat_tag = format_tag::abcd;
 
     tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng};
+    tensor t1 {td, dnnl_eng, alc};
 
     t1.to_format(format_tag::abdc);
     ASSERT_EQ(t1.get_desc().get_format_tag(), format_tag::abdc);
 }
 
 TEST(dnnl_tensor, to_public) {
-    llga::impl::engine_t graph_eng = get_engine();
-    engine dnnl_eng = engine(graph_eng);
+    impl::engine_t graph_eng = get_engine();
+    dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
+    impl::allocator_t *alc = graph_eng.get_allocator();
 
     const dims adims = {8, 32, 64, 84};
     const data_type adata_type = data_type::f32;
     const format_tag aformat_tag = format_tag::aBcd8b;
 
     tensor::desc td {adims, adata_type, aformat_tag};
-    tensor t1 {td, dnnl_eng};
+    tensor t1 {td, dnnl_eng, alc};
 
     tensor t2 = t1.to_public();
     ASSERT_TRUE(t2.is_public_format());

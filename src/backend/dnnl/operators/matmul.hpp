@@ -150,9 +150,11 @@ private:
     tensor::desc ori_weight_desc_ {};
     tensor::desc ori_bias_desc_ {};
 
+    dnnl::engine eng_;
+
 public:
-    void compute(const engine &aengine) {
-        stream s(aengine);
+    void compute(const dnnl::engine &aengine) {
+        dnnl::stream s(aengine);
         if (with_bias_) {
             super(pd_).execute(s,
                     {{DNNL_ARG_SRC, expected_src_},
@@ -302,7 +304,7 @@ public:
                     get_eltwise_algo(kind_), 1.f, alpha_, beta_);
         }
 
-        auto eng = engine_manager::get()->get_engine(*aengine);
+        eng_ = make_dnnl_engine(*aengine);
 
         if (with_bias_) {
             BACKEND_DNNL_ENFORCE(
@@ -320,12 +322,12 @@ public:
             prop_kind pkind = prop_kind::forward_inference;
             ip_pd_ = with_bias_
                     ? ip_primitive_desc(
-                            {pkind, src, weight, bias, dst}, attr_, *eng)
-                    : ip_primitive_desc({pkind, src, weight, dst}, attr_, *eng);
+                            {pkind, src, weight, bias, dst}, attr_, eng_)
+                    : ip_primitive_desc({pkind, src, weight, dst}, attr_, eng_);
         } else {
             pd_ = with_bias_
-                    ? primitive_desc({src, weight, bias, dst}, attr_, *eng)
-                    : primitive_desc({src, weight, dst}, attr_, *eng);
+                    ? primitive_desc({src, weight, bias, dst}, attr_, eng_)
+                    : primitive_desc({src, weight, dst}, attr_, eng_);
         }
 
         fill_layout_info(dst_lt,
@@ -365,7 +367,7 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
-        auto eng = engine_manager::get()->get_engine(*(astream->get_engine()));
+        impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         auto pd_src_desc = is_ndx2d_ ? ip_pd_.src_desc() : pd_.src_desc();
         auto pd_weights_desc
@@ -375,49 +377,54 @@ public:
 
         //create src and weight tensor, and change the desc of them if
         //they have transpose_* attr or ndims = 1
-        tensor src {inputs.at(matmul_fwd::kSrc), *eng};
+        tensor src {inputs.at(matmul_fwd::kSrc), eng_, alc};
         if (transpose_a_ || src.ndims() == 1) {
-            src = tensor {ori_src_desc_,
-                    inputs.at(matmul_fwd::kSrc).get_data_handle(), *eng};
+            src = tensor {ori_src_desc_, eng_, alc,
+                    inputs.at(matmul_fwd::kSrc).get_data_handle()};
         }
-        tensor weight {inputs.at(matmul_fwd::kWeight), *eng};
+        tensor weight {inputs.at(matmul_fwd::kWeight), eng_, alc};
         if (transpose_b_ || weight.ndims() == 1) {
-            weight = tensor {ori_weight_desc_,
-                    inputs.at(matmul_fwd::kWeight).get_data_handle(), *eng};
+            weight = tensor {ori_weight_desc_, eng_, alc,
+                    inputs.at(matmul_fwd::kWeight).get_data_handle()};
         }
 
-        tensor bias = with_bias_ ? tensor {inputs.at(matmul_fwd::kBias), *eng}
-                                 : tensor {};
+        tensor bias = with_bias_
+                ? tensor {inputs.at(matmul_fwd::kBias), eng_, alc}
+                : tensor {};
 
         if (!is_ndx2d_ && with_bias_ && bias.ndims() != src.ndims()) {
-            bias = tensor {ori_bias_desc_,
-                    inputs.at(matmul_fwd::kBias).get_data_handle(), *eng};
+            bias = tensor {ori_bias_desc_, eng_, alc,
+                    inputs.at(matmul_fwd::kBias).get_data_handle()};
         }
 
-        tensor post_src = with_sum_ ? tensor {inputs.back(), *eng} : tensor {};
-        tensor dst {outputs.at(matmul_fwd::kDst), *eng};
+        tensor post_src
+                = with_sum_ ? tensor {inputs.back(), eng_, alc} : tensor {};
+        tensor dst {outputs.at(matmul_fwd::kDst), eng_, alc};
         if (with_bn_) {
             const tensor bn_scale {
-                    inputs.at(bn_input_offset_ + matmul_fwd::kScale), *eng};
+                    inputs.at(bn_input_offset_ + matmul_fwd::kScale), eng_,
+                    alc};
             const tensor bn_shift {
-                    inputs.at(bn_input_offset_ + matmul_fwd::kShift), *eng};
+                    inputs.at(bn_input_offset_ + matmul_fwd::kShift), eng_,
+                    alc};
             const tensor bn_mean {
-                    inputs.at(bn_input_offset_ + matmul_fwd::kMean), *eng};
+                    inputs.at(bn_input_offset_ + matmul_fwd::kMean), eng_, alc};
             const tensor bn_var {
-                    inputs.at(bn_input_offset_ + matmul_fwd::kVariance), *eng};
+                    inputs.at(bn_input_offset_ + matmul_fwd::kVariance), eng_,
+                    alc};
 
             if (updated_weights_.is_empty()) {
-                updated_weights_ = tensor {weight.get_desc(), *eng};
-                updated_bias_ = tensor {bn_shift.get_desc(), *eng};
+                updated_weights_ = tensor {weight.get_desc(), eng_, alc};
+                updated_bias_ = tensor {bn_shift.get_desc(), eng_, alc};
             }
 
             bn_fusion::folding(&updated_weights_, &updated_bias_, weight, bias,
-                    bn_mean, bn_var, bn_scale, bn_shift, epsilon_, *eng);
+                    bn_mean, bn_var, bn_scale, bn_shift, epsilon_, eng_, alc);
 
             if (updated_weights_.get_desc()
                     != pd_weights_desc) { //need to reorder
                 if (expected_weights_.is_empty()) {
-                    expected_weights_ = tensor {pd_weights_desc, *eng};
+                    expected_weights_ = tensor {pd_weights_desc, eng_, alc};
                 }
                 updated_weights_.reorder_to(expected_weights_);
             } else {
@@ -426,7 +433,7 @@ public:
 
             if (updated_bias_.get_desc() != pd_bias_desc) {
                 if (expected_bias_.is_empty()) {
-                    expected_bias_ = tensor {pd_bias_desc, *eng};
+                    expected_bias_ = tensor {pd_bias_desc, eng_, alc};
                 }
                 updated_bias_.reorder_to(expected_bias_);
             } else {
@@ -437,7 +444,7 @@ public:
             if (is_ndx2d_) { weight = weight.transpose_(1, 0); }
             if (weight.get_desc() != pd_weights_desc) { //need to reorder
                 if (expected_weights_.is_empty()) {
-                    expected_weights_ = tensor {pd_weights_desc, *eng};
+                    expected_weights_ = tensor {pd_weights_desc, eng_, alc};
                 }
                 weight.reorder_to(expected_weights_);
             } else {
@@ -447,7 +454,7 @@ public:
             if (with_bias_) {
                 if (bias.get_desc() != pd_bias_desc) {
                     if (expected_bias_.is_empty()) {
-                        expected_bias_ = tensor {pd_bias_desc, *eng};
+                        expected_bias_ = tensor {pd_bias_desc, eng_, alc};
                     }
                     bias.reorder_to(expected_bias_);
                 } else {
@@ -463,7 +470,7 @@ public:
 
         if (src.get_desc() != pd_src_desc) {
             if (expected_src_.is_empty()) {
-                expected_src_ = tensor {pd_src_desc, *eng};
+                expected_src_ = tensor {pd_src_desc, eng_, alc};
             }
             src.reorder_to(expected_src_);
         } else {
@@ -472,7 +479,7 @@ public:
 
         if (dst.get_desc() != pd_dst_desc) {
             if (expected_dst_.is_empty()) {
-                expected_dst_ = tensor {pd_dst_desc, *eng};
+                expected_dst_ = tensor {pd_dst_desc, eng_, alc};
             }
         } else {
             expected_dst_ = dst;
@@ -485,7 +492,7 @@ public:
         }
 
         if (is_ndx2d_) {
-            stream s(*eng);
+            dnnl::stream s(eng_);
             ip_super(ip_pd_).execute(s,
                     {{DNNL_ARG_SRC, expected_src_},
                             {DNNL_ARG_WEIGHTS, expected_weights_},
@@ -494,7 +501,7 @@ public:
                             {DNNL_ARG_DST, expected_dst_}});
             s.wait();
         } else {
-            compute(*eng);
+            compute(eng_);
         }
         if (expected_dst_ != dst) expected_dst_.reorder_to(dst);
         return impl::status::success;

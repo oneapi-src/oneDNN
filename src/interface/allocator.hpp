@@ -66,13 +66,13 @@ public:
         : sycl_malloc_(sycl_malloc), sycl_free_(sycl_free) {}
 #endif
 
-    void *allocate(size_t n, attribute attr = {}) {
+    void *allocate(size_t n, attribute attr = {}) const {
         return cpu_malloc_(n, attr.data);
     }
 
 #if DNNL_GRAPH_WITH_SYCL
     void *allocate(size_t n, const cl::sycl::device &dev,
-            const cl::sycl::context &ctx, attribute attr) {
+            const cl::sycl::context &ctx, attribute attr) const {
         return sycl_malloc_(n, static_cast<const void *>(&dev),
                 static_cast<const void *>(&ctx), attr.data);
     }
@@ -93,12 +93,12 @@ public:
     }
 #endif
 
-    void deallocate(void *buffer) {
+    void deallocate(void *buffer) const {
         if (buffer) cpu_free_(buffer);
     }
 
 #if DNNL_GRAPH_WITH_SYCL
-    void deallocate(void *buffer, const cl::sycl::context &ctx) {
+    void deallocate(void *buffer, const cl::sycl::context &ctx) const {
         if (buffer) sycl_free_(buffer, static_cast<const void *>(&ctx));
     }
 #endif

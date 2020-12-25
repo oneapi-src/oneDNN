@@ -54,9 +54,11 @@ private:
     bool is_training_ {false};
     prop_kind prop_kind_;
 
+    dnnl::engine eng_;
+
 public:
     void compute(const tensor &src, const dims &output_sizes, tensor &dst,
-            const engine &aengine) {
+            const dnnl::engine &aengine, impl::allocator_t *alc) {
         bool with_workspace = prop_kind_ == prop_kind::forward_training
                 && algo_ == dnnl::algorithm::pooling_max;
 
@@ -64,7 +66,7 @@ public:
 
         tensor expected_dst = dst;
         if (pd_.dst_desc() != dst.get_desc()) {
-            expected_dst = tensor {pd_.dst_desc(), aengine};
+            expected_dst = tensor {pd_.dst_desc(), aengine, alc};
         }
         exec_args args {
                 {DNNL_ARG_SRC, expected_src}, {DNNL_ARG_DST, expected_dst}};
@@ -73,7 +75,7 @@ public:
             args.insert({DNNL_ARG_WORKSPACE, expected_dst.get_workspace()});
         }
 
-        stream s(aengine);
+        dnnl::stream s(aengine);
         super(pd_).execute(s, args);
         s.wait();
         // if output layout has been set and different from optimal layout
@@ -120,8 +122,10 @@ public:
             BACKEND_DNNL_ENFORCE(0, "Unsupported pool op.");
         }
 
-        auto eng = engine_manager::get()->get_engine(*aengine);
+        eng_ = make_dnnl_engine(*aengine);
 
+        // workaround: use src once issue intel/mkl-dnn#588 is
+        // resolved
         auto expected_src = src.is_4c_blocked() ? src.to_default_format() : src;
         auto any_dst = dst.to_format_any();
 
@@ -130,7 +134,7 @@ public:
 
         pd_ = primitive_desc({prop_kind_, algo_, expected_src, any_dst, strides,
                                      kernel, pads_begin, pads_end},
-                *eng);
+                eng_);
 
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         impl::logical_tensor_t *ori_dst_lt
@@ -156,12 +160,13 @@ public:
                              .reorder_data_dims_strides();
         }
 
-        auto eng = engine_manager::get()->get_engine(*(astream->get_engine()));
-        tensor x {src_lt, inputs.at(pool::kSrc).get_data_handle(), *eng};
-        tensor y {dst_lt, outputs.at(pool::kDst).get_data_handle(), *eng};
+        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+
+        tensor x {src_lt, eng_, alc, inputs.at(pool::kSrc).get_data_handle()};
+        tensor y {dst_lt, eng_, alc, outputs.at(pool::kDst).get_data_handle()};
 
         dims outsize = y.get_dims();
-        pooling_forward::compute(x, outsize, y, *eng);
+        pooling_forward::compute(x, outsize, y, eng_, alc);
         return impl::status::success;
     }
 };
@@ -175,17 +180,21 @@ private:
     op_kind_t kind_;
     bool is_training_ {true};
 
+    dnnl::engine eng_;
+
 public:
     void compute(const tensor &diff_dst, const tensor &src, tensor &diff_src,
-            const engine &aengine, tensor indices = tensor {}) {
-        stream s(aengine);
+            const dnnl::engine &aengine, impl::allocator_t *alc,
+            tensor indices = tensor {}) {
+        dnnl::stream s(aengine);
         // generate indices tensor from src when it's needed
         // but can't get from function parameters
         if (kind_ == op_kind::MaxPoolBackprop && indices.is_empty()) {
             auto expected_src
                     = src.reorder_if_differ_in(forward_hints_.src_desc());
-            auto expected_dst = tensor {forward_hints_.dst_desc(), aengine};
-            indices = tensor {forward_hints_.workspace_desc(), aengine};
+            auto expected_dst
+                    = tensor {forward_hints_.dst_desc(), aengine, alc};
+            indices = tensor {forward_hints_.workspace_desc(), aengine, alc};
             exec_args args {{DNNL_ARG_SRC, expected_src},
                     {DNNL_ARG_DST, expected_dst},
                     {DNNL_ARG_WORKSPACE, indices}};
@@ -246,16 +255,15 @@ public:
             BACKEND_DNNL_ENFORCE(0, "Unsupported pool_backward op.");
         }
 
-        auto eng = engine_manager::get()->get_engine(*aengine);
-
+        eng_ = make_dnnl_engine(*aengine);
         forward_hints_ = dnnl::pooling_forward::primitive_desc(
                 {prop_kind::forward_training, algo, src, diff_dst, strides,
                         kernel, pads_begin, pads_end},
-                *eng);
+                eng_);
 
         pd_ = primitive_desc(
                 {algo, src, diff_dst, strides, kernel, pads_begin, pads_end},
-                *eng, forward_hints_);
+                eng_, forward_hints_);
 
         const tensor::desc optimal_diff_src_desc {pd_.diff_src_desc()};
         fill_layout_info(diff_src_lt, optimal_diff_src_desc);
@@ -266,21 +274,23 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
-        auto eng = engine_manager::get()->get_engine(*(astream->get_engine()));
-        tensor src {inputs.at(pool_bwd::kSrc), *eng};
+        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+
+        tensor src {inputs.at(pool_bwd::kSrc), eng_, alc};
         tensor diff_dst {};
         tensor indices {};
         if (anode->get_op_kind() == op_kind::MaxPoolBackprop
                 && inputs.size() > pool_bwd_with_indices::kDiff_dst) {
             diff_dst = tensor {
-                    inputs.at(pool_bwd_with_indices::kDiff_dst), *eng};
-            indices = tensor {inputs.at(pool_bwd_with_indices::kIndices), *eng};
+                    inputs.at(pool_bwd_with_indices::kDiff_dst), eng_, alc};
+            indices = tensor {
+                    inputs.at(pool_bwd_with_indices::kIndices), eng_, alc};
         } else {
-            diff_dst = tensor {inputs.at(pool_bwd::kDiff_dst), *eng};
+            diff_dst = tensor {inputs.at(pool_bwd::kDiff_dst), eng_, alc};
         }
 
-        tensor diff_src {outputs.at(pool_bwd::kDiff_src), *eng};
-        pooling_backward::compute(diff_dst, src, diff_src, *eng, indices);
+        tensor diff_src {outputs.at(pool_bwd::kDiff_src), eng_, alc};
+        pooling_backward::compute(diff_dst, src, diff_src, eng_, alc, indices);
         return impl::status::success;
     }
 };

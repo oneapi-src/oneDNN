@@ -36,6 +36,7 @@ struct reorder : public dnnl::reorder, public kernel_base {
 
 private:
     primitive_desc pd_;
+    dnnl::engine eng_;
 
 public:
     impl::status_t compile_impl(const node_t *anode,
@@ -47,10 +48,10 @@ public:
         const desc src {inputs.at(reorder_input::kSrc)};
         const desc dst {outputs.at(reorder_output::kDst)};
 
-        auto eng = engine_manager::get()->get_engine(*aengine);
+        eng_ = make_dnnl_engine(*aengine);
         // TODO(wuxun): consider reorder between different engines
         pd_ = primitive_desc(
-                /*src_engine=*/*eng, src, /*dst_engine=*/*eng, dst);
+                /*src_engine=*/eng_, src, /*dst_engine=*/eng_, dst);
         return status::success;
     }
 
@@ -58,11 +59,12 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
-        auto eng = engine_manager::get()->get_engine(*astream->get_engine());
-        tensor src_ts {inputs.at(reorder_input::kSrc), *eng};
-        tensor dst_ts {outputs.at(reorder_output::kDst), *eng};
+        impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
-        stream s(*eng);
+        tensor src_ts {inputs.at(reorder_input::kSrc), eng_, alc};
+        tensor dst_ts {outputs.at(reorder_output::kDst), eng_, alc};
+
+        dnnl::stream s(eng_);
         super(pd_).execute(s, src_ts, dst_ts);
         s.wait();
         return status::success;

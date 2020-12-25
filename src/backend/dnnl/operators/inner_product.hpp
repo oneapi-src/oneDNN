@@ -37,8 +37,8 @@ struct inner_product_forward : public dnnl::inner_product_forward,
 
 private:
     primitive_desc pd_;
-
     attr_t attr_;
+    dnnl::engine eng_;
 
 public:
     impl::status_t compile_impl(const impl::node_t *anode,
@@ -50,7 +50,7 @@ public:
         auto op_kind = anode->get_op_kind();
         bool with_relu = op_kind == op_kind::matmul_relu ? true : false;
 
-        auto eng = engine_manager::get()->get_engine(*aengine);
+        eng_ = make_dnnl_engine(*aengine);
         // prepare the inputs and outputs tensors' descs
         desc src {inputs.at(inner_product::kSrc)};
         desc weight {inputs.at(inner_product::kWeight)};
@@ -89,10 +89,10 @@ public:
         tensor::desc dst_desc(dst_dims, dst_data_type, format_tag::any);
         pd_ = with_bias ? primitive_desc({prop_kind::forward_inference, src,
                                                  weight, bias, dst_desc},
-                      attr_, *eng)
+                      attr_, eng_)
                         : primitive_desc({prop_kind::forward_inference, src,
                                                  weight, dst_desc},
-                                attr_, *eng);
+                                attr_, eng_);
 
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         fill_layout_info(dst_lt, optimal_dst_desc);
@@ -117,37 +117,38 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
-        auto eng = engine_manager::get()->get_engine(*(astream->get_engine()));
-        tensor x {inputs.at(inner_product::kSrc), *eng};
-        tensor w {inputs.at(inner_product::kWeight), *eng};
-        tensor y {outputs.at(inner_product::kDst), *eng};
+        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+
+        tensor x {inputs.at(inner_product::kSrc), eng_, alc};
+        tensor w {inputs.at(inner_product::kWeight), eng_, alc};
+        tensor y {outputs.at(inner_product::kDst), eng_, alc};
         if (inputs.size() > inner_product::kBias) {
-            tensor b {inputs.at(inner_product::kBias), *eng};
-            compute(x, w, b, y, *eng, prop_kind::forward_inference);
+            tensor b {inputs.at(inner_product::kBias), eng_, alc};
+            compute(x, w, b, y, eng_, alc, prop_kind::forward_inference);
         } else {
-            compute(x, w, y, *eng, prop_kind::forward_inference);
+            compute(x, w, y, eng_, alc, prop_kind::forward_inference);
         }
         return impl::status::success;
     }
 
 private:
     void compute(const tensor &src, const tensor &weights, const tensor &bias,
-            tensor &dst, const engine &aengine,
+            tensor &dst, const dnnl::engine &aengine, impl::allocator_t *alc,
             const prop_kind aprop_kind = prop_kind::forward) {
         compute_impl</*with_bias=*/true>(
-                src, weights, bias, dst, aprop_kind, aengine);
+                src, weights, bias, dst, aprop_kind, aengine, alc);
     }
 
     void compute(const tensor &src, const tensor &weights, tensor &dst,
-            const engine &aengine,
+            const dnnl::engine &aengine, impl::allocator_t *alc,
             const prop_kind aprop_kind = prop_kind::forward) {
         static tensor dummy_bias;
         compute_impl</*with_bias=*/false>(
-                src, weights, dummy_bias, dst, aprop_kind, aengine);
+                src, weights, dummy_bias, dst, aprop_kind, aengine, alc);
     }
 
     static tensor::desc expected_weights_desc(const dims &weights_dims,
-            const engine &aengine, const dims &src_dims = dims(),
+            const dnnl::engine &aengine, const dims &src_dims = dims(),
             data_type dtype = data_type::f32,
             data_type x_dtype = data_type::f32,
             prop_kind aprop_kind = prop_kind::forward) {
@@ -168,7 +169,7 @@ private:
     template <bool with_bias>
     void compute_impl(const tensor &src, const tensor &weights,
             const tensor &bias, tensor &dst, const prop_kind aprop_kind,
-            const engine &aengine) {
+            const dnnl::engine &aengine, impl::allocator_t *alc) {
         // workaround: src and weights from caffe2 may have different dims.
         // It would be better for caffe2 to do this reshape anyway.
         auto src_ = src;
@@ -177,13 +178,14 @@ private:
             new_dims[0] = src.get_dim(0);
             src_.reshape(new_dims);
         }
-        compute_impl_<with_bias>(src_, weights, bias, dst, aprop_kind, aengine);
+        compute_impl_<with_bias>(
+                src_, weights, bias, dst, aprop_kind, aengine, alc);
     }
 
     template <bool with_bias>
     void compute_impl_(const tensor &src, const tensor &weights,
             const tensor &bias, tensor &dst, const prop_kind aprop_kind,
-            const engine &aengine) {
+            const dnnl::engine &aengine, impl::allocator_t *alc) {
         tensor::desc src_desc, weights_desc, bias_desc;
         attr_t op_attr, src_attr, weights_attr, bias_attr;
         data_type dst_data_type;
@@ -194,7 +196,7 @@ private:
                 pd_.weights_desc(), weights_attr);
         dst.reinit_if_possible(pd_.dst_desc());
 
-        stream s(aengine);
+        dnnl::stream s(aengine);
         if (with_bias) {
             auto expected_bias
                     = bias.reorder_if_differ_in(pd_.bias_desc(), bias_attr);
@@ -218,11 +220,11 @@ struct inner_product_backward_data : public dnnl::inner_product_backward_data {
 
     static void compute(const tensor &diff_dst, const tensor &weights,
             const dims &diff_src_dims, tensor &diff_src,
-            const engine &aengine) {
+            const dnnl::engine &aengine, impl::allocator_t *alc) {
         auto weights_ = weights;
         if (diff_dst.get_data_type() == data_type::bf16) {
             weights_ = tensor(
-                    weights.get_desc().to_type(data_type::bf16), aengine);
+                    weights.get_desc().to_type(data_type::bf16), aengine, alc);
             weights_.reorder_from(weights);
         }
 
@@ -253,7 +255,7 @@ struct inner_product_backward_data : public dnnl::inner_product_backward_data {
                 = weights_.reorder_if_differ_in(pd.weights_desc());
         diff_src.reinit_if_possible(pd.diff_src_desc());
 
-        stream s(aengine);
+        dnnl::stream s(aengine);
         super(pd).execute(s,
                 {{DNNL_ARG_DIFF_DST, expected_diff_dst},
                         {DNNL_ARG_WEIGHTS, expected_weights},
@@ -267,14 +269,15 @@ struct inner_product_backward_weights
     using super = dnnl::inner_product_backward_weights;
 
     static void compute(const tensor &src, const tensor &diff_dst,
-            tensor &diff_weights, tensor &diff_bias, const engine &aengine,
+            tensor &diff_weights, tensor &diff_bias,
+            const dnnl::engine &aengine,
             const data_type diff_weight_type = data_type::undef) {
         compute_impl</*with_diff_bias=*/true>(src, diff_dst, diff_weights,
                 diff_bias, diff_weight_type, aengine);
     }
 
     static void compute(const tensor &src, const tensor &diff_dst,
-            tensor &diff_weights, const engine &aengine,
+            tensor &diff_weights, const dnnl::engine &aengine,
             const data_type diff_weight_type = data_type::undef) {
         static tensor dummy_diff_bias;
         compute_impl</*with_diff_bias=*/false>(src, diff_dst, diff_weights,
@@ -285,7 +288,7 @@ private:
     template <bool with_diff_bias = true>
     static void compute_impl(const tensor &src, const tensor &diff_dst,
             tensor &diff_weights, tensor &diff_bias,
-            const data_type diff_weight_type, const engine &aengine) {
+            const data_type diff_weight_type, const dnnl::engine &aengine) {
         auto src_desc = src.get_desc().to_format_any();
         auto diff_dst_desc = diff_dst.get_desc().to_format_any();
         auto diff_weights_dims = src.get_dims();
@@ -336,7 +339,7 @@ private:
             args.insert({DNNL_ARG_DIFF_BIAS, diff_bias});
         }
 
-        stream s(aengine);
+        dnnl::stream s(aengine);
         super(pd).execute(s, args);
     }
 };

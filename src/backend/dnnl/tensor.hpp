@@ -41,12 +41,12 @@ public:
     using dims_t = dnnl_dims_t;
     using format_kind_t = dnnl_format_kind_t;
     using blocking_desc_t = dnnl_blocking_desc_t;
-    using descriptor = tensor::desc; // for backward compatibility
 
     struct desc : public memory::desc {
         friend class tensor;
 
         // avoid conflicts with function desc::dims() and desc::data_type()
+        using dim = typename memory::dim;
         using dims = typename memory::dims;
         using data_type = typename memory::data_type;
         using format_tag = typename memory::format_tag;
@@ -275,6 +275,7 @@ public:
                     && strides[w] == 1;
         }
 
+        // workaround for issue intel/mkl-dnn#588
         bool is_4c_blocked() const {
             const auto &blk = blocking_desc();
             return blk.inner_nblks == 1 && blk.inner_idxs[0] == 1
@@ -525,117 +526,61 @@ public:
         return desc(*cdesc);
     }
 
-    // For backward compatibility. Will be deprecated.
-    desc get_descriptor() const { return get_desc(); }
-
-    desc dup_desc() const { return get_desc().clone(); }
-
-    // For backward compatibility. Will be deprecated.
-    desc dup_descriptor() const { return dup_desc(); }
-
     // Constructs an tensor with no buffer and zero memory description
     tensor() : dnnl::memory() {}
 
-    /// Constructs a tensor.
-    ///
-    /// @param desc tensor descriptor.
-    /// @param aengine Engine.
-    /// @param ahandle handle.
-    tensor(const desc &adesc, void *ahandle, const engine &aengine)
-        : memory(adesc, aengine, ahandle), eng_(aengine) {
+    // desc, buffer
+    tensor(const desc &adesc, const dnnl::engine &aengine,
+            const impl::allocator_t *alc, void *ahandle)
+        : memory(adesc, aengine, ahandle), alc_(alc) {
         buffer_.reset();
     }
 
-    /// Constructs a memory.
-    ///
-    /// @param desc tensor descriptor.
-    /// @param aengine Engine.
-    tensor(const desc &adesc, const engine &aengine)
-        : memory(adesc, aengine, aengine.malloc(adesc.get_size()))
-        , eng_(aengine) {
-        buffer_.reset(this->get_data_handle(), aengine.free);
+    // desc, no buffer
+    tensor(const desc &adesc, const dnnl::engine &aengine,
+            const impl::allocator_t *alc)
+        : memory(adesc, aengine,
+                allocator::malloc(adesc.get_size(), aengine, alc))
+        , alc_(alc) {
+        buffer_.reset(this->get_data_handle(),
+                [aengine, alc](void *p) { allocator::free(p, aengine, alc); });
     }
 
-    // format_tag, buffer
-    tensor(const dims &adims, data_type adata_type, format_tag aformat_tag,
-            void *ahandle, const engine &aengine)
-        : memory({adims, adata_type, aformat_tag}, aengine, ahandle)
-        , eng_(aengine) {
+    // logical tensor, buffer
+    tensor(const impl::logical_tensor_t &lt, const dnnl::engine &aengine,
+            const impl::allocator_t *alc, void *ahandle)
+        : memory(desc(lt), aengine, ahandle), alc_(alc) {
         buffer_.reset();
     }
 
-    // format_tag, no buffer
-    tensor(const dims &adims, data_type adata_type, format_tag aformat_tag,
-            const engine &aengine)
-        : memory({adims, adata_type, aformat_tag}, aengine,
-                aengine.malloc(desc(adims, adata_type, aformat_tag).get_size()))
-        , eng_(aengine) {
-        buffer_.reset(this->get_data_handle(), aengine.free);
-    }
-
-    // no format_tag, buffer
-    tensor(const dims &adims, data_type adata_type, void *ahandle,
-            const engine &aengine)
-        : memory({adims, adata_type, get_default_format(adims)}, aengine,
-                ahandle)
-        , eng_(aengine) {
-        buffer_.reset();
-    }
-
-    // no format_tag, no buffer
-    tensor(const dims &adims, data_type adata_type, const engine &aengine)
-        : memory({adims, adata_type, get_default_format(adims)}, aengine,
-                aengine.malloc(
-                        desc(adims, adata_type, get_default_format(adims))
-                                .get_size()))
-        , eng_(aengine) {
-        buffer_.reset(this->get_data_handle(), aengine.free);
-    }
-
-    // construct backend::tensor by impl::tensor
-    tensor(const impl::tensor &impl_tensor, const engine &aengine)
-        : memory(desc(impl_tensor.get_logical_tensor()), aengine,
-                impl_tensor
-                        ? impl_tensor.get_void_data_handle_if_is(
-                                impl_tensor.get_logical_tensor().data_type)
-                        : aengine.malloc(desc(impl_tensor.get_logical_tensor())
-                                                 .get_size()))
-        , eng_(aengine) {
-        impl_tensor ? buffer_.reset()
-                    : buffer_.reset(this->get_data_handle(), aengine.free);
-    }
-
-    tensor(const impl::logical_tensor_t &lt, void *ahandle,
-            const engine &aengine)
+    // logical tensor, no buffer
+    tensor(const impl::logical_tensor_t &lt, const dnnl::engine &aengine,
+            const impl::allocator_t *alc)
         : memory(desc(lt), aengine,
-                ahandle != nullptr ? ahandle
-                                   : aengine.malloc(desc(lt).get_size()))
-        , eng_(aengine) {
-        ahandle ? buffer_.reset()
-                : buffer_.reset(this->get_data_handle(), aengine.free);
+                allocator::malloc(desc(lt).get_size(), aengine, alc))
+        , alc_(alc) {
+        buffer_.reset(this->get_data_handle(),
+                [aengine, alc](void *p) { allocator::free(p, aengine, alc); });
     }
 
-    // legacy API for caffe2
-    void reinit_like(const tensor &t) {
-        tensor tmp {t.get_desc(), t.get_engine()};
-        *this = std::move(tmp);
-    }
-
-    // legacy API for caffe2
-    void reinit_like(const tensor &t, void *ahandle) {
-        tensor tmp {t.get_desc(), ahandle, t.get_engine()};
-        *this = std::move(tmp);
+    // dnnl_graph::tensor
+    tensor(const impl::tensor &impl_tensor, const dnnl::engine &aengine,
+            const impl::allocator_t *alc)
+        : memory(desc(impl_tensor.get_logical_tensor()), aengine,
+                impl_tensor.get_data_handle())
+        , alc_(alc) {
+        buffer_.reset();
     }
 
     bool reinit_if_possible(const desc &expected_desc) {
         if (is_empty()) return false;
 
-        auto curr_desc = get_desc();
+        dnnl::memory::desc curr_desc = get_desc();
         if (expected_desc != curr_desc) {
-            if (curr_desc.has_same_shape_as(expected_desc)) {
+            if (curr_desc.dims() == expected_desc.get_dims()) {
                 to_format(expected_desc);
             } else {
-                tensor tmp {expected_desc, get_engine()};
+                tensor tmp {expected_desc, get_engine(), get_allocator()};
                 *this = std::move(tmp);
             }
         }
@@ -647,21 +592,21 @@ public:
         : memory(t)
         , workspace_(t.workspace_)
         , buffer_(t.buffer_)
-        , eng_(t.eng_) {}
+        , alc_(t.alc_) {}
 
     /// Move constructor
     tensor(tensor &&t)
         : memory(std::move(t))
         , workspace_(std::move(t.workspace_))
         , buffer_(std::move(t.buffer_))
-        , eng_(std::move(t.eng_)) {}
+        , alc_(std::move(t.alc_)) {}
 
     /// Assignment operator
     tensor &operator=(const tensor &t) {
         memory::operator=(t);
         buffer_ = t.buffer_;
         workspace_ = t.workspace_;
-        eng_ = t.eng_;
+        alc_ = t.alc_;
         return *this;
     }
 
@@ -670,12 +615,11 @@ public:
         memory::operator=(std::move(t));
         buffer_ = std::move(t.buffer_);
         workspace_ = std::move(t.workspace_);
-        eng_ = std::move(t.eng_);
+        alc_ = std::move(t.alc_);
         return *this;
     }
 
-    /// Returns the engine of the tensor
-    const engine &get_engine() const { return eng_; }
+    const impl::allocator_t *get_allocator() const { return alc_; }
 
     /// Returns number of dimensions
     inline int ndims() const { return get_desc().get_ndims(); }
@@ -722,35 +666,15 @@ public:
         }
     }
 
-    // legacy API for caffe2
-    dims get_public_format_dims() const {
-        auto nchw_dims = get_dims();
-        if (get_desc().is_nhwc()) {
-            dims nhwc_dims(ndims());
-            nhwc_dims[0] = nchw_dims[0];
-            nhwc_dims[1] = nchw_dims[2];
-            nhwc_dims[2] = nchw_dims[3];
-            nhwc_dims[3] = nchw_dims[1];
-            return nhwc_dims;
-        }
-        return nchw_dims;
-    }
-
     tensor reorder_if_differ_in(
             const desc &expected_desc, const attr_t &aattr = attr_t()) const {
         if (expected_desc == get_desc()) {
             return *this;
         } else {
-            tensor dst {expected_desc, this->get_engine()};
-            this->reorder_to(dst, aattr);
+            tensor dst {expected_desc, get_engine(), get_allocator()};
+            reorder_to(dst, aattr);
             return dst;
         }
-    }
-
-    // workaround for issue intel/mkl-dnn#588
-    desc _get_unblocked_desc_if_4c_blocked() const {
-        auto desc = get_desc();
-        return desc.is_4c_blocked() ? desc.to_default_format() : desc;
     }
 
     // no data copy
@@ -771,15 +695,6 @@ public:
                 : old_desc.to_grouped(groups);
         auto this_copy = *this;
         return this_copy.set_desc(grouped_desc);
-    }
-
-    /// Recreate a param with completely different content from old one
-    /// but reuse the param shell. Notice that after resize, its format
-    /// is undefined
-    /// legacy API for caffe2
-    void resize(const dims &adims, data_type adata_type) {
-        tensor tmp {adims, adata_type, get_engine()};
-        *this = std::move(tmp);
     }
 
     /// Return an new tensor with new shape
@@ -824,16 +739,14 @@ public:
     }
 
     inline void reorder_from(const tensor &src) {
-        stream s {this->get_engine()};
-        dnnl::reorder(src, *this)
-                .execute(stream {src.get_engine()}, const_cast<tensor &>(src),
-                        *this);
+        dnnl::stream s {this->get_engine()};
+        dnnl::reorder(src, *this).execute(s, const_cast<tensor &>(src), *this);
         s.wait();
     }
 
     inline void reorder_to(tensor &dst, const attr_t &aattr = attr_t()) const {
         auto pd = dnnl::reorder::primitive_desc(*this, dst, aattr);
-        stream s {this->get_engine()};
+        dnnl::stream s {this->get_engine()};
         dnnl::reorder(pd).execute(s, const_cast<tensor &>(*this), dst);
         s.wait();
     }
@@ -852,44 +765,17 @@ public:
             dst_desc = dst_desc.to_type(dst_type);
         }
 
-        auto dst = buffer ? tensor(dst_desc, buffer, eng_)
-                          : tensor(dst_desc, eng_);
+        auto dst = buffer
+                ? tensor(dst_desc, get_engine(), get_allocator(), buffer)
+                : tensor(dst_desc, get_engine(), get_allocator());
 
         this->reorder_to(dst);
 
         return dst;
     }
 
-    // reorder src to part of this tensor
-    void insert_submemory(const tensor &src, const dims &adims,
-            const dims &offsets, const attr_t &attr = attr_t()) {
-        auto view = get_desc().submemory_desc(adims, offsets);
-        stream s(get_engine());
-        dnnl::reorder(
-                {src.get_engine(), src.get_desc(), get_engine(), view, attr})
-                .execute(s, const_cast<tensor &>(src), *this);
-    }
-
-    // reorder part of this tensor to dst
-    void extract_submemory(tensor &dst, const dims &adims, const dims &offsets,
-            const attr_t &attr = attr_t()) const {
-        auto view = get_desc().submemory_desc(adims, offsets);
-        stream s(get_engine());
-        dnnl::reorder(
-                {get_engine(), view, dst.get_engine(), dst.get_desc(), attr})
-                .execute(s, const_cast<tensor &>(*this), dst);
-    }
-
-    // simple api for extract_submemory
-    tensor extract_submemory(const dims &adims, const dims &offsets,
-            const attr_t &attr = attr_t()) const {
-        tensor dst {adims, get_data_type(), get_engine()};
-        extract_submemory(dst, adims, offsets, attr);
-        return dst;
-    }
-
     void init_workspace(const desc &desc) {
-        auto workspace = new tensor(desc, get_engine());
+        auto workspace = new tensor(desc, get_engine(), get_allocator());
         workspace_.reset(workspace);
     }
 
@@ -899,12 +785,6 @@ public:
     /// Decide wether there is an extra tensor packed in
     bool has_workspace() const { return workspace_ != nullptr; }
 
-    /// Need reorder if current param used by non DNNL routines.
-    // legacy API for caffe2
-    inline bool need_reorder() const {
-        return (!is_public_format() || get_data_type() != data_type::f32);
-    }
-
     tensor &permute_(const std::vector<int> &permute_axes = {}) {
         return set_desc(get_desc().permute(permute_axes));
     }
@@ -912,7 +792,8 @@ public:
     tensor permute(const std::vector<int> &permute_axes = {}) const {
         auto src_mask = *this;
         src_mask.permute_(permute_axes);
-        auto dst = tensor(src_mask.get_desc().to_default_format(), eng_);
+        auto dst = tensor(src_mask.get_desc().to_default_format(), get_engine(),
+                get_allocator());
         src_mask.reorder_to(dst);
         return dst;
     }
@@ -924,20 +805,16 @@ public:
     tensor transpose(dim dim0, dim dim1) const {
         auto src_mask = *this;
         src_mask.transpose_(dim0, dim1);
-        auto dst = tensor(src_mask.get_desc().to_default_format(), eng_);
+        auto dst = tensor(src_mask.get_desc().to_default_format(), get_engine(),
+                get_allocator());
         src_mask.reorder_to(dst);
         return dst;
-    }
-
-    // For backward compatibility. Will be deprecated
-    void transpose_from(const tensor &src, const std::vector<int> &perms = {}) {
-        *this = std::move(src.permute(perms));
     }
 
 private:
     inline void to_format(const desc &adesc) {
         if (get_desc() != adesc) {
-            auto dst = tensor(adesc, eng_);
+            auto dst = tensor(adesc, get_engine(), get_allocator());
             this->reorder_to(dst);
             *this = std::move(dst);
         }
@@ -960,7 +837,7 @@ private:
         auto buf = std::move(buffer_);
         auto ws = std::move(workspace_);
 
-        tensor tmp {new_desc, get_data_handle(), get_engine()};
+        tensor tmp {new_desc, get_engine(), get_allocator(), get_data_handle()};
         *this = std::move(tmp);
 
         buffer_ = std::move(buf);
@@ -970,7 +847,7 @@ private:
 
     std::shared_ptr<tensor> workspace_;
     std::shared_ptr<void> buffer_;
-    engine eng_;
+    const impl::allocator_t *alc_;
 };
 
 } // namespace dnnl_impl

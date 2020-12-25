@@ -42,16 +42,18 @@ struct softmax_forward : public dnnl::softmax_forward, public kernel_base {
 private:
     primitive_desc pd_;
     int64_t axis_;
+    dnnl::engine eng_;
 
 public:
-    void compute(const tensor &src, tensor &dst, const engine &aengine) {
+    void compute(const tensor &src, tensor &dst, const dnnl::engine &aengine,
+            impl::allocator_t *alc) {
         auto expected_src = src.reorder_if_differ_in(pd_.src_desc());
         tensor expected_dst = dst;
         if (pd_.dst_desc() != dst.get_desc()) {
-            expected_dst = tensor {pd_.dst_desc(), aengine};
+            expected_dst = tensor {pd_.dst_desc(), aengine, alc};
         }
 
-        stream s(aengine);
+        dnnl::stream s(aengine);
         super(pd_).execute(s,
                 {{DNNL_ARG_SRC, expected_src}, {DNNL_ARG_DST, expected_dst}});
         s.wait();
@@ -72,10 +74,10 @@ public:
         impl::logical_tensor_t *dst_lt
                 = const_cast<logical_tensor_t *>(&outputs.at(softmax::kDst));
 
-        auto eng = engine_manager::get()->get_engine(*aengine);
+        eng_ = make_dnnl_engine(*aengine);
         axis_ = anode->get_attr<int64_t>("axis");
 
-        pd_ = primitive_desc({prop_kind::forward, src, axis_}, *eng);
+        pd_ = primitive_desc({prop_kind::forward, src, axis_}, eng_);
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         fill_layout_info(dst_lt, optimal_dst_desc);
         return impl::status::success;
@@ -85,10 +87,11 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
-        auto eng = engine_manager::get()->get_engine(*(astream->get_engine()));
-        tensor src_ts {inputs.at(softmax::kSrc), *eng};
-        tensor dst_ts {outputs.at(softmax::kDst), *eng};
-        softmax_forward::compute(src_ts, dst_ts, *eng);
+        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+
+        tensor src_ts {inputs.at(softmax::kSrc), eng_, alc};
+        tensor dst_ts {outputs.at(softmax::kDst), eng_, alc};
+        softmax_forward::compute(src_ts, dst_ts, eng_, alc);
         return impl::status::success;
     }
 };
@@ -99,17 +102,18 @@ struct softmax_backward : public dnnl::softmax_backward, public kernel_base {
 private:
     primitive_desc pd_;
     int64_t axis_;
+    dnnl::engine eng_;
 
 public:
     void compute(const tensor &dst, const tensor &diff_dst, tensor &diff_src,
-            const engine &aengine) {
+            const dnnl::engine &aengine, impl::allocator_t *alc) {
         auto expected_dst = dst.reorder_if_differ_in(pd_.dst_desc());
         auto expected_diff_dst
                 = diff_dst.reorder_if_differ_in(pd_.diff_dst_desc());
         auto expected_diff_src
                 = diff_src.reorder_if_differ_in(pd_.diff_src_desc());
 
-        stream s(aengine);
+        dnnl::stream s(aengine);
         super(pd_).execute(s,
                 {{DNNL_ARG_DST, expected_dst},
                         {DNNL_ARG_DIFF_DST, expected_diff_dst},
@@ -135,12 +139,12 @@ public:
         impl::logical_tensor_t *diff_src_lt = const_cast<logical_tensor_t *>(
                 &outputs.at(softmax_bwd::kDiff_src));
 
-        auto eng = engine_manager::get()->get_engine(*aengine);
         axis_ = anode->get_attr<int64_t>("axis");
 
+        eng_ = make_dnnl_engine(*aengine);
         auto forward_hints = softmax_forward::primitive_desc(
-                {prop_kind::forward_training, dst, axis_}, *eng);
-        pd_ = primitive_desc({diff_dst, dst, axis_}, *eng, forward_hints);
+                {prop_kind::forward_training, dst, axis_}, eng_);
+        pd_ = primitive_desc({diff_dst, dst, axis_}, eng_, forward_hints);
 
         const tensor::desc optimal_diff_src_desc {pd_.diff_src_desc()};
         fill_layout_info(diff_src_lt, optimal_diff_src_desc);
@@ -151,12 +155,13 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
-        auto eng = engine_manager::get()->get_engine(*(astream->get_engine()));
-        tensor dst {inputs.at(softmax_bwd::kDst), *eng};
-        tensor diff_dst {inputs.at(softmax_bwd::kDiff_dst), *eng};
-        tensor diff_src {outputs.at(softmax_bwd::kDiff_src), *eng};
+        impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
-        softmax_backward::compute(dst, diff_dst, diff_src, *eng);
+        tensor dst {inputs.at(softmax_bwd::kDst), eng_, alc};
+        tensor diff_dst {inputs.at(softmax_bwd::kDiff_dst), eng_, alc};
+        tensor diff_src {outputs.at(softmax_bwd::kDiff_src), eng_, alc};
+
+        softmax_backward::compute(dst, diff_dst, diff_src, eng_, alc);
         return impl::status::success;
     }
 };

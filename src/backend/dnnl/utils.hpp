@@ -79,28 +79,6 @@ inline memory::dims group_dims(const dims &adims, dim groups) {
     return new_dims;
 }
 
-inline dnnl::algorithm rnn_kind_to_algorithm(rnn_kind rnn) {
-    if (rnn == RNN_RELU || rnn == RNN_TANH) {
-        return dnnl::algorithm::vanilla_rnn;
-    } else if (rnn == LSTM) {
-        return dnnl::algorithm::vanilla_lstm;
-    } else if (rnn == GRU) {
-        return dnnl::algorithm::lbr_gru;
-    } else {
-        return dnnl::algorithm::undef;
-    }
-}
-
-inline dnnl::algorithm rnn_kind_to_activation(rnn_kind rnn) {
-    if (rnn == RNN_RELU) {
-        return dnnl::algorithm::eltwise_relu;
-    } else if (rnn == RNN_TANH || rnn == LSTM || rnn == GRU) {
-        return dnnl::algorithm::eltwise_tanh;
-    } else {
-        return dnnl::algorithm::undef;
-    }
-}
-
 inline std::pair<std::vector<float>, std::vector<float>> compute_scales(
         float src_scale, float dst_scale, std::vector<float> weight_scales) {
     auto scale_size = weight_scales.size();

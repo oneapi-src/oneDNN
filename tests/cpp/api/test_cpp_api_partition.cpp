@@ -24,12 +24,13 @@
 TEST(api_partition, partition_test) {
     using namespace dnnl::graph;
     engine::kind engine_kind = static_cast<engine::kind>(api_test_engine_kind);
-    const int32_t device_id = 0;
-    engine eng {engine_kind, device_id};
+    engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);
+    engine::kind real_engine_kind = eng.get_kind();
 
-    allocator alloc {};
-    eng.set_allocator(alloc);
-    stream strm {eng};
+    // when enable sycl, the real engine kind will always be gpu, because we
+    // use default gpu::selector to find gpu device.
+    ASSERT_EQ(real_engine_kind, engine_kind);
+
     graph g(engine_kind);
 
     std::vector<int64_t> input_dims {8, 256, 56, 56};
@@ -80,18 +81,24 @@ TEST(api_partition, partition_test) {
             conv_weight_dims, logical_tensor::layout_type::strided};
     logical_tensor lt3_plain {2, logical_tensor::data_type::f32, conv_dst_dims,
             logical_tensor::layout_type::strided};
-    logical_tensor lt4_plain {3, logical_tensor::data_type::f32, infer_dst_dims,
+    logical_tensor lt4_any {3, logical_tensor::data_type::f32, infer_dst_dims,
             logical_tensor::layout_type::any};
 
     //compile partition
     std::vector<logical_tensor> in0({lt1_plain, lt2_plain, lt3_plain});
-    std::vector<logical_tensor> out0({lt4_plain});
+    std::vector<logical_tensor> out0({lt4_any});
 
     //infer_shape
     partitions[0].infer_shape(in0, out0);
-    std::vector<int64_t> infered_dst_dims = lt4_plain.get_dims();
+    std::vector<int64_t> infered_dst_dims = lt4_any.get_dims();
     ASSERT_EQ(out0[0].get_dims()[0], 8);
     ASSERT_EQ(out0[0].get_dims()[1], 64);
     ASSERT_EQ(out0[0].get_dims()[2], 56);
     ASSERT_EQ(out0[0].get_dims()[3], 56);
+
+    auto cp = partitions[0].compile(in0, out0, eng);
+    // query logical tensor from compiled partition
+    auto lt4_opaque = cp.query_logical_tensor(3);
+    ASSERT_EQ(
+            lt4_opaque.get_layout_type(), logical_tensor::layout_type::opaque);
 }

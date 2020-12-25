@@ -50,32 +50,24 @@ private:
     tensor expected_mean_;
     tensor expected_variance_;
 
+    dnnl::engine eng_;
+
 public:
-    void compute(tensor &scale, tensor &shift, const engine &eng) {
+    void compute(tensor &scale, tensor &shift, impl::allocator_t *alc) {
         if (use_affine_) {
             if (scale_shift_.is_empty()) {
-                scale_shift_ = tensor {pd_.weights_desc(), eng};
+                scale_shift_ = tensor {pd_.weights_desc(), eng_, alc};
             }
 
             auto *scale_shift_buf
                     = static_cast<char *>(scale_shift_.get_data_handle());
-#if DNNL_GRAPH_WITH_SYCL
-            stream s(eng);
-            cl::sycl::queue q = dnnl::sycl_interop::get_queue(s);
-            q.memcpy(scale_shift_buf, scale.get_data_handle(), scale.get_size())
-                    .wait();
-            q.memcpy(scale_shift_buf + scale.get_size(),
-                     shift.get_data_handle(), shift.get_size())
-                    .wait();
-#else
             std::memcpy(
                     scale_shift_buf, scale.get_data_handle(), scale.get_size());
             std::memcpy(scale_shift_buf + scale.get_size(),
                     shift.get_data_handle(), shift.get_size());
-#endif
         }
 
-        stream s(eng);
+        dnnl::stream s(eng_);
         exec_args ln_args;
 
         ln_args.insert({DNNL_ARG_SRC, expected_src_});
@@ -108,17 +100,17 @@ public:
         if (anode->has_attr("use_affine"))
             use_affine_ = anode->get_attr<bool>("use_affine");
 
-        auto eng = engine_manager::get()->get_engine(*aengine);
+        eng_ = make_dnnl_engine(*aengine);
         normalization_flag flags = normalization_flag::none;
 
         if (use_affine_) flags = normalization_flag::use_scale_shift;
 
         if (keep_stats_)
             pd_ = primitive_desc(
-                    {prop_kind::forward_training, src, epsilon_, flags}, *eng);
+                    {prop_kind::forward_training, src, epsilon_, flags}, eng_);
         else
             pd_ = primitive_desc(
-                    {prop_kind::forward_inference, src, epsilon_, flags}, *eng);
+                    {prop_kind::forward_inference, src, epsilon_, flags}, eng_);
 
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
 
@@ -150,12 +142,12 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
-        auto eng = engine_manager::get()->get_engine(*(astream->get_engine()));
+        impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
-        tensor src {inputs.at(layernorm::kSrc), *eng};
+        tensor src {inputs.at(layernorm::kSrc), eng_, alc};
         if (src.get_desc() != pd_.src_desc()) {
             if (expected_src_.is_empty()) {
-                expected_src_ = tensor {pd_.src_desc(), *eng};
+                expected_src_ = tensor {pd_.src_desc(), eng_, alc};
             }
             src.reorder_to(expected_src_);
         } else {
@@ -168,15 +160,15 @@ public:
             if (inputs.size() < 3)
                 BACKEND_DNNL_ENFORCE(
                         0, "Wrong input number for layernorm execute");
-            scale = tensor {inputs.at(layernorm::kScale), *eng};
-            shift = tensor {inputs.at(layernorm::kShift), *eng};
+            scale = tensor {inputs.at(layernorm::kScale), eng_, alc};
+            shift = tensor {inputs.at(layernorm::kShift), eng_, alc};
         }
-        tensor dst {outputs.at(layernorm::kDst), *eng};
+        tensor dst {outputs.at(layernorm::kDst), eng_, alc};
         tensor mean;
         tensor variance;
         if (dst.get_desc() != pd_.dst_desc()) {
             if (expected_dst_.is_empty()) {
-                expected_dst_ = tensor {pd_.dst_desc(), *eng};
+                expected_dst_ = tensor {pd_.dst_desc(), eng_, alc};
             }
         } else
             expected_dst_ = dst;
@@ -185,25 +177,25 @@ public:
             if (outputs.size() < 3)
                 BACKEND_DNNL_ENFORCE(
                         0, "Wrong output number for layernorm execute");
-            mean = tensor {outputs.at(layernorm::kMean), *eng};
-            variance = tensor {outputs.at(layernorm::kVariance), *eng};
+            mean = tensor {outputs.at(layernorm::kMean), eng_, alc};
+            variance = tensor {outputs.at(layernorm::kVariance), eng_, alc};
 
             if (mean.get_desc() != pd_.mean_desc()) {
                 if (expected_mean_.is_empty()) {
-                    expected_mean_ = tensor {pd_.dst_desc(), *eng};
+                    expected_mean_ = tensor {pd_.dst_desc(), eng_, alc};
                 }
             } else
                 expected_mean_ = mean;
 
             if (variance.get_desc() != pd_.variance_desc()) {
                 if (expected_variance_.is_empty()) {
-                    expected_variance_ = tensor {pd_.dst_desc(), *eng};
+                    expected_variance_ = tensor {pd_.dst_desc(), eng_, alc};
                 }
             } else
                 expected_variance_ = variance;
         }
 
-        compute(scale, shift, *eng);
+        compute(scale, shift, alc);
 
         if (expected_dst_ != dst) expected_dst_.reorder_to(dst);
 
