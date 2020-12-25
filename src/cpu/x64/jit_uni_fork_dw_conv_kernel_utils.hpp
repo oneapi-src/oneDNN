@@ -28,7 +28,7 @@
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
-#include "cpu/x64/jit_avx512_core_bf16_dw_conv_kernel.hpp"
+#include "cpu/x64/jit_avx512_core_fork_bf16_dw_conv_kernel.hpp"
 #include "cpu/x64/jit_uni_fork_dw_conv_kernel_f32.hpp"
 
 namespace dnnl {
@@ -62,7 +62,7 @@ struct jit_uni_fork_dw_conv_fwd_kernel {
 private:
     using jit_kernel_t = typename utils::conditional<isa == avx512_core
                     && kernel_dt == data_type::bf16,
-            jit_avx512_dw_conv_fwd_kernel_bf16,
+            jit_avx512_fork_dw_conv_fwd_kernel_bf16,
             jit_uni_fork_dw_conv_fwd_kernel_f32<isa>>::type;
     jit_kernel_t *ker_;
 };
@@ -282,7 +282,7 @@ struct jit_uni_fork_dw_conv_bwd_data_kernel {
 private:
     using jit_kernel_t = typename utils::conditional<isa == avx512_core
                     && kernel_dt == data_type::bf16,
-            jit_avx512_dw_conv_bwd_data_kernel_bf16,
+            jit_avx512_fork_dw_conv_bwd_data_kernel_bf16,
             jit_uni_fork_dw_conv_bwd_data_kernel_f32<isa>>::type;
     jit_kernel_t *ker_;
 
