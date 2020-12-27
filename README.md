@@ -311,6 +311,7 @@ See the README included in the corresponding binary package.
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
 * [Chainer\*](https://chainer.org)
 * [DeepLearning4J\*](https://deeplearning4j.org)
+* [Flashlight\*](https://github.com/facebookresearch/flashlight)
 * [Korali](https://github.com/cselab/korali)
 * [MATLAB\* Deep Learning Toolbox](https://www.mathworks.com/help/deeplearning/)
 * [Menoh\*](https://github.com/pfnet-research/menoh)
