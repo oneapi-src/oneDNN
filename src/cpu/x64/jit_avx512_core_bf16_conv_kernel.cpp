@@ -246,14 +246,14 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_dst(int ur_w) {
                 size_t aux_dst_offset = get_dst_offset(j, k);
                 if (jcp.dst_dt == data_type::bf16) {
                     vpmovzxwd(may_be_mask_vmm(vmm_prev_dst, mask_flag, true),
-                            make_safe_addr(reg_dst, aux_dst_offset,
-                                    reg_dst_long_offt));
+                            make_safe_addr(
+                                    reg_dst, aux_dst_offset, reg_long_offt));
                     vpslld(vmm_prev_dst, vmm_prev_dst, 16);
                     vaddps(vmm, vmm_prev_dst);
                 } else {
                     vaddps(may_be_mask_vmm(vmm, mask_flag, true),
-                            make_safe_addr(reg_dst, aux_dst_offset,
-                                    reg_dst_long_offt));
+                            make_safe_addr(
+                                    reg_dst, aux_dst_offset, reg_long_offt));
                 }
             }
         }
@@ -426,16 +426,14 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
 
     if (jcp.ndims == 5) {
         mov(reg_ki, ptr[param1 + GET_OFF(kd_padding)]);
-        mov(aux_reg_ker_d, reg_ker);
-        mov(aux_reg_src_d, reg_src);
+        mov(ptr[rsp + off_reg_ker_], reg_ker);
+        mov(ptr[rsp + off_reg_src_], reg_src);
 
         L(kd_label);
-        mov(aux_reg_src, aux_reg_src_d);
-        mov(aux_reg_ker, aux_reg_ker_d);
-    } else {
-        mov(aux_reg_src, reg_src);
-        mov(aux_reg_ker, reg_ker);
     }
+
+    mov(aux_reg_src, reg_src);
+    mov(aux_reg_ker, reg_ker);
 
     mov(reg_kj, reg_kh);
 
@@ -457,8 +455,8 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
                     dim_t src_offset = get_src_offset(
                             ic, filter_w_to_src(ki, oi, pad_l));
                     auto vmm_in = vmm_src(oi, jcp.nb_oc_blocking);
-                    const auto addr_base
-                            = EVEX_compress_addr(aux_reg_src, src_offset);
+                    const auto addr_base = EVEX_compress_addr_safe(
+                            aux_reg_src, src_offset, reg_long_offt);
                     const bool tail_load
                             = ic_tail && ic == rnd_dn(ic_tail, ic_step);
                     if (jcp.is_1stconv || tail_load) {
@@ -516,8 +514,9 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
                             vpbroadcastd(vmm_in, addr_base);
                         else {
                             const auto addr_strided
-                                    = EVEX_compress_addr(aux_reg_src,
-                                            src_offset + get_src_offset(1, 0));
+                                    = EVEX_compress_addr_safe(aux_reg_src,
+                                            src_offset + get_src_offset(1, 0),
+                                            reg_long_offt);
                             vpbroadcastd(vmm_in, addr_base);
                             vpbroadcastw(vmm_in | even_load_mask, addr_strided);
                         }
@@ -527,7 +526,9 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
                 }
                 for (int kk = 0; kk < jcp.nb_oc_blocking; kk++) {
                     auto wei_off = get_kernel_offset(kk, ic, ki);
-                    vmovups(vmm_wei, EVEX_compress_addr(aux_reg_ker, wei_off));
+                    vmovups(vmm_wei,
+                            EVEX_compress_addr_safe(
+                                    aux_reg_ker, wei_off, reg_long_offt));
                     for (int oi = ow_start; oi < ow_end; oi++) {
                         auto acc = vmm_dst(oi, kk);
                         auto src = vmm_src(oi, jcp.nb_oc_blocking);
@@ -541,8 +542,9 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
             }
             L(ic_tail_jmp[ki]);
         }
-        add(aux_reg_ker, get_kernel_offset(0, 0, 0, 1));
-        add(aux_reg_src, get_src_offset(0, filter_h_to_src(1)));
+        safe_add(aux_reg_ker, get_kernel_offset(0, 0, 0, 1), reg_long_offt);
+        safe_add(aux_reg_src, get_src_offset(0, filter_h_to_src(1)),
+                reg_long_offt);
 
         dec(reg_kj);
         cmp(reg_kj, 0);
@@ -550,25 +552,28 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
     }
 
     if (jcp.ndims == 5) {
-        add(aux_reg_src_d, get_src_offset(0, filter_d_to_src(1)));
-        add(aux_reg_ker_d, get_kernel_offset(0, 0, 0, 0, 1));
+        safe_add(reg_src, get_src_offset(0, filter_d_to_src(1)), reg_long_offt);
+        safe_add(reg_ker, get_kernel_offset(0, 0, 0, 0, 1), reg_long_offt);
         dec(reg_ki);
         cmp(reg_ki, 0);
         jg(kd_label, T_NEAR);
+
+        mov(reg_ker, ptr[rsp + off_reg_ker_]);
+        mov(reg_src, ptr[rsp + off_reg_src_]);
     }
 
     // End of IC Loop
     dim_t src_step = get_src_offset(jcp.ic_block, 0);
     const size_t ker_step = get_kernel_offset(0, jcp.ic_block, 0);
-    add(reg_src, src_step);
-    safe_add(reg_ker, ker_step, reg_ker_long_offt);
+    safe_add(reg_src, src_step, reg_long_offt);
+    safe_add(reg_ker, ker_step, reg_long_offt);
 
     sub(reg_ic, jcp.ic_block);
     cmp(reg_ic, 0);
     jg(icb_label, T_NEAR);
 
-    sub(reg_src, src_step * jcp.nb_ic);
-    safe_sub(reg_ker, ker_step * jcp.nb_ic, reg_ker_long_offt);
+    safe_sub(reg_src, src_step * jcp.nb_ic, reg_long_offt);
+    safe_sub(reg_ker, ker_step * jcp.nb_ic, reg_long_offt);
 
     L(skip_compute_loop);
     store_dst(ur_w);
@@ -594,6 +599,7 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
             = get_src_offset(0, filter_w_to_src(0, 0, l_pad));
 
     preamble();
+    if (jcp.ndims == 5) sub(rsp, stack_space_needed_);
 
     if (jcp.is_1stconv || jcp.ic_tail) {
         Xbyak::Reg64 reg_alt_mask = r8;
@@ -804,6 +810,8 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
         if (ur_w_tail != 0) { compute_loop(ur_w_tail, 0, r_pad); }
         L(end_label);
     }
+
+    if (jcp.ndims == 5) add(rsp, stack_space_needed_);
     postamble();
 
     if (jcp.with_eltwise) postops_injector_->prepare_table();

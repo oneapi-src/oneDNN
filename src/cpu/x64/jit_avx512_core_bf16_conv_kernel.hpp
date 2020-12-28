@@ -62,11 +62,8 @@ private:
     reg64_t aux_reg_src = r12;
     reg64_t aux_reg_ker = r13;
 
-    reg64_t aux_reg_ker_d = r14;
-    reg64_t aux_reg_src_d = r15;
-
     reg64_t reg_ic = rax;
-    reg64_t reg_oc = aux_reg_src_d;
+    reg64_t reg_oc = r15;
     reg64_t reg_bias = rbx;
 
     reg64_t reg_kj = abi_not_param1;
@@ -74,8 +71,7 @@ private:
     reg64_t reg_oi = rdx;
     reg64_t reg_kh = rsi;
 
-    reg64_t reg_dst_long_offt = r14;
-    reg64_t reg_ker_long_offt = r14;
+    reg64_t reg_long_offt = r14;
 
     int vmm_dst_idx(const int i_ur, const int i_oc) const;
     Vmm vmm_dst(const int i_ur, const int i_oc) const;
@@ -123,6 +119,10 @@ private:
     Xbyak::Opmask k_oc_tail_mask = Xbyak::Opmask(4);
     Xbyak::Opmask k_oc_tail_mask_extended = Xbyak::Opmask(5);
     const Xbyak::Opmask postops_mask = Xbyak::Opmask(6);
+
+    constexpr static int off_reg_src_ = 0;
+    constexpr static int off_reg_ker_ = 8;
+    constexpr static int stack_space_needed_ = 16;
 
     std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
             postops_injector_;
