@@ -307,44 +307,50 @@ inline void pattern_utils::rewrite(llga::impl::graph_t &backend_graph,
             fused_node->add_op_ids(cur_node->get_op_ids());
             const node_t *pattern_node = pattern_vec[i];
 
-            bool is_node_tensor = false;
-
             // if cur_node has input node which isn't in pattern,
             // update value's connection. if cur_node has input node
             // which is in pattern, add its output_tensor into visited
             for (size_t j = 0; j < cur_node->num_inputs(); ++j) {
                 auto in_node = cur_node->get_input_node(j);
-                auto in_offset = cur_node->get_input_offset(j);
+
+                std::vector<size_t> in_offsets;
+                cur_node->get_input_offsets(in_node, in_offsets);
                 //if in_node isn't in pattern,
                 //set it as a input node of fused_node
                 if (!visited.count(in_node)) {
                     in_node->remove_output(cur_node);
                     in_node->add_output(fused_node);
-                    fused_node->set_input(
-                            fused_node->num_inputs(), in_node, in_offset);
+                    for (auto &offset : in_offsets) {
+                        fused_node->set_input(
+                                fused_node->num_inputs(), in_node, offset);
+                    }
                 } else { //else, add it's output tensors into visited
                     for (size_t k = 0; k < in_node->num_outputs_tensor(); ++k) {
                         visited_tensor.insert(in_node->get_output_tensor(k).id);
                     }
                 }
             }
+
             //add cur_node's input_tensors which isn't visited into fused_node
             for (size_t k = 0; k < cur_node->num_inputs_tensor(); ++k) {
-                auto cur_tensor = cur_node->get_input_tensor(k);
-                if (!visited_tensor.count(cur_tensor.id)) {
-                    fused_node->add_input_tensors(cur_tensor, cur_node, k);
+                auto in_tensor = cur_node->get_input_tensor(k);
+                if (!visited_tensor.count(in_tensor.id)) {
+                    fused_node->add_input_tensors(in_tensor, cur_node, k);
                 }
             }
+
             if (pattern_node->num_outputs() == 0) {
                 // it's a end node of pattern, need to update
                 // node connection of it's output nodes
                 for (size_t k = 0; k < cur_node->num_outputs(); ++k) {
                     auto out_node = cur_node->get_output_node(k);
-                    size_t offset;
-                    out_node->find_input_node(cur_node, &offset);
-                    auto input_offset = out_node->get_input_offset(offset);
-                    out_node->set_input(offset, fused_node, input_offset);
-                    fused_node->add_output(out_node);
+                    std::vector<size_t> offsets;
+                    out_node->find_input_nodes(cur_node, offsets);
+                    for (auto &offset : offsets) {
+                        auto input_offset = out_node->get_input_offset(offset);
+                        out_node->set_input(offset, fused_node, input_offset);
+                        fused_node->add_output(out_node);
+                    }
                 }
 
                 for (size_t k = 0; k < cur_node->num_outputs_tensor(); ++k) {

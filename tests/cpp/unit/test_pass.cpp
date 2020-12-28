@@ -1940,3 +1940,48 @@ TEST(pass_test, add_with_tensor_input) {
     ASSERT_EQ(agraph.num_nodes(), 1);
     ASSERT_EQ(agraph.get_nodes()[0]->get_op_kind(), conv_bias_add);
 }
+
+TEST(pass_test, multi_values_between_two_nodes) {
+    using namespace llga::impl;
+    using namespace llga::impl::op_kind;
+    using namespace llga::tests::unit::utils;
+
+    graph_t agraph;
+    dnnl_graph_op conv {0, Convolution, std::string("conv")};
+    conv.set_attr("strides", std::vector<int64_t> {4, 4});
+    conv.set_attr("pads_begin", std::vector<int64_t> {0, 0});
+    conv.set_attr("pads_end", std::vector<int64_t> {0, 0});
+    conv.set_attr("dilations", std::vector<int64_t> {1, 1});
+    conv.set_attr("data_format", std::string("NCX"));
+    conv.set_attr("filter_format", std::string("OIX"));
+    dnnl_graph_op add {1, Add, std::string("add")};
+
+    // create lt
+    logical_tensor_t conv_data = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t conv_weight = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t conv_dst = logical_tensor_init(2, data_type::f32);
+    logical_tensor_t add_dst = logical_tensor_init(3, data_type::f32);
+
+    conv.add_input(&conv_data);
+    conv.add_input(&conv_weight);
+    conv.add_output(&conv_dst);
+    add.add_input(&conv_dst);
+    add.add_input(&conv_dst);
+    add.add_output(&add_dst);
+
+    ASSERT_EQ(agraph.add_op(&conv), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_nodes(), 2);
+    pass::pass_base_ptr apass = get_pass("conv_pass");
+    apass->run(agraph);
+    apass = get_pass("sum_pass");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 2);
+    ASSERT_EQ(agraph.get_nodes()[0]->get_op_kind(), Convolution);
+    ASSERT_EQ(agraph.get_nodes()[0]->num_outputs_tensor(), 1);
+    ASSERT_EQ(agraph.get_nodes()[1]->get_op_kind(), Add);
+    ASSERT_EQ(agraph.get_nodes()[1]->num_inputs_tensor(), 2);
+}

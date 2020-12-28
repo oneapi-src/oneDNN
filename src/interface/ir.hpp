@@ -337,14 +337,14 @@ public:
     }
     /*!
      *\brief Add input tensor for fused node
-     * \param input_tensor input tensor which will be added.
-     * \param in_node input tensor from in_node
+     * \param in_tensor input tensor which will be added.
+     * \param cur_node the current node
      * \param in_offset input tensor index
      * \return
      */
-    void add_input_tensors(const logical_tensor_t &in_tensor, node_t *in_node,
+    void add_input_tensors(const logical_tensor_t &in_tensor, node_t *cur_node,
             size_t in_offset) {
-        auto in_tensor_map = in_node->get_input_tensor_map();
+        auto in_tensor_map = cur_node->get_input_tensor_map();
         assertm(in_tensor_map.find(in_offset) != in_tensor_map.end(),
                 "find this key fail");
         input_tensor_map_[input_tensor_.size()] = in_tensor_map[in_offset];
@@ -402,6 +402,19 @@ public:
         return input_values_[offset].get_offset();
     }
 
+    /*!
+    * \brief To find all input_value_offsets produced by a specific input node.
+    * \param inode The specific input node.
+    * \param offsets The indexes of this node's input values produced by inode.
+    */
+    void get_input_offsets(node_t *inode, std::vector<size_t> &offsets) {
+        offsets.clear();
+        for (auto &value : input_values_) {
+            if (value.second.get_producer() == inode)
+                offsets.push_back(value.second.get_offset());
+        }
+    }
+
     bool has_input_value(size_t idx) {
         auto iter = input_values_.find(idx);
         return iter != input_values_.end();
@@ -410,17 +423,17 @@ public:
     /*!
     * \brief Find the offset of an input node
     * \param node* the input node
-    * \param offset the found offset of the input node
+    * \param input_offsets the found offsets of the input node
     * \return bool
     */
-    bool find_input_node(node_t *in_node, size_t *offset) {
-        auto find = std::find_if(input_values_.begin(), input_values_.end(),
-                [&](std::unordered_map<size_t, value>::value_type &avalue)
-                        -> bool {
-                    return avalue.second.get_producer() == in_node;
-                });
-        if (find != input_values_.end()) {
-            *offset = find->first;
+    bool find_input_nodes(node_t *in_node, std::vector<size_t> &input_offsets) {
+        input_offsets.clear();
+        for (auto &value : input_values_) {
+            if (value.second.get_producer() == in_node)
+                input_offsets.push_back(value.first);
+        }
+
+        if (input_offsets.size() > 0) {
             return true;
         } else {
             return false;
