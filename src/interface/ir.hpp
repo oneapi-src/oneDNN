@@ -22,6 +22,7 @@
 #include <deque>
 #include <limits>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <string>
 #include <typeindex>
@@ -247,13 +248,17 @@ public:
     /*!
     * \brief check if nodeB has the same value for each attribute from this node
     * \param attribute_b attribute to be compare
+    * \param expected a set of attribute which needn't to compare
     * \return bool: whether all attributes are equal
     */
-    bool has_same_attr_values(const attributes &attribute_b) const {
+    bool has_same_attr_values(const attributes &attribute_b,
+            std::set<std::string> expected = {}) const {
         return std::all_of(attrs_.begin(), attrs_.end(),
                 [&](const std::unordered_map<std::string,
                         utils::any>::value_type &attr) {
-                    return is_same_attr_value(attribute_b, attr.first);
+                    return expected.count(attr.first)
+                            ? true
+                            : is_same_attr_value(attribute_b, attr.first);
                 });
     }
 

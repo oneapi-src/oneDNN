@@ -1941,6 +1941,98 @@ TEST(pass_test, add_with_tensor_input) {
     ASSERT_EQ(agraph.get_nodes()[0]->get_op_kind(), conv_bias_add);
 }
 
+TEST(pass_test, convolution_with_tensor_shape_check) {
+    using namespace llga::impl;
+    using namespace llga::impl::op_kind;
+    using namespace llga::impl::pass;
+    using namespace llga::tests::unit::utils;
+
+    graph_t agraph;
+    std::vector<dnnl_graph_op> conv;
+    conv.emplace_back(0, Convolution, std::string("conv0"));
+    conv.emplace_back(1, Convolution, std::string("conv1"));
+    conv.emplace_back(2, Convolution, std::string("conv2"));
+
+    for (auto &convi : conv) {
+        convi.set_attr("strides", std::vector<int64_t> {1, 1});
+        convi.set_attr("pads_begin", std::vector<int64_t> {0, 0});
+        convi.set_attr("pads_end", std::vector<int64_t> {0, 0});
+        convi.set_attr("dilations", std::vector<int64_t> {1, 1});
+        convi.set_attr("data_format", std::string("NCX"));
+        convi.set_attr("weight_format", std::string("OIX"));
+    }
+
+    // create conv0 inputs tensor
+    logical_tensor_t conv0_data = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t conv0_weight
+            = logical_tensor_init(1, {32, 32, 3, 3}, data_type::f32);
+    // create conv0 outputs tensor
+    logical_tensor_t conv0_dst = logical_tensor_init(2, data_type::f32);
+
+    conv[0].add_input(&conv0_data);
+    conv[0].add_input(&conv0_weight);
+    conv[0].add_output(&conv0_dst);
+
+    // create conv1 inputs tensor
+    logical_tensor_t conv1_data = logical_tensor_init(3, data_type::f32);
+    logical_tensor_t conv1_weight
+            = logical_tensor_init(4, {32, 64, 32, 32, 3, 3}, data_type::f32);
+    // create conv1 outputs tensor
+    logical_tensor_t conv1_dst = logical_tensor_init(5, data_type::f32);
+
+    conv[1].add_input(&conv1_data);
+    conv[1].add_input(&conv1_weight);
+    conv[1].add_output(&conv1_dst);
+
+    // create conv2 inputs tensor with unknown ndims;
+    logical_tensor_t conv2_data = logical_tensor_init(6, data_type::f32);
+    logical_tensor_t conv2_weight = logical_tensor_init(7, data_type::f32);
+
+    // create conv2 outputs tensor
+    logical_tensor_t conv2_dst = logical_tensor_init(8, data_type::f32);
+
+    conv[2].add_input(&conv2_data);
+    conv[2].add_input(&conv2_weight);
+    conv[2].add_output(&conv2_dst);
+
+    ASSERT_EQ(agraph.add_op(&conv[0]), status::success);
+    ASSERT_EQ(agraph.add_op(&conv[1]), status::success);
+    ASSERT_EQ(agraph.add_op(&conv[2]), status::success);
+
+    DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, conv_with_requirement_pass)
+            .set_priority(8.0f)
+            .set_attr<FCreatePattern>("FCreatePattern",
+                    [](pattern *apattern) -> void {
+                        node_t *conv
+                                = apattern->create_node(op_kind::Convolution);
+                        //check if ndims of weight is supported by dnnl
+                        conv->set_attr<FRequirement>(
+                                "FRequirement", [](node_t *graph_node) -> bool {
+                                    auto weight = logical_tensor_wrapper(
+                                            graph_node->get_input_tensor(1));
+                                    std::set<int> right_ndims {-1, 4, 5};
+                                    if (right_ndims.count(weight.ndims()))
+                                        return true;
+                                    return false;
+                                });
+                    })
+            .set_attr<FCreateOptPattern>("FCreateOptPattern",
+                    [](pattern *optimized_pattern) -> void {
+                        node_t *anode = optimized_pattern->create_node(
+                                op_kind::Convolution);
+                        anode->set_attr<std::string>("backend", "dnnl");
+                    });
+
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_nodes(), 3);
+
+    pass::pass_base_ptr conv_pass = get_pass("conv_with_requirement_pass");
+    conv_pass->run(agraph);
+
+    //conv1 don't meet the requirement of oneDNN
+    ASSERT_EQ(agraph.get_num_partitions(), 2);
+}
+
 TEST(pass_test, multi_values_between_two_nodes) {
     using namespace llga::impl;
     using namespace llga::impl::op_kind;

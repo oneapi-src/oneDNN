@@ -55,6 +55,11 @@ using FCreatePattern = std::function<void(pattern *apattern)>;
 // One pass can only have one FCreateOptPattern function.
 using FCreateOptPattern = std::function<void(pattern *opt_pattern)>;
 
+// FRequirement: a function to check if a graph node can meet the
+// requirement of a pattern node
+// One pattern node can have several FRequirement function.
+using FRequirement = std::function<bool(node_t *graph_node)>;
+
 class pattern {
 private:
     /*! \brief nodes in this pattern */
@@ -171,6 +176,15 @@ public:
             if (it->first == attr_name) { attr_vec.push_back(it->second); }
         }
         return attr_vec;
+    }
+
+    /*!
+    * \brief check if pass has a specific attribute.
+    * \param attr_name The name of the attribute.
+    * \return bool: if this attribute exist in pass.
+    */
+    bool has_attr(const std::string &attr_name) {
+        return attrs_.find(attr_name) != attrs_.end();
     }
 
 protected:

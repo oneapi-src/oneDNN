@@ -30,20 +30,24 @@
 
 namespace llga {
 namespace impl {
+// FRequirement: A function to check if graph node can meet
+// the requirement of pattern node
+// Should be defined when register passes
+using FRequirement = pass::FRequirement;
 
 /**
  * Operators set for checking number of op inputs
  */
 struct op_set {
     /**
-     * Check if operator is binary (has two inputs).
+     * Check if operator is binary (has two swapable inputs).
      *
      * @param kind operator kind
      * @return whether the operator is binary
      */
     static bool is_binary(op_kind_t op_kind) {
-        static const std::set<op_kind_t> supported_binary_ops {
-                op_kind::Add, op_kind::Multiply};
+        static const std::set<op_kind_t> supported_binary_ops {op_kind::Add,
+                op_kind::Multiply, op_kind::Maximum, op_kind::Minimum};
         return supported_binary_ops.count(op_kind);
     }
 };
@@ -127,6 +131,8 @@ bool per_node_comp_(node_t *graph_node, node_t *pattern_node,
     std::deque<node_t *> node_queue;
     //if a node have been visited
     std::unordered_set<hashtype> visited;
+    bool graph_is_pattern = graph_node == pattern_node;
+    std::set<std::string> expected {"FRequirement"};
 
     hashtype pattern_starter_hash = hash_func(pattern_node);
     pattern_queue.push_back(std::make_pair(
@@ -138,20 +144,19 @@ bool per_node_comp_(node_t *graph_node, node_t *pattern_node,
         std::pair<node_t *, std::pair<uint32_t, uint32_t>> &pfront
                 = pattern_queue.front();
         node_t *nfront = node_queue.front();
-        if (selected.count(nfront) != 0
-                && pfront.first->get_op_kind() != op_kind::any) {
+
+        // check if graph node is an unvisited node and can meet the
+        // requirement of pattern node
+        if (pfront.first->get_op_kind() != op_kind::any
+                && (selected.count(nfront) != 0 || nfront->has_attr("backend")
+                        || nfront->get_op_kind() != pfront.first->get_op_kind()
+                        || !pfront.first->has_same_attr_values(
+                                *nfront, expected))) {
             return false;
         }
-        if (nfront->has_attr("backend")) { return false; }
-
-        if (pfront.first->get_op_kind() != op_kind::any
-                && nfront->get_op_kind() != pfront.first->get_op_kind()) {
-            return false;
-        }
-
-        if (pfront.first->get_op_kind() != op_kind::any
-                && !pfront.first->has_same_attr_values(*nfront)) {
-            return false;
+        if (!graph_is_pattern && pfront.first->has_attr("FRequirement")) {
+            auto req = pfront.first->get_attr<FRequirement>("FRequirement");
+            if (!req(nfront)) return false;
         }
 
         // handle the case that "Add" node's input tensor's order
