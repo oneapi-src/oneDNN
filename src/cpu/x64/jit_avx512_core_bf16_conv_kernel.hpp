@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -79,11 +79,8 @@ private:
     reg64_t aux_reg_src = r12;
     reg64_t aux_reg_ker = r13;
 
-    reg64_t aux_reg_ker_d = r14;
-    reg64_t aux_reg_src_d = r15;
-
     reg64_t reg_ic = rax;
-    reg64_t reg_oc = aux_reg_src_d;
+    reg64_t reg_oc = r15;
     reg64_t reg_bias = rbx;
 
     reg64_t reg_kj = abi_not_param1;
@@ -91,7 +88,7 @@ private:
     reg64_t reg_oi = rdx;
     reg64_t reg_kh = rsi;
 
-    reg64_t reg_dst_long_offt = r14;
+    reg64_t reg_long_offt = r14;
 
     Vmm vmm_dst(int i_ur, int i_oc) {
         int idx = i_ur * jcp.nb_oc_blocking + i_oc;
@@ -141,6 +138,10 @@ private:
     Xbyak::Opmask even_load_mask = Xbyak::Opmask(3);
     Xbyak::Opmask k_oc_tail_mask = Xbyak::Opmask(4);
     Xbyak::Opmask k_oc_tail_mask_extended = Xbyak::Opmask(5);
+
+    constexpr static int off_reg_src_ = 0;
+    constexpr static int off_reg_ker_ = 8;
+    constexpr static int stack_space_needed_ = 16;
 
     jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
     bf16_emulation_t *bf16_emu_;
