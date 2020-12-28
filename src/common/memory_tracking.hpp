@@ -205,6 +205,7 @@ enum {
     key_conv_wei_reduction,
     key_conv_wei_bia_reduction,
     key_conv_wei_bia_reduction_bctx,
+    key_conv_zero_point_flag,
     key_conv_zero_point_pad,
     key_deconv_bias,
     key_deconv_sum,

@@ -186,9 +186,12 @@ struct jit_conv_conf_t {
     float wei_adj_scale;
     // zero-point compensation
     bool src_zero_point;
+    int zp_pbuff_size;
     bool dst_zero_point;
     bool zp_src_is_common; // common, otherwise (TODO) per-channel
     bool req_zero_point_buffer; // used for calculating padding compensation
+    bool zp_pbuff_outer_compute; // indicates if zp_bbuff is computed in
+    // a separate parallel region
     int ow_pad, oh_pad; // output elements with padding & filter overlap
 
     //output elements requiring zero-point padding compensation

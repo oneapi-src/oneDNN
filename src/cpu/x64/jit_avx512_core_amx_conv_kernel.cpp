@@ -2501,6 +2501,12 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         calculate_output_padding_dims(jcp.oh, jcp.t_pad, jcp.b_pad,
                 jcp.t_pad_output, jcp.b_pad_output, jcp.oh_mid, jcp.oh_pad,
                 jcp.stride_h);
+        jcp.zp_pbuff_size = jcp.oh_pad * jcp.ow_pad * jcp.oc * jcp.ngroups;
+
+        // compute zero-point padding kernel outside of the main parallel
+        // region when threads are more likely to parallelize work across mb
+        // within the convolution compute block.
+        jcp.zp_pbuff_outer_compute = true && jcp.mb > 1;
 
         const bool params_ok = ((jcp.ow_pad - (int)jcp.ow_mid) <= max_pad * 2);
         if (!params_ok) { return status::unimplemented; }
@@ -2533,9 +2539,14 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_scratchpad(
     }
     scratchpad.book(key_conv_amx_tilecfg, 1, 64); // 1 whole cacheline
     if (jcp.req_zero_point_buffer) {
+        const int nthr = jcp.zp_pbuff_outer_compute ? 1 : jcp.nthr;
         scratchpad.book(key_conv_zero_point_pad,
-                jcp.oh_pad * jcp.ow_pad * jcp.oc_without_padding * jcp.ngroups,
-                sizeof(int32_t));
+                (size_t)nthr * jcp.zp_pbuff_size, sizeof(int32_t));
+        if (!jcp.zp_pbuff_outer_compute) {
+            const int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
+            scratchpad.book<bool>(key_conv_zero_point_flag,
+                    (size_t)jcp.nthr * oc_chunks * jcp.ngroups);
+        }
     }
 
     // Keep scratchpad memory footprint under control
