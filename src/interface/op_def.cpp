@@ -413,11 +413,13 @@ DNNL_GRAPH_OP_SCHEMA(Interpolate, 4,
                         "antialias is a flag that specifies whether to perform "
                         "anti-aliasing.",
                         false, false)
-                .set_attr("pads_begin", "top and left padding", false)
-                .set_attr("pads_end", "bottom and right padding", false)
+                .set_attr("pads_begin", "top and left padding", false,
+                        std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
+                .set_attr("pads_end", "bottom and right padding", false,
+                        std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
                 .set_attr("cube_coeff",
                         "specifies the parameter a for cubic interpolation",
-                        false)
+                        false, float(-0.75))
                 //todo(jihui):need to set real infer function
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
@@ -457,11 +459,13 @@ DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 4,
                         "antialias is a flag that specifies whether to perform "
                         "anti-aliasing.",
                         false, false)
-                .set_attr("pads_begin", "top and left padding", false)
-                .set_attr("pads_end", "bottom and right padding", false)
+                .set_attr("pads_begin", "top and left padding", false,
+                        std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
+                .set_attr("pads_end", "bottom and right padding", false,
+                        std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
                 .set_attr("cube_coeff",
                         "specifies the parameter a for cubic interpolation",
-                        false)
+                        false, float(-0.75))
                 //todo(jihui):need to set real infer function
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
@@ -589,7 +593,7 @@ DNNL_GRAPH_OP_SCHEMA(Maximum, 1,
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false)
+                        false, "numpy")
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
@@ -637,11 +641,11 @@ DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
                 .set_attr("dilations",
                         "the distance in width and height between elements "
                         "in the filter",
-                        false)
+                        false, std::vector<int64_t>(1, DNNL_GRAPH_MAX_NDIMS))
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false)
+                        false, "NXC")
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
@@ -654,7 +658,7 @@ DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false)
+                        false, "numpy")
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
@@ -784,7 +788,7 @@ DNNL_GRAPH_OP_SCHEMA(SigmoidBackprop, 1,
                         "gradient tensor w.r.t. the input of Sigmoid")
                 .set_attr("use_dst",
                         "if true, use dst to calculate gradient, else, use src",
-                        false)
+                        false, true)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SoftMax, 1,
@@ -816,7 +820,8 @@ DNNL_GRAPH_OP_SCHEMA(SoftPlus, 1,
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("beta", "value for the Softplus formulation", false)
+                .set_attr("beta", "value for the Softplus formulation", false,
+                        int64_t(1))
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SoftPlusBackprop, 1,
@@ -828,7 +833,8 @@ DNNL_GRAPH_OP_SCHEMA(SoftPlusBackprop, 1,
                         1, "output_delta", "gradients tensor w.r.t. the output")
                 .set_output(0, "input_delta",
                         "the gradient tensor w.r.t. the input of SoftPlus")
-                .set_attr("beta", "value for the SoftPlus formulation", false)
+                .set_attr("beta", "value for the SoftPlus formulation", false,
+                        int64_t(1))
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Sqrt, 1,
@@ -853,7 +859,7 @@ DNNL_GRAPH_OP_SCHEMA(SqrtBackprop, 1,
                 .set_attr("use_dst",
                         "if true, use dst to calculate gradient; else use "
                         "src.",
-                        false)
+                        false, true)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Square, 1,
