@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "common/primitive_attr.hpp"
+#include "cpu/x64/brgemm/brgemm_types.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 
 namespace dnnl {
@@ -725,6 +726,85 @@ struct jit_resampling_call_s {
     float weight_bottom = 0.0f;
     float weight_front = 0.0f;
     float weight_back = 0.0f;
+};
+
+enum conv_brgemm_loop_order_t {
+    loop_ndhwgc,
+    loop_ngcdhw,
+};
+
+enum conv_brgemm_exec_type_t {
+    exec_undefined = 0,
+    exec_base,
+    exec_trans,
+    exec_vpad,
+};
+
+struct jit_brgemm_conv_conf_t {
+    prop_kind_t prop_kind;
+    conv_version_t ver;
+    conv_brgemm_loop_order_t loop_order;
+    conv_harness_t harness;
+    int simd_w;
+    int ndims;
+    int mb;
+    int ngroups, ic, oc, oc_without_padding, ic_without_padding;
+
+    int od_blk_size, oh_blk_size, nb_od,
+            nb_oh; // blocking  - included in parallelization
+    dim_t inp_buffer_size, inp_buffer_mask_size;
+    conv_brgemm_exec_type_t exec_type;
+
+    int id, ih, iw, od, oh, ow, os, idp, ihp, iwp;
+    int f_pad, l_pad, t_pad;
+    int back_pad, r_pad, b_pad;
+    int kd, kh, kw;
+    int kd_block, kh_block, kw_block, kd_block_pad, kh_block_pad, kw_block_pad;
+    int stride_d, stride_h, stride_w;
+    int dilate_d, dilate_h, dilate_w;
+    format_tag_t src_tag, wei_tag, dst_tag; // temporary workaround
+    bool with_bias;
+    bool with_sum;
+    bool with_eltwise;
+    bool is_fused_conv;
+    post_ops_t::entry_t::eltwise_t eltwise;
+    int nb_ic, ic_block;
+    int nb_oc, oc_block;
+    int nb_iw, iw_block;
+    int nb_ow, ow_block;
+    int nb_os, os_block;
+    int nb_oc_blocking;
+    int nb_ic_blocking;
+    int nb_os_blocking;
+
+    data_type_t src_dt;
+    data_type_t dst_dt;
+    data_type_t wei_dt;
+    data_type_t acc_dt;
+    data_type_t bia_dt;
+    size_t src_dsz;
+    size_t wei_dsz;
+    size_t dst_dsz;
+    size_t acc_dsz;
+    size_t bia_dsz;
+
+    bool use_buffer;
+    dim_t buffer_size;
+
+    int is_oc_scale;
+
+    int LDA, LDB, LDC, LDD;
+    int M, N, K, M_tail, N_tail, K_tail;
+    int gemm_batch_size;
+    brgemm_batch_kind_t brg_type;
+    // strides for brg_type == brgemm_strd
+    dim_t brg_stride_a, brg_stride_b;
+    int nthr;
+
+    int max_batch;
+    int max_vpad;
+
+    bool wei_plain;
 };
 
 } // namespace x64
