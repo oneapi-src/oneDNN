@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -109,11 +109,7 @@ int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr) {
 
 dnn_mem_t dnn_mem_t::create_from_host_ptr(
         const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *host_ptr) {
-    // XXX: allows to construct CPU memory only.
-    assert(is_cpu(engine));
-
-    // XXX: assumption that SYCL works fine with native host pointers
-    return dnn_mem_t(md, engine, host_ptr);
+    return dnn_mem_t(md, engine, {true, host_ptr});
 }
 
 // Returns physical offset by logical one. Logical offset is represented by an

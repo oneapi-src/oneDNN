@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,20 +21,32 @@
 #include "oneapi/dnnl/dnnl_sycl.h"
 #endif
 
+#include "common.hpp"
 #include "dnnl_common.hpp"
 
 #define dnnl_mem_default_value 0xFF
 
 struct dnn_mem_t {
+    struct handle_info_t {
+        bool is_host_ptr;
+        void *ptr;
+
+        bool is_allocate() const { return ptr == DNNL_MEMORY_ALLOCATE; }
+
+        static handle_info_t allocate() {
+            return {false, DNNL_MEMORY_ALLOCATE};
+        }
+    };
+
     dnn_mem_t() { map(); }
 
     dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine) {
         active_ = (initialize(md, engine) == OK);
     }
 
-    dnn_mem_t(
-            const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *handle) {
-        active_ = (initialize(md, engine, handle) == OK);
+    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
+            const handle_info_t &handle_info) {
+        active_ = (initialize(md, engine, handle_info) == OK);
     }
 
     dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
@@ -208,7 +220,7 @@ private:
 
     int initialize(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
             const std::string &tag, dnnl_engine_t engine,
-            void *handle = DNNL_MEMORY_ALLOCATE) {
+            const handle_info_t &handle_info = handle_info_t::allocate()) {
         is_mapped_ = false;
 
         if (tag == tag::undef) {
@@ -221,7 +233,7 @@ private:
         DNN_SAFE_V(dnnl_engine_get_kind(engine_, &engine_kind_));
 
         size_t sz = dnnl_memory_desc_get_size(&md_);
-        if (engine_kind_ == dnnl_cpu && handle == DNNL_MEMORY_ALLOCATE
+        if (engine_kind_ == dnnl_cpu && handle_info.is_allocate()
                 && DNNL_CPU_RUNTIME != DNNL_RUNTIME_DPCPP) {
             // Allocate memory for native runtime directly
             is_data_owner_ = true;
@@ -233,24 +245,27 @@ private:
             is_data_owner_ = false;
             data_ = NULL;
 
-#ifdef DNNL_WITH_SYCL
-            // XXX: A hack to mitigate the issue from create_from_host_ptr when
-            // perform a CPU reorder due to USM in not supported on Nvidia, but
-            // it's not allowed to convert host_ptr to SYCL buffer.
-            engine_t e(engine_kind_);
-            if (is_nvidia_gpu(e)) {
-                DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine,
-                                 dnnl_sycl_interop_buffer, handle),
+            if (handle_info.is_host_ptr) {
+                // Host pointer can be used with CPU memory only.
+                // XXX: assumption that SYCL works fine with native host pointers.
+                DNN_SAFE(is_cpu(engine) ? dnnl_success : dnnl_runtime_error,
                         CRIT);
-            } else {
-                DNN_SAFE(dnnl_memory_create(&m_, &md_, engine, handle), CRIT);
             }
-#else
-            DNN_SAFE(dnnl_memory_create(&m_, &md_, engine, handle), CRIT);
+
+            if (is_nvidia_gpu(engine_)) {
+#ifdef DNNL_WITH_SYCL
+                // USM is not supported with Nvidia so force SYCL buffers.
+                DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine,
+                                 dnnl_sycl_interop_buffer, handle_info.ptr),
+                        CRIT);
 #endif
+            } else {
+                DNN_SAFE(dnnl_memory_create(&m_, &md_, engine, handle_info.ptr),
+                        CRIT);
+            }
         }
 
-        if (handle == DNNL_MEMORY_ALLOCATE) {
+        if (handle_info.is_allocate()) {
             // Fill memory with a magic number (NAN for fp data types) to catch
             // possible uninitialized access.
             map();
@@ -270,8 +285,8 @@ private:
     }
 
     int initialize(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
-            void *handle = DNNL_MEMORY_ALLOCATE) {
-        return initialize(md, md.data_type, tag::undef, engine, handle);
+            const handle_info_t &handle_info = handle_info_t::allocate()) {
+        return initialize(md, md.data_type, tag::undef, engine, handle_info);
     }
 
     int initialize(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
