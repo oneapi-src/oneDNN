@@ -1859,6 +1859,7 @@ TEST(operator_kernel, max_pool) {
     max_pool_node.set_attr<dims>("pads_end", {0, 0});
     max_pool_node.set_attr<std::string>("data_format", "NCX");
     max_pool_node.set_attr<std::string>("backend", "dnnl");
+    max_pool_node.set_attr<dims>("dilations", {1, 1});
 
     impl::partition apartition;
     apartition.init(&max_pool_node, eng.kind());
@@ -4028,6 +4029,7 @@ TEST(operator_kernel, max_pool_backward_with_incides) {
     max_pool_bwd_node.set_attr<dims>("pads_begin", dims {0, 0});
     max_pool_bwd_node.set_attr<dims>("pads_end", dims {0, 0});
     max_pool_bwd_node.set_attr<std::string>("backend", "dnnl");
+    max_pool_bwd_node.set_attr<dims>("dilations", {1, 1});
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -4084,6 +4086,7 @@ TEST(operator_kernel, max_pool_backward_without_incides) {
     max_pool_bwd_node.set_attr<dims>("pads_begin", dims {0, 0});
     max_pool_bwd_node.set_attr<dims>("pads_end", dims {0, 0});
     max_pool_bwd_node.set_attr<std::string>("backend", "dnnl");
+    max_pool_bwd_node.set_attr<dims>("dilations", {1, 1});
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt

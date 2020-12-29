@@ -42,8 +42,8 @@ namespace pool_bwd_with_indices {
 enum maxpool_bwd_inputs { kSrc, kIndices, kDiff_dst };
 } // namespace pool_bwd_with_indices
 
-struct pooling_forward : public dnnl::pooling_forward, public kernel_base {
-    using super = dnnl::pooling_forward;
+struct pooling_forward : public dnnl::pooling_v2_forward, public kernel_base {
+    using super = dnnl::pooling_v2_forward;
     using dims_t = std::vector<llga::impl::dim_t>;
 
 private:
@@ -112,9 +112,15 @@ public:
         const desc dst {dst_lt};
 
         op_kind_t kind = anode->get_op_kind();
+        dims dilations;
         if (kind == op_kind::MaxPool) {
             algo_ = algorithm::pooling_max;
+            dilations = anode->get_attr<dims>("dilations");
+            // default dilations are all 1s but in primitive, they're 0s.
+            std::for_each(dilations.begin(), dilations.end(),
+                    [](dim_t &v) { v -= 1; });
         } else if (kind == op_kind::AvgPool) {
+            dilations = dims(strides.size(), 0);
             bool exclude_pad = anode->get_attr<bool>("exclude_pad");
             algo_ = exclude_pad ? algorithm::pooling_avg_exclude_padding
                                 : algorithm::pooling_avg_include_padding;
@@ -133,7 +139,7 @@ public:
                                   : prop_kind::forward_inference;
 
         pd_ = primitive_desc({prop_kind_, algo_, expected_src, any_dst, strides,
-                                     kernel, pads_begin, pads_end},
+                                     kernel, dilations, pads_begin, pads_end},
                 eng_);
 
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
@@ -171,11 +177,11 @@ public:
     }
 };
 
-struct pooling_backward : public dnnl::pooling_backward, public kernel_base {
-    using super = dnnl::pooling_backward;
+struct pooling_backward : public dnnl::pooling_v2_backward, public kernel_base {
+    using super = dnnl::pooling_v2_backward;
 
 private:
-    dnnl::pooling_forward::primitive_desc forward_hints_;
+    dnnl::pooling_v2_forward::primitive_desc forward_hints_;
     primitive_desc pd_;
     op_kind_t kind_;
     bool is_training_ {true};
@@ -199,7 +205,7 @@ public:
                     {DNNL_ARG_DST, expected_dst},
                     {DNNL_ARG_WORKSPACE, indices}};
 
-            dnnl::pooling_forward(forward_hints_).execute(s, args);
+            dnnl::pooling_v2_forward(forward_hints_).execute(s, args);
             s.wait();
         }
 
@@ -245,24 +251,30 @@ public:
 
         kind_ = anode->get_op_kind();
         algorithm algo;
+        dims dilations;
         if (kind_ == op_kind::AvgPoolBackprop) {
             bool exclude_pad = anode->get_attr<bool>("exclude_pad");
             algo = exclude_pad ? algorithm::pooling_avg_exclude_padding
                                : algorithm::pooling_avg_include_padding;
+            dilations = dims(strides.size(), 0);
         } else if (kind_ == op_kind::MaxPoolBackprop) {
             algo = algorithm::pooling_max;
+            dilations = anode->get_attr<dims>("dilations");
+            // default dilations are all 1s but in primitive, they're 0s.
+            std::for_each(dilations.begin(), dilations.end(),
+                    [](dim_t &v) { v -= 1; });
         } else {
             BACKEND_DNNL_ENFORCE(0, "Unsupported pool_backward op.");
         }
 
         eng_ = make_dnnl_engine(*aengine);
-        forward_hints_ = dnnl::pooling_forward::primitive_desc(
+        forward_hints_ = dnnl::pooling_v2_forward::primitive_desc(
                 {prop_kind::forward_training, algo, src, diff_dst, strides,
-                        kernel, pads_begin, pads_end},
+                        kernel, dilations, pads_begin, pads_end},
                 eng_);
 
-        pd_ = primitive_desc(
-                {algo, src, diff_dst, strides, kernel, pads_begin, pads_end},
+        pd_ = primitive_desc({algo, src, diff_dst, strides, kernel, dilations,
+                                     pads_begin, pads_end},
                 eng_, forward_hints_);
 
         const tensor::desc optimal_diff_src_desc {pd_.diff_src_desc()};
