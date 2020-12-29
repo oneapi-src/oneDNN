@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,9 @@
 
 #include "cpu/cpu_engine.hpp"
 
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_brgemm_primitive_conf.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -244,6 +246,361 @@ private:
 
         if (n_loop_tail > 0) loop_by_N(n_loop_tail, nb_tail);
         postamble();
+    }
+};
+
+#undef GET_OFF
+
+#define GET_OFF(field) offsetof(brgemm_kernel_post_ops_t, field)
+
+struct brgemm_kernel_post_ops_t {
+    void *ptr_in;
+    void *ptr_out;
+    void *ptr_bias;
+    void *ptr_scales;
+};
+
+struct jit_brgemm_kernel_post_ops : public jit_generator {
+
+    jit_brgemm_kernel_post_ops(const jit_brgemm_conv_conf_t &ajcp,
+            const brgemm_t &abrg, const primitive_attr_t &aattr)
+        : brg(abrg), jcp(ajcp), attr(aattr), eltwise_injector_(nullptr) {
+
+        const auto &p = attr.post_ops_;
+        with_sum_ = p.find(primitive_kind::sum) != -1;
+        const int eltwise_ind = p.find(primitive_kind::eltwise);
+        with_eltwise_ = eltwise_ind != -1;
+        if (with_eltwise_) eltwise_ = p.entry_[eltwise_ind].eltwise;
+
+        if (brg.alpha != 0 && with_eltwise_)
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
+                    this, eltwise_, true, rax, Xbyak::Opmask(1));
+
+        const auto &oscales = attr.output_scales_;
+        is_oc_scale_ = oscales.mask_ == 1 << 1;
+
+        with_bias_ = jcp.with_bias;
+        LDD_ = brg.LDD;
+        inp_dt_ = brg.dt_c;
+        out_dt_ = brg.dt_d;
+        bia_dt_ = jcp.bia_dt;
+        inp_typesize_ = types::data_type_size(inp_dt_);
+        out_typesize_ = types::data_type_size(out_dt_);
+        bia_typesize_ = (jcp.with_bias) ? types::data_type_size(bia_dt_) : 0;
+    }
+
+    ~jit_brgemm_kernel_post_ops() { delete eltwise_injector_; }
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_post_ops)
+
+    brgemm_t brg;
+    jit_brgemm_conv_conf_t jcp;
+    const primitive_attr_t &attr;
+
+private:
+    bool with_sum_;
+    bool with_eltwise_;
+    bool with_bias_;
+    int LDD_;
+
+    data_type_t inp_dt_;
+    data_type_t out_dt_;
+    data_type_t bia_dt_;
+
+    post_ops_t::entry_t::eltwise_t eltwise_;
+
+    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+
+    int inp_typesize_;
+    int out_typesize_;
+    int bia_typesize_;
+
+    int is_oc_scale_;
+
+    using reg64_t = const Xbyak::Reg64;
+
+    // Register decomposition
+    const reg64_t param1 = abi_param1;
+    const reg64_t reg_in = r15;
+    const reg64_t reg_out = r14;
+    const reg64_t aux_reg_in = r13;
+    const reg64_t aux_reg_out = r12;
+
+    const reg64_t reg_bias = r11;
+    const reg64_t aux_reg_bias = r10;
+
+    const reg64_t reg_scales = r9;
+    const reg64_t aux_reg_scales = r8;
+
+    const reg64_t reg_ptr_sum_scale = rdx;
+
+    Xbyak::Opmask k_full_mask = Xbyak::Opmask(2);
+    Xbyak::Opmask k_tail_mask = Xbyak::Opmask(3);
+
+    const int n_block2_ = 4;
+
+    const Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag,
+            bool store, Xbyak::Opmask ktail_mask) {
+        return mask_flag
+                ? (store ? zmm_in | ktail_mask : zmm_in | ktail_mask | T_z)
+                : zmm_in;
+    }
+
+    const Xbyak::Ymm ymm_mask(const Xbyak::Ymm ymm_in, bool mask_flag,
+            bool store, Xbyak::Opmask ktail_mask) {
+        return mask_flag
+                ? (store ? ymm_in | ktail_mask : ymm_in | ktail_mask | T_z)
+                : ymm_in;
+    }
+
+    void cvt2ps(data_type_t type_in, const Xbyak::Zmm zmm_in,
+            const Xbyak::Operand &op, bool mask_flag, bool store,
+            Xbyak::Opmask ktail_mask) {
+        const Xbyak::Zmm zmm = zmm_mask(zmm_in, mask_flag, store, ktail_mask);
+        switch (type_in) {
+            case data_type::f32:
+            case data_type::s32: vmovups(zmm, op); break;
+            case data_type::s8: vpmovsxbd(zmm, op); break;
+            case data_type::u8: vpmovzxbd(zmm, op); break;
+            case data_type::bf16:
+                vpmovzxwd(zmm, op);
+                vpslld(zmm, zmm, 16);
+                break;
+            default: assert(!"unsupported data type");
+        }
+        if (!utils::one_of(type_in, data_type::f32, data_type::bf16))
+            vcvtdq2ps(zmm_in, zmm_in);
+    }
+
+    bool maybe_eltwise(int position) {
+        using namespace primitive_kind;
+        const auto &p = attr.post_ops_;
+        if (position == 0) {
+            /* eltwise before sum */
+            return p.contain(eltwise, 0);
+        } else if (position == 1) {
+            /* eltwise after sum */
+            return p.contain(sum, 0) && p.contain(eltwise, 1);
+        }
+        return false;
+    }
+
+    void apply_post_ops(int m_block, int n_block, int tail = 0) {
+        auto vector = [=](int m, int n) { return Xbyak::Zmm(m * n_block + n); };
+
+        auto k_mask = (tail == 0) ? k_full_mask : k_tail_mask;
+
+        const auto &p = attr.post_ops_;
+        const int sum_idx = p.find(primitive_kind::sum);
+
+        // brg.alpha == 0 means no read from input, no bias, no eltwise - just
+        // initialize registers by zero at the beginning of kernel
+        // brg.beta == 0 means no sum - just registers write to output
+        for_(int m = 0; m < m_block; m++)
+        for (int n = 0; n < n_block; n++) {
+            if (brg.alpha == 0) {
+                if (sum_idx != -1 && brg.beta != 0) {
+                    // if sum then have to init zmm each time
+                    vpxord(vector(m, n), vector(m, n), vector(m, n));
+                }
+            } else {
+                auto inp_addr = ptr[aux_reg_in
+                        + inp_typesize_ * (m * brg.LDC + n * brg.ld_block)];
+                cvt2ps(inp_dt_, vector(m, n), inp_addr, true, false, k_mask);
+            }
+        }
+
+        if (brg.alpha != 0 && with_bias_) {
+            for_(int m = 0; m < m_block; m++)
+            for (int n = 0; n < n_block; n++) {
+                auto zmm_bias = Xbyak::Zmm(31);
+                auto bias_addr = ptr[aux_reg_bias
+                        + bia_typesize_ * (n * brg.ld_block)];
+
+                cvt2ps(bia_dt_, zmm_bias, bias_addr, true, false, k_mask);
+                vaddps(vector(m, n), zmm_bias);
+            }
+        }
+
+        if (brg.alpha != 0) {
+            for_(int m = 0; m < m_block; m++)
+            for (int n = 0; n < n_block; n++) {
+                const Xbyak::Zmm zmm
+                        = zmm_mask(vector(m, n), true, false, k_mask);
+                vmulps(zmm, zmm,
+                        ptr[aux_reg_scales
+                                + is_oc_scale_ * sizeof(float)
+                                        * (n * brg.ld_block)]);
+            }
+        }
+
+        if (brg.alpha != 0 && with_eltwise_ && maybe_eltwise(0))
+            eltwise_injector_->compute_vector_range(0, m_block * n_block);
+
+        if (sum_idx != -1 && brg.beta != 0) {
+            const float *p_sum_scale = &p.entry_[sum_idx].sum.scale;
+            if (*p_sum_scale != 1.f)
+                mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
+
+            for_(int m = 0; m < m_block; m++)
+            for (int n = 0; n < n_block; n++) {
+                auto zmm = vector(m, n);
+                auto addr = ptr[aux_reg_out
+                        + out_typesize_ * (m * LDD_ + n * brg.ld_block)];
+
+                auto zmm_prev_dst = Xbyak::Zmm(31);
+                cvt2ps(out_dt_, zmm_prev_dst, addr, true, false, k_mask);
+                if (*p_sum_scale == 1.f)
+                    vaddps(zmm, zmm_prev_dst);
+                else
+                    vfmadd231ps(zmm, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
+            }
+        }
+
+        if (brg.alpha != 0 && with_eltwise_ && maybe_eltwise(1))
+            eltwise_injector_->compute_vector_range(0, m_block * n_block);
+
+        const bool dt_requires_saturation = utils::one_of(
+                brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
+
+        const reg64_t reg_tmp_gpr = rbx;
+        auto zmm_lbound = Xbyak::Zmm(31);
+        auto zmm_ubound = Xbyak::Zmm(30);
+        if (dt_requires_saturation) {
+            init_saturate_f32(zmm_lbound, zmm_ubound, reg_tmp_gpr,
+                    data_type::f32, brg.dt_d);
+        }
+
+        for_(int m = 0; m < m_block; m++)
+        for (int n = 0; n < n_block; n++) {
+            auto zmm = vector(m, n);
+            auto addr = ptr[aux_reg_out
+                    + out_typesize_ * (m * LDD_ + n * brg.ld_block)];
+
+            if (out_dt_ == data_type::bf16) {
+                Xbyak::Ymm ymm = Xbyak::Ymm(zmm.getIdx());
+                if (brg.alpha != 0 || (sum_idx != -1 && brg.beta != 0))
+                    vcvtneps2bf16(ymm, zmm);
+                const Xbyak::Ymm r_ymm = ymm_mask(ymm, true, true, k_mask);
+                vmovdqu16(addr, r_ymm);
+            } else {
+                if (brg.alpha != 0 || (sum_idx != -1 && brg.beta != 0)) {
+                    saturate_f32(zmm, zmm_lbound, zmm_ubound, brg.dt_d);
+                    if (out_dt_ != data_type::f32) vcvtps2dq(zmm, zmm);
+                }
+
+                const Xbyak::Zmm r_zmm = zmm_mask(zmm, true, true, k_mask);
+                switch (out_dt_) {
+                    case data_type::f32:
+                    case data_type::s32: vmovups(addr, r_zmm); break;
+                    case data_type::s8: vpmovsdb(addr, r_zmm); break;
+                    case data_type::u8: vpmovusdb(addr, r_zmm); break;
+                    default: assert(!"unknown dst_dt");
+                }
+            }
+        }
+    }
+
+    void loop_by_N(int m_block, int nb2, int nb2_tail, int nb_tail) {
+
+        if (brg.alpha != 0) mov(aux_reg_in, reg_in);
+        if (brg.alpha != 0 && with_bias_) mov(aux_reg_bias, reg_bias);
+        if (brg.alpha != 0) mov(aux_reg_scales, reg_scales);
+        mov(aux_reg_out, reg_out);
+
+        for (int n_loop_ = 0; n_loop_ < nb2; n_loop_++) {
+            apply_post_ops(m_block, n_block2_);
+
+            if (brg.alpha != 0)
+                add(aux_reg_in, inp_typesize_ * (n_block2_ * brg.ld_block));
+            add(aux_reg_out, out_typesize_ * (n_block2_ * brg.ld_block));
+            if (brg.alpha != 0 && with_bias_)
+                add(aux_reg_bias, bia_typesize_ * (n_block2_ * brg.ld_block));
+            if (brg.alpha != 0)
+                add(aux_reg_scales,
+                        is_oc_scale_ * sizeof(float)
+                                * (n_block2_ * brg.ld_block));
+        }
+        if (nb2_tail > 0) {
+            apply_post_ops(m_block, nb2_tail);
+
+            if (brg.alpha != 0)
+                add(aux_reg_in, inp_typesize_ * (nb2_tail * brg.ld_block));
+            add(aux_reg_out, out_typesize_ * (nb2_tail * brg.ld_block));
+            if (brg.alpha != 0 && with_bias_)
+                add(aux_reg_bias, bia_typesize_ * (nb2_tail * brg.ld_block));
+            if (brg.alpha != 0)
+                add(aux_reg_scales,
+                        is_oc_scale_ * sizeof(float)
+                                * (nb2_tail * brg.ld_block));
+        }
+        if (nb_tail > 0) {
+            apply_post_ops(m_block, 1, nb_tail);
+
+            if (brg.alpha != 0) add(aux_reg_in, inp_typesize_ * (nb_tail));
+            if (brg.alpha != 0 && with_bias_)
+                add(aux_reg_bias, bia_typesize_ * (nb_tail));
+            if (brg.alpha != 0)
+                add(aux_reg_scales, is_oc_scale_ * bia_typesize_ * (nb_tail));
+            add(aux_reg_out, out_typesize_ * (nb_tail));
+        }
+    }
+
+    void generate() override {
+        preamble();
+
+        int nb = brg.load_dim / brg.ld_block;
+        int nb_tail = brg.load_dim % brg.ld_block;
+
+        int nb2 = nb / n_block2_;
+        int nb2_tail = nb % n_block2_;
+        int n_block = (nb2 == 0) ? nstl::max(1, nb2_tail) : n_block2_;
+
+        int m_max_regs = 28 / n_block;
+        int m_block = nstl::min(brg.bcast_dim, m_max_regs);
+
+        int mb = brg.bcast_dim / m_block;
+        int mb_tail = brg.bcast_dim % m_block;
+
+        const auto full_mask = size_t {0xffffffffffffffff};
+        const auto tail_mask = size_t((1 << nb_tail) - 1);
+
+        reg64_t reg_mask = rax;
+
+        mov(reg_mask, full_mask);
+        kmovq(k_full_mask, reg_mask);
+        mov(reg_mask, tail_mask);
+        kmovq(k_tail_mask, reg_mask);
+
+        if (brg.alpha != 0) mov(reg_in, ptr[param1 + GET_OFF(ptr_in)]);
+        if (brg.alpha != 0 && with_bias_)
+            mov(reg_bias, ptr[param1 + GET_OFF(ptr_bias)]);
+        if (brg.alpha != 0) mov(reg_scales, ptr[param1 + GET_OFF(ptr_scales)]);
+        mov(reg_out, ptr[param1 + GET_OFF(ptr_out)]);
+
+        // brg.alpha == 0 means no read from input, no bias, no eltwise - just
+        // initialize registers by zero
+        // brg.beta == 0 means no sum - just registers write to output
+        if (brg.alpha == 0) {
+            for_(int m = 0; m < m_block; m++)
+            for (int n = 0; n < n_block; n++) {
+                auto zmm = Xbyak::Zmm(m * n_block + n);
+                vpxord(zmm, zmm, zmm);
+            }
+        }
+
+        for (int mb_ = 0; mb_ < mb; mb_++) {
+            loop_by_N(m_block, nb2, nb2_tail, nb_tail);
+
+            if (brg.alpha != 0)
+                add(reg_in, inp_typesize_ * (m_block * brg.LDC));
+            add(reg_out, out_typesize_ * (m_block * LDD_));
+        }
+        if (mb_tail > 0) loop_by_N(mb_tail, nb2, nb2_tail, nb_tail);
+
+        postamble();
+
+        if (brg.alpha != 0 && with_eltwise_) eltwise_injector_->prepare_table();
     }
 };
 
