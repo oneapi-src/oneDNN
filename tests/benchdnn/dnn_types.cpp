@@ -1253,7 +1253,7 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
     }
 }
 
-engine_t::engine_t(dnnl_engine_kind_t engine_kind) {
+engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {
     size_t idx = engine_kind == dnnl_cpu ? 0 : engine_index;
 #ifdef DNNL_WITH_SYCL
     if (engine_kind == dnnl_cpu) {
@@ -1271,7 +1271,10 @@ engine_t::engine_t(dnnl_engine_kind_t engine_kind) {
 #endif
 }
 
+engine_t::engine_t(dnnl_engine_t engine) : engine_(engine), is_owner_(false) {}
+
 engine_t::~engine_t() {
+    if (!is_owner_) return;
 #ifdef DNNL_WITH_SYCL
     engine_ = nullptr;
 #else
