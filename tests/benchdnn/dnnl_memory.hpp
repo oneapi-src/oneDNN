@@ -252,11 +252,17 @@ private:
                         CRIT);
             }
 
-            if (is_nvidia_gpu(engine_)) {
+            if (is_sycl_engine(engine_)) {
 #ifdef DNNL_WITH_SYCL
-                // USM is not supported with Nvidia so force SYCL buffers.
-                DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine,
-                                 dnnl_sycl_interop_buffer, handle_info.ptr),
+                // 1. USM is not supported with Nvidia so force SYCL buffers.
+                // 2. Ignore sycl_memory_kind with host pointers and force USM.
+                dnnl_sycl_interop_memory_kind_t mem_kind
+                        = is_nvidia_gpu(engine_)
+                        ? dnnl_sycl_interop_buffer
+                        : (handle_info.is_host_ptr ? dnnl_sycl_interop_usm
+                                                   : sycl_memory_kind);
+                DNN_SAFE(dnnl_sycl_interop_memory_create(
+                                 &m_, &md_, engine, mem_kind, handle_info.ptr),
                         CRIT);
 #endif
             } else {

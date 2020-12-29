@@ -329,6 +329,7 @@ void check_binary_post_ops(const attr_t &attr, res_t *res);
 
 bool is_cpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_gpu(const dnnl_engine_t &engine = get_test_engine());
+bool is_sycl_engine(const dnnl_engine_t &engine = get_test_engine());
 bool is_nvidia_gpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_nvidia_eltwise_ok(
         dir_t dir, attr_t::post_ops_t::kind_t alg, float alpha);
@@ -341,5 +342,9 @@ int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
         dnnl_data_type_t data_type, const std::string &tag);
 int check_mem_size(const dnnl_memory_desc_t &md);
 int check_mem_size(const_dnnl_primitive_desc_t const_pd);
+
+#ifdef DNNL_WITH_SYCL
+dnnl_sycl_interop_memory_kind_t str2sycl_memory_kind(const char *str);
+#endif
 
 #endif

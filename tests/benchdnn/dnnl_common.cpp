@@ -56,6 +56,10 @@ size_t engine_index = 0;
 // CPU ISA specific hints : none by default
 isa_hints_t hints {isa_hints_t::none};
 
+#ifdef DNNL_WITH_SYCL
+dnnl_sycl_interop_memory_kind_t sycl_memory_kind {dnnl_sycl_interop_usm};
+#endif
+
 void init_isa_settings() {
     if (hints.get() == isa_hints_t::no_hints)
         DNN_SAFE_V(dnnl_set_cpu_isa_hints(dnnl_cpu_isa_no_hints));
@@ -322,6 +326,12 @@ bool is_cpu(const dnnl_engine_t &engine) {
 
 bool is_gpu(const dnnl_engine_t &engine) {
     return get_engine_kind(engine) == dnnl_gpu;
+}
+
+bool is_sycl_engine(const dnnl_engine_t &engine) {
+    if (is_cpu(engine)) return DNNL_CPU_RUNTIME == DNNL_RUNTIME_DPCPP;
+    if (is_gpu(engine)) return DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP;
+    return false;
 }
 
 bool is_nvidia_gpu(const dnnl_engine_t &engine) {
@@ -630,3 +640,17 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     }
     return OK;
 }
+
+#ifdef DNNL_WITH_SYCL
+dnnl_sycl_interop_memory_kind_t str2sycl_memory_kind(const char *str) {
+    const char *param = "usm";
+    if (!strncasecmp(param, str, strlen(param))) return dnnl_sycl_interop_usm;
+
+    param = "buffer";
+    if (!strncasecmp(param, str, strlen(param)))
+        return dnnl_sycl_interop_buffer;
+
+    assert(!"not expected");
+    return dnnl_sycl_interop_usm;
+}
+#endif

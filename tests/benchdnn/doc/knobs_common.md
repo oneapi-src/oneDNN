@@ -62,6 +62,9 @@ The following common options are supported:
   several patterns to be matched against through `:` delimiter between patterns.
   E.g. `--skip-impl=ref:gemm`.
 
+* --sycl-memory-kind=`KIND` -- Specifies the memory kind to test with DPC++
+  engines. KIND values can be `usm` (default) or `buffer`.
+
 * -v`N`, --verbose=`N` -- Specifies the driver verbose level. It prints
   additional information depending on a level N. N is a non-negative integer
   value. The default value is `0`. Refer to [verbose](knobs_verbose.md) for
