@@ -20,7 +20,7 @@
 #include "oneapi/dnnl/dnnl.hpp"
 
 #if DNNL_X64
-#include "src/cpu/x64/cpu_isa_traits.hpp"
+#include "tests/cpu_x64_isa_common.hpp"
 #endif
 
 namespace dnnl {
@@ -48,8 +48,7 @@ protected:
 #if DNNL_X64
         // Skip this test if the library cannot select blocked format a priori.
         // Currently blocking is supported only for sse41 and later CPUs.
-        using namespace impl::cpu::x64;
-        bool implementation_supports_blocking = mayiuse(sse41);
+        bool implementation_supports_blocking = dnnl::mayiuse(cpu_isa::sse41);
         if (!implementation_supports_blocking) return;
 #else
         return;
@@ -134,7 +133,7 @@ using tf32 = conv_any_fmt_test_params_t;
 // starting from avx512_core the default format is FLT
 CPU_INSTANTIATE_TEST_SUITE_P(TestConvolutionAlexnetAnyFmtForward,
         conv_any_fmt_test_float,
-        impl::cpu::x64::mayiuse(impl::cpu::x64::avx512_core)
+        dnnl::mayiuse(cpu_isa::avx512_core)
                 ? ::testing::Values(ALEXNET_SUITE(FLT))
                 : ::testing::Values(ALEXNET_SUITE(BLK)));
 #endif

@@ -23,6 +23,9 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#if DNNL_X64
+#include "tests/cpu_x64_isa_common.hpp"
+#endif
 #include "tests/test_thread.hpp"
 
 #include "compare.hpp"
@@ -646,10 +649,11 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         if (is_cpu()) {
 #ifdef DNNL_X64
             static auto isa = dnnl_get_effective_cpu_isa();
-            static bool has_avx512_common = isa >= dnnl_cpu_isa_avx512_mic
-                    && isa != dnnl_cpu_isa_avx2_vnni;
-            static bool has_avx512_bw = isa >= dnnl_cpu_isa_avx512_core
-                    && isa != dnnl_cpu_isa_avx2_vnni;
+            static bool has_avx512_bw
+                    = dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core);
+            static bool has_avx512_common = has_avx512_bw
+                    || dnnl::is_superset(isa, dnnl_cpu_isa_avx512_mic);
+
             bool is_int8 = prb->cfg[WEI].dt == dnnl_s8;
 
             bool pad_ok_f32 = prb->pw <= 1 && prb->ph <= 1 && prb->pw_r <= 1

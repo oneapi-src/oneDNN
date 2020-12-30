@@ -21,7 +21,7 @@
 #include "src/common/dnnl_thread.hpp"
 
 #if DNNL_X64
-#include "src/cpu/x64/cpu_isa_traits.hpp"
+#include "tests/cpu_x64_isa_common.hpp"
 #endif
 
 namespace dnnl {
@@ -54,12 +54,13 @@ protected:
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
         const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
         static const auto isa = get_effective_cpu_isa();
-        input_f32.wino_supported = is_gpu
-                || (is_cpu && isa >= cpu_isa::avx512_mic
-                        && isa != cpu_isa::avx2_vnni);
+        static const bool has_avx512_common
+                = dnnl::is_superset(isa, cpu_isa::avx512_mic)
+                || dnnl::is_superset(isa, cpu_isa::avx512_core);
+        input_f32.wino_supported = is_gpu || (is_cpu && has_avx512_common);
         input_f16.wino_supported = is_gpu;
-        input_int8.wino_supported = is_cpu && isa >= cpu_isa::avx512_core
-                && isa != cpu_isa::avx2_vnni;
+        input_int8.wino_supported
+                = is_cpu && dnnl::is_superset(isa, cpu_isa::avx512_core);
         input_f32.backward_supported = is_cpu && impl::dnnl_thr_syncable();
 #elif DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;

@@ -38,7 +38,7 @@
 #endif
 
 #if DNNL_X64
-#include "src/cpu/x64/cpu_isa_traits.hpp"
+#include "tests/cpu_x64_isa_common.hpp"
 #endif
 
 #include <cstdint>
@@ -1029,8 +1029,7 @@ protected:
                 && data_traits<c_dt>::data_type == memory::data_type::f32;
 
         SKIP_IF(is_bf16bf16f32 && get_test_engine_kind() == engine::kind::cpu
-                        && !impl::cpu::x64::mayiuse(
-                                impl::cpu::x64::avx512_core),
+                        && !dnnl::mayiuse(cpu_isa::avx512_core),
                 "Skip test for systems that do not support avx512_core.");
 #endif
 

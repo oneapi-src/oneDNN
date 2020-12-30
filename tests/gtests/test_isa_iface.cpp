@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,11 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
+#if DNNL_X64
+#include "tests/cpu_x64_isa_common.hpp"
+#endif
+
 #include "gtest/gtest.h"
 
 #include "oneapi/dnnl/dnnl.hpp"
 #include "src/cpu/platform.hpp"
-#include "src/cpu/x64/cpu_isa_traits.hpp"
 
 namespace dnnl {
 
@@ -26,7 +29,7 @@ class isa_set_once_test_t : public ::testing::Test {};
 TEST(isa_set_once_test, TestISASetOnce) {
     auto st = set_max_cpu_isa(cpu_isa::sse41);
     ASSERT_TRUE(st == status::success || st == status::unimplemented);
-    ASSERT_TRUE(impl::cpu::x64::mayiuse(impl::cpu::x64::sse41));
+    ASSERT_TRUE(mayiuse(cpu_isa::sse41));
     st = set_max_cpu_isa(cpu_isa::sse41);
     ASSERT_TRUE(st == status::invalid_arguments || st == status::unimplemented);
 };
@@ -37,7 +40,7 @@ TEST(isa_set_once_test, TestISAHintsSetOnce) {
     ASSERT_TRUE(unimplemented || st == status::success);
 
     // mayiuse should disable further changes in CPU ISA hints
-    ASSERT_TRUE(impl::cpu::x64::mayiuse(impl::cpu::x64::sse41));
+    ASSERT_TRUE(mayiuse(cpu_isa::sse41));
     ASSERT_TRUE(unimplemented || impl::cpu::platform::prefer_ymm_requested());
 
     st = set_cpu_isa_hints(cpu_isa_hints::no_hints);
