@@ -21,7 +21,7 @@ KERNEL_ATTR
 __kernel void ref_resampling_fwd(
         __global const DATA_T *src, __global DATA_T *dst) {
     const uint mb = GWS_GET_MB();
-    const uint ch = GWS_GET_C();
+    const uint c = GWS_GET_C();
     const uint od = GWS_GET_OD();
     const uint oh = GWS_GET_OH();
     const uint ow = GWS_GET_OW();
@@ -29,11 +29,9 @@ __kernel void ref_resampling_fwd(
     const float ih = (oh + .5f) * IH / OH;
     const float iw = (ow + .5f) * IW / OW;
 #if NEAREST
-    for (int c = ch; c < min((uint)C, ch + (uint)C_BLOCK); c++) {
-        const uint src_index = SRC_OFF(mb, c, (uint)id, (uint)ih, (uint)iw);
-        const uint dst_index = DST_OFF(mb, c, od, oh, ow);
-        dst[dst_index] = src[src_index];
-    }
+    const uint src_index = SRC_OFF(mb, c, (uint)id, (uint)ih, (uint)iw);
+    const uint dst_index = DST_OFF(mb, c, od, oh, ow);
+    dst[dst_index] = src[src_index];
 #else
     const uint id0 = max((uint)floor(id - .5f), (uint)0);
     const uint id1 = min((uint)ceil(id - .5f), (uint)ID - 1);
@@ -44,27 +42,23 @@ __kernel void ref_resampling_fwd(
     float Wid = 1.0f - fabs(id - .5f - id0);
     float Wih = 1.0f - fabs(ih - .5f - ih0);
     float Wiw = 1.0f - fabs(iw - .5f - iw0);
-    for (int c = ch; c < min((uint)C, ch + (uint)C_BLOCK); c++) {
-        dst[DST_OFF(mb, c, od, oh, ow)] = CONVERT_DATA_T(
-                ((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih0, iw0)]) * Wih
-                         * Wiw)
-                        + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih1, iw0)])
-                                * (1.f - Wih) * Wiw)
-                        + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih0, iw1)])
-                                * Wih * (1 - Wiw))
-                        + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih1, iw1)])
-                                * (1.f - Wih) * (1.f - Wiw)))
-                        * Wid
-                + ((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih0, iw0)]) * Wih
-                           * Wiw)
-                          + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih1, iw0)])
-                                  * (1.f - Wih) * Wiw)
-                          + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih0, iw1)])
-                                  * Wih * (1 - Wiw))
-                          + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih1, iw1)])
-                                  * (1.f - Wih) * (1.f - Wiw)))
-                        * (1.f - Wid));
-    }
+    dst[DST_OFF(mb, c, od, oh, ow)] = CONVERT_DATA_T(
+            ((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih0, iw0)]) * Wih * Wiw)
+                    + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih1, iw0)])
+                            * (1.f - Wih) * Wiw)
+                    + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih0, iw1)]) * Wih
+                            * (1 - Wiw))
+                    + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih1, iw1)])
+                            * (1.f - Wih) * (1.f - Wiw)))
+                    * Wid
+            + ((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih0, iw0)]) * Wih * Wiw)
+                      + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih1, iw0)])
+                              * (1.f - Wih) * Wiw)
+                      + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih0, iw1)])
+                              * Wih * (1 - Wiw))
+                      + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih1, iw1)])
+                              * (1.f - Wih) * (1.f - Wiw)))
+                    * (1.f - Wid));
 #endif
 }
 #endif

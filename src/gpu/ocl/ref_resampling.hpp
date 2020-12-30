@@ -53,14 +53,9 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            auto blocking = src_md()->format_desc.blocking;
-            bool only_c_blocked
-                    = blocking.inner_nblks == 1 && blocking.inner_idxs[0] == 1;
-            c_block = only_c_blocked ? blocking.inner_blks[0] : 1;
-
             dispatch = compute_engine->create_dispatch(dst_md());
             dispatch.define_dim("MB", 0, MB());
-            dispatch.define_dim("C", 1, C(), c_block);
+            dispatch.define_dim("C", 1, C());
             dispatch.define_dim("OD", nstl::max(2, dst_md()->ndims - 3), OD());
             dispatch.define_dim("OH", nstl::max(2, dst_md()->ndims - 2), OH());
             dispatch.define_dim("OW", nstl::max(2, dst_md()->ndims - 1), OW());
@@ -68,7 +63,6 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
 
             return status::success;
         }
-        int c_block;
         compute::dispatch_t dispatch;
     };
 
@@ -100,7 +94,6 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("NDIMS", ndims);
         kernel_ctx.define_int("MB", pd()->MB());
         kernel_ctx.define_int("C", pd()->C());
-        kernel_ctx.define_int("C_BLOCK", pd()->c_block);
         kernel_ctx.define_int("ID", pd()->ID());
         kernel_ctx.define_int("IH", pd()->IH());
         kernel_ctx.define_int("IW", pd()->IW());
