@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -324,7 +324,10 @@ int doit(const prb_t *prb, res_t *res) {
                 const_pd, dnnl_query_exec_arg_md, index);
     };
 
-    const auto &data_md = q(DNNL_ARG_SRC);
+    const bool is_fwd = prb->dir & FLAG_FWD;
+    const auto &src_md = q(DNNL_ARG_SRC);
+    const auto &dst_md = q(DNNL_ARG_DST);
+    const auto &data_md = !is_fwd && prb->use_dst() ? dst_md : src_md;
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
     const auto &test_engine = get_test_engine();
 
@@ -350,7 +353,6 @@ int doit(const prb_t *prb, res_t *res) {
 
     args_t args;
 
-    const bool is_fwd = prb->dir & FLAG_FWD;
     dnn_mem_t &arg_fp = !is_fwd && prb->use_dst() ? dst_fp : src_fp;
 
     // Shouldn't be defined inside since not available when `eltwise_add_check`
@@ -410,7 +412,7 @@ int doit(const prb_t *prb, res_t *res) {
             // make dst_fp of same values as for bf16, otherwise there are high
             // relative and absolute errors due to initial difference in source
             // values which become worse particularly when (1 - x) is used.
-            SAFE(dst_fp.reorder(dst_dt), WARN);
+            if (dst_dt.dt() != dst_fp.dt()) SAFE(dst_fp.reorder(dst_dt), WARN);
             args.set(DNNL_ARG_DST, dst_dt);
         } else {
             args.set(DNNL_ARG_SRC, src_dt);

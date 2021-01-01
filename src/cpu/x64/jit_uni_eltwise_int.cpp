@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -405,7 +405,7 @@ status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu,
                     alg_kind::eltwise_linear)
             && !has_zero_dim_memory()
-            && memory_desc_wrapper(src_md()).is_dense(true)
+            && memory_desc_wrapper(data_md()).is_dense(true)
             && attr()->has_default_values();
 
     return ok ? status::success : status::unimplemented;
@@ -434,7 +434,7 @@ void jit_uni_eltwise_int_fwd_t<isa, d_type>::execute_forward(
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
-    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper data_d(pd()->data_md());
 
     const size_t nelems = data_d.nelems(true);
 

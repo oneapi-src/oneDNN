@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ static status_t init_conf_common(eltwise_conf_t &conf, offsets_t &off,
     alg_kind_t alg = pd->desc()->alg_kind;
     bool is_forward = utils::one_of(pd->desc()->prop_kind,
             prop_kind::forward_training, prop_kind::forward_inference);
-    const memory_desc_wrapper data_d(pd->src_md());
+    const memory_desc_wrapper data_d(pd->desc()->data_desc);
     const memory_desc_wrapper diff_data_d(
             is_forward ? &glob_zero_md : pd->diff_src_md());
 

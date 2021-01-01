@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ struct ref_eltwise_fwd_t : public primitive_t {
                     && attr()->has_default_values(sm::post_ops);
             if (!ok) return status::unimplemented;
 
-            auto src_d = memory_desc_wrapper(src_md());
+            auto src_d = memory_desc_wrapper(data_md());
 
             use_dense_ = src_d.is_dense(true)
                     && IMPLICATION(!src_d.is_dense(), is_zero_preserved());
@@ -123,7 +123,8 @@ struct ref_eltwise_bwd_t : public primitive_t {
                     || (diff_dst_d.is_dense(true) && is_zero_preserved());
 
             if (has_zero_dim_memory()) use_dense_ = false;
-            if (diff_dst_d != memory_desc_wrapper(src_md())) use_dense_ = false;
+            if (diff_dst_d != memory_desc_wrapper(data_md()))
+                use_dense_ = false;
 
             if (data_type == data_type::bf16) init_scratchpad();
 
@@ -134,7 +135,7 @@ struct ref_eltwise_bwd_t : public primitive_t {
 
     private:
         void init_scratchpad() {
-            const memory_desc_wrapper data_d(src_md());
+            const memory_desc_wrapper data_d(data_md());
             const memory_desc_wrapper diff_data_d(diff_dst_md());
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();

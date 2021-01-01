@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
-    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper data_d(pd()->data_md());
     const blocking_desc_t &blk = data_d.blocking_desc();
     const dim_t block = blk.inner_blks[0];
 
@@ -83,7 +83,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic(
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
-    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper data_d(pd()->data_md());
 
     const dim_t MB = pd()->MB();
     const dim_t C = pd()->C();
@@ -118,7 +118,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense(
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
-    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper data_d(pd()->data_md());
 
     const auto nelems = data_d.nelems(true);
     const auto alg_kind = pd()->desc()->alg_kind;
@@ -154,7 +154,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic(
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper data_d(pd()->data_md());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
 
     const dim_t MB = pd()->MB();
@@ -186,7 +186,7 @@ void ref_eltwise_bwd_t<data_type::f32>::execute_backward_dense(
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper data_d(pd()->data_md());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
 
     const auto nelems = data_d.nelems(true);
@@ -224,7 +224,7 @@ void ref_eltwise_bwd_t<data_type::bf16>::execute_backward_dense(
     auto s_f = scratchpad.template get<float>(key_eltwise_src);
     auto dd_f = scratchpad.template get<float>(key_eltwise_diff_dst);
 
-    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper data_d(pd()->data_md());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
 
     const auto nelems = data_d.nelems(true);
