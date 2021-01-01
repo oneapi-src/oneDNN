@@ -560,10 +560,11 @@ static size_t get_memory_bytes(const_dnnl_primitive_desc_t const_pd,
                        : dnnl_query_num_of_outputs_s32,
             0);
 
-    dnnl_prop_kind_t prop_kind;
+    dnnl_prop_kind_t prop_kind = dnnl_prop_kind_undef;
     dnnl_primitive_desc_query(const_pd, dnnl_query_prop_kind, 0, &prop_kind);
     const bool is_fwd = prop_kind == dnnl_forward_training
-            || prop_kind == dnnl_forward_inference;
+            || prop_kind == dnnl_forward_inference
+            || prop_kind == dnnl_prop_kind_undef;
 
 #define MD(name) dnnl_query_##name##_md
     std::vector<dnnl_query_t> query_fwd_in_mds {MD(src), MD(weights)};
