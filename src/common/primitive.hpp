@@ -221,6 +221,9 @@ private:
 #define CTX_OUT_MEM(type, arg) \
     static_cast<ARG_TYPE(type) *>(CTX_OUT_STORAGE(arg).data_handle())
 
+#define CTX_IN_BATCH(arg) \
+    ctx.input(arg) ? ctx.input(arg)->md()->ndims != 0 ? ctx.input(arg)->md()->dims[0] : 0 : 0
+
 // dnnl_primitive is a user facing entity that has an alias primitive_iface_t
 // for internal use.
 // The primitive_iface_t is responsible for holding:

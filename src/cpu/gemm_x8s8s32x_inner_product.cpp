@@ -37,7 +37,8 @@ status_t gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
-    const dim_t MB = pd()->MB();
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const dim_t OC = pd()->OC();
 
     const auto &wmd = *pd()->weights_md();

@@ -118,12 +118,14 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public primitive_t {
         auto bia = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
         auto dst = CTX_OUT_MEM(float *, DNNL_ARG_DST);
 
+        auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
         if (pd()->jcp_.small_mb)
             execute_forward_small_mb(
-                    src, wei, bia, dst, ctx.get_scratchpad_grantor());
+                    src, wei, bia, dst, ctx.get_scratchpad_grantor(), MB);
         else
             execute_forward_mbN(
-                    src, wei, bia, dst, ctx.get_scratchpad_grantor());
+                    src, wei, bia, dst, ctx.get_scratchpad_grantor(), MB);
 
         return status::success;
     }
@@ -131,10 +133,10 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public primitive_t {
 private:
     void execute_forward_small_mb(const float *src, const float *wei,
             const float *bia, float *dst,
-            const memory_tracking::grantor_t &scratchpad) const;
+            const memory_tracking::grantor_t &scratchpad, int MB) const;
     void execute_forward_mbN(const float *src, const float *wei,
             const float *bia, float *dst,
-            const memory_tracking::grantor_t &scratchpad) const;
+            const memory_tracking::grantor_t &scratchpad, int MB) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t> kernel_;

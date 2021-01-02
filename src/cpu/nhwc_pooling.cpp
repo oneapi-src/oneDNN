@@ -155,11 +155,12 @@ void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
     auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const memory_desc_wrapper MEM_D(src)(pd()->src_md());
     const memory_desc_wrapper MEM_D(dst)(pd()->dst_md());
     const memory_desc_wrapper MEM_D(ws)(pd()->workspace_md());
 
-    const int MB = pd()->MB();
     const int OD = pd()->OD();
     const int OC = pd()->C();
     const int OH = pd()->OH();
@@ -293,6 +294,8 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
     auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     auto scratchpad = ctx.get_scratchpad_grantor();
     float *bf16cvt_src_wsp = scratchpad.template get<float>(
             memory_tracking::names::key_pool_src_bf16cvt);
@@ -303,7 +306,6 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
     const memory_desc_wrapper MEM_D(dst)(pd()->dst_md());
     const memory_desc_wrapper MEM_D(ws)(pd()->workspace_md());
 
-    const int MB = pd()->MB();
     const int OD = pd()->OD();
     const int OC = pd()->C();
     const int OH = pd()->OH();

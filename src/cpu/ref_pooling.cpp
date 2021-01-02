@@ -51,6 +51,8 @@ void ref_pooling_fwd_t<src_type, dst_type, acc_type>::execute_forward(
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
     auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper ws_d(pd()->workspace_md());
@@ -197,7 +199,6 @@ void ref_pooling_fwd_t<src_type, dst_type, acc_type>::execute_forward(
         }
     };
 
-    const int MB = pd()->MB();
     const int OC = pd()->C();
     const int OD = pd()->OD();
     const int OH = pd()->OH();

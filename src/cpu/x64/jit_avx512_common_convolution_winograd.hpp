@@ -74,7 +74,7 @@ struct _jit_avx512_common_convolution_winograd_t {
 protected:
     void _execute_data_W_S_G_D(float *inp_ptr, float *out_ptr, float *wei_ptr,
             float *bias_ptr,
-            const memory_tracking::grantor_t &scratchpad) const;
+            const memory_tracking::grantor_t &scratchpad, int MB) const;
     std::unique_ptr<_jit_avx512_common_conv_winograd_data_kernel_f32> kernel_;
 
 private:
@@ -150,8 +150,11 @@ struct jit_avx512_common_convolution_winograd_fwd_t
         auto weights = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
         auto bias = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
         auto dst = CTX_OUT_MEM(float *, DNNL_ARG_DST);
+
+        auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
         this->_execute_data_W_S_G_D((float *)src, dst, (float *)weights,
-                (float *)bias, ctx.get_scratchpad_grantor());
+                (float *)bias, ctx.get_scratchpad_grantor(), MB);
         return status::success;
     }
 
@@ -225,8 +228,11 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
         auto diff_dst = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST);
         auto weights = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
         auto diff_src = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SRC);
+
+        auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
         this->_execute_data_W_S_G_D((float *)diff_dst, diff_src,
-                (float *)weights, nullptr, ctx.get_scratchpad_grantor());
+                (float *)weights, nullptr, ctx.get_scratchpad_grantor(), MB);
         return status::success;
     }
 

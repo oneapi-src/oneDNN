@@ -62,6 +62,8 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
@@ -89,7 +91,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     int oh_chunks = utils::div_up(jcp.oh, jcp.oh_blk_size);
-    int work_amount = jcp.mb * jcp.ngroups * oh_chunks * jcp.nb_ow * oc_chunks;
+    int work_amount = MB * jcp.ngroups * oh_chunks * jcp.nb_ow * oc_chunks;
 
     // reorder weights from (g)Owhi16o to (g)OR16r16o4r, where r := whi
     auto p = jit_conv_call_s();
@@ -117,7 +119,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
 
         int mb {0}, g {0}, ohc {0}, owb {0}, occ {0};
         // need "inner" oh blocks w.r.t. ow blocks to allow pbuffer reuse
-        nd_iterator_init(start, mb, jcp.mb, g, jcp.ngroups, owb, jcp.nb_ow, ohc,
+        nd_iterator_init(start, mb, MB, g, jcp.ngroups, owb, jcp.nb_ow, ohc,
                 oh_chunks, occ, oc_chunks);
         int last_copied_mb = -1;
         int last_copied_ohc = -1;
@@ -218,7 +220,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
             last_copied_g = g;
             ++start;
             // need "inner" oh blocks w.r.t. ow blocks to allow pbuffer reuse
-            nd_iterator_step(mb, jcp.mb, g, jcp.ngroups, owb, jcp.nb_ow, ohc,
+            nd_iterator_step(mb, MB, g, jcp.ngroups, owb, jcp.nb_ow, ohc,
                     oh_chunks, occ, oc_chunks);
         }
     });
@@ -231,6 +233,8 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -268,7 +272,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     int oh_chunks = utils::div_up(jcp.oh, jcp.oh_blk_size);
-    int work_amount = jcp.mb * jcp.ngroups * oh_chunks * jcp.nb_ow * oc_chunks;
+    int work_amount = MB * jcp.ngroups * oh_chunks * jcp.nb_ow * oc_chunks;
 
     kernel_->tile_configure(tcfg);
     const bool is_1d = pd()->ndims() == 3;
@@ -283,7 +287,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
         amx_tile_configure(tcfg);
 
         int mb {0}, g {0}, ohc {0}, owb {0}, occ {0};
-        nd_iterator_init(start, mb, jcp.mb, g, jcp.ngroups, ohc, oh_chunks, owb,
+        nd_iterator_init(start, mb, MB, g, jcp.ngroups, ohc, oh_chunks, owb,
                 jcp.nb_ow, occ, oc_chunks);
         int last_copied_mb = -1;
         int last_copied_ohc = -1;
@@ -389,7 +393,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
             last_copied_owb = owb;
             last_copied_g = g;
             ++start;
-            nd_iterator_step(mb, jcp.mb, g, jcp.ngroups, ohc, oh_chunks, owb,
+            nd_iterator_step(mb, MB, g, jcp.ngroups, ohc, oh_chunks, owb,
                     jcp.nb_ow, occ, oc_chunks);
         }
     });

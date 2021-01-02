@@ -64,6 +64,8 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const memory_desc_wrapper data_d(pd()->src_md());
 
     const dim_t C = pd()->C();
@@ -140,7 +142,6 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
         d[0] = static_cast<data_t>(s * fast_negative_powf(sum, beta));
     };
 
-    const dim_t MB = pd()->MB();
     if (tag == nChw16c || tag == nChw8c) {
         parallel_nd(MB, utils::div_up(C, blksize), H, W,
                 [&](dim_t mb, dim_t c_blk, dim_t h, dim_t w) {

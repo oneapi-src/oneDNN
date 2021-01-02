@@ -699,7 +699,8 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
-    const memory_desc_wrapper data_d(pd()->src_md());
+    auto real_src_md = ctx.input(DNNL_ARG_SRC)->md();
+    const memory_desc_wrapper data_d(real_src_md);
     const auto data_type_size = data_d.data_type() == data_type::bf16
             ? sizeof(bfloat16_t)
             : sizeof(float);

@@ -45,8 +45,10 @@ status_t gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const dim_t M = pd()->OC();
-    const dim_t N = pd()->MB();
+    const dim_t N = MB;
     const dim_t K = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->weights_md();
@@ -84,8 +86,10 @@ gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::execute_backward_data(
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
+
     const dim_t M = pd()->IC_total_padded();
-    const dim_t N = pd()->MB();
+    const dim_t N = MB;
     const dim_t K = pd()->OC();
 
     const auto &wmd = *pd()->weights_md();

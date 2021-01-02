@@ -50,6 +50,8 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
     auto bias_dw = CTX_IN_MEM(
             const dst_data_t *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     auto scratchpad = ctx.get_scratchpad_grantor();
 
     const auto &jcp = kernel_->jcp;
@@ -64,7 +66,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
-                dst, scratchpad);
+                dst, scratchpad, MB);
     });
 
     if (pd()->wants_zero_pad_dst())
@@ -77,7 +79,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         const src_data_t *src, const wei_data_t *weights,
         const dst_data_t *bias, const wei_data_t *weights_dw,
         const dst_data_t *bias_dw, dst_data_t *dst,
-        const memory_tracking::grantor_t &scratchpad) const {
+        const memory_tracking::grantor_t &scratchpad, int MB) const {
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -134,7 +136,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
                               int &bcast_step, int &od, int &oh, int &ow,
                               int &id, int &ih, int &iw) {
         int osb {0};
-        nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb, nb_bcast);
+        nd_iterator_init(iwork, n, MB, g, jcp.ngroups, osb, nb_bcast);
         bcast_step = step(
                 nb_bcast_blocking, nb_bcast - osb, nb_bcast_blocking_max);
         bcast_step = nstl::min(bcast_step, bcast_end - iwork);
@@ -366,7 +368,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         addrs.resize(jcp_dw.kh);
 
         int bcast_start {0}, bcast_end {0}, ocb_start {0}, ocb_end {0};
-        balance2D(nthr, ithr, jcp.mb * jcp.ngroups * jcp_dw.oh, bcast_start,
+        balance2D(nthr, ithr, MB * jcp.ngroups * jcp_dw.oh, bcast_start,
                 bcast_end, nb_oc, ocb_start, ocb_end, jcp.load_grp_count);
 
         while (ocb_start < ocb_end) {
@@ -377,7 +379,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
             auto bcast_iter = bcast_start;
             while (bcast_iter < bcast_end) {
                 int n {0}, g {0}, oh_dw {0};
-                nd_iterator_init(bcast_iter, n, jcp.mb, g, jcp.ngroups, oh_dw,
+                nd_iterator_init(bcast_iter, n, MB, g, jcp.ngroups, oh_dw,
                         jcp_dw.oh);
                 if (oh_dw == 0) oh_1x1 = 0; // Reset over mb boundary
                 const int oh_1x1_range = oh_dw * jcp_dw.stride_h - jcp_dw.t_pad;
@@ -407,7 +409,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         conv_dw();
     } else {
 
-        const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
+        const int work_amount = MB * jcp.ngroups * jcp.nb_bcast;
         int bcast_start {0}, bcast_end {0}, ocb_start {0}, ocb_end {0};
         balance2D(nthr, ithr, work_amount, bcast_start, bcast_end, jcp.nb_load,
                 ocb_start, ocb_end, jcp.load_grp_count);
@@ -426,6 +428,8 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
+
+    auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -450,7 +454,7 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
     const int os_block = jcp.bcast_block;
     const int nb_oc_blocking = jcp.nb_reduce_blocking;
 
-    const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
+    const int work_amount = MB * jcp.ngroups * jcp.nb_bcast;
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -493,7 +497,7 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
                 for (int iwork = bcast_start; iwork < bcast_end;
                         iwork += bcast_step) {
                     int n {0}, g {0}, osb {0};
-                    nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb,
+                    nd_iterator_init(iwork, n, MB, g, jcp.ngroups, osb,
                             jcp.nb_bcast);
 
                     bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,

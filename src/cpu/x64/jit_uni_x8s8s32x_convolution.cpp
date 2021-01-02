@@ -45,6 +45,8 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -82,7 +84,7 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
     const uint8_t* input_zp = pd()->attr()->input_zero_points_.shifts_;
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking_thr_chunk;
     int nb_groups = jcp.nb_ch;
-    int work_amount = jcp.mb * nb_groups * oc_chunks * jcp.oh * jcp.nb_ow;
+    int work_amount = MB * nb_groups * oc_chunks * jcp.oh * jcp.nb_ow;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
@@ -98,14 +100,14 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
         switch (jcp.loop_order) {
             case loop_cwgn:
                 nd_iterator_init(start, occ, oc_chunks, owb, jcp.nb_ow, g,
-                        nb_groups, n, jcp.mb, oh_s, jcp.oh);
+                        nb_groups, n, MB, oh_s, jcp.oh);
                 break;
             case loop_ngcw:
-                nd_iterator_init(start, n, jcp.mb, g, nb_groups, occ, oc_chunks,
+                nd_iterator_init(start, n, MB, g, nb_groups, occ, oc_chunks,
                         owb, jcp.nb_ow, oh_s, jcp.oh);
                 break;
             case loop_nhwcg:
-                nd_iterator_init(start, n, jcp.mb, oh_s, jcp.oh, owb, jcp.nb_ow,
+                nd_iterator_init(start, n, MB, oh_s, jcp.oh, owb, jcp.nb_ow,
                         occ, oc_chunks, g, nb_groups);
                 break;
             default: assert(!"unsupported loop order");
@@ -177,15 +179,15 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
             switch (jcp.loop_order) {
                 case loop_cwgn:
                     nd_iterator_jump(start, end, occ, oc_chunks, owb, jcp.nb_ow,
-                            g, nb_groups, n, jcp.mb, oh_s, jcp.oh);
+                            g, nb_groups, n, MB, oh_s, jcp.oh);
                     break;
                 case loop_ngcw:
-                    nd_iterator_jump(start, end, n, jcp.mb, g, nb_groups, occ,
+                    nd_iterator_jump(start, end, n, MB, g, nb_groups, occ,
                             oc_chunks, owb, jcp.nb_ow, oh_s, jcp.oh);
                     break;
                 case loop_nhwcg:
                     ++start;
-                    nd_iterator_step(n, jcp.mb, oh_s, jcp.oh, owb, jcp.nb_ow,
+                    nd_iterator_step(n, MB, oh_s, jcp.oh, owb, jcp.nb_ow,
                             occ, oc_chunks, g, nb_groups);
                     break;
                 default: assert(!"unsupported loop order");
@@ -201,6 +203,8 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -237,7 +241,7 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     int nb_groups = jcp.nb_ch / jcp.nb_ch_blocking;
     int group_block = jcp.ch_block;
-    int work_amount = jcp.mb * nb_groups * oc_chunks * jcp.nb_ow;
+    int work_amount = MB * nb_groups * oc_chunks * jcp.nb_ow;
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
@@ -248,18 +252,18 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
         switch (jcp.loop_order) {
             case loop_cwgn:
                 nd_iterator_init(start, occ, oc_chunks, owb, jcp.nb_ow, gg,
-                        nb_groups, n, jcp.mb);
+                        nb_groups, n, MB);
                 break;
             case loop_gncw:
-                nd_iterator_init(start, gg, nb_groups, n, jcp.mb, occ,
+                nd_iterator_init(start, gg, nb_groups, n, MB, occ,
                         oc_chunks, owb, jcp.nb_ow);
                 break;
             case loop_ngcw:
-                nd_iterator_init(start, n, jcp.mb, gg, nb_groups, occ,
+                nd_iterator_init(start, n, MB, gg, nb_groups, occ,
                         oc_chunks, owb, jcp.nb_ow);
                 break;
             case loop_nwcg:
-                nd_iterator_init(start, n, jcp.mb, owb, jcp.nb_ow, occ,
+                nd_iterator_init(start, n, MB, owb, jcp.nb_ow, occ,
                         oc_chunks, gg, nb_groups);
                 break;
             default: assert(!"unsupported loop order");
@@ -294,18 +298,18 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
             switch (jcp.loop_order) {
                 case loop_cwgn:
                     nd_iterator_step(occ, oc_chunks, owb, jcp.nb_ow, gg,
-                            nb_groups, n, jcp.mb);
+                            nb_groups, n, MB);
                     break;
                 case loop_gncw:
-                    nd_iterator_step(gg, nb_groups, n, jcp.mb, occ, oc_chunks,
+                    nd_iterator_step(gg, nb_groups, n, MB, occ, oc_chunks,
                             owb, jcp.nb_ow);
                     break;
                 case loop_ngcw:
-                    nd_iterator_step(n, jcp.mb, gg, nb_groups, occ, oc_chunks,
+                    nd_iterator_step(n, MB, gg, nb_groups, occ, oc_chunks,
                             owb, jcp.nb_ow);
                     break;
                 case loop_nwcg:
-                    nd_iterator_step(n, jcp.mb, owb, jcp.nb_ow, occ, oc_chunks,
+                    nd_iterator_step(n, MB, owb, jcp.nb_ow, occ, oc_chunks,
                             gg, nb_groups);
                     break;
                 default: assert(!"unsupported loop order");
@@ -321,6 +325,8 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -362,7 +368,7 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
     int nb_groups = jcp.nb_ch / jcp.nb_ch_blocking;
     int group_block = jcp.ch_block;
 
-    parallel_nd(jcp.mb, jcp.oh, jcp.nb_ow, nb_groups,
+    parallel_nd(MB, jcp.oh, jcp.nb_ow, nb_groups,
             [&](int n, int oh_s, int owb, int gg) {
                 auto p = jit_conv_call_s();
 
@@ -428,6 +434,8 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -466,7 +474,7 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking_thr_chunk;
     int nb_groups = jcp.nb_ch;
     int work_amount
-            = jcp.mb * nb_groups * oc_chunks * jcp.od * jcp.oh * jcp.nb_ow;
+            = MB * nb_groups * oc_chunks * jcp.od * jcp.oh * jcp.nb_ow;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
@@ -484,14 +492,14 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
         switch (jcp.loop_order) {
             case loop_cwgn:
                 nd_iterator_init(start, occ, oc_chunks, owb, jcp.nb_ow, g,
-                        nb_groups, n, jcp.mb, od_s, jcp.od, oh_s, jcp.oh);
+                        nb_groups, n, MB, od_s, jcp.od, oh_s, jcp.oh);
                 break;
             case loop_ngcw:
-                nd_iterator_init(start, n, jcp.mb, g, nb_groups, occ, oc_chunks,
+                nd_iterator_init(start, n, MB, g, nb_groups, occ, oc_chunks,
                         owb, jcp.nb_ow, od_s, jcp.od, oh_s, jcp.oh);
                 break;
             case loop_nhwcg:
-                nd_iterator_init(start, n, jcp.mb, od_s, jcp.od, oh_s, jcp.oh,
+                nd_iterator_init(start, n, MB, od_s, jcp.od, oh_s, jcp.oh,
                         owb, jcp.nb_ow, occ, oc_chunks, g, nb_groups);
                 break;
             default: assert(!"unsupported loop order");
@@ -578,17 +586,17 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
             switch (jcp.loop_order) {
                 case loop_cwgn:
                     nd_iterator_jump(start, end, occ, oc_chunks, owb, jcp.nb_ow,
-                            g, nb_groups, n, jcp.mb, od_s, jcp.od, oh_s,
+                            g, nb_groups, n, MB, od_s, jcp.od, oh_s,
                             jcp.oh);
                     break;
                 case loop_ngcw:
-                    nd_iterator_jump(start, end, n, jcp.mb, g, nb_groups, occ,
+                    nd_iterator_jump(start, end, n, MB, g, nb_groups, occ,
                             oc_chunks, owb, jcp.nb_ow, od_s, jcp.od, oh_s,
                             jcp.oh);
                     break;
                 case loop_nhwcg:
                     ++start;
-                    nd_iterator_step(n, jcp.mb, od_s, jcp.od, oh_s, jcp.oh, owb,
+                    nd_iterator_step(n, MB, od_s, jcp.od, oh_s, jcp.oh, owb,
                             jcp.nb_ow, occ, oc_chunks, g, nb_groups);
                     break;
                 default: assert(!"unsupported loop order");
@@ -604,6 +612,8 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -645,7 +655,7 @@ void jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
     int nb_groups = jcp.nb_ch / jcp.nb_ch_blocking;
     int group_block = jcp.ch_block;
 
-    parallel_nd(jcp.mb, jcp.od, jcp.oh, jcp.nb_ow, nb_groups, [&](int n, int od_s, int oh_s, int owb, int gg) {
+    parallel_nd(MB, jcp.od, jcp.oh, jcp.nb_ow, nb_groups, [&](int n, int od_s, int oh_s, int owb, int gg) {
         auto p = jit_conv_call_s();
 
         size_t src_d_stride = src_d.blk_off(0, 0, 1);

@@ -35,8 +35,10 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     const auto ou_stride = pd()->outer_stride();
+    auto real_src_md = ctx.input(DNNL_ARG_SRC)->md();
+    auto outer_size = utils::array_product(real_src_md->dims, pd()->axis());
 
-    parallel_nd(outer_size_, [&](int ou) {
+    parallel_nd(outer_size, [&](int ou) {
         const data_t *src_data = src + ou * ou_stride;
         data_t *dst_data = dst + ou * ou_stride;
         float space_max = -FLT_MAX;

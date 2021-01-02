@@ -425,7 +425,7 @@ void trans_O_3x3_4x4_wu(float Mw[6][6][16][16], float M[3][3][16][16]) {
 
 template <bool is_fwd>
 void input_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
-        float *inp, float *tinp, bool streamout = true) {
+        float *inp, float *tinp, int MB, bool streamout = true) {
     const int inpw = is_fwd ? jcp.iw : jcp.ow;
     const int inph = is_fwd ? jcp.ih : jcp.oh;
     const int l_pad = is_fwd ? jcp.l_pad : jcp.iw + jcp.r_pad - jcp.ow;
@@ -436,7 +436,7 @@ void input_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
     alignas(64) float I[alpha][alpha][simd_w];
 
     array_offset_calculator<float, 5> input(
-            inp, jcp.mb, jcp.dimK / simd_w, inph, inpw, simd_w);
+            inp, MB, jcp.dimK / simd_w, inph, inpw, simd_w);
     array_offset_calculator<float, 8> output(tinp, jcp.dimN_nb_block, alpha,
             alpha, jcp.dimN_block, jcp.dimK_nb_block, jcp.dimK_block,
             jcp.dimN_reg_block, jcp.dimK_reg_block);
@@ -892,7 +892,7 @@ void diff_weights_transform_bwd_weights(
 template <bool is_fwd>
 void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
         float *inp_ptr, float *out_ptr, float *wei_ptr, float *bias_ptr,
-        const memory_tracking::grantor_t &scratchpad) const {
+        const memory_tracking::grantor_t &scratchpad, int MB) const {
     const auto &jcp = kernel_->jcp;
 
     const int inph = is_fwd ? jcp.ih : jcp.oh;
@@ -926,9 +926,9 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
        BWD: dimM:ic, dimN:ntiles, dimK:oc,
        FWD/BWD: V: src/diff_dst transform, U:weight transform,
                 M:dst/diff_src transform  */
-    array_offset_calculator<float, 5> input(inp_ptr, jcp.mb,
+    array_offset_calculator<float, 5> input(inp_ptr, MB,
             jcp.dimK / jcp.dimK_reg_block, inph, inpw, jcp.dimK_reg_block);
-    array_offset_calculator<float, 5> output(out_ptr, jcp.mb,
+    array_offset_calculator<float, 5> output(out_ptr, MB,
             jcp.dimM / jcp.dimM_simd_block, outh, outw, jcp.dimM_simd_block);
     array_offset_calculator<float, 6> weights(wei_ptr,
             jcp.oc / jcp.oc_simd_block, jcp.ic / jcp.ic_simd_block, jcp.kh,
@@ -965,12 +965,12 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
             last_slice_bias[oc] = bias(jcp.dimM / jcp.dimM_simd_block - 1, oc);
     }
 
-    parallel_nd(jcp.mb, jcp.dimK_nb_block, jcp.dimK_block,
+    parallel_nd(MB, jcp.dimK_nb_block, jcp.dimK_block,
             [&](int img, int K_blk1, int K_blk2) {
                 input_transform_data<is_fwd>(img, jcp,
                         &(input(img, K_blk1 * jcp.dimK_block + K_blk2, 0, 0,
                                 0)),
-                        &(V(0, 0, 0, 0, K_blk1, K_blk2, 0, 0)), V_streamout);
+                        &(V(0, 0, 0, 0, K_blk1, K_blk2, 0, 0)), MB, V_streamout);
             });
 
     parallel_nd(jcp.nb_oc, jcp.nb_ic, jcp.oc_block, jcp.ic_block,
@@ -1002,7 +1002,7 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
                 }
             });
 
-    parallel_nd(jcp.mb, jcp.dimM_nb_block, jcp.dimM_block,
+    parallel_nd(MB, jcp.dimM_nb_block, jcp.dimM_block,
             [&](int img, int M_blk1, int M_blk2) {
                 const int M_blk = M_blk1 * jcp.dimM_block + M_blk2;
 
