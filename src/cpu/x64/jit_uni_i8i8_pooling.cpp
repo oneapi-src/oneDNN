@@ -1493,6 +1493,8 @@ status_t jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
     auto src_i8 = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
     auto dst_i8 = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
@@ -1509,7 +1511,7 @@ status_t jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
             reinterpret_cast<ptrdiff_t>(dst_i8 + dst_d.size() - 1)
             - (cpu_isa_traits<isa>::vlen - 1));
 
-    parallel_nd(jpp.mb, jpp.od, jpp.oh, jpp.ow,
+    parallel_nd(MB, jpp.od, jpp.oh, jpp.ow,
             [&](dim_t n, dim_t od, dim_t oh, dim_t ow) {
                 dim_t id = nstl::max(od * jpp.stride_d - jpp.f_pad, dim_t(0));
                 dim_t ih = nstl::max(oh * jpp.stride_h - jpp.t_pad, dim_t(0));

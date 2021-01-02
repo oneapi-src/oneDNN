@@ -84,6 +84,8 @@ public:
         const auto ws = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_WORKSPACE, status);
         CHECK(status);
 
+        auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
         const auto ker = ker_.get();
         const auto ker_first = ker_first_.get();
         const auto ker_last = ker_last_.get();
@@ -92,12 +94,12 @@ public:
             size_t start {0}, end {0};
             const int C16 = C_ / vsize_;
             const size_t work_amount
-                    = use_h_parallelism_ ? N_ * C16 * H_ : N_ * C16;
+                    = use_h_parallelism_ ? MB * C16 * H_ : MB * C16;
 
             balance211(work_amount, nthr, ithr, start, end);
             if (use_h_parallelism_) {
                 int n {0}, c16 {0}, h {0};
-                nd_iterator_init(start, n, N_, c16, C16, h, H_);
+                nd_iterator_init(start, n, MB, c16, C16, h, H_);
                 for (size_t iwork = start; iwork < end; ++iwork) {
                     const auto offset = n * C_ * H_ * W_
                             + c16 * H_ * W_ * vsize_ + h * W_ * vsize_;
@@ -120,11 +122,11 @@ public:
                         (*ker_last)(&args);
                     else
                         (*ker)(&args);
-                    nd_iterator_step(n, N_, c16, C16, h, H_);
+                    nd_iterator_step(n, MB, c16, C16, h, H_);
                 }
             } else {
                 int n {0}, c16 {0};
-                nd_iterator_init(start, n, N_, c16, C16);
+                nd_iterator_init(start, n, MB, c16, C16);
                 for (size_t iwork = start; iwork < end; ++iwork) {
                     const auto offset
                             = n * C_ * H_ * W_ + c16 * H_ * W_ * vsize_;
@@ -148,7 +150,7 @@ public:
                     else
                         (*ker)(&args);
 
-                    nd_iterator_step(n, N_, c16, C16);
+                    nd_iterator_step(n, MB, c16, C16);
                 }
             }
         });

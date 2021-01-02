@@ -92,7 +92,7 @@ protected:
     void input_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
             float *inp, float *tinp) const;
     void input_transform_tileblock_data(int tile_block,
-            const jit_conv_winograd_conf_t &jcp, float *inp, float *tinp) const;
+            const jit_conv_winograd_conf_t &jcp, float *inp, float *tinp, int MB) const;
     void output_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
             const post_ops_t &p_ops, float *toutp, float *pout_b,
             float *bias) const;
@@ -101,10 +101,10 @@ protected:
             float *toutp, float *outp, float *bias) const;
     void _execute_data_W_S_G_D(float *inp_ptr, float *out_ptr, float *wei_ptr,
             float *bias_ptr,
-            const memory_tracking::grantor_t &scratchpad) const;
+            const memory_tracking::grantor_t &scratchpad, int MB) const;
     void _execute_data_W_SGD(float *inp_ptr, float *out_ptr, float *wei_ptr,
             float *bias_ptr,
-            const memory_tracking::grantor_t &scratchpad) const;
+            const memory_tracking::grantor_t &scratchpad, int MB) const;
     std::unique_ptr<_jit_avx512_core_f32_wino_conv_4x3_data_kernel> kernel_;
     const primitive_attr_t *attr_;
 
@@ -179,16 +179,18 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
         auto bias = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
         auto dst = CTX_OUT_MEM(float *, DNNL_ARG_DST);
 
+        auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
         auto scratchpad = ctx.get_scratchpad_grantor();
 
         switch ((pd()->jcp_).sched_policy) {
             case WSCHED_DATA_W_S_G_D:
                 this->_execute_data_W_S_G_D((float *)src, dst, (float *)weights,
-                        (float *)bias, scratchpad);
+                        (float *)bias, scratchpad, MB);
                 break;
             case WSCHED_DATA_W_SGD:
                 this->_execute_data_W_SGD((float *)src, dst, (float *)weights,
-                        (float *)bias, scratchpad);
+                        (float *)bias, scratchpad, MB);
                 break;
             default: break;
         }
@@ -264,17 +266,19 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
         auto weights = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
         auto diff_src = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SRC);
 
+        auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
+
         auto scratchpad = ctx.get_scratchpad_grantor();
 
         switch ((pd()->jcp_).sched_policy) {
             case WSCHED_DATA_W_S_G_D:
                 this->_execute_data_W_S_G_D((float *)diff_dst, diff_src,
-                        (float *)weights, NULL, scratchpad);
+                        (float *)weights, NULL, scratchpad, MB);
                 break;
 
             case WSCHED_DATA_W_SGD:
                 this->_execute_data_W_SGD((float *)diff_dst, diff_src,
-                        (float *)weights, NULL, scratchpad);
+                        (float *)weights, NULL, scratchpad, MB);
                 break;
 
             default: break;

@@ -54,8 +54,10 @@ public:
         const auto ws = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_WORKSPACE, status);
         CHECK(status);
 
+        auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
         const auto ker = ker_.get();
-        parallel_nd(N_, H_ * W_, [&](dim_t n, dim_t pixel_id) {
+        parallel_nd(MB, H_ * W_, [&](dim_t n, dim_t pixel_id) {
             typename lrn::jit_avx512_common_lrn_kernel_fwd_t<
                     d_type>::jit_args_fwd_t args;
             const auto offset = n * C_ * H_ * W_ + pixel_id * C_;

@@ -38,6 +38,8 @@ void jit_uni_fork_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward
     auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+    
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -112,7 +114,7 @@ void jit_uni_fork_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward
     };
 
     const int chb_work = utils::div_up(jcp.nb_ch, jcp.nb_ch_blocking);
-    parallel_nd(jcp.mb, chb_work, jcp.od, jcp.oh,
+    parallel_nd(MB, chb_work, jcp.od, jcp.oh,
             [&](int n, int chb, int od, int oh) {
         int ch = chb * jcp.nb_ch_blocking;
         int ch_num = jcp.nb_ch_blocking;
@@ -188,6 +190,8 @@ void jit_uni_fork_dw_convolution_bwd_data_t<isa, diff_dst_type, diff_src_type>
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
+    
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -226,7 +230,7 @@ void jit_uni_fork_dw_convolution_bwd_data_t<isa, diff_dst_type, diff_src_type>
     };
 
     const int chb_work = utils::div_up(jcp.nb_ch, jcp.nb_ch_blocking);
-    parallel_nd(jcp.mb, chb_work, jcp.ih,
+    parallel_nd(MB, chb_work, jcp.ih,
         [&](int n, int chb, int ih) {
         int ch = chb * jcp.nb_ch_blocking;
         int ch_num = jcp.nb_ch_blocking;

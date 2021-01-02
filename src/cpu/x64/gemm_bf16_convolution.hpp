@@ -126,7 +126,7 @@ private:
             const src_data_t *src_base, const wei_data_t *wei_base,
             const float *bia_base, dst_data_t *dst_base,
             const memory_tracking::grantor_t &scratchpad,
-            const void *post_ops_binary_rhs_arg_vec) const;
+            const void *post_ops_binary_rhs_arg_vec, int MB) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
@@ -319,7 +319,7 @@ private:
     status_t execute_backward_data_thr_nspc(const int ithr, const int nthr,
             diff_src_data_t *diff_src_base, const wei_data_t *wei_base,
             const diff_dst_data_t *diff_dst_base,
-            const memory_tracking::grantor_t &scratchpad) const;
+            const memory_tracking::grantor_t &scratchpad, int MB) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 

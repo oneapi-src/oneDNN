@@ -44,6 +44,8 @@ status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
     auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const memory_desc_wrapper ws_d(pd()->workspace_md());
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -52,7 +54,6 @@ status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
     auto src = src_ + src_d.off_l(0);
     dst += dst_d.off_l(0);
 
-    const dim_t MB = pd()->MB();
     const dim_t C = pd()->OC();
     const dim_t OD = pd()->OD();
     const dim_t OH = pd()->OH();
@@ -233,6 +234,8 @@ status_t nchw_pooling_fwd_t<d_type>::execute_forward(
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
     auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     auto scratchpad = ctx.get_scratchpad_grantor();
     float *cvt_wsp = scratchpad.template get<float>(
             memory_tracking::names::key_pool_src_bf16cvt);
@@ -240,7 +243,6 @@ status_t nchw_pooling_fwd_t<d_type>::execute_forward(
     const memory_desc_wrapper ws_d(pd()->workspace_md());
     const data_type_t ws_dt = ws ? ws_d.data_type() : data_type::undef;
 
-    const dim_t MB = pd()->MB();
     const dim_t C = pd()->OC();
     const dim_t OD = pd()->OD();
     const dim_t OH = pd()->OH();

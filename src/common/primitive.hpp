@@ -204,4 +204,7 @@ private:
 #define CTX_OUT_CLEAN_MEM(type, arg, status) \
     static_cast<ARG_TYPE(type) *>(ctx.host_ptr(arg, true, &status))
 
+#define CTX_IN_BATCH(arg) \
+    ctx.input(arg) ? ctx.input(arg)->md()->ndims != 0 ? ctx.input(arg)->md()->dims[0] : 0 : 0
+
 #endif

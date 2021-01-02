@@ -839,7 +839,7 @@ jit_avx512_core_f32_wino_conv_2x3_fwd_t::
 
 void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
         const float *src, const float *wei, const float *bia, float *dst,
-        const memory_tracking::grantor_t &scratchpad) const {
+        const memory_tracking::grantor_t &scratchpad, int MB) const {
     const auto &jcp = kernel_->jcp;
     const auto &oscales = pd()->attr()->output_scales_;
 
@@ -860,7 +860,7 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
     auto ptr_V = scratchpad.get<float>(key_wino_V);
     auto ptr_M = scratchpad.get<float>(key_wino_M);
 
-    parallel_nd_ext(jcp.nthr, jcp.mb, div_up(jcp.oh, jcp.yb),
+    parallel_nd_ext(jcp.nthr, MB, div_up(jcp.oh, jcp.yb),
             div_up(jcp.ow, jcp.xb),
             [&](dim_t ithr, dim_t nthr, dim_t mb, dim_t tile_y_b,
                     dim_t tile_x_b) {
@@ -970,7 +970,7 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
 
 void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
         const float *src, const float *wei, const float *bia, float *dst,
-        const memory_tracking::grantor_t &scratchpad) const {
+        const memory_tracking::grantor_t &scratchpad, int MB) const {
     const auto &jcp = kernel_->jcp;
     const auto &oscales = pd()->attr()->output_scales_;
 
@@ -985,7 +985,7 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
     auto ptr_V = scratchpad.get<float>(key_wino_V);
     auto ptr_M = scratchpad.get<float>(key_wino_M);
 
-    for_(int mb = 0; mb < jcp.mb; mb++)
+    for_(int mb = 0; mb < MB; mb++)
     for_(int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb)
     for (int tile_x = 0; tile_x < jcp.ow; tile_x += jcp.xb) {
         /* transformation of input tensor to winograd domain */
