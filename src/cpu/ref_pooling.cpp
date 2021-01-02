@@ -54,6 +54,8 @@ status_t ref_pooling_fwd_t<src_type, dst_type, acc_type>::execute_forward(
     auto ws = CTX_OUT_CLEAN_MEM(unsigned char *, DNNL_ARG_WORKSPACE, status);
     CHECK(status);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper ws_d(pd()->workspace_md());
@@ -62,7 +64,6 @@ status_t ref_pooling_fwd_t<src_type, dst_type, acc_type>::execute_forward(
     if (ws) assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
 
     const auto alg = pd()->desc()->alg_kind;
-    const dim_t MB = pd()->MB();
     const dim_t OC = pd()->OC();
     const dim_t OD = pd()->OD();
     const dim_t OH = pd()->OH();

@@ -799,7 +799,8 @@ status_t jit_uni_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
             = binary_injector::prepare_binary_args(
                     pd()->attr()->post_ops_, ctx);
 
-    const memory_desc_wrapper src_d(pd()->src_md());
+    auto real_src_md = ctx.input(DNNL_ARG_SRC)->md();
+    const memory_desc_wrapper src_d(real_src_md);
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const auto src_data_type_size = src_d.data_type_size();
     const auto dst_data_type_size = dst_d.data_type_size();

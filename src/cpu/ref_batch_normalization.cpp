@@ -85,8 +85,10 @@ status_t ref_batch_normalization_fwd_t<d_type>::execute_forward(
     auto ws = CTX_OUT_CLEAN_MEM(uint8_t *, DNNL_ARG_WORKSPACE, status);
     CHECK(status);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const auto ndims = data_d.ndims();
-    const auto N = pd()->MB();
+    const auto N = MB;
     const auto C = pd()->C();
     const auto D = pd()->D();
     const auto H = pd()->H();

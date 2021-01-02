@@ -38,6 +38,8 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto dst = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DST, status);
     CHECK(status);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -46,7 +48,6 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     const bool with_groups = pd()->with_groups();
 
     const auto G = pd()->G();
-    const auto MB = pd()->MB();
     const auto OD = pd()->OD();
     const auto OH = pd()->OH();
     const auto OW = pd()->OW();
@@ -227,6 +228,8 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
     auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
+
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -234,7 +237,6 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
     const bool with_groups = pd()->with_groups();
 
     const auto G = pd()->G();
-    const auto MB = pd()->MB();
     const auto OD = pd()->OD();
     const auto OH = pd()->OH();
     const auto OW = pd()->OW();

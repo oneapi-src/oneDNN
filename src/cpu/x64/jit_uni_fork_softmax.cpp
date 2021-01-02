@@ -37,7 +37,8 @@ status_t jit_uni_fork_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
 
     const auto &jpp = pd()->jpp_;
 
-    size_t outer_size = utils::array_product(pd()->src_md()->dims, pd()->desc()->softmax_axis);
+    auto real_src_md = ctx.input(DNNL_ARG_SRC)->md();
+    size_t outer_size = utils::array_product(real_src_md->dims, pd()->desc()->softmax_axis);
 
     size_t dim = jpp.channels * jpp.inner_size;
 

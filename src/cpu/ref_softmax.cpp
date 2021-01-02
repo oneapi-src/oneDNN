@@ -65,9 +65,12 @@ status_t ref_softmax_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
     const auto src_dt_size = types::data_type_size(pd()->src_md()->data_type);
     const auto dst_dt_size = types::data_type_size(pd()->dst_md()->data_type);
 
+    auto real_src_md = ctx.input(DNNL_ARG_SRC)->md();
+    auto outer_size = utils::array_product(real_src_md->dims, axis);
+
     const int nthr = pd()->nthr_;
 
-    parallel_nd_ext(nthr, outer_size_, [&](int ithr, int, dim_t ou) {
+    parallel_nd_ext(nthr, outer_size, [&](int ithr, int, dim_t ou) {
         const void *src_data = reinterpret_cast<const char *>(src)
                 + ou * ou_stride * src_dt_size;
         void *dst_data

@@ -37,8 +37,9 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_common(const exec_ctx_t &ctx,
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const auto G = pd()->G();
-    const auto MB = pd()->MB();
     const auto OH = pd()->OH();
     const auto OW = pd()->OW();
     const auto OD = pd()->OD();
@@ -64,7 +65,8 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw(const exec_ctx_t &ctx,
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
-    const auto MB = pd()->MB();
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const auto OC = pd()->OC();
     const auto SP = pd()->OW() * pd()->OH() * pd()->OD();
 
@@ -87,7 +89,8 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ndhwc(const exec_ctx_t &ctx,
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
-    const auto MB = pd()->MB();
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const auto OC = pd()->OC();
     const auto SP = pd()->OW() * pd()->OH() * pd()->OD();
 
@@ -111,7 +114,8 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc(const exec_ctx_t &ctx,
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
-    const auto MB = pd()->MB();
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
+
     const auto OC = pd()->OC();
     const auto SP = pd()->OW() * pd()->OH() * pd()->OD();
     const auto stride_mb = dst_d.blocking_desc().strides[0];
@@ -224,7 +228,7 @@ status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
 
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
-    const auto MB = pd()->MB();
+    auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
     const auto OH = pd()->OH();
     const auto OW = pd()->OW();
     const auto OD = pd()->OD();
