@@ -58,6 +58,46 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu_fusion)
                     fused_node->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_relu6_fusion)
+        .set_priority(10.1f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    node_t *conv = apattern->create_node(op_kind::Convolution);
+                    node_t *any = apattern->create_node(op_kind::any);
+                    node_t *add = apattern->create_node(op_kind::Add);
+                    node_t *relu6 = apattern->create_node(op_kind::HardTanh);
+                    relu6->set_attr<float>("min", 0);
+                    relu6->set_attr<float>("max", 6);
+                    add->set_input(0, conv, 0);
+                    add->set_input(1, any, 0);
+                    relu6->set_input(0, add, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    node_t *fused_node = optimized_pattern->create_node(
+                            op_kind::conv_add_relu6);
+                    fused_node->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_elu_fusion)
+        .set_priority(10.1f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    node_t *conv = apattern->create_node(op_kind::Convolution);
+                    node_t *any = apattern->create_node(op_kind::any);
+                    node_t *add = apattern->create_node(op_kind::Add);
+                    node_t *elu = apattern->create_node(op_kind::Elu);
+                    add->set_input(0, conv, 0);
+                    add->set_input(1, any, 0);
+                    elu->set_input(0, add, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    node_t *fused_node = optimized_pattern->create_node(
+                            op_kind::conv_add_elu);
+                    fused_node->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, conv_sum_fusion)
         .set_priority(10.0f)
         .set_attr<FCreatePattern>("FCreatePattern",

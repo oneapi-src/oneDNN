@@ -303,6 +303,62 @@ TEST(pass_test, conv_bias_bn_fusion) {
     ASSERT_EQ(fused_node->get_op_kind(), conv_bias_bn);
 }
 
+TEST(pass_test, conv_sum_elu_fusion) {
+    using namespace llga::impl;
+    using namespace llga::impl::op_kind;
+
+    graph_t agraph;
+    node_t *node1 = agraph.create_node(Convolution);
+    node_t *node2 = agraph.create_node(Wildcard);
+    node_t *node3 = agraph.create_node(Add);
+    node_t *node4 = agraph.create_node(Elu);
+    node3->set_input(0, node1, 0);
+    node3->set_input(1, node2, 0);
+    node4->set_input(0, node3, 0);
+
+    pass::pass_base_ptr apass = get_pass("conv_sum_elu_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.num_nodes(), 2);
+
+    const node_ptr &fnode1 = agraph.get_nodes()[0];
+    const node_ptr &fnode2 = agraph.get_nodes()[1];
+    if (fnode1->get_op_kind() != conv_add_elu) {
+        ASSERT_EQ(fnode2->get_op_kind(), conv_add_elu);
+    } else {
+        ASSERT_EQ(fnode1->get_op_kind(), conv_add_elu);
+    }
+}
+
+TEST(pass_test, conv_sum_relu6_fusion) {
+    using namespace llga::impl;
+    using namespace llga::impl::op_kind;
+
+    graph_t agraph;
+    node_t *node1 = agraph.create_node(Convolution);
+    node_t *node2 = agraph.create_node(Wildcard);
+    node_t *node3 = agraph.create_node(Add);
+    node_t *node4 = agraph.create_node(HardTanh);
+    node4->set_attr<float>("min", 0);
+    node4->set_attr<float>("max", 6);
+    node3->set_input(0, node1, 0);
+    node3->set_input(1, node2, 0);
+    node4->set_input(0, node3, 0);
+
+    pass::pass_base_ptr apass = get_pass("conv_sum_relu6_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.num_nodes(), 2);
+
+    const node_ptr &fnode1 = agraph.get_nodes()[0];
+    const node_ptr &fnode2 = agraph.get_nodes()[1];
+    if (fnode1->get_op_kind() != conv_add_relu6) {
+        ASSERT_EQ(fnode2->get_op_kind(), conv_add_relu6);
+    } else {
+        ASSERT_EQ(fnode1->get_op_kind(), conv_add_relu6);
+    }
+}
+
 TEST(pass_test, conv_sum_relu_fusion) {
     using namespace llga::impl;
     using namespace llga::impl::op_kind;

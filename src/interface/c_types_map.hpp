@@ -138,7 +138,9 @@ enum {
     kBatchNormBwd_reluBwd,
     kBatchNormFwdTrain_relu,
     kConv_add,
+    kConv_add_elu,
     kConv_add_relu,
+    kConv_add_relu6,
     kConv_bias,
     kConv_bias_abs,
     kConv_bias_add,
@@ -194,7 +196,9 @@ const op_kind_t bn_bwd_relu_bwd = static_cast<op_kind_t>(kBatchNormBwd_reluBwd);
 const op_kind_t bn_fwd_train_relu
         = static_cast<op_kind_t>(kBatchNormFwdTrain_relu);
 const op_kind_t conv_add = static_cast<op_kind_t>(kConv_add);
+const op_kind_t conv_add_elu = static_cast<op_kind_t>(kConv_add_elu);
 const op_kind_t conv_add_relu = static_cast<op_kind_t>(kConv_add_relu);
+const op_kind_t conv_add_relu6 = static_cast<op_kind_t>(kConv_add_relu6);
 const op_kind_t conv_bias = static_cast<op_kind_t>(kConv_bias);
 const op_kind_t conv_bias_abs = static_cast<op_kind_t>(kConv_bias_abs);
 const op_kind_t conv_bias_add = static_cast<op_kind_t>(kConv_bias_add);
@@ -258,20 +262,20 @@ const std::vector<std::string> op_kind_strings
 
 const std::vector<std::string> internal_op_strings = {"Any", "BatchNorm_relu",
         "BatchNormBwd_reluBwd", "BatchNormFwdTrain_relu", "Conv_add",
-        "Conv_add_relu", "Conv_bias", "Conv_bias_abs", "Conv_bias_add",
-        "Conv_bias_add_elu", "Conv_bias_add_relu", "Conv_bias_add_relu6",
-        "Conv_bias_bn", "Conv_bias_bn_add", "Conv_bias_bn_add_relu",
-        "Conv_bias_bn_relu", "Conv_bias_elu", "Conv_bias_hardtanh",
-        "Conv_bias_relu", "Conv_bias_relu6", "Conv_bias_sigmoid",
-        "Conv_bias_sqrt", "Conv_bias_square", "Conv_bias_swish",
-        "Conv_bias_tanh", "Conv_bn", "Conv_bn_add", "Conv_bn_add_relu",
-        "Conv_bn_relu", "Conv_relu", "ConvBwdF_biasAddBwd", "MatMul_bias",
-        "MatMul_bias_add", "MatMul_bias_add_relu", "MatMul_bias_bn",
-        "MatMul_bias_elu", "MatMul_bias_hardtanh", "MatMul_bias_relu",
-        "MatMul_bias_relu6", "MatMul_bias_sigmoid", "MatMul_bias_swish",
-        "MatMul_relu", "MatMul_elu", "MatMul_sigmoid", "MatMul_hardtanh",
-        "MatMul_gelu", "MatMul_add", "MatMul_add_gelu", "MatMul_add_relu",
-        "MatMul_add_sigmoid", "Convert"};
+        "Conv_add_elu", "Conv_add_relu", "Conv_add_relu6", "Conv_bias",
+        "Conv_bias_abs", "Conv_bias_add", "Conv_bias_add_elu",
+        "Conv_bias_add_relu", "Conv_bias_add_relu6", "Conv_bias_bn",
+        "Conv_bias_bn_add", "Conv_bias_bn_add_relu", "Conv_bias_bn_relu",
+        "Conv_bias_elu", "Conv_bias_hardtanh", "Conv_bias_relu",
+        "Conv_bias_relu6", "Conv_bias_sigmoid", "Conv_bias_sqrt",
+        "Conv_bias_square", "Conv_bias_swish", "Conv_bias_tanh", "Conv_bn",
+        "Conv_bn_add", "Conv_bn_add_relu", "Conv_bn_relu", "Conv_relu",
+        "ConvBwdF_biasAddBwd", "MatMul_bias", "MatMul_bias_add",
+        "MatMul_bias_add_relu", "MatMul_bias_bn", "MatMul_bias_elu",
+        "MatMul_bias_hardtanh", "MatMul_bias_relu", "MatMul_bias_relu6",
+        "MatMul_bias_sigmoid", "MatMul_bias_swish", "MatMul_relu", "MatMul_elu",
+        "MatMul_sigmoid", "MatMul_hardtanh", "MatMul_gelu", "MatMul_add",
+        "MatMul_add_gelu", "MatMul_add_relu", "MatMul_add_sigmoid", "Convert"};
 
 } // namespace op_kind
 

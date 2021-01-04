@@ -3719,6 +3719,116 @@ TEST(operator_compile, conv_bias_add_relu6) {
     }
 }
 
+TEST(operator_compile, conv_add_elu) {
+    using dims = llga::impl::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
+    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+    test::vector<float> post_src {-2.0, 1.0, -1.0, 0.0};
+    test::vector<float> ref_dst {-3.0, 3.5, 4.0, 1.5};
+    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+    for (auto &rdst : ref_dst) {
+        rdst = rdst > 0 ? rdst : static_cast<float>((exp(rdst) - 1));
+    }
+
+    impl::node_t node(impl::op_kind::conv_add_elu);
+
+    node.set_attr<dims>("strides", {1, 1});
+    node.set_attr<dims>("dilations", {1, 1});
+    node.set_attr<dims>("pads_begin", {0, 0});
+    node.set_attr<dims>("pads_end", {0, 0});
+    node.set_attr<int64_t>("groups", 1);
+    node.set_attr<std::string>("backend", "dnnl");
+    node.set_attr<float>("alpha", 1.f);
+    node.set_attr<std::string>("data_format", "NCX");
+    node.set_attr<std::string>("filter_format", "OIX");
+    node.set_attr<std::string>("backend", "dnnl");
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt
+            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t post_lt
+            = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
+
+    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, post_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto op = op_factory.create_kernel(node);
+    op->compile(&node, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
+
+    impl::tensor src_ts(src_lt, src.data());
+    impl::tensor weight_ts(weight_lt, weight.data());
+    impl::tensor post_src_ts(outputs[0], post_src.data());
+    impl::tensor dst_ts(outputs[0], dst.data());
+    impl::stream &strm = get_stream();
+    op->execute(&node, &strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_compile, conv_add_relu6) {
+    using dims = llga::impl::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
+    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+    test::vector<float> post_src {-2.0, 1.0, -1.0, 0.0};
+    test::vector<float> ref_dst {0.0, 3.5, 4.f, 1.5};
+    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+
+    impl::node_t node(impl::op_kind::conv_add_relu6);
+
+    node.set_attr<dims>("strides", {1, 1});
+    node.set_attr<dims>("dilations", {1, 1});
+    node.set_attr<dims>("pads_begin", {0, 0});
+    node.set_attr<dims>("pads_end", {0, 0});
+    node.set_attr<int64_t>("groups", 1);
+    node.set_attr<std::string>("backend", "dnnl");
+    node.set_attr<float>("min", 0.f);
+    node.set_attr<float>("max", 6.f);
+    node.set_attr<std::string>("data_format", "NCX");
+    node.set_attr<std::string>("filter_format", "OIX");
+    node.set_attr<std::string>("backend", "dnnl");
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt
+            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t post_lt
+            = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
+
+    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, post_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto op = op_factory.create_kernel(node);
+    op->compile(&node, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
+
+    impl::tensor src_ts(src_lt, src.data());
+    impl::tensor weight_ts(weight_lt, weight.data());
+    impl::tensor post_src_ts(outputs[0], post_src.data());
+    impl::tensor dst_ts(outputs[0], dst.data());
+    impl::stream &strm = get_stream();
+    op->execute(&node, &strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
 TEST(operator_kernel, softmax) {
     impl::node_t softmax_node(impl::op_kind::SoftMax);
     impl::engine_t &eng = get_engine();

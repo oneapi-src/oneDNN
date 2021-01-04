@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cstring>
 #include <vector>
 
 #include "backend/pass/pass_base.hpp"
@@ -49,6 +50,11 @@ void transformation_pass::run(graph &agraph) {
         std::vector<std::vector<node_t *>> fusion_nodes;
         pu.match(agraph, pstarter, fusion_nodes);
         if (fusion_nodes.size() != 0) {
+            // temporary solution here for showing which pattern matched
+            char *val = std::getenv("DNNL_GRAPH_DUMP");
+            if (val != nullptr && std::strcmp(val, "1") == 0) {
+                std::cout << "hit pass " << get_pass_name() << "\n";
+            }
             pu.rewrite(agraph, pstarter, ostarter, fusion_nodes);
         }
     }

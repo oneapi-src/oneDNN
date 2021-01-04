@@ -994,6 +994,57 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bias_add_relu6, 1,
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(Conv_add, 1,
+        op_schema()
+                .set_num_inputs(3)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "other", "the second input tensor of add")
+                .set_output(0, "output", "output tensor")
+                .set_shape_inference_function(infer_conv_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(Conv_add_elu, 1,
+        op_schema()
+                .set_num_inputs(3)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "other", "the second input tensor of add")
+                .set_output(0, "output", "output tensor")
+                .set_attr("alpha", "scale for the negative factor", true)
+                .set_shape_inference_function(infer_conv_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(Conv_add_relu, 1,
+        op_schema()
+                .set_num_inputs(3)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "other", "the second input tensor of add")
+                .set_output(0, "output", "output tensor")
+                .set_shape_inference_function(infer_conv_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(Conv_add_relu6, 1,
+        op_schema()
+                .set_num_inputs(3)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "other", "the second input tensor of add")
+                .set_output(0, "output", "output tensor")
+                .set_attr("min",
+                        "lower bound of values in the output, should be 0",
+                        true)
+                .set_attr("max",
+                        "upper bound of values in the output, should be 6",
+                        true)
+                .set_shape_inference_function(infer_conv_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
 DNNL_GRAPH_OP_SCHEMA(Conv_bias_elu, 1,
         op_schema()
                 .set_num_inputs(3)

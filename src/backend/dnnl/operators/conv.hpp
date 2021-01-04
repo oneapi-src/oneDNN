@@ -103,7 +103,8 @@ struct convolution_op_set {
      */
     static bool fuse_sum(op_kind_t kind) {
         static const std::set<op_kind_t> with_sum_set {op_kind::conv_add,
-                op_kind::conv_add_relu, op_kind::conv_bias_add,
+                op_kind::conv_add_elu, op_kind::conv_add_relu,
+                op_kind::conv_add_relu6, op_kind::conv_bias_add,
                 op_kind::conv_bias_add_elu, op_kind::conv_bias_add_relu,
                 op_kind::conv_bias_add_relu6, op_kind::conv_bias_bn_add,
                 op_kind::conv_bias_bn_add_relu, op_kind::conv_bn_add,
@@ -119,7 +120,9 @@ struct convolution_op_set {
      */
     static bool fuse_eltwise(op_kind_t kind) {
         static const std::set<op_kind_t> with_eltwise_set {
+                op_kind::conv_add_elu,
                 op_kind::conv_add_relu,
+                op_kind::conv_add_relu6,
                 op_kind::conv_bias_add_elu,
                 op_kind::conv_bias_add_relu,
                 op_kind::conv_bias_add_relu6,
@@ -537,9 +540,11 @@ private:
             case op_kind::conv_bias_relu:
             case op_kind::conv_relu: return (algorithm::eltwise_relu);
 
+            case op_kind::conv_add_elu:
             case op_kind::conv_bias_add_elu:
             case op_kind::conv_bias_elu: return (algorithm::eltwise_elu);
 
+            case op_kind::conv_add_relu6:
             case op_kind::conv_bias_add_relu6:
             case op_kind::conv_bias_relu6:
             case op_kind::conv_bias_hardtanh: return (algorithm::eltwise_clip);

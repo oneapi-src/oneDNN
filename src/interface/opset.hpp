@@ -97,6 +97,10 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_bias_sigmoid, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_bias_sqrt, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_bias_square, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_bias_tanh, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_add, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_add_elu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_add_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_add_relu6, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_bn, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_bn_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_bn_add_relu, 1);
@@ -204,6 +208,10 @@ public:
                         Conv_bias_add_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         Conv_bias_add_relu6, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_add, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_add_elu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_add_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_add_relu6, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Conv_bias_elu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         Conv_bias_hardtanh, 1)>());
