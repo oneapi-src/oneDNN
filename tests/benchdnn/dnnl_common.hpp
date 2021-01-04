@@ -220,6 +220,16 @@ extern dnnl_engine_kind_t engine_tgt_kind;
 extern size_t engine_index;
 extern isa_hints_t hints;
 
+// Extended version of dnnl_sycl_interop_memory_kind_t enumeration.
+enum class sycl_memory_kind_ext_t {
+    usm, // Same as dnnl_sycl_interop_usm
+    buffer, // Same as dnnl_sycl_interop_buffer
+    usm_device, // USM allocated via malloc_device()
+    usm_shared, // USM allocated via malloc_shared()
+};
+
+extern sycl_memory_kind_ext_t sycl_memory_kind;
+
 void init_isa_settings();
 
 inline const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
@@ -343,8 +353,6 @@ int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
 int check_mem_size(const dnnl_memory_desc_t &md);
 int check_mem_size(const_dnnl_primitive_desc_t const_pd);
 
-#ifdef DNNL_WITH_SYCL
-dnnl_sycl_interop_memory_kind_t str2sycl_memory_kind(const char *str);
-#endif
+sycl_memory_kind_ext_t str2sycl_memory_kind(const char *str);
 
 #endif

@@ -56,9 +56,7 @@ size_t engine_index = 0;
 // CPU ISA specific hints : none by default
 isa_hints_t hints {isa_hints_t::none};
 
-#ifdef DNNL_WITH_SYCL
-dnnl_sycl_interop_memory_kind_t sycl_memory_kind {dnnl_sycl_interop_usm};
-#endif
+sycl_memory_kind_ext_t sycl_memory_kind {sycl_memory_kind_ext_t::usm};
 
 void init_isa_settings() {
     if (hints.get() == isa_hints_t::no_hints)
@@ -641,16 +639,17 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     return OK;
 }
 
-#ifdef DNNL_WITH_SYCL
-dnnl_sycl_interop_memory_kind_t str2sycl_memory_kind(const char *str) {
-    const char *param = "usm";
-    if (!strncasecmp(param, str, strlen(param))) return dnnl_sycl_interop_usm;
+sycl_memory_kind_ext_t str2sycl_memory_kind(const char *str) {
+#define CASE(param) \
+    if (!strcasecmp(#param, str)) return sycl_memory_kind_ext_t::param
 
-    param = "buffer";
-    if (!strncasecmp(param, str, strlen(param)))
-        return dnnl_sycl_interop_buffer;
+    CASE(usm);
+    CASE(buffer);
+    CASE(usm_device);
+    CASE(usm_shared);
+
+#undef CASE
 
     assert(!"not expected");
-    return dnnl_sycl_interop_usm;
+    return sycl_memory_kind_ext_t::usm;
 }
-#endif

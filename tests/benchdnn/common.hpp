@@ -32,12 +32,6 @@
 
 #include "src/common/z_magic.hpp"
 
-#include "oneapi/dnnl/dnnl.h"
-
-#ifdef DNNL_WITH_SYCL
-#include "oneapi/dnnl/dnnl_sycl_types.h"
-#endif
-
 #define ABS(a) ((a) > 0 ? (a) : (-(a)))
 
 #define MIN2(a, b) ((a) < (b) ? (a) : (b))
@@ -141,10 +135,6 @@ extern int fix_times_per_prb; /** if non-zero run prb that many times */
 
 extern bool fast_ref_gpu;
 extern bool allow_enum_tags_only;
-
-#ifdef DNNL_WITH_SYCL
-extern dnnl_sycl_interop_memory_kind_t sycl_memory_kind;
-#endif
 
 struct benchdnn_timer_t {
     enum mode_t { min = 0, avg = 1, max = 2, n_modes };

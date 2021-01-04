@@ -218,6 +218,10 @@ private:
     mutable bool is_mapped_ = false;
     mutable void *mapped_ptr_ = NULL;
 
+    int initialize_memory_create_sycl(const handle_info_t &handle_info);
+
+    int initialize_memory_create(const handle_info_t &handle_info);
+
     int initialize(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
             const std::string &tag, dnnl_engine_t engine,
             const handle_info_t &handle_info = handle_info_t::allocate()) {
@@ -232,49 +236,13 @@ private:
         engine_ = engine;
         DNN_SAFE_V(dnnl_engine_get_kind(engine_, &engine_kind_));
 
-        size_t sz = dnnl_memory_desc_get_size(&md_);
-        if (engine_kind_ == dnnl_cpu && handle_info.is_allocate()
-                && DNNL_CPU_RUNTIME != DNNL_RUNTIME_DPCPP) {
-            // Allocate memory for native runtime directly
-            is_data_owner_ = true;
-            const size_t alignment = 2 * 1024 * 1024;
-            data_ = zmalloc(sz, alignment);
-            DNN_SAFE(data_ == NULL ? dnnl_out_of_memory : dnnl_success, CRIT);
-            DNN_SAFE(dnnl_memory_create(&m_, &md_, engine, data_), CRIT);
-        } else {
-            is_data_owner_ = false;
-            data_ = NULL;
-
-            if (handle_info.is_host_ptr) {
-                // Host pointer can be used with CPU memory only.
-                // XXX: assumption that SYCL works fine with native host pointers.
-                DNN_SAFE(is_cpu(engine) ? dnnl_success : dnnl_runtime_error,
-                        CRIT);
-            }
-
-            if (is_sycl_engine(engine_)) {
-#ifdef DNNL_WITH_SYCL
-                // 1. USM is not supported with Nvidia so force SYCL buffers.
-                // 2. Ignore sycl_memory_kind with host pointers and force USM.
-                dnnl_sycl_interop_memory_kind_t mem_kind
-                        = is_nvidia_gpu(engine_)
-                        ? dnnl_sycl_interop_buffer
-                        : (handle_info.is_host_ptr ? dnnl_sycl_interop_usm
-                                                   : sycl_memory_kind);
-                DNN_SAFE(dnnl_sycl_interop_memory_create(
-                                 &m_, &md_, engine, mem_kind, handle_info.ptr),
-                        CRIT);
-#endif
-            } else {
-                DNN_SAFE(dnnl_memory_create(&m_, &md_, engine, handle_info.ptr),
-                        CRIT);
-            }
-        }
+        SAFE(initialize_memory_create(handle_info), CRIT);
 
         if (handle_info.is_allocate()) {
             // Fill memory with a magic number (NAN for fp data types) to catch
             // possible uninitialized access.
             map();
+            size_t sz = dnnl_memory_desc_get_size(&md_);
             memset(mapped_ptr_, dnnl_mem_default_value, sz);
             unmap();
 
@@ -313,11 +281,19 @@ private:
         return OK;
     }
 
+    int cleanup_sycl();
+
     int cleanup() {
         if (!active_) return OK;
         unmap();
         DNN_SAFE(dnnl_memory_destroy(m_), CRIT);
-        if (is_data_owner_) zfree(data_);
+        if (is_data_owner_) {
+            if (is_sycl_engine(engine_)) {
+                SAFE(cleanup_sycl(), CRIT);
+            } else {
+                zfree(data_);
+            }
+        }
         return OK;
     }
 };

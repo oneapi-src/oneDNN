@@ -63,7 +63,8 @@ The following common options are supported:
   E.g. `--skip-impl=ref:gemm`.
 
 * --sycl-memory-kind=`KIND` -- Specifies the memory kind to test with DPC++
-  engines. KIND values can be `usm` (default) or `buffer`.
+  engines. KIND values can be `usm` (default), `buffer`, `usm_device` (to use
+  malloc_device) or `usm_shared` (to use malloc_shared).
 
 * -v`N`, --verbose=`N` -- Specifies the driver verbose level. It prints
   additional information depending on a level N. N is a non-negative integer
