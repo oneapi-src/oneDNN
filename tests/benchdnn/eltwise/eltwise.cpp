@@ -366,6 +366,7 @@ int doit(const prb_t *prb, res_t *res) {
             // where catastrophic cancellation may happen.
             const float src = arg_fp.get_elem(i);
             if (check_abs_err(prb, src, trh)) return diff <= trh;
+            if (prb->attr.post_ops.binary_index() != -1) return diff <= trh;
             return false;
         };
         cmp.set_driver_check_function(eltwise_add_check);
