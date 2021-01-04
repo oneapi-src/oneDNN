@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -160,6 +160,8 @@ inline status_t check_device(
 
 status_t get_ocl_devices(
         std::vector<cl_device_id> *devices, cl_device_type device_type);
+
+status_t get_ocl_device_index(size_t *index, cl_device_id device);
 
 namespace details {
 

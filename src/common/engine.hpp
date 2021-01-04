@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,8 +37,8 @@
  */
 struct dnnl_engine : public dnnl::impl::c_compatible {
     dnnl_engine(dnnl::impl::engine_kind_t kind,
-            dnnl::impl::runtime_kind_t runtime_kind)
-        : kind_(kind), runtime_kind_(runtime_kind) {}
+            dnnl::impl::runtime_kind_t runtime_kind, size_t index)
+        : kind_(kind), runtime_kind_(runtime_kind), index_(index) {}
     virtual ~dnnl_engine() = default;
 
     /** get kind of the current engine */
@@ -46,6 +46,9 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
     /** get the runtime kind of the current engine */
     dnnl::impl::runtime_kind_t runtime_kind() const { return runtime_kind_; }
+
+    /** get index of the current engine */
+    size_t index() const { return index_; }
 
     virtual dnnl::impl::device_id_t device_id() const = 0;
 
@@ -131,6 +134,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 protected:
     dnnl::impl::engine_kind_t kind_;
     dnnl::impl::runtime_kind_t runtime_kind_;
+    size_t index_;
 };
 
 namespace dnnl {

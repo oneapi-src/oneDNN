@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,11 @@ status_t dnnl_ocl_interop_engine_create(
     if (!args_ok) return status::invalid_arguments;
 
     ocl_engine_factory_t f(engine_kind::gpu);
-    return f.engine_create(engine, device, context);
+
+    size_t index;
+    CHECK(get_ocl_device_index(&index, device));
+
+    return f.engine_create(engine, device, context, index);
 }
 
 status_t dnnl_ocl_interop_engine_get_context(

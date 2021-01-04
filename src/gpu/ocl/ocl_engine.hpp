@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,7 +47,8 @@ public:
 
         if (index >= ocl_devices.size()) return status::invalid_arguments;
 
-        auto *ocl_engine = new ocl_gpu_engine_t(ocl_devices[index]);
+        auto *ocl_engine
+                = new ocl_gpu_engine_t(ocl_devices[index], nullptr, index);
         if (!ocl_engine) return status::out_of_memory;
 
         status = ocl_engine->init();
@@ -59,9 +60,9 @@ public:
         return status::success;
     }
 
-    status_t engine_create(
-            engine_t **engine, cl_device_id device, cl_context context) {
-        auto *ocl_engine = new ocl_gpu_engine_t(device, context);
+    status_t engine_create(engine_t **engine, cl_device_id device,
+            cl_context context, size_t index) {
+        auto *ocl_engine = new ocl_gpu_engine_t(device, context, index);
         if (!ocl_engine) return status::out_of_memory;
 
         status_t status = ocl_engine->init();

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,7 +44,10 @@ status_t dnnl_sycl_interop_engine_create(
     auto ef = dnnl::impl::sycl::get_engine_factory(kind);
     if (!ef) return status::invalid_arguments;
 
-    return ef->engine_create(engine, sycl_dev, sycl_ctx);
+    size_t index;
+    CHECK(dnnl::impl::sycl::get_sycl_device_index(&index, sycl_dev));
+
+    return ef->engine_create(engine, sycl_dev, sycl_ctx, index);
 }
 
 status_t dnnl_sycl_interop_engine_get_context(engine_t *engine, void **ctx) {

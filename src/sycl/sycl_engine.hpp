@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,7 +42,8 @@ namespace nvidia {
 bool is_nvidia_gpu(const cl::sycl::device &dev);
 
 status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
-        const cl::sycl::device &dev, const cl::sycl::context &ctx);
+        const cl::sycl::device &dev, const cl::sycl::context &ctx,
+        size_t index);
 
 } // namespace nvidia
 } // namespace gpu
@@ -51,7 +52,8 @@ status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
 namespace sycl {
 
 inline std::vector<cl::sycl::device> get_sycl_devices(
-        cl::sycl::info::device_type dev_type) {
+        cl::sycl::info::device_type dev_type,
+        backend_t backend = backend_t::unknown) {
     const int intel_vendor_id = 0x8086;
 #ifdef DNNL_SYCL_CUDA
     const int vendor_id = ((dev_type == cl::sycl::info::device_type::gpu)
@@ -60,7 +62,8 @@ inline std::vector<cl::sycl::device> get_sycl_devices(
 #else
     const int vendor_id = intel_vendor_id;
 #endif
-    auto gpu_backend = get_sycl_gpu_backend();
+    auto gpu_backend
+            = backend == backend_t::unknown ? get_sycl_gpu_backend() : backend;
 
     std::vector<cl::sycl::device> devices;
     auto platforms = cl::sycl::platform::get_platforms();
@@ -94,6 +97,18 @@ inline std::vector<cl::sycl::device> get_sycl_devices(
     return devices;
 }
 
+inline status_t get_sycl_device_index(
+        size_t *index, const cl::sycl::device &dev) {
+    auto dev_type = dev.get_info<cl::sycl::info::device::device_type>();
+    auto devices = get_sycl_devices(dev_type, get_sycl_backend(dev));
+
+    auto it = std::find_if(devices.begin(), devices.end(),
+            [&](const cl::sycl::device &d) { return are_equal(d, dev); });
+    if (it == devices.end()) return status::invalid_arguments;
+    *index = it - devices.begin();
+    return status::success;
+}
+
 class sycl_engine_factory_t : public engine_factory_t {
 public:
     sycl_engine_factory_t(engine_kind_t engine_kind)
@@ -111,7 +126,7 @@ public:
     status_t engine_create(engine_t **engine, size_t index) const override;
 
     status_t engine_create(engine_t **engine, const cl::sycl::device &dev,
-            const cl::sycl::context &ctx) const;
+            const cl::sycl::context &ctx, size_t index) const;
 
 private:
     engine_kind_t engine_kind_;

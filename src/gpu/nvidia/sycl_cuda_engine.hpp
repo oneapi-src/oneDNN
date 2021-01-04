@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,9 +49,9 @@ public:
     using base_t = dnnl::impl::sycl::sycl_engine_base_t;
 
     sycl_cuda_engine_t(engine_kind_t kind, const cl::sycl::device &dev,
-            const cl::sycl::context &ctx);
-    sycl_cuda_engine_t(
-            const cl::sycl::device &dev, const cl::sycl::context &ctx);
+            const cl::sycl::context &ctx, size_t index);
+    sycl_cuda_engine_t(const cl::sycl::device &dev,
+            const cl::sycl::context &ctx, size_t index);
 
     status_t create_stream(stream_t **stream, unsigned flags) override;
     status_t create_stream(stream_t **stream, cl::sycl::queue &queue);

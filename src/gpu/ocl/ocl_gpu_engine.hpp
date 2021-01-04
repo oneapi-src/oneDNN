@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,16 +35,11 @@ namespace ocl {
 
 class ocl_gpu_engine_t : public compute::compute_engine_t {
 public:
-    ocl_gpu_engine_t(cl_device_id adevice)
-        : compute::compute_engine_t(engine_kind::gpu, runtime_kind::ocl)
-        , device_(adevice)
-        , context_(nullptr)
-        , is_user_context_(false) {}
-    ocl_gpu_engine_t(cl_device_id adevice, cl_context acontext)
-        : compute::compute_engine_t(engine_kind::gpu, runtime_kind::ocl)
+    ocl_gpu_engine_t(cl_device_id adevice, cl_context acontext, size_t index)
+        : compute::compute_engine_t(engine_kind::gpu, runtime_kind::ocl, index)
         , device_(adevice)
         , context_(acontext)
-        , is_user_context_(true) {}
+        , is_user_context_(acontext) {}
     ~ocl_gpu_engine_t() override {
         if (device_) { clReleaseDevice(device_); }
         if (context_) { clReleaseContext(context_); }

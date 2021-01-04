@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -75,6 +76,16 @@ status_t get_ocl_devices(
         }
     }
     // No devices found but still return success
+    return status::success;
+}
+
+status_t get_ocl_device_index(size_t *index, cl_device_id device) {
+    std::vector<cl_device_id> ocl_devices;
+    CHECK(get_ocl_devices(&ocl_devices, CL_DEVICE_TYPE_GPU));
+
+    auto it = std::find(ocl_devices.begin(), ocl_devices.end(), device);
+    if (it == ocl_devices.end()) return status::invalid_arguments;
+    *index = it - ocl_devices.begin();
     return status::success;
 }
 

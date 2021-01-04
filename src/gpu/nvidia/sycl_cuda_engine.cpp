@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -48,10 +48,11 @@ bool is_nvidia_gpu(const cl::sycl::device &dev) {
 }
 
 status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
-        const cl::sycl::device &dev, const cl::sycl::context &ctx) {
+        const cl::sycl::device &dev, const cl::sycl::context &ctx,
+        size_t index) {
     CHECK(nvidia::check_device(engine_kind));
     std::unique_ptr<nvidia::sycl_cuda_engine_t> cuda_engine(
-            (new nvidia::sycl_cuda_engine_t(dev, ctx)));
+            (new nvidia::sycl_cuda_engine_t(dev, ctx, index)));
     if (!cuda_engine) return status::out_of_memory;
 
     CHECK(cuda_engine->init());
@@ -61,16 +62,16 @@ status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
 }
 
 sycl_cuda_engine_t::sycl_cuda_engine_t(engine_kind_t kind,
-        const cl::sycl::device &dev, const cl::sycl::context &ctx)
-    : base_t(kind, dev, ctx) {
+        const cl::sycl::device &dev, const cl::sycl::context &ctx, size_t index)
+    : base_t(kind, dev, ctx, index) {
     underlying_context_type();
     set_cudnn_handle();
     set_cublas_handle();
 }
 
 sycl_cuda_engine_t::sycl_cuda_engine_t(
-        const cl::sycl::device &dev, const cl::sycl::context &ctx)
-    : sycl_cuda_engine_t(engine_kind::gpu, dev, ctx) {
+        const cl::sycl::device &dev, const cl::sycl::context &ctx, size_t index)
+    : sycl_cuda_engine_t(engine_kind::gpu, dev, ctx, index) {
     assert(is_nvidia_gpu(dev));
 }
 

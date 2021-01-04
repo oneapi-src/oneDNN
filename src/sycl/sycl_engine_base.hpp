@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,8 +39,8 @@ namespace sycl {
 class sycl_engine_base_t : public gpu::compute::compute_engine_t {
 public:
     sycl_engine_base_t(engine_kind_t kind, const cl::sycl::device &dev,
-            const cl::sycl::context &ctx)
-        : gpu::compute::compute_engine_t(kind, runtime_kind::sycl)
+            const cl::sycl::context &ctx, size_t index)
+        : gpu::compute::compute_engine_t(kind, runtime_kind::sycl, index)
         , device_(dev)
         , context_(ctx) {}
 
@@ -156,8 +156,10 @@ private:
 
         if (backend_ == backend_t::opencl) {
             engine_t *ocl_engine_ptr;
+            size_t index;
+            CHECK(gpu::ocl::get_ocl_device_index(&index, ocl_device()));
             CHECK(f.engine_create(
-                    &ocl_engine_ptr, ocl_device(), ocl_context()));
+                    &ocl_engine_ptr, ocl_device(), ocl_context(), index));
             ocl_engine->reset(utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(
                     ocl_engine_ptr));
         } else if (backend_ == backend_t::level0) {

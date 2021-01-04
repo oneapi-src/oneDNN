@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,8 +34,9 @@ public:
     using sycl_engine_base_t::create_stream;
     using sycl_engine_base_t::device;
 
-    sycl_cpu_engine_t(const cl::sycl::device &dev, const cl::sycl::context &ctx)
-        : sycl_engine_base_t(engine_kind::cpu, dev, ctx) {
+    sycl_cpu_engine_t(const cl::sycl::device &dev, const cl::sycl::context &ctx,
+            size_t index)
+        : sycl_engine_base_t(engine_kind::cpu, dev, ctx, index) {
         assert(dev.is_cpu() || dev.is_host());
     }
 

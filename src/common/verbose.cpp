@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -366,9 +366,12 @@ void verbose_templ(char *buffer, const engine_t *engine,
         dnnl_prop_kind_t prop_kind, const char *data_str, const char *attr_str,
         const char *aux_str, const char *prb_str) {
     MAYBE_UNUSED(verbose_templ);
+    std::string engine_idx;
+    if (dnnl_engine_get_count(engine->kind()) > 1)
+        engine_idx = ":" + std::to_string(engine->index());
     int written = 0;
-    DPRINT(buffer, DNNL_VERBOSE_BUF_LEN, written, "%s,",
-            dnnl_engine_kind2str(engine->kind()));
+    DPRINT(buffer, DNNL_VERBOSE_BUF_LEN, written, "%s%s,",
+            dnnl_engine_kind2str(engine->kind()), engine_idx.c_str());
     verbose_templ_no_engine_kind(buffer, prim_kind, impl_str, prop_kind,
             data_str, attr_str, aux_str, prb_str, written);
 }

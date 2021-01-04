@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,8 +39,9 @@ namespace compute {
 
 class compute_engine_t : public engine_t {
 public:
-    compute_engine_t(engine_kind_t kind, runtime_kind_t runtime_kind)
-        : engine_t(kind, runtime_kind) {}
+    compute_engine_t(
+            engine_kind_t kind, runtime_kind_t runtime_kind, size_t index)
+        : engine_t(kind, runtime_kind, index) {}
 
     virtual status_t init();
 

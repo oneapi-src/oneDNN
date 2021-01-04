@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,11 +49,12 @@ status_t sycl_engine_factory_t::engine_create(
     // GPU). This doesn't work for the CPU thunk kernel which works on CPU
     // only because it calls a native CPU function.
     cl::sycl::context ctx(dev, exception_handler);
-    return engine_create(engine, dev, ctx);
+    return engine_create(engine, dev, ctx, index);
 }
 
 status_t sycl_engine_factory_t::engine_create(engine_t **engine,
-        const cl::sycl::device &dev, const cl::sycl::context &ctx) const {
+        const cl::sycl::device &dev, const cl::sycl::context &ctx,
+        size_t index) const {
     // Validate device and context.
     auto ctx_devs = ctx.get_devices();
     auto it = std::find_if(ctx_devs.begin(), ctx_devs.end(),
@@ -64,7 +65,8 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
 
 #ifdef DNNL_SYCL_CUDA
     if (gpu::nvidia::is_nvidia_gpu(dev))
-        return gpu::nvidia::cuda_engine_create(engine, engine_kind_, dev, ctx);
+        return gpu::nvidia::cuda_engine_create(
+                engine, engine_kind_, dev, ctx, index);
 #endif
 
     if (engine_kind_ == engine_kind::cpu && !dev.is_cpu() && !dev.is_host())
@@ -75,9 +77,9 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
     std::unique_ptr<sycl_engine_base_t> sycl_engine(
             (engine_kind_ == engine_kind::cpu)
                     ? static_cast<sycl_engine_base_t *>(
-                            new sycl_cpu_engine_t(dev, ctx))
+                            new sycl_cpu_engine_t(dev, ctx, index))
                     : static_cast<sycl_engine_base_t *>(
-                            new sycl_gpu_engine_t(dev, ctx)));
+                            new sycl_gpu_engine_t(dev, ctx, index)));
     if (!sycl_engine) return status::out_of_memory;
 
     CHECK(sycl_engine->init());
