@@ -22,7 +22,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "cpu/gemm_convolution_utils.hpp"
+#if DNNL_X64
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#endif
 
 #include "cpu/platform.hpp"
 

@@ -31,7 +31,9 @@
 #include "cpu/gemm_inner_product_utils.hpp"
 
 #include "cpu/cpu_inner_product_pd.hpp"
+#if DNNL_X64
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {

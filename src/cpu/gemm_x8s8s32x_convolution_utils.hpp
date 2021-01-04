@@ -18,7 +18,9 @@
 #define CPU_GEMM_X8S8S32X_CONVOLUTION_UTILS_HPP
 
 #include "cpu/gemm_convolution_utils.hpp"
+#if DNNL_X64
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {

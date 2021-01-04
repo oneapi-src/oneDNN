@@ -16,7 +16,9 @@
 #include <cmath>
 #include <vector>
 #include "cpu/gemm_x8s8s32x_conv_zp_src_pad_comp.hpp"
+#if DNNL_X64
 #include "cpu/x64/jit_primitive_conf.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
