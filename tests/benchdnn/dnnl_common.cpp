@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,7 +51,8 @@ float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
 
 // Engine kind used to run oneDNN primitives for testing
 dnnl_engine_kind_t engine_tgt_kind = dnnl_cpu;
-
+// Engine index used to run oneDNN primitives for testing
+size_t engine_index = 0;
 // CPU ISA specific hints : none by default
 isa_hints_t hints {isa_hints_t::none};
 

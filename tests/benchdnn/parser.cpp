@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -283,10 +283,26 @@ static bool parse_verbose(
     return parse_single_value_option(verbose, 0, atoi, str, option_name);
 }
 
-static bool parse_engine_kind(
+static bool parse_engine(
         const char *str, const std::string &option_name = "engine") {
-    return parse_single_value_option(
-            engine_tgt_kind, dnnl_cpu, str2engine_kind, str, option_name);
+    if (!parse_single_value_option(
+                engine_tgt_kind, dnnl_cpu, str2engine_kind, str, option_name))
+        return false;
+    // Parse engine index if present
+    std::string s(str);
+    auto start_pos = s.find_first_of(':');
+    if (start_pos != std::string::npos)
+        engine_index = stoi(s.substr(start_pos + 1));
+
+    auto n_devices = dnnl_engine_get_count(engine_tgt_kind);
+    if (engine_index >= n_devices) {
+        fprintf(stderr,
+                "ERROR: requested engine with index %ld is not registred in "
+                "the system. Number of devices registred is %ld.\n",
+                (long)engine_index, (long)n_devices);
+        exit(2);
+    }
+    return true;
 }
 
 static bool parse_fast_ref_gpu(
@@ -335,7 +351,7 @@ bool parse_bench_settings(const char *str) {
 
     return parse_bench_mode(str) || parse_max_ms_per_prb(str)
             || parse_fix_times_per_prb(str) || parse_verbose(str)
-            || parse_engine_kind(str) || parse_fast_ref_gpu(str)
+            || parse_engine(str) || parse_fast_ref_gpu(str)
             || parse_canonical(str) || parse_mem_check(str)
             || parse_skip_impl(str) || parse_allow_enum_tags_only(str)
             || parse_cpu_isa_hints(str);

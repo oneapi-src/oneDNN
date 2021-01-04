@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -671,8 +671,11 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
 std::ostream &dump_global_params(std::ostream &s) {
     s << "--" << driver_name << " ";
     if (canonical) s << "--canonical=" << bool2str(canonical) << " ";
-    if (canonical || engine_tgt_kind != dnnl_cpu)
-        s << "--engine=" << engine_tgt_kind << " ";
+    if (canonical || engine_tgt_kind != dnnl_cpu) {
+        s << "--engine=" << engine_tgt_kind;
+        if (engine_index != 0) s << ":" << engine_index;
+        s << " ";
+    }
     if (canonical || fast_ref_gpu != true)
         s << "--fast-ref-gpu=" << bool2str(fast_ref_gpu) << " ";
     if (!skip_impl.empty()) s << "--skip-impl=" << skip_impl << " ";
@@ -1251,19 +1254,20 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
 }
 
 engine_t::engine_t(dnnl_engine_kind_t engine_kind) {
+    size_t idx = engine_kind == dnnl_cpu ? 0 : engine_index;
 #ifdef DNNL_WITH_SYCL
     if (engine_kind == dnnl_cpu) {
         static dnnl_engine_t inst = nullptr;
-        if (!inst) DNN_SAFE_V(dnnl_engine_create(&inst, engine_kind, 0));
+        if (!inst) DNN_SAFE_V(dnnl_engine_create(&inst, engine_kind, idx));
         engine_ = inst;
     } else if (engine_kind == dnnl_gpu) {
         static dnnl_engine_t inst = nullptr;
-        if (!inst) DNN_SAFE_V(dnnl_engine_create(&inst, engine_kind, 0));
+        if (!inst) DNN_SAFE_V(dnnl_engine_create(&inst, engine_kind, idx));
         engine_ = inst;
     } else
         assert(!"unsupported engine_kind");
 #else
-    DNN_SAFE_V(dnnl_engine_create(&engine_, engine_kind, 0));
+    DNN_SAFE_V(dnnl_engine_create(&engine_, engine_kind, idx));
 #endif
 }
 

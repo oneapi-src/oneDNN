@@ -26,8 +26,14 @@ The following common options are supported:
   reproducer line omitting options and problem descriptor entries which values
   are set to their defaults.
 
-* --engine=`ENGINE` -- Specifies an engine kind ENGINE to be used for
-  benchmarking. ENGINE values can be `cpu` (the default) or `gpu`.
+* --engine=`KIND[:INDEX]` -- Specifies an engine kind KIND to be used for
+  benchmarking. KIND values can be `cpu` (the default) or `gpu`. Optional
+  non-negative integer value of INDEX may be specified followed by colon `:`.
+  E.g. `--engine=gpu:1`, which means to use second GPU device. Enumeration
+  follows the library enumeration identification. It may be checked up with
+  DNNL_VERBOSE output. By default INDEX is `0`. If index is greater or equal
+  to the number of devices of requested kind discovered on a system, runtime
+  error will occur.
 
 * --cpu-isa-hints=`HINTS` -- Specifies the ISA specific hints to the CPU engine.
   `HINTS` values can be `none` (the default), `no_hints` or `prefer_ymm`. `none`
