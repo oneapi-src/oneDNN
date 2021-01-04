@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -185,6 +185,7 @@ status_t memory_desc_wrapper::compute_blocking(
         C(ABc2b8a4b, {0, 1, 2}, {2, 8, 4}, {1, 0, 1});
         C(ABc16b16a4b, {0, 1, 2}, {16, 16, 4}, {1, 0, 1});
         C(ABc16b16a2b, {0, 1, 2}, {16, 16, 2}, {1, 0, 1});
+        C(ABc16a16b2a, {0, 1, 2}, {16, 16, 2}, {0, 1, 0});
         C(ABc4b4a, {0, 1, 2}, {4, 4}, {1, 0});
         C(Abcd4a, {0, 1, 2, 3}, {4}, {0});
         C(aBcd4b, {0, 1, 2, 3}, {4}, {1});
@@ -194,6 +195,7 @@ status_t memory_desc_wrapper::compute_blocking(
         C(aBCd2c8b4c, {0, 1, 2, 3}, {2, 8, 4}, {2, 1, 2});
         C(aBCd16c16b4c, {0, 1, 2, 3}, {16, 16, 4}, {2, 1, 2});
         C(aBCd16c16b2c, {0, 1, 2, 3}, {16, 16, 2}, {2, 1, 2});
+        C(aBCd16b16c2b, {0, 1, 2, 3}, {16, 16, 2}, {1, 2, 1});
         C(aBCdef16c16b4c, {0, 1, 2, 3, 4, 5}, {16, 16, 4}, {2, 1, 2});
         C(aBCd4c4b, {0, 1, 2, 3}, {4, 4}, {2, 1});
         C(aBCd4b4c, {0, 1, 2, 3}, {4, 4}, {1, 2});
@@ -256,6 +258,7 @@ status_t memory_desc_wrapper::compute_blocking(
         C(ABcd2b8a4b, {0, 1, 2, 3}, {2, 8, 4}, {1, 0, 1});
         C(ABcd16b16a4b, {0, 1, 2, 3}, {16, 16, 4}, {1, 0, 1});
         C(ABcd16b16a2b, {0, 1, 2, 3}, {16, 16, 2}, {1, 0, 1});
+        C(ABcd16a16b2a, {0, 1, 2, 3}, {16, 16, 2}, {0, 1, 0});
         C(ABcde16b16a2b, {0, 1, 2, 3, 4}, {16, 16, 2}, {1, 0, 1});
         C(ABcd8a16b2a, {0, 1, 2, 3}, {8, 16, 2}, {0, 1, 0});
         C(BAcd8a16b2a, {1, 0, 2, 3}, {8, 16, 2}, {0, 1, 0});
@@ -287,6 +290,7 @@ status_t memory_desc_wrapper::compute_blocking(
         C(aBCde4c16b4c, {0, 1, 2, 3, 4}, {4, 16, 4}, {2, 1, 2});
         C(aBCde16c16b4c, {0, 1, 2, 3, 4}, {16, 16, 4}, {2, 1, 2});
         C(aBCde16c16b2c, {0, 1, 2, 3, 4}, {16, 16, 2}, {2, 1, 2});
+        C(aBCde16b16c2b, {0, 1, 2, 3, 4}, {16, 16, 2}, {1, 2, 1});
         C(aBCdef16c16b2c, {0, 1, 2, 3, 4, 5}, {16, 16, 2}, {2, 1, 2});
         C(Abcde8a, {0, 1, 2, 3, 4}, {8}, {0});
         C(ABcde8a8b, {0, 1, 2, 3, 4}, {8, 8}, {0, 1});

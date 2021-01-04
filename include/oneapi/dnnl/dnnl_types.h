@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -241,6 +241,7 @@ typedef enum {
     dnnl_ABc4b32a4b,
     dnnl_ABc4b64a4b,
     dnnl_ABc2b8a4b,
+    dnnl_ABc16a16b2a,
     dnnl_ABc16b16a4b,
     dnnl_ABc16b16a2b,
     dnnl_ABc4b4a,
@@ -284,6 +285,7 @@ typedef enum {
     dnnl_ABcd4b16a4b,
     dnnl_ABcd4b32a4b,
     dnnl_ABcd4b64a4b,
+    dnnl_ABcd16a16b2a,
     dnnl_ABcd16b16a4b,
     dnnl_ABcd16b16a2b,
     dnnl_ABcd4b4a,
@@ -292,6 +294,7 @@ typedef enum {
     dnnl_aBCd4b8c2b,
     dnnl_aBCd4c16b4c,
     dnnl_aBCd2c8b4c,
+    dnnl_aBCd16b16c2b,
     dnnl_aBCd16c16b4c,
     dnnl_aBCd16c16b2c,
     dnnl_aBCd4c4b,
@@ -349,6 +352,7 @@ typedef enum {
     dnnl_aBCde2c4b2c,
     dnnl_aBCde4b8c2b,
     dnnl_aBCde4c16b4c,
+    dnnl_aBCde16b16c2b,
     dnnl_aBCde16c16b4c,
     dnnl_aBCde16c16b2c,
     dnnl_aBCde4c4b,
@@ -669,6 +673,7 @@ typedef enum {
     dnnl_OIw2i8o4i = dnnl_ABc2b8a4b,
     dnnl_OIw16i16o4i = dnnl_ABc16b16a4b,
     dnnl_OIw16i16o2i = dnnl_ABc16b16a2b,
+    dnnl_OIw16o16i2o = dnnl_ABc16a16b2a,
     dnnl_OIw4i4o = dnnl_ABc4b4a,
     dnnl_OIw4o4i = dnnl_ABc4a4b,
     dnnl_Oiw4o = dnnl_Abc4a,
@@ -705,6 +710,7 @@ typedef enum {
     dnnl_OIhw4i64o4i = dnnl_ABcd4b64a4b,
     dnnl_OIhw16i16o4i = dnnl_ABcd16b16a4b,
     dnnl_OIhw16i16o2i = dnnl_ABcd16b16a2b,
+    dnnl_OIhw16o16i2o = dnnl_ABcd16a16b2a,
     dnnl_OIhw4i4o = dnnl_ABcd4b4a,
     dnnl_OIhw4o4i = dnnl_ABcd4a4b,
     dnnl_Oihw4o = dnnl_Abcd4a,
@@ -763,6 +769,7 @@ typedef enum {
     dnnl_gOIw2i8o4i = dnnl_aBCd2c8b4c,
     dnnl_gOIw16i16o4i = dnnl_aBCd16c16b4c,
     dnnl_gOIw16i16o2i = dnnl_aBCd16c16b2c,
+    dnnl_gOIw16o16i2o = dnnl_aBCd16b16c2b,
     dnnl_gOIw4i4o = dnnl_aBCd4c4b,
     dnnl_gOIw4o4i = dnnl_aBCd4b4c,
     dnnl_gOiw4o = dnnl_aBcd4b,
@@ -800,6 +807,7 @@ typedef enum {
     dnnl_gOIhw4i16o4i = dnnl_aBCde4c16b4c,
     dnnl_gOIhw16i16o4i = dnnl_aBCde16c16b4c,
     dnnl_gOIhw16i16o2i = dnnl_aBCde16c16b2c,
+    dnnl_gOIhw16o16i2o = dnnl_aBCde16b16c2b,
     dnnl_gOIhw4i4o = dnnl_aBCde4c4b,
     dnnl_gOIhw4o4i = dnnl_aBCde4b4c,
     dnnl_gOihw4o = dnnl_aBcde4b,

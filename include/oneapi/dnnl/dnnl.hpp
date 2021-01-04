@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1454,6 +1454,7 @@ struct memory : public handle<dnnl_memory_t> {
         ABc4b32a4b = dnnl_ABc4b32a4b,
         ABc4b64a4b = dnnl_ABc4b64a4b,
         ABc2b8a4b = dnnl_ABc2b8a4b,
+        ABc16a16b2a = dnnl_ABc16a16b2a,
         ABc16b16a4b = dnnl_ABc16b16a4b,
         ABc16b16a2b = dnnl_ABc16b16a2b,
         ABc4b4a = dnnl_ABc4b4a,
@@ -1486,8 +1487,10 @@ struct memory : public handle<dnnl_memory_t> {
         ABcd4a4b = dnnl_ABcd4a4b,
         aBCd4c16b4c = dnnl_aBCd4c16b4c,
         aBCd2c8b4c = dnnl_aBCd2c8b4c,
+        ABcd16a16b2a = dnnl_ABcd16a16b2a,
         ABcd16b16a4b = dnnl_ABcd16b16a4b,
         ABcd16b16a2b = dnnl_ABcd16b16a2b,
+        aBCd16b16c2b = dnnl_aBCd16b16c2b,
         aBCd16c16b4c = dnnl_aBCd16c16b4c,
         aBCd16c16b2c = dnnl_aBCd16c16b2c,
         aBCd4c4b = dnnl_aBCd4c4b,
@@ -1524,6 +1527,7 @@ struct memory : public handle<dnnl_memory_t> {
         ABcde4a4b = dnnl_ABcde4a4b,
         aBCde4b4c = dnnl_aBCde4b4c,
         aBCde4c16b4c = dnnl_aBCde4c16b4c,
+        aBCde16b16c2b = dnnl_aBCde16b16c2b,
         aBCde16c16b4c = dnnl_aBCde16c16b4c,
         aBCde16c16b2c = dnnl_aBCde16c16b2c,
         aBCdef16c16b2c = dnnl_aBCdef16c16b2c,
@@ -1674,6 +1678,9 @@ struct memory : public handle<dnnl_memory_t> {
         OIw8o16i2o = dnnl_OIw8o16i2o,
         OIw8o8i = dnnl_OIw8o8i,
         OIw8o4i = dnnl_OIw8o4i,
+        OIw16i16o4i = dnnl_OIw16i16o4i,
+        OIw16i16o2i = dnnl_OIw16i16o2i,
+        OIw16o16i2o = dnnl_OIw16o16i2o,
         Owi16o = dnnl_Owi16o,
         OwI16o2i = dnnl_OwI16o2i,
         Owi4o = dnnl_Owi4o,
@@ -1740,6 +1747,9 @@ struct memory : public handle<dnnl_memory_t> {
         gOIw8o16i2o = dnnl_gOIw8o16i2o,
         gOIw8o8i = dnnl_gOIw8o8i,
         gOIw8o4i = dnnl_gOIw8o4i,
+        gOIw16i16o4i = dnnl_gOIw16i16o4i,
+        gOIw16i16o2i = dnnl_gOIw16i16o2i,
+        gOIw16o16i2o = dnnl_gOIw16o16i2o,
         gOwi16o = dnnl_gOwi16o,
         gOwI16o2i = dnnl_gOwI16o2i,
         gOwi4o = dnnl_gOwi4o,
@@ -1774,9 +1784,11 @@ struct memory : public handle<dnnl_memory_t> {
         gOIhw2o8i8o2i = dnnl_gOIhw2o8i8o2i,
         OIhw16i16o4i = dnnl_OIhw16i16o4i,
         OIhw16i16o2i = dnnl_OIhw16i16o2i,
+        OIhw16o16i2o = dnnl_OIhw16o16i2o,
         OIdhw16i16o2i = dnnl_OIdhw16i16o2i,
         gOIhw16i16o4i = dnnl_gOIhw16i16o4i,
         gOIhw16i16o2i = dnnl_gOIhw16i16o2i,
+        gOIhw16o16i2o = dnnl_gOIhw16o16i2o,
         gOIhw8o8i = dnnl_gOIhw8o8i,
         gOIhw8o4i = dnnl_gOIhw8o4i,
         gIOdhw16i16o = dnnl_gIOdhw16i16o,

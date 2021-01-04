@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -120,6 +120,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_ABc2b8a4b) return "ABc2b8a4b";
     if (v == dnnl_ABc16b16a4b) return "ABc16b16a4b";
     if (v == dnnl_ABc16b16a2b) return "ABc16b16a2b";
+    if (v == dnnl_ABc16a16b2a) return "ABc16a16b2a";
     if (v == dnnl_ABc4b4a) return "ABc4b4a";
     if (v == dnnl_ABc8a16b2a) return "ABc8a16b2a";
     if (v == dnnl_ABc8b32a2b) return "ABc8b32a2b";
@@ -159,6 +160,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_ABcd4b64a4b) return "ABcd4b64a4b";
     if (v == dnnl_ABcd16b16a4b) return "ABcd16b16a4b";
     if (v == dnnl_ABcd16b16a2b) return "ABcd16b16a2b";
+    if (v == dnnl_ABcd16a16b2a) return "ABcd16a16b2a";
     if (v == dnnl_ABcd4b4a) return "ABcd4b4a";
     if (v == dnnl_ABcd4a4b) return "ABcd4a4b";
     if (v == dnnl_aBCd2c4b2c) return "aBCd2c4b2c";
@@ -167,6 +169,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_aBCd2c8b4c) return "aBCd2c8b4c";
     if (v == dnnl_aBCd16c16b4c) return "aBCd16c16b4c";
     if (v == dnnl_aBCd16c16b2c) return "aBCd16c16b2c";
+    if (v == dnnl_aBCd16b16c2b) return "aBCd16b16c2b";
     if (v == dnnl_aBCd4c4b) return "aBCd4c4b";
     if (v == dnnl_aBCd4b4c) return "aBCd4b4c";
     if (v == dnnl_ABcd8a16b2a) return "ABcd8a16b2a";
@@ -216,6 +219,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_aBCde4c16b4c) return "aBCde4c16b4c";
     if (v == dnnl_aBCde16c16b4c) return "aBCde16c16b4c";
     if (v == dnnl_aBCde16c16b2c) return "aBCde16c16b2c";
+    if (v == dnnl_aBCde16b16c2b) return "aBCde16b16c2b";
     if (v == dnnl_aBCde4c4b) return "aBCde4c4b";
     if (v == dnnl_Abcde8a) return "Abcde8a";
     if (v == dnnl_ABcde8a8b) return "ABcde8a8b";
@@ -417,6 +421,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_OIw2i8o4i) return "OIw2i8o4i";
     if (v == dnnl_OIw16i16o4i) return "OIw16i16o4i";
     if (v == dnnl_OIw16i16o2i) return "OIw16i16o2i";
+    if (v == dnnl_OIw16o16i2o) return "OIw16o16i2o";
     if (v == dnnl_OIw4i4o) return "OIw4i4o";
     if (v == dnnl_OIw4o4i) return "OIw4o4i";
     if (v == dnnl_Oiw4o) return "Oiw4o";
@@ -451,6 +456,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_OIhw4i64o4i) return "OIhw4i64o4i";
     if (v == dnnl_OIhw16i16o4i) return "OIhw16i16o4i";
     if (v == dnnl_OIhw16i16o2i) return "OIhw16i16o2i";
+    if (v == dnnl_OIhw16o16i2o) return "OIhw16o16i2o";
     if (v == dnnl_OIhw4i4o) return "OIhw4i4o";
     if (v == dnnl_OIhw4o4i) return "OIhw4o4i";
     if (v == dnnl_Oihw4o) return "Oihw4o";
@@ -505,6 +511,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_gOIw2i8o4i) return "gOIw2i8o4i";
     if (v == dnnl_gOIw16i16o4i) return "gOIw16i16o4i";
     if (v == dnnl_gOIw16i16o2i) return "gOIw16i16o2i";
+    if (v == dnnl_gOIw16o16i2o) return "gOIw16o16i2o";
     if (v == dnnl_gOIw4i4o) return "gOIw4i4o";
     if (v == dnnl_gOIw4o4i) return "gOIw4o4i";
     if (v == dnnl_gOiw4o) return "gOiw4o";
@@ -540,6 +547,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_gOIhw4i16o4i) return "gOIhw4i16o4i";
     if (v == dnnl_gOIhw16i16o4i) return "gOIhw16i16o4i";
     if (v == dnnl_gOIhw16i16o2i) return "gOIhw16i16o2i";
+    if (v == dnnl_gOIhw16o16i2o) return "gOIhw16o16i2o";
     if (v == dnnl_gOIhw4i4o) return "gOIhw4i4o";
     if (v == dnnl_gOIhw4o4i) return "gOIhw4o4i";
     if (v == dnnl_gOihw4o) return "gOihw4o";

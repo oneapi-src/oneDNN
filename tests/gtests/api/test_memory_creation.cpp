@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -141,6 +141,7 @@ auto cases_generic = ::testing::Values(params_t {{2, 15, 3, 2}, fmt::nChw16c},
         params_t {{1, 2, 9, 3, 3, 2}, fmt::gOIdhw4o4i},
         params_t {{2, 9, 3, 2}, fmt::OIhw16i16o4i},
         params_t {{2, 9, 3, 2}, fmt::OIhw16i16o2i},
+        params_t {{2, 9, 3, 2}, fmt::OIhw16o16i2o},
         params_t {{2, 9, 4, 3, 2}, fmt::OIdhw16i16o4i},
         params_t {{2, 9, 4, 3, 2}, fmt::OIdhw16i16o2i},
         params_t {{2, 9, 4, 3, 2}, fmt::gOihw16o},
@@ -169,6 +170,7 @@ auto cases_generic = ::testing::Values(params_t {{2, 15, 3, 2}, fmt::nChw16c},
         params_t {{15, 16, 16, 3}, fmt::Goiw8g},
         params_t {{2, 17, 9, 3, 2}, fmt::gOIhw16i16o4i},
         params_t {{2, 17, 9, 3, 2}, fmt::gOIhw16i16o2i},
+        params_t {{2, 17, 9, 3, 2}, fmt::gOIhw16o16i2o},
         params_t {{2, 15, 17, 9, 3, 2}, fmt::gOIdhw16i16o4i},
         params_t {{2, 15, 17, 9, 3, 2}, fmt::gOIdhw16i16o2i});
 } // namespace

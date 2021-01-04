@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -112,6 +112,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(ABc2b8a4b);
     CASE(ABc16b16a4b);
     CASE(ABc16b16a2b);
+    CASE(ABc16a16b2a);
     CASE(ABc4b4a);
     CASE(ABc8a16b2a);
     CASE(ABc8b32a2b);
@@ -151,6 +152,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(ABcd4b64a4b);
     CASE(ABcd16b16a4b);
     CASE(ABcd16b16a2b);
+    CASE(ABcd16a16b2a);
     CASE(ABcd4b4a);
     CASE(ABcd4a4b);
     CASE(aBCd2c4b2c);
@@ -159,6 +161,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(aBCd2c8b4c);
     CASE(aBCd16c16b4c);
     CASE(aBCd16c16b2c);
+    CASE(aBCd16b16c2b);
     CASE(aBCd4c4b);
     CASE(aBCd4b4c);
     CASE(ABcd8a16b2a);
@@ -208,6 +211,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(aBCde4c16b4c);
     CASE(aBCde16c16b4c);
     CASE(aBCde16c16b2c);
+    CASE(aBCde16b16c2b);
     CASE(aBCde4c4b);
     CASE(Abcde8a);
     CASE(ABcde8a8b);
@@ -408,6 +412,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(OIw2i8o4i);
     CASE(OIw16i16o4i);
     CASE(OIw16i16o2i);
+    CASE(OIw16o16i2o);
     CASE(OIw4i4o);
     CASE(OIw4o4i);
     CASE(Oiw4o);
@@ -442,6 +447,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(OIhw4i64o4i);
     CASE(OIhw16i16o4i);
     CASE(OIhw16i16o2i);
+    CASE(OIhw16o16i2o);
     CASE(OIhw4i4o);
     CASE(OIhw4o4i);
     CASE(Oihw4o);
@@ -496,6 +502,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(gOIw2i8o4i);
     CASE(gOIw16i16o4i);
     CASE(gOIw16i16o2i);
+    CASE(gOIw16o16i2o);
     CASE(gOIw4i4o);
     CASE(gOIw4o4i);
     CASE(gOiw4o);
@@ -531,6 +538,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(gOIhw4i16o4i);
     CASE(gOIhw16i16o4i);
     CASE(gOIhw16i16o2i);
+    CASE(gOIhw16o16i2o);
     CASE(gOIhw4i4o);
     CASE(gOIhw4o4i);
     CASE(gOihw4o);
