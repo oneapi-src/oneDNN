@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ namespace x64 {
 struct jit_avx512_core_amx_copy_to_wbuffer_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_copy_to_wbuffer_t)
 
-    using reg64_t = const Xbyak::Reg64;
+    using reg64_t = Xbyak::Reg64;
 
     jit_avx512_core_amx_copy_to_wbuffer_t(const jit_conv_conf_t &ajcp)
         : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
@@ -58,7 +58,7 @@ private:
 struct jit_avx512_core_amx_copy_to_pbuffer_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_copy_to_pbuffer_t)
 
-    using reg64_t = const Xbyak::Reg64;
+    using reg64_t = Xbyak::Reg64;
 
     jit_avx512_core_amx_copy_to_pbuffer_t(const jit_conv_conf_t &ajcp)
         : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
