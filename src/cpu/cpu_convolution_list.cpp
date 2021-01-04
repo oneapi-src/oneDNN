@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 * Copyright 2020 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -146,6 +146,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         nullptr,
     }},
     {{backward_data, f32, bf16, bf16}, {
+        CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_bwd_data_t<f32, bf16, bf16>)
         CPU_INSTANCE_X64(jit_uni_dw_convolution_bwd_data_t<avx512_core, bf16, f32>)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_1x1_convolution_bwd_data_t<f32>)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_convolution_bwd_data_t)
@@ -154,6 +155,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         nullptr,
     }},
     {{backward_data, bf16, bf16, bf16}, {
+        CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_bwd_data_t<bf16, bf16, bf16>)
         CPU_INSTANCE_X64(jit_uni_dw_convolution_bwd_data_t<avx512_core, bf16, bf16>)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_1x1_convolution_bwd_data_t<bf16>)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_convolution_bwd_data_t)

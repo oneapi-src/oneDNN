@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -166,18 +166,19 @@ struct jit_conv_conf_t {
     data_type_t src_dt;
     /* bf16 weights update */
     data_type_t wei_dt;
+    data_type_t ddst_dt;
     data_type_t dsrc_dt;
     data_type_t dwei_dt;
     bool expl_bcast;
     bool large_spatial, large_w_filter;
-    int is_oc_scale;
+    int is_ic_scale, is_oc_scale;
     int max_regs_ur; // maximum accumulation registers
     // dw conv
     int nb_ch, ch_block, nb_ch_blocking;
     bool is_depthwise, is_fast_depthwise, is_resrc_depthwise;
     int aligned_threads;
     // large spatial
-    int oh_blk_size;
+    int ih_blk_size, oh_blk_size;
     // s8s8 convolution
     bool signed_input;
     bool need_saturation;
@@ -208,16 +209,19 @@ struct jit_conv_conf_t {
     int n_stride_sets; // number of stride sectors (or sets) in pbuffer
     int kw_step; // usually stride_w, unless !is_pbuffer_strided
     int kw_per_tile; // mostly for 1st convs
-    int ic_block_int, ic_block_int_np;
-    int nb_ic_int;
-    int nb_oh_blocking;
+    // The suffix _int refers to the block sizes of the src and diff_dst tiles,
+    // as opposed to the vector registers. This distinction is needed due to
+    // support for blocked layout (ie nChw16c) with bf16 data type.
+    int ic_block_int, ic_block_int_np, oc_block_int;
+    int nb_ic_int, nb_oc_int;
+    int nb_ih_blocking, nb_oh_blocking;
 
     int full_tile_width;
     int max_tiles;
     int tile_width;
     int tile_tail;
     int oh_per_tile;
-    int ow_blocks;
+    int iw_blocks, ow_blocks;
 
     int per_one_pstore;
 
@@ -430,6 +434,7 @@ struct jit_conv_call_s {
     size_t kw_padding;
     size_t channel;
     size_t channel_prf;
+    size_t ic_blocks;
     size_t oc_blocks;
     size_t ur_w;
     size_t ur_str_w;
@@ -439,6 +444,8 @@ struct jit_conv_call_s {
     size_t reduce_work_prf;
     size_t load_work;
     size_t load_work_prf;
+    size_t l_overflow;
+    size_t r_overflow;
     size_t t_overflow;
     size_t b_overflow;
     size_t f_overflow;

@@ -144,7 +144,8 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
         delete copy_to_wbuffer_;
     }
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
+    static bool post_ops_ok(
+            const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_pd,
@@ -264,6 +265,177 @@ private:
     void interleave_store(int width);
     void compute_icb_loop(int width, bool do_store);
     void compute_ow_loop();
+
+    void generate() override;
+};
+
+struct jit_avx512_core_amx_bwd_data_copy_kernel_t : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_bwd_data_copy_kernel_t)
+
+    using reg64_t = Xbyak::Reg64;
+
+    jit_avx512_core_amx_bwd_data_copy_kernel_t(jit_conv_conf_t ajcp)
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        , jcp(ajcp) {}
+
+private:
+    jit_conv_conf_t jcp;
+
+    // pointers
+    const reg64_t reg_ptr_inp = r15;
+    const reg64_t reg_ptr_out = r14;
+
+    // auxiliary pointers
+    const reg64_t reg_ptr_aux_inp_h = r13;
+    const reg64_t reg_ptr_aux_inp_w = r12;
+    const reg64_t reg_ptr_aux_out = r11;
+
+    // variables
+    const reg64_t reg_khp = r10; // kh padding
+    const reg64_t reg_tov = r9; // top overflow
+    const reg64_t reg_bov = r8; // bottom overflow
+    const reg64_t reg_kwp = rax; // kw padding
+    const reg64_t reg_lov = rbx; // left overflow
+    const reg64_t reg_rov = abi_not_param1; // right overflow
+
+    // counters
+    const reg64_t reg_cnt_khp = rdx;
+    const reg64_t reg_cnt_tmp = rbp;
+    const reg64_t reg_cnt_ocb = rsi;
+
+    const reg64_t reg_tmp = reg_cnt_tmp;
+
+    const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
+
+    const Xbyak::Zmm zmm_tmp = Xbyak::Zmm(1);
+    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(0);
+
+    void generate() override;
+    void copy_row(bool is_masked);
+};
+
+struct jit_avx512_core_amx_bwd_data_kernel_t : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_bwd_data_kernel_t)
+
+    jit_avx512_core_amx_bwd_data_kernel_t(
+            const jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        , jcp(ajcp)
+        , attr_(attr)
+        , eltwise_injector_(nullptr) {
+        if (jcp.with_eltwise)
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
+                    this, jcp.eltwise);
+        bwd_data_copy_kernel_
+                = new jit_avx512_core_amx_bwd_data_copy_kernel_t(jcp);
+    }
+    status_t create_kernel() override {
+        CHECK(jit_generator::create_kernel());
+        CHECK(bwd_data_copy_kernel_->create_kernel());
+        return status::success;
+    }
+    ~jit_avx512_core_amx_bwd_data_kernel_t() {
+        delete eltwise_injector_;
+        delete bwd_data_copy_kernel_;
+    }
+
+    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
+
+    static status_t init_conf(jit_conv_conf_t &jcp,
+            const convolution_desc_t &cd, memory_desc_t &diff_src_pd,
+            memory_desc_t &weights_pd, memory_desc_t &diff_dst_pd,
+            memory_desc_t *bias_pd, const primitive_attr_t &attr, int nthreads);
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
+
+    void tile_configure(char *tcfg_buff);
+
+    jit_conv_conf_t jcp;
+    const primitive_attr_t &attr_;
+
+    const jit_avx512_core_amx_bwd_data_copy_kernel_t &
+    bwd_data_copy_kernel() const {
+        return *bwd_data_copy_kernel_;
+    }
+
+private:
+    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    jit_avx512_core_amx_bwd_data_copy_kernel_t *bwd_data_copy_kernel_;
+
+    int prv_width_;
+    int row_count_;
+    bool is_store_done_;
+    bool is_buffer_empty_;
+
+    /* data regs */
+    const Xbyak::Reg64 reg_inp_ptr = r15;
+    const Xbyak::Reg64 reg_wei_ptr = r14;
+    const Xbyak::Reg64 reg_out_ptr = r13;
+    const Xbyak::Reg64 reg_wsp_ptr = r12;
+
+    const Xbyak::Reg64 reg_bias = r11;
+    const Xbyak::Reg64 reg_ptr_scales = r10;
+    const Xbyak::Reg64 reg_ptr_sum_scale = r9;
+    const Xbyak::Reg64 reg_aux_saturation = reg_ptr_sum_scale;
+
+    const Xbyak::Reg64 reg_aux_inp_ptr = r8;
+    const Xbyak::Reg64 reg_inp_stride = rbx;
+    const Xbyak::Reg64 reg_wei_stride = rdx;
+
+    // rsi - free and available
+    // rbp - reserved for EVEX compression
+    const Xbyak::Reg64 reg_last_h = abi_not_param1;
+
+    // temporary, used in generate() function only
+    const Xbyak::Reg64 reg_ic_blocks = rax;
+    const Xbyak::Reg64 reg_tmp = reg_aux_inp_ptr;
+
+    const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
+
+    const Xbyak::Zmm zmm_bias = Xbyak::Zmm(31);
+    const Xbyak::Zmm zmm_saturation = zmm_bias;
+    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(30);
+    const Xbyak::Zmm zmm_prev_dst = Xbyak::Zmm(29);
+
+    // AUX: Steps, shifts and offsets
+    size_t get_inp_kh_step() const;
+    size_t get_inp_ocb_step() const;
+    size_t get_inp_offset(int ihb, int kh, int kw) const;
+    size_t get_inp_shift() const;
+    size_t get_out_icb_offset(int ihb, int icb) const;
+    size_t get_out_row_offset(int ihb, int icb, int j) const;
+    size_t get_out_shift(int width) const;
+    size_t get_wei_kh_step() const;
+    size_t get_wei_ocb_step() const;
+    size_t get_wei_offset(int icb, int kh, int kw) const;
+    size_t get_wsp_icb_offset(int ihb, int icb) const;
+    size_t get_wsp_row_offset(int ihb, int icb, int j) const;
+    size_t get_wsp_shift() const;
+
+    int get_out_tensor(int h, int i) const;
+    int get_inp_tensor(int h) const;
+    int get_wei_tensor(int i) const;
+
+    void prepare_output();
+    void init_runtime_counters(bool start_with_last_tile_block);
+
+    bool maybe_eltwise(int position);
+    void cvt2ps(data_type_t type_in, Xbyak::Zmm ymm_in,
+            const Xbyak::Operand &op, bool mask_flag);
+    Xbyak::Ymm ymm_mask(
+            const Xbyak::Ymm zmm_in, bool mask_flag, bool store = false);
+    Xbyak::Zmm zmm_mask(
+            const Xbyak::Zmm zmm_in, bool mask_flag, bool store = false);
+
+    void store_output_vector_bf16(
+            const Xbyak::Zmm zmm_out, int icb, int ihb, int iw);
+    void store_output_vector_int8(
+            const Xbyak::Zmm zmm_out, int icb, int ihb, int iw);
+    void store_output_vector(const Xbyak::Zmm zmm_out, int icb, int ih, int iw);
+    void store_output(int width, bool do_store);
+    void interleave_store(int width);
+    void compute_ocb_loop(int width, bool do_store);
+    void compute_iw_loop();
 
     void generate() override;
 };

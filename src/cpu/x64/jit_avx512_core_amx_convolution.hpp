@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -131,6 +131,77 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
 
     std::unique_ptr<jit_avx512_core_amx_fwd_kernel_t> kernel_;
+};
+
+template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
+        impl::data_type_t diff_dst_type>
+struct jit_avx512_core_amx_convolution_bwd_data_t : public primitive_t {
+    struct pd_t : public cpu_convolution_bwd_data_pd_t {
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
+                const convolution_fwd_pd_t *hint_fwd_pd)
+            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
+
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", jcp_.isa, ""),
+                jit_avx512_core_amx_convolution_bwd_data_t);
+
+        status_t init(engine_t *engine) {
+            bool is_bf16_convolution = true
+                    && (diff_dst_md_.data_type == data_type::bf16
+                            && weights_md_.data_type == data_type::bf16
+                            && utils::one_of(diff_src_md_.data_type,
+                                    data_type::f32, data_type::bf16))
+                    && attr()->has_default_values();
+
+            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && is_bf16_convolution && !has_zero_dim_memory();
+            if (!ok) return status::unimplemented;
+
+            status_t status = jit_avx512_core_amx_bwd_data_kernel_t::init_conf(
+                    jcp_, *desc(), diff_src_md_, weights_md_, diff_dst_md_,
+                    nullptr /* no bias */, *attr(), dnnl_get_max_threads());
+            if (status != status::success) return status;
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_avx512_core_amx_bwd_data_kernel_t::init_scratchpad(
+                    scratchpad, jcp_, *attr());
+
+            return status;
+        }
+
+        jit_conv_conf_t jcp_;
+    };
+
+    jit_avx512_core_amx_convolution_bwd_data_t(const pd_t *apd)
+        : primitive_t(apd) {}
+
+    typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
+    typedef typename prec_traits<wei_type>::type wei_data_t;
+    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_avx512_core_amx_bwd_data_kernel_t(
+                        pd()->jcp_, *pd()->attr())));
+        return kernel_->create_kernel();
+    }
+
+    status_t execute(const exec_ctx_t &ctx) const override {
+        const auto &_pd = pd();
+        if (_pd->ndims() > 4)
+            return status::unimplemented;
+        else if (_pd->jcp_.is_depthwise)
+            return status::unimplemented;
+        else
+            execute_backward(ctx);
+        return status::success;
+    }
+
+private:
+    void execute_backward(const exec_ctx_t &ctx) const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    std::unique_ptr<jit_avx512_core_amx_bwd_data_kernel_t> kernel_;
 };
 
 } // namespace x64
