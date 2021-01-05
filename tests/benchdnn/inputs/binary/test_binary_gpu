@@ -83,3 +83,18 @@
 --batch=option_set_all
 
 --batch=harness_binary_different_dt
+
+# tests for gen9_binary kernel that cares about formats
+--reset
+--inplace=false
+--attr-post-ops='','sum:0.25;relu:-0.01;add:f32'
+--alg=ADD
+--ddt=f32
+--sdt=f32:f32
+--stag=abcd:abcd,abcd:aBcd16b,aBcd16b:abcd,aBcd16b:aBcd16b
+--dtag=abcd,aBcd16b
+1x1024x7x7:1x1024x1x1
+1x16x16x16:1x16x16x16
+1x16x16x16:1x16x16x1
+1x16x16x16:1x16x1x16
+1x16x16x16:1x1x16x16

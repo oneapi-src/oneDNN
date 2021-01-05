@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,14 +65,20 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.dispatch = compute_engine->create_dispatch(dst_d.md_);
 
     using namespace dnnl::impl::format_tag;
-    conf.is_ncX_layout = dst_d.matches_one_of_tag(nc, ncw, nchw, ncdhw);
+    format_tag_t dst_tag = dst_d.matches_one_of_tag(nc, ncw, nchw, ncdhw);
+    conf.is_ncX_layout = dst_tag;
 
     if (!conf.is_ncX_layout) {
-        const auto blocking = src_md(0)->format_desc.blocking;
-        if (!(blocking.inner_nblks == 1 && blocking.inner_idxs[0] == 1
-                    && blocking.inner_blks[0] == 16
-                    && src_md(0)->dims[1] % 16 == 0))
+        auto format_fits = [](const memory_desc_t &md) {
+            if (md.format_kind != dnnl_blocked) { return false; }
+            auto blocking = md.format_desc.blocking;
+            return blocking.inner_nblks == 1 && blocking.inner_idxs[0] == 1
+                    && blocking.inner_blks[0] == 16 && md.dims[1] % 16 == 0;
+        };
+        if (!(format_fits(*src_md(0)) && format_fits(*src_md(1))
+                    && format_fits(*dst_md()))) {
             return status::unimplemented;
+        }
         // Setting the MB as the innermost dim for optimized performance
         // Hence starting i = 1, ignoring MB
         conf.dispatch.define_dim_with_nesting_level(
@@ -92,6 +98,10 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
             }
         }
     } else {
+        if (!src0_d.matches_tag(dst_tag) || !src1_d.matches_tag(dst_tag)) {
+            return status::unimplemented;
+        }
+
         if (dst_md()->dims[dst_md()->ndims - 1] % 16 != 0)
             return status::unimplemented;
         conf.nvect = 16;
