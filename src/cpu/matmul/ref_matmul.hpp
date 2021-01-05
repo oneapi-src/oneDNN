@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,13 +53,10 @@ struct ref_matmul_t : public primitive_t {
                     && desc()->accum_data_type == acc_type
                     && dst_md()->data_type == dst_type
                     && platform::has_data_type_support(src_type)
-                    && IMPLICATION(
-                            acc_type == s32, attr()->zero_points_.common())
-                    && IMPLICATION(acc_type != s32,
-                            attr()->zero_points_.has_default_values())
                     && attr()->has_default_values(smask_t::oscale_runtime
                             | smask_t::zero_points_runtime | smask_t::post_ops)
-                    && attr_oscale_ok() && set_default_formats();
+                    && attr_oscale_ok() && attr_zero_points_ok()
+                    && set_default_formats();
 
             if (with_bias()) {
                 auto bia_dt = weights_md(1)->data_type;
@@ -75,6 +72,19 @@ struct ref_matmul_t : public primitive_t {
         bool attr_oscale_ok() const {
             const auto &oscale = attr()->output_scales_;
             return oscale.mask_ == 0 || oscale.mask_ == (1 << (batched() + 1));
+        }
+
+        bool attr_zero_points_ok() const {
+            int mask_src = 0, mask_wei = 0, mask_dst = 0;
+            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+            attr()->zero_points_.get(
+                    DNNL_ARG_WEIGHTS, nullptr, &mask_wei, nullptr);
+            attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+
+            return IMPLICATION(acc_type != data_type::s32,
+                           attr()->zero_points_.has_default_values())
+                    && (mask_src == 0 || mask_src == 1 << 1) && (mask_wei == 0)
+                    && (mask_dst == 0 || mask_dst == 1 << 1);
         }
     };
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,9 +44,9 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     DEFINE_SCALES_BUFFER(scales);
-    DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
+    DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(weights_zero_point, DNNL_ARG_WEIGHTS);
-    DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
+    DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
 
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
@@ -70,6 +70,12 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
     const int bia_mask
             = utils::get_dims_mask(dst_d.dims(), bia_d.dims(), ndims);
 
+    // zp_idx_mult = 1 for per_dim1 zero points and 0, otherwise
+    const int src_zp_idx_mult
+            = !pd()->attr()->zero_points_.common(DNNL_ARG_SRC);
+    const int dst_zp_idx_mult
+            = !pd()->attr()->zero_points_.common(DNNL_ARG_DST);
+
     // mm kernel
     auto ker = [&](const dims_t dst_dims_idx, dim_t m, dim_t n) {
         acc_data_t acc = 0;
@@ -84,7 +90,13 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
         for (dim_t k = 0; k < K; ++k) {
             src_k_dim = k;
             wei_k_dim = k;
-            acc += (src[src_d.off_v(src_dims_idx)] - src_zero_point)
+            acc_data_t s
+                    = static_cast<acc_data_t>(src[src_d.off_v(src_dims_idx)]);
+            if (src_zero_point)
+                s -= static_cast<acc_data_t>(
+                        src_zero_point[src_zp_idx_mult * k]);
+
+            acc += (acc_data_t)s
                     * (weights[weights_d.off_v(weights_dims_idx)]
                             - weights_zero_point);
         }
@@ -123,7 +135,8 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
             args.dst_md = pd()->dst_md();
             ref_post_ops->execute(res, args);
 
-            res += (float)dst_zero_point;
+            if (dst_zero_point)
+                res += (float)dst_zero_point[dst_zp_idx_mult * n];
         }
         dst_value = cpu::saturate_and_round<dst_data_t>(res);
         utils::dim_iterator(dst_d.dims(), dst_dims_idx, batch_ndims);
