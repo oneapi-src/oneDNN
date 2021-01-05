@@ -25,11 +25,12 @@
 --attr-post-ops='sum'
 --batch=shapes_2d
 
---attr-zero-points=src:common:1*_wei:common:-1*_dst:common:-2
+--skip-impl= # TODO: remove when optimized version is added
+--attr-zero-points=src:per_dim_1:1*_wei:common:-1*_dst:common:-2
 --attr-post-ops='linear:2:1'
 --batch=shapes_2d
 
---attr-zero-points=src:common:1*_wei:common:-1*_dst:common:2*
+--attr-zero-points=src:common:1*_wei:common:-1*_dst:per_dim_1:2*
 --attr-post-ops='add:f32:per_oc'
 --batch=shapes_2d
 
@@ -37,5 +38,5 @@
 --cfg=u8s8f32
 --runtime_m=0 --runtime_n=0 --runtime_k=0
 --bia_dt=undef
---attr-oscale=common:1 --attr-zero-points=src:common:-1*_wei:common:1_dst:common:2       --batch=shapes_2d
+--attr-oscale=common:1 --attr-zero-points=src:per_dim_1:-1*_wei:common:1_dst:common:2       --batch=shapes_2d
 

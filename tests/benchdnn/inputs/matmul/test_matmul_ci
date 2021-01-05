@@ -16,7 +16,7 @@ m16n7k12
 ## Run-time
 --runtime_m=1 --runtime_n=1 --runtime_k=1
 --attr-oscale=common:0.5*,per_oc:5*
---attr-zero-points=src:common:-1*_wei:common:1*_dst:common:0*
+--attr-zero-points=src:per_dim_1:-1*_wei:common:1*_dst:common:0*
 m16n7k13
 
 # 3D (batched)
@@ -31,5 +31,5 @@ mb2m10n4k30
 ## Run-time
 --runtime_mb=1 --runtime_m=1 --runtime_n=1 --runtime_k=1
 --attr-oscale=common:2.25*,per_oc:2.25*
---attr-zero-points=src:common:1*_wei:common:-1*_dst:common:2*
+--attr-zero-points=src:common:1*_wei:common:-1*_dst:per_dim_1:2*
 mb2m10n4k31

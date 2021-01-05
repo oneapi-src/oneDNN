@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,9 +29,7 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *prb, dnn_mem_t &src_m,
     const int64_t MB = dst_m.nelems() / (M * N);
     const int batch_ndims = dst_m.md_.ndims - 2;
 
-    const int src_zero_point = prb->attr.zero_points[DNNL_ARG_SRC];
     const int wei_zero_point = prb->attr.zero_points[DNNL_ARG_WEIGHTS];
-    const int dst_zero_point = prb->attr.zero_points[DNNL_ARG_DST];
 
     dnn_mem_t dst_tmp(dst_m.md_, dnnl_f32, tag::undef, engine_tgt);
 
@@ -48,8 +46,9 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *prb, dnn_mem_t &src_m,
         const int64_t wei_mb
                 = dst_m.get_scale_idx(mb, wei_broadcast_mask, batch_ndims);
         for (int64_t k = 0; k < K; ++k) {
-            dst += (src[src_off_f(prb, src_mb, m, k)] - src_zero_point)
-                    * (wei[wei_off_f(prb, wei_mb, k, n)] - wei_zero_point);
+            auto s = src[src_off_f(prb, src_mb, m, k)];
+            maybe_zero_point(prb->attr, s, prb->src_zp, k, DNNL_ARG_SRC);
+            dst += s * (wei[wei_off_f(prb, wei_mb, k, n)] - wei_zero_point);
         }
         ((float *)dst_tmp)[dst_off_f(prb, mb, m, n)] = dst;
     });
@@ -77,7 +76,7 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *prb, dnn_mem_t &src_m,
         }
         maybe_post_ops(prb->attr, tmp, dst, v_binary_vals);
 
-        tmp += dst_zero_point;
+        maybe_zero_point(prb->attr, tmp, prb->dst_zp, n, DNNL_ARG_DST, true);
         dst = tmp;
     });
 }

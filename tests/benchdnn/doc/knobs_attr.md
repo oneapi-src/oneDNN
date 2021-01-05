@@ -4,7 +4,7 @@
 ```
     --attr-oscale=POLICY[:SCALE[*]]
     --attr-scales=ARG:POLICY[:SCALE][_...]
-    --attr-zero-points=ARG:ZEROPOINT[*][_...]
+    --attr-zero-points=ARG:POLICY:ZEROPOINT[*][_...]
     --attr-post-ops='SUM[:SCALE[:DATA_TYPE]];'
                     'ELTWISE[:ALPHA[:BETA[:SCALE]]];[...;]'
                     'DW_K3S1P1[:DST_DT[:OUTPUTSCALE]];'
@@ -56,15 +56,20 @@ more than one memory argument, underscore (`_`) delimiter is used.
 `--attr-zero-points` defines zero points per memory argument primitive
 attribute. This attribute is supported only for integer data types as of now.
 `ARG` specifies which memory argument will be modified with zero points.
-`ZEROPOINT` is an integer value which will be subtracted from each tensor point.
-Asterisk mark (`*`) is an optional addition to `ZEROPOINT` indicating the value
-will be passed to a primitive at run-time. To specify more than one memory
-argument, underscore (`_`) delimiter is used.
+`POLICY` has the same semantics and meaning as for `--attr-oscale`. `ZEROPOINT`
+is an integer value which will be subtracted from each tensor point. Asterisk
+mark (`*`) is an optional addition to `ZEROPOINT` indicating the value will be
+passed to a primitive at run-time. To specify more than one memory argument,
+underscore (`_`) delimiter is used.
 
 `ARG` supported values are:
   - `src` corresponds to `DNNL_ARG_SRC`
   - `wei` corresponds to `DNNL_ARG_WEIGHTS`
   - `dst` corresponds to `DNNL_ARG_DST`
+
+`POLICY` supported values are:
+  - `common`
+  - `per_dim_1` (for `src` and `dst`, at run-time only)
 
 `--attr-post-ops` defines post operations primitive attribute. Depending on
 post operations kind, the syntax differs, but regardless the kind, single quotes

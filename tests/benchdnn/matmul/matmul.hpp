@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -139,9 +139,13 @@ struct prb_t : public desc_t {
         ops = 2. * nelems * k;
 
         generate_oscales();
+        src_zp = generate_zero_points(DNNL_ARG_SRC, attr.zero_points, k);
+        dst_zp = generate_zero_points(DNNL_ARG_DST, attr.zero_points, n);
     }
     ~prb_t() {
         if (scales) zfree(scales);
+        if (src_zp) zfree(src_zp);
+        if (dst_zp) zfree(dst_zp);
     }
 
     int m, n, k;
@@ -158,6 +162,7 @@ struct prb_t : public desc_t {
 
     double ops;
     float *scales;
+    int32_t *src_zp, *dst_zp;
 
     const dims_t &src_dims() const { return sdims[0]; }
     const dims_t &weights_dims() const { return sdims[1]; }
@@ -178,6 +183,8 @@ struct prb_t : public desc_t {
     int bias_broadcast_mask() const { return bia_mask; }
 
     void generate_oscales();
+    int32_t *generate_zero_points(
+            int arg, const attr_t::zero_points_t &zero_points, int N);
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 

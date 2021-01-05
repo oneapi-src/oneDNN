@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -186,6 +186,16 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         return;
     }
 
+    // skip gpu testing for zero points policy other than COMMON
+    if (IMPLICATION(is_gpu(),
+                prb->attr.zero_points.get(DNNL_ARG_SRC).policy
+                                != policy_t::COMMON
+                        || prb->attr.zero_points.get(DNNL_ARG_DST).policy
+                                != policy_t::COMMON)) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
     // ignore bcast_mask on GeMM axis
     const int batch_mask = (1 << (prb->ndims - 2)) - 1;
     const int src_bcast_mask = prb->src_broadcast_mask() & batch_mask;
@@ -358,11 +368,11 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t src_zero_points_m, wei_zero_points_m, dst_zero_points_m;
     maybe_prepare_runtime_scales(scales, prb->attr, prb->n, prb->scales);
     maybe_prepare_runtime_zero_points(
-            src_zero_points_m, prb->attr, DNNL_ARG_SRC);
+            src_zero_points_m, prb->attr, DNNL_ARG_SRC, prb->k, prb->src_zp);
     maybe_prepare_runtime_zero_points(
             wei_zero_points_m, prb->attr, DNNL_ARG_WEIGHTS);
     maybe_prepare_runtime_zero_points(
-            dst_zero_points_m, prb->attr, DNNL_ARG_DST);
+            dst_zero_points_m, prb->attr, DNNL_ARG_DST, prb->n, prb->dst_zp);
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;

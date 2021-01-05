@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,6 +57,28 @@ void prb_t::generate_oscales() {
             if (s[si] > K) s[si] /= K * K; // turn around to become ~K
         }
     }
+}
+
+int32_t *prb_t::generate_zero_points(
+        int arg, const attr_t::zero_points_t &zero_points, int N) {
+    if (zero_points.is_def(arg)) return nullptr;
+
+    const auto &e = zero_points.get(arg);
+    if (e.policy == policy_t::COMMON) {
+        int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t), 4);
+        SAFE_V(zp != nullptr ? OK : FAIL);
+        zp[0] = e.value;
+        return zp;
+    }
+
+    assert(e.policy == policy_t::PER_DIM_1);
+
+    int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t) * N, 64);
+    SAFE_V(zp != nullptr ? OK : FAIL);
+
+    for (int i = 0; i < N; ++i)
+        zp[i] = e.value + i % 3;
+    return zp;
 }
 
 int legacy_str2desc(desc_t *desc, const char *str) {
