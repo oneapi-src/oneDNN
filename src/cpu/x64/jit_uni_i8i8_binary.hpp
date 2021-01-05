@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,6 +69,41 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
             return true;
         }
 
+        bool is_bcast_pattern(const dims_t &bcast_dims, const dim_t ndims,
+                const dim_t N_bcast, const dim_t C_bcast,
+                const dim_t W_bcast) const {
+            return bcast_dims[0] == N_bcast && bcast_dims[1] == C_bcast
+                    && bcast_dims[ndims - 1] == W_bcast;
+        }
+
+        bool is_bcast_pattern(const dims_t &bcast_dims, const dim_t N_bcast,
+                const dim_t C_bcast) const {
+            return bcast_dims[0] == N_bcast && bcast_dims[1] == C_bcast;
+        }
+
+        bool is_bcast_allowed(const int ndims, const dims_t &bcast_dims) const {
+            // supported cases: NxCxDxHxW:{NxCx1x1x1,1xCx1x1x1,Nx1x1x1xW,
+            //                            1x1x1x1xW,1x1x1x1x1}
+            bool ok = true;
+            // check that SP (without W) dimensions are broadcasted
+            for (int d = 2; d < ndims - 1; ++d)
+                ok = ok && bcast_dims[d] == 1;
+            if (ndims > 2)
+                ok = ok
+                        && (is_bcast_pattern(bcast_dims, ndims, 0, 0, 1)
+                                || is_bcast_pattern(bcast_dims, ndims, 1, 0, 1)
+                                || is_bcast_pattern(bcast_dims, ndims, 0, 1, 0)
+                                || is_bcast_pattern(bcast_dims, ndims, 1, 1, 0)
+                                || is_bcast_pattern(
+                                        bcast_dims, ndims, 1, 1, 1));
+            else
+                ok = ok
+                        && (is_bcast_pattern(bcast_dims, 0, 0)
+                                || is_bcast_pattern(bcast_dims, 1, 0)
+                                || is_bcast_pattern(bcast_dims, 1, 1));
+            return ok;
+        }
+
         bool is_applicable() {
             const memory_desc_wrapper src0_d(src_md(0));
             const memory_desc_wrapper src1_d(src_md(1));
@@ -78,18 +113,18 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
             if (src0_d.similar_to(src1_d, true, false, 0)) return true;
             // source0 broadcast not supported
             if (!src0_d.similar_to(dst_d, true, false, 0)) return false;
+
             // broadcast operation
             const auto ndims = src0_d.ndims();
-            bool ok = ndims >= 2;
-            // only supported case for now is NxCxDxHxW:{N,1}xCx1x1x1
             const auto &bcast_dims = broadcast_dims();
-            ok = ok && IMPLICATION(bcast_dims[0] == 0, bcast_dims[1] == 0);
-            for (int d = 2; d < ndims; ++d)
-                ok = ok && bcast_dims[d] == 1;
-            if (!ok) return false;
+            if (ndims < 2 || !is_bcast_allowed(ndims, bcast_dims)) return false;
 
-            const auto &bd = src0_d.blocking_desc();
-            return bd.strides[1] == 1 && bd.inner_nblks == 0;
+            const auto &bd0 = src0_d.blocking_desc();
+            const auto &bd1 = src1_d.blocking_desc();
+            // disable blocked tag for source1 when W is not broadcast
+            return bd0.strides[1] == 1 && bd0.inner_nblks == 0
+                    && IMPLICATION(
+                            bcast_dims[ndims - 1] == 0, bd1.inner_nblks == 0);
         }
     };
 

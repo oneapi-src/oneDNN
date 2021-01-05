@@ -36,7 +36,7 @@ namespace x64 {
 using namespace dnnl::impl::data_type;
 using namespace Xbyak;
 
-static bcast_set_t get_supported_bcast_strategies() {
+static bcast_set_t get_supported_po_bcast_strategies() {
     return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
             broadcasting_strategy_t::per_oc_spatial};
 }
@@ -87,7 +87,7 @@ bool jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::post_ops_ok(
     const bool blocked_tail = p.len() && blocked_format && oc % blksize;
 
     return binary_injector::binary_args_broadcast_supported(
-                   p, dst_d, get_supported_bcast_strategies())
+                   p, dst_d, get_supported_po_bcast_strategies())
             && !blocked_tail
             && IMPLICATION(postops_per_oc_broadcast_exists,
                     binary_injector::all_binary_postop_rhs_per_oc_broadcast(p,
@@ -99,27 +99,41 @@ bool jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::post_ops_ok(
                             }));
 }
 
-enum class op_t : unsigned {
-    none,
-    tensor,
-    bcast_c_blocked,
-    bcast_n_spatial_c,
-    bcast_n_c_spatial
+enum class op_t : unsigned { none, c_blocked, n_spatial_c, n_c_spatial };
+
+enum class bcast_t : unsigned {
+    none, // tensor operation
+    scalar,
+    per_c,
+    per_w
 };
 
-static op_t get_bcast_per_c(const memory_desc_wrapper &src0_d) {
+static op_t get_op_type(const memory_desc_wrapper &src0_d) {
     const auto &strides = src0_d.blocking_desc().strides;
     const auto ndims = src0_d.ndims();
 
     if (!src0_d.is_plain())
-        return op_t::bcast_c_blocked;
+        return op_t::c_blocked;
     else if (strides[1] == 1)
-        return op_t::bcast_n_spatial_c;
+        return op_t::n_spatial_c;
     else if (strides[0] >= strides[1]
             && IMPLICATION(ndims >= 3, strides[1] >= strides[2]))
-        return op_t::bcast_n_c_spatial;
+        return op_t::n_c_spatial;
     return op_t::none;
 }
+
+static bcast_t get_bcast_type(
+        const memory_desc_wrapper &src1_d, const dims_t &bcast_dims) {
+    const auto ndims = src1_d.ndims();
+
+    if (src1_d.nelems() == 1)
+        return bcast_t::scalar;
+    else if (ndims >= 3 && bcast_dims[1] == 1)
+        return bcast_t::per_w;
+    else
+        return bcast_t::per_c;
+}
+
 struct i8i8_binary_kernel_t : public jit_generator {
     struct call_params_t {
         const float *scales_src0, *scales_src1;
@@ -142,7 +156,7 @@ struct i8i8_binary_kernel_t : public jit_generator {
 
 protected:
     int vlen_ = 0;
-    op_t postops_per_oc_bcast_ = op_t::none;
+    op_t postops_per_oc_op_ = op_t::none;
     /* load/store loop should start from vmm1, in case of sse4.1
      * eltwise injector use xmm(0) implicitly as tmp_xmm causing
      * assertion when xmm(0) passed to compute_vector_range
@@ -209,22 +223,30 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
         const memory_desc_wrapper src1_d(pd_->src_md(1));
         const auto &dims = src0_d.dims();
         const auto ndims = src0_d.ndims();
+        const auto &bcast_dims = pd_->broadcast_dims();
 
-        broadcast_src1_value_ = src1_d.nelems() == 1;
+        const auto op_type = get_op_type(src0_d);
+        const auto bcast_type = pd_->is_tensor_op()
+                ? bcast_t::none
+                : get_bcast_type(src1_d, bcast_dims);
+        broadcast_src1_value_
+                = utils::one_of(bcast_type, bcast_t::scalar, bcast_t::per_w);
+
         dim_t nelems = 0;
 
         const bool postops_per_oc_broadcast_exists
                 = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
                         pd_->attr()->post_ops_, src0_d);
-        const auto bcast_per_oc = get_bcast_per_c(src0_d);
 
-        if (pd_->is_tensor_op() && !postops_per_oc_broadcast_exists)
+        if (bcast_type == bcast_t::none && !postops_per_oc_broadcast_exists)
             nelems = src0_d.nelems(true);
         else {
-            if (bcast_per_oc == op_t::bcast_n_spatial_c)
+            if (op_type == op_t::n_spatial_c)
                 nelems = dims[1];
-            else if (bcast_per_oc == op_t::bcast_n_c_spatial && ndims >= 3)
-                nelems = utils::array_product(dims + 2, ndims - 2);
+            else if (op_type == op_t::n_c_spatial && ndims >= 3)
+                nelems = bcast_type == bcast_t::per_w
+                        ? dims[ndims - 1]
+                        : utils::array_product(dims + 2, ndims - 2);
         }
 
         tail_size_ = nelems % simd_w_;
@@ -239,7 +261,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
         do_sum_ = po.contain(primitive_kind::sum, 0)
                 && po.entry_[0].sum.scale != 0.f;
         sum_scale_ = do_sum_ ? po.entry_[0].sum.scale : 0.f;
-        postops_per_oc_bcast_ = get_bcast_per_c(src0_d);
+        postops_per_oc_op_ = get_op_type(src0_d);
         const bool with_eltwise = po.find(primitive_kind::eltwise) != -1;
         const bool with_binary = po.find(primitive_kind::binary) != -1;
         const bool with_postops = with_binary || with_eltwise;
@@ -258,7 +280,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
                 PARAM_OFF(post_ops_binary_rhs_arg_vec), src0_d, tail_size_,
                 tail_opmask_, false /*use_exact_tail_scalar_bcast*/};
         const binary_injector::static_params_t bsp(
-                this->param1, get_supported_bcast_strategies(), rhs_arg_bsp);
+                this->param1, get_supported_po_bcast_strategies(), rhs_arg_bsp);
         postops_injector_
                 = utils::make_unique<injector::jit_uni_postops_injector_t<isa>>(
                         this, po, bsp, esp);
@@ -370,11 +392,11 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
         for (int vmm_idx = vmm_start_idx_; vmm_idx < unroll + vmm_start_idx_;
                 vmm_idx++) {
-            if (postops_per_oc_bcast_ == op_t::bcast_c_blocked
-                    || postops_per_oc_bcast_ == op_t::bcast_n_c_spatial) {
+            if (postops_per_oc_op_ == op_t::c_blocked
+                    || postops_per_oc_op_ == op_t::n_c_spatial) {
                 rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
                         vmm_idx, ptr[param1 + PARAM_OFF(oc_l_off)]);
-            } else if (postops_per_oc_bcast_ == op_t::bcast_n_spatial_c) {
+            } else if (postops_per_oc_op_ == op_t::n_spatial_c) {
                 rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
                         vmm_idx, reg_offt_dst);
                 rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(vmm_idx,
@@ -807,14 +829,16 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
     const auto &dims = src0_d.dims();
     const dim_t MB = dims[0];
     const dim_t C = ndims >= 2 ? dims[1] : 1;
-    dim_t SP = 1;
-    for (int d = 2; d < ndims; d++)
-        SP *= dims[d];
+    const dim_t SP = ndims >= 3 ? utils::array_product(dims + 2, ndims - 2) : 1;
 
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
                     post_ops, src0_d);
-    const bool no_broadcast = pd()->is_tensor_op();
+    const auto &bcast_dims = pd()->broadcast_dims();
+    const auto bcast_type = pd()->is_tensor_op()
+            ? bcast_t::none
+            : get_bcast_type(src1_d, bcast_dims);
+    const bool no_broadcast = bcast_type == bcast_t::none;
 
     if (no_broadcast && !postops_per_oc_broadcast_exists) {
         const int simd_w = (*kernel_).vlen(); // 1-byte elements
@@ -844,8 +868,7 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
             (*kernel_)(&p);
         });
     } else {
-        const auto postops_per_oc_bcast = get_bcast_per_c(src0_d);
-        const auto &bcast_dims = pd()->broadcast_dims();
+        const auto op_type = get_op_type(src0_d);
         const dim_t nelems_slice_src0
                 = utils::array_product(src0_d.padded_dims() + 1, ndims - 1);
         const dim_t nelems_slice_src1 = no_broadcast
@@ -856,7 +879,7 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
         const int simd_w = (*kernel_).vlen() / sizeof(float);
 
         if (no_broadcast && postops_per_oc_broadcast_exists
-                && postops_per_oc_bcast == op_t::bcast_c_blocked) {
+                && op_type == op_t::c_blocked) {
             const dim_t C_blocks = src0_d.padded_dims()[1] / simd_w;
             parallel_nd(MB, C_blocks, [&](dim_t mb, dim_t C_blk) {
                 i8i8_binary_kernel_t::call_params_t p;
@@ -873,7 +896,7 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
                 (*kernel_)(&p);
             });
         } else if (no_broadcast && postops_per_oc_broadcast_exists
-                && postops_per_oc_bcast == op_t::bcast_n_c_spatial) {
+                && op_type == op_t::n_c_spatial) {
             parallel_nd(MB, C, [&](dim_t mb, dim_t c) {
                 i8i8_binary_kernel_t::call_params_t p;
                 p.spat_offt_count = SP * sizeof(int8_t);
@@ -890,22 +913,48 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
             });
         } else {
             // Compute strategy:
-            // Each line of channels is individual, parallel over MB and spatial
-            parallel_nd(MB, SP, [&](dim_t mb, dim_t sp) {
-                i8i8_binary_kernel_t::call_params_t p;
-                p.spat_offt_count = C * sizeof(int8_t);
-                const auto offset = mb * nelems_slice_src0 + sp * C;
-                p.dst = dst + offset;
-                p.src0 = src0 + offset * src0_type_size;
-                const auto offset_src1
-                        = no_broadcast ? offset : mb * nelems_slice_src1;
-                p.src1 = src1 + offset_src1 * src1_type_size;
-                p.scales_src0 = scales[0].scales_;
-                p.scales_src1 = scales[1].scales_;
-                p.post_ops_binary_rhs_arg_vec
-                        = post_ops_binary_rhs_arg_vec.data();
-                (*kernel_)(&p);
-            });
+            // Broadcast per oc - Each line of channels is individual,
+            // parallel over MB and spatial.
+            // Broadcast per W (last spatial dim) - Each line of channels is
+            // individual, parallel over MB and spatial (width and
+            // other spatial dims separately).
+            if (bcast_type != bcast_t::per_w) {
+                parallel_nd(MB, SP, [&](dim_t mb, dim_t sp) {
+                    i8i8_binary_kernel_t::call_params_t p;
+                    p.spat_offt_count = C * sizeof(int8_t);
+                    const auto offset = mb * nelems_slice_src0 + sp * C;
+                    p.dst = dst + offset;
+                    p.src0 = src0 + offset * src0_type_size;
+                    const auto offset_src1
+                            = no_broadcast ? offset : mb * nelems_slice_src1;
+                    p.src1 = src1 + offset_src1 * src1_type_size;
+                    p.scales_src0 = scales[0].scales_;
+                    p.scales_src1 = scales[1].scales_;
+                    p.post_ops_binary_rhs_arg_vec
+                            = post_ops_binary_rhs_arg_vec.data();
+                    (*kernel_)(&p);
+                });
+            } else {
+                const dim_t W = dims[ndims - 1];
+                const dim_t N = SP / W;
+
+                parallel_nd(MB, N, W, [&](dim_t mb, dim_t n, dim_t w) {
+                    i8i8_binary_kernel_t::call_params_t p;
+                    p.spat_offt_count = C * sizeof(int8_t);
+                    const auto offset
+                            = mb * nelems_slice_src0 + n * W * C + w * C;
+                    p.dst = dst + offset;
+                    p.src0 = src0 + offset * src0_type_size;
+                    const auto offset_src1
+                            = bcast_dims[0] == 1 ? w : mb * W + w;
+                    p.src1 = src1 + offset_src1 * src1_type_size;
+                    p.scales_src0 = scales[0].scales_;
+                    p.scales_src1 = scales[1].scales_;
+                    p.post_ops_binary_rhs_arg_vec
+                            = post_ops_binary_rhs_arg_vec.data();
+                    (*kernel_)(&p);
+                });
+            }
         }
     }
 
