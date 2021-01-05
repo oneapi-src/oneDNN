@@ -1212,7 +1212,7 @@ void jit_avx512_core_amx_fwd_kernel_t::generate() {
 }
 
 bool jit_avx512_core_amx_fwd_kernel_t::post_ops_ok(
-        jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
+        const jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
     using namespace primitive_kind;
     const auto &p = attr.post_ops_;
     const bool is_bf16 = jcp.src_dt == data_type::bf16;

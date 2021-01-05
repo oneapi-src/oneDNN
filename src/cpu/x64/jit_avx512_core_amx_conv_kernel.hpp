@@ -339,7 +339,8 @@ struct jit_avx512_core_amx_bwd_data_kernel_t : public jit_generator {
         delete bwd_data_copy_kernel_;
     }
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
+    static bool post_ops_ok(
+            const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &diff_src_pd,

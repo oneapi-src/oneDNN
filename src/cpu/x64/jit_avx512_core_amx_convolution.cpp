@@ -116,6 +116,8 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     size_t wei_oc_shift = (size_t)jcp.nb_oc_blocking * jcp.nb_ic_int
             * rnd_up(oc_subblock_step, jcp.ic_block_int * jcp.oc_block);
 
+    // Initialize the tile configuration in memory, so that each thread can
+    // load this configuration from memory via `amx_tile_configure(tcfg)`.
     kernel_->tile_configure(tcfg);
     const bool is_1d = pd()->ndims() == 3;
 
@@ -298,6 +300,8 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     const int work_amount
             = jcp.mb * jcp.ngroups * oh_chunks * jcp.nb_ow * oc_chunks;
 
+    // Initialize the tile configuration in memory, so that each thread can
+    // load this configuration from memory via `amx_tile_configure(tcfg)`.
     kernel_->tile_configure(tcfg);
     const bool is_1d = pd()->ndims() == 3;
 
