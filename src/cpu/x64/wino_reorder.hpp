@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,9 +82,14 @@ struct wino_reorder_t : public primitive_t {
 
     private:
         void init_scratchpad() {
-            auto &o = memory_desc_wrapper(dst_md()).wino_desc();
-            size_t transform_space_size = (size_t)o.r * o.alpha * o.oc_block;
-            size_t plain_size = (size_t)o.alpha * o.alpha * o.oc * o.ic;
+            const auto &o = memory_desc_wrapper(dst_md()).wino_desc();
+            const int nb_oc = o.oc / o.oc_block;
+            const int work_amount = nb_oc * o.ic;
+            const int thread_count
+                    = nstl::min(dnnl_get_max_threads(), work_amount);
+            const size_t transform_space_size
+                    = (size_t)o.r * o.alpha * o.oc_block * thread_count;
+            const size_t plain_size = (size_t)o.alpha * o.alpha * o.oc * o.ic;
 
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
@@ -139,7 +144,10 @@ struct wino_reorder_t : public primitive_t {
         adj_scale_ = dst_d.wino_desc().adj_scale;
 
         size_wino_wei_ = w_alpha_ * w_alpha_ * oc_ * ic_;
-        size_wspace_ = r_ * w_alpha_ * oc_block_;
+        work_amount_ = ic_ * nb_oc_;
+        thread_count_ = nstl::min(dnnl_get_max_threads(), (int)work_amount_);
+        size_wspace_thr_ = r_ * w_alpha_ * oc_block_;
+
         return status::success;
     }
 
@@ -189,20 +197,29 @@ private:
         const int or_ioc_ = or_ic_ * or_oc_;
         assert(r_ == kh_ && r_ == kw_);
 
-        for_(int iic = 0; iic < ic_; iic++)
-        for (int ob = 0; ob < nb_oc_; ob++) {
+        parallel_nd_ext(
+                0, ic_, nb_oc_, [&](int ithr, int nthr, int iic, int ob) {
+                    if (ithr >= work_amount_) return;
 
-            const in_data_t *__restrict _inp = has_oihw_format
-                    ? input + (ob * oc_block_ * or_ic_ + iic) * kh_ * kw_
-                    : input + iic * or_oc_ + ob * oc_block_;
-            out_data_t *__restrict _out
-                    = tmp_wei + (iic * nb_oc_ + ob) * oc_block_;
+                    const in_data_t *__restrict _inp = has_oihw_format
+                            ? input
+                                    + (ob * oc_block_ * or_ic_ + iic) * kh_
+                                            * kw_
+                            : input + iic * or_oc_ + ob * oc_block_;
+                    out_data_t *__restrict _out
+                            = tmp_wei + (iic * nb_oc_ + ob) * oc_block_;
 
-            for_nd(0, 1, size_wspace_, [&](int i) { wspace[i] = 0.f; });
+                    in_data_t *__restrict wspace_thr
+                            = wspace + ithr * size_wspace_thr_;
 
-            if (has_oihw_format) {
-                for_nd(0, 1, r_, w_alpha_, oc_block_,
-                        [&](int ih, int j, int ioc) {
+                    std::memset(wspace_thr, 0.f,
+                            size_wspace_thr_ * sizeof(in_data_t));
+
+                    if (has_oihw_format) {
+                        for_(int ih = 0; ih < r_; ++ih)
+                        for_(int j = 0; j < w_alpha_; ++j)
+                        for (int ioc = 0; ioc < oc_block_; ++ioc) {
+                            PRAGMA_OMP_SIMD()
                             for (int iw = 0; iw < r_; ++iw) {
                                 int inp_oc = ob * oc_block_ + ioc;
                                 int inp_ic = iic;
@@ -211,39 +228,43 @@ private:
                                         ? _inp[ioc * or_ic_ * kh_ * kw_
                                                 + ih * kw_ + iw]
                                         : 0.f;
-                                wspace[(ih * w_alpha_ + j) * oc_block_ + ioc]
+                                wspace_thr[(ih * w_alpha_ + j) * oc_block_
+                                        + ioc]
                                         += inp_v * g[j * r_ + iw];
                             }
-                        });
-            } else { // hwio format case
-                for_nd(0, 1, r_, w_alpha_, [&](int ih, int j) {
-                    for (int iw = 0; iw < kw_; ++iw) {
-                        const float g_multiplier = g[j * r_ + iw];
-                        const in_data_t *__restrict inp_base
-                                = _inp + or_ioc_ * (iw + ih * kw_);
-                        in_data_t *__restrict wspace_base
-                                = wspace + (ih * w_alpha_ + j) * oc_block_;
+                        }
+                    } else { // hwio format case
+                        for_(int ih = 0; ih < r_; ++ih)
+                        for_(int j = 0; j < w_alpha_; ++j)
+                        for (int iw = 0; iw < kw_; ++iw) {
+                            const float g_multiplier = g[j * r_ + iw];
+                            const in_data_t *__restrict inp_base
+                                    = _inp + or_ioc_ * (iw + ih * kw_);
+                            in_data_t *__restrict wspace_base = wspace_thr
+                                    + (ih * w_alpha_ + j) * oc_block_;
 
-                        for (int ioc = 0; ioc < oc_block_; ++ioc) {
-                            int inp_oc = ob * oc_block_ + ioc;
-                            int inp_ic = iic;
-                            in_data_t inp_v
-                                    = (inp_ic < or_ic_ && inp_oc < or_oc_)
-                                    ? inp_base[ioc]
-                                    : 0.f;
+                            PRAGMA_OMP_SIMD()
+                            for (int ioc = 0; ioc < oc_block_; ++ioc) {
+                                int inp_oc = ob * oc_block_ + ioc;
+                                int inp_ic = iic;
+                                in_data_t inp_v
+                                        = (inp_ic < or_ic_ && inp_oc < or_oc_)
+                                        ? inp_base[ioc]
+                                        : 0.f;
 
-                            wspace_base[ioc] += inp_v * g_multiplier;
+                                wspace_base[ioc] += inp_v * g_multiplier;
+                            }
                         }
                     }
-                });
-            }
 
-            for_nd(0, 1, w_alpha_, w_alpha_, oc_block_,
-                    [&](int i, int j, int ioc) {
+                    for_(int i = 0; i < w_alpha_; ++i)
+                    for_(int j = 0; j < w_alpha_; ++j)
+                    for (int ioc = 0; ioc < oc_block_; ++ioc) {
                         float t = 0;
+                        PRAGMA_OMP_SIMD()
                         for (int k = 0; k < r_; ++k)
                             t += g[i * r_ + k]
-                                    * wspace[(k * w_alpha_ + j) * oc_block_
+                                    * wspace_thr[(k * w_alpha_ + j) * oc_block_
                                             + ioc];
                         if (type_o == data_type::s8) {
                             const float scale = (D_mask == 1)
@@ -255,8 +276,8 @@ private:
                         } else {
                             _out[(i * w_alpha_ + j) * Z + ioc] = (out_data_t)t;
                         }
-                    });
-        }
+                    }
+                });
     }
 
     void reorder_to_aaOIoi(out_data_t *__restrict output,
@@ -307,7 +328,7 @@ private:
 
     void reorder_to_aaOio(out_data_t *__restrict output,
             const out_data_t *__restrict tmp_wei) const {
-        for_nd(0, 1, w_alpha_, w_alpha_, nb_oc_, [&](int u_h, int u_w, int ob) {
+        parallel_nd(w_alpha_, w_alpha_, nb_oc_, [&](int u_h, int u_w, int ob) {
             for_(int ib = 0; ib < nb_ic_; ib++)
             for_(int i = 0; i < ic_block_; i++)
             for (int o = 0; o < oc_block_; o++) {
@@ -327,9 +348,8 @@ private:
     void reorder_to_aaOBiOo(out_data_t *__restrict output,
             const out_data_t *__restrict tmp_wei) const {
         int oc_chunks = nb_oc_ / oc2_block_;
-
-        for_nd(0, 1, w_alpha_, w_alpha_, oc_chunks,
-                [&](int u_h, int u_w, int occ) {
+        parallel_nd(
+                w_alpha_, w_alpha_, oc_chunks, [&](int u_h, int u_w, int occ) {
                     for (int ib = 0; ib < nb_ic_; ib++) {
                         out_data_t *__restrict wei_ptr = output
                                 + (((u_h * w_alpha_ + u_w) * oc_chunks + occ)
@@ -358,9 +378,8 @@ private:
             const out_data_t *__restrict tmp_wei) const {
         int ic_chunks = nb_ic_ / ic2_block_;
         int oc_chunks = nb_oc_ / oc2_block_;
-
-        for_nd(0, 1, oc_chunks, w_alpha_, w_alpha_,
-                [&](int occ, int u_h, int u_w) {
+        parallel_nd(
+                oc_chunks, w_alpha_, w_alpha_, [&](int occ, int u_h, int u_w) {
                     for_(int icc = 0; icc < ic_chunks; icc++)
                     for (int ob = 0; ob < oc2_block_; ob++) {
                         int ocp = (occ * oc2_block_ + ob) * oc_block_;
@@ -425,7 +444,9 @@ private:
     int nb_oc_, nb_ic_;
     dnnl_wino_memory_format_t wino_format_;
     int size_wino_wei_;
-    int size_wspace_;
+    int size_wspace_thr_;
+    int thread_count_;
+    int work_amount_;
 };
 
 } // namespace x64
