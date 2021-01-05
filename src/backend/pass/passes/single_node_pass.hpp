@@ -45,7 +45,6 @@ DNNL_GRAPH_SINGLE_NODE_TRANSFORM(bn_pass, dnnl, BatchNormInference, 8.f);
 DNNL_GRAPH_SINGLE_NODE_TRANSFORM(ln_pass, dnnl, LayerNorm, 8.f);
 DNNL_GRAPH_SINGLE_NODE_TRANSFORM(
         bn_bw_pass, dnnl, BatchNormTrainingBackprop, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(conv_pass, dnnl, Convolution, 8.f);
 DNNL_GRAPH_SINGLE_NODE_TRANSFORM(
         conv_data_bw_pass, dnnl, ConvolutionBackpropData, 8.f);
 DNNL_GRAPH_SINGLE_NODE_TRANSFORM(

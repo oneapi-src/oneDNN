@@ -1422,11 +1422,11 @@ TEST(c_api_test, compile_conv_bn_standalone) {
     dnnl_graph_engine_t *e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(
-            dnnl_graph_partition_compile(partition[1], compiled_partition[1], 2,
+            dnnl_graph_partition_compile(partition[0], compiled_partition[0], 2,
                     conv_inputs, 1, conv_outputs, e),
             dnnl_graph_result_success, COMPILE_CONV_BN_STANDALONE_DESTROY);
     ASSERT_EQ_SAFE(
-            dnnl_graph_partition_compile(partition[0], compiled_partition[0], 5,
+            dnnl_graph_partition_compile(partition[1], compiled_partition[1], 5,
                     bn_inputs, 1, bn_outputs, e),
             dnnl_graph_result_success, COMPILE_CONV_BN_STANDALONE_DESTROY);
 
