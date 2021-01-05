@@ -20,12 +20,12 @@
 #include "interface/partition.hpp"
 
 TEST(partition_test, create_simple) {
-    llga::impl::partition p;
+    dnnl::graph::impl::partition p;
     ASSERT_EQ(p.num_ops(), 0);
 }
 
 TEST(partition_test, add_ops) {
-    llga::impl::partition p;
+    dnnl::graph::impl::partition p;
     size_t id = 100;
     p.add_op(id);
     ASSERT_EQ(p.num_ops(), 1);
@@ -36,7 +36,7 @@ TEST(partition_test, add_ops) {
 }
 
 TEST(partition_test, get_ops) {
-    llga::impl::partition p;
+    dnnl::graph::impl::partition p;
     size_t id = 100;
     p.add_op(id);
     auto ops = p.get_ops();
@@ -46,32 +46,32 @@ TEST(partition_test, get_ops) {
 
 TEST(partition_test, init) {
     // (todo)xinyu: improve engine test
-    llga::impl::engine_t eng {};
-    llga::impl::partition p;
-    llga::impl::node_t n(llga::impl::op_kind::Convolution);
+    dnnl::graph::impl::engine_t eng {};
+    dnnl::graph::impl::partition p;
+    dnnl::graph::impl::node_t n(dnnl::graph::impl::op_kind::Convolution);
     n.set_attr<int>("groups", 0);
     p.init(&n, eng.kind());
     ASSERT_TRUE(p.is_initialized());
-    ASSERT_EQ(p.node()->get_op_kind(), llga::impl::op_kind::Convolution);
+    ASSERT_EQ(p.node()->get_op_kind(), dnnl::graph::impl::op_kind::Convolution);
     ASSERT_TRUE(p.node()->has_attr("groups"));
     ASSERT_EQ(p.node()->get_attr<int>("groups"), 0);
 }
 
 TEST(partition_test, copy) {
-    llga::impl::engine_t eng {};
-    llga::impl::partition p;
-    llga::impl::node_t n(llga::impl::op_kind::Convolution);
+    dnnl::graph::impl::engine_t eng {};
+    dnnl::graph::impl::partition p;
+    dnnl::graph::impl::node_t n(dnnl::graph::impl::op_kind::Convolution);
     n.set_attr<int>("groups", 0);
     p.init(&n, eng.kind());
     ASSERT_TRUE(p.is_initialized());
-    ASSERT_EQ(p.node()->get_op_kind(), llga::impl::op_kind::Convolution);
+    ASSERT_EQ(p.node()->get_op_kind(), dnnl::graph::impl::op_kind::Convolution);
     ASSERT_TRUE(p.node()->has_attr("groups"));
     ASSERT_EQ(p.node()->get_attr<int>("groups"), 0);
 
     // copy the partition
-    llga::impl::partition p_copy(p);
-    llga::impl::node_t *p_node
-            = const_cast<llga::impl::node_t *>(p_copy.node());
+    dnnl::graph::impl::partition p_copy(p);
+    dnnl::graph::impl::node_t *p_node
+            = const_cast<dnnl::graph::impl::node_t *>(p_copy.node());
     p_node->set_attr<int>("groups", 1);
     ASSERT_EQ(p_copy.node()->get_attr<int>("groups"), 1);
     ASSERT_NE(p_copy.node()->get_attr<int>("groups"),

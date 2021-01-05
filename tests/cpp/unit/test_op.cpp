@@ -24,7 +24,7 @@
 /**
  * 1. Create a dnnl::graph::op object
  * 2. Validate if dnnl::graph::op has expected contents
- * 3. Validate if the backend object llga::implementation::op is consistent with dnnl::graph::op
+ * 3. Validate if the backend object dnnl::graph::impl::op_t is consistent with dnnl::graph::op
  */
 TEST(op_test, create_simple) {
     struct param {
@@ -74,16 +74,17 @@ TEST(op_test, create_simple) {
     ASSERT_EQ(backend_op->kind(), kAdd);
     ASSERT_STREQ(backend_op->debug().c_str(), "kAdd");
 
-    auto compare2 = [&](const std::vector<llga::impl::logical_tensor_t> &actual,
-                            const std::vector<param> &expected) {
-        ASSERT_EQ(actual.size(), expected.size());
-        for (size_t i = 0; i < expected.size(); i++) {
-            ASSERT_EQ(actual[i].ndims, expected[i].ndims);
-            for (size_t j = 0; j < actual[i].ndims; j++) {
-                ASSERT_EQ(actual[i].dims[j], proto_dims[j]);
-            }
-        }
-    };
+    auto compare2 =
+            [&](const std::vector<dnnl::graph::impl::logical_tensor_t> &actual,
+                    const std::vector<param> &expected) {
+                ASSERT_EQ(actual.size(), expected.size());
+                for (size_t i = 0; i < expected.size(); i++) {
+                    ASSERT_EQ(actual[i].ndims, expected[i].ndims);
+                    for (size_t j = 0; j < actual[i].ndims; j++) {
+                        ASSERT_EQ(actual[i].dims[j], proto_dims[j]);
+                    }
+                }
+            };
 
     compare2(backend_op->inputs(), proto_inputs);
     compare2(backend_op->outputs(), proto_outputs);

@@ -34,7 +34,8 @@
 #define MAX_BACKEND_NUMS (1 << BACKEND_ID_LENGTH)
 #define RESERVED_BACKEND_ID 0 // reserved but not used now
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 struct kernel_base {
     using ptr = std::shared_ptr<kernel_base>;
@@ -282,7 +283,7 @@ public:
     virtual ~layout_id_manager() {}
 
     /*! \brief Set a backend memory descriptor to manager and get a 
-    * corresponding llga layout id
+    * corresponding layout id
     * \param mem_desc The backend's memory descriptor, it can
     * be both plain or opaque
     * \return a cache index, will be used as layout id
@@ -454,5 +455,6 @@ private:
             #name_, &backend_manager::create_backend<backend_class_>)
 
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 #endif

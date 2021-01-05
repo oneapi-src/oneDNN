@@ -22,7 +22,8 @@
 #include <string>
 #include <unordered_map>
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace pass {
 
@@ -78,6 +79,7 @@ private:
 
 } // namespace pass
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

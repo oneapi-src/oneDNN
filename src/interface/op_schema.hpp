@@ -30,7 +30,8 @@
 #include "ir.hpp"
 #include "op.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 
 using opset_version = size_t;
@@ -282,6 +283,7 @@ op_schema get_op_schema();
                     "XIO")
 
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

@@ -50,15 +50,17 @@ struct hash<std::pair<size_t, size_t>> {
 };
 } // namespace std
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 using partition = ::dnnl_graph_partition;
 using compiled_partition = ::dnnl_graph_compiled_partition;
 class executable;
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
-namespace impl = llga::impl;
+namespace impl = dnnl::graph::impl;
 using node_attrs = impl::attributes;
 
 struct dnnl_graph_partition : public dnnl_graph_id {
@@ -102,7 +104,7 @@ public:
             const impl::logical_tensor_t &input,
             const impl::logical_tensor_t &output);
 
-    void add_tensors(const llga::impl::node_t *anode) {
+    void add_tensors(const impl::node_t *anode) {
         for (size_t i = 0; i < anode->num_inputs_tensor(); ++i) {
             inputs_.push_back(anode->get_input_tensor(i));
         }
@@ -111,7 +113,7 @@ public:
         }
     }
 
-    void add_tensors_map(const llga::impl::node_t *anode) {
+    void add_tensors_map(const impl::node_t *anode) {
         for (auto kv : anode->get_input_tensor_map()) {
             inputs_map_[kv.second] = kv.first;
         }
@@ -166,7 +168,7 @@ public:
         }
     }
 
-    llga::impl::status_t compile(impl::compiled_partition *compiled_partition,
+    impl::status_t compile(impl::compiled_partition *compiled_partition,
             std::vector<const impl::logical_tensor_t *> &inputs,
             std::vector<const impl::logical_tensor_t *> &outputs,
             const impl::engine_t *e = nullptr);
@@ -178,7 +180,7 @@ public:
     friend std::string to_string(const dnnl_graph_partition &p) {
         std::ostringstream os;
 
-        const auto type_to_string = [](llga::impl::data_type_t t) {
+        const auto type_to_string = [](impl::data_type_t t) {
             switch (t) {
                 case dnnl_graph_data_type_undef: return "undef";
                 case dnnl_graph_f16: return "f16";
@@ -205,8 +207,8 @@ public:
         os << "[ Partition ID: " << p.id() << '\n';
         os << " [ node: (";
         if (p.node_) {
-            os << "ID: " << p.node_->id() << ", kind: "
-               << llga::impl::op_t::kind2str(p.node_->get_op_kind());
+            os << "ID: " << p.node_->id()
+               << ", kind: " << impl::op_t::kind2str(p.node_->get_op_kind());
         }
         os << ") \n";
 
@@ -241,7 +243,7 @@ private:
     // Engine kind
     impl::engine_kind_t engine_kind_;
 
-    // All the IDs of corresponding llga::op objects
+    // All the IDs of corresponding op_t objects
     std::unordered_set<size_t> ids_ {};
 
     // Fused node. Currently, only one node here
@@ -279,12 +281,12 @@ public:
 
     const std::vector<impl::inplace_pair_t> &get_inplace_pairs() const;
 
-    llga::impl::status_t execute(const impl::stream *astream,
+    impl::status_t execute(const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) const;
 
 #if DNNL_GRAPH_WITH_SYCL
-    llga::impl::status_t execute_sycl(const impl::stream *astream,
+    impl::status_t execute_sycl(const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs,
             const cl::sycl::event *sycl_event) const;

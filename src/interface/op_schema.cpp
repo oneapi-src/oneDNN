@@ -21,7 +21,8 @@
 #include "opset.hpp"
 #include "utils.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 
 op_schema::op_schema() : name_("unknown"), version_(0) {}
@@ -328,4 +329,5 @@ void register_schema(op_schema &&schema) {
 }
 
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl

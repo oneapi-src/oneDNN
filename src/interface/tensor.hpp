@@ -29,11 +29,11 @@ struct dnnl_graph_tensor {
 public:
     dnnl_graph_tensor() {}
 
-    dnnl_graph_tensor(
-            const llga::impl::logical_tensor_t &lt, void *handle = nullptr)
+    dnnl_graph_tensor(const dnnl::graph::impl::logical_tensor_t &lt,
+            void *handle = nullptr)
         : tensor_desc_(lt), data_handle_(handle) {}
 
-    bool is(llga::impl::data_type_t dtype) const {
+    bool is(dnnl::graph::impl::data_type_t dtype) const {
         return dtype == tensor_desc_.data_type;
     }
 
@@ -47,13 +47,14 @@ public:
 
     void *get_data_handle() const { return data_handle_; }
 
-    void *get_void_data_handle_if_is(llga::impl::data_type_t type) const {
+    void *get_void_data_handle_if_is(
+            dnnl::graph::impl::data_type_t type) const {
         return is(type) ? data_handle_ : nullptr;
     }
 
     void set_data_handle(void *handle) { data_handle_ = handle; }
 
-    const llga::impl::logical_tensor_t &get_logical_tensor() const {
+    const dnnl::graph::impl::logical_tensor_t &get_logical_tensor() const {
         return tensor_desc_;
     }
 
@@ -61,24 +62,26 @@ public:
 
 private:
     template <typename T>
-    llga::impl::data_type_t get_data_type() const {
+    dnnl::graph::impl::data_type_t get_data_type() const {
         if (std::is_same<T, float>::value)
-            return llga::impl::data_type::f32;
+            return dnnl::graph::impl::data_type::f32;
         else if (std::is_same<T, int8_t>::value)
-            return llga::impl::data_type::s8;
+            return dnnl::graph::impl::data_type::s8;
         else
-            return llga::impl::data_type::undef;
+            return dnnl::graph::impl::data_type::undef;
     }
 
 private:
-    llga::impl::logical_tensor_t tensor_desc_;
+    dnnl::graph::impl::logical_tensor_t tensor_desc_;
     void *data_handle_ {nullptr};
 };
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 using tensor = ::dnnl_graph_tensor;
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

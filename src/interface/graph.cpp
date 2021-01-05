@@ -23,11 +23,11 @@
 #include "graph.hpp"
 #include "partition.hpp"
 
-using namespace llga::impl;
+using namespace dnnl::graph::impl;
 
 namespace {
 std::vector<size_t> get_ids(
-        const std::vector<llga::impl::logical_tensor_t> &tensors) {
+        const std::vector<dnnl::graph::impl::logical_tensor_t> &tensors) {
     std::vector<size_t> ids;
     ids.reserve(tensors.size());
     for (const auto &t : tensors) {
@@ -37,16 +37,17 @@ std::vector<size_t> get_ids(
 }
 
 bool logical_tensor_sanity_check(
-        std::unordered_map<size_t, llga::impl::logical_tensor_t> &id_to_lts,
-        const std::vector<llga::impl::logical_tensor_t> &lts) {
+        std::unordered_map<size_t, dnnl::graph::impl::logical_tensor_t>
+                &id_to_lts,
+        const std::vector<dnnl::graph::impl::logical_tensor_t> &lts) {
     for (const auto &t : lts) {
         auto id_search = id_to_lts.find(t.id);
         if (id_search == id_to_lts.end()) {
             id_to_lts[t.id] = t;
         } else {
             // compare two tensors with the same id;
-            if (llga::impl::logical_tensor_wrapper(id_search->second)
-                    != llga::impl::logical_tensor_wrapper(t)) {
+            if (dnnl::graph::impl::logical_tensor_wrapper(id_search->second)
+                    != dnnl::graph::impl::logical_tensor_wrapper(t)) {
                 return false;
             }
         }
@@ -107,8 +108,8 @@ status_t dnnl_graph_graph::build_graph() {
                 || !logical_tensor_sanity_check(id_to_tensor, l_n.outputs())) {
             return status::invalid_graph;
         }
-        // create backend node for each llga op
-        llga::impl::node_t *lbk_n = create_node(l_n);
+        // create backend node for each op
+        dnnl::graph::impl::node_t *lbk_n = create_node(l_n);
         // save the input tensor ids of current op
         node_to_tensor_id[lbk_n] = get_ids(l_n.inputs());
         // save the outputs of current op

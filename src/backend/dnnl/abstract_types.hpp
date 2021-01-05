@@ -36,7 +36,8 @@
 #include "dnnl_sycl.hpp"
 #endif
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
@@ -112,6 +113,7 @@ struct allocator {
 
 } // namespace dnnl_impl
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

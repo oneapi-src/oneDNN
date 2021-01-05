@@ -67,12 +67,14 @@ private:
 #endif
 };
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 using thread_pool = ::dnnl_graph_thread_pool;
 using stream_attr = ::dnnl_graph_stream_attr;
 using stream = ::dnnl_graph_stream;
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

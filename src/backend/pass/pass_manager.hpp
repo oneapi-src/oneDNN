@@ -25,7 +25,8 @@
 #include "backend/pass/passes/passes.hpp"
 #include "utils/json.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace pass {
 
@@ -58,6 +59,7 @@ public:
 
 } // namespace pass
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

@@ -21,7 +21,7 @@
 #include "logical_tensor.hpp"
 #include "utils.hpp"
 
-using namespace llga::impl;
+using namespace dnnl::graph::impl;
 
 size_t logical_tensor_wrapper::size() const {
     if (is_strided()) {

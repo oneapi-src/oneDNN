@@ -35,7 +35,8 @@
 #define assertm(exp, msg) assert(((void)msg, exp))
 #endif
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace utils {
 
@@ -132,6 +133,7 @@ public:
 
 } // namespace utils
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

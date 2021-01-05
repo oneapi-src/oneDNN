@@ -28,7 +28,8 @@
 #include "backend/dnnl/utils.hpp"
 #include "sum.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
@@ -59,7 +60,7 @@ struct batch_normalization_forward_inference
       public kernel_base {
 
     using super = dnnl::batch_normalization_forward;
-    using dims_t = std::vector<llga::impl::dim_t>;
+    using dims_t = std::vector<dnnl::graph::impl::dim_t>;
 
 private:
     primitive_desc pd_;
@@ -559,6 +560,7 @@ private:
 
 } // namespace dnnl_impl
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

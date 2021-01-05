@@ -41,9 +41,9 @@
 #include "dnnl.h"
 #include "utils.hpp"
 
-namespace impl = llga::impl;
+namespace impl = dnnl::graph::impl;
 namespace dnnl_impl = impl::dnnl_impl;
-namespace utils = llga::tests::unit::utils;
+namespace utils = dnnl::graph::tests::unit::utils;
 
 static impl::kernel_registry &get_dnnl_kernel_registry() {
     return std::dynamic_pointer_cast<dnnl_impl::dnnl_backend>(
@@ -88,7 +88,7 @@ TEST(operator_compile, convolution_compile_fp32) {
 }
 
 TEST(operator_compile, convolution_backward_data_compile_fp32) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
 
@@ -125,7 +125,7 @@ TEST(operator_compile, convolution_backward_data_compile_fp32) {
 }
 
 TEST(operator_compile, convolution_backward_weights_compile_fp32) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
 
@@ -270,7 +270,7 @@ class test_batchnorm_compile
     : public ::testing::TestWithParam<dnnl_graph_test_batchnorm_params> {
 public:
     void TestBatchnorm(bool dims_in_order = true) {
-        using dims = llga::impl::dnnl_impl::dims;
+        using dims = dnnl::graph::impl::dnnl_impl::dims;
 
         auto params = ::testing::TestWithParam<
                 dnnl_graph_test_batchnorm_params>::GetParam();
@@ -398,7 +398,7 @@ INSTANTIATE_TEST_SUITE_P(TestBatchnormCompile, test_batchnorm_compile,
                         2, 2, 0.001f, "NXC", "dnnl", impl::data_type::f32}));
 
 TEST(operator_compile, bn_compile_bwd_fp32) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     impl::node_t bn_node(impl::op_kind::BatchNormTrainingBackprop);
     bn_node.set_attr<float>("epsilon", 0.0);
@@ -2377,7 +2377,7 @@ TEST(operator_kernel, group_convolution) {
 }
 
 TEST(operator_kernel, ConvolutionBackpropData) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
 
@@ -2427,7 +2427,7 @@ TEST(operator_kernel, ConvolutionBackpropData) {
 }
 
 TEST(operator_kernel, conv_bwd_weight_bias) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     impl::engine_t &eng = get_engine();
 
@@ -3176,7 +3176,7 @@ TEST(operator_kernel, tanh) {
 }
 
 TEST(operator_compile, conv_bias_abs) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -3228,7 +3228,7 @@ TEST(operator_compile, conv_bias_abs) {
 }
 
 TEST(operator_compile, conv_bias_elu) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -3281,7 +3281,7 @@ TEST(operator_compile, conv_bias_elu) {
 }
 
 TEST(operator_compile, conv_bias_hardtanh) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -3334,7 +3334,7 @@ TEST(operator_compile, conv_bias_hardtanh) {
 }
 
 TEST(operator_compile, conv_bias_relu6) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -3387,7 +3387,7 @@ TEST(operator_compile, conv_bias_relu6) {
 }
 
 TEST(operator_compile, conv_bias_sigmoid) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -3441,7 +3441,7 @@ TEST(operator_compile, conv_bias_sigmoid) {
 }
 
 TEST(operator_compile, conv_bias_sqrt) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -3495,7 +3495,7 @@ TEST(operator_compile, conv_bias_sqrt) {
 }
 
 TEST(operator_compile, conv_bias_square) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -3547,7 +3547,7 @@ TEST(operator_compile, conv_bias_square) {
 }
 
 TEST(operator_compile, conv_bias_tanh) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -3602,7 +3602,7 @@ TEST(operator_compile, conv_bias_tanh) {
 }
 
 TEST(operator_compile, conv_bias_add_elu) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -3661,7 +3661,7 @@ TEST(operator_compile, conv_bias_add_elu) {
 }
 
 TEST(operator_compile, conv_bias_add_relu6) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -3721,7 +3721,7 @@ TEST(operator_compile, conv_bias_add_relu6) {
 }
 
 TEST(operator_compile, conv_add_elu) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -3777,7 +3777,7 @@ TEST(operator_compile, conv_add_elu) {
 }
 
 TEST(operator_compile, conv_add_relu6) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -3908,7 +3908,7 @@ TEST(operator_kernel, softmax_backward) {
 }
 
 TEST(operator_kernel, avg_pool_backward_exclude_pad) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
@@ -3957,7 +3957,7 @@ TEST(operator_kernel, avg_pool_backward_exclude_pad) {
 }
 
 TEST(operator_kernel, avg_pool_backward_include_pad) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
@@ -4006,7 +4006,7 @@ TEST(operator_kernel, avg_pool_backward_include_pad) {
 }
 
 TEST(operator_kernel, max_pool_backward_with_incides) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
@@ -4068,7 +4068,7 @@ TEST(operator_kernel, max_pool_backward_with_incides) {
 }
 
 TEST(operator_kernel, max_pool_backward_without_incides) {
-    using dims = llga::impl::dnnl_impl::dims;
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,

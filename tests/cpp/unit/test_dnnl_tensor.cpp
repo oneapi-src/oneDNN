@@ -20,8 +20,8 @@
 
 #include "unit_test_common.hpp"
 
-namespace impl = llga::impl;
-namespace dnnl_impl = llga::impl::dnnl_impl;
+namespace impl = dnnl::graph::impl;
+namespace dnnl_impl = dnnl::graph::impl::dnnl_impl;
 
 using tensor = dnnl_impl::tensor;
 using dim = dnnl_impl::tensor::desc::dim;

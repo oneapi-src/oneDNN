@@ -30,22 +30,23 @@
 #include "op_schema.hpp"
 #include "utils/compatible.hpp"
 
-struct dnnl_graph_graph : public dnnl_graph_id, public llga::impl::attributes {
-    using node_ptr = std::unique_ptr<llga::impl::node_t>;
+struct dnnl_graph_graph : public dnnl_graph_id,
+                          public dnnl::graph::impl::attributes {
+    using node_ptr = std::unique_ptr<dnnl::graph::impl::node_t>;
 
 private:
     /*! \brief nodes in this graph */
     std::vector<node_ptr> nodes_;
 
-    /*! \brief added llga ops*/
-    std::vector<llga::impl::op_t> ops_;
+    /*! \brief added ops*/
+    std::vector<dnnl::graph::impl::op_t> ops_;
 
     /*! \brief The engine kind on which the operator will be evaluated */
-    llga::impl::engine_kind_t engine_kind_;
+    dnnl::graph::impl::engine_kind_t engine_kind_;
 
 public:
-    dnnl_graph_graph(
-            llga::impl::engine_kind_t kind = llga::impl::engine_kind::cpu)
+    dnnl_graph_graph(dnnl::graph::impl::engine_kind_t kind
+            = dnnl::graph::impl::engine_kind::cpu)
         : engine_kind_(kind) {};
 
     dnnl_graph_graph(const dnnl_graph_graph &other) = delete;
@@ -54,27 +55,29 @@ public:
     ~dnnl_graph_graph() = default;
 
     /*!
-     * \brief Check whether a llga operator can be added
-     * \param l_n A llga operator in frameworks' graph.
+     * \brief Check whether an operator can be added
+     * \param l_n An operator in frameworks' graph.
      * \return Whether the operator is supported
      */
-    llga::impl::status_t add_op(llga::impl::op_t *l_n) {
+    dnnl::graph::impl::status_t add_op(dnnl::graph::impl::op_t *l_n) {
         if (std::none_of(ops_.begin(), ops_.end(),
-                    [&l_n](const std::vector<llga::impl::op_t>::value_type
-                                    &op) { return op.id() == l_n->id(); })) {
-            const llga::impl::op_schema *opm
-                    = llga::impl::op_schema_registry::get_op_schema(
+                    [&l_n](const std::vector<
+                            dnnl::graph::impl::op_t>::value_type &op) {
+                        return op.id() == l_n->id();
+                    })) {
+            const dnnl::graph::impl::op_schema *opm
+                    = dnnl::graph::impl::op_schema_registry::get_op_schema(
                             l_n->kind());
-            llga::impl::op_t tmp_ln = *l_n;
+            dnnl::graph::impl::op_t tmp_ln = *l_n;
             if (opm != nullptr) {
                 opm->set_default_attribute(&tmp_ln);
                 if (!opm->verify(&tmp_ln)) {
-                    return llga::impl::status::invalid_op;
+                    return dnnl::graph::impl::status::invalid_op;
                 }
             }
             ops_.emplace_back(tmp_ln);
         }
-        return llga::impl::status::success;
+        return dnnl::graph::impl::status::success;
     }
 
     /*!
@@ -82,28 +85,29 @@ public:
      * \param aop_kind The operator used to create the node
      * \return node* created node
      */
-    llga::impl::node_t *create_node(llga::impl::op_kind_t aop_kind) {
-        nodes_.push_back(
-                llga::impl::utils::make_unique<llga::impl::node_t>(aop_kind));
+    dnnl::graph::impl::node_t *create_node(
+            dnnl::graph::impl::op_kind_t aop_kind) {
+        nodes_.push_back(dnnl::graph::impl::utils::make_unique<
+                dnnl::graph::impl::node_t>(aop_kind));
         return nodes_.back().get();
     }
 
     /*!
      * \brief Create and add a node to this graph.
-     * \param lop The llga op used to create the node
+     * \param lop The op used to create the node
      * \return node* created node
      */
-    llga::impl::node_t *create_node(const llga::impl::op_t &lop) {
+    dnnl::graph::impl::node_t *create_node(const dnnl::graph::impl::op_t &lop) {
         for (const node_ptr &n : nodes_) {
-            // there must be only one llga op id
+            // there must be only one op id
             // while building graph
             if (n->get_op_ids().front() == lop.id()) {
                 n->parse_op_attr(&lop);
                 return n.get();
             }
         }
-        node_ptr anode = llga::impl::utils::make_unique<llga::impl::node_t>(
-                lop.id(), lop.kind());
+        node_ptr anode = dnnl::graph::impl::utils::make_unique<
+                dnnl::graph::impl::node_t>(lop.id(), lop.kind());
         anode->parse_op_attr(&lop);
         anode->add_op_ids(lop.id());
         anode->add_input_tensors(lop.inputs());
@@ -117,7 +121,7 @@ public:
      * \param anode The node to be deleted
      * \return void
      */
-    void delete_node(llga::impl::node_t *anode) {
+    void delete_node(dnnl::graph::impl::node_t *anode) {
         std::vector<node_ptr>::iterator pos = std::find_if(nodes_.begin(),
                 nodes_.end(), [anode](const node_ptr &n) -> bool {
                     return n.get() == anode;
@@ -138,8 +142,8 @@ public:
      * \brief Get the input nodes of this graph.
      * \return vector of input nodes pointers
      */
-    std::vector<llga::impl::node_t *> get_inputs() {
-        std::vector<llga::impl::node_t *> inputs;
+    std::vector<dnnl::graph::impl::node_t *> get_inputs() {
+        std::vector<dnnl::graph::impl::node_t *> inputs;
         for (const node_ptr &n : nodes_) {
             if (n->num_inputs() == 0) { inputs.push_back(n.get()); }
         }
@@ -150,8 +154,8 @@ public:
      * \brief Get the output nodes of this graph.
      * \return vector of output nodes pointers
      */
-    std::vector<llga::impl::node_t *> get_outputs() {
-        std::vector<llga::impl::node_t *> outputs;
+    std::vector<dnnl::graph::impl::node_t *> get_outputs() {
+        std::vector<dnnl::graph::impl::node_t *> outputs;
         for (const node_ptr &n : nodes_) {
             if (n->num_outputs() == 0) { outputs.push_back(n.get()); }
         }
@@ -161,9 +165,10 @@ public:
     /*!
      * \brief execute graph pass
      * \param policy Partition policy
-     * \return llga result
+     * \return result
      */
-    llga::impl::status_t run_pass(llga::impl::partition_policy_t policy);
+    dnnl::graph::impl::status_t run_pass(
+            dnnl::graph::impl::partition_policy_t policy);
 
     /*!
      * \brief Get partition numbers
@@ -183,7 +188,7 @@ public:
     /*!
      * \brief Build backend graph after add op is done
      */
-    llga::impl::status_t build_graph();
+    dnnl::graph::impl::status_t build_graph();
 
     void visualize(std::string filename);
 };

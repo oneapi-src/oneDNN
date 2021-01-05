@@ -37,10 +37,12 @@ private:
     const id_t id_;
 };
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 using id = ::dnnl_graph_id;
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

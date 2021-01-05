@@ -20,7 +20,8 @@
 
 #include "backend/pass/pass_base.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace pass {
 
@@ -68,6 +69,7 @@ DNNL_GRAPH_SINGLE_NODE_TRANSFORM(softmax_bwd_pass, dnnl, SoftMaxBackprop, 8.f);
 
 } // namespace pass
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

@@ -29,7 +29,8 @@
 #include <utility>
 #include <vector>
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace utils {
 namespace json {
@@ -546,6 +547,7 @@ inline void read_helper::reader_function(json_reader *reader, void *addr) {
 } // namespace json
 } // namespace utils
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

@@ -20,7 +20,7 @@
 #include "logical_tensor.hpp"
 #include "tensor.hpp"
 
-using namespace llga::impl;
+using namespace dnnl::graph::impl;
 
 ///
 /// dnnl_graph_tensor_t

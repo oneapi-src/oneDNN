@@ -21,13 +21,14 @@
 
 #include "interface/c_types_map.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace tests {
 namespace unit {
 namespace utils {
 
 #define EXPECT_SUCCESS(expression) \
-    EXPECT_EQ((expression), llga::impl::status::success)
+    EXPECT_EQ((expression), dnnl::graph::impl::status::success)
 
 #define SKIP_IF(cond, msg) \
     do { \
@@ -37,10 +38,11 @@ namespace utils {
         } \
     } while (0)
 
-static inline llga::impl::logical_tensor_t logical_tensor_init(size_t id,
-        llga::impl::data_type_t dtype,
-        llga::impl::layout_type_t ltype = llga::impl::layout_type::undef) {
-    llga::impl::logical_tensor_t val;
+static inline dnnl::graph::impl::logical_tensor_t logical_tensor_init(size_t id,
+        dnnl::graph::impl::data_type_t dtype,
+        dnnl::graph::impl::layout_type_t ltype
+        = dnnl::graph::impl::layout_type::undef) {
+    dnnl::graph::impl::logical_tensor_t val;
     val.id = id;
     val.data_type = dtype;
     val.layout_type = ltype;
@@ -49,11 +51,13 @@ static inline llga::impl::logical_tensor_t logical_tensor_init(size_t id,
     return val;
 }
 
-static inline llga::impl::logical_tensor_t logical_tensor_init(size_t id,
-        std::vector<llga::impl::dim_t> dims, llga::impl::data_type_t dtype,
-        llga::impl::layout_type_t ltype = llga::impl::layout_type::strided) {
+static inline dnnl::graph::impl::logical_tensor_t logical_tensor_init(size_t id,
+        std::vector<dnnl::graph::impl::dim_t> dims,
+        dnnl::graph::impl::data_type_t dtype,
+        dnnl::graph::impl::layout_type_t ltype
+        = dnnl::graph::impl::layout_type::strided) {
     if (dims.size() == 0) { return logical_tensor_init(id, dtype); }
-    llga::impl::logical_tensor_t val;
+    dnnl::graph::impl::logical_tensor_t val;
     val.id = id;
     val.data_type = dtype;
     val.ndims = static_cast<int>(dims.size());
@@ -65,7 +69,7 @@ static inline llga::impl::logical_tensor_t logical_tensor_init(size_t id,
 
     // strides
     val.layout_type = ltype;
-    if (ltype == llga::impl::layout_type::strided) {
+    if (ltype == dnnl::graph::impl::layout_type::strided) {
         val.layout.strides[val.ndims - 1] = 1;
         for (int s = val.ndims - 2; s >= 0; --s) {
             size_t si = static_cast<size_t>(s);
@@ -76,10 +80,11 @@ static inline llga::impl::logical_tensor_t logical_tensor_init(size_t id,
     return val;
 }
 
-static inline llga::impl::logical_tensor_t logical_tensor_init(size_t id,
-        std::vector<llga::impl::dim_t> dims,
-        std::vector<llga::impl::dim_t> strides, llga::impl::data_type_t dtype) {
-    llga::impl::logical_tensor_t val;
+static inline dnnl::graph::impl::logical_tensor_t logical_tensor_init(size_t id,
+        std::vector<dnnl::graph::impl::dim_t> dims,
+        std::vector<dnnl::graph::impl::dim_t> strides,
+        dnnl::graph::impl::data_type_t dtype) {
+    dnnl::graph::impl::logical_tensor_t val;
     val.id = id;
     val.data_type = dtype;
     val.ndims = static_cast<int>(dims.size());
@@ -90,7 +95,7 @@ static inline llga::impl::logical_tensor_t logical_tensor_init(size_t id,
         val.layout.strides[d] = strides[d];
     }
 
-    val.layout_type = llga::impl::layout_type::strided;
+    val.layout_type = dnnl::graph::impl::layout_type::strided;
     return val;
 }
 
@@ -109,6 +114,7 @@ static inline std::vector<int64_t> compute_dense_strides(
 } // namespace utils
 } // namespace unit
 } // namespace tests
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

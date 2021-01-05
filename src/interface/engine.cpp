@@ -25,7 +25,7 @@
 #include <CL/sycl.hpp>
 #endif
 
-using namespace llga::impl;
+using namespace dnnl::graph::impl;
 
 status_t DNNL_GRAPH_API dnnl_graph_engine_create(
         engine_t **created_engine, engine_kind_t kind, int32_t device_id) {

@@ -28,7 +28,8 @@
 #include "interface/graph.hpp"
 #include "interface/ir.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 // FRequirement: A function to check if graph node can meet
 // the requirement of pattern node
@@ -257,9 +258,10 @@ inline bool per_node_comp(node_t *graph_node, node_t *pattern_node,
 
 class pattern_utils {
 public:
-    inline void match(llga::impl::graph_t &backend_graph, node_t *op_pattern,
+    inline void match(dnnl::graph::impl::graph_t &backend_graph,
+            node_t *op_pattern,
             std::vector<std::vector<node_t *>> &fusion_nodes);
-    inline void rewrite(llga::impl::graph_t &backend_graph,
+    inline void rewrite(dnnl::graph::impl::graph_t &backend_graph,
             node_t *origin_pattern, node_t *optimized_pattern,
             std::vector<std::vector<node_t *>> &fusion_nodes);
     // function to convert pattern to a vector based on search order
@@ -276,7 +278,7 @@ public:
 };
 
 // function to do pattern matching
-inline void pattern_utils::match(llga::impl::graph_t &backend_graph,
+inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
         node_t *op_pattern, std::vector<std::vector<node_t *>> &fusion_nodes) {
     std::unordered_set<node_t *> selected;
     // dfs_visit graph, do pattern matching
@@ -293,7 +295,7 @@ inline void pattern_utils::match(llga::impl::graph_t &backend_graph,
 }
 
 // function to do graph rewriting
-inline void pattern_utils::rewrite(llga::impl::graph_t &backend_graph,
+inline void pattern_utils::rewrite(dnnl::graph::impl::graph_t &backend_graph,
         node_t *origin_pattern, node_t *optimized_pattern,
         std::vector<std::vector<node_t *>> &fusion_nodes) {
     std::vector<node_t *> pattern_vec = pattern2vector(origin_pattern);
@@ -371,6 +373,7 @@ inline void pattern_utils::rewrite(llga::impl::graph_t &backend_graph,
     }
 }
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

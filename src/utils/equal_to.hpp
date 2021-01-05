@@ -19,7 +19,8 @@
 
 #include <functional>
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace utils {
 
@@ -37,6 +38,7 @@ equal_to(type)->equal_to<type>;
 
 } // namespace utils
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

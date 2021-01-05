@@ -28,20 +28,22 @@
 
 struct dnnl_graph_engine {
 public:
-    explicit dnnl_graph_engine(llga::impl::engine_kind_t kind, int device_id)
+    explicit dnnl_graph_engine(
+            dnnl::graph::impl::engine_kind_t kind, int device_id)
         : kind_(kind), device_id_(device_id) {
-        allocator_.reset(
-                new llga::impl::allocator_t {}, default_destroy_allocator);
+        allocator_.reset(new dnnl::graph::impl::allocator_t {},
+                default_destroy_allocator);
     }
 
-    dnnl_graph_engine() : dnnl_graph_engine(llga::impl::engine_kind::cpu, 0) {}
+    dnnl_graph_engine()
+        : dnnl_graph_engine(dnnl::graph::impl::engine_kind::cpu, 0) {}
 
 #if DNNL_GRAPH_WITH_SYCL
-    dnnl_graph_engine(llga::impl::engine_kind_t kind,
+    dnnl_graph_engine(dnnl::graph::impl::engine_kind_t kind,
             const cl::sycl::device &dev, const cl::sycl::context &ctx)
         : kind_(kind), dev_(dev), ctx_(ctx) {
-        allocator_.reset(
-                new llga::impl::allocator_t {}, default_destroy_allocator);
+        allocator_.reset(new dnnl::graph::impl::allocator_t {},
+                default_destroy_allocator);
     }
 #endif
 
@@ -51,7 +53,7 @@ public:
 
     int device_id() const noexcept { return device_id_; }
 
-    llga::impl::engine_kind_t kind() const noexcept { return kind_; }
+    dnnl::graph::impl::engine_kind_t kind() const noexcept { return kind_; }
 
     void set_allocator(dnnl_graph_allocator *a) {
         allocator_.reset(a, dummy_destroy_allocator);
@@ -74,15 +76,18 @@ public:
     }
 
 private:
-    static void default_destroy_allocator(llga::impl::allocator_t *alloc) {
+    static void default_destroy_allocator(
+            dnnl::graph::impl::allocator_t *alloc) {
         if (alloc) delete alloc;
     }
-    static void dummy_destroy_allocator(llga::impl::allocator_t *) { return; }
+    static void dummy_destroy_allocator(dnnl::graph::impl::allocator_t *) {
+        return;
+    }
 
     void *device_handle_ {};
-    llga::impl::engine_kind_t kind_ {};
+    dnnl::graph::impl::engine_kind_t kind_ {};
     int device_id_ {};
-    std::shared_ptr<llga::impl::allocator_t> allocator_ {nullptr};
+    std::shared_ptr<dnnl::graph::impl::allocator_t> allocator_ {nullptr};
 #if DNNL_GRAPH_WITH_SYCL
     cl::sycl::device dev_;
     cl::sycl::context ctx_;

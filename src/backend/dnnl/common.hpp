@@ -25,7 +25,8 @@
 
 #include "dnnl.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
@@ -52,6 +53,7 @@ void fill_layout_info(impl::logical_tensor_t *lt, const tensor::desc &td);
 
 } // namespace dnnl_impl
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

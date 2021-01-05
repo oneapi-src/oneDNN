@@ -26,7 +26,8 @@
 
 #include "backend/pass/pass_base.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace pass {
 
@@ -583,6 +584,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bwd_f_biasadd_bwd_fusion)
 
 } // namespace pass
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

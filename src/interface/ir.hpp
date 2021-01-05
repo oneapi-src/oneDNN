@@ -38,7 +38,8 @@
 #include "utils.hpp"
 #include "utils/compatible.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 
 class node_t;
@@ -50,7 +51,7 @@ template <typename fvisit>
 inline void dfs_visit(const std::vector<node_t *> &nodes, fvisit f_visit);
 
 class value {
-    using tensor = llga::impl::tensor;
+    using tensor = dnnl::graph::impl::tensor;
 
 private:
     /*! \brief The producer node of this value */
@@ -514,19 +515,19 @@ public:
     }
 
     /*!
-    * \brief Add llga op ids to this node.
-    * \param id llga op id.
+    * \brief Add op ids to this node.
+    * \param id op id.
     * \return void
     */
     void add_op_ids(size_t id) {
-        //TODO(llga): copy all the attrs from anode
+        //TODO(xxx): copy all the attrs from anode
         //so that anode can be deleted
         op_ids_.push_back(id);
     }
 
     /*!
-    * \brief Add llga op ids to this node.
-    * \param id_vec llga op id vector.
+    * \brief Add op ids to this node.
+    * \param id_vec op id vector.
     * \return void
     */
     void add_op_ids(const std::vector<size_t> &id_vec) {
@@ -535,8 +536,8 @@ public:
     }
 
     /*!
-    * \brief Get llga op ids in this node.
-    * \return a vector of llga op ids
+    * \brief Get op ids in this node.
+    * \return a vector of op ids
     */
     const std::vector<size_t> &get_op_ids() const { return op_ids_; }
 
@@ -548,8 +549,8 @@ public:
         return output_tensor_[offset];
     }
 
-    /*! \brief parse attributes from llga op.
-    * \param l_op llga op.
+    /*! \brief parse attributes from an op.
+    * \param l_op An op.
     */
     void parse_op_attr(const op_t *l_op) {
         status_t state = status::success;
@@ -672,6 +673,7 @@ inline void dfs_visit(const std::vector<node_t *> &nodes, fvisit f_visit) {
 }
 
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

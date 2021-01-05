@@ -26,9 +26,11 @@
 #include "interface/backend.hpp"
 #include "interface/logical_tensor.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace dnnl_impl {
+
 class dnnl_layout_id_manager : public layout_id_manager {
     friend class dnnl_backend;
 
@@ -100,6 +102,7 @@ private:
 
 } // namespace dnnl_impl
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

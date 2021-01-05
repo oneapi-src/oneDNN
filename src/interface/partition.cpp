@@ -22,12 +22,11 @@
 #include "oneapi/dnnl/dnnl_graph.h"
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
 
+#include "backend.hpp"
 #include "c_types_map.hpp"
 #include "op_schema.hpp"
 #include "partition.hpp"
-
-#include "interface/backend.hpp"
-#include "interface/stream.hpp"
+#include "stream.hpp"
 
 #if DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
@@ -89,7 +88,7 @@ impl::status_t get_ordered_inputs_outputs(const impl::node_t *work_node,
 
 } // namespace
 
-using namespace llga::impl;
+using namespace dnnl::graph::impl;
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_create(
         dnnl_graph_partition_t **partition) {

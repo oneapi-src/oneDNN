@@ -24,7 +24,8 @@
 #include <utility>
 #include <type_traits>
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace utils {
 
@@ -121,7 +122,7 @@ using first_argument = typename std::decay<decltype(
         first_argument_helper(std::declval<T>()))>::type;
 
 // any structure
-// now we only use this any struct for llga.
+// now we only use this any struct for the project.
 class any {
 public:
     any() = default;
@@ -266,5 +267,6 @@ using optional = optional_impl<T>;
 
 } // namespace utils
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 #endif

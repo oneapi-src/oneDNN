@@ -20,7 +20,8 @@
 #include "backend/pass/pass_base.hpp"
 #include "backend/pass/pattern_utils.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace pass {
 
@@ -90,4 +91,5 @@ void pass_registry::sort_passes() {
 
 } // namespace pass
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl

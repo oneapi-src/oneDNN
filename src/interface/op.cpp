@@ -19,7 +19,7 @@
 #include "c_types_map.hpp"
 #include "op.hpp"
 
-using namespace llga::impl;
+using namespace dnnl::graph::impl;
 
 status_t DNNL_GRAPH_API dnnl_graph_op_create(op_t **created_op, uint64_t id,
         op_kind_t kind, const char *const debug_string) {

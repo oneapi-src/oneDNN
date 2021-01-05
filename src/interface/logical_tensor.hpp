@@ -27,7 +27,8 @@
 #include "common.hpp"
 #include "utils.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 
 struct logical_tensor_wrapper {
@@ -241,6 +242,7 @@ private:
 };
 
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

@@ -32,7 +32,8 @@
 #include "interface/ir.hpp"
 #include "utils/json.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace pass {
 
@@ -286,6 +287,7 @@ private:
                     #pass_class_name, &transformation_pass::create)
 } // namespace pass
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

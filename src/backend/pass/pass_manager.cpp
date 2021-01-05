@@ -16,7 +16,8 @@
 
 #include "backend/pass/pass_manager.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 
 using namespace utils;
@@ -74,4 +75,5 @@ void pass_manager::run_passes(
 
 } // namespace pass
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl

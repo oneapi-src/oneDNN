@@ -24,7 +24,7 @@
  * 3. Expect only the unfiltered levels are actually logged
  */
 TEST(logger_test, output_stdout) {
-    if (llga::impl::Logger::disabled_) {
+    if (dnnl::graph::impl::Logger::disabled_) {
         GTEST_SKIP() << "Verbose mode disabled during compilation";
     }
 
@@ -39,7 +39,8 @@ TEST(logger_test, output_stdout) {
 
     testing::internal::CaptureStdout();
 
-    llga::impl::Logger::set_default_log_level(dnnl_graph_log_level_error);
+    dnnl::graph::impl::Logger::set_default_log_level(
+            dnnl_graph_log_level_error);
 
     DNNL_GRAPH_LOG(dnnl_graph_log_level_error) << "msg1";
     DNNL_GRAPH_LOG(dnnl_graph_log_level_debug) << "msg2";

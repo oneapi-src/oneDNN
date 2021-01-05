@@ -29,11 +29,12 @@
 #include "interface/utils.hpp"
 #include "utils.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-namespace impl = llga::impl;
+namespace impl = dnnl::graph::impl;
 
 class tensor : public memory {
 public:
@@ -852,6 +853,7 @@ private:
 
 } // namespace dnnl_impl
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

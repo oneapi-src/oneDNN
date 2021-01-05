@@ -34,7 +34,8 @@
 
 #include "interface/logical_tensor.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace dnnl_impl {
 namespace utils {
@@ -152,6 +153,7 @@ inline bool is_aligned_ptr(void *ptr, size_t bytes) {
 } // namespace utils
 } // namespace dnnl_impl
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

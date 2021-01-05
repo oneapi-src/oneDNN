@@ -22,7 +22,7 @@
 
 #include "logger.hpp"
 
-using namespace llga::impl;
+using namespace dnnl::graph::impl;
 
 dnnl_graph_log_level_t Logger::default_level_ {dnnl_graph_log_level_disabled};
 

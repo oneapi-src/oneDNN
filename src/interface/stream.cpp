@@ -28,7 +28,7 @@
 #include <CL/sycl.hpp>
 #endif
 
-using namespace llga::impl;
+using namespace dnnl::graph::impl;
 
 ///
 /// \brief dnnl_graph_thread_pool_t

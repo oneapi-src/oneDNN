@@ -34,15 +34,16 @@ public:
     struct attribute {
         friend struct dnnl_graph_allocator;
 
-        llga::impl::allocator_attr_t data;
+        dnnl::graph::impl::allocator_attr_t data;
 
         /// Default constructor for an uninitialized attribute
         attribute() {
-            data.type = llga::impl::allocator_lifetime::persistent;
+            data.type = dnnl::graph::impl::allocator_lifetime::persistent;
             data.alignment = 0;
         }
 
-        attribute(llga::impl::allocator_lifetime_t type, size_t alignment) {
+        attribute(dnnl::graph::impl::allocator_lifetime_t type,
+                size_t alignment) {
             data.type = type;
             data.alignment = alignment;
         }
@@ -105,15 +106,15 @@ public:
 
 private:
     dnnl_graph_cpu_allocate_f cpu_malloc_ {
-            llga::impl::utils::cpu_allocator::malloc};
+            dnnl::graph::impl::utils::cpu_allocator::malloc};
     dnnl_graph_cpu_deallocate_f cpu_free_ {
-            llga::impl::utils::cpu_allocator::free};
+            dnnl::graph::impl::utils::cpu_allocator::free};
 
 #if DNNL_GRAPH_WITH_SYCL
     dnnl_graph_sycl_allocate_f sycl_malloc_ {
-            llga::impl::utils::sycl_allocator::malloc};
+            dnnl::graph::impl::utils::sycl_allocator::malloc};
     dnnl_graph_sycl_deallocate_f sycl_free_ {
-            llga::impl::utils::sycl_allocator::free};
+            dnnl::graph::impl::utils::sycl_allocator::free};
 #endif
 };
 

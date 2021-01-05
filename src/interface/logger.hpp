@@ -24,7 +24,8 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 
 /**
@@ -102,7 +103,7 @@ public:
     LogEntry(dnnl_graph_log_level_t level) : level_(level) {}
     ~LogEntry() {
         try {
-            llga::impl::Logger::log_message(level_, ss_.str().c_str());
+            dnnl::graph::impl::Logger::log_message(level_, ss_.str().c_str());
         } catch (...) {}
     }
     std::ostream &stream() { return ss_; };
@@ -120,15 +121,16 @@ private:
  */
 #ifndef DNNL_GRAPH_LOG
 #define DNNL_GRAPH_LOG(level) \
-    if (!llga::impl::Logger::log_level_active(level)) { \
+    if (!dnnl::graph::impl::Logger::log_level_active(level)) { \
     } else \
-        llga::impl::LogEntry(level).stream()
+        dnnl::graph::impl::LogEntry(level).stream()
 #define DNNL_GRAPH_LOG_ERROR() DNNL_GRAPH_LOG(dnnl_graph_log_level_error)
 #define DNNL_GRAPH_LOG_INFO() DNNL_GRAPH_LOG(dnnl_graph_log_level_info)
 #define DNNL_GRAPH_LOG_DEBUG() DNNL_GRAPH_LOG(dnnl_graph_log_level_debug)
 #endif
 
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

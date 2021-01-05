@@ -25,16 +25,15 @@
 
 #include "utils.hpp"
 
-using node_ptr = std::unique_ptr<llga::impl::node_t>;
+using node_ptr = std::unique_ptr<dnnl::graph::impl::node_t>;
 
 namespace {
-llga::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
-    auto pm = llga::impl::pass::pass_manager();
+dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
+    auto pm = dnnl::graph::impl::pass::pass_manager();
     auto &passes = pm.get_passes();
     auto find = std::find_if(passes.begin(), passes.end(),
-            [&pass_name](const llga::impl::pass::pass_base_ptr &p) -> bool {
-                return p->get_pass_name() == pass_name;
-            });
+            [&pass_name](const dnnl::graph::impl::pass::pass_base_ptr &p)
+                    -> bool { return p->get_pass_name() == pass_name; });
 
     return *find;
 }
@@ -48,8 +47,8 @@ llga::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
  * 5. Check if conv_bn can be fused
  */
 TEST(pass_test, conv_bn_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
     node_t *in_node = agraph.create_node(Convolution);
     in_node->set_attr<int>("groups", 0);
@@ -68,8 +67,8 @@ TEST(pass_test, conv_bn_fusion) {
 }
 
 TEST(pass_test, conv_bias_sum_relu6_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
 
     node_t *node1 = agraph.create_node(Convolution);
@@ -99,8 +98,8 @@ TEST(pass_test, conv_bias_sum_relu6_fusion) {
 }
 
 TEST(pass_test, conv_bias_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
 
     node_t *node1 = agraph.create_node(Convolution);
@@ -118,8 +117,8 @@ TEST(pass_test, conv_bias_relu_fusion) {
 }
 
 TEST(pass_test, conv_bias_relu6_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
 
     node_t *node1 = agraph.create_node(Convolution);
@@ -139,8 +138,8 @@ TEST(pass_test, conv_bias_relu6_fusion) {
 }
 
 TEST(pass_test, conv_bias_relu6_fusion_negative) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
 
     node_t *node1 = agraph.create_node(Convolution);
@@ -164,8 +163,8 @@ TEST(pass_test, conv_bias_relu6_fusion_negative) {
 }
 
 TEST(pass_test, bn_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
 
     node_t *node1 = agraph.create_node(BatchNormInference);
@@ -182,8 +181,8 @@ TEST(pass_test, bn_relu_fusion) {
 }
 
 TEST(pass_test, bn_bwd_relu_bwd_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
 
     node_t *node1 = agraph.create_node(ReLUBackprop);
@@ -200,8 +199,8 @@ TEST(pass_test, bn_bwd_relu_bwd_fusion) {
 }
 /*
 TEST(pass_test, bn_fwd_train_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
 
     node_t *node1 = agraph.create_node(BatchNormForwardTraining);
@@ -218,8 +217,8 @@ TEST(pass_test, bn_fwd_train_relu_fusion) {
 }*/
 
 TEST(pass_test, conv_bn_fusion_exception) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(Convolution);
@@ -244,8 +243,8 @@ TEST(pass_test, conv_bn_fusion_exception) {
 }
 
 TEST(pass_test, bn_conv) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(BatchNormInference);
@@ -265,8 +264,8 @@ TEST(pass_test, bn_conv) {
 }
 
 TEST(pass_test, conv_bias_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
     node_t *in_node = agraph.create_node(Convolution);
     in_node->set_attr<int>("groups", 0);
@@ -285,8 +284,8 @@ TEST(pass_test, conv_bias_fusion) {
 }
 
 TEST(pass_test, conv_bias_bn_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
     node_t *node2 = agraph.create_node(BiasAdd);
@@ -304,8 +303,8 @@ TEST(pass_test, conv_bias_bn_fusion) {
 }
 
 TEST(pass_test, conv_sum_elu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -331,8 +330,8 @@ TEST(pass_test, conv_sum_elu_fusion) {
 }
 
 TEST(pass_test, conv_sum_relu6_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -360,8 +359,8 @@ TEST(pass_test, conv_sum_relu6_fusion) {
 }
 
 TEST(pass_test, conv_sum_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -387,8 +386,8 @@ TEST(pass_test, conv_sum_relu_fusion) {
 }
 
 TEST(pass_test, conv_bias_sum_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -414,9 +413,9 @@ TEST(pass_test, conv_bias_sum_fusion) {
 }
 
 TEST(pass_test, conv_sum_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
-    using namespace llga::tests::unit::utils;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
 
     graph_t agraph;
     dnnl_graph_op conv {0, Convolution, "conv"};
@@ -463,9 +462,9 @@ TEST(pass_test, conv_sum_fusion) {
 }
 
 TEST(pass_test, conv_sum_sum) {
-    using namespace llga::impl;
-    using namespace llga::impl::pass;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::pass;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
 
@@ -512,8 +511,8 @@ TEST(pass_test, conv_sum_sum) {
 }
 
 TEST(pass_test, conv_bias_sum_sum) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
 
@@ -543,8 +542,8 @@ TEST(pass_test, conv_bias_sum_sum) {
 }
 
 TEST(pass_test, conv_bias_sum_elu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -572,8 +571,8 @@ TEST(pass_test, conv_bias_sum_elu_fusion) {
 }
 
 TEST(pass_test, conv_bias_sum_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -601,8 +600,8 @@ TEST(pass_test, conv_bias_sum_relu_fusion) {
 }
 
 TEST(pass_test, conv_bias_elu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -621,8 +620,8 @@ TEST(pass_test, conv_bias_elu_fusion) {
 }
 
 TEST(pass_test, conv_bias_sigmoid_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -641,8 +640,8 @@ TEST(pass_test, conv_bias_sigmoid_fusion) {
 }
 
 TEST(pass_test, conv_bias_swish_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
 
     node_t *node1 = agraph.create_node(Convolution);
@@ -664,8 +663,8 @@ TEST(pass_test, conv_bias_swish_fusion) {
 }
 
 TEST(pass_test, conv_bias_hardtanh_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
     node_t *node2 = agraph.create_node(BiasAdd);
@@ -683,8 +682,8 @@ TEST(pass_test, conv_bias_hardtanh_fusion) {
 }
 
 TEST(pass_test, conv_bias_square_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
     node_t *node2 = agraph.create_node(BiasAdd);
@@ -702,8 +701,8 @@ TEST(pass_test, conv_bias_square_fusion) {
 }
 
 TEST(pass_test, conv_bias_tanh_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
     node_t *node2 = agraph.create_node(BiasAdd);
@@ -721,8 +720,8 @@ TEST(pass_test, conv_bias_tanh_fusion) {
 }
 
 TEST(pass_test, conv_bias_abs_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
     node_t *node2 = agraph.create_node(BiasAdd);
@@ -740,8 +739,8 @@ TEST(pass_test, conv_bias_abs_fusion) {
 }
 
 TEST(pass_test, conv_bias_sqrt_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
     node_t *node2 = agraph.create_node(BiasAdd);
@@ -759,8 +758,8 @@ TEST(pass_test, conv_bias_sqrt_fusion) {
 }
 
 TEST(pass_test, conv_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(Convolution);
@@ -776,8 +775,8 @@ TEST(pass_test, conv_relu_fusion) {
 }
 
 TEST(pass_test, conv_relu_fusion_exception) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(Convolution);
@@ -794,8 +793,8 @@ TEST(pass_test, conv_relu_fusion_exception) {
 }
 
 TEST(pass_test, matmul_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(MatMul);
@@ -813,8 +812,8 @@ TEST(pass_test, matmul_relu_fusion) {
 }
 
 TEST(pass_test, matmul_elu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(MatMul);
@@ -831,8 +830,8 @@ TEST(pass_test, matmul_elu_fusion) {
 }
 
 TEST(pass_test, matmul_sigmoid_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(MatMul);
@@ -850,8 +849,8 @@ TEST(pass_test, matmul_sigmoid_fusion) {
 }
 
 TEST(pass_test, matmul_hardtanh_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(MatMul);
@@ -869,8 +868,8 @@ TEST(pass_test, matmul_hardtanh_fusion) {
 }
 
 TEST(pass_test, matmul_gelu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(MatMul);
@@ -888,8 +887,8 @@ TEST(pass_test, matmul_gelu_fusion) {
 }
 
 TEST(pass_test, matmul_sum_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node1 = agraph.create_node(MatMul);
@@ -914,8 +913,8 @@ TEST(pass_test, matmul_sum_fusion) {
 }
 
 TEST(pass_test, matmul_sum_fusion_opposite_order) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node1 = agraph.create_node(MatMul);
@@ -940,8 +939,8 @@ TEST(pass_test, matmul_sum_fusion_opposite_order) {
 }
 
 TEST(pass_test, matmul_sum_gelu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node1 = agraph.create_node(MatMul);
@@ -970,8 +969,8 @@ TEST(pass_test, matmul_sum_gelu_fusion) {
 }
 
 TEST(pass_test, matmul_sum_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node1 = agraph.create_node(MatMul);
@@ -1000,8 +999,8 @@ TEST(pass_test, matmul_sum_relu_fusion) {
 }
 
 TEST(pass_test, conv_bwd_f_biasadd_bwd_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(ConvolutionBackpropFilters);
@@ -1018,8 +1017,8 @@ TEST(pass_test, conv_bwd_f_biasadd_bwd_fusion) {
 }
 
 TEST(pass_test, relu_matmul) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(ReLU);
@@ -1039,8 +1038,8 @@ TEST(pass_test, relu_matmul) {
 }
 
 TEST(pass_test, matmul_bias_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(MatMul);
@@ -1057,8 +1056,8 @@ TEST(pass_test, matmul_bias_fusion) {
 }
 
 TEST(pass_test, matmul_bias_sigmoid_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(MatMul);
@@ -1078,8 +1077,8 @@ TEST(pass_test, matmul_bias_sigmoid_fusion) {
 }
 
 TEST(pass_test, matmul_bias_elu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(MatMul);
@@ -1099,8 +1098,8 @@ TEST(pass_test, matmul_bias_elu_fusion) {
 }
 
 TEST(pass_test, matmul_bias_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(MatMul);
@@ -1120,8 +1119,8 @@ TEST(pass_test, matmul_bias_relu_fusion) {
 }
 
 TEST(pass_test, matmul_bias_hardtanh_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(MatMul);
@@ -1141,8 +1140,8 @@ TEST(pass_test, matmul_bias_hardtanh_fusion) {
 }
 
 TEST(pass_test, matmul_bias_sum_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(MatMul);
@@ -1169,8 +1168,8 @@ TEST(pass_test, matmul_bias_sum_fusion) {
 }
 
 TEST(pass_test, matmul_bias_sum_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(MatMul);
@@ -1199,8 +1198,8 @@ TEST(pass_test, matmul_bias_sum_relu_fusion) {
 }
 
 TEST(pass_test, matmul_bias_swish_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(MatMul);
@@ -1223,8 +1222,8 @@ TEST(pass_test, matmul_bias_swish_fusion) {
 }
 
 TEST(pass_test, matmul_bias_bn_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(MatMul);
@@ -1243,8 +1242,8 @@ TEST(pass_test, matmul_bias_bn_fusion) {
 }
 
 TEST(pass_test, matmul_bias_relu6_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(MatMul);
@@ -1265,8 +1264,8 @@ TEST(pass_test, matmul_bias_relu6_fusion) {
 }
 
 TEST(pass_test, conv_bn_sum_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -1293,8 +1292,8 @@ TEST(pass_test, conv_bn_sum_fusion) {
 }
 
 TEST(pass_test, conv_bn_sum_fusion_exception) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -1315,8 +1314,8 @@ TEST(pass_test, conv_bn_sum_fusion_exception) {
 }
 
 TEST(pass_test, conv_bias_bn_sum_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -1344,8 +1343,8 @@ TEST(pass_test, conv_bias_bn_sum_fusion) {
 }
 
 TEST(pass_test, conv_bn_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -1365,8 +1364,8 @@ TEST(pass_test, conv_bn_relu_fusion) {
 }
 
 TEST(pass_test, conv_bias_bn_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -1387,8 +1386,8 @@ TEST(pass_test, conv_bias_bn_relu_fusion) {
 }
 
 TEST(pass_test, conv_bn_sum_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -1417,8 +1416,8 @@ TEST(pass_test, conv_bn_sum_relu_fusion) {
 }
 
 TEST(pass_test, conv_bias_bn_sum_relu_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Convolution);
@@ -1448,8 +1447,8 @@ TEST(pass_test, conv_bias_bn_sum_relu_fusion) {
 }
 /*
 TEST(pass_test, layernorm_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Reshape);
@@ -1479,8 +1478,8 @@ TEST(pass_test, layernorm_fusion) {
 }*/
 
 TEST(pass_test, gelu_erf_based_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *node1 = agraph.create_node(Wildcard);
@@ -1508,9 +1507,9 @@ TEST(pass_test, gelu_erf_based_fusion) {
 }
 
 TEST(pass_test, gelu_erf_based_tensor_input_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
-    using namespace llga::tests::unit::utils;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
 
     graph_t agraph;
     dnnl_graph_op divide {0, Divide, std::string("divide")};
@@ -1575,8 +1574,8 @@ struct ut_gelu_params {
 class gelu_test : public ::testing::TestWithParam<ut_gelu_params> {};
 
 TEST_P(gelu_test, gelu_tanh_based_fusion) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     const ut_gelu_params &params = GetParam();
 
@@ -1625,8 +1624,8 @@ INSTANTIATE_TEST_SUITE_P(gelu_test_instance, gelu_test,
                 ut_gelu_params {1, 0, 1, 0}));
 
 TEST(pass_test, single_node_replacement) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     pass::pass_manager pm;
     std::vector<op_kind_t> single_node_set = {Convolution, BatchNormInference,
@@ -1648,9 +1647,9 @@ TEST(pass_test, single_node_replacement) {
 }
 
 TEST(pass_test, merge_logical_tensor) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
-    using namespace llga::tests::unit::utils;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
     // tensor dim
     int32_t N = 3, // batch size
             IC = 32, // input channels
@@ -1733,8 +1732,8 @@ TEST(pass_test, merge_logical_tensor) {
 }
 
 TEST(pass_test, save_load_json) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
     pass::pass_manager pm;
     pm.print_passes("passes.json");
     graph_t agraph;
@@ -1753,9 +1752,9 @@ TEST(pass_test, save_load_json) {
 }
 
 TEST(pass_test, add_with_two_inputnode) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
-    using namespace llga::tests::unit::utils;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
     // tensor dim
     int32_t N = 3, // batch size
             IC = 32, // input channels
@@ -1872,9 +1871,9 @@ TEST(pass_test, add_with_two_inputnode) {
 }
 
 TEST(pass_test, two_conv_with_shared_weight) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
-    using namespace llga::tests::unit::utils;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
 
     graph_t agraph;
     dnnl_graph_op conv0 {0, Convolution, std::string("conv0")};
@@ -1949,9 +1948,9 @@ TEST(pass_test, two_conv_with_shared_weight) {
 }
 
 TEST(pass_test, add_with_tensor_input) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
-    using namespace llga::tests::unit::utils;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
 
     graph_t agraph;
     dnnl_graph_op conv {0, Convolution, std::string("conv")};
@@ -1998,10 +1997,10 @@ TEST(pass_test, add_with_tensor_input) {
 }
 
 TEST(pass_test, convolution_with_tensor_shape_check) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
-    using namespace llga::impl::pass;
-    using namespace llga::tests::unit::utils;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::impl::pass;
+    using namespace dnnl::graph::tests::unit::utils;
 
     graph_t agraph;
     std::vector<dnnl_graph_op> conv;
@@ -2090,9 +2089,9 @@ TEST(pass_test, convolution_with_tensor_shape_check) {
 }
 
 TEST(pass_test, multi_values_between_two_nodes) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
-    using namespace llga::tests::unit::utils;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
 
     graph_t agraph;
     dnnl_graph_op conv {0, Convolution, std::string("conv")};

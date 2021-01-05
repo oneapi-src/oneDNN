@@ -24,7 +24,8 @@
 #include "backend/dnnl/utils.hpp"
 #include "common.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
@@ -44,7 +45,7 @@ enum maxpool_bwd_inputs { kSrc, kIndices, kDiff_dst };
 
 struct pooling_forward : public dnnl::pooling_v2_forward, public kernel_base {
     using super = dnnl::pooling_v2_forward;
-    using dims_t = std::vector<llga::impl::dim_t>;
+    using dims_t = std::vector<dnnl::graph::impl::dim_t>;
 
 private:
     primitive_desc pd_;
@@ -309,6 +310,7 @@ public:
 
 } // namespace dnnl_impl
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

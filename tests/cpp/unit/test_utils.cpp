@@ -20,11 +20,12 @@
 
 TEST(utils_test, optional) {
     //init, copy constructor
-    llga::impl::utils::optional_impl<int64_t> o1, o2 = 2, o3 = o2;
+    dnnl::graph::impl::utils::optional_impl<int64_t> o1, o2 = 2, o3 = o2;
     ASSERT_EQ(*o2, 2);
     ASSERT_EQ(*o3, 2);
-    llga::impl::utils::optional_impl<float> o4(llga::impl::utils::nullopt),
-            o5 = llga::impl::utils::nullopt;
+    dnnl::graph::impl::utils::optional_impl<float> o4(
+            dnnl::graph::impl::utils::nullopt),
+            o5 = dnnl::graph::impl::utils::nullopt;
     ASSERT_EQ(o4.has_value(), false);
     ASSERT_EQ(o4, o5);
     EXPECT_THROW(o4.value(), std::logic_error);
@@ -32,17 +33,17 @@ TEST(utils_test, optional) {
 }
 
 TEST(utils_test, any) {
-    llga::impl::utils::any a = 1;
-    ASSERT_EQ(llga::impl::utils::any_cast<int>(a), 1);
-    int *i = llga::impl::utils::any_cast<int>(&a);
+    dnnl::graph::impl::utils::any a = 1;
+    ASSERT_EQ(dnnl::graph::impl::utils::any_cast<int>(a), 1);
+    int *i = dnnl::graph::impl::utils::any_cast<int>(&a);
     ASSERT_NE(i, nullptr);
     ASSERT_EQ(*i, 1);
     a = 3.14;
-    ASSERT_EQ(llga::impl::utils::any_cast<double>(a), 3.14);
+    ASSERT_EQ(dnnl::graph::impl::utils::any_cast<double>(a), 3.14);
     a = true;
-    ASSERT_EQ(llga::impl::utils::any_cast<bool>(a), true);
-    llga::impl::utils::any b;
+    ASSERT_EQ(dnnl::graph::impl::utils::any_cast<bool>(a), true);
+    dnnl::graph::impl::utils::any b;
     ASSERT_EQ(b.empty(), true);
-    EXPECT_THROW(llga::impl::utils::any_cast<int>(b),
-            llga::impl::utils::bad_any_cast);
+    EXPECT_THROW(dnnl::graph::impl::utils::any_cast<int>(b),
+            dnnl::graph::impl::utils::bad_any_cast);
 }

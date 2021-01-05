@@ -26,7 +26,8 @@
 #include "bn_fusion.hpp"
 #include "common.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
@@ -549,6 +550,7 @@ private:
 
 } // namespace dnnl_impl
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

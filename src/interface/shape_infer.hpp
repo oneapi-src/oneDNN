@@ -27,7 +27,8 @@
 #include "ir.hpp"
 #include "logical_tensor.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 
 static std::vector<int64_t> get_weight_spatial_dims(
@@ -1008,6 +1009,7 @@ status_t infer_reduce_sum_output_shape(node_t *n,
 }
 
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

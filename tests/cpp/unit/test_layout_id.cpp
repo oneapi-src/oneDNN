@@ -22,8 +22,8 @@
 #include "interface/backend.hpp"
 #include "gtest/gtest.h"
 
-namespace impl = llga::impl;
-namespace dnnl_impl = llga::impl::dnnl_impl;
+namespace impl = dnnl::graph::impl;
+namespace dnnl_impl = dnnl::graph::impl::dnnl_impl;
 
 TEST(layout_id_test, opaque_md_layout_id_mapping) {
     using tensor = dnnl_impl::tensor;
@@ -51,11 +51,13 @@ TEST(layout_id_test, opaque_md_layout_id_mapping) {
     // layout id
     auto recovered_md1 = mgr.get_mem_desc(id1.value());
     ASSERT_TRUE(recovered_md1.has_value());
-    ASSERT_EQ(llga::impl::utils::any_cast<tensor::desc>(recovered_md1.value()),
+    ASSERT_EQ(dnnl::graph::impl::utils::any_cast<tensor::desc>(
+                      recovered_md1.value()),
             md1);
 
     auto recovered_md2 = mgr.get_mem_desc(id2.value());
     ASSERT_TRUE(recovered_md2.has_value());
-    ASSERT_EQ(llga::impl::utils::any_cast<tensor::desc>(recovered_md2.value()),
+    ASSERT_EQ(dnnl::graph::impl::utils::any_cast<tensor::desc>(
+                      recovered_md2.value()),
             md2);
 }

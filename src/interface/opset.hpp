@@ -20,7 +20,8 @@
 #include <functional>
 #include "op_schema.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add, 1);
@@ -286,6 +287,7 @@ inline void register_opset_schema() {
 }
 
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

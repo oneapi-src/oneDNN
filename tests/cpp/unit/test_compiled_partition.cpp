@@ -22,7 +22,7 @@
 #include "unit_test_common.hpp"
 #include "utils.hpp"
 
-namespace utils = llga::tests::unit::utils;
+namespace utils = dnnl::graph::tests::unit::utils;
 
 TEST(compiled_partition, relu) {
     impl::engine_t &eng = get_engine();

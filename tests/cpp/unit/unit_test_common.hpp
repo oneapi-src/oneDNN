@@ -27,7 +27,7 @@
 #include <CL/sycl.hpp>
 #endif
 
-namespace impl = llga::impl;
+namespace impl = dnnl::graph::impl;
 
 #if DNNL_GRAPH_WITH_SYCL
 cl::sycl::device &get_device();
@@ -36,8 +36,8 @@ void *sycl_alloc(size_t n, const void *dev, const void *ctx);
 void sycl_free(void *ptr, const void *ctx);
 #endif // DNNL_GRAPH_WITH_SYCL
 
-impl::engine_t &get_engine(llga::impl::engine_kind_t engine_kind
-        = llga::impl::engine_kind::any_engine);
+impl::engine_t &get_engine(dnnl::graph::impl::engine_kind_t engine_kind
+        = dnnl::graph::impl::engine_kind::any_engine);
 
 impl::stream &get_stream();
 

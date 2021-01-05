@@ -167,7 +167,7 @@ TEST(api_logical_tensor, different_lt_with_same_id) {
 }
 
 TEST(api_logical_tensor, compare_layout_and_dtype) {
-    using namespace llga::api;
+    using namespace dnnl::graph;
     using data_type = logical_tensor::data_type;
     using layout_type = logical_tensor::layout_type;
 

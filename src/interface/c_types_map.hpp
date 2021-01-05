@@ -22,7 +22,8 @@
 
 #include "oneapi/dnnl/dnnl_graph_types.h"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 
 using dim_t = dnnl_graph_dim_t;
@@ -319,6 +320,7 @@ using graph_t = dnnl_graph_graph;
 using op_t = dnnl_graph_op;
 
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

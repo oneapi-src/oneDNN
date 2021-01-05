@@ -21,7 +21,8 @@
 
 #include "backend/dnnl/tensor.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
@@ -50,6 +51,7 @@ struct sum : public dnnl::sum {
 
 } // namespace dnnl_impl
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif

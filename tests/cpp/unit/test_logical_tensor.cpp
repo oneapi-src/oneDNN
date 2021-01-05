@@ -20,8 +20,8 @@
 #include "interface/logical_tensor.hpp"
 #include "utils.hpp"
 
-namespace impl = llga::impl;
-namespace utils = llga::tests::unit::utils;
+namespace impl = dnnl::graph::impl;
+namespace utils = dnnl::graph::tests::unit::utils;
 
 TEST(logical_tensor_test, simple_create) {
     const size_t id = 123;

@@ -24,12 +24,12 @@
 #include "utils.hpp"
 
 /**
- * 1. Create a llga::impl::node_t object
- * 2. Validate if llga::impl::node_t has expected contents
+ * 1. Create a dnnl::graph::impl::node_t object
+ * 2. Validate if dnnl::graph::impl::node_t has expected contents
  */
 TEST(ir_test, node_op) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     node_t cur_node_conv2d = node_t(Convolution);
     node_t cur_node_relu = node_t(ReLU);
@@ -41,8 +41,8 @@ TEST(ir_test, node_op) {
 }
 
 TEST(ir_test, node_inputs) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     node_t in_node = node_t(Convolution);
     node_t cur_node = node_t(Convolution);
@@ -53,8 +53,8 @@ TEST(ir_test, node_inputs) {
 }
 
 TEST(ir_test, node_outputs) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     node_t cur_node = node_t(Convolution);
     node_t out_node = node_t(Convolution);
@@ -65,8 +65,8 @@ TEST(ir_test, node_outputs) {
 }
 
 TEST(ir_test, node_input_offset) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     node_t in_node = node_t(Convolution);
     node_t cur_node = node_t(Convolution);
@@ -79,7 +79,7 @@ TEST(ir_test, node_input_offset) {
 }
 
 TEST(ir_test, node_attrs) {
-    using namespace llga::impl;
+    using namespace dnnl::graph::impl;
 
     op_t op(kAdd, "kAdd");
     constexpr int64_t int_attr_value {123};
@@ -95,8 +95,8 @@ TEST(ir_test, node_attrs) {
 }
 
 TEST(ir_test, cmp_attrs) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     node_t node_a = node_t(Convolution);
     node_t node_b = node_t(Convolution);
@@ -130,8 +130,8 @@ TEST(ir_test, cmp_attrs) {
 }
 
 TEST(ir_test, merge_attrs) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     node_t cur_node = node_t(Convolution);
     node_t next_node = node_t(BatchNormInference);
@@ -149,8 +149,8 @@ TEST(ir_test, merge_attrs) {
 }
 
 TEST(ir_test, graph_create_node) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(Convolution);
@@ -163,8 +163,8 @@ TEST(ir_test, graph_create_node) {
 }
 
 TEST(ir_test, graph_delete_node) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
     node_t *in_node = agraph.create_node(Convolution);
@@ -177,9 +177,9 @@ TEST(ir_test, graph_delete_node) {
 }
 
 TEST(ir_test, add_op) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
-    using namespace llga::tests::unit::utils;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
 
     graph_t agraph;
     op_t op0 {0, Convolution, std::string("conv2d")};
@@ -198,9 +198,9 @@ TEST(ir_test, add_op) {
 }
 
 TEST(ir_test, wildcard) {
-    using namespace llga::impl;
-    using namespace llga::impl::op_kind;
-    using namespace llga::tests::unit::utils;
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
 
     graph_t agraph;
     op_t op {0, Wildcard, std::string("wildcard")};

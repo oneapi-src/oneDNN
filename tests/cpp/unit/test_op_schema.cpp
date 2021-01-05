@@ -20,8 +20,8 @@
 #include "interface/op_schema.hpp"
 #include "utils.hpp"
 
-using namespace llga::impl;
-using namespace llga::tests::unit::utils;
+using namespace dnnl::graph::impl;
+using namespace dnnl::graph::tests::unit::utils;
 
 namespace {
 
@@ -704,7 +704,7 @@ TEST(op_schema_test, conv_ncx_oix_infer_shape) {
 }
 
 void infer_conv_shape(op_kind_t kind) {
-    using namespace llga::impl;
+    using namespace dnnl::graph::impl;
     const op_schema *conv_op_schema = op_schema_registry::get_op_schema(kind);
 
     node_t conv_node {kind};

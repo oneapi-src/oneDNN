@@ -21,7 +21,7 @@
 #include "c_types_map.hpp"
 #include "utils.hpp"
 
-using namespace llga::impl;
+using namespace dnnl::graph::impl;
 
 status_t DNNL_GRAPH_API dnnl_graph_allocator_create(
         allocator_t **created_allocator, cpu_allocate_f cpu_malloc,

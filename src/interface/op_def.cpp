@@ -17,7 +17,8 @@
 #include "op_schema.hpp"
 #include "shape_infer.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 
 DNNL_GRAPH_OP_SCHEMA(Add, 1,
@@ -1445,4 +1446,5 @@ DNNL_GRAPH_OP_SCHEMA(MatMul_gelu, 1,
                 .SET_MATMUL_COMMON_ATTRS)
 
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl

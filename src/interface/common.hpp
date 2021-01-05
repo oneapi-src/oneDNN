@@ -37,7 +37,8 @@
 #include "logger.hpp"
 #include "utils/compatible.hpp"
 
-namespace llga {
+namespace dnnl {
+namespace graph {
 namespace impl {
 
 inline static size_t size_of(data_type_t dtype) {
@@ -71,6 +72,7 @@ inline static size_t size_of(const dims &shape, data_type_t dtype) {
 }
 
 } // namespace impl
-} // namespace llga
+} // namespace graph
+} // namespace dnnl
 
 #endif
