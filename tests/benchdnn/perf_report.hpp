@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -110,6 +110,7 @@ struct base_perf_report_t {
         HANDLE("ibytes", s << r->ibytes / unit);
         HANDLE("obytes", s << r->obytes / unit);
         HANDLE("iobytes", s << (r->ibytes + r->obytes) / unit);
+        HANDLE("idx", s << benchdnn_stat.tests);
 
 #undef HANDLE
 

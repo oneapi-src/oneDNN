@@ -62,6 +62,7 @@ Other problem specific options supported:
 | %flags%      | Bnorm, Lnorm, Reorder                                                 | Primitive flags
 | %group%      | Shuffle                                                               | Shuffle group
 | %impl%       | All                                                                   | Library implementation name for a given problem
+| %idx%        | All                                                                   | Test index
 | %mb%         | Problem desc based, Eltwise, Softmax                                  | Mini-batch value from user input. Prints `0` in case of input `--mb=0`
 | %name%       | Problem desc based                                                    | Problem name
 | %prb%        | All                                                                   | Canonical problem (options and descriptor in REPRO style)
