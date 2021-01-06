@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -101,6 +101,10 @@ protected:
                 "Engine does not support this data type.");
         SKIP_IF(unsupported_data_type(p.base.bia_dt),
                 "Engine does not support this data type.");
+        SKIP_IF(get_test_engine_kind() == engine::kind::gpu
+                        && ((p.attr.zero_points.src & P::PER_N)
+                                || (p.attr.zero_points.dst & P::PER_N)),
+                "Per dimensional zero points are not supported on GPU");
 
         SKIP_IF_CUDA((p.attr.zero_points.src != 0 || p.attr.zero_points.dst != 0
                              || p.attr.zero_points.weights != 0),
@@ -511,6 +515,13 @@ static auto cases_x8 = [](memory::data_type src_dt, memory::data_type dst_dt) {
                                     P::ZERO_POINTS | P::DST | P::COMMON
                                             | P::RUNTIME}}});
 
+    // per_dim_1 zero points + runtime
+    cases.push_back({{{{10, 2}, src_dt, tag::ba},
+                             {{2, 20}, data_type::s8, tag::ab},
+                             {{10, 20}, dst_dt, tag::ab}, data_type::f32},
+            {P::SCALES | P::COMMON | P::RUNTIME,
+                    {P::ZERO_POINTS | P::SRC | P::PER_N | P::RUNTIME, P::NONE,
+                            P::ZERO_POINTS | P::DST | P::PER_N | P::RUNTIME}}});
     // post-ops
     cases.push_back({{{{10, 1}, src_dt, tag::ab},
                              {{1, 20}, data_type::s8, tag::ab},
