@@ -94,8 +94,9 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
 
     const bool is_wino_shape = conf.kh == 3 && conf.kw == 3 && conf.ngroups == 1
             && conf.stride_h == 1 && conf.stride_w == 1 && conf.dilate_h == 0
-            && conf.dilate_w == 0 && conf.l_pad <= 1 && conf.r_pad <= 1
-            && conf.t_pad <= 1 && conf.b_pad <= 1;
+            && conf.dilate_w == 0 && conf.l_pad < conf.kw
+            && conf.r_pad < conf.kw && conf.t_pad < conf.kh
+            && conf.b_pad < conf.kh;
     if (!is_wino_shape) return status::unimplemented;
 
     const bool is_16oc = conf.oc % 16 == 0;
