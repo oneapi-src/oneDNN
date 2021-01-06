@@ -700,7 +700,9 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         } else if (is_gpu()) {
             bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
                     && prb->kw == 3 && prb->sh == 1 && prb->sw == 1
-                    && prb->dh == 0 && prb->dw == 0;
+                    && prb->dh == 0 && prb->dw == 0 && prb->pw < prb->kw
+                    && prb->pw_r < prb->kw && prb->ph < prb->kh
+                    && prb->ph_r < prb->kh;
             if (!shape_ok) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             }
