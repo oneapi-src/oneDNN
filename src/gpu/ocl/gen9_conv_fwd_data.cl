@@ -679,12 +679,24 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
             for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) {
                 const int bg_off = g * OC;
                 const int bc_off = oc + oc_outer * 16 + local_id;
+#if DT_F16
                 if (OC_WO_PADDING % OC_BLOCK == 0 || bc_off < OC_WO_PADDING) {
                     for (int ow_block = 0; ow_block < OW_BLOCK; ow_block++) {
                         const int c_off = dst_idx(mb_block, oc_outer, ow_block);
                         C[c_off] = bia[bg_off + bc_off];
                     } // ow_block
                 } // copy-bias
+#else
+
+                for (int ow_block = 0; ow_block < OW_BLOCK; ow_block++) {
+                     const int c_off = dst_idx(mb_block, oc_outer, ow_block);
+                     C[c_off] = (OC_WO_PADDING % OC_BLOCK == 0
+                                       || bc_off < OC_WO_PADDING)
+                            ? bia[bg_off + bc_off]
+                            : DATA_ZERO;
+
+                }
+#endif
             } // oc_outer
         } // mb_block
     } // if-bias
