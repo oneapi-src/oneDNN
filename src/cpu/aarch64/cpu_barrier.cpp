@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
-* Copyright 2020 FUJITSU LIMITED
+* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -98,8 +98,9 @@ void generate(jit_generator &code, Xbyak_aarch64::XReg reg_ctx,
 struct jit_t : public jit_generator {
 
     void generate() override {
+        this->preamble();
         simple_barrier::generate(*this, abi_param1, abi_param2);
-        ret();
+        this->postamble();
     }
 
     // TODO: Need to check status
@@ -107,6 +108,11 @@ struct jit_t : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_t)
 };
+
+void barrier(ctx_t *ctx, int nthr) {
+    static jit_t j; // constructed during load
+    j(ctx, nthr);
+}
 
 } // namespace simple_barrier
 
