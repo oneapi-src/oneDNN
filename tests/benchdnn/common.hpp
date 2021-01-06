@@ -135,6 +135,7 @@ extern int fix_times_per_prb; /** if non-zero run prb that many times */
 
 extern bool fast_ref_gpu;
 extern bool allow_enum_tags_only;
+extern int test_start;
 
 struct benchdnn_timer_t {
     enum mode_t { min = 0, avg = 1, max = 2, n_modes };
@@ -204,6 +205,7 @@ enum skip_reason_t {
     KNOWN_LIMITATION,
     NOT_ENOUGH_RAM,
     SKIP_IMPL_HIT,
+    SKIP_START,
 };
 const char *skip_reason2str(skip_reason_t skip_reason);
 

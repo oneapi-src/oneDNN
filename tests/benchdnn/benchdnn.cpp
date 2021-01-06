@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,6 +63,7 @@ int fix_times_per_prb {0};
 
 bool fast_ref_gpu {true};
 bool allow_enum_tags_only {true};
+int test_start {0};
 
 int main(int argc, char **argv) {
     using namespace parser;

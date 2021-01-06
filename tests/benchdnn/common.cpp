@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -175,6 +175,7 @@ const char *skip_reason2str(skip_reason_t skip_reason) {
     CASE(KNOWN_LIMITATION);
     CASE(NOT_ENOUGH_RAM);
     CASE(SKIP_IMPL_HIT);
+    CASE(SKIP_START);
 #undef CASE
     return "SKIP_UNKNOWN";
 }

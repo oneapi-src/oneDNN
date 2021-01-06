@@ -266,6 +266,12 @@ bool check_md_consistency_with_tag(
 
 void check_known_skipped_case_common(
         const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res) {
+    if (benchdnn_stat.tests < test_start) {
+        res->state = SKIPPED;
+        res->reason = SKIP_START;
+        return;
+    }
+
     const bool has_bf16_support = is_gpu()
             || (is_cpu()
                     && dnnl::impl::cpu::platform::has_data_type_support(

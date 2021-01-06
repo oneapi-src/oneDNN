@@ -362,6 +362,13 @@ static bool parse_sycl_memory_kind(
     return true;
 }
 
+static bool parse_test_start(
+        const char *str, const std::string &option_name = "start") {
+    return parse_single_value_option(
+            test_start, 0, [](const std::string &s) { return std::stoi(s); },
+            str, option_name);
+}
+
 bool parse_bench_settings(const char *str) {
     last_parsed_is_problem = false; // if start parsing, expect an option
 
@@ -370,7 +377,8 @@ bool parse_bench_settings(const char *str) {
             || parse_engine(str) || parse_fast_ref_gpu(str)
             || parse_canonical(str) || parse_mem_check(str)
             || parse_skip_impl(str) || parse_allow_enum_tags_only(str)
-            || parse_cpu_isa_hints(str) || parse_sycl_memory_kind(str);
+            || parse_cpu_isa_hints(str) || parse_sycl_memory_kind(str)
+            || parse_test_start(str);
 }
 
 void catch_unknown_options(const char *str) {

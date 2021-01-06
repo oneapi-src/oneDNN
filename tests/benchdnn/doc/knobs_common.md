@@ -62,6 +62,9 @@ The following common options are supported:
   several patterns to be matched against through `:` delimiter between patterns.
   E.g. `--skip-impl=ref:gemm`.
 
+* --start=`N` -- Specifies the test index to start testing. All tests before
+  the index are skipped.
+
 * --sycl-memory-kind=`KIND` -- Specifies the memory kind to test with DPC++
   engines. KIND values can be `usm` (default), `buffer`, `usm_device` (to use
   malloc_device) or `usm_shared` (to use malloc_shared).
