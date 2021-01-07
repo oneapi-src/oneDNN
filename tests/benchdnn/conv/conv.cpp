@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -316,13 +316,14 @@ int compare_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
 int fill_src(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
+    const bool check_reorder
+            = (bench_mode & CORR) && (mem_dt.dt() != mem_fp.dt());
     dnn_mem_t extra_mem;
-    if (need_extra_mem) {
+    if (check_reorder) {
         extra_mem
                 = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_test_engine());
     }
-    dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
+    dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
 
     const auto &c = prb->cfg[SRC];
     const int range = c.f_max - c.f_min + 1;
@@ -343,7 +344,7 @@ int fill_src(
             });
 
     SAFE(mem_dt.reorder(mem_00), WARN);
-    if (need_extra_mem) {
+    if (check_reorder) {
         SAFE(mem_fp.reorder(mem_dt), WARN);
         SAFE(compare_src(prb, mem_fp, mem_00, res), WARN);
     }
@@ -358,8 +359,8 @@ int fill_wei(
             = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dnnl_s8;
     const bool is_def_zp = prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
-    const bool check_reorder
-            = diff_data_type && !wino_s8 && !s8_s8 && is_def_zp;
+    const bool check_reorder = (bench_mode & CORR) && diff_data_type && !wino_s8
+            && !s8_s8 && is_def_zp;
 
     dnn_mem_t extra_mem;
     if (check_reorder) {
@@ -406,11 +407,12 @@ int fill_wei(
 
 int fill_bia(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
+    const bool check_reorder
+            = (bench_mode & CORR) && (mem_dt.dt() != mem_fp.dt());
     dnn_mem_t extra_mem;
-    if (need_extra_mem)
+    if (check_reorder)
         extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::x, get_test_engine());
-    dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
+    dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
 
     const size_t nelems = mem_00.nelems();
     if (nelems == 0) return OK;
@@ -428,7 +430,7 @@ int fill_bia(
     }
 
     SAFE(mem_dt.reorder(mem_00), WARN);
-    if (need_extra_mem) {
+    if (check_reorder) {
         SAFE(mem_fp.reorder(mem_dt), WARN);
         SAFE(compare_bia(prb, mem_fp, mem_00, res), WARN);
     }
@@ -438,14 +440,15 @@ int fill_bia(
 int fill_dst_with_params(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         dnnl_data_type_t dt, double sparsity, int min, int max, int base,
         int step, res_t *res) {
-    const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
+    const bool check_reorder
+            = (bench_mode & CORR) && (mem_dt.dt() != mem_fp.dt());
     dnn_mem_t extra_mem;
-    if (need_extra_mem) {
+    if (check_reorder) {
         extra_mem
                 = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_test_engine());
     }
 
-    dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
+    dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
     const int range = max - min + 1;
 
     dnnl::impl::parallel_nd(prb->mb, prb->oc, prb->od, prb->oh, prb->ow,
@@ -460,7 +463,7 @@ int fill_dst_with_params(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
             });
 
     SAFE(mem_dt.reorder(mem_00), WARN);
-    if (need_extra_mem) {
+    if (check_reorder) {
         SAFE(mem_fp.reorder(mem_dt), WARN);
         SAFE(compare_dst(prb, mem_fp, mem_00, res), WARN);
     }
