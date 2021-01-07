@@ -46,35 +46,34 @@ struct kernel_base {
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs)
             = 0;
-    virtual status_t execute_impl(const node_t *anode,
-            const impl::stream *astream,
-            const std::vector<impl::tensor> &inputs,
-            const std::vector<impl::tensor> &outputs)
+    virtual status_t execute_impl(const node_t *anode, const stream *astream,
+            const std::vector<tensor> &inputs,
+            const std::vector<tensor> &outputs)
             = 0;
-    virtual status_t prepare_inplace_pairs_impl(const impl::engine_t *aengine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) {
+    virtual status_t prepare_inplace_pairs_impl(const engine_t *aengine,
+            const std::vector<logical_tensor_t> &inputs,
+            const std::vector<logical_tensor_t> &outputs) {
         UNUSED(aengine);
         UNUSED(inputs);
         UNUSED(outputs);
         return status::success;
     };
 
-    status_t compile(const node_t *anode, const impl::engine_t *aengine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) {
+    status_t compile(const node_t *anode, const engine_t *aengine,
+            const std::vector<logical_tensor_t> &inputs,
+            const std::vector<logical_tensor_t> &outputs) {
         auto ret = compile_impl(anode, aengine, inputs, outputs);
         if (ret != status::success) return ret;
         return prepare_inplace_pairs_impl(aengine, inputs, outputs);
     }
 
-    status_t execute(const node_t *anode, const impl::stream *astream,
-            const std::vector<impl::tensor> &inputs,
-            const std::vector<impl::tensor> &outputs) {
+    status_t execute(const node_t *anode, const stream *astream,
+            const std::vector<tensor> &inputs,
+            const std::vector<tensor> &outputs) {
         return execute_impl(anode, astream, inputs, outputs);
     }
 
-    std::vector<impl::inplace_pair_t> inplace_pairs_;
+    std::vector<inplace_pair_t> inplace_pairs_;
 };
 
 // gcc4.8.5 can 't support enum class as key
@@ -110,7 +109,7 @@ public:
     /*! 
      * \brief create an kernel instance for a node
      */
-    kernel_base::ptr create_kernel(const impl::node_t &anode) {
+    kernel_base::ptr create_kernel(const node_t &anode) {
         auto op_kind = anode.get_op_kind();
         std::lock_guard<std::mutex> lock(kernel_creator_f_map_.m_);
 
@@ -148,13 +147,12 @@ public:
     executable() = default;
     virtual ~executable() {};
 
-    virtual status_t execute(const impl::stream *astream,
-            const std::vector<impl::tensor> &inputs,
-            const std::vector<impl::tensor> &outputs)
+    virtual status_t execute(const stream *astream,
+            const std::vector<tensor> &inputs,
+            const std::vector<tensor> &outputs)
             = 0;
 
-    virtual const std::vector<impl::inplace_pair_t> &
-    get_inplace_pairs() const = 0;
+    virtual const std::vector<inplace_pair_t> &get_inplace_pairs() const = 0;
 };
 
 namespace {
@@ -182,52 +180,52 @@ public:
     std::string get_name() const { return name_; };
     size_t get_id() const { return id_; }
 
-    virtual size_t get_mem_size(const impl::logical_tensor_t &lt) {
+    virtual size_t get_mem_size(const logical_tensor_t &lt) {
         if (!is_interpretable(lt)) return 0;
         return get_mem_size_impl(lt);
     };
 
-    virtual executable::ptr compile(const impl::partition *p,
-            const impl::engine_t *aengine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) {
+    virtual executable::ptr compile(const partition_t *p,
+            const engine_t *aengine,
+            const std::vector<logical_tensor_t> &inputs,
+            const std::vector<logical_tensor_t> &outputs) {
         return compile_impl(p, aengine, inputs, outputs);
     }
 
     // convert a tensor in private layout to public layout
-    virtual bool to_public(const impl::tensor &input, impl::tensor &output,
-            impl::engine_t &aengine) {
+    virtual bool to_public(
+            const tensor &input, tensor &output, engine_t &aengine) {
         if (!is_interpretable(input)) return false;
         return to_public_impl(input, output, aengine);
     }
 
     // check wheather two logical tensor is similar (similar means two
     // logical tensors can be converted to same backend md)
-    virtual bool is_similar(const impl::logical_tensor_t &lhs,
-            const impl::logical_tensor_t &rhs) {
+    virtual bool is_similar(
+            const logical_tensor_t &lhs, const logical_tensor_t &rhs) {
         if (!(is_interpretable(lhs) && is_interpretable(rhs))) return false;
         return is_similar_impl(lhs, rhs);
     }
 
 private:
-    virtual size_t get_mem_size_impl(const impl::logical_tensor_t &lt) = 0;
+    virtual size_t get_mem_size_impl(const logical_tensor_t &lt) = 0;
 
-    virtual executable::ptr compile_impl(const impl::partition *p,
-            const impl::engine_t *aengine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs)
+    virtual executable::ptr compile_impl(const partition_t *p,
+            const engine_t *aengine,
+            const std::vector<logical_tensor_t> &inputs,
+            const std::vector<logical_tensor_t> &outputs)
             = 0;
 
-    virtual bool to_public_impl(const impl::tensor &input, impl::tensor &output,
-            impl::engine_t &aengine)
+    virtual bool to_public_impl(
+            const tensor &input, tensor &output, engine_t &aengine)
             = 0;
 
     // This is a default impl. The default impl regards two logical tensors
     // are similar if they are equal bit by bit except their ids
     // User-defined backend can override this method to provide
     // specific check
-    virtual bool is_similar_impl(const impl::logical_tensor_t &lhs,
-            const impl::logical_tensor_t &rhs) {
+    virtual bool is_similar_impl(
+            const logical_tensor_t &lhs, const logical_tensor_t &rhs) {
         bool equal = true;
         equal = equal && (lhs.ndims == rhs.ndims)
                 && (lhs.data_type == rhs.data_type)
@@ -255,8 +253,8 @@ private:
 
     // a logical tensor is interpretable if it's strided or its layout id
     // is generated by this backend
-    virtual bool is_interpretable(const impl::logical_tensor_t &lt) {
-        auto ltw = impl::logical_tensor_wrapper(lt);
+    virtual bool is_interpretable(const logical_tensor_t &lt) {
+        auto ltw = logical_tensor_wrapper(lt);
         return ltw.is_strided()
                 || (ltw.is_opaque()
                         && (decode_layout_id(
@@ -266,7 +264,7 @@ private:
     }
 
     // a tensor tensor is interpretable if it's logical tesnor is interpretable
-    virtual bool is_interpretable(const impl::tensor &in) {
+    virtual bool is_interpretable(const tensor &in) {
         return is_interpretable(in.get_logical_tensor());
     }
 

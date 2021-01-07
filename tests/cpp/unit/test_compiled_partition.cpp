@@ -39,10 +39,10 @@ TEST(compiled_partition, relu) {
     relu_node.add_input_tensors({lt_in});
     relu_node.add_output_tensors({lt_out});
 
-    impl::partition p;
+    impl::partition_t p;
     p.init(&relu_node, eng.kind());
 
-    impl::compiled_partition cp(p);
+    impl::compiled_partition_t cp(p);
     ASSERT_EQ(p.id(), cp.src_partition().id());
 
     std::vector<const impl::logical_tensor_t *> lt_inputs {&lt_in};
@@ -105,10 +105,10 @@ TEST(compiled_partition, search_required_inputs_outputs) {
     relu_node.add_input_tensors({lt_in});
     relu_node.add_output_tensors({lt_out});
 
-    impl::partition p;
+    impl::partition_t p;
     p.init(&relu_node, eng.kind());
 
-    impl::compiled_partition cp(p);
+    impl::compiled_partition_t cp(p);
     ASSERT_EQ(p.id(), cp.src_partition().id());
 
     impl::logical_tensor_t lt_in_additional1 = utils::logical_tensor_init(
@@ -218,10 +218,10 @@ TEST(compiled_partition, allow_repeated_inputs) {
     n.add_input_tensors({lt_in1, lt_in1});
     n.add_output_tensors({lt_out});
 
-    impl::partition p;
+    impl::partition_t p;
     p.init(&n, eng.kind());
 
-    impl::compiled_partition cp(p);
+    impl::compiled_partition_t cp(p);
 
     // only one input
     std::vector<const impl::logical_tensor_t *> lt_ins {&lt_in1};
@@ -277,10 +277,10 @@ TEST(compiled_partition, not_allow_repeated_inputs) {
     n.add_input_tensors({lt_in1, lt_in1});
     n.add_output_tensors({lt_out});
 
-    impl::partition p;
+    impl::partition_t p;
     p.init(&n, eng.kind());
 
-    impl::compiled_partition cp(p);
+    impl::compiled_partition_t cp(p);
 
     // only one input
     std::vector<const impl::logical_tensor_t *> lt_ins {&lt_in1};

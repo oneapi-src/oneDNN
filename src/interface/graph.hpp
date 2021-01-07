@@ -183,7 +183,8 @@ public:
      * \brief get list of partitions
      * \param list of partitions
      */
-    void get_partitions(std::vector<dnnl_graph_partition *> &partitions);
+    void get_partitions(
+            std::vector<dnnl::graph::impl::partition_t *> &partitions);
 
     /*!
      * \brief Build backend graph after add op is done

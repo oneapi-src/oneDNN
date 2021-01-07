@@ -85,7 +85,7 @@ private:
 
     virtual size_t get_mem_size_impl(const impl::logical_tensor_t &lt) override;
 
-    virtual executable::ptr compile_impl(const partition *p,
+    virtual executable::ptr compile_impl(const partition_t *p,
             const engine_t *aengine,
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs) override;

@@ -83,8 +83,7 @@ status_t dnnl_graph_graph::run_pass(partition_policy_t policy) {
     return status::success;
 }
 
-void dnnl_graph_graph::get_partitions(
-        std::vector<dnnl_graph_partition *> &partitions) {
+void dnnl_graph_graph::get_partitions(std::vector<partition_t *> &partitions) {
     size_t count = 0;
     dfs_visit(this->get_outputs(), [&](node_t *n) {
         if (n->has_attr("backend")) {
@@ -200,7 +199,7 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_get_partition_num(
 status_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
         graph_t *graph, uint64_t num, dnnl_graph_partition_t **partition) {
     if (graph == nullptr) { return status::invalid_graph; }
-    std::vector<dnnl_graph_partition *> partitions {partition, partition + num};
+    std::vector<partition_t *> partitions {partition, partition + num};
     graph->get_partitions(partitions);
     return status::success;
 }

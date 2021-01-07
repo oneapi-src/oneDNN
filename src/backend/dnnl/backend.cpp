@@ -163,7 +163,7 @@ size_t dnnl_backend::get_mem_size_impl(const impl::logical_tensor_t &lt) {
     return td.get_size();
 }
 
-executable::ptr dnnl_backend::compile_impl(const impl::partition *p,
+executable::ptr dnnl_backend::compile_impl(const impl::partition_t *p,
         const impl::engine_t *aengine,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs) {

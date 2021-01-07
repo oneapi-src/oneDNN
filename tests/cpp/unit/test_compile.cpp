@@ -501,7 +501,7 @@ TEST(operator_kernel, relu) {
     test::vector<float> ref_dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.5, 2.0};
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::partition apartition;
+    impl::partition_t apartition;
     impl::node_t relu_node(impl::op_kind::ReLU);
     relu_node.set_attr<std::string>("backend", "dnnl");
 
@@ -537,7 +537,7 @@ TEST(operator_kernel, relu_backward) {
             0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 6.0, 7.0, 8.0};
     test::vector<float> diff_src(src.size(), 0.0);
 
-    impl::partition apartition;
+    impl::partition_t apartition;
     impl::node_t relu_node(impl::op_kind::ReLUBackprop);
     relu_node.set_attr<std::string>("backend", "dnnl");
 
@@ -643,7 +643,7 @@ TEST(operator_kernel, add) {
     test::vector<float> ref_dst {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::partition apartition;
+    impl::partition_t apartition;
     impl::node_t add_node(impl::op_kind::Add);
     add_node.set_attr<std::string>("backend", "dnnl");
 
@@ -701,7 +701,7 @@ TEST(operator_kernel, different_format_add) {
     test::vector<float> ref_dst {2.0, 5.0, 8.0, 3.0, 6.0, 9.0, 4.0, 7.0, 10.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::partition apartition;
+    impl::partition_t apartition;
     impl::node_t add_node(impl::op_kind::Add);
     add_node.set_attr<std::string>("backend", "dnnl");
 
@@ -741,7 +741,7 @@ TEST(operator_kernel, broadcast_add) {
             3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::partition apartition;
+    impl::partition_t apartition;
     impl::node_t broadcast_add_node(impl::op_kind::Add);
     broadcast_add_node.set_attr<std::string>("backend", "dnnl");
 
@@ -785,7 +785,7 @@ TEST(operator_kernel, reversed_different_format_broadcast_add) {
             2.0, 5.0, 8.0, 3.0, 6.0, 9.0, 4.0, 7.0, 10.0};
     test::vector<float> dst(src1.size(), 0.0);
 
-    impl::partition apartition;
+    impl::partition_t apartition;
     impl::node_t broadcast_add_node(impl::op_kind::Add);
     broadcast_add_node.set_attr<std::string>("backend", "dnnl");
 
@@ -828,7 +828,7 @@ TEST(operator_kernel, bias_add) {
             3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::partition apartition;
+    impl::partition_t apartition;
     impl::node_t bias_add_node(impl::op_kind::BiasAdd);
     bias_add_node.set_attr<std::string>("backend", "dnnl");
 
@@ -866,7 +866,7 @@ TEST(operator_kernel, mul) {
     test::vector<float> ref_dst {4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::partition apartition;
+    impl::partition_t apartition;
     impl::node_t mul_node(impl::op_kind::Multiply);
     mul_node.set_attr<std::string>("backend", "dnnl");
 
@@ -1861,7 +1861,7 @@ TEST(operator_kernel, max_pool) {
     max_pool_node.set_attr<std::string>("backend", "dnnl");
     max_pool_node.set_attr<dims>("dilations", {1, 1});
 
-    impl::partition apartition;
+    impl::partition_t apartition;
     apartition.init(&max_pool_node, eng.kind());
 
     // prepare logical tensor
@@ -1909,7 +1909,7 @@ TEST(operator_kernel, avg_pool_exclude_pad) {
     avg_pool_node.set_attr<std::string>("data_format", "NCX");
     avg_pool_node.set_attr<std::string>("backend", "dnnl");
 
-    impl::partition apartition;
+    impl::partition_t apartition;
     apartition.init(&avg_pool_node, eng.kind());
 
     // prepare logical tensor
@@ -1956,7 +1956,7 @@ TEST(operator_kernel, avg_pool_include_pad) {
     avg_pool_node.set_attr<bool>("exclude_pad", false);
     avg_pool_node.set_attr<std::string>("backend", "dnnl");
 
-    impl::partition apartition;
+    impl::partition_t apartition;
     apartition.init(&avg_pool_node, eng.kind());
 
     // prepare logical tensor

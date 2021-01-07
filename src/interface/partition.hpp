@@ -53,8 +53,6 @@ struct hash<std::pair<size_t, size_t>> {
 namespace dnnl {
 namespace graph {
 namespace impl {
-using partition = ::dnnl_graph_partition;
-using compiled_partition = ::dnnl_graph_compiled_partition;
 class executable;
 } // namespace impl
 } // namespace graph
@@ -168,7 +166,7 @@ public:
         }
     }
 
-    impl::status_t compile(impl::compiled_partition *compiled_partition,
+    impl::status_t compile(impl::compiled_partition_t *compiled_partition,
             std::vector<const impl::logical_tensor_t *> &inputs,
             std::vector<const impl::logical_tensor_t *> &outputs,
             const impl::engine_t *e = nullptr);
@@ -272,12 +270,12 @@ public:
     using tensor_shape = std::vector<int64_t>;
     static constexpr tensor_shape::value_type unknown_shape {-1};
 
-    dnnl_graph_compiled_partition(const impl::partition &src_partition)
+    dnnl_graph_compiled_partition(const impl::partition_t &src_partition)
         : src_partition_ {src_partition} {}
 
     ~dnnl_graph_compiled_partition() = default;
 
-    const impl::partition &src_partition() { return src_partition_; }
+    const impl::partition_t &src_partition() { return src_partition_; }
 
     const std::vector<impl::inplace_pair_t> &get_inplace_pairs() const;
 
@@ -296,7 +294,7 @@ public:
             size_t tid, impl::logical_tensor_t *lt) const;
 
 private:
-    const impl::partition src_partition_;
+    const impl::partition_t src_partition_;
 
     // Executable pointer to run kernel
     std::shared_ptr<impl::executable> executable_;
