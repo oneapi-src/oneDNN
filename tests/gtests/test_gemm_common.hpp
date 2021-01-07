@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -430,7 +430,7 @@ void compare(const test_params &p, const test_memory &c_mem,
             } else if (data_traits<a_dt>::data_type == data_type::u8) {
                 eps = p.K / 700 + 1;
             } else if (data_traits<a_dt>::data_type == data_type::s8) {
-                eps = p.K / 350 + 1;
+                eps = p.K / 300 + 1;
             }
             ASSERT_NEAR(diff, 0, eps) << "Row: " << i << " Col: " << j;
         }
