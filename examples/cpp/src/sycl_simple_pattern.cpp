@@ -18,7 +18,7 @@
 /// @copybrief sycl_simple_pattern_cpp
 /// > Annotated version: @ref sycl_simple_pattern_cpp
 
-/// @page sycl_simple_pattern_cpp Getting started on GPU with SYCL extensions API
+/// @page sycl_simple_pattern_cpp Getting started on both CPU and GPU with SYCL extensions API
 /// This is an example to demonstrate how to build a simple graph and run on
 /// SYCL device.
 ///

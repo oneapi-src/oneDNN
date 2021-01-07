@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@
 /// @copybrief cpu_get_started_cpp
 /// > Annotated version: @ref cpu_get_started_cpp
 
-/// @page cpu_get_started_cpp Getting started on GPU with SYCL extensions API
+/// @page cpu_get_started_cpp Getting started on CPU
 /// This is an example to demonstrate how to build a simple graph and run on
-/// SYCL device.
+/// CPU.
 ///
 /// > Example code: @ref cpu_get_started.cpp
 ///
@@ -46,8 +46,7 @@
 /// @section cpu_get_started_cpp_headers Public headers
 ///
 /// To start using oneDNN graph, we must include the @ref dnnl_graph.hpp header file
-/// in the application. If you also want to run with SYCL device, you need include
-/// @ref dnnl_graph_sycl.hpp header file as well. All the C++ APIs reside in namespace `dnnl::graph`.
+/// in the application. All the C++ APIs reside in namespace `dnnl::graph`.
 /// @page cpu_get_started_cpp
 /// @snippet cpu_get_started.cpp Headers and namespace
 //[Headers and namespace]
@@ -289,7 +288,7 @@ void cpu_get_started_tutorial(engine::kind engine_kind) {
     /// @subsection cpu_get_started_cpp_execute Execute compiled partition
     ///
 
-    /// Create a stream on the engine asssociated with a sycl queue.
+    /// Create a stream on the engine.
     /// @snippet cpu_get_started.cpp Create stream
     //[Create stream]
     stream strm {eng};

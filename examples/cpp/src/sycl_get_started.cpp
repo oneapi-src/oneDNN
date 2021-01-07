@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@
 /// @copybrief sycl_get_started_cpp
 /// > Annotated version: @ref sycl_get_started_cpp
 
-/// @page sycl_get_started_cpp Getting started on CPU
+/// @page sycl_get_started_cpp Getting started on both CPU and GPU with SYCL extensions API
 /// This is an example to demonstrate how to build a simple graph and run on
-/// CPU.
+/// SYCL device.
 ///
 /// > Example code: @ref sycl_get_started.cpp
 ///
