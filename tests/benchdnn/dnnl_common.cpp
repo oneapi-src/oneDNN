@@ -251,12 +251,6 @@ void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
         ((int32_t *)zero_points_m)[c] = zero_points[c];
 }
 
-void maybe_prepare_runtime_zero_points(
-        dnn_mem_t &zero_points_m, const attr_t &attr, int arg) {
-    const auto e = attr.zero_points.get(arg);
-    maybe_prepare_runtime_zero_points(zero_points_m, attr, arg, 1, &(e.value));
-}
-
 bool check_md_consistency_with_tag(
         const dnnl_memory_desc_t &md, const std::string &tag) {
     dnnl_memory_desc_t md_new_tag;
