@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -712,13 +712,18 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
     jcp.kh = wei_d.dims()[with_groups + 2];
     jcp.kw = wei_d.dims()[with_groups + 3];
     jcp.t_pad = cd.padding[0][0];
-    jcp.b_pad = cd.padding[1][0];
     jcp.l_pad = cd.padding[0][1];
-    jcp.r_pad = cd.padding[1][1];
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
+
+    const int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+    const int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
+    jcp.r_pad = calculate_end_padding(
+            jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw);
+    jcp.b_pad = calculate_end_padding(
+            jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh);
 
     jcp.ver = ver_avx512_core;
     if (!(mayiuse(avx512_core) && src_d.data_type() == data_type::u8

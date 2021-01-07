@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -173,8 +173,6 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
 
     jcp.t_pad = cd.padding[0][0];
     jcp.l_pad = cd.padding[0][1];
-    jcp.b_pad = cd.padding[1][0];
-    jcp.r_pad = cd.padding[1][1];
 
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
@@ -339,14 +337,19 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
 
     jcp.t_pad = cd.padding[0][0];
     jcp.l_pad = cd.padding[0][1];
-    jcp.b_pad = cd.padding[1][0];
-    jcp.r_pad = cd.padding[1][1];
 
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
 
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
+
+    const int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+    const int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
+    jcp.r_pad = calculate_end_padding(
+            jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw);
+    jcp.b_pad = calculate_end_padding(
+            jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh);
 
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
@@ -479,10 +482,7 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
     jcp.stride_w = cd.strides[1];
 
     jcp.t_pad = cd.padding[0][0];
-    jcp.b_pad = cd.padding[1][0];
-
     jcp.l_pad = cd.padding[0][1];
-    jcp.r_pad = cd.padding[1][1];
 
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
@@ -491,6 +491,15 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
 
     jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
+
+    const int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+    const int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
+    jcp.r_pad = nstl::max(0,
+            calculate_end_padding(
+                    jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw));
+    jcp.b_pad = nstl::max(0,
+            calculate_end_padding(
+                    jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh));
 
     auto dat_tag = one_of(isa, avx512_common, avx512_core) ? nChw16c : nChw8c;
     auto wei_tag = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
