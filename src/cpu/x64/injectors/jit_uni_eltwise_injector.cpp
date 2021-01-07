@@ -42,10 +42,10 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
     // For avx we need a register to save the upper part of Ymm
     preserve_vec_for_avx = isa == avx
             && utils::one_of(alg_, eltwise_tanh, eltwise_elu, eltwise_abs,
-                    eltwise_soft_relu, eltwise_logsigmoid, eltwise_logistic,
-                    eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
-                    eltwise_gelu_erf, eltwise_tanh_use_dst_for_bwd,
-                    eltwise_elu_use_dst_for_bwd,
+                    eltwise_soft_relu, eltwise_logsigmoid, eltwise_mish,
+                    eltwise_logistic, eltwise_exp, eltwise_gelu_tanh,
+                    eltwise_swish, eltwise_gelu_erf,
+                    eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
                     eltwise_logistic_use_dst_for_bwd,
                     eltwise_exp_use_dst_for_bwd);
     if (preserve_vec_for_avx) vecs_to_preserve++;
@@ -587,6 +587,39 @@ void jit_uni_eltwise_injector_f32<isa>::logsigmoid_compute_vector_fwd(
     h->uni_vmulps(vmm_src, vmm_src, table_val(minus_one));
     soft_relu_compute_vector_fwd(vmm_src);
     h->uni_vmulps(vmm_src, vmm_src, table_val(minus_one));
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::mish_compute_vector_fwd(
+        const Vmm &vmm_src) {
+    // An equation other than mish(x) = x*tanh(srelu(x)) was used
+    // to calculate mish, but it should be remembered that it is equivalent
+    // equation, it uses the following rule:
+    // tanh(x) = (e^x - e^-x) / (e^x + e^-x),
+    // hence the equation for mish can take the form:
+    // mish(x) = x * ((e^x + 1)^2 - 1)/((e^x + 1)^2 + 1).
+    // This option was chosen because computing tanh requires more registers
+    // than exp, and also requires more constants to be stored in memory,
+    // making the algorithm slower.
+
+    // IMPORTANT: we use vmm_aux3 to save src as exp does not use it.
+    h->uni_vmovups(vmm_aux3, vmm_src); // vmm_aux3 = x
+
+    h->uni_vminps(vmm_src, vmm_src, table_val(fwd_mish_max_x_for_equation_f));
+    exp_compute_vector_fwd(vmm_src);
+
+    // (e^x+1)^2
+    h->uni_vaddps(vmm_src, vmm_src, table_val(one));
+    h->uni_vmulps(vmm_src, vmm_src, vmm_src);
+
+    // save (e^x+1)^2 as it appears in both the denominator and the numerator
+    h->uni_vmovups(vmm_aux1, vmm_src);
+
+    // x * ((e^x + 1)^2 - 1) / ((e^x + 1)^2 + 1)
+    h->uni_vsubps(vmm_src, vmm_src, table_val(one));
+    h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(one));
+    h->uni_vdivps(vmm_src, vmm_src, vmm_aux1);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux3);
 }
 
 template <cpu_isa_t isa>
@@ -1227,6 +1260,47 @@ void jit_uni_eltwise_injector_f32<isa>::logsigmoid_compute_vector_bwd(
 }
 
 template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::mish_compute_vector_bwd(
+        const Vmm &vmm_src) {
+    // IMPORTANT: we use vmm_aux3 to save src as exp does not use it.
+    h->uni_vmovups(vmm_aux3, vmm_src); // vmm_aux3 = x
+
+    h->uni_vminps(vmm_src, vmm_src, table_val(bwd_mish_max_x_for_equation_f));
+    exp_compute_vector_fwd(vmm_src);
+    h->uni_vmovups(vmm_aux2, vmm_src); // vmm_aux2 = e^x
+
+    // e^3x + 4*e^2x
+    h->uni_vmulps(vmm_src, vmm_src, vmm_src); // e^2x
+    h->uni_vmovups(vmm_aux1, vmm_src);
+    h->uni_vmulps(vmm_aux1, vmm_aux1, table_val(two));
+    h->uni_vmulps(vmm_aux1, vmm_aux1, table_val(two)); // 4*e^2x
+    h->uni_vfmadd213ps(vmm_src, vmm_aux2, vmm_aux1);
+
+    // e^3x + 4*e^2x + 4*e^x*(x+1.5)
+    h->uni_vaddps(vmm_aux3, vmm_aux3, table_val(one)); // vmm_aux3 = x + 1
+    h->uni_vmovups(vmm_aux1, vmm_aux3);
+    h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(half));
+    h->uni_vmulps(vmm_aux1, vmm_aux1, table_val(two));
+    h->uni_vmulps(vmm_aux1, vmm_aux1, table_val(two));
+    h->uni_vfmadd231ps(vmm_src, vmm_aux1, vmm_aux2);
+
+    // omega = e^3x + 4*e^2x + 4*e^x*(x+1.5) + 4*(x+1)
+    h->uni_vmulps(vmm_aux3, vmm_aux3, table_val(two));
+    h->uni_vfmadd231ps(vmm_src, vmm_aux3, table_val(two));
+
+    // delta = (e^x+1)^2 + 1
+    h->uni_vmovups(vmm_aux1, vmm_aux2);
+    h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(one));
+    h->uni_vmulps(vmm_aux1, vmm_aux1, vmm_aux1);
+    h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(one));
+    h->uni_vmulps(vmm_aux1, vmm_aux1, vmm_aux1);
+
+    // e^x * omega / delta^2
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux2);
+    h->uni_vdivps(vmm_src, vmm_src, vmm_aux1);
+}
+
+template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector_bwd(
         const Vmm &vmm_src) {
     // res = d * (1 - d) = d - d * d; d = logistic(s)
@@ -1425,6 +1499,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_bounded_relu: return 0;
             case eltwise_soft_relu:
             case eltwise_logsigmoid: return 4;
+            case eltwise_mish: return 4;
             case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic: return 4;
             case eltwise_exp_use_dst_for_bwd:
@@ -1456,6 +1531,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_bounded_relu: return 1;
             case eltwise_soft_relu:
             case eltwise_logsigmoid: return 4;
+            case eltwise_mish: return 4;
             case eltwise_logistic_use_dst_for_bwd: return 1;
             case eltwise_logistic: return 4;
             case eltwise_exp_use_dst_for_bwd: return 0;
@@ -1509,6 +1585,7 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                 case eltwise_logsigmoid:
                     logsigmoid_compute_vector_fwd(Vmm(idx));
                     break;
+                case eltwise_mish: mish_compute_vector_fwd(Vmm(idx)); break;
                 case eltwise_logistic_use_dst_for_bwd:
                 case eltwise_logistic:
                     logistic_compute_vector_fwd(Vmm(idx));
@@ -1551,6 +1628,7 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                 case eltwise_logsigmoid:
                     logsigmoid_compute_vector_bwd(Vmm(idx));
                     break;
+                case eltwise_mish: mish_compute_vector_bwd(Vmm(idx)); break;
                 case eltwise_logistic_use_dst_for_bwd:
                 case eltwise_logistic:
                     logistic_compute_vector_bwd(Vmm(idx));
@@ -1675,6 +1753,11 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
             {exp_pol, {0x3d2b9d0d, true}}, // p4 = 0.0418978221f
             {exp_pol, {0x3c07cfce, true}} // p5 = 0.00828929059f
     };
+
+    // mish(x) constants
+    static const table_t mish_consts {
+            {fwd_mish_max_x_for_equation_f, {0x42317217, true}},
+            {bwd_mish_max_x_for_equation_f, {0x41b17217, true}}};
 
     // tanh(x) constants for four interval approximation
     static const table_t tanh_consts {{tanh_idx_bias, {0x39800000, true}},
@@ -2094,6 +2177,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
                 case eltwise_log: log_ = true; break;
                 case eltwise_soft_relu: soft_relu_ = true; break;
                 case eltwise_logsigmoid: soft_relu_ = true; break;
+                case eltwise_mish: mish_ = true; break;
                 case eltwise_tanh_use_dst_for_bwd:
                 case eltwise_tanh: tanh_ = true; break;
                 default: break;
@@ -2101,13 +2185,15 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
         }
 
         bool exp_ = false;
+        bool mish_ = false;
         bool tanh_ = false;
         bool soft_relu_ = false;
         bool gelu_tanh_ = false;
         bool gelu_erf_ = false;
         bool log_ = false;
 
-        bool exp() const { return exp_ || soft_relu_ || gelu_erf_; }
+        bool exp() const { return exp_ || soft_relu_ || gelu_erf_ || mish_; }
+        bool mish() const { return mish_; }
         bool tanh() const { return tanh_ || gelu_tanh_; }
         bool soft_relu() const { return soft_relu_; }
         bool gelu_tanh() const { return gelu_tanh_; }
@@ -2137,6 +2223,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     push_entries_of(common_values);
     if (need.exp()) push_entries_of(exp_consts);
     if (need.exp()) push_entries_of(exp_polynomial);
+    if (need.mish()) push_entries_of(mish_consts);
     if (need.tanh()) push_entries_of(tanh_consts);
     if (need.tanh()) push_entries_of(tanh_polynomial_table);
     if (need.soft_relu()) push_entries_of(soft_relu_consts);

@@ -67,12 +67,13 @@ constexpr bool is_alg_supported(alg_kind_t alg) {
     return utils::one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
             eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
             eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-            eltwise_logsigmoid, eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
-            eltwise_log, eltwise_clip, eltwise_clip_v2, eltwise_pow,
-            eltwise_gelu_erf, eltwise_round, eltwise_relu_use_dst_for_bwd,
-            eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
-            eltwise_sqrt_use_dst_for_bwd, eltwise_logistic_use_dst_for_bwd,
-            eltwise_exp_use_dst_for_bwd, eltwise_clip_v2_use_dst_for_bwd);
+            eltwise_logsigmoid, eltwise_mish, eltwise_exp, eltwise_gelu_tanh,
+            eltwise_swish, eltwise_log, eltwise_clip, eltwise_clip_v2,
+            eltwise_pow, eltwise_gelu_erf, eltwise_round,
+            eltwise_relu_use_dst_for_bwd, eltwise_tanh_use_dst_for_bwd,
+            eltwise_elu_use_dst_for_bwd, eltwise_sqrt_use_dst_for_bwd,
+            eltwise_logistic_use_dst_for_bwd, eltwise_exp_use_dst_for_bwd,
+            eltwise_clip_v2_use_dst_for_bwd);
 }
 
 /*
@@ -215,6 +216,7 @@ private:
     void bounded_relu_compute_vector_fwd(const Vmm &vmm_src);
     void soft_relu_compute_vector_fwd(const Vmm &vmm_src);
     void logsigmoid_compute_vector_fwd(const Vmm &vmm_src);
+    void mish_compute_vector_fwd(const Vmm &vmm_src);
     void logistic_compute_vector_fwd(const Vmm &vmm_src);
     void gelu_tanh_compute_vector_fwd(const Vmm &vmm_src);
     void swish_compute_vector_fwd(const Vmm &vmm_src);
@@ -236,6 +238,7 @@ private:
     void soft_relu_compute_vector_bwd(const Vmm &vmm_src);
     void logistic_compute_vector_bwd(const Vmm &vmm_src);
     void logsigmoid_compute_vector_bwd(const Vmm &vmm_src);
+    void mish_compute_vector_bwd(const Vmm &vmm_src);
     void gelu_tanh_compute_vector_bwd(const Vmm &vmm_src);
     void swish_compute_vector_bwd(const Vmm &vmm_src);
     void log_compute_vector_bwd(const Vmm &vmm_src);
@@ -261,6 +264,10 @@ private:
         exp_ln_flt_max_f, // logf(FLT_MAX) - max normal value
         exp_ln_flt_min_f, // logf(FLT_MIN) - min normal value
         exp_pol, // see correspondent table for float values
+        // e^(2*x)+2*e^x+2 = FLT_MAX; x =~ 44.36141952603634
+        fwd_mish_max_x_for_equation_f,
+        // e^x(e^3x+4e^2x+e^x*(6+4*x)+4*(1+x)) = FLT_MAX; x =~ 22.18070976278534
+        bwd_mish_max_x_for_equation_f,
         tanh_idx_bias, // bias applied during index computation
         tanh_idx_mask, // mask applied to extract index
         tanh_linear_ubound, // arg below which tanh(x) = x
