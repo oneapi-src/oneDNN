@@ -319,6 +319,7 @@ static po_table_entry_t kind_table[] = {
         {pk_t::LOGISTIC_DST, "logistic_dst",
                 dnnl_eltwise_logistic_use_dst_for_bwd},
         {pk_t::LOGSIGMOID, "logsigmoid", dnnl_eltwise_logsigmoid},
+        {pk_t::MISH, "mish", dnnl_eltwise_mish},
         {pk_t::POW, "pow", dnnl_eltwise_pow},
         {pk_t::RELU, "relu", dnnl_eltwise_relu},
         {pk_t::RELU_DST, "relu_dst", dnnl_eltwise_relu_use_dst_for_bwd},
@@ -1144,6 +1145,7 @@ float compute_eltwise_fwd(
         case pk_t::BRELU: return scale * bounded_relu_fwd(src, alpha);
         case pk_t::SRELU: return scale * soft_relu_fwd(src);
         case pk_t::LOGSIGMOID: return scale * logsigmoid_fwd(src);
+        case pk_t::MISH: return scale * mish_fwd(src);
         case pk_t::LOGISTIC: return scale * logistic_fwd(src);
         case pk_t::EXP: return scale * exp_fwd(src);
         case pk_t::GELU_TANH: return scale * gelu_tanh_fwd(src);
@@ -1182,6 +1184,7 @@ float compute_eltwise_bwd(
         case pk_t::BRELU: return bounded_relu_bwd(d_dst, src, alpha);
         case pk_t::SRELU: return soft_relu_bwd(d_dst, src);
         case pk_t::LOGSIGMOID: return logsigmoid_bwd(d_dst, src);
+        case pk_t::MISH: return mish_bwd(d_dst, src);
         case pk_t::LOGISTIC: return logistic_bwd(d_dst, src);
         case pk_t::EXP: return exp_bwd(d_dst, src);
         case pk_t::GELU_TANH: return gelu_tanh_bwd(d_dst, src);
