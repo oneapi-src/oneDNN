@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -91,8 +91,8 @@ private:
         auto src0_dims = src0_desc.get_dims();
         auto bias_dims = default_src1_desc.get_dims();
 
-        dims new_src1_dims(src0_ndims, 0);
-        dims new_src1_strides(src0_ndims, 0);
+        dims new_src1_dims(static_cast<dims::size_type>(src0_ndims), 0);
+        dims new_src1_strides(static_cast<dims::size_type>(src0_ndims), 0);
 
         // in oneDNN, the channel dim will always be the second dim
         const size_t channel_dim = 1;
@@ -110,7 +110,7 @@ private:
         // for example src0 {8, 96, 224, 224}, bias {96} will be
         // unsequeeze to bias {1, 96, 1, 1}, and its format_tag
         // will be abcd
-        for (int i = 0; i < src0_ndims; i++) {
+        for (size_t i = 0; i < static_cast<size_t>(src0_ndims); i++) {
             new_src1_dims[i] = i == channel_dim ? bias_dims[0] : 1;
             new_src1_strides[i] = i == 0 ? bias_dims[0] : 1;
         }
@@ -279,8 +279,7 @@ public:
                 };
 
                 // FIXME(qun) assert(prepare_func()) will fail in pytest
-                bool ret = prepare_func();
-                assert(ret);
+                prepare_func();
 
                 src1_desc = new_src1_dest;
                 unidirectional_broadcast_ = true;
@@ -294,6 +293,7 @@ public:
                 bool ret = prepare_multidirectional_broadcast(
                         src0_desc, src1_desc, new_src0_dest, new_src1_dest);
                 assert(ret);
+                UNUSED(ret);
 
                 src0_desc = new_src0_dest;
                 src1_desc = new_src1_dest;
@@ -307,15 +307,14 @@ public:
             }
         }
 
-        algorithm alg_kind;
+        algorithm alg_kind = algorithm::undef;
         switch (anode->get_op_kind()) {
             case op_kind::BiasAdd:
             case op_kind::Add: alg_kind = algorithm::binary_add; break;
             case op_kind::Multiply: alg_kind = algorithm::binary_mul; break;
             case op_kind::Maximum: alg_kind = algorithm::binary_max; break;
             case op_kind::Minimum: alg_kind = algorithm::binary_min; break;
-            default:
-                assert(!"can't perform broadcast for current inputs shape");
+            default: return status::unsupported;
         }
 
         eng_ = make_dnnl_engine(*aengine);
@@ -333,6 +332,7 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
+        UNUSED(anode);
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         size_t src0_index = bin::kSrc0, src1_index = bin::kSrc1;

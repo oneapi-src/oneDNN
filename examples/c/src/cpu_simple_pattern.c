@@ -102,10 +102,10 @@ example_result_t create_simple_pattern_graph(
     CHECK_EXAMPLE(example_graph_create(graph));
 
     example_tensor_t *net = NULL;
-    net = Conv2d(*graph, "conv_0", input, 96, 11, 4, 0, 1, 1);
-    net = Relu(*graph, "relu_0", net);
-    net = Conv2d(*graph, "conv_1", net, 96, 3, 1, 0, 1, 1);
-    net = Relu(*graph, "relu_1", net);
+    net = createConv2d(*graph, "conv_0", input, 96, 11, 4, 0, 1, 1);
+    net = createRelu(*graph, "relu_0", net);
+    net = createConv2d(*graph, "conv_1", net, 96, 3, 1, 0, 1, 1);
+    net = createRelu(*graph, "relu_1", net);
 
     if (net == NULL) return example_result_error_common_fail;
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ public:
             const impl::engine_t *aengine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
+        UNUSED(anode);
         using desc = tensor::desc;
 
         const desc src {inputs.at(reorder_input::kSrc)};
@@ -60,8 +61,8 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
+        UNUSED(anode);
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
-
         tensor src_ts {inputs.at(reorder_input::kSrc), eng_, alc};
         tensor dst_ts {outputs.at(reorder_output::kDst), eng_, alc};
 

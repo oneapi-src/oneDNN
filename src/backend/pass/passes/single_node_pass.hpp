@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020 Intel Corporation
+ * Copyright 2020-2021 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,30 +39,31 @@ namespace pass {
                         anode->set_attr<std::string>("backend", #backend); \
                     });
 
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(avg_pool_pass, dnnl, AvgPool, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(avg_pool_bw_pass, dnnl, AvgPoolBackprop, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(bn_pass, dnnl, BatchNormInference, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(ln_pass, dnnl, LayerNorm, 8.f);
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(avg_pool_pass, dnnl, AvgPool, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(avg_pool_bw_pass, dnnl, AvgPoolBackprop, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(bn_pass, dnnl, BatchNormInference, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(ln_pass, dnnl, LayerNorm, 8.f)
 DNNL_GRAPH_SINGLE_NODE_TRANSFORM(
-        bn_bw_pass, dnnl, BatchNormTrainingBackprop, 8.f);
+        bn_bw_pass, dnnl, BatchNormTrainingBackprop, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(conv_pass, dnnl, Convolution, 8.f)
 DNNL_GRAPH_SINGLE_NODE_TRANSFORM(
-        conv_data_bw_pass, dnnl, ConvolutionBackpropData, 8.f);
+        conv_data_bw_pass, dnnl, ConvolutionBackpropData, 8.f)
 DNNL_GRAPH_SINGLE_NODE_TRANSFORM(
-        conv_filter_bw_pass, dnnl, ConvolutionBackpropFilters, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(matmul_pass, dnnl, MatMul, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(max_pool_pass, dnnl, MaxPool, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(max_pool_bw_pass, dnnl, MaxPoolBackprop, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(relu_pass, dnnl, ReLU, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(relu_bw_pass, dnnl, ReLUBackprop, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(gelu_pass, dnnl, GELU, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(gelu_bw_pass, dnnl, GELUBackprop, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(sum_pass, dnnl, Add, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(mul_pass, dnnl, Multiply, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(log_softmax_pass, dnnl, LogSoftmax, 8.f);
+        conv_filter_bw_pass, dnnl, ConvolutionBackpropFilters, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(matmul_pass, dnnl, MatMul, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(max_pool_pass, dnnl, MaxPool, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(max_pool_bw_pass, dnnl, MaxPoolBackprop, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(relu_pass, dnnl, ReLU, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(relu_bw_pass, dnnl, ReLUBackprop, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(gelu_pass, dnnl, GELU, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(gelu_bw_pass, dnnl, GELUBackprop, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(sum_pass, dnnl, Add, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(mul_pass, dnnl, Multiply, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(log_softmax_pass, dnnl, LogSoftmax, 8.f)
 DNNL_GRAPH_SINGLE_NODE_TRANSFORM(
-        log_softmax_bw_pass, dnnl, LogSoftmaxBackprop, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(softmax_pass, dnnl, SoftMax, 8.f);
-DNNL_GRAPH_SINGLE_NODE_TRANSFORM(softmax_bwd_pass, dnnl, SoftMaxBackprop, 8.f);
+        log_softmax_bw_pass, dnnl, LogSoftmaxBackprop, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(softmax_pass, dnnl, SoftMax, 8.f)
+DNNL_GRAPH_SINGLE_NODE_TRANSFORM(softmax_bwd_pass, dnnl, SoftMaxBackprop, 8.f)
 
 #undef DNNL_GRAPH_SINGLE_NODE_TRANSFORM
 

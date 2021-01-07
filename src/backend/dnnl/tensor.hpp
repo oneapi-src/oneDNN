@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -153,9 +153,9 @@ public:
 
             auto check = [&](const std::vector<int> &mem_order) -> bool {
                 bool status = true;
-                for (int i = 0; i < mem_order.size(); i++) {
+                for (size_t i = 0; i < mem_order.size(); i++) {
                     int64_t d_i_stride = 1;
-                    for (int j = i + 1; j < mem_order.size(); j++)
+                    for (size_t j = i + 1; j < mem_order.size(); j++)
                         d_i_stride *= dims[mem_order[j]];
                     status = status && d_i_stride == strides[mem_order[i]];
                 }
@@ -283,22 +283,6 @@ public:
                     && blk.inner_blks[0] == 4;
         }
 
-        // legacy API for caffe2
-        bool is_limited_blockable() const {
-            const auto &blk = blocking_desc();
-            // compute compatible block_dims with v0.x
-            dims block_dims(data.ndims, 1);
-            for (auto i = 0; i < blk.inner_nblks; i++) {
-                block_dims[blk.inner_idxs[i]] *= blk.inner_blks[i];
-            }
-            for (auto i = 0; i < data.ndims; i++) {
-                if (data.dims[i] < block_dims[i]) continue;
-                if (data.dims[i] % block_dims[i] == 0) continue;
-                return false;
-            }
-            return true;
-        }
-
         desc to_format(format_tag aformat_tag) const {
             auto ret = desc(get_internal_dims(), get_data_type(), aformat_tag);
             ret.set_g(g());
@@ -328,6 +312,7 @@ public:
         }
 
         desc to_grouped(dim groups, bool is_deconv = false) const {
+            UNUSED(is_deconv);
             auto grouped_dims = utils::group_dims(get_internal_dims(), groups);
             auto grouped_desc = desc(grouped_dims, get_data_type());
             grouped_desc.set_g(groups);
@@ -346,7 +331,7 @@ public:
 
             auto perms = permute_axes;
             if (perms.empty()) {
-                perms.resize(data.ndims);
+                perms.resize(static_cast<std::size_t>(data.ndims));
                 std::iota(perms.rbegin(), perms.rend(), 0);
             } else {
                 BACKEND_DNNL_ENFORCE(perms.size() == data.ndims,
@@ -377,7 +362,7 @@ public:
             auto &old_paddim = data.padded_dims;
             auto &new_padoff = new_desc.data.padded_offsets;
             auto &old_padoff = data.padded_offsets;
-            for (int i = 0; i < ndims; i++) {
+            for (size_t i = 0; i < static_cast<size_t>(ndims); i++) {
                 new_dims[i] = old_dims[perms[i]];
                 new_stride[i] = old_stride[perms[i]];
                 new_paddim[i] = old_paddim[perms[i]];
@@ -393,8 +378,9 @@ public:
             auto &old_inner_blks = data.format_desc.blocking.inner_blks;
             auto &new_inner_blks
                     = new_desc.data.format_desc.blocking.inner_blks;
-            for (int i = 0; i < inner_nblks; i++) {
-                new_inner_idxs[i] = perms[old_inner_idxs[i]];
+            for (size_t i = 0; i < static_cast<size_t>(inner_nblks); i++) {
+                new_inner_idxs[i]
+                        = perms[static_cast<std::size_t>(old_inner_idxs[i])];
                 new_inner_blks[i] = old_inner_blks[i];
             }
 
@@ -402,9 +388,10 @@ public:
         }
 
         desc transpose(dim dim0, dim dim1) const {
-            std::vector<int> axes(data.ndims);
+            std::vector<int> axes(static_cast<std::size_t>(data.ndims));
             std::iota(axes.begin(), axes.end(), 0);
-            std::swap(axes[dim0], axes[dim1]);
+            std::swap(axes[static_cast<std::size_t>(dim0)],
+                    axes[static_cast<std::size_t>(dim1)]);
             return permute(axes);
         }
 
@@ -431,7 +418,7 @@ public:
                 block_size *= blk.inner_blks[iblk];
             }
 
-            for (int d = 0; d < data.ndims; ++d) {
+            for (size_t d = 0; d < static_cast<size_t>(data.ndims); ++d) {
                 md.dims[d] = adims[d];
                 md.padded_dims[d] = utils::rnd_up(adims[d], blocks[d]);
                 md.padded_offsets[d] = 0;
@@ -449,7 +436,8 @@ public:
             for (int d = 0; d < data.ndims; ++d)
                 perm[d] = d;
 
-            utils::simultaneous_sort(mblk.strides, perm, data.ndims,
+            utils::simultaneous_sort(mblk.strides, perm,
+                    static_cast<size_t>(data.ndims),
                     [](dim_t a, dim_t b) { return b - a; });
 
             dim_t stride = block_size;
@@ -459,7 +447,7 @@ public:
                 stride *= md.padded_dims[d] / blocks[d];
             }
 
-            md.extra = dnnl_memory_extra_desc_t {};
+            md.extra = dnnl_memory_extra_desc_t();
 
             return desc(md);
         }

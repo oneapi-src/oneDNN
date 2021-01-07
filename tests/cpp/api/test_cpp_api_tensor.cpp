@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -102,25 +102,19 @@ TEST(api_tensor, shallow_copy) {
     ASSERT_EQ(t_1.get_element_num(), t_2.get_element_num());
 }
 
-template <typename T>
-class tensor_test : public ::testing::Test {};
-
-// TODO(Rong): int64_t, uint64_t, double>;
-using tested_types = ::testing::Types<int8_t, float>;
-
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-#endif
-TYPED_TEST_SUITE(tensor_test, tested_types);
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
-
-TYPED_TEST(tensor_test, create_with_logical_tensor) {
+TEST(tensor_test, create_with_logical_tensor_f32) {
     using namespace dnnl::graph;
     logical_tensor lt {0, logical_tensor::data_type::f32,
             logical_tensor::layout_type::any};
+    tensor t {lt, nullptr};
+
+    ASSERT_EQ(t.get_element_num(), -1);
+}
+
+TEST(tensor_test, create_with_logical_tensor_s8) {
+    using namespace dnnl::graph;
+    logical_tensor lt {
+            0, logical_tensor::data_type::s8, logical_tensor::layout_type::any};
     tensor t {lt, nullptr};
 
     ASSERT_EQ(t.get_element_num(), -1);

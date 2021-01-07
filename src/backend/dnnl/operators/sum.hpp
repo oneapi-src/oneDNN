@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ struct sum : public dnnl::sum {
 
     static void compute(const scale_t &scales, const std::vector<tensor> &srcs,
             tensor &dst, const dnnl::engine &aengine, impl::allocator_t *alc) {
+        UNUSED(alc);
         auto src_descs = utils::fmap(srcs, [](const tensor &t) {
             // "upcast" vector<tensor::desc> to vector<memory::desc>
             return static_cast<memory::desc>(t.get_desc());

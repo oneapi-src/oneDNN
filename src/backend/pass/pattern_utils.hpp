@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ struct op_set {
 template <typename getinput>
 bool should_swap_inputs(
         node_t *graph_node, node_t *pattern_node, getinput get_input) {
-    const auto get_op_kind_ = [&](node_t *node_, int idx) {
+    const auto get_op_kind_ = [&](node_t *node_, size_t idx) {
         return get_input(node_, idx)->get_op_kind();
     };
     const auto pin_0 = get_op_kind_(pattern_node, 0);

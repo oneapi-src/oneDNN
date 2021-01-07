@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -115,6 +115,7 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
+        UNUSED(anode);
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         tensor x {inputs.at(eltwise::kSrc), eng_, alc};
@@ -161,12 +162,13 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
+        UNUSED(anode);
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         tensor x1 {inputs.at(eltwise::kSrc + 1), eng_, alc};
         tensor x2 {inputs.at(eltwise::kDst), eng_, alc};
         tensor y {outputs.at(eltwise::kSrc), eng_, alc};
-        compute(x1, x2, y, eng_, alc, algo_, alpha_, beta_);
+        compute(x1, x2, y, eng_, alc);
         return impl::status::success;
     }
 
@@ -174,9 +176,8 @@ private:
     // If grady and x had different format, performance is bad.
     // TODO(xxx): Seeking a single shot solution.
     void compute(const tensor &src, const tensor &diff_dst, tensor &diff_src,
-            const dnnl::engine &aengine, impl::allocator_t *alc,
-            algorithm aalgorithm = algorithm::eltwise_relu, float alpha = 0.0,
-            float beta = 0.0) {
+            const dnnl::engine &aengine, impl::allocator_t *alc) {
+        UNUSED(alc);
         auto expected_diff_dst
                 = diff_dst.reorder_if_differ_in(pd_.diff_dst_desc());
         auto expected_src = src.reorder_if_differ_in(pd_.src_desc());

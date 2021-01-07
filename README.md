@@ -39,7 +39,7 @@ oneDNN Graph Library will support systems based on
 oneDNN Graph supports systems meeting the following requirements:
 * Operating system with Intel 64 architecture support
 * C++ compiler with C++11 standard support
-* [CMake](https://cmake.org/download/) 3.9 or later
+* [CMake](https://cmake.org/download/) 2.8.11 or later
 * [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
   to build the documentation
 

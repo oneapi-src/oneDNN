@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ inline std::pair<std::vector<float>, std::vector<float>> compute_scales(
     auto scale_size = weight_scales.size();
     std::vector<float> bias_scales(scale_size), op_scales(scale_size);
 
-    for (int i = 0; i < scale_size; i++) {
+    for (size_t i = 0; i < scale_size; i++) {
         bias_scales[i] = src_scale * weight_scales[i];
         op_scales[i] = dst_scale / bias_scales[i];
     }
@@ -102,9 +102,9 @@ template <typename T, typename U, typename F>
 inline void simultaneous_sort(T *vals, U *keys, size_t size, F comparator) {
     if (size == 0) return;
 
-    for (auto i = 0; i < size - 1; ++i) {
+    for (size_t i = 0; i < size - 1; ++i) {
         bool swapped = false;
-        for (auto j = 0; j < size - i - 1; j++) {
+        for (size_t j = 0; j < size - i - 1; j++) {
             if (comparator(vals[j], vals[j + 1]) > 0) {
                 std::swap(vals[j], vals[j + 1]);
                 if (keys) std::swap(keys[j], keys[j + 1]);

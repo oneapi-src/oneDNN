@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020 Intel Corporation
+ * Copyright 2020-2021 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -555,7 +555,7 @@ public:
     void parse_op_attr(const op_t *l_op) {
         status_t state = status::success;
         for (const auto &a : l_op->attributes()) {
-            attribute_kind_t kind;
+            attribute_kind_t kind = attribute_kind::f;
             state = l_op->kind_of(a.first, kind);
             assertm(state == status::success,
                     "failed to query the kind of attribute according to the "

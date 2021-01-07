@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -104,10 +104,8 @@ public:
     pass_base(pass_type ptype, std::string pbackend, std::string pname);
     pass_base() {};
 
-    virtual ~pass_base() = default;
-
     // the criteria of pass execution
-    virtual void run(graph &agraph) {}
+    virtual void run(graph &agraph) { UNUSED(agraph); }
     // save pass basic information into json
     virtual void save(json::json_writer *writer) {
         writer->begin_object();
@@ -133,6 +131,8 @@ public:
         helper.declare_field("enable", &enable_);
         helper.read_fields(reader);
     }
+
+    virtual ~pass_base() = default;
 
     pass_type get_pass_type() { return type_; }
 

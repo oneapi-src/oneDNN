@@ -69,6 +69,9 @@ function(build_doc)
         COMMENT "Generating API documentation with Doxygen" VERBATIM)
 
     add_custom_target(doc DEPENDS ${DOXYGEN_STAMP_FILE})
+
+    install(DIRECTORY ${DOXYGEN_OUTPUT_DIR}
+        DESTINATION share/doc/${LIB_NAME} OPTIONAL)
 endfunction()
 
 build_doc()

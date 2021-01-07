@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -184,6 +184,7 @@ private:
             const tensor &variance, const tensor &scale, const tensor &shift,
             tensor &dst, float epsilon, const dnnl::engine &aengine,
             impl::allocator_t *alc) {
+        UNUSED(epsilon);
         // copy scale and shift to scale_shift tensor and cache it
         if (disable_cache_data_ || scale_shift_.is_empty()) {
             if (scale_shift_.is_empty())
@@ -346,6 +347,7 @@ private:
             tensor &dst, tensor &mean, tensor &variance, float momentum,
             float epsilon, impl::allocator_t *alc) {
         UNUSED(momentum);
+        UNUSED(epsilon);
 
         original_dst_ = dst;
         scale_shift_ = tensor {pd_.weights_desc(), eng_, alc};
@@ -516,8 +518,8 @@ private:
     void compute_impl(tensor &src, tensor &mean, tensor &variance,
             tensor &diff_dst, const tensor &scale, tensor &diff_src,
             const dnnl::engine &aengine, impl::allocator_t *alc) {
+        UNUSED(alc);
         // TODO(xxx): support no-affine model
-        auto flags = normalization_flag::use_scale_shift;
         original_diff_src_ = diff_src;
 
         diff_dst.reinit_if_possible(pd_.diff_dst_desc());

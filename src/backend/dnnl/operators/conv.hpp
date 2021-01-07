@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -189,8 +189,6 @@ private:
 
     float epsilon_; // bn epsilon
 
-    bool is_training_;
-
     // FIXME(qun) NOT well designed
     /// \note Currently we don't have enough information from framework to
     /// decide cache or not. Also we think that caching data in a library
@@ -340,7 +338,7 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
-        const op_kind_t conv_kind = anode->get_op_kind();
+        UNUSED(anode);
         auto &src_lt = const_cast<impl::logical_tensor_t &>(
                 inputs.at(conv::kSrc).get_logical_tensor());
         auto &weight_lt = const_cast<impl::logical_tensor_t &>(
@@ -350,7 +348,7 @@ public:
         const impl::tensor &impl_bias
                 = with_bias_ ? inputs.at(conv::kBias) : impl::tensor {};
 
-        impl::logical_tensor_t post_src_lt {};
+        impl::logical_tensor_t post_src_lt;
         if (with_sum_) {
             post_src_lt = const_cast<impl::logical_tensor_t &>(
                     inputs.back().get_logical_tensor());
@@ -531,7 +529,7 @@ public:
 
 private:
     static algorithm get_eltwise_algo(op_kind_t kind) {
-        switch (kind) {
+        switch (static_cast<int>(kind)) {
             case op_kind::conv_add_relu:
             case op_kind::conv_bias_add_relu:
             case op_kind::conv_bias_bn_add_relu:
@@ -559,11 +557,13 @@ private:
 
             default: BACKEND_DNNL_ENFORCE(0, "Unsupported fused_eltwise op.");
         }
+        return algorithm::undef;
     }
 
     static std::vector<int64_t> get_output_dims(const tensor &x,
             const tensor &kernel, const dims &stride, const dims &pads_begin,
             const dims &pads_end, const dims &dilations, int64_t groups) {
+        UNUSED(groups);
         std::vector<int64_t> kernel_size(static_cast<size_t>(x.ndims()));
         auto dilations_ = utils::get_compatible_dilates(dilations);
         if (kernel.ndims() == x.ndims() + 1) {
@@ -606,6 +606,9 @@ private:
             const prop_kind aprop_kind = prop_kind::forward,
             const op_kind_t kind = op_kind::Convolution,
             const float alpha = 0.f, const float beta = 0.f) {
+        UNUSED(kind);
+        UNUSED(alpha);
+        UNUSED(beta);
         tensor::desc src_desc, weights_desc, bias_desc;
         attr_t op_attr;
 
@@ -707,8 +710,6 @@ public:
                                 .reorder_weight_dims_strides();
         }
 
-        const op_kind_t conv_kind = anode->get_op_kind();
-
         const desc diff_dst_desc {diff_dst_lt};
 
         const desc weights_desc {weight_lt};
@@ -759,7 +760,6 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
-        const op_kind_t conv_kind = anode->get_op_kind();
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         auto &weight_lt = const_cast<impl::logical_tensor_t &>(
@@ -781,33 +781,22 @@ public:
                                 .reorder_data_dims_strides();
         }
 
-        const auto &diff_src_dims
-                = impl::logical_tensor_wrapper(diff_src_lt).vdims();
-
         const tensor diff_dst {diff_dst_lt, eng_, alc,
                 inputs.at(conv_bwd_data::kDiffdst).get_data_handle()};
         const tensor weights {weight_lt, eng_, alc,
                 inputs.at(conv_bwd_data::kWeight).get_data_handle()};
         tensor diff_src {diff_src_lt, eng_, alc,
                 outputs.at(conv_bwd_data::kDiffsrc).get_data_handle()};
-        compute(diff_dst, weights, diff_src_dims, diff_src, eng_, alc);
+        compute(diff_dst, weights, diff_src, eng_, alc);
         return impl::status::success;
     }
 
 private:
     void compute(const tensor &diff_dst, const tensor &weights,
-            const dims &diff_src_dims, tensor &diff_src,
-            const dnnl::engine &aengine, impl::allocator_t *alc) {
+            tensor &diff_src, const dnnl::engine &aengine,
+            impl::allocator_t *alc) {
         // make weights and dilates compatible with DNNL
         auto weights_ = weights.make_grouped_weights(groups_);
-
-        auto diff_dst_desc = diff_dst.get_desc().to_format_any();
-        // align weight data type with diff_dst for bf16
-        auto weights_desc = weights_.get_desc().to_format_any().to_type(
-                diff_dst.get_data_type());
-
-        auto diff_src_desc = tensor::desc(
-                diff_src_dims, diff_dst_desc.get_data_type(), tag::any);
 
         auto expected_diff_dst
                 = diff_dst.reorder_if_differ_in(pd_.diff_dst_desc());
@@ -970,8 +959,6 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
-        const op_kind_t conv_kind = anode->get_op_kind();
-
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         auto &src_lt = const_cast<impl::logical_tensor_t &>(
@@ -1032,6 +1019,7 @@ private:
             const dims &diff_weights_dims, tensor &diff_weights,
             tensor &diff_bias, const dnnl::engine &aengine,
             impl::allocator_t *alc) {
+        UNUSED(diff_weights_dims);
         auto expected_diff_dst
                 = diff_dst.reorder_if_differ_in(pd_.diff_dst_desc());
         auto expected_src = src.reorder_if_differ_in(pd_.src_desc());

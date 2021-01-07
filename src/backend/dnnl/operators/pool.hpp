@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,6 +60,7 @@ private:
 public:
     void compute(const tensor &src, const dims &output_sizes, tensor &dst,
             const dnnl::engine &aengine, impl::allocator_t *alc) {
+        UNUSED(output_sizes);
         bool with_workspace = prop_kind_ == prop_kind::forward_training
                 && algo_ == dnnl::algorithm::pooling_max;
 
@@ -185,7 +186,6 @@ private:
     dnnl::pooling_v2_forward::primitive_desc forward_hints_;
     primitive_desc pd_;
     op_kind_t kind_;
-    bool is_training_ {true};
 
     dnnl::engine eng_;
 
@@ -251,8 +251,8 @@ public:
         dims pads_end = anode->get_attr<dims>("pads_end");
 
         kind_ = anode->get_op_kind();
-        algorithm algo;
-        dims dilations;
+        algorithm algo = algorithm::undef;
+        dims dilations {};
         if (kind_ == op_kind::AvgPoolBackprop) {
             bool exclude_pad = anode->get_attr<bool>("exclude_pad");
             algo = exclude_pad ? algorithm::pooling_avg_exclude_padding
@@ -265,7 +265,7 @@ public:
             std::for_each(dilations.begin(), dilations.end(),
                     [](dim_t &v) { v -= 1; });
         } else {
-            BACKEND_DNNL_ENFORCE(0, "Unsupported pool_backward op.");
+            return status::unsupported;
         }
 
         eng_ = make_dnnl_engine(*aengine);

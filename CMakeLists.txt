@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 2.8.11)
 message(STATUS "cmake version: ${CMAKE_VERSION}")
 
 # https://github.com/oneapi-src/oneDNN/blob/master/CMakeLists.txt
@@ -80,34 +80,51 @@ endif()
 
 # oneDNN Graph
 
-set(PROJECT_CONFIG_INSTALL_NAME "dnnl_graph")
+set(LIB_NAME dnnl_graph)
 set(PROJECT_NAME "oneDNN Graph")
 set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library Graph API (oneDNN Graph)")
 set(PROJECT_VERSION 0.1.0)
 
-# todo(wuxun): cmake down grade, minimum version 2.8.11
-cmake_policy(SET CMP0048 NEW)
-project(${PROJECT_NAME} VERSION "${PROJECT_VERSION}" LANGUAGES C CXX)
+if (CMAKE_VERSION VERSION_LESS 3.0)
+    project(${PROJECT_NAME} C CXX)
+else()
+    cmake_policy(SET CMP0048 NEW)
+    project(${PROJECT_NAME} VERSION "${PROJECT_VERSION}" LANGUAGES C CXX)
+endif()
+
+string(REPLACE "." ";" VERSION_LIST ${PROJECT_VERSION})
+list(GET VERSION_LIST 0 DNNL_GRAPH_VERSION_MAJOR)
+list(GET VERSION_LIST 1 DNNL_GRAPH_VERSION_MINOR)
+list(GET VERSION_LIST 2 DNNL_GRAPH_VERSION_PATCH)
+
+if(MSVC)
+    message(FATAL_ERROR "oneDNN Graph doesn't support MSVC at this moment.")
+endif()
+
+if(UNIX OR MINGW)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+endif()
 
 # if gcc version is less than gcc 5, DNNL_GRAPH_SUPPORT_CXX17 should set OFF
 option(DNNL_GRAPH_SUPPORT_CXX17 "uses features from c++ standard 17" OFF)
 if(DNNL_GRAPH_SUPPORT_CXX17)
-    message(STATUS "cmake version: ${CMAKE_VERSION}")
-    set(CMAKE_CXX_STANDARD 17) # Requires CMake 3.8+
-    add_definitions(-DDNNL_GRAPH_SUPPORT_CXX17)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5)
+        message(FATAL_ERROR "Current compiler version does not support C++17 features. Please undefine DNNL_GRAPH_SUPPORT_CXX17.")
+    endif()
+    if(NOT APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5)
+        message(WARNING "Current compiler version may not support full C++17 features. Please undefine DNNL_GRAPH_SUPPORT_CXX17 if fail to build.")
+    endif()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+    add_definitions(-DDNNL_GRAPH_SUPPORT_CXX17=1)
 else()
-    set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 endif()
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(DNNL_GRAPH_VERBOSE
     "allows oneDNN Graph library be verbose whenever DNNL_GRAPH_VERBOSE
     environment variable set to 1, 2 or 3" ON) # enabled by default
-
-if(MSVC)
-    message(FATAL_ERROR "oneDNN Graph doesn't support MSVC at this moment.")
-endif()
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "oneDNN supports 64 bit platforms only")
@@ -134,28 +151,23 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 include("cmake/build_oneDNN.cmake")
 
-set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}
-    -Wall
-    -Wextra
-    -pedantic
-    -Wconversion
-    -Wno-sign-compare
-    -Wunreachable-code
-    )
+set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Wall -Wextra -pedantic -Wconversion -Wno-sign-compare -Wunreachable-code")
 
 if(DNNL_GRAPH_WITH_SYCL)
     # Inhibit all warning messages from sycl
-    set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS} -w -Wno-deprecated-declarations)
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-w -Wno-deprecated-declarations")
 else()
-    set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS} -Werror -Wfatal-errors)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+        # suppress some warnings for gtest header files when built with Clang
+        append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-w -Werror")
+    else()
+        append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Werror -Wfatal-errors")
+    endif()
 endif()
 
 if(${COVERAGE_REPORT})
     message("Compiling oneDNN Graph with coverage support")
-    set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}
-        -fprofile-arcs
-        -ftest-coverage
-        )
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-fprofile-arcs -ftest-coverage")
     set(DNNL_GRAPH_COMMON_LINK_FLAGS ${DNNL_GRAPH_COMMON_LINK_FLAGS}
         -lgcov
         -fprofile-arcs
@@ -165,12 +177,10 @@ endif()
 
 if(${DNNL_GRAPH_ENABLE_ASAN})
     message(STATUS "Build oneDNN Graph with AddressSanitizer")
-    set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}
-        -fsanitize=address
-        -fno-omit-frame-pointer
-        -fno-var-tracking
-        -g
-        )
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-fsanitize=address -fno-omit-frame-pointer -fno-var-tracking")
+    if (NOT CMAKE_BUILD_TYPE MATCHES "[Dd]ebug")
+        append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-g")
+    endif()
     set(DNNL_GRAPH_COMMON_LINK_FLAGS ${DNNL_GRAPH_COMMON_LINK_FLAGS}
         -fsanitize=address
         -fno-omit-frame-pointer
@@ -178,8 +188,7 @@ if(${DNNL_GRAPH_ENABLE_ASAN})
 endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}
-        -Wno-gnu-statement-expression)
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Wno-gnu-statement-expression")
 endif()
 
 include("cmake/check_headers.cmake")
@@ -187,52 +196,11 @@ include("cmake/Doxygen.cmake")
 
 enable_testing()
 
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
 add_subdirectory(src)
 add_subdirectory(tests/cpp)
 add_subdirectory(examples/c)
 add_subdirectory(examples/cpp)
 
-#-----------------------------------------------------------------------------------------------
-# Installation logic...
-#-----------------------------------------------------------------------------------------------
-
-if(CMAKE_VERSION VERSION_LESS "3.13")
-    return()
-endif()
-
-include(GNUInstallDirs)
-include(CMakePackageConfigHelpers)
-
-# installing targets in subdirectories require cmake 3.13+
-set(DNNL_GRAPH_EXPORT_NAME "dnnl-graph-targets")
-install(TARGETS dnnl_graph dnnl_graph_static
-    EXPORT ${DNNL_GRAPH_EXPORT_NAME}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-    )
-
-set(DNNL_GRAPH_CONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_CONFIG_INSTALL_NAME}")
-install(EXPORT ${DNNL_GRAPH_EXPORT_NAME}
-    FILE dnnl-graph-targets.cmake
-    NAMESPACE dnnl_graph::
-    DESTINATION ${DNNL_GRAPH_CONFIG_INSTALL_DIR}
-    )
-
-configure_package_config_file(dnnlgraphConfig.cmake.in
-    ${PROJECT_BINARY_DIR}/dnnl-graph-config.cmake
-    INSTALL_DESTINATION ${DNNL_GRAPH_CONFIG_INSTALL_DIR}
-    )
-
-write_basic_package_version_file(
-    ${PROJECT_BINARY_DIR}/dnnl-graph-config-version.cmake
-    VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
-    )
-
-install(FILES
-    ${PROJECT_BINARY_DIR}/dnnl-graph-config.cmake
-    ${PROJECT_BINARY_DIR}/dnnl-graph-config-version.cmake
-    DESTINATION ${DNNL_GRAPH_CONFIG_INSTALL_DIR}
-    )

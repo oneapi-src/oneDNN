@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -118,11 +118,13 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
+        UNUSED(anode);
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         tensor x {inputs.at(inner_product::kSrc), eng_, alc};
         tensor w {inputs.at(inner_product::kWeight), eng_, alc};
         tensor y {outputs.at(inner_product::kDst), eng_, alc};
+
         if (inputs.size() > inner_product::kBias) {
             tensor b {inputs.at(inner_product::kBias), eng_, alc};
             compute(x, w, b, y, eng_, alc, prop_kind::forward_inference);
@@ -187,10 +189,10 @@ private:
     void compute_impl_(const tensor &src, const tensor &weights,
             const tensor &bias, tensor &dst, const prop_kind aprop_kind,
             const dnnl::engine &aengine, impl::allocator_t *alc) {
+        UNUSED(aprop_kind);
+        UNUSED(alc);
         tensor::desc src_desc, weights_desc, bias_desc;
         attr_t op_attr, src_attr, weights_attr, bias_attr;
-        data_type dst_data_type;
-        auto dst_dims = {src.get_dim(0), weights.get_dim(0)};
 
         auto expected_src = src.reorder_if_differ_in(pd_.src_desc(), src_attr);
         auto expected_weights = weights.reorder_if_differ_in(

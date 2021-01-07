@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -121,9 +121,10 @@ public:
         fill_layout_info(ori_dst_lt, optimal_dst_desc);
 
         if (keep_stats_) {
-            if (outputs.size() < 3)
+            if (outputs.size() < 3) {
                 BACKEND_DNNL_ENFORCE(
                         0, "Wrong output number for layernorm compile");
+            }
             const tensor::desc optimal_mean_desc {pd_.mean_desc()};
             impl::logical_tensor_t *ori_mean_lt
                     = const_cast<impl::logical_tensor_t *>(
@@ -143,6 +144,7 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
+        UNUSED(anode);
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         tensor src {inputs.at(layernorm::kSrc), eng_, alc};
@@ -158,9 +160,10 @@ public:
         tensor scale;
         tensor shift;
         if (use_affine_) {
-            if (inputs.size() < 3)
+            if (inputs.size() < 3) {
                 BACKEND_DNNL_ENFORCE(
                         0, "Wrong input number for layernorm execute");
+            }
             scale = tensor {inputs.at(layernorm::kScale), eng_, alc};
             shift = tensor {inputs.at(layernorm::kShift), eng_, alc};
         }
@@ -175,9 +178,10 @@ public:
             expected_dst_ = dst;
 
         if (keep_stats_) {
-            if (outputs.size() < 3)
+            if (outputs.size() < 3) {
                 BACKEND_DNNL_ENFORCE(
                         0, "Wrong output number for layernorm execute");
+            }
             mean = tensor {outputs.at(layernorm::kMean), eng_, alc};
             variance = tensor {outputs.at(layernorm::kVariance), eng_, alc};
 

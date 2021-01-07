@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020 Intel Corporation
+# Copyright 2020-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,14 +19,19 @@ if(NOT DNNL_GRAPH_BUILD_TESTS)
 endif()
 
 set(gtest_hide_internal_symbols ON CACHE BOOL "" FORCE)
-add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/gtest/googletest
-    ${CMAKE_BINARY_DIR}/third_party/gtest/googletest)
+add_subdirectory(${CMAKE_SOURCE_DIR}/tests/gtest
+    ${CMAKE_BINARY_DIR}/tests/gtest)
 
 enable_testing()
 
+append(CMAKE_CXX_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
+append(CMAKE_C_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
+
 if(UNIX)
     if(APPLE)
-        set(DNNL_GRAPH_TEST_LINK_FLAGS "-Wl,-fatal_warnings")
+        # TODO(wuxun): now it will fail to build with macOS in Debug mode, need
+        # to enable again once the root cause is found
+        #set(DNNL_GRAPH_TEST_LINK_FLAGS "-Wl,-fatal_warnings")
     else()
         set(DNNL_GRAPH_TEST_LINK_FLAGS "-Wl,--fatal-warnings")
     endif()
@@ -50,29 +55,28 @@ set(DNNL_GRAPH_API_TEST_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/api/test_c_api_compile_parametrized.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/api/test_api_common.cpp
     )
-add_executable(dnnl_graph_api_test ${DNNL_GRAPH_API_TEST_SRCS})
-set_target_properties(dnnl_graph_api_test PROPERTIES CXX_VISIBILITY_PRESET "hidden")
-set_target_properties(dnnl_graph_api_test PROPERTIES VISIBILITY_INLINES_HIDDEN 1)
-target_link_libraries(dnnl_graph_api_test
-    PRIVATE
+add_executable(${LIB_NAME}_api_test ${DNNL_GRAPH_API_TEST_SRCS})
+set_target_properties(${LIB_NAME}_api_test PROPERTIES CXX_VISIBILITY_PRESET "hidden")
+set_target_properties(${LIB_NAME}_api_test PROPERTIES VISIBILITY_INLINES_HIDDEN 1)
+target_link_libraries(${LIB_NAME}_api_test
+    LINK_PRIVATE
     ${DNNL_GRAPH_TEST_LINK_FLAGS}
-    gtest
-    gtest_main
-    dnnl_graph # Use shared to prevent accidental access to private symbols
+    ${LIB_NAME}_gtest
+    ${LIB_NAME} # Use shared to prevent accidental access to private symbols
     ${DNNL_GRAPH_SYCL_LINK_FLAGS}
     ${DNNL_GRAPH_COMMON_LINK_FLAGS} # FIXME: consider target_link_options from cmake 3.13
     )
-target_include_directories(dnnl_graph_api_test
-    SYSTEM PRIVATE
+target_include_directories(${LIB_NAME}_api_test
+    PRIVATE
     ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
+    ${PROJECT_SOURCE_DIR}/tests # gtest related headers
     PRIVATE
     ${PROJECT_SOURCE_DIR}/include
     )
-target_compile_options(dnnl_graph_api_test PRIVATE ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
 
 # These files access internal api and needs visibility options set to avoid warnings on macos
-add_library(dnnl_graph_unit_test_objlib OBJECT
+add_library(${LIB_NAME}_unit_test_objlib OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/unit_test_common.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_allocator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_compile.cpp
@@ -89,39 +93,36 @@ add_library(dnnl_graph_unit_test_objlib OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_pass.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_utils.cpp
     )
-set_target_properties(dnnl_graph_unit_test_objlib PROPERTIES CXX_VISIBILITY_PRESET "hidden")
-set_target_properties(dnnl_graph_unit_test_objlib PROPERTIES VISIBILITY_INLINES_HIDDEN 1)
-target_compile_options(dnnl_graph_unit_test_objlib PRIVATE ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
+set_target_properties(${LIB_NAME}_unit_test_objlib PROPERTIES CXX_VISIBILITY_PRESET "hidden")
+set_target_properties(${LIB_NAME}_unit_test_objlib PROPERTIES VISIBILITY_INLINES_HIDDEN 1)
 # Set path to exported and non exported headers
-target_include_directories(dnnl_graph_unit_test_objlib
-    SYSTEM PRIVATE
+target_include_directories(${LIB_NAME}_unit_test_objlib
+    PRIVATE
     ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
-    ${PROJECT_SOURCE_DIR}/third_party/gtest/googletest/include # Public but need to set manually for OBJECT target
+    ${PROJECT_SOURCE_DIR}/tests # gtest related headers
     PRIVATE
     ${PROJECT_SOURCE_DIR}/src/
     ${PROJECT_SOURCE_DIR}/include # Public but need to set manually for OBJECT target
     )
 
-add_executable(dnnl_graph_unit_test $<TARGET_OBJECTS:dnnl_graph_unit_test_objlib>)
+add_executable(${LIB_NAME}_unit_test $<TARGET_OBJECTS:${LIB_NAME}_unit_test_objlib>)
 # Set path to non exported headers
-target_include_directories(dnnl_graph_unit_test
-    SYSTEM PRIVATE
+target_include_directories(${LIB_NAME}_unit_test
+    PRIVATE
     ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
     PRIVATE
     ${PROJECT_SOURCE_DIR}/src/
     )
-target_link_libraries(dnnl_graph_unit_test
-    PRIVATE
+target_link_libraries(${LIB_NAME}_unit_test
+    LINK_PRIVATE
     ${DNNL_GRAPH_TEST_LINK_FLAGS}
-    gtest
-    gtest_main
-    dnnl_graph_static # Use static to access private symbols not available in public API
+    ${LIB_NAME}_gtest
+    ${LIB_NAME}_static # Use static to access private symbols not available in public API
     dl
     ${DNNL_GRAPH_COMMON_LINK_FLAGS} # FIXME: consider target_link_options from cmake 3.13
     )
-target_compile_options(dnnl_graph_unit_test PRIVATE ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
 
-add_test("dnnl_graph_api_test" "dnnl_graph_api_test")
-add_test("dnnl_graph_unit_test" "dnnl_graph_unit_test")
+add_test("${LIB_NAME}_api_test" "${LIB_NAME}_api_test")
+add_test("${LIB_NAME}_unit_test" "${LIB_NAME}_unit_test")

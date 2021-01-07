@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,15 +69,19 @@ struct bn_fusion {
             const tensor &variance, const tensor &scale, const tensor &shift,
             float epsilon, const dnnl::engine &eng, impl::allocator_t *alc) {
         const data_type weights_dtype = weights.get_data_type();
-        BACKEND_DNNL_TYPE_DISPATCH(weights_dtype, dtype, {
 #ifdef DNNL_GRAPH_WITH_SYCL
+        BACKEND_DNNL_TYPE_DISPATCH(weights_dtype, dtype, {
             folding_sycl_impl<dtype>(updated_weights, updated_bias, weights,
                     bias, mean, variance, scale, shift, epsilon, eng, alc);
+        });
 #else
+        UNUSED(eng);
+        UNUSED(alc);
+        BACKEND_DNNL_TYPE_DISPATCH(weights_dtype, dtype, {
             folding_impl<dtype>(updated_weights, updated_bias, weights, bias,
                     mean, variance, scale, shift, epsilon);
-#endif
         });
+#endif
     }
 
 private:

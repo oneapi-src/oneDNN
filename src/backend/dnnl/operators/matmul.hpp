@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -133,14 +133,6 @@ private:
 
     float epsilon_; // bn epsilon
 
-    bool is_training_;
-
-    // FIXME(qun) NOT well designed
-    /// \note Currently we don't have enough information from framework to
-    /// decide cache or not. Also we think that caching data in a library
-    /// is not safe at this moment.
-    bool disable_cache_data_ {true};
-
     // inner_product primitive_desc
     // used for ndx2d input
     ip_primitive_desc ip_pd_;
@@ -225,8 +217,10 @@ public:
             int ndims = src.get_ndims();
             dims expected_strides = src.get_strides();
             dims expected_dims = src.get_dims();
-            std::swap(expected_dims[ndims - 2], expected_dims[ndims - 1]);
-            std::swap(expected_strides[ndims - 2], expected_strides[ndims - 1]);
+            const auto last_dim = static_cast<dims::size_type>(ndims - 1);
+            std::swap(expected_dims[last_dim - 1], expected_dims[last_dim]);
+            std::swap(
+                    expected_strides[last_dim - 1], expected_strides[last_dim]);
             src = desc {expected_dims, src.get_data_type(), expected_strides};
         }
 
@@ -234,8 +228,10 @@ public:
             int ndims = weight.get_ndims();
             dims expected_strides = weight.get_strides();
             dims expected_dims = weight.get_dims();
-            std::swap(expected_dims[ndims - 2], expected_dims[ndims - 1]);
-            std::swap(expected_strides[ndims - 2], expected_strides[ndims - 1]);
+            const auto last_dim = static_cast<dims::size_type>(ndims - 1);
+            std::swap(expected_dims[last_dim - 1], expected_dims[last_dim]);
+            std::swap(
+                    expected_strides[last_dim - 1], expected_strides[last_dim]);
             weight = desc {
                     expected_dims, weight.get_data_type(), expected_strides};
         }
@@ -277,12 +273,17 @@ public:
             if (src_ndims != bias_ndims && !is_ndx2d_) {
                 dims expected_dims = src.get_dims();
                 dims expected_strides = src.get_strides();
-                for (size_t i = 0; i < src_ndims - bias_ndims; ++i)
+                const auto broadcast_ndims
+                        = static_cast<size_t>(src_ndims - bias_ndims);
+                for (size_t i = 0; i < broadcast_ndims; ++i)
                     expected_dims[i] = 1;
-                for (size_t i = src_ndims - bias_ndims; i < src_ndims; ++i)
-                    expected_dims[i] = bias.get_dim(i - src_ndims + bias_ndims);
-                expected_strides[src_ndims - 1] = 1;
-                for (size_t i = src_ndims - 1; i > 0; --i)
+                for (size_t i = broadcast_ndims; i < src_ndims; ++i)
+                    expected_dims[i] = bias.get_dim(
+                            static_cast<int>(i - broadcast_ndims));
+                expected_strides[static_cast<dims::size_type>(src_ndims) - 1]
+                        = 1;
+                for (size_t i = static_cast<dims::size_type>(src_ndims) - 1;
+                        i > 0; --i)
                     expected_strides[i - 1]
                             = expected_strides[i] * expected_dims[i];
                 bias = desc {
@@ -368,6 +369,7 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
+        UNUSED(anode);
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         auto pd_src_desc = is_ndx2d_ ? ip_pd_.src_desc() : pd_.src_desc();
@@ -519,7 +521,7 @@ private:
     }
 
     algorithm get_eltwise_algo(op_kind_t kind) {
-        switch (kind) {
+        switch (static_cast<int>(kind)) {
             case op_kind::matmul_relu:
             case op_kind::matmul_bias_relu:
             case op_kind::matmul_bias_add_relu:
@@ -545,6 +547,7 @@ private:
                 BACKEND_DNNL_ENFORCE(
                         0, "Unsupported fused_eltwise op for matmul.");
         }
+        return algorithm::undef;
     }
 };
 

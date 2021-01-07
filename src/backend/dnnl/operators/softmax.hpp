@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,7 +78,8 @@ public:
         eng_ = make_dnnl_engine(*aengine);
         axis_ = anode->get_attr<int64_t>("axis");
 
-        pd_ = primitive_desc({prop_kind::forward, src, axis_}, eng_);
+        pd_ = primitive_desc(
+                {prop_kind::forward, src, static_cast<int>(axis_)}, eng_);
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         fill_layout_info(dst_lt, optimal_dst_desc);
         return impl::status::success;
@@ -88,6 +89,7 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
+        UNUSED(anode);
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         tensor src_ts {inputs.at(softmax::kSrc), eng_, alc};
@@ -108,6 +110,7 @@ private:
 public:
     void compute(const tensor &dst, const tensor &diff_dst, tensor &diff_src,
             const dnnl::engine &aengine, impl::allocator_t *alc) {
+        UNUSED(alc);
         auto expected_dst = dst.reorder_if_differ_in(pd_.dst_desc());
         auto expected_diff_dst
                 = diff_dst.reorder_if_differ_in(pd_.diff_dst_desc());
@@ -144,8 +147,10 @@ public:
 
         eng_ = make_dnnl_engine(*aengine);
         auto forward_hints = softmax_forward::primitive_desc(
-                {prop_kind::forward_training, dst, axis_}, eng_);
-        pd_ = primitive_desc({diff_dst, dst, axis_}, eng_, forward_hints);
+                {prop_kind::forward_training, dst, static_cast<int>(axis_)},
+                eng_);
+        pd_ = primitive_desc(
+                {diff_dst, dst, static_cast<int>(axis_)}, eng_, forward_hints);
 
         const tensor::desc optimal_diff_src_desc {pd_.diff_src_desc()};
         fill_layout_info(diff_src_lt, optimal_diff_src_desc);
@@ -156,6 +161,7 @@ public:
             const impl::stream *astream,
             const std::vector<impl::tensor> &inputs,
             const std::vector<impl::tensor> &outputs) override {
+        UNUSED(anode);
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         tensor dst {inputs.at(softmax_bwd::kDst), eng_, alc};

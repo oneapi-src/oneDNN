@@ -20,7 +20,9 @@ endif()
 
 enable_testing()
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+append(CMAKE_CXX_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
+append(CMAKE_C_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
+
 # Register example
 function(register_example name srcs)
     add_executable(${name} ${srcs}
@@ -37,19 +39,14 @@ function(register_example name srcs)
     )
 
     target_link_libraries(${name} 
-        PRIVATE
+        LINK_PRIVATE
         dnnl_graph
         ${DNNL_GRAPH_COMMON_LINK_FLAGS}
         ${DNNL_GRAPH_SYCL_LINK_FLAGS}
     )
-
-    set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}
-        -Wno-pedantic)
-
-    target_compile_options(${name} PRIVATE ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
 endfunction()
 
-file(GLOB sources ./src/*.c)
+file(GLOB sources src/*.c)
 
 foreach(src ${sources})
     file(RELATIVE_PATH src_rel_path ${CMAKE_CURRENT_SOURCE_DIR}/src/ ${src})
