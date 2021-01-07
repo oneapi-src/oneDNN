@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -689,12 +689,11 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 #else
 
                 for (int ow_block = 0; ow_block < OW_BLOCK; ow_block++) {
-                     const int c_off = dst_idx(mb_block, oc_outer, ow_block);
-                     C[c_off] = (OC_WO_PADDING % OC_BLOCK == 0
+                    const int c_off = dst_idx(mb_block, oc_outer, ow_block);
+                    C[c_off] = (OC_WO_PADDING % OC_BLOCK == 0
                                        || bc_off < OC_WO_PADDING)
                             ? bia[bg_off + bc_off]
                             : DATA_ZERO;
-
                 }
 #endif
             } // oc_outer
