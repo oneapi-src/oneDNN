@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -123,10 +123,9 @@ inline void write_oc_block4(
 
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
-conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
-        const __global char *wei, const __global float *bias,
-        __global DST_DATA_T *dst POST_OP_ARGS, float scale,
-        const __global float *scales_per_oc,
+conv_nhwc_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
+        const __global float *bias, __global DST_DATA_T *dst POST_OP_ARGS,
+        float scale, const __global float *scales_per_oc,
         const __global int *src_compensation, const __global int *src_zpoints,
         const __global int *dst_compensation) {
 

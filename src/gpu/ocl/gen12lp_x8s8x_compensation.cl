@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@
 
 __attribute__((intel_reqd_sub_group_size(8)))
 __attribute__((reqd_work_group_size(8, 1, 1))) __kernel void
-gen12lp_x8s8s32x_compensation(const __global int *src_zpoints,
+gen12lp_x8s8x_compensation(const __global int *src_zpoints,
         const __global char *wei, __global int *dst) {
     const int oc_block_idx = get_global_id(1);
     const int g = get_global_id(2);
@@ -91,7 +91,7 @@ gen12lp_x8s8s32x_compensation(const __global int *src_zpoints,
 
 __attribute__((intel_reqd_sub_group_size(16)))
 __attribute__((reqd_work_group_size(16, 1, 1))) __kernel void
-gen12lp_x8s8s32x_compensation(const __global int *src_zpoints,
+gen12lp_x8s8x_compensation(const __global int *src_zpoints,
         const __global char *wei, __global int *dst) {
     const int g_block_idx = get_global_id(1);
 
