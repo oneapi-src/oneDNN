@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -124,6 +124,16 @@ float tanh_bwd_use_dst(float dd, float d) {
     return dd * (1 - d) * (1 + d);
 }
 
+float mish_fwd(float s) {
+    return s * tanh_fwd(soft_relu_fwd(s));
+}
+float mish_bwd(float dd, float s) {
+    const float tanh = tanh_fwd(soft_relu_fwd(s));
+    const float srelu_bwd = soft_relu_bwd(1.0f, s);
+    const float derivative = tanh + s * srelu_bwd * (1 - pow(tanh, 2.0f));
+    return dd * derivative;
+}
+
 float elu_fwd(float s, float alpha) {
     return s > 0 ? s : alpha * expm1(s);
 }
@@ -229,6 +239,7 @@ float fwd_eltwise_common(
         case BOUNDED_RELU: return scale_ * bounded_relu_fwd(x, alpha_); break;
         case SOFT_RELU: return scale_ * soft_relu_fwd(x); break;
         case LOGSIGMOID: return scale_ * logsigmoid_fwd(x); break;
+        case MISH: return scale_ * mish_fwd(x); break;
         case LOGISTIC: return scale_ * logistic_fwd(x); break;
         case TANH: return scale_ * tanh_fwd(x); break;
         case ELU: return scale_ * elu_fwd(x, alpha_); break;
@@ -273,6 +284,7 @@ float bwd_eltwise(float x, float y, float alpha_, float beta_) {
         case BOUNDED_RELU: return bounded_relu_bwd(x, y, alpha_); break;
         case SOFT_RELU: return soft_relu_bwd(x, y); break;
         case LOGSIGMOID: return logsigmoid_bwd(x, y); break;
+        case MISH: return mish_bwd(x, y); break;
         case LOGISTIC: return logistic_bwd(x, y); break;
         case TANH: return tanh_bwd(x, y); break;
         case ELU: return elu_bwd(x, y, alpha_); break;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,10 +53,11 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
                             eltwise_linear, eltwise_bounded_relu, eltwise_abs,
                             eltwise_tanh, eltwise_elu, eltwise_square,
                             eltwise_sqrt, eltwise_soft_relu, eltwise_logistic,
-                            eltwise_logsigmoid, eltwise_exp, eltwise_gelu_tanh,
-                            eltwise_swish, eltwise_log, eltwise_clip,
-                            eltwise_clip_v2, eltwise_pow, eltwise_gelu_erf,
-                            eltwise_round, eltwise_relu_use_dst_for_bwd,
+                            eltwise_logsigmoid, eltwise_mish, eltwise_exp,
+                            eltwise_gelu_tanh, eltwise_swish, eltwise_log,
+                            eltwise_clip, eltwise_clip_v2, eltwise_pow,
+                            eltwise_gelu_erf, eltwise_round,
+                            eltwise_relu_use_dst_for_bwd,
                             eltwise_logistic_use_dst_for_bwd,
                             eltwise_tanh_use_dst_for_bwd,
                             eltwise_elu_use_dst_for_bwd,
@@ -128,10 +129,10 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
                             eltwise_linear, eltwise_bounded_relu, eltwise_abs,
                             eltwise_tanh, eltwise_elu, eltwise_square,
                             eltwise_sqrt, eltwise_soft_relu, eltwise_logsigmoid,
-                            eltwise_logistic, eltwise_exp, eltwise_gelu_tanh,
-                            eltwise_swish, eltwise_log, eltwise_clip,
-                            eltwise_clip_v2, eltwise_pow, eltwise_gelu_erf,
-                            eltwise_relu_use_dst_for_bwd,
+                            eltwise_mish, eltwise_logistic, eltwise_exp,
+                            eltwise_gelu_tanh, eltwise_swish, eltwise_log,
+                            eltwise_clip, eltwise_clip_v2, eltwise_pow,
+                            eltwise_gelu_erf, eltwise_relu_use_dst_for_bwd,
                             eltwise_logistic_use_dst_for_bwd,
                             eltwise_tanh_use_dst_for_bwd,
                             eltwise_elu_use_dst_for_bwd,
