@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -61,6 +61,7 @@ float compute_eltwise_scalar_fwd(
         case eltwise_gelu_erf: d = gelu_erf_fwd(s); break;
         case eltwise_round: d = round_fwd(s); break;
         case eltwise_logsigmoid: d = logsigmoid_fwd(s); break;
+        case eltwise_mish: d = mish_fwd(s); break;
         case eltwise_relu_use_dst_for_bwd: d = relu_fwd(s, alpha); break;
         case eltwise_tanh_use_dst_for_bwd: d = tanh_fwd(s); break;
         case eltwise_elu_use_dst_for_bwd: d = elu_fwd(s, alpha); break;
@@ -99,6 +100,7 @@ float compute_eltwise_scalar_bwd(
         case eltwise_pow: ds = pow_bwd(dd, s, alpha, beta); break;
         case eltwise_gelu_erf: ds = gelu_erf_bwd(dd, s); break;
         case eltwise_logsigmoid: ds = logsigmoid_bwd(dd, s); break;
+        case eltwise_mish: ds = mish_bwd(dd, s); break;
         case eltwise_relu_use_dst_for_bwd:
             ds = relu_bwd_use_dst(dd, s, alpha);
             break;

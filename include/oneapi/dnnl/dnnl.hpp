@@ -503,6 +503,8 @@ enum class algorithm {
     eltwise_soft_relu = dnnl_eltwise_soft_relu,
     /// Elementwise: logsigmoid
     eltwise_logsigmoid = dnnl_eltwise_logsigmoid,
+    /// Elementwise: mish
+    eltwise_mish = dnnl_eltwise_mish,
     /// Elementwise: logistic
     eltwise_logistic = dnnl_eltwise_logistic,
     /// Elementwise: exponent
