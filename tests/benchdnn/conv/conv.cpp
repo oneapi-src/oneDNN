@@ -186,6 +186,11 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
                 ok = dt >= BENCHDNN_S32_TO_F32_SAT_CONST && dt < f_max;
             above += 1;
             above_ok += ok;
+        } else if (fp == dt) {
+            // Quick check.
+            diff_norm.update(fp, dt);
+            in += 1;
+            in_ok += ok;
         } else {
             diff_norm.update(fp, dt);
             float trh = get_eps(prb, kind);
