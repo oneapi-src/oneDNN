@@ -32,6 +32,11 @@
 #include "oneapi/dnnl/dnnl_sycl.hpp"
 #endif
 
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include "oneapi/dnnl/dnnl_threadpool.hpp"
+#include "tests/test_thread.hpp"
+#endif
+
 #if DNNL_X64
 #include "src/cpu/x64/cpu_isa_traits.hpp"
 #endif
@@ -588,8 +593,15 @@ struct dnnl_gemm<float, float, float> {
         auto B = map_memory<float>(b_mem);
         auto C = map_memory<float>(c_mem);
 
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+        static auto *st = dnnl::testing::get_threadpool();
+        return static_cast<dnnl_status_t>(dnnl::threadpool_interop::sgemm(
+                p.transA, p.transB, p.M, p.N, p.K, p.alpha, A, p.lda, B, p.ldb,
+                p.beta, C, p.ldc, st));
+#else
         return dnnl_sgemm(p.transA, p.transB, p.M, p.N, p.K, p.alpha, A, p.lda,
                 B, p.ldb, p.beta, C, p.ldc);
+#endif
     }
 };
 
