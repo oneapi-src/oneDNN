@@ -15,7 +15,6 @@
 * To run the c example
 
 ```shell
-cd llga
 mkdir build && cd build
 cmake .. -DDNNL_GRAPH_BUILD_EXAMPLES=1
 make -j
@@ -25,7 +24,6 @@ make -j
 * To run the cpp example
 
 ```shell
-cd llga
 mkdir build && cd build
 cmake .. -DDNNL_GRAPH_BUILD_EXAMPLES=1
 make -j

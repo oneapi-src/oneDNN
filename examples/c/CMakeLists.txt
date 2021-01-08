@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020 Intel Corporation
+# Copyright 2020-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ function(register_example name srcs)
     target_include_directories(${name}  
         PRIVATE
         ${PROJECT_SOURCE_DIR}/examples/c/include
-        ${PROJECT_SOURCE_DIR}/include/llga
+        ${PROJECT_SOURCE_DIR}/include
     )
 
     target_link_libraries(${name} 

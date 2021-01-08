@@ -182,7 +182,7 @@ void sycl_get_started_tutorial(engine::kind engine_kind) {
     //[Create second relu]
     std::cout << "Success!\n";
 
-    std::cout << "Add OP to llga graph------------------------";
+    std::cout << "Add OP to the graph------------------------";
     /// Finally, those created ops will be added into the graph. The graph inside will maintain a
     /// list to store all these ops.
     /// @snippet sycl_get_started.cpp Add op

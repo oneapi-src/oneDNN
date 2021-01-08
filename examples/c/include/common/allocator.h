@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #define ALLOCATOR_H
 
 #include <stdlib.h>
-#include "llga_types.h"
+#include "oneapi/dnnl/dnnl_graph_types.h"
 
 void *allocate(size_t mem_size, dnnl_graph_allocator_attr_t attr);
 void deallocate(void *buffer);
