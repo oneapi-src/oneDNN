@@ -490,7 +490,6 @@ void jit_avx512_core_amx_convolution_bwd_data_t<diff_src_type, wei_type,
     const auto &jcp = pd()->jcp_;
     assert(jcp.nb_ic % jcp.nb_ic_blocking == 0);
 
-    const size_t bia_dt_size = jcp.typesize_bia;
     const size_t diff_dst_dt_size = jcp.typesize_in;
     const size_t diff_src_dt_size = jcp.typesize_out;
     const size_t wei_dt_size = jcp.typesize_in;
