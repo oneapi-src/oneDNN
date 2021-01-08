@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_BACKEND_DNNL_TENSOR_HPP
-#define LLGA_BACKEND_DNNL_TENSOR_HPP
+#ifndef BACKEND_DNNL_TENSOR_HPP
+#define BACKEND_DNNL_TENSOR_HPP
 
 #include <algorithm>
 #include <functional>

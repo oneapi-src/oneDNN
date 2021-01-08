@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_TESTS_CPP_API_TEST_API_COMMON_HPP
-#define LLGA_TESTS_CPP_API_TEST_API_COMMON_HPP
+#ifndef TEST_API_COMMON_HPP
+#define TEST_API_COMMON_HPP
 
 #include <cstdint>
 #include <map>

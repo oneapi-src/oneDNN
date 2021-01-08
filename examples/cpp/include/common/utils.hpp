@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#ifndef COMMON_UTILS_HPP
+#define COMMON_UTILS_HPP
+
 #include <iostream>
 #include <map>
 #include <numeric>
@@ -118,4 +121,5 @@ void *sycl_malloc_wrapper(
 void sycl_free_wrapper(void *ptr, const void *context) {
     free(ptr, *static_cast<const cl::sycl::context *>(context));
 }
+#endif
 #endif

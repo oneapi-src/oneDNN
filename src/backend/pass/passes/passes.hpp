@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef LLGA_BACKEND_PASS_PASSES_PASSES_HPP
-#define LLGA_BACKEND_PASS_PASSES_PASSES_HPP
+#ifndef BACKEND_PASS_PASSES_PASSES_HPP
+#define BACKEND_PASS_PASSES_PASSES_HPP
 
 #include "backend/pass/passes/bn_fusion.hpp"
 #include "backend/pass/passes/conv_fusion.hpp"

@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef LLGA_BACKEND_PASS_PATTERN_UTILS_HPP
-#define LLGA_BACKEND_PASS_PATTERN_UTILS_HPP
+#ifndef BACKEND_PASS_PATTERN_UTILS_HPP
+#define BACKEND_PASS_PATTERN_UTILS_HPP
 
 #include <deque>
 #include <iostream>

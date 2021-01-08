@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_BACKEND_HPP
-#define LLGA_INTERFACE_BACKEND_HPP
+#ifndef INTERFACE_BACKEND_HPP
+#define INTERFACE_BACKEND_HPP
 
 #include <limits>
 #include <memory>

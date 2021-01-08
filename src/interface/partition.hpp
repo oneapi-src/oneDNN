@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_PARTITION_HPP
-#define LLGA_INTERFACE_PARTITION_HPP
+#ifndef INTERFACE_PARTITION_HPP
+#define INTERFACE_PARTITION_HPP
 
 #include <memory>
 #include <sstream>

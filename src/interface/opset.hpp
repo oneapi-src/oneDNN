@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_OPSET_HPP
-#define LLGA_INTERFACE_OPSET_HPP
+#ifndef INTERFACE_OPSET_HPP
+#define INTERFACE_OPSET_HPP
 
 #include <functional>
 #include "op_schema.hpp"

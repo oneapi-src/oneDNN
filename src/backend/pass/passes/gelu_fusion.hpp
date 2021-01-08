@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef LLGA_BACKEND_PASS_PASSES_GELU_FUSION_HPP
-#define LLGA_BACKEND_PASS_PASSES_GELU_FUSION_HPP
+#ifndef BACKEND_PASS_PASSES_GELU_FUSION_HPP
+#define BACKEND_PASS_PASSES_GELU_FUSION_HPP
 
 #include <iostream>
 #include <memory>

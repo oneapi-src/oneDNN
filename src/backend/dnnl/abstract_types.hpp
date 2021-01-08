@@ -19,8 +19,8 @@
 #pragma clang system_header
 #endif
 
-#ifndef LLGA_BACKEND_DNNL_ABSTRACT_TYPES_HPP
-#define LLGA_BACKEND_DNNL_ABSTRACT_TYPES_HPP
+#ifndef BACKEND_DNNL_ABSTRACT_TYPES_HPP
+#define BACKEND_DNNL_ABSTRACT_TYPES_HPP
 
 #include <cstdlib>
 #include <cstring>

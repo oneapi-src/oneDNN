@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_GRAPH_HPP
-#define LLGA_INTERFACE_GRAPH_HPP
+#ifndef INTERFACE_GRAPH_HPP
+#define INTERFACE_GRAPH_HPP
 
 #include <memory>
 #include <string>

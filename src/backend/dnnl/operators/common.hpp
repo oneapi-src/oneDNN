@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_BACKEND_DNNL_OPERATORS_COMMON_HPP
-#define LLGA_BACKEND_DNNL_OPERATORS_COMMON_HPP
+#ifndef BACKEND_DNNL_OPERATORS_COMMON_HPP
+#define BACKEND_DNNL_OPERATORS_COMMON_HPP
 
 #include "backend/dnnl/common.hpp"
 #include "interface/backend.hpp"

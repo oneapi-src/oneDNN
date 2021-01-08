@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_STREAM_HPP
-#define LLGA_INTERFACE_STREAM_HPP
+#ifndef INTERFACE_STREAM_HPP
+#define INTERFACE_STREAM_HPP
 
 #include "c_types_map.hpp"
 

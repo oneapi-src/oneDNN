@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_BACKEND_PASS_PASS_MANAGER_HPP
-#define LLGA_BACKEND_PASS_PASS_MANAGER_HPP
+#ifndef BACKEND_PASS_PASS_MANAGER_HPP
+#define BACKEND_PASS_PASS_MANAGER_HPP
 
 #include <list>
 #include <string>

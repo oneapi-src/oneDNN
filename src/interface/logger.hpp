@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_LOGGER_HPP
-#define LLGA_INTERFACE_LOGGER_HPP
+#ifndef INTERFACE_LOGGER_HPP
+#define INTERFACE_LOGGER_HPP
 
 #include <fstream>
 #include <mutex>

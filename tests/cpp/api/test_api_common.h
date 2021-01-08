@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_TESTS_CPP_API_TEST_API_COMMON_H
-#define LLGA_TESTS_CPP_API_TEST_API_COMMON_H
+#ifndef TEST_API_COMMON_H
+#define TEST_API_COMMON_H
 
 #include <gtest/gtest.h>
 

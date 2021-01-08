@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_C_TYPES_MAP_HPP
-#define LLGA_INTERFACE_C_TYPES_MAP_HPP
+#ifndef INTERFACE_C_TYPES_MAP_HPP
+#define INTERFACE_C_TYPES_MAP_HPP
 
 #include <string>
 #include <vector>

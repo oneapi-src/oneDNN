@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef LLGA_UTILS_COMPATIBLE_HPP
-#define LLGA_UTILS_COMPATIBLE_HPP
+#ifndef UTILS_COMPATIBLE_HPP
+#define UTILS_COMPATIBLE_HPP
 
 #if DNNL_GRAPH_SUPPORT_CXX17
 #include <optional>

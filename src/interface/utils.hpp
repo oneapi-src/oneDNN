@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_UTILS_HPP
-#define LLGA_INTERFACE_UTILS_HPP
+#ifndef INTERFACE_UTILS_HPP
+#define INTERFACE_UTILS_HPP
 
 #include <cassert>
 #include <cstddef>

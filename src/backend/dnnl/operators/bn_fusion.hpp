@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_BACKEND_DNNL_OPERATORS_BN_FUSION_HPP
-#define LLGA_BACKEND_DNNL_OPERATORS_BN_FUSION_HPP
+#ifndef BACKEND_DNNL_OPERATORS_BN_FUSION_HPP
+#define BACKEND_DNNL_OPERATORS_BN_FUSION_HPP
 
 #include <functional>
 

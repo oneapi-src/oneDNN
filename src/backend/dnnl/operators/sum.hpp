@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_BACKEND_DNNL_OPERATORS_SUM_HPP
-#define LLGA_BACKEND_DNNL_OPERATORS_SUM_HPP
+#ifndef BACKEND_DNNL_OPERATORS_SUM_HPP
+#define BACKEND_DNNL_OPERATORS_SUM_HPP
 
 #include <vector>
 

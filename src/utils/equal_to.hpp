@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_UTILS_EQUAL_TO_HPP
-#define LLGA_UTILS_EQUAL_TO_HPP
+#ifndef UTILS_EQUAL_TO_HPP
+#define UTILS_EQUAL_TO_HPP
 
 #include <functional>
 

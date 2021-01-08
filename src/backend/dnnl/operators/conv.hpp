@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_BACKEND_DNNL_OPERATORS_CONV_HPP
-#define LLGA_BACKEND_DNNL_OPERATORS_CONV_HPP
+#ifndef BACKEND_DNNL_OPERATORS_CONV_HPP
+#define BACKEND_DNNL_OPERATORS_CONV_HPP
 
 #include <algorithm>
 #include <set>

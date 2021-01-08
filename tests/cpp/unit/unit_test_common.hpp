@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_TESTS_CPP_UNIT_UNIT_TEST_COMMON_HPP
-#define LLGA_TESTS_CPP_UNIT_UNIT_TEST_COMMON_HPP
+#ifndef UNIT_TEST_COMMON_HPP
+#define UNIT_TEST_COMMON_HPP
 
 #include <memory>
 #include <vector>

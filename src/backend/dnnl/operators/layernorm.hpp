@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_BACKEND_DNNL_OPERATORS_LAYERNORM_HPP
-#define LLGA_BACKEND_DNNL_OPERATORS_LAYERNORM_HPP
+#ifndef BACKEND_DNNL_OPERATORS_LAYERNORM_HPP
+#define BACKEND_DNNL_OPERATORS_LAYERNORM_HPP
 
 #include <vector>
 #include <unordered_map>

@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef LLGA_TESTS_CPP_UNIT_UTILS_HPP
-#define LLGA_TESTS_CPP_UNIT_UTILS_HPP
+#ifndef UTILS_HPP
+#define UTILS_HPP
 
 #include <functional>
 #include <vector>

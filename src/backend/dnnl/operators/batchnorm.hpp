@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_BACKEND_DNNL_OPERATORS_BATCHNORM_HPP
-#define LLGA_BACKEND_DNNL_OPERATORS_BATCHNORM_HPP
+#ifndef BACKEND_DNNL_OPERATORS_BATCHNORM_HPP
+#define BACKEND_DNNL_OPERATORS_BATCHNORM_HPP
 
 #include <memory>
 #include <string>

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_BACKEND_DNNL_OPERATORS_REORDER_HPP
-#define LLGA_BACKEND_DNNL_OPERATORS_REORDER_HPP
+#ifndef BACKEND_DNNL_OPERATORS_REORDER_HPP
+#define BACKEND_DNNL_OPERATORS_REORDER_HPP
 
 #include <vector>
 

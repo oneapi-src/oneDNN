@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_ALLOCATOR_HPP
-#define LLGA_INTERFACE_ALLOCATOR_HPP
+#ifndef INTERFACE_ALLOCATOR_HPP
+#define INTERFACE_ALLOCATOR_HPP
 
 #include <cstdlib>
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_IR_HPP
-#define LLGA_INTERFACE_IR_HPP
+#ifndef INTERFACE_IR_HPP
+#define INTERFACE_IR_HPP
 
 #include <algorithm>
 #include <cassert>

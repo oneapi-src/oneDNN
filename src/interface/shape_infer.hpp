@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_SHAPE_INFER_HPP
-#define LLGA_INTERFACE_SHAPE_INFER_HPP
+#ifndef INTERFACE_SHAPE_INFER_HPP
+#define INTERFACE_SHAPE_INFER_HPP
 
 #include <algorithm>
 #include <cmath>

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_LOGICAL_TENSOR_HPP
-#define LLGA_INTERFACE_LOGICAL_TENSOR_HPP
+#ifndef INTERFACE_LOGICAL_TENSOR_HPP
+#define INTERFACE_LOGICAL_TENSOR_HPP
 
 #include <algorithm>
 #include <assert.h>

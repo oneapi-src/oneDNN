@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef LLGA_UTILS_JSON_HPP
-#define LLGA_UTILS_JSON_HPP
+#ifndef UTILS_JSON_HPP
+#define UTILS_JSON_HPP
 
 #include <algorithm>
 #include <cctype>

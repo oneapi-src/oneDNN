@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_ENGINE_HPP
-#define LLGA_INTERFACE_ENGINE_HPP
+#ifndef INTERFACE_ENGINE_HPP
+#define INTERFACE_ENGINE_HPP
 
 #include <memory>
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_COMMON_HPP
-#define LLGA_INTERFACE_COMMON_HPP
+#ifndef INTERFACE_COMMON_HPP
+#define INTERFACE_COMMON_HPP
 
 #include <algorithm>
 #include <atomic>

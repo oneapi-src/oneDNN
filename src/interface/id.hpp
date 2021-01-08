@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_ID_HPP
-#define LLGA_INTERFACE_ID_HPP
+#ifndef INTERFACE_ID_HPP
+#define INTERFACE_ID_HPP
 
 #include <atomic>
 #include <cstddef>

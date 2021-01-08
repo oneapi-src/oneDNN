@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_BACKEND_DNNL_OPERATORS_SOFTMAX_HPP
-#define LLGA_BACKEND_DNNL_OPERATORS_SOFTMAX_HPP
+#ifndef BACKEND_DNNL_OPERATORS_SOFTMAX_HPP
+#define BACKEND_DNNL_OPERATORS_SOFTMAX_HPP
 
 #include <vector>
 

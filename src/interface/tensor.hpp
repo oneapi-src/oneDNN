@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LLGA_INTERFACE_TENSOR_HPP
-#define LLGA_INTERFACE_TENSOR_HPP
+#ifndef INTERFACE_TENSOR_HPP
+#define INTERFACE_TENSOR_HPP
 
 #include <functional>
 #include <numeric>
