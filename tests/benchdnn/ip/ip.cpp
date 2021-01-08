@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -132,14 +132,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 
 int fill_src(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
-    dnn_mem_t extra_mem;
-    if (need_extra_mem) {
-        const auto tag = tag::abx;
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, get_test_engine());
-    }
-    dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
-
     const auto &c = prb->cfg[SRC];
     const int range = c.f_max - c.f_min + 1;
 
@@ -151,11 +143,10 @@ int fill_src(
                 const bool non_base = flip_coin(gen, sparsity);
                 const float value
                         = non_base ? c.f_min + gen * 1 % range : c.f_base;
-                ((float *)mem_00)[src_off_f(prb, mb, ic, id, ih, iw)] = value;
+                ((float *)mem_fp)[src_off_f(prb, mb, ic, id, ih, iw)] = value;
             });
 
-    SAFE(mem_dt.reorder(mem_00), WARN);
-    if (need_extra_mem) { SAFE(mem_fp.reorder(mem_dt), WARN); }
+    SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }
@@ -164,15 +155,6 @@ int fill_wei(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
     const bool s8_s8
             = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dnnl_s8;
-    const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
-    const bool check_reorder = diff_data_type && !s8_s8;
-
-    dnn_mem_t extra_mem;
-    if (check_reorder) {
-        const auto tag = tag::abx;
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, get_test_engine());
-    }
-    dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
 
     const auto &c = prb->cfg[WEI];
     const int range = c.f_max - c.f_min + 1;
@@ -185,11 +167,10 @@ int fill_wei(
                 const bool non_base = flip_coin(gen, sparsity);
                 const float value
                         = non_base ? c.f_min + gen * 1 % range : c.f_base;
-                ((float *)mem_00)[wei_off_f(prb, oc, ic, kd, kh, kw)] = value;
+                ((float *)mem_fp)[wei_off_f(prb, oc, ic, kd, kh, kw)] = value;
             });
 
-    SAFE(mem_dt.reorder(mem_00), WARN);
-    if (check_reorder) { SAFE(mem_fp.reorder(mem_dt), WARN); }
+    SAFE(mem_dt.reorder(mem_fp), WARN);
     if (s8_s8 && is_cpu()) {
         // Check that s8 -> s8_comp exists in the library since users may have
         // already quantized data.
@@ -207,13 +188,7 @@ int fill_wei(
 
 int fill_bia(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
-    dnn_mem_t extra_mem;
-    if (need_extra_mem)
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::x, get_test_engine());
-    dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
-
-    const size_t nelems = mem_00.nelems();
+    const size_t nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
     const auto &c = prb->cfg[BIA];
@@ -223,24 +198,15 @@ int fill_bia(
         const int gen = (int)(151 * i + 11);
         const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value = non_base ? c.f_min + gen * 1 % range : c.f_base;
-        ((float *)mem_00)[i] = value;
+        ((float *)mem_fp)[i] = value;
     }
 
-    SAFE(mem_dt.reorder(mem_00), WARN);
-    if (need_extra_mem) { SAFE(mem_fp.reorder(mem_dt), WARN); }
+    SAFE(mem_dt.reorder(mem_fp), WARN);
     return OK;
 }
 
 int fill_dst(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
-    dnn_mem_t extra_mem;
-    if (need_extra_mem) {
-        const auto tag = tag::abx;
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, get_test_engine());
-    }
-    dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
-
     const auto &c = prb->cfg[DST];
     const int range = c.f_max - c.f_min + 1;
 
@@ -249,11 +215,10 @@ int fill_dst(
         const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value = non_base ? c.f_min + gen * 1 % range : c.f_base;
 
-        ((float *)mem_00)[dst_off_f(prb, mb, oc)] = value;
+        ((float *)mem_fp)[dst_off_f(prb, mb, oc)] = value;
     });
 
-    SAFE(mem_dt.reorder(mem_00), WARN);
-    if (need_extra_mem) { SAFE(mem_fp.reorder(mem_dt), WARN); }
+    SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }
