@@ -1162,6 +1162,46 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bn, 1,
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(Conv_bias_bn, 1,
+        op_schema()
+                .set_num_inputs(7)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "gamma", "gamma scaling for normalized value")
+                .set_input(
+                        4, "beta", "bias added to the scaled normalized value")
+                .set_input(5, "mean", "value for mean normalization")
+                .set_input(6, "variance", "value for variance normalization")
+                .set_output(0, "output", "output tensor")
+                .set_attr("epsilon",
+                        " the number to be added to the variance to avoid "
+                        "division by zero",
+                        true)
+                .set_shape_inference_function(infer_conv_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(Conv_bn_add, 1,
+        op_schema()
+                .set_num_inputs(7)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "gamma", "gamma scaling for normalized value")
+                .set_input(
+                        3, "beta", "bias added to the scaled normalized value")
+                .set_input(4, "mean", "value for mean normalization")
+                .set_input(5, "variance", "value for variance normalization")
+                .set_input(6, "other", "the second input tensor of add")
+                .set_output(0, "output", "output tensor")
+                .set_attr("epsilon",
+                        " the number to be added to the variance to avoid "
+                        "division by zero",
+                        true)
+                .set_shape_inference_function(infer_conv_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
 DNNL_GRAPH_OP_SCHEMA(Conv_bn_relu, 1,
         op_schema()
                 .set_num_inputs(6)
@@ -1173,6 +1213,26 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bn_relu, 1,
                         3, "beta", "bias added to the scaled normalized value")
                 .set_input(4, "mean", "value for mean normalization")
                 .set_input(5, "variance", "value for variance normalization")
+                .set_output(0, "output", "output tensor")
+                .set_attr("epsilon",
+                        " the number to be added to the variance to avoid "
+                        "division by zero",
+                        true)
+                .set_shape_inference_function(infer_conv_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(Conv_bias_bn_relu, 1,
+        op_schema()
+                .set_num_inputs(7)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "gamma", "gamma scaling for normalized value")
+                .set_input(
+                        4, "beta", "bias added to the scaled normalized value")
+                .set_input(5, "mean", "value for mean normalization")
+                .set_input(6, "variance", "value for variance normalization")
                 .set_output(0, "output", "output tensor")
                 .set_attr("epsilon",
                         " the number to be added to the variance to avoid "
@@ -1193,6 +1253,27 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bn_add_relu, 1,
                 .set_input(4, "mean", "value for mean normalization")
                 .set_input(5, "variance", "value for variance normalization")
                 .set_input(6, "other", "the second input tensor of add")
+                .set_output(0, "output", "output tensor")
+                .set_attr("epsilon",
+                        " the number to be added to the variance to avoid "
+                        "division by zero",
+                        true)
+                .set_shape_inference_function(infer_conv_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(Conv_bias_bn_add_relu, 1,
+        op_schema()
+                .set_num_inputs(8)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "weight", "weight tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_input(3, "gamma", "gamma scaling for normalized value")
+                .set_input(
+                        4, "beta", "bias added to the scaled normalized value")
+                .set_input(5, "mean", "value for mean normalization")
+                .set_input(6, "variance", "value for variance normalization")
+                .set_input(7, "other", "the second input tensor of add")
                 .set_output(0, "output", "output tensor")
                 .set_attr("epsilon",
                         " the number to be added to the variance to avoid "

@@ -1379,6 +1379,62 @@ TEST(op_schema_test, conv_bn_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
+TEST(op_schema_test, conv_bn_add_infer_shape) {
+    const op_schema *a_op_schema
+            = op_schema_registry::get_op_schema(op_kind::conv_bn_add);
+    EXPECT_TRUE(nullptr != a_op_schema);
+    node_t a_node {op_kind::conv_bn_add};
+    std::vector<int64_t> strides = {2, 2};
+    std::vector<int64_t> pads_begin = {1, 1};
+    std::vector<int64_t> pads_end = {2, 2};
+    std::vector<int64_t> dilations = {1, 1};
+    float epsilon = 0.001f;
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    int64_t groups = 1;
+
+    set_conv_common_attr(a_node, strides, pads_begin, pads_end, dilations,
+            "None", data_format, filter_format, groups);
+    a_node.set_attr("epsilon", epsilon);
+
+    logical_tensor_t lt_data
+            = logical_tensor_init(0, {1, 256, 64, 64}, data_type::f32);
+    logical_tensor_t lt_weight
+            = logical_tensor_init(1, {512, 256, 3, 3}, data_type::f32);
+    logical_tensor_t lt_gamma
+            = logical_tensor_init(1, {1, 512}, data_type::f32);
+    logical_tensor_t lt_beta = logical_tensor_init(2, {1, 512}, data_type::f32);
+    logical_tensor_t lt_mean = logical_tensor_init(3, {1, 512}, data_type::f32);
+    logical_tensor_t lt_variance
+            = logical_tensor_init(4, {1, 512}, data_type::f32);
+    logical_tensor_t lt_add
+            = logical_tensor_init(5, {1, 512, 33, 33}, data_type::f32);
+    logical_tensor_t lt_o
+            = logical_tensor_init(6, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight, &lt_gamma,
+            &lt_beta, &lt_mean, &lt_variance, &lt_add};
+    std::vector<logical_tensor_t *> lt_out {&lt_o};
+    a_op_schema->shape_infer(&a_node, lt_in, lt_out);
+    auto &infered_pads_begin
+            = a_node.get_attr<std::vector<int64_t>>("pads_begin");
+    auto &infered_pads_end = a_node.get_attr<std::vector<int64_t>>("pads_end");
+    EXPECT_EQ(infered_pads_begin[0], 1);
+    EXPECT_EQ(infered_pads_begin[1], 1);
+    EXPECT_EQ(infered_pads_end[0], 2);
+    EXPECT_EQ(infered_pads_end[1], 2);
+
+    const std::vector<int64_t> infered_out_shape
+            = logical_tensor_wrapper(lt_o).vdims();
+    const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+    const std::vector<int64_t> infered_out_strides
+            = logical_tensor_wrapper(lt_o).vstrides();
+    const std::vector<int64_t> expected_out_strides
+            = compute_dense_strides(expected_out_shape);
+    EXPECT_EQ(infered_out_strides, expected_out_strides);
+}
+
 TEST(op_schema_test, conv_bn_relu_infer_shape) {
     const op_schema *a_op_schema
             = op_schema_registry::get_op_schema(op_kind::conv_bn_relu);
@@ -1432,6 +1488,67 @@ TEST(op_schema_test, conv_bn_relu_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
+TEST(op_schema_test, conv_bias_bn_infer_shape) {
+    std::set<op_kind_t> op_kinds
+            = {op_kind::conv_bias_bn, op_kind::conv_bias_bn_relu};
+    for (auto a_op_kind : op_kinds) {
+        const op_schema *a_op_schema
+                = op_schema_registry::get_op_schema(a_op_kind);
+        EXPECT_TRUE(nullptr != a_op_schema);
+        node_t a_node {a_op_kind};
+        std::vector<int64_t> strides = {2, 2};
+        std::vector<int64_t> pads_begin = {1, 1};
+        std::vector<int64_t> pads_end = {2, 2};
+        std::vector<int64_t> dilations = {1, 1};
+        float epsilon = 0.001f;
+        std::string data_format = "NCX";
+        std::string filter_format = "OIX";
+        int64_t groups = 1;
+
+        set_conv_common_attr(a_node, strides, pads_begin, pads_end, dilations,
+                "None", data_format, filter_format, groups);
+        a_node.set_attr("epsilon", epsilon);
+
+        logical_tensor_t lt_data
+                = logical_tensor_init(0, {1, 256, 64, 64}, data_type::f32);
+        logical_tensor_t lt_weight
+                = logical_tensor_init(1, {512, 256, 3, 3}, data_type::f32);
+        logical_tensor_t lt_bias
+                = logical_tensor_init(1, {512}, data_type::f32);
+        logical_tensor_t lt_gamma
+                = logical_tensor_init(1, {1, 512}, data_type::f32);
+        logical_tensor_t lt_beta
+                = logical_tensor_init(2, {1, 512}, data_type::f32);
+        logical_tensor_t lt_mean
+                = logical_tensor_init(3, {1, 512}, data_type::f32);
+        logical_tensor_t lt_variance
+                = logical_tensor_init(4, {1, 512}, data_type::f32);
+        logical_tensor_t lt_o
+                = logical_tensor_init(5, data_type::f32, layout_type::strided);
+        std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight, &lt_bias,
+                &lt_gamma, &lt_beta, &lt_mean, &lt_variance};
+        std::vector<logical_tensor_t *> lt_out {&lt_o};
+        a_op_schema->shape_infer(&a_node, lt_in, lt_out);
+        auto &unchanged_pads_begin
+                = a_node.get_attr<std::vector<int64_t>>("pads_begin");
+        auto &unchanged_pads_end
+                = a_node.get_attr<std::vector<int64_t>>("pads_end");
+        EXPECT_EQ(unchanged_pads_begin, pads_begin);
+        EXPECT_EQ(unchanged_pads_end, pads_end);
+
+        const std::vector<int64_t> infered_out_shape
+                = logical_tensor_wrapper(lt_o).vdims();
+        const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
+        EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+        const std::vector<int64_t> infered_out_strides
+                = logical_tensor_wrapper(lt_o).vstrides();
+        const std::vector<int64_t> expected_out_strides
+                = compute_dense_strides(expected_out_shape);
+        EXPECT_EQ(infered_out_strides, expected_out_strides);
+    }
+}
+
 TEST(op_schema_test, conv_bn_add_relu_infer_shape) {
     const op_schema *a_op_schema
             = op_schema_registry::get_op_schema(op_kind::conv_bn_add_relu);
@@ -1466,6 +1583,63 @@ TEST(op_schema_test, conv_bn_add_relu_infer_shape) {
             = logical_tensor_init(6, data_type::f32, layout_type::strided);
     std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight, &lt_gamma,
             &lt_beta, &lt_mean, &lt_variance, &lt_add};
+    std::vector<logical_tensor_t *> lt_out {&lt_o};
+    a_op_schema->shape_infer(&a_node, lt_in, lt_out);
+    auto &infered_pads_begin
+            = a_node.get_attr<std::vector<int64_t>>("pads_begin");
+    auto &infered_pads_end = a_node.get_attr<std::vector<int64_t>>("pads_end");
+    EXPECT_EQ(infered_pads_begin[0], 1);
+    EXPECT_EQ(infered_pads_begin[1], 1);
+    EXPECT_EQ(infered_pads_end[0], 2);
+    EXPECT_EQ(infered_pads_end[1], 2);
+
+    const std::vector<int64_t> infered_out_shape
+            = logical_tensor_wrapper(lt_o).vdims();
+    const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+    const std::vector<int64_t> infered_out_strides
+            = logical_tensor_wrapper(lt_o).vstrides();
+    const std::vector<int64_t> expected_out_strides
+            = compute_dense_strides(expected_out_shape);
+    EXPECT_EQ(infered_out_strides, expected_out_strides);
+}
+
+TEST(op_schema_test, conv_bias_bn_add_relu_infer_shape) {
+    const op_schema *a_op_schema
+            = op_schema_registry::get_op_schema(op_kind::conv_bias_bn_add_relu);
+    EXPECT_TRUE(nullptr != a_op_schema);
+    node_t a_node {op_kind::conv_bias_bn_add_relu};
+    std::vector<int64_t> strides = {2, 2};
+    std::vector<int64_t> pads_begin = {1, 1};
+    std::vector<int64_t> pads_end = {2, 2};
+    std::vector<int64_t> dilations = {1, 1};
+    float epsilon = 0.001f;
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    int64_t groups = 1;
+
+    set_conv_common_attr(a_node, strides, pads_begin, pads_end, dilations,
+            "None", data_format, filter_format, groups);
+    a_node.set_attr("epsilon", epsilon);
+
+    logical_tensor_t lt_data
+            = logical_tensor_init(0, {1, 256, 64, 64}, data_type::f32);
+    logical_tensor_t lt_weight
+            = logical_tensor_init(1, {512, 256, 3, 3}, data_type::f32);
+    logical_tensor_t lt_bias = logical_tensor_init(1, {512}, data_type::f32);
+    logical_tensor_t lt_gamma
+            = logical_tensor_init(1, {1, 512}, data_type::f32);
+    logical_tensor_t lt_beta = logical_tensor_init(2, {1, 512}, data_type::f32);
+    logical_tensor_t lt_mean = logical_tensor_init(3, {1, 512}, data_type::f32);
+    logical_tensor_t lt_variance
+            = logical_tensor_init(4, {1, 512}, data_type::f32);
+    logical_tensor_t lt_add
+            = logical_tensor_init(5, {1, 512, 33, 33}, data_type::f32);
+    logical_tensor_t lt_o
+            = logical_tensor_init(6, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight, &lt_bias,
+            &lt_gamma, &lt_beta, &lt_mean, &lt_variance, &lt_add};
     std::vector<logical_tensor_t *> lt_out {&lt_o};
     a_op_schema->shape_infer(&a_node, lt_in, lt_out);
     auto &infered_pads_begin
