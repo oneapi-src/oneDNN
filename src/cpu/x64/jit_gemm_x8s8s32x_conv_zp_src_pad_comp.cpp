@@ -272,7 +272,6 @@ void jit_gemm_x8s8s32x_zp_pad_comp_helper::get_zp_pad_com_dim(
 }
 
 void jit_gemm_x8s8s32x_zp_pad_comp_helper::should_apply_zp_src_pad() {
-    const Xbyak::Reg64 &reg_tmp = reg_zp_pad_comp_tmp_;
     const Xbyak::Reg8 &reg_tmp8 = reg_zp_pad_comp_tmp_.cvt8();
     host_->mov(reg_tmp8, w_under_lower_bound_);
     host_->or_(reg_tmp8, w_over_eq_upper_bound_);

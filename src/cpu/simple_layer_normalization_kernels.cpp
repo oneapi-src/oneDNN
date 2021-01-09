@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,8 +111,8 @@ void diff_data_kernel_t<f32>::operator()(const float *src,
     float dd_gamma, dd_gamma_x;
     for (size_t offset = 0; offset < block_size; offset++) {
         // reduce gamma
+        dd_gamma = dd_gamma_x = 0;
         if (calculate_diff_stats_) {
-            dd_gamma = dd_gamma_x = 0;
             if (use_scaleshift_) {
                 PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
                 for (dim_t c = 0; c < C_; c++) {

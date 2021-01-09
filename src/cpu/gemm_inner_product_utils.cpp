@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -184,7 +184,7 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
     return x64::injector::post_ops_ok({x64::isa_all, {binary, eltwise, sum},
             post_ops, dst_d, sum_at_pos_0_only, sum_requires_scale_one});
 #endif
-    for (int i = 0; i < post_ops.entry_.size(); i++) {
+    for (size_t i = 0; i < post_ops.entry_.size(); i++) {
         const auto &post_op = post_ops.entry_[i];
         const bool sum_postop_present = post_op.is_sum(false);
         if (sum_postop_present && i > 0) return false;
