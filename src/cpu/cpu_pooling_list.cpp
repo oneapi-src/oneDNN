@@ -75,7 +75,6 @@ const impl_list_item_t impl_list[] = {
         CPU_INSTANCE(ref_pooling_fwd_t<s32>)
         CPU_INSTANCE(ref_pooling_fwd_t<s8, s32>)
         CPU_INSTANCE(ref_pooling_fwd_t<u8, s32>)
-        CPU_INSTANCE(ref_pooling_bwd_t<s32>)
         /* eol */
         nullptr,
 };
