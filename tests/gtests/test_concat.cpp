@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -105,7 +105,7 @@ protected:
                 "Engine does not support this data type.");
         concat_test_params_t p
                 = ::testing::TestWithParam<decltype(p)>::GetParam();
-        for (int i = 0; i < p.srcs_cds.size(); i++) {
+        for (size_t i = 0; i < p.srcs_cds.size(); i++) {
             SKIP_IF_CUDA(!cuda_supported_format_tag(p.srcs_format[i]),
                     "Unsupported format tag");
         }

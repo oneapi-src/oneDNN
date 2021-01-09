@@ -1022,12 +1022,12 @@ protected:
         SKIP_IF_CUDA(true, "Test not supported in CUDA backend");
 #endif
 
+#if DNNL_X64
         bool is_bf16bf16f32 = true
                 && data_traits<a_dt>::data_type == memory::data_type::bf16
                 && data_traits<b_dt>::data_type == memory::data_type::bf16
                 && data_traits<c_dt>::data_type == memory::data_type::f32;
 
-#if DNNL_X64
         SKIP_IF(is_bf16bf16f32 && get_test_engine_kind() == engine::kind::cpu
                         && !impl::cpu::x64::mayiuse(
                                 impl::cpu::x64::avx512_core),
