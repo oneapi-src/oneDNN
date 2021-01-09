@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2020 Intel Corporation
+# Copyright 2016-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -113,8 +113,10 @@ if(MSVC)
     endif()
 elseif(UNIX OR MINGW)
     append(CMAKE_CCXX_FLAGS "-Wall -Wno-unknown-pragmas")
-    # XXX: Intel oneAPI DPC++ Compiler generates a lot of warnings
-    append(CMAKE_CCXX_FLAGS "-w")
+    if(DNNL_WITH_SYCL)
+        # XXX: Intel oneAPI DPC++ Compiler generates a lot of warnings
+        append(CMAKE_CCXX_FLAGS "-w")
+    endif()
     append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "-Werror")
     append(CMAKE_CCXX_FLAGS "-fvisibility=internal")
     append(CMAKE_CXX_FLAGS "-fvisibility-inlines-hidden")
