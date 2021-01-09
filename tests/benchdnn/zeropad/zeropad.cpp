@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -145,6 +145,17 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode & CORR) {
         // Implicitly relies on zero_pad happening when test_mem is created
         SAFE(compare(test_mem, res), WARN);
+    }
+    if (bench_mode & PERF) {
+        // Get plain memory desc size to have a proper padded area size.
+        dnnl_memory_desc_t plain_data_md {};
+        SAFE(init_md(&plain_data_md, prb->ndims, prb->dims.data(), prb->dt,
+                     tag::abx),
+                WARN);
+        // Fill output bytes for perf_report.
+        res->ibytes = 0; // Since we don't read any data from padding.
+        res->obytes = dnnl_memory_desc_get_size(&data_md)
+                - dnnl_memory_desc_get_size(&plain_data_md);
     }
 
     args_t args;
