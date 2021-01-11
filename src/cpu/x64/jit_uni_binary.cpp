@@ -47,7 +47,13 @@ bool jit_uni_binary_t<src_type>::post_ops_ok(
     using namespace primitive_kind;
 
     const auto &p = attr->post_ops_;
-    const auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
+    const auto is_eltwise = [&](int idx) {
+        if (p.entry_[idx].is_eltwise()) {
+            const auto alg = p.entry_[idx].eltwise.alg;
+            return eltwise_injector::is_alg_supported(alg);
+        }
+        return false;
+    };
     const auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
     const auto is_binary_bf16 = [&](int idx) {
         return is_binary(idx)

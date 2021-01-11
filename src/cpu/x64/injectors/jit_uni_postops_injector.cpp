@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,28 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 namespace injector {
+
+bool is_supported(const post_ops_ok_args_t &post_ops_ok_args) {
+    const cpu_isa_t isa = post_ops_ok_args.isa;
+    const post_ops_t &post_ops = post_ops_ok_args.post_ops;
+    const memory_desc_wrapper *dst_d = post_ops_ok_args.dst_d;
+    const auto &enabled_bcast_strategy
+            = post_ops_ok_args.enabled_bcast_strategy;
+
+    for (const auto &post_op : post_ops.entry_) {
+        if (post_op.is_eltwise()) {
+            const auto res
+                    = eltwise_injector::is_supported(isa, post_op.eltwise.alg);
+            if (!res) return false;
+        } else if (post_op.is_binary()) {
+            const auto &src1_desc = post_op.binary.src1_desc;
+            const auto res = binary_injector::is_supported(
+                    isa, src1_desc, *dst_d, enabled_bcast_strategy);
+            if (!res) return false;
+        }
+    }
+    return true;
+}
 
 template <cpu_isa_t isa>
 jit_uni_postops_injector_t<isa>::jit_uni_postops_injector_t(jit_generator *host,
@@ -188,20 +210,17 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
                         return IMPLICATION(sum_at_pos_0_only, idx == 0);
                     break;
                 case eltwise:
-                    if (entry.is_eltwise()) return true;
+                    if (entry.is_eltwise()) {
+                        const auto alg = entry.eltwise.alg;
+                        return eltwise_injector::is_supported(isa, alg);
+                    }
                     break;
                 case binary:
                     if (entry.is_binary()) {
                         assert(dst_d != nullptr && "dst_d is null");
-
-                        bool res = IMPLICATION(entry.binary.src1_desc.data_type
-                                        == data_type::bf16,
-                                utils::one_of(
-                                        isa, avx512_core_bf16, avx512_core));
-                        res &= binary_injector::binary_args_broadcast_supported(
-                                post_ops, *dst_d, enabled_bcast_strategy);
-
-                        return res;
+                        return binary_injector::is_supported(isa,
+                                entry.binary.src1_desc, *dst_d,
+                                enabled_bcast_strategy);
                     }
                     break;
                 default: assert(false && "Unhandled post_op type");

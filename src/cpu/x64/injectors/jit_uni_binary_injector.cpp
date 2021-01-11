@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,26 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 namespace binary_injector {
+
+bool is_data_supported(cpu_isa_t isa, data_type_t data_type) {
+    return IMPLICATION(data_type == data_type::bf16,
+            utils::one_of(isa, avx512_core_bf16, avx512_core));
+}
+
+bool is_bcast_supported(const dnnl::impl::memory_desc_t &src1_desc,
+        const memory_desc_wrapper &dst_d,
+        const bcast_set_t &supported_strategy_set) {
+    const auto bcast_type = get_rhs_arg_broadcasting_strategy(
+            src1_desc, dst_d, supported_strategy_set);
+    return bcast_type != broadcasting_strategy_t::unsupported;
+}
+
+bool is_supported(cpu_isa_t isa, const dnnl::impl::memory_desc_t &src1_desc,
+        const memory_desc_wrapper &dst_d,
+        const bcast_set_t &supported_strategy_set) {
+    return is_data_supported(isa, src1_desc.data_type)
+            && is_bcast_supported(src1_desc, dst_d, supported_strategy_set);
+}
 
 bool binary_args_broadcast_supported(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d,

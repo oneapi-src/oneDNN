@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,6 +45,12 @@ namespace injector {
  */
 using lambda_jit_injectors_t
         = std::map<dnnl_primitive_kind_t, std::function<void()>>;
+
+struct post_ops_ok_args_t;
+/*
+ * Checks if postops injection for given args is supported.
+ */
+bool is_supported(const post_ops_ok_args_t &post_ops_ok_args);
 
 /*
  * Main mechanism of handling various post-ops types. It utilizes internally

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -416,7 +416,8 @@ bool jit_uni_pool_kernel<isa>::post_ops_ok(jit_pool_conf_t &jpp,
     if (!jpp.is_backward) {
         for (const auto &entry : entries) {
             if (entry.is_eltwise()) {
-                jpp.with_eltwise = true;
+                const auto alg = entry.eltwise.alg;
+                jpp.with_eltwise = eltwise_injector::is_supported(isa, alg);
             } else if (entry.is_binary()) {
                 if (isa != avx512_core
                         && entry.binary.src1_desc.data_type == data_type::bf16)

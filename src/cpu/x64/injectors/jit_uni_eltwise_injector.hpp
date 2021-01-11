@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,6 +51,37 @@ struct static_params_t {
     bool is_fwd;
     bool use_dst;
 };
+
+/*
+ * Checks if isa is supported by binary injector.
+ */
+constexpr bool is_isa_supported(cpu_isa_t isa) {
+    return utils::one_of(isa, sse41, avx, avx2, avx512_common, avx512_core);
+}
+
+/*
+ * Checks if eltwise algorithm is supported by eltwise injector.
+ */
+constexpr bool is_alg_supported(alg_kind_t alg) {
+    using namespace alg_kind;
+    return utils::one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
+            eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
+            eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
+            eltwise_logsigmoid, eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
+            eltwise_log, eltwise_clip, eltwise_clip_v2, eltwise_pow,
+            eltwise_gelu_erf, eltwise_round, eltwise_relu_use_dst_for_bwd,
+            eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
+            eltwise_sqrt_use_dst_for_bwd, eltwise_logistic_use_dst_for_bwd,
+            eltwise_exp_use_dst_for_bwd, eltwise_clip_v2_use_dst_for_bwd);
+}
+
+/*
+ * Checks if eltwise injection for given args is supported.
+ */
+constexpr bool is_supported(cpu_isa_t isa, alg_kind_t alg) {
+    return is_isa_supported(isa) && is_alg_supported(alg);
+}
+
 } // namespace eltwise_injector
 
 template <cpu_isa_t isa>
@@ -84,19 +115,8 @@ struct jit_uni_eltwise_injector_f32 {
         , k_mask(k_mask)
         , is_fwd_(is_fwd)
         , use_dst_(use_dst) {
-        using namespace alg_kind;
-        assert(utils::one_of(
-                isa, sse41, avx, avx2, avx512_common, avx512_core));
-        assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
-                eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-                eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                eltwise_logsigmoid, eltwise_exp, eltwise_gelu_tanh,
-                eltwise_swish, eltwise_log, eltwise_clip, eltwise_clip_v2,
-                eltwise_pow, eltwise_gelu_erf, eltwise_round,
-                eltwise_relu_use_dst_for_bwd, eltwise_tanh_use_dst_for_bwd,
-                eltwise_elu_use_dst_for_bwd, eltwise_sqrt_use_dst_for_bwd,
-                eltwise_logistic_use_dst_for_bwd, eltwise_exp_use_dst_for_bwd,
-                eltwise_clip_v2_use_dst_for_bwd));
+        assert(eltwise_injector::is_supported(isa, alg_));
+
         register_table_entries();
     }
 

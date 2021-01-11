@@ -292,8 +292,8 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     bool ok = mayiuse(isa) && is_fwd() && data_md()->data_type == d_type
             && IMPLICATION(data_md()->data_type == data_type::bf16,
                     mayiuse(avx512_core))
-            && !has_zero_dim_memory()
-            && data_d.is_dense(true)
+            && !has_zero_dim_memory() && data_d.is_dense(true)
+            && eltwise_injector::is_supported(isa, desc_.alg_kind)
             // refer to a comment in jit_uni_kernel why this is needed
             && IMPLICATION(!data_d.is_dense(), is_zero_preserved())
             && attr()->has_default_values();
@@ -359,7 +359,8 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             && IMPLICATION(data_md()->data_type == data_type::bf16,
                     mayiuse(avx512_core))
             && !has_zero_dim_memory() && set_default_formats_common()
-            && data_d.is_dense(true)
+            && data_d.is_dense(true) && eltwise_injector::is_isa_supported(isa)
+            && eltwise_injector::is_alg_supported(desc_.alg_kind)
             // refer to a comment in jit_uni_kernel why this is needed
             && IMPLICATION(!data_d.is_dense(), is_zero_preserved())
             && data_d == memory_desc_wrapper(diff_dst_md())
