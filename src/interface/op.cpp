@@ -128,7 +128,7 @@ status_t DNNL_GRAPH_API dnnl_graph_op_get_id(const op_t *op, size_t *id) {
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_get_kind(
-        const op_t *op, dnnl_graph_op_kind_t *kind) {
+        const op_t *op, op_kind_t *kind) {
     *kind = op->kind();
     return status::success;
 }

@@ -69,14 +69,14 @@ TEST(compiled_partition, relu) {
         data_in[i] = static_cast<float>(i) - static_cast<float>(ele_num_in / 2);
     }
 
-    impl::tensor t_in(lt_in, data_in.data()),
+    impl::tensor_t t_in(lt_in, data_in.data()),
             t_out(query_out_lt, data_out.data());
 
-    std::vector<impl::tensor> t_inputs, t_outputs;
+    std::vector<impl::tensor_t> t_inputs, t_outputs;
     t_inputs.emplace_back(t_in);
     t_outputs.emplace_back(t_out);
 
-    impl::stream &strm = get_stream();
+    impl::stream_t &strm = get_stream();
     EXPECT_SUCCESS(cp.execute(&strm, t_inputs, t_outputs));
 
     std::unique_ptr<float[]> ref_out(new float[ele_num_in]);
@@ -165,21 +165,21 @@ TEST(compiled_partition, search_required_inputs_outputs) {
         data_in[i] = static_cast<float>(i) - static_cast<float>(ele_num_in / 2);
     }
 
-    impl::tensor t_in(lt_in, data_in.data()),
+    impl::tensor_t t_in(lt_in, data_in.data()),
             t_out(query_lt_out, data_out.data());
-    impl::tensor t_in_additional1(lt_in_additional1, nullptr),
+    impl::tensor_t t_in_additional1(lt_in_additional1, nullptr),
             t_in_additional2(lt_in_additional2, nullptr);
-    impl::tensor t_out_additional1(lt_out_additional1, nullptr),
+    impl::tensor_t t_out_additional1(lt_out_additional1, nullptr),
             t_out_additional2(lt_out_additional2, nullptr);
 
     // when submit, in/outputs tensor's order must be same as compile
     // funcstion's in/outputs logical tensor
-    std::vector<impl::tensor> t_inputs_correct {
+    std::vector<impl::tensor_t> t_inputs_correct {
             t_in_additional1, t_in, t_in_additional2};
-    std::vector<impl::tensor> t_outputs_correct {
+    std::vector<impl::tensor_t> t_outputs_correct {
             t_out_additional1, t_out_additional2, t_out};
 
-    impl::stream &strm = get_stream();
+    impl::stream_t &strm = get_stream();
     EXPECT_SUCCESS(cp.execute(&strm, t_inputs_correct, t_outputs_correct));
 
     test::vector<float> ref_out(ele_num_in);
@@ -195,9 +195,9 @@ TEST(compiled_partition, search_required_inputs_outputs) {
 
     // if in/outputs tensor's order is not same as compile
     // function's in/outputs logical tensor, we can also execute
-    std::vector<impl::tensor> t_inputs_wrong {
+    std::vector<impl::tensor_t> t_inputs_wrong {
             t_in_additional1, t_in_additional2, t_in};
-    std::vector<impl::tensor> t_outputs_wrong {
+    std::vector<impl::tensor_t> t_outputs_wrong {
             t_out_additional1, t_out, t_out_additional2};
 
     EXPECT_SUCCESS(cp.execute(&strm, t_inputs_wrong, t_outputs_wrong));
@@ -247,14 +247,14 @@ TEST(compiled_partition, allow_repeated_inputs) {
     test::vector<float> ref_out {
             1.0f, 4.0f, 9.0f, 16.0f, 25.0f, 36.0f, 49.0f, 64.0f, 81.0f};
 
-    impl::tensor t_in1(lt_in1, data_in.data());
-    impl::tensor t_out(query_lt_out, data_out.data());
+    impl::tensor_t t_in1(lt_in1, data_in.data());
+    impl::tensor_t t_out(query_lt_out, data_out.data());
 
     // only one input
-    std::vector<impl::tensor> t_ins {t_in1};
-    std::vector<impl::tensor> t_outs {t_out};
+    std::vector<impl::tensor_t> t_ins {t_in1};
+    std::vector<impl::tensor_t> t_outs {t_out};
 
-    impl::stream &strm = get_stream();
+    impl::stream_t &strm = get_stream();
     EXPECT_SUCCESS(cp.execute(&strm, t_ins, t_outs));
 
     for (size_t i = 0; i < ref_out.size(); i++) {

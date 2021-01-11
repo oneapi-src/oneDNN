@@ -553,7 +553,7 @@ public:
     }
 
     // dnnl_graph::tensor
-    tensor(const impl::tensor &impl_tensor, const dnnl::engine &aengine,
+    tensor(const impl::tensor_t &impl_tensor, const dnnl::engine &aengine,
             const impl::allocator_t *alc)
         : memory(desc(impl_tensor.get_logical_tensor()), aengine,
                 impl_tensor.get_data_handle())

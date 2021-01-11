@@ -34,13 +34,13 @@ using namespace dnnl::graph::impl;
 /// \brief dnnl_graph_thread_pool_t
 ///
 status_t DNNL_GRAPH_API dnnl_graph_thread_pool_create(
-        dnnl_graph_thread_pool **created_thread_pool, int32_t num_threads) {
-    *created_thread_pool = new dnnl_graph_thread_pool {num_threads};
+        thread_pool_t **created_thread_pool, int32_t num_threads) {
+    *created_thread_pool = new thread_pool_t {num_threads};
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_thread_pool_destroy(
-        dnnl_graph_thread_pool_t *thread_pool) {
+        thread_pool_t *thread_pool) {
     delete thread_pool;
     return status::success;
 }
@@ -49,37 +49,31 @@ status_t DNNL_GRAPH_API dnnl_graph_thread_pool_destroy(
 /// \brief dnnl_graph_stream_attr_t
 ///
 status_t DNNL_GRAPH_API dnnl_graph_stream_attr_create(
-        dnnl_graph_stream_attr_t **created_stream_attr,
-        dnnl_graph_thread_pool_t *thread_pool) {
-    *created_stream_attr = new dnnl_graph_stream_attr {thread_pool};
+        stream_attr_t **created_stream_attr, thread_pool_t *thread_pool) {
+    *created_stream_attr = new stream_attr_t {thread_pool};
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_stream_attr_destroy(
-        dnnl_graph_stream_attr_t *stream_attr) {
+        stream_attr_t *stream_attr) {
     delete stream_attr;
     return status::success;
 }
 
-///
-/// \brief dnnl_graph_stream_t
-///
 status_t DNNL_GRAPH_API dnnl_graph_stream_create(
-        dnnl_graph_stream_t **created_stream,
-        const dnnl_graph_engine_t *engine) {
-    *created_stream = new dnnl_graph_stream {engine};
+        stream_t **created_stream, const engine_t *engine) {
+    *created_stream = new stream_t {engine};
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
-        dnnl_graph_stream_t **created_stream, const dnnl_graph_engine_t *engine,
-        const void *queue) {
+        stream_t **created_stream, const engine_t *engine, const void *queue) {
 #if DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(created_stream, engine, queue)) {
         return status::invalid_argument;
     }
     auto &sycl_queue = *static_cast<const cl::sycl::queue *>(queue);
-    *created_stream = new dnnl_graph_stream(engine, sycl_queue);
+    *created_stream = new stream_t {engine, sycl_queue};
     return status::success;
 #else
     UNUSED(created_stream);
@@ -90,21 +84,21 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_stream_create_with_attr(
-        dnnl_graph_stream_t **created_stream, const dnnl_graph_engine_t *engine,
-        const dnnl_graph_stream_attr_t *attr) {
-    *created_stream = new dnnl_graph_stream {engine, attr};
+        stream_t **created_stream, const engine_t *engine,
+        const stream_attr_t *attr) {
+    *created_stream = new stream_t {engine, attr};
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_stream_create_sycl_with_attr(
-        dnnl_graph_stream_t **created_stream, const dnnl_graph_engine_t *engine,
-        const void *queue, const dnnl_graph_stream_attr_t *attr) {
+        stream_t **created_stream, const engine_t *engine, const void *queue,
+        const stream_attr_t *attr) {
 #if DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(created_stream, engine, queue, attr)) {
         return status::invalid_argument;
     }
     auto &sycl_queue = *static_cast<const cl::sycl::queue *>(queue);
-    *created_stream = new dnnl_graph_stream(engine, sycl_queue, attr);
+    *created_stream = new stream_t {engine, sycl_queue, attr};
     return status::success;
 #else
     UNUSED(created_stream);
@@ -115,7 +109,7 @@ status_t DNNL_GRAPH_API dnnl_graph_stream_create_sycl_with_attr(
 #endif
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_stream_destroy(dnnl_graph_stream_t *stream) {
+status_t DNNL_GRAPH_API dnnl_graph_stream_destroy(stream_t *stream) {
     delete stream;
     return status::success;
 }

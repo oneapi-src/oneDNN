@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,12 +51,12 @@ impl::engine_t &get_engine(impl::engine_kind_t engine_kind) {
     return eng;
 }
 
-impl::stream &get_stream() {
+impl::stream_t &get_stream() {
 #if DNNL_GRAPH_WITH_SYCL
     static cl::sycl::queue q {get_context(), get_device()};
-    static impl::stream strm {&get_engine(), q};
+    static impl::stream_t strm {&get_engine(), q};
 #else
-    static impl::stream strm {&get_engine()};
+    static impl::stream_t strm {&get_engine()};
 #endif
     return strm;
 }

@@ -152,9 +152,9 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream *astream,
-            const std::vector<impl::tensor> &inputs,
-            const std::vector<impl::tensor> &outputs) override {
+            const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) override {
         std::string data_format = anode->get_attr<std::string>("data_format");
         auto &src_lt = const_cast<impl::logical_tensor_t &>(
                 inputs.at(pool::kSrc).get_logical_tensor());
@@ -284,9 +284,9 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream *astream,
-            const std::vector<impl::tensor> &inputs,
-            const std::vector<impl::tensor> &outputs) override {
+            const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) override {
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         tensor src {inputs.at(pool_bwd::kSrc), eng_, alc};

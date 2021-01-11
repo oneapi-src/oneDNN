@@ -279,14 +279,14 @@ public:
 
     const std::vector<impl::inplace_pair_t> &get_inplace_pairs() const;
 
-    impl::status_t execute(const impl::stream *astream,
-            const std::vector<impl::tensor> &inputs,
-            const std::vector<impl::tensor> &outputs) const;
+    impl::status_t execute(const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) const;
 
 #if DNNL_GRAPH_WITH_SYCL
-    impl::status_t execute_sycl(const impl::stream *astream,
-            const std::vector<impl::tensor> &inputs,
-            const std::vector<impl::tensor> &outputs,
+    impl::status_t execute_sycl(const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs,
             const cl::sycl::event *sycl_event) const;
 #endif
 

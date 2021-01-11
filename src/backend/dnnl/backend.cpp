@@ -32,9 +32,9 @@ bool dnnl_layout_id_manager::is_mem_desc_equal(
     return md1 == md2;
 }
 
-impl::status_t dnnl_executable::execute(const impl::stream *astream,
-        const std::vector<impl::tensor> &inputs,
-        const std::vector<impl::tensor> &outputs) {
+impl::status_t dnnl_executable::execute(const impl::stream_t *astream,
+        const std::vector<impl::tensor_t> &inputs,
+        const std::vector<impl::tensor_t> &outputs) {
     return kernel_->execute(node_, astream, inputs, outputs);
 }
 
@@ -179,8 +179,8 @@ executable::ptr dnnl_backend::compile_impl(const impl::partition_t *p,
     return executable::ptr(new dnnl_executable(kernel, work_node));
 }
 
-bool dnnl_backend::to_public_impl(const impl::tensor &input,
-        impl::tensor &output, impl::engine_t &aengine) {
+bool dnnl_backend::to_public_impl(const impl::tensor_t &input,
+        impl::tensor_t &output, impl::engine_t &aengine) {
     using ltw = impl::logical_tensor_wrapper;
 
     if (!input.get_data_handle()) return false;

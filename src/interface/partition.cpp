@@ -66,7 +66,7 @@ status_t get_ordered_inputs_outputs(const node_t *work_node,
 
 status_t get_ordered_inputs_outputs(const node_t *work_node,
         const std::vector<logical_tensor_t> &expected,
-        const std::vector<tensor> &origin, std::vector<tensor> &ordered) {
+        const std::vector<tensor_t> &origin, std::vector<tensor_t> &ordered) {
     // to support abitrary re-connection in FWK graph, we need to
     // find required and ordered input and output tensors from the
     // out-of-order inputs / outputs
@@ -76,8 +76,8 @@ status_t get_ordered_inputs_outputs(const node_t *work_node,
     }
     ordered.reserve(expected.size());
     for (auto &&val : expected) {
-        auto pos = std::find_if(
-                origin.begin(), origin.end(), [&val](const tensor &in) -> bool {
+        auto pos = std::find_if(origin.begin(), origin.end(),
+                [&val](const tensor_t &in) -> bool {
                     return in.get_logical_tensor().id == val.id;
                 });
         if (pos != origin.end()) { ordered.emplace_back(*pos); }
@@ -225,14 +225,13 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_create(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
-        const compiled_partition_t *compiled_partition,
-        const dnnl_graph_stream_t *stream, const uint64_t num_inputs,
-        const dnnl_graph_tensor_t **inputs, const uint64_t num_outputs,
-        const dnnl_graph_tensor_t **outputs) {
+        const compiled_partition_t *compiled_partition, const stream_t *stream,
+        const uint64_t num_inputs, const tensor_t **inputs,
+        const uint64_t num_outputs, const tensor_t **outputs) {
     if (utils::any_null(stream, compiled_partition, inputs, outputs))
         return status::invalid_argument;
 
-    std::vector<dnnl_graph_tensor_t> ins, outs;
+    std::vector<tensor_t> ins, outs;
     ins.reserve(num_inputs);
     outs.reserve(num_inputs);
 
@@ -247,16 +246,15 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_compiled_partition_execute(
-        const compiled_partition_t *compiled_partition,
-        const dnnl_graph_stream_t *stream, const uint64_t num_inputs,
-        const dnnl_graph_tensor_t **inputs, const uint64_t num_outputs,
-        const dnnl_graph_tensor_t **outputs, const uint64_t num_deps,
-        void *deps, void *sycl_event) {
+        const compiled_partition_t *compiled_partition, const stream_t *stream,
+        const uint64_t num_inputs, const tensor_t **inputs,
+        const uint64_t num_outputs, const tensor_t **outputs,
+        const uint64_t num_deps, void *deps, void *sycl_event) {
 #if DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(stream, compiled_partition, inputs, outputs))
         return status::invalid_argument;
 
-    std::vector<dnnl_graph_tensor_t> ins, outs;
+    std::vector<tensor_t> ins, outs;
     ins.reserve(num_inputs);
     outs.reserve(num_outputs);
     std::vector<cl::sycl::event> sycl_deps;
@@ -431,13 +429,13 @@ dnnl_graph_compiled_partition::get_inplace_pairs() const {
     return executable_->get_inplace_pairs();
 }
 
-status_t dnnl_graph_compiled_partition::execute(const stream *astream,
-        const std::vector<tensor> &inputs,
-        const std::vector<tensor> &outputs) const {
+status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
+        const std::vector<tensor_t> &inputs,
+        const std::vector<tensor_t> &outputs) const {
     // to support abitrary re-connection in FWK graph, we need to
     // find required input and output logical tensors from the compile
     // function's parameters
-    std::vector<tensor> required_inputs, required_outputs;
+    std::vector<tensor_t> required_inputs, required_outputs;
 
     status_t ret;
     ret = get_ordered_inputs_outputs(
@@ -454,13 +452,14 @@ status_t dnnl_graph_compiled_partition::execute(const stream *astream,
 }
 
 #if DNNL_GRAPH_WITH_SYCL
-status_t dnnl_graph_compiled_partition::execute_sycl(const stream *astream,
-        const std::vector<tensor> &inputs, const std::vector<tensor> &outputs,
+status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
+        const std::vector<tensor_t> &inputs,
+        const std::vector<tensor_t> &outputs,
         const cl::sycl::event *sycl_event) const {
     // to support abitrary re-connection in FWK graph, we need to
     // find required input and output logical tensors from the compile
     // function's parameters
-    std::vector<tensor> required_inputs, required_outputs;
+    std::vector<tensor_t> required_inputs, required_outputs;
     status_t ret;
     ret = get_ordered_inputs_outputs(
             src_partition_.node_.get(), inputs_, inputs, required_inputs);

@@ -335,9 +335,9 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream *astream,
-            const std::vector<impl::tensor> &inputs,
-            const std::vector<impl::tensor> &outputs) override {
+            const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(anode);
         auto &src_lt = const_cast<impl::logical_tensor_t &>(
                 inputs.at(conv::kSrc).get_logical_tensor());
@@ -345,8 +345,8 @@ public:
                 inputs.at(conv::kWeight).get_logical_tensor());
         auto &dst_lt = const_cast<impl::logical_tensor_t &>(
                 outputs.at(conv::kDst).get_logical_tensor());
-        const impl::tensor &impl_bias
-                = with_bias_ ? inputs.at(conv::kBias) : impl::tensor {};
+        const impl::tensor_t &impl_bias
+                = with_bias_ ? inputs.at(conv::kBias) : impl::tensor_t {};
 
         impl::logical_tensor_t post_src_lt;
         if (with_sum_) {
@@ -757,9 +757,9 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream *astream,
-            const std::vector<impl::tensor> &inputs,
-            const std::vector<impl::tensor> &outputs) override {
+            const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) override {
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         auto &weight_lt = const_cast<impl::logical_tensor_t &>(
@@ -956,9 +956,9 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream *astream,
-            const std::vector<impl::tensor> &inputs,
-            const std::vector<impl::tensor> &outputs) override {
+            const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) override {
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
 
         auto &src_lt = const_cast<impl::logical_tensor_t &>(
@@ -968,9 +968,9 @@ public:
         auto &diff_weights_lt = const_cast<impl::logical_tensor_t &>(
                 outputs.at(conv_bwd_filter::kDiffweight).get_logical_tensor());
 
-        auto diff_bias = with_diff_bias_ ? const_cast<impl::tensor &>(
+        auto diff_bias = with_diff_bias_ ? const_cast<impl::tensor_t &>(
                                  outputs.at(conv_bwd_filter::kDiffbias))
-                                         : impl::tensor {};
+                                         : impl::tensor_t {};
 
         // "NXC"
         if (anode->get_attr<std::string>("data_format") == "NXC") {

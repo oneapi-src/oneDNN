@@ -53,9 +53,9 @@ class dnnl_executable : public executable {
         : kernel_(kernel), node_(node) {}
 
 public:
-    virtual impl::status_t execute(const impl::stream *astream,
-            const std::vector<impl::tensor> &inputs,
-            const std::vector<impl::tensor> &outputs) override;
+    virtual impl::status_t execute(const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) override;
 
     virtual const std::vector<impl::inplace_pair_t> &
     get_inplace_pairs() const override;
@@ -90,8 +90,8 @@ private:
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs) override;
 
-    virtual bool to_public_impl(const impl::tensor &input, impl::tensor &output,
-            impl::engine_t &aengine) override;
+    virtual bool to_public_impl(const impl::tensor_t &input,
+            impl::tensor_t &output, impl::engine_t &aengine) override;
 
     virtual bool is_similar_impl(const impl::logical_tensor_t &lhs,
             const impl::logical_tensor_t &rhs) override;

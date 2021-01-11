@@ -320,6 +320,10 @@ using graph_t = dnnl_graph_graph;
 using op_t = dnnl_graph_op;
 using partition_t = dnnl_graph_partition;
 using compiled_partition_t = dnnl_graph_compiled_partition;
+using thread_pool_t = dnnl_graph_thread_pool;
+using stream_attr_t = dnnl_graph_stream_attr;
+using stream_t = dnnl_graph_stream;
+using tensor_t = ::dnnl_graph_tensor;
 
 } // namespace impl
 } // namespace graph

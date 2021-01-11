@@ -58,9 +58,9 @@ public:
     }
 
     impl::status_t execute_impl(const node_t *anode,
-            const impl::stream *astream,
-            const std::vector<impl::tensor> &inputs,
-            const std::vector<impl::tensor> &outputs) override {
+            const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(anode);
         impl::allocator_t *alc = astream->get_engine()->get_allocator();
         tensor src_ts {inputs.at(reorder_input::kSrc), eng_, alc};

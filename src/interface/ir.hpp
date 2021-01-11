@@ -51,15 +51,11 @@ template <typename fvisit>
 inline void dfs_visit(const std::vector<node_t *> &nodes, fvisit f_visit);
 
 class value {
-    using tensor = dnnl::graph::impl::tensor;
-
 private:
     /*! \brief The producer node of this value */
     node_t *producer_;
     /*! \brief The output offset of the producer node */
     size_t offset_;
-    /*! \brief The tensor of this value */
-    tensor *tensor_ = nullptr;
 
 public:
     value(node_t *anode = nullptr,
@@ -82,10 +78,6 @@ public:
         set_producer(anode);
         set_offset(aoffset);
     }
-    /*! \brief Get the tensor of this value */
-    tensor *get_tensor() const { return tensor_; }
-    /*! \brief Set the tensor of this value */
-    void set_tensor(tensor *t) { tensor_ = t; }
 };
 
 class attributes {

@@ -170,7 +170,7 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_destroy(graph_t *graph) {
     return status::success;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_add_op(graph_t *graph, dnnl_graph_op_t *op) {
+status_t DNNL_GRAPH_API dnnl_graph_add_op(graph_t *graph, op_t *op) {
     if (graph == nullptr || op == nullptr) { return status::invalid_argument; }
 
     return graph->add_op(op);
@@ -197,7 +197,7 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_get_partition_num(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
-        graph_t *graph, uint64_t num, dnnl_graph_partition_t **partition) {
+        graph_t *graph, uint64_t num, partition_t **partition) {
     if (graph == nullptr) { return status::invalid_graph; }
     std::vector<partition_t *> partitions {partition, partition + num};
     graph->get_partitions(partitions);

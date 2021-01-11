@@ -55,11 +55,13 @@ public:
 
     dnnl::graph::impl::engine_kind_t kind() const noexcept { return kind_; }
 
-    void set_allocator(dnnl_graph_allocator *a) {
+    void set_allocator(dnnl::graph::impl::allocator_t *a) {
         allocator_.reset(a, dummy_destroy_allocator);
     }
 
-    dnnl_graph_allocator *get_allocator() const { return allocator_.get(); };
+    dnnl::graph::impl::allocator_t *get_allocator() const {
+        return allocator_.get();
+    };
 
 #if DNNL_GRAPH_WITH_SYCL
     const cl::sycl::device &sycl_device() const { return dev_; }
@@ -67,7 +69,7 @@ public:
     const cl::sycl::context &sycl_context() const { return ctx_; }
 #endif
 
-    bool match(const dnnl_graph_engine &eng) const {
+    bool match(const dnnl::graph::impl::engine_t &eng) const {
         bool ok = true && (kind() == eng.kind());
 #if DNNL_GRAPH_WITH_SYCL
         ok = ok && (eng.sycl_device() == dev_) && (eng.sycl_context() == ctx_);

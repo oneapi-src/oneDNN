@@ -22,37 +22,32 @@
 
 using namespace dnnl::graph::impl;
 
-///
-/// dnnl_graph_tensor_t
-///
-
 status_t DNNL_GRAPH_API dnnl_graph_tensor_create_with_logical_tensor(
-        dnnl_graph_tensor_t **created_tensor,
-        const dnnl_graph_logical_tensor_t *logical_tensor, void *data_handle) {
-    *created_tensor = new dnnl_graph_tensor {*logical_tensor, data_handle};
+        tensor_t **created_tensor, const logical_tensor_t *logical_tensor,
+        void *data_handle) {
+    *created_tensor = new tensor_t {*logical_tensor, data_handle};
     return status::success;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_tensor_destroy(dnnl_graph_tensor_t *tensor) {
+status_t DNNL_GRAPH_API dnnl_graph_tensor_destroy(tensor_t *tensor) {
     delete tensor;
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_tensor_get_if_type(
-        const dnnl_graph_tensor_t *tensor, dnnl_graph_data_type_t type,
-        void **data_handle) {
+        const tensor_t *tensor, data_type_t type, void **data_handle) {
     *data_handle = tensor->get_void_data_handle_if_is(type);
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_tensor_set_data_handle(
-        dnnl_graph_tensor_t *tensor, void *data_handle) {
+        tensor_t *tensor, void *data_handle) {
     tensor->set_data_handle(data_handle);
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_tensor_get_element_num(
-        const dnnl_graph_tensor_t *tensor, int64_t *num) {
+        const tensor_t *tensor, int64_t *num) {
     auto lt = tensor->get_logical_tensor();
     *num = logical_tensor_wrapper(lt).nelems();
     return status::success;

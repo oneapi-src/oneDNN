@@ -39,7 +39,7 @@ void sycl_free(void *ptr, const void *ctx);
 impl::engine_t &get_engine(dnnl::graph::impl::engine_kind_t engine_kind
         = dnnl::graph::impl::engine_kind::any_engine);
 
-impl::stream &get_stream();
+impl::stream_t &get_stream();
 
 namespace test {
 

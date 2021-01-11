@@ -46,9 +46,9 @@ struct kernel_base {
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs)
             = 0;
-    virtual status_t execute_impl(const node_t *anode, const stream *astream,
-            const std::vector<tensor> &inputs,
-            const std::vector<tensor> &outputs)
+    virtual status_t execute_impl(const node_t *anode, const stream_t *astream,
+            const std::vector<tensor_t> &inputs,
+            const std::vector<tensor_t> &outputs)
             = 0;
     virtual status_t prepare_inplace_pairs_impl(const engine_t *aengine,
             const std::vector<logical_tensor_t> &inputs,
@@ -67,9 +67,9 @@ struct kernel_base {
         return prepare_inplace_pairs_impl(aengine, inputs, outputs);
     }
 
-    status_t execute(const node_t *anode, const stream *astream,
-            const std::vector<tensor> &inputs,
-            const std::vector<tensor> &outputs) {
+    status_t execute(const node_t *anode, const stream_t *astream,
+            const std::vector<tensor_t> &inputs,
+            const std::vector<tensor_t> &outputs) {
         return execute_impl(anode, astream, inputs, outputs);
     }
 
@@ -147,9 +147,9 @@ public:
     executable() = default;
     virtual ~executable() {};
 
-    virtual status_t execute(const stream *astream,
-            const std::vector<tensor> &inputs,
-            const std::vector<tensor> &outputs)
+    virtual status_t execute(const stream_t *astream,
+            const std::vector<tensor_t> &inputs,
+            const std::vector<tensor_t> &outputs)
             = 0;
 
     virtual const std::vector<inplace_pair_t> &get_inplace_pairs() const = 0;
@@ -194,7 +194,7 @@ public:
 
     // convert a tensor in private layout to public layout
     virtual bool to_public(
-            const tensor &input, tensor &output, engine_t &aengine) {
+            const tensor_t &input, tensor_t &output, engine_t &aengine) {
         if (!is_interpretable(input)) return false;
         return to_public_impl(input, output, aengine);
     }
@@ -217,7 +217,7 @@ private:
             = 0;
 
     virtual bool to_public_impl(
-            const tensor &input, tensor &output, engine_t &aengine)
+            const tensor_t &input, tensor_t &output, engine_t &aengine)
             = 0;
 
     // This is a default impl. The default impl regards two logical tensors
@@ -264,7 +264,7 @@ private:
     }
 
     // a tensor tensor is interpretable if it's logical tesnor is interpretable
-    virtual bool is_interpretable(const tensor &in) {
+    virtual bool is_interpretable(const tensor_t &in) {
         return is_interpretable(in.get_logical_tensor());
     }
 

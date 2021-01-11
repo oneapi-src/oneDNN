@@ -76,12 +76,4 @@ private:
     void *data_handle_ {nullptr};
 };
 
-namespace dnnl {
-namespace graph {
-namespace impl {
-using tensor = ::dnnl_graph_tensor;
-} // namespace impl
-} // namespace graph
-} // namespace dnnl
-
 #endif

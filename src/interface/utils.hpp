@@ -86,7 +86,7 @@ class cpu_allocator {
 public:
     constexpr static size_t DEFAULT_ALIGNMENT = 4096;
 
-    static void *malloc(size_t size, dnnl_graph_allocator_attr_t attr) {
+    static void *malloc(size_t size, allocator_attr_t attr) {
         void *ptr;
         size_t alignment
                 = attr.alignment == 0 ? DEFAULT_ALIGNMENT : attr.alignment;
@@ -117,7 +117,7 @@ public:
     constexpr static size_t DEFAULT_ALIGNMENT = 16;
 
     static void *malloc(size_t size, const void *dev, const void *ctx,
-            dnnl_graph_allocator_attr_t attr) {
+            allocator_attr_t attr) {
         size_t alignment
                 = attr.alignment == 0 ? DEFAULT_ALIGNMENT : attr.alignment;
         return cl::sycl::aligned_alloc_shared(alignment, size,

@@ -35,7 +35,7 @@ status_t DNNL_GRAPH_API dnnl_graph_allocator_create(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_allocator_create(
-        dnnl_graph_allocator_t **created_allocator, sycl_allocate_f sycl_malloc,
+        allocator_t **created_allocator, sycl_allocate_f sycl_malloc,
         sycl_deallocate_f sycl_free) {
 #if DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(sycl_malloc, sycl_free)) {

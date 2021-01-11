@@ -37,44 +37,36 @@ struct dnnl_graph_stream_attr {
 struct dnnl_graph_stream {
 public:
     dnnl_graph_stream() = delete;
-    dnnl_graph_stream(const dnnl_graph_engine_t *engine,
-            const dnnl_graph_stream_attr_t *attr = nullptr)
+    dnnl_graph_stream(const dnnl::graph::impl::engine_t *engine,
+            const dnnl::graph::impl::stream_attr_t *attr = nullptr)
         : engine_ {engine} {
         UNUSED(attr);
-        // TODO(Patryk): dnnl_graph_stream_attr_t operations?
     }
+
 #if DNNL_GRAPH_WITH_SYCL
     // Create an stream from SYCL queue.
-    dnnl_graph_stream(const dnnl_graph_engine_t *engine,
+    dnnl_graph_stream(const dnnl::graph::impl::engine_t *engine,
             const cl::sycl::queue &queue,
-            const dnnl_graph_stream_attr_t *attr = nullptr)
+            const dnnl::graph::impl::stream_attr_t *attr = nullptr)
         : engine_ {engine}, queue_ {queue} {
         UNUSED(attr);
     }
 #endif // DNNL_GRAPH_WITH_SYCL
     ~dnnl_graph_stream() = default;
 
-    const dnnl_graph_engine_t *get_engine() const noexcept { return engine_; }
+    const dnnl::graph::impl::engine_t *get_engine() const noexcept {
+        return engine_;
+    }
 
 #if DNNL_GRAPH_WITH_SYCL
     const cl::sycl::queue &get_queue() const noexcept { return queue_; }
 #endif
 
 private:
-    const dnnl_graph_engine_t *engine_;
+    const dnnl::graph::impl::engine_t *engine_;
 #if DNNL_GRAPH_WITH_SYCL
     cl::sycl::queue queue_;
 #endif
 };
-
-namespace dnnl {
-namespace graph {
-namespace impl {
-using thread_pool = ::dnnl_graph_thread_pool;
-using stream_attr = ::dnnl_graph_stream_attr;
-using stream = ::dnnl_graph_stream;
-} // namespace impl
-} // namespace graph
-} // namespace dnnl
 
 #endif
