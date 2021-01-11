@@ -14,7 +14,7 @@ At build-time, support for this feature is controlled via cmake option
 | DNNL_ENABLE_CPU_ISA_HINTS   | **ON**, OFF                         | Enables CPU ISA hints
 
 This results in making oneDNN aware of DNNL_CPU_ISA_HINTS environment variable
-and corresponding setter utility namely, @ref set_cpu_isa_hints routine.
+and corresponding setter utility namely, @ref dnnl::set_cpu_isa_hints routine.
 
 ## Run-time Controls
 
