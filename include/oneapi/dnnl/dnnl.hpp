@@ -10837,6 +10837,9 @@ inline void primitive::execute(const stream &astream,
 } // namespace dnnl
 
 /// oneAPI namespace
+
+/// The oneAPI namespace.
+/// Contains the oneapi::dnnl namespace as an alias to the ::dnnl namespace.
 namespace oneapi {
 // Note: without this guard, doxygen warns of potentially recursive namespace
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
