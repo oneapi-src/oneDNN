@@ -58,7 +58,7 @@ void _jit_uni_planar_convolution_fwd_t<isa>::execute_forward(const exec_ctx_t &c
 
     const auto &jcp = pd()->jcp_;
 
-    int od_indexes[jcp.od];
+    std::vector<int> od_indexes(jcp.od);
 
     int idx = 0;
     for (int i = 0; i < (jcp.dilate_d + 1); i++) {
