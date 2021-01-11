@@ -10838,8 +10838,11 @@ inline void primitive::execute(const stream &astream,
 
 /// oneAPI namespace
 namespace oneapi {
+// Note: without this guard, doxygen warns of potentially recursive namespace
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 /// oneDNN alias namespace
 namespace dnnl = ::dnnl;
+#endif
 } // namespace oneapi
 
 /// @} dnnl_api
