@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -813,15 +813,6 @@ CPU_INST_TEST_CASE(TestGEMM_heavy,
         test_params {'n', 't', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
                 fix_use_oc},
         test_params {'t', 't', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
-                fix_use_oc},
-
-        test_params {'n', 'n', 3000, 3000, 3000, 2.19f, 1.99f, 3000, 3000, 3000,
-                fix_use_oc},
-        test_params {'t', 'n', 3000, 3000, 3000, 2.99f, 1.19f, 3000, 3000, 3000,
-                fix_use_oc},
-        test_params {'n', 't', 3000, 3000, 3000, 1.19f, 2.99f, 3000, 3000, 3000,
-                fix_use_oc},
-        test_params {'t', 't', 3000, 3000, 3000, 1.99f, 2.19f, 3000, 3000, 3000,
                 fix_use_oc});
 
 CPU_INST_TEST_CASE(TestGEMM_packed_heavy,
