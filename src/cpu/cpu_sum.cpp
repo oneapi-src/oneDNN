@@ -18,7 +18,7 @@
 
 #include "cpu/ref_sum.hpp"
 #include "cpu/simple_sum.hpp"
-#include "common/mkldnn_sel_build.hpp"
+#include "common/dnnl_sel_build.hpp"
 
 #if DNNL_X64
 #include "cpu/x64/jit_avx512_core_bf16_sum.hpp"

@@ -18,10 +18,10 @@
 
 #include "dnnl_thread.hpp"
 #include "dnnl_traits.hpp"
+#include "dnnl_sel_build.hpp"
 #include "stream.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-#include "mkldnn_sel_build.hpp"
 
 #include "memory.hpp"
 

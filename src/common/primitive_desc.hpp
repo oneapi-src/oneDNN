@@ -23,13 +23,13 @@
 
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
+#include "dnnl_sel_build.hpp"
 #include "memory_tracking.hpp"
 #include "nstl.hpp"
 #include "primitive_attr.hpp"
 #include "primitive_cache.hpp"
 #include "type_helpers.hpp"
 #include "verbose.hpp"
-#include "mkldnn_sel_build.hpp"
 
 namespace dnnl {
 namespace impl {

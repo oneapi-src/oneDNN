@@ -20,7 +20,7 @@
 
 #include "common/memory.hpp"
 #include "common/type_helpers.hpp"
-#include "common/mkldnn_sel_build.hpp"
+#include "common/dnnl_sel_build.hpp"
 
 #include "cpu/cpu_engine.hpp"
 #include "cpu/cpu_reorder_pd.hpp"

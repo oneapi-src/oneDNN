@@ -21,7 +21,7 @@
 
 #include "common/bfloat16.hpp"
 #include "common/dnnl_traits.hpp"
-#include "common/mkldnn_sel_build.hpp"
+#include "common/dnnl_sel_build.hpp"
 
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/jit_generator.hpp"

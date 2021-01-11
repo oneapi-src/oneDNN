@@ -24,7 +24,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
-#include "common/mkldnn_sel_build.hpp"
+#include "common/dnnl_sel_build.hpp"
 
 #include "cpu/platform.hpp"
 

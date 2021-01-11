@@ -18,7 +18,7 @@
 
 #include "cpu/ref_concat.hpp"
 #include "cpu/simple_concat.hpp"
-#include "common/mkldnn_sel_build.hpp"
+#include "common/dnnl_sel_build.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -43,7 +43,7 @@ MKLDNN_DEF_PD_BUILDER(cpd_builder,
 
 # define CPD_INSTANCE(...) REG_MKLDNN_FN(cpd_builder, __VA_ARGS__)
 
-#else   // SELECTIVE_BUILD == ON || SELECTIVE_BUILD == OFF
+#else   // !SELECTIVE_BUILD_ANALYZER
 
 # define CPD_INSTANCE REG_MKLDNN_FN
 
