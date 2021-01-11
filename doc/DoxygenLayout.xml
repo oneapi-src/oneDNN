@@ -61,6 +61,7 @@
       <tab type="user" title="Inspecting JIT Code" url="@ref dev_guide_inspecting_jit"/>
       <tab type="user" title="Performance Profiling Example" url="@ref performance_profiling_cpp"/>
       <tab type="user" title="CPU Dispatcher Controls" url="@ref dev_guide_cpu_dispatcher_control"/>
+      <tab type="user" title="CPU ISA Hints" url="@ref dev_guide_cpu_isa_hints"/>
     </tab>
     <tab type="usergroup" title="Advanced Topics">
       <tab type="user" title="Transition from v0.x to v1.x" url="@ref dev_guide_transition_to_v1"/>
