@@ -914,8 +914,14 @@ inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
     for (int po_idx = 0; po_idx < p.len(); ++po_idx) {
         is_po_ok &= is_eltwise(po_idx) | is_sum(po_idx) | is_binary(po_idx);
         if (is_binary(po_idx)) {
-            if (p.entry_[po_idx].binary.src1_desc.ndims > max_ndims_supported)
-                is_po_ok = false;
+            const auto &bin_desc = p.entry_[po_idx].binary.src1_desc;
+            if (bin_desc.ndims > max_ndims_supported) {
+                // accept descriptor if unsupported dims are equal to 1.
+                for (int dim_idx = max_ndims_supported;
+                        dim_idx < bin_desc.ndims; ++dim_idx) {
+                    if (bin_desc.dims[dim_idx] != 1) is_po_ok = false;
+                }
+            }
         }
         if (is_sum(po_idx)) {
             if (p.entry_[po_idx].sum.dt != dnnl_data_type_undef
