@@ -135,6 +135,8 @@ inline runtime_kind_t get_default_runtime(engine_kind_t kind) {
     return runtime_kind::omp;
 #elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_TBB
     return runtime_kind::tbb;
+#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_TBB_AUTO
+    return runtime_kind::tbb_auto;
 #elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
     return runtime_kind::threadpool;
 #else
@@ -144,7 +146,7 @@ inline runtime_kind_t get_default_runtime(engine_kind_t kind) {
 
 inline bool is_native_runtime(runtime_kind_t kind) {
     return utils::one_of(kind, runtime_kind::seq, runtime_kind::omp,
-            runtime_kind::tbb, runtime_kind::threadpool);
+            runtime_kind::tbb, runtime_kind::tbb_auto, runtime_kind::threadpool);
 }
 
 struct engine_factory_t : public c_compatible {
