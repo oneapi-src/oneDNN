@@ -177,7 +177,6 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
 
     Vmm vmm_d_weights = Vmm(avg_vidx_base + 0);
     Vmm vmm_d_bias = Vmm(avg_vidx_base + 1);
-    Vmm vreg_mask_dst = vreg_src(1);
 
     nstl::vector<jit_uni_quantization_injector_f32<isa>*> quantization_injectors;
 
@@ -718,7 +717,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(
         case f32:
             if (masked) {
                 if (sizeof_src_dt() != sizeof_dst_dt()) {
-                    vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask_dst, vreg_dst_f32(jj, ll));
+                    vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask_2, vreg_dst_f32(jj, ll));
                 } else {
                     vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask, vreg_dst_f32(jj, ll));
                 }
@@ -1138,10 +1137,6 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
             // vreg_mask -> {xreg_mask_hi, vreg_mask.xreg}
             vinserti128(vreg_mask, vreg_mask, xreg_mask_hi, 1);
 
-            if (sizeof_src_dt() != sizeof_dst_dt()) {
-                vpmovsxbd(vreg_mask_dst, vreg_mask);
-            }
-
             // Compute mask algned to left from vreg_mask and store it in vreg_mask_2 to be use for tail processing.
             const uint8_t shift = 32 - jpp.c_tail;
             vperm2i128(vreg_mask_2, vreg_mask, vreg_mask, 0x08);
@@ -1151,6 +1146,10 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
                 vpalignr(vreg_mask_2, vreg_mask_2, vreg_zeros, 32 - shift);
             }
             vextracti128(xreg_mask_2_hi, vreg_mask_2, 0x1);
+
+            if (sizeof_src_dt() != sizeof_dst_dt()) {
+                vpmovsxbd(vreg_mask_2, vreg_mask);
+            }
         }
 
         // Need mask in MMX regs ?
