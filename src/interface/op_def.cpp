@@ -638,7 +638,8 @@ DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
                 .set_attr("pads_begin", "top and left padding", true)
                 .set_attr("pads_end", "bottom and right padding", true)
                 .set_attr("kernel", "size of each filter", true)
-                .set_attr("auto_pad", "how the padding is calculated", false)
+                .set_attr("auto_pad", "how the padding is calculated", false,
+                        "None")
                 .set_attr("dilations",
                         "the distance in width and height between elements "
                         "in the filter",
@@ -890,7 +891,7 @@ DNNL_GRAPH_OP_SCHEMA(TanhBackprop, 1,
                         "the gradient tensor w.r.t. the input of Tanh")
                 .set_attr("use_dst",
                         "if true, use dst to calculate gradient; else use src",
-                        false)
+                        false, true)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Transpose, 1,

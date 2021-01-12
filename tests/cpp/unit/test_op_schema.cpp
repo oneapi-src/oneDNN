@@ -3091,3 +3091,577 @@ TEST(op_schema_test, test_layernorm_optional_inputs) {
     ln_op.add_input(&lt_false);
     EXPECT_FALSE(ln_op_schema->verify(&ln_op));
 }
+
+TEST(op_schema_test, test_add_default_attributes) {
+    op_kind_t tmp_op_kind = kAdd;
+    op_t tmp_op {0, tmp_op_kind, std::string("add")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("auto_broadcast", &sval);
+    EXPECT_EQ(*sval, "numpy");
+}
+
+TEST(op_schema_test, test_avgpool_default_attributes) {
+    op_kind_t tmp_op_kind = kAvgPool;
+    op_t tmp_op {0, tmp_op_kind, std::string("avgpool")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
+
+    tmp_op.attr<std::string>("rounding_type", &sval);
+    EXPECT_EQ(*sval, "floor");
+
+    tmp_op.attr<std::string>("auto_pad", &sval);
+    EXPECT_EQ(*sval, "None");
+}
+
+TEST(op_schema_test, test_avgpoolbackprop_default_attributes) {
+    op_kind_t tmp_op_kind = kAvgPoolBackprop;
+    op_t tmp_op {0, tmp_op_kind, std::string("avgpool_bp")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
+
+    tmp_op.attr<std::string>("auto_pad", &sval);
+    EXPECT_EQ(*sval, "None");
+}
+
+TEST(op_schema_test, test_batchnorminference_default_attributes) {
+    op_kind_t tmp_op_kind = kBatchNormInference;
+    op_t tmp_op {0, tmp_op_kind, std::string("bn_inference")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
+}
+
+TEST(op_schema_test, test_batchnormforwardtraining_default_attributes) {
+    op_kind_t tmp_op_kind = kBatchNormForwardTraining;
+    op_t tmp_op {0, tmp_op_kind, std::string("bn_fwd_training")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
+}
+
+TEST(op_schema_test, test_batchnormtrainingbackprop_default_attributes) {
+    op_kind_t tmp_op_kind = kBatchNormTrainingBackprop;
+    op_t tmp_op {0, tmp_op_kind, std::string("bn_bp")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
+
+    const bool *bval {nullptr};
+    tmp_op.attr<bool>("is_training", &bval);
+    EXPECT_TRUE(*bval);
+}
+
+TEST(op_schema_test, test_biasadd_default_attributes) {
+    op_kind_t tmp_op_kind = kBiasAdd;
+    op_t tmp_op {0, tmp_op_kind, std::string("bias_add")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
+}
+
+TEST(op_schema_test, test_biasaddbackprop_default_attributes) {
+    op_kind_t tmp_op_kind = kBiasAddBackprop;
+    op_t tmp_op {0, tmp_op_kind, std::string("bias_add_bp")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
+}
+
+TEST(op_schema_test, test_convolution_default_attributes) {
+    op_kind_t tmp_op_kind = kConvolution;
+    op_t tmp_op {0, tmp_op_kind, std::string("conv")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
+
+    tmp_op.attr<std::string>("filter_format", &sval);
+    EXPECT_EQ(*sval, "XIO");
+
+    tmp_op.attr<std::string>("auto_pad", &sval);
+    EXPECT_EQ(*sval, "None");
+
+    const int64_t *ival {nullptr};
+    tmp_op.attr<int64_t>("groups", &ival);
+    int64_t int_value {1};
+    EXPECT_EQ(*ival, int_value);
+}
+
+TEST(op_schema_test, test_convolutionbackpropdata_default_attributes) {
+    op_kind_t tmp_op_kind = kConvolutionBackpropData;
+    op_t tmp_op {0, tmp_op_kind, std::string("conv_bpd")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::vector<int64_t> *vval {nullptr};
+    tmp_op.attr<std::vector<int64_t>>("output_padding", &vval);
+    std::vector<int64_t> vector_value(0, DNNL_GRAPH_MAX_NDIMS);
+    EXPECT_EQ(*vval, vector_value);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
+
+    tmp_op.attr<std::string>("filter_format", &sval);
+    EXPECT_EQ(*sval, "XIO");
+
+    tmp_op.attr<std::string>("auto_pad", &sval);
+    EXPECT_EQ(*sval, "None");
+
+    const int64_t *ival {nullptr};
+    tmp_op.attr<int64_t>("groups", &ival);
+    int64_t int_value {1};
+    EXPECT_EQ(*ival, int_value);
+}
+
+TEST(op_schema_test, test_convolutionbackpropfilter_default_attributes) {
+    op_kind_t tmp_op_kind = kConvolutionBackpropFilters;
+    op_t tmp_op {0, tmp_op_kind, std::string("conv_bpf")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
+
+    tmp_op.attr<std::string>("filter_format", &sval);
+    EXPECT_EQ(*sval, "XIO");
+
+    tmp_op.attr<std::string>("auto_pad", &sval);
+    EXPECT_EQ(*sval, "None");
+
+    const int64_t *ival {nullptr};
+    tmp_op.attr<int64_t>("groups", &ival);
+    int64_t int_value {1};
+    EXPECT_EQ(*ival, int_value);
+}
+
+TEST(op_schema_test, test_divide_default_attributes) {
+    op_kind_t tmp_op_kind = kDivide;
+    op_t tmp_op {0, tmp_op_kind, std::string("divide")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("auto_broadcast", &sval);
+    EXPECT_EQ(*sval, "numpy");
+}
+
+TEST(op_schema_test, test_interpolate_default_attributes) {
+    op_kind_t tmp_op_kind = kInterpolate;
+    op_t tmp_op {0, tmp_op_kind, std::string("interpolate")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("coordinate_transformation_mode", &sval);
+    EXPECT_EQ(*sval, "half_pixel");
+
+    tmp_op.attr<std::string>("nearest_mode", &sval);
+    EXPECT_EQ(*sval, "round_prefer_floor");
+
+    const bool *bval {nullptr};
+    tmp_op.attr<bool>("antialias", &bval);
+    EXPECT_FALSE(*bval);
+
+    const std::vector<int64_t> *vval {nullptr};
+    tmp_op.attr<std::vector<int64_t>>("pads_begin", &vval);
+    std::vector<int64_t> vector_value(0, DNNL_GRAPH_MAX_NDIMS);
+    EXPECT_EQ(*vval, vector_value);
+
+    tmp_op.attr<std::vector<int64_t>>("pads_end", &vval);
+    EXPECT_EQ(*vval, vector_value);
+
+    const float *fval {nullptr};
+    tmp_op.attr<float>("cube_coeff", &fval);
+    float float_value {-0.75};
+    EXPECT_FLOAT_EQ(*fval, float_value);
+}
+
+TEST(op_schema_test, test_interpolatebackprop_default_attributes) {
+    op_kind_t tmp_op_kind = kInterpolateBackprop;
+    op_t tmp_op {0, tmp_op_kind, std::string("interpolate_bp")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("coordinate_transformation_mode", &sval);
+    EXPECT_EQ(*sval, "half_pixel");
+
+    tmp_op.attr<std::string>("nearest_mode", &sval);
+    EXPECT_EQ(*sval, "round_prefer_floor");
+
+    const bool *bval {nullptr};
+    tmp_op.attr<bool>("antialias", &bval);
+    EXPECT_FALSE(*bval);
+
+    const std::vector<int64_t> *vval {nullptr};
+    tmp_op.attr<std::vector<int64_t>>("pads_begin", &vval);
+    std::vector<int64_t> vector_value(0, DNNL_GRAPH_MAX_NDIMS);
+    EXPECT_EQ(*vval, vector_value);
+
+    tmp_op.attr<std::vector<int64_t>>("pads_end", &vval);
+    EXPECT_EQ(*vval, vector_value);
+
+    const float *fval {nullptr};
+    tmp_op.attr<float>("cube_coeff", &fval);
+    float float_value {-0.75};
+    EXPECT_FLOAT_EQ(*fval, float_value);
+}
+
+TEST(op_schema_test, test_layernorm_default_attributes) {
+    op_kind_t tmp_op_kind = kLayerNorm;
+    op_t tmp_op {0, tmp_op_kind, std::string("ln")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const bool *bval {nullptr};
+    tmp_op.attr<bool>("keep_stats", &bval);
+    EXPECT_TRUE(bval);
+
+    const int64_t *ival {nullptr};
+    tmp_op.attr<int64_t>("begin_norm_axis", &ival);
+    int64_t int_value {-1};
+    EXPECT_EQ(*ival, int_value);
+
+    tmp_op.attr<bool>("use_affine", &bval);
+    EXPECT_TRUE(bval);
+
+    const float *fval {nullptr};
+    tmp_op.attr<float>("epsilon", &fval);
+    float float_value {1e-5f};
+    EXPECT_FLOAT_EQ(*fval, float_value);
+}
+
+TEST(op_schema_test, test_layernormbackprop_default_attributes) {
+    op_kind_t tmp_op_kind = kLayerNormBackprop;
+    op_t tmp_op {0, tmp_op_kind, std::string("ln_bp")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const bool *bval {nullptr};
+    tmp_op.attr<bool>("use_affine", &bval);
+    EXPECT_TRUE(bval);
+
+    const int64_t *ival {nullptr};
+    tmp_op.attr<int64_t>("begin_norm_axis", &ival);
+    int64_t int_value {-1};
+    EXPECT_EQ(*ival, int_value);
+
+    tmp_op.attr<bool>("use_stats", &bval);
+    EXPECT_TRUE(bval);
+
+    const float *fval {nullptr};
+    tmp_op.attr<float>("epsilon", &fval);
+    float float_value {1e-5f};
+    EXPECT_FLOAT_EQ(*fval, float_value);
+}
+
+TEST(op_schema_test, test_logsoftmax_default_attributes) {
+    op_kind_t tmp_op_kind = kLogSoftmax;
+    op_t tmp_op {0, tmp_op_kind, std::string("log_softmax")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const int64_t *ival {nullptr};
+    tmp_op.attr<int64_t>("axis", &ival);
+    int64_t int_value {-1};
+    EXPECT_EQ(*ival, int_value);
+}
+
+TEST(op_schema_test, test_logsoftmaxbackprop_default_attributes) {
+    op_kind_t tmp_op_kind = kLogSoftmaxBackprop;
+    op_t tmp_op {0, tmp_op_kind, std::string("log_softmax_bp")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const int64_t *ival {nullptr};
+    tmp_op.attr<int64_t>("axis", &ival);
+    int64_t int_value {-1};
+    EXPECT_EQ(*ival, int_value);
+}
+
+TEST(op_schema_test, test_matmul_default_attributes) {
+    op_kind_t tmp_op_kind = kMatMul;
+    op_t tmp_op {0, tmp_op_kind, std::string("matmul")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const bool *bval {nullptr};
+    tmp_op.attr<bool>("transpose_a", &bval);
+    EXPECT_FALSE(*bval);
+
+    tmp_op.attr<bool>("transpose_b", &bval);
+    EXPECT_FALSE(*bval);
+}
+
+TEST(op_schema_test, test_maxpool_default_attributes) {
+    op_kind_t tmp_op_kind = kMaxPool;
+    op_t tmp_op {0, tmp_op_kind, std::string("max_pool")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
+
+    tmp_op.attr<std::string>("rounding_type", &sval);
+    EXPECT_EQ(*sval, "floor");
+
+    tmp_op.attr<std::string>("auto_pad", &sval);
+    EXPECT_EQ(*sval, "None");
+
+    const std::vector<int64_t> *vval {nullptr};
+    tmp_op.attr<std::vector<int64_t>>("dilations", &vval);
+    std::vector<int64_t> vector_value(1, DNNL_GRAPH_MAX_NDIMS);
+    EXPECT_EQ(*vval, vector_value);
+}
+
+TEST(op_schema_test, test_maxpoolbackprop_default_attributes) {
+    op_kind_t tmp_op_kind = kMaxPoolBackprop;
+    op_t tmp_op {0, tmp_op_kind, std::string("max_pool_bp")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("data_format", &sval);
+    EXPECT_EQ(*sval, "NXC");
+
+    const std::vector<int64_t> *vval {nullptr};
+    tmp_op.attr<std::vector<int64_t>>("dilations", &vval);
+    std::vector<int64_t> vector_value(1, DNNL_GRAPH_MAX_NDIMS);
+    EXPECT_EQ(*vval, vector_value);
+
+    tmp_op.attr<std::string>("auto_pad", &sval);
+    EXPECT_EQ(*sval, "None");
+}
+
+TEST(op_schema_test, test_maximum_default_attributes) {
+    op_kind_t tmp_op_kind = kMaximum;
+    op_t tmp_op {0, tmp_op_kind, std::string("max")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("auto_broadcast", &sval);
+    EXPECT_EQ(*sval, "numpy");
+}
+
+TEST(op_schema_test, test_minimum_default_attributes) {
+    op_kind_t tmp_op_kind = kMinimum;
+    op_t tmp_op {0, tmp_op_kind, std::string("min")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("auto_broadcast", &sval);
+    EXPECT_EQ(*sval, "numpy");
+}
+
+TEST(op_schema_test, test_multiply_default_attributes) {
+    op_kind_t tmp_op_kind = kMultiply;
+    op_t tmp_op {0, tmp_op_kind, std::string("mul")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("auto_broadcast", &sval);
+    EXPECT_EQ(*sval, "numpy");
+}
+
+TEST(op_schema_test, test_pow_default_attributes) {
+    op_kind_t tmp_op_kind = kPow;
+    op_t tmp_op {0, tmp_op_kind, std::string("pow")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const std::string *sval {nullptr};
+    tmp_op.attr<std::string>("auto_broadcast", &sval);
+    EXPECT_EQ(*sval, "numpy");
+}
+
+TEST(op_schema_test, test_reducesum_default_attributes) {
+    op_kind_t tmp_op_kind = kReduceSum;
+    op_t tmp_op {0, tmp_op_kind, std::string("reduce_sum")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const bool *bval {nullptr};
+    tmp_op.attr<bool>("keep_dims", &bval);
+    EXPECT_FALSE(*bval);
+}
+
+TEST(op_schema_test, test_sigmoidbackprop_default_attributes) {
+    op_kind_t tmp_op_kind = kSigmoidBackprop;
+    op_t tmp_op {0, tmp_op_kind, std::string("sig_bp")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const bool *bval {nullptr};
+    tmp_op.attr<bool>("use_dst", &bval);
+    EXPECT_TRUE(bval);
+}
+
+TEST(op_schema_test, test_softmax_default_attributes) {
+    op_kind_t tmp_op_kind = kSoftMax;
+    op_t tmp_op {0, tmp_op_kind, std::string("softmax")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const int64_t *ival {nullptr};
+    tmp_op.attr<int64_t>("axis", &ival);
+    int64_t int_value {1};
+    EXPECT_EQ(*ival, int_value);
+}
+
+TEST(op_schema_test, test_softmaxbackprop_default_attributes) {
+    op_kind_t tmp_op_kind = kSoftMaxBackprop;
+    op_t tmp_op {0, tmp_op_kind, std::string("softmax_bp")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const int64_t *ival {nullptr};
+    tmp_op.attr<int64_t>("axis", &ival);
+    int64_t int_value {1};
+    EXPECT_EQ(*ival, int_value);
+}
+
+TEST(op_schema_test, test_softplus_default_attributes) {
+    op_kind_t tmp_op_kind = kSoftPlus;
+    op_t tmp_op {0, tmp_op_kind, std::string("softplus")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const int64_t *ival {nullptr};
+    tmp_op.attr<int64_t>("beta", &ival);
+    int64_t int_value {1};
+    EXPECT_EQ(*ival, int_value);
+}
+
+TEST(op_schema_test, test_softplusbackprop_default_attributes) {
+    op_kind_t tmp_op_kind = kSoftPlusBackprop;
+    op_t tmp_op {0, tmp_op_kind, std::string("softplus_bp")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const int64_t *ival {nullptr};
+    tmp_op.attr<int64_t>("beta", &ival);
+    int64_t int_value {1};
+    EXPECT_EQ(*ival, int_value);
+}
+
+TEST(op_schema_test, test_sqrtbackprop_default_attributes) {
+    op_kind_t tmp_op_kind = kSqrtBackprop;
+    op_t tmp_op {0, tmp_op_kind, std::string("sqrt_bp")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const bool *bval {nullptr};
+    tmp_op.attr<bool>("use_dst", &bval);
+    EXPECT_TRUE(bval);
+}
+
+TEST(op_schema_test, test_tanhbackprop_default_attributes) {
+    op_kind_t tmp_op_kind = kTanhBackprop;
+    op_t tmp_op {0, tmp_op_kind, std::string("tanh_bp")};
+
+    const op_schema *opm = op_schema_registry::get_op_schema(tmp_op_kind);
+    EXPECT_TRUE(opm != nullptr);
+    opm->set_default_attribute(&tmp_op);
+
+    const bool *bval {nullptr};
+    tmp_op.attr<bool>("use_dst", &bval);
+    EXPECT_TRUE(bval);
+}
