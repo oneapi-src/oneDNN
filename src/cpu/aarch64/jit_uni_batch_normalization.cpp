@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
-* Copyright 2020 FUJITSU LIMITED
+* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -447,27 +447,6 @@ struct jit_bnorm_t : public jit_generator {
         L(l_ret);
     }
 
-    void uni_fdiv(const VReg4S &dst, const VReg4S &src, const VReg4S &src2) {
-        fdiv(dst, src, src2);
-    }
-
-    void uni_fdiv(const ZRegS &dst, const ZRegS &src, const ZRegS &src2) {
-        uint32_t dstIdx = IDX(dst);
-        uint32_t srcIdx = IDX(src);
-        uint32_t src2Idx = IDX(src2);
-
-        if (dstIdx == src2Idx) {
-            mov(t_tmp0.s, P_ALL_ONE / T_m, src2);
-            mov(dst, P_ALL_ONE / T_m, src);
-            fdiv(dst, p_512 / T_m, t_tmp0.s);
-        } else if (dstIdx == srcIdx) {
-            fdiv(dst, p_512 / T_m, src2);
-        } else {
-            mov(dst, P_ALL_ONE / T_m, src);
-            fdiv(dst, p_512 / T_m, src2);
-        }
-    }
-
     void uni_fsqrt(const VReg4S &dst, const VReg4S &src) { fsqrt(dst, src); }
 
     void uni_fsqrt(const ZRegS &dst, const ZRegS &src) {
@@ -795,7 +774,7 @@ struct jit_bnorm_t : public jit_generator {
                     TReg vscale = bdesc_->use_scaleshift() ? vgamma : vone;
                     TReg vdiv = bdesc_->use_scaleshift() ? vgamma : vsqrtvar;
 
-                    uni_fdiv(vdiv.s, vscale.s, vsqrtvar.s);
+                    uni_fdiv(vdiv.s, vscale.s, vsqrtvar.s, t_tmp0.s, p_512);
 
                     add(X_TMP_0, reg_src, reg_soff_nspc);
                     if (offt) add_imm(X_TMP_0, X_TMP_0, offt, X_TMP_1);
@@ -1146,7 +1125,7 @@ struct jit_bnorm_t : public jit_generator {
             TReg vscale = bdesc_->use_scaleshift() ? vgamma : vone;
             TReg vdiv = bdesc_->use_scaleshift() ? vgamma : vsqrtvar;
 
-            uni_fdiv(vdiv.s, vscale.s, vsqrtvar.s);
+            uni_fdiv(vdiv.s, vscale.s, vsqrtvar.s, t_tmp0.s, p_512);
 
             auto compute = [=](bool stream_store_allowed) {
                 spat_loop(
@@ -1528,14 +1507,15 @@ struct jit_bnorm_t : public jit_generator {
             uni_load_maybe_tail(vsqrtvar, var_ptr());
             fadd(vsqrtvar.s, vsqrtvar.s, veps.s);
             uni_fsqrt(vsqrtvar.s, vsqrtvar.s);
-            uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s);
+            uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s, t_tmp0.s, p_512);
             if (bdesc_->use_scaleshift())
                 uni_load_maybe_tail(vgamma, gamma_ptr());
             uni_load_maybe_tail(vdiff_gamma, diff_gamma_ptr());
             uni_load_maybe_tail(vdiff_beta, diff_beta_ptr());
             fmul(vdiff_gamma.s, vdiff_gamma.s, vsqrtvar.s);
-            uni_fdiv(vdiff_beta.s, vdiff_beta.s, vchan_size.s);
-            uni_fdiv(vdiff_gamma.s, vdiff_gamma.s, vchan_size.s);
+            uni_fdiv(vdiff_beta.s, vdiff_beta.s, vchan_size.s, t_tmp0.s, p_512);
+            uni_fdiv(vdiff_gamma.s, vdiff_gamma.s, vchan_size.s, t_tmp0.s,
+                    p_512);
 
             auto compute = [=](bool stream_store_allowed) {
                 spat_loop(
@@ -1643,7 +1623,7 @@ struct jit_bnorm_t : public jit_generator {
 
                     fadd(vsqrtvar.s, vsqrtvar.s, veps.s);
                     uni_fsqrt(vsqrtvar.s, vsqrtvar.s);
-                    uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s);
+                    uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s, t_tmp0.s, p_512);
 
                     if (bdesc_->use_scaleshift())
                         uni_load_maybe_tail(vgamma, gamma_ptr(coff));
@@ -1665,8 +1645,10 @@ struct jit_bnorm_t : public jit_generator {
                     ldr(reg_ws, ptr(X_TMP_0));
 
                     fmul(vdiff_gamma.s, vdiff_gamma.s, vsqrtvar.s);
-                    uni_fdiv(vdiff_beta.s, vdiff_beta.s, vchan_size.s);
-                    uni_fdiv(vdiff_gamma.s, vdiff_gamma.s, vchan_size.s);
+                    uni_fdiv(vdiff_beta.s, vdiff_beta.s, vchan_size.s, t_tmp0.s,
+                            p_512);
+                    uni_fdiv(vdiff_gamma.s, vdiff_gamma.s, vchan_size.s,
+                            t_tmp0.s, p_512);
 
                     add(X_TMP_0, reg_diff_dst, reg_soff_nspc);
                     if (offt) add_imm(X_TMP_0, X_TMP_0, offt, X_TMP_1);
@@ -1872,7 +1854,7 @@ struct jit_bnorm_t : public jit_generator {
                 uni_load_maybe_tail(vsqrtvar, var_ptr());
                 fadd(vsqrtvar.s, vsqrtvar.s, veps.s);
                 uni_fsqrt(vsqrtvar.s, vsqrtvar.s);
-                uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s);
+                uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s, t_tmp0.s, p_512);
                 mov(reg_ctr, reg_nnthr);
                 Label sh_reduction_thrs;
                 L(sh_reduction_thrs);

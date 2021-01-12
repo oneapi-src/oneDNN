@@ -206,6 +206,42 @@ public:
         L(label);
     }
 
+    template <typename TReg>
+    void uni_fdiv(const TReg &dst, const TReg &src, const TReg &src2) {
+        fdiv(dst, src, src2);
+    }
+
+    void uni_fdiv(const Xbyak_aarch64::VReg4S &dst,
+            const Xbyak_aarch64::VReg4S &src, const Xbyak_aarch64::VReg4S &src2,
+            const Xbyak_aarch64::VReg4S &tmp, const Xbyak_aarch64::PReg &pred) {
+        UNUSED(tmp);
+        UNUSED(pred);
+        fdiv(dst, src, src2);
+    }
+
+    template <typename TReg>
+    void uni_fdiv(const TReg &dst, const TReg &src, const TReg &src2,
+            const TReg &tmp, const Xbyak_aarch64::PReg &pred) {
+        uint32_t dstIdx = dst.getIdx();
+        uint32_t srcIdx = src.getIdx();
+        uint32_t src2Idx = src2.getIdx();
+        uint32_t tmpIdx = tmp.getIdx();
+
+        if (dstIdx == src2Idx) {
+            assert(tmpIdx != srcIdx && tmpIdx != src2Idx);
+
+            mov(Xbyak_aarch64::ZRegD(tmp.getIdx()),
+                    Xbyak_aarch64::ZRegD(src2.getIdx()));
+            mov(dst, pred / Xbyak_aarch64::T_m, src);
+            fdiv(dst, pred / Xbyak_aarch64::T_m, tmp);
+        } else if (dstIdx == srcIdx) {
+            fdiv(dst, pred / Xbyak_aarch64::T_m, src2);
+        } else {
+            mov(dst, P_ALL_ONE / Xbyak_aarch64::T_m, src);
+            fdiv(dst, pred / Xbyak_aarch64::T_m, src2);
+        }
+    }
+
     void uni_fsub(const Xbyak_aarch64::VReg4S &v1,
             const Xbyak_aarch64::VReg4S &v2, const Xbyak_aarch64::VReg4S &v3) {
         fsub(v1, v2, v3);
