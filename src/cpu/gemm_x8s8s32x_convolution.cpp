@@ -40,7 +40,7 @@ using namespace dnnl::impl::memory_tracking::names;
 const int32_t *mul_zp_src_comp_from_wei_by_zp_src(const int zp_comp_size,
         int32_t *zp_src_comp_scratch_dst,
         const int32_t *const zp_src_comp_from_wei, const int32_t zp_src) {
-    static constexpr auto cache_line_size
+    static constexpr int cache_line_size
             = platform::get_cache_line_size() / sizeof(int);
     const auto res = std::div(zp_comp_size, cache_line_size);
 

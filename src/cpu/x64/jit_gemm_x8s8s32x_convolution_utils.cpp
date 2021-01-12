@@ -65,7 +65,6 @@ private:
     void zero_binary_postops_off();
     void set_binary_postops_off(const Xbyak::Reg64 &reg);
     const Xbyak::Opmask &opmask_binary = k2;
-    const Xbyak::Reg64 &reg_tmp = rcx; // intentional for shifting purposes
 
     struct ker_args_t {
         char *dst;
@@ -100,7 +99,9 @@ private:
     const size_t dst_data_type_size_;
     const bool saturation_needed_;
 
-    const Xbyak::Reg64 &reg_param_ = abi_param1;
+    const Xbyak::Reg64 &reg_param_ = param1;
+    const Xbyak::Reg64 &reg_tmp = rcx; // intentional for shifting purposes
+
     const Xbyak::Reg64 &reg_dst_ = rdx;
     const Xbyak::Reg64 &reg_acc_ = rax;
     const Xbyak::Reg64 &reg_bias_ = rbx;
@@ -129,7 +130,9 @@ private:
     const Xbyak::Opmask &kreg_rem_mask_vlen_ = k3;
 
     static constexpr size_t def_unroll_ = 4u;
-    const size_t zmm_step_;
+    size_t zmm_step_;
+    const size_t bias_step_factor_;
+    const size_t sum_step_factor_;
     const size_t max_unroll_;
     int dst_l_offset_ = 0;
 
@@ -154,7 +157,9 @@ jit_pp_ker_t::jit_pp_ker_t(
     , vreg_saturation_ubound_(
               saturation_needed_ ? reserve_zmm() : Xbyak::Zmm(0))
     , vreg_zp_dst_common_(jcp_.zp.dst_exists ? reserve_zmm() : Xbyak::Zmm(0))
-    , zmm_step_(jcp.with_sum ? 3u : 2u)
+    , zmm_step_(1u)
+    , bias_step_factor_(jcp_.with_bias ? zmm_step_++ : 0u)
+    , sum_step_factor_(jcp_.with_sum ? zmm_step_++ : 0)
     , max_unroll_((cpu_isa_traits<avx512_core>::n_vregs
                           - number_of_reserved_zmm_regs_)
               / zmm_step_)
@@ -286,15 +291,11 @@ Xbyak::Zmm jit_pp_ker_t::get_vreg_dst(int idx) const {
 }
 
 Xbyak::Zmm jit_pp_ker_t::get_vreg_bias(int idx) const {
-    return Xbyak::Zmm(vreg_dst_idx(idx) + 1);
-}
-
-Xbyak::Zmm jit_pp_ker_t::get_vreg_zp_comp_src(int idx) const {
-    return get_vreg_bias(idx);
+    return Xbyak::Zmm(vreg_dst_idx(idx) + bias_step_factor_);
 }
 
 Xbyak::Zmm jit_pp_ker_t::get_vreg_prev_dst(int idx) const {
-    return Xbyak::Zmm(vreg_dst_idx(idx) + 2);
+    return Xbyak::Zmm(vreg_dst_idx(idx) + sum_step_factor_);
 }
 
 Xbyak::Zmm jit_pp_ker_t::get_masked_vreg_dst(int idx, bool apply_mask) const {
@@ -310,7 +311,6 @@ void jit_pp_ker_t::append_zp_src_comp(size_t offset, int idx, bool apply_mask) {
     const auto vreg_dst_masked = get_masked_vreg_dst(idx, apply_mask);
     const auto vreg_dst = get_vreg_dst(idx);
     const auto zp_src_comp_offset = offset * sizeof(int32_t);
-    const auto zp_src_offset = jcp_.zp.src_is_common ? 0 : zp_src_comp_offset;
     const auto zp_src_comp_addr = ptr[reg_zp_src_comp_ + zp_src_comp_offset];
 
     vpaddd(vreg_dst_masked, vreg_dst, zp_src_comp_addr);
@@ -600,7 +600,7 @@ void jit_pp_ker_t::generate() {
         jle(prologue_loop_tail, T_NEAR);
         L(prologue_loop);
         {
-            compute(0, 0, false);
+            compute(0, max_unroll_ - 1, false);
             advance_ptrs_imm(vlen, vlen);
             sub(reg_tmp, vlen);
             cmp(reg_tmp, vlen);
@@ -615,7 +615,7 @@ void jit_pp_ker_t::generate() {
         jz(prologue_loop_end, T_NEAR);
 
         kmovq(kreg_rem_mask_short_, reg_rem_mask_short_);
-        compute(0, 0, true);
+        compute(0, max_unroll_ - 1, true);
         advance_ptrs_reg(reg_tmp, reg_tmp);
 
         L(prologue_loop_end);
