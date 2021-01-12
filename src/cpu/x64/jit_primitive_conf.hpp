@@ -132,7 +132,7 @@ struct jit_conv_conf_t {
     int nb_oc_L2;
     int ic_tail, oc_tail;
     int ur_h, ur_w;
-    int ur_w_tail;
+    int ur_w_tail, ur_w_blocks;
     int ur_ic, ur_kw;
     bool is_1stconv;
     int nonblk_group_off;
@@ -458,6 +458,8 @@ struct jit_conv_call_s {
     int flags;
     int flags_prf;
     int oc_flag;
+    size_t last_ic_block;
+    size_t last_oc_block;
 };
 
 struct jit_deconv_call_s {
