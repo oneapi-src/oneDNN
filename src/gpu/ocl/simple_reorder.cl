@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -395,30 +395,39 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     SRC_DATA_T dst_buf[SUB_GROUP_SIZE];
     SRC_DATA_T send_buf;
 
-    for_(int d0i = 0; d0i < d0_block; d0i++)
-    for_(int d1i = 0; d1i < d1_block; d1i++)
-    for_(int d2i = 0; d2i < d2_block; d2i++)
-    for_(int d3i = 0; d3i < d3_block; d3i++)
-    for_(int d4i = 0; d4i < d4_block; d4i++)
-    for (int d5i = 0; d5i < d5_block; d5i++) {
-        int iter = d0i + d1i + d2i + d3i + d4i + d5i;
-#if PLAIN_TO_BLOCK
-        int src_off = SRC_OFF(
-                d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5 + d5i);
+#if PAD_FILL_ZERO == 1
+    const int pad_d0 = d0 >= SRC_D0;
+    const int pad_d1 = NDIMS > 1 && d1 >= SRC_D1;
+    const int pad_d2 = NDIMS > 2 && d2 >= SRC_D2;
+    const int pad_d3 = NDIMS > 3 && d3 >= SRC_D3;
+    const int pad_d4 = NDIMS > 4 && d4 >= SRC_D4;
+    const int pad_d5 = NDIMS > 5 && d5 >= SRC_D5;
+    const int pad = pad_d0 || pad_d1 || pad_d2 || pad_d3 || pad_d4 || pad_d5;
 #else
-        int src_off = SRC_OFF(d0, d1, d2, d3, d4, d5)
-                + SIZE_COEFF * BATCH_SIZE * iter;
+    const int pad = 0;
 #endif
-        src_buf[iter] = SRC_BLOCK_READ(&src[src_off]);
-    }
+    if (!pad) {
+        for_(int d0i = 0; d0i < d0_block; d0i++)
+        for_(int d1i = 0; d1i < d1_block; d1i++)
+        for_(int d2i = 0; d2i < d2_block; d2i++)
+        for_(int d3i = 0; d3i < d3_block; d3i++)
+        for_(int d4i = 0; d4i < d4_block; d4i++)
+        for (int d5i = 0; d5i < d5_block; d5i++) {
+            const int iter = d0i + d1i + d2i + d3i + d4i + d5i;
+            const int src_off = SRC_OFF(
+                    d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5 + d5i);
 
-    // Share and transpose. Each work item keeps 1 own value and
-    // gets (N-1) values from other work items
-    dst_buf[sgId] = src_buf[sgId];
-    for (int i = 1; i < SUB_GROUP_SIZE; i++) {
-        send_buf = src_buf[(i + sgId) % BATCH_SIZE];
-        dst_buf[(BATCH_SIZE + sgId - i) % BATCH_SIZE] = intel_sub_group_shuffle(
-                send_buf, (BATCH_SIZE + sgId - i) % BATCH_SIZE);
+            src_buf[iter] = SRC_BLOCK_READ(&src[src_off]);
+        }
+        // Share and transpose. Each work item keeps 1 own value and
+        // gets (N-1) values from other work items
+        dst_buf[sgId] = src_buf[sgId];
+        for (int i = 1; i < SUB_GROUP_SIZE; i++) {
+            send_buf = src_buf[(i + sgId) % BATCH_SIZE];
+            dst_buf[(BATCH_SIZE + sgId - i) % BATCH_SIZE]
+                    = intel_sub_group_shuffle(
+                            send_buf, (BATCH_SIZE + sgId - i) % BATCH_SIZE);
+        }
     }
 
     for_(int d0i = 0; d0i < d0_block; d0i++)
@@ -427,19 +436,29 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     for_(int d3i = 0; d3i < d3_block; d3i++)
     for_(int d4i = 0; d4i < d4_block; d4i++)
     for (int d5i = 0; d5i < d5_block; d5i++) {
-        int iter = d0i + d1i + d2i + d3i + d4i + d5i;
-#if PLAIN_TO_BLOCK
-        int dst_off = DST_OFF(d0, d1, d2, d3, d4, d5)
-                + SIZE_COEFF * BATCH_SIZE * iter;
-#else
-        int dst_off = DST_OFF(
-                d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5 + d5i);
+        const int iter = d0i + d1i + d2i + d3i + d4i + d5i;
+#if DST_BLOCK_DIM == 0
+        const int dst_off = DST_OFF(d0 + iter, d1, d2, d3, d4, d5);
+#elif DST_BLOCK_DIM == 1
+        const int dst_off = DST_OFF(d0, d1 + iter, d2, d3, d4, d5);
+#elif DST_BLOCK_DIM == 2
+        const int dst_off = DST_OFF(d0, d1, d2 + iter, d3, d4, d5);
+#elif DST_BLOCK_DIM == 3
+        const int dst_off = DST_OFF(d0, d1, d2, d3 + iter, d4, d5);
+#elif DST_BLOCK_DIM == 4
+        const int dst_off = DST_OFF(d0, d1, d2, d3, d4 + iter, d5);
+#elif DST_BLOCK_DIM == 5
+        const int dst_off = DST_OFF(d0, d1, d2, d3, d4, d5 + iter);
 #endif
         DST_DATA_T dst_tmp;
+        if (!pad) {
 #if WITH_SUM_AB
-        dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
+            dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
 #endif
-        REORDER(dst_tmp, dst_buf[iter], alpha, beta);
+            REORDER(dst_tmp, dst_buf[iter], alpha, beta);
+        } else {
+            dst_tmp = 0;
+        }
         DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
     }
 
