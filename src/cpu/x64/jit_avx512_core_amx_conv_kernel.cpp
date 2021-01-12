@@ -21,6 +21,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/jit_avx512_core_amx_conv_kernel.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
@@ -2749,6 +2750,1592 @@ void jit_avx512_core_amx_bwd_data_kernel_t::init_scratchpad(
         scratchpad.book(key_conv_padded_bias, jcp.ic, jcp.typesize_bia);
     }
     scratchpad.book(key_conv_amx_tilecfg, 1, 64); // 1 whole cacheline
+}
+
+const int jit_avx512_core_amx_bwd_weights_kernel_t::max_ur_w = 32;
+
+// Tile register decomposition
+// { C_BASE = 0, A_BASE = 4, B_BASE = 6, }
+int jit_avx512_core_amx_bwd_weights_kernel_t::get_wei_tensor(
+        int ocb, int icb) const {
+    const int C_BASE = 0;
+    const int C_LAST = 4;
+    assert(0 <= C_BASE && C_BASE < C_LAST && C_LAST <= jcp.max_tiles);
+    MAYBE_UNUSED(C_LAST);
+    const int tile = C_BASE + ocb * jcp.nb_oc_blocking + icb;
+    assert(C_BASE <= tile && tile < C_LAST);
+    return tile;
+}
+int jit_avx512_core_amx_bwd_weights_kernel_t::get_src_tensor(int icb) const {
+    const int A_BASE = 4;
+    const int A_LAST = 6;
+    assert(0 <= A_BASE && A_BASE < A_LAST && A_LAST <= jcp.max_tiles);
+    MAYBE_UNUSED(A_LAST);
+    const int tile = A_BASE + icb;
+    assert(A_BASE <= tile && tile < A_LAST);
+    return tile;
+}
+int jit_avx512_core_amx_bwd_weights_kernel_t::get_ddst_tensor(int ocb) const {
+    const int B_BASE = 6;
+    const int B_LAST = 8;
+    assert(0 <= B_BASE && B_BASE < B_LAST && B_LAST <= jcp.max_tiles);
+    MAYBE_UNUSED(B_LAST);
+    const int tile = B_BASE + ocb;
+    assert(B_BASE <= tile && tile < B_LAST);
+    return tile;
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::tile_configure(char *tcfg_buff) {
+    // Input tile dimensions
+    const int a_col = jcp.ur_w;
+    const int a_row = jcp.ic_block;
+    // Weights tile dimensions
+    const int b_col = jcp.oc_block * 2;
+    const int b_row = a_col / 2;
+    // Accumulator tile dimensions
+    const int c_col = jcp.oc_block;
+    const int c_row = a_row;
+
+    for (size_t i = 0; i < 64; i++)
+        tcfg_buff[i] = 0;
+
+    for (int icb = 0; icb < jcp.nb_ic_blocking; icb++)
+        tc_configure_tile((palette_config_t *)tcfg_buff, get_src_tensor(icb),
+                a_row, a_col * jcp.typesize_in);
+
+    for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++)
+        tc_configure_tile((palette_config_t *)tcfg_buff, get_ddst_tensor(ocb),
+                b_row, b_col * jcp.typesize_in);
+
+    for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++)
+        for (int icb = 0; icb < jcp.nb_ic_blocking; icb++)
+            tc_configure_tile((palette_config_t *)tcfg_buff,
+                    get_wei_tensor(ocb, icb), c_row, c_col * jcp.typesize_out);
+
+    ((palette_config_t *)tcfg_buff)->palette_id = amx::get_max_palette();
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::od_step_comeback_pointers() {
+    Label kd_comeback_label;
+    mov(kj, reg_kd_count);
+    L(kd_comeback_label);
+    {
+        sub(reg_src, get_src_offset(0, 0, filter_d_to_src(1)));
+        sub(reg_kernel, get_kernel_offset(0, jcp.kh * jcp.kw));
+        dec(kj);
+        jnz(kd_comeback_label, T_NEAR);
+    }
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::oh_step_comeback_pointers() {
+    Label kh_comeback_label;
+    mov(kj, reg_kh);
+    L(kh_comeback_label);
+    {
+        sub(reg_src, get_src_offset(0, 0, filter_h_to_src(1)));
+        sub(reg_kernel, get_kernel_offset(0, jcp.kw));
+        dec(kj);
+        jnz(kh_comeback_label, T_NEAR);
+    }
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::compute_full_spat_loop(
+        int nb_ic_blocking, int nb_oc_blocking) {
+    // General code layout:
+    //
+    // Blocking over OH -- top level
+    // (Reduces L2 pressure; not very useful right now)
+    //  Loop over all KHxKW kernel -- emit_kh_kw_loop()
+    //    Loop over OH block -- emit_h_loop()
+    //      Loop over OW blocks -- emit_fma_block()
+    //      (Supports both fully unrolled and partially unrolled
+    //      versions to reduce code size)
+    //          Loop over OW block -- emit_fma_step()
+
+    auto src_row_size = get_src_offset(0, 0, 1);
+    auto ddst_row_size = get_ddst_offset(0, 1);
+    auto row_size = src_row_size + ddst_row_size;
+
+    int h_block_size = jcp.oh;
+    int h_last_block_size = h_block_size;
+    int min_h_block_size = nstl::max(1, nstl::max(jcp.b_pad, jcp.t_pad));
+    auto working_set_size = row_size * h_block_size;
+
+    if (working_set_size > full_spat_max_working_set_size) {
+        assert(full_spat_opt_working_set_size < full_spat_max_working_set_size);
+
+        while (working_set_size > full_spat_opt_working_set_size
+                && h_block_size >= min_h_block_size) {
+            for (int i = 2; i <= h_block_size; i++)
+                if (i == h_block_size)
+                    h_block_size = h_block_size / 2;
+                else if (h_block_size % i == 0) {
+                    h_block_size = h_block_size / i;
+                    break;
+                }
+            working_set_size = row_size * h_block_size;
+        }
+        h_block_size = nstl::max(min_h_block_size, h_block_size);
+        h_last_block_size = jcp.oh % h_block_size;
+        if (h_last_block_size < jcp.b_pad) h_last_block_size += h_block_size;
+    }
+
+    Opmask reg_h_block = k1;
+    Reg64 reg_kh = rax;
+    Reg64 reg_kw = rbx;
+    Reg64 reg_tmp = abi_not_param1;
+    Reg32 reg_tmp_w = reg_tmp.cvt32();
+    Reg64 reg_ohs = rdx;
+    Reg64 reg_ihs = rsi;
+    Reg64 reg_h = r8;
+    Reg64 reg_j = r10;
+
+    Reg64 reg_src = r13;
+    Reg64 reg_ddst = r14;
+    Reg64 reg_ker = r15;
+
+    Reg64 reg_dense_stride = abi_param1;
+    Reg64 reg_a_stride = reg_tmp;
+
+    auto emit_block = [&]() {
+        mov(reg_a_stride, jcp.tr_iw * jcp.typesize_in);
+        for (int ur_w_b = 0; ur_w_b < jcp.ur_w_blocks; ur_w_b++) {
+            dim_t ur_w_src_offset = ur_w_b * get_src_offset(0, jcp.ur_w);
+            dim_t ur_w_ddst_offset = ur_w_b * get_ddst_offset(jcp.ur_w);
+
+            for (int icb = 0; icb < nb_ic_blocking; icb++) {
+                dim_t icb_offset = jcp.typesize_in * icb * jcp.tr_src_buf_size;
+                tileloadd(Tmm(get_src_tensor(icb)),
+                        ptr[reg_src + reg_a_stride + icb_offset
+                                + ur_w_src_offset]);
+            }
+            for (int ocb = 0; ocb < nb_oc_blocking; ocb++) {
+                tileloadd(Tmm(get_ddst_tensor(ocb)),
+                        ptr[reg_ddst + reg_dense_stride
+                                + jcp.typesize_in * ocb
+                                        * jcp.tr_diff_dst_buf_size
+                                + ur_w_ddst_offset]);
+                for (int icb = 0; icb < nb_ic_blocking; icb++)
+                    tdpbf16ps(Tmm(get_wei_tensor(ocb, icb)),
+                            Tmm(get_src_tensor(icb)),
+                            Tmm(get_ddst_tensor(ocb)));
+            }
+        }
+    };
+
+    auto emit_h_loop = [&]() {
+        Label h_loop, skip_h_loop;
+        mov(reg_j, 1);
+        cmp(reg_j, reg_h);
+        je(skip_h_loop, T_NEAR);
+        L(h_loop);
+        {
+            emit_block();
+
+            add(reg_src, get_src_offset(0, 0, 1));
+            add(reg_ddst, get_ddst_offset(0, 1));
+            add(reg_j, 1);
+            cmp(reg_j, reg_h);
+            jb(h_loop);
+        }
+        L(skip_h_loop);
+
+        emit_block();
+    };
+
+    auto emit_kh_kw_loop = [&](bool is_first_block, bool is_last_block) {
+        xor_(reg_kh, reg_kh);
+        Label kh_loop, kh_loop_end;
+
+        int oh_block_size = (is_last_block) ? h_last_block_size : h_block_size;
+        // NB: this is correct because we only support t_pad = kh / 2 and thus
+        // ih == oh
+        int ih_block_size = oh_block_size
+                + (!is_first_block + !is_last_block) * jcp.t_pad;
+
+        L(kh_loop);
+        {
+            if (is_first_block) {
+                xor_(reg_tmp, reg_tmp);
+                mov(reg_ohs, jcp.t_pad);
+                sub(reg_ohs, reg_kh);
+                cmovb(reg_ohs, reg_tmp);
+
+                mov(reg_ihs, reg_ohs);
+                sub(reg_ihs, jcp.t_pad);
+                add(reg_ihs, reg_kh);
+            } else {
+                xor_(reg_ohs, reg_ohs);
+                mov(reg_ihs, reg_kh);
+            }
+
+            mov(reg_tmp, oh_block_size);
+            sub(reg_tmp, reg_ohs);
+            mov(reg_h, ih_block_size);
+            sub(reg_h, reg_ihs);
+            cmp(reg_tmp, reg_h);
+            cmovb(reg_h, reg_tmp);
+
+            Label kh_loop_work;
+            cmp(reg_h, 0);
+            jg(kh_loop_work, T_NEAR);
+
+            // empty h loop for this jcp.kh:
+            // - set the ddst to 0 if necessary
+            // - move ker pt
+            // - jump to the end
+            sub(reg_h, 1);
+            Label skip_ker_zeroing;
+
+            // The reg_ker ptr has highest bit set if the ddst needs to be
+            // zeroed. Those who have byte-aligned their data will suffer the
+            // consequences :(
+            // TODO: move the flag to a mask register? (Roma)
+            test(reg_ker, 1);
+            jz(skip_ker_zeroing, T_NEAR);
+
+            Label zeroing_loop;
+            vpxord(zmm0, zmm0, zmm0);
+            and_(reg_ker, ~1); // temporarily clear the zeroing flag
+
+            mov(reg_dense_stride, 64);
+            tilezero(Tmm(get_wei_tensor(0, 0)));
+            for (int kw = 0; kw < jcp.kw; kw++) {
+                // dim_t kw_offset = kw * get_kernel_offset(jcp.ic_block, 0);
+                for_(int ocb = 0; ocb < nb_oc_blocking; ocb++)
+                for (int icb = 0; icb < nb_ic_blocking; icb++)
+                    tilestored(
+                            ptr[reg_ker + reg_dense_stride
+                                    + get_full_kernel_offset(ocb, icb, 0, kw)],
+                            Tmm(get_wei_tensor(0, 0)));
+            }
+            // restore the zeroing flag (it will be cleared after the end of
+            // emit_kh_kw_loop, but we may need it until then)
+            or_(reg_ker, 1);
+            jmp(kh_loop_end, T_NEAR);
+
+            L(skip_ker_zeroing);
+            add(reg_ker, get_kernel_offset(0, jcp.kw));
+            jmp(kh_loop_end, T_NEAR);
+
+            L(kh_loop_work);
+
+            mul_by_const(reg_ihs, reg_tmp, get_src_offset(0, 0, 1));
+            mul_by_const(reg_ohs, reg_tmp, get_ddst_offset(0, 1));
+
+            add(reg_src, reg_ihs);
+            add(reg_ddst, reg_ohs);
+
+            Label kw_loop;
+            xor_(reg_kw, reg_kw);
+
+            mov(reg_dense_stride, 64);
+            L(kw_loop);
+            {
+                Label do_zero, ker_init_done;
+                test(reg_ker, 1);
+                jnz(do_zero, T_NEAR);
+
+                for_(int ocb = 0; ocb < nb_oc_blocking; ocb++)
+                for (int icb = 0; icb < nb_ic_blocking; icb++)
+                    tileloadd(Tmm(get_wei_tensor(ocb, icb)),
+                            ptr[reg_ker + reg_dense_stride
+                                    + get_full_kernel_offset(ocb, icb, 0, 0)]);
+                jmp(ker_init_done);
+                L(do_zero);
+                for_(int ocb = 0; ocb < nb_oc_blocking; ocb++)
+                for (int icb = 0; icb < nb_ic_blocking; icb++)
+                    tilezero(Tmm(get_wei_tensor(ocb, icb)));
+
+                L(ker_init_done);
+
+                mov(ptr[rsp + ddst_save_offset], reg_ddst);
+                mov(ptr[rsp + src_save_offset], reg_src);
+
+                lea(reg_src, ptr[reg_src + reg_kw * jcp.typesize_in]);
+                emit_h_loop();
+
+                mov(reg_ddst, ptr[rsp + ddst_save_offset]);
+                mov(reg_src, ptr[rsp + src_save_offset]);
+
+                // The reg_ker ptr has highest bit set if the ddst needs to
+                // be zeroed. Those who have byte-aligned their data will
+                // suffer the consiquences :(
+                mov(reg_tmp, reg_ker);
+                and_(reg_ker, ~1);
+
+                for_(int ocb = 0; ocb < nb_oc_blocking; ocb++)
+                for (int icb = 0; icb < nb_ic_blocking; icb++)
+                    tilestored(
+                            ptr[reg_ker + reg_dense_stride
+                                    + get_full_kernel_offset(ocb, icb, 0, 0)],
+                            Tmm(get_wei_tensor(ocb, icb)));
+
+                mov(reg_ker, reg_tmp);
+                add(reg_ker, get_kernel_offset(jcp.ic_block, 0));
+                add(reg_kw, 1);
+                cmp(reg_kw, jcp.kw);
+                jl(kw_loop);
+            }
+
+            sub(reg_src, reg_ihs);
+            sub(reg_ddst, reg_ohs);
+
+            L(kh_loop_end);
+            add(reg_kh, 1);
+            cmp(reg_kh, jcp.kh);
+            jl(kh_loop);
+        }
+    };
+
+    mov(reg_src, ptr[param + GET_OFF(src)]);
+    mov(reg_ddst, ptr[param + GET_OFF(dst)]);
+    mov(reg_ker, ptr[param + GET_OFF(filt)]);
+    mov(reg_tmp, ptr[param + GET_OFF(channel)]);
+    or_(reg_ker, reg_tmp);
+
+    bool single_kh_kw_loop = (h_last_block_size == jcp.oh);
+
+    auto src_row_step = get_src_offset(0, 0, 1);
+    auto first_src_block_step = src_row_step * (h_block_size - jcp.t_pad);
+    auto ddst_block_step = get_ddst_offset(0, h_block_size);
+
+    emit_kh_kw_loop(true, single_kh_kw_loop);
+
+    if (!single_kh_kw_loop) {
+        auto ker_reset_offset = get_kernel_offset(0, jcp.kw * jcp.kh);
+        sub(reg_ker, ker_reset_offset);
+        and_(reg_ker, ~1); // Clear the zeroing flag for subsequent updates
+
+        add(reg_src, first_src_block_step);
+        add(reg_ddst, ddst_block_step);
+
+        int num_innermost_iters
+                = (jcp.oh - h_last_block_size) / h_block_size - 1;
+        if (num_innermost_iters > 0) {
+            Label h_block_loop;
+
+            mov(reg_tmp_w, num_innermost_iters);
+            kmovw(reg_h_block, reg_tmp_w);
+            L(h_block_loop);
+            {
+                emit_kh_kw_loop(false, false);
+                sub(reg_ker, ker_reset_offset);
+                add(reg_src, src_row_step * h_block_size);
+                add(reg_ddst, ddst_block_step);
+
+                kmovw(reg_tmp_w, reg_h_block);
+                sub(reg_tmp_w, 1);
+                kmovw(reg_h_block, reg_tmp_w);
+                jnz(h_block_loop);
+            }
+        }
+
+        emit_kh_kw_loop(false, true);
+    }
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::compute_ic_loop(
+        int ic_block, int nb_ic_blocking, int nb_oc_blocking) {
+    assert(jcp.ur_w % 2 == 0);
+    const int str_w = jcp.stride_w;
+    assert(jcp.tr_iw % str_w == 0);
+    const int src_stride_w_shift = jcp.tr_iw / str_w;
+
+    mov(reg_b_stride, 64);
+    mov(reg_a_stride, jcp.tr_iw * jcp.typesize_in);
+
+    for (int s = 0; s < str_w; s++) {
+        for (int i_kw = s; i_kw < jcp.kw; i_kw += str_w) {
+
+            for (int ocb = 0; ocb < nb_oc_blocking; ocb++)
+                for (int icb = 0; icb < nb_ic_blocking; icb++)
+                    tileloadd(Tmm(get_wei_tensor(ocb, icb)),
+                            ptr[reg_kernel + reg_b_stride
+                                    + get_full_kernel_offset(
+                                            ocb, icb, 0, i_kw)]);
+
+            int src_offset_l = (i_kw * (jcp.dilate_w + 1)) / str_w
+                    + s * src_stride_w_shift;
+
+            for (int ur_w_b = 0; ur_w_b < jcp.ur_w_blocks; ur_w_b++) {
+                dim_t ur_w_src_offset = ur_w_b
+                        * get_src_offset(0, filter_w_to_src(0, jcp.ur_w, 0));
+                dim_t ur_w_ddst_offset = ur_w_b * get_ddst_offset(jcp.ur_w);
+                for (int icb = 0; icb < nb_ic_blocking; icb++) {
+                    dim_t icb_offset = icb * jcp.tr_src_buf_size;
+                    tileloadd(Tmm(get_src_tensor(icb)),
+                            ptr[reg_src
+                                    + jcp.typesize_in
+                                            * (src_offset_l + icb_offset)
+                                    + ur_w_src_offset + reg_a_stride]);
+                }
+                for (int ocb = 0; ocb < nb_oc_blocking; ocb++) {
+                    tileloadd(Tmm(get_ddst_tensor(ocb)),
+                            ptr[reg_ddst
+                                    + jcp.typesize_in * ocb
+                                            * jcp.tr_diff_dst_buf_size
+                                    + ur_w_ddst_offset + reg_b_stride]);
+                    for (int icb = 0; icb < nb_ic_blocking; icb++)
+                        tdpbf16ps(Tmm(get_wei_tensor(ocb, icb)),
+                                Tmm(get_src_tensor(icb)),
+                                Tmm(get_ddst_tensor(ocb)));
+                }
+            }
+
+            for (int ocb = 0; ocb < nb_oc_blocking; ocb++)
+                for (int icb = 0; icb < nb_ic_blocking; icb++)
+                    tilestored(ptr[reg_kernel + reg_b_stride
+                                       + get_full_kernel_offset(
+                                               ocb, icb, 0, i_kw)],
+                            Tmm(get_wei_tensor(ocb, icb)));
+        }
+    }
+    safe_add(reg_src, get_src_offset(ic_block, 0), reg_long_offt);
+    add(reg_kernel, get_kernel_offset(ic_block, 0));
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::compute_diff_bias_init(int ocb) {
+    auto reg_unit_val = reg_tmp.cvt16();
+    mov(reg_unit_val, 0x3f80); // bf16 value of 1.
+    vpbroadcastw(vreg_bias_unit, reg_unit_val);
+
+    mov(reg_tmp, ptr[param + GET_OFF(bias)]);
+    vmovups(vreg_bias_acc, ptr[reg_tmp + sizeof(float) * ocb * jcp.oc_block]);
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::compute_diff_bias_row(
+        bool is_partial, int ocb) {
+    if (!jcp.with_bias) return;
+    mov(reg_tmp, ptr[param + GET_OFF(flags)]);
+    Label skip_label;
+    test(reg_tmp, FLAG_IC_FIRST);
+    jz(skip_label, T_NEAR);
+
+    if (is_partial) { compute_diff_bias_init(ocb); }
+    auto compute_step = [&]() {
+        vmovups(vreg_bias_ddst, ptr[reg_ddst]);
+        vdpbf16ps(vreg_bias_acc, vreg_bias_ddst, vreg_bias_unit);
+    };
+
+    Label ow_loop, ow_tail;
+    int niters = jcp.tr_ow / 2;
+    if (niters > 0) {
+        mov(reg_tmp, jcp.tr_ow / 2);
+        L(ow_loop);
+        compute_step();
+        add(reg_ddst, get_ddst_offset(2));
+        sub(reg_tmp, 1);
+        jnz(ow_loop, T_NEAR);
+    }
+    if (jcp.tr_ow % 2) compute_step();
+
+    if (niters > 0) sub(reg_ddst, get_ddst_offset(2 * niters));
+
+    if (is_partial) {
+        mov(reg_tmp, ptr[param + GET_OFF(bias)]);
+        vmovups(ptr[reg_tmp + sizeof(float) * ocb * jcp.oc_block],
+                vreg_bias_acc);
+    }
+
+    L(skip_label);
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::maybe_compute_diff_bias(
+        int nb_oc_blocking) {
+    // In harness_3d_reduction case calculation of diff_bias is called
+    // for every ow row separately to be aligned with od loop in
+    // compute_od_loop_common()
+    if (!jcp.with_bias || jcp.harness == harness_3d_reduction) return;
+    mov(reg_tmp, ptr[param + GET_OFF(flags)]);
+
+    Label skip_label;
+    test(reg_tmp, FLAG_IC_FIRST);
+    jz(skip_label, T_NEAR);
+
+    for (int ocb = 0; ocb < nb_oc_blocking; ocb++) {
+        Label bias_loop, skip_label_local;
+
+        mov(reg_ddst, ptr[param + GET_OFF(dst)]);
+        add(reg_ddst, jcp.typesize_in * ocb * jcp.tr_diff_dst_buf_size);
+
+        switch (jcp.harness) {
+            case harness_2d_reduction:
+                mov(reg_oj, ptr[param + GET_OFF(os_index_end)]);
+                sub(reg_oj, ptr[param + GET_OFF(os_index_begin)]);
+                break;
+            case harness_mb_reduction:
+            case harness_compute_full_spatial: mov(reg_oj, jcp.oh); break;
+            case harness_3d_reduction:
+            default: assert(!"Invalid harness type");
+        }
+
+        cmp(reg_oj, 0);
+        jle(skip_label_local, T_NEAR); // nothing to do
+
+        compute_diff_bias_init(ocb);
+        L(bias_loop);
+        {
+            compute_diff_bias_row(false, ocb);
+            add(reg_ddst, get_ddst_offset(0, 1));
+
+            sub(reg_oj, 1);
+            jnz(bias_loop, T_NEAR);
+        }
+
+        mov(reg_tmp, ptr[param + GET_OFF(bias)]);
+        vmovups(ptr[reg_tmp + sizeof(float) * ocb * jcp.oc_block],
+                vreg_bias_acc);
+
+        L(skip_label_local);
+    }
+    // restore reg_ddst value
+    mov(reg_ddst, ptr[param + GET_OFF(dst)]);
+
+    L(skip_label);
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::compute_oh_step_common(
+        int nb_ic_blocking, int nb_oc_blocking) {
+    Label kh_label, ic_block_label, ow_block_label, kd_label;
+
+    int ic_block = jcp.ic_block;
+    int ic_tail = jcp.ic_tail;
+
+    auto ic_loop = [&](int nb_ic_blocking, int nb_oc_blocking) {
+        Label ic_tail_label, ic_loop_done_label;
+
+        if (ic_tail) {
+            mov(reg_icb, ptr[param + GET_OFF(reduce_work)]);
+            cmp(reg_icb, jcp.ic_tail);
+            jne(ic_tail_label, T_NEAR);
+
+            compute_ic_loop(ic_block, nb_ic_blocking, nb_oc_blocking);
+            jmp(ic_loop_done_label, T_NEAR);
+
+            L(ic_tail_label);
+            compute_ic_loop(ic_tail, nb_ic_blocking, nb_oc_blocking);
+            add(reg_kernel, get_kernel_offset(jcp.ic_block - ic_tail, 0));
+            safe_add(reg_src,
+                    get_src_offset(0, 0, filter_h_to_src(1))
+                            - get_src_offset(ic_tail, 0),
+                    reg_long_offt);
+            L(ic_loop_done_label);
+        } else {
+            compute_ic_loop(ic_block, nb_ic_blocking, nb_oc_blocking);
+        }
+    };
+
+    if (jcp.ndims == 5) {
+        /* NOTE: reg_kd_count = aux_reg_src = r12. The following order of
+         * 'movs' must be guaranteed. */
+        mov(ki, reg_kd_count);
+        mov(EVEX_compress_addr(rsp, kd_count_offset), reg_kd_count);
+        mov(aux_reg_src, reg_src);
+        mov(aux_reg_kernel, reg_kernel);
+
+        L(kd_label);
+        mov(reg_src, aux_reg_src);
+        mov(reg_kernel, aux_reg_kernel);
+    }
+
+    mov(kj, reg_kh);
+    L(kh_label);
+    {
+        ic_loop(nb_ic_blocking, nb_oc_blocking);
+
+        if (jcp.dilate_h > 0) {
+            add(reg_src, get_src_offset(0, 0, jcp.dilate_h));
+        }
+        // substract pointer shift made within ic block loop
+        // and move to next kh index
+        add(reg_kernel, get_kernel_offset(-ic_block, jcp.kw));
+        dec(kj);
+        cmp(kj, 0);
+        jg(kh_label, T_NEAR);
+    }
+    if (jcp.ndims == 5) {
+        add(aux_reg_src, get_src_offset(0, 0, filter_d_to_src(1)));
+        add(aux_reg_kernel, get_kernel_offset(0, jcp.kh * jcp.kw));
+        dec(ki);
+        cmp(ki, 0);
+        jg(kd_label, T_NEAR);
+    }
+    // In harness_3d_reduction case calculation of diff_bias is called
+    // for every ow row separately to be aligned with od loop in
+    // compute_od_loop_common()
+    if (jcp.harness == harness_3d_reduction) {
+        auto reg_save_ddst = reg_a_stride;
+        mov(reg_save_ddst, reg_ddst);
+        for (int ocb = 0; ocb < nb_oc_blocking; ocb++) {
+            safe_add(reg_ddst, jcp.typesize_in * ocb * jcp.tr_diff_dst_buf_size,
+                    reg_long_offt);
+            compute_diff_bias_row(true, ocb);
+        }
+        mov(reg_ddst, reg_save_ddst);
+    }
+
+    if (jcp.ndims == 5) {
+        mov(reg_src, aux_reg_src);
+        mov(reg_kernel, aux_reg_kernel);
+        mov(reg_kd_count, EVEX_compress_addr(rsp, kd_count_offset));
+        od_step_comeback_pointers();
+    } else {
+        oh_step_comeback_pointers();
+    }
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::maybe_zero_kernel(
+        int nb_ic_blocking, int nb_oc_blocking) {
+    if (jcp.harness == harness_compute_full_spatial && !jcp.with_bias) return;
+    Label skip_zeroing, zeroing_loop;
+
+    mov(reg_tmp, ptr[param + GET_OFF(channel)]);
+    cmp(reg_tmp, 0);
+    jz(skip_zeroing, T_NEAR);
+
+    Zmm zero = Zmm(0);
+    vpxord(zero, zero, zero);
+    if (jcp.with_bias) {
+        Label skip_bias_zeroing;
+        mov(reg_tmp, ptr[param + GET_OFF(flags)]);
+        test(reg_tmp, FLAG_IC_FIRST);
+        jz(skip_bias_zeroing, T_NEAR);
+        for (int ocb = 0; ocb < nb_oc_blocking; ocb++) {
+            mov(reg_tmp, ptr[param + GET_OFF(bias)]);
+            vmovups(ptr[reg_tmp + sizeof(float) * ocb * jcp.oc_block], zero);
+        }
+        L(skip_bias_zeroing);
+        if (jcp.harness == harness_compute_full_spatial)
+            jmp(skip_zeroing, T_NEAR);
+    }
+
+    mov(reg_b_stride, 64);
+    tilezero(Tmm(get_wei_tensor(0, 0)));
+    for (dim_t shift = 0;
+            shift < get_kernel_offset(0, jcp.kw * jcp.kh * jcp.kd);
+            shift += get_kernel_offset(jcp.ic_block, 0)) {
+        for_(int icb = 0; icb < nb_ic_blocking; icb++)
+        for (int ocb = 0; ocb < nb_oc_blocking; ocb++) {
+            tilestored(
+                    ptr[reg_kernel + reg_b_stride
+                            + get_full_kernel_offset(ocb, icb, 0, 0) + shift],
+                    Tmm(get_wei_tensor(0, 0)));
+        }
+    }
+    L(skip_zeroing);
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::compute_oh_loop_common(
+        int nb_ic_blocking, int nb_oc_blocking, bool is_partial) {
+    int b_pad = jcp.b_pad;
+    int t_pad = jcp.t_pad;
+
+    bool is_dilated = jcp.dilate_h != 0;
+    int dilate_h = jcp.dilate_h + 1;
+    int stride_h = jcp.stride_h;
+    auto filter_step_size = get_kernel_offset(0, jcp.kw);
+    auto src_step_size = get_src_offset(0, 0, 1);
+    auto ddst_step_size = get_ddst_offset(0, 1);
+    Label oh_label, oh_label_end, oh_tpad_label, oh_tpad_label_end,
+            oh_tpad_tail_label, oh_tpad_tail_label_end, oh_bpad_label,
+            oh_bpad_label_end, oh_dilate_label_shift, oh_dilate_label_noshift,
+            oh_dilate_label_end, oh_dilate_setup_label_shift,
+            oh_dilate_setup_label_noshift, oh_dilate_setup_label_end;
+
+    int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
+    int oh_body_end = div_up(t_pad + jcp.ih - ext_kh + 1, stride_h);
+    int oh_head_end = nstl::min(div_up(t_pad, stride_h), oh_body_end);
+    int oh_head_overflow_end = div_up(t_pad, stride_h);
+    int oh_tail_end = jcp.oh;
+
+    int body_src_start_offset = (stride_h - (t_pad % stride_h)) % stride_h;
+    int ih_body_end
+            = nstl::max(-t_pad + oh_body_end * stride_h, body_src_start_offset);
+
+    if (is_partial)
+        mov(reg_oj, ptr[param + GET_OFF(os_index_begin)]);
+    else
+        xor_(reg_oj, reg_oj);
+
+    /* Compute 'top' edge */
+    if (t_pad > 0) {
+        if (is_partial) {
+            cmp(reg_oj, oh_head_overflow_end);
+            jge(oh_tpad_tail_label_end, T_NEAR);
+        }
+        const int overflow
+                = nstl::max(0, jcp.kh - div_up(t_pad + jcp.ih, dilate_h));
+        const int underflow = div_up(t_pad, dilate_h);
+        const int initial_kh = jcp.kh - overflow - underflow;
+
+        // Setup reg_kh, reg_kernel, and reg_src
+        mov(reg_kh, initial_kh);
+        add(reg_kernel, filter_step_size * underflow);
+        if (is_dilated) {
+            const int tail = t_pad % dilate_h;
+            const int shift = tail == 0 ? 0 : dilate_h - tail;
+            mov(reg_ih_shift, shift);
+            if (!is_partial) mov(ptr[rsp + ih_dilate_offset], reg_ih_shift);
+            add(reg_src, src_step_size * shift);
+        }
+
+        if (is_partial) {
+            Label head_setup, head_setup_finish;
+            cmp(reg_oj, 0);
+            je(head_setup_finish, T_NEAR);
+            mov(reg_oj_setup, reg_oj);
+
+            L(head_setup);
+            if (is_dilated) {
+                inc(reg_ih_shift);
+                cmp(reg_ih_shift, dilate_h);
+                jl(oh_dilate_setup_label_shift, T_NEAR);
+                // unshift src as new kernel element enters
+                sub(reg_src, src_step_size * (dilate_h - 1));
+                xor_(reg_ih_shift, reg_ih_shift);
+            }
+            // kernel overlap only changes when (t_pad + oj) % dilate_h == 0
+            add(reg_kh, stride_h);
+            sub(reg_kernel, filter_step_size * stride_h);
+            if (is_dilated) {
+                jmp(oh_dilate_setup_label_noshift, T_NEAR);
+                L(oh_dilate_setup_label_shift);
+                // shift src as old kernel element progresses
+                add(reg_src, src_step_size * stride_h);
+                L(oh_dilate_setup_label_noshift);
+            }
+            sub(reg_oj_setup, 1);
+            jg(head_setup, T_NEAR);
+            L(head_setup_finish);
+
+            if (is_dilated) mov(ptr[rsp + ih_dilate_offset], reg_ih_shift);
+            if (oh_head_end < oh_head_overflow_end) {
+                cmp(reg_oj, oh_head_end);
+                jge(oh_tpad_label_end, T_NEAR);
+            }
+        }
+
+        //Setup reg_kernel
+        // If dilated, shift src ptr
+        // Loop
+        L(oh_tpad_label);
+        compute_oh_step_common(nb_ic_blocking, nb_oc_blocking);
+        add(reg_ddst, ddst_step_size);
+        if (is_dilated) {
+            mov(reg_ih_shift, ptr[rsp + ih_dilate_offset]);
+            inc(reg_ih_shift);
+            mov(ptr[rsp + ih_dilate_offset], reg_ih_shift);
+            cmp(reg_ih_shift, dilate_h);
+            jl(oh_dilate_label_shift, T_NEAR);
+            // unshift src as new kernel element enters
+            sub(reg_src, src_step_size * (dilate_h - 1));
+            xor_(reg_ih_shift, reg_ih_shift);
+            mov(ptr[rsp + ih_dilate_offset], reg_ih_shift);
+        }
+        // kernel overlap only changes when (t_pad + oj) % dilate_h == 0
+        add(reg_kh, stride_h);
+        sub(reg_kernel, filter_step_size * stride_h);
+        if (is_dilated) {
+            jmp(oh_dilate_label_noshift, T_NEAR);
+            L(oh_dilate_label_shift);
+            // shift src as old kernel element progresses
+            add(reg_src, src_step_size * stride_h);
+            L(oh_dilate_label_noshift);
+        }
+        inc(reg_oj);
+
+        if (is_partial) {
+            cmp(reg_oj, ptr[param + GET_OFF(os_index_end)]);
+            jge(oh_bpad_label_end, T_NEAR);
+        }
+        cmp(reg_oj, oh_head_end);
+        jl(oh_tpad_label, T_NEAR);
+
+        L(oh_tpad_label_end);
+        // need second loop to process kernel if it is larger than the src
+        // (does not apply to dilations as they must have unit stride)
+        if (oh_head_end < oh_head_overflow_end) {
+            assert(!is_dilated);
+
+            cmp(reg_oj, oh_head_overflow_end);
+            jge(oh_tpad_tail_label_end, T_NEAR);
+
+            mov(reg_kh, jcp.ih);
+            L(oh_tpad_tail_label);
+            {
+                compute_oh_step_common(nb_ic_blocking, nb_oc_blocking);
+                add(reg_ddst, ddst_step_size);
+                sub(reg_kernel, filter_step_size * stride_h);
+
+                inc(reg_oj);
+
+                if (is_partial) {
+                    cmp(reg_oj, ptr[param + GET_OFF(os_index_end)]);
+                    jge(oh_bpad_label_end, T_NEAR);
+                }
+                cmp(reg_oj, oh_head_overflow_end);
+                jl(oh_tpad_tail_label, T_NEAR);
+            }
+        }
+        if (body_src_start_offset != 0) {
+            add(reg_kernel, filter_step_size * body_src_start_offset);
+            add(reg_src, src_step_size * body_src_start_offset);
+        }
+        L(oh_tpad_tail_label_end);
+    }
+
+    if (is_partial) {
+        cmp(reg_oj, ptr[param + GET_OFF(os_index_end)]);
+        jge(oh_bpad_label_end, T_NEAR);
+    }
+    cmp(reg_oj, oh_body_end);
+    jge(oh_label_end, T_NEAR);
+
+    /* Compute middle block(s) */
+    mov(reg_kh, jcp.kh);
+    L(oh_label);
+    {
+        compute_oh_step_common(nb_ic_blocking, nb_oc_blocking);
+        add(reg_src, src_step_size * stride_h);
+        add(reg_ddst, ddst_step_size);
+
+        inc(reg_oj);
+
+        if (is_partial) {
+            cmp(reg_oj, ptr[param + GET_OFF(os_index_end)]);
+            jge(oh_bpad_label_end, T_NEAR);
+        }
+
+        cmp(reg_oj, oh_body_end);
+        jl(oh_label, T_NEAR);
+    }
+    L(oh_label_end);
+
+    /* Compute bottom edge */
+    if (b_pad > 0) {
+        if (is_partial) {
+            cmp(reg_oj, ptr[param + GET_OFF(os_index_end)]);
+            jge(oh_bpad_label_end, T_NEAR);
+        }
+        cmp(reg_oj, jcp.oh);
+        jge(oh_bpad_label_end, T_NEAR);
+
+        if (is_dilated) {
+            // Assumes unit stride for dilations
+            mov(reg_kh, jcp.kh - 1);
+            xor_(reg_ih_shift, reg_ih_shift);
+        } else {
+            assert(jcp.dilate_h == 0);
+            mov(reg_kh, jcp.ih - ih_body_end);
+        }
+        if (is_partial) {
+            lea(reg_oj_setup,
+                    ptr[reg_oj - nstl::max(oh_body_end, oh_head_overflow_end)]);
+            if (stride_h == 1 && !is_dilated) {
+                sub(reg_kh, reg_oj_setup);
+            } else {
+                Label body_setup, body_setup_finish, dilate_skip;
+                cmp(reg_oj_setup, 0);
+                je(body_setup_finish, T_NEAR);
+
+                L(body_setup);
+                if (is_dilated) {
+                    inc(reg_ih_shift);
+                    cmp(reg_ih_shift, dilate_h);
+                    jl(dilate_skip, T_NEAR);
+                    xor_(reg_ih_shift, reg_ih_shift);
+                }
+                sub(reg_kh, stride_h);
+                L(dilate_skip);
+                sub(reg_oj_setup, 1);
+                jg(body_setup, T_NEAR);
+                L(body_setup_finish);
+            }
+        }
+
+        if (is_dilated) mov(ptr[rsp + ih_dilate_offset], reg_ih_shift);
+        L(oh_bpad_label);
+        {
+            compute_oh_step_common(nb_ic_blocking, nb_oc_blocking);
+            add(reg_src, src_step_size * stride_h);
+            add(reg_ddst, ddst_step_size);
+
+            if (is_dilated) {
+                mov(reg_ih_shift, ptr[rsp + ih_dilate_offset]);
+                inc(reg_ih_shift);
+                mov(ptr[rsp + ih_dilate_offset], reg_ih_shift);
+                cmp(reg_ih_shift, dilate_h);
+                jl(oh_dilate_label_end, T_NEAR);
+                xor_(reg_ih_shift, reg_ih_shift);
+                mov(ptr[rsp + ih_dilate_offset], reg_ih_shift);
+            }
+            sub(reg_kh, stride_h);
+            L(oh_dilate_label_end);
+            inc(reg_oj);
+            if (is_partial) {
+                cmp(reg_oj, ptr[param + GET_OFF(os_index_end)]);
+                jge(oh_bpad_label_end, T_NEAR);
+            }
+            cmp(reg_oj, oh_tail_end);
+            jl(oh_bpad_label, T_NEAR);
+        }
+    }
+    L(oh_bpad_label_end);
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::compute_od_loop_common(
+        int nb_ic_blocking, int nb_oc_blocking, bool is_partial) {
+    assert(jcp.harness == harness_3d_reduction);
+
+    const int src_backpad_overlap
+            = div_up(jcp.id + jcp.f_pad - (jcp.kd - 1), jcp.stride_d);
+
+    const auto filter_shift = get_kernel_offset(0, jcp.kh * jcp.kw);
+    const auto src_shift = get_src_offset(0, 0, jcp.ih);
+    const auto ddst_shift = get_ddst_offset(0, jcp.oh);
+
+    const int kd_front_pad = nstl::max(0, jcp.f_pad);
+    const int kd_back_pad = nstl::max(0, jcp.kd - jcp.f_pad - jcp.id);
+
+    Label d_loop_label, loop_end_label, common_block_label, fpad_end_label,
+            backpad_end_label, backpad_label;
+
+    /* initially offset 'kd' by f_pad */
+    mov(reg_src_d, ptr[param + GET_OFF(src)]);
+    mov(reg_ddst_d, ptr[param + GET_OFF(dst)]);
+
+    if (is_partial) {
+        add(reg_kernel, ptr[param + GET_OFF(kd_offset)]);
+        mov(reg_d_index, ptr[param + GET_OFF(os_index_begin)]);
+        mov(reg_kd_count, ptr[param + GET_OFF(kd_padding)]);
+    } else {
+        const int kd_padding = jcp.kd - kd_front_pad - kd_back_pad;
+        const int kd_offset = get_kernel_offset(
+                0, nstl::min(jcp.kd - 1, kd_front_pad) * jcp.kh * jcp.kw);
+        add(reg_kernel, kd_offset);
+        xor_(reg_d_index, reg_d_index);
+        mov(reg_kd_count, kd_padding);
+    }
+
+    cmp(reg_kd_count, 0);
+    jle(loop_end_label, T_NEAR); // no iterations along kd
+    if (is_partial)
+        cmp(reg_d_index, ptr[param + GET_OFF(os_index_end)]);
+    else
+        cmp(reg_d_index, jcp.od);
+    jge(loop_end_label, T_NEAR); // no iterations along depth dimension
+
+    L(d_loop_label);
+
+    mov(reg_src, reg_src_d);
+    mov(reg_ddst, reg_ddst_d);
+
+    mov(EVEX_compress_addr(rsp, src_d_offset), reg_src_d);
+    mov(EVEX_compress_addr(rsp, ddst_d_offset), reg_ddst_d);
+    mov(EVEX_compress_addr(rsp, d_index_offset), reg_d_index);
+
+    compute_oh_loop_common(nb_ic_blocking, nb_oc_blocking);
+
+    mov(reg_src_d, EVEX_compress_addr(rsp, src_d_offset));
+    mov(reg_ddst_d, EVEX_compress_addr(rsp, ddst_d_offset));
+    mov(reg_d_index, EVEX_compress_addr(rsp, d_index_offset));
+
+    /* Compute 'front' edge */
+    if (jcp.f_pad > 0) {
+        /* Check if within fpad region */
+        cmp(reg_d_index, div_up(jcp.f_pad, jcp.stride_d));
+        jge(fpad_end_label, T_NEAR);
+
+        /* Fpad steps */
+        sub(reg_kernel, filter_shift * jcp.stride_d);
+        add(reg_kd_count, jcp.stride_d);
+
+        /* Final number of kernel elements that overlap with src */
+        const int src_ker_overlap = nstl::min(jcp.kd, jcp.id);
+        cmp(reg_kd_count, src_ker_overlap);
+        jle(common_block_label, T_NEAR);
+
+        /* Correct any excess shifts to kernel and src */
+        if (jcp.f_pad <= jcp.od * jcp.stride_d) {
+            /* Filter has moved beyond padding (adjust for stride effects) */
+            if (jcp.f_pad % jcp.stride_d != 0) {
+                int src_corr = jcp.stride_d - jcp.f_pad % jcp.stride_d;
+                add(reg_kernel, filter_shift * src_corr);
+                add(reg_src_d, src_shift * src_corr);
+            }
+        } else {
+            /* Filter still overlaps padding (complete reset) */
+            sub(reg_kernel, (jcp.f_pad - jcp.od * jcp.stride_d) * filter_shift);
+        }
+
+        /* Apply correction */
+        mov(reg_kd_count, src_ker_overlap);
+        jmp(common_block_label);
+
+        L(fpad_end_label);
+    }
+
+    /* Compute bottom edge */
+    if (jcp.back_pad > 0) {
+
+        /* Check if within back_pad region */
+        cmp(reg_d_index, src_backpad_overlap - 1);
+        jl(backpad_end_label, T_NEAR);
+        jg(backpad_label, T_NEAR);
+
+        /* Execute overlap correction between the filter and the initial
+         * back_pad region. */
+        mov(reg_kd_count,
+                jcp.id + jcp.f_pad - src_backpad_overlap * jcp.stride_d);
+        jmp(backpad_end_label, T_NEAR);
+
+        L(backpad_label);
+        sub(reg_kd_count, jcp.stride_d);
+        cmp(reg_kd_count, 0);
+        jle(loop_end_label, T_NEAR);
+
+        L(backpad_end_label);
+    }
+
+    /* Compute middle block */
+    add(reg_src_d, src_shift * jcp.stride_d);
+
+    /* Execute common block and loop */
+    L(common_block_label);
+    add(reg_ddst_d, ddst_shift);
+    inc(reg_d_index);
+    if (is_partial)
+        cmp(reg_d_index, ptr[param + GET_OFF(os_index_end)]);
+    else
+        cmp(reg_d_index, jcp.od);
+    jl(d_loop_label, T_NEAR);
+
+    L(loop_end_label);
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::compute_loop(
+        int nb_ic_blocking, int nb_oc_blocking) {
+    mov(reg_src, ptr[param + GET_OFF(src)]);
+    mov(reg_ddst, ptr[param + GET_OFF(dst)]);
+    mov(reg_kernel, ptr[param + GET_OFF(filt)]);
+
+    maybe_zero_kernel(nb_ic_blocking, nb_oc_blocking);
+    maybe_compute_diff_bias(nb_oc_blocking);
+
+    switch (jcp.harness) {
+        case harness_3d_reduction:
+            compute_od_loop_common(nb_ic_blocking, nb_oc_blocking, true);
+            break;
+        case harness_2d_reduction:
+            compute_oh_loop_common(nb_ic_blocking, nb_oc_blocking, true);
+            break;
+        case harness_mb_reduction:
+            compute_oh_loop_common(nb_ic_blocking, nb_oc_blocking);
+            break;
+        case harness_compute_full_spatial:
+            compute_full_spat_loop(nb_ic_blocking, nb_oc_blocking);
+            break;
+        default: assert(!"Invalid harness type");
+    }
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::setup_stack_space() {
+    kd_count_offset = ic_block_step_stack_size;
+    src_d_offset = ic_block_step_stack_size + 8;
+    ddst_d_offset = ic_block_step_stack_size + 16;
+    d_index_offset = ic_block_step_stack_size + 24;
+    ih_dilate_offset = ic_block_step_stack_size + 32;
+    src_save_offset = ic_block_step_stack_size + 40;
+    ddst_save_offset = ic_block_step_stack_size + 48;
+    stack_space_needed = ic_block_step_stack_size + 56;
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::generate() {
+    preamble();
+
+    setup_stack_space();
+
+    sub(rsp, stack_space_needed);
+
+    Label last_ic_block_label, last_blocks_done_label;
+
+    mov(reg_tmp, ptr[param + GET_OFF(last_ic_block)]);
+    cmp(reg_tmp, 0);
+    jne(last_ic_block_label, T_NEAR);
+    { // full nb_ic_blocking
+        Label last_oc_block_label;
+        mov(reg_tmp, ptr[param + GET_OFF(last_oc_block)]);
+        cmp(reg_tmp, 0);
+        jne(last_oc_block_label, T_NEAR);
+        { // full nb_oc_blocking
+            compute_loop(jcp.nb_ic_blocking, jcp.nb_oc_blocking);
+            jmp(last_blocks_done_label, T_NEAR);
+        }
+        L(last_oc_block_label);
+        { // tail of nb_oc_blocking
+            compute_loop(jcp.nb_ic_blocking, 1);
+            jmp(last_blocks_done_label, T_NEAR);
+        }
+    }
+    L(last_ic_block_label);
+    { // tail nb_ic_blocking
+        Label last_oc_block_label;
+        mov(reg_tmp, ptr[param + GET_OFF(last_oc_block)]);
+        cmp(reg_tmp, 0);
+        jne(last_oc_block_label, T_NEAR);
+        { // full nb_oc_blocking
+            compute_loop(1, jcp.nb_oc_blocking);
+            jmp(last_blocks_done_label, T_NEAR);
+        }
+        L(last_oc_block_label);
+        { // tail of nb_oc_blocking
+            compute_loop(1, 1);
+            jmp(last_blocks_done_label, T_NEAR);
+        }
+    }
+
+    L(last_blocks_done_label);
+    add(rsp, stack_space_needed);
+
+    postamble();
+}
+
+status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
+        jit_conv_conf_t &jcp, const convolution_desc_t &cd,
+        memory_desc_t &src_md, memory_desc_t &diff_weights_md,
+        memory_desc_t &diff_bias_md, memory_desc_t &diff_dst_md, int nthreads) {
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper diff_weights_d(&diff_weights_md);
+    const memory_desc_wrapper diff_dst_d(&diff_dst_md);
+    const memory_desc_wrapper diff_bias_d(&diff_bias_md);
+
+    jcp = zero<decltype(jcp)>();
+
+    const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
+    int ndims = src_d.ndims();
+
+    if (!mayiuse(avx512_core_bf16_amx_bf16)) return status::unimplemented;
+    jcp.isa = avx512_core_bf16_amx_bf16;
+
+    jcp.ver = ver_vnni; // Needed for transpose routines
+    jcp.nthr = nthreads;
+
+    jcp.ndims = ndims;
+    jcp.prop_kind = cd.prop_kind;
+
+    jcp.ngroups = with_groups ? diff_weights_d.dims()[0] : 1;
+    jcp.mb = src_d.dims()[0];
+
+    jcp.oc = diff_dst_d.dims()[1] / jcp.ngroups;
+    jcp.oc_without_padding = jcp.oc;
+    jcp.ic = src_d.dims()[1] / jcp.ngroups;
+
+    jcp.id = (ndims == 5) ? src_d.dims()[2] : 1;
+    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[ndims - 2];
+    jcp.iw = src_d.dims()[ndims - 1];
+    jcp.od = (ndims == 5) ? diff_dst_d.dims()[2] : 1;
+    jcp.oh = (ndims == 3) ? 1 : diff_dst_d.dims()[ndims - 2];
+    jcp.ow = diff_dst_d.dims()[ndims - 1];
+
+    jcp.kd = (ndims == 5) ? diff_weights_d.dims()[with_groups + 2] : 1;
+    jcp.kh = (ndims == 3) ? 1 : diff_weights_d.dims()[with_groups + ndims - 2];
+    jcp.kw = diff_weights_d.dims()[with_groups + ndims - 1];
+
+    jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
+    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims - 4];
+    jcp.l_pad = cd.padding[0][ndims - 3];
+
+    jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
+    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
+    jcp.stride_w = cd.strides[ndims - 3];
+
+    jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
+    jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims - 4];
+    jcp.dilate_w = cd.dilates[ndims - 3];
+
+    int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+    int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
+    int ext_kd = calculate_extended_filter_size(jcp.kd, jcp.dilate_d);
+
+    bool ok = true
+            // general condition to simplify dilations
+            && IMPLICATION(jcp.dilate_d != 0, jcp.stride_d == 1)
+            && IMPLICATION(jcp.dilate_h != 0, jcp.stride_h == 1)
+            && IMPLICATION(jcp.dilate_w != 0, jcp.stride_w == 1)
+            // special condition to simplify dilations in compute_oh_loop_common
+            && IMPLICATION(jcp.dilate_h != 0, ext_kh <= jcp.ih);
+    if (!ok) return status::unimplemented;
+
+    ok = true && one_of(ndims, 3, 4, 5)
+            && everyone_is(
+                    data_type::bf16, src_d.data_type(), diff_dst_d.data_type())
+            && one_of(diff_weights_d.data_type(), data_type::f32,
+                    data_type::bf16);
+    if (!ok) return status::unimplemented;
+
+    jcp.r_pad = nstl::max(0,
+            calculate_end_padding(
+                    jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw));
+    jcp.b_pad = nstl::max(0,
+            calculate_end_padding(
+                    jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh));
+    jcp.back_pad = nstl::max(0,
+            calculate_end_padding(
+                    jcp.f_pad, jcp.od, jcp.id, jcp.stride_d, ext_kd));
+
+    /* XXX: no support for padding when dilation_d > 0 */
+    if (!IMPLICATION(jcp.dilate_d > 0, everyone_is(0, jcp.back_pad, jcp.f_pad)))
+        return status::unimplemented;
+
+    jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
+    jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
+    jcp.ohp = jcp.oh;
+    jcp.owp = jcp.ow;
+
+    format_tag_t dat_tag_nspc = utils::pick(
+            ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+    format_tag_t dat_tag_opt = dat_tag_nspc;
+
+    if (src_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(src_md, dat_tag_opt));
+        jcp.src_tag = dat_tag_opt;
+    } else
+        jcp.src_tag = src_d.matches_one_of_tag(dat_tag_opt);
+    if (!one_of(jcp.src_tag, dat_tag_opt)) return status::unimplemented;
+    jcp.is_nspc = jcp.src_tag == dat_tag_nspc;
+
+    if (diff_dst_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(diff_dst_md, jcp.src_tag));
+        jcp.dst_tag = jcp.src_tag;
+    } else
+        jcp.dst_tag = diff_dst_d.matches_one_of_tag(jcp.src_tag);
+    if (jcp.dst_tag != jcp.src_tag) return status::unimplemented;
+
+    if (!jcp.is_nspc) return status::unimplemented;
+
+    format_tag_t wei_tag = pick(2 * ndims - 6 + with_groups,
+            format_tag::OIw16i16o, format_tag::gOIw16i16o,
+            format_tag::OIhw16i16o, format_tag::gOIhw16i16o,
+            format_tag::OIdhw16i16o, format_tag::gOIdhw16i16o);
+    if (diff_weights_md.format_kind == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(diff_weights_md, wei_tag));
+        jcp.wei_tag = wei_tag;
+    } else {
+        jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
+        if (jcp.wei_tag != wei_tag) return status::unimplemented;
+    }
+    jcp.wei_dt = diff_weights_d.data_type();
+
+    /* conditions on bias memory */
+    jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
+    if (jcp.with_bias) {
+        if (diff_bias_d.format_kind() == format_kind::any)
+            CHECK(memory_desc_init_by_tag(diff_bias_md, format_tag::x));
+    }
+    jcp.bia_dt = jcp.with_bias ? diff_bias_d.data_type() : data_type::undef;
+    jcp.typesize_bia = jcp.with_bias ? types::data_type_size(jcp.bia_dt) : 0;
+
+    /* kernel applicability check wrt boundaries
+     * the conditions are quite general across the kernels we have,
+     * but ideally the check should belong to a specific kernel... */
+    const int max_pad_h = ext_kh / 2;
+    const bool boundaries_ok = true && jcp.l_pad < ext_kw && jcp.r_pad < ext_kw
+            && jcp.t_pad <= max_pad_h && jcp.b_pad <= max_pad_h
+            && jcp.f_pad < ext_kd && jcp.back_pad < ext_kd;
+    if (!boundaries_ok) return status::unimplemented;
+
+    jcp.ic_block = 16;
+    jcp.oc_block = 16;
+
+    jcp.nb_ic = utils::div_up(jcp.ic, jcp.ic_block);
+    jcp.nb_oc = utils::div_up(jcp.oc, jcp.oc_block);
+
+    jcp.ic_tail = jcp.ic % jcp.ic_block;
+    jcp.oc_tail = jcp.oc % jcp.oc_block;
+
+    jcp.nb_oc_blocking = (jcp.nb_oc > 1) ? 2 : 1;
+    jcp.nb_ic_blocking = (jcp.nb_ic > 1) ? 2 : 1;
+
+    int max_palette = amx::get_max_palette();
+    jcp.max_tiles = amx::get_max_tiles(max_palette);
+    jcp.full_tile_width = amx::get_max_rows(max_palette);
+
+    if (jcp.max_tiles != 8 || jcp.full_tile_width != 16)
+        return status::unimplemented;
+
+    const bool is_2d = (ndims == 4);
+    const bool is_3d = (ndims == 5);
+    jcp.typesize_in = sizeof(bfloat16_t);
+    jcp.typesize_out = sizeof(float);
+
+    // TODO: Find more shapes (especially 3D with large spatials) for which
+    // local transposition will be beneficial. Furthermore, for TBB threads
+    // more shapes can potentially benefit from spatial blocking
+    int optimal_blk_size = is_3d ? jcp.od : is_2d ? jcp.oh : jcp.ow;
+
+    jcp.global_transpose = dnnl_thr_syncable();
+    jcp.spatial_blk_size = optimal_blk_size;
+
+    const int tr_round = 32; // To load full tile register
+    int tr_pad = rnd_up(nstl::max(jcp.l_pad, jcp.r_pad + 1), tr_round);
+    jcp.tr_iw = rnd_up(div_up(jcp.iw, jcp.stride_w) + tr_pad, tr_round)
+            * jcp.stride_w;
+
+    jcp.tr_src_num_guard_elems = tr_pad; // upper bound
+    jcp.tr_ow = rnd_up(jcp.ow, 2);
+
+    if (jcp.tr_ow <= max_ur_w) {
+        jcp.ur_w = jcp.tr_ow;
+        jcp.ur_w_blocks = 1;
+    } else {
+        jcp.ur_w = 1;
+        for (int i = max_ur_w; i >= 1; i -= 2) {
+            if (jcp.tr_ow % i == 0) {
+                jcp.ur_w = i;
+                break;
+            }
+        }
+        jcp.ur_w_blocks = jcp.tr_ow / jcp.ur_w;
+    }
+
+    bool args_ok = true && jcp.ic <= src_d.padded_dims()[1]
+            && jcp.oc <= diff_dst_d.padded_dims()[1]
+            && jcp.ic <= diff_weights_d.padded_dims()[with_groups + 1]
+            && jcp.oc <= diff_weights_d.padded_dims()[with_groups + 0];
+    if (!args_ok) return status::unimplemented;
+
+    bool use_full_spat_loop = jcp.ndims < 5 && jcp.ih == jcp.oh
+            && jcp.iw == jcp.ow && everyone_is(1, jcp.stride_h, jcp.stride_w)
+            && everyone_is(0, jcp.dilate_h, jcp.dilate_w)
+            && jcp.l_pad == jcp.kw / 2 && jcp.t_pad == jcp.kh / 2;
+
+    jcp.harness = ndims == 5
+            ? harness_3d_reduction
+            : (use_full_spat_loop ? harness_compute_full_spatial
+                                  : (ndims == 4) ? harness_2d_reduction
+                                                 : harness_mb_reduction);
+    switch (jcp.harness) {
+        case harness_2d_reduction: jcp.nthr_mb_work = jcp.mb * jcp.oh; break;
+        case harness_3d_reduction: jcp.nthr_mb_work = jcp.mb * jcp.od; break;
+        case harness_compute_full_spatial:
+        case harness_mb_reduction: jcp.nthr_mb_work = jcp.mb; break;
+        default: assert(!"Invalid harness"); jcp.nthr_mb_work = jcp.mb;
+    }
+    { // balancing
+        int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
+        balance(jcp, nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b);
+        jcp.nthr = nthr;
+        jcp.nthr_mb = nthr_mb;
+        jcp.nthr_g = nthr_g;
+        jcp.nthr_oc_b = nthr_oc_b;
+        jcp.nthr_ic_b = nthr_ic_b;
+
+        // TODO: Optimize memory allocation when threaded on height and depth
+        jcp.tr_src_buf_size = jcp.tr_iw * jcp.ic_block * jcp.ih * jcp.id;
+        jcp.tr_src_buf_count = jcp.global_transpose
+                ? jcp.nthr_mb * jcp.nb_ic * jcp.ngroups
+                : jcp.nthr;
+
+        jcp.tr_diff_dst_buf_size = jcp.tr_ow * jcp.oc_block * jcp.oh * jcp.od;
+        jcp.tr_diff_dst_buf_count = jcp.global_transpose
+                ? jcp.nthr_mb * jcp.nb_oc * jcp.ngroups
+                : jcp.nthr;
+    }
+
+    return status::success;
+}
+
+status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
+        memory_desc_t &src_md, memory_desc_t &diff_weights_md,
+        memory_desc_t &diff_dst_md) {
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper diff_weights_d(&diff_weights_md);
+    const memory_desc_wrapper diff_dst_d(&diff_dst_md);
+
+    // XXX: See the comment about tr_iw and guarding elements in
+    // jit_avx512_core_amx_bwd_weights_kernel_t::init_conf()
+    const size_t tr_src_size
+            = (jcp.tr_src_buf_count * jcp.tr_src_buf_size * jcp.nb_ic_blocking)
+            + jcp.tr_src_num_guard_elems;
+    scratchpad.book(key_conv_tr_src, tr_src_size, jcp.typesize_in);
+
+    /* prepare synchronization contexts */
+    if (jcp.global_transpose && jcp.nthr_oc_b > 1) {
+        const int tr_src_bctx_size = jcp.nthr / jcp.nthr_oc_b;
+        scratchpad.book<simple_barrier::ctx_t>(
+                key_conv_tr_src_bctx, tr_src_bctx_size);
+    }
+
+    const size_t tr_diff_dst_size = jcp.tr_diff_dst_buf_count
+            * jcp.tr_diff_dst_buf_size * jcp.nb_oc_blocking;
+
+    const size_t min_align = 64;
+    scratchpad.book(
+            key_conv_tr_diff_dst, tr_diff_dst_size, jcp.typesize_in, min_align);
+
+    /* prepare synchronization contexts */
+    if (jcp.global_transpose && jcp.nthr_ic_b > 1) {
+        const size_t tr_diff_dst_bctx_size = jcp.nthr / jcp.nthr_ic_b;
+        scratchpad.book<simple_barrier::ctx_t>(
+                key_conv_tr_diff_dst_bctx, tr_diff_dst_bctx_size);
+    }
+
+    if (IMPLICATION(jcp.nthr_mb == 1,
+                (jcp.with_bias && jcp.bia_dt == data_type::bf16)
+                        || jcp.wei_dt == data_type::bf16)) {
+        const size_t wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block
+                * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
+        const size_t bia_size
+                = jcp.with_bias * jcp.ngroups * jcp.nb_oc * jcp.oc_block;
+
+        const int num_wei_buffers
+                = jcp.wei_dt == data_type::bf16 ? jcp.nthr_mb : jcp.nthr_mb - 1;
+        const int num_bia_buffers = jcp.with_bias
+                ? (jcp.bia_dt == data_type::bf16 ? jcp.nthr_mb
+                                                 : jcp.nthr_mb - 1)
+                : 0;
+
+        const size_t wei_bia_reduction_size
+                = wei_size * num_wei_buffers + bia_size * num_bia_buffers;
+
+        scratchpad.book<float>(
+                key_conv_wei_bia_reduction, wei_bia_reduction_size);
+
+        if (jcp.global_transpose)
+            scratchpad.book<simple_barrier::ctx_t>(
+                    key_conv_wei_bia_reduction_bctx, 1);
+    }
+
+    if (jcp.with_bias
+            && ((jcp.oc_without_padding % jcp.oc_block != 0)
+                    && jcp.bia_dt == data_type::f32)) {
+        scratchpad.book(key_conv_padded_bias,
+                jcp.ngroups * jcp.nb_oc * jcp.oc_block, jcp.typesize_bia);
+    }
+    scratchpad.book(key_conv_amx_tilecfg, 1, 64); // 1 whole cacheline
+
+    constexpr size_t scratchpad_limit_by_absolute_value = (size_t)32
+            << 30; // 32Gb - TODO: may it's too large?
+    const size_t scratchpad_limit_by_tensor_sizes = (size_t)32 * jcp.nthr
+            * (src_d.size() + diff_weights_d.size() + diff_dst_d.size());
+    const size_t scratchpad_limit
+            = nstl::min(scratchpad_limit_by_absolute_value,
+                    scratchpad_limit_by_tensor_sizes);
+    if (scratchpad.size() > scratchpad_limit)
+        return status::unimplemented;
+    else
+        return status::success;
+}
+
+void jit_avx512_core_amx_bwd_weights_kernel_t::balance(const jit_conv_conf_t &j,
+        int &nthr_, int &nthr_mb_, int &nthr_g_, int &nthr_oc_b_,
+        int &nthr_ic_b_) {
+    nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
+
+    const int max_threads = dnnl_get_max_threads();
+
+    if (max_threads < j.ngroups) {
+        /* simplification... fortunately it doesn't hurt much */
+        nthr_ = nthr_g_ = max_threads;
+        return;
+    }
+
+    nthr_g_ = j.ngroups;
+    const int nthr = max_threads / nthr_g_;
+
+    auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
+        /* calculate per thread memory cost (read/write). high level optimizer
+         * tries to minimize memory consumption. few notes:
+         *  (n1) if weights tensor size is less than source and destination
+         *       tensors we apply the ratio of the source and destination
+         *       tensor sizes to weights one as compensation coefficient to
+         *       avoid parallelization across batch size only, othervise we
+         *       apply additional coefficient to source component based on
+         *       performance measurements
+         *  (n2) use scales based on output vs input channels ratio for source
+         *       and destination componets to imporve threading balance across
+         *       input and output channels */
+
+        const dim_t src_type_size = 2;
+        const dim_t wei_type_size = 4;
+
+        dim_t src_size
+                = (dim_t)j.mb * j.ic * j.id * j.ih * j.tr_iw * src_type_size;
+        dim_t dst_size
+                = (dim_t)j.mb * j.oc * j.od * j.oh * j.tr_ow * src_type_size;
+        dim_t wei_size
+                = (dim_t)j.oc * j.ic * j.kd * j.kh * j.kw * wei_type_size;
+
+        float wei_compensation_scale = 0.5f * (dst_size + src_size) / wei_size;
+        float oi_channels_ratio = (float)(j.nb_oc / j.nb_oc_blocking)
+                / (j.nb_ic / j.nb_ic_blocking);
+        auto get_src_coef = [=]() {
+            float src_coef = nstl::max(1.0f / oi_channels_ratio, 1.0f);
+            if (wei_compensation_scale < 1.0f) src_coef *= 4.0f;
+
+            return src_coef;
+        };
+
+        auto get_dst_coef
+                = [=]() { return nstl::max(oi_channels_ratio, 1.0f); };
+
+        auto get_wei_coef
+                = [=]() { return nstl::max(wei_compensation_scale, 1.0f); };
+
+        const float src_coef = get_src_coef();
+        const float dst_coef = get_dst_coef();
+        const float wei_coef = get_wei_coef();
+
+        float src_v = src_coef * div_up(j.nthr_mb_work, nthr_mb)
+                * div_up(j.ngroups, nthr_g_)
+                * div_up((j.nb_ic / j.nb_ic_blocking), nthr_ic_b) * j.mb
+                * (j.ic_block * j.nb_ic_blocking) * j.id * j.ih * j.tr_iw
+                / j.nthr_mb_work / j.stride_d / j.stride_h / j.stride_w;
+        float wei_v = wei_coef * div_up(j.ngroups, nthr_g_)
+                * div_up((j.nb_oc / j.nb_oc_blocking),
+                        (j.oc_block * j.nb_oc_blocking) * nthr_oc_b)
+                * div_up((j.nb_ic / j.nb_ic_blocking), nthr_ic_b) * j.kh * j.kw
+                * j.kd * (j.ic_block * j.nb_ic_blocking)
+                * (j.oc_block * j.nb_oc_blocking);
+        float dst_v = dst_coef * div_up(j.nthr_mb_work, nthr_mb)
+                * div_up(j.ngroups, nthr_g_)
+                * div_up((j.nb_oc / j.nb_oc_blocking),
+                        (j.oc_block * j.nb_oc_blocking) * nthr_oc_b)
+                * j.mb * (j.oc_block * j.nb_oc_blocking) * j.od * j.oh * j.tr_ow
+                / j.nthr_mb_work;
+
+        return src_v + dst_v + wei_v;
+    };
+
+    float best_mem_cost = calc_mem_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
+
+    /* find the best thread distribution with lowest memory cost */
+    const int nthr_mb_max = nstl::min(nthr, j.nthr_mb_work);
+    for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
+        const int nthr_par = nthr / nthr_mb;
+        const int nthr_oc_b_max = nstl::min(nthr_par,
+                (j.nb_oc / j.nb_oc_blocking)); // Amount of nb_oc_blocks
+        for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
+            int nthr_ic_b = nstl::min(
+                    nthr_par / nthr_oc_b, (j.nb_ic / j.nb_ic_blocking));
+
+            float mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+            if (mem_cost <= best_mem_cost) {
+                best_mem_cost = mem_cost;
+                nthr_mb_ = nthr_mb;
+                nthr_oc_b_ = nthr_oc_b;
+                nthr_ic_b_ = nthr_ic_b;
+            }
+        }
+    }
+
+    if (nthr_mb_ > nthr / 2 && nthr_mb_ < nthr)
+        nthr_mb_ = nstl::min(j.nthr_mb_work, nthr);
+    nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
+
+    assert(nthr_ <= max_threads);
 }
 
 } // namespace x64

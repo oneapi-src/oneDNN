@@ -21,6 +21,7 @@
 #include "common/memory_tracking.hpp"
 
 #include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -444,6 +445,141 @@ private:
     void compute_iw_loop();
 
     void generate() override;
+};
+
+struct jit_avx512_core_amx_bwd_weights_kernel_t : public jit_generator {
+
+    jit_avx512_core_amx_bwd_weights_kernel_t(const jit_conv_conf_t &ajcp)
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        , jcp(ajcp) {}
+
+    ~jit_avx512_core_amx_bwd_weights_kernel_t() {}
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_bwd_weights_kernel_t)
+
+    static status_t init_conf(jit_conv_conf_t &jcp,
+            const convolution_desc_t &cd, memory_desc_t &src_md,
+            memory_desc_t &diff_weights_md, memory_desc_t &diff_bias_md,
+            memory_desc_t &diff_dst_md, int nthreads);
+    static status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp, memory_desc_t &src_md,
+            memory_desc_t &diff_weights_md, memory_desc_t &diff_dst_md);
+
+    void tile_configure(char *tcfg_buff);
+
+    const jit_conv_conf_t &jcp;
+
+private:
+    int get_wei_tensor(int ocb, int icb) const;
+    int get_src_tensor(int icb) const;
+    int get_ddst_tensor(int ocb) const;
+
+    using reg64_t = const Xbyak::Reg64;
+    static const int max_ur_w;
+
+    reg64_t param = abi_param1;
+    reg64_t reg_src = rax;
+    reg64_t reg_kernel = rdx;
+    reg64_t reg_ddst = rsi;
+    reg64_t b_ic = abi_not_param1;
+    reg64_t kj = r8;
+    reg64_t reg_kh = r9;
+    reg64_t reg_oj = r15;
+    reg64_t reg_tmp = r14;
+    reg64_t reg_ih_shift = reg_tmp;
+    reg64_t reg_long_offt = r14;
+    reg64_t reg_icb = rbx;
+
+    reg64_t ki = r11;
+    reg64_t reg_oj_setup = r11;
+    reg64_t reg_kd_count = r12;
+    reg64_t reg_oi = r12;
+    reg64_t reg_d_index = r13;
+    reg64_t reg_src_d = r15;
+    reg64_t reg_ddst_d = rbx;
+    reg64_t aux_reg_src = r12;
+    reg64_t aux_reg_kernel = r13;
+
+    reg64_t reg_b_stride = reg_icb;
+    reg64_t reg_a_stride = r10;
+
+    Xbyak::Zmm vreg_bias_acc = Xbyak::Zmm(0);
+    Xbyak::Zmm vreg_bias_unit = Xbyak::Zmm(1);
+    Xbyak::Zmm vreg_bias_ddst = Xbyak::Zmm(2);
+
+    enum {
+        full_spat_opt_working_set_size = 48 * 1024,
+        full_spat_max_working_set_size = 128 * 1024,
+    };
+
+    inline void maybe_zero_kernel(int nb_ic_blocking, int nb_oc_blocking);
+    inline void od_step_comeback_pointers();
+    inline void oh_step_comeback_pointers();
+    inline void compute_ic_loop(
+            int ic_block, int nb_ic_blocking, int nb_oc_blocking);
+    inline void compute_full_spat_loop(int nb_ic_blocking, int nb_oc_blocking);
+    inline void compute_oh_step_common(int nb_ic_blocking, int nb_oc_blocking);
+    inline void compute_loop(int nb_ic_blocking, int nb_oc_blocking);
+    inline void compute_oh_loop_common(
+            int nb_ic_blocking, int nb_oc_blocking, bool partial = false);
+    inline void compute_od_loop_common(
+            int nb_ic_blocking, int nb_oc_blocking, bool partial = false);
+    void compute_diff_bias_init(int ocb = 0);
+    void compute_diff_bias_row(bool is_partial, int ocb);
+    void maybe_compute_diff_bias(int nb_oc_blocking);
+    void may_be_set_oc_tail_mask();
+    void may_be_reset_oc_tail_mask();
+
+    void generate() override;
+
+    static void balance(const jit_conv_conf_t &j, int &nthr, int &nthr_mb,
+            int &nthr_g, int &nthr_oc_b, int &nthr_ic_b);
+
+    inline dim_t filter_w_to_src(int kw, int ow = 0, int pad_l = 0) {
+        return kw * (jcp.dilate_w + 1) + ow - pad_l;
+    }
+    inline dim_t filter_h_to_src(int kh) { return kh * (jcp.dilate_h + 1); }
+    inline dim_t filter_d_to_src(int kd) {
+        return kd * (jcp.dilate_d + 1) * jcp.ih;
+    }
+
+    inline dim_t get_src_offset(dim_t ic_idx, dim_t w_idx, dim_t hd_idx = 0) {
+        return jcp.typesize_in
+                * (hd_idx * jcp.tr_iw * jcp.ic_block + jcp.tr_iw * ic_idx
+                        + w_idx);
+    }
+
+    inline dim_t get_ddst_offset(dim_t w_idx, dim_t hd_idx = 0) {
+        int ow_per_oc = 2;
+        dim_t w_off = w_idx / ow_per_oc * ow_per_oc * jcp.oc_block
+                + w_idx % ow_per_oc;
+        return jcp.typesize_in * (w_off + jcp.tr_ow * jcp.oc_block * hd_idx);
+    }
+
+    inline dim_t get_kernel_offset(int ic_idx, dim_t ksp_idx) {
+        return jcp.typesize_out * jcp.oc_block
+                * (ksp_idx * jcp.ic_block + ic_idx);
+    }
+    inline dim_t get_full_kernel_offset(int ocb, int icb, int kh, int kw) {
+        return jcp.typesize_out
+                * (ocb * jcp.nb_ic * jcp.kd * jcp.kh * jcp.kw * jcp.ic_block
+                                * jcp.oc_block
+                        + icb * jcp.kd * jcp.kh * jcp.kw * jcp.ic_block
+                                * jcp.oc_block
+                        + kh * jcp.kw * jcp.ic_block * jcp.oc_block
+                        + kw * jcp.ic_block * jcp.oc_block);
+    };
+
+    inline void setup_stack_space();
+    int ic_block_step_stack_size = 0;
+    int stack_space_needed = 0;
+    int kd_count_offset = 0;
+    int src_d_offset = 0;
+    int ddst_d_offset = 0;
+    int d_index_offset = 0;
+    int ih_dilate_offset = 0;
+    int src_save_offset = 0;
+    int ddst_save_offset = 0;
 };
 
 } // namespace x64
