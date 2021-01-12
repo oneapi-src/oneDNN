@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -117,7 +117,8 @@ TEST_F(wino_conv_test_t, TestLargePadding) {
                 algorithm::convolution_winograd, src_md, wei_md, dst_md, {1, 1},
                 {2, 2}, {2, 2});
 
-        bool large_pad_is_supported = is_nvidia_gpu(eng) ? true : false;
+        bool large_pad_is_supported
+                = (get_test_engine_kind() == engine::kind::gpu);
         if (input.wino_supported && large_pad_is_supported) {
             EXPECT_NO_THROW(
                     convolution_forward::primitive_desc(fwd_op_desc, eng));
