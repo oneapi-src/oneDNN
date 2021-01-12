@@ -94,6 +94,18 @@ private:
             + vreg_to_preserve * vreg_len_preserve;
 
 public:
+    enum {
+        _cmp_eq_oq = 0u,
+        _cmp_lt_os = 1u,
+        _cmp_le_os = 2u,
+        _cmp_neq_uq = 4u,
+        _cmp_nlt_us = 5u,
+        _cmp_nle_us = 6u,
+
+        _op_floor = 1u,
+        _op_mxcsr = 4u,
+    };
+
     const Xbyak_aarch64::WReg W_TMP_0 = w23;
     const Xbyak_aarch64::WReg W_TMP_1 = w24;
     const Xbyak_aarch64::WReg W_TMP_2 = w25;
