@@ -188,6 +188,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
     }},
     {{backward_weights, bf16, f32, bf16}, {
         CPU_INSTANCE_X64(jit_uni_dw_convolution_bwd_weights_t<avx512_core, bf16, f32>)
+        CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_bwd_weights_t)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<f32>)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_convolution_bwd_weights_t)
         CPU_INSTANCE_X64(gemm_bf16_convolution_bwd_weights_t<f32>)
@@ -196,6 +197,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
     }},
     {{backward_weights, bf16, bf16, bf16}, {
         CPU_INSTANCE_X64(jit_uni_dw_convolution_bwd_weights_t<avx512_core, bf16, bf16>)
+        CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_bwd_weights_t)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<bf16>)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_convolution_bwd_weights_t)
         CPU_INSTANCE_X64(gemm_bf16_convolution_bwd_weights_t<bf16>)
