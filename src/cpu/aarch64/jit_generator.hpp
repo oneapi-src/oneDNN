@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
-* Copyright 2020 FUJITSU LIMITED
+* Copyright 2016-2021 Intel Corporation
+* Copyright 2020-2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -188,6 +188,42 @@ public:
     void L_aligned(Xbyak_aarch64::Label &label, int alignment = 16) {
         align(alignment);
         L(label);
+    }
+
+    template <typename TReg>
+    void uni_fdiv(const TReg &dst, const TReg &src, const TReg &src2) {
+        fdiv(dst, src, src2);
+    }
+
+    void uni_fdiv(const Xbyak_aarch64::VReg4S &dst,
+            const Xbyak_aarch64::VReg4S &src, const Xbyak_aarch64::VReg4S &src2,
+            const Xbyak_aarch64::VReg4S &tmp, const Xbyak_aarch64::PReg &pred) {
+        UNUSED(tmp);
+        UNUSED(pred);
+        fdiv(dst, src, src2);
+    }
+
+    template <typename TReg>
+    void uni_fdiv(const TReg &dst, const TReg &src, const TReg &src2,
+            const TReg &tmp, const Xbyak_aarch64::PReg &pred) {
+        uint32_t dstIdx = dst.getIdx();
+        uint32_t srcIdx = src.getIdx();
+        uint32_t src2Idx = src2.getIdx();
+        uint32_t tmpIdx = tmp.getIdx();
+
+        if (dstIdx == src2Idx) {
+            assert(tmpIdx != srcIdx && tmpIdx != src2Idx);
+
+            mov(Xbyak_aarch64::ZRegD(tmp.getIdx()),
+                    Xbyak_aarch64::ZRegD(src2.getIdx()));
+            mov(dst, pred / Xbyak_aarch64::T_m, src);
+            fdiv(dst, pred / Xbyak_aarch64::T_m, tmp);
+        } else if (dstIdx == srcIdx) {
+            fdiv(dst, pred / Xbyak_aarch64::T_m, src2);
+        } else {
+            mov(dst, P_ALL_ONE / Xbyak_aarch64::T_m, src);
+            fdiv(dst, pred / Xbyak_aarch64::T_m, src2);
+        }
     }
 
     void uni_fsub(const Xbyak_aarch64::VReg4S &v1,
