@@ -85,7 +85,7 @@ struct zero_point_call_params_t {
 
 bool zero_points_valid(const primitive_attr_t *attr) noexcept;
 void set_zp_src_comp_flags(memory_desc_t &weights_md, bool with_groups);
-const int32_t *get_src_zp_comp(const int8_t *weights,
+const int32_t *get_src_zp_comp_from_wei(const int8_t *weights,
         const memory_desc_wrapper &weights_md, bool signed_input, dim_t ngroups,
         dim_t oc);
 

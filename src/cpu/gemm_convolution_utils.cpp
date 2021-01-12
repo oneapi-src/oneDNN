@@ -1214,8 +1214,13 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             ? (jcp.oc * jcp.ngroups * jcp.zp.src_pad_comp.d
                     * jcp.zp.src_pad_comp.h * jcp.zp.src_pad_comp.w)
             : 0u;
-    const size_t weights_size
-            = weights_d.size() + zp_src_pad_comp_size * sizeof(int32_t);
+    const size_t zp_src_comp_size = jcp.zp.src_is_common
+            ? utils::rnd_up(jcp.oc * jcp.ngroups,
+                    platform::get_cache_line_size() / sizeof(int))
+            : 0u;
+
+    const size_t weights_size = weights_d.size()
+            + (zp_src_comp_size + zp_src_pad_comp_size) * sizeof(int32_t);
 
     static constexpr size_t scratchpad_limit_by_absolute_value = (size_t)1
             << 30; // 1Gb
@@ -2105,9 +2110,10 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             : 0;
     jcp.scale_idx_mult = (attr.output_scales_.mask_ == (1 << 1));
 
-    if (zp_src_with_padding)
-        scratchpad.book<int32_t>(
-                key_conv_gemm_zp_src_pad_comp, zp_src_pad_comp_size);
+    if (jcp.zp.src_exists) {
+        const auto size = zp_src_comp_size + zp_src_pad_comp_size;
+        if (size) scratchpad.book<int32_t>(key_conv_gemm_zp_src_comp, size);
+    }
 
     if (scratchpad.size() > scratchpad_limit) return status::unimplemented;
     return status::success;

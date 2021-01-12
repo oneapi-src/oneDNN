@@ -37,6 +37,40 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::math;
 using namespace dnnl::impl::memory_tracking::names;
 
+const int32_t *mul_zp_src_comp_from_wei_by_zp_src(const int zp_comp_size,
+        int32_t *zp_src_comp_scratch_dst,
+        const int32_t *const zp_src_comp_from_wei, const int32_t zp_src) {
+    static constexpr auto cache_line_size
+            = platform::get_cache_line_size() / sizeof(int);
+    const auto res = std::div(zp_comp_size, cache_line_size);
+
+    if (res.quot) {
+        parallel_nd(res.quot, [&](const int shift_factor) {
+            const auto shift = shift_factor * cache_line_size;
+            const int32_t *__restrict const src = zp_src_comp_from_wei + shift;
+            int32_t *__restrict dst = zp_src_comp_scratch_dst + shift;
+
+            PRAGMA_OMP_SIMD()
+            for (int i = 0; i < cache_line_size; ++i) {
+                dst[i] = src[i] * zp_src;
+            }
+        });
+    }
+
+    if (res.rem) {
+        const auto shift = res.quot * cache_line_size;
+        const int32_t *__restrict const src = zp_src_comp_from_wei + shift;
+        int32_t *__restrict dst = zp_src_comp_scratch_dst + shift;
+
+        PRAGMA_OMP_SIMD()
+        for (int i = 0; i < res.rem; ++i) {
+            dst[i] = src[i] * zp_src;
+        }
+    }
+
+    return zp_src_comp_scratch_dst;
+}
+
 static zero_point_call_params_t prepare_zp_params(const conv_gemm_conf_t &jcp,
         const memory_tracking::grantor_t &scratchpad, const int8_t *weights,
         const memory_desc_wrapper &weights_md, bool with_groups,
@@ -46,13 +80,25 @@ static zero_point_call_params_t prepare_zp_params(const conv_gemm_conf_t &jcp,
     const int32_t *zp_src_comp = nullptr;
 
     if (jcp.zp.src_exists) {
-        zp_src_comp = jcp.zp.src_exists ? get_src_zp_comp(weights, weights_md,
-                              jcp.signed_input, jcp.ngroups, jcp.oc)
-                                        : nullptr;
+        const int32_t *zp_src_comp_from_wei = get_src_zp_comp_from_wei(
+                weights, weights_md, jcp.signed_input, jcp.ngroups, jcp.oc);
+        int32_t *zp_src_comp_scratch
+                = scratchpad.get<int32_t>(key_conv_gemm_zp_src_comp);
+        static constexpr auto cache_line_size
+                = platform::get_cache_line_size() / sizeof(int);
+        const auto zp_comp_size = jcp.oc * jcp.ngroups;
+
+        if (jcp.zp.src_is_common) {
+            zp_src_comp = mul_zp_src_comp_from_wei_by_zp_src(zp_comp_size,
+                    zp_src_comp_scratch, zp_src_comp_from_wei, *zp_src);
+        } else
+            zp_src_comp = zp_src_comp_from_wei;
 
         if (jit_gemm_convolution_utils::padding_exists(jcp)) {
-            zp_src_comp_pad
-                    = scratchpad.get<int32_t>(key_conv_gemm_zp_src_pad_comp);
+            const auto shift = jcp.zp.src_is_common
+                    ? utils::rnd_up(zp_comp_size, cache_line_size)
+                    : 0;
+            zp_src_comp_pad = zp_src_comp_scratch + shift;
             compute_zp_src_comp_pad(jcp, zp_src_comp_pad, zp_src, weights,
                     weights_md, with_groups);
         }

@@ -112,7 +112,7 @@ void set_zp_src_comp_flags(memory_desc_t &weights_md, bool with_groups) {
             = (1 << 0) + (with_groups ? (1 << 1) : 0);
 }
 
-const int32_t *get_src_zp_comp(const int8_t *weights,
+const int32_t *get_src_zp_comp_from_wei(const int8_t *weights,
         const memory_desc_wrapper &weights_md, bool signed_input, dim_t ngroups,
         dim_t oc) {
 

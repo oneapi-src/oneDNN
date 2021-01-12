@@ -115,7 +115,6 @@ private:
     const Xbyak::Reg64 &reg_tmp_comp_
             = r12; // used to broadcast scalar values to vreg
     const Xbyak::Reg64 &reg_g_oc_off_ = reg_tmp_comp_;
-    const Xbyak::Reg64 &reg_zp_src_ = r13;
     const Xbyak::Reg64 &reg_zp_src_comp_ = r14;
     const Xbyak::Reg64 &reg_zp_dst_ = r15;
 
@@ -124,7 +123,6 @@ private:
     const Xbyak::Zmm vreg_sum_scale_;
     const Xbyak::Zmm vreg_signed_scale_;
     const Xbyak::Zmm vreg_saturation_ubound_;
-    const Xbyak::Zmm vreg_zp_src_common_;
     const Xbyak::Zmm vreg_zp_dst_common_;
 
     const Xbyak::Opmask &kreg_rem_mask_short_ = k1;
@@ -155,9 +153,6 @@ jit_pp_ker_t::jit_pp_ker_t(
     , vreg_signed_scale_(jcp_.signed_input ? reserve_zmm() : Xbyak::Zmm(0))
     , vreg_saturation_ubound_(
               saturation_needed_ ? reserve_zmm() : Xbyak::Zmm(0))
-    , vreg_zp_src_common_(jcp_.zp.src_exists && jcp_.zp.src_is_common
-                      ? reserve_zmm()
-                      : Xbyak::Zmm(0))
     , vreg_zp_dst_common_(jcp_.zp.dst_exists ? reserve_zmm() : Xbyak::Zmm(0))
     , zmm_step_(jcp.with_sum ? 3u : 2u)
     , max_unroll_((cpu_isa_traits<avx512_core>::n_vregs
@@ -317,24 +312,15 @@ void jit_pp_ker_t::append_zp_src_comp(size_t offset, int idx, bool apply_mask) {
     const auto zp_src_comp_offset = offset * sizeof(int32_t);
     const auto zp_src_offset = jcp_.zp.src_is_common ? 0 : zp_src_comp_offset;
     const auto zp_src_comp_addr = ptr[reg_zp_src_comp_ + zp_src_comp_offset];
-    const auto vreg_zp_src_comp = get_vreg_zp_comp_src(idx);
-    const auto vreg_zp_src_comp_masked = vreg_zp_src_comp
-            | (apply_mask ? kreg_rem_mask_short_ : kreg_rem_mask_vlen_);
 
-    if (jcp_.zp.src_is_common) {
-        vpmulld(vreg_zp_src_comp_masked, vreg_zp_src_common_, zp_src_comp_addr);
-    } else {
-        vmovups(vreg_zp_src_comp_masked, zp_src_comp_addr);
-        vpmulld(vreg_zp_src_comp_masked, vreg_zp_src_comp,
-                ptr[reg_zp_src_ + zp_src_offset]);
-    }
+    vpaddd(vreg_dst_masked, vreg_dst, zp_src_comp_addr);
+
     if (zp_pad_comp_helper_)
         zp_pad_comp_helper_->zp_src_comp_pad_operation(
                 [&](const Xbyak::Reg64 &reg_zp_pad_comp) {
                     vpaddd(vreg_dst_masked, vreg_dst,
                             ptr[reg_zp_pad_comp + zp_src_comp_offset]);
                 });
-    vpaddd(vreg_dst_masked, vreg_dst, vreg_zp_src_comp);
 }
 
 void jit_pp_ker_t::apply_postops(const Xbyak::Reg64 &reg_dst, const int idx) {
@@ -404,10 +390,7 @@ void jit_pp_ker_t::generate() {
     mov(reg_oc_offset_, ptr[reg_param_ + PARAM_OFF(oc_offset)]);
 
     if (jcp_.zp.src_exists) {
-        mov(reg_zp_src_, ptr[reg_param_ + PARAM_OFF(zp_src)]);
         mov(reg_zp_src_comp_, ptr[reg_param_ + PARAM_OFF(zp_src_comp)]);
-        if (jcp_.zp.src_is_common)
-            vbroadcastss(vreg_zp_src_common_, ptr[reg_zp_src_]);
         if (zp_pad_comp_helper_)
             zp_pad_comp_helper_->init(PARAM_OFF(w), PARAM_OFF(h),
                     PARAM_OFF(w_size), PARAM_OFF(w_off),
@@ -537,9 +520,6 @@ void jit_pp_ker_t::generate() {
                             add(reg_zp_pad_comp, offset * sizeof(int32_t));
                         });
             }
-
-            if (!jcp_.zp.src_is_common)
-                add(reg_zp_src_, offset * sizeof(int32_t));
         }
     };
 
@@ -567,10 +547,6 @@ void jit_pp_ker_t::generate() {
                                     ptr[reg_zp_pad_comp
                                             + offset * sizeof(int32_t)]);
                         });
-
-            if (!jcp_.zp.src_is_common) {
-                lea(reg_zp_src_, ptr[reg_zp_src_ + offset * sizeof(int32_t)]);
-            }
         }
     };
 
@@ -585,7 +561,6 @@ void jit_pp_ker_t::generate() {
         if (jcp_.zp.src_exists) {
             const auto offset = jcp_.oc * sizeof(int32_t);
             sub(reg_zp_src_comp_, offset);
-            if (!jcp_.zp.src_is_common) { sub(reg_zp_src_, offset); }
             if (zp_pad_comp_helper_)
                 zp_pad_comp_helper_->load_next_point_zp_src_comp_pad_addr();
         }

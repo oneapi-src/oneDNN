@@ -90,14 +90,14 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
             const size_t acc_off = os * jcp_.oc + oc;
             const size_t dst_off = os * jcp_.dst_os_stride + oc;
 
-            float data = static_cast<float>(acc[acc_off]);
+            int32_t data_s32 = acc[acc_off];
+
             if (jcp_.zp.src_exists) {
                 const auto oc_offset = g * jcp_.oc + oc;
-                const int32_t &zp_src_val
-                        = jcp_.zp.src_is_common ? *(zp.src) : zp.src[oc_offset];
-                const int32_t &zp_src_comp_val = zp.src_comp[oc_offset];
-                data += static_cast<float>(zp_src_val * zp_src_comp_val);
+                data_s32 += zp.src_comp[oc_offset];
             }
+
+            float data = static_cast<float>(data_s32);
 
             if (jcp_.signed_input) data *= signed_scale;
 
