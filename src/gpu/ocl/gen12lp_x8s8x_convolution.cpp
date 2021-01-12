@@ -558,7 +558,7 @@ status_t gen12lp_x8s8x_convolution_fwd_t::execute_forward(
     return status;
 }
 
-status_t gen12lp_x8s8x8x_convolution_bwd_data_t::pd_t::init_conf() {
+status_t gen12lp_x8s8x_convolution_bwd_data_t::pd_t::init_conf() {
     using namespace format_tag;
 
     const convolution_desc_t &cd = *desc();
@@ -624,7 +624,7 @@ status_t gen12lp_x8s8x8x_convolution_bwd_data_t::pd_t::init_conf() {
     return status;
 }
 
-status_t gen12lp_x8s8x8x_convolution_bwd_data_t::pd_t::init_kernel_ctx(
+status_t gen12lp_x8s8x_convolution_bwd_data_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("G", conf.ngroups);
     kernel_ctx.define_int("MB", conf.mb);
@@ -676,7 +676,7 @@ status_t gen12lp_x8s8x8x_convolution_bwd_data_t::pd_t::init_kernel_ctx(
     return status::success;
 }
 
-status_t gen12lp_x8s8x8x_convolution_bwd_data_t::execute_backward_data(
+status_t gen12lp_x8s8x_convolution_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
 
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
