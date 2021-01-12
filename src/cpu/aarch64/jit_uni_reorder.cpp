@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
-* Copyright 2020 FUJITSU LIMITED
+* Copyright 2018-2021 Intel Corporation
+* Copyright 2020-2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1237,10 +1237,6 @@ private:
     ZReg z_tmp5 = z25;
     ZReg z_tmp6 = z26;
     ZReg z_tmp7 = z27;
-
-    const std::vector<XReg> x_tmp_vec
-            = {X_TMP_0, X_TMP_1, X_TMP_2, X_TMP_3, X_TMP_4};
-    constexpr static int x_tmp_vec_size = 5;
 
     const std::vector<ZReg> z_tmp_vec
             = {z_tmp0, z_tmp1, z_tmp2, z_tmp3, z_tmp4, z_tmp5, z_tmp6, z_tmp7};
