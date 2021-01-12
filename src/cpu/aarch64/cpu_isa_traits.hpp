@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
-* Copyright 2020 FUJITSU LIMITED
+* Copyright 2018-2021 Intel Corporation
+* Copyright 2020-2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -92,7 +92,11 @@ struct cpu_isa_traits<isa_all> {
 
 template <>
 struct cpu_isa_traits<asimd> {
-    typedef Xbyak_aarch64::VReg4S Vmm;
+    typedef Xbyak_aarch64::VReg TReg;
+    typedef Xbyak_aarch64::VReg16B TRegB;
+    typedef Xbyak_aarch64::VReg8H TRegH;
+    typedef Xbyak_aarch64::VReg4S TRegS;
+    typedef Xbyak_aarch64::VReg2D TRegD;
     static constexpr int vlen_shift = 4;
     static constexpr int vlen = 16;
     static constexpr int n_vregs = 32;
@@ -103,7 +107,11 @@ struct cpu_isa_traits<asimd> {
 
 template <>
 struct cpu_isa_traits<sve_512> {
-    typedef Xbyak_aarch64::ZRegS Vmm;
+    typedef Xbyak_aarch64::ZReg TReg;
+    typedef Xbyak_aarch64::ZRegB TRegB;
+    typedef Xbyak_aarch64::ZRegH TRegH;
+    typedef Xbyak_aarch64::ZRegS TRegS;
+    typedef Xbyak_aarch64::ZRegD TRegD;
     static constexpr int vlen_shift = 6;
     static constexpr int vlen = 64;
     static constexpr int n_vregs = 32;
