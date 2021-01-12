@@ -1,5 +1,6 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
+* Copyright 2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +30,7 @@ using namespace dnnl::impl::cpu::x64;
 
 #if DNNL_AARCH64
 #include "cpu/aarch64/jit_uni_batch_normalization.hpp"
+#include "cpu/aarch64/jit_uni_batch_normalization_s8.hpp"
 using namespace dnnl::impl::cpu::aarch64;
 #endif
 
@@ -76,6 +78,7 @@ const pd_create_f impl_list[] = {
         CPU_INSTANCE_X64(jit_uni_batch_normalization_s8_fwd_t<avx512_core>)
         CPU_INSTANCE_X64(jit_uni_batch_normalization_s8_fwd_t<avx2>)
         CPU_INSTANCE_X64(jit_uni_batch_normalization_s8_fwd_t<sse41>)
+        CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_s8_fwd_t<sve_512>)
         CPU_INSTANCE(ref_batch_normalization_fwd_t<s8>)
         /* eol */
         nullptr,
