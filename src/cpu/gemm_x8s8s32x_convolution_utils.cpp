@@ -71,8 +71,8 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
     assert(data_traits<dst_data_t>::data_type == jcp_.dst_data_type);
     dst_data_t *dst = (dst_data_t *)void_dst;
 
-    const auto dv_start = std::div(start, jcp_.oc);
-    const auto dv_end = std::div((end - 1), jcp_.oc);
+    const lldiv_t dv_start = std::div((long long)start, (long long)jcp_.oc);
+    const lldiv_t dv_end = std::div((long long)(end - 1), (long long)jcp_.oc);
     const size_t first_oc = dv_start.rem;
     const size_t last_oc = dv_end.rem;
     const size_t first_os = dv_start.quot;
