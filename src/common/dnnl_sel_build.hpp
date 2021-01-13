@@ -80,7 +80,7 @@ dnnl::impl::status_t pd_create(Args ... args) {
 
 } // namespace dnnl
 
-#define DNNL_CSCOPE(region, ...) OV_SCOPE(DNNL, region, __VA_ARGS__)
+#define DNNL_CSCOPE(region, ...) OV_SCOPE(DNNL, region) { __VA_ARGS__ }
 
 #elif defined(SELECTIVE_BUILD)
 
@@ -99,7 +99,7 @@ dnnl::impl::status_t pd_create(Args ... args) {
 # define REG_DNNL_FN_6(name, T1, T2, T3, T4, T5) DNNL_OBJ_BUILDER(name ## _ ## T1 ## _ ## T2 ## _ ## T3 ## _ ## T4 ## _ ## T5, &name<T1, T2, T3, T4, T5>::pd_t::create)
 # define REG_DNNL_FN_7(name, T1, T2, T3, T4, T5, T6) DNNL_OBJ_BUILDER(name ## _ ## T1 ## _ ## T2 ## _ ## T3 ## _ ## T4 ## _ ## T5 ## _ ## T6, &name<T1, T2, T3, T4, T5, T6>::pd_t::create)
 
-#define DNNL_CSCOPE(region, ...) OV_SCOPE(DNNL, region, __VA_ARGS__)
+#define DNNL_CSCOPE(region, ...) OV_SCOPE(DNNL, region) { __VA_ARGS__ }
 
 #else
 
