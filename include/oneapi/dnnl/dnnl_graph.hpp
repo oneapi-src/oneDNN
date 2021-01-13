@@ -1126,35 +1126,35 @@ private:
 
     template <typename Type,
             requires<std::is_same<Type, int64_t>::value> = true>
-    constexpr static dnnl_graph_attribute_kind attr_kind() noexcept {
+    constexpr static dnnl_graph_attribute_kind_t attr_kind() noexcept {
         return dnnl_graph_attribute_kind_i;
     }
 
     template <typename Type,
             requires<std::is_same<Type, std::vector<int64_t>>::value> = true>
-    constexpr static dnnl_graph_attribute_kind attr_kind() noexcept {
+    constexpr static dnnl_graph_attribute_kind_t attr_kind() noexcept {
         return dnnl_graph_attribute_kind_is;
     }
 
     template <typename Type, requires<std::is_same<Type, float>::value> = true>
-    constexpr static dnnl_graph_attribute_kind attr_kind() noexcept {
+    constexpr static dnnl_graph_attribute_kind_t attr_kind() noexcept {
         return dnnl_graph_attribute_kind_f;
     }
 
     template <typename Type,
             requires<std::is_same<Type, std::vector<float>>::value> = true>
-    constexpr static dnnl_graph_attribute_kind attr_kind() noexcept {
+    constexpr static dnnl_graph_attribute_kind_t attr_kind() noexcept {
         return dnnl_graph_attribute_kind_fs;
     }
 
     template <typename Type,
             requires<std::is_same<Type, std::string>::value> = true>
-    constexpr static dnnl_graph_attribute_kind attr_kind() noexcept {
+    constexpr static dnnl_graph_attribute_kind_t attr_kind() noexcept {
         return dnnl_graph_attribute_kind_s;
     }
 
     template <typename Attr, requires<std::is_same<Attr, bool>::value> = true>
-    constexpr static dnnl_graph_attribute_kind attr_kind() noexcept {
+    constexpr static dnnl_graph_attribute_kind_t attr_kind() noexcept {
         return dnnl_graph_attribute_kind_b;
     }
 };

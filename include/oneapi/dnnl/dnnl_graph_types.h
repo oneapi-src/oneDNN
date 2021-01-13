@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ typedef int64_t dnnl_graph_dim_t;
 typedef dnnl_graph_dim_t dnnl_graph_dims_t[DNNL_GRAPH_MAX_NDIMS];
 
 /// Data type specifications
-typedef enum dnnl_graph_data_type {
+typedef enum {
     /// undefined data type for initialization
     dnnl_graph_data_type_undef = 0,
     /// 16-bit/half-precision floating point.
@@ -91,7 +91,7 @@ typedef enum dnnl_graph_data_type {
 /// @{
 
 /// Policy specifications for partitioning
-typedef enum dnnl_graph_partition_policy {
+typedef enum {
     /// Best optimization
     dnnl_graph_partition_policy_max = 0,
     /// Have fusion
@@ -106,7 +106,7 @@ typedef enum dnnl_graph_partition_policy {
 /// @{
 
 /// Status values returned by the library functions.
-typedef enum dnnl_graph_result {
+typedef enum {
     /// The operation was successful
     dnnl_graph_result_success,
     /// The operation was not ready
@@ -136,7 +136,7 @@ typedef enum dnnl_graph_result {
 } dnnl_graph_result_t;
 
 /// Verbosity level of debug messages
-typedef enum dnnl_graph_log_level {
+typedef enum {
     /// Logging disabled
     dnnl_graph_log_level_disabled,
     /// Logging for error
@@ -153,7 +153,7 @@ typedef enum dnnl_graph_log_level {
 /// @{
 
 /// Kind for engine
-typedef enum dnnl_graph_engine_kind {
+typedef enum {
     /// An unspecified engine
     dnnl_graph_any_engine,
     /// CPU engine
@@ -168,7 +168,7 @@ typedef enum dnnl_graph_engine_kind {
 /// @{
 
 /// Enumeration for op kind
-typedef enum dnnl_graph_op_kind {
+typedef enum {
 #define DEFINE_SYMBOL(s) k##s,
     DNNL_GRAPH_FORALL_BUILDIN_OPS(DEFINE_SYMBOL)
 #undef DEFINE_SYMBOL
@@ -177,7 +177,7 @@ typedef enum dnnl_graph_op_kind {
 } dnnl_graph_op_kind_t;
 
 /// Kind for op's attributes
-typedef enum dnnl_graph_attribute_kind {
+typedef enum {
     /// attributes with float type
     dnnl_graph_attribute_kind_f,
     /// atributes with list of floats
@@ -208,7 +208,7 @@ typedef enum {
 } dnnl_graph_allocator_lifetime_t;
 
 /// An attribute struct associated with allocator.
-typedef struct dnnl_graph_allocator_attr {
+typedef struct {
     /// lifetime enumertion
     dnnl_graph_allocator_lifetime_t type;
     /// alignment value
