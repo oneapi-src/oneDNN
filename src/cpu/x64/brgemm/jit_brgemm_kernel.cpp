@@ -691,11 +691,12 @@ void jit_brgemm_kernel_base_t::restore_A_B_matrices() {
         mov(reg_aux1_A, reg_A);
         mov(reg_aux1_B, reg_B);
 
-        if (restore_reg_batch)
+        if (restore_reg_batch) {
             if (brg.type == brgemm_offs)
                 mov(reg_offs_batch, ptr[rsp + origin_offs_batch_offs_]);
             else
                 mov(reg_strd_batch, ptr[rsp + origin_strd_batch_offs_]);
+        }
     }
 }
 
