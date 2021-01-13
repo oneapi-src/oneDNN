@@ -494,6 +494,8 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_ncsp(
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const size_t src_step = diff_src_d.blk_off(1) / jcp.ngroups;
     const size_t dst_step = diff_dst_d.blk_off(1) / jcp.ngroups;
+    diff_src += diff_src_d.off_l(0);
+    diff_dst += diff_dst_d.off_l(0);
     const size_t weights_g_size = (size_t)jcp.ic * jcp.oc * jcp.ks;
 
     const dim_t m = jcp.os_block;
