@@ -39,6 +39,7 @@ file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/backend/dnnl/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/backend/pass/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/backend/pass/passes/*.[ch]pp
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils/*.[ch]pp
 )
 
 append(CMAKE_CXX_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
@@ -48,8 +49,17 @@ add_library(${LIB_NAME}_objlib OBJECT ${SOURCES})
 set_target_properties(${LIB_NAME}_objlib PROPERTIES POSITION_INDEPENDENT_CODE ON)
 set_target_properties(${LIB_NAME}_objlib PROPERTIES CXX_VISIBILITY_PRESET "hidden")
 set_target_properties(${LIB_NAME}_objlib PROPERTIES VISIBILITY_INLINES_HIDDEN 1)
-if (NOT DNNL_GRAPH_VERBOSE)
-    target_compile_definitions(${LIB_NAME}_objlib PRIVATE DNNL_GRAPH_VERBOSE_DISABLE)
+
+APPLY_VERSION_DEFINITIONS(${CMAKE_CURRENT_SOURCE_DIR}/utils/verbose.cpp)
+
+if (NOT DNNL_GRAPH_LOGGER)
+    message(STATUS "DNNL Graph logger is disabled")
+    target_compile_definitions(${LIB_NAME}_objlib PRIVATE DNNL_GRAPH_DISABLE_LOGGER)
+endif()
+
+if(NOT DNNL_GRAPH_VERBOSE)
+    message(STATUS "DNNL Graph verbose mode is disabled")
+    target_compile_definitions(${LIB_NAME}_objlib PRIVATE DNNL_GRAPH_DISABLE_VERBOSE)
 endif()
 
 target_include_directories(${LIB_NAME}_objlib

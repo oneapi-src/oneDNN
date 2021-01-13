@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -381,6 +381,7 @@ int main(int argc, char **argv) {
     dnnl_graph_logical_tensor_t query_conv_src_lt;
     DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_query_logical_tensor(
             cpartitions[0], CONV1_SRC_ID, &query_conv_src_lt));
+    conv1_src_desc.layout_type = query_conv_src_lt.layout_type;
     conv1_src_desc.layout.layout_id = query_conv_src_lt.layout.layout_id;
 
     const dnnl_graph_logical_tensor_t *partition1_inputs[]

@@ -54,7 +54,7 @@ public:
         return active_level;
     }
 
-#ifdef DNNL_GRAPH_VERBOSE_DISABLE
+#ifdef DNNL_GRAPH_DISABLE_LOGGER
     static constexpr bool log_level_active(dnnl_graph_log_level_t) {
         return false;
     }
@@ -64,7 +64,7 @@ public:
     }
 #endif
 
-#ifdef DNNL_GRAPH_VERBOSE_DISABLE
+#ifdef DNNL_GRAPH_DISABLE_LOGGER
     static constexpr bool disabled_ = true;
 #else
     static constexpr bool disabled_ = false;

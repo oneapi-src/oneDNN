@@ -35,6 +35,7 @@
 
 #include "interface/stream.hpp"
 #include "utils/compatible.hpp"
+#include "utils/verbose.hpp"
 
 namespace std {
 template <>
@@ -64,6 +65,7 @@ using node_attrs = impl::attributes;
 struct dnnl_graph_partition : public dnnl_graph_id {
 public:
     friend struct dnnl_graph_compiled_partition;
+    friend struct impl::utils::partition_info_t;
 
     dnnl_graph_partition() = default;
 
@@ -266,6 +268,7 @@ private:
 struct dnnl_graph_compiled_partition : public dnnl_graph_id {
 public:
     friend struct dnnl_graph_partition;
+    friend struct impl::utils::partition_info_t;
 
     using tensor_shape = std::vector<int64_t>;
     static constexpr tensor_shape::value_type unknown_shape {-1};
@@ -293,6 +296,15 @@ public:
     impl::status_t query_logical_tensor(
             size_t tid, impl::logical_tensor_t *lt) const;
 
+    const char *info() const {
+        if (!info_.is_initialized()) info_.init(&engine_, this);
+        return info_.c_str();
+    }
+
+    friend void init_info_partition(const impl::engine_t *engine,
+            const dnnl_graph_compiled_partition *compiled_partition,
+            char *buffer);
+
 private:
     const impl::partition_t src_partition_;
 
@@ -311,8 +323,11 @@ private:
     // ditto
     std::vector<impl::logical_tensor_t> outputs_ {};
 
-    // this engine must be valid
+    // This engine must be valid
     impl::engine_t engine_;
+
+    // Partition information
+    mutable impl::utils::partition_info_t info_;
 };
 
 #endif

@@ -46,6 +46,7 @@ set(DNNL_GRAPH_API_TEST_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/api/test_cpp_api_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/api/test_cpp_api_stream.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/api/test_cpp_api_partition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/api/test_cpp_api_version.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/api/test_c_api_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/api/test_c_api_op.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/api/test_c_api_add_op.cpp
@@ -53,6 +54,7 @@ set(DNNL_GRAPH_API_TEST_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/api/test_c_api_compile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/api/test_c_api_logical_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/api/test_c_api_compile_parametrized.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/api/test_c_api_version.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/api/test_api_common.cpp
     )
 add_executable(${LIB_NAME}_api_test ${DNNL_GRAPH_API_TEST_SRCS})
@@ -74,6 +76,9 @@ target_include_directories(${LIB_NAME}_api_test
     PRIVATE
     ${PROJECT_SOURCE_DIR}/include
     )
+set(TEST_FILES_NEED_VERSION ${CMAKE_CURRENT_SOURCE_DIR}/api/test_c_api_version.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/api/test_cpp_api_version.cpp)
+APPLY_VERSION_DEFINITIONS("${TEST_FILES_NEED_VERSION}")
 
 # These files access internal api and needs visibility options set to avoid warnings on macos
 add_library(${LIB_NAME}_unit_test_objlib OBJECT

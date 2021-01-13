@@ -28,6 +28,15 @@ if(POLICY CMP0028)
     cmake_policy(SET CMP0028 NEW)
 endif()
 
+if(NOT CMAKE_VERSION VERSION_LESS 3.0)
+    # https://cmake.org/cmake/help/latest/policy/CMP0025.html#policy:CMP0025
+    # Enforce CMake 3.0 and above recognize like that Apple Clang is Clang to
+    # ensure the compatibility with version prior to 3.0.
+    if(POLICY CMP0025)
+        cmake_policy(SET CMP0025 OLD)
+    endif()
+endif()
+
 if(POLICY CMP0054)
     cmake_policy(SET CMP0054 NEW)
 endif()
@@ -91,11 +100,6 @@ else()
     cmake_policy(SET CMP0048 NEW)
     project(${PROJECT_NAME} VERSION "${PROJECT_VERSION}" LANGUAGES C CXX)
 endif()
-
-string(REPLACE "." ";" VERSION_LIST ${PROJECT_VERSION})
-list(GET VERSION_LIST 0 DNNL_GRAPH_VERSION_MAJOR)
-list(GET VERSION_LIST 1 DNNL_GRAPH_VERSION_MINOR)
-list(GET VERSION_LIST 2 DNNL_GRAPH_VERSION_PATCH)
 
 if(MSVC)
     message(FATAL_ERROR "oneDNN Graph doesn't support MSVC at this moment.")
@@ -188,11 +192,12 @@ if(${DNNL_GRAPH_ENABLE_ASAN})
 endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Wno-gnu-statement-expression")
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Wno-gnu-statement-expression -Wno-gnu-statement-expression -Wno-string-conversion -Wno-format")
 endif()
 
 include("cmake/check_headers.cmake")
 include("cmake/Doxygen.cmake")
+include("cmake/version.cmake")
 
 enable_testing()
 

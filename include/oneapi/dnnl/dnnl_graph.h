@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -745,6 +745,19 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_destroy(
         dnnl_graph_stream_t *stream);
 
 /// @} dnnl_graph_api_stream
+
+/// @addtogroup dnnl_graph_api_service Service
+/// @{
+
+/// Returns library version information.
+/// @returns Pointer to a constant structure containing
+///  - major: major version number,
+///  - minor: minor version number,
+///  - patch: patch release number,
+///  - hash: git commit hash.
+const dnnl_graph_version_t DNNL_GRAPH_API *dnnl_graph_version(void);
+
+/// @} dnnl_graph_api_service
 
 /// @} dnnl_graph_api
 

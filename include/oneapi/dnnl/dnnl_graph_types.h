@@ -331,6 +331,20 @@ typedef struct dnnl_graph_stream dnnl_graph_stream_t;
 
 /// @endcond
 
+/// @addtogroup dnnl_graph_api_service
+/// @{
+
+/// Structure containing version information as per [Semantic
+/// Versioning](https://semver.org)
+typedef struct {
+    int major; ///< Major version
+    int minor; ///< Minor version
+    int patch; ///< Patch version
+    const char *hash; ///< Git hash of the sources (may be absent)
+} dnnl_graph_version_t;
+
+/// @} dnnl_graph_api_service
+
 /// @} dnnl_graph_api
 
 #ifdef __cplusplus

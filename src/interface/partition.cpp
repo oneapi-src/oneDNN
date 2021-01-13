@@ -416,7 +416,7 @@ status_t dnnl_graph_partition::infer_shape(
         // in partition unchanged, create a temp_node to hold these changes
         node_t temp_node = node_t(node_->get_op_kind());
         temp_node.merge_attrs_map(node_->get_attrs_map());
-        status_t ret = cur_op_schema->shape_infer(
+        ret = cur_op_schema->shape_infer(
                 &temp_node, required_inputs, required_outputs);
         return ret;
     } else {
@@ -432,6 +432,9 @@ dnnl_graph_compiled_partition::get_inplace_pairs() const {
 status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs) const {
+    if (!astream || !astream->get_engine()->match(engine_))
+        return status::invalid_argument;
+
     // to support abitrary re-connection in FWK graph, we need to
     // find required input and output logical tensors from the compile
     // function's parameters
@@ -445,10 +448,17 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
             src_partition_.node_.get(), outputs_, outputs, required_outputs);
     if (status::success != ret) return ret;
 
-    if (!astream || !astream->get_engine()->match(engine_))
-        return status::invalid_argument;
+    if (utils::get_verbose()) {
+        double ms = utils::get_msec();
+        ret = executable_->execute(astream, required_inputs, required_outputs);
+        ms = utils::get_msec() - ms;
+        printf("dnnl_graph_verbose,exec,%s,%g\n", this->info(), ms);
+        fflush(stdout);
+    } else {
+        ret = executable_->execute(astream, required_inputs, required_outputs);
+    }
 
-    return executable_->execute(astream, required_inputs, required_outputs);
+    return ret;
 }
 
 #if DNNL_GRAPH_WITH_SYCL
@@ -456,6 +466,9 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs,
         const cl::sycl::event *sycl_event) const {
+    if (!astream || !astream->get_engine()->match(engine_))
+        return status::invalid_argument;
+
     // to support abitrary re-connection in FWK graph, we need to
     // find required input and output logical tensors from the compile
     // function's parameters
@@ -474,9 +487,17 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
     // execution can be assigned to the users' object.
     UNUSED(sycl_event);
 
-    if (!astream || !astream->get_engine()->match(engine_))
-        return status::invalid_argument;
-    return executable_->execute(astream, required_inputs, required_outputs);
+    if (utils::get_verbose()) {
+        double ms = utils::get_msec();
+        ret = executable_->execute(astream, required_inputs, required_outputs);
+        ms = utils::get_msec() - ms;
+        printf("dnnl_graph_verbose,exec,%s,%g\n", this->info(), ms);
+        fflush(stdout);
+    } else {
+        ret = executable_->execute(astream, required_inputs, required_outputs);
+    }
+
+    return ret;
 }
 #endif // DNNL_GRAPH_WITH_SYCL
 

@@ -1233,6 +1233,22 @@ public:
 
 /// @} dnnl_graph_api_graph
 
+/// @addtogroup dnnl_graph_api_service Service
+///
+/// A set of functions that aid in oneDNN Graph debugging and profiling.
+///
+/// @{
+
+/// @copydoc dnnl_graph_version_t
+using version_t = dnnl_graph_version_t;
+
+/// @copydoc dnnl_graph_version()
+inline const version_t *version() {
+    return dnnl_graph_version();
+}
+
+/// @} dnnl_api_service
+
 } // namespace graph
 } // namespace dnnl
 
