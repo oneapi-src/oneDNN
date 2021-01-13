@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ static inline void gemv_n_kernel(const dim_t m, const dim_t n, float alpha,
     } else {
         if (incx == 1) {
             for (dim_t i = 0; i < n; i++) {
+                PRAGMA_OMP_SIMD()
                 for (dim_t j = 0; j < m; j++) {
                     y[j] += alpha * x[i] * a[j + i * lda];
                 }
@@ -57,6 +58,7 @@ static inline void gemv_n_kernel(const dim_t m, const dim_t n, float alpha,
         } else {
             dim_t idx = incx < 0 ? (1 - n) * incx : 0;
             for (dim_t i = 0; i < n; i++) {
+                PRAGMA_OMP_SIMD()
                 for (dim_t j = 0; j < m; j++) {
                     y[j] += alpha * x[idx] * a[j + i * lda];
                 }
@@ -121,10 +123,12 @@ static inline void gemv_kernel_driver(const int trans, const dim_t m,
     if (beta != 1.0f) {
         if (incy == 1) {
             if (beta == 0.0f) {
+                PRAGMA_OMP_SIMD()
                 for (dim_t i = 0; i < y_dim; i++) {
                     y[i] = (c_t)0.0f;
                 }
             } else {
+                PRAGMA_OMP_SIMD()
                 for (dim_t i = 0; i < y_dim; i++) {
                     y[i] *= beta;
                 }
@@ -162,6 +166,7 @@ static inline void gemv_kernel_driver(const int trans, const dim_t m,
                 m_blk = m - i;
                 if (m_blk > M_BLK) m_blk = M_BLK;
 
+                PRAGMA_OMP_SIMD()
                 for (dim_t j = 0; j < m_blk; j++)
                     ytmp[j] = (c_t)0.0;
 
@@ -283,45 +288,81 @@ static inline int thread_checker(
 #undef MIN_WIDTH
 
 template <typename T>
-static inline void decompose_vector(const dim_t m, const dim_t nthr,
-        const dim_t ithr, T *addr, dim_t *offset, dim_t *size) {
-    dim_t loffset = 0;
-    dim_t lsize = 0;
+static inline void part_1d(const dim_t m, const int ithr, const int nthr,
+        T *addr, dim_t &off, dim_t &size) {
+    constexpr bool is_f32
+            = utils::one_of(data_traits<T>::data_type, data_type::f32);
 
-    if (ithr >= nthr) {
-        *offset = loffset;
-        *size = lsize;
-        return;
-    }
-
-    if (addr == nullptr) {
-        dim_t xthr = m % nthr;
-        dim_t width = m / nthr;
-
-        if (ithr < xthr) {
-            lsize = width + 1;
-            loffset = ithr * lsize;
-        } else {
-            lsize = width;
-            loffset = m - (nthr - ithr) * lsize;
-        }
-    }
-
-    *offset = loffset;
-    *size = lsize;
-}
-
-static inline void part_1d(const dim_t k, const int ithr, const int nthr,
-        dim_t &off, dim_t &size) {
     if (ithr >= nthr) {
         size = 0;
         off = 0;
         return;
     }
-    size = utils::div_up(k, nthr);
-    off = ithr * size;
-    if (off > k) off = k;
-    if (off + size > k) size = k - off;
+
+    if (is_f32) {
+        if (addr == nullptr) {
+            dim_t xthr = m % nthr;
+            dim_t width = m / nthr;
+
+            if (ithr < xthr) {
+                size = width + 1;
+                off = ithr * size;
+            } else {
+                size = width;
+                off = m - (nthr - ithr) * size;
+            }
+        } else {
+            // Consider cache slashing.
+            enum { CACHE_LINE_SIZE = 64 };
+
+            // Find the offset against cache line.
+            dim_t cache_off = (size_t)addr % CACHE_LINE_SIZE / sizeof(*addr);
+
+            // Find partition size, but it needs to be multiple of cache line.
+            dim_t align = CACHE_LINE_SIZE / sizeof(*addr);
+            dim_t width
+                    = utils::rnd_up(utils::div_up(m + cache_off, nthr), align);
+
+            if (width > m + cache_off) width = m + cache_off;
+
+            if (ithr == 0) {
+                // First thread is sacrificed to align against cache.
+                size = width - cache_off;
+                off = 0;
+            } else {
+                size = width;
+                off = ithr * width - cache_off;
+            }
+        }
+    } else {
+        size = utils::div_up(m, nthr);
+        off = ithr * size;
+    }
+
+    if (off > m) off = m;
+    if (off + size > m) size = m - off;
+}
+
+template <typename c_t>
+void sum_ybufs(
+        int ithr, int nthr, dim_t m, c_t *y, dim_t incy, c_t *ybuf, int nbufs) {
+    if (incy < 0) y += (-m + 1) * incy;
+
+    dim_t off_m = 0;
+    dim_t thread_m = 0;
+
+    // Reduction in each thread.
+    part_1d(m, ithr, nthr, (c_t *)nullptr, off_m, thread_m);
+    if (incy == 1)
+        for (int buf_id = 0; buf_id < nbufs; buf_id++) {
+            PRAGMA_OMP_SIMD()
+            for (dim_t i = off_m; i < off_m + thread_m; i++)
+                y[i] += ybuf[i + buf_id * m];
+        }
+    else
+        for (int buf_id = 0; buf_id < nbufs; buf_id++)
+            for (dim_t i = off_m; i < off_m + thread_m; i++)
+                y[i * incy] += ybuf[i + buf_id * m];
 }
 
 template <typename a_t, typename b_t, typename c_t>
@@ -331,6 +372,8 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
         const dim_t incy, const gemm_info_t<a_t, b_t, c_t> *arg) {
     constexpr bool is_f32
             = utils::one_of(data_traits<a_t>::data_type, data_type::f32);
+    constexpr bool is_bf16
+            = utils::one_of(data_traits<a_t>::data_type, data_type::bf16);
 
     // Quick return if possible.
     if (m <= 0 || n <= 0) return;
@@ -344,81 +387,85 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
         return;
     }
 
+    enum { M_MIN = 500, N_MIN = 128 };
+    bool is_short_fat = m <= nthr_goal * M_MIN && n >= nthr_goal * N_MIN;
+
+    bool use_y_buf = trans == no_trans && (is_bf16 || (is_f32 && is_short_fat));
+    bool is_syncable = dnnl_thr_syncable();
+
     c_t *ybuf = nullptr;
-    if (trans == no_trans && dnnl_thr_syncable() && !is_f32)
+    if (use_y_buf)
         ybuf = (c_t *)malloc(sizeof(*ybuf) * m * (nthr_goal - 1), PAGE_4K);
 
     // Always use the maximum number of threads to avoid OMP overhead that can
     // occur due to change thread counts.
     auto nthr_spawn = dnnl_thr_syncable() ? nthr_max : nthr_goal;
+    int nbufs_used = 0;
     parallel(nthr_spawn, [&](int ithr, int nthr) {
         int nthr_eff = nstl::min(nthr_goal, nthr);
-        if (is_f32) {
-            dim_t band, disp;
-            decompose_vector(n, nthr_eff, ithr, (c_t *)nullptr, &disp, &band);
 
-            dim_t ydisp = disp * incy;
-            if (incy < 0) ydisp = ydisp + (-n + band) * incy;
+        dim_t thread_m = m, off_m = 0;
+        dim_t thread_n = n, off_n = 0;
+        dim_t band = 1;
 
-            disp = disp * lda;
+        // Default effective values.
+        auto a_eff = a;
+        auto x_eff = x;
+        auto y_eff = y;
+        auto incy_eff = incy;
+        auto beta_eff = beta;
 
-            auto a_loc = a + disp;
-            auto x_loc = x;
-            auto y_loc = y + ydisp;
-            gemv_kernel_driver(trans, m, band, alpha, a_loc, lda, x_loc, incx,
-                    beta, y_loc, incy, arg);
-        } else {
-            dim_t thread_m = m, off_m = 0;
-            dim_t thread_n = n, off_n = 0;
-            dim_t band = 1;
-
-            // Default effective values.
-            auto a_eff = a;
-            auto x_eff = x;
-            auto y_eff = y;
-            auto incy_eff = incy;
-            auto beta_eff = beta;
-
-            if (trans == do_trans) {
-                part_1d(n, ithr, nthr_eff, off_n, thread_n);
-                a_eff += off_m + off_n * lda;
-                y_eff += off_n * incy;
-                band = thread_n;
-            } else if (ybuf) {
-                part_1d(n, ithr, nthr_eff, off_n, thread_n);
-                a_eff += off_m + off_n * lda;
-                x_eff += off_n * incx;
-                if (ithr != 0) {
-                    y_eff = ybuf + m * (ithr - 1);
-                    incy_eff = 1;
-                    beta_eff = 0.0;
-                }
+        if (trans == do_trans) {
+            part_1d(n, ithr, nthr_eff, (c_t *)nullptr, off_n, thread_n);
+            a_eff += off_m + off_n * lda;
+            y_eff += off_n * incy;
+            if (incy < 0) y_eff += (-n + thread_n) * incy;
+            band = thread_n;
+        } else if (ybuf) {
+            // Non-transpose for short and fat matrix sizes.
+            part_1d(n, ithr, nthr_eff, (c_t *)nullptr, off_n, thread_n);
+            a_eff += off_m + off_n * lda;
+            x_eff += off_n * incx;
+            if (incx < 0) x_eff += (-n + thread_n) * incx;
+            if (ithr != 0) {
+                y_eff = ybuf + m * (ithr - 1);
+                incy_eff = 1;
+                beta_eff = 0.0;
             } else {
-                // Fallback for no_trans with no extra buffer.
-                part_1d(m, ithr, nthr_eff, off_m, thread_m);
-                a_eff += off_m + off_n * lda;
-                y_eff += off_m * incy;
-                band = thread_m;
+                // Set number of used buffers for perform reduction later.
+                nbufs_used = nthr_eff - 1;
             }
+        } else {
+            // Non-transpose for other matrix sizes.
+            // Fallback for no_trans with no extra buffer.
+            part_1d(m, ithr, nthr_eff, y, off_m, thread_m);
+            a_eff += off_m + off_n * lda;
+            y_eff += off_m * incy;
+            if (incy < 0) y_eff += (-m + thread_m) * incy;
+            band = thread_m;
+        }
 
-            // Buffers for y need to be set to zero for reduction case.
-            assert(IMPLICATION(ybuf, band > 0));
+        // Buffers for y need to be set to zero for reduction case.
+        assert(IMPLICATION(ybuf, band > 0));
 
-            if (band > 0 && ithr < nthr_eff)
-                gemv_kernel_driver(trans, thread_m, thread_n, alpha, a_eff, lda,
-                        x_eff, incx, beta_eff, y_eff, incy_eff, arg);
+        if (band > 0 && ithr < nthr_eff)
+            gemv_kernel_driver(trans, thread_m, thread_n, alpha, a_eff, lda,
+                    x_eff, incx, beta_eff, y_eff, incy_eff, arg);
 
-            // Do reduction for multiple buffers if needed.
-            if (ybuf) {
-                dnnl_thr_barrier();
-                // Reduction in each thread.
-                part_1d(m, ithr, nthr_eff, off_m, thread_m);
-                for (int buf_id = 0; buf_id < nthr_eff - 1; buf_id++)
-                    for (dim_t i = off_m; i < off_m + thread_m; i++)
-                        y[i * incy] += ybuf[i + buf_id * m];
-            }
+        // Do reduction for multiple buffers if needed.
+        if (is_syncable && ybuf) {
+            dnnl_thr_barrier();
+
+            sum_ybufs(ithr, nthr_eff, m, y, incy, ybuf, nbufs_used);
         }
     });
+
+    // Reduce on y after each gemv computation is done.
+    if (!is_syncable && ybuf) {
+        parallel(nthr_spawn, [&](int ithr, int nthr) {
+            sum_ybufs(ithr, nthr, m, y, incy, ybuf, nbufs_used);
+        });
+    }
 
     free(ybuf);
 }
@@ -435,9 +482,6 @@ dnnl_status_t jump_to_gemv(const gemm_info_t<int8_t, int8_t, int32_t> *arg) {
 
 template <typename a_t, typename b_t, typename c_t>
 dnnl_status_t jump_to_gemv(const gemm_info_t<a_t, b_t, c_t> *arg) {
-    constexpr bool is_f32
-            = utils::one_of(data_traits<a_t>::data_type, data_type::f32);
-
     int transa = arg->transa;
     int transb = arg->transb;
 
@@ -484,7 +528,7 @@ dnnl_status_t jump_to_gemv(const gemm_info_t<a_t, b_t, c_t> *arg) {
             }
         }
         return dnnl_success;
-    } else if (n == 1 && transa == no_trans && !is_f32 && !packing) {
+    } else if (n == 1 && transa == no_trans && !packing) {
         gemv_threading_driver(no_trans, m, k, alpha, a, lda, b,
                 transb == no_trans ? 1 : ldb, beta, c, 1, arg);
         return dnnl_success;
@@ -512,7 +556,7 @@ dnnl_status_t jump_to_gemv(const gemm_info_t<a_t, b_t, c_t> *arg) {
             }
         }
         return dnnl_success;
-    } else if (m == 1 && transb == do_trans && !is_f32 && !packing) {
+    } else if (m == 1 && transb == do_trans && !packing) {
         gemv_threading_driver(no_trans, n, k, alpha, b, ldb, a,
                 transa == no_trans ? lda : 1, beta, c, ldc, arg);
         return dnnl_success;
