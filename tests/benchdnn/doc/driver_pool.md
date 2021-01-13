@@ -68,7 +68,7 @@ AVG_NP algorithm: Fill input data with integers, divisible by the kernel size,
 
 Run a set of poolings from an input file with the default settings:
 ``` sh
-    ./benchdnn --pool --batch=inputs/pool/pool_2d_all
+    ./benchdnn --pool --batch=inputs/pool/shapes_2d
 ```
 
 Run a named problem with single precision src/dst, iterating by:
@@ -83,6 +83,6 @@ Run a named problem with single precision src/dst, iterating by:
 ```
 
 More examples with different driver options can be found at
-inputs/pool/test_pool_all. Examples with different driver descriptors can be
-found at inputs/pool/pool_***. Examples with different benchdnn options can be
-found at driver_conv.md.
+inputs/pool/test_***. Examples with different problem descriptors can be found
+at inputs/pool/shapes_***. Examples with different benchdnn common options can
+be found at driver_conv.md.

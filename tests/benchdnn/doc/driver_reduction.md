@@ -39,10 +39,10 @@ Some operations support `p` and `eps` arguments such as
 
 ## Examples
 
-Run the set of reduction primitive problems from `reduction/test_reduction_all`
+Run the set of reduction primitive problems from `inputs/reduction/shapes_ci`
 with the default settings:
 ``` sh
-    ./benchdnn --reduction --batch=inputs/reduction/test_reduction_all
+    ./benchdnn --reduction --batch=inputs/reduction/shapes_ci
 ```
 
 Run a specific reduction primitive problem:
@@ -54,5 +54,6 @@ Run a specific reduction primitive problem:
 ```
 
 More examples with different driver options can be found at
-inputs/reduction/test_reduction_all. Examples with different benchdnn options
-can be found at driver_conv.md.
+inputs/reduction/test_***. Examples with different problem descriptors can be
+found at inputs/reduction/shapes_***. Examples with different benchdnn common
+options can be found at driver_conv.md.

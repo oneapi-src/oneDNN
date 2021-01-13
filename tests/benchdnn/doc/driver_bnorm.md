@@ -52,7 +52,7 @@ TBA.
 
 Run a set of bnorms from an input file, using the default settings:
 ``` sh
-    ./benchdnn --bnorm --batch=inputs/bnorm/bnorm_resnet_50
+    ./benchdnn --bnorm --batch=inputs/bnorm/shapes_resnet_50
 ```
 
 Run a named problem with single precision src/dst, skipping all problems that
@@ -74,6 +74,6 @@ plain physical memory layout with dense channels, and all three flags specified:
 ```
 
 More examples with different driver options can be found at
-inputs/bnorm/test_bnorm_all. Examples with different driver descriptors can be
-found at inputs/bnorm/bnorm_***. Examples with different benchdnn options can be
-found at driver_conv.md.
+inputs/bnorm/test_***. Examples with different problem descriptors can be found
+at inputs/bnorm/shapes_***. Examples with different benchdnn common options can
+be found at driver_conv.md.

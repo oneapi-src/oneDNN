@@ -43,7 +43,7 @@ bf16 data types.
 
 Run a set of lrns from an input file with the default settings:
 ``` sh
-    ./benchdnn --lrn --batch=inputs/lrn/lrn_2d_all
+    ./benchdnn --lrn --batch=inputs/lrn/shapes_ci
 ```
 
 Run a named problem with single precision src/dst, iterating by:
@@ -56,7 +56,7 @@ Run a named problem with single precision src/dst, iterating by:
                mb256ic96_ih55n"alexnet:norm1"
 ```
 
-More examples with different driver options can be found at
-inputs/lrn/test_lrn_all. Examples with different driver descriptors can be
-found at inputs/lrn/lrn_***. Examples with different benchdnn options can be
+More examples with different driver options can be found at inputs/lrn/test_***.
+Examples with different problem descriptors can be found at
+inputs/lrn/shapes_***. Examples with different benchdnn common options can be
 found at driver_conv.md.

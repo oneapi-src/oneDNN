@@ -70,5 +70,6 @@ a flag; second problem with the `conv_s8s8` flag:
 ```
 
 More examples with different driver options can be found at
-inputs/reorder/test_reorder_all. Examples with different benchdnn options can be
-found at driver_conv.md.
+inputs/reorder/test_***. Examples with different problem descriptors can be
+found at inputs/reorder/harness_*** and inputs/reorder/test_***. Examples with
+different benchdnn common options can be found at driver_conv.md.

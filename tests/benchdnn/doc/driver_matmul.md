@@ -67,10 +67,10 @@ multiplication is used.
 
 ## Examples
 
-Run the default validation set of MatMul using `inputs/matmul/test_matmul_all`
+Run the default validation set of MatMul using `inputs/matmul/shapes_2d`
 file:
 ``` sh
-    ./benchdnn --matmul --batch=inputs/matmul/test_matmul_all
+    ./benchdnn --matmul --batch=inputs/matmul/shapes_2d
 ```
 
 Run single precision matrix multiplication with all sizes provided at run-time:
@@ -109,4 +109,4 @@ full dimension is along the `n`-axis:
 ```
 
 More examples with different driver options can be found at
-inputs/matmul/test_matmul_all.
+inputs/matmul/test_***.

@@ -159,7 +159,7 @@ reference implementations with one common output scale set to 0.5:
                --attr-oscale=common:0.5 --batch=inputs/conv/conv_all
 ```
 
-More examples with different driver options can be found at
-inputs/conv/test_*** or inputs/conv/harness_***. Examples with different
-driver descriptors can be found at inputs/conv/shapes_***.
+More examples with different driver options can be found at inputs/conv/test_***
+or inputs/conv/harness_***. Examples with different problem descriptors can be
+found at inputs/conv/shapes_***.
 

@@ -48,5 +48,5 @@ data types:
 ```
 
 More examples with different driver options can be found at
-inputs/shuffle/test_shuffle_all. Examples with different benchdnn options can be
+inputs/shuffle/test_***. Examples with different benchdnn common options can be
 found at driver_conv.md.

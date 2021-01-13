@@ -70,7 +70,7 @@ everywhere. That is why there are some special cases. For details, refer to
 
 Run the eltwise set from an input file with the default settings:
 ``` sh
-    ./benchdnn --eltwise --batch=inputs/eltwise/test_eltwise_all
+    ./benchdnn --eltwise --batch=inputs/eltwise/shapes_ci
 ```
 
 Run a specific eltwise problem with the f32 data type and in-place memory mode,
@@ -81,5 +81,5 @@ iterating over memory layouts and forward and backward prop kinds:
 ```
 
 More examples with different driver options can be found at
-inputs/eltwise/test_eltwise_all. Examples with different benchdnn options can be
-found at driver_conv.md.
+inputs/eltwise/test_eltwise_all. Examples with different benchdnn common options
+can be found at driver_conv.md.

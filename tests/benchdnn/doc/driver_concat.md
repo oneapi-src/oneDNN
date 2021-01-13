@@ -69,5 +69,5 @@ layouts, resulting in a 16x48x16x16 tensor:
 ```
 
 More examples with different driver options can be found at
-inputs/concat/test_concat_all. Examples with different benchdnn options can be
+inputs/concat/test_***. Examples with different benchdnn common options can be
 found at driver_conv.md.

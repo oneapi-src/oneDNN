@@ -41,7 +41,7 @@ TBA.
 
 Run a set of lnorms from an input file, using the default settings:
 ``` sh
-    ./benchdnn --lnorm --batch=inputs/lnorm/lnorm_all
+    ./benchdnn --lnorm --batch=inputs/lnorm/shapes_ci
 ```
 
 Run a named problem with single precision src/dst, iterating by:
@@ -55,6 +55,6 @@ Run a named problem with single precision src/dst, iterating by:
 ```
 
 More examples with different driver options can be found at
-inputs/lnorm/test_lnorm_all. Examples with different driver descriptors can be
-found at inputs/lnorm/lnorm_***. Examples with different benchdnn options can be
-found at driver_conv.md.
+inputs/lnorm/test_***. Examples with different problem descriptors can be found
+at inputs/lnorm/shapes_***. Examples with different benchdnn common options can
+be found at driver_conv.md.

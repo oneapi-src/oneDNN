@@ -57,10 +57,10 @@ is no overflow in f16 or bf16 data types.
 
 ## Examples
 
-Run the set of binary primitive problems from `binary/test_binary_all` with the
+Run the set of binary primitive problems from `inputs/binary/shapes_ci` with the
 default settings:
 ``` sh
-    ./benchdnn --binary --batch=inputs/binary/test_binary_all
+    ./benchdnn --binary --batch=inputs/binary/shapes_ci
 ```
 
 Run a specific binary primitive problem:
@@ -76,5 +76,5 @@ Run a specific binary primitive problem:
 ```
 
 More examples with different driver options can be found at
-inputs/binary/test_binary_all. Examples with different benchdnn options can be
+inputs/binary/test_***. Examples with different benchdnn common options can be
 found at driver_conv.md.

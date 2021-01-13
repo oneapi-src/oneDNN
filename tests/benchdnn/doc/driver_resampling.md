@@ -37,7 +37,7 @@ linear: Fill input data with integers and expect a float answer.
 
 Run a set of resamplings from an input file with the default settings:
 ``` sh
-    ./benchdnn --resampling --batch=inputs/resampling/resampling_2d
+    ./benchdnn --resampling --batch=inputs/resampling/shapes_2d
 ```
 
 Run a named problem with single precision src/dst, iterating by:
@@ -52,6 +52,6 @@ Run a named problem with single precision src/dst, iterating by:
 ```
 
 More examples with different driver options can be found at
-inputs/resampling/test_resampling_all. Examples with different driver descriptors can be
-found at inputs/resampling/resampling_***. Examples with different benchdnn options can be
-found at driver_conv.md.
+inputs/resampling/test_***. Examples with different problem descriptors can be
+found at inputs/resampling/shapes_***. Examples with different benchdnn common
+options can be found at driver_conv.md.

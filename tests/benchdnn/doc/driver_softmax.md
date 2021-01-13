@@ -54,7 +54,7 @@ potential cancellation errors.
 
 Run the softmax set from an input file with the default settings:
 ``` sh
-    ./benchdnn --softmax --batch=inputs/softmax/test_softmax_2d
+    ./benchdnn --softmax --batch=inputs/softmax/shapes_ci
 ```
 
 Run a specific softmax problem with forward prop_kind, plain physical memory
@@ -72,5 +72,5 @@ memory layout, default data type, in-place memory mode, and axis size of 64:
 ```
 
 More examples with different driver options can be found at
-inputs/softmax/test_softmax_all. Examples with different benchdnn options can be
+inputs/softmax/test_***. Examples with different benchdnn common options can be
 found at driver_conv.md.

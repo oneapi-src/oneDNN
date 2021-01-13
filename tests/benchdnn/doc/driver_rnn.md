@@ -88,10 +88,10 @@ TBA.
 
 Run the set of rnn training from an input file with the default settings:
 ``` sh
-    ./benchdnn --rnn --batch=inputs/rnn/rnn_training
+    ./benchdnn --rnn --batch=inputs/rnn/shapes_training
 ```
 
-More examples with different driver options can be found at
-inputs/rnn/test_rnn_***. Examples with different driver descriptors can be found
-at inputs/rnn/rnn_***. More examples with different benchdnn options can be
-found at driver_conv.md.
+More examples with different driver options can be found at inputs/rnn/test_***.
+Examples with different problem descriptors can be found at
+inputs/rnn/shapes_***. More examples with different benchdnn common options can
+be found at driver_conv.md.
