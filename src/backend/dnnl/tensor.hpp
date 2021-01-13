@@ -519,55 +519,58 @@ public:
     tensor() : dnnl::memory() {}
 
     // desc, buffer
-    tensor(const desc &adesc, const dnnl::engine &aengine,
+    tensor(const desc &adesc, const dnnl::engine &p_engine,
             const impl::allocator_t *alc, void *ahandle)
-        : memory(adesc, aengine, ahandle), alc_(alc) {
+        : memory(adesc, p_engine, ahandle), alc_(alc) {
         buffer_.reset();
     }
 
     // desc, no buffer
-    tensor(const desc &adesc, const dnnl::engine &aengine,
+    tensor(const desc &adesc, const dnnl::engine &p_engine,
             const impl::allocator_t *alc)
-        : memory(adesc, aengine,
-                allocator::malloc(adesc.get_size(), aengine, alc))
+        : memory(adesc, p_engine,
+                allocator::malloc(adesc.get_size(), p_engine, alc))
         , alc_(alc) {
-        buffer_.reset(this->get_data_handle(),
-                [aengine, alc](void *p) { allocator::free(p, aengine, alc); });
+        buffer_.reset(this->get_data_handle(), [p_engine, alc](void *p) {
+            allocator::free(p, p_engine, alc);
+        });
     }
 
     // logical tensor, buffer
-    tensor(const impl::logical_tensor_t &lt, const dnnl::engine &aengine,
+    tensor(const impl::logical_tensor_t &lt, const dnnl::engine &p_engine,
             const impl::allocator_t *alc, void *ahandle)
-        : memory(desc(lt), aengine, ahandle), alc_(alc) {
+        : memory(desc(lt), p_engine, ahandle), alc_(alc) {
         buffer_.reset();
     }
 
     // logical tensor, no buffer
-    tensor(const impl::logical_tensor_t &lt, const dnnl::engine &aengine,
+    tensor(const impl::logical_tensor_t &lt, const dnnl::engine &p_engine,
             const impl::allocator_t *alc)
-        : memory(desc(lt), aengine,
-                allocator::malloc(desc(lt).get_size(), aengine, alc))
+        : memory(desc(lt), p_engine,
+                allocator::malloc(desc(lt).get_size(), p_engine, alc))
         , alc_(alc) {
-        buffer_.reset(this->get_data_handle(),
-                [aengine, alc](void *p) { allocator::free(p, aengine, alc); });
+        buffer_.reset(this->get_data_handle(), [p_engine, alc](void *p) {
+            allocator::free(p, p_engine, alc);
+        });
     }
 
     // dnnl_graph::tensor
-    tensor(const impl::tensor_t &impl_tensor, const dnnl::engine &aengine,
+    tensor(const impl::tensor_t &impl_tensor, const dnnl::engine &p_engine,
             const impl::allocator_t *alc)
-        : memory(desc(impl_tensor.get_logical_tensor()), aengine,
+        : memory(desc(impl_tensor.get_logical_tensor()), p_engine,
                 impl_tensor.get_data_handle())
         , alc_(alc) {
         buffer_.reset();
     }
 
-    bool reinit_if_possible(const desc &expected_desc) {
+    bool reinit_if_possible(
+            const dnnl::stream &p_stream, const desc &expected_desc) {
         if (is_empty()) return false;
 
         dnnl::memory::desc curr_desc = get_desc();
         if (expected_desc != curr_desc) {
             if (curr_desc.dims() == expected_desc.get_dims()) {
-                to_format(expected_desc);
+                to_format(p_stream, expected_desc);
             } else {
                 tensor tmp {expected_desc, get_engine(), get_allocator()};
                 *this = std::move(tmp);
@@ -655,13 +658,13 @@ public:
         }
     }
 
-    tensor reorder_if_differ_in(
+    tensor reorder_if_differ_in(const dnnl::stream p_stream,
             const desc &expected_desc, const attr_t &aattr = attr_t()) const {
         if (expected_desc == get_desc()) {
             return *this;
         } else {
             tensor dst {expected_desc, get_engine(), get_allocator()};
-            reorder_to(dst, aattr);
+            reorder_to(p_stream, dst, aattr);
             return dst;
         }
     }
@@ -687,7 +690,7 @@ public:
     }
 
     /// Return an new tensor with new shape
-    tensor &reshape(const dims &adims) {
+    tensor &reshape(const dnnl::stream &p_stream, const dims &adims) {
         BACKEND_DNNL_ENFORCE(
                 has_same_volume(adims), "reshape to incompatible shape");
 
@@ -706,7 +709,7 @@ public:
             // format, we have to make sure it's already in default format.
             // In particular, tensor format does not matter if actual rank <= 1
             if (!get_desc().is_default() && actual_rank(old_dims) > 1) {
-                to_default_format();
+                to_default_format(p_stream);
             }
             // set desc with default format
             set_desc({adims, get_data_type()});
@@ -714,12 +717,13 @@ public:
         return *this;
     }
 
-    inline void to_default_format() {
-        to_format(get_desc().to_default_format());
+    inline void to_default_format(const dnnl::stream &p_stream) {
+        to_format(p_stream, get_desc().to_default_format());
     }
 
-    inline void to_format(format_tag aformat_tag) {
-        to_format(get_desc().to_format(aformat_tag));
+    inline void to_format(
+            const dnnl::stream &p_stream, format_tag aformat_tag) {
+        to_format(p_stream, get_desc().to_format(aformat_tag));
     }
 
     // TODO(xpz): not a good name
@@ -727,22 +731,20 @@ public:
         set_desc(get_desc().to_type(adata_type));
     }
 
-    inline void reorder_from(const tensor &src) {
-        dnnl::stream s {this->get_engine()};
-        dnnl::reorder(src, *this).execute(s, const_cast<tensor &>(src), *this);
-        s.wait();
+    inline void reorder_from(const dnnl::stream &p_stream, const tensor &src) {
+        dnnl::reorder(src, *this)
+                .execute(p_stream, const_cast<tensor &>(src), *this);
     }
 
-    inline void reorder_to(tensor &dst, const attr_t &aattr = attr_t()) const {
+    inline void reorder_to(const dnnl::stream &p_stream, tensor &dst,
+            const attr_t &aattr = attr_t()) const {
         auto pd = dnnl::reorder::primitive_desc(*this, dst, aattr);
-        dnnl::stream s {this->get_engine()};
-        dnnl::reorder(pd).execute(s, const_cast<tensor &>(*this), dst);
-        s.wait();
+        dnnl::reorder(pd).execute(p_stream, const_cast<tensor &>(*this), dst);
     }
 
     /// Convert the tensor to public format, and f32 data type by default
-    tensor to_public(
-            void *buffer = nullptr, data_type dst_type = data_type::f32) const {
+    tensor to_public(const dnnl::stream &p_stream, void *buffer = nullptr,
+            data_type dst_type = data_type::f32) const {
         auto dst_desc = get_desc();
 
         // If we get a non-plain blocking format, say `Acdb16A`, we may not be
@@ -758,7 +760,7 @@ public:
                 ? tensor(dst_desc, get_engine(), get_allocator(), buffer)
                 : tensor(dst_desc, get_engine(), get_allocator());
 
-        this->reorder_to(dst);
+        this->reorder_to(p_stream, dst);
 
         return dst;
     }
@@ -778,12 +780,13 @@ public:
         return set_desc(get_desc().permute(permute_axes));
     }
 
-    tensor permute(const std::vector<int> &permute_axes = {}) const {
+    tensor permute(const dnnl::stream &p_stream,
+            const std::vector<int> &permute_axes = {}) const {
         auto src_mask = *this;
         src_mask.permute_(permute_axes);
         auto dst = tensor(src_mask.get_desc().to_default_format(), get_engine(),
                 get_allocator());
-        src_mask.reorder_to(dst);
+        src_mask.reorder_to(p_stream, dst);
         return dst;
     }
 
@@ -791,20 +794,20 @@ public:
         return set_desc(get_desc().transpose(dim0, dim1));
     }
 
-    tensor transpose(dim dim0, dim dim1) const {
+    tensor transpose(const dnnl::stream &p_stream, dim dim0, dim dim1) const {
         auto src_mask = *this;
         src_mask.transpose_(dim0, dim1);
         auto dst = tensor(src_mask.get_desc().to_default_format(), get_engine(),
                 get_allocator());
-        src_mask.reorder_to(dst);
+        src_mask.reorder_to(p_stream, dst);
         return dst;
     }
 
 private:
-    inline void to_format(const desc &adesc) {
+    inline void to_format(const dnnl::stream &p_stream, const desc &adesc) {
         if (get_desc() != adesc) {
             auto dst = tensor(adesc, get_engine(), get_allocator());
-            this->reorder_to(dst);
+            this->reorder_to(p_stream, dst);
             *this = std::move(dst);
         }
     }

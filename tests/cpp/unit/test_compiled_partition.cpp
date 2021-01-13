@@ -78,6 +78,7 @@ TEST(compiled_partition, relu) {
 
     impl::stream_t &strm = get_stream();
     EXPECT_SUCCESS(cp.execute(&strm, t_inputs, t_outputs));
+    strm.wait();
 
     std::unique_ptr<float[]> ref_out(new float[ele_num_in]);
     for (size_t i = 0; i < ele_num_in; i++) {
@@ -181,6 +182,7 @@ TEST(compiled_partition, search_required_inputs_outputs) {
 
     impl::stream_t &strm = get_stream();
     EXPECT_SUCCESS(cp.execute(&strm, t_inputs_correct, t_outputs_correct));
+    strm.wait();
 
     test::vector<float> ref_out(ele_num_in);
     for (size_t i = 0; i < ele_num_in; i++) {
@@ -201,6 +203,7 @@ TEST(compiled_partition, search_required_inputs_outputs) {
             t_out_additional1, t_out, t_out_additional2};
 
     EXPECT_SUCCESS(cp.execute(&strm, t_inputs_wrong, t_outputs_wrong));
+    strm.wait();
 }
 
 TEST(compiled_partition, allow_repeated_inputs) {
@@ -256,6 +259,7 @@ TEST(compiled_partition, allow_repeated_inputs) {
 
     impl::stream_t &strm = get_stream();
     EXPECT_SUCCESS(cp.execute(&strm, t_ins, t_outs));
+    strm.wait();
 
     for (size_t i = 0; i < ref_out.size(); i++) {
         ASSERT_FLOAT_EQ(ref_out[i], data_out[i]);

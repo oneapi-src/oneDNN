@@ -53,7 +53,8 @@ impl::engine_t &get_engine(impl::engine_kind_t engine_kind) {
 
 impl::stream_t &get_stream() {
 #if DNNL_GRAPH_WITH_SYCL
-    static cl::sycl::queue q {get_context(), get_device()};
+    static cl::sycl::queue q {get_context(), get_device(),
+            cl::sycl::property::queue::in_order {}};
     static impl::stream_t strm {&get_engine(), q};
 #else
     static impl::stream_t strm {&get_engine()};

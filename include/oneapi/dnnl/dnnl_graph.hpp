@@ -257,6 +257,14 @@ public:
                 "could not create stream");
         reset(s);
     }
+
+    /// Waits for all compiled partitions executing in the stream to finish.
+    /// @returns The stream itself.
+    stream &wait() {
+        error::check_succeed(
+                dnnl_graph_stream_wait(get()), "could not wait on a stream");
+        return *this;
+    }
 };
 
 /// @} dnnl_graph_api_stream

@@ -736,6 +736,14 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_create_sycl_with_attr(
         dnnl_graph_stream_t **created_stream, const dnnl_graph_engine_t *engine,
         const void *queue, const dnnl_graph_stream_attr_t *attr);
 
+/// Waits for all compiled partitions executing in the stream to finish.
+///
+/// @param stream The target stream.
+/// @returns #dnnl_graph_result_success on success and a status describing the
+///     error otherwise.
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_wait(
+        dnnl_graph_stream_t *stream);
+
 /// Destroy the target stream.
 ///
 /// @param stream The target stream.

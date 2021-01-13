@@ -32,10 +32,10 @@ bool dnnl_layout_id_manager::is_mem_desc_equal(
     return md1 == md2;
 }
 
-impl::status_t dnnl_executable::execute(const impl::stream_t *astream,
+impl::status_t dnnl_executable::execute(const impl::stream_t *g_stream,
         const std::vector<impl::tensor_t> &inputs,
         const std::vector<impl::tensor_t> &outputs) {
-    return kernel_->execute(node_, astream, inputs, outputs);
+    return kernel_->execute(node_, g_stream, inputs, outputs);
 }
 
 const std::vector<impl::inplace_pair_t> &
@@ -164,7 +164,7 @@ size_t dnnl_backend::get_mem_size_impl(const impl::logical_tensor_t &lt) {
 }
 
 executable::ptr dnnl_backend::compile_impl(const impl::partition_t *p,
-        const impl::engine_t *aengine,
+        const impl::engine_t *g_engine,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs) {
     const impl::node_t *work_node = p->node();
@@ -173,14 +173,15 @@ executable::ptr dnnl_backend::compile_impl(const impl::partition_t *p,
     impl::kernel_base::ptr kernel = kernel_registry_.create_kernel(*work_node);
     if (!kernel) return {};
 
-    auto ret = kernel->compile(work_node, aengine, inputs, outputs);
+    auto ret = kernel->compile(work_node, g_engine, inputs, outputs);
     if (ret != impl::status::success) return {};
 
     return executable::ptr(new dnnl_executable(kernel, work_node));
 }
 
 bool dnnl_backend::to_public_impl(const impl::tensor_t &input,
-        impl::tensor_t &output, impl::engine_t &aengine) {
+        impl::tensor_t &output, impl::engine_t &g_engine,
+        impl::stream_t &g_stream) {
     using ltw = impl::logical_tensor_wrapper;
 
     if (!input.get_data_handle()) return false;
@@ -188,12 +189,13 @@ bool dnnl_backend::to_public_impl(const impl::tensor_t &input,
     // only accept strided output
     if (!ltw(output.get_logical_tensor()).is_strided()) return false;
 
-    const dnnl::engine eng = make_dnnl_engine(aengine);
-    impl::allocator_t *alc = aengine.get_allocator();
+    const dnnl::engine p_engine = make_dnnl_engine(g_engine);
+    const dnnl::stream p_stream = make_dnnl_stream(p_engine, g_stream);
+    impl::allocator_t *alc = g_engine.get_allocator();
 
-    dnnl_impl::tensor src {input, eng, alc};
-    dnnl_impl::tensor dst {output, eng, alc};
-    src.reorder_to(dst);
+    dnnl_impl::tensor src {input, p_engine, alc};
+    dnnl_impl::tensor dst {output, p_engine, alc};
+    src.reorder_to(p_stream, dst);
     return true;
 }
 

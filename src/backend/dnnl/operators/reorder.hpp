@@ -37,11 +37,12 @@ struct reorder : public dnnl::reorder, public kernel_base {
 
 private:
     primitive_desc pd_;
-    dnnl::engine eng_;
+    dnnl::engine p_engine_;
+    dnnl::stream p_stream_;
 
 public:
     impl::status_t compile_impl(const node_t *anode,
-            const impl::engine_t *aengine,
+            const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         UNUSED(anode);
@@ -50,25 +51,25 @@ public:
         const desc src {inputs.at(reorder_input::kSrc)};
         const desc dst {outputs.at(reorder_output::kDst)};
 
-        eng_ = make_dnnl_engine(*aengine);
+        p_engine_ = make_dnnl_engine(*g_engine);
         // TODO(wuxun): consider reorder between different engines
         pd_ = primitive_desc(
-                /*src_engine=*/eng_, src, /*dst_engine=*/eng_, dst);
+                /*src_engine=*/p_engine_, src, /*dst_engine=*/p_engine_, dst);
         return status::success;
     }
 
     impl::status_t execute_impl(const node_t *anode,
-            const impl::stream_t *astream,
+            const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(anode);
-        impl::allocator_t *alc = astream->get_engine()->get_allocator();
-        tensor src_ts {inputs.at(reorder_input::kSrc), eng_, alc};
-        tensor dst_ts {outputs.at(reorder_output::kDst), eng_, alc};
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
+        tensor src_ts {inputs.at(reorder_input::kSrc), p_engine_, alc};
+        tensor dst_ts {outputs.at(reorder_output::kDst), p_engine_, alc};
 
-        dnnl::stream s(eng_);
-        super(pd_).execute(s, src_ts, dst_ts);
-        s.wait();
+        super(pd_).execute(p_stream_, src_ts, dst_ts);
+
         return status::success;
     }
 };

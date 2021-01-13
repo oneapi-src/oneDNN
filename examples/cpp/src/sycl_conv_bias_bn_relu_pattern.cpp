@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -186,8 +186,8 @@ int main(int argc, char **argv) {
 
     /// assuming framework can give sycl device ,sycl context and sycl queue at this stage
     sycl::queue q = (engine_kind == engine::kind::gpu)
-            ? sycl::queue(gpu_selector {})
-            : sycl::queue(cpu_selector {});
+            ? sycl::queue(gpu_selector {}, sycl::property::queue::in_order {})
+            : sycl::queue(cpu_selector {}, sycl::property::queue::in_order {});
     engine eng = sycl_interop::make_engine(q.get_device(), q.get_context());
     allocator alloc = sycl_interop::make_allocator(
             sycl_malloc_wrapper, sycl_free_wrapper);
@@ -338,6 +338,7 @@ int main(int argc, char **argv) {
     std::vector<tensor> in_list_1 {relu0_dst, conv1_weight, conv1_bias};
     std::vector<tensor> out_list_1 {relu1_dst};
     sycl_interop::execute(cp1, strm, in_list_1, out_list_1);
+    strm.wait();
     std::cout << "Success!\n";
 
     // Step 6: Check correctness of the output results

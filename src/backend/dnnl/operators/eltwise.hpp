@@ -42,36 +42,35 @@ private:
     float alpha_ = 0.f;
     float beta_ = 0.f;
     prop_kind prop_kind_ = prop_kind::forward_inference;
-    dnnl::engine eng_;
+    dnnl::engine p_engine_;
+    dnnl::stream p_stream_;
 
 public:
-    void compute(const tensor &src, tensor &dst, const dnnl::engine &aengine,
-            impl::allocator_t *alc) {
+    void compute(const tensor &src, tensor &dst, const dnnl::engine &p_engine,
+            impl::allocator_t *alc, const dnnl::stream &p_stream) {
         tensor expected_src = src;
         tensor expected_dst = dst;
         if (pd_.dst_desc() != dst.get_desc()) {
-            expected_dst = tensor {pd_.dst_desc(), aengine, alc};
+            expected_dst = tensor {pd_.dst_desc(), p_engine, alc};
         }
 
-        dnnl::stream s(aengine);
-        super(pd_).execute(s,
+        super(pd_).execute(p_stream,
                 {{DNNL_ARG_SRC, expected_src}, {DNNL_ARG_DST, expected_dst}});
-        s.wait();
 
         if (expected_dst != dst) {
-            dnnl::reorder(expected_dst, dst).execute(s, expected_dst, dst);
-            s.wait();
+            dnnl::reorder(expected_dst, dst)
+                    .execute(p_stream, expected_dst, dst);
         }
     }
 
     impl::status_t compile_impl(const impl::node_t *anode,
-            const impl::engine_t *aengine,
+            const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
         // prepare engine and the inputs' tensors' descs
         const desc src {inputs.at(eltwise::kSrc)};
-        eng_ = make_dnnl_engine(*aengine);
+        p_engine_ = make_dnnl_engine(*g_engine);
         // set alpha and beta
         if (anode->has_attr("alpha")) {
             alpha_ = anode->get_attr<float>("alpha");
@@ -102,7 +101,8 @@ public:
             default: BACKEND_DNNL_ENFORCE(0, "Unsupported eltwise op.");
         }
 
-        pd_ = primitive_desc({prop_kind_, algo_, src, alpha_, beta_}, eng_);
+        pd_ = primitive_desc(
+                {prop_kind_, algo_, src, alpha_, beta_}, p_engine_);
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
 
         impl::logical_tensor_t *dst_lt = const_cast<impl::logical_tensor_t *>(
@@ -112,15 +112,16 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream_t *astream,
+            const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(anode);
-        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor x {inputs.at(eltwise::kSrc), eng_, alc};
-        tensor y {outputs.at(eltwise::kDst), eng_, alc};
-        compute(x, y, eng_, alc);
+        tensor x {inputs.at(eltwise::kSrc), p_engine_, alc};
+        tensor y {outputs.at(eltwise::kDst), p_engine_, alc};
+        compute(x, y, p_engine_, alc, p_stream_);
         return impl::status::success;
     }
 };
@@ -134,11 +135,12 @@ private:
     float alpha_;
     float beta_;
     primitive_desc pd_;
-    dnnl::engine eng_;
+    dnnl::engine p_engine_;
+    dnnl::stream p_stream_;
 
 public:
     impl::status_t compile_impl(const impl::node_t *anode,
-            const impl::engine_t *aengine,
+            const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
@@ -146,9 +148,9 @@ public:
         const desc src {inputs.at(eltwise::kSrc + 1)};
 
         op_kind_t kind = anode->get_op_kind();
-        eng_ = make_dnnl_engine(*aengine);
+        p_engine_ = make_dnnl_engine(*g_engine);
 
-        pd_ = get_config(src, kind, eng_, 0.f, 0.f);
+        pd_ = get_config(src, kind, p_engine_, 0.f, 0.f);
 
         const desc optimal_diff_src {pd_.diff_src_desc()};
         impl::logical_tensor_t *diff_src_lt
@@ -159,16 +161,17 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream_t *astream,
+            const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(anode);
-        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor x1 {inputs.at(eltwise::kSrc + 1), eng_, alc};
-        tensor x2 {inputs.at(eltwise::kDst), eng_, alc};
-        tensor y {outputs.at(eltwise::kSrc), eng_, alc};
-        compute(x1, x2, y, eng_, alc);
+        tensor x1 {inputs.at(eltwise::kSrc + 1), p_engine_, alc};
+        tensor x2 {inputs.at(eltwise::kDst), p_engine_, alc};
+        tensor y {outputs.at(eltwise::kSrc), p_engine_, alc};
+        compute(x1, x2, y, p_engine_, alc, p_stream_);
         return impl::status::success;
     }
 
@@ -176,23 +179,23 @@ private:
     // If grady and x had different format, performance is bad.
     // TODO(xxx): Seeking a single shot solution.
     void compute(const tensor &src, const tensor &diff_dst, tensor &diff_src,
-            const dnnl::engine &aengine, impl::allocator_t *alc) {
+            const dnnl::engine &aengine, impl::allocator_t *alc,
+            const dnnl::stream &p_stream) {
         UNUSED(alc);
+        UNUSED(aengine);
         auto expected_diff_dst
-                = diff_dst.reorder_if_differ_in(pd_.diff_dst_desc());
-        auto expected_src = src.reorder_if_differ_in(pd_.src_desc());
-        diff_src.reinit_if_possible(pd_.diff_src_desc());
+                = diff_dst.reorder_if_differ_in(p_stream, pd_.diff_dst_desc());
+        auto expected_src = src.reorder_if_differ_in(p_stream, pd_.src_desc());
+        diff_src.reinit_if_possible(p_stream, pd_.diff_src_desc());
 
-        dnnl::stream s(aengine);
-        super(pd_).execute(s,
+        super(pd_).execute(p_stream,
                 {{DNNL_ARG_DIFF_DST, expected_diff_dst},
                         {DNNL_ARG_SRC, expected_src},
                         {DNNL_ARG_DIFF_SRC, diff_src}});
-        s.wait();
     }
 
     primitive_desc get_config(const tensor::desc &src, op_kind_t kind,
-            const dnnl::engine &aengine, float alpha = 0.0, float beta = 0.0) {
+            const dnnl::engine &p_engine, float alpha = 0.0, float beta = 0.0) {
         switch (kind) {
             case op_kind::ReLUBackprop: algo_ = algorithm::eltwise_relu; break;
             case op_kind::GELUBackprop:
@@ -202,14 +205,14 @@ private:
         }
         alpha_ = alpha;
         beta_ = beta;
-        auto func = [&src, &aengine](algorithm algo, float alpha, float beta) {
+        auto func = [&src, &p_engine](algorithm algo, float alpha, float beta) {
             auto forward_hints = eltwise_forward::primitive_desc(
                     {prop_kind::forward_training, algo, src, alpha, beta},
-                    aengine);
+                    p_engine);
 
             return primitive_desc(
-                    {algo, forward_hints.dst_desc(), src, alpha, beta}, aengine,
-                    forward_hints);
+                    {algo, forward_hints.dst_desc(), src, alpha, beta},
+                    p_engine, forward_hints);
         };
         return func(algo_, alpha, beta);
     }

@@ -358,6 +358,7 @@ public:
         if (dims_in_order) {
             bn_op->execute(&batchnorm_node, &strm, {src_ts, scale_ts, shift_ts},
                     {dst_ts});
+            strm.wait();
 
             std::function<float(const float)> activation = nullptr;
             if (params.op_kind == impl::op_kind::bn_relu) {
@@ -374,6 +375,7 @@ public:
             EXPECT_THROW(bn_op->execute(&batchnorm_node, &strm,
                                  {src_ts, scale_ts, shift_ts}, {dst_ts}),
                     std::runtime_error);
+            strm.wait();
         };
     }
 
@@ -480,6 +482,7 @@ TEST(operator_compile, bn_compile_bwd_fp32) {
     bn_op->execute(&bn_node, &strm,
             {src_ts, diff_dst_ts, scale_ts, mean_ts, varience_ts},
             {diff_src_ts, diff_scale_ts, diff_shift_ts});
+    strm.wait();
     for (size_t i = 0; i < diff_src_data.size(); ++i) {
         auto absolute_error
                 = std::fabs(diff_src_data[i] - ref_diff_src_data[i]);
@@ -524,6 +527,7 @@ TEST(operator_kernel, relu) {
 
     impl::stream_t &strm = get_stream();
     relu_op->execute(&relu_node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < src.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -562,6 +566,7 @@ TEST(operator_kernel, relu_backward) {
 
     impl::stream_t &strm = get_stream();
     relu_op->execute(&relu_node, &strm, {diff_dst_ts, src_ts}, {diff_src_ts});
+    strm.wait();
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
@@ -594,6 +599,7 @@ TEST(operator_kernel, gelu) {
 
     impl::stream_t &strm = get_stream();
     gelu_op->execute(&gelu_node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < src.size(); ++i) {
         ASSERT_NEAR(dst[i], ref_dst[i], 1.e-6f);
     }
@@ -631,6 +637,7 @@ TEST(operator_kernel, gelu_backward) {
 
     impl::stream_t &strm = get_stream();
     gelu_op->execute(&gelu_node, &strm, {diff_dst_ts, src_ts}, {diff_src_ts});
+    strm.wait();
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
@@ -672,6 +679,7 @@ TEST(operator_kernel, add) {
 
     impl::stream_t &strm = get_stream();
     add_op->execute(&add_node, &strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -688,6 +696,7 @@ TEST(operator_kernel, add) {
     impl::tensor_t src1_2nd_ts(src1_lt, src1_2nd.data());
     impl::tensor_t dst_2nd_ts(outputs[0], dst_2nd.data());
     add_op->execute(&add_node, &strm, {src0_2nd_ts, src1_2nd_ts}, {dst_2nd_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src0_2nd.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_2nd[i], ref_dst_2nd[i]);
@@ -725,6 +734,7 @@ TEST(operator_kernel, different_format_add) {
 
     impl::stream_t &strm = get_stream();
     add_op->execute(&add_node, &strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -770,6 +780,7 @@ TEST(operator_kernel, broadcast_add) {
     impl::stream_t &strm = get_stream();
     broadcast_add_op->execute(
             &broadcast_add_node, &strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -813,6 +824,7 @@ TEST(operator_kernel, reversed_different_format_broadcast_add) {
     impl::stream_t &strm = get_stream();
     broadcast_add_op->execute(
             &broadcast_add_node, &strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -853,6 +865,7 @@ TEST(operator_kernel, bias_add) {
 
     impl::stream_t &strm = get_stream();
     bias_add_op->execute(&bias_add_node, &strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -891,6 +904,7 @@ TEST(operator_kernel, mul) {
 
     impl::stream_t &strm = get_stream();
     mul_op->execute(&mul_node, &strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -928,6 +942,7 @@ TEST(operator_kernel, min) {
 
     impl::stream_t &strm = get_stream();
     max_op->execute(&max_node, &strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -965,6 +980,7 @@ TEST(operator_kernel, max) {
 
     impl::stream_t &strm = get_stream();
     min_op->execute(&min_node, &strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src0.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -1004,6 +1020,7 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
 
     impl::stream_t &strm = get_stream();
     matmul_op->execute(&matmul_node, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -1045,6 +1062,7 @@ TEST(operator_kernel, matmul_compile_fwd_f16f16f16) {
 
     impl::stream_t &strm = get_stream();
     matmul_op->execute(&matmul_node, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
 }
 
 TEST(operator_kernel, matmul_compile_fwd_bf16bf16bf16) {
@@ -1085,6 +1103,7 @@ TEST(operator_kernel, matmul_compile_fwd_bf16bf16bf16) {
 
     impl::stream_t &strm = get_stream();
     matmul_op->execute(&matmul_node, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
 }
 
 static size_t product(std::vector<int64_t> &in) {
@@ -1147,6 +1166,7 @@ TEST(operator_kernel, matmul_ndx2d) {
             impl::stream_t &strm = get_stream();
             matmul_op->execute(
                     &matmul_node, &strm, {src_ts, weight_ts}, {dst_ts});
+            strm.wait();
 
             // compute the ref results
             size_t M = product(src_shape)
@@ -1204,6 +1224,7 @@ TEST(operator_kernel, matmul_3dx3d) {
 
     impl::stream_t &strm = get_stream();
     matmul_op->execute(&matmul_node, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -1244,6 +1265,7 @@ TEST(operator_kernel, matmul_relu_fusion) {
     impl::stream_t &strm = get_stream();
     matmul_relu_op->execute(
             &matmul_relu_node, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -1287,6 +1309,7 @@ TEST(operator_kernel, matmul_bias_fusion) {
     impl::stream_t &strm = get_stream();
     matmul_op->execute(
             &matmul_node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -1330,6 +1353,7 @@ TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
     impl::stream_t &strm = get_stream();
     matmul_op->execute(
             &matmul_node, &strm, {src_ts, weight_ts, add_src1_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -1373,6 +1397,7 @@ TEST(operator_kernel, matmul_sum_fusion) {
     impl::stream_t &strm = get_stream();
     matmul_op->execute(
             &matmul_node, &strm, {src_ts, weight_ts, add_src1_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -1417,6 +1442,7 @@ TEST(operator_kernel, matmul_sum_gelu_fusion) {
     impl::stream_t &strm = get_stream();
     matmul_op->execute(
             &matmul_node, &strm, {src_ts, weight_ts, other_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -1461,6 +1487,7 @@ TEST(operator_kernel, matmul_sum_relu_fusion) {
     impl::stream_t &strm = get_stream();
     matmul_op->execute(
             &matmul_node, &strm, {src_ts, weight_ts, other_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -1505,6 +1532,7 @@ TEST(operator_kernel, matmul_bias_relu_fusion) {
     impl::stream_t &strm = get_stream();
     matmul_op->execute(
             &matmul_node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -1550,6 +1578,7 @@ TEST(operator_kernel, matmul_bias_relu6_fusion) {
     impl::stream_t &strm = get_stream();
     matmul_op->execute(
             &matmul_node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -1595,6 +1624,7 @@ TEST(operator_kernel, matmul_bias_hardtanh_fusion) {
     impl::stream_t &strm = get_stream();
     matmul_op->execute(
             &matmul_node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -1639,6 +1669,7 @@ TEST(operator_kernel, matmul_bias_elu_fusion) {
     impl::stream_t &strm = get_stream();
     matmul_op->execute(
             &matmul_node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -1682,6 +1713,7 @@ TEST(operator_kernel, matmul_bias_sigmoid_fusion) {
     impl::stream_t &strm = get_stream();
     matmul_op->execute(
             &matmul_node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -1729,6 +1761,7 @@ TEST(operator_kernel, matmul_bias_add_fusion) {
     impl::stream_t &strm = get_stream();
     matmul_op->execute(&matmul_node, &strm,
             {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -1776,6 +1809,7 @@ TEST(operator_kernel, matmul_bias_add_relu_fusion) {
     impl::stream_t &strm = get_stream();
     matmul_op->execute(&matmul_node, &strm,
             {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -1839,6 +1873,7 @@ TEST(operator_kernel, matmul_bias_bn) {
             {src_ts, weight_ts, bias_ts, scale_ts, shift_ts, mean_ts,
                     varience_ts},
             {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -1885,6 +1920,7 @@ TEST(operator_kernel, max_pool) {
 
     impl::stream_t &strm = get_stream();
     max_pool_op->execute(&max_pool_node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -1933,6 +1969,7 @@ TEST(operator_kernel, avg_pool_exclude_pad) {
 
     impl::stream_t &strm = get_stream();
     avg_pool_op->execute(&avg_pool_node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -1980,6 +2017,7 @@ TEST(operator_kernel, avg_pool_include_pad) {
 
     impl::stream_t &strm = get_stream();
     avg_pool_op->execute(&avg_pool_node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -2028,6 +2066,7 @@ TEST(operator_compile, Convolution_NCX_OIX) {
 
     impl::stream_t &strm = get_stream();
     conv_op->execute(&conv_node, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -2076,6 +2115,7 @@ TEST(operator_compile, Convolution_NCX_XIO) {
 
     impl::stream_t &strm = get_stream();
     conv_op->execute(&conv_node, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -2125,6 +2165,7 @@ TEST(operator_compile, Convolution_NXC_XIO) {
 
     impl::stream_t &strm = get_stream();
     conv_op->execute(&conv_node, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -2173,6 +2214,7 @@ TEST(operator_compile, Convolution_NXC_OIX) {
 
     impl::stream_t &strm = get_stream();
     conv_op->execute(&conv_node, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -2222,6 +2264,7 @@ TEST(operator_compile, ConvolutionF16F16F16) {
 
     impl::stream_t &strm = get_stream();
     conv_op->execute(&conv_node, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
 }
 
 TEST(operator_compile, ConvolutionBF16BF16BF16) {
@@ -2272,6 +2315,7 @@ TEST(operator_compile, ConvolutionBF16BF16BF16) {
 
     impl::stream_t &strm = get_stream();
     conv_op->execute(&conv_node, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
 }
 
 TEST(operator_compile, ConvolutionBF16BF16F32) {
@@ -2321,6 +2365,7 @@ TEST(operator_compile, ConvolutionBF16BF16F32) {
 
     impl::stream_t &strm = get_stream();
     conv_op->execute(&conv_node, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
 }
 
 TEST(operator_kernel, group_convolution) {
@@ -2371,6 +2416,7 @@ TEST(operator_kernel, group_convolution) {
     impl::stream_t &strm = get_stream();
     conv_op->execute(
             &conv_node, &strm, {conv_src_ts, conv_weight_ts}, {conv_dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < relu_dst.size(); ++i) {
         ASSERT_FLOAT_EQ(conv_dst[i], 8);
@@ -2422,6 +2468,7 @@ TEST(operator_kernel, ConvolutionBackpropData) {
     impl::stream_t &strm = get_stream();
     conv_bwd_op->execute(
             &conv_node, &strm, {diff_dst_ts, weight_ts}, {diff_src_ts});
+    strm.wait();
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
@@ -2477,6 +2524,7 @@ TEST(operator_kernel, conv_bwd_weight_bias) {
     impl::stream_t &strm = get_stream();
     conv_bwd_op->execute(&conv_node, &strm, {src_ts, diff_dst_ts},
             {diff_weights_ts, diff_bias_ts});
+    strm.wait();
     for (size_t i = 0; i < diff_weights.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_weights[i], ref_diff_weights[i]);
     }
@@ -2552,6 +2600,7 @@ TEST(operator_compile, conv_relu_unfused) {
     impl::tensor_t relu_dst_ts(relu_outputs[0], relu_dst.data());
 
     relu_op->execute(&relu_node, &strm, {relu_src_ts}, {relu_dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < relu_dst.size(); ++i) {
         ASSERT_FLOAT_EQ(relu_dst[i], 32);
@@ -2686,6 +2735,7 @@ TEST(operator_compile, convolution_bn_fp32) {
             {conv_src_ts, conv_weight_ts, bn_gamma_ts, bn_beta_ts, bn_scale_ts,
                     bn_shift_ts},
             {convbn_dst_ts});
+    strm.wait();
 
     float max_diff = 0;
     for (size_t i = 0; i < bn_dst.size(); ++i) {
@@ -2742,6 +2792,7 @@ TEST(operator_kernel, conv_add) {
     impl::stream_t &strm = get_stream();
     conv_add_op->execute(
             &conv_add_node, &strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -2795,6 +2846,7 @@ TEST(operator_kernel, conv_add_relu) {
     impl::stream_t &strm = get_stream();
     conv_add_relu_op->execute(&conv_add_relu_node, &strm,
             {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -2831,6 +2883,7 @@ TEST(operator_kernel, abs) {
 
     impl::stream_t &strm = get_stream();
     this_op->execute(&node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -2868,6 +2921,7 @@ TEST(operator_kernel, elu) {
 
     impl::stream_t &strm = get_stream();
     this_op->execute(&node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src.size(); ++i) {
         float temp;
@@ -2915,6 +2969,7 @@ TEST(operator_kernel, exp) {
 
     impl::stream_t &strm = get_stream();
     this_op->execute(&node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = static_cast<float>(exp(src[i]));
@@ -2958,6 +3013,7 @@ TEST(operator_kernel, hardtanh) {
 
     impl::stream_t &strm = get_stream();
     this_op->execute(&node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -2995,6 +3051,7 @@ TEST(operator_kernel, sqrt) {
 
     impl::stream_t &strm = get_stream();
     this_op->execute(&node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = static_cast<float>(sqrt(src[i]));
@@ -3037,6 +3094,7 @@ TEST(operator_kernel, square) {
 
     impl::stream_t &strm = get_stream();
     this_op->execute(&node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = src[i] * src[i];
@@ -3080,6 +3138,7 @@ TEST(operator_kernel, pow) {
 
     impl::stream_t &strm = get_stream();
     this_op->execute(&node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = static_cast<float>(pow(src[i], 3.0));
@@ -3122,6 +3181,7 @@ TEST(operator_kernel, log) {
 
     impl::stream_t &strm = get_stream();
     this_op->execute(&node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = static_cast<float>(log(src[i]));
@@ -3164,6 +3224,7 @@ TEST(operator_kernel, tanh) {
 
     impl::stream_t &strm = get_stream();
     this_op->execute(&node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
 
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = static_cast<float>(
@@ -3223,6 +3284,7 @@ TEST(operator_compile, conv_bias_abs) {
     impl::tensor_t dst_ts(outputs[0], dst.data());
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3276,6 +3338,7 @@ TEST(operator_compile, conv_bias_elu) {
     impl::tensor_t dst_ts(outputs[0], dst.data());
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3329,6 +3392,7 @@ TEST(operator_compile, conv_bias_hardtanh) {
     impl::tensor_t dst_ts(outputs[0], dst.data());
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3382,6 +3446,7 @@ TEST(operator_compile, conv_bias_relu6) {
     impl::tensor_t dst_ts(outputs[0], dst.data());
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3436,6 +3501,7 @@ TEST(operator_compile, conv_bias_sigmoid) {
     impl::tensor_t dst_ts(outputs[0], dst.data());
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3490,6 +3556,7 @@ TEST(operator_compile, conv_bias_sqrt) {
     impl::tensor_t dst_ts(outputs[0], dst.data());
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3542,6 +3609,7 @@ TEST(operator_compile, conv_bias_square) {
     impl::tensor_t dst_ts(outputs[0], dst.data());
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3597,6 +3665,7 @@ TEST(operator_compile, conv_bias_tanh) {
     impl::tensor_t dst_ts(outputs[0], dst.data());
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3656,6 +3725,7 @@ TEST(operator_compile, conv_bias_add_elu) {
     impl::stream_t &strm = get_stream();
     op->execute(
             &node, &strm, {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3716,6 +3786,7 @@ TEST(operator_compile, conv_bias_add_relu6) {
     impl::stream_t &strm = get_stream();
     op->execute(
             &node, &strm, {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3772,6 +3843,7 @@ TEST(operator_compile, conv_add_elu) {
     impl::tensor_t dst_ts(outputs[0], dst.data());
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3826,6 +3898,7 @@ TEST(operator_compile, conv_add_relu6) {
     impl::tensor_t dst_ts(outputs[0], dst.data());
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -3862,6 +3935,7 @@ TEST(operator_kernel, softmax) {
 
     impl::stream_t &strm = get_stream();
     softmax_op->execute(&softmax_node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
@@ -3903,6 +3977,7 @@ TEST(operator_kernel, softmax_backward) {
     impl::stream_t &strm = get_stream();
     softmax_op->execute(
             &softmax_node, &strm, {diff_dst_ts, dst_ts}, {diff_src_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
@@ -3952,6 +4027,7 @@ TEST(operator_kernel, avg_pool_backward_exclude_pad) {
     impl::stream_t &strm = get_stream();
     avg_pool_bwd_op->execute(
             &avg_pool_bwd_node, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    strm.wait();
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
@@ -4001,6 +4077,7 @@ TEST(operator_kernel, avg_pool_backward_include_pad) {
     impl::stream_t &strm = get_stream();
     avg_pool_bwd_op->execute(
             &avg_pool_bwd_node, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    strm.wait();
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
@@ -4062,6 +4139,7 @@ TEST(operator_kernel, max_pool_backward_with_incides) {
     impl::stream_t &strm = get_stream();
     max_pool_bwd_op->execute(&max_pool_bwd_node, &strm,
             {src_ts, indices_ts, diff_dst_ts}, {diff_src_ts});
+    strm.wait();
 
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
@@ -4111,6 +4189,7 @@ TEST(operator_kernel, max_pool_backward_without_incides) {
     impl::stream_t &strm = get_stream();
     max_pool_bwd_op->execute(
             &max_pool_bwd_node, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    strm.wait();
 
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
@@ -4168,6 +4247,7 @@ TEST(operator_kernel, layernorm_training) {
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts, scale_ts, shift_ts},
             {dst_ts, mean_ts, var_ts});
+    strm.wait();
 
     for (size_t i = 0; i < ref_dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
@@ -4219,6 +4299,7 @@ TEST(operator_kernel, layernorm_inference) {
 
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts, scale_ts, shift_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -4257,6 +4338,7 @@ TEST(operator_kernel, layernorm_inference_without_scale_shift) {
 
     impl::stream_t &strm = get_stream();
     op->execute(&node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
     for (size_t i = 0; i < ref_dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
@@ -4288,6 +4370,7 @@ TEST(operator_kernel, convert_data) {
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
     op->execute(&convert_node, &stream, {src_ts}, {dst_ts});
+    stream.wait();
     for (size_t i = 0; i < src.size(); ++i) {
         ASSERT_EQ(dst[i], ref_dst[i]);
     }

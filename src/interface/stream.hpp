@@ -62,6 +62,13 @@ public:
     const cl::sycl::queue &get_queue() const noexcept { return queue_; }
 #endif
 
+    dnnl::graph::impl::status_t wait() {
+#if DNNL_GRAPH_WITH_SYCL
+        queue_.wait();
+#endif
+        return dnnl::graph::impl::status::success;
+    }
+
 private:
     const dnnl::graph::impl::engine_t *engine_;
 #if DNNL_GRAPH_WITH_SYCL

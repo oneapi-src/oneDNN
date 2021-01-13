@@ -65,7 +65,8 @@ private:
     tensor expected_src1_;
     tensor expected_dst_;
 
-    dnnl::engine eng_;
+    dnnl::engine p_engine_;
+    dnnl::stream p_stream_;
 
     bool swapped_ {false};
 
@@ -240,7 +241,7 @@ private:
 
 public:
     impl::status_t compile_impl(const impl::node_t *anode,
-            const impl::engine_t *aengine,
+            const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         size_t src0_index = bin::kSrc0, src1_index = bin::kSrc1;
@@ -317,9 +318,9 @@ public:
             default: return status::unsupported;
         }
 
-        eng_ = make_dnnl_engine(*aengine);
+        p_engine_ = make_dnnl_engine(*g_engine);
         pd_ = primitive_desc(
-                {alg_kind, src0_desc, src1_desc, dst_desc_any}, eng_);
+                {alg_kind, src0_desc, src1_desc, dst_desc_any}, p_engine_);
 
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         impl::logical_tensor_t *orgi_dst_lt
@@ -329,25 +330,26 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream_t *astream,
+            const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(anode);
-        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
         size_t src0_index = bin::kSrc0, src1_index = bin::kSrc1;
         if (swapped_) { std::swap(src0_index, src1_index); }
 
-        const tensor src0 {inputs.at(src0_index), eng_, alc};
-        tensor src1 {inputs.at(src1_index), eng_, alc};
-        tensor dst {outputs.at(bin::kDst), eng_, alc};
+        const tensor src0 {inputs.at(src0_index), p_engine_, alc};
+        tensor src1 {inputs.at(src1_index), p_engine_, alc};
+        tensor dst {outputs.at(bin::kDst), p_engine_, alc};
 
         if (pd_.src0_desc() != src0.get_desc()) {
             // allocate memory for optimal layout src0 in the first iteration
             if (expected_src0_.is_empty()) {
-                expected_src0_ = tensor {pd_.src0_desc(), eng_, alc};
+                expected_src0_ = tensor {pd_.src0_desc(), p_engine_, alc};
             }
-            src0.reorder_to(expected_src0_);
+            src0.reorder_to(p_stream_, expected_src0_);
         } else {
             expected_src0_ = src0;
         }
@@ -356,13 +358,13 @@ public:
         if (unidirectional_broadcast_) {
             if (!src1.get_desc().is_plain()) {
                 plain_src1 = tensor(
-                        src1.get_desc().to_default_format(), eng_, alc);
-                src1.reorder_to(plain_src1);
-                expected_src1_ = tensor(pd_.src1_desc(), eng_, alc,
+                        src1.get_desc().to_default_format(), p_engine_, alc);
+                src1.reorder_to(p_stream_, plain_src1);
+                expected_src1_ = tensor(pd_.src1_desc(), p_engine_, alc,
                         plain_src1.get_data_handle());
             } else {
-                expected_src1_ = tensor(
-                        pd_.src1_desc(), eng_, alc, src1.get_data_handle());
+                expected_src1_ = tensor(pd_.src1_desc(), p_engine_, alc,
+                        src1.get_data_handle());
             }
 
         } else if (multidirectional_broadcast_) {
@@ -372,9 +374,9 @@ public:
                 // allocate memory for optimal layout src1
                 // in the first iteration
                 if (expected_src1_.is_empty()) {
-                    expected_src1_ = tensor {pd_.src1_desc(), eng_, alc};
+                    expected_src1_ = tensor {pd_.src1_desc(), p_engine_, alc};
                 }
-                src1.reorder_to(expected_src1_);
+                src1.reorder_to(p_stream_, expected_src1_);
             } else {
                 expected_src1_ = src1;
             }
@@ -382,24 +384,22 @@ public:
 
         if (pd_.dst_desc() != dst.get_desc()) {
             if (expected_dst_.is_empty()) {
-                expected_dst_ = tensor {pd_.dst_desc(), eng_, alc};
+                expected_dst_ = tensor {pd_.dst_desc(), p_engine_, alc};
             }
         } else {
             expected_dst_ = dst;
         }
 
-        dnnl::stream s(eng_);
-        super(pd_).execute(s,
+        super(pd_).execute(p_stream_,
                 {{DNNL_ARG_SRC_0, expected_src0_},
                         {DNNL_ARG_SRC_1, expected_src1_},
                         {DNNL_ARG_DST, expected_dst_}});
-        s.wait();
 
         // if output layout has been set and different from optimal layout
         // we have to do reorder
         if (expected_dst_ != dst) {
-            dnnl::reorder(expected_dst_, dst).execute(s, expected_dst_, dst);
-            s.wait();
+            dnnl::reorder(expected_dst_, dst)
+                    .execute(p_stream_, expected_dst_, dst);
         }
         return impl::status::success;
     }

@@ -175,6 +175,7 @@ using sycl_deallocate_f = dnnl_graph_sycl_deallocate_f;
 using inplace_pair_t = dnnl_graph_inplace_pair_t;
 
 using engine_t = dnnl_graph_engine;
+using stream_t = dnnl_graph_stream;
 using graph_t = dnnl_graph_graph;
 using op_t = dnnl_graph_op;
 using partition_t = dnnl_graph_partition;

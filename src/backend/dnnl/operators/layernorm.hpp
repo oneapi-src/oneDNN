@@ -51,24 +51,32 @@ private:
     tensor expected_mean_;
     tensor expected_variance_;
 
-    dnnl::engine eng_;
+    dnnl::engine p_engine_;
+    dnnl::stream p_stream_;
 
 public:
     void compute(tensor &scale, tensor &shift, impl::allocator_t *alc) {
         if (use_affine_) {
             if (scale_shift_.is_empty()) {
-                scale_shift_ = tensor {pd_.weights_desc(), eng_, alc};
+                scale_shift_ = tensor {pd_.weights_desc(), p_engine_, alc};
             }
 
             auto *scale_shift_buf
                     = static_cast<char *>(scale_shift_.get_data_handle());
+#if DNNL_GRAPH_WITH_SYCL
+            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream_);
+            q.memcpy(
+                    scale_shift_buf, scale.get_data_handle(), scale.get_size());
+            q.memcpy(scale_shift_buf + scale.get_size(),
+                    shift.get_data_handle(), shift.get_size());
+#else
             std::memcpy(
                     scale_shift_buf, scale.get_data_handle(), scale.get_size());
             std::memcpy(scale_shift_buf + scale.get_size(),
                     shift.get_data_handle(), shift.get_size());
+#endif
         }
 
-        dnnl::stream s(eng_);
         exec_args ln_args;
 
         ln_args.insert({DNNL_ARG_SRC, expected_src_});
@@ -79,12 +87,11 @@ public:
             ln_args.insert({DNNL_ARG_VARIANCE, expected_variance_});
         }
 
-        super(pd_).execute(s, ln_args);
-        s.wait();
+        super(pd_).execute(p_stream_, ln_args);
     }
 
     impl::status_t compile_impl(const impl::node_t *anode,
-            const impl::engine_t *aengine,
+            const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
@@ -101,17 +108,19 @@ public:
         if (anode->has_attr("use_affine"))
             use_affine_ = anode->get_attr<bool>("use_affine");
 
-        eng_ = make_dnnl_engine(*aengine);
+        p_engine_ = make_dnnl_engine(*g_engine);
         normalization_flag flags = normalization_flag::none;
 
         if (use_affine_) flags = normalization_flag::use_scale_shift;
 
         if (keep_stats_)
             pd_ = primitive_desc(
-                    {prop_kind::forward_training, src, epsilon_, flags}, eng_);
+                    {prop_kind::forward_training, src, epsilon_, flags},
+                    p_engine_);
         else
             pd_ = primitive_desc(
-                    {prop_kind::forward_inference, src, epsilon_, flags}, eng_);
+                    {prop_kind::forward_inference, src, epsilon_, flags},
+                    p_engine_);
 
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
 
@@ -141,18 +150,19 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream_t *astream,
+            const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(anode);
-        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor src {inputs.at(layernorm::kSrc), eng_, alc};
+        tensor src {inputs.at(layernorm::kSrc), p_engine_, alc};
         if (src.get_desc() != pd_.src_desc()) {
             if (expected_src_.is_empty()) {
-                expected_src_ = tensor {pd_.src_desc(), eng_, alc};
+                expected_src_ = tensor {pd_.src_desc(), p_engine_, alc};
             }
-            src.reorder_to(expected_src_);
+            src.reorder_to(p_stream_, expected_src_);
         } else {
             expected_src_ = src;
         }
@@ -164,15 +174,15 @@ public:
                 BACKEND_DNNL_ENFORCE(
                         0, "Wrong input number for layernorm execute");
             }
-            scale = tensor {inputs.at(layernorm::kScale), eng_, alc};
-            shift = tensor {inputs.at(layernorm::kShift), eng_, alc};
+            scale = tensor {inputs.at(layernorm::kScale), p_engine_, alc};
+            shift = tensor {inputs.at(layernorm::kShift), p_engine_, alc};
         }
-        tensor dst {outputs.at(layernorm::kDst), eng_, alc};
+        tensor dst {outputs.at(layernorm::kDst), p_engine_, alc};
         tensor mean;
         tensor variance;
         if (dst.get_desc() != pd_.dst_desc()) {
             if (expected_dst_.is_empty()) {
-                expected_dst_ = tensor {pd_.dst_desc(), eng_, alc};
+                expected_dst_ = tensor {pd_.dst_desc(), p_engine_, alc};
             }
         } else
             expected_dst_ = dst;
@@ -182,19 +192,21 @@ public:
                 BACKEND_DNNL_ENFORCE(
                         0, "Wrong output number for layernorm execute");
             }
-            mean = tensor {outputs.at(layernorm::kMean), eng_, alc};
-            variance = tensor {outputs.at(layernorm::kVariance), eng_, alc};
+            mean = tensor {outputs.at(layernorm::kMean), p_engine_, alc};
+            variance
+                    = tensor {outputs.at(layernorm::kVariance), p_engine_, alc};
 
             if (mean.get_desc() != pd_.mean_desc()) {
                 if (expected_mean_.is_empty()) {
-                    expected_mean_ = tensor {pd_.dst_desc(), eng_, alc};
+                    expected_mean_ = tensor {pd_.dst_desc(), p_engine_, alc};
                 }
             } else
                 expected_mean_ = mean;
 
             if (variance.get_desc() != pd_.variance_desc()) {
                 if (expected_variance_.is_empty()) {
-                    expected_variance_ = tensor {pd_.dst_desc(), eng_, alc};
+                    expected_variance_
+                            = tensor {pd_.dst_desc(), p_engine_, alc};
                 }
             } else
                 expected_variance_ = variance;
@@ -202,12 +214,13 @@ public:
 
         compute(scale, shift, alc);
 
-        if (expected_dst_ != dst) expected_dst_.reorder_to(dst);
+        if (expected_dst_ != dst) expected_dst_.reorder_to(p_stream_, dst);
 
         if (keep_stats_) {
-            if (expected_mean_ != mean) expected_mean_.reorder_to(mean);
+            if (expected_mean_ != mean)
+                expected_mean_.reorder_to(p_stream_, mean);
             if (expected_variance_ != variance)
-                expected_variance_.reorder_to(variance);
+                expected_variance_.reorder_to(p_stream_, variance);
         }
         return impl::status::success;
     }

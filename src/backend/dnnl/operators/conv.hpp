@@ -173,7 +173,8 @@ private:
     tensor updated_weights_;
     tensor updated_bias_;
 
-    dnnl::engine eng_;
+    dnnl::engine p_engine_;
+    dnnl::stream p_stream_;
 
     attr_t attr_;
 
@@ -198,7 +199,7 @@ private:
 
 public:
     impl::status_t compile_impl(const impl::node_t *anode,
-            const impl::engine_t *aengine,
+            const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
@@ -291,20 +292,22 @@ public:
                     get_eltwise_algo(conv_kind), 1.f, alpha_, beta_);
         }
 
-        eng_ = make_dnnl_engine(*aengine);
-        impl::allocator_t *alc = aengine->get_allocator();
+        p_engine_ = make_dnnl_engine(*g_engine);
+        impl::allocator_t *alc = g_engine->get_allocator();
 
-#define CONV_GET_CONFIG(with_bias, engine, allocator, kind, alpha, beta) \
+#define CONV_GET_CONFIG(with_bias, p_engine, allocator, kind, alpha, beta) \
     get_config<with_bias>(src, weight, bias, dst, strides_, dilates_, \
-            pads_begin_, pads_end_, groups_, engine, allocator, attr_, \
+            pads_begin_, pads_end_, groups_, p_engine, allocator, attr_, \
             algorithm::convolution_direct, prop_kind::forward_inference, kind, \
             alpha, beta)
 
         // if with_bn, we also need to create ptimitive with bias,
         // because bn's shift will act as bias in execution
         params_ = (with_bias_ || with_bn_)
-                ? CONV_GET_CONFIG(true, eng_, alc, conv_kind, alpha_, beta_)
-                : CONV_GET_CONFIG(false, eng_, alc, conv_kind, alpha_, beta_);
+                ? CONV_GET_CONFIG(
+                        true, p_engine_, alc, conv_kind, alpha_, beta_)
+                : CONV_GET_CONFIG(
+                        false, p_engine_, alc, conv_kind, alpha_, beta_);
 #undef CONV_GET_CONFIG
 
         const dnnl::convolution_forward::primitive_desc &pd = params_.pd;
@@ -335,7 +338,7 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream_t *astream,
+            const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(anode);
@@ -357,8 +360,8 @@ public:
         auto &pd = params_.pd;
         auto scratchpad = params_.scratchpad;
 
-        // const impl::engine_t *eng = astream->get_engine();
-        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
         // "NXC"
         if (data_format_ == "NXC") {
@@ -377,65 +380,71 @@ public:
                                 .reorder_weight_dims_strides();
         }
 
-        const tensor src {
-                src_lt, eng_, alc, inputs.at(conv::kSrc).get_data_handle()};
-        const tensor weight {weight_lt, eng_, alc,
+        const tensor src {src_lt, p_engine_, alc,
+                inputs.at(conv::kSrc).get_data_handle()};
+        const tensor weight {weight_lt, p_engine_, alc,
                 inputs.at(conv::kWeight).get_data_handle()};
-        const tensor post_src = with_sum_ ? tensor {post_src_lt, eng_, alc,
+        const tensor post_src = with_sum_ ? tensor {post_src_lt, p_engine_, alc,
                                         inputs.back().get_data_handle()}
                                           : tensor {};
         const tensor bias
-                = with_bias_ ? tensor {impl_bias, eng_, alc} : tensor {};
-        tensor dst {
-                dst_lt, eng_, alc, outputs.at(conv::kDst).get_data_handle()};
+                = with_bias_ ? tensor {impl_bias, p_engine_, alc} : tensor {};
+        tensor dst {dst_lt, p_engine_, alc,
+                outputs.at(conv::kDst).get_data_handle()};
 
         if (expected_weights_.is_empty() || !enable_cache_data_) {
             if (with_bn_) {
                 const tensor bn_scale {
-                        inputs.at(bn_input_offset_ + conv::kScale), eng_, alc};
-                const tensor bn_shift {
-                        inputs.at(bn_input_offset_ + conv::kShift), eng_, alc};
-                const tensor bn_mean {
-                        inputs.at(bn_input_offset_ + conv::kMean), eng_, alc};
-                const tensor bn_var {
-                        inputs.at(bn_input_offset_ + conv::kVariance), eng_,
+                        inputs.at(bn_input_offset_ + conv::kScale), p_engine_,
                         alc};
+                const tensor bn_shift {
+                        inputs.at(bn_input_offset_ + conv::kShift), p_engine_,
+                        alc};
+                const tensor bn_mean {inputs.at(bn_input_offset_ + conv::kMean),
+                        p_engine_, alc};
+                const tensor bn_var {
+                        inputs.at(bn_input_offset_ + conv::kVariance),
+                        p_engine_, alc};
 
                 if (updated_weights_.is_empty()) {
-                    updated_weights_ = tensor {weight.get_desc(), eng_, alc};
-                    updated_bias_ = tensor {bn_shift.get_desc(), eng_, alc};
+                    updated_weights_
+                            = tensor {weight.get_desc(), p_engine_, alc};
+                    updated_bias_
+                            = tensor {bn_shift.get_desc(), p_engine_, alc};
                 }
 
                 bn_fusion::folding(&updated_weights_, &updated_bias_, weight,
                         bias, bn_mean, bn_var, bn_scale, bn_shift, epsilon_,
-                        eng_, alc);
+                        *g_stream);
 
                 if (updated_weights_.get_desc()
                         != pd.weights_desc()) { //need to reorder
                     if (expected_weights_.is_empty()) {
                         expected_weights_
-                                = tensor {pd.weights_desc(), eng_, alc};
+                                = tensor {pd.weights_desc(), p_engine_, alc};
                     }
                     updated_weights_.make_grouped_weights(params_.groups)
-                            .reorder_to(expected_weights_);
+                            .reorder_to(p_stream_, expected_weights_);
                 } else {
                     expected_weights_ = updated_weights_;
                 }
 
                 if (updated_bias_.get_desc() != pd.bias_desc()) {
                     if (expected_bias_.is_empty()) {
-                        expected_bias_ = tensor {pd.bias_desc(), eng_, alc};
+                        expected_bias_
+                                = tensor {pd.bias_desc(), p_engine_, alc};
                     }
-                    updated_bias_.reorder_to(expected_bias_);
+                    updated_bias_.reorder_to(p_stream_, expected_bias_);
                 } else {
                     expected_bias_ = updated_bias_;
                 }
             } else if (with_bias_) {
                 if (bias.get_desc() != pd.bias_desc()) {
                     if (expected_bias_.is_empty()) {
-                        expected_bias_ = tensor {pd.bias_desc(), eng_, alc};
+                        expected_bias_
+                                = tensor {pd.bias_desc(), p_engine_, alc};
                     }
-                    bias.reorder_to(expected_bias_);
+                    bias.reorder_to(p_stream_, expected_bias_);
                 } else {
                     expected_bias_ = bias;
                 }
@@ -445,10 +454,10 @@ public:
                 if (weight.get_desc() != pd.weights_desc()) { //need to reorder
                     if (expected_weights_.is_empty()) {
                         expected_weights_
-                                = tensor {pd.weights_desc(), eng_, alc};
+                                = tensor {pd.weights_desc(), p_engine_, alc};
                     }
                     weight.make_grouped_weights(params_.groups)
-                            .reorder_to(expected_weights_);
+                            .reorder_to(p_stream_, expected_weights_);
                 } else {
                     expected_weights_ = weight;
                 }
@@ -457,16 +466,16 @@ public:
 
         if (src.get_desc() != pd.src_desc()) {
             if (expected_src_.is_empty()) {
-                expected_src_ = tensor {pd.src_desc(), eng_, alc};
+                expected_src_ = tensor {pd.src_desc(), p_engine_, alc};
             }
-            src.reorder_to(expected_src_);
+            src.reorder_to(p_stream_, expected_src_);
         } else {
             expected_src_ = src;
         }
 
         if (dst.get_desc() != pd.dst_desc()) {
             if (expected_dst_.is_empty()) {
-                expected_dst_ = tensor {pd.dst_desc(), eng_, alc};
+                expected_dst_ = tensor {pd.dst_desc(), p_engine_, alc};
             }
         } else
             expected_dst_ = dst;
@@ -474,27 +483,25 @@ public:
         if (with_sum_
                 && post_src.get_data_handle()
                         != expected_dst_.get_data_handle()) {
-            post_src.reorder_to(expected_dst_);
+            post_src.reorder_to(p_stream_, expected_dst_);
         }
 
-        dnnl::stream s(eng_);
         if (with_bias_ || with_bn_) {
-            super(pd).execute(s,
+            super(pd).execute(p_stream_,
                     {{DNNL_ARG_SRC, expected_src_},
                             {DNNL_ARG_WEIGHTS, expected_weights_},
                             {DNNL_ARG_BIAS, expected_bias_},
                             {DNNL_ARG_DST, expected_dst_},
                             {DNNL_ARG_SCRATCHPAD, scratchpad}});
         } else {
-            super(pd).execute(s,
+            super(pd).execute(p_stream_,
                     {{DNNL_ARG_SRC, expected_src_},
                             {DNNL_ARG_WEIGHTS, expected_weights_},
                             {DNNL_ARG_DST, expected_dst_},
                             {DNNL_ARG_SCRATCHPAD, scratchpad}});
         }
-        s.wait();
 
-        if (expected_dst_ != dst) expected_dst_.reorder_to(dst);
+        if (expected_dst_ != dst) expected_dst_.reorder_to(p_stream_, dst);
         return impl::status::success;
     }
 
@@ -503,7 +510,7 @@ public:
             const tensor::desc &weights_desc, const tensor::desc &bias_desc,
             const tensor::desc &dst_desc, const dims &strides,
             const dims &dilates, const dims &pads_begin, const dims &pads_end,
-            const dnnl::engine &aengine, const attr_t &attr = attr_t(),
+            const dnnl::engine &p_engine, const attr_t &attr = attr_t(),
             algorithm aalgorithm = algorithm::convolution_direct,
             prop_kind aprop_kind = prop_kind::forward) {
         auto src_desc_any = src_desc.to_format_any();
@@ -517,13 +524,13 @@ public:
                     {aprop_kind, aalgorithm, src_desc_any, weights_desc_any,
                             bias_desc_any, dst_desc_any, strides, dilates,
                             pads_begin, pads_end},
-                    attr, aengine);
+                    attr, p_engine);
         } else {
             return primitive_desc(
                     {aprop_kind, aalgorithm, src_desc_any, weights_desc_any,
                             dst_desc_any, strides, dilates, pads_begin,
                             pads_end},
-                    attr, aengine);
+                    attr, p_engine);
         }
     }
 
@@ -600,7 +607,7 @@ private:
             const tensor::desc &weights, const tensor::desc &bias,
             const tensor::desc &dst, const dims &strides, const dims &dilates,
             const dims &pads_begin, const dims &pads_end, const int64_t groups,
-            const dnnl::engine &aengine, impl::allocator_t *alc,
+            const dnnl::engine &p_engine, impl::allocator_t *alc,
             const attr_t &attr = attr_t(),
             const algorithm aalgorithm = algorithm::convolution_direct,
             const prop_kind aprop_kind = prop_kind::forward,
@@ -639,18 +646,18 @@ private:
 
         auto pd = get_primitive_desc<with_bias>(src_desc, weights_desc,
                 bias_desc, dst, strides, com_dilates, pads_begin, pads_end,
-                aengine, op_attr, aalgorithm, aprop_kind);
+                p_engine, op_attr, aalgorithm, aprop_kind);
 
         // allocate scratchpad
-        tensor scratchpad(pd.scratchpad_desc(), aengine, alc);
+        tensor scratchpad(pd.scratchpad_desc(), p_engine, alc);
 
         return {pd, groups, scratchpad};
     }
 
-    impl::status_t prepare_inplace_pairs_impl(const impl::engine_t *aengine,
+    impl::status_t prepare_inplace_pairs_impl(const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        UNUSED(aengine);
+        UNUSED(g_engine);
         if (with_sum_) {
             size_t input_idx = with_bias_ ? conv::kBias + 1 : conv::kWeight + 1;
             if (with_bn_) input_idx = bn_input_offset_ + conv::kVariance + 1;
@@ -678,11 +685,12 @@ private:
 
     primitive_desc pd_;
 
-    dnnl::engine eng_;
+    dnnl::engine p_engine_;
+    dnnl::stream p_stream_;
 
 public:
     impl::status_t compile_impl(const impl::node_t *anode,
-            const impl::engine_t *aengine,
+            const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
@@ -727,7 +735,7 @@ public:
         pads_end_ = anode->get_attr<dims>("pads_end");
         groups_ = anode->get_attr<int64_t>("groups");
 
-        eng_ = make_dnnl_engine(*aengine);
+        p_engine_ = make_dnnl_engine(*g_engine);
 
         const auto diff_src_desc_any = diff_src_desc.to_format_any();
 
@@ -740,14 +748,14 @@ public:
         auto forward_hints = convolution_forward::get_primitive_desc<
                 /*with_bias=*/false>(diff_src_desc_any, weights_desc_any,
                 tensor::desc(), diff_dst_desc_any, strides_, dilates_,
-                pads_begin_, pads_end_, eng_, attr_t(),
+                pads_begin_, pads_end_, p_engine_, attr_t(),
                 algorithm::convolution_direct, prop_kind::forward_training);
 
         pd_ = primitive_desc(
                 {algorithm::convolution_direct, diff_src_desc_any,
                         weights_desc_any, diff_dst_desc_any, strides_, dilates_,
                         pads_begin_, pads_end_},
-                eng_, forward_hints);
+                p_engine_, forward_hints);
 
         const desc optimal_diff_src_desc {pd_.diff_src_desc()};
         impl::logical_tensor_t *ori_diff_src_lt
@@ -757,10 +765,11 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream_t *astream,
+            const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
         auto &weight_lt = const_cast<impl::logical_tensor_t &>(
                 inputs.at(conv_bwd_data::kWeight).get_logical_tensor());
@@ -781,43 +790,40 @@ public:
                                 .reorder_data_dims_strides();
         }
 
-        const tensor diff_dst {diff_dst_lt, eng_, alc,
+        const tensor diff_dst {diff_dst_lt, p_engine_, alc,
                 inputs.at(conv_bwd_data::kDiffdst).get_data_handle()};
-        const tensor weights {weight_lt, eng_, alc,
+        const tensor weights {weight_lt, p_engine_, alc,
                 inputs.at(conv_bwd_data::kWeight).get_data_handle()};
-        tensor diff_src {diff_src_lt, eng_, alc,
+        tensor diff_src {diff_src_lt, p_engine_, alc,
                 outputs.at(conv_bwd_data::kDiffsrc).get_data_handle()};
-        compute(diff_dst, weights, diff_src, eng_, alc);
+        compute(diff_dst, weights, diff_src, p_engine_, alc, p_stream_);
         return impl::status::success;
     }
 
 private:
     void compute(const tensor &diff_dst, const tensor &weights,
-            tensor &diff_src, const dnnl::engine &aengine,
-            impl::allocator_t *alc) {
+            tensor &diff_src, const dnnl::engine &p_engine,
+            impl::allocator_t *alc, const dnnl::stream &p_stream) {
         // make weights and dilates compatible with DNNL
         auto weights_ = weights.make_grouped_weights(groups_);
 
         auto expected_diff_dst
-                = diff_dst.reorder_if_differ_in(pd_.diff_dst_desc());
+                = diff_dst.reorder_if_differ_in(p_stream, pd_.diff_dst_desc());
         auto expected_weights
-                = weights_.reorder_if_differ_in(pd_.weights_desc());
+                = weights_.reorder_if_differ_in(p_stream, pd_.weights_desc());
         tensor expected_diff_src = diff_src;
         if (pd_.diff_src_desc() != diff_src.get_desc()) {
-            expected_diff_src = tensor {pd_.diff_src_desc(), aengine, alc};
+            expected_diff_src = tensor {pd_.diff_src_desc(), p_engine, alc};
         }
 
-        dnnl::stream s(aengine);
-        super(pd_).execute(s,
+        super(pd_).execute(p_stream,
                 {{DNNL_ARG_DIFF_DST, expected_diff_dst},
                         {DNNL_ARG_WEIGHTS, expected_weights},
                         {DNNL_ARG_DIFF_SRC, expected_diff_src}});
-        s.wait();
 
         if (expected_diff_src != diff_src) {
             dnnl::reorder(expected_diff_src, diff_src)
-                    .execute(s, expected_diff_src, diff_src);
-            s.wait();
+                    .execute(p_stream, expected_diff_src, diff_src);
         }
     }
 };
@@ -838,11 +844,12 @@ private:
 
     primitive_desc pd_;
 
-    dnnl::engine eng_;
+    dnnl::engine p_engine_;
+    dnnl::stream p_stream_;
 
 public:
     impl::status_t compile_impl(const impl::node_t *anode,
-            const impl::engine_t *aengine,
+            const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
@@ -898,7 +905,7 @@ public:
         pads_end_ = anode->get_attr<dims>("pads_end");
         groups_ = anode->get_attr<int64_t>("groups");
 
-        eng_ = make_dnnl_engine(*aengine);
+        p_engine_ = make_dnnl_engine(*g_engine);
 
         const auto src_desc_any = src_desc.to_format_any();
         const auto diff_dst_desc_any = diff_dst_desc.to_format_any();
@@ -922,26 +929,26 @@ public:
             auto forward_hints = convolution_forward::get_primitive_desc<
                     /*with_diff_bias=*/true>(src_desc_any, weights_desc,
                     diff_bias_desc, diff_dst_desc_any, strides_, dilates_,
-                    pads_begin_, pads_end_, eng_, attr_t(),
+                    pads_begin_, pads_end_, p_engine_, attr_t(),
                     algorithm::convolution_direct, prop_kind::forward_training);
 
             pd_ = primitive_desc({algorithm::convolution_direct, src_desc_any,
                                          diff_weights_desc_any, diff_bias_desc,
                                          diff_dst_desc_any, strides_, dilates_,
                                          pads_begin_, pads_end_},
-                    eng_, forward_hints);
+                    p_engine_, forward_hints);
         } else {
             auto forward_hints = convolution_forward::get_primitive_desc<
                     /*with_diff_bias=*/false>(src_desc_any, weights_desc,
                     diff_bias_desc, diff_dst_desc_any, strides_, dilates_,
-                    pads_begin_, pads_end_, eng_, attr_t(),
+                    pads_begin_, pads_end_, p_engine_, attr_t(),
                     algorithm::convolution_direct, prop_kind::forward_training);
 
             pd_ = primitive_desc(
                     {algorithm::convolution_direct, src_desc_any,
                             diff_weights_desc_any, diff_dst_desc_any, strides_,
                             dilates_, pads_begin_, pads_end_},
-                    eng_, forward_hints);
+                    p_engine_, forward_hints);
         }
 
         const desc optimal_diff_weights_desc {pd_.diff_weights_desc()};
@@ -956,10 +963,11 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream_t *astream,
+            const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
         auto &src_lt = const_cast<impl::logical_tensor_t &>(
                 inputs.at(conv_bwd_filter::kSrc).get_logical_tensor());
@@ -984,45 +992,47 @@ public:
             diff_weights_lt = impl::logical_tensor_wrapper(diff_weights_lt)
                                       .reorder_data_dims_strides();
         }
-        const tensor src {src_lt, eng_, alc,
+        const tensor src {src_lt, p_engine_, alc,
                 inputs.at(conv_bwd_filter::kSrc).get_data_handle()};
-        const tensor diff_dst {diff_dst_lt, eng_, alc,
+        const tensor diff_dst {diff_dst_lt, p_engine_, alc,
                 inputs.at(conv_bwd_filter::kDiffdst).get_data_handle()};
-        tensor diff_weights {diff_weights_lt, eng_, alc,
+        tensor diff_weights {diff_weights_lt, p_engine_, alc,
                 outputs.at(conv_bwd_filter::kDiffweight).get_data_handle()};
-        tensor diff_b
-                = with_diff_bias_ ? tensor {diff_bias, eng_, alc} : tensor {};
+        tensor diff_b = with_diff_bias_ ? tensor {diff_bias, p_engine_, alc}
+                                        : tensor {};
 
         auto diff_weights_dims
                 = impl::logical_tensor_wrapper(diff_weights_lt).vdims();
-        conv_backward_weights_impl(
-                src, diff_dst, diff_weights, diff_b, diff_weights_dims, alc);
+        conv_backward_weights_impl(src, diff_dst, diff_weights, diff_b,
+                diff_weights_dims, alc, p_stream_);
         return impl::status::success;
     }
 
 private:
     void conv_backward_weights_impl(const tensor &src, const tensor &diff_dst,
             tensor &diff_weights, tensor &diff_bias,
-            const std::vector<dim_t> &diff_weights_dims,
-            impl::allocator_t *alc) {
+            const std::vector<dim_t> &diff_weights_dims, impl::allocator_t *alc,
+            const dnnl::stream &p_stream) {
         if (with_diff_bias_) {
             compute_impl</*with_diff_bias=*/true>(src, diff_dst,
-                    diff_weights_dims, diff_weights, diff_bias, eng_, alc);
+                    diff_weights_dims, diff_weights, diff_bias, p_engine_, alc,
+                    p_stream);
         } else {
             compute_impl</*with_diff_bias=*/false>(src, diff_dst,
-                    diff_weights_dims, diff_weights, diff_bias, eng_, alc);
+                    diff_weights_dims, diff_weights, diff_bias, p_engine_, alc,
+                    p_stream);
         }
     }
 
     template <bool with_diff_bias>
     void compute_impl(const tensor &src, const tensor &diff_dst,
             const dims &diff_weights_dims, tensor &diff_weights,
-            tensor &diff_bias, const dnnl::engine &aengine,
-            impl::allocator_t *alc) {
+            tensor &diff_bias, const dnnl::engine &p_engine,
+            impl::allocator_t *alc, const dnnl::stream &p_stream) {
         UNUSED(diff_weights_dims);
         auto expected_diff_dst
-                = diff_dst.reorder_if_differ_in(pd_.diff_dst_desc());
-        auto expected_src = src.reorder_if_differ_in(pd_.src_desc());
+                = diff_dst.reorder_if_differ_in(p_stream, pd_.diff_dst_desc());
+        auto expected_src = src.reorder_if_differ_in(p_stream, pd_.src_desc());
         // embed group info into diff_weights_desc
         auto expected_diff_weights_desc
                 = tensor::desc(pd_.diff_weights_desc(), groups_);
@@ -1030,39 +1040,35 @@ private:
         tensor expected_diff_weights = diff_weights;
         if (pd_.diff_weights_desc() != diff_weights.get_desc()) {
             expected_diff_weights
-                    = tensor {expected_diff_weights_desc, aengine, alc};
+                    = tensor {expected_diff_weights_desc, p_engine, alc};
         }
         tensor expected_diff_bias = diff_bias;
 
-        dnnl::stream s(aengine);
         if (with_diff_bias_) {
             if (pd_.diff_bias_desc() != diff_bias.get_desc()) {
                 expected_diff_bias
-                        = tensor {pd_.diff_bias_desc(), aengine, alc};
+                        = tensor {pd_.diff_bias_desc(), p_engine, alc};
             }
-            super(pd_).execute(s,
+            super(pd_).execute(p_stream,
                     {{DNNL_ARG_DIFF_DST, expected_diff_dst},
                             {DNNL_ARG_SRC, expected_src},
                             {DNNL_ARG_DIFF_WEIGHTS, expected_diff_weights},
                             {DNNL_ARG_DIFF_BIAS, expected_diff_bias}});
         } else {
-            super(pd_).execute(s,
+            super(pd_).execute(p_stream,
                     {{DNNL_ARG_DIFF_DST, expected_diff_dst},
                             {DNNL_ARG_SRC, expected_src},
                             {DNNL_ARG_DIFF_WEIGHTS, expected_diff_weights}});
         }
-        s.wait();
 
         if (expected_diff_weights != diff_weights) {
             dnnl::reorder(expected_diff_weights, diff_weights)
-                    .execute(s, expected_diff_weights, diff_weights);
-            s.wait();
+                    .execute(p_stream, expected_diff_weights, diff_weights);
         }
 
         if (with_diff_bias_ && expected_diff_bias != diff_bias) {
             dnnl::reorder(expected_diff_bias, diff_bias)
-                    .execute(s, expected_diff_bias, diff_bias);
-            s.wait();
+                    .execute(p_stream, expected_diff_bias, diff_bias);
         }
     }
 };

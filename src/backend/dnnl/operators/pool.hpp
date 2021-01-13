@@ -55,20 +55,22 @@ private:
     bool is_training_ {false};
     prop_kind prop_kind_;
 
-    dnnl::engine eng_;
+    dnnl::engine p_engine_;
+    dnnl::stream p_stream_;
 
 public:
     void compute(const tensor &src, const dims &output_sizes, tensor &dst,
-            const dnnl::engine &aengine, impl::allocator_t *alc) {
+            const dnnl::engine &p_engine, impl::allocator_t *alc,
+            const dnnl::stream &p_stream) {
         UNUSED(output_sizes);
         bool with_workspace = prop_kind_ == prop_kind::forward_training
                 && algo_ == dnnl::algorithm::pooling_max;
 
-        auto expected_src = src.reorder_if_differ_in(pd_.src_desc());
+        auto expected_src = src.reorder_if_differ_in(p_stream, pd_.src_desc());
 
         tensor expected_dst = dst;
         if (pd_.dst_desc() != dst.get_desc()) {
-            expected_dst = tensor {pd_.dst_desc(), aengine, alc};
+            expected_dst = tensor {pd_.dst_desc(), p_engine, alc};
         }
         exec_args args {
                 {DNNL_ARG_SRC, expected_src}, {DNNL_ARG_DST, expected_dst}};
@@ -77,19 +79,18 @@ public:
             args.insert({DNNL_ARG_WORKSPACE, expected_dst.get_workspace()});
         }
 
-        dnnl::stream s(aengine);
-        super(pd_).execute(s, args);
-        s.wait();
+        super(pd_).execute(p_stream, args);
+
         // if output layout has been set and different from optimal layout
         // we have to do reorder
         if (expected_dst != dst) {
-            dnnl::reorder(expected_dst, dst).execute(s, expected_dst, dst);
-            s.wait();
+            dnnl::reorder(expected_dst, dst)
+                    .execute(p_stream, expected_dst, dst);
         }
     }
 
     impl::status_t compile_impl(const impl::node_t *anode,
-            const impl::engine_t *aengine,
+            const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
@@ -130,7 +131,7 @@ public:
             BACKEND_DNNL_ENFORCE(0, "Unsupported pool op.");
         }
 
-        eng_ = make_dnnl_engine(*aengine);
+        p_engine_ = make_dnnl_engine(*g_engine);
 
         // workaround: use src once issue intel/mkl-dnn#588 is
         // resolved
@@ -142,7 +143,7 @@ public:
 
         pd_ = primitive_desc({prop_kind_, algo_, expected_src, any_dst, strides,
                                      kernel, dilations, pads_begin, pads_end},
-                eng_);
+                p_engine_);
 
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         impl::logical_tensor_t *ori_dst_lt
@@ -152,7 +153,7 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream_t *astream,
+            const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         std::string data_format = anode->get_attr<std::string>("data_format");
@@ -168,13 +169,16 @@ public:
                              .reorder_data_dims_strides();
         }
 
-        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor x {src_lt, eng_, alc, inputs.at(pool::kSrc).get_data_handle()};
-        tensor y {dst_lt, eng_, alc, outputs.at(pool::kDst).get_data_handle()};
+        tensor x {src_lt, p_engine_, alc,
+                inputs.at(pool::kSrc).get_data_handle()};
+        tensor y {dst_lt, p_engine_, alc,
+                outputs.at(pool::kDst).get_data_handle()};
 
         dims outsize = y.get_dims();
-        pooling_forward::compute(x, outsize, y, eng_, alc);
+        pooling_forward::compute(x, outsize, y, p_engine_, alc, p_stream_);
         return impl::status::success;
     }
 };
@@ -187,33 +191,32 @@ private:
     primitive_desc pd_;
     op_kind_t kind_;
 
-    dnnl::engine eng_;
+    dnnl::engine p_engine_;
+    dnnl::stream p_stream_;
 
 public:
     void compute(const tensor &diff_dst, const tensor &src, tensor &diff_src,
-            const dnnl::engine &aengine, impl::allocator_t *alc,
-            tensor indices = tensor {}) {
-        dnnl::stream s(aengine);
+            const dnnl::engine &p_engine, impl::allocator_t *alc,
+            const dnnl::stream &p_stream, tensor indices = tensor {}) {
         // generate indices tensor from src when it's needed
         // but can't get from function parameters
         if (kind_ == op_kind::MaxPoolBackprop && indices.is_empty()) {
-            auto expected_src
-                    = src.reorder_if_differ_in(forward_hints_.src_desc());
+            auto expected_src = src.reorder_if_differ_in(
+                    p_stream, forward_hints_.src_desc());
             auto expected_dst
-                    = tensor {forward_hints_.dst_desc(), aengine, alc};
-            indices = tensor {forward_hints_.workspace_desc(), aengine, alc};
+                    = tensor {forward_hints_.dst_desc(), p_engine, alc};
+            indices = tensor {forward_hints_.workspace_desc(), p_engine, alc};
             exec_args args {{DNNL_ARG_SRC, expected_src},
                     {DNNL_ARG_DST, expected_dst},
                     {DNNL_ARG_WORKSPACE, indices}};
 
-            dnnl::pooling_v2_forward(forward_hints_).execute(s, args);
-            s.wait();
+            dnnl::pooling_v2_forward(forward_hints_).execute(p_stream, args);
         }
 
         auto expected_diff_dst
-                = diff_dst.reorder_if_differ_in(pd_.diff_dst_desc());
+                = diff_dst.reorder_if_differ_in(p_stream, pd_.diff_dst_desc());
         auto expected_diff_src
-                = diff_src.reorder_if_differ_in(pd_.diff_src_desc());
+                = diff_src.reorder_if_differ_in(p_stream, pd_.diff_src_desc());
 
         exec_args args = exec_args {
                 {DNNL_ARG_DIFF_DST, expected_diff_dst},
@@ -222,18 +225,16 @@ public:
 
         if (!indices.is_empty()) { args.insert({DNNL_ARG_WORKSPACE, indices}); }
 
-        super(pd_).execute(s, args);
-        s.wait();
+        super(pd_).execute(p_stream, args);
 
         if (expected_diff_src != diff_src) {
             dnnl::reorder(expected_diff_src, diff_src)
-                    .execute(s, expected_diff_src, diff_src);
-            s.wait();
+                    .execute(p_stream, expected_diff_src, diff_src);
         }
     }
 
     impl::status_t compile_impl(const impl::node_t *anode,
-            const impl::engine_t *aengine,
+            const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
@@ -268,15 +269,15 @@ public:
             return status::unsupported;
         }
 
-        eng_ = make_dnnl_engine(*aengine);
+        p_engine_ = make_dnnl_engine(*g_engine);
         forward_hints_ = dnnl::pooling_v2_forward::primitive_desc(
                 {prop_kind::forward_training, algo, src, diff_dst, strides,
                         kernel, dilations, pads_begin, pads_end},
-                eng_);
+                p_engine_);
 
         pd_ = primitive_desc({algo, src, diff_dst, strides, kernel, dilations,
                                      pads_begin, pads_end},
-                eng_, forward_hints_);
+                p_engine_, forward_hints_);
 
         const tensor::desc optimal_diff_src_desc {pd_.diff_src_desc()};
         fill_layout_info(diff_src_lt, optimal_diff_src_desc);
@@ -284,26 +285,28 @@ public:
     }
 
     impl::status_t execute_impl(const impl::node_t *anode,
-            const impl::stream_t *astream,
+            const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        impl::allocator_t *alc = astream->get_engine()->get_allocator();
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor src {inputs.at(pool_bwd::kSrc), eng_, alc};
+        tensor src {inputs.at(pool_bwd::kSrc), p_engine_, alc};
         tensor diff_dst {};
         tensor indices {};
         if (anode->get_op_kind() == op_kind::MaxPoolBackprop
                 && inputs.size() > pool_bwd_with_indices::kDiff_dst) {
-            diff_dst = tensor {
-                    inputs.at(pool_bwd_with_indices::kDiff_dst), eng_, alc};
+            diff_dst = tensor {inputs.at(pool_bwd_with_indices::kDiff_dst),
+                    p_engine_, alc};
             indices = tensor {
-                    inputs.at(pool_bwd_with_indices::kIndices), eng_, alc};
+                    inputs.at(pool_bwd_with_indices::kIndices), p_engine_, alc};
         } else {
-            diff_dst = tensor {inputs.at(pool_bwd::kDiff_dst), eng_, alc};
+            diff_dst = tensor {inputs.at(pool_bwd::kDiff_dst), p_engine_, alc};
         }
 
-        tensor diff_src {outputs.at(pool_bwd::kDiff_src), eng_, alc};
-        pooling_backward::compute(diff_dst, src, diff_src, eng_, alc, indices);
+        tensor diff_src {outputs.at(pool_bwd::kDiff_src), p_engine_, alc};
+        pooling_backward::compute(
+                diff_dst, src, diff_src, p_engine_, alc, p_stream_, indices);
         return impl::status::success;
     }
 };

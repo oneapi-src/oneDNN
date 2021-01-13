@@ -67,16 +67,15 @@ struct bn_fusion {
     static void folding(tensor *updated_weights, tensor *updated_bias,
             const tensor &weights, const tensor &bias, const tensor &mean,
             const tensor &variance, const tensor &scale, const tensor &shift,
-            float epsilon, const dnnl::engine &eng, impl::allocator_t *alc) {
+            float epsilon, const impl::stream_t &g_stream) {
         const data_type weights_dtype = weights.get_data_type();
 #ifdef DNNL_GRAPH_WITH_SYCL
         BACKEND_DNNL_TYPE_DISPATCH(weights_dtype, dtype, {
             folding_sycl_impl<dtype>(updated_weights, updated_bias, weights,
-                    bias, mean, variance, scale, shift, epsilon, eng, alc);
+                    bias, mean, variance, scale, shift, epsilon, g_stream);
         });
 #else
-        UNUSED(eng);
-        UNUSED(alc);
+        UNUSED(g_stream);
         BACKEND_DNNL_TYPE_DISPATCH(weights_dtype, dtype, {
             folding_impl<dtype>(updated_weights, updated_bias, weights, bias,
                     mean, variance, scale, shift, epsilon);
@@ -134,9 +133,8 @@ private:
     static void folding_sycl_impl(tensor *updated_weights, tensor *updated_bias,
             const tensor &weights, const tensor &bias, const tensor &mean,
             const tensor &variance, const tensor &scale, const tensor &shift,
-            float epsilon, const dnnl::engine &eng, impl::allocator_t *alc) {
-        sycl::queue q(dnnl::sycl_interop::get_context(eng),
-                dnnl::sycl_interop::get_device(eng));
+            float epsilon, const impl::stream_t &g_stream) {
+        sycl::queue q = g_stream.get_queue();
         const size_t num_channel = static_cast<size_t>(mean.get_dim(0));
         dtype *weights_ptr = static_cast<dtype *>(weights.get_data_handle());
         dtype *bias_ptr = !bias.is_empty()
@@ -157,26 +155,26 @@ private:
         dtype *updated_bias_ptr
                 = static_cast<dtype *>(updated_bias->get_data_handle());
         q.submit([&](sycl::handler &h) {
-             h.parallel_for(sycl::range<1> {num_channel}, [=](sycl::id<1> it) {
-                 const int i = it[0];
-                 dtype alpha
-                         = scale_ptr[i] / sycl::sqrt(variance_ptr[i] + epsilon);
+            h.parallel_for(sycl::range<1> {num_channel}, [=](sycl::id<1> it) {
+                const int i = it[0];
+                dtype alpha
+                        = scale_ptr[i] / sycl::sqrt(variance_ptr[i] + epsilon);
 
-                 auto nth_src = weights_ptr + i * volume_per_channel;
-                 auto nth_dst = updated_weights_ptr + i * volume_per_channel;
+                auto nth_src = weights_ptr + i * volume_per_channel;
+                auto nth_dst = updated_weights_ptr + i * volume_per_channel;
 
-                 for (size_t k = 0; k < volume_per_channel; ++k) {
-                     nth_dst[k] = alpha * nth_src[k];
-                 }
+                for (size_t k = 0; k < volume_per_channel; ++k) {
+                    nth_dst[k] = alpha * nth_src[k];
+                }
 
-                 if (bias_ptr) {
-                     updated_bias_ptr[i] = alpha * (bias_ptr[i] - mean_ptr[i])
-                             + shift_ptr[i];
-                 } else {
-                     updated_bias_ptr[i] = shift_ptr[i] - alpha * mean_ptr[i];
-                 }
-             });
-         }).wait();
+                if (bias_ptr) {
+                    updated_bias_ptr[i] = alpha * (bias_ptr[i] - mean_ptr[i])
+                            + shift_ptr[i];
+                } else {
+                    updated_bias_ptr[i] = shift_ptr[i] - alpha * mean_ptr[i];
+                }
+            });
+        });
     }
 #endif
 };

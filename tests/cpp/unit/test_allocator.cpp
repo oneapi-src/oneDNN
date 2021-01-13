@@ -45,7 +45,7 @@ TEST(allocator_test, default_sycl_allocator) {
     namespace sycl = cl::sycl;
     namespace impl = dnnl::graph::impl;
     impl::allocator_t alloc {};
-    sycl::queue q {sycl::gpu_selector {}};
+    sycl::queue q {sycl::gpu_selector {}, sycl::property::queue::in_order {}};
 
     impl::allocator_t::attribute attr {
             impl::allocator_lifetime::persistent, 4096};

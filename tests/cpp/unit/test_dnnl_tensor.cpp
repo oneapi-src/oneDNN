@@ -53,6 +53,8 @@ TEST(dnnl_tensor, reinit) {
     impl::engine_t graph_eng = get_engine();
     dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
     impl::allocator_t *alc = graph_eng.get_allocator();
+    impl::stream_t &graph_stream = get_stream();
+    dnnl::stream s = dnnl_impl::make_dnnl_stream(dnnl_eng, graph_stream);
 
     const dims adims = {8, 32, 64, 64};
     const data_type adata_type = data_type::f32;
@@ -64,7 +66,8 @@ TEST(dnnl_tensor, reinit) {
     // empty tensor have no engine, so can't be
     // reinit through this method
     tensor t3;
-    bool ret = t3.reinit_if_possible(td);
+    bool ret = t3.reinit_if_possible(s, td);
+    graph_stream.wait();
     ASSERT_FALSE(ret);
 
     // if expected desc is different from this desc,
@@ -72,7 +75,8 @@ TEST(dnnl_tensor, reinit) {
     tensor::desc td4 {adims, adata_type, format_tag::abdc};
     test::vector<float> buffer(td4.get_size());
     tensor t4(td4, dnnl_eng, alc, buffer.data());
-    t4.reinit_if_possible(td);
+    t4.reinit_if_possible(s, td);
+    graph_stream.wait();
     ASSERT_NE(buffer.data(), t4.get_data_handle());
 }
 
@@ -80,6 +84,8 @@ TEST(dnnl_tensor, reorder) {
     impl::engine_t graph_eng = get_engine();
     dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
     impl::allocator_t *alc = graph_eng.get_allocator();
+    impl::stream_t &graph_stream = get_stream();
+    dnnl::stream s = dnnl_impl::make_dnnl_stream(dnnl_eng, graph_stream);
 
     const dims adims = {8, 32, 64, 64};
     const data_type adata_type = data_type::f32;
@@ -89,7 +95,8 @@ TEST(dnnl_tensor, reorder) {
     tensor t1 {td, dnnl_eng, alc};
 
     tensor::desc td2 {adims, adata_type, format_tag::abdc};
-    tensor t2 = t1.reorder_if_differ_in(td2);
+    tensor t2 = t1.reorder_if_differ_in(s, td2);
+    graph_stream.wait();
     ASSERT_FALSE(t2.is_empty());
 }
 
@@ -114,6 +121,8 @@ TEST(dnnl_tensor, reshape) {
     impl::engine_t graph_eng = get_engine();
     dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
     impl::allocator_t *alc = graph_eng.get_allocator();
+    impl::stream_t &graph_stream = get_stream();
+    dnnl::stream s = dnnl_impl::make_dnnl_stream(dnnl_eng, graph_stream);
 
     const dims adims = {8, 32, 4, 4};
     const data_type adata_type = data_type::f32;
@@ -124,7 +133,8 @@ TEST(dnnl_tensor, reshape) {
 
     const dims new_shape = {16, 16, 2, 8};
 
-    t1.reshape(new_shape);
+    t1.reshape(s, new_shape);
+    graph_stream.wait();
     ASSERT_EQ(t1.get_dims(), new_shape);
 }
 
@@ -132,6 +142,8 @@ TEST(dnnl_tensor, to_format) {
     impl::engine_t graph_eng = get_engine();
     dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
     impl::allocator_t *alc = graph_eng.get_allocator();
+    impl::stream_t &graph_stream = get_stream();
+    dnnl::stream s = dnnl_impl::make_dnnl_stream(dnnl_eng, graph_stream);
 
     const dims adims = {8, 32, 4, 4};
     const data_type adata_type = data_type::f32;
@@ -140,7 +152,8 @@ TEST(dnnl_tensor, to_format) {
     tensor::desc td {adims, adata_type, aformat_tag};
     tensor t1 {td, dnnl_eng, alc};
 
-    t1.to_format(format_tag::abdc);
+    t1.to_format(s, format_tag::abdc);
+    graph_stream.wait();
     ASSERT_EQ(t1.get_desc().get_format_tag(), format_tag::abdc);
 }
 
@@ -148,6 +161,8 @@ TEST(dnnl_tensor, to_public) {
     impl::engine_t graph_eng = get_engine();
     dnnl::engine dnnl_eng = dnnl_impl::make_dnnl_engine(graph_eng);
     impl::allocator_t *alc = graph_eng.get_allocator();
+    impl::stream_t &graph_stream = get_stream();
+    dnnl::stream s = dnnl_impl::make_dnnl_stream(dnnl_eng, graph_stream);
 
     const dims adims = {8, 32, 64, 84};
     const data_type adata_type = data_type::f32;
@@ -156,7 +171,8 @@ TEST(dnnl_tensor, to_public) {
     tensor::desc td {adims, adata_type, aformat_tag};
     tensor t1 {td, dnnl_eng, alc};
 
-    tensor t2 = t1.to_public();
+    tensor t2 = t1.to_public(s);
+    graph_stream.wait();
     ASSERT_TRUE(t2.is_public_format());
 }
 

@@ -230,7 +230,7 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
     /// Define SYCL queue (code outside of oneDNN graph)
     /// @snippet sycl_simple_pattern.cpp Define sycl queue
     //[Define sycl queue]
-    sycl::queue q = (engine_kind == engine::kind::gpu) ? sycl::queue(gpu_selector {}) : sycl::queue(cpu_selector {});
+    sycl::queue q = (engine_kind == engine::kind::gpu) ? sycl::queue(gpu_selector {}, sycl::property::queue::in_order {}) : sycl::queue(cpu_selector {}, sycl::property::queue::in_order {});
     //[Define sycl queue]
 
     /// Create a #dnnl::graph::engine based on SYCL device and context. Also, set a
@@ -401,6 +401,7 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
     std::vector<tensor> in_list_1 {relu0_dst, conv1_weight, conv1_bias};
     std::vector<tensor> out_list_1 {relu1_dst};
     sycl_interop::execute(cp1, strm, in_list_1, out_list_1);
+    strm.wait();
     //[Execute compiled partition 1]
     std::cout << "Success!\n";
 

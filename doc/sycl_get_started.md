@@ -50,7 +50,7 @@ graph g(engine_kind);
 
 To build a graph, the connection relationship of different ops must be known. In
 oneDNN graph, the `id` of
-[`dnnl::graph::logical_tensor`](../include/oneapi/dnnl/dnnl_graph.hpp#L282) is
+[`dnnl::graph::logical_tensor`](../include/oneapi/dnnl/dnnl_graph.hpp#L290) is
 used to express such relationship. Besides that, a logical tensor describes the
 metadata of a tensor, like element data type, number of dimensions, size for
 each dimension (shape), layout, and the total size of the data.
@@ -107,7 +107,7 @@ g.add_op(conv0_bias_add);
 g.add_op(conv1_bias_add);
 ~~~
 
-Then by calling [`get_partitions()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1200),
+Then by calling [`get_partitions()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1211),
 users can get several partitions. In this example, there should be two
 partitions: `conv0+relu0` and `conv1+relu1`.
 
@@ -197,7 +197,7 @@ auto relu1_dst_data = (float *)malloc_shared(static_cast<size_t>(product(dst1_di
 ~~~
 
 Before the execution, users also need to bind the logical tensor and memory
-buffer to [dnnl::graph::tensor](../include/oneapi/dnnl/dnnl_graph.hpp#L530).
+buffer to [dnnl::graph::tensor](../include/oneapi/dnnl/dnnl_graph.hpp#L538).
 
 ~~~cpp
 tensor conv0_src(conv0_src_desc_plain, conv0_src_data);

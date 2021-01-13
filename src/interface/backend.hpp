@@ -193,10 +193,10 @@ public:
     }
 
     // convert a tensor in private layout to public layout
-    virtual bool to_public(
-            const tensor_t &input, tensor_t &output, engine_t &aengine) {
+    virtual bool to_public(const tensor_t &input, tensor_t &output,
+            engine_t &aengine, stream_t &astream) {
         if (!is_interpretable(input)) return false;
-        return to_public_impl(input, output, aengine);
+        return to_public_impl(input, output, aengine, astream);
     }
 
     // check wheather two logical tensor is similar (similar means two
@@ -216,8 +216,8 @@ private:
             const std::vector<logical_tensor_t> &outputs)
             = 0;
 
-    virtual bool to_public_impl(
-            const tensor_t &input, tensor_t &output, engine_t &aengine)
+    virtual bool to_public_impl(const tensor_t &input, tensor_t &output,
+            engine_t &aengine, stream_t &astream)
             = 0;
 
     // This is a default impl. The default impl regards two logical tensors

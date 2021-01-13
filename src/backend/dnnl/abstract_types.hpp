@@ -36,6 +36,7 @@
 
 #include "interface/allocator.hpp"
 #include "interface/engine.hpp"
+#include "interface/stream.hpp"
 
 #if DNNL_GRAPH_WITH_SYCL
 #include "dnnl_sycl.hpp"
@@ -78,37 +79,49 @@ const size_t DNNL_CPU_MEMALIGNMENT = 4096;
 const size_t DNNL_SYCL_MEMALIGNMENT = 16;
 #endif
 
-inline dnnl::engine make_dnnl_engine(const impl::engine_t &eng) {
+inline dnnl::engine make_dnnl_engine(const impl::engine_t &g_engine) {
 #if DNNL_GRAPH_WITH_SYCL
     return dnnl::sycl_interop::make_engine(
-            eng.sycl_device(), eng.sycl_context());
+            g_engine.sycl_device(), g_engine.sycl_context());
 #else
-    return dnnl::engine(static_cast<dnnl::engine::kind>(eng.kind()),
-            static_cast<size_t>(eng.device_id()));
+    return dnnl::engine(static_cast<dnnl::engine::kind>(g_engine.kind()),
+            static_cast<size_t>(g_engine.device_id()));
+#endif
+}
+
+inline dnnl::stream make_dnnl_stream(
+        const dnnl::engine &p_engine, const impl::stream_t &g_stream) {
+#if DNNL_GRAPH_WITH_SYCL
+    return dnnl::sycl_interop::make_stream(
+            p_engine, const_cast<cl::sycl::queue &>(g_stream.get_queue()));
+#else
+    UNUSED(g_stream);
+    return dnnl::stream(p_engine);
 #endif
 }
 
 struct allocator {
-    static void *malloc(size_t size, const dnnl::engine &eng,
+    static void *malloc(size_t size, const dnnl::engine &p_engine,
             const impl::allocator_t *alc) {
 #if DNNL_GRAPH_WITH_SYCL
-        return alc->allocate(size, dnnl::sycl_interop::get_device(eng),
-                dnnl::sycl_interop::get_context(eng),
+        return alc->allocate(size, dnnl::sycl_interop::get_device(p_engine),
+                dnnl::sycl_interop::get_context(p_engine),
                 {impl::allocator_lifetime::persistent, DNNL_SYCL_MEMALIGNMENT});
 #else
-        return eng.get_kind() == dnnl::engine::kind::cpu ? alc->allocate(size,
-                       {impl::allocator_lifetime::persistent,
-                               DNNL_CPU_MEMALIGNMENT})
-                                                         : nullptr;
+        return p_engine.get_kind() == dnnl::engine::kind::cpu
+                ? alc->allocate(size,
+                        {impl::allocator_lifetime::persistent,
+                                DNNL_CPU_MEMALIGNMENT})
+                : nullptr;
 #endif
     }
 
-    static void free(
-            void *p, const dnnl::engine &eng, const impl::allocator_t *alc) {
+    static void free(void *p, const dnnl::engine &p_engine,
+            const impl::allocator_t *alc) {
 #if DNNL_GRAPH_WITH_SYCL
-        return alc->deallocate(p, dnnl::sycl_interop::get_context(eng));
+        return alc->deallocate(p, dnnl::sycl_interop::get_context(p_engine));
 #else
-        if (eng.get_kind() == dnnl::engine::kind::cpu)
+        if (p_engine.get_kind() == dnnl::engine::kind::cpu)
             return alc->deallocate(p);
         else
             return;

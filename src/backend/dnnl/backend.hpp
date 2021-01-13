@@ -53,7 +53,7 @@ class dnnl_executable : public executable {
         : kernel_(kernel), node_(node) {}
 
 public:
-    virtual impl::status_t execute(const impl::stream_t *astream,
+    virtual impl::status_t execute(const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override;
 
@@ -86,12 +86,13 @@ private:
     virtual size_t get_mem_size_impl(const impl::logical_tensor_t &lt) override;
 
     virtual executable::ptr compile_impl(const partition_t *p,
-            const engine_t *aengine,
+            const engine_t *g_engine,
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs) override;
 
     virtual bool to_public_impl(const impl::tensor_t &input,
-            impl::tensor_t &output, impl::engine_t &aengine) override;
+            impl::tensor_t &output, impl::engine_t &aengine,
+            impl::stream_t &g_stream) override;
 
     virtual bool is_similar_impl(const impl::logical_tensor_t &lhs,
             const impl::logical_tensor_t &rhs) override;

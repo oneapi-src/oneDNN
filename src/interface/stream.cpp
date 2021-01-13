@@ -109,6 +109,10 @@ status_t DNNL_GRAPH_API dnnl_graph_stream_create_sycl_with_attr(
 #endif
 }
 
+status_t DNNL_GRAPH_API dnnl_graph_stream_wait(stream_t *stream) {
+    return stream->wait();
+}
+
 status_t DNNL_GRAPH_API dnnl_graph_stream_destroy(stream_t *stream) {
     delete stream;
     return status::success;
