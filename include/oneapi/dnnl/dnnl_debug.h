@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ const char DNNL_API *dnnl_rnn_direction2str(dnnl_rnn_direction_t v);
 const char DNNL_API *dnnl_engine_kind2str(dnnl_engine_kind_t v);
 const char DNNL_API *dnnl_scratchpad_mode2str(dnnl_scratchpad_mode_t v);
 const char DNNL_API *dnnl_cpu_isa2str(dnnl_cpu_isa_t v);
+const char DNNL_API *dnnl_cpu_isa_hints2str(dnnl_cpu_isa_hints_t v);
 
 const char DNNL_API *dnnl_runtime2str(unsigned v);
 
