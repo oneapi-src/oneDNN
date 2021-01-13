@@ -734,7 +734,8 @@ size_t jit_avx512_core_amx_fwd_kernel_t::get_inp_offset(int ohb, int kw) const {
     if (jcp.is_relo)
         return ohb * jcp.iwp * jcp.kh * jcp.ic_block_int_np * jcp.typesize_in;
     // calculate offset by height dimension
-    const int gen_stride_h = nstl::min(jcp.stride_h, jcp.kh);
+    const int gen_kh = (jcp.kh - 1) * (jcp.dilate_h + 1) + 1;
+    const int gen_stride_h = nstl::min(jcp.stride_h, gen_kh);
     size_t el_offset = (size_t)ohb * jcp.oh_per_tile * gen_stride_h * jcp.iwp
             * jcp.ic_block_int_np;
 

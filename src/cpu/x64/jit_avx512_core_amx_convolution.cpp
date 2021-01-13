@@ -362,7 +362,8 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
 
             int oh_step = jcp.nb_oh_blocking * jcp.oh_per_tile;
             for (int oh = oh_s; oh < oh_e; oh += oh_step) {
-                const int gen_stride_h = nstl::min(jcp.stride_h, jcp.kh);
+                const int gen_kh = ((jcp.kh - 1) * (jcp.dilate_h + 1) + 1);
+                const int gen_stride_h = nstl::min(jcp.stride_h, gen_kh);
                 if (!is_inp_buffer_relevant) {
                     const int iw = nstl::max(
                             0, owb * jcp.ow_block * jcp.stride_w - jcp.l_pad);
@@ -375,7 +376,6 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                     // the current implementation of copy routine is not
                     // optimal for small jcp.oh_blk_size as it copies
                     // dilation rows to buffer
-                    const int gen_kh = ((jcp.kh - 1) * (jcp.dilate_h + 1) + 1);
                     const bool continuous_copy = gen_kh >= jcp.stride_h;
                     int current_oh_block = nstl::min(oh_e - oh, oh_step);
                     int num_copy_calls = continuous_copy ? 1 : current_oh_block;
