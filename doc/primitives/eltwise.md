@@ -13,10 +13,12 @@ The eltwise primitive applies an operation to every element of the tensor (the
 variable names follow the standard @ref dev_guide_conventions):
 
 \f[
-    \dst(\overline{s}) = Operation(\src(\overline{s})),
+    \dst_{i_1, \ldots, i_k} = Operation\left(\src_{i_1, \ldots, i_k}\right).
 \f]
 
-where \f$\overline{s} = (s_n, .., s_0)\f$.
+For notational convenience, in the formulas below we will denote individual
+element of \src, \dst, \diffsrc, and \diffdst tensors via s, d, ds, and dd
+respectively.
 
 The following operations are supported:
 
@@ -28,7 +30,7 @@ The following operations are supported:
 | clip_v2      | #dnnl_eltwise_clip_v2 <br> #dnnl_eltwise_clip_v2_use_dst_for_bwd   | \f$ d = \begin{cases} \beta & \text{if}\ s \geq \beta \geq \alpha \\ s & \text{if}\ \alpha < s < \beta \\ \alpha & \text{if}\ s \leq \alpha \end{cases} \f$ | \f$ ds = \begin{cases} dd & \text{if}\ \alpha < s < \beta \\ 0 & \text{otherwise}\ \end{cases} \f$                                           | \f$ ds = \begin{cases} dd & \text{if}\ \alpha < d < \beta \\ 0 & \text{otherwise}\ \end{cases} \f$                     |
 | elu          | #dnnl_eltwise_elu <br> #dnnl_eltwise_elu_use_dst_for_bwd           | \f$ d = \begin{cases} s & \text{if}\ s > 0 \\ \alpha (e^s - 1) & \text{if}\ s \leq 0 \end{cases} \f$                                                        | \f$ ds = \begin{cases} dd & \text{if}\ s > 0 \\ dd \cdot \alpha e^s & \text{if}\ s \leq 0 \end{cases} \f$                                    | \f$ ds = \begin{cases} dd & \text{if}\ d > 0 \\ dd \cdot (d + \alpha) & \text{if}\ d \leq 0 \end{cases}. See\ (2). \f$ |
 | exp          | #dnnl_eltwise_exp <br> #dnnl_eltwise_exp_use_dst_for_bwd           | \f$ d = e^s \f$                                                                                                                                             | \f$ ds = dd \cdot e^s \f$                                                                                                                    | \f$ ds = dd \cdot d \f$                                                                                                |
-| gelu_erf     | #dnnl_eltwise_gelu_erf                                             | \f$ d = 0.5 s (1 + \mathop{erf}[\frac{s}{\sqrt{2}}])\f$                                                                                                     | \f$ ds = dd \cdot \left(0.5 + 0.5 \, \mathop{erf}\left({\frac{s}{\sqrt{2}}}\right) + \frac{s}{\sqrt{2\pi}}e^{-0.5s^{2}}\right) \f$           | --                                                                                                                     |
+| gelu_erf     | #dnnl_eltwise_gelu_erf                                             | \f$ d = 0.5 s (1 + \operatorname{erf}[\frac{s}{\sqrt{2}}])\f$                                                                                                     | \f$ ds = dd \cdot \left(0.5 + 0.5 \, \operatorname{erf}\left({\frac{s}{\sqrt{2}}}\right) + \frac{s}{\sqrt{2\pi}}e^{-0.5s^{2}}\right) \f$           | --                                                                                                                     |
 | gelu_tanh    | #dnnl_eltwise_gelu_tanh                                            | \f$ d = 0.5 s (1 + \tanh[\sqrt{\frac{2}{\pi}} (s + 0.044715 s^3)])\f$                                                                                       | \f$ See\ (1). \f$                                                                                                                            | --                                                                                                                     |
 | hardswish    | #dnnl_eltwise_hardswish                                            | \f$ d = \begin{cases} s & \text{if}\ s > 3 \\ s \cdot \frac{s + 3}{6} & \text{if}\ -3 < s \leq 3 \\ 0 & \text{otherwise} \end{cases} \f$                    | \f$ ds = \begin{cases} dd & \text{if}\ s > 3 \\ dd \cdot \frac{2s + 3}{6} & \text{if}\ -3 < s \leq 3 \\ 0 & \text{otherwise} \end{cases} \f$ | --                                                                                                                     |
 | linear       | #dnnl_eltwise_linear                                               | \f$ d = \alpha s + \beta \f$                                                                                                                                | \f$ ds = \alpha \cdot dd \f$                                                                                                                 | --                                                                                                                     |
@@ -45,7 +47,7 @@ The following operations are supported:
 | swish        | #dnnl_eltwise_swish                                                | \f$ d = \frac{s}{1+e^{-\alpha s}} \f$                                                                                                                       | \f$ ds = \frac{dd}{1 + e^{-\alpha s}}(1 + \alpha s (1 - \frac{1}{1 + e^{-\alpha s}})) \f$                                                    | --                                                                                                                     |
 | tanh         | #dnnl_eltwise_tanh <br> #dnnl_eltwise_tanh_use_dst_for_bwd         | \f$ d = \tanh{s} \f$                                                                                                                                        | \f$ ds = dd \cdot (1 - \tanh^2{s}) \f$                                                                                                       | \f$ ds = dd \cdot (1 - d^2) \f$                                                                                        |
 
-\f$ (1)\ ds = dd \cdot 0.5 (1 + tanh[\sqrt{\frac{2}{\pi}} (s + 0.044715 s^3)]) \cdot (1 + \sqrt{\frac{2}{\pi}} (s + 0.134145 s^3) \cdot (1 -  tanh[\sqrt{\frac{2}{\pi}} (s + 0.044715 s^3)]) ) \f$
+\f$ (1)\ ds = dd \cdot 0.5 (1 + \tanh[\sqrt{\frac{2}{\pi}} (s + 0.044715 s^3)]) \cdot (1 + \sqrt{\frac{2}{\pi}} (s + 0.134145 s^3) \cdot (1 -  \tanh[\sqrt{\frac{2}{\pi}} (s + 0.044715 s^3)]) ) \f$
 
 \f$ (2)\ \text{Operation is supported only for } \alpha \geq 0. \f$
 
@@ -58,10 +60,9 @@ and #dnnl_forward_inference propagation kinds.
 
 ### Backward
 
-The backward propagation computes \f$\diffsrc(\overline{s})\f$, based on
-\f$\diffdst(\overline{s})\f$ and \f$\src(\overline{s})\f$. However, some
-operations support a computation using \f$\dst(\overline{s})\f$ memory produced
-during forward propagation. Refer to the table above for a list of operations
+The backward propagation computes \diffsrc based on \diffdst and \src tensors.
+However, some operations support a computation using \dst memory produced during
+the forward propagation. Refer to the table above for a list of operations
 supporting destination as input memory and the corresponding formulas.
 
 #### Exceptions
