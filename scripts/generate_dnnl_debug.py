@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #===============================================================================
-# Copyright 2018-2020 Intel Corporation
+# Copyright 2018-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,8 +58,8 @@ def template(body, year_from):
 
 def header(body):
     return '''\
-#ifndef DNNL_DEBUG_H
-#define DNNL_DEBUG_H
+#ifndef ONEAPI_DNNL_DNNL_DEBUG_H
+#define ONEAPI_DNNL_DNNL_DEBUG_H
 
 /// @file
 /// Debug capabilities
