@@ -112,6 +112,7 @@ private:
     const Xbyak::Reg64 &reg_rem_mask_vlen_ = reg_rem_mask_short_;
     const Xbyak::Reg64 &reg_zp_pad_comp_temp_ = r10;
     const Xbyak::Reg64 &reg_zp_pad_comp_ = r11;
+    const Xbyak::Reg8 &reg_should_apply_src_pad_comp_ = r13b;
 
     const Xbyak::Reg64 &reg_tmp_comp_
             = r12; // used to broadcast scalar values to vreg
@@ -168,6 +169,7 @@ jit_pp_ker_t::jit_pp_ker_t(
                       ? utils::make_unique<
                               jit_gemm_x8s8s32x_zp_pad_comp_helper>(this, jcp_,
                               reg_zp_pad_comp_, reg_zp_pad_comp_temp_,
+                              reg_should_apply_src_pad_comp_,
                               pd->src_md()->ndims)
                       : nullptr)
 

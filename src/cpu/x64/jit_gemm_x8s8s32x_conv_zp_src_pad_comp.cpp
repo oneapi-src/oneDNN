@@ -28,7 +28,8 @@ namespace gemm_x8s8s32x_convolution_utils {
 jit_gemm_x8s8s32x_zp_pad_comp_helper::jit_gemm_x8s8s32x_zp_pad_comp_helper(
         jit_generator *host, const conv_gemm_conf_t &jcp,
         const Xbyak::Reg64 &reg_zp_pad_comp,
-        const Xbyak::Reg64 &reg_zp_pad_comp_temp, const dim_t ndims)
+        const Xbyak::Reg64 &reg_zp_pad_comp_temp,
+        const Xbyak::Reg8 &should_apply_zp_src_pad, const dim_t ndims)
     : host_(host)
     , jcp_(jcp)
     , w_addr_(host->qword[host_->rsp])
@@ -46,7 +47,7 @@ jit_gemm_x8s8s32x_zp_pad_comp_helper::jit_gemm_x8s8s32x_zp_pad_comp_helper(
     , w_under_lower_bound_(host->byte[host_->rsp + 82])
     , w_over_eq_upper_bound_(host->byte[host_->rsp + 83])
     , should_apply_zp_src_pad_comp_d_(host->byte[host_->rsp + 84])
-    , should_apply_zp_src_pad_(host->byte[host_->rsp + 85])
+    , should_apply_zp_src_pad_(should_apply_zp_src_pad)
     , lower_h_bound_(calculate_lower_bound_dim(jcp.zp.src_pad_comp.top_pad))
     , upper_h_bound_(
               calculate_upper_bound_dim(jcp.oh, jcp.zp.src_pad_comp.bottom_pad))

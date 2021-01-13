@@ -37,7 +37,8 @@ namespace gemm_x8s8s32x_convolution_utils {
 struct jit_gemm_x8s8s32x_zp_pad_comp_helper {
     jit_gemm_x8s8s32x_zp_pad_comp_helper(jit_generator *host,
             const conv_gemm_conf_t &jcp, const Xbyak::Reg64 &reg_zp_pad_comp,
-            const Xbyak::Reg64 &reg_zp_pad_comp_temp, const dim_t ndims);
+            const Xbyak::Reg64 &reg_zp_pad_comp_temp,
+            const Xbyak::Reg8 &should_apply_zp_src_pad, const dim_t ndims);
 
 public:
     void init(const dim_t off_w, const dim_t off_h, const dim_t off_w_size,
@@ -101,7 +102,7 @@ private:
     const Xbyak::Address w_under_lower_bound_;
     const Xbyak::Address w_over_eq_upper_bound_;
     const Xbyak::Address should_apply_zp_src_pad_comp_d_;
-    const Xbyak::Address should_apply_zp_src_pad_;
+    const Xbyak::Reg8 &should_apply_zp_src_pad_;
 
     const dim_t lower_h_bound_;
     const dim_t upper_h_bound_;
