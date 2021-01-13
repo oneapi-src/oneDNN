@@ -1413,10 +1413,10 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     const int gen_kw = (jcp.kw - 1) * (jcp.dilate_w + 1) + 1;
     jcp.back_pad = calculate_end_padding(
             jcp.f_pad, jcp.od, jcp.id, jcp.stride_d, gen_kd);
-    jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
-            - (jcp.ih + jcp.t_pad - 1);
-    jcp.r_pad = (jcp.ow - 1) * jcp.stride_w + (jcp.kw - 1) * (jcp.dilate_w + 1)
-            - (jcp.iw + jcp.l_pad - 1);
+    jcp.b_pad = calculate_end_padding(
+            jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, gen_kh);
+    jcp.r_pad = calculate_end_padding(
+            jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, gen_kw);
     if (jcp.l_pad >= gen_kw || jcp.r_pad >= gen_kw || jcp.t_pad >= gen_kh
             || jcp.b_pad >= gen_kh || jcp.f_pad >= gen_kd
             || jcp.back_pad >= gen_kd)
@@ -1643,10 +1643,10 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     const int oh_step_size = jcp.nb_oh_blocking * jcp.oh_per_tile;
     const int oh_blk_size = rnd_up(oh_blk_size_param, oh_step_size);
     jcp.oh_blk_size = rnd_up(nstl::min(jcp.oh, oh_blk_size), oh_step_size);
-    // ihp means here input buffer height including padding - the number
-    // of input rows required for computation of jcp.oh_blk_size output rows;
-    // if input row doesn't participate in computation of output any row it
-    // isn't copied to buffer at all (jcp.stride_h > jcp.kh case)
+    // Here ihp means the input buffer height including padding (ie the number
+    // of input rows required for computation of jcp.oh_blk_size output rows.
+    // If an input row doesn't participate in the computation of any output row,
+    // it isn't copied to the buffer at all (eg jcp.stride_h > gen_kh).
     jcp.ihp = jcp.is_relo
             ? jcp.oh_blk_size
             : (jcp.oh_blk_size - 1) * nstl::min(jcp.stride_h, gen_kh) + gen_kh;
@@ -2566,10 +2566,10 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     const int gen_kh = (jcp.kh - 1) * (jcp.dilate_h + 1) + 1;
     const int gen_kw = (jcp.kw - 1) * (jcp.dilate_w + 1) + 1;
-    jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
-            - (jcp.ih + jcp.t_pad - 1);
-    jcp.r_pad = (jcp.ow - 1) * jcp.stride_w + (jcp.kw - 1) * (jcp.dilate_w + 1)
-            - (jcp.iw + jcp.l_pad - 1);
+    jcp.b_pad = calculate_end_padding(
+            jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, gen_kh);
+    jcp.r_pad = calculate_end_padding(
+            jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, gen_kw);
     if (jcp.l_pad >= gen_kw || jcp.r_pad >= gen_kw || jcp.t_pad >= gen_kh
             || jcp.b_pad >= gen_kh)
         return status::unimplemented;
