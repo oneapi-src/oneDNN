@@ -99,8 +99,8 @@ private:
     const size_t dst_data_type_size_;
     const bool saturation_needed_;
 
-    const Xbyak::Reg64 &reg_param_ = param1;
-    const Xbyak::Reg64 &reg_tmp = rcx; // intentional for shifting purposes
+    const Xbyak::Reg64 &reg_param_ = rdi;
+    const Xbyak::Reg64 &reg_tmp_ = rcx; // intentional for shifting purposes
 
     const Xbyak::Reg64 &reg_dst_ = rdx;
     const Xbyak::Reg64 &reg_acc_ = rax;
@@ -118,7 +118,6 @@ private:
             = r12; // used to broadcast scalar values to vreg
     const Xbyak::Reg64 &reg_g_oc_off_ = reg_tmp_comp_;
     const Xbyak::Reg64 &reg_zp_src_comp_ = r14;
-    const Xbyak::Reg64 &reg_zp_dst_ = r15;
 
     const Xbyak::Zmm vreg_zero_;
     const Xbyak::Zmm vreg_scale_;
@@ -193,8 +192,7 @@ jit_pp_ker_t::jit_pp_ker_t(
                 use_exact_tail_scalar_bcast};
 #undef PARAM_OFF
 
-        const static_params_t static_params {
-                this->param1, rhs_arg_static_params};
+        const static_params_t static_params {reg_param_, rhs_arg_static_params};
 
         postops_injector_ = utils::make_unique<
                 injector::jit_uni_postops_injector_t<avx512_core>>(
@@ -333,7 +331,7 @@ void jit_pp_ker_t::apply_postops(const Xbyak::Reg64 &reg_dst, const int idx) {
             const auto dst_offset_reg = reg_dst;
             const auto vmm_idx = vreg_dst_idx(idx);
             rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                    vmm_idx, ptr[abi_param1 + PARAM_OFF(g_oc_offset)]);
+                    vmm_idx, ptr[reg_param_ + PARAM_OFF(g_oc_offset)]);
             rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
                     vmm_idx, reg_g_oc_off_);
             rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
@@ -344,7 +342,7 @@ void jit_pp_ker_t::apply_postops(const Xbyak::Reg64 &reg_dst, const int idx) {
 
             const injector_utils::register_preserve_guard_t register_guard(
                     this, {dst_offset_reg});
-            sub(dst_offset_reg, ptr[abi_param1 + PARAM_OFF(dst_orig)]);
+            sub(dst_offset_reg, ptr[reg_param_ + PARAM_OFF(dst_orig)]);
             const auto size = sizeof(jcp_.dst_data_type);
             if (size) shr(dst_offset_reg, std::log2(size));
 
@@ -383,6 +381,10 @@ void jit_pp_ker_t::generate() {
 
     preamble();
 
+#ifdef _WIN32
+    mov(reg_param_, rcx);
+#endif
+
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
     mov(reg_dst_, ptr[reg_param_ + PARAM_OFF(dst)]);
     mov(reg_acc_, ptr[reg_param_ + PARAM_OFF(acc)]);
@@ -402,8 +404,8 @@ void jit_pp_ker_t::generate() {
     }
 
     if (jcp_.zp.dst_exists) {
-        mov(reg_zp_dst_, ptr[reg_param_ + PARAM_OFF(zp_dst)]);
-        vcvtdq2ps(vreg_zp_dst_common_, ptr_b[reg_zp_dst_]);
+        mov(reg_tmp_, ptr[reg_param_ + PARAM_OFF(zp_dst)]);
+        vcvtdq2ps(vreg_zp_dst_common_, ptr_b[reg_tmp_]);
     }
 
     if (jcp_.with_sum)
@@ -591,34 +593,34 @@ void jit_pp_ker_t::generate() {
 
     // Prologue loop
     {
-        mov(reg_tmp, jcp_.oc);
-        sub(reg_tmp, reg_oc_offset_);
-        cmp(reg_tmp, reg_len_);
-        cmovg(reg_tmp, reg_len_);
-        sub(reg_len_, reg_tmp);
+        mov(reg_tmp_, jcp_.oc);
+        sub(reg_tmp_, reg_oc_offset_);
+        cmp(reg_tmp_, reg_len_);
+        cmovg(reg_tmp_, reg_len_);
+        sub(reg_len_, reg_tmp_);
 
         Label prologue_loop, prologue_loop_tail, prologue_loop_end;
-        cmp(reg_tmp, vlen);
+        cmp(reg_tmp_, vlen);
         jle(prologue_loop_tail, T_NEAR);
         L(prologue_loop);
         {
             compute(0, max_unroll_ - 1, false);
             advance_ptrs_imm(vlen, vlen);
-            sub(reg_tmp, vlen);
-            cmp(reg_tmp, vlen);
+            sub(reg_tmp_, vlen);
+            cmp(reg_tmp_, vlen);
             jge(prologue_loop, T_NEAR);
         }
 
         L(prologue_loop_tail);
         mov(reg_rem_mask_short_, 1);
-        // cl == reg_tmp because reg_tmp <= vlen here
+        // cl == reg_tmp_ because reg_tmp_ <= vlen here
         shl(reg_rem_mask_short_, cl);
         sub(reg_rem_mask_short_, 1);
         jz(prologue_loop_end, T_NEAR);
 
         kmovq(kreg_rem_mask_short_, reg_rem_mask_short_);
         compute(0, max_unroll_ - 1, true);
-        advance_ptrs_reg(reg_tmp, reg_tmp);
+        advance_ptrs_reg(reg_tmp_, reg_tmp_);
 
         L(prologue_loop_end);
         rewind_ptrs();
@@ -649,19 +651,19 @@ void jit_pp_ker_t::generate() {
             const int vlen_tail = OC_tail % vlen;
             if (vlen_tail) {
                 unsigned tail_mask = (1 << vlen_tail) - 1;
-                mov(reg_tmp, tail_mask);
-                kmovq(kreg_rem_mask_short_, reg_tmp);
+                mov(reg_tmp_, tail_mask);
+                kmovq(kreg_rem_mask_short_, reg_tmp_);
             }
 
             if (OC_loop) {
-                mov(reg_tmp, rnd_dn(jcp_.oc, OC_loop));
+                mov(reg_tmp_, rnd_dn(jcp_.oc, OC_loop));
                 Label oc_loop;
                 L(oc_loop);
                 {
                     for (size_t offset = 0; offset < OC_loop; offset += vlen)
                         compute(offset, offset / vlen, false);
                     advance_ptrs_imm(OC_loop, vlen);
-                    sub(reg_tmp, OC_loop);
+                    sub(reg_tmp_, OC_loop);
                     jnz(oc_loop);
                 }
             }
@@ -703,9 +705,10 @@ void jit_pp_ker_t::generate() {
         }
 
         L(epilogue_loop_tail);
-        mov(reg_tmp, reg_len_); // reg_tmp is rcx, and we need cl for the shift
+        mov(reg_tmp_,
+                reg_len_); // reg_tmp_ is rcx, and we need cl for the shift
         mov(reg_rem_mask_short_, 1);
-        shl(reg_rem_mask_short_, cl); // reg_tmp == rcx and reg_tail < vlen
+        shl(reg_rem_mask_short_, cl); // reg_tmp_ == rcx and reg_tail < vlen
         sub(reg_rem_mask_short_, 1);
         jz(epilogue_end, T_NEAR);
         kmovq(kreg_rem_mask_short_, reg_rem_mask_short_);
