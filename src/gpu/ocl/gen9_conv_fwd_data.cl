@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -703,6 +703,7 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
     if (WITH_SUM) { read_dst_block(S, dst, ow); }
 
+#if WITH_POST_OP
     if (OW_BLOCK == 1) {
         const int po_mb = mb;
         const int po_oc = (g * OC + oc) % (OC * G);
@@ -732,6 +733,7 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
             }
         }
     }
+#endif // #if WITH_POST_OP
 
     write_dst_block((DATA_T *)(&C), dst, ow);
 }
