@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1237,8 +1237,13 @@ public:
 } // namespace dnnl
 
 /// oneAPI namespace
+// Contains the oneapi::dnnl namespace as an alias to the ::dnnl namespace.
 namespace oneapi {
+// Note: without this guard, doxygen warns of potentially recursive namespace
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/// oneDNN alias namespace
 namespace dnnl = ::dnnl;
+#endif
 } // namespace oneapi
 
 /// For llga compatibility
