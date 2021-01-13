@@ -65,7 +65,7 @@ struct uni_reorder_t {
 
 #if defined(SELECTIVE_BUILD_ANALYZER)
 
-MKLDNN_DEF_PD_BUILDER(rpd_builder,
+DNNL_DEF_PD_BUILDER(rpd_builder,
             rpd_create_f,
             dnnl::impl::reorder_pd_t **,
             dnnl::impl::engine_t *,
@@ -75,17 +75,17 @@ MKLDNN_DEF_PD_BUILDER(rpd_builder,
             dnnl::impl::engine_t *,
             const dnnl::impl::memory_desc_t *);
 
-# define REG_REORDER_FN(...) REG_MKLDNN_FN(rpd_builder, __VA_ARGS__)
+# define REG_REORDER_FN(...) REG_DNNL_FN(rpd_builder, __VA_ARGS__)
 
-# define REG_SR_5(idt, ifmt, odt, ofmt, order) REG_MKLDNN_FN_7(rpd_builder, simple_reorder_t, idt, ifmt, odt, ofmt, order)
-# define REG_SR_6(idt, ifmt, odt, ofmt, order, spec) REG_MKLDNN_FN_8(rpd_builder, simple_reorder_t, idt, ifmt, odt, ofmt, order, spec)
+# define REG_SR_5(idt, ifmt, odt, ofmt, order) REG_DNNL_FN_7(rpd_builder, simple_reorder_t, idt, ifmt, odt, ofmt, order)
+# define REG_SR_6(idt, ifmt, odt, ofmt, order, spec) REG_DNNL_FN_8(rpd_builder, simple_reorder_t, idt, ifmt, odt, ofmt, order, spec)
 
 #else   // SELECTIVE_BUILD == ON || SELECTIVE_BUILD == OFF
 
-# define REG_REORDER_FN REG_MKLDNN_FN
+# define REG_REORDER_FN REG_DNNL_FN
 
-# define REG_SR_5(idt, ifmt, odt, ofmt, order) REG_MKLDNN_FN_6(simple_reorder_t, idt, ifmt, odt, ofmt, order)
-# define REG_SR_6(idt, ifmt, odt, ofmt, order, spec) REG_MKLDNN_FN_7(simple_reorder_t, idt, ifmt, odt, ofmt, order, spec)
+# define REG_SR_5(idt, ifmt, odt, ofmt, order) REG_DNNL_FN_6(simple_reorder_t, idt, ifmt, odt, ofmt, order)
+# define REG_SR_6(idt, ifmt, odt, ofmt, order, spec) REG_DNNL_FN_7(simple_reorder_t, idt, ifmt, odt, ofmt, order, spec)
 
 #endif
 
@@ -108,7 +108,7 @@ private:
 
 using impl_list_map_t = std::map<reorder_impl_key_t, std::vector<rpd_create_f>>;
 
-#define REG_SR(...) MKLDNN_MACRO_OVERLOAD(REG_SR, __VA_ARGS__)
+#define REG_SR(...) DNNL_MACRO_OVERLOAD(REG_SR, __VA_ARGS__)
 
 #define REG_SR_BIDIR(idt, ifmt, odt, ofmt) \
     REG_SR(idt, ifmt, odt, ofmt, fmt_order_keep) \

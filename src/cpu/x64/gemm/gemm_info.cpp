@@ -365,7 +365,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
                 if (mayiuse(avx512_core)) {
-                    MKLDNN_CSCOPE(jit_init_copy_kern_s8_avx512_core,
+                    DNNL_CSCOPE(jit_init_copy_kern_s8_avx512_core,
                         copy_a[no_trans][no_sum]
                                 = new jit_avx512_core_u8_copy_an_kern();
                         copy_a[do_trans][no_sum]
@@ -387,7 +387,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                 = new jit_avx512_core_u8_copy_sum_bt_kern(b_is_s8);
                     );
                 } else if (mayiuse(avx2)) {
-                    MKLDNN_CSCOPE(jit_init_copy_kern_s8_avx2,
+                    DNNL_CSCOPE(jit_init_copy_kern_s8_avx2,
                         copy_a[no_trans][no_sum] = new jit_avx2_u8_copy_an_kern();
                         copy_a[do_trans][no_sum] = new jit_avx2_u8_copy_at_kern();
 
@@ -405,7 +405,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                 = new jit_avx2_u8_copy_sum_bt_kern();
                     );
                 } else if (mayiuse(avx)) {
-                    MKLDNN_CSCOPE(jit_init_copy_kern_s8_avx,
+                    DNNL_CSCOPE(jit_init_copy_kern_s8_avx,
                         copy_a[no_trans][no_sum] = new jit_avx_u8_copy_an_kern();
                         copy_a[do_trans][no_sum] = new jit_avx_u8_copy_at_kern();
 
@@ -423,7 +423,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                 = new jit_avx_u8_copy_sum_bt_kern();
                     );
                 } else if (mayiuse(sse41)) {
-                    MKLDNN_CSCOPE(jit_init_copy_kern_s8_sse41,
+                    DNNL_CSCOPE(jit_init_copy_kern_s8_sse41,
                         copy_a[no_trans][no_sum] = new jit_sse41_u8_copy_an_kern();
                         copy_a[do_trans][no_sum] = new jit_sse41_u8_copy_at_kern();
 
@@ -445,7 +445,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
             case data_type::bf16:
                 if (mayiuse(avx512_core) && !use_bf16_ymm) {
-                    MKLDNN_CSCOPE(jit_init_copy_kern_bf16_avx512_core_nuse_bf16_ymm,
+                    DNNL_CSCOPE(jit_init_copy_kern_bf16_avx512_core_nuse_bf16_ymm,
                         copy_a[no_trans][no_sum]
                                 = new jit_avx512_core_s16_48x8_copy_an_kern();
                         copy_a[do_trans][no_sum]
@@ -457,7 +457,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                 = new jit_avx512_core_s16_48x8_copy_bt_kern();
                     );
                 } else if (mayiuse(avx512_core) && use_bf16_ymm) {
-                    MKLDNN_CSCOPE(jit_init_copy_kern_bf16_avx512_core_use_bf16_ymm,
+                    DNNL_CSCOPE(jit_init_copy_kern_bf16_avx512_core_use_bf16_ymm,
                         copy_a[no_trans][no_sum]
                                 = new jit_avx512_core_s16_24x8_copy_an_kern();
                         copy_a[do_trans][no_sum]
@@ -473,7 +473,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
             case data_type::f32:
                 if (mayiuse(avx512_core)) {
-                    MKLDNN_CSCOPE(jit_init_copy_kern_f32_avx512_core,
+                    DNNL_CSCOPE(jit_init_copy_kern_f32_avx512_core,
                         copy_a[no_trans][no_sum]
                                 = new jit_avx512_core_f32_copy_an_kern();
                         copy_a[do_trans][no_sum]
@@ -485,7 +485,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                 = new jit_avx512_core_f32_copy_bt_kern();
                     );
                 } else if (mayiuse(avx2)) {
-                    MKLDNN_CSCOPE(jit_init_copy_kern_f32_avx2,
+                    DNNL_CSCOPE(jit_init_copy_kern_f32_avx2,
                         copy_a[no_trans][no_sum] = new jit_avx2_f32_copy_an_kern();
                         copy_a[do_trans][no_sum] = new jit_avx2_f32_copy_at_kern();
 
@@ -493,7 +493,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                         copy_b[do_trans][no_sum] = new jit_avx2_f32_copy_bt_kern();
                     );
                 } else if (mayiuse(avx)) {
-                    MKLDNN_CSCOPE(jit_init_copy_kern_f32_avx,
+                    DNNL_CSCOPE(jit_init_copy_kern_f32_avx,
                         copy_a[no_trans][no_sum] = new jit_avx_f32_copy_an_kern();
                         copy_a[do_trans][no_sum] = new jit_avx_f32_copy_at_kern();
 
@@ -501,7 +501,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                         copy_b[do_trans][no_sum] = new jit_avx_f32_copy_bt_kern();
                     );
                 } else if (mayiuse(sse41)) {
-                    MKLDNN_CSCOPE(jit_init_copy_kern_f32_sse41,
+                    DNNL_CSCOPE(jit_init_copy_kern_f32_sse41,
                         copy_a[no_trans][no_sum] = new jit_sse41_f32_copy_an_kern();
                         copy_a[do_trans][no_sum] = new jit_sse41_f32_copy_at_kern();
 
@@ -522,7 +522,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
                 if (mayiuse(avx512_core_bf16_amx_int8)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_s8_avx512_core_bf16_amx_int8,
+                    DNNL_CSCOPE(jit_init_gemm_kern_s8_avx512_core_bf16_amx_int8,
                         for (int isBeta0 : {no_beta0, do_beta0}) {
                             kernel[isBeta0][do_alpha1][no_sum][no_sum]
                                     = new jit_avx512_core_amx_gemm_kern(
@@ -530,7 +530,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                         }
                     );
                 } else if (mayiuse(avx512_core)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_s8_avx512_core,
+                    DNNL_CSCOPE(jit_init_gemm_kern_s8_avx512_core,
                         for (int isBeta0 : {no_beta0, do_beta0})
                             for (int doColSum : {no_sum, do_sum})
                                 for (int doRowSum : {no_sum, do_sum}) {
@@ -540,7 +540,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                 }
                     );
                 } else if (mayiuse(avx2)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_s8_avx2,
+                    DNNL_CSCOPE(jit_init_gemm_kern_s8_avx2,
                         for (int isBeta0 : {no_beta0, do_beta0})
                             for (int doColSum : {no_sum, do_sum})
                                 for (int doRowSum : {no_sum, do_sum}) {
@@ -550,7 +550,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                 }
                     );
                 } else if (mayiuse(avx)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_s8_avx,
+                    DNNL_CSCOPE(jit_init_gemm_kern_s8_avx,
                         kernel[no_beta0][do_alpha1][no_sum][no_sum]
                                 = new jit_avx_kernel_gemm_s8u8s32_kern();
                         kernel[no_beta0][do_alpha1][do_sum][no_sum]
@@ -570,7 +570,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                 = new jit_avx_kernel_b0_b_gemm_s8u8s32_kern();
                     );
                 } else if (mayiuse(sse41)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_s8_sse41,
+                    DNNL_CSCOPE(jit_init_gemm_kern_s8_sse41,
                         kernel[no_beta0][do_alpha1][no_sum][no_sum]
                                 = new jit_sse41_kernel_gemm_s8u8s32_kern();
                         kernel[no_beta0][do_alpha1][do_sum][no_sum]
@@ -594,7 +594,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
             case data_type::bf16:
                 if (mayiuse(avx512_core_bf16_amx_bf16)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_bf16_avx512_core_bf16_amx_bf16,
+                    DNNL_CSCOPE(jit_init_gemm_kern_bf16_avx512_core_bf16_amx_bf16,
                         for (int isBeta0 : {no_beta0, do_beta0}) {
                             kernel[isBeta0][do_alpha1][no_sum][no_sum]
                                     = new jit_avx512_core_amx_gemm_kern(
@@ -602,7 +602,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                         }
                     );
                 } else if (mayiuse(avx512_core)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_bf16_avx512_core,
+                    DNNL_CSCOPE(jit_init_gemm_kern_bf16_avx512_core,
                         for (int isBeta0 : {no_beta0, do_beta0})
                             for (int isAlpha1 : {no_alpha1, do_alpha1}) {
                                 kernel[isBeta0][isAlpha1][no_sum][no_sum]
@@ -615,21 +615,21 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
             case data_type::f32:
                 if (mayiuse(avx2)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_f32_avx2,
+                    DNNL_CSCOPE(jit_init_gemm_kern_f32_avx2,
                         for (int isBeta0 : {no_beta0, do_beta0}) {
                             kernel[isBeta0][do_alpha1][no_sum][no_sum]
                                     = new jit_avx2_kernel_sgemm_kern(isBeta0);
                         }
                     );
                 } else if (mayiuse(avx)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_f32_avx,
+                    DNNL_CSCOPE(jit_init_gemm_kern_f32_avx,
                         kernel[no_beta0][do_alpha1][no_sum][no_sum]
                                 = new jit_avx_kernel_sgemm_kern;
                         kernel[do_beta0][do_alpha1][no_sum][no_sum]
                                 = new jit_avx_kernel_b0_sgemm_kern();
                     );
                 } else if (mayiuse(sse41)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_f32_sse41,
+                    DNNL_CSCOPE(jit_init_gemm_kern_f32_sse41,
                         kernel[no_beta0][do_alpha1][no_sum][no_sum]
                                 = new jit_sse41_kernel_sgemm_kern;
                         kernel[do_beta0][do_alpha1][no_sum][no_sum]
@@ -648,7 +648,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
                 if (mayiuse(avx512_core)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_s8_avx512_core_2,
+                    DNNL_CSCOPE(jit_init_gemm_kern_s8_avx512_core_2,
                         gemv_s8s8s32_kernel = new jit_avx512_core_gemv_s8x8s32_kern(
                                 ver_t::s8s8);
                         gemv_s8u8s32_kernel = new jit_avx512_core_gemv_s8x8s32_kern(
@@ -661,7 +661,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
             case data_type::bf16:
                 if (mayiuse(avx512_core)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_bf16_avx512_core_2,
+                    DNNL_CSCOPE(jit_init_gemm_kern_bf16_avx512_core_2,
                         for (int isTrans : {no_trans, do_trans})
                             gemv_kernel[isTrans]
                                     = new jit_avx512_core_gemv_bf16bf16f32_kern(
@@ -672,11 +672,11 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
             case data_type::f32:
                 if (mayiuse(avx)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_f32_avx_2,
+                    DNNL_CSCOPE(jit_init_gemm_kern_f32_avx_2,
                         gemv_kernel[do_trans] = new jit_avx_gemv_t_f32_kern();
                     );
                 } else if (mayiuse(sse41)) {
-                    MKLDNN_CSCOPE(jit_init_gemm_kern_f32_sse41_2,
+                    DNNL_CSCOPE(jit_init_gemm_kern_f32_sse41_2,
                         gemv_kernel[do_trans] = new jit_sse41_gemv_t_f32_kern();
                     );
                 }

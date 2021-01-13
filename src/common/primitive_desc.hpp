@@ -301,9 +301,9 @@ protected:
 };
 
 #if defined(SELECTIVE_BUILD_ANALYZER)
-# define MKLDNN_PRIMITIVE_MARKER OV_ITT_SCOPED_TASK(dnnl::FACTORY_MKLDNN, std::string("CREATE$CPUEngine$") + typeid(pd_t).name());
+# define DNNL_PRIMITIVE_MARKER OV_ITT_SCOPED_TASK(dnnl::FACTORY_DNNL, std::string("CREATE$CPUEngine$") + typeid(pd_t).name());
 #else
-# define MKLDNN_PRIMITIVE_MARKER
+# define DNNL_PRIMITIVE_MARKER
 #endif
 
 #define DECLARE_COMMON_PD_t(impl_name, impl_type, use_global_scratchpad) \
@@ -314,7 +314,7 @@ protected:
     } \
     status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
             engine_t *engine, bool is_primitive_nested) const override { \
-        MKLDNN_PRIMITIVE_MARKER \
+        DNNL_PRIMITIVE_MARKER \
         return primitive_t::create_primitive_common<impl_type, pd_t>( \
                 primitive, this, engine, use_global_scratchpad, \
                 is_primitive_nested); \

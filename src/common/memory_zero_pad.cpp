@@ -215,7 +215,7 @@ status_t typed_zero_pad(const memory_t *memory, stream_t *stream) {
 #define CASE(blksize_, blk_kind) \
     do { \
         if (blksize == (blksize_)) { \
-            MKLDNN_CSCOPE(MKLDNN_MACRO_CAT3(typed_zero_pad_blk_, blksize_, blk_kind), \
+            DNNL_CSCOPE(DNNL_MACRO_CAT3(typed_zero_pad_blk_, blksize_, blk_kind), \
                 typed_zero_pad_blk<dt, blk_kind, blksize_>(mdw, data); \
                 status = memory_storage->unmap_data(mapped_ptr, stream); \
                 assert(status == status::success); \

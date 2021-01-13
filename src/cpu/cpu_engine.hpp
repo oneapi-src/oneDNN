@@ -37,7 +37,7 @@ namespace cpu {
 template<typename pd_t>
 engine_t::primitive_desc_create_f primitive_desc_builder(const char *name) {
     OV_ITT_SCOPED_TASK(
-        dnnl::FACTORY_MKLDNN,
+        dnnl::FACTORY_DNNL,
         openvino::itt::handle<pd_t>(std::string("REG$CPUEngine$") + typeid(pd_t).name() + "$" + name));
     return &primitive_desc_t::create<pd_t>;
 }
@@ -46,7 +46,7 @@ engine_t::primitive_desc_create_f primitive_desc_builder(const char *name) {
 } // namespace impl
 } // namespace dnnl
 
-# define CPU_INSTANCE(...) MKLDNN_MACRO_OVERLOAD(CPU_INSTANCE, __VA_ARGS__),
+# define CPU_INSTANCE(...) DNNL_MACRO_OVERLOAD(CPU_INSTANCE, __VA_ARGS__),
 # define CPU_INSTANCE_1(name) dnnl::impl::cpu::primitive_desc_builder<name::pd_t>(OV_CC_TOSTRING(name))
 # define CPU_INSTANCE_2(name, arg1) dnnl::impl::cpu::primitive_desc_builder<name<arg1>::pd_t>(OV_CC_TOSTRING(name ## _ ## arg1))
 # define CPU_INSTANCE_3(name, arg1, arg2) dnnl::impl::cpu::primitive_desc_builder<name<arg1, arg2>::pd_t>(OV_CC_TOSTRING(name ## _ ## arg1 ## _ ## arg2))
@@ -57,9 +57,9 @@ engine_t::primitive_desc_create_f primitive_desc_builder(const char *name) {
 
 # define CPU_INSTANCE_BUILDER_0(...)
 # define CPU_INSTANCE_BUILDER_1(...) __VA_ARGS__,
-# define CPU_INSTANCE_BUILDER(name, ...) OV_CC_EXPAND(OV_CC_CAT(CPU_INSTANCE_BUILDER_, OV_CC_SCOPE_IS_ENABLED(OV_CC_CAT(MKLDNN_, name)))(__VA_ARGS__))
+# define CPU_INSTANCE_BUILDER(name, ...) OV_CC_EXPAND(OV_CC_CAT(CPU_INSTANCE_BUILDER_, OV_CC_SCOPE_IS_ENABLED(OV_CC_CAT(DNNL_, name)))(__VA_ARGS__))
 
-# define CPU_INSTANCE(...) MKLDNN_MACRO_OVERLOAD(CPU_INSTANCE, __VA_ARGS__)
+# define CPU_INSTANCE(...) DNNL_MACRO_OVERLOAD(CPU_INSTANCE, __VA_ARGS__)
 # define CPU_INSTANCE_1(name) CPU_INSTANCE_BUILDER(name, &primitive_desc_t::create<name::pd_t>)
 # define CPU_INSTANCE_2(name, arg1) CPU_INSTANCE_BUILDER(name ## _ ## arg1, &primitive_desc_t::create<name<arg1>::pd_t>)
 # define CPU_INSTANCE_3(name, arg1, arg2) CPU_INSTANCE_BUILDER(name ## _ ## arg1 ## _ ## arg2, &primitive_desc_t::create<name<arg1, arg2>::pd_t>)
@@ -68,7 +68,7 @@ engine_t::primitive_desc_create_f primitive_desc_builder(const char *name) {
 
 #else
 
-# define CPU_INSTANCE(...) MKLDNN_MACRO_OVERLOAD(CPU_INSTANCE, __VA_ARGS__),
+# define CPU_INSTANCE(...) DNNL_MACRO_OVERLOAD(CPU_INSTANCE, __VA_ARGS__),
 # define CPU_INSTANCE_1(name) &primitive_desc_t::create<name::pd_t>
 # define CPU_INSTANCE_2(name, arg1) &primitive_desc_t::create<name<arg1>::pd_t>
 # define CPU_INSTANCE_3(name, arg1, arg2) &primitive_desc_t::create<name<arg1, arg2>::pd_t>

@@ -31,7 +31,7 @@ namespace {
 // clang-format off
 #if defined(SELECTIVE_BUILD_ANALYZER)
 
-MKLDNN_DEF_PD_BUILDER(cpd_builder,
+DNNL_DEF_PD_BUILDER(cpd_builder,
             cpd_create_f,
             dnnl::impl::concat_pd_t **,
             dnnl::impl::engine_t *,
@@ -41,11 +41,11 @@ MKLDNN_DEF_PD_BUILDER(cpd_builder,
             int,
             const dnnl::impl::memory_desc_t *);
 
-# define CPD_INSTANCE(...) REG_MKLDNN_FN(cpd_builder, __VA_ARGS__)
+# define CPD_INSTANCE(...) REG_DNNL_FN(cpd_builder, __VA_ARGS__)
 
 #else   // !SELECTIVE_BUILD_ANALYZER
 
-# define CPD_INSTANCE REG_MKLDNN_FN
+# define CPD_INSTANCE REG_DNNL_FN
 
 #endif
 
