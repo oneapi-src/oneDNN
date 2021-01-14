@@ -22,8 +22,6 @@
 #include <chrono>
 #include <climits>
 #include <cstring>
-#include <dnnl.h>
-#include <dnnl.hpp>
 #include <iterator>
 #include <memory>
 #include <numeric>
@@ -31,8 +29,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-
-#include "interface/logical_tensor.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -60,36 +56,6 @@ constexpr bool one_of(T val, P item, Args... item_others) {
 template <typename T>
 inline bool any_le(const std::vector<T> &v, T i) {
     return std::any_of(v.begin(), v.end(), [i](T k) { return k <= i; });
-}
-
-inline memory::dims get_compatible_dilates(
-        const memory::dims &dilates, size_t input_size = 4) {
-    if (!dilates.empty() && !any_le(dilates, static_cast<dim>(0)))
-        return fmap(dilates, [](dim x) { return x - 1; });
-    if (4 == input_size) {
-        return {0, 0};
-    } else {
-        return {0, 0, 0};
-    }
-}
-
-inline memory::dims group_dims(const dims &adims, dim groups) {
-    auto new_dims = adims;
-    new_dims.insert(new_dims.begin(), groups);
-    new_dims[1] /= groups;
-    return new_dims;
-}
-
-inline std::pair<std::vector<float>, std::vector<float>> compute_scales(
-        float src_scale, float dst_scale, std::vector<float> weight_scales) {
-    auto scale_size = weight_scales.size();
-    std::vector<float> bias_scales(scale_size), op_scales(scale_size);
-
-    for (size_t i = 0; i < scale_size; i++) {
-        bias_scales[i] = src_scale * weight_scales[i];
-        op_scales[i] = dst_scale / bias_scales[i];
-    }
-    return std::make_pair(std::move(bias_scales), std::move(op_scales));
 }
 
 /** sorts an array of values using @p comparator. While sorting the array
@@ -121,18 +87,6 @@ inline T rnd_up(const T a, const T b) {
     return (a + b - 1) / b * b;
 }
 
-inline int op_scale_mask(dim scale_size) {
-    return scale_size > 1 ? 2 : 0;
-}
-
-inline int tensor_scale_mask(dim scale_size, bool grouped) {
-    return scale_size > 1 ? grouped ? 3 : 1 : 0;
-}
-
-inline int tensor_zp_mask(dim zp_size) {
-    return zp_size > 1 ? 1 : 0;
-}
-
 inline uintptr_t mod_ptr(void *ptr, size_t bytes) {
     return reinterpret_cast<uintptr_t>(ptr) & (bytes - 1);
 }
@@ -140,15 +94,6 @@ inline uintptr_t mod_ptr(void *ptr, size_t bytes) {
 inline bool is_aligned_ptr(void *ptr, size_t bytes) {
     return mod_ptr(ptr, bytes) == 0;
 }
-
-#define BACKEND_DNNL_TYPE_DISPATCH(type_enum, type_key, ...) \
-    switch (type_enum) { \
-        case data_type::f32: { \
-            using type_key = float; \
-            __VA_ARGS__ \
-        } break; \
-        default: error::wrap_c_api(dnnl_unimplemented, "Unimplemented type"); \
-    }
 
 } // namespace utils
 } // namespace dnnl_impl

@@ -14,10 +14,9 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "interface/partition.hpp"
-
-#include "backend/dnnl/backend.hpp"
-#include "backend/dnnl/operators.hpp"
+#include "backend.hpp"
+#include "operators.hpp"
+#include "tensor.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -97,10 +96,12 @@ dnnl_backend::dnnl_backend(std::string name, size_t id)
 
     // binary operators
     DNNL_REGISTER_KERNEL(Add, binary)
-    DNNL_REGISTER_KERNEL(BiasAdd, binary)
     DNNL_REGISTER_KERNEL(Multiply, binary)
     DNNL_REGISTER_KERNEL(Maximum, binary)
     DNNL_REGISTER_KERNEL(Minimum, binary)
+
+    // bias_add
+    DNNL_REGISTER_KERNEL(BiasAdd, bias_add)
 
     // elementwise related operators
     DNNL_REGISTER_KERNEL(Abs, eltwise_forward)

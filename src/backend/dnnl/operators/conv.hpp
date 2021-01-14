@@ -22,11 +22,11 @@
 #include <string>
 #include <vector>
 
-#include "backend/dnnl/abstract_types.hpp"
+#include "backend/dnnl/common.hpp"
+#include "backend/dnnl/legacy.hpp"
 #include "backend/dnnl/tensor.hpp"
 
 #include "bn_fusion.hpp"
-#include "common.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -572,7 +572,7 @@ private:
             const dims &pads_end, const dims &dilations, int64_t groups) {
         UNUSED(groups);
         std::vector<int64_t> kernel_size(static_cast<size_t>(x.ndims()));
-        auto dilations_ = utils::get_compatible_dilates(dilations);
+        auto dilations_ = get_compatible_dilates(dilations);
         if (kernel.ndims() == x.ndims() + 1) {
             BACKEND_DNNL_ENFORCE(groups > 1,
                     "Only group dnnl_conv2d weights could have been "
@@ -622,7 +622,7 @@ private:
         // make weights and dilates compatible with oneDNN
         const tensor::desc group_weights
                 = groups <= 1 ? weights : weights.to_grouped(groups);
-        auto com_dilates = utils::get_compatible_dilates(dilates);
+        auto com_dilates = get_compatible_dilates(dilates);
 
         op_attr = attr;
 
@@ -729,7 +729,7 @@ public:
         dilates_ = anode->get_attr<dims>("dilations");
 
         // make dilation aligned with oneDNN
-        dilates_ = utils::get_compatible_dilates(dilates_);
+        dilates_ = get_compatible_dilates(dilates_);
 
         pads_begin_ = anode->get_attr<dims>("pads_begin");
         pads_end_ = anode->get_attr<dims>("pads_end");
@@ -899,7 +899,7 @@ public:
         dilates_ = anode->get_attr<dims>("dilations");
 
         // make dilates compatible with oneDNN
-        dilates_ = utils::get_compatible_dilates(dilates_);
+        dilates_ = get_compatible_dilates(dilates_);
 
         pads_begin_ = anode->get_attr<dims>("pads_begin");
         pads_end_ = anode->get_attr<dims>("pads_end");

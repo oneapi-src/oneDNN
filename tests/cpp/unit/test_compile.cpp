@@ -833,42 +833,60 @@ TEST(operator_kernel, reversed_different_format_broadcast_add) {
 
 TEST(operator_kernel, bias_add) {
     impl::engine_t &eng = get_engine();
-
-    test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
-    test::vector<float> src1 {1.0, 2.0}; // bianary op's src1 support broadcast
-    test::vector<float> ref_dst {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
-            3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
-    test::vector<float> dst(src0.size(), 0.0);
-
-    impl::partition_t apartition;
-    impl::node_t bias_add_node(impl::op_kind::BiasAdd);
-    bias_add_node.set_attr<std::string>("backend", "dnnl");
-
     auto &op_factory = get_dnnl_kernel_registry();
-    auto bias_add_op = op_factory.create_kernel(bias_add_node);
-    ASSERT_TRUE(bias_add_op);
 
-    impl::logical_tensor_t src0_lt
-            = utils::logical_tensor_init(0, {1, 2, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t src1_lt = utils::logical_tensor_init(
-            1, std::vector<impl::dim_t> {2}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 2, 3, 3}, impl::data_type::f32);
+    test::vector<float> src {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    test::vector<float> bias {1.0, 2.0};
+    test::vector<float> ref_dst1 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+            3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
+    test::vector<float> ref_dst2 {2.0, 3.0, 2.0, 3.0, 2.0, 3.0, 2.0, 3.0, 2.0,
+            3.0, 2.0, 3.0, 2.0, 3.0, 2.0, 3.0, 2.0, 3.0};
+    test::vector<float> dst(src.size(), 0.0);
 
-    // compile the add operator
-    bias_add_op->compile(&bias_add_node, &eng, {src0_lt, src1_lt}, {dst_lt});
+    std::vector<std::vector<impl::dim_t>> src_shapes {
+            {1, 2, 3, 3}, {1, 3, 3, 2}};
+    std::vector<std::vector<impl::dim_t>> dst_shapes {
+            {1, 2, 3, 3}, {1, 3, 3, 2}};
+    std::vector<impl::dim_t> bias_shape {2};
+    std::vector<std::string> data_formats {"NCX", "NXC"};
 
-    impl::tensor_t src0_ts(src0_lt, src0.data());
-    impl::tensor_t src1_ts(src1_lt, src1.data());
-    impl::tensor_t dst_ts(dst_lt, dst.data());
+    for (size_t i = 0; i < data_formats.size(); i++) {
+        impl::node_t bias_add_node(impl::op_kind::BiasAdd);
+        bias_add_node.set_attr<std::string>("backend", "dnnl");
+        bias_add_node.set_attr<std::string>("data_format", data_formats[i]);
 
-    impl::stream_t &strm = get_stream();
-    bias_add_op->execute(&bias_add_node, &strm, {src0_ts, src1_ts}, {dst_ts});
-    strm.wait();
+        auto bias_add_op = op_factory.create_kernel(bias_add_node);
+        ASSERT_TRUE(bias_add_op);
 
-    for (size_t i = 0; i < src0.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, src_shapes[i], impl::data_type::f32);
+        impl::logical_tensor_t bias_lt = utils::logical_tensor_init(
+                1, bias_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                2, dst_shapes[i], impl::data_type::f32);
+
+        // compile the add operator
+        bias_add_op->compile(&bias_add_node, &eng, {src_lt, bias_lt}, {dst_lt});
+
+        impl::tensor_t src_ts(src_lt, src.data());
+        impl::tensor_t bias_ts(bias_lt, bias.data());
+        impl::tensor_t dst_ts(dst_lt, dst.data());
+
+        impl::stream_t &strm = get_stream();
+        bias_add_op->execute(
+                &bias_add_node, &strm, {src_ts, bias_ts}, {dst_ts});
+        strm.wait();
+
+        if (i == 0) {
+            for (size_t i = 0; i < src.size(); ++i) {
+                ASSERT_FLOAT_EQ(dst[i], ref_dst1[i]);
+            }
+        } else {
+            for (size_t i = 0; i < src.size(); ++i) {
+                ASSERT_FLOAT_EQ(dst[i], ref_dst2[i]);
+            }
+        }
     }
 }
 

@@ -22,7 +22,6 @@
 
 #include "backend/dnnl/tensor.hpp"
 #include "backend/dnnl/utils.hpp"
-#include "common.hpp"
 
 namespace dnnl {
 namespace graph {

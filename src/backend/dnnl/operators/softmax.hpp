@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "backend/dnnl/tensor.hpp"
-#include "common.hpp"
 
 namespace dnnl {
 namespace graph {

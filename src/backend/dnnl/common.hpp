@@ -17,10 +17,15 @@
 #ifndef BACKEND_DNNL_COMMON_HPP
 #define BACKEND_DNNL_COMMON_HPP
 
+#include <utility>
+#include <vector>
+#include <unordered_map>
+
 #include "oneapi/dnnl/dnnl_graph_types.h"
 
-#include "backend/dnnl/tensor.hpp"
+#include "interface/allocator.hpp"
 #include "interface/common.hpp"
+#include "interface/logical_tensor.hpp"
 #include "utils/compatible.hpp"
 
 #include "dnnl.hpp"
@@ -30,26 +35,86 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-using format_tag = dnnl::memory::format_tag;
+using error = dnnl::error;
+using memory = dnnl::memory;
+using desc = memory::desc;
+using format_tag = memory::format_tag;
+using tag = memory::format_tag;
+using data_type = typename memory::data_type;
+using dims = typename memory::dims;
+using dim = memory::dim;
+using query = dnnl::query;
+using kind = dnnl::primitive::kind;
+using prop_kind = dnnl::prop_kind;
+using algorithm = dnnl::algorithm;
+using normalization_flag = dnnl::normalization_flags;
+using query = dnnl::query;
+using scale_t = std::vector<float>;
+using exec_args = std::unordered_map<int, memory>;
 
-inline static format_tag get_default_format(size_t ndim) {
-    switch (ndim) {
-        case 1: return format_tag::a;
-        case 2: return format_tag::ab;
-        case 3: return format_tag::abc;
-        case 4: return format_tag::abcd;
-        case 5: return format_tag::abcde;
-        case 6: return format_tag::abcdef;
-        default: return format_tag::undef;
+struct allocator {
+    static void *malloc(
+            size_t size, const engine &p_engine, const impl::allocator_t *alc);
+
+    static void free(
+            void *p, const engine &p_engine, const impl::allocator_t *alc);
+};
+
+format_tag get_default_format(size_t ndim);
+
+format_tag get_default_format(const dims adims);
+
+dims get_compatible_dilates(const dims &dilates, size_t input_size = 4);
+
+dims group_dims(const dims &adims, dim groups);
+
+std::pair<std::vector<float>, std::vector<float>> compute_scales(
+        float src_scale, float dst_scale, std::vector<float> weight_scales);
+
+inline int op_scale_mask(dim scale_size) {
+    return scale_size > 1 ? 2 : 0;
+}
+
+inline int tensor_scale_mask(dim scale_size, bool grouped) {
+    return scale_size > 1 ? grouped ? 3 : 1 : 0;
+}
+
+inline int tensor_zp_mask(dim zp_size) {
+    return zp_size > 1 ? 1 : 0;
+}
+
+engine make_dnnl_engine(const impl::engine_t &g_engine);
+
+stream make_dnnl_stream(const engine &p_engine, const impl::stream_t &g_stream);
+
+memory::desc make_dnnl_memory_desc(const impl::logical_tensor_t &lt);
+
+memory make_dnnl_memory(const impl::tensor_t &atensor, const engine &p_engine);
+
+memory::desc expand(const memory::desc &adesc, int tgt_ndims);
+
+memory::desc permute_NXC2NCX(const memory::desc &adesc);
+
+memory::desc permute_XIO2OIX(const memory::desc &adesc);
+
+#ifndef NDEBUG
+#define BACKEND_DNNL_ENFORCE(condition, message) \
+    do { \
+        error::wrap_c_api((condition) ? dnnl_success : dnnl_invalid_arguments, \
+                (message)); \
+    } while (false)
+#else
+#define BACKEND_DNNL_ENFORCE(condition, message)
+#endif
+
+#define BACKEND_DNNL_TYPE_DISPATCH(type_enum, type_key, ...) \
+    switch (type_enum) { \
+        case data_type::f32: { \
+            using type_key = float; \
+            __VA_ARGS__ \
+        } break; \
+        default: error::wrap_c_api(dnnl_unimplemented, "Unimplemented type"); \
     }
-}
-
-inline static format_tag get_default_format(const dims adims) {
-    const auto size = adims.size();
-    return get_default_format(size);
-}
-
-void fill_layout_info(impl::logical_tensor_t *lt, const tensor::desc &td);
 
 } // namespace dnnl_impl
 } // namespace impl

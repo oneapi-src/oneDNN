@@ -26,9 +26,8 @@
 
 #include "interface/backend.hpp"
 
-#include "backend/dnnl/abstract_types.hpp"
 #include "backend/dnnl/common.hpp"
-#include "backend/dnnl/tensor.hpp"
+#include "backend/dnnl/legacy.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -40,8 +39,8 @@ enum binary_inputs { kSrc0, kSrc1 };
 enum binary_outputs { kDst };
 } // namespace bin
 
-/// \note the shape of src0 and src1 have to meet the one of
-/// following requirement:
+/// Currently, we only support unidirectional broadcast. The shape of src0
+/// and src1 have to meet the one of following requirement:
 /// property 1: src0 and src1 both have exactly the same shape.
 /// property 2: src0 and src1 all have the same number of dimensions
 ///             and the length of each src1 dimensions is either a common
@@ -51,281 +50,91 @@ enum binary_outputs { kDst };
 ///             satisfy property 2.
 /// \note src0 and src1 in the above description can be swapped
 struct binary : public dnnl::binary, public kernel_base {
-    using super = dnnl::binary;
-
 private:
     primitive_desc pd_;
+
     std::string auto_broadcast_ {"numpy"};
-    bool unidirectional_broadcast_ {false};
-    bool multidirectional_broadcast_ {false};
+    algorithm alg_kind_;
 
-    tensor::desc before_broadcast_src0_desc_;
+    size_t idx_src0_ {bin::kSrc0};
+    size_t idx_src1_ {bin::kSrc1};
+    size_t idx_dst_ {bin::kDst};
 
-    tensor expected_src0_;
-    tensor expected_src1_;
-    tensor expected_dst_;
+    bool broadcast_ {false};
+    bool unidirectional_ {false};
+
+    dnnl::memory expected_src1_;
+    dnnl::memory expected_dst_;
+
+    void *expected_dst_buf_ {nullptr};
 
     dnnl::engine p_engine_;
     dnnl::stream p_stream_;
+    impl::allocator_t *g_alloc_;
 
-    bool swapped_ {false};
-
-    bool require_broadcast(const tensor::desc &src0_desc,
-            const tensor::desc &src1_desc, const tensor::desc &dst_desc) {
-        return !(src0_desc.has_same_shape_as(src1_desc)
-                && src0_desc.has_same_shape_as(dst_desc));
-    }
-
-    bool prepare_bias_add_broadcast(const tensor::desc &src0_desc,
-            const tensor::desc &src1_desc, tensor::desc &new_src1_dest) {
-        // only support plain format broadcast
-        auto default_src1_desc = src1_desc;
-        if (!src1_desc.is_plain())
-            default_src1_desc = src1_desc.to_default_format();
-
-        auto src0_ndims = src0_desc.get_ndims();
-        auto bias_ndims = default_src1_desc.get_ndims();
-
-        // We only support 1D bias's broadcast add now
-        if (bias_ndims != 1) { return false; }
-
-        auto src0_dims = src0_desc.get_dims();
-        auto bias_dims = default_src1_desc.get_dims();
-
-        dims new_src1_dims(static_cast<dims::size_type>(src0_ndims), 0);
-        dims new_src1_strides(static_cast<dims::size_type>(src0_ndims), 0);
-
-        // in oneDNN, the channel dim will always be the second dim
-        const size_t channel_dim = 1;
-
-        if (src0_ndims == 1 && bias_dims[0] != 1) {
-            // bias length must be equal to 1 when broadcast to 1 dim src
-            return false;
-        } else if (bias_dims[0] != src0_dims[channel_dim]) {
-            // bias length must be equal to src's channel value
-            // when broadcast to non-one dim src
-            return false;
-        }
-
-        // we always unsequeeze 1D bias channel dim and default format
-        // for example src0 {8, 96, 224, 224}, bias {96} will be
-        // unsequeeze to bias {1, 96, 1, 1}, and its format_tag
-        // will be abcd
-        for (size_t i = 0; i < static_cast<size_t>(src0_ndims); i++) {
-            new_src1_dims[i] = i == channel_dim ? bias_dims[0] : 1;
-            new_src1_strides[i] = i == 0 ? bias_dims[0] : 1;
-        }
-
-        // create a new desc according to broadcasted dims and strides
-        new_src1_dest = tensor::desc(new_src1_dims,
-                default_src1_desc.get_data_type(), new_src1_strides);
-
-        return true;
-    }
-
-    // for common unidirectional broadcast operation
-    // we use the same rule with numpy and onnx:
-    // https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md
-    bool prepare_unidirectional_broadcast(const tensor::desc &src0_desc,
-            const tensor::desc &src1_desc, tensor::desc &new_src1_dest) {
-        // only support plain format broadcast
-        auto default_src1_desc = src1_desc;
-        if (!src1_desc.is_plain())
-            default_src1_desc = src1_desc.to_default_format();
-
-        auto src0_ndims = src0_desc.get_ndims();
-        auto src1_ndims = default_src1_desc.get_ndims();
-        auto src0_dims = src0_desc.get_dims();
-        auto src1_dims = default_src1_desc.get_dims();
-        auto src1_strides = default_src1_desc.get_strides();
-
-        // check valid shape
-        for (int i = src1_ndims - 1, j = src0_ndims - 1; i >= 0; i--, j--) {
-            if (src1_dims[i] != src0_dims[j] && src1_dims[i] != 1) {
-                // src1 dim value need to be equal to src0 dims or 1
-                return false;
-            }
-        }
-
-        // unsqueeze
-        dims new_src1_dims(src0_ndims, 1);
-        dims new_src1_strides(src0_ndims, src1_strides[0] * src1_dims[0]);
-        for (int i = src1_ndims - 1, j = src0_ndims - 1; i >= 0; i--, j--) {
-            new_src1_dims[j] = src1_dims[i];
-            new_src1_strides[j] = src1_strides[i];
-        }
-
-        // create a new desc according to broadcasted dims and strides
-        new_src1_dest = tensor::desc(new_src1_dims,
-                default_src1_desc.get_data_type(), new_src1_strides);
-
-        return true;
-    }
-
-    // FIXME(qun) we don't support multidirectional broadcast now
-    // for multidirectional broadcast operation
-    // we use the same rule with numpy and onnx:
-    // https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md
-    bool prepare_multidirectional_broadcast(const tensor::desc &src0_desc,
-            const tensor::desc &src1_desc, tensor::desc &new_src0_dest,
-            tensor::desc &new_src1_dest) {
-        // only support plain format broadcast
-        auto default_src0_desc = src0_desc;
-        if (!src0_desc.is_plain())
-            default_src0_desc = src0_desc.to_default_format();
-
-        auto default_src1_desc = src1_desc;
-        if (!src1_desc.is_plain())
-            default_src1_desc = src1_desc.to_default_format();
-
-        auto src0_ndims = default_src0_desc.get_ndims();
-        auto src1_ndims = default_src1_desc.get_ndims();
-        auto src0_dims = default_src0_desc.get_dims();
-        auto src1_dims = default_src1_desc.get_dims();
-
-        // check valid shape
-        auto min_ndims = std::min(src0_ndims, src1_ndims);
-        for (int i = src0_ndims - 1, j = src1_ndims - 1, k = 0; k < min_ndims;
-                i--, j--, k++) {
-            if (src0_dims[i] != src1_dims[j]
-                    && (src0_dims[i] != 1 && src1_dims[j] != 1)) {
-                // dim value need to be equal or 1
-                return false;
-            }
-        }
-
-        // unsqueeze lambda
-        auto unsqueeze = [](const tensor::desc &src_desc,
-                                 int target_ndims) -> tensor::desc {
-            auto src_dims = src_desc.get_dims();
-            auto src_strides = src_desc.get_strides();
-
-            dims target_dims(target_ndims, 1);
-            dims target_strides(target_ndims, src_strides[0] * src_dims[0]);
-            for (int i = src_desc.get_ndims() - 1, j = target_ndims - 1; i >= 0;
-                    i--, j--) {
-                target_dims[j] = src_dims[i];
-                target_strides[j] = src_strides[i];
-            }
-
-            return tensor::desc(
-                    target_dims, src_desc.get_data_type(), target_strides);
-        };
-
-        // unsqueeze the short desc
-        if (src0_ndims > src1_ndims) {
-            default_src1_desc = unsqueeze(default_src1_desc, src0_ndims);
-            src1_ndims = default_src1_desc.get_ndims();
-            src1_dims = default_src1_desc.get_dims();
-        } else {
-            default_src0_desc = unsqueeze(default_src0_desc, src1_ndims);
-            src0_ndims = default_src0_desc.get_ndims();
-            src0_dims = default_src0_desc.get_dims();
-        }
-
-        before_broadcast_src0_desc_ = default_src0_desc;
-
-        // broadcast sr0
-        // we only broadcast src0, the src0 and src1 ndims have to be equal
-        dims target_dims(src0_ndims, 0);
-        for (int i = 0; i < src0_ndims; i++) {
-            target_dims[i] = std::max(src0_dims[i], src1_dims[i]);
-        }
-        new_src0_dest
-                = tensor::desc(target_dims, default_src0_desc.get_data_type(),
-                        default_src0_desc.get_format_tag());
-
-        new_src1_dest = default_src1_desc;
-        return true;
+    bool require_broadcast(const dnnl::memory::desc &src0,
+            const dnnl::memory::desc &src1, const dnnl::memory::desc &dst) {
+        return !(src0.dims() == src1.dims() && src0.dims() == dst.dims());
     }
 
 public:
+    ~binary() {
+        if (expected_dst_buf_)
+            allocator::free(expected_dst_buf_, p_engine_, g_alloc_);
+    }
+
     impl::status_t compile_impl(const impl::node_t *anode,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        size_t src0_index = bin::kSrc0, src1_index = bin::kSrc1;
+        using ltw = impl::logical_tensor_wrapper;
+        using desc = dnnl::memory::desc;
 
-        // onednn only support src1 broadcast, so the src0 shape
-        // must be equal to dst
-        if (impl::logical_tensor_wrapper(inputs[bin::kSrc0]).vdims()
-                != impl::logical_tensor_wrapper(outputs[bin::kDst]).vdims()) {
-            std::swap(src0_index, src1_index);
-            swapped_ = true;
+        if (anode->has_attr("auto_broadcast")) {
+            auto_broadcast_ = anode->get_attr<std::string>("auto_broadcast");
         }
 
-        tensor::desc src0_desc {inputs.at(src0_index)};
-        tensor::desc src1_desc {inputs.at(src1_index)};
-
-        impl::logical_tensor_t dst_lt = outputs.at(bin::kDst);
-        const tensor::desc dst_desc_any = tensor::desc(dst_lt).to_format_any();
-
-        // TODO(qun) get auto_broadcast flag
-        // auto_broadcast_ = anode->get_attr<std::string>("auto_broadcast");
-
-        if (require_broadcast(src0_desc, src1_desc, dst_desc_any)) {
-            assert(auto_broadcast_ == "numpy");
-
-            if (src0_desc.has_same_shape_as(dst_desc_any)
-                    && (src0_desc.get_ndims() >= src1_desc.get_ndims())) {
-                // unidirectional broadcast
-                tensor::desc new_src1_dest;
-
-                auto prepare_func = [&]() {
-                    return anode->get_op_kind() == op_kind::BiasAdd
-                            ? prepare_bias_add_broadcast(
-                                    src0_desc, src1_desc, new_src1_dest)
-                            : prepare_unidirectional_broadcast(
-                                    src0_desc, src1_desc, new_src1_dest);
-                };
-
-                // FIXME(qun) assert(prepare_func()) will fail in pytest
-                prepare_func();
-
-                src1_desc = new_src1_dest;
-                unidirectional_broadcast_ = true;
-            } else if ((!src0_desc.has_same_shape_as(dst_desc_any))
-                    && (src0_desc.get_ndims() == dst_desc_any.get_ndims()
-                            || src1_desc.get_ndims()
-                                    == dst_desc_any.get_ndims())) {
-                // multidirectional broadcast
-                tensor::desc new_src0_dest, new_src1_dest;
-
-                bool ret = prepare_multidirectional_broadcast(
-                        src0_desc, src1_desc, new_src0_dest, new_src1_dest);
-                assert(ret);
-                UNUSED(ret);
-
-                src0_desc = new_src0_dest;
-                src1_desc = new_src1_dest;
-
-                // the broadcasted src0 shape should be equal to dst shape
-                if (src0_desc.get_dims() != dst_desc_any.get_dims())
-                    return impl::status::invalid_argument;
-                multidirectional_broadcast_ = true;
-            } else {
-                assert(!"can't perform broadcast for current inputs shape");
-            }
-        }
-
-        algorithm alg_kind = algorithm::undef;
         switch (anode->get_op_kind()) {
-            case op_kind::BiasAdd:
-            case op_kind::Add: alg_kind = algorithm::binary_add; break;
-            case op_kind::Multiply: alg_kind = algorithm::binary_mul; break;
-            case op_kind::Maximum: alg_kind = algorithm::binary_max; break;
-            case op_kind::Minimum: alg_kind = algorithm::binary_min; break;
-            default: return status::unsupported;
+            case op_kind::Add: alg_kind_ = algorithm::binary_add; break;
+            case op_kind::Multiply: alg_kind_ = algorithm::binary_mul; break;
+            case op_kind::Maximum: alg_kind_ = algorithm::binary_max; break;
+            case op_kind::Minimum: alg_kind_ = algorithm::binary_min; break;
+            default: return status::compile_fail;
         }
 
         p_engine_ = make_dnnl_engine(*g_engine);
-        pd_ = primitive_desc(
-                {alg_kind, src0_desc, src1_desc, dst_desc_any}, p_engine_);
 
-        const tensor::desc optimal_dst_desc {pd_.dst_desc()};
+        // dnnl only support src1 broadcast now
+        if (ltw(inputs[idx_src0_]).vdims() != ltw(outputs[idx_dst_]).vdims()) {
+            std::swap(idx_src0_, idx_src1_);
+        }
+
+        desc src0 = make_dnnl_memory_desc(inputs.at(idx_src0_));
+        desc src1 = make_dnnl_memory_desc(inputs.at(idx_src1_));
+        desc dst = make_dnnl_memory_desc(outputs.at(idx_dst_));
+
+        // expand for broadcast
+        if (require_broadcast(src0, src1, dst)) {
+            if (auto_broadcast_ != "numpy") return status::compile_fail;
+
+            broadcast_ = true;
+            int src0_ndims = src0.data.ndims;
+            int src1_ndims = src1.data.ndims;
+            if (src0.dims() == dst.dims() && (src0_ndims >= src1_ndims)) {
+                src1 = expand(src1, src0_ndims);
+                unidirectional_ = true;
+            } else {
+                return status::compile_fail;
+            }
+        }
+
+        // to any for allowing dnnl choose optimal layout for dst
+        desc dst_any(dst.dims(), dst.data_type(), format_tag::any);
+        pd_ = primitive_desc({alg_kind_, src0, src1, dst_any}, p_engine_);
+
         impl::logical_tensor_t *orgi_dst_lt
-                = const_cast<impl::logical_tensor_t *>(&outputs.at(bin::kDst));
-        fill_layout_info(orgi_dst_lt, optimal_dst_desc);
+                = const_cast<impl::logical_tensor_t *>(&outputs.at(idx_dst_));
+        fill_layout_info(orgi_dst_lt, pd_.dst_desc());
         return impl::status::success;
     }
 
@@ -334,69 +143,152 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(anode);
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
-        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        size_t src0_index = bin::kSrc0, src1_index = bin::kSrc1;
-        if (swapped_) { std::swap(src0_index, src1_index); }
+        memory src0 = make_dnnl_memory(inputs.at(idx_src0_), p_engine_);
+        memory src1 = make_dnnl_memory(inputs.at(idx_src1_), p_engine_);
+        memory dst = make_dnnl_memory(outputs.at(idx_dst_), p_engine_);
 
-        const tensor src0 {inputs.at(src0_index), p_engine_, alc};
-        tensor src1 {inputs.at(src1_index), p_engine_, alc};
-        tensor dst {outputs.at(bin::kDst), p_engine_, alc};
-
-        if (pd_.src0_desc() != src0.get_desc()) {
-            // allocate memory for optimal layout src0 in the first iteration
-            if (expected_src0_.is_empty()) {
-                expected_src0_ = tensor {pd_.src0_desc(), p_engine_, alc};
+        // Deal with src1; If it's:
+        // broadcasted: parse its buffer with the reshaped desc
+        // not broadcasted:use the origin memory object directly
+        if (broadcast_) {
+            if (unidirectional_) {
+                expected_src1_ = memory(
+                        pd_.src1_desc(), p_engine_, src1.get_data_handle());
             }
-            src0.reorder_to(p_stream_, expected_src0_);
         } else {
-            expected_src0_ = src0;
+            expected_src1_ = src1;
         }
 
-        tensor plain_src1;
-        if (unidirectional_broadcast_) {
-            if (!src1.get_desc().is_plain()) {
-                plain_src1 = tensor(
-                        src1.get_desc().to_default_format(), p_engine_, alc);
-                src1.reorder_to(p_stream_, plain_src1);
-                expected_src1_ = tensor(pd_.src1_desc(), p_engine_, alc,
-                        plain_src1.get_data_handle());
-            } else {
-                expected_src1_ = tensor(pd_.src1_desc(), p_engine_, alc,
-                        src1.get_data_handle());
-            }
+        g_alloc_ = g_stream->get_engine()->get_allocator();
 
-        } else if (multidirectional_broadcast_) {
-            assert(!"don't support multidirectional broadcas now");
-        } else {
-            if (pd_.src1_desc() != src1.get_desc()) {
-                // allocate memory for optimal layout src1
-                // in the first iteration
-                if (expected_src1_.is_empty()) {
-                    expected_src1_ = tensor {pd_.src1_desc(), p_engine_, alc};
-                }
-                src1.reorder_to(p_stream_, expected_src1_);
-            } else {
-                expected_src1_ = src1;
-            }
-        }
-
+        // Deal with the dst:
+        // when create the primitive, we use any format for dst, so the
+        // optiminal layout may be different from the original. we need
+        // to check this and alloc new memory for optiminal dst
         if (pd_.dst_desc() != dst.get_desc()) {
-            if (expected_dst_.is_empty()) {
-                expected_dst_ = tensor {pd_.dst_desc(), p_engine_, alc};
+            if (!expected_dst_) {
+                expected_dst_buf_ = allocator::malloc(
+                        pd_.dst_desc().get_size(), p_engine_, g_alloc_);
+                expected_dst_
+                        = memory(pd_.dst_desc(), p_engine_, expected_dst_buf_);
             }
         } else {
             expected_dst_ = dst;
         }
 
-        super(pd_).execute(p_stream_,
-                {{DNNL_ARG_SRC_0, expected_src0_},
-                        {DNNL_ARG_SRC_1, expected_src1_},
-                        {DNNL_ARG_DST, expected_dst_}});
+        exec_args args {{DNNL_ARG_SRC_0, src0},
+                {DNNL_ARG_SRC_1, expected_src1_},
+                {DNNL_ARG_DST, expected_dst_}};
 
-        // if output layout has been set and different from optimal layout
-        // we have to do reorder
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        dnnl::binary(pd_).execute(p_stream_, args);
+
+        if (expected_dst_ != dst) {
+            dnnl::reorder(expected_dst_, dst)
+                    .execute(p_stream_, expected_dst_, dst);
+        }
+        return impl::status::success;
+    }
+};
+
+struct bias_add : public dnnl::binary, public kernel_base {
+private:
+    primitive_desc pd_;
+    std::string data_format_ {"NXC"};
+
+    size_t idx_src_ {0};
+    size_t idx_bias_ {1};
+    size_t idx_dst_ {0};
+
+    dnnl::memory expected_bias_;
+    dnnl::memory expected_dst_;
+
+    void *expected_dst_buf_ {nullptr};
+
+    dnnl::engine p_engine_;
+    dnnl::stream p_stream_;
+    impl::allocator_t *g_alloc_;
+
+public:
+    ~bias_add() {
+        if (expected_dst_buf_)
+            allocator::free(expected_dst_buf_, p_engine_, g_alloc_);
+    }
+
+    impl::status_t compile_impl(const impl::node_t *anode,
+            const impl::engine_t *g_engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) override {
+        using desc = dnnl::memory::desc;
+
+        data_format_ = anode->get_attr<std::string>("data_format");
+
+        desc src = make_dnnl_memory_desc(inputs.at(idx_src_));
+        desc bias = make_dnnl_memory_desc(inputs.at(idx_bias_));
+        desc dst = make_dnnl_memory_desc(outputs.at(idx_dst_));
+
+        int src_ndims = src.data.ndims;
+
+        // do expand always, c in the last dim
+        bias = expand(bias, src_ndims);
+
+        // do permute
+        // NCX data_format_ means src's channel is in the second dim. so we
+        // need permute the expanded bias to NCX too
+        if (data_format_ == "NCX") { bias = permute_NXC2NCX(bias); }
+
+        p_engine_ = make_dnnl_engine(*g_engine);
+
+        desc dst_any(dst.dims(), dst.data_type(), format_tag::any);
+        pd_ = primitive_desc(
+                {algorithm::binary_add, src, bias, dst_any}, p_engine_);
+
+        impl::logical_tensor_t *orgi_dst_lt
+                = const_cast<impl::logical_tensor_t *>(&outputs.at(idx_dst_));
+        fill_layout_info(orgi_dst_lt, pd_.dst_desc());
+        return impl::status::success;
+    }
+
+    impl::status_t execute_impl(const impl::node_t *anode,
+            const impl::stream_t *g_stream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) override {
+        UNUSED(anode);
+
+        memory src = make_dnnl_memory(inputs.at(idx_src_), p_engine_);
+        memory bias = make_dnnl_memory(inputs.at(idx_bias_), p_engine_);
+        memory dst = make_dnnl_memory(outputs.at(idx_dst_), p_engine_);
+
+        // Deal with bias:
+        // bias is always broadcasted: parse its buffer with the reshaped desc
+        expected_bias_
+                = memory(pd_.src1_desc(), p_engine_, bias.get_data_handle());
+
+        g_alloc_ = g_stream->get_engine()->get_allocator();
+
+        // Deal with the dst:
+        // when create the primitive, we use any format for dst, so the
+        // optiminal layout may be different from the original. we need
+        // to check this and alloc new memory for optiminal dst
+        if (pd_.dst_desc() != dst.get_desc()) {
+            if (!expected_dst_) {
+                expected_dst_buf_ = allocator::malloc(
+                        pd_.dst_desc().get_size(), p_engine_, g_alloc_);
+                expected_dst_
+                        = memory(pd_.dst_desc(), p_engine_, expected_dst_buf_);
+            }
+        } else {
+            expected_dst_ = dst;
+        }
+
+        exec_args args {{DNNL_ARG_SRC_0, src}, {DNNL_ARG_SRC_1, expected_bias_},
+                {DNNL_ARG_DST, expected_dst_}};
+
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+
+        dnnl::binary(pd_).execute(p_stream_, args);
+
         if (expected_dst_ != dst) {
             dnnl::reorder(expected_dst_, dst)
                     .execute(p_stream_, expected_dst_, dst);

@@ -15,6 +15,7 @@
 *******************************************************************************/
 #include "gtest/gtest.h"
 
+#include "backend/dnnl/common.hpp"
 #include "backend/dnnl/tensor.hpp"
 #include "interface/allocator.hpp"
 

@@ -24,9 +24,15 @@
 #include "interface/backend.hpp"
 
 #include "backend/dnnl/common.hpp"
+#include "backend/dnnl/legacy.hpp"
 #include "backend/dnnl/tensor.hpp"
 #include "backend/dnnl/utils.hpp"
 #include "sum.hpp"
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+#include <CL/sycl.hpp>
+#include <dnnl_sycl.hpp>
+#endif
 
 namespace dnnl {
 namespace graph {

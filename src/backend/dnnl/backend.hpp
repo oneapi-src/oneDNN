@@ -21,10 +21,10 @@
 #include <string>
 #include <vector>
 
-#include "backend/dnnl/common.hpp"
-#include "backend/dnnl/tensor.hpp"
 #include "interface/backend.hpp"
 #include "interface/logical_tensor.hpp"
+
+#include "common.hpp"
 
 namespace dnnl {
 namespace graph {

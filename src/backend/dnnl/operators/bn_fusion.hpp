@@ -25,8 +25,6 @@
 #include <dnnl_sycl.hpp>
 #endif
 
-#include "common.hpp"
-
 namespace dnnl {
 namespace graph {
 namespace impl {

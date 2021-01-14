@@ -20,7 +20,7 @@
 #include <tuple>
 #include <utility>
 
-#include "abstract_types.hpp"
+#include "common.hpp"
 #include "utils.hpp"
 
 namespace dnnl {

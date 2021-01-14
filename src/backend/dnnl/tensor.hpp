@@ -23,10 +23,12 @@
 #include <utility>
 #include <vector>
 
-#include "attributes.hpp"
 #include "interface/logical_tensor.hpp"
 #include "interface/tensor.hpp"
 #include "interface/utils.hpp"
+
+#include "attributes.hpp"
+#include "common.hpp"
 #include "utils.hpp"
 
 namespace dnnl {
@@ -87,7 +89,7 @@ public:
         }
 
         desc(const impl::logical_tensor_t &lt)
-            : memory::desc(get_tensor_desc(lt)) {}
+            : memory::desc(make_dnnl_memory_desc(lt)) {}
 
         /// public ndims
         inline int get_ndims() const {
@@ -313,7 +315,7 @@ public:
 
         desc to_grouped(dim groups, bool is_deconv = false) const {
             UNUSED(is_deconv);
-            auto grouped_dims = utils::group_dims(get_internal_dims(), groups);
+            auto grouped_dims = group_dims(get_internal_dims(), groups);
             auto grouped_desc = desc(grouped_dims, get_data_type());
             grouped_desc.set_g(groups);
             return grouped_desc;
@@ -504,8 +506,6 @@ public:
         }
 
         inline bool is_grouped() const { return g() > 1; }
-
-        desc get_tensor_desc(const impl::logical_tensor_t &lt);
     };
 
     desc get_desc() const {
