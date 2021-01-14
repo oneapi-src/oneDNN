@@ -139,8 +139,8 @@ for a limited number of operations, provided by AArch64 libraries.
 | Vendor BLAS library support           | DNNL_BLAS_VENDOR=ARMPL    | None                                          | [Arm Performance Libraries](https://developer.arm.com/tools-and-software/server-and-hpc/downloads/arm-performance-libraries)
 
 #### Arm Compute Library
-Arm Compute Library is an open-source library for computer vision and machine learning
-applications. The development repository is available from
+Arm Compute Library is an open-source library for machine learning applications.
+The development repository is available from
 [mlplatform.org](https://review.mlplatform.org/#/admin/projects/ml/ComputeLibrary),
 and releases are also available on [GitHub](https://github.com/ARM-software/ComputeLibrary).
 The `DNNL_AARCH64_USE_ACL` CMake option is used to enable Compute Library integration:
