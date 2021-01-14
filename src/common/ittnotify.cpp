@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,8 @@ bool get_itt(__itt_task_level level) {
         // Assumes that all threads see the same environment
         const int len = 2;
         char val[len] = {2};
-        if (getenv("DNNL_ITT_TASK_LEVEL", val, len) == 1) itt_task_level.set(atoi(val));
+        if (getenv("DNNL_ITT_TASK_LEVEL", val, len) == 1)
+            itt_task_level.set(atoi(val));
         if (!itt_task_level.initialized()) itt_task_level.set(2);
     }
     return (level <= itt_task_level.get()) ? true : false;
@@ -43,7 +44,7 @@ bool get_itt(__itt_task_level level) {
 
 namespace {
 
-static thread_local primitive_kind_t thread_primitive_kind;
+thread_local primitive_kind_t thread_primitive_kind;
 
 __itt_domain *itt_domain() {
     static __itt_domain *d = __itt_domain_create("dnnl::primitive::execute");

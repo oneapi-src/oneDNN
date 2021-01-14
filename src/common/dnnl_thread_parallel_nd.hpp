@@ -87,8 +87,7 @@ void parallel(int nthr, F f) {
 #endif
         f(ithr_, nthr_);
 #if defined(DNNL_ENABLE_ITT_TASKS)
-        if (ithr_ &&  itt_enable)
-	    itt::primitive_task_end();
+        if (ithr_ && itt_enable) itt::primitive_task_end();
 #endif
     }
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
@@ -96,15 +95,14 @@ void parallel(int nthr, F f) {
             0, nthr,
             [&](int ithr) {
 #if defined(DNNL_ENABLE_ITT_TASKS)
-                bool mark_task = primitive_task_get_current_kind()
+                bool mark_task = itt::primitive_task_get_current_kind()
                         == primitive_kind::undefined;
                 if (mark_task && itt_enable)
                     itt::primitive_task_start(task_primitive_kind);
 #endif
                 f(ithr, nthr);
 #if defined(DNNL_ENABLE_ITT_TASKS)
-                if (mark_task && itt_enable)
-                    itt::primitive_task_end();
+                if (mark_task && itt_enable) itt::primitive_task_end();
 #endif
             },
             tbb::static_partitioner());
@@ -122,7 +120,7 @@ void parallel(int nthr, F f) {
                 & dnnl::threadpool_interop::threadpool_iface::ASYNCHRONOUS;
         counting_barrier_t b;
         if (async) b.init(nthr);
-        tp->parallel_for(nthr, [tp, &f, &b, async](int ithr, int nthr) {
+        tp->parallel_for(nthr, [&, tp](int ithr, int nthr) {
             bool is_master = threadpool_utils::get_active_threadpool() == tp;
             if (!is_master) {
                 threadpool_utils::activate_threadpool(tp);
@@ -133,10 +131,9 @@ void parallel(int nthr, F f) {
             f(ithr, nthr);
             if (!is_master) {
 #if defined(DNNL_ENABLE_ITT_TASKS)
-                if (itt_enable)
-                    itt::primitive_task_end();
-                threadpool_utils::deactivate_threadpool();
+                if (itt_enable) itt::primitive_task_end();
 #endif
+                threadpool_utils::deactivate_threadpool();
             }
             if (async) b.notify();
         });

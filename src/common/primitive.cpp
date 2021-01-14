@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -112,8 +112,7 @@ status_t primitive_execute(
     stream->before_exec_hook();
 
     if (itt::get_itt(itt::__itt_task_level_low))
-        itt::primitive_task_start(
-            primitive_iface->pd()->impl()->kind());
+        itt::primitive_task_start(primitive_iface->pd()->impl()->kind());
 
     if (get_verbose()) {
         stream->wait();
@@ -131,8 +130,7 @@ status_t primitive_execute(
         status = stream->enqueue_primitive(primitive_iface, ctx);
     }
 
-    if (itt::get_itt(itt::__itt_task_level_low))
-        itt::primitive_task_end();
+    if (itt::get_itt(itt::__itt_task_level_low)) itt::primitive_task_end();
 
     stream->after_exec_hook();
 
