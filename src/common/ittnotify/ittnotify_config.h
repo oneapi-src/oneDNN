@@ -54,6 +54,10 @@
 #  define ITT_OS_FREEBSD   4
 #endif /* ITT_OS_FREEBSD */
 
+#ifndef ITT_OS_OPENBSD
+#  define ITT_OS_OPENBSD   5
+#endif /* ITT_OS_OPENBSD */
+
 #ifndef ITT_OS
 #  if defined WIN32 || defined _WIN32
 #    define ITT_OS ITT_OS_WIN
@@ -61,6 +65,8 @@
 #    define ITT_OS ITT_OS_MAC
 #  elif defined( __FreeBSD__ )
 #    define ITT_OS ITT_OS_FREEBSD
+#  elif defined( __OpenBSD__ )
+#    define ITT_OS ITT_OS_OPENBSD
 #  else
 #    define ITT_OS ITT_OS_LINUX
 #  endif
@@ -82,6 +88,10 @@
 #  define ITT_PLATFORM_FREEBSD 4
 #endif /* ITT_PLATFORM_FREEBSD */
 
+#ifndef ITT_PLATFORM_OPENBSD
+#  define ITT_PLATFORM_OPENBSD 5
+#endif /* ITT_PLATFORM_OPENBSD */
+
 #ifndef ITT_PLATFORM
 #  if ITT_OS==ITT_OS_WIN
 #    define ITT_PLATFORM ITT_PLATFORM_WIN
@@ -89,6 +99,8 @@
 #    define ITT_PLATFORM ITT_PLATFORM_MAC
 #  elif ITT_OS==ITT_OS_FREEBSD
 #    define ITT_PLATFORM ITT_PLATFORM_FREEBSD
+#  elif ITT_OS==ITT_OS_OPENBSD
+#    define ITT_PLATFORM ITT_PLATFORM_OPENBSD
 #  else
 #    define ITT_PLATFORM ITT_PLATFORM_POSIX
 #  endif
@@ -175,6 +187,10 @@
 #  define ITT_ARCH_PPC64  5
 #endif /* ITT_ARCH_PPC64 */
 
+#ifndef ITT_ARCH_AARCH64  /* 64-bit ARM */
+#  define ITT_ARCH_AARCH64  6
+#endif /* ITT_ARCH_AARCH64 */
+
 #ifndef ITT_ARCH
 #  if defined _M_IX86 || defined __i386__
 #    define ITT_ARCH ITT_ARCH_IA32
@@ -184,6 +200,8 @@
 #    define ITT_ARCH ITT_ARCH_IA64
 #  elif defined _M_ARM || defined __arm__
 #    define ITT_ARCH ITT_ARCH_ARM
+#  elif defined __aarch64__
+#    define ITT_ARCH ITT_ARCH_AARCH64
 #  elif defined __powerpc64__
 #    define ITT_ARCH ITT_ARCH_PPC64
 #  endif
@@ -314,7 +332,7 @@ ITT_INLINE long __itt_interlocked_increment(volatile long* ptr)
 #ifdef SDL_STRNCPY_S
 #define __itt_fstrcpyn(s1, b, s2, l) SDL_STRNCPY_S(s1, b, s2, l)
 #else
-#define __itt_fstrcpyn(s1, b, s2, l) strncpy(s1, s2, l)
+#define __itt_fstrcpyn(s1, b, s2, l) strncpy(s1, s2, b)
 #endif /* SDL_STRNCPY_S */
 
 #define __itt_fstrdup(s)          strdup(s)
@@ -338,7 +356,7 @@ ITT_INLINE long __TBB_machine_fetchadd4(volatile void* ptr, long addend)
                           : "memory");
     return result;
 }
-#elif ITT_ARCH==ITT_ARCH_ARM || ITT_ARCH==ITT_ARCH_PPC64
+#elif ITT_ARCH==ITT_ARCH_ARM || ITT_ARCH==ITT_ARCH_AARCH64 || ITT_ARCH==ITT_ARCH_PPC64
 #define __TBB_machine_fetchadd4(addr, val) __sync_fetch_and_add(addr, val)
 #endif /* ITT_ARCH==ITT_ARCH_IA64 */
 #ifndef ITT_SIMPLE_INIT
@@ -350,7 +368,7 @@ ITT_INLINE long __itt_interlocked_increment(volatile long* ptr)
 }
 #endif /* ITT_SIMPLE_INIT */
 
-#if 0
+#if 1
 void* dlopen(const char*, int) __attribute__((weak));
 void* dlsym(void*, const char*) __attribute__((weak));
 int dlclose(void*) __attribute__((weak));
@@ -361,7 +379,7 @@ int dlclose(void*);
 #endif
 #define DL_SYMBOLS (dlopen && dlsym && dlclose)
 
-#if 0
+#if 1
 int pthread_mutex_init(pthread_mutex_t*, const pthread_mutexattr_t*) __attribute__((weak));
 int pthread_mutex_lock(pthread_mutex_t*) __attribute__((weak));
 int pthread_mutex_unlock(pthread_mutex_t*) __attribute__((weak));

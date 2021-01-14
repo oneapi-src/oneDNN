@@ -14,12 +14,20 @@
 # limitations under the License.
 #===============================================================================
 
-file(GLOB_RECURSE SOURCES
+file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
+if(DNNL_ENABLE_JIT_PROFILING OR DNNL_ENABLE_ITT_TASKS)
+    if(DNNL_TARGET_ARCH STREQUAL "AARCH64" OR DNNL_TARGET_ARCH STREQUAL "X64")
+        file(GLOB ITT_SOURCES
+            ${CMAKE_CURRENT_SOURCE_DIR}/ittnotify/*.[ch]
+            )
+        list(APPEND SOURCES ${ITT_SOURCES})
+    endif()
+endif()
 
 if(NOT DNNL_CPU_RUNTIME STREQUAL "THREADPOOL")
     # avoid building and linking empty objects

@@ -56,9 +56,15 @@ else()
     message(STATUS "Primitive cache is disabled")
 endif()
 
-if(DNNL_ENABLE_JIT_PROFILING AND UNIX AND NOT APPLE)
-    # Not every compiler adds -ldl automatically
-    list(APPEND EXTRA_SHARED_LIBS "${CMAKE_DL_LIBS}")
+if(DNNL_ENABLE_JIT_PROFILING OR DNNL_ENABLE_ITT_TASKS)
+    if (UNIX AND NOT APPLE)
+        # Not every compiler adds -ldl automatically
+        list(APPEND EXTRA_SHARED_LIBS "${CMAKE_DL_LIBS}")
+    endif()
+endif()
+
+if(DNNL_ENABLE_ITT_TASKS)
+    add_definitions(-DDNNL_ENABLE_ITT_TASKS)
 endif()
 
 if(DNNL_ENABLE_MAX_CPU_ISA)

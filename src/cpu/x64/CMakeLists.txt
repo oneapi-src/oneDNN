@@ -24,7 +24,6 @@ if(NOT DNNL_ENABLE_JIT_PROFILING)
     add_definitions(-DDNNL_ENABLE_JIT_PROFILING=0)
     # Don't enable support for linux_perf and VTune Amplifier
     list(REMOVE_ITEM SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/jitprofiling/jitprofiling.c"
         "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/linux_perf/linux_perf.cpp"
         )
 endif()
