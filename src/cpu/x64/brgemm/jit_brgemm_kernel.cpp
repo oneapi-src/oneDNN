@@ -621,6 +621,20 @@ void jit_brgemm_kernel_base_t::store_accumulators(
                         if (apply_post_ops) {
                             store_accumulators_apply_post_ops(
                                     brg.bd_block, 1, is_ld_tail);
+                            if (brg.with_bias && ldb < ld_block2 - 1) {
+                                mov(reg_aux_bias,
+                                        ptr[rsp + reg_aux_bias_offs_]);
+                                add(reg_aux_bias, bias_offset(1));
+                                mov(ptr[rsp + reg_aux_bias_offs_],
+                                        reg_aux_bias);
+                            }
+                            if (brg.with_scales && ldb < ld_block2 - 1) {
+                                mov(reg_aux_scales,
+                                        ptr[rsp + reg_aux_scales_offs_]);
+                                add(reg_aux_scales, scales_offset(1));
+                                mov(ptr[rsp + reg_aux_scales_offs_],
+                                        reg_aux_scales);
+                            }
                             mov(reg_buf, ptr[rsp + reg_buf_offs_]);
                             add(reg_aux_D, ldb_D_offset(1));
                         } else {
@@ -638,6 +652,22 @@ void jit_brgemm_kernel_base_t::store_accumulators(
                 if (apply_post_ops) {
                     sub(reg_aux_D, ldb_D_offset(ld_block2));
                     add(reg_aux_D, bdb_D_offset(1));
+
+                    if ((brg.with_bias || brg.with_scales) && ld_block2 > 1) {
+                        if (brg.with_bias) {
+                            mov(reg_aux_bias, ptr[rsp + reg_aux_bias_offs_]);
+                            sub(reg_aux_bias, bias_offset(ld_block2 - 1));
+                            mov(ptr[rsp + reg_aux_bias_offs_], reg_aux_bias);
+                        }
+                        if (brg.with_scales) {
+                            mov(reg_aux_scales,
+                                    ptr[rsp + reg_aux_scales_offs_]);
+                            sub(reg_aux_scales, scales_offset(ld_block2 - 1));
+                            mov(ptr[rsp + reg_aux_scales_offs_],
+                                    reg_aux_scales);
+                        }
+                        mov(reg_buf, ptr[rsp + reg_buf_offs_]);
+                    }
                 }
             }
             sub(reg_aux_C, bdb_C_offset(bd_block2));
