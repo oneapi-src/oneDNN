@@ -292,6 +292,16 @@ private:
             std::size_t elem_size_bytes) const;
 
     template <typename T>
+    typename std::enable_if<std::is_same<T, Xbyak::Zmm>::value
+            || std::is_same<T, Xbyak::Address>::value>::type
+    execute_cmp_binary(const Vmm &dst, const Vmm &lhs, const T &rhs,
+            const unsigned int cmp_predicate) const;
+    template <typename T>
+    typename std::enable_if<!(std::is_same<T, Xbyak::Zmm>::value
+            || std::is_same<T, Xbyak::Address>::value)>::type
+    execute_cmp_binary(const Vmm &dst, const Vmm &lhs, const T &rhs,
+            const unsigned int cmp_predicate) const;
+    template <typename T>
     void execute_binary(alg_kind_t binary_alg, const Vmm &dst, const Vmm &lhs,
             const T &rhs) const;
     /*
@@ -332,6 +342,8 @@ private:
     const Xbyak::Reg64 param1_;
     const bcast_set_t supported_strategy_set_;
     static constexpr bool is_avx512_ = std::is_same<Vmm, Xbyak::Zmm>::value;
+
+    static constexpr int sizeof_reg64 = 8;
     /*
      * Instructions from SSE/AVX used to compute binary result like vaddps where
      * second operand is memory, require mem operand to be 16/32 byte explicitly

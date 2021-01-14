@@ -203,19 +203,22 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
     bool do_sum_ = false;
     float sum_scale_ = 0.f;
     bool broadcast_src1_value_ = false;
+    const bool is_avx512_common = isa == avx512_common;
 
-    const Vmm vreg_scales_src0 = Vmm(isa == avx512_common ? 17 : 9);
-    const Vmm vreg_scales_src1 = Vmm(isa == avx512_common ? 18 : 10);
-    const Vmm vreg_sum_scale = Vmm(isa == avx512_common ? 19 : 11);
+    const Vmm vreg_scales_src0 = Vmm(is_avx512_common ? 17 : 9);
+    const Vmm vreg_scales_src1 = Vmm(is_avx512_common ? 18 : 10);
+    const Vmm vreg_sum_scale = Vmm(is_avx512_common ? 19 : 11);
     const Xmm xreg_sum_scale = Xmm(11);
-    const Vmm vreg_zero = Vmm(isa == avx512_common ? 20 : 12);
-    const Vmm vreg_saturation_ubound = Vmm(isa == avx512_common ? 21 : 13);
-    const Vmm vreg_bcast_src1 = Vmm(isa == avx512_common ? 22 : 14);
+    const Vmm vreg_zero = Vmm(is_avx512_common ? 20 : 12);
+    const Vmm vreg_saturation_ubound = Vmm(is_avx512_common ? 21 : 13);
+    const Vmm vreg_bcast_src1 = Vmm(is_avx512_common ? 22 : 14);
     const Xmm xreg_bcast_src1 = Xmm(14);
+    const Vmm vreg_one_ = Vmm(is_avx512_common ? 23 : 15);
     const Xmm xreg_tmp_store = Xmm(0);
     const Ymm ymm_tail_mask = Ymm(0);
-    const Opmask elt_inj_opmask_ = Opmask(1);
-    const Opmask tail_opmask_ = Opmask(2);
+    const Opmask &elt_inj_opmask_ = k1;
+    const Opmask &tail_opmask_ = k2;
+    const Opmask &cmp_mask = k3;
 
     enum { nargs = 2 };
     // 0:src0 1:src1
@@ -336,7 +339,15 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
             uni_vdivps(v0, v0, v1);
         else if (alg == binary_sub)
             uni_vsubps(v0, v0, v1);
-        else
+        else if (alg == binary_ge) {
+            if (is_avx512_common) {
+                vcmpps(cmp_mask, v0, v1, _cmp_nlt_us);
+                vmovups(v0 | cmp_mask | T_z, vreg_one_);
+            } else {
+                uni_vcmpps(v0, v0, v1, _cmp_nlt_us);
+                uni_vminps(v0, v0, vreg_one_);
+            }
+        } else
             assert(!"not supported operation!");
     }
 
@@ -437,6 +448,14 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
         xor_(reg_offt_src0, reg_offt_src0); // offt_src0 to get addr of src0/dst
         xor_(reg_offt_src1, reg_offt_src1); // offt_src1 to get addr of src1
         xor_(reg_offt_dst, reg_offt_dst); // offt_dst to get addr of dst
+
+        const auto alg = pd_->desc()->alg_kind;
+        if (alg == alg_kind::binary_ge) {
+            Xmm xreg_one = Xmm(vreg_one_.getIdx());
+            mov(reg_tmp, float2int(1));
+            uni_vmovq(xreg_one, reg_tmp);
+            uni_vbroadcastss(vreg_one_, xreg_one);
+        }
 
         // bcast vreg just one time per kernel call
         if (broadcast_src1_value_) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -254,7 +254,7 @@ status_t post_ops_t::append_binary(
     if (len() == post_ops_limit) return out_of_memory;
     using namespace alg_kind;
     bool alg_ok = one_of(alg, binary_add, binary_mul, binary_max, binary_min,
-            binary_div, binary_sub);
+            binary_div, binary_sub, binary_ge);
     if (!alg_ok) return invalid_arguments;
     if (!memory_desc_sanity_check(src1_desc)) return invalid_arguments;
 

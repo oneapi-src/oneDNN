@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -216,7 +216,9 @@ static auto zero_dim = []() {
             binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
                     algorithm::binary_mul, {5, 16, 7, 0}},
             binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
-                    algorithm::binary_sub, {4, 0, 7, 5}});
+                    algorithm::binary_sub, {4, 0, 7, 5}},
+            binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
+                    algorithm::binary_ge, {4, 16, 7, 0}});
 };
 
 static auto simple_cases = []() {
@@ -232,7 +234,9 @@ static auto simple_cases = []() {
             binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
                     algorithm::binary_div, {5, 16, 8, 7}},
             binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
-                    algorithm::binary_sub, {5, 16, 8, 7}});
+                    algorithm::binary_sub, {5, 16, 8, 7}},
+            binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
+                    algorithm::binary_ge, {5, 16, 8, 7}});
 };
 
 #define INST_TEST_CASE(test) \

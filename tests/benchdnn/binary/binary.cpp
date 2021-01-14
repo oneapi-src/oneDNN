@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -264,6 +264,9 @@ int doit(const prb_t *prb, res_t *res) {
         };
         cmp.set_driver_check_function(binary_add_check);
 
+        const bool is_ge = prb->alg == alg_t::GE
+                || prb->attr.post_ops.find(alg_t::GE) >= 0;
+        if (is_ge) cmp.set_zero_trust_percent(100.f);
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 

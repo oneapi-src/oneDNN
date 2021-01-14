@@ -846,6 +846,7 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_binary_min) return "binary_min";
     if (v == dnnl_binary_div) return "binary_div";
     if (v == dnnl_binary_sub) return "binary_sub";
+    if (v == dnnl_binary_ge) return "binary_ge";
     if (v == dnnl_resampling_nearest) return "resampling_nearest";
     if (v == dnnl_resampling_linear) return "resampling_linear";
     if (v == dnnl_reduction_max) return "reduction_max";

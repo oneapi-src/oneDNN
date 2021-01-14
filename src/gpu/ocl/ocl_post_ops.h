@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ float fwd_Xnary(unsigned algorithm, float x, float y, float alpha, float beta,
         case BINARY_MAX: return x > y ? x : y; break;
         case BINARY_DIV: return x / y; break;
         case BINARY_SUB: return x - y; break;
+        case BINARY_GE: return x >= y; break;
 
         // unary
         default:

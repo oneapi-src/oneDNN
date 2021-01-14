@@ -302,7 +302,7 @@ void check_known_skipped_case_common(
     }
 }
 
-// Binary MAX and MIN post-ops may return different results for different
+// Binary MAX, MIN and GE post-ops may return different results for different
 // backends when NaN is one of inputs. Depending on its position and
 // implementation, either first or second operand may be returned. There isn't a
 // single standard, thus, marking such cases as SKIPPED with KNOWN_LIMITATION
@@ -316,7 +316,8 @@ void check_binary_post_ops(const attr_t &attr, res_t *res) {
         for (int idx = 0; idx < po.len(); ++idx) {
             const auto &e = po.entry[idx];
             if (!e.is_binary_kind()) continue;
-            if (e.kind == pk_t::MAX || e.kind == pk_t::MIN) {
+            if (e.kind == pk_t::MAX || e.kind == pk_t::MIN
+                    || e.kind == pk_t::GE) {
                 res->state = SKIPPED, res->reason = KNOWN_LIMITATION;
                 break;
             }

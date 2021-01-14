@@ -265,6 +265,24 @@ static void pop_vmm(jit_generator *host, const Vmm &vmm) {
     host->add(host->rsp, injector_utils::vmm_size_t<Vmm>::bytes);
 }
 
+static void push_opmask(jit_generator *host, const Xbyak::Opmask &k) {
+    static constexpr int k_mask_size = 8;
+    host->sub(host->rsp, k_mask_size);
+    if (mayiuse(avx512_core))
+        host->kmovq(host->ptr[host->rsp], k);
+    else
+        host->kmovw(host->ptr[host->rsp], k);
+}
+
+static void pop_opmask(jit_generator *host, const Xbyak::Opmask &k) {
+    static constexpr int k_mask_size = 8;
+    if (mayiuse(avx512_core))
+        host->kmovq(k, host->ptr[host->rsp]);
+    else
+        host->kmovw(k, host->ptr[host->rsp]);
+    host->add(host->rsp, k_mask_size);
+}
+
 template <typename Vmm>
 static void restore_stack(jit_generator *host, const Vmm &vmm) {
     host->add(host->rsp, injector_utils::vmm_size_t<Vmm>::bytes);
@@ -498,7 +516,8 @@ void jit_uni_binary_injector_t<isa>::inject_binary(
     const bool process_rhs_arg_using_tmp_vmm
             = rhs_arg_data_type != data_type::f32 || (scalar_f32 && !is_avx512_)
             || with_tail_not_fusable_to_binary_op
-            || !binary_op_with_unaligned_mem_operand_allowed_;
+            || !binary_op_with_unaligned_mem_operand_allowed_
+            || (alg == alg_kind::binary_ge && !is_avx512_);
 
     if (process_rhs_arg_using_tmp_vmm) {
 
@@ -1001,6 +1020,50 @@ void jit_uni_binary_injector_t<sse41>::load_rhs_tail(
             tail_size);
 }
 
+// Support compare with Address param only when isa is avx512.
+// AVX512 implementation
+template <cpu_isa_t isa>
+template <typename T>
+typename std::enable_if<std::is_same<T, Xbyak::Zmm>::value
+        || std::is_same<T, Xbyak::Address>::value>::type
+jit_uni_binary_injector_t<isa>::execute_cmp_binary(const Vmm &dst,
+        const Vmm &lhs, const T &rhs, const unsigned int cmp_predicate) const {
+    // For GreaterEqual op, replace 0xFFFFFFFF by 1
+    // which was returned by vcmpps.
+    const auto &cmp_mask = rhs_arg_static_params_.tail_opmask;
+    const Xbyak::Xmm xreg_one
+            = Xbyak::Xmm(rhs_arg_static_params_.rhs_dt_helper_vmm_idx);
+    const Xbyak::Reg64 reg_tmp = rhs_arg_static_params_.rhs_helper_reg;
+
+    push_opmask(host_, cmp_mask);
+    host_->vcmpps(cmp_mask, lhs, rhs, cmp_predicate);
+    host_->mov(reg_tmp, float2int(1));
+    host_->uni_vmovq(xreg_one, reg_tmp);
+    // broadcast 1.0f with mask
+    host_->vbroadcastss(dst | cmp_mask | host_->T_z, xreg_one);
+    // pop tail mask from stack
+    pop_opmask(host_, cmp_mask);
+}
+
+// SSE4.1., AVX and AVX2 implementation
+template <cpu_isa_t isa>
+template <typename T>
+typename std::enable_if<!(std::is_same<T, Xbyak::Zmm>::value
+        || std::is_same<T, Xbyak::Address>::value)>::type
+jit_uni_binary_injector_t<isa>::execute_cmp_binary(const Vmm &dst,
+        const Vmm &lhs, const T &rhs, const unsigned int cmp_predicate) const {
+    const int vmm_idx = rhs_arg_static_params_.rhs_dt_helper_vmm_idx;
+    const Vmm vreg_one = Vmm(vmm_idx);
+    const Xbyak::Xmm xreg_one = Xbyak::Xmm(vmm_idx);
+    const Xbyak::Reg64 reg_tmp = rhs_arg_static_params_.rhs_helper_reg;
+
+    host_->uni_vcmpps(dst, lhs, rhs, cmp_predicate);
+    host_->mov(reg_tmp, float2int(1));
+    host_->uni_vmovq(xreg_one, reg_tmp);
+    host_->uni_vbroadcastss(vreg_one, xreg_one);
+    host_->uni_vminps(dst, dst, vreg_one);
+}
+
 template <cpu_isa_t isa>
 template <typename T>
 void jit_uni_binary_injector_t<isa>::execute_binary(alg_kind_t binary_alg,
@@ -1012,6 +1075,9 @@ void jit_uni_binary_injector_t<isa>::execute_binary(alg_kind_t binary_alg,
         case alg_kind::binary_min: host_->uni_vminps(dst, lhs, rhs); break;
         case alg_kind::binary_div: host_->uni_vdivps(dst, lhs, rhs); break;
         case alg_kind::binary_sub: host_->uni_vsubps(dst, lhs, rhs); break;
+        case alg_kind::binary_ge:
+            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_nlt_us);
+            break;
         default: assert(!"unsupported algorithm");
     }
 }
@@ -1027,6 +1093,9 @@ void jit_uni_binary_injector_t<avx>::execute_binary(alg_kind_t binary_alg,
         case alg_kind::binary_min: host_->vminps(dst, lhs, rhs); break;
         case alg_kind::binary_div: host_->vdivps(dst, lhs, rhs); break;
         case alg_kind::binary_sub: host_->vsubps(dst, lhs, rhs); break;
+        case alg_kind::binary_ge:
+            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_nlt_us);
+            break;
         default: assert(!"unsupported algorithm");
     }
 }

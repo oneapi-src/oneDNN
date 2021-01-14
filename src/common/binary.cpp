@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ status_t dnnl_binary_desc_init(binary_desc_t *binary_desc, alg_kind_t alg_kind,
         const memory_desc_t *dst_md) {
     bool args_ok = true && !any_null(binary_desc, src0_md, src1_md, dst_md)
             && one_of(alg_kind, binary_add, binary_mul, binary_max, binary_min,
-                    binary_div, binary_sub);
+                    binary_div, binary_sub, binary_ge);
     if (!args_ok) return invalid_arguments;
 
     auto bod = binary_desc_t();

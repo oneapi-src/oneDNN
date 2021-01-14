@@ -1,5 +1,5 @@
 # Binary tests have the following degrees of freedom:
-# 6 algorithms
+# 7 algorithms
 # 2 inplace options
 # 2 post-ops
 # 4 basic (src0=src1=dst) + 18 mixed (s8:f32->u8, etc) operand types
@@ -56,7 +56,7 @@
 --reset
 --inplace=false
 --attr-post-ops='sum:0.25;relu:-0.01;add:f32:per_tensor'
---alg=ADD,MUL,MAX,MIN,DIV,SUB
+--alg=ADD,MUL,MAX,MIN,DIV,SUB,GE
 
 --ddt=s8
 --sdt=s8:s8
@@ -69,7 +69,7 @@
 --reset
 --inplace=false
 --attr-post-ops='sum:0.25;relu:-0.01;add:f32'
---alg=ADD,MUL,MAX,MIN,DIV,SUB
+--alg=ADD,MUL,MAX,MIN,DIV,SUB,GE
 
 --ddt=f16
 --sdt=f16:f16

@@ -33,6 +33,7 @@ float compute_binary_scalar(alg_kind_t alg, float x, float y) {
         case binary_min: return nstl::min(x, y);
         case binary_mul: return x * y;
         case binary_sub: return x - y;
+        case binary_ge: return x >= y;
         default: assert(!"not supported operation!"); return NAN;
     }
 }
@@ -127,7 +128,7 @@ float compute_eltwise_scalar_bwd(
 ref_binary_scalar_t::ref_binary_scalar_t(alg_kind_t alg) : alg_(alg) {
     assert(utils::one_of(alg_, alg_kind::binary_add, alg_kind::binary_max,
             alg_kind::binary_min, alg_kind::binary_mul, alg_kind::binary_div,
-            alg_kind::binary_sub));
+            alg_kind::binary_sub, alg_kind::binary_ge));
 }
 
 ref_binary_scalar_t::ref_binary_scalar_t(

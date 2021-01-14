@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1252,8 +1252,8 @@ dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
 ///
 /// @param binary_desc Output descriptor for a binary primitive.
 /// @param alg_kind Algorithm kind. Valid values are #dnnl_binary_add,
-///     #dnnl_binary_mul, #dnnl_binary_max, #dnnl_binary_min, #dnnl_binary_div
-///     and #dnnl_binary_sub.
+///     #dnnl_binary_mul, #dnnl_binary_max, #dnnl_binary_min, #dnnl_binary_div,
+///     #dnnl_binary_sub and #dnnl_binary_ge.
 /// @param src0_desc Source 0 memory descriptor.
 /// @param src1_desc Source 1 memory descriptor.
 /// @param dst_desc Destination memory descriptor.

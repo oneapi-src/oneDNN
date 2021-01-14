@@ -6,7 +6,7 @@
 
 --reset
 
---alg=ADD,MUL,MAX,MIN,SUB
+--alg=ADD,MUL,MAX,MIN,SUB,GE
 
 ## Post-ops
 --inplace=true,false
@@ -21,7 +21,7 @@
 --batch=option_set_all
 
 ## Scales
---alg=ADD,MUL,MAX,MIN
+--alg=ADD,MUL,MAX,MIN,GE
 --inplace=true,false
 --ddt=u8 --sdt=u8:u8
 --attr-scales=, \
@@ -32,11 +32,11 @@
 --batch=option_set_all
 
 ## Post-ops + scales
---alg=ADD,MUL,MAX,MIN,SUB
+--alg=ADD,MUL,MAX,MIN,SUB,GE
 --inplace=true,false
 --ddt=s8 --sdt=s8:u8,s8:f32
 --attr-scales=,src:common:16_src1:common:2
---attr-post-ops='','sum:0.5;abs'
+--attr-post-ops='','sum:0.5;abs','ge:s8'
 --batch=option_set_all
 
 ## Check for proper saturation

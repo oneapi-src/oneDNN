@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,6 +53,8 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     d = tmp_src0 / tmp_src1;
 #elif IS_SUB
     d = tmp_src0 - tmp_src1;
+#elif IS_GE
+    d = tmp_src0 >= tmp_src1;
 #endif
 
     float dst_data;
@@ -134,6 +136,8 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         d = tmp_src0 / tmp_src1;
 #elif IS_SUB
         d = tmp_src0 - tmp_src1;
+#elif IS_GE
+        d = tmp_src0 >= tmp_src1;
 #endif
 
         float dst_data;

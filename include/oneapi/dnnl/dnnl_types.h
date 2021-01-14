@@ -1217,6 +1217,8 @@ typedef enum {
     dnnl_binary_div = 0x1fff4,
     /// Binary sub
     dnnl_binary_sub = 0x1fff5,
+    /// Binary greater or equal
+    dnnl_binary_ge = 0x1fff6,
     /// Nearest Neighbor Resampling Method
     dnnl_resampling_nearest = 0x2fff0,
     /// Linear Resampling Method

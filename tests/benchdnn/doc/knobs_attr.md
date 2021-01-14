@@ -144,9 +144,12 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
 
 `BINARY` supported values are:
   - `add`
+  - `div`
+  - `ge`
   - `max`
   - `min`
   - `mul`
+  - `sub`
 
 ## Examples:
 

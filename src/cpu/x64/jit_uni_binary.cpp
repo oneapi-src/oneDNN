@@ -196,8 +196,10 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const Reg64 &reg_off_rhs_postops_ = rdx;
     const Reg64 reg_scales_src0_ = rbx;
     const Reg64 reg_scales_src1_ = rbp;
-    const Opmask tail_opmask_ = Opmask(2);
+    const Opmask &tail_opmask_ = k2;
+    const Opmask &cmp_mask = k4;
     const Xmm xsum_scale_ = Xmm(15);
+    const Vmm vreg_one_ = Vmm(is_avx512 ? 25 : 13);
     const Vmm vbcast_src1_ = Vmm(is_avx512 ? 30 : 14);
     const Vmm vsum_scale_ = Vmm(is_avx512 ? 31 : 15);
     const Vmm vreg_scales_src0_ = Vmm(is_avx512 ? 17 : 9);
@@ -222,7 +224,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     bool is_tail_kernel_ = false;
     std::unique_ptr<injector::jit_uni_postops_injector_t<inject_isa>>
             postops_injector_;
-    const Opmask elt_inj_opmask_ = Opmask(1);
+    const Opmask &elt_inj_opmask_ = k1;
 
     void init() {
         const memory_desc_wrapper src0_d(pd_->src_md(0));
@@ -383,7 +385,15 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
             uni_vdivps(v0, v0, v1);
         else if (alg == binary_sub)
             uni_vsubps(v0, v0, v1);
-        else
+        else if (alg == binary_ge) {
+            if (is_avx512) {
+                vcmpps(cmp_mask, v0, v1, _cmp_nlt_us);
+                vmovups(v0 | cmp_mask | T_z, vreg_one_);
+            } else {
+                uni_vcmpps(v0, v0, v1, _cmp_nlt_us);
+                uni_vminps(v0, v0, vreg_one_);
+            }
+        } else
             assert(!"not supported operation!");
     }
 
@@ -405,6 +415,14 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
         if (use_stride_rhs_postops_)
             xor_(reg_off_rhs_postops_, reg_off_rhs_postops_);
         const size_t vec_size = simd_w_ * data_type_size_;
+        const auto alg = pd_->desc()->alg_kind;
+
+        if (alg == alg_kind::binary_ge) {
+            Xmm xreg_one = Xmm(vreg_one_.getIdx());
+            mov(reg_tmp_, float2int(1));
+            uni_vmovq(xreg_one, reg_tmp_);
+            uni_vbroadcastss(vreg_one_, xreg_one);
+        }
 
         compute_bcast(false); // bcast/load vreg just one time per a kernel call
 
@@ -484,7 +502,7 @@ struct jit_uni_binary_subkernel_t;
 template <data_type_t src_type>
 struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
     : public jit_uni_binary_kernel_t<avx512_core_bf16> {
-    Opmask bf16_bcast_opmask = Opmask(3);
+    const Opmask &bf16_bcast_opmask = k3;
 
     void prepare_tail_mask() {
         if (!tail_size_) return;
@@ -622,7 +640,7 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
 template <data_type_t src_type>
 struct jit_uni_binary_subkernel_t<avx512_core, src_type>
     : public jit_uni_binary_kernel_t<avx512_core> {
-    Opmask bf16_bcast_opmask = Opmask(3);
+    const Opmask &bf16_bcast_opmask = k3;
 
     // FP32->BF16 emulation
     std::unique_ptr<bf16_emulation_t> bf16_emu_ {nullptr};
@@ -1245,9 +1263,13 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
     const auto &simd_w = kernel_->simd_w();
     const bool has_oc_tail = C % simd_w;
     const bool point_broadcast_no_oc_tail = point_broadcast && !has_oc_tail;
+    const auto alg = pd()->desc()->alg_kind;
+    // Use strategy with kernel_tail for GreaterEqual op with oc_tail and
+    // blocked format due to overwriting the vector tail by vcmpps.
+    const bool vector_overwrite = alg == alg_kind::binary_ge;
     const bool blocked_oc_tail = op_type == op_t::c_blocked && has_oc_tail
-            && (with_postops || point_broadcast
-                    || bcast_type == bcast_t::per_w);
+            && (with_postops || point_broadcast || bcast_type == bcast_t::per_w
+                    || vector_overwrite);
 
     if ((bcast_type == bcast_t::none || point_broadcast_no_oc_tail)
             && !postops_per_oc_broadcast_exists && !blocked_oc_tail)
