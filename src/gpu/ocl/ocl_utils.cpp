@@ -189,7 +189,7 @@ status_t get_kernel_arg_types(cl_kernel ocl_kernel,
     *arg_types = std::vector<gpu::compute::scalar_type_t>(nargs);
 
     for (cl_uint i = 0; i < nargs; i++) {
-        gpu::compute::scalar_type_t type;
+        gpu::compute::scalar_type_t type {};
         CHECK(gpu::ocl::get_ocl_kernel_arg_type(
                 &type, ocl_kernel, i, /*allow_undef=*/true));
         (*arg_types)[i] = type;
