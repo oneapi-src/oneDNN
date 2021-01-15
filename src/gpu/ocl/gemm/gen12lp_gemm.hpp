@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,12 +63,13 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
 
             const auto d = desc();
             // LIMITATIONS:
+            // - blocked data formats not supported
             // - batch is not supported
             // - runtime dims are not supported
             // - bias is not supported
             // - runtime zero points are supported for dst only
             // - attribute zero points are supported for src and weights only
-            bool limits_ok = d->batch() == 1
+            bool limits_ok = !has_blocks() && d->batch() == 1
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
                             d->k(), d->lda(), d->ldb(), d->ldc())
                     && d->bias_type() == data_type::undef;

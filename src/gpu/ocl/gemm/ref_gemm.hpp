@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ struct ref_gemm_t : public gpu_gemm_t {
             const auto bia_dt = desc()->bias_type();
 
             ok = IMPLICATION(acc_dt == s32, attr()->zero_points_.common())
+                    && !has_blocks()
                     && IMPLICATION(acc_dt != s32,
                             attr()->zero_points_.has_default_values())
                     && attr()->has_default_values(smask_t::oscale_runtime

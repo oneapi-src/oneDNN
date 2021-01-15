@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,6 +30,12 @@ namespace gpu {
 
 struct gpu_gemm_pd_t : public gemm_pd_t {
     using gemm_pd_t::gemm_pd_t;
+
+    const bool has_blocks() const {
+        return desc()->a_desc.format_desc.blocking.inner_nblks
+                || desc()->b_desc.format_desc.blocking.inner_nblks
+                || desc()->c_desc.format_desc.blocking.inner_nblks;
+    }
 };
 
 } // namespace gpu

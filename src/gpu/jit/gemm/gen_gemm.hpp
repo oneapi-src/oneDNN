@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                         && d->acc_type == d->c_type();
             }
 
-            ok = ok
+            ok = ok && !has_blocks()
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
                             d->k(), d->lda(), d->ldb(), d->ldc(), d->batch())
                     && d->bias_type() == data_type::undef

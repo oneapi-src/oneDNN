@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,16 @@ namespace gpu {
 
 struct gpu_matmul_pd_t : public matmul_pd_t {
     using matmul_pd_t::matmul_pd_t;
+
+    bool has_blocks() {
+        for (auto md : {&src_md_, &weights_md_, &bias_md_, &dst_md_}) {
+            memory_desc_wrapper mdw(md);
+            if (mdw.is_blocking_desc()) {
+                if (mdw.blocking_desc().inner_nblks != 0) { return true; }
+            }
+        }
+        return false;
+    }
 };
 
 } // namespace gpu
