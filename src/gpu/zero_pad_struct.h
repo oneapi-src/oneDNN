@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020 Intel Corporation
+ * Copyright 2020-2021 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@
 #else
 #define ZERO_PAD_MASK_DATA_TYPE unsigned char
 #endif
+#define ZERO_PAD_MASK_DT_BITS (8 * sizeof(ZERO_PAD_MASK_DATA_TYPE))
 
-#define ZERO_PAD_MASK_SIZE \
-    (ZERO_PAD_MAX_STEP_SIZE / (8 * sizeof(ZERO_PAD_MASK_DATA_TYPE)))
+#define ZERO_PAD_MASK_SIZE (ZERO_PAD_MAX_STEP_SIZE / ZERO_PAD_MASK_DT_BITS)
 #define ZERO_PAD_BIT_MODE 0
 #define ZERO_PAD_LOOKUP_MODE 1
 

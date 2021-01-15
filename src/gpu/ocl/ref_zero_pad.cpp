@@ -104,7 +104,9 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
         while (!is_done) {
             size_t idx = mdw.off_v(pos, true);
             bool is_valid = pos[i] >= tail_start;
-            bit_mask.mask[idx / 8] |= (is_valid ? (1 << (idx % 8)) : 0);
+            size_t mask_idx = idx / ZERO_PAD_MASK_DT_BITS;
+            size_t mask_bit = idx % ZERO_PAD_MASK_DT_BITS;
+            bit_mask.mask[mask_idx] |= (is_valid ? (1 << mask_bit) : 0);
             if (is_valid && use_lookup_mask) {
                 if (mask_count < ZERO_PAD_MASK_SIZE
                         && idx <= std::numeric_limits<

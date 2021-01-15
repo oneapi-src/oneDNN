@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020 Intel Corporation
+ * Copyright 2020-2021 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ static inline void typed_ref_zero_pad(__global void *a, ulong type_size,
     int offset = iblock * step_size + (step_size - nsteps * step_nelems)
             + istep * step_nelems;
 
-    const int step = 8 * sizeof(step_bitmask.mask[0]);
+    const int step = ZERO_PAD_MASK_DT_BITS;
 
     // Interpret buffer differently based on type_size, this is implicitly
     // using the fact that the bit representation of 0 is the same regardless of
