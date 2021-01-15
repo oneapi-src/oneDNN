@@ -187,13 +187,13 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 
     // skip gpu testing for zero points policy other than COMMON
-    if (IMPLICATION(is_gpu(),
-                prb->attr.zero_points.get(DNNL_ARG_SRC).policy
-                                != policy_t::COMMON
-                        || prb->attr.zero_points.get(DNNL_ARG_DST).policy
-                                != policy_t::COMMON)) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
+    if (is_gpu()) {
+        if (prb->attr.zero_points.get(DNNL_ARG_SRC).policy != policy_t::COMMON
+                || prb->attr.zero_points.get(DNNL_ARG_DST).policy
+                        != policy_t::COMMON) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
     }
 
     // ignore bcast_mask on GeMM axis
