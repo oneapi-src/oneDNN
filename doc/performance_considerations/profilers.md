@@ -42,8 +42,7 @@ This feature can also be managed at run-time with the following functions:
 
 Function settings take precedence over environment variables.
 
-### Features for VTune Amplifer 
-
+### Features for VTune Amplifier
 
 #### ITT Tagging for Primitive Execution
 
@@ -52,9 +51,9 @@ performance information on the level of a oneDNN primitive. This feature is
 supported on both CPU and GPU.
 
 ITT tagging in oneDNN during primitive execution provides more information 
-from VTune for the items below.
-1. Get the primitives timeline chart from VTune, and identify any protential
-   performance issue.
+from VTune Amplifier for the items below.
+1. Get the primitives timeline chart from VTune Amplifier, and identify
+potential performance issues.
 2. Get platform information such as an L1/L2 cache miss or level of FP
    vectorization on the primitive level.
 3. Map primitive with related computation kernels.
