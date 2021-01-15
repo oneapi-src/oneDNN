@@ -1061,14 +1061,17 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     }
 
     void cvt_z_b_s(const int startIdx, const int regNum) {
-        dup(z_tmp0.b, 0);
+        assert(z_tmp7.getIdx() < startIdx
+                || startIdx + regNum - 1 < z_tmp7.getIdx());
+
+        dup(z_tmp7.b, 0);
         for (int i = startIdx; i < startIdx + regNum; i++) {
             ZRegB tmp(i);
-            zip1(tmp, tmp, z_tmp0.b);
+            zip1(tmp, tmp, z_tmp7.b);
         }
         for (int i = startIdx; i < startIdx + regNum; i++) {
             ZRegH tmp(i);
-            zip1(tmp, tmp, z_tmp0.h);
+            zip1(tmp, tmp, z_tmp7.h);
         }
     }
 
@@ -1082,7 +1085,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     }
 
     void cvt_z_s32_s8(const int startIdx, const int regNum) {
-        dup(z_tmp0.s, 0);
+        assert(z_tmp7.getIdx() < startIdx
+                || startIdx + regNum - 1 < z_tmp7.getIdx());
+
+        dup(z_tmp7.s, 0);
 
         for (int i = startIdx; i < startIdx + regNum; i++) {
             smin(ZRegS(i), 127);
@@ -1092,11 +1098,11 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         }
         for (int i = startIdx; i < startIdx + regNum; i++) {
             ZRegH z(i);
-            uzp1(z, z, z_tmp0.h);
+            uzp1(z, z, z_tmp7.h);
         }
         for (int i = startIdx; i < startIdx + regNum; i++) {
             ZRegB z(i);
-            uzp1(z, z, z_tmp0.b);
+            uzp1(z, z, z_tmp7.b);
         }
     }
 
@@ -1120,13 +1126,15 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     }
 
     void cvt_z_s32_u8(const int startIdx, const int regNum) {
-        dupm(z_tmp0.s, 255);
+        assert(z_tmp7.getIdx() < startIdx
+                || startIdx + regNum - 1 < z_tmp7.getIdx());
+        dupm(z_tmp7.s, 255);
 
         for (int i = startIdx; i < startIdx + regNum; i++)
             smax(ZRegS(i), 0);
 
         for (int i = startIdx; i < startIdx + regNum; i++)
-            smin(ZRegS(i), p_512 / T_m, z_tmp0.s);
+            smin(ZRegS(i), p_512 / T_m, z_tmp7.s);
 
         for (int i = startIdx; i < startIdx + regNum; i++) {
             ZRegH z(i);
