@@ -191,7 +191,7 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
             } else {
                 auto sycl_queue
                         = dnnl::sycl_interop::get_queue(dnnl::stream(eng));
-                sycl_queue.memcpy(src_ptr, handle, size).wait();
+                sycl_queue.memcpy(handle, src_ptr, size).wait();
             }
         }
         return;
