@@ -2456,8 +2456,9 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::compute_ic_block_step(int ur_w,
         int pad_l, int pad_r, int ic_block_step, int input_offset,
         int kernel_offset, int output_offset, bool input_wraparound) {
 
-    int kw = jcp.kw;
-    int iw = jcp.iw;
+    int kw = jcp.is_hw_transp ? jcp.tr_kw : jcp.kw;
+    int iw = jcp.is_hw_transp ? jcp.tr_iw : jcp.iw;
+    int kw_tr_mult = jcp.is_hw_transp ? jcp.kw : 1;
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
 
@@ -2484,7 +2485,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::compute_ic_block_step(int ur_w,
     for (int i_kw = 0; i_kw < kw; i_kw++) {
         for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
             pre_offset_ker = load_ker(i_kw * ic_block_step + i_ic,
-                    typesize * (i_kw * ic_block + i_ic) * jcp.oc_block
+                    typesize * (i_kw * kw_tr_mult * ic_block + i_ic)
+                                    * jcp.oc_block
                             + kernel_offset,
                     pre_offset_ker);
         }
@@ -2735,7 +2737,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::compute_ic_block_step(int ur_w,
     for (int i_kw = 0; i_kw < kw; i_kw++) {
         for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
             pre_offset_ker = store_ker(i_kw * ic_block_step + i_ic,
-                    typesize * (i_kw * ic_block + i_ic) * jcp.oc_block
+                    typesize * (i_kw * kw_tr_mult * ic_block + i_ic)
+                                    * jcp.oc_block
                             + kernel_offset,
                     pre_offset_ker);
         }
@@ -3984,6 +3987,8 @@ status_t jit_sve_512_conv_bwd_weights_kernel_f32::init_conf(
 
     /* Set bounds for large filter 'kw > 14' support and optimized JIT
      * implementation for small output-width 'ow = 1' */
+    const int min_filter_size = 14;
+    const int max_filter_size = 20;
     const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
     const auto dat_tag_ncx = pick(ndims - 3, ncw, nchw, ncdhw);
     const auto dat_tag_nCx16c = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
@@ -3995,7 +4000,24 @@ status_t jit_sve_512_conv_bwd_weights_kernel_f32::init_conf(
             = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
     if (mayiuse(sve_512) && is_data_layout_nxc) return status::unimplemented;
 
-    jcp.is_hw_transp = false;
+    /* Optimization: when `output-width == 1' deploy a special case of the
+     * JIT-Kernel by unrolling with regards to height instead of width for
+     * the source and filter tensors. The JIT-Kernel also transposes the
+     * strides for the input and filter memory access. */
+    jcp.is_hw_transp = !is_data_layout_nxc && ndims == 4
+            && jcp.kw >= min_filter_size && jcp.kw < max_filter_size
+            && jcp.ow == 1 && jcp.kw == jcp.iw
+            && everyone_is(1, jcp.stride_w, jcp.stride_h)
+            && everyone_is(0, jcp.dilate_h, jcp.dilate_w)
+            && everyone_is(0, jcp.l_pad, jcp.t_pad, jcp.r_pad, jcp.b_pad);
+
+    if (jcp.is_hw_transp) {
+        jcp.tr_kw = jcp.kh;
+        jcp.tr_kh = jcp.kw;
+        jcp.tr_iw = jcp.ih;
+        jcp.tr_ih = jcp.iw;
+    }
+
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
     jcp.ohp = jcp.oh;
