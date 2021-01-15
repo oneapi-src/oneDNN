@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020 Intel Corporation
+ * Copyright 2020-2021 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,15 +99,21 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
             bit_mask.mask[j] = 0;
 
         bool is_done = false;
+        bool use_lookup_mask = true;
         size_t mask_count = 0;
         while (!is_done) {
             size_t idx = mdw.off_v(pos, true);
             bool is_valid = pos[i] >= tail_start;
             bit_mask.mask[idx / 8] |= (is_valid ? (1 << (idx % 8)) : 0);
-            if (is_valid) {
-                if (mask_count < ZERO_PAD_MASK_SIZE)
-                    lookup_mask.mask[mask_count] = idx;
-                mask_count++;
+            if (is_valid && use_lookup_mask) {
+                if (mask_count < ZERO_PAD_MASK_SIZE
+                        && idx <= std::numeric_limits<
+                                   ZERO_PAD_MASK_DATA_TYPE>::max()) {
+                    lookup_mask.mask[mask_count] = (ZERO_PAD_MASK_DATA_TYPE)idx;
+                    mask_count++;
+                } else {
+                    use_lookup_mask = false;
+                }
             }
 
             //Increment position in the block
@@ -125,7 +131,7 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
         size_t mode = ZERO_PAD_BIT_MODE;
         size_t gws0 = nelems_block;
         zero_pad_mask_t *mask_in = &bit_mask;
-        if (mask_count < ZERO_PAD_MASK_SIZE) {
+        if (use_lookup_mask) {
             mode = ZERO_PAD_LOOKUP_MODE;
             gws0 = mask_count;
             mask_in = &lookup_mask;
