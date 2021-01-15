@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1648,19 +1648,19 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     jcp.ow_block = jcp.ow;
 
-    auto get_thr_eff = [=](int nb_oc_blocking, int ow_block) {
+    auto get_thr_eff = [=](int nb_oc_blocking, int ow_block, int nthr) {
         int nb_ow = div_up(jcp.ow, ow_block);
         int nb_oc_chunks = div_up(jcp.nb_oc, nb_oc_blocking);
         int work_amount = jcp.mb * jcp.oh * nb_oc_chunks * nb_ow;
         float disbalance = (float)jcp.ow / rnd_up(jcp.ow, ow_block);
-        float thr_eff = disbalance * (float)work_amount
-                / rnd_up(work_amount, jcp.nthr);
+        float thr_eff
+                = disbalance * (float)work_amount / rnd_up(work_amount, nthr);
         return thr_eff;
     };
 
-    auto get_ow_block = [=](int nb_oc_blocking, int ur_w, float &eff) {
+    auto get_ow_block = [=](int nb_oc_blocking, int ur_w, int nthr) {
         int res_ow_block = jcp.ow;
-        eff = get_thr_eff(nb_oc_blocking, res_ow_block);
+        float eff = get_thr_eff(nb_oc_blocking, res_ow_block, nthr);
         if (!is_ow_threading_applicable()) return res_ow_block;
 
         int L2_part = (platform::get_per_core_cache_size(2) * 7 / 8) / typesize;
@@ -1675,7 +1675,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         int ow_block_cache = ur_w * nstl::max(2, nurw_cache);
 
         int ow_block_thr = ow_block_cache;
-        eff = get_thr_eff(nb_oc_blocking, ow_block_thr);
+        eff = get_thr_eff(nb_oc_blocking, ow_block_thr, nthr);
 
         int max_nb_ow = div_up(jcp.ow, 2 * ur_w);
         int start_nb_ow = div_up(jcp.ow, ow_block_thr);
@@ -1686,7 +1686,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             if (ow_block < nb_oc_blocking * jcp.oc_block && eff > eff_threshold)
                 break;
             if (div_up(jcp.ow, ow_block) != nb_ow) continue;
-            float thr_eff = get_thr_eff(nb_oc_blocking, ow_block);
+            float thr_eff = get_thr_eff(nb_oc_blocking, ow_block, nthr);
             float eff_step = (jcp.ver == ver_4fma) ? 1.1f : 1.f;
             if (ow_block >= 2 * ur_w && thr_eff > eff_step * eff) {
                 ow_block_thr = ow_block;
@@ -1696,10 +1696,11 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             if (eff > eff_threshold) break;
         }
         res_ow_block = nstl::min(jcp.ow, nstl::max(2 * ur_w, ow_block_thr));
-        eff = get_thr_eff(nb_oc_blocking, res_ow_block);
+        eff = get_thr_eff(nb_oc_blocking, res_ow_block, nthr);
         return res_ow_block;
     };
 
+    const unsigned int L1_cache_size = platform::get_per_core_cache_size(1);
     if (jcp.ver == ver_fma && mayiuse(avx512_core)) {
         int try_nb_oc_blocking = 2;
         unsigned int ker_inp_size = typesize * div_up(jcp.iw, jcp.stride_w)
@@ -1711,7 +1712,6 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         unsigned int ker_total_size
                 = ker_inp_size + ker_out_size + ker_wei_size;
 
-        const unsigned int L1_cache_size = platform::get_per_core_cache_size(1);
         bool embd_bcast_condition_base = true
                 && (jcp.kw == 3 && jcp.ow <= 28
                         && ker_total_size < L1_cache_size)
@@ -1805,9 +1805,9 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                             best_nb_oc_blocking = i;
                             break;
                         } else {
-                            float thr_eff;
                             int ur_w = nstl::min(jcp.ow, 31 / (i + 1));
-                            get_ow_block(i, ur_w, thr_eff);
+                            int ow_block = get_ow_block(i, ur_w, jcp.nthr);
+                            float thr_eff = get_thr_eff(i, ow_block, jcp.nthr);
                             if (thr_eff > 1.05f * best_thr_eff) {
                                 best_nb_oc_blocking = i;
                                 best_thr_eff = thr_eff;
@@ -1839,9 +1839,40 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     jcp.nb_ic_L2 = jcp.nb_ic;
 
-    float thr_eff;
-    jcp.ow_block = get_ow_block(jcp.nb_oc_blocking, jcp.ur_w, thr_eff);
+    jcp.ow_block = get_ow_block(jcp.nb_oc_blocking, jcp.ur_w, jcp.nthr);
     jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
+    float thr_eff = get_thr_eff(jcp.nb_oc_blocking, jcp.ow_block, jcp.nthr);
+
+    /* adjust the thread decomposition
+     * to improve the thr_eff for small size problem
+     * the threshold L1_cache_size is empirical */
+    size_t wei_size
+            = (size_t)typesize * jcp.ic * jcp.oc * jcp.kh * jcp.kw * jcp.kd;
+    size_t out_size = (size_t)jcp.mb * jcp.typesize_out * jcp.oc * jcp.oh
+            * jcp.ow * jcp.od;
+    size_t inp_size = (size_t)jcp.mb * jcp.typesize_in * jcp.ic * jcp.ih
+            * jcp.iw * jcp.id;
+    size_t total_size = jcp.ngroups * (wei_size + out_size + inp_size);
+    float eff_threshold = (jcp.ver == ver_4fma) ? 0.9f : 0.98f;
+
+    if (thr_eff < eff_threshold && jcp.ngroups < jcp.nthr
+            && (total_size < L1_cache_size)) {
+        int ow_block = jcp.ow_block;
+        float best_thr_eff = -1.0f;
+        float eff = -1.0f;
+        int end_nthr = with_groups ? jcp.ngroups : 1;
+        for (int nthr = jcp.nthr / 2; nthr >= end_nthr; nthr--) {
+            ow_block = get_ow_block(jcp.nb_oc_blocking, jcp.ur_w, nthr);
+            eff = get_thr_eff(jcp.nb_oc_blocking, ow_block, nthr);
+            if (eff > 1.1f * best_thr_eff) {
+                best_thr_eff = eff;
+                jcp.ow_block = ow_block;
+                jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
+                jcp.nthr = jcp.aligned_threads = nthr;
+                if (best_thr_eff > eff_threshold) break;
+            }
+        }
+    }
 
     const int L2_size = platform::get_per_core_cache_size(2) / typesize;
     // Source and output data needs to fit in L2,
@@ -2972,8 +3003,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
             && jcp.stride_w == 1
             && utils::everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w);
 
+    const unsigned int L1_cache_size = platform::get_per_core_cache_size(1);
     if (jcp.ver == ver_fma && mayiuse(avx512_core)) {
-        const unsigned int L1_cache_size = platform::get_per_core_cache_size(1);
         int try_nb_ic_blocking = 2;
         unsigned int ker_inp_size = typesize * jcp.iw * jcp.ic_block
                 * try_nb_ic_blocking * jcp.kh;
@@ -3022,7 +3053,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     auto is_iw_threading_applicable
             = [=]() { return one_of(jcp.ndims, 3, 4) && !mayiuse(avx512_mic); };
 
-    auto get_thr_eff = [=](int nb_ic_blocking, int iw_block) {
+    auto get_thr_eff = [=](int nb_ic_blocking, int iw_block, int nthr) {
         // Cost heuristic for threading overhead. Determined using OMP.
         const float iw_block_cost = 32.0;
 
@@ -3032,17 +3063,17 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         float disbalance = (float)jcp.iw / rnd_up(jcp.iw, iw_block);
         float block_overhead = nstl::max(0.0f, 1.0f - iw_block_cost / iw_block);
         float thr_eff = block_overhead * disbalance
-                * ((float)work_amount / rnd_up(work_amount, nthreads));
+                * ((float)work_amount / rnd_up(work_amount, nthr));
         return thr_eff;
     };
 
-    auto get_iw_block = [=](int nb_ic_blocking, int ur_w) {
+    auto get_iw_block = [=](int nb_ic_blocking, int ur_w, float &eff,
+                                int nthr) {
         int res_iw_block = jcp.iw;
         if (!is_iw_threading_applicable()) return res_iw_block;
 
         int max_nb_iw = div_up(jcp.iw, 2 * ur_w);
         int iw_block_thr;
-        float eff;
 
         if (jcp.ndims == 3) {
             // Blocking optimization to prevent data from leaving cache This
@@ -3064,7 +3095,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
             iw_block_thr = iw_block_cache;
         } else
             iw_block_thr = jcp.iw;
-        eff = get_thr_eff(nb_ic_blocking, iw_block_thr);
+        eff = get_thr_eff(nb_ic_blocking, iw_block_thr, nthr);
 
         // Search for most efficient threading over iw_blocks.
         int start_nb_iw = div_up(jcp.iw, iw_block_thr);
@@ -3074,7 +3105,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
             int iw_block
                     = nstl::min(rnd_up(div_up(jcp.iw, nb_iw), ur_w), jcp.iw);
             if (div_up(jcp.iw, iw_block) != nb_iw) continue;
-            float thr_eff = get_thr_eff(nb_ic_blocking, iw_block);
+            float thr_eff = get_thr_eff(nb_ic_blocking, iw_block, nthr);
             if (iw_block >= 2 * ur_w && thr_eff > eff) {
                 iw_block_thr = iw_block;
                 eff = thr_eff;
@@ -3084,8 +3115,47 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         return res_iw_block;
     };
 
-    jcp.iw_block = get_iw_block(jcp.nb_ic_blocking, jcp.ur_w);
+    float thr_eff = -1.0f;
+    jcp.iw_block
+            = get_iw_block(jcp.nb_ic_blocking, jcp.ur_w, thr_eff, jcp.nthr);
     jcp.nb_iw = div_up(jcp.iw, jcp.iw_block);
+
+    /* adjust the thread decomposition 
+     * to improve the thr_eff for small size problem
+     * the threshold L1_cache_size is empirical */
+    size_t wei_size
+            = (size_t)typesize * jcp.ic * jcp.oc * jcp.kh * jcp.kw * jcp.kd;
+    size_t out_size = (size_t)jcp.mb * jcp.typesize_out * jcp.oc * jcp.oh
+            * jcp.ow * jcp.od;
+    size_t inp_size = (size_t)jcp.mb * jcp.typesize_in * jcp.ic * jcp.ih
+            * jcp.iw * jcp.id;
+    size_t total_size = jcp.ngroups * (wei_size + out_size + inp_size);
+
+    if (jcp.ngroups < jcp.nthr && (total_size < L1_cache_size)) {
+        int iw_block = jcp.iw_block;
+        int end_nthr = with_groups ? jcp.ngroups : ndims - 2;
+        float eff = -1.0f;
+        float best_thr_eff = -1.0f;
+        // When thr_eff equals zero (cannot get the proper effciency)
+        // simply set the thread as 4 now
+        // And update the eff inside get_iw_block to avoid redundant
+        // computation when thr_eff != 0 but current eff == 0
+        if (thr_eff == 0.f) {
+            jcp.nthr = nstl::min(jcp.nthr, 4);
+        } else {
+            for (int nthr = jcp.nthr / 2; nthr >= end_nthr; nthr--) {
+                iw_block
+                        = get_iw_block(jcp.nb_ic_blocking, jcp.ur_w, eff, nthr);
+                if (eff > 1.1f * best_thr_eff) {
+                    best_thr_eff = eff;
+                    jcp.iw_block = iw_block;
+                    jcp.nb_iw = div_up(jcp.iw, jcp.iw_block);
+                    jcp.nthr = jcp.aligned_threads = nthr;
+                    if (best_thr_eff > 0.98f) break;
+                }
+            }
+        }
+    }
 
     if (l_overflow * jcp.stride_w > jcp.ur_w && !jcp.large_w_filter)
         return status::unimplemented;
