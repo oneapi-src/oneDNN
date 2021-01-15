@@ -723,6 +723,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         VReg4S v_dst(ur);
                         add_imm(X_TMP_0, x_ptr_scale_off, s_off[ur] * stype_sz,
                                 X_DEFAULT_ADDR);
+
                         ldr(QReg {idx}, ptr(X_TMP_0));
                         fmul(v_dst, v_dst, VReg4S {idx});
                         continue;
@@ -763,7 +764,13 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     assert(count <= z_tmp_vec_size);
                     /* Firstly, data is loaded. */
                     for (int i = 0; i < count; i++) {
-                        ldr(QReg(tmp_vec_idx[i]), ptr(x_tmp_vec[i]));
+
+                        if (prb_.otype == f32 || prb_.otype == s32) {
+                            ldr(QReg(tmp_vec_idx[i]), ptr(x_tmp_vec[i])); // bug
+                        } else if (prb_.otype == s8 || prb_.otype == u8) {
+                            ldr(SReg(tmp_vec_idx[i]), ptr(x_tmp_vec[i])); // bug
+                        } else
+                            assert(!"unreachable");
                     }
 
                     /* Secondly, it is added. */
@@ -1149,11 +1156,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         preamble();
 #define PARAM(x) offsetof(call_param_t, x)
         if (prb_.scale_type == scale_type_t::COMMON) {
-            auto reg_ptr_scale_tmp = reg_ptr_in;
-            add_imm(X_TMP_0, abi_param1, PARAM(scale), X_TMP_1);
-            ldr(reg_ptr_scale_tmp, ptr(X_TMP_0));
-            ldr(W_TMP_0, ptr(reg_ptr_scale_tmp));
-            dup(xmm_scale, W_TMP_0);
+            add_imm(X_DEFAULT_ADDR, abi_param1, PARAM(scale), X_TMP_1);
+            ldr(X_TMP_0, ptr(X_DEFAULT_ADDR));
+            ldr(W_TMP_1, ptr(X_TMP_0));
+            dup(xmm_scale, W_TMP_1);
         } else if (prb_.scale_type == scale_type_t::MANY) {
             add_imm(X_DEFAULT_ADDR, abi_param1, PARAM(scale), X_TMP_0);
             ldr(reg_ptr_scale, ptr(X_DEFAULT_ADDR));
