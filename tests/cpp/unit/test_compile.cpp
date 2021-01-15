@@ -3959,6 +3959,43 @@ TEST(operator_kernel, softmax) {
     }
 }
 
+TEST(operator_kernel, softmax_with_last_dim) {
+    impl::node_t softmax_node(impl::op_kind::SoftMax);
+    impl::engine_t &eng = get_engine();
+
+    softmax_node.set_attr<int64_t>("axis", -1);
+    softmax_node.set_attr<std::string>("backend", "dnnl");
+
+    test::vector<float> src_data {3.0, 3.0, 1.0, 1.0};
+    test::vector<float> ref_dst_data {0.5, 0.5, 0.5, 0.5};
+    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, {2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst = utils::logical_tensor_init(
+            1, {2, 2}, impl::data_type::f32, impl::layout_type::any);
+
+    std::vector<impl::logical_tensor_t> inputs {src};
+    std::vector<impl::logical_tensor_t> outputs {dst};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto softmax_op = op_factory.create_kernel(softmax_node);
+
+    softmax_op->compile(&softmax_node, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    impl::tensor_t src_ts(src, src_data.data());
+    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+
+    impl::stream_t &strm = get_stream();
+    softmax_op->execute(&softmax_node, &strm, {src_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < ref_dst_data.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+    }
+}
+
 TEST(operator_kernel, softmax_backward) {
     impl::node_t softmax_node(impl::op_kind::SoftMaxBackprop);
     impl::engine_t &eng = get_engine();

@@ -75,6 +75,9 @@ public:
 
         p_engine_ = make_dnnl_engine(*g_engine);
         axis_ = anode->get_attr<int64_t>("axis");
+        if (axis_ < 0) { axis_ += src.get_ndims(); }
+        BACKEND_DNNL_ENFORCE(
+                axis_ >= 0 && axis_ < src.get_ndims(), "Invalid softmax axis.");
 
         pd_ = primitive_desc(
                 {prop_kind::forward, src, static_cast<int>(axis_)}, p_engine_);
@@ -141,6 +144,9 @@ public:
                 &outputs.at(softmax_bwd::kDiff_src));
 
         axis_ = anode->get_attr<int64_t>("axis");
+        if (axis_ < 0) { axis_ += dst.get_ndims(); }
+        BACKEND_DNNL_ENFORCE(
+                axis_ >= 0 && axis_ < dst.get_ndims(), "Invalid softmax axis.");
 
         p_engine_ = make_dnnl_engine(*g_engine);
         auto forward_hints = softmax_forward::primitive_desc(
