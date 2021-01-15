@@ -6,9 +6,10 @@ dev_guide_build_options), oneDNN requires a user to implement a threadpool
 interface to enable the library to perform computations using multiple
 threads.
 
-The threadpool interface is defined in `include/dnnl_threadpool_iface.hpp`.
-Below is a sample implementation based on Eigen threadpool that is also used
-for testing (see `tests/testing_threadpool.hpp`).
+The threadpool interface is defined in
+`include/oneapi/dnnl/dnnl_threadpool_iface.hpp`. Below is a sample
+implementation based on Eigen threadpool that is also used for testing (see
+`tests/test_thread.cpp`).
 
 ~~~cpp
 #include "dnnl_threadpool_iface.hpp"
