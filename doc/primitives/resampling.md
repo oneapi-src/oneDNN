@@ -125,7 +125,7 @@ source and destination memory objects:
 | Propagation        | Source / Destination  |
 | :--                | :--                   |
 | forward / backward | f32, bf16             |
-| forward            | f16, s8, u8           |
+| forward            | f16, s32, s8, u8      |
 
 ### Post-ops and Attributes
 

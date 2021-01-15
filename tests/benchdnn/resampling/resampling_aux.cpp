@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -145,7 +145,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     settings_t def;
 
     if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
-    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
+    if (canonical || prb.sdt != def.sdt[0]) s << "--sdt=" << prb.sdt << " ";
+    if (canonical || prb.ddt != def.ddt[0]) s << "--ddt=" << prb.ddt << " ";
     if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
     if (canonical || prb.alg != def.alg[0])
         s << "--alg=" << alg2str(prb.alg) << " ";

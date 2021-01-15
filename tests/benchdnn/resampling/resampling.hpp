@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,16 +58,18 @@ struct settings_t {
     desc_t desc {};
 
     std::vector<dir_t> dir {FWD_D};
-    std::vector<dnnl_data_type_t> dt {dnnl_f32};
+    std::vector<dnnl_data_type_t> sdt {dnnl_f32};
+    std::vector<dnnl_data_type_t> ddt {dnnl_f32};
     std::vector<std::string> tag {tag::abx};
     std::vector<alg_t> alg {nearest};
+    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
             dnnl_scratchpad_mode_library};
     std::vector<int64_t> mb {0};
 
     const char *perf_template_csv
-            = "perf,%engine%,%impl%,%name%,%dir%,%dt%,%tag%,%alg%,%DESC%,%-"
-              "time%,%0time%";
+            = "perf,%engine%,%impl%,%name%,%dir%,%sdt%,%ddt%,%tag%,%alg%,%DESC%"
+              ",%-time%,%0time%";
     const char *perf_template_def
             = "perf,%engine%,%impl%,%name%,%prb%,%-time%,%0time%";
     const char *perf_template = perf_template_def;
@@ -76,12 +78,13 @@ struct settings_t {
 };
 
 struct prb_t : public desc_t {
-    prb_t(const desc_t &desc, dir_t dir, dnnl_data_type_t dt,
-            const std::string &tag, alg_t alg, const attr_t &attr,
-            int64_t mb = 0)
+    prb_t(const desc_t &desc, dir_t dir, dnnl_data_type_t sdt,
+            dnnl_data_type_t ddt, const std::string &tag, alg_t alg,
+            const attr_t &attr, int64_t mb = 0)
         : desc_t(desc)
         , dir(dir)
-        , dt(dt)
+        , sdt(sdt)
+        , ddt(ddt)
         , tag(tag)
         , alg(alg)
         , attr(attr)
@@ -91,7 +94,7 @@ struct prb_t : public desc_t {
     ~prb_t() {}
 
     dir_t dir;
-    dnnl_data_type_t dt;
+    dnnl_data_type_t sdt, ddt;
     std::string tag;
     alg_t alg;
     attr_t attr;
@@ -106,6 +109,7 @@ struct perf_report_t : public base_perf_report_t {
 
     void report(const prb_t *prb, const res_t *res, const char *prb_str) {
         p_ = prb;
+        sdt_.push_back(prb->sdt);
         tag_ = normalize_tag(p_->tag, p_->ndims);
         base_report(res, prb_str);
     }
@@ -127,11 +131,13 @@ struct perf_report_t : public base_perf_report_t {
     const int64_t *user_mb() const override { return &p_->user_mb; }
     const char *name() const override { return p_->name; }
     const dir_t *dir() const override { return &p_->dir; }
-    const dnnl_data_type_t *dt() const override { return &p_->dt; }
+    const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }
+    const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
     const std::string *tag() const override { return &tag_; }
 
 private:
     const prb_t *p_ = NULL;
+    std::vector<dnnl_data_type_t> sdt_;
     std::string tag_;
 };
 
@@ -145,7 +151,8 @@ inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t ic, int64_t od,
     return (((mb * prb->ic + ic) * prb->od + od) * prb->oh + oh) * prb->ow + ow;
 }
 
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst);
+void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
+        const std::vector<dnn_mem_t> &binary_po);
 void compute_ref_bwd(
         const prb_t *prb, dnn_mem_t &diff_src, const dnn_mem_t &diff_dst);
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+#include "binary/binary.hpp"
 #include "resampling/resampling.hpp"
 
 namespace resampling {
@@ -34,7 +35,7 @@ namespace resampling {
 int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *res) {
     const auto nelems = mem_fp.nelems();
-    const auto dt = prb->dt;
+    const auto dt = mem_dt.dt();
     const int range = 16;
     const int f_min = 0;
 
@@ -83,9 +84,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     std::string src_tag = (prb->dir & FLAG_FWD) ? prb->tag : tag::any;
     std::string dst_tag = (prb->dir & FLAG_BWD) ? prb->tag : tag::any;
 
-    SAFE(init_md(&src_d, prb->ndims, src_dims, prb->dt, src_tag), CRIT);
+    SAFE(init_md(&src_d, prb->ndims, src_dims, prb->sdt, src_tag), CRIT);
 
-    SAFE(init_md(&dst_d, prb->ndims, dst_dims, prb->dt, dst_tag), CRIT);
+    SAFE(init_md(&dst_d, prb->ndims, dst_dims, prb->ddt, dst_tag), CRIT);
 
     dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
     dnnl_resampling_desc_t pd;
@@ -105,9 +106,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     dnnl_primitive_desc_t _hint = nullptr;
     if (prb->dir & FLAG_BWD) {
         dnnl_memory_desc_t fwd_src_d, fwd_dst_d;
-        SAFE(init_md(&fwd_src_d, prb->ndims, src_dims, prb->dt, prb->tag),
+        SAFE(init_md(&fwd_src_d, prb->ndims, src_dims, prb->sdt, prb->tag),
                 CRIT);
-        SAFE(init_md(&fwd_dst_d, prb->ndims, dst_dims, prb->dt, tag::any),
+        SAFE(init_md(&fwd_dst_d, prb->ndims, dst_dims, prb->ddt, tag::any),
                 CRIT);
 
         dnnl_resampling_desc_t rd_fwd;
@@ -121,8 +122,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             return res->state = UNIMPLEMENTED, OK;
         SAFE(init_fwd_status, WARN);
     }
-
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args_t());
+    attr_args_t attr_args;
+    attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims, dst_dims);
+    const auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args);
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&rpd, &pd, dnnl_attr, engine, _hint);
@@ -149,7 +151,15 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common({prb->dt}, prb->dir, res);
+    check_known_skipped_case_common({prb->sdt, prb->ddt}, prb->dir, res);
+
+    // TODO: temporary disable post-ops and mixed dt, it will be enabled
+    // in separate MR's with new functionality for GPU/CPU primitive.
+    if (prb->attr.post_ops.len() > 0 || prb->sdt != prb->ddt) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
     if (res->state == SKIPPED) return;
 
     if (is_nvidia_gpu()) {
@@ -199,6 +209,14 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t dst_fp(dst_md, fp, tag, test_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
+    if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
+        SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
+
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
+    SAFE(binary::setup_binary_po(
+                 const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+            WARN);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
@@ -208,17 +226,19 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_DST, dst_dt);
+        args.set(binary_po_args, binary_po_dt);
+
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         SAFE(execute_and_wait(rp, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_fwd(prb, src_fp, dst_fp);
-            float trh = prb->alg == nearest ? 0.f : 3 * epsilon_dt(prb->dt);
+            compute_ref_fwd(prb, src_fp, dst_fp, binary_po_fp);
+            float trh = prb->alg == nearest ? 0.f : 3 * epsilon_dt(prb->ddt);
             if (is_nvidia_gpu()) {
                 // cuDNN precision is different from ref one due to different
                 // computation algorithm used for resampling.
-                trh = prb->dt == dnnl_f16 ? 4e-2 : 2e-5;
+                trh = prb->ddt == dnnl_f16 ? 4e-2 : 2e-5;
             }
             compare::compare_t cmp;
             cmp.set_threshold(trh);
@@ -238,7 +258,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (bench_mode & CORR) {
             compute_ref_bwd(prb, src_fp, dst_fp);
-            float trh = prb->alg == nearest ? 0.f : 6 * epsilon_dt(prb->dt);
+            float trh = prb->alg == nearest ? 0.f : 6 * epsilon_dt(prb->sdt);
             // cuDNN precision is different from ref one due to different
             // computation algorithm used for resampling.
             if (is_nvidia_gpu()) trh = 2e-5;

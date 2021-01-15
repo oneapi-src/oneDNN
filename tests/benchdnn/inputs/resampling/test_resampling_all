@@ -2,7 +2,8 @@
 
 # f32
 --mb=2
---dt=f32
+--sdt=f32
+--ddt=f32
 --dir=FWD_D,BWD_D
 --alg=nearest,linear
 --tag=abx,axb,aBx8b,aBx16b

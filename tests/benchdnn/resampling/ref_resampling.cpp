@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,7 +38,8 @@ float weight(const int64_t y, const int64_t y_max, const int64_t x_max) {
     return fabs(linear_map(y, y_max, x_max) - left(y, y_max, x_max));
 }
 
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
+void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
+        const std::vector<dnn_mem_t> &binary_po) {
     int64_t MB = prb->mb;
     int64_t IC = prb->ic;
     int64_t ID = prb->id;
@@ -48,16 +49,15 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
     int64_t OH = prb->oh;
     int64_t OW = prb->ow;
 
-    auto ker_nearest = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh,
-                               int64_t ow) {
+    auto ker_nearest = [&](float &result, int64_t mb, int64_t ic, int64_t od,
+                               int64_t oh, int64_t ow) {
         const int64_t id = near(od, OD, ID);
         const int64_t ih = near(oh, OH, IH);
         const int64_t iw = near(ow, OW, IW);
-        const auto dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
-        dst.set_elem(dst_off, src.get_elem(src_off_f(prb, mb, ic, id, ih, iw)));
+        result = src.get_elem(src_off_f(prb, mb, ic, id, ih, iw));
     };
-    auto ker_linear = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh,
-                              int64_t ow) {
+    auto ker_linear = [&](float &result, int64_t mb, int64_t ic, int64_t od,
+                              int64_t oh, int64_t ow) {
         const int64_t id[2] = {left(od, OD, ID), right(od, OD, ID)};
         const int64_t ih[2] = {left(oh, OH, IH), right(oh, OH, IH)};
         const int64_t iw[2] = {left(ow, OW, IW), right(ow, OW, IW)};
@@ -79,17 +79,31 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
 
         float cw = ch[0] * ww[0] + ch[1] * ww[1];
 
-        const auto dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
-        dst.set_elem(dst_off, cw);
+        result = cw;
     };
 
+    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
     dnnl::impl::parallel_nd(MB, IC, OD, OH, OW,
             [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
+                float result = 0.f;
                 if (prb->alg == nearest) {
-                    ker_nearest(mb, ic, od, oh, ow);
+                    ker_nearest(result, mb, ic, od, oh, ow);
                 } else {
-                    ker_linear(mb, ic, od, oh, ow);
+                    ker_linear(result, mb, ic, od, oh, ow);
                 }
+                const auto dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
+                std::vector<float> v_binary_vals;
+                v_binary_vals.reserve(v_bin_po_mask.size());
+                for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
+                    const auto bin_po_offset
+                            = dst.get_scale_idx(dst_off, v_bin_po_mask[d]);
+                    const float binary_val
+                            = binary_po[d].get_elem(bin_po_offset);
+                    v_binary_vals.push_back(binary_val);
+                }
+                maybe_post_ops(prb->attr, result, dst.get_elem(dst_off),
+                        v_binary_vals);
+                dst.set_elem(dst_off, result);
             });
 }
 
