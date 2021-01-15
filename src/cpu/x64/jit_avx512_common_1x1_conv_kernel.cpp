@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1152,6 +1152,42 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
             load_blocking = jcp.load_block;
         }
 
+        auto get_thr_eff = [=](int load_chunk, int nthr) {
+            int lgc = div_up(nb_load, load_chunk);
+            int thr_per_grp = div_up(nthr, lgc);
+            int bcast_per_thr
+                    = div_up(jcp.mb * nb_bcast, thr_per_grp) * jcp.bcast_block;
+            int load_per_thr = load_chunk * simd_w;
+            float data_norm = (bcast_per_thr + load_per_thr) / 2.f;
+            float data_eff
+                    = (bcast_per_thr * load_per_thr) / (data_norm * data_norm);
+            float thr_eff_over_grp
+                    = (float)nstl::max(1, nthr / lgc) / div_up(nthr, lgc);
+            float thr_eff_in_grp = ((float)jcp.mb * nb_bcast)
+                    / rnd_up(jcp.mb * nb_bcast, thr_per_grp);
+            float thr_eff = thr_eff_over_grp * thr_eff_in_grp;
+            float load_eff = (float)nb_load / rnd_up(nb_load, lgc);
+            float overall_eff = data_eff + thr_eff + load_eff;
+            return overall_eff;
+        };
+
+        auto get_load_chunk = [=](int nthr) {
+            float best_eff = -1.0f;
+            int best_lgc = 1;
+            float eff;
+
+            for (int load_chunk = 1; load_chunk <= nb_load; load_chunk++) {
+                int lgc = div_up(nb_load, load_chunk);
+                if (lgc > nthr) continue;
+                eff = get_thr_eff(load_chunk, nthr);
+                if (eff > best_eff) {
+                    best_eff = eff;
+                    best_lgc = lgc;
+                }
+            }
+            return best_lgc;
+        };
+
         if (jcp.ver == ver_4fma && jcp.bcast_dim * jcp.mb < jcp.load_dim
                 && jcp.os > 64
                 && IMPLICATION(reduce_src, jcp.load_dim < 1024)) {
@@ -1164,35 +1200,38 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
             * TODO: remove heuristic constants in above condition
             * TODO: check this blocking for other ISA
             */
-            float best_eff = -1.f;
-            int best_lgc = 1;
-
-            for (int load_chunk = 1; load_chunk <= nb_load; load_chunk++) {
-                int lgc = div_up(nb_load, load_chunk);
-                if (lgc > jcp.nthr) continue;
-                int thr_per_grp = div_up(jcp.nthr, lgc);
-                int bcast_per_thr = div_up(jcp.mb * nb_bcast, thr_per_grp)
-                        * jcp.bcast_block;
-                int load_per_thr = load_chunk * simd_w;
-                float data_norm = (bcast_per_thr + load_per_thr) / 2.f;
-                float data_eff = (bcast_per_thr * load_per_thr)
-                        / (data_norm * data_norm);
-                float thr_eff_over_grp = (float)nstl::max(1, jcp.nthr / lgc)
-                        / div_up(jcp.nthr, lgc);
-                float thr_eff_in_grp = ((float)jcp.mb * nb_bcast)
-                        / rnd_up(jcp.mb * nb_bcast, thr_per_grp);
-                float thr_eff = thr_eff_over_grp * thr_eff_in_grp;
-                float load_eff = (float)nb_load / rnd_up(nb_load, lgc);
-                float overall_eff = data_eff + thr_eff + load_eff;
-                if (overall_eff > best_eff) {
-                    best_eff = overall_eff;
-                    best_lgc = lgc;
-                }
-            }
-            jcp.load_grp_count = best_lgc;
+            jcp.load_grp_count = get_load_chunk(jcp.nthr);
             load_blocking
                     = div_up(nb_load, jcp.load_grp_count) * jcp.load_block;
         }
+
+        /* adjust the thread decomposition
+         * to improve the thr_eff for small problem size
+         * the threshold 8192 is empirical 
+         * TODO: Threshold can be increase for init stride > 1*/
+        if (jcp.ver == ver_avx512_core && sizeof(float) * bcast_size < 8192
+                && jcp.mb < jcp.nthr && nb_load * nb_bcast < jcp.nthr) {
+            float best_thr_eff = -1.0f;
+            float thr_eff = -1.0f;
+            int overall_lgc = jcp.load_grp_count;
+            int lgc = 1;
+            int best_nthr = jcp.nthr;
+            int end_nthr = with_groups ? jcp.ngroups : 1;
+            for (int nthr = jcp.nthr / 2; nthr >= end_nthr; nthr--) {
+                lgc = get_load_chunk(nthr);
+                thr_eff = get_thr_eff(lgc, nthr);
+                if (best_thr_eff < thr_eff) {
+                    best_thr_eff = thr_eff;
+                    overall_lgc = lgc;
+                    best_nthr = nthr;
+                }
+            }
+            jcp.nthr = best_nthr;
+            jcp.load_grp_count = overall_lgc;
+            load_blocking
+                    = div_up(nb_load, jcp.load_grp_count) * jcp.load_block;
+        }
+
         bcast_blocking = div_up(jcp.mb * jcp.ngroups * nb_bcast,
                                  div_up(jcp.nthr, jcp.load_grp_count))
                 * jcp.bcast_block;

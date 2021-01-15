@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1727,6 +1727,19 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     jcp.nb_bcast = div_up(jcp.bcast_dim, jcp.bcast_block);
     jcp.nb_load = div_up(jcp.load_dim, jcp.load_block);
     jcp.nb_reduce = div_up(jcp.reduce_dim, jcp.reduce_block);
+
+    /* adjust the thread decomposition
+     * to improve the perf for small size problem
+     * simply set the thread to max of nb_bcast and nb_load now
+     * TODO: add get_thr_eff func to compute optimal thread
+     * TODO: Threshold can be increase when init stride > 1 */
+    auto bcast_size
+            = (dim_t)jcp.mb * jcp.ngroups * jcp.bcast_dim * jcp.reduce_dim;
+    if (jcp.typesize_in * bcast_size < 8192 && jcp.ngroups < jcp.nthr
+            && jcp.nb_bcast * jcp.nb_load < jcp.nthr) {
+        int nthr = nstl::max(jcp.nb_bcast, jcp.nb_load);
+        jcp.nthr = nstl::min(jcp.nthr, nthr);
+    }
 
     return status::success;
 }

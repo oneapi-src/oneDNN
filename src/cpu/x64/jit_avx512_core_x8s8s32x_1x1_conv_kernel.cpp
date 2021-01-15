@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1098,6 +1098,20 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
             && jcp.ic * jcp.oc <= L2_size && jcp.nthr <= ncores_per_socket) {
         jcp.nb_load_chunk = 4;
         jcp.load_grp_count = nstl::max(jcp.nb_load / 4, jcp.load_grp_count);
+    }
+
+    /* adjust the thread decomposition
+     * to improve the perf for small size problem
+     * the threshold 8192 is empirical
+     * simply set the thread to max of nb_load and nb_bcast now
+     * TODO: add get_thr_eff func to compute optimal thread
+     * TODO: Threshold can be increase when init stride > 1 */
+    auto bcast_size
+            = (dim_t)jcp.mb * jcp.ngroups * jcp.bcast_dim * jcp.reduce_dim;
+    if (jcp.typesize_in * bcast_size < 8192 && jcp.ngroups < jcp.nthr
+            && jcp.nb_bcast * jcp.nb_load < jcp.nthr) {
+        int nthr = nstl::max(jcp.nb_load, jcp.nb_bcast);
+        jcp.nthr = nstl::min(jcp.nthr, nthr);
     }
 
     const auto &oscales = attr.output_scales_;

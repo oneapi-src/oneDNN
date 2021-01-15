@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1061,6 +1061,27 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (jcp.l_pad > jcp.ur_w || r_pad_no_tail > jcp.ur_w)
         return status::unimplemented;
 
+    /* adjust the thread decomposition
+     * to improve the perf for small problem size
+     * the threshold L1_cache_size/factor and the factor is empirical 
+     * simply set the thread to 4 for now
+     * TODO: Add get_thr_eff func to get optimal thread number */
+
+    size_t wei_size = (size_t)sizeof(bfloat16_t) * jcp.ic * jcp.oc * jcp.kh
+            * jcp.kw * jcp.kd;
+    size_t inp_size = (size_t)jcp.typesize_in * jcp.mb * jcp.ic * jcp.ih
+            * jcp.iw * jcp.id;
+    size_t out_size = (size_t)jcp.typesize_out * jcp.mb * jcp.oc * jcp.oh
+            * jcp.ow * jcp.od;
+    size_t total_size = jcp.ngroups * (wei_size + inp_size + out_size);
+    const unsigned int L1_cache_size = platform::get_per_core_cache_size(1);
+
+    // The factor for 1d=1, 2d=2, 3d=4;
+    int factor = nstl::max(1, (2 * (ndims - 3)));
+    if (jcp.ngroups < jcp.nthr && total_size < L1_cache_size / factor) {
+        jcp.nthr = nstl::min(jcp.nthr, 4);
+    }
+
     pick_loop_order(jcp);
 
     return status::success;
@@ -1773,6 +1794,26 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
             /* r_pad must not extend beyond ur_w_tail */
             || ((jcp.iw > jcp.ur_w) && (jcp.r_pad + jcp.ur_w_tail < 0));
     if (tails_not_ok) return status::unimplemented;
+
+    /* adjust the thread decomposition
+     *  to improve the perf for small problem size
+     *  the threshold L1_cache_size/factor and the factor is empirical
+     *  simply set the thread number to 4 now
+     *  TODO: Add get_thr_eff function to compute optimal thread*/
+    size_t wei_size = (size_t)sizeof(bfloat16_t) * jcp.ic * jcp.oc * jcp.kh
+            * jcp.kw * jcp.kd;
+    size_t inp_size = (size_t)jcp.typesize_in * jcp.mb * jcp.ic * jcp.ih
+            * jcp.iw * jcp.id;
+    size_t out_size = (size_t)jcp.typesize_out * jcp.mb * jcp.oc * jcp.oh
+            * jcp.ow * jcp.od;
+    size_t total_size = jcp.ngroups * (wei_size + inp_size + out_size);
+    const unsigned int L1_cache_size = platform::get_per_core_cache_size(1);
+
+    //The factor for 1d: 1, 2d: 2, 3d: 4;
+    int factor = nstl::max(1, (2 * (ndims - 3)));
+    if (jcp.ngroups < jcp.nthr && total_size < L1_cache_size / factor) {
+        jcp.nthr = nstl::min(jcp.nthr, 4);
+    }
 
     pick_loop_order(jcp);
 

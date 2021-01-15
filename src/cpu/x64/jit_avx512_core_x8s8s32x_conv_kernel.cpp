@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1561,28 +1561,69 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (jcp.ow < jcp.ur_w) jcp.ur_w = jcp.ow;
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
-    jcp.ow_block = jcp.ow;
-    int base_work_amount = jcp.mb * jcp.nb_ch * jcp.od * jcp.oh
-            * (jcp.nb_oc / jcp.nb_oc_blocking_thr_chunk);
-    float best_thr_eff
-            = (float)base_work_amount / rnd_up(base_work_amount, jcp.nthr);
-    int max_nb_ow = div_up(jcp.ow, jcp.ur_w);
-    for (int nb_ow = 1; nb_ow <= max_nb_ow; nb_ow++) {
-        int ow_block
-                = nstl::min(rnd_up(div_up(jcp.ow, nb_ow), jcp.ur_w), jcp.ow);
-        if (ow_block < jcp.nb_oc_blocking_thr_chunk * jcp.oc_block
-                && best_thr_eff > 0.8f)
-            break;
-        if (div_up(jcp.ow, ow_block) != nb_ow) continue;
+    auto get_thr_eff = [=](int nb_ow, int nthr) {
+        int base_work_amount = jcp.mb * jcp.nb_ch * jcp.od * jcp.oh
+                * (jcp.nb_oc / jcp.nb_oc_blocking_thr_chunk);
         auto work_amount = base_work_amount * nb_ow;
-        float thr_eff = (float)work_amount / rnd_up(work_amount, jcp.nthr);
-        if (ow_block >= jcp.ur_w && thr_eff > 1.1f * best_thr_eff) {
-            jcp.ow_block = ow_block;
-            best_thr_eff = thr_eff;
+        return float(work_amount) / rnd_up(work_amount, nthr);
+    };
+
+    auto get_ow_block = [=](int ur_w, int nthr) {
+        int res_ow_block = jcp.ow;
+        float best_thr_eff = get_thr_eff(1, nthr);
+        float thr_eff;
+        int max_nb_ow = div_up(jcp.ow, ur_w);
+        for (int nb_ow = 1; nb_ow <= max_nb_ow; nb_ow++) {
+            int ow_block
+                    = nstl::min(rnd_up(div_up(jcp.ow, nb_ow), ur_w), jcp.ow);
+            if (ow_block < jcp.nb_oc_blocking_thr_chunk * jcp.oc_block
+                    && best_thr_eff > 0.8f)
+                break;
+            if (div_up(jcp.ow, ow_block) != nb_ow) continue;
+            thr_eff = get_thr_eff(nb_ow, nthr);
+            if (ow_block >= ur_w && thr_eff > 1.1f * best_thr_eff) {
+                res_ow_block = ow_block;
+                best_thr_eff = thr_eff;
+            }
+            if (best_thr_eff > 0.9f) break;
         }
-        if (best_thr_eff > 0.9f) break;
-    }
+        return res_ow_block;
+    };
+
+    jcp.ow_block = get_ow_block(jcp.ur_w, jcp.nthr);
     jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
+    float thr_eff = get_thr_eff(jcp.nb_ow, jcp.nthr);
+
+    /* adjust the thread decomposition
+     * to improve the thr_eff for small size problem
+     * the threshold L1_cache_size is empirical */
+    size_t wei_size
+            = sizeof(float) * jcp.ic * jcp.oc * jcp.kh * jcp.kw * jcp.kd;
+    size_t out_size
+            = jcp.mb * jcp.typesize_out * jcp.oc * jcp.oh * jcp.ow * jcp.od;
+    size_t inp_size
+            = jcp.mb * jcp.typesize_in * jcp.ic * jcp.ih * jcp.iw * jcp.id;
+    size_t total_size = jcp.ngroups * (wei_size + out_size + inp_size);
+    const unsigned int L1_cache_size = platform::get_per_core_cache_size(1);
+
+    if (thr_eff < 0.9f && jcp.ngroups < jcp.nthr
+            && (total_size < L1_cache_size)) {
+        int ow_block = jcp.ow_block;
+        float best_thr_eff = -1.0f;
+        float eff = -1.0f;
+        int end_nthr = with_groups ? jcp.ngroups : 1;
+        for (int nthr = jcp.nthr / 2; nthr > end_nthr; nthr--) {
+            ow_block = get_ow_block(jcp.ur_w, nthr);
+            eff = get_thr_eff(div_up(jcp.ow, ow_block), nthr);
+            if (eff > 1.1f * best_thr_eff) {
+                best_thr_eff = eff;
+                jcp.ow_block = ow_block;
+                jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
+                jcp.nthr = jcp.aligned_threads = nthr;
+                if (best_thr_eff > 0.9f) break;
+            }
+        }
+    }
 
     if (jcp.oc % jcp.oc_block != 0) return status::unimplemented;
 
