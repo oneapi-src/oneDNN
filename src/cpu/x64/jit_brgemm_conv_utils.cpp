@@ -139,6 +139,10 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.wei_dt = cd.weights_desc.data_type;
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
 
+    // TODO: optimize depthwise convolutions (for now direct approach is faster)
+    const bool is_depthwise = with_groups && everyone_is(1, jcp.ic, jcp.oc);
+    if (is_depthwise) return status::unimplemented;
+
     // TODO: support s8 by brgemm convolutions
     if (jcp.src_dt == s8) return status::unimplemented;
 
