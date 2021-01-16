@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@
 #include "cpu/x64/gemm/f32/common_f32.hpp"
 #include "cpu/x64/gemm/f32/jit_avx2_kernel_sgemm_kern.hpp"
 #include "cpu/x64/gemm/f32/jit_avx_gemv_t_f32_kern.hpp"
+#include "cpu/x64/gemm/f32/jit_sse41_gemv_n_f32_kern.hpp"
 #include "cpu/x64/gemm/f32/jit_sse41_gemv_t_f32_kern.hpp"
 
 #include "cpu/x64/gemm/s8x8s32/common_u8.hpp"
@@ -672,8 +673,10 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
             case data_type::f32:
                 if (mayiuse(avx)) {
+                    gemv_kernel[no_trans] = new jit_sse41_gemv_n_f32_kern();
                     gemv_kernel[do_trans] = new jit_avx_gemv_t_f32_kern();
                 } else if (mayiuse(sse41)) {
+                    gemv_kernel[no_trans] = new jit_sse41_gemv_n_f32_kern();
                     gemv_kernel[do_trans] = new jit_sse41_gemv_t_f32_kern();
                 }
                 break;
@@ -837,6 +840,9 @@ bool gemm_info_t<a_t, b_t, c_t>::hasKernels(void) {
                     if (!this->kernel[isBeta0][no_sum][no_sum]) return false;
 
                 if (!this->copyA || !this->copyB) return false;
+
+                for (int isTrans : {no_trans, do_trans})
+                    if (!this->gemv_kernel[isTrans]) return false;
             }
             break;
 
@@ -847,8 +853,8 @@ bool gemm_info_t<a_t, b_t, c_t>::hasKernels(void) {
 
                 if (!this->copyA || !this->copyB) return false;
 
-                // We only need transpose case for performance.
-                if (!this->gemv_kernel[do_trans]) return false;
+                for (int isTrans : {no_trans, do_trans})
+                    if (!this->gemv_kernel[isTrans]) return false;
             }
             break;
     }
