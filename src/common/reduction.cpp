@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,8 +38,8 @@ dnnl_status_t dnnl_reduction_desc_init(dnnl_reduction_desc_t *desc,
                                    reduction_norm_lp_power_p_max,
                                    reduction_norm_lp_power_p_sum),
                     p >= 1.0f)
-            && IMPLICATION(one_of(alg_kind, reduction_mean,
-                                   reduction_norm_lp_max, reduction_norm_lp_sum,
+            && IMPLICATION(one_of(alg_kind, reduction_norm_lp_max,
+                                   reduction_norm_lp_sum,
                                    reduction_norm_lp_power_p_max,
                                    reduction_norm_lp_power_p_sum),
                     one_of(src_desc->data_type, data_type::f32, data_type::bf16,

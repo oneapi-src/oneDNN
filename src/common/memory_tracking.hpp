@@ -233,6 +233,7 @@ enum {
     key_prelu_reduction,
     key_reducer_space,
     key_reducer_space_bctx,
+    key_reduction,
     key_reorder_cross_space,
     key_reorder_space,
     key_reorder_scales,

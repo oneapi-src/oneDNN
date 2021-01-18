@@ -548,11 +548,23 @@ struct binary_conf_t {
 struct reduction_conf_t {
     int ndims, power, div;
     float eps;
-    dim_t reduce_dims[MAX_NDIMS], dst_dims[MAX_NDIMS];
+    dim_t src_dims[MAX_NDIMS], reduce_dims[MAX_NDIMS], dst_dims[MAX_NDIMS];
     bool is_reduction_dim[MAX_NDIMS];
+
+    int initial_hwd_dim, initial_hwd_chunk_size;
+    int final_hwd_dim, final_hwd_chunk_size;
+    int initial_c_chunks, final_c_dim, final_c_chunk_size;
+    int initial_n_chunk_size, initial_n_chunks;
+    int final_n_dim, final_n_chunk_size;
+
+    bool skip_final_phase;
+    int c_block_size, n_block_size;
+    int vector_size;
+    int sub_group_size;
     data_type_t src_type, dst_type;
     alg_kind_t alg;
     compute::dispatch_t dispatch;
+    compute::dispatch_t finilize_dispatch;
     memory_desc_info_t src_md_info, dst_md_info;
     offsets_t off;
     attr_info_t attr_info;

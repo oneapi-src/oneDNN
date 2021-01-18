@@ -32,6 +32,7 @@
 #include "gpu/ocl/gen9_convolution.hpp"
 #include "gpu/ocl/gen9_eltwise.hpp"
 #include "gpu/ocl/gen9_pooling.hpp"
+#include "gpu/ocl/gen9_reduction.hpp"
 #include "gpu/ocl/gen9_softmax.hpp"
 #include "gpu/ocl/gen9_wino_convolution.hpp"
 #include "gpu/ocl/ref_batch_normalization.hpp"
@@ -149,6 +150,7 @@ const pd_create_f gpu_impl_list[] = {
         INSTANCE(ocl::ref_matmul_t),
 
         // Reduction
+        INSTANCE(ocl::gen9_reduction_t),
         INSTANCE(ocl::ref_reduction_t),
 
         // Resampling
