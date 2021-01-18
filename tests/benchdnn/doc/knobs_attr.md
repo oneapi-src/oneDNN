@@ -115,6 +115,7 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
       - `exp_dst`
       - `gelu_erf`
       - `gelu_tanh`
+      - `hardswish`
       - `log`
       - `logistic`
       - `logistic_dst`

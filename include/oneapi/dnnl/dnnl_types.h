@@ -1163,6 +1163,8 @@ typedef enum {
     dnnl_eltwise_logsigmoid = 0x50,
     /// Eltwise: mish
     dnnl_eltwise_mish = 0x60,
+    /// Eltwise: hardswish
+    dnnl_eltwise_hardswish = 0x70,
     /// Eltwise: ReLU (dst for backward)
     dnnl_eltwise_relu_use_dst_for_bwd = 0x100,
     /// Eltwise: hyperbolic tangent non-linearity (tanh) (dst for backward)
@@ -1622,7 +1624,8 @@ typedef struct {
     /// #dnnl_eltwise_logistic, #dnnl_eltwise_exp, #dnnl_eltwise_gelu_tanh,
     /// #dnnl_eltwise_swish, #dnnl_eltwise_log, #dnnl_eltwise_clip,
     /// #dnnl_eltwise_clip_v2, #dnnl_eltwise_pow, #dnnl_eltwise_gelu_erf,
-    /// #dnnl_eltwise_round, #dnnl_eltwise_logsigmoid, #dnnl_eltwise_mish.
+    /// #dnnl_eltwise_round, #dnnl_eltwise_logsigmoid, #dnnl_eltwise_mish,
+    /// #dnnl_eltwise_hardswish.
     /// Possible values for passing destination memory on backward:
     /// #dnnl_eltwise_relu_use_dst_for_bwd, #dnnl_eltwise_tanh_use_dst_for_bwd,
     /// #dnnl_eltwise_elu_use_dst_for_bwd, #dnnl_eltwise_sqrt_use_dst_for_bwd,
@@ -1657,6 +1660,7 @@ typedef struct {
     ///  - #dnnl_eltwise_round: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_logsigmoid @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_mish @p alpha and @p beta ignored
+    ///  - #dnnl_eltwise_hardswish @p alpha and @p beta ignored
     float alpha, beta;
 } dnnl_eltwise_desc_t;
 

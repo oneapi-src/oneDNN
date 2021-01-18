@@ -219,7 +219,6 @@ float gelu_erf_fwd(float s) {
     float v = s * sqrt_2_over_2;
     return 0.5f * s * (1.f + erf(v));
 }
-
 float gelu_erf_bwd(float dd, float s) {
     const float two_over_sqrt_pi = 1.12837922573089599609375f;
     const float sqrt_2_over_2 = 0.707106769084930419921875f;
@@ -229,6 +228,14 @@ float gelu_erf_bwd(float dd, float s) {
 
 float round_fwd(float s) {
     return rint(s);
+}
+
+float hardswish_fwd(float s) {
+    return (s / 6.f) * bounded_relu_fwd(s + 3.f, 6.f);
+}
+float hardswish_bwd(float dd, float s) {
+    return (s < 3.f && s > -3.f ? dd * (2 * s + 3.f) / 6.f
+                                : s >= 3.f ? dd : 0.f);
 }
 
 float fwd_eltwise_common(
@@ -263,7 +270,7 @@ float fwd_eltwise_common(
         case SQRT_DST: return scale_ * sqrt_fwd(x); break;
         case EXP_DST: return scale_ * exp_fwd(x); break;
         case CLIP_V2_DST: return scale_ * clip_v2_fwd(x, alpha_, beta_); break;
-
+        case HARDSWISH: return scale_ * hardswish_fwd(x); break;
         default: return x; break;
     }
 }
@@ -299,6 +306,7 @@ float bwd_eltwise(float x, float y, float alpha_, float beta_) {
         case CLIP_V2: return clip_v2_bwd(x, y, alpha_, beta_); break;
         case POW: return pow_bwd(x, y, alpha_, beta_); break;
         case GELU_ERF: return gelu_erf_bwd(x, y); break;
+        case HARDSWISH: return hardswish_bwd(x, y); break;
 
         case RELU_DST: return relu_bwd_use_dst(x, y, alpha_); break;
         case LOGISTIC_DST: return logistic_bwd_use_dst(x, y); break;

@@ -623,6 +623,19 @@ void jit_uni_eltwise_injector_f32<isa>::mish_compute_vector_fwd(
 }
 
 template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::hardswish_compute_vector_fwd(
+        const Vmm &vmm_src) {
+    // result = x * relu6(x + 3) / 6
+    h->uni_vmovups(vmm_aux0, vmm_src);
+
+    h->uni_vaddps(vmm_aux0, vmm_aux0, table_val(three));
+    h->uni_vmaxps(vmm_aux0, vmm_aux0, table_val(zero));
+    h->uni_vminps(vmm_aux0, vmm_aux0, table_val(six));
+    h->uni_vdivps(vmm_aux0, vmm_aux0, table_val(six));
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+}
+
+template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
         const Vmm &vmm_src) {
     // ln(1 + exp(x)) =
@@ -1463,6 +1476,21 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector_bwd(
 }
 
 template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::hardswish_compute_vector_bwd(
+        const Vmm &vmm_src) {
+    h->uni_vmovups(vmm_aux1, vmm_src);
+
+    h->uni_vaddps(vmm_src, vmm_src, vmm_aux1);
+    h->uni_vaddps(vmm_src, vmm_src, table_val(three));
+    h->uni_vdivps(vmm_src, vmm_src, table_val(six));
+
+    compute_cmp_mask(vmm_aux1, table_val(minus_three), _cmp_le_os);
+    blend_with_mask(vmm_src, table_val(zero));
+    compute_cmp_mask(vmm_aux1, table_val(three), _cmp_ge_os);
+    blend_with_mask(vmm_src, table_val(one));
+}
+
+template <cpu_isa_t isa>
 size_t jit_uni_eltwise_injector_f32<isa>::aux_gprs_count() {
     using namespace alg_kind;
     switch (alg_) {
@@ -1513,6 +1541,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_pow: return 2;
             case eltwise_gelu_erf: return 5;
             case eltwise_round: return 0;
+            case eltwise_hardswish: return 1;
             default: assert(!"unsupported eltwise algorithm");
         }
     } else {
@@ -1544,6 +1573,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_clip_v2: return 2;
             case eltwise_pow: return 2;
             case eltwise_gelu_erf: return 5;
+            case eltwise_hardswish: return 2;
             default: assert(!"unsupported eltwise algorithm");
         }
     }
@@ -1604,6 +1634,9 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                     gelu_erf_compute_vector_fwd(Vmm(idx));
                     break;
                 case eltwise_round: round_compute_vector_fwd(Vmm(idx)); break;
+                case eltwise_hardswish:
+                    hardswish_compute_vector_fwd(Vmm(idx));
+                    break;
                 default: assert(!"unsupported eltwise algorithm");
             }
         } else {
@@ -1646,6 +1679,9 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                 case eltwise_pow: pow_compute_vector_bwd(Vmm(idx)); break;
                 case eltwise_gelu_erf:
                     gelu_erf_compute_vector_bwd(Vmm(idx));
+                    break;
+                case eltwise_hardswish:
+                    hardswish_compute_vector_bwd(Vmm(idx));
                     break;
                 default: assert(!"unsupported eltwise algorithm");
             }
@@ -2160,6 +2196,9 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
                     {0xc2b00f34, true}}, // 63: -88.029693603515625
     };
 
+    static const table_t hardswish_consts {{three, {0x40400000, true}},
+            {six, {0x40c00000, true}}, {minus_three, {0xc0400000, true}}};
+
     // This object takes care about which constants and polynomials to include.
     struct need_t {
         need_t(alg_kind_t alg) {
@@ -2180,6 +2219,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
                 case eltwise_mish: mish_ = true; break;
                 case eltwise_tanh_use_dst_for_bwd:
                 case eltwise_tanh: tanh_ = true; break;
+                case eltwise_hardswish: hardswish_ = true; break;
                 default: break;
             }
         }
@@ -2191,6 +2231,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
         bool gelu_tanh_ = false;
         bool gelu_erf_ = false;
         bool log_ = false;
+        bool hardswish_ = false;
 
         bool exp() const { return exp_ || soft_relu_ || gelu_erf_ || mish_; }
         bool mish() const { return mish_; }
@@ -2199,6 +2240,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
         bool gelu_tanh() const { return gelu_tanh_; }
         bool gelu_erf() const { return gelu_erf_; }
         bool log() const { return log_; }
+        bool hardswish() const { return hardswish_; }
     };
 
     need_t need(alg_);
@@ -2234,6 +2276,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     if (need.log()) push_entries_of(log_consts);
     if (need.log()) push_entries_of(log_polynomial);
     if (need.log()) push_entries_of(log_predefined_values);
+    if (need.hardswish()) push_entries_of(hardswish_consts);
 
     // Now that we registered the entries, we set the offsets.  No
     // entries should be registered after this point.  This allows to

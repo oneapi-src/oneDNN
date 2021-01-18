@@ -370,7 +370,6 @@ inline U gelu_erf_fwd(T s) {
     float v = s * sqrt_2_over_2;
     return (U)(0.5f * s * (1.f + ::erff(v)));
 }
-
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U gelu_erf_bwd(T dd, T s) {
     const float two_over_sqrt_pi = 1.12837922573089599609375f;
@@ -378,6 +377,16 @@ inline U gelu_erf_bwd(T dd, T s) {
     float v = s * sqrt_2_over_2;
     return (U)(dd * 0.5f
             * (1.f + ::erff(v) + v * two_over_sqrt_pi * ::expf(-v * v)));
+}
+
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U hardswish_fwd(T s) {
+    return (s / 6.f) * bounded_relu_fwd(s + 3.f, 6.f);
+}
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U hardswish_bwd(T dd, T s) {
+    return (s < 3.f && s > -3.f ? dd * (2 * s + 3.f) / 6.f
+                                : s >= 3.f ? dd : 0.f);
 }
 
 inline bool is_eltwise_ok(
@@ -390,9 +399,9 @@ inline bool is_eltwise_ok(
                       eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                       eltwise_bounded_relu, eltwise_soft_relu,
                       eltwise_logsigmoid, eltwise_mish, eltwise_logistic,
-                      eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
-                      eltwise_log, eltwise_clip, eltwise_clip_v2, eltwise_pow,
-                      eltwise_gelu_erf, eltwise_round)
+                      eltwise_exp, eltwise_gelu_tanh, eltwise_hardswish,
+                      eltwise_swish, eltwise_log, eltwise_clip, eltwise_clip_v2,
+                      eltwise_pow, eltwise_gelu_erf, eltwise_round)
             && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
             && IMPLICATION(
                     one_of(alg, eltwise_clip, eltwise_clip_v2), beta >= alpha)

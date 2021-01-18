@@ -313,6 +313,7 @@ static po_table_entry_t kind_table[] = {
         {pk_t::EXP_DST, "exp_dst", dnnl_eltwise_exp_use_dst_for_bwd},
         {pk_t::GELU_ERF, "gelu_erf", dnnl_eltwise_gelu_erf},
         {pk_t::GELU_TANH, "gelu_tanh", dnnl_eltwise_gelu_tanh},
+        {pk_t::HARDSWISH, "hardswish", dnnl_eltwise_hardswish},
         {pk_t::LINEAR, "linear", dnnl_eltwise_linear},
         {pk_t::LOG, "log", dnnl_eltwise_log},
         {pk_t::LOGISTIC, "logistic", dnnl_eltwise_logistic},
@@ -1156,6 +1157,7 @@ float compute_eltwise_fwd(
         case pk_t::POW: return scale * pow_fwd(src, alpha, beta);
         case pk_t::GELU_ERF: return scale * gelu_erf_fwd(src);
         case pk_t::ROUND: return scale * round_fwd(src);
+        case pk_t::HARDSWISH: return scale * hardswish_fwd(src);
         case pk_t::RELU_DST: return scale * relu_fwd(src, alpha);
         case pk_t::TANH_DST: return scale * tanh_fwd(src);
         case pk_t::ELU_DST: return scale * elu_fwd(src, alpha);
@@ -1194,6 +1196,7 @@ float compute_eltwise_bwd(
         case pk_t::CLIP_V2: return clip_v2_bwd(d_dst, src, alpha, beta);
         case pk_t::POW: return pow_bwd(d_dst, src, alpha, beta);
         case pk_t::GELU_ERF: return gelu_erf_bwd(d_dst, src);
+        case pk_t::HARDSWISH: return hardswish_bwd(d_dst, src);
 
         case pk_t::RELU_DST: return relu_bwd_use_dst(d_dst, src, alpha);
         case pk_t::TANH_DST: return tanh_bwd_use_dst(d_dst, src);
