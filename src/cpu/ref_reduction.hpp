@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ private:
     void accumulate(
             acc_t &acc, const src_t &src, alg_kind_t alg_kind, float p) const;
     void finalize(
-            acc_t &acc, alg_kind_t alg, float p, float eps, dim_t n) const;
+            float &acc_f32, alg_kind_t alg, float p, float eps, dim_t n) const;
     void init_acc(acc_t &acc, alg_kind_t alg) const;
 };
 

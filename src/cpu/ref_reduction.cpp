@@ -76,10 +76,9 @@ void ref_reduction_t<src_type, dst_type, acc_type>::accumulate(
 
 template <data_type_t src_type, data_type_t dst_type, data_type_t acc_type>
 void ref_reduction_t<src_type, dst_type, acc_type>::finalize(
-        acc_t &acc, alg_kind_t alg, float p, float eps, dim_t n) const {
+        float &acc_f32, alg_kind_t alg, float p, float eps, dim_t n) const {
     using namespace alg_kind;
 
-    float acc_f32 = static_cast<float>(acc);
     switch (alg) {
         case reduction_mean: acc_f32 /= n; break;
         case reduction_norm_lp_max:
@@ -96,7 +95,6 @@ void ref_reduction_t<src_type, dst_type, acc_type>::finalize(
         case reduction_norm_lp_power_p_sum: acc_f32 += eps; break;
         default: break;
     }
-    acc = static_cast<acc_t>(acc_f32);
 }
 
 template <data_type_t src_type, data_type_t dst_type, data_type_t acc_type>
@@ -143,14 +141,14 @@ status_t ref_reduction_t<src_type, dst_type, acc_type>::execute_ref(
             const dim_t src_off = src_idle_off + src_reduce_off;
             accumulate(acc, src[src_off], alg, p);
         }
-        finalize(acc, alg, p, eps, reduce_size);
+        float acc_f32 = static_cast<float>(acc);
+        finalize(acc_f32, alg, p, eps, reduce_size);
 
         ref_post_ops_t::args_t args;
         args.dst_val = dst[dst_off];
         args.ctx = &ctx;
         args.l_offset = l_offset;
         args.dst_md = pd()->dst_md();
-        float acc_f32 = static_cast<float>(acc);
         ref_post_ops->execute(acc_f32, args);
 
         dst[dst_off] = saturate_and_round<dst_t>(acc_f32);
