@@ -280,12 +280,17 @@ struct cudnn_conv_inner_product_fwd_impl_t
         // cudnnGetConvolutionForwardAlgorithm for int8 type
         if (pd->src_md()->data_type != data_type::s8
                 && pd->weights_md(0)->data_type != data_type::s8) {
-            cudnnConvolutionFwdPreference_t algo_pref
-                    = CUDNN_CONVOLUTION_FWD_PREFER_FASTEST;
+            const int num_algos = 1;
+            int returnedAlgoCount = 0;
+            std::unique_ptr<cudnnConvolutionFwdAlgoPerf_t[]> perf_results(
+                              new cudnnConvolutionFwdAlgoPerf_t[num_algos]);
 
-            CHECK(CUDNN_EXECUTE_FUNC_S(cudnnGetConvolutionForwardAlgorithm,
+            CHECK(CUDNN_EXECUTE_FUNC_S(cudnnGetConvolutionForwardAlgorithm_v7,
                     handle, tensor_descs_[io::src], filter_desc_, conv_desc_,
-                    tensor_descs_[io::dst], algo_pref, 0, &algo_));
+                    tensor_descs_[io::dst], num_algos, &returnedAlgoCount,
+                    perf_results.get()));
+
+            algo_ = perf_results[0].algo;
         } else {
             algo_ = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
         }
@@ -492,12 +497,17 @@ struct cudnn_conv_inner_product_bwd_data_impl_t
         auto handle = cuda_stream->get_cudnn_handle();
 
         // Inner product can choose whatever algorithm it prefers.
-        cudnnConvolutionBwdDataPreference_t algo_pref
-                = CUDNN_CONVOLUTION_BWD_DATA_PREFER_FASTEST;
+        const int num_algos = 1;
+        int returnedAlgoCount = 0;
+        std::unique_ptr<cudnnConvolutionBwdDataAlgoPerf_t[]> perf_results(
+                              new cudnnConvolutionBwdDataAlgoPerf_t[num_algos]);
 
-        CUDNN_EXECUTE_FUNC(cudnnGetConvolutionBackwardDataAlgorithm, handle,
+        CUDNN_EXECUTE_FUNC(cudnnGetConvolutionBackwardDataAlgorithm_v7, handle,
                 filter_desc_, tensor_descs_[io::dst], conv_desc_,
-                tensor_descs_[io::src], algo_pref, 0, &algo_);
+                tensor_descs_[io::src], num_algos, &returnedAlgoCount,
+                    perf_results.get());
+
+        algo_ = perf_results[0].algo;
 
         // Allocate the workspace from the algorithm selection, if applicable.
         CUDNN_EXECUTE_FUNC(cudnnGetConvolutionBackwardDataWorkspaceSize, handle,
@@ -647,12 +657,17 @@ struct cudnn_conv_inner_product_bwd_weights_impl_t
         auto handle = cuda_stream->get_cudnn_handle();
 
         // Inner product can choose whatever algorithm it prefers.
-        cudnnConvolutionBwdFilterPreference_t algo_pref
-                = CUDNN_CONVOLUTION_BWD_FILTER_PREFER_FASTEST;
+        const int num_algos = 1;
+        int returnedAlgoCount = 0;
+        std::unique_ptr<cudnnConvolutionBwdFilterAlgoPerf_t[]> perf_results(
+                              new cudnnConvolutionBwdFilterAlgoPerf_t[num_algos]);
 
-        CUDNN_EXECUTE_FUNC(cudnnGetConvolutionBackwardFilterAlgorithm, handle,
+        CUDNN_EXECUTE_FUNC(cudnnGetConvolutionBackwardFilterAlgorithm_v7, handle,
                 tensor_descs_[io::src], tensor_descs_[io::dst], conv_desc_,
-                filter_desc_, algo_pref, 0, &algo_);
+                filter_desc_, num_algos, &returnedAlgoCount,
+                perf_results.get());
+
+        algo_ = perf_results[0].algo;
 
         // Allocate the workspace from the algorithm selection, if applicable.
         CUDNN_EXECUTE_FUNC_S(cudnnGetConvolutionBackwardFilterWorkspaceSize,
