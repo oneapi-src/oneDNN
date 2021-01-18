@@ -81,7 +81,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
             : nullptr;
 
     const auto ker = [&](const int ithr, int n, int ocb, int icc) {
-        auto addr_batch = addr_batch_global + ithr * 16 * jbgp.gemm_batch_size;
+        auto addr_batch = addr_batch_global + ithr * jbgp.adjusted_batch_size;
 
         const size_t c_buffer_per_thr
                 = types::data_type_size(jbgp.acc_dt) * jbgp.LDC * jbgp.M;
@@ -278,7 +278,7 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
 
     const auto ker = [&](const int ithr, int n, int icb, int occ) {
         brgemm_batch_element_t *addr_batch
-                = addr_batch_global + ithr * 16 * jbgp.gemm_batch_size;
+                = addr_batch_global + ithr * jbgp.adjusted_batch_size;
 
         char *c_buffer = (jbgp.use_buffer) ? c_buffer_global
                         + ithr * types::data_type_size(jbgp.acc_dt) * jbgp.LDC
@@ -623,7 +623,7 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
         int b_buf_idx = osc_l_idx;
 
         brgemm_batch_element_t *addr_batch
-                = addr_batch_global + ti->ithr * 16 * jbgp.gemm_batch_size;
+                = addr_batch_global + ti->ithr * jbgp.adjusted_batch_size;
         const int size_A = jbgp.LDA * jbgp.M;
         const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
         src_data_t *a_buffer = a_buffer_global

@@ -377,13 +377,9 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
 
     src_tag = dst_tag;
 
-    if (init_tag(jcp.src_tag, src_md, src_d, src_tag) != status::success)
-        return status::unimplemented;
-    if (init_tag(jcp.dst_tag, dst_md, dst_d, dst_tag) != status::success)
-        return status::unimplemented;
-    if (init_tag(jcp.wei_tag, weights_md, weights_d, wei_tag)
-            != status::success)
-        return status::unimplemented;
+    CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag));
+    CHECK(init_tag(jcp.dst_tag, dst_md, dst_d, dst_tag));
+    CHECK(init_tag(jcp.wei_tag, weights_md, weights_d, wei_tag));
 
     return status::success;
 }
@@ -659,29 +655,45 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const auto maybe_use_buffer
                 = (jcp.dst_dt != jcp.acc_dt || jcp.with_sum);
 
-        const auto use_buffer = maybe_use_buffer
-                && (brgb.ic_block * brgb.nb_ic_blocking < jcp.ic
-                        || brgb.kd_block != jcp.kd || brgb.kh_block != jcp.kh
-                        || brgb.kw_block != jcp.kw
-                        || brgb.kd_block_pad != jcp.kd
-                        || brgb.kh_block_pad != jcp.kh
-                        || brgb.kw_block_pad != jcp.kw);
-
         brgb.kd_block
                 = (k_amount * jcp.kd * jcp.kh * jcp.kw < L2 / 2) ? jcp.kd : 1;
         brgb.kh_block = (k_amount * jcp.kh * jcp.kw < L2 / 2) ? jcp.kh : 1;
-        brgb.kw_block = (k_amount * jcp.kw < L2) ? jcp.kw : 1;
-        brgb.kd_block_pad = brgb.kh_block >= jcp.kd ? jcp.kd : 1;
-        brgb.kh_block_pad = brgb.kw_block >= jcp.kh ? jcp.kh : 1;
-        brgb.kw_block_pad = 1;
 
         if (jcp.exec_type == exec_vpad) {
+            brgb.kw_block = jcp.kw;
+            brgb.kd_block_pad = brgb.kd_block;
+            brgb.kh_block_pad = brgb.kh_block;
+            brgb.kw_block_pad = brgb.kw_block;
+
+            const auto use_buffer = maybe_use_buffer
+                    && (brgb.ic_block * brgb.nb_ic_blocking < jcp.ic
+                            || brgb.kd_block != jcp.kd
+                            || brgb.kh_block != jcp.kh
+                            || brgb.kw_block != jcp.kw
+                            || brgb.kd_block_pad != jcp.kd
+                            || brgb.kh_block_pad != jcp.kh
+                            || brgb.kw_block_pad != jcp.kw);
+
             brgb.od_blk_size = 1;
             brgb.oh_blk_size = 1;
 
             brgb.use_buffer = use_buffer;
 
         } else if (jcp.exec_type == exec_trans) {
+            brgb.kw_block = jcp.kw;
+            brgb.kd_block_pad = brgb.kd_block;
+            brgb.kh_block_pad = brgb.kh_block;
+            brgb.kw_block_pad = brgb.kw_block;
+
+            const auto use_buffer = maybe_use_buffer
+                    && (brgb.ic_block * brgb.nb_ic_blocking < jcp.ic
+                            || brgb.kd_block != jcp.kd
+                            || brgb.kh_block != jcp.kh
+                            || brgb.kw_block != jcp.kw
+                            || brgb.kd_block_pad != jcp.kd
+                            || brgb.kh_block_pad != jcp.kh
+                            || brgb.kw_block_pad != jcp.kw);
+
             // TODO: select od/oh block size for best balancing
             // and performance
             const auto w_block_size = 2 * jcp.src_dsz * brgb.ic_block * jcp.iwp
@@ -705,6 +717,20 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             brgb.use_buffer = use_buffer;
 
         } else {
+            brgb.kw_block = (k_amount * jcp.kw < L2) ? jcp.kw : 1;
+            brgb.kd_block_pad = brgb.kh_block >= jcp.kd ? jcp.kd : 1;
+            brgb.kh_block_pad = brgb.kw_block >= jcp.kh ? jcp.kh : 1;
+            brgb.kw_block_pad = jcp.kw;
+
+            const auto use_buffer = maybe_use_buffer
+                    && (brgb.ic_block * brgb.nb_ic_blocking < jcp.ic
+                            || brgb.kd_block != jcp.kd
+                            || brgb.kh_block != jcp.kh
+                            || brgb.kw_block != jcp.kw
+                            || brgb.kd_block_pad != jcp.kd
+                            || brgb.kh_block_pad != jcp.kh
+                            || brgb.kw_block_pad != jcp.kw);
+
             brgb.od_blk_size = 1;
             brgb.oh_blk_size = 1;
 
@@ -823,9 +849,13 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.K_tail = jcp.ic % jcp.ic_block;
     jcp.N_tail = jcp.oc % jcp.oc_block;
 
-    jcp.gemm_batch_size = 2 * jcp.nb_ic_blocking
+    jcp.gemm_batch_size = jcp.nb_ic_blocking
             * nstl::max(jcp.kd_block * jcp.kh_block * jcp.kw_block,
                     jcp.kd_block_pad * jcp.kh_block_pad * jcp.kw_block_pad);
+    // to avoid cache concurrent write access from different threads
+    size_t sc_size = sizeof(brgemm_batch_element_t);
+    jcp.adjusted_batch_size
+            = div_up(rnd_up(jcp.gemm_batch_size * sc_size, 4096), sc_size);
 
     jcp.LDA = (jcp.exec_type == exec_trans)
             ? jcp.stride_w * jcp.ic_block
@@ -1083,6 +1113,10 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.K_tail = jcp.ic % jcp.ic_block;
 
     jcp.gemm_batch_size = jcp.nb_ic_blocking;
+    // to avoid cache concurrent access from different threads
+    size_t sc_size = sizeof(brgemm_batch_element_t);
+    jcp.adjusted_batch_size
+            = div_up(rnd_up(jcp.gemm_batch_size * sc_size, 4096), sc_size);
 
     jcp.LDA = jcp.stride_w * jcp.ic_without_padding;
     jcp.LDC = (jcp.use_buffer) ? jcp.oc_block : jcp.oc_without_padding;
@@ -1107,11 +1141,11 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_conv_conf_t &jcp) {
-    size_t sc_size = sizeof(brgemm_batch_element_t);
-    size_t n_elems = (size_t)jcp.nthr * 16 * jcp.gemm_batch_size;
     if (jcp.brg_type == brgemm_addr || jcp.brg_type == brgemm_offs
             || (jcp.brg_type == brgemm_strd && jcp.exec_type == exec_vpad))
-        scratchpad.book(key_brgemm_primitive_batch, n_elems, sc_size, 64);
+        scratchpad.book(key_brgemm_primitive_batch,
+                (size_t)jcp.nthr * jcp.adjusted_batch_size,
+                sizeof(brgemm_batch_element_t), 64);
     if (jcp.exec_type == exec_trans) {
         size_t inp_buffer_size = (size_t)jcp.nthr * jcp.inp_buffer_size;
         scratchpad.book(

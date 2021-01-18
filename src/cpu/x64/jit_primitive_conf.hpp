@@ -797,7 +797,7 @@ struct jit_brgemm_conv_conf_t {
 
     int LDA, LDB, LDC, LDD;
     int M, N, K, M_tail, N_tail, K_tail;
-    int gemm_batch_size;
+    int gemm_batch_size, adjusted_batch_size;
     brgemm_batch_kind_t brg_type;
     // strides for brg_type == brgemm_strd
     dim_t brg_stride_a, brg_stride_b;

@@ -530,7 +530,7 @@ status_t brgemm_convolution_fwd_t<isa, src_type, wei_type, dst_type>::execute(
     parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) { \
         if (ithr >= work_amount) return; \
         brgemm_batch_element_t *const __restrict brg_batch \
-                = brg_batch_global + ithr * 16 * jcp.gemm_batch_size; \
+                = brg_batch_global + (size_t)ithr * jcp.adjusted_batch_size; \
         char *const __restrict c_buffer = (jcp.use_buffer) \
                 ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M \
                 : nullptr; \

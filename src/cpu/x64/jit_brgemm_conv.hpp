@@ -165,10 +165,10 @@ private:
     int KD, KH, KW, KS, KD_BLOCK, KH_BLOCK, KW_BLOCK, KD_BLOCK_PAD,
             KH_BLOCK_PAD, ID, IH, IW, OD, OH, OW, SD, SH, SW, FP, TP, LP, DD,
             DH, DW;
-    int src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz,
+    dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz,
             last_ic_block, wei_ic_sz, wei_kw_sz, wei_kh_sz, wei_kd_sz,
             wei_ocb_sz;
-    int pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
+    dim_t pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
 
     int ic_chunks;
     bool need_postwork;
