@@ -16,6 +16,7 @@
 
 #include <math.h>
 
+#include <random>
 #include <sstream>
 
 #include "tests/test_thread.hpp"
@@ -110,7 +111,10 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const float non_neutral_prob = non_neutral_elems / nelems;
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        const float gen = ((97 * i) + 101) % (range + 1);
+        std::minstd_rand msr(i);
+        msr.discard(1);
+        std::uniform_int_distribution<> igen(0, range);
+        const float gen = static_cast<float>(igen(msr));
         const float neutral_value = prb->alg == alg_t::MUL ? 1.0f : 0.0f;
         float value = neutral_value;
 
