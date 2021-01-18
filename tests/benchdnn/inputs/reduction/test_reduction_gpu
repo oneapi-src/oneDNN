@@ -3,3 +3,55 @@
 --batch=harness_reduction_bf16
 --batch=harness_reduction_f16
 --batch=harness_reduction_i8
+
+# gen9 reduction kernel
+--reset
+--skip-impl="ref"
+
+# test different layouts with all shapes
+--sdt=f32
+--ddt=f32
+--p=1 --eps=0
+--alg=SUM
+
+--stag=aBx16b --dtag=aBx16b --batch=shapes_gpu_all
+--stag=aBx32b --dtag=aBx32b --batch=shapes_gpu_all
+--stag=ABx16a16b --dtag=ABx16a16b --batch=shapes_gpu_all
+--stag=ABx32a32b --dtag=ABx32a32b --batch=shapes_gpu_all
+
+# test algorithms with different datatypes
+--stag=aBx16b
+--dtag=aBx16b
+--p=1 --eps=0
+--alg=SUM,MUL,MAX,MIN,MEAN
+
+--sdt=f32 --ddt=f32 --batch=shapes_gpu_small_set
+--sdt=f16 --ddt=f16 --batch=shapes_gpu_small_set
+--sdt=bf16 --ddt=bf16 --batch=shapes_gpu_small_set
+--sdt=u8 --ddt=u8 --batch=shapes_gpu_small_set
+--sdt=s8 --ddt=s8 --batch=shapes_gpu_small_set
+
+--stag=aBx16b
+--dtag=aBx16b
+--p=1,2 --eps=0.5
+--alg=NORM_LP_MAX,NORM_LP_SUM,NORM_LP_POWER_P_MAX,NORM_LP_POWER_P_SUM
+
+--sdt=f32 --ddt=f32 --batch=shapes_gpu_small_set
+--sdt=f16 --ddt=f16 --batch=shapes_gpu_small_set
+--sdt=bf16 --ddt=bf16 --batch=shapes_gpu_small_set
+
+# test different src and dst datatypes
+--stag=aBx16b
+--dtag=aBx16b
+
+--sdt=f32,f16,bf16,u8,s8
+--ddt=f32,f16,bf16,u8,s8
+--p=1 --eps=0
+--alg=SUM
+--batch=shapes_gpu_small_set
+
+--sdt=f32,f16,bf16
+--ddt=f32,f16,bf16
+--p=1,2 --eps=0.5
+--alg=NORM_LP_SUM
+--batch=shapes_gpu_small_set

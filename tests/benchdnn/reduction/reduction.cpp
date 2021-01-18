@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,18 +62,27 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
         SAFE(init_status, WARN);
 
     res->impl_name = query_impl_info(rpd);
-    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
+    if (maybe_skip(res->impl_name)) {
+        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
+                res->impl_name.c_str());
+        DNN_SAFE(dnnl_primitive_desc_destroy(rpd), WARN);
+        return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
+    } else {
+        BENCHDNN_PRINT(
+                5, "oneDNN implementation: %s\n", res->impl_name.c_str());
+    }
 
     return OK;
 }
 
 int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
-    const auto dt = mem_dt.dt();
+    const auto sdt = mem_dt.dt();
+    const auto ddt = prb->ddt;
     const int range = prb->alg == alg_t::MUL
-            ? (dt == dnnl_u8 || dt == dnnl_s8) ? 1024 : 4
+            ? (sdt == dnnl_u8 || sdt == dnnl_s8) ? 1024 : 4
             : 16;
-    const int f_min = dt == dnnl_u8 ? 1 : -range / 2;
+    const int f_min = sdt == dnnl_u8 ? 1 : -range / 2;
 
     int nelems_to_reduce = 1;
     for (int dim = 0; dim < prb->ndims; dim++) {
@@ -81,43 +90,59 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
             nelems_to_reduce *= prb->src_dims.at(dim);
         }
     }
+    // Fill only some number of elements with values other than neutral value
+    // to avoid precision problems caused by different orders of accumulation
+    // between some kernels and benchdnn reference. Number of elements was
+    // selected experimentally.
+    int safe_to_reduce_elems = nelems_to_reduce;
+    if (prb->alg == alg_t::NORM_LP_MAX || prb->alg == alg_t::NORM_LP_POWER_P_MAX
+            || prb->alg == alg_t::NORM_LP_POWER_P_SUM
+            || prb->alg == alg_t::NORM_LP_SUM) {
+        safe_to_reduce_elems = 5e3;
+    } else if (ddt == dnnl_f32 || ddt == dnnl_f16 || ddt == dnnl_bf16) {
+        // It should work if float is used as an accumulator for f16 and bf16
+        safe_to_reduce_elems = 1e5;
+    }
+    const int64_t non_neutral_elems
+            = nelems / nelems_to_reduce * safe_to_reduce_elems;
+    // No special meaning; just to increase the precision of neutral_gen
+    const int prob_range = 1000;
+    const float non_neutral_prob = non_neutral_elems / nelems;
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const float gen = ((97 * i) + 101) % (range + 1);
-        float value = 0.0f;
-        if (prb->alg == alg_t::MUL) {
-            if (dt == dnnl_s8 || dt == dnnl_u8) {
-                // generate {1, 2}, but probability of 2 is 1/range
-                value = gen == range ? 2.0f : 1.0f;
-            } else {
-                // generate {-2, -0.5, 1, 0.5, 2} to avoid underflow/overflow
-                value = powf(f_min + gen, 2.0f) / 2;
-                if (f_min + gen != 0.0f) {
-                    const float sign = fabs(f_min + gen) / (f_min + gen);
-                    value *= sign;
-                } else {
-                    value = 1.0f;
-                }
-            }
-        } else if (prb->alg == alg_t::MEAN && dt == dnnl_f16
-                && nelems_to_reduce <= 2e6) {
-            // Shift the mean to value different than 0 as results equal
-            // to 0 may be treated as mistrusted.
-            // This shift is done only up to some numbers of reduced
-            // elements, so nelems_to_reduce * mean_shift (expected
-            // value of linear sum) has to have sufficient precision on
-            // float (used in ref calculation) to represent the sum
-            // without precision issues.
-            float mean_shift = 0.5;
-            value = (f_min + gen) / range + mean_shift;
-        } else {
-            value = (dt == dnnl_bf16 || dt == dnnl_f16)
-                    ? (f_min + gen) / range
-                    : (f_min + gen) * (1.0f + 4.0f / range);
-        }
-        mem_fp.set_elem(i, round_to_nearest_representable(dt, value));
-    });
+        const float neutral_value = prb->alg == alg_t::MUL ? 1.0f : 0.0f;
+        float value = neutral_value;
 
+        const float neutral_gen = ((89 * i) + 73) % prob_range;
+        if (neutral_gen <= non_neutral_prob * prob_range) {
+            if (prb->alg == alg_t::MUL) {
+                if (sdt == dnnl_s8 || sdt == dnnl_u8) {
+                    // generate {1, 2}, but probability of 2 is 1/range
+                    value = gen == range ? 2.0f : 1.0f;
+                } else {
+                    // generate {-2, -0.5, 1, 0.5, 2} to avoid underflow/overflow
+                    value = powf(f_min + gen, 2.0f) / 2;
+                    if (f_min + gen != 0.0f) {
+                        const float sign = fabs(f_min + gen) / (f_min + gen);
+                        value *= sign;
+                    } else {
+                        value = 1.0f;
+                    }
+                }
+            } else if (prb->alg == alg_t::MEAN && ddt == dnnl_f16) {
+                // Shift the mean to value different than 0 as results equal
+                // to 0 may be treated as mistrusted.
+                float mean_shift = 0.5;
+                value = (f_min + gen) / range + mean_shift;
+            } else {
+                value = (sdt == dnnl_bf16 || sdt == dnnl_f16)
+                        ? (f_min + gen) / range
+                        : (f_min + gen) * (1.0f + 4.0f / range);
+            }
+        }
+        mem_fp.set_elem(i, round_to_nearest_representable(sdt, value));
+    });
     SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
@@ -129,7 +154,6 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 
     bool is_invalid = false;
     switch (prb->alg) {
-        case alg_t::MEAN: is_invalid = is_integral_dt(prb->sdt); break;
         case alg_t::NORM_LP_MAX:
         case alg_t::NORM_LP_SUM:
         case alg_t::NORM_LP_POWER_P_MAX:
