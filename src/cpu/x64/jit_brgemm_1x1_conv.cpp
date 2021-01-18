@@ -318,7 +318,7 @@ void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type,
     parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) { \
         if (ithr >= work_amount) return; \
         brgemm_batch_element_t *const brg_batch \
-                = brg_batch_global + ithr * 16 * jcp.gemm_batch_size; \
+                = brg_batch_global + (size_t)ithr * jcp.adjusted_batch_size; \
         char *const c_buffer = (jcp.use_buffer) \
                 ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M \
                 : nullptr; \
@@ -360,7 +360,7 @@ void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type,
     parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) { \
         if (ithr >= work_amount) return; \
         brgemm_batch_element_t *const brg_batch \
-                = brg_batch_global + ithr * 16 * jcp.gemm_batch_size; \
+                = brg_batch_global + (size_t)ithr * jcp.adjusted_batch_size; \
         char *const c_buffer = (jcp.use_buffer) \
                 ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M \
                 : nullptr; \

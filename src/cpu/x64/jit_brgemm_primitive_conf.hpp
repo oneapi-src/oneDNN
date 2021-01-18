@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ struct jit_brgemm_primitive_conf_t {
 
     int LDA, LDB, LDC, LDD;
     int M, N, K, M_tail, N_tail, K_tail;
-    int gemm_batch_size;
+    int gemm_batch_size, adjusted_batch_size;
     brgemm_batch_kind_t brg_type;
     int num_gemm_kernels;
     int nthr, nthr_mb, nthr_oc_b, nthr_ic_b;

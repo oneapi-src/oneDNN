@@ -190,6 +190,11 @@ status_t init_ip_conf_fwd(
         jbgp.K = jbgp.ic_block;
     }
 
+    // to avoid cache concurrent write access from different threads
+    size_t sc_size = sizeof(brgemm_batch_element_t);
+    jbgp.adjusted_batch_size
+            = div_up(rnd_up(jbgp.gemm_batch_size * sc_size, 4096), sc_size);
+
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
     jbgp.nb_os_blocking = 1;
     jbgp.M = jbgp.os_block;
@@ -255,6 +260,10 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
         }
 
     jbgp.gemm_batch_size = jbgp.nb_oc_blocking;
+    // to avoid cache concurrent write access from different threads
+    size_t sc_size = sizeof(brgemm_batch_element_t);
+    jbgp.adjusted_batch_size
+            = div_up(rnd_up(jbgp.gemm_batch_size * sc_size, 4096), sc_size);
 
     return status::success;
 }
@@ -418,6 +427,11 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.nthr_ic_b = nthr_ic;
 
     jbgp.gemm_batch_size = jbgp.nb_os_blocking;
+    // to avoid cache concurrent write access from different threads
+    size_t sc_size = sizeof(brgemm_batch_element_t);
+    jbgp.adjusted_batch_size
+            = div_up(rnd_up(jbgp.gemm_batch_size * sc_size, 4096), sc_size);
+
     jbgp.use_buffer = IMPLICATION(jbgp.wei_dt == jbgp.acc_dt, jbgp.nthr_mb > 1);
     jbgp.use_buffer_a = true;
     jbgp.use_buffer_b = jbgp.dst_dt == bf16;
@@ -574,8 +588,9 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
 
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_primitive_conf_t &jbgp) {
+
     size_t sc_size = sizeof(brgemm_batch_element_t);
-    size_t n_elems = jbgp.nthr * 16 * jbgp.gemm_batch_size;
+    size_t n_elems = jbgp.nthr * jbgp.adjusted_batch_size;
     if (jbgp.brg_type == brgemm_addr) {
         scratchpad.book(key_brgemm_primitive_batch, n_elems, sc_size, 64);
     }
