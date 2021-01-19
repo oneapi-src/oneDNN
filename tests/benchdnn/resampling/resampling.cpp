@@ -153,9 +153,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->sdt, prb->ddt}, prb->dir, res);
 
-    // TODO: temporary disable post-ops and mixed dt, it will be enabled
-    // in separate MR's with new functionality for GPU/CPU primitive.
-    if (prb->attr.post_ops.len() > 0 || prb->sdt != prb->ddt) {
+    // TODO: temporary disable post-ops and mixed dt on CPU
+    if (engine_tgt_kind == dnnl_cpu
+            && (prb->attr.post_ops.len() > 0 || prb->sdt != prb->ddt)) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }

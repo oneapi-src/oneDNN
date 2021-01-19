@@ -46,11 +46,14 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
+            using sm = primitive_attr_t::skip_mask_t;
+            const auto attr_skip_mask = sm::post_ops;
+
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            bool ok = is_fwd() && src_md()->data_type == dst_md()->data_type
-                    && set_default_params() == status::success
-                    && attr()->has_default_values();
+            bool ok = is_fwd() && set_default_params() == status::success
+                    && attr()->has_default_values(attr_skip_mask)
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5);
             if (!ok) return status::unimplemented;
 
             dispatch = compute_engine->create_dispatch(dst_md());
@@ -60,10 +63,12 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
             dispatch.define_dim("OH", nstl::max(2, dst_md()->ndims - 2), OH());
             dispatch.define_dim("OW", nstl::max(2, dst_md()->ndims - 1), OW());
             dispatch.generate();
+            attr_info = attr_info_t::create(attr());
 
             return status::success;
         }
         compute::dispatch_t dispatch;
+        attr_info_t attr_info;
     };
 
     ref_resampling_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
@@ -81,8 +86,12 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("IS_FWD", 1);
 
         switch (desc->alg_kind) {
-            case resampling_nearest: kernel_ctx.define_int("NEAREST", 1); break;
-            case resampling_linear: kernel_ctx.define_int("LINEAR", 1); break;
+            case resampling_nearest:
+                kernel_ctx.define_int("RESAMPLING_ALG_NEAREST", 1);
+                break;
+            case resampling_linear:
+                kernel_ctx.define_int("RESAMPLING_ALG_LINEAR", 1);
+                break;
             default: status = status::unimplemented;
         }
         if (status != status::success) return status;
@@ -109,7 +118,9 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
         set_offsets(dst_d, off.dst_off);
         def_offsets(off.src_off, kernel_ctx, "SRC", ndims);
         def_offsets(off.dst_off, kernel_ctx, "DST", ndims);
+        def_data_type(kernel_ctx, dst_d.data_type(), "DST");
 
+        def_attr_info(kernel_ctx, pd()->attr_info);
         def_dispatch(kernel_ctx, pd()->dispatch);
 
         create_kernel(engine, &kernel_, "ref_resampling_fwd", kernel_ctx);
@@ -142,10 +153,7 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            bool ok = !is_fwd()
-                    && utils::one_of(diff_src_md()->data_type, f32, bf16)
-                    && diff_src_md()->data_type == diff_dst_md()->data_type
-                    && set_default_params() == status::success
+            bool ok = !is_fwd() && set_default_params() == status::success
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -180,8 +188,12 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("IS_BWD", 1);
 
         switch (desc->alg_kind) {
-            case resampling_nearest: kernel_ctx.define_int("NEAREST", 1); break;
-            case resampling_linear: kernel_ctx.define_int("LINEAR", 1); break;
+            case resampling_nearest:
+                kernel_ctx.define_int("RESAMPLING_ALG_NEAREST", 1);
+                break;
+            case resampling_linear:
+                kernel_ctx.define_int("RESAMPLING_ALG_LINEAR", 1);
+                break;
             default: status = status::unimplemented;
         }
         if (status != status::success) return status;
@@ -208,6 +220,7 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
         set_offsets(diff_dst_d, off.dst_off);
         def_offsets(off.src_off, kernel_ctx, "SRC", ndims);
         def_offsets(off.dst_off, kernel_ctx, "DST", ndims);
+        def_data_type(kernel_ctx, diff_dst_d.data_type(), "DST");
 
         def_dispatch(kernel_ctx, pd()->dispatch);
 

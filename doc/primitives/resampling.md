@@ -90,6 +90,7 @@ argument index as specified by the following table.
 | \dst                   | DNNL_ARG_DST             |
 | \diffsrc               | DNNL_ARG_DIFF_SRC        |
 | \diffdst               | DNNL_ARG_DIFF_DST        |
+| \f$\text{binary post-op}\f$ | DNNL_ARG_ATTR_MULTIPLE_POST_OP(binary_post_op_position) \| DNNL_ARG_SRC_1 |
 
 ## Implementation Details
 
@@ -129,13 +130,20 @@ source and destination memory objects:
 
 ### Post-ops and Attributes
 
-The resampling primitive does not support any post-ops or attributes.
+The following attributes are supported:
+
+| Type    | Operation                                      | Description                                                                    | Restrictions
+| :--     | :--                                            | :--                                                                            | :--
+| Post-op | [Sum](@ref dnnl::post_ops::append_sum)         | Adds the operation result to the destination tensor instead of overwriting it. |                                     |
+| Post-op | [Eltwise](@ref dnnl::post_ops::append_eltwise) | Applies an @ref dnnl_api_eltwise operation to the result.                      |                                     |
+| Post-op | [Binary](@ref dnnl::post_ops::append_binary)   | Applies a @ref dnnl_api_binary operation to the result                         | General binary post-op restrictions |
 
 ## Implementation Limitations
 
 1. No primitive specific limitations. Refer to @ref dev_guide_data_types for
    limitations related to data types support.
-2. **CPU**
+2. Only GPU support mixed data types and post-ops.
+3. **CPU**
     - No support for f16, u8, s8 data types.
 
 ## Performance Tips

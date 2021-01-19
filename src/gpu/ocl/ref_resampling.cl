@@ -14,12 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
 #if IS_FWD == 1
 KERNEL_ATTR
 __kernel void ref_resampling_fwd(
-        __global const DATA_T *src, __global DATA_T *dst) {
+        __global const DATA_T *src, __global DST_DATA_T *dst POST_OP_ARGS) {
     const uint mb = GWS_GET_MB();
     const uint c = GWS_GET_C();
     const uint od = GWS_GET_OD();
@@ -28,10 +29,11 @@ __kernel void ref_resampling_fwd(
     const float id = (od + .5f) * ID / OD;
     const float ih = (oh + .5f) * IH / OH;
     const float iw = (ow + .5f) * IW / OW;
-#if NEAREST
-    const uint src_index = SRC_OFF(mb, c, (uint)id, (uint)ih, (uint)iw);
+    float result;
     const uint dst_index = DST_OFF(mb, c, od, oh, ow);
-    dst[dst_index] = src[src_index];
+#if RESAMPLING_ALG_NEAREST
+    const uint src_index = SRC_OFF(mb, c, (uint)id, (uint)ih, (uint)iw);
+    result = CONVERT_FLOAT_T(src[src_index]);
 #else
     const uint id0 = max((uint)floor(id - .5f), (uint)0);
     const uint id1 = min((uint)ceil(id - .5f), (uint)ID - 1);
@@ -39,27 +41,55 @@ __kernel void ref_resampling_fwd(
     const uint ih1 = min((uint)ceil(ih - .5f), (uint)IH - 1);
     const uint iw0 = max((uint)floor(iw - .5f), (uint)0);
     const uint iw1 = min((uint)ceil(iw - .5f), (uint)IW - 1);
-    float Wid = 1.0f - fabs(id - .5f - id0);
-    float Wih = 1.0f - fabs(ih - .5f - ih0);
-    float Wiw = 1.0f - fabs(iw - .5f - iw0);
-    dst[DST_OFF(mb, c, od, oh, ow)] = CONVERT_DATA_T(
-            ((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih0, iw0)]) * Wih * Wiw)
-                    + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih1, iw0)])
-                            * (1.f - Wih) * Wiw)
-                    + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih0, iw1)]) * Wih
-                            * (1 - Wiw))
-                    + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih1, iw1)])
-                            * (1.f - Wih) * (1.f - Wiw)))
-                    * Wid
-            + ((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih0, iw0)]) * Wih * Wiw)
-                      + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih1, iw0)])
-                              * (1.f - Wih) * Wiw)
-                      + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih0, iw1)])
-                              * Wih * (1 - Wiw))
-                      + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih1, iw1)])
-                              * (1.f - Wih) * (1.f - Wiw)))
-                    * (1.f - Wid));
+
+    const float wd[2] = {1.0f - fabs(id - .5f - id0), fabs(id - .5f - id0)};
+    const float wh[2] = {1.0f - fabs(ih - .5f - ih0), fabs(ih - .5f - ih0)};
+    const float ww[2] = {1.0f - fabs(iw - .5f - iw0), fabs(iw - .5f - iw0)};
+
+    const uint ih_arr[2] = {ih0, ih1};
+    const uint iw_arr[2] = {iw0, iw1};
+
+    float cd[2][2];
+    for_(int i = 0; i < 2; i++)
+    for (int j = 0; j < 2; j++)
+        cd[i][j] = CONVERT_FLOAT_T(
+                           src[SRC_OFF(mb, c, id0, ih_arr[i], iw_arr[j])])
+                        * wd[0]
+                + CONVERT_FLOAT_T(
+                          src[SRC_OFF(mb, c, id1, ih_arr[i], iw_arr[j])])
+                        * wd[1];
+    float ch[2];
+    for (int i = 0; i < 2; i++)
+        ch[i] = cd[0][i] * wh[0] + cd[1][i] * wh[1];
+
+    result = ch[0] * ww[0] + ch[1] * ww[1];
+
 #endif
+
+    float sum_src;
+#if WITH_SUM
+    sum_src = DST_TO_REF(dst[dst_index]);
+#endif
+#if NDIMS == 3
+    const unsigned po_d2 = ow;
+    const unsigned po_d3 = 0;
+    const unsigned po_d4 = 0;
+#elif NDIMS == 4
+    const unsigned po_d2 = oh;
+    const unsigned po_d3 = ow;
+    const unsigned po_d4 = 0;
+#elif NDIMS == 5
+    const unsigned po_d2 = od;
+    const unsigned po_d3 = oh;
+    const unsigned po_d4 = ow;
+#else
+    const unsigned po_d2 = 0;
+    const unsigned po_d3 = 0;
+    const unsigned po_d4 = 0;
+#endif
+    APPLY_POST_OPS_SERIAL(result, float, sum_src, float, mb, 1, c, 1, po_d2, 1,
+            po_d3, 1, po_d4, 1, 0, 1);
+    dst[dst_index] = TO_DST(result);
 }
 #endif
 #if IS_BWD == 1
@@ -68,7 +98,7 @@ float linear(uint x, int fo, int fi) {
 }
 KERNEL_ATTR
 __kernel void ref_resampling_bwd(
-        __global DATA_T *diff_src, __global const DATA_T *diff_dst) {
+        __global DATA_T *diff_src, __global const DST_DATA_T *diff_dst) {
 #define CEIL(x) max((uint)ceil(x), (uint)0)
 #define L(x, fo, fi) linear(x, fo, fi)
 #define LS(x, fo, fi) CEIL(L(x, fo, fi))
@@ -81,24 +111,23 @@ __kernel void ref_resampling_bwd(
     const uint id = GWS_GET_ID();
     const uint ih = GWS_GET_IH();
     const uint iw = GWS_GET_IW();
-#if NEAREST
+    const uint src_index = SRC_OFF(mb, c, id, ih, iw);
+#if RESAMPLING_ALG_NEAREST
     uint od_start = CEIL(id * FD - .5f);
     uint oh_start = CEIL(ih * FH - .5f);
     uint ow_start = CEIL(iw * FW - .5f);
     uint od_end = CEIL((id + 1.f) * FD - .5f);
     uint oh_end = CEIL((ih + 1.f) * FH - .5f);
     uint ow_end = CEIL((iw + 1.f) * FW - .5f);
-    uint src_index = SRC_OFF(mb, c, id, ih, iw);
-    DEF_ACC_DATA_T src_val = 0;
+    float src_val = 0;
     for (int i = od_start; i < od_end; i++) {
         for (int j = oh_start; j < oh_end; j++) {
             for (int k = ow_start; k < ow_end; k++) {
                 const int dst_index = DST_OFF(mb, c, i, j, k);
-                src_val += TO_DEF_ACC_DATA_T(diff_dst[dst_index]);
+                src_val += DST_TO_REF(diff_dst[dst_index]);
             }
         }
     }
-    diff_src[src_index] = TO_DATA_T(src_val);
 #else
     uint left_sd = id == 0 ? 0 : LS(id, OD, ID);
     uint left_sh = ih == 0 ? 0 : LS(ih, OH, IH);
@@ -118,15 +147,14 @@ __kernel void ref_resampling_bwd(
     uint od_end[2] = {left_ed, right_ed};
     uint oh_end[2] = {left_eh, right_eh};
     uint ow_end[2] = {left_ew, right_ew};
-    uint src_index = SRC_OFF(mb, c, id, ih, iw);
-    DEF_ACC_DATA_T src_val = 0.0;
+    float src_val = 0.0;
     for (int c1 = 0; c1 < 2; c1++) {
         for (int c2 = 0; c2 < 2; c2++) {
             for (int c3 = 0; c3 < 2; c3++) {
                 for (int i = od_start[c1]; i < od_end[c1]; i++) {
                     for (int j = oh_start[c2]; j < oh_end[c2]; j++) {
                         for (int k = ow_start[c3]; k < ow_end[c3]; k++) {
-                            DEF_ACC_DATA_T dst_val = TO_DEF_ACC_DATA_T(
+                            float dst_val = DST_TO_REF(
                                     diff_dst[DST_OFF(mb, c, i, j, k)]);
                             float d = L(i, ID, OD);
                             float h = L(j, IH, OH);
@@ -144,7 +172,11 @@ __kernel void ref_resampling_bwd(
             }
         }
     }
-    diff_src[src_index] = TO_DATA_T(src_val);
 #endif
+#if DT_S32 == 1
+    diff_src[src_index] = CONVERT_DATA_T(src_val);
+#else // #if DT_S32 == 1
+    diff_src[src_index] = TO_DATA_T(src_val);
+#endif // #else // #if DT_S32 == 1
 }
 #endif

@@ -32,6 +32,7 @@ status_t ref_resampling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, dst);
+    append_post_ops_to_arg_list(ctx, arg_list, 2, pd()->attr_info.all_post_ops);
 
     auto nd_range = pd()->dispatch.nd_range();
 

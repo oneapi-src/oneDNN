@@ -84,7 +84,7 @@ struct resampling_pd_t : public primitive_desc_t {
         return memory_desc_wrapper(src_desc()).has_zero_dim();
     }
 
-    int n_inputs() const override { return 1; }
+    int n_inputs() const override { return 1 + n_binary_po_inputs(); }
     int n_outputs() const override { return 1; }
 
 protected:
