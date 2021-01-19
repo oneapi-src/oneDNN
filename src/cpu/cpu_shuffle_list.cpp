@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,8 +35,9 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 const pd_create_f impl_list[] = {
-        CPU_INSTANCE_X64(jit_uni_shuffle_t<sizeof(float)>) /* f32 */
-        CPU_INSTANCE_X64(jit_uni_shuffle_t<sizeof(bfloat16_t)>)   /* bf16 */
+        CPU_INSTANCE_X64(jit_uni_shuffle_t<avx512_common>)
+        CPU_INSTANCE_X64(jit_uni_shuffle_t<avx>)
+        CPU_INSTANCE_X64(jit_uni_shuffle_t<sse41>)
         CPU_INSTANCE(ref_shuffle_t)
         /* eol */
         nullptr,

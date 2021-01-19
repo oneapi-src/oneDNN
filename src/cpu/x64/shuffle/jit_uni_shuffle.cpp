@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <array>
 #include <cassert>
 
 #include "common/bfloat16.hpp"
@@ -30,198 +29,75 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-using namespace Xbyak;
-using namespace format_tag;
+template <cpu_isa_t isa>
+status_t jit_uni_shuffle_t<isa>::pd_t::init(engine_t *engine) {
+    using namespace format_tag;
+    using namespace data_type;
 
-static constexpr int bf16_size_bytes = sizeof(bfloat16_t);
-static constexpr int f32_size_bytes = sizeof(float);
-static constexpr int gp_regs = 4; // number of used gp regs
+    conf_.data_type = data_md()->data_type;
 
-#define GET_OFF(field) offsetof(jit_shuffle_args_t, field)
-struct jit_shuffle_args_t {
-    const void *src = nullptr;
-    void *dst = nullptr;
-    const dim_t *input_off_ptr = nullptr;
-};
+    const bool ok = mayiuse(isa)
+            && utils::one_of(conf_.data_type, f32, s32, bf16)
+            && platform::has_data_type_support(conf_.data_type)
+            && attr()->has_default_values() && axis() == 1
+            && IMPLICATION(!is_fwd(), set_default_formats_common());
 
-template <int data_type_size>
-struct reg_type_base_t {};
+    if (!ok || (conf_.data_type == bf16 && isa != sse41))
+        return status::unimplemented;
 
-template <>
-struct reg_type_base_t<bf16_size_bytes> {
-    using reg_type_t = Reg16;
-};
-template <>
-struct reg_type_base_t<f32_size_bytes> {
-    using reg_type_t = Reg32;
-};
+    if (isa != avx512_common)
+        conf_.isa = mayiuse(avx2) ? avx2 : isa;
+    else
+        conf_.isa = isa;
 
-static constexpr std::array<int, gp_regs> gprs = {{
-        Operand::Code::EBX,
-        Operand::Code::EAX,
-        Operand::Code::EDX,
-        Operand::Code::ESI,
-}};
+    const format_tag_t blocked_format
+            = memory_desc_matches_one_of_tag(*data_md(), nCw16c, nChw16c,
+                    nCdhw16c, nCw8c, nChw8c, nCdhw8c, nCw4c, nChw4c, nCdhw4c);
 
-// jit kernel
-template <int data_type_size>
-struct jit_uni_shuffle_kernel_t : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_shuffle_kernel_t)
+    if (blocked_format == format_tag::undef) return status::unimplemented;
 
-    using jit_uni_shuffle_pd_t =
-            typename jit_uni_shuffle_t<data_type_size>::pd_t;
-    using data_reg_type_t =
-            typename reg_type_base_t<data_type_size>::reg_type_t;
+    const memory_desc_wrapper data_d(data_md());
+    conf_.blk_size = data_d.blocking_desc().strides[ndims() - 1];
+    conf_.simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
 
-    jit_uni_shuffle_kernel_t(const jit_uni_shuffle_pd_t *pd) : pd_(pd) {}
+    const bool has_spatial = utils::one_of(ndims(), 3, 4, 5);
+    const dim_t HW = H() * W();
+    conf_.sp = has_spatial ? D() * HW : HW;
 
-    void uni_pinsr(int reg_num, Reg64 load_reg, int data_size, int xmm_off);
+    if (conf_.simd_w <= conf_.blk_size) {
+        conf_.tag_kind = jit_memory_tag_kind_t::blocked;
+        conf_.simd_tail = C() % conf_.simd_w;
+        conf_.c_split_size = conf_.blk_size;
+        if (C() < std::sqrt(conf_.sp))
+            conf_.sp_split_size
+                    = conf_.sp / math::gcd(conf_.sp, dnnl_get_max_threads());
+        else
+            conf_.sp_split_size = conf_.sp;
+    } else
+        return status::unimplemented;
 
-    void store(dim_t dst_off, int reg_num);
+    conf_.ndims = ndims();
+    conf_.mb = MB();
+    conf_.c = C();
+    conf_.d = D();
+    conf_.h = H();
+    conf_.w = W();
 
-    template <typename T>
-    T get_reg(int i) {
-        assert(i >= 0 && i < gp_regs);
-        return T(gprs[i]);
-    }
+    conf_.dt_size = types::data_type_size(conf_.data_type);
+    conf_.stride_mb = data_d.blocking_desc().strides[0];
+    conf_.group_size = group_size();
+    conf_.axis = axis();
+    conf_.axis_size = axis_size();
+    conf_.el_size_of_indices = sizeof(unsigned);
 
-    void generate() override {
-        preamble();
-
-        static constexpr int offset_data_type_size
-                = sizeof(dim_t); // input_off_ array data type size
-        static constexpr int step_size
-                = 4; // loop increment and offset calculations constant
-        // equal to number of f32 elements in Xmm
-        const dim_t blk_size = pd_->blk_size_;
-        const dim_t steps_in_block = blk_size / step_size;
-        const dim_t group_size = pd_->group_size();
-        const dim_t C = pd_->C();
-        const dim_t C_over_grps = utils::div_up(C, group_size);
-        const dim_t stride = C_over_grps * data_type_size;
-
-        for (int i = 0; i < gp_regs; i++)
-            xor_(get_reg<Reg64>(i), get_reg<Reg64>(i));
-
-        mov(input_off_reg, ptr[abi_param1 + GET_OFF(input_off_ptr)]);
-
-        mov(src_reg, ptr[abi_param1 + GET_OFF(src)]);
-        mov(dst_reg, ptr[abi_param1 + GET_OFF(dst)]);
-
-        const dim_t SP = pd_->SP_;
-
-        static constexpr int xmm_id = 0;
-        const dim_t group_elems = C / group_size;
-        const dim_t stride_mod = SP - 1;
-
-        const auto calculate_output_off
-                = [&](dim_t elem, dim_t elem_blks, dim_t gr) -> dim_t {
-            const dim_t current_4_elems = (elem - gr * group_elems) / step_size;
-            const dim_t current_blk = current_4_elems / steps_in_block;
-            const dim_t current_blk_rem = current_4_elems % steps_in_block;
-            return (current_blk * blk_size + current_blk_rem * step_size
-                           + elem_blks * stride_mod * blk_size)
-                    * data_type_size
-                    + gr * stride;
-        };
-
-        const auto shuffle_one_by_one = [&](dim_t elem, dim_t gr,
-                                                dim_t num_elements) {
-            const dim_t elem_blks = elem / blk_size;
-            const dim_t output_off = calculate_output_off(elem, elem_blks, gr);
-            for (dim_t s = 0; s < num_elements; s++) {
-                mov(get_reg<Reg32>(0),
-                        ptr[input_off_reg
-                                + (elem + s) * offset_data_type_size]);
-                mov(get_reg<data_reg_type_t>(1),
-                        ptr[src_reg + get_reg<Reg64>(0) * data_type_size]);
-                const dim_t elem_blks_mod = (elem + s) / blk_size - elem_blks;
-                mov(ptr[dst_reg + output_off + s * data_type_size
-                            + elem_blks_mod * stride_mod * blk_size
-                                    * data_type_size],
-                        get_reg<data_reg_type_t>(1));
-            }
-        };
-
-        const auto shuffle_vectorized = [&](dim_t elem, dim_t gr) {
-            const dim_t elem_blks = elem / blk_size;
-            const dim_t output_off = calculate_output_off(elem, elem_blks, gr);
-            for (int i = 0; i < step_size; i++)
-                mov(get_reg<Reg32>(i),
-                        ptr[input_off_reg
-                                + (elem + i) * offset_data_type_size]);
-            for (int i = 0; i < step_size; i++)
-                uni_pinsr(xmm_id, get_reg<Reg64>(i), data_type_size, i);
-
-            store(output_off, xmm_id);
-        };
-
-        for (dim_t gr = 0; gr < group_size; ++gr)
-            // iterate over output elements
-            for (dim_t elem = gr * group_elems; elem < group_elems * (gr + 1);
-                    elem += step_size) {
-                // tail check
-                if (group_elems * (gr + 1) - elem < step_size) {
-                    shuffle_one_by_one(elem, gr, group_elems * (gr + 1) - elem);
-                    // check if processed elements contain end of block
-                } else if (elem / blk_size
-                        != (elem + step_size - 1) / blk_size) {
-                    shuffle_one_by_one(elem, gr, step_size);
-                    // general case, load elements and store
-                } else {
-                    shuffle_vectorized(elem, gr);
-                }
-            }
-
-        postamble();
-    }
-
-    const jit_uni_shuffle_pd_t *pd_;
-
-    const Reg64 src_reg = r9;
-    const Reg64 dst_reg = r8;
-    const Reg64 input_off_reg = r15;
-};
-
-template <int data_type_size>
-void jit_uni_shuffle_kernel_t<data_type_size>::uni_pinsr(
-        int reg_num, Reg64 load_reg, int data_size, int xmm_off) {
-    const auto ins_reg = Xmm(reg_num);
-    uni_vpinsrd(ins_reg, ins_reg, ptr[src_reg + load_reg * data_size], xmm_off);
+    return status::success;
 }
 
-template <>
-void jit_uni_shuffle_kernel_t<bf16_size_bytes>::uni_pinsr(
-        int reg_num, Reg64 load_reg, int data_size, int xmm_off) {
-    const auto ins_reg = Xmm(reg_num);
-    vpinsrw(ins_reg, ins_reg, ptr[src_reg + load_reg * data_size], xmm_off);
-}
-
-template <int data_type_size>
-void jit_uni_shuffle_kernel_t<data_type_size>::store(
-        dim_t dst_off, int reg_num) {
-    const auto src_xmm = Xmm(reg_num);
-    mov(get_reg<Reg64>(0), dst_off);
-    uni_vmovups(ptr[dst_reg + get_reg<Reg64>(0)], src_xmm);
-}
-
-template <>
-void jit_uni_shuffle_kernel_t<bf16_size_bytes>::store(
-        dim_t dst_off, int reg_num) {
-    const auto src_xmm = Xmm(reg_num);
-    mov(get_reg<Reg64>(0), dst_off);
-    vmovsd(ptr[dst_reg + get_reg<Reg64>(0)], src_xmm);
-}
-
-template struct jit_uni_shuffle_kernel_t<f32_size_bytes>;
-template struct jit_uni_shuffle_kernel_t<bf16_size_bytes>;
-
-#undef GET_OFF
-
-template <int data_type_size>
-status_t jit_uni_shuffle_t<data_type_size>::precompute_offsets() {
-    const int axis_size = pd()->axis_size();
-    const int group_size = pd()->group_size();
+template <cpu_isa_t isa>
+status_t jit_uni_shuffle_t<isa>::precompute_offsets() {
+    const auto conf = pd()->get_conf();
+    const int axis_size = conf.axis_size;
+    const int group_size = conf.group_size;
     const int transpose_row
             = pd()->is_fwd() ? group_size : axis_size / group_size;
     const int transpose_col
@@ -233,82 +109,106 @@ status_t jit_uni_shuffle_t<data_type_size>::precompute_offsets() {
         rev_transposed_[j * transpose_col + i] = i * transpose_row + j;
     });
 
-    const dim_t C = pd()->C();
-    const dim_t blk_size = pd()->blk_size_;
-    const dim_t CB = utils::div_up(C, blk_size);
-    const dim_t SP = pd()->SP_;
-    input_off_ = (dim_t *)malloc(
-            C * sizeof(dim_t), platform::get_cache_line_size());
+    const dim_t C = conf.c;
+    input_off_ = (unsigned *)malloc(
+            C * sizeof(unsigned), platform::get_cache_line_size());
     if (input_off_ == nullptr) return dnnl_out_of_memory;
 
-    // Precompute input offsets using transposed axis
-    parallel_nd(CB, [&](dim_t cb) {
-        const dim_t blk_end = nstl::min(blk_size, C - cb * blk_size);
-        PRAGMA_OMP_SIMD()
-        for (dim_t cc = 0; cc < blk_end; ++cc) {
-            const dim_t off = cb * blk_size + cc;
-            const dim_t &input_c = rev_transposed_[off];
-            input_off_[off]
-                    = input_c / blk_size * SP * blk_size + input_c % blk_size;
-        }
-    });
+    if (pd()->get_conf().tag_kind == jit_memory_tag_kind_t::blocked) {
+        const dim_t blk_size = conf.blk_size;
+        const dim_t CB = utils::div_up(C, blk_size);
+        const dim_t SP = conf.sp;
+
+        // Precompute input offsets using transposed axis
+        parallel_nd(CB, [&](int cb) {
+            const int blk_end = nstl::min(blk_size, C - cb * blk_size);
+            PRAGMA_OMP_SIMD()
+            for (int cc = 0; cc < blk_end; ++cc) {
+                const int off = cb * blk_size + cc;
+                const int &input_c = rev_transposed_[off];
+                input_off_[off] = (input_c / blk_size * SP * blk_size
+                                          + input_c % blk_size)
+                        * conf.dt_size;
+            }
+        });
+    } else {
+        assert(!"Invalid memory format kind.");
+        return status::invalid_arguments;
+    }
+
     return status::success;
 }
 
-template <int data_type_size>
-status_t jit_uni_shuffle_t<data_type_size>::init(engine_t *engine) {
+template <cpu_isa_t isa>
+status_t jit_uni_shuffle_t<isa>::init(engine_t *engine) {
     CHECK(precompute_offsets());
     CHECK(safe_ptr_assign(
-            kernel_, new jit_uni_shuffle_kernel_t<data_type_size>(pd())));
+            kernel_, new jit_uni_shuffle_kernel_t<isa>(pd()->get_conf())));
     CHECK(kernel_->create_kernel());
     return status::success;
 }
 
-template <int data_type_size>
-inline jit_uni_shuffle_t<data_type_size>::jit_uni_shuffle_t(const pd_t *apd)
+template <cpu_isa_t isa>
+inline jit_uni_shuffle_t<isa>::jit_uni_shuffle_t(const pd_t *apd)
     : primitive_t(apd) {}
 
-template <int data_type_size>
-jit_uni_shuffle_t<data_type_size>::~jit_uni_shuffle_t() {
+template <cpu_isa_t isa>
+jit_uni_shuffle_t<isa>::~jit_uni_shuffle_t() {
     free(this->input_off_);
 }
 
-template <int data_type_size>
-status_t jit_uni_shuffle_t<data_type_size>::execute(
-        const exec_ctx_t &ctx) const {
+template <cpu_isa_t isa>
+status_t jit_uni_shuffle_t<isa>::execute(const exec_ctx_t &ctx) const {
     using namespace prop_kind;
     using namespace utils;
 
     status_t status = status::success;
-    const memory_desc_wrapper data_d(pd()->data_md());
 
     const auto i_arg = pd()->is_fwd() ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
     const auto o_arg = pd()->is_fwd() ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
-    auto input = CTX_IN_MEM(const data_t *, i_arg);
-    auto output = CTX_OUT_CLEAN_MEM(data_t *, o_arg, status);
+    auto input = CTX_IN_MEM(const uint8_t *, i_arg);
+    auto output = CTX_OUT_CLEAN_MEM(uint8_t *, o_arg, status);
     CHECK(status);
 
-    const dim_t MB = pd()->MB();
-    const dim_t SP = pd()->SP_;
-    const dim_t blk_size = pd()->blk_size_;
-    const dim_t stride_mb = data_d.blocking_desc().strides[0];
-    parallel_nd(MB, SP, [&](dim_t mb, dim_t sp) {
-        const dim_t off = mb * stride_mb + sp * blk_size;
+    const auto conf = pd()->get_conf();
 
-        jit_shuffle_args_t args;
-        args.src = input + off;
-        args.dst = output + off;
+    const dim_t MB = conf.mb;
+    const dim_t SP = conf.sp;
+    const dim_t C = conf.c;
+    const dim_t stride_mb = conf.stride_mb;
+    const int data_type_size = conf.dt_size;
 
-        args.input_off_ptr = this->input_off_;
+    if (pd()->get_conf().tag_kind == jit_memory_tag_kind_t::blocked) {
+        const dim_t CB = utils::div_up(C, conf.c_split_size);
+        const dim_t SPB = SP / conf.sp_split_size;
+        parallel_nd(MB, SPB, CB, [&](dim_t mb, dim_t spb, dim_t cb) {
+            const dim_t c_work
+                    = nstl::min(conf.c_split_size, C - cb * conf.c_split_size);
+            const dim_t c_curr = cb * conf.c_split_size;
+            const dim_t sp_work = conf.sp_split_size;
+            const dim_t sp_curr = spb * sp_work;
+            const dim_t off = mb * stride_mb + sp_curr * conf.blk_size;
 
-        (*kernel_)(&args);
-    });
+            jit_shuffle_call_s args;
+            args.src = input + off * data_type_size;
+            args.dst = output + (off + SP * c_curr) * data_type_size;
+
+            args.cb_loop_size = c_work;
+
+            args.input_off_ptr = this->input_off_ + c_curr;
+            (*kernel_)(&args);
+        });
+    } else {
+        assert(!"Invalid memory format kind.");
+        return status::invalid_arguments;
+    }
 
     return status::success;
 }
 
-template struct jit_uni_shuffle_t<f32_size_bytes>;
-template struct jit_uni_shuffle_t<bf16_size_bytes>;
+template struct jit_uni_shuffle_t<sse41>;
+template struct jit_uni_shuffle_t<avx>;
+template struct jit_uni_shuffle_t<avx512_common>;
 
 } // namespace x64
 } // namespace cpu
