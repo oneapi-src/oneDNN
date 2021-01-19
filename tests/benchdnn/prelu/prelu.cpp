@@ -109,16 +109,16 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         // src/dst and diff_dst. The +1 is to avoid 0 again.
         std::minstd_rand msr((idx_start + 1) * (kind + 1));
         msr.discard(1);
-        std::uniform_int_distribution<> igen(0, 5);
+        std::uniform_int_distribution<> igen_02(0, 2), igen_05(0, 5);
         std::uniform_real_distribution<> fgen(-1.f, 1.f);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             float value;
             if (is_integral_dt(mem_dt.dt()))
-                value = igen(msr);
+                value = igen_05(msr);
             else
                 value = kind == SRC
-                        ? igen(msr)
-                        : kind == WEI ? fgen(msr) : igen(msr) / 16.f;
+                        ? igen_02(msr)
+                        : kind == WEI ? fgen(msr) : igen_02(msr) / 16.f;
             // TODO: amount of negative values should depend on number of points
             // to reduce as summation becomes inaccurate.
             float sign = mem_dt.dt() == dnnl_u8
