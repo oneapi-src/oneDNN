@@ -228,7 +228,7 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
             const convolution_desc_t &cd, memory_desc_t &src_pd,
             memory_desc_t &weights_pd, memory_desc_t &dst_pd,
             memory_desc_t &bias_pd, const primitive_attr_t &attr, int nthreads);
-    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+    static status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     inline int accum_with_upper_bound(

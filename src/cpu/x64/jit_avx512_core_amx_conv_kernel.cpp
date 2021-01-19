@@ -20,6 +20,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/platform.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/jit_avx512_core_amx_conv_kernel.hpp"
 
@@ -2389,7 +2390,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     return status::success;
 }
 
-void jit_avx512_core_amx_fwd_kernel_t::init_scratchpad(
+status_t jit_avx512_core_amx_fwd_kernel_t::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
 
@@ -2412,6 +2413,15 @@ void jit_avx512_core_amx_fwd_kernel_t::init_scratchpad(
                 jcp.oh_pad * jcp.ow_pad * jcp.oc_without_padding * jcp.ngroups,
                 sizeof(int32_t));
     }
+
+    // Keep scratchpad memory footprint under control
+    const size_t L2_size_per_core = platform::get_per_core_cache_size(2);
+    const size_t L3_size_per_core = platform::get_per_core_cache_size(3);
+    const size_t max_scratchpad_size
+            = jcp.nthr * (L2_size_per_core + L3_size_per_core);
+    // TODO: tune this relationship as needed
+    if (scratchpad.size() > max_scratchpad_size) return status::unimplemented;
+    return status::success;
 }
 
 void jit_avx512_core_amx_bwd_data_copy_kernel_t::copy_row(
