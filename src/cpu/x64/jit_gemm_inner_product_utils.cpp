@@ -825,7 +825,7 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::generate() {
     bool supported_postops = this->do_scale_ || this->do_eltwise_
             || this->do_sum_;
 
-    if (this->do_bias() && !supported_postops && dim_restrict) {
+    if (this->do_bias() && !supported_postops && dim_restrict && !utils::one_of(isa, avx2, sse41)) {
         this->mb_blk_kernel_ = true;
         compute_mb_blk();
     } else {
