@@ -2327,21 +2327,21 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             : utils::div_up(ops_tile_store, avaliable_ops);
 
     if (jcp.is_relo) {
-        jcp.inp_buffer_size = jcp.nb_ic_int * jcp.ihp * jcp.iwp * jcp.kh
+        jcp.inp_buffer_size = (size_t)jcp.nb_ic_int * jcp.ihp * jcp.iwp * jcp.kh
                         * jcp.ic_block_int_np
                 // pbuffer pointer shifts each oh step for reduced-lowering
                 + (jcp.oh - 1) * jcp.stride_h * jcp.ic_block_int_np
                 // extra $line due to pbuffer writing full Zmm
                 + jcp.ic_block_int;
     } else {
-        jcp.inp_buffer_size = jcp.nb_ic_int * jcp.kd
-                * (jcp.ihp * jcp.iwp * jcp.ic_block_int_np
+        jcp.inp_buffer_size = (size_t)jcp.nb_ic_int * jcp.kd
+                * ((size_t)jcp.ihp * jcp.iwp * jcp.ic_block_int_np
                         // extra $line due to pbuffer writing full Zmm
                         + jcp.ic_block_int);
     }
-    jcp.wei_buffer_size = jcp.ngroups * jcp.nb_oc
+    jcp.wei_buffer_size = (size_t)jcp.ngroups * jcp.nb_oc
             * rnd_up(jcp.kh * jcp.kw * jcp.ic * jcp.oc_block, 1024);
-    jcp.wsp_buffer_size = jcp.nb_oh_blocking * jcp.nb_oc_blocking
+    jcp.wsp_buffer_size = (size_t)jcp.nb_oh_blocking * jcp.nb_oc_blocking
             * jcp.full_tile_width * jcp.oc_block;
 
     const auto &oscales = attr.output_scales_;
@@ -3406,8 +3406,9 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     // NOTE: set to zero to turn off interleave store (mostly for debugging)
     jcp.per_one_pstore = div_up(ops_tile_store, avaliable_ops);
 
-    jcp.inp_buffer_size = jcp.nb_oc_int * jcp.ohp * jcp.owp * jcp.oc_block_int;
-    jcp.wsp_buffer_size = jcp.nb_ih_blocking * jcp.nb_ic_blocking
+    jcp.inp_buffer_size
+            = (size_t)jcp.nb_oc_int * jcp.ohp * jcp.owp * jcp.oc_block_int;
+    jcp.wsp_buffer_size = (size_t)jcp.nb_ih_blocking * jcp.nb_ic_blocking
             * jcp.full_tile_width * jcp.ic_block;
 
     const auto &oscales = attr.output_scales_;

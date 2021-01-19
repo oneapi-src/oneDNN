@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -887,7 +887,7 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             : 1;
     jcp.nb_os = os / jcp.tile_width;
 
-    jcp.wsp_buffer_size = 2 * jcp.nb_os_blocking * jcp.nb_oc_blocking
+    jcp.wsp_buffer_size = (size_t)2 * jcp.nb_os_blocking * jcp.nb_oc_blocking
             * jcp.max_width * jcp.oc_block;
 
     int ops_tile_store

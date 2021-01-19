@@ -239,9 +239,9 @@ struct jit_conv_conf_t {
 
     int per_one_pstore;
 
-    int inp_buffer_size;
-    int wei_buffer_size;
-    int wsp_buffer_size;
+    size_t inp_buffer_size;
+    size_t wei_buffer_size;
+    size_t wsp_buffer_size;
 
     int nb_os;
     int nb_os_blocking;
