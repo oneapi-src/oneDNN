@@ -82,14 +82,15 @@ struct wino_reorder_t : public primitive_t {
 
     private:
         void init_scratchpad() {
-            const auto &o = memory_desc_wrapper(dst_md()).wino_desc();
-            const int nb_oc = o.oc / o.oc_block;
-            const int work_amount = nb_oc * o.ic;
+            const auto &wino_desc = memory_desc_wrapper(dst_md()).wino_desc();
+            const int nb_oc = wino_desc.oc / wino_desc.oc_block;
+            const int work_amount = nb_oc * wino_desc.ic;
             const int thread_count
                     = nstl::min(dnnl_get_max_threads(), work_amount);
-            const size_t transform_space_size
-                    = (size_t)o.r * o.alpha * o.oc_block * thread_count;
-            const size_t plain_size = (size_t)o.alpha * o.alpha * o.oc * o.ic;
+            const size_t transform_space_size = static_cast<size_t>(wino_desc.r)
+                    * wino_desc.alpha * wino_desc.oc_block * thread_count;
+            const size_t plain_size = static_cast<size_t>(wino_desc.alpha)
+                    * wino_desc.alpha * wino_desc.oc * wino_desc.ic;
 
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
@@ -145,7 +146,7 @@ struct wino_reorder_t : public primitive_t {
 
         size_wino_wei_ = w_alpha_ * w_alpha_ * oc_ * ic_;
         work_amount_ = ic_ * nb_oc_;
-        thread_count_ = nstl::min(dnnl_get_max_threads(), (int)work_amount_);
+        thread_count_ = nstl::min(dnnl_get_max_threads(), work_amount_);
         size_wspace_thr_ = r_ * w_alpha_ * oc_block_;
 
         return status::success;
@@ -165,7 +166,7 @@ private:
         const int ndims_mask = math::ilog2q(smask + 1);
         const size_t D_mask = utils::array_product(src_d.dims(), ndims_mask);
         const float *__restrict scales = pd()->attr()->output_scales_.scales_;
-        assert(D_mask == 1 || D_mask == (size_t)oc_);
+        assert(D_mask == 1 || D_mask == static_cast<size_t>(oc_));
 
         /* transform weights to winograd domain */
         const float G_2x2_3x3[4][3] = {{1.0, 0.0, 0.0}, {0.5, 0.5, 0.5},
@@ -221,8 +222,8 @@ private:
                         for (int ioc = 0; ioc < oc_block_; ++ioc) {
                             PRAGMA_OMP_SIMD()
                             for (int iw = 0; iw < r_; ++iw) {
-                                int inp_oc = ob * oc_block_ + ioc;
-                                int inp_ic = iic;
+                                const int inp_oc = ob * oc_block_ + ioc;
+                                const int inp_ic = iic;
                                 in_data_t inp_v
                                         = (inp_ic < or_ic_ && inp_oc < or_oc_)
                                         ? _inp[ioc * or_ic_ * kh_ * kw_
@@ -245,8 +246,8 @@ private:
 
                             PRAGMA_OMP_SIMD()
                             for (int ioc = 0; ioc < oc_block_; ++ioc) {
-                                int inp_oc = ob * oc_block_ + ioc;
-                                int inp_ic = iic;
+                                const int inp_oc = ob * oc_block_ + ioc;
+                                const int inp_ic = iic;
                                 in_data_t inp_v
                                         = (inp_ic < or_ic_ && inp_oc < or_oc_)
                                         ? inp_base[ioc]
@@ -260,10 +261,10 @@ private:
                     for_(int i = 0; i < w_alpha_; ++i)
                     for_(int j = 0; j < w_alpha_; ++j)
                     for (int ioc = 0; ioc < oc_block_; ++ioc) {
-                        float t = 0;
-                        PRAGMA_OMP_SIMD()
+                        float res = 0;
+                        PRAGMA_OMP_SIMD(reduction(+ : res))
                         for (int k = 0; k < r_; ++k)
-                            t += g[i * r_ + k]
+                            res += g[i * r_ + k]
                                     * wspace_thr[(k * w_alpha_ + j) * oc_block_
                                             + ioc];
                         if (type_o == data_type::s8) {
@@ -272,9 +273,11 @@ private:
                                     : scales[ob * oc_block_ + ioc];
                             _out[(i * w_alpha_ + j) * Z + ioc]
                                     = qz_b0<in_data_t, out_data_t>()(
-                                            (in_data_t)t, scale * adj_scale_);
+                                            static_cast<in_data_t>(res),
+                                            scale * adj_scale_);
                         } else {
-                            _out[(i * w_alpha_ + j) * Z + ioc] = (out_data_t)t;
+                            _out[(i * w_alpha_ + j) * Z + ioc]
+                                    = static_cast<out_data_t>(res);
                         }
                     }
                 });
@@ -287,36 +290,37 @@ private:
             const auto bias_shift = sizeof(out_data_t) * size_wino_wei_;
             const size_t bias_size = w_alpha_ * w_alpha_ * oc_;
 
-            dst_bias = (int32_t *)(output + bias_shift);
-            utils::array_set((int32_t *)dst_bias, 0, bias_size);
+            dst_bias = reinterpret_cast<int32_t *>(output + bias_shift);
+            utils::array_set(dst_bias, 0, bias_size);
         }
         int index = 0;
         for_(int u_h = 0; u_h < w_alpha_; u_h++)
         for (int u_w = 0; u_w < w_alpha_; u_w++) {
             for_nd(0, 1, nb_oc_, oc_block_, [&](int ob, int o) {
-                int u_h_shift = u_h * w_alpha_ * ic_ * oc_;
-                int u_w_shift = u_w * ic_ * oc_;
-                int u_h_shift_b = u_h * w_alpha_ * oc_;
-                int u_w_shift_b = u_w * oc_;
-                int oc_block_shift = ob * oc_block_ * ic_ + o * ic_block_;
+                const int u_h_shift = u_h * w_alpha_ * ic_ * oc_;
+                const int u_w_shift = u_w * ic_ * oc_;
+                const int u_h_shift_b = u_h * w_alpha_ * oc_;
+                const int u_w_shift_b = u_w * oc_;
+                const int oc_block_shift = ob * oc_block_ * ic_ + o * ic_block_;
                 for_(int ib = 0; ib < nb_ic_; ib++)
                 for (int i = 0; i < ic_block_; i++) {
-                    int _i = ib * ic_block_;
-                    int _o = ob * oc_block_;
-                    int ic_shift = (_i + i) * oc_;
-                    int oc_shift = (_o + o);
-                    int ic_block_shift = ib * oc_block_ * ic_block_ + i;
-                    int src_offset
+                    const int _i = ib * ic_block_;
+                    const int _o = ob * oc_block_;
+                    const int ic_shift = (_i + i) * oc_;
+                    const int oc_shift = (_o + o);
+                    const int ic_block_shift = ib * oc_block_ * ic_block_ + i;
+                    const int src_offset
                             = u_h_shift + u_w_shift + ic_shift + oc_shift;
-                    int dst_offset = u_h_shift + u_w_shift + oc_block_shift
-                            + ic_block_shift;
+                    const int dst_offset = u_h_shift + u_w_shift
+                            + oc_block_shift + ic_block_shift;
 
                     output[dst_offset] = tmp_wei[src_offset];
                     if (type_o == data_type::s8) {
-                        int bias_offset = u_h_shift_b + u_w_shift_b + oc_shift;
+                        const int bias_offset
+                                = u_h_shift_b + u_w_shift_b + oc_shift;
                         if (index != unsign_val_in_wino_domain_)
-                            dst_bias[bias_offset]
-                                    -= (128 * (int32_t)output[dst_offset]);
+                            dst_bias[bias_offset] -= (128
+                                    * static_cast<int32_t>(output[dst_offset]));
                         else
                             dst_bias[bias_offset] = 0;
                     }
@@ -332,11 +336,12 @@ private:
             for_(int ib = 0; ib < nb_ic_; ib++)
             for_(int i = 0; i < ic_block_; i++)
             for (int o = 0; o < oc_block_; o++) {
-                int src_offset = u_h * w_alpha_ * ic_ * oc_ + u_w * ic_ * oc_
-                        + (ib * ic_block_ + i) * oc_ + (ob * oc_block_ + o);
+                const int src_offset = u_h * w_alpha_ * ic_ * oc_
+                        + u_w * ic_ * oc_ + (ib * ic_block_ + i) * oc_
+                        + (ob * oc_block_ + o);
 
-                int dst_offset = u_h * w_alpha_ * nb_oc_ * nb_ic_ * ic_block_
-                                * oc_block_
+                const int dst_offset = u_h * w_alpha_ * nb_oc_ * nb_ic_
+                                * ic_block_ * oc_block_
                         + u_w * nb_oc_ * nb_ic_ * ic_block_ * oc_block_
                         + ob * nb_ic_ * ic_block_ * oc_block_
                         + ib * ic_block_ * oc_block_ + i * oc_block_ + o;
@@ -347,7 +352,7 @@ private:
 
     void reorder_to_aaOBiOo(out_data_t *__restrict output,
             const out_data_t *__restrict tmp_wei) const {
-        int oc_chunks = nb_oc_ / oc2_block_;
+        const int oc_chunks = nb_oc_ / oc2_block_;
         parallel_nd(
                 w_alpha_, w_alpha_, oc_chunks, [&](int u_h, int u_w, int occ) {
                     for (int ib = 0; ib < nb_ic_; ib++) {
@@ -360,11 +365,12 @@ private:
                         for_(int i = 0; i < ic_block_; i++)
                         for (int ob2 = 0; ob2 < oc2_block_; ob2++) {
                             for (int o = 0; o < oc_block_; o++) {
-                                int icp = ib * ic_block_ + i;
-                                int ocp = occ * oc2_block_ * oc_block_
+                                const int icp = ib * ic_block_ + i;
+                                const int ocp = occ * oc2_block_ * oc_block_
                                         + ob2 * oc_block_ + o;
 
-                                int src_offset = u_h * w_alpha_ * ic_ * oc_
+                                const int src_offset
+                                        = u_h * w_alpha_ * ic_ * oc_
                                         + u_w * ic_ * oc_ + icp * oc_ + ocp;
                                 wei_ptr[wei_offset + o] = tmp_wei[src_offset];
                             }
@@ -376,20 +382,21 @@ private:
 
     void reorder_to_OBaaIBOIio(out_data_t *__restrict output,
             const out_data_t *__restrict tmp_wei) const {
-        int ic_chunks = nb_ic_ / ic2_block_;
-        int oc_chunks = nb_oc_ / oc2_block_;
+        const int ic_chunks = nb_ic_ / ic2_block_;
+        const int oc_chunks = nb_oc_ / oc2_block_;
         parallel_nd(
                 oc_chunks, w_alpha_, w_alpha_, [&](int occ, int u_h, int u_w) {
                     for_(int icc = 0; icc < ic_chunks; icc++)
                     for (int ob = 0; ob < oc2_block_; ob++) {
-                        int ocp = (occ * oc2_block_ + ob) * oc_block_;
+                        const int ocp = (occ * oc2_block_ + ob) * oc_block_;
                         for_(int ib = 0; ib < ic2_block_; ib++)
                         for (int i = 0; i < ic_block_; i++) {
-                            int icp = (icc * ic2_block_ + ib) * ic_block_ + i;
+                            const int icp
+                                    = (icc * ic2_block_ + ib) * ic_block_ + i;
 
-                            int src_offset = u_h * w_alpha_ * ic_ * oc_
+                            const int src_offset = u_h * w_alpha_ * ic_ * oc_
                                     + u_w * ic_ * oc_ + icp * oc_ + ocp;
-                            int wei_offset
+                            const int wei_offset
                                     = ((((((occ * w_alpha_ + u_h) * w_alpha_
                                                   + u_w) * ic_chunks
                                                  + icc) * oc2_block_
