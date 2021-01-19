@@ -854,6 +854,11 @@ status_t jit_avx512_core_amx_convolution_bwd_weights_t::init(engine_t *engine) {
                 acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
         CHECK(acc_ker_->create_kernel());
     }
+    if (j.transform_to_vnni) {
+        CHECK(safe_ptr_assign(
+                diff_wei_trans_kernel_, new jit_diff_wei_trans_to_vnni_t(j)));
+        CHECK(diff_wei_trans_kernel_->create_kernel());
+    }
     return status::success;
 }
 
@@ -951,6 +956,10 @@ struct jit_avx512_core_amx_convolution_bwd_weights_t::thread_info_t {
 
         balance211(
                 jcp.nb_ic, self->nthr_ic_b_, ithr_ic_b, ic_b_start, ic_b_end);
+        if (jcp.transform_to_vnni) {
+            if (ic_b_start % 2 != 0) ic_b_start++;
+            if (ic_b_end != jcp.nb_ic && ic_b_end % 2 != 0) ic_b_end++;
+        }
         ic_b_work = ic_b_end - ic_b_start;
     }
 };
@@ -1236,7 +1245,9 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::compute_diff_weights_2d(
                 p.dst = &ti->tr_diff_dst[tr_diff_dst_off(g, oc_b, ohb_s)];
             }
 
-            p.filt = diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
+            p.filt = (jcp.transform_to_vnni)
+                    ? diff_wei + wei_offset_int(g, oc_b, ic_b, 0)
+                    : diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
             p.bias = diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
                     + oc_b * jcp.oc_block;
             p.channel = (start == ti->img_start) && (ohb_s == oh_s);
@@ -1470,7 +1481,9 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::compute_diff_weights_3d(
                 p.dst = &ti->tr_diff_dst[tr_diff_dst_off_3d(g, oc_b, odb_s)];
             }
 
-            p.filt = diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
+            p.filt = (jcp.transform_to_vnni)
+                    ? diff_wei + wei_offset_int(g, oc_b, ic_b, 0)
+                    : diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
             p.bias = diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
                     + oc_b * jcp.oc_block;
             p.channel = (start == ti->img_start) && (odb_s == od_s);
@@ -1706,7 +1719,9 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::compute_diff_weights(
                 }
             }
 
-            p.filt = diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
+            p.filt = (jcp.transform_to_vnni)
+                    ? diff_wei + wei_offset_int(g, oc_b, ic_b, 0)
+                    : diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
             p.bias = diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
                     + oc_b * jcp.oc_block;
             p.channel = (img == ti->img_start);
@@ -1734,21 +1749,46 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::
 
     const bool is_bf16_out = diff_weights_d.data_type() == data_type::bf16;
     const bool is_bf16_bias = jcp.with_bias && jcp.bia_dt == data_type::bf16;
+
+    auto store_in_vnni_format = [&]() {
+        for_(int g = ti->g_start; g < ti->g_end; g++)
+        for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; oc_b++)
+        for_(int ic_b = ti->ic_b_start; ic_b < ti->ic_b_start + ti->ic_b_work;
+                ic_b += 2)
+        {
+            jit_conv_call_s p = jit_conv_call_s();
+
+            bfloat16_t *output = (bfloat16_t *)ti->diff_weights
+                    + wei_offset_ext(g, oc_b, (ic_b / 2), 0);
+            float *input
+                    = ti->wei_bia_reduction + wei_offset_int(g, oc_b, ic_b, 0);
+
+            p.src = (void *)input;
+            p.dst = (void *)output;
+            p.last_ic_block = ((ic_b + 1) >= jcp.nb_ic) ? 1 : 0;
+            (*diff_wei_trans_kernel_)(&p);
+        }
+    };
+
     if (nthr_mb_ == 1) {
         if (is_bf16_out) {
             // reduction is not required, only conversion
-            for_(int g = ti->g_start; g < ti->g_end; g++)
-            for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; oc_b++) {
-                const size_t acc_size = (size_t)ti->ic_b_work * jcp.kh * jcp.kw
-                        * ((jcp.ndims == 5) ? jcp.kd : 1) * jcp.ic_block
-                        * jcp.oc_block;
-                const size_t off
-                        = wht_blk_off(diff_weights_d, g, oc_b, ti->ic_b_start);
-                cvt_float_to_bfloat16((bfloat16_t *)(ti->diff_weights) + off,
-                        (ti->wei_bia_reduction + off), acc_size);
+            if (jcp.transform_to_vnni) {
+                store_in_vnni_format();
+            } else {
+                for_(int g = ti->g_start; g < ti->g_end; g++)
+                for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; oc_b++) {
+                    const size_t acc_size = (size_t)ti->ic_b_work * jcp.kh
+                            * jcp.kw * ((jcp.ndims == 5) ? jcp.kd : 1)
+                            * jcp.ic_block * jcp.oc_block;
+                    const size_t off = wht_blk_off(
+                            diff_weights_d, g, oc_b, ti->ic_b_start);
+                    cvt_float_to_bfloat16(
+                            (bfloat16_t *)(ti->diff_weights) + off,
+                            (ti->wei_bia_reduction + off), acc_size);
+                }
             }
         }
-
         if (is_bf16_bias && ti->ithr_ic_b == 0 && ti->ic_b_work > 0) {
             for (int g = ti->g_start; g < ti->g_end; g++) {
                 int result_start_idx = g * jcp.oc_without_padding
@@ -1777,7 +1817,7 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::
 
     int start {0}, end {0};
     balance211(work, nthr_mb_, ti->ithr_mb, start, end);
-    if (start == end) return;
+    if (!jcp.transform_to_vnni && start == end) return;
 
     const int _start_nthr_mb = 1;
     for (int thr_mb = _start_nthr_mb; thr_mb < nthr_mb_; ++thr_mb) {
@@ -1797,21 +1837,25 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::
                     * ((jcp.ndims == 5) ? jcp.kh : 1)
                     * nstl::min(end - w, ic_b_kh_work - sub_ic_b_kh_start);
 
-            const size_t off = wht_blk_off(diff_weights_d, g, oc_b, ic_b, kX);
+            const size_t off_ext
+                    = wht_blk_off(diff_weights_d, g, oc_b, ic_b, kX);
+            const size_t off_int = (jcp.transform_to_vnni)
+                    ? wei_offset_int(g, oc_b, ic_b, kX)
+                    : off_ext;
 
             float *wei_reduced = is_bf16_out
-                    ? ti->wei_bia_reduction + off
-                    : (float *)(ti->diff_weights) + off;
+                    ? ti->wei_bia_reduction + off_int
+                    : (float *)(ti->diff_weights) + off_ext;
 
             int thr_mb_buffer_idx = is_bf16_out ? thr_mb : thr_mb - 1;
             float *wei_to_reduce = ti->wei_bia_reduction
-                    + thr_mb_buffer_idx * wei_size + off;
+                    + thr_mb_buffer_idx * wei_size + off_int;
 
-            if (is_bf16_out && thr_mb == nthr_mb_ - 1)
+            if (!jcp.transform_to_vnni && is_bf16_out && thr_mb == nthr_mb_ - 1)
                 // the last iteration for bfloat16 requires conversion and
                 // store to diff_weights array
                 add_floats_and_cvt_to_bfloat16(
-                        (bfloat16_t *)(ti->diff_weights) + off, wei_reduced,
+                        (bfloat16_t *)(ti->diff_weights) + off_ext, wei_reduced,
                         wei_to_reduce, acc_size);
             else
                 acc_ker_->accumulate(wei_reduced, wei_to_reduce, acc_size);
@@ -1847,6 +1891,11 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::
                 }
             }
         }
+    }
+    if (jcp.transform_to_vnni) {
+        if (jcp.global_transpose)
+            simple_barrier::barrier(ti->wei_bia_reduction_bctx, nthr_);
+        store_in_vnni_format();
     }
 }
 

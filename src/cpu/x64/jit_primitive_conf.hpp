@@ -249,6 +249,8 @@ struct jit_conv_conf_t {
     int os_tail;
     int os_blocked;
     int max_width;
+
+    bool transform_to_vnni;
 };
 
 // calculates filter size taking into account dilation

@@ -288,8 +288,30 @@ private:
 
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
 
+    std::unique_ptr<jit_diff_wei_trans_to_vnni_t> diff_wei_trans_kernel_;
     std::unique_ptr<jit_trans_src_t> trans_kernel_;
     std::unique_ptr<jit_trans_dst_t> trans_dst_kernel_;
+
+    inline dim_t wei_offset_int(int g, int oc_b, int ic_b, int kX) const {
+        const auto &jcp = kernel_->jcp;
+        const dim_t const_extra_offset = jcp.kw * jcp.ic_block * jcp.oc_block;
+        dim_t extra_offset = (jcp.ndims == 5) ? kX * jcp.kh * const_extra_offset
+                                              : kX * const_extra_offset;
+        return (dim_t)((g * jcp.nb_oc + oc_b) * jcp.nb_ic + ic_b) * jcp.kd
+                * jcp.kh * jcp.kw * jcp.ic_block * jcp.oc_block
+                + extra_offset;
+    }
+    inline dim_t wei_offset_ext(int g, int oc_b, int ic_b, int kX) const {
+        const auto &jcp = kernel_->jcp;
+        const int nb_ic = utils::div_up(jcp.ic, 2 * jcp.ic_block);
+        const dim_t const_extra_offset
+                = jcp.kw * jcp.ic_block * jcp.oc_block * 2;
+        dim_t extra_offset = (jcp.ndims == 5) ? kX * jcp.kh * const_extra_offset
+                                              : kX * const_extra_offset;
+        return (dim_t)((g * jcp.nb_oc + oc_b) * nb_ic + ic_b) * jcp.kd * jcp.kh
+                * jcp.kw * jcp.ic_block * jcp.oc_block * 2
+                + extra_offset;
+    }
 };
 
 } // namespace x64
