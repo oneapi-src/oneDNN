@@ -582,6 +582,23 @@ private:
     int ddst_save_offset = 0;
 };
 
+struct jit_diff_wei_trans_to_vnni_t : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_diff_wei_trans_to_vnni_t)
+
+    jit_diff_wei_trans_to_vnni_t(const jit_conv_conf_t &ajcp)
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_bf16)
+        , jcp(ajcp) {}
+
+    ~jit_diff_wei_trans_to_vnni_t() {}
+
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+    const jit_conv_conf_t jcp;
+
+private:
+    void generate() override;
+};
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl

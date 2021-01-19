@@ -3974,6 +3974,8 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
                     data_type::bf16);
     if (!ok) return status::unimplemented;
 
+    jcp.transform_to_vnni = diff_weights_d.data_type() == data_type::bf16;
+
     jcp.r_pad = nstl::max(0,
             calculate_end_padding(
                     jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw));
@@ -3993,8 +3995,9 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
     jcp.ohp = jcp.oh;
     jcp.owp = jcp.ow;
 
-    format_tag_t dat_tag_nspc = utils::pick(
-            ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+    const int dat_format_tag = ndims - 3;
+    format_tag_t dat_tag_nspc = utils::pick(dat_format_tag, format_tag::nwc,
+            format_tag::nhwc, format_tag::ndhwc);
     format_tag_t dat_tag_opt = dat_tag_nspc;
 
     if (src_d.format_kind() == format_kind::any) {
@@ -4014,10 +4017,18 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
 
     if (!jcp.is_nspc) return status::unimplemented;
 
-    format_tag_t wei_tag = pick(2 * ndims - 6 + with_groups,
-            format_tag::OIw16i16o, format_tag::gOIw16i16o,
-            format_tag::OIhw16i16o, format_tag::gOIhw16i16o,
-            format_tag::OIdhw16i16o, format_tag::gOIdhw16i16o);
+    const int wei_format_tag = 2 * ndims - 6 + with_groups;
+    format_tag_t wei_tag;
+    if (jcp.transform_to_vnni)
+        wei_tag = pick(wei_format_tag, format_tag::OIw16i16o2i,
+                format_tag::gOIw16i16o2i, format_tag::OIhw16i16o2i,
+                format_tag::gOIhw16i16o2i, format_tag::OIdhw16i16o2i,
+                format_tag::gOIdhw16i16o2i);
+    else
+        wei_tag = pick(wei_format_tag, format_tag::OIw16i16o,
+                format_tag::gOIw16i16o, format_tag::OIhw16i16o,
+                format_tag::gOIhw16i16o, format_tag::OIdhw16i16o,
+                format_tag::gOIdhw16i16o);
     if (diff_weights_md.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(diff_weights_md, wei_tag));
         jcp.wei_tag = wei_tag;
@@ -4203,9 +4214,8 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_scratchpad(
         scratchpad.book<float>(
                 key_conv_wei_bia_reduction, wei_bia_reduction_size);
 
-        if (jcp.global_transpose)
-            scratchpad.book<simple_barrier::ctx_t>(
-                    key_conv_wei_bia_reduction_bctx, 1);
+        scratchpad.book<simple_barrier::ctx_t>(
+                key_conv_wei_bia_reduction_bctx, 1);
     }
 
     if (jcp.with_bias
@@ -4312,6 +4322,7 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::balance(const jit_conv_conf_t &j,
     float best_mem_cost = calc_mem_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
 
     /* find the best thread distribution with lowest memory cost */
+
     const int nthr_mb_max = nstl::min(nthr, j.nthr_mb_work);
     for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
         const int nthr_par = nthr / nthr_mb;
@@ -4336,6 +4347,152 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::balance(const jit_conv_conf_t &j,
     nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
 
     assert(nthr_ <= max_threads);
+}
+
+void jit_diff_wei_trans_to_vnni_t::generate() {
+    /* Reorder part of F32 weights tensor
+       from [2I][kd][kh][kw][16i][16o] to VNNI format [kd][kh][kw][16i][16o][2i]
+       and downconvert it to Bfloat16. */
+    const int typesize_out = 2;
+    const int typesize_acc = 4;
+
+    using reg64_t = const Xbyak::Reg64;
+    const reg64_t &reg_output = r15;
+    const reg64_t &org_reg_output = r14;
+    const reg64_t &reg_input = r13;
+    const reg64_t &reg_input_1 = r12;
+    const reg64_t &org_reg_input_1 = r11;
+    const reg64_t &reg_input_2 = r10;
+    const reg64_t &reg_prm_table = r9;
+    const reg64_t &reg_last_ic_block = rax;
+    const reg64_t &reg_kd = rsi;
+    const reg64_t &reg_kh = abi_not_param1;
+    const reg64_t &reg_tmp = rdx;
+
+    const Xbyak::Zmm &zmm_idx = Xbyak::Zmm(31);
+    auto get_zmm_src_0 = [&](int ic) { return Xbyak::Zmm(ic); };
+    auto get_zmm_src_1 = [&](int ic) { return Xbyak::Zmm(4 + ic); };
+    auto get_zmm_bf16 = [&](int ic) { return Xbyak::Zmm(8 + ic); };
+
+    Xbyak::Label prm_table, zero_buffer;
+    Xbyak::Label kd_loop_label, kh_loop_label;
+
+    preamble();
+
+    mov(reg_last_ic_block, ptr[abi_param1 + GET_OFF(last_ic_block)]);
+    mov(org_reg_input_1, ptr[abi_param1 + GET_OFF(src)]);
+    mov(org_reg_output, ptr[abi_param1 + GET_OFF(dst)]);
+
+    mov(reg_prm_table, prm_table);
+    vmovups(zmm_idx, ptr[reg_prm_table]);
+
+    xor_(reg_kd, reg_kd);
+    L(kd_loop_label);
+    {
+        mov(reg_output, org_reg_output);
+        mov(reg_input_1, org_reg_input_1);
+        xor_(reg_kh, reg_kh);
+        L(kh_loop_label);
+        {
+            for (int kw = 0; kw < jcp.kw; kw++) {
+                Xbyak::Label last_ic_label, done_ic_label;
+
+                dim_t out_offset = (dim_t)typesize_out * kw * jcp.ic_block
+                        * jcp.oc_block * 2;
+                dim_t inp_1_offset = (dim_t)typesize_acc * kw * jcp.ic_block
+                        * jcp.oc_block;
+                dim_t inp_2_offset = (dim_t)typesize_acc
+                        * (jcp.kd * jcp.kh * jcp.kw * jcp.ic_block
+                                        * jcp.oc_block
+                                + kw * jcp.ic_block * jcp.oc_block);
+
+                cmp(reg_last_ic_block, 0);
+                jne(last_ic_label, T_NEAR);
+
+                mov(reg_input_2, reg_input_1);
+                safe_add(reg_input_2, inp_2_offset, reg_tmp);
+                jmp(done_ic_label, T_NEAR);
+
+                L(last_ic_label);
+                mov(reg_input_2, zero_buffer);
+
+                L(done_ic_label);
+
+                int ic_count = 0;
+                for (int bc = 0; bc < 2; bc++) {
+                    if (!bc) {
+                        mov(reg_input, reg_input_1);
+                        safe_add(reg_input, inp_1_offset, reg_tmp);
+                    } else
+                        mov(reg_input, reg_input_2);
+
+                    for (int ic = 0; ic < jcp.ic_block / 2; ic++) {
+                        auto zmm_src_0 = get_zmm_src_0(ic);
+                        auto zmm_src_1 = get_zmm_src_1(ic);
+                        auto zmm_bf16 = get_zmm_bf16(ic);
+
+                        vmovups(zmm_src_0,
+                                ptr[reg_input
+                                        + typesize_acc
+                                                * (2 * ic * jcp.oc_block)]);
+                        vmovups(zmm_src_1,
+                                ptr[reg_input
+                                        + typesize_acc
+                                                * ((2 * ic + 1)
+                                                        * jcp.oc_block)]);
+
+                        vcvtne2ps2bf16(zmm_bf16, zmm_src_1, zmm_src_0);
+                        vpermw(zmm_bf16, zmm_idx, zmm_bf16);
+
+                        vmovups(ptr[reg_output + out_offset
+                                        + typesize_out * ic_count * 2
+                                                * jcp.oc_block],
+                                zmm_bf16);
+                        ic_count++;
+                    }
+                }
+            }
+            safe_add(reg_output,
+                    (dim_t)typesize_out * jcp.kw * 2 * jcp.ic_block
+                            * jcp.oc_block,
+                    reg_tmp);
+            safe_add(reg_input_1,
+                    (dim_t)typesize_acc * jcp.kw * jcp.ic_block * jcp.oc_block,
+                    reg_tmp);
+
+            add(reg_kh, 1);
+            cmp(reg_kh, jcp.kh);
+            jl(kh_loop_label, T_NEAR);
+        }
+        safe_add(org_reg_output,
+                (dim_t)typesize_out * jcp.kh * jcp.kw * 2 * jcp.ic_block
+                        * jcp.oc_block,
+                reg_tmp);
+        safe_add(org_reg_input_1,
+                (dim_t)typesize_acc * jcp.kh * jcp.kw * jcp.ic_block
+                        * jcp.oc_block,
+                reg_tmp);
+
+        add(reg_kd, 1);
+        cmp(reg_kd, jcp.kd);
+        jl(kd_loop_label, T_NEAR);
+    }
+
+    postamble();
+
+    align(64);
+    L(prm_table);
+    const uint16_t prm_array[32]
+            = {0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23, 8, 24, 9,
+                    25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31};
+    for (size_t i = 0; i < 32; ++i)
+        dw(prm_array[i]);
+
+    align(64);
+    L(zero_buffer);
+    const uint16_t zero = 0;
+    for (size_t i = 0; i < typesize_acc * jcp.oc_block * jcp.ic_block; ++i)
+        db(zero);
 }
 
 } // namespace x64
