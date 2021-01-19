@@ -29,7 +29,6 @@
 #include "gpu/ocl/gemm/gen9_gemm_kernel.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -79,11 +78,14 @@ struct gen9_gemm_t : public gpu_gemm_t {
             if (!ok) return status::unimplemented;
 
             const auto d = desc();
-
             // LIMITATIONS:
             // - runtime dims are not supported
             // - bias is not supported
-            bool limits_ok = !has_blocks()
+            // - only 2D and 3D tensors supported
+            // - broadcast on batch dimension not supported
+            bool limits_ok = !has_blocks() && d->c_desc.ndims <= 3
+                    && IMPLICATION(d->is_batched(),
+                            d->a_desc.dims[0] == d->b_desc.dims[0])
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->batch(), d->m(),
                             d->n(), d->k(), d->lda(), d->ldb(), d->ldc())
                     && d->bias_type() == data_type::undef;

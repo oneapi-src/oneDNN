@@ -85,7 +85,9 @@ struct gen_gemm_t : public gpu_gemm_t {
                         && d->acc_type == d->c_type();
             }
 
-            ok = ok && !has_blocks()
+            ok = ok && !has_blocks() && d->c_desc.ndims <= 3
+                    && IMPLICATION(d->is_batched(),
+                            d->a_desc.dims[0] == d->b_desc.dims[0])
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
                             d->k(), d->lda(), d->ldb(), d->ldc(), d->batch())
                     && d->bias_type() == data_type::undef

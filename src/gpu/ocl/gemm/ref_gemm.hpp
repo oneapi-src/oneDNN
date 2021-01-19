@@ -48,7 +48,9 @@ struct ref_gemm_t : public gpu_gemm_t {
             const auto bia_dt = desc()->bias_type();
 
             ok = IMPLICATION(acc_dt == s32, attr()->zero_points_.common())
-                    && !has_blocks()
+                    && !has_blocks() && desc()->c_desc.ndims <= 3
+                    && IMPLICATION(desc()->is_batched(),
+                            desc()->a_desc.dims[0] == desc()->b_desc.dims[0])
                     && IMPLICATION(acc_dt != s32,
                             attr()->zero_points_.has_default_values())
                     && attr()->has_default_values(smask_t::oscale_runtime

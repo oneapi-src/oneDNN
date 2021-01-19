@@ -81,8 +81,8 @@ argument index as specified by the following table.
    #DNNL_RUNTIME_DIM_VAL. It is user responsibility to make sure the dimensions
    for the tensors are valid.
 
-4. Currently multiple batch dimensions and broadcasting of batch dimensions of
-   `src` and `weights` is only supported for CPU engine.
+4. Multiple batch dimensions and broadcasting of batch dimensions of `src` and
+   `weights` are supported for both CPU and GPU engines.
 
    @sa Please check tutorials below to see #DNNL_RUNTIME_DIM_VAL support in use.
 
@@ -159,6 +159,8 @@ in the argument with index set to
 1. Check @ref dev_guide_data_types.
 
 2. The CPU engine does not support `u8` data type for weights.
+
+3. GPU implementation is limited to 6D and plain memory formats.
 
 ## Performance Tips
 

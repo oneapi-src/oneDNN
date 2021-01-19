@@ -60,3 +60,7 @@ m96n512k8
 --cfg=bf16bf16bf16
 --bia_dt=bf16
 m2n3k4
+
+# test all features at once: 6D tensors with two-way broadcast, bias, postops, scale 
+--reset
+--cfg=bf16bf16bf16 --bia_dt=f32 --bia_mask=4 --attr-oscale=common:1.25 --attr-post-ops="'sum;add:f32;add:u8:per_dim_01;mul:f32:per_dim_0;add:s8:per_tensor;add:f32:per_dim_01;linear:2:-1'" 1x5x4x3x30x2:6x1x4x3x2x20:6x5x4x3x30x20

@@ -28,7 +28,6 @@
 #include "gpu/ocl/gemm/gen12lp_gemm_kernel.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -70,6 +69,7 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
             // - runtime zero points are supported for dst only
             // - attribute zero points are supported for src and weights only
             bool limits_ok = !has_blocks() && d->batch() == 1
+                    && d->c_desc.ndims <= 3
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
                             d->k(), d->lda(), d->ldb(), d->ldc())
                     && d->bias_type() == data_type::undef;
