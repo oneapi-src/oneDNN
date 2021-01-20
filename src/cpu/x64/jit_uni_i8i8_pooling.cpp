@@ -1366,9 +1366,6 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
     jpp.ur_c = 1;
     jpp.ur_c_tail = jpp.c_tail != 0;
 
-    if (!mayiuse(avx512_common) && jpp.dst_dt != dnnl_f32 && jpp.c_tail != 0)
-        return status::unimplemented;
-
     size_t tail_mask = (1ULL << jpp.c_tail) - 1;
 
     /* If channel_size is bigger than vlen, we can safely assume there is no
