@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,11 +42,38 @@ int get_n_scales(const prb_t *prb) {
     }
 }
 
-int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
+// Filling for integers is different due to problematic int -> float conversion.
+// And it doesn't require many different points to be tested.
+int fill_memory_int(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
     const dt_conf_t c_src = prb->conf_in;
-    const auto dt = c_src->dt;
-    const int range = c_src->range;
-    const int max = c_src->min + range - 1;
+    const auto dt = mem.dt();
+    const int max = c_src->max;
+    const auto nelems = mem.nelems();
+
+    for (int64_t idx = 0; idx < nelems; ++idx) {
+        const int gen[4] = {
+                (int)max, /* saturate to max of output data type */
+                (int)c_src->min, /* saturate to min of output data type */
+                (int)0,
+                (int)16,
+        };
+
+        const int rng = kind == SRC ? (idx % 4) : ((idx * 5 / 4) % 4);
+        const int value = gen[rng];
+        switch (dt) {
+            case dnnl_s32: ((int *)mem)[idx] = value; break;
+            case dnnl_s8: ((int8_t *)mem)[idx] = (int8_t)value; break;
+            case dnnl_u8: ((uint8_t *)mem)[idx] = (uint8_t)value; break;
+            default: assert(!"not expected"); break;
+        }
+    }
+
+    return OK;
+}
+
+int fill_memory_fp(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
+    const dt_conf_t c_src = prb->conf_in;
+    const int max = c_src->max;
     const int scale_mask = attr_t::get_default_mask(prb->attr.oscale.policy);
 
     const auto nelems = mem.nelems();
@@ -66,10 +93,15 @@ int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
         };
 
         const int rng = kind == SRC ? (idx % 7) : ((idx * 8 / 7) % 7);
-        mem.set_elem(idx, round_to_nearest_representable(dt, gen[rng]));
+        mem.set_elem(idx, gen[rng]);
     }
 
     return OK;
+}
+
+int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
+    if (is_integral_dt(mem.dt())) return fill_memory_int(prb, kind, mem);
+    return fill_memory_fp(prb, kind, mem);
 }
 
 int fill_memory_extra(const prb_t *prb, dnnl_memory_extra_desc_t &extra) {
@@ -340,7 +372,9 @@ int doit(const prb_t *prb, res_t *res) {
     /* Step 5: execute necessary reorders */
     SAFE(src_dt_in_fmt_in.reorder(src_dt_in_fmt_ref), WARN);
 
-    if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0) {
+    const bool has_sum
+            = prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0;
+    if (has_sum) {
         SAFE(fill_memory(prb, DST, dst_dt_out_fmt_ref), WARN);
         SAFE(dst_dt_out_fmt_out.reorder(dst_dt_out_fmt_ref), WARN);
     }
@@ -401,10 +435,20 @@ int doit(const prb_t *prb, res_t *res) {
             else if (has_s32 || has_s8)
                 cmp.set_zero_trust_percent(43.f); // 3/7 inputs becomes 0
 
-            // FIXME: when s32 -> u8 due to incorrect saturation for values
-            // greater than INT_MAX, 5 out of 7 inputs becomes 0.
-            if (has_s32 && has_u8)
-                cmp.set_zero_trust_percent(72.f); // 5/7 inputs becomes 0
+            // A hack to avoid false-positive result from f32->s32 conversion
+            // in case of sum post-op on GPU happening when two max_dt values
+            // are summed together.
+            const auto reorder_add_check
+                    = [&](int64_t i, float got, float diff) {
+                          if (has_sum && dst_dt == dnnl_s32
+                                  && got == max_dt(dnnl_s32) && is_gpu()) {
+                              // 128.f = float(INT_MAX)
+                              //                - BENCHDNN_S32_TO_F32_SAT_CONST;
+                              return diff == 128.f;
+                          }
+                          return false;
+                      };
+            cmp.set_driver_check_function(reorder_add_check);
 
             // TODO: enable additional checks for border values validity.
             SAFE(cmp.compare(dst_dt_out_fmt_ref, dst_dt_out_fmt_out, prb->attr,

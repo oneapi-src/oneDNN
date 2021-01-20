@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ std::string flag2str(uint64_t flag);
 struct dt_conf_s {
     dnnl_data_type_t dt;
     int min;
-    int range;
+    int max;
 };
 typedef const dt_conf_s *dt_conf_t;
 dt_conf_t dt2cfg(dnnl_data_type_t dt);
