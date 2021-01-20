@@ -46,7 +46,7 @@
 --bia_dt=undef,f32
 --bia_mask=4,6
 
---attr-oscale=common:1.25 --attr-post-ops='sum;add:f32;add:u8:per_dim_01;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01;linear:2:-1'   mb3m30n20k1
+--attr-oscale=common:1.25 --attr-post-ops='sum;add:f32;add:u8:per_dim_01;mul:f32:per_dim_0;add:s8:per_tensor;add:f32:per_dim_01;linear:2:-1'   mb3m30n20k1
 
 # test regressions
 --reset

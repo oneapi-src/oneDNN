@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,9 +58,10 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
 
         const unsigned po_mb = DST_NDIMS > 2 ? mb : m;
         const unsigned po_oc = DST_NDIMS == 3 ? m : n;
+        const unsigned po_dim2 = DST_NDIMS == 3 ? n : 0;
         float po_acc = convert_float(temp);
-        APPLY_POST_OPS_SERIAL_BINARY_2D(
-                po_acc, float, dst_data, float, po_mb, 1, po_oc, 1);
+        APPLY_POST_OPS_SERIAL(po_acc, float, dst_data, float, po_mb, 1, po_oc,
+                1, po_dim2, 1, 0, 1, 0, 1, 0, 1);
 
         po_acc += c0[0];
         C[c_off] = TO_DST(po_acc);

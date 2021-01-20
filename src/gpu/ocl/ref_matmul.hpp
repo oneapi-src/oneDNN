@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ struct ref_matmul_t : public gpu_primitive_t {
                     && attr()->has_default_values(smask_t::oscale_runtime
                             | smask_t::zero_points_runtime | smask_t::post_ops)
                     && attr_oscale_ok()
-                    && post_ops_with_binary_ok(attr(), dst_dt_)
+                    && post_ops_with_binary_ok(attr(), dst_dt_, 3)
                     && set_default_formats()
                     && ((utils::one_of(src_dt_, u8, s8)
                                 && utils::one_of(wei_dt_, u8, s8)
