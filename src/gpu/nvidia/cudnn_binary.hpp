@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,9 +46,6 @@ struct cudnn_binary_t : public primitive_t {
 
             bool ok = (set_default_params() == status::success)
                     && check_data_types() && check_no_blocking()
-                    && IMPLICATION(
-                            utils::one_of(src_md(0)->data_type, f32, f16),
-                            attr()->has_default_values())
                     && IMPLICATION(utils::one_of(src_md(0)->data_type, s8),
                             attr()->has_default_values(
                                     primitive_attr_t::skip_mask_t::scales))
