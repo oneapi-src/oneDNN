@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -158,28 +158,61 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                 = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
         const int wei_mask
                 = utils::get_dims_mask(dst_d.dims(), weights_d.dims(), ndims);
-
+        const int bia_dt_size = !pd()->with_bias()
+                ? 0
+                : types::data_type_size(pd()->weights_md(1)->data_type);
+        const size_t work_amount = (size_t)batch * M * N;
+        const size_t work_per_batch = (size_t)M * N;
         parallel(0, [&](int ithr, int nthr) {
-            size_t batch_start {0}, batch_end {0};
-            balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
-            dims_t s_dims_idx, w_dims_idx, d_dims_idx;
-            // account for M, N dims for index calculations
-            utils::l_dims_by_l_offset(
-                    d_dims_idx, batch_start * M * N, dst_d.dims(), ndims);
+            size_t t_work_start {0}, t_work_end {0};
+            balance211(work_amount, nthr, ithr, t_work_start, t_work_end);
 
-            for (size_t b = batch_start; b < batch_end; ++b) {
+            dim_t cur_b {0}, cur_m {0}, cur_n {0};
+            dims_t s_dims_idx, w_dims_idx, d_dims_idx;
+            size_t i_work = t_work_start;
+
+            while (i_work < t_work_end) {
+                utils::nd_iterator_init(
+                        i_work, cur_b, batch, cur_m, M, cur_n, N);
+
+                utils::l_dims_by_l_offset(
+                        d_dims_idx, i_work, dst_d.dims(), ndims);
+
                 utils::copy_dims_with_mask(
-                        s_dims_idx, d_dims_idx, ndims, src_mask);
+                        s_dims_idx, d_dims_idx, batch_ndims, src_mask);
+                s_dims_idx[ndims - 2] = cur_m;
+                s_dims_idx[ndims - 1] = 0; // k idx is always 0
+
                 utils::copy_dims_with_mask(
-                        w_dims_idx, d_dims_idx, ndims, wei_mask);
+                        w_dims_idx, d_dims_idx, batch_ndims, wei_mask);
+                w_dims_idx[ndims - 2] = 0; // k idx is always 0
+                w_dims_idx[ndims - 1] = cur_n;
+
                 const src_data_t *curr_src = src + src_d.off_v(s_dims_idx);
                 const weights_data_t *curr_weights
                         = weights + weights_d.off_v(w_dims_idx);
                 dst_data_t *curr_dst = dst + dst_d.off_v(d_dims_idx);
+                dim_t gemm_M {0}, gemm_N {0};
 
-                status_t st_thr = extended_sgemm(&transB, &transA, &N, &M, &K,
-                        &alpha, curr_weights, &ldb, curr_src, &lda, &beta,
-                        curr_dst, &ldc, nullptr, false);
+                const size_t rem_work = t_work_end - i_work;
+                if (rem_work >= work_per_batch && cur_m == 0 && cur_n == 0) {
+                    // parallel over batch
+                    gemm_M = M;
+                    gemm_N = N;
+                } else if (rem_work >= (size_t)N && cur_n == 0) {
+                    // parallel over M
+                    gemm_M = nstl::min(
+                            (size_t)(M - cur_m), (size_t)(rem_work / N));
+                    gemm_N = N;
+                } else {
+                    // parallel over N
+                    gemm_M = 1;
+                    gemm_N = nstl::min((size_t)(N - cur_n), rem_work);
+                }
+
+                status_t st_thr = extended_sgemm(&transB, &transA, &gemm_N,
+                        &gemm_M, &K, &alpha, curr_weights, &ldb, curr_src, &lda,
+                        &beta, curr_dst, &ldc, nullptr, false);
                 if (st_thr != status::success) {
                     st = st_thr;
                     return;
@@ -188,11 +221,12 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                 if (params.has_pp_kernel_) {
                     const float *pp_scales
                             = params.get_post_processing_scales(scales);
-                    (*pp_kernel_)(curr_dst, curr_dst, bias, pp_scales, 0, M * N,
-                            static_cast<size_t>(N), ldc, nullptr, nullptr,
-                            nullptr, ctx, *pd()->dst_md());
+                    (*pp_kernel_)(curr_dst, curr_dst,
+                            bias + (i_work % N) * bia_dt_size, pp_scales, 0,
+                            gemm_M * gemm_N, static_cast<size_t>(gemm_N), ldc,
+                            nullptr, nullptr, nullptr, ctx, *pd()->dst_md());
                 }
-                utils::dim_iterator(dst_d.dims(), d_dims_idx, batch_ndims);
+                i_work += gemm_M * gemm_N;
             }
         });
     } else {
