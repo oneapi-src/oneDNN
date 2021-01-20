@@ -1015,12 +1015,15 @@ inline void def_post_ops_cfg(
                 = "PO_" + std::to_string(idx) + "_BIN_ARG";
         add_po_defines(bin_arg_name, all_post_ops.entry_[idx], idx);
     }
-    post_ops_t::entry_t empty_po = post_ops_t::entry_t();
-    for (int idx = all_post_ops.len(); idx < 10;
-            ++idx, ++nof_supported_post_ops) {
-        const std::string bin_arg_name
-                = "PO_" + std::to_string(idx) + "_BIN_ARG";
-        add_po_defines(bin_arg_name, empty_po, idx);
+    // There should always be 0 or 10 postops, so add empty ones if needed
+    if (all_post_ops.len() > 0) {
+        post_ops_t::entry_t empty_po = post_ops_t::entry_t();
+        for (int idx = all_post_ops.len(); idx < 10;
+                ++idx, ++nof_supported_post_ops) {
+            const std::string bin_arg_name
+                    = "PO_" + std::to_string(idx) + "_BIN_ARG";
+            add_po_defines(bin_arg_name, empty_po, idx);
+        }
     }
 
     kernel_ctx.define_int("POST_OP_CHAIN_LENGTH", nof_supported_post_ops);
@@ -1065,9 +1068,12 @@ inline int append_post_ops_to_arg_list(const exec_ctx_t &ctx,
     for (int idx = 0; idx < all_post_ops.len(); ++idx) {
         set_arg_entry(all_post_ops.entry_[idx], idx);
     }
-    post_ops_t::entry_t empty_po = post_ops_t::entry_t();
-    for (int idx = all_post_ops.len(); idx < 10; ++idx) {
-        set_arg_entry(empty_po, 0);
+    // There should always be 0 or 10 postops, so add empty ones if needed
+    if (all_post_ops.len() > 0) {
+        post_ops_t::entry_t empty_po = post_ops_t::entry_t();
+        for (int idx = all_post_ops.len(); idx < 10; ++idx) {
+            set_arg_entry(empty_po, 0);
+        }
     }
     return post_op_idx;
 }
