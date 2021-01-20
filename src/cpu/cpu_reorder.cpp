@@ -147,6 +147,7 @@ const impl_list_map_t regular_impl_list_map {
 
         DNNL_X64_ONLY(REG_REORDER_FN(uni_reorder_t))
 
+        REG_SR_BIDIR(f32, nchw, bf16, nChw16c),
         REG_SR_BIDIR(f32, any, bf16, nChw16c)
         REG_SR_BIDIR(f32, any, bf16, nCdhw16c)
 

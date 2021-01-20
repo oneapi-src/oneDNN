@@ -621,7 +621,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (input_d.has_runtime_dims_or_strides()) return false;
 
-        return input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
+        return input_d.mb_stride_relaxed_match(tag_i)
+                && output_d.mb_stride_relaxed_match(tag_o)
                 && input_d.data_type() == f32 && output_d.data_type() == bf16
                 && attr->has_default_values();
     }
