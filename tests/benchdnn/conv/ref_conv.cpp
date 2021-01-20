@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -226,6 +226,18 @@ void compute_ref_direct_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
     enum { precompute_size = 16 };
     const bool fast = MAX3(KD, KH, KW) <= precompute_size;
 
+    // from bwd pov zp src from fwd is zp diff dst and
+    // zp dst is zp dst is zp diff_src
+    const auto map_arg_to_zp_arg = [](int num) {
+        switch (num) {
+            case DNNL_ARG_DIFF_DST: return DNNL_ARG_SRC;
+            case DNNL_ARG_DIFF_SRC: return DNNL_ARG_DST;
+            default: assert(false && "map_arg_to_zp_arg unsupported arg");
+        }
+
+        return -1;
+    };
+
     /* pre-computes arrays of oh(ow) and kh(kw) for traversing in kernel */
     auto precompute_ok
             = [](int64_t i, int64_t O, int64_t K, int64_t S, int64_t P,
@@ -265,7 +277,10 @@ void compute_ref_direct_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
                         = ((oc * OD + od[d]) * OH + oh[h]) * OW + ow[w];
                 const int64_t wei_off
                         = ((oc * ICG * KD + kd[d]) * KH + kh[h]) * KW + kw[w];
-                ds += diff_dst_loc[diff_dst_off] * wei_loc[wei_off];
+                float diff_dst_val = diff_dst_loc[diff_dst_off];
+                maybe_zero_point(prb->attr, diff_dst_val, prb->src_zp,
+                        g * OCG + oc, map_arg_to_zp_arg(DNNL_ARG_DIFF_DST));
+                ds += diff_dst_val * wei_loc[wei_off];
             }
         }
     };
@@ -294,7 +309,12 @@ void compute_ref_direct_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
                                 = ((oc * OD + od) * OH + oh) * OW + ow;
                         const int64_t wei_off
                                 = ((oc * ICG * KD + kd) * KH + kh) * KW + kw;
-                        ds += diff_dst_loc[diff_dst_off] * wei_loc[wei_off];
+                        float diff_dst_val = diff_dst_loc[diff_dst_off];
+                        maybe_zero_point(prb->attr, diff_dst_val, prb->src_zp,
+                                g * OCG + oc,
+                                map_arg_to_zp_arg(DNNL_ARG_DIFF_DST));
+
+                        ds += diff_dst_val * wei_loc[wei_off];
                     }
                 }
             }
@@ -328,6 +348,8 @@ void compute_ref_direct_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
                     v_binary_vals.push_back(binary_val);
                 }
                 maybe_post_ops(prb->attr, conv_res, ds, v_binary_vals);
+                maybe_zero_point(prb->attr, conv_res, prb->dst_zp, g * ICG + ic,
+                        map_arg_to_zp_arg(DNNL_ARG_DIFF_SRC), true);
 
                 ds = conv_res;
             });

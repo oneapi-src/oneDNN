@@ -208,6 +208,7 @@ enum {
     key_conv_zero_point_pad,
     key_deconv_bias,
     key_deconv_sum,
+    key_deconv_zp,
     key_eltwise_diff_dst,
     key_eltwise_src,
     key_fusion_forward_scratchpad,

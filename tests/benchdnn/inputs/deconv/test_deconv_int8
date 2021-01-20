@@ -23,3 +23,4 @@
 --batch=shapes_3d
 
 --batch=harness_deconv_regression_general_int8
+--batch=harness_deconv_attrs_int8_asymmetric

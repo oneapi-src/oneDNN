@@ -1,0 +1,9 @@
+# i8 asymmetric
+--reset
+--mb=2
+--dir=FWD_B,FWD_D
+--attr-zero-points=src:common:31_dst:common:15,src:common:31_dst:per_dim_1:1*,src:per_dim_1:1*_dst:per_dim_1:1*
+--cfg=u8s8u8,s8s8u8,s8s8f32,u8s8s32
+--stag=any,axb
+--dtag=any,axb
+--batch=set_all

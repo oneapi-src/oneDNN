@@ -14,12 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <functional>
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 
+#include "cpu/cpu_primitive.hpp"
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/ref_deconvolution.hpp"
@@ -180,11 +182,15 @@ void ref_deconvolution_fwd_t::compute_fwd_bias(const exec_ctx_t &ctx,
 }
 
 template <data_type_t dst_type>
-void ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
+status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
         const float *conv_output,
         typename prec_traits<dst_type>::type *original_dst) const {
     using dst_data_t = typename prec_traits<dst_type>::type;
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
+    const bool is_dst_zp_common
+            = pd()->attr()->zero_points_.common(DNNL_ARG_DST);
+
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
     const auto G = pd()->G();
@@ -195,12 +201,19 @@ void ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
     const auto OC = pd()->OC() / G;
     const auto ndims = pd()->desc()->src_desc.ndims;
 
-    auto maybe_oscale = [=](float &d, dim_t g, dim_t oc) {
+    const auto maybe_oscale = [=](float &d, dim_t g, dim_t oc) {
         // scale_idx_mult = 1 for per_oc scales and 0, otherwise
         const int scale_idx_mult
                 = pd()->attr()->output_scales_.mask_ == (1 << 1);
         const float *scales = pd()->attr()->output_scales_.scales_;
         d *= scales[(g * OC + oc) * scale_idx_mult];
+    };
+
+    const auto maybe_dst_zero_point = [=](float &result, dim_t g, dim_t oc) {
+        if (is_dst_zp_common)
+            result += dst_zero_point[0];
+        else
+            result += dst_zero_point[g * OC + oc];
     };
 
     parallel_nd(MB, G, OC, OD, OH, OW,
@@ -209,9 +222,8 @@ void ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
                         dst_d, ndims, mb, g * OC + oc, od, oh, ow);
                 dim_t dst_l_off = (mb * OC * G + g * OC + oc) * OD * OH * OW
                         + od * OH * OW + oh * OW + ow;
-
-                float a = conv_output[dst_off];
-                maybe_oscale(a, g, oc);
+                float tmp_result = conv_output[dst_off];
+                maybe_oscale(tmp_result, g, oc);
 
                 ref_post_ops_t::args_t args;
                 if (pd()->attr()->post_ops_.find(primitive_kind::sum) != -1)
@@ -219,10 +231,205 @@ void ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
                 args.ctx = &ctx;
                 args.l_offset = dst_l_off;
                 args.dst_md = pd()->dst_md();
-                ref_post_ops->execute(a, args);
-
-                dst[dst_off] = cpu::saturate_and_round<dst_data_t>(a);
+                ref_post_ops->execute(tmp_result, args);
+                maybe_dst_zero_point(tmp_result, g, oc);
+                dst[dst_off] = cpu::saturate_and_round<dst_data_t>(tmp_result);
             });
+
+    return status_t::dnnl_success;
+}
+
+dim_t get_weights_off(const memory_desc_wrapper &wei_d, bool with_groups,
+        int ndims, dim_t g, dim_t oc, dim_t ic, dim_t kd, dim_t kh, dim_t kw) {
+    switch (ndims) {
+        case 5:
+            return with_groups ? wei_d.off(g, oc, ic, kd, kh, kw)
+                               : wei_d.off(oc, ic, kd, kh, kw);
+        case 4:
+            return with_groups ? wei_d.off(g, oc, ic, kh, kw)
+                               : wei_d.off(oc, ic, kh, kw);
+        case 3:
+            return with_groups ? wei_d.off(g, oc, ic, kw)
+                               : wei_d.off(oc, ic, kw);
+        default: assert(!"unsupported ndims"); return dim_t(0);
+    }
+
+    return 0;
+};
+
+template <data_type_t wei_type>
+static void compute_src_zp_compensation(const exec_ctx_t &ctx,
+        const int32_t *src_zero_point, const bool is_src_zp_common,
+        typename prec_traits<wei_type>::type *wei,
+        const cpu_deconvolution_fwd_pd_t *pd) {
+    using namespace memory_tracking::names;
+
+    const auto scratchpad = ctx.get_scratchpad_grantor();
+    int32_t *zp_compensation = scratchpad.get<int32_t>(key_deconv_zp);
+    const auto G = pd->G();
+    const auto KH = pd->KH();
+    const auto KW = pd->KW();
+    const auto KD = pd->KD();
+    const auto OC = pd->OC() / G;
+    const auto IC = pd->IC() / G;
+    const memory_desc_wrapper wei_d(pd->weights_md());
+    const bool with_groups = pd->with_groups();
+    const auto ndims = wei_d.ndims() - (with_groups ? 1 : 0);
+    const auto get_wei_off
+            = [=](dim_t g, dim_t oc, dim_t ic, dim_t kd, dim_t kh, dim_t kw) {
+                  return get_weights_off(
+                          wei_d, with_groups, ndims, g, oc, ic, kd, kh, kw);
+              };
+
+    parallel_nd(G, OC, [&](const dim_t g, const dim_t oc) {
+        const auto out_offset = g * OC + oc;
+        int32_t acc = 0;
+
+        for_(dim_t kd = 0; kd < KD; ++kd)
+        for_(dim_t kh = 0; kh < KH; ++kh)
+        for (dim_t kw = 0; kw < KW; ++kw) {
+            for (dim_t ic = 0; ic < IC; ++ic) {
+                const auto weights_offset = get_wei_off(g, oc, ic, kd, kh, kw);
+                const int32_t wei32 = static_cast<int32_t>(wei[weights_offset]);
+
+                if (is_src_zp_common)
+                    acc += wei32;
+                else
+                    acc += wei32 * src_zero_point[g * IC + ic];
+            }
+        }
+
+        zp_compensation[out_offset] = acc * src_zero_point[0];
+    });
+}
+
+template <data_type_t wei_type>
+static std::function<int32_t(
+        const dim_t, const dim_t, const dim_t, const dim_t, const dim_t)>
+prepare_zp_pad_comp_ker(const dim_t ndims, const int32_t *src_zero_point,
+        const bool is_src_zp_common, typename prec_traits<wei_type>::type *wei,
+        const cpu_deconvolution_fwd_pd_t *deconv_pd) {
+
+    const auto KH = deconv_pd->KH();
+    const auto KW = deconv_pd->KW();
+    const auto KD = deconv_pd->KD();
+    const auto KSD = deconv_pd->KSD();
+    const auto KSH = deconv_pd->KSH();
+    const auto KSW = deconv_pd->KSW();
+    const auto KDD = deconv_pd->KDD() + 1;
+    const auto KDH = deconv_pd->KDH() + 1;
+    const auto KDW = deconv_pd->KDW() + 1;
+    const auto IC = deconv_pd->IC() / deconv_pd->G();
+    const auto IH = deconv_pd->IH();
+    const auto IW = deconv_pd->IW();
+    const auto ID = deconv_pd->ID();
+    const auto pad_front = deconv_pd->padFront();
+    const auto pad_top = deconv_pd->padT();
+    const auto pad_left = deconv_pd->padL();
+    const bool with_groups = deconv_pd->with_groups();
+    const memory_desc_wrapper wei_d(deconv_pd->weights_md());
+    const auto get_wei_off
+            = [=](dim_t g, dim_t oc, dim_t ic, dim_t kd, dim_t kh, dim_t kw) {
+                  return get_weights_off(
+                          wei_d, with_groups, ndims, g, oc, ic, kd, kh, kw);
+              };
+
+    return [=](const dim_t g, const dim_t oc, const dim_t od, const dim_t oh,
+                   const dim_t ow) {
+        int32_t zp_pad_compensation = 0;
+
+        for (dim_t kd = 0; kd < KD; ++kd) {
+            const dim_t id = od - kd * KDD + pad_front;
+            const bool should_apply_pad_comp_d
+                    = id < 0 || id % KSD != 0 || (id / KSD) >= ID;
+
+            for (dim_t kh = 0; kh < KH; ++kh) {
+                const dim_t ih = oh - kh * KDH + pad_top;
+                const bool should_apply_pad_comp_h
+                        = ih < 0 || ih % KSH != 0 || (ih / KSH) >= IH;
+
+                for (dim_t kw = 0; kw < KW; ++kw) {
+                    const dim_t iw = ow - kw * KDW + pad_left;
+                    const bool should_apply_pad_comp_w
+                            = iw < 0 || iw % KSW != 0 || (iw / KSW) >= IW;
+
+                    if (should_apply_pad_comp_d || should_apply_pad_comp_h
+                            || should_apply_pad_comp_w) {
+
+                        for (dim_t ic = 0; ic < IC; ic++) {
+                            const auto wei_off
+                                    = get_wei_off(g, oc, ic, kd, kh, kw);
+                            const int32_t wei32
+                                    = static_cast<int32_t>(wei[wei_off]);
+
+                            if (is_src_zp_common)
+                                zp_pad_compensation += wei32;
+                            else
+                                zp_pad_compensation
+                                        += wei32 * src_zero_point[g * IC + ic];
+                        }
+                    }
+                }
+            }
+        }
+
+        if (is_src_zp_common && zp_pad_compensation)
+            zp_pad_compensation *= src_zero_point[0];
+
+        return zp_pad_compensation;
+    };
+}
+
+template <data_type_t wei_type>
+static status_t apply_src_zero_point(const exec_ctx_t &ctx,
+        const cpu_deconvolution_fwd_pd_t *deconv_pd, float *conv_output) {
+    using wei_data_t = typename prec_traits<wei_type>::type;
+    using namespace memory_tracking::names;
+    using namespace data_type;
+
+    // required by DEFINE_ZERO_POINTS_BUFFER macro
+    const auto pd = [&]() { return deconv_pd; };
+    const auto wei = CTX_OUT_MEM(wei_data_t *, DNNL_ARG_WEIGHTS);
+    DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
+    const bool is_src_zp_common
+            = deconv_pd->attr()->zero_points_.common(DNNL_ARG_SRC);
+
+    const auto scratchpad = ctx.get_scratchpad_grantor();
+    const int32_t *const zp_src_compensation
+            = scratchpad.get<int32_t>(key_deconv_zp);
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const auto ndims = dst_d.ndims();
+
+    const auto G = pd()->G();
+    const auto MB = pd()->MB();
+    const auto OH = pd()->OH();
+    const auto OW = pd()->OW();
+    const auto OD = pd()->OD();
+    const auto OC = pd()->OC() / G;
+
+    compute_src_zp_compensation<wei_type>(
+            ctx, src_zero_point, is_src_zp_common, wei, deconv_pd);
+    const auto zp_pad_comp_ker = prepare_zp_pad_comp_ker<wei_type>(
+            ndims, src_zero_point, is_src_zp_common, wei, deconv_pd);
+
+    parallel_nd(MB, G, OC, OD, OH, OW,
+            [&](const dim_t mb, const dim_t g, const dim_t oc, const dim_t od,
+                    const dim_t oh, const dim_t ow) {
+                const auto oc_off = g * OC + oc;
+                const auto dst_off
+                        = get_data_off(dst_d, ndims, mb, oc_off, od, oh, ow);
+                int32_t conv_result
+                        = conv_output[dst_off] - zp_src_compensation[oc_off];
+
+                if (const auto zp_pad_compensation
+                        = zp_pad_comp_ker(g, oc, od, oh, ow)) {
+                    conv_result += zp_pad_compensation;
+                }
+
+                conv_output[dst_off] = static_cast<float>(conv_result);
+            });
+
+    return status::success;
 }
 
 status_t ref_deconvolution_fwd_t::execute(const exec_ctx_t &ctx) const {
@@ -273,7 +480,21 @@ status_t ref_deconvolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     auto status = conv_p_->execute(conv_ctx);
     if (status != status::success) return status;
 
+    conv_args[DNNL_ARG_DIFF_SRC]
+            = ref_bias || non_default_attr ? tmp_conv_output : dst;
+
     using namespace data_type;
+
+    if (!pd()->attr()->zero_points_.has_default_values(DNNL_ARG_SRC)) {
+        float *conv_output = scratchpad.get<float>(key_deconv_bias);
+        const auto wei_dt = pd()->weights_md()->data_type;
+        switch (wei_dt) {
+            case s8: apply_src_zero_point<s8>(ctx, pd(), conv_output); break;
+            case u8: apply_src_zero_point<u8>(ctx, pd(), conv_output); break;
+            default: assert(!"unsupported data type");
+        }
+    }
+
     auto dst_type = pd()->dst_md()->data_type;
 
     if (ref_bias) {
