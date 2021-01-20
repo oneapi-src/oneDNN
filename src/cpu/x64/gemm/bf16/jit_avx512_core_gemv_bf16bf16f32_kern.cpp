@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +13,9 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+#include "common/math_utils.hpp"
+#include "common/utils.hpp"
 
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
@@ -384,9 +387,7 @@ void jit_avx512_core_gemv_bf16bf16f32_kern::innerloop_t(int unroll_n) {
     jne(label_incy_isnt_1, T_NEAR);
 
     // Update y for incy == 1.
-    auto is_pow_2 = [](unsigned int n) { return n != 0 && !(n & (n - 1)); };
-
-    if (!is_pow_2(unroll_n)) {
+    if (!math::is_pow2(unroll_n)) {
         mov(rax, (1 << unroll_n) - 1);
         kmovq(k1, rax);
     }
