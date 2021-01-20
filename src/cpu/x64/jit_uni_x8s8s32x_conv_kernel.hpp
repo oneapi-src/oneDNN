@@ -116,7 +116,7 @@ private:
     const Vmm vmm_wei = Vmm(0);
     /* used during bias/comp/scale section of store_output */
     const Vmm vmm_bias = Vmm(0);
-    const Vmm vmm_comp = Vmm(2); // only for signed input
+    const Vmm vmm_comp = Vmm(3); // only for signed input
     const Vmm vmm_scale = Vmm(1);
     /* used during post_op sum section of store_output */
     const Vmm vmm_prev_dst = Vmm(0);
