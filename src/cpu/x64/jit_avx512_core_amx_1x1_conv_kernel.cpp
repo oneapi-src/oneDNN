@@ -169,19 +169,19 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::interleave_store() {
 }
 
 Ymm jit_avx512_core_amx_1x1_fwd_kernel_t::ymm_mask(
-        Ymm ymm_in, bool mask_flag, bool store) {
+        const Ymm &ymm_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? ymm_in | ktail_mask : ymm_in | ktail_mask | T_z)
                      : ymm_in;
 }
 
 Zmm jit_avx512_core_amx_1x1_fwd_kernel_t::zmm_mask(
-        Zmm zmm_in, bool mask_flag, bool store) {
+        const Zmm &zmm_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? zmm_in | ktail_mask : zmm_in | ktail_mask | T_z)
                      : zmm_in;
 }
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::cvt2ps(data_type_t type_in,
-        Zmm zmm_in, const Operand &op, bool mask_flag = false) {
+        const Zmm &zmm_in, const Operand &op, bool mask_flag = false) {
     const Zmm zmm = zmm_mask(zmm_in, mask_flag);
     switch (type_in) {
         case data_type::f32:
@@ -236,7 +236,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_postops(const Zmm &zmm_out,
 }
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_int8(
-        Zmm zmm_out, int ocb, int h, int w) {
+        const Zmm &zmm_out, int ocb, int h, int w) {
 
     const auto off = out_row_offset(h, w, ocb);
     const auto addr = EVEX_compress_addr(out_ptr, off);
@@ -301,7 +301,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_int8(
 }
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_bf16(
-        Zmm zmm_out, int ocb, int h, int w) {
+        const Zmm &zmm_out, int ocb, int h, int w) {
     const auto off = out_row_offset(h, w, ocb);
     const auto addr = EVEX_compress_addr(out_ptr, off);
 
@@ -347,7 +347,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_bf16(
 }
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector(
-        const Zmm zmm_out, int ocb, int h, int w) {
+        const Zmm &zmm_out, int ocb, int h, int w) {
     if (is_bf16()) {
         store_output_vector_bf16(zmm_out, ocb, h, w);
     } else {

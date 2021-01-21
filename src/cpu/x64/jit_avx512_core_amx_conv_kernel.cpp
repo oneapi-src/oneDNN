@@ -823,19 +823,19 @@ void jit_avx512_core_amx_fwd_kernel_t::init_runtime_counters(
 }
 
 Ymm jit_avx512_core_amx_fwd_kernel_t::ymm_mask(
-        const Ymm ymm_in, bool mask_flag, bool store) {
+        const Ymm &ymm_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? ymm_in | ktail_mask : ymm_in | ktail_mask | T_z)
                      : ymm_in;
 }
 
 Zmm jit_avx512_core_amx_fwd_kernel_t::zmm_mask(
-        const Zmm zmm_in, bool mask_flag, bool store) {
+        const Zmm &zmm_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? zmm_in | ktail_mask : zmm_in | ktail_mask | T_z)
                      : zmm_in;
 }
 
-void jit_avx512_core_amx_fwd_kernel_t::cvt2ps(
-        data_type_t type_in, Zmm zmm_in, const Operand &op, bool mask_flag) {
+void jit_avx512_core_amx_fwd_kernel_t::cvt2ps(data_type_t type_in,
+        const Zmm &zmm_in, const Operand &op, bool mask_flag) {
     const Zmm zmm = zmm_mask(zmm_in, mask_flag);
     switch (type_in) {
         case data_type::f32:
@@ -890,7 +890,7 @@ void jit_avx512_core_amx_fwd_kernel_t::apply_postops(const Zmm &zmm_out,
 }
 
 void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_bf16(
-        const Zmm zmm_out, int ocb, int h, int w) {
+        const Zmm &zmm_out, int ocb, int h, int w) {
     const bool mask_flag = jcp.is_nspc && jcp.oc_without_padding != jcp.oc
             && ocb == (jcp.nb_oc_blocking - 1);
 
@@ -934,7 +934,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_bf16(
 }
 
 void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_int8(
-        const Zmm zmm_out, int ocb, int h, int w) {
+        const Zmm &zmm_out, int ocb, int h, int w) {
     const int nb_oc_block = jcp.nb_oc_blocking;
     const int oc_block = jcp.oc_block;
     const bool mask_flag = true && jcp.oc_without_padding != jcp.oc
@@ -1000,7 +1000,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_int8(
 }
 
 void jit_avx512_core_amx_fwd_kernel_t::store_output_vector(
-        const Zmm zmm_out, int ocb, int h, int w) {
+        const Zmm &zmm_out, int ocb, int h, int w) {
     /*
     Output:
               jcp.is_nspc              !jcp.is_nspc
@@ -2162,19 +2162,19 @@ bool jit_avx512_core_amx_bwd_data_kernel_t::maybe_eltwise(int position) {
 }
 
 Ymm jit_avx512_core_amx_bwd_data_kernel_t::ymm_mask(
-        const Ymm ymm_in, bool mask_flag, bool store) {
+        const Ymm &ymm_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? ymm_in | ktail_mask : ymm_in | ktail_mask | T_z)
                      : ymm_in;
 }
 
 Zmm jit_avx512_core_amx_bwd_data_kernel_t::zmm_mask(
-        const Zmm zmm_in, bool mask_flag, bool store) {
+        const Zmm &zmm_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? zmm_in | ktail_mask : zmm_in | ktail_mask | T_z)
                      : zmm_in;
 }
 
-void jit_avx512_core_amx_bwd_data_kernel_t::cvt2ps(
-        data_type_t type_in, Zmm zmm_in, const Operand &op, bool mask_flag) {
+void jit_avx512_core_amx_bwd_data_kernel_t::cvt2ps(data_type_t type_in,
+        const Zmm &zmm_in, const Operand &op, bool mask_flag) {
     const Zmm zmm = zmm_mask(zmm_in, mask_flag);
     switch (type_in) {
         case data_type::f32:
@@ -2187,7 +2187,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::cvt2ps(
 }
 
 void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_bf16(
-        const Zmm zmm_out, int icb, int h, int w) {
+        const Zmm &zmm_out, int icb, int h, int w) {
     const bool mask_flag = jcp.is_nspc && jcp.ic_without_padding != jcp.ic
             && icb == (jcp.nb_ic_blocking - 1);
 
@@ -2230,7 +2230,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_bf16(
 }
 
 void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_int8(
-        const Zmm zmm_out, int icb, int h, int w) {
+        const Zmm &zmm_out, int icb, int h, int w) {
     const int nb_ic_block = jcp.nb_ic_blocking;
     const int ic_block = jcp.ic_block;
     const bool mask_flag = true && jcp.ic_without_padding != jcp.ic
@@ -2293,7 +2293,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_int8(
 }
 
 void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector(
-        const Zmm zmm_out, int icb, int h, int w) {
+        const Zmm &zmm_out, int icb, int h, int w) {
     /*
     Output:
               jcp.is_nspc              !jcp.is_nspc
