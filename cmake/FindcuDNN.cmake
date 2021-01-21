@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020 Intel Corporation
+# Copyright 2020-2021 Intel Corporation
 # Copyright 2020 Codeplay Software Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,6 +40,30 @@ find_package_handle_standard_args(cuDNN
         CUDA_LIBRARIES
         CUDA_DRIVER_LIBRARY
 )
+
+# extract version from the include
+if(CUDNN_INCLUDE_DIR)
+  # cuDNN v8 has a separate header file with version defined
+  if (EXISTS "${CUDNN_INCLUDE_DIR}/cudnn_version.h")
+    file(READ "${CUDNN_INCLUDE_DIR}/cudnn_version.h" CUDNN_H_CONTENTS)
+  else()
+    file(READ "${CUDNN_INCLUDE_DIR}/cudnn.h" CUDNN_H_CONTENTS)
+  endif()
+
+  string(REGEX MATCH "define CUDNN_MAJOR ([0-9]+)" _ "${CUDNN_H_CONTENTS}")
+  set(CUDNN_MAJOR_VERSION ${CMAKE_MATCH_1} CACHE INTERNAL "")
+  string(REGEX MATCH "define CUDNN_MINOR ([0-9]+)" _ "${CUDNN_H_CONTENTS}")
+  set(CUDNN_MINOR_VERSION ${CMAKE_MATCH_1} CACHE INTERNAL "")
+  string(REGEX MATCH "define CUDNN_PATCHLEVEL ([0-9]+)" _ "${CUDNN_H_CONTENTS}")
+  set(CUDNN_PATCH_VERSION ${CMAKE_MATCH_1} CACHE INTERNAL "")
+
+  set(CUDNN_VERSION
+    "${CUDNN_MAJOR_VERSION}.${CUDNN_MINOR_VERSION}.${CUDNN_PATCH_VERSION}"
+  )
+  message(STATUS "cuDNN version: ${CUDNN_VERSION}")
+
+  unset(CUDNN_H_CONTENTS)
+endif()
 
 if(NOT TARGET cuDNN::cuDNN)
   add_library(cuDNN::cuDNN SHARED IMPORTED)
