@@ -58,6 +58,7 @@ enum class inner_blk_t {
     _4c4b,
     _8a8b,
     _8b8a,
+    _8a32b,
     _8b8c,
     _8c8b,
     _16a16b,
@@ -135,7 +136,7 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
     using ib = inner_blk_t;
     static_assert(
             utils::one_of(f, ib::_4a4b, ib::_4b4a, ib::_4b4c, ib::_4c4b,
-                    ib::_8a8b, ib::_8b8a, ib::_8b8c, ib::_8c8b, ib::_16a16b,
+                    ib::_8a8b, ib::_8a32b, ib::_8b8a, ib::_8b8c, ib::_8c8b, ib::_16a16b,
                     ib::_16b64a, ib::_16b32a, ib::_16b16a, ib::_16b16c,
                     ib::_16c16b, ib::_32a32b, ib::_16a2b, ib::_16a4b,
                     ib::_16b2c, ib::_16b4c, ib::_2c8b4c, ib::_8a16b2a,
@@ -157,9 +158,9 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
     return false ? 0
         : (f == ib::_4a4b || f == ib::_4b4c) ? 4 * x0 + x1
         : (f == ib::_4b4a || f == ib::_4c4b) ? 4 * x1 + x0
-        : (f == ib::_8a8b || f == ib::_8b8c) ? 8 * x0 + x1
+        : (f == ib::_8a8b || f == ib::_8a32b || f == ib::_8b8c) ? 8 * x0 + x1
         : (f == ib::_8b8a || f == ib::_8c8b) ? 8 * x1 + x0
-        : (f == ib::_16a16b || f == ib::_16b16c) ? 16 * x0 + x1
+        : (f == ib::_16a16b || f == ib::_16a32b || f == ib::_16b16c) ? 16 * x0 + x1
         : (f == ib::_16b64a) ? 64 * x1 + x0
         : (f == ib::_16b32a) ? 32 * x1 + x0
         : (f == ib::_16b16a || f == ib::_16c16b) ? 16 * x1 + x0
@@ -380,6 +381,8 @@ DECL_TRAITS(ABcde16b48a2b, _AB, _16b48a2b, 5);
 DECL_TRAITS(ABcde16b64a2b, _AB, _16b64a2b, 5);
 DECL_TRAITS(ABcd8a16b2a, _AB, _8a16b2a, 4);
 DECL_TRAITS(ABcd8a8b, _AB, _8a8b, 4);
+DECL_TRAITS(ABcd8a32b, _AB, _8a32b, 4);
+DECL_TRAITS(ABcd16a32b, _AB, _16a32b, 4);
 DECL_TRAITS(aBcd8b, _B, _8b, 4);
 DECL_TRAITS(ABcd8b16a2b, _AB, _8b16a2b, 4);
 DECL_TRAITS(ABcd8b32a2b, _AB, _8b32a2b, 4);

@@ -31,11 +31,13 @@ regular_impl_list_map() {
             {{f32, s32, 0}, &regular_f32_s32_impl_list_map()},
             {{f32, s8, 0}, &regular_f32_s8_impl_list_map()},
             {{f32, u8, 0}, &regular_f32_u8_impl_list_map()},
+            {{f32, bin, 0}, &regular_f32_bin_impl_list_map()},
             {{bf16, data_type::undef, 0}, &regular_bf16_impl_list_map()},
             {{f16, data_type::undef, 0}, &regular_f16_impl_list_map()},
             {{s32, data_type::undef, 0}, &regular_s32_impl_list_map()},
             {{s8, data_type::undef, 0}, &regular_s8_impl_list_map()},
             {{u8, data_type::undef, 0}, &regular_u8_impl_list_map()},
+            {{bin, data_type::undef, 0}, &regular_bin_impl_list_map()},
     };
     return the_map;
 }

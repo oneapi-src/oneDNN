@@ -73,7 +73,8 @@ status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
     auto s_mdw = memory_desc_wrapper(*src_md);
     auto d_mdw = memory_desc_wrapper(*dst_md);
 
-    if (!s_mdw.consistent_with(d_mdw)) return invalid_arguments;
+    if (!s_mdw.consistent_with(d_mdw))
+        return invalid_arguments;
 
     if (attr == nullptr) attr = &default_attr();
 

@@ -1610,7 +1610,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                                 && tag_traits<tag_o>::ndims <= 5)
                 && IMPLICATION(tag_traits<tag_o>::block_dims == bd::_BC,
                         tag_traits<tag_o>::ndims >= 4
-                                && tag_traits<tag_o>::ndims <= 6)>::type> {
+                                && tag_traits<tag_o>::ndims <= 6)
+                && (type_i != dnnl_bin && type_o != dnnl_bin)>::type> {
     PLAIN_TO_BLOCKED_IS_APPLICABLE();
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -1784,6 +1785,128 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 });
 
 #undef off
+
+        return status::success;
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+typename utils::enable_if<(tag_i == format_tag::nchw || tag_i == format_tag::nhwc) &&
+                           tag_o == format_tag::nhwc &&
+                           (type_i == dnnl_bin || type_o == dnnl_bin)>::type>
+{
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+                              const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        return simple_fmt_check(order_keep, tag_i, tag_o, input_d, output_d)
+               && simple_attr_check(attr, false, false);
+    }
+
+    GET_SCRATCHPAD_SIZE_ZERO();
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+
+        const auto &dims = input_d.dims();
+        const int C = dims[1];
+        const int H = dims[2];
+        const int W = dims[3];
+
+        int nbits = 8;
+        const int CB = utils::div_up(C, nbits);
+
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
+            for (int cb = 0; cb < CB; ++cb) {
+                uint8_t bin_val = 0x00;
+                for (int c = cb * nbits, shift = 0; c < std::min(C, (cb + 1) * nbits); c++, shift++) {
+                    const ptrdiff_t flat_off = c * input_d.blocking_desc().strides[1];
+
+                    auto bit = uint8_t((i[flat_off] > 0) ? 0x01 : 0x00);
+                    bin_val |= (bit << shift);
+                }
+
+                o[cb] = bin_val;
+            }
+        };
+
+        parallel_nd(dims[0], H, W,
+            [&](int n, int h, int w) {
+                auto iidx = input_d.blk_off(n, 0, h, w);
+                auto oidx = output_d.blk_off(n, 0, h, w);
+
+                auto i = &input[iidx];
+                auto o = &output[oidx / nbits];
+                ker(i, o);
+        });
+
+        return status::success;
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+typename utils::enable_if<tag_i == format_tag::any &&
+                          (tag_o == format_tag::OIhw8o32i || tag_o == format_tag::OIhw16o32i) &&
+                          type_i == dnnl_bin &&
+                          type_o == dnnl_bin>::type>
+{
+    PLAIN_TO_BLOCKED_IS_APPLICABLE();
+
+    GET_SCRATCHPAD_SIZE_ZERO();
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+
+        static constexpr bool w_groups = false;
+        constexpr int blksize_o = tag_o == format_tag::OIhw8o32i ? 8 : 16;
+        constexpr int blksize_i = 32;
+
+        const auto &dims = input_d.dims();
+        const auto &pdims = order_keep
+            ? output_d.padded_dims()
+            : input_d.padded_dims();
+
+        const int G = w_groups ? dims[0] : 1;
+        const int OC = dims[w_groups + 0];
+        const int NB_OC = pdims[w_groups + 0] / blksize_o;
+        const int IC = dims[w_groups + 1];
+        const int NB_IC = pdims[w_groups + 1] / blksize_i;
+        const int H = dims[w_groups + 2];
+        const int W = dims[w_groups + 3];
+
+        constexpr int i_mult_o = blksize_o;
+        constexpr int i_mult_i = blksize_i;
+        constexpr int nbits = 8;
+
+        auto extract_bit = [](uint8_t val, uint8_t bit) -> uint8_t {
+            return (uint8_t) ((val >> bit) & 0x0001);
+        };
+
+        parallel_nd(G, NB_OC, NB_IC, H, W,
+            [&](int g, int nb_oc, int nb_ic, int h, int w) {
+                const int oc_block = nstl::min(blksize_o, OC - nb_oc * blksize_o);
+                const int ic_block = nstl::min(blksize_i, IC - nb_ic * blksize_i);
+
+                for (int oc = 0; oc < oc_block; ++oc) {
+                    for (int icb = 0; icb < utils::div_up(ic_block, nbits); ++icb) {
+
+                        uint8_t bin_val = 0x00;
+                        for (int ic = icb*nbits, shift = 0; ic < std::min(IC, (icb + 1)*nbits); ic++, shift++) {
+                            size_t iidx = (i_mult_o * nb_oc + oc) * input_d.blocking_desc().strides[0] +
+                                          (i_mult_i * nb_ic + ic) * input_d.blocking_desc().strides[1] +
+                                                                h * input_d.blocking_desc().strides[2] +
+                                                                w;
+
+                            uint8_t bit = extract_bit(input[iidx / nbits], (uint8_t)(iidx % nbits));
+                            bin_val |= (bit << shift);
+                        }
+
+                        size_t oidx = output_d.blk_off<!w_groups>(g, nb_oc, nb_ic, h, w) + oc * blksize_i + icb * nbits;
+                        output[oidx / nbits] = bin_val;
+
+                    }
+                }
+            });
 
         return status::success;
     }
