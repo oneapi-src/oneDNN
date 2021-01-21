@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2020 Intel Corporation
+# Copyright 2019-2021 Intel Corporation
 # Copyright 2020 Arm Ltd. and affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
