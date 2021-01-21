@@ -466,7 +466,7 @@ struct brg_blocking_t {
 };
 
 int get_brgemm_ur(const jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
-        const brg_blocking_t &brgb, const primitive_attr_t *attr) {
+        const brg_blocking_t &brgb, const primitive_attr_t *attr, bool is_1x1) {
     // Simulation of brgemm_desc init
     brgemm_t brg;
     const auto ic_block = brgb.ic_block;
@@ -498,8 +498,8 @@ int get_brgemm_ur(const jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     for (int i = 0; i < M; i++) {
         auto vM = i + 1;
         // init only needed brgemm descriptors
-        if (utils::one_of(jcp.exec_type, exec_trans, exec_vpad) && vM != M
-                && vM != M_tail)
+        if ((utils::one_of(jcp.exec_type, exec_trans, exec_vpad) || is_1x1)
+                && vM != M && vM != M_tail)
             continue;
         for (int i_init = 0; i_init < 2; i_init++) {
             for (int i_N = 0; i_N < 2; i_N++) {
@@ -755,7 +755,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             cur_brgb.nb_oc = utils::div_up(jcp.oc, cur_brgb.oc_block);
 
             calc_blocks(jcp, cur_brgb);
-            const auto ur = get_brgemm_ur(jcp, isa, cur_brgb, &attr);
+            const bool is_1x1 = false;
+            const auto ur = get_brgemm_ur(jcp, isa, cur_brgb, &attr, is_1x1);
             if (ur == 0) continue;
 
             const auto oc_block_disb
@@ -1071,7 +1072,8 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         cur_brgb.oc_block = ocb * 16;
         cur_brgb.nb_oc = utils::div_up(jcp.oc, cur_brgb.oc_block);
         calc_blocks(jcp, cur_brgb);
-        const auto ur = get_brgemm_ur(jcp, isa, cur_brgb, &attr);
+        const bool is_1x1 = true;
+        const auto ur = get_brgemm_ur(jcp, isa, cur_brgb, &attr, is_1x1);
         if (ur == 0) continue;
 
         const auto oc_block_disb
