@@ -73,11 +73,13 @@ extern const impl_list_map_t &regular_f32_f32_impl_list_map();
 extern const impl_list_map_t &regular_f32_s32_impl_list_map();
 extern const impl_list_map_t &regular_f32_s8_impl_list_map();
 extern const impl_list_map_t &regular_f32_u8_impl_list_map();
+extern const impl_list_map_t &regular_f32_bin_impl_list_map();
 extern const impl_list_map_t &regular_bf16_impl_list_map();
 extern const impl_list_map_t &regular_f16_impl_list_map();
 extern const impl_list_map_t &regular_s32_impl_list_map();
 extern const impl_list_map_t &regular_s8_impl_list_map();
 extern const impl_list_map_t &regular_u8_impl_list_map();
+extern const impl_list_map_t &regular_bin_impl_list_map();
 
 /* conv reorders w/ compensation */
 extern const impl_list_map_t &comp_f32_s8_impl_list_map();
@@ -97,6 +99,10 @@ extern const impl_list_map_t &comp_s8_s8_impl_list_map();
 #define REG_SR_DIRECT_COPY(idt, odt)				  \
     REG_SR(idt, any, odt, any, fmt_order::any, spec::direct_copy) \
     REG_SR(idt, any, odt, any, fmt_order::any, spec::direct_copy_except_dim_0)
+
+#define REG_SR_BIDIR(idt, ifmt, odt, ofmt) \
+    REG_SR(idt, ifmt, odt, ofmt, fmt_order::keep) \
+    REG_SR(idt, ifmt, odt, ofmt, fmt_order::reverse)
 
 // clang-format on
 

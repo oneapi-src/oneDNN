@@ -662,6 +662,9 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_quantization(
         const void* input_scale, const void* input_shift,
         const void* output_scale, const void* output_shift);
 
+dnnl_status_t DNNL_API dnnl_post_ops_append_binarization(
+        dnnl_post_ops_t post_ops, dnnl_alg_kind_t alg, const float* weights_data, const float* output_mask);
+
 /// @} dnnl_api_attributes
 
 /// @} dnnl_api_primitives

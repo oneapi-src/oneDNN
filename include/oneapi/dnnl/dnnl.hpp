@@ -491,6 +491,7 @@ enum class algorithm {
 
     quantization_quantize_dequantize = dnnl_quantization_quantize_dequantize,
     quantization_quantize = dnnl_quantization_quantize,
+    binarization_depthwise = dnnl_binarization_depthwise,
 };
 
 /// Converts algorithm kind enum value from C++ API to C API type.
@@ -862,6 +863,8 @@ struct memory : public handle<dnnl_memory_t> {
         s8 = dnnl_s8,
         /// 8-bit unsigned integer.
         u8 = dnnl_u8,
+        /// 1-bit integer
+        bin = dnnl_bin
     };
 
     /// Returns size of data type in bytes.
@@ -1259,6 +1262,7 @@ struct memory : public handle<dnnl_memory_t> {
         aBCd4b4c = dnnl_aBCd4b4c,
         ABcd8a16b2a = dnnl_ABcd8a16b2a,
         ABcd8a8b = dnnl_ABcd8a8b,
+        ABcd8a32b = dnnl_ABcd8a32b,
         ABcd8a4b = dnnl_ABcd8a4b,
         ABcd8a2b = dnnl_ABcd8a2b,
         /// 4D tensor blocked by 2nd dimension with block size 8
@@ -1697,6 +1701,8 @@ struct memory : public handle<dnnl_memory_t> {
         OIhw8i8o = dnnl_OIhw8i8o,
         OIhw8o16i2o = dnnl_OIhw8o16i2o,
         OIhw8o8i = dnnl_OIhw8o8i,
+        OIhw8o32i = dnnl_OIhw8o32i,
+        OIhw16o32i = dnnl_OIhw16o32i,
         OIhw8o4i = dnnl_OIhw8o4i,
         OIhw2i8o4i = dnnl_OIhw2i8o4i,
         IOdhw16o16i = dnnl_IOdhw16o16i,
@@ -3706,6 +3712,11 @@ struct post_ops : public handle<dnnl_post_ops_t> {
         error::wrap_c_api(dnnl_post_ops_append_quantization(get(), convert_to_c(alg), crop_low, crop_high,
                 input_scale, input_shift, output_scale, output_shift),
                           "could not append quantization");
+    }
+
+    void append_binarization(algorithm alg, const float* weights_data, const float* output_mask) {
+        error::wrap_c_api(dnnl_post_ops_append_binarization(get(), convert_to_c(alg), weights_data, output_mask),
+                          "could not append binarization");
     }
 };
 
