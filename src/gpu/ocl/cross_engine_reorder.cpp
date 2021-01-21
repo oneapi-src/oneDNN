@@ -85,8 +85,7 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     status_t status = status::success;
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_FROM);
-    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_TO, status);
-    CHECK(status);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_TO);
 
     std::unique_ptr<memory_t> wspace;
     if (pd()->do_reorder_) {
