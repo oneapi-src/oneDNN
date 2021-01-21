@@ -95,11 +95,13 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     const auto wei_tag
             = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
     const auto nxc_tag = nhwc;
+    const auto def_tag = mayiuse(avx512_core) ? nxc_tag : blocked_tag;
+
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     if (src_d.format_kind() == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(src_md, blocked_tag));
-        jcp.src_tag = blocked_tag;
+        CHECK(memory_desc_init_by_tag(src_md, def_tag));
+        jcp.src_tag = def_tag;
     } else {
         jcp.src_tag = src_d.matches_one_of_tag(blocked_tag, nxc_tag);
     }
@@ -112,8 +114,8 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     }
 
     if (dst_d.format_kind() == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(dst_md, blocked_tag));
-        jcp.dst_tag = blocked_tag;
+        CHECK(memory_desc_init_by_tag(dst_md, def_tag));
+        jcp.dst_tag = def_tag;
     } else {
         jcp.dst_tag = dst_d.matches_one_of_tag(blocked_tag, nxc_tag);
     }
