@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -533,8 +533,11 @@ public:
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnFindConvolutionForwardAlgorithm, handle,
                 descs[x], weights_desc, conv_desc, descs[y],
                 requested_algo_count, &returned_algo_count, perf.data()));
+
+        auto submit_status = CUDNN_STATUS_NOT_SUPPORTED;
         for (size_t i = 0; i < returned_algo_count; i++) {
-            if (perf[i].status == CUDNN_STATUS_SUCCESS) {
+            submit_status = perf[i].status;
+            if (submit_status == CUDNN_STATUS_SUCCESS) {
                 // cudnnFindConvolutionForwardAlgorithm can erroneously report
                 // algorithms for int8 which does not work so ensure that we
                 // only allow CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM
@@ -576,10 +579,10 @@ public:
                 CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetConvolutionMathType,
                         conv_desc, perf[i].mathType));
                 break;
-            } else {
-                return status::unimplemented;
             }
         }
+
+        if (submit_status != CUDNN_STATUS_SUCCESS) return status::unimplemented;
 
         if (fwd_alg_kind == CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM) {
             CHECK(CUDNN_EXECUTE_FUNC_S(
