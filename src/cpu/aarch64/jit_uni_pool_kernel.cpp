@@ -330,7 +330,6 @@ template <cpu_isa_t isa>
 bool jit_uni_pool_kernel<isa>::post_ops_ok(jit_pool_conf_t &jpp,
         const primitive_attr_t &attr, const memory_desc_wrapper &dst_d) {
     const auto &post_ops = attr.post_ops_;
-    const auto &entries = post_ops.entry_;
     jpp.with_postops = false;
     jpp.with_eltwise = false;
     jpp.with_binary = false;
@@ -435,7 +434,6 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
                 if (aux_input_offset >= iw * c_off) continue;
                 int input_offset = dt_size * aux_input_offset;
                 if (jpp.is_backward) {
-                    auto inpyr = yreg(inpr_i);
                     load(reg_idx(inpr_i), aux_xreg_input, input_offset,
                             is_tail_processing(bci));
 
@@ -574,7 +572,6 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(int ur_w, int ur_bc,
                 const auto inpr_i = reg_ind(1, bci, jj, ur_bc, ur_w);
                 const auto inpvr = vreg(inpr_i).s;
                 const auto indvr = vreg(reg_ind(2, bci, jj, ur_bc, ur_w)).s;
-                const auto cvtvr = vreg(reg_ind(3, bci, jj, ur_bc, ur_w));
                 int aux_input_offset
                         = (ki + jj * stride_w - pad_l) * c_off + bci * c_block;
                 if (aux_input_offset >= iw * c_off) continue;
@@ -637,7 +634,6 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(int ur_w, int ur_bc,
             const auto indr_i = reg_ind(2, bci, jj, ur_bc, ur_w);
             auto vr = vreg(indr_i);
             if (jpp.ind_dt == data_type::u8) {
-                auto xr = xreg(indr_i);
                 if (is_tail_processing(bci)) {
                     if (jpp.is_c_padded) {
                         add_imm(X_DEFAULT_ADDR, reg_index, step_index, X_TMP_0);
@@ -700,7 +696,6 @@ inline void jit_uni_pool_kernel<isa>::max_step_bwd(int ur_w, int ur_bc,
         const auto indr_i = reg_ind(1, bci, jj, ur_bc, ur_w);
         auto indvr = vreg(indr_i);
         if (jpp.ind_dt == data_type::u8) {
-            auto indxr = xreg(indr_i);
             if (is_tail_processing(bci) && !jpp.is_c_padded) {
                 add_imm(X_DEFAULT_ADDR, reg_index, step_index, X_TMP_0);
                 ld1b(indvr.b, k_c_tail_mask / T_z, ptr(X_DEFAULT_ADDR));
@@ -760,15 +755,12 @@ inline void jit_uni_pool_kernel<isa>::max_step_bwd(int ur_w, int ur_bc,
                 const auto indvr = vreg(reg_ind(1, bci, jj, ur_bc, ur_w)).s;
                 const auto inpr_i = reg_ind(2, bci, jj, ur_bc, ur_w);
                 const auto inpvr = vreg(inpr_i).s;
-                const auto cvtvr = vreg(reg_ind(3, bci, jj, ur_bc, ur_w));
                 int aux_inp_offset
                         = (ki + jj * stride_w - pad_l) * c_off + bci * c_block;
                 if (aux_inp_offset >= iw * c_off) continue;
                 int inp_offset = jpp.dt_size * aux_inp_offset;
                 load(reg_idx(inpr_i), aux_xreg_input, inp_offset,
                         is_tail_processing(bci));
-                auto indzr = zreg(inpr_i);
-                auto indyr = yreg(inpr_i);
 
                 cmpeq(k_store_mask.s, p_lsb / T_z, indvr, vmm_k_offset);
 
@@ -897,8 +889,6 @@ void jit_uni_pool_kernel<isa>::generate() {
     int l_pad = jpp.l_pad;
     const int c_off
             = (jpp.tag_kind == jit_memory_tag_kind_t::nspc) ? jpp.c : c_block;
-
-    int vlen = cpu_isa_traits<isa>::vlen;
 
     ptrue(p_512.b);
     pfalse(p_all_zero.b);
