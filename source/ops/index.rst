@@ -25,6 +25,7 @@ subset of the operation set.
    convolution/Convolution_1.rst
    convolution/ConvolutionBackpropData_1.rst
    convolution/ConvolutionBackpropFilters_1.rst
+   lower_precision/Dequantize_1.rst
    arithmetic/Divide_1.rst   
    activation/Elu_1.rst
    activation/EluBackprop_1.rst
@@ -53,6 +54,7 @@ subset of the operation set.
    arithmetic/Pow_1.rst
    arithmetic/PowBackprop_1.rst
    arithmetic/PowBackpropExponent_1.rst      
+   lower_precision/Quantize_1.rst
    reduction/ReduceSum_1.rst   
    activation/ReLU_1.rst
    activation/ReLUBackprop_1.rst
