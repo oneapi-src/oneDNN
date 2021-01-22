@@ -239,6 +239,10 @@ dnnl_status_t DNNL_API dnnl_primitive_create(dnnl_primitive_t *primitive,
 ///     #dnnl_primitive_desc_query_md(#dnnl_query_exec_arg_md, index).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
+
+/// @note If any argument in @param args is padded (padded_dims >
+/// dims), the primitive execution will assume properly zero-padded
+/// input arguments, and produce zero-padded output arguments.
 dnnl_status_t DNNL_API dnnl_primitive_execute(const_dnnl_primitive_t primitive,
         dnnl_stream_t stream, int nargs, const dnnl_exec_arg_t *args);
 
@@ -1123,26 +1127,6 @@ dnnl_status_t DNNL_API dnnl_memory_set_data_handle(
         dnnl_memory_t memory, void *handle);
 
 /// Sets the underlying memory buffer.
-///
-/// This function may write zero values to the memory specified by the @p
-/// handle if the memory object has a zero padding area. This may be time
-/// consuming and happens each time this function is called. The operation is
-/// always blocking and the stream parameter is a hint.
-///
-/// @note
-///     The zero padding is required by memory objects created with blocked
-///     memory format tags like #dnnl_aBcd8b when any of the dimensions is not
-///     a multiple of the corresponding block size. For "plain" formats like
-///     #dnnl_nchw or #dnnl_nhwc zero padding area needs to be set up
-///     explicitly when creating the corresponding memory descriptors. See
-///     @ref dev_guide_understanding_memory_formats for more details.
-///
-/// @note
-///     Even when the memory object is used to hold values that stay constant
-///     during the execution of the program (pre-packed weights during
-///     inference, for example), the function will still write zeroes to the
-///     padding area if it exists. Hence, the @p handle parameter cannot and
-///     does not have a const qualifier.
 ///
 /// @param memory Memory object.
 /// @param handle Data handle. For the CPU engine, the data handle is a

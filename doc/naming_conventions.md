@@ -113,7 +113,7 @@ lower-case letters for that dimension with a lower-case letter preceded by the
 block size. For example, the _Ab16a_ tag denotes a format similar to row-major
 but with columns split into contiguous blocks of 16 elements each. Moreover, the
 implicit assumption is that if the number of columns is not divisible by 16, the
-last block in the in-memory representation will contain padding zeroes.
+last block in the in-memory representation will contain padding.
 
 @todo Picture here
 

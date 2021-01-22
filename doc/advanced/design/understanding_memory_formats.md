@@ -327,21 +327,20 @@ during computation of `d0`, but that does not affect the result.
 
 Some pitfalls of the given approach:
 
-- To keep *padded data are zeros* invariant, dnnl_memory_set_data_handle()
-  and dnnl::memory::set_data_handle() physically add zeros whenever the user
-  attaches a pointer to a memory that uses zero padding. That might affect
-  performance if too many unnecessary calls to these functions are made. We
-  might consider extending our API in the future to allow attaching pointers
-  without subsequent initialization with zeros if the user can guarantee that
-  the padding is already filled correctly.
-
 - The memory size required to keep the data cannot be computed by the formula
   `sizeof(data_type) * N * C * H * W` anymore. The actual size should always be
   queried via dnnl_memory_desc_get_size() in C and
   dnnl::memory::desc::get_size() in C++.
 
-- Element-wise operations that are implemented in the user's code and directly
-  operate on oneDNN blocked layout like this:
+- The actual zero-padding of oneDNN memory objects happen inside the
+  primitive execution functions in order to minimize its performance
+  impact. The current convention is that a primitive execution can
+  assume its inputs are properly zero padded, and should guarantee
+  its outputs are properly zero padded. If a user implements custom
+  kernels on oneDNN blocked memory objects, then they should respect this
+  convention. In particular, element-wise operations that are
+  implemented in the user's code and directly operate on oneDNN
+  blocked layout like this:
   ~~~
       for (int e = 0; e < phys_size; ++e)
           x[e] = eltwise_op(x[e])
