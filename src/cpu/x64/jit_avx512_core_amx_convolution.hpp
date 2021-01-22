@@ -77,7 +77,7 @@ struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx512_core_amx_fwd_kernel_t::init_scratchpad(
+            status = jit_avx512_core_amx_fwd_kernel_t::init_scratchpad(
                     scratchpad, jcp_, *attr());
 
             return status;
