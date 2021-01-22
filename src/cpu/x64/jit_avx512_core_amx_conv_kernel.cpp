@@ -4972,9 +4972,8 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_scratchpad(
         scratchpad.book<float>(
                 key_conv_wei_bia_reduction, wei_bia_reduction_size);
 
-        if (jcp.global_transpose)
-            scratchpad.book<simple_barrier::ctx_t>(
-                    key_conv_wei_bia_reduction_bctx, 1);
+        scratchpad.book<simple_barrier::ctx_t>(
+                key_conv_wei_bia_reduction_bctx, 1);
     }
 
     if (jcp.with_bias
