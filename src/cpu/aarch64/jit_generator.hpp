@@ -230,8 +230,7 @@ public:
         if (dstIdx == src2Idx) {
             assert(tmpIdx != srcIdx && tmpIdx != src2Idx);
 
-            mov(Xbyak_aarch64::ZRegD(tmp.getIdx()),
-                    Xbyak_aarch64::ZRegD(src2.getIdx()));
+            mov(Xbyak_aarch64::ZRegD(tmpIdx), Xbyak_aarch64::ZRegD(src2Idx));
             mov(dst, pred / Xbyak_aarch64::T_m, src);
             fdiv(dst, pred / Xbyak_aarch64::T_m, tmp);
         } else if (dstIdx == srcIdx) {
