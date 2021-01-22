@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020-2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -899,6 +899,7 @@ status_t jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
                 p.dst_safe_access = dst_safe_access;
                 (*ker_)(&p);
             });
+    return status::success;
 }
 
 // Explicit instantiation only for supported <isa> values.
