@@ -4491,7 +4491,7 @@ void jit_diff_wei_trans_to_vnni_t::generate() {
     align(64);
     L(zero_buffer);
     const uint16_t zero = 0;
-    for (size_t i = 0; i < typesize_acc * jcp.oc_block * jcp.ic_block; ++i)
+    for (int i = 0; i < typesize_acc * jcp.oc_block * jcp.ic_block; ++i)
         db(zero);
 }
 
