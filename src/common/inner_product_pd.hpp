@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,6 +25,10 @@
 
 namespace dnnl {
 namespace impl {
+
+status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
+        const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
+        const memory_desc_t *bias_desc, const memory_desc_t *dst_desc);
 
 struct inner_product_fwd_pd_t;
 

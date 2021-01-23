@@ -36,6 +36,7 @@ using namespace dnnl::impl::cpu::aarch64;
 
 #if DNNL_X64
 #include "cpu/x64/gemm_bf16_convolution.hpp"
+#include "cpu/x64/ip_convolution.hpp"
 #include "cpu/x64/jit_avx2_1x1_convolution.hpp"
 #include "cpu/x64/jit_avx2_convolution.hpp"
 #include "cpu/x64/jit_avx512_common_1x1_convolution.hpp"
@@ -206,6 +207,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
     }},
     // FWD int8 (src:s8)
     {{forward, s8, s8, f32}, {
+        CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t<s8, s8, f32>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t<s8, s8, f32>)
         CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<s8, f32>)
@@ -220,6 +222,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         nullptr,
     }},
     {{forward, s8, s8, s32}, {
+        CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t<s8, s8, s32>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t<s8, s8, s32>)
         CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<s8, s32>)
@@ -234,6 +237,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         nullptr,
     }},
     {{forward, s8, s8, s8}, {
+        CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t<s8, s8, s8>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t<s8, s8, s8>)
         CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<s8, s8>)
@@ -249,6 +253,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         nullptr,
     }},
     {{forward, s8, s8, u8}, {
+        CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t<s8, s8, u8>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t<s8, s8, u8>)
         CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<s8, u8>)
@@ -264,6 +269,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
     }},
     // FWD int8 (src:u8)
     {{forward, u8, s8, f32}, {
+        CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t<u8, s8, f32>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t<u8, s8, f32>)
         CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_vnni, u8, s8, f32>)
@@ -280,6 +286,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         nullptr,
     }},
     {{forward, u8, s8, s32}, {
+        CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t<u8, s8, s32>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t<u8, s8, s32>)
         CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_vnni, u8, s8, s32>)
@@ -296,6 +303,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         nullptr,
     }},
     {{forward, u8, s8, s8}, {
+        CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t<u8, s8, s8>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t<u8, s8, s8>)
         CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_vnni, u8, s8, s8>)
@@ -313,6 +321,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         nullptr,
     }},
     {{forward, u8, s8, u8}, {
+        CPU_INSTANCE_X64(ip_convolution_fwd_t)
         CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t<u8, s8, u8>)
         CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t<u8, s8, u8>)
         CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_vnni, u8, s8, u8>)
