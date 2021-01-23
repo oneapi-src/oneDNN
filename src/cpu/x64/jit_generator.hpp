@@ -375,6 +375,25 @@ public:
         vmovsd(x, addr);
     }
 
+    void uni_vmovlps(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
+        if (is_valid_isa(avx))
+            vmovlps(addr, x);
+        else
+            movlps(addr, x);
+    }
+    void uni_vmovlps(const Xbyak::Address &addr, const Xbyak::Ymm &x) {
+        vmovlps(addr, x);
+    }
+    void uni_vmovlps(const Xbyak::Xmm &x, const Xbyak::Address &addr) {
+        if (is_valid_isa(avx))
+            vmovlps(x, addr);
+        else
+            movlps(x, addr);
+    }
+    void uni_vmovlps(const Xbyak::Ymm &x, const Xbyak::Address &addr) {
+        vmovlps(x, addr);
+    }
+
     void uni_vmovdqu(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
         if (is_valid_isa(avx))
             vmovdqu(addr, x);
