@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,8 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
 
-namespace {
+namespace dnnl {
+namespace impl {
 status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc) {
@@ -82,7 +83,8 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
     *ip_desc = id;
     return success;
 }
-} // namespace
+} // namespace impl
+} // namespace dnnl
 
 status_t dnnl_inner_product_forward_desc_init(inner_product_desc_t *ip_desc,
         prop_kind_t prop_kind, const memory_desc_t *src_desc,
