@@ -46,9 +46,8 @@ struct cudnn_binary_t : public primitive_t {
 
             bool ok = (set_default_params() == status::success)
                     && check_data_types() && check_no_blocking()
-                    && IMPLICATION(utils::one_of(src_md(0)->data_type, s8),
-                            attr()->has_default_values(
-                                    primitive_attr_t::skip_mask_t::scales))
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::scales)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask());
 
