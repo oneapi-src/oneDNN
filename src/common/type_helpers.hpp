@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -270,7 +270,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     if (everyone_is(f16, src_dt, wei_dt) && one_of(dst_dt, f16, f32))
         return f16;
     if (one_of(bf16, src_dt, wei_dt, dst_dt)) return f32;
-    if (everyone_is(f32, src_dt, wei_dt, dst_dt)) return f32;
+    if (everyone_is(f32, src_dt, wei_dt)) return f32;
 
     if (one_of(prop_kind, forward_training, forward_inference)) {
         if ((src_dt == u8 || src_dt == s8) && wei_dt == s8
