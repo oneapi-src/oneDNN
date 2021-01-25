@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <atomic>
+
 #include <stdlib.h>
 #ifndef _WIN32
 #include <sys/time.h>
@@ -73,8 +75,8 @@ int get_verbose() {
         if (getenv("DNNL_VERBOSE", val, len) == 1) verbose.set(atoi(val));
         if (!verbose.initialized()) verbose.set(0);
     }
-    static bool version_printed = false;
-    if (!version_printed && verbose.get() > 0) {
+    static std::atomic_flag version_printed(false);
+    if (!version_printed.test_and_set() && verbose.get() > 0) {
         printf("dnnl_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
@@ -94,7 +96,6 @@ int get_verbose() {
                "kind,memory_descriptors,attributes,auxiliary,problem_desc,exec_"
                "time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
-        version_printed = true;
     }
 #endif
     return verbose.get();
