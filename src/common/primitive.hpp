@@ -108,6 +108,17 @@ protected:
                 // Store the created primitive in the shared future and notify
                 // the waiting threads.
                 p_promise.set_value({p, status});
+
+                // The key_t contains pointers to op_desc and attr objects that
+                // reside in pd. When primitive_t is created it copies the pd
+                // and hence contains a copy.
+                // Since the created primitive_t is stored in the cache with
+                // the corresponding key, the key must contain pointers to
+                // op_desc and attr that reside in the coppied pd
+                // in the primitive_t.
+                // Therefore the pointers in the key, which has already been put
+                // into the cache, must be updated.
+                global_primitive_cache.update_entry(key, p->pd().get());
             }
         }
         primitive = std::make_pair(p, is_from_cache);

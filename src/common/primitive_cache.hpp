@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ struct primitive_cache_t : public c_compatible {
 
     virtual value_t get_or_add(const key_t &key, const value_t &value) = 0;
     virtual void remove_if_invalidated(const key_t &key) = 0;
+    virtual void update_entry(const key_t &key, const primitive_desc_t *pd) = 0;
 
     virtual int get_size() const = 0;
 
@@ -73,6 +74,7 @@ struct lru_primitive_cache_t : public primitive_cache_t {
 
     value_t get_or_add(const key_t &key, const value_t &value) override;
     void remove_if_invalidated(const key_t &key) override;
+    void update_entry(const key_t &key, const primitive_desc_t *pd) override;
 
     int get_size() const override;
 

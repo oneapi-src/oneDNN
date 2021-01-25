@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,12 +31,13 @@ namespace primitive_hashing {
 key_t::key_t(const primitive_desc_t *pd, const engine_t *engine, int impl_nthr)
     : primitive_kind_(pd->kind())
     , op_desc_(pd->op_desc())
-    , attr_(*pd->attr())
+    , attr_(pd->attr())
     , impl_id_(pd->impl_id())
     , impl_nthr_(impl_nthr)
     , engine_kind_(engine ? engine->kind() : engine_kind::any_engine)
     , runtime_kind_(engine ? engine->runtime_kind() : runtime_kind::none)
-    , device_id_(engine ? engine->device_id() : device_id_t(0, 0, 0)) {
+    , device_id_(engine ? engine->device_id() : device_id_t(0, 0, 0))
+    , thread_id_(std::this_thread::get_id()) {
     init_mds(pd);
 }
 
@@ -146,8 +147,42 @@ bool key_t::operator==(const key_t &rhs) const {
         && mds.size() == rhs.mds.size()
         && impl_id_ == rhs.impl_id_
         && impl_nthr_ == rhs.impl_nthr_
-        && attr_ == rhs.attr_
-        && op_desc_ == rhs.op_desc_;
+        && (*attr_) == (*rhs.attr_);
+
+    if (!ret) return false;
+
+#define CASE(pkind) \
+    case primitive_kind::pkind: \
+        ret = cast_to_desc<pkind##_desc_t>(op_desc_) \
+                == cast_to_desc<pkind##_desc_t>(rhs.op_desc_); \
+        break;
+
+        switch ((int)primitive_kind_) {
+            CASE(batch_normalization)
+            CASE(binary)
+            CASE(concat)
+            CASE(convolution)
+            CASE(deconvolution)
+            CASE(eltwise)
+            CASE(gemm)
+            CASE(inner_product)
+            CASE(layer_normalization)
+            CASE(lrn)
+            CASE(matmul)
+            CASE(pooling_v2)
+            CASE(prelu)
+            CASE(reduction)
+            CASE(reorder)
+            CASE(resampling)
+            CASE(rnn)
+            CASE(shuffle)
+            CASE(logsoftmax)
+            CASE(softmax)
+            CASE(sum)
+            CASE(zero_pad)
+            default: assert(!"unknown primitive kind");
+        }
+#undef CASE
     // clang-format on
 
     if (!ret) return false;
