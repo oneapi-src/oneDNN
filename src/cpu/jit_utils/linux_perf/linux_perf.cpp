@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,12 +45,11 @@
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 
-#include "cpu/x64/jit_utils/linux_perf/linux_perf.hpp"
+#include "cpu/jit_utils/linux_perf/linux_perf.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
 namespace jit_utils {
 
 class linux_perf_jitdump_t {
@@ -352,7 +351,6 @@ void linux_perf_perfmap_record_code_load(
 }
 
 } // namespace jit_utils
-} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

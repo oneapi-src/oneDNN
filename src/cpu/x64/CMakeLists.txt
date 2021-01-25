@@ -19,15 +19,6 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
     )
 
-if(NOT DNNL_ENABLE_JIT_PROFILING)
-    # XXX: the profiling interface will still be built and present
-    add_definitions(-DDNNL_ENABLE_JIT_PROFILING=0)
-    # Don't enable support for linux_perf and VTune Amplifier
-    list(REMOVE_ITEM SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/linux_perf/linux_perf.cpp"
-        )
-endif()
-
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     # to make computations more stable and to align the jitted code
     # with the reference one use precise division and square root

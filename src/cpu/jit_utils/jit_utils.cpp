@@ -29,14 +29,13 @@
 #if DNNL_ENABLE_JIT_PROFILING
 #include "common/ittnotify/jitprofiling.h"
 #ifdef __linux__
-#include "cpu/x64/jit_utils/linux_perf/linux_perf.hpp"
+#include "cpu/jit_utils/linux_perf/linux_perf.hpp"
 #endif
 #endif
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
 namespace jit_utils {
 
 // WARNING: These functions are not thread safe and must be protected by a
@@ -133,7 +132,6 @@ void register_jit_code(const void *code, size_t code_size,
 }
 
 } // namespace jit_utils
-} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
