@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2021 Intel Corporation
+* Copyright 2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,6 +75,7 @@ void register_jit_code_vtune(const void *code, size_t code_size,
         const char *code_name, const char *source_file_name) {
 #if DNNL_ENABLE_JIT_PROFILING
     unsigned flags = get_jit_profiling_flags();
+#if DNNL_X64
     if ((flags & DNNL_JIT_PROFILE_VTUNE)
             && iJIT_IsProfilingActive() == iJIT_SAMPLING_ON) {
         auto jmethod = iJIT_Method_Load();
@@ -88,6 +90,10 @@ void register_jit_code_vtune(const void *code, size_t code_size,
         iJIT_NotifyEvent(
                 iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED, (void *)&jmethod);
     }
+#else
+    if (flags & DNNL_JIT_PROFILE_VTUNE)
+        fprintf(stderr, "VTune Amplifier integration is not supported.\n");
+#endif
 #else
     UNUSED(code);
     UNUSED(code_size);
