@@ -1,6 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
-* Copyright 2020 FUJITSU LIMITED
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,22 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_AARCH64_JIT_UTILS_JIT_UTILS_HPP
-#define CPU_AARCH64_JIT_UTILS_JIT_UTILS_HPP
+#ifndef CPU_JIT_UTILS_JIT_UTILS_HPP
+#define CPU_JIT_UTILS_JIT_UTILS_HPP
 
 #include <cstdlib>
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace aarch64 {
 namespace jit_utils {
 
 void register_jit_code(const void *code, size_t code_size,
         const char *code_name, const char *source_file_name);
 
 }
-} // namespace aarch64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
