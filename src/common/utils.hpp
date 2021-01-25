@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -585,6 +585,10 @@ public:
 template <typename T>
 static size_t hash_combine(size_t seed, const T &v) {
     return seed ^= std::hash<T> {}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
+
+inline int float2int(float x) {
+    return utils::bit_cast<int>(x);
 }
 
 // XXX: Currently SYCL doesn't provide an API to get device UUID but

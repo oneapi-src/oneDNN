@@ -95,12 +95,19 @@ size_t get_array_hash(size_t seed, const T *v, int size) {
     return seed;
 }
 
-// Specialization for an array of mds
 template <>
 inline size_t get_array_hash<memory_desc_t>(
         size_t seed, const memory_desc_t *v, int size) {
     for (int i = 0; i < size; i++) {
         seed = hash_combine(seed, get_md_hash(v[i]));
+    }
+    return seed;
+}
+
+template <>
+inline size_t get_array_hash<float>(size_t seed, const float *v, int size) {
+    for (int i = 0; i < size; i++) {
+        seed = hash_combine(seed, float2int(v[i]));
     }
     return seed;
 }

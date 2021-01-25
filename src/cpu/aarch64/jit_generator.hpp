@@ -48,12 +48,6 @@ typedef enum {
     MAX_CODE_SIZE = 256 * 1024,
 } max_code_size_t;
 
-// TODO: move this somewhere else? Although this is only used by jit kernels
-// (Roma)
-static inline int float2int(float x) {
-    return utils::bit_cast<int>(x);
-}
-
 // Callee-saved registers
 constexpr Xbyak_aarch64::Operand::Code abi_save_gpr_regs[]
         = {Xbyak_aarch64::Operand::X19, Xbyak_aarch64::Operand::X20,
