@@ -61,7 +61,13 @@ static void fwd_compute_block_sizes(
             : 8;
     conf.oc_block = 16;
     conf.ic_block = nstl::min(conf.ic, 16);
-    conf.wino_ic_block = 32;
+    if (conf.src_data_type == data_type::f16)
+        conf.wino_ic_block = 32;
+    else if (arch != compute::gpu_arch_t::gen9 && conf.ow * conf.oh <= 256)
+        conf.wino_ic_block = 32;
+    else
+        conf.wino_ic_block = 16;
+
     conf.ocb = utils::div_up(conf.oc, conf.oc_block);
 
     if (conf.is_fused) {
@@ -171,7 +177,7 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf(
         conf.M_gws_d[2] = conf.oc / conf.oc_block * conf.mb;
     } else {
         conf.mb_block = 1;
-        conf.lws_d[0] = 16;
+        conf.lws_d[0] = conf.wino_ic_block / 2;
         conf.lws_d[1] = 8;
         conf.lws_d[2] = 1;
         conf.gws_d[0]
@@ -181,7 +187,7 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf(
         conf.gws_d[2] = (conf.mb / conf.mb_block)
                 * (conf.wino_oc / conf.wino_oc_block);
 
-        conf.U_lws_d[0] = 16;
+        conf.U_lws_d[0] = conf.wino_ic_block / 2;
         conf.U_lws_d[1] = 1;
         conf.U_lws_d[2] = 1;
         conf.U_gws_d[0] = conf.wino_ic * conf.wino_oc / conf.vect_size;

@@ -19,6 +19,22 @@
 #include "gpu/ocl/offsets.h"
 
 #define IW_BLOCK (OW_BLOCK + KW - 1)
+#define IW_INTERNAL_BLOCK 16
+#if IW_BLOCK > IW_INTERNAL_BLOCK
+#error "Invalid IW_BLOCK value"
+#endif
+
+// V Transform works on WINO_IC_BLOCKxWINO_DxIW_BLOCK sized tiles
+// Each thread transforms a tile with dimensions VTRANS_BLOCKxWINO_Dx1
+// Therefore LWX * LWY >= (WINO_IC_BLOCK/VTRANS_DATA_T) * IW_BLOCK
+
+#define LWY 8
+#define LWX (WINO_IC_BLOCK / 2)
+
+#define COMP_UNITS ((OC_BLOCK * WINO_D))
+// Basically COMP_UNITS/(LWY * LWX) except for rounding from WINO_D / LWY
+#define COMP_OC_STRIDE LWX
+#define COMP_OC_COUNT (OC_BLOCK / COMP_OC_STRIDE)
 
 #define WINO_D (WINO_M + WINO_R - 1)
 
@@ -59,9 +75,9 @@
 
 static inline int U_off(int o, int i, int z, int w) {
 
-    //  OIw8h16i16o
+    //  OIw8h16i`LWX`o
     const int ic_internal_block = 16;
-    const int oc_internal_block = 16;
+    const int oc_internal_block = LWX;
     int icb = i / ic_internal_block;
     int ic = i % ic_internal_block;
     int ocb = o / oc_internal_block;
@@ -85,8 +101,8 @@ static inline int V_off(int i, int z, int w, int block_size) {
 
     int icb = i / ic_internal_block;
     int ic = i % ic_internal_block;
-    int off = icb * WINO_D * IW_BLOCK * ic_internal_block;
-    off += z * IW_BLOCK * ic_internal_block;
+    int off = icb * WINO_D * IW_INTERNAL_BLOCK * ic_internal_block;
+    off += z * IW_INTERNAL_BLOCK * ic_internal_block;
     off += w * ic_internal_block;
     off += ic;
     return off / block_size;
@@ -94,8 +110,8 @@ static inline int V_off(int i, int z, int w, int block_size) {
 
 static inline int M_off(int o, int z, int w, int block_size) {
 
-    //M data format is 8h16W16c2w
-    const int ow_internal_block = 2;
+    //M data format is 8h16W16c'OUT_TYPE_BLOCK'w
+    const int ow_internal_block = OUT_TYPE_BLOCK;
     int owb = w / ow_internal_block;
     int ow = w % ow_internal_block;
     int off = z * OW_BLOCK / ow_internal_block * OC_BLOCK * ow_internal_block;
@@ -105,8 +121,11 @@ static inline int M_off(int o, int z, int w, int block_size) {
     return off / block_size;
 }
 
+#define VTRANS_LY_STRIDE 2
+#define VTRANS_LX_CYCLE (LWX / VTRANS_LY_STRIDE)
+// VTRANS_BLOCK * VTRANS_LX_CYCLE == WINO_IC_BLOCK
 static inline int get_Vtrans_ic0(int lx, int ly) {
-    return VTRANS_BLOCK * (lx % 8);
+    return VTRANS_BLOCK * (lx % VTRANS_LX_CYCLE);
 }
 static inline int get_Vtrans_ih0(int lx, int ly) {
     // Must be zero (without wino tile blocking) to perform the V transform
@@ -114,11 +133,12 @@ static inline int get_Vtrans_ih0(int lx, int ly) {
     return 0;
 }
 static inline int get_Vtrans_iw0(int lx, int ly) {
-    return 8 * (lx / 8) + ly;
+    return LWY * (lx / VTRANS_LX_CYCLE) + ly;
 }
 
+#define VCOMP_LX_CYCLE (LWX / 8) // IC_BLOCK / c_block
 static inline int get_Vcomp_ic0(int lx, int ly) {
-    return 8 * (lx % 2);
+    return 8 * (lx % VCOMP_LX_CYCLE);
 }
 static inline int get_Vcomp_ih0(int lx, int ly) {
     // Relies on the fact that WINO_D = 8 to get full utilization of the local
@@ -126,7 +146,7 @@ static inline int get_Vcomp_ih0(int lx, int ly) {
     return ly;
 }
 static inline int get_Vcomp_iw0(int lx, int ly) {
-    return lx / 2;
+    return lx / VCOMP_LX_CYCLE;
 }
 
 static inline int get_Ucomp_ic0(int lx, int ly) {
@@ -163,11 +183,13 @@ static inline int get_out_oh0(int lx, int ly) {
     // since the transformation uses a linear combination of the height value;
     return 0;
 }
+
+#define OUT_LY_CYCLE (16 / OUT_TYPE_BLOCK) // The 16 is MAX_OW_BLOCK;
 static inline int get_out_ow0(int lx, int ly) {
-    return OUT_TYPE_BLOCK * ly;
+    return OUT_TYPE_BLOCK * (ly % OUT_LY_CYCLE);
 }
 static inline int get_out_oc0(int lx, int ly) {
-    return lx;
+    return lx + LWX * (ly / OUT_LY_CYCLE);
 }
 
 #if WINO_M == 6
@@ -302,8 +324,8 @@ static inline void wino_m_transform(
 #error "Unsupported Winograd Tile Size"
 #endif
 
-__attribute__((reqd_work_group_size(OC_BLOCK, 1, 1)))
-__attribute__((intel_reqd_sub_group_size(OC_BLOCK))) __kernel void
+__attribute__((reqd_work_group_size(LWX, 1, 1)))
+__attribute__((intel_reqd_sub_group_size(LWX))) __kernel void
 gen9_wino_wei_transform(__global DATA_T *U, const __global DATA_T *weights) {
     const uint weights_tile_width = 1;
     const uint weights_tile_height = WINO_M;
@@ -315,15 +337,19 @@ gen9_wino_wei_transform(__global DATA_T *U, const __global DATA_T *weights) {
 
     const uint out_kw = get_global_id(1) * U_tile_width;
     const uint out_kh = get_global_id(2) * U_tile_height;
-    const uint oc0 = (get_group_id(0) % (WINO_OC / OC_BLOCK)) * OC_BLOCK;
-    const uint ic = (get_group_id(0) / (WINO_OC / OC_BLOCK)) * UTRANS_BLOCK;
+    const uint oc0 = (get_group_id(0) % (WINO_OC / LWX)) * LWX;
+    const uint oc = oc0 + get_local_id(0);
+    const uint ic = (get_group_id(0) / (WINO_OC / LWX)) * UTRANS_BLOCK;
 
-    uint in_idx = wei_off(0, oc0, ic, 0, in_kh, in_kw);
+    uint in_idx = wei_off(0, oc, ic, 0, in_kh, in_kw);
     bool is_valid = ic < IC && oc0 < OC;
 
     UTRANS_DATA_T g[WINO_R];
     for (int i = 0; i < WINO_R; i++) {
-        g[i] = is_valid ? UTRANS_BLOCK_READ(&weights[in_idx]) : 0;
+        for (int j = 0; j < UTRANS_BLOCK; j++) {
+            uint idx = in_idx + wei_off(0, 0, j, 0, 0, 0);
+            g[i][j] = is_valid ? weights[idx] : 0;
+        }
         in_idx += wei_off(0, 0, 0, 0, 1, 0);
     }
 
@@ -341,12 +367,13 @@ gen9_wino_wei_transform(__global DATA_T *U, const __global DATA_T *weights) {
 #define DOTi(_result, _A, _B) \
     { _result = mad(_A, _B, _result); }
 
-__attribute__((reqd_work_group_size(16, 8, 1)))
-__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+__attribute__((reqd_work_group_size(LWX, LWY, 1)))
+__attribute__((intel_reqd_sub_group_size(LWX))) __kernel void
 gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
         const __global DATA_T *U_param,
         const __global DATA_T *bias POST_OP_ARGS) {
-    const uint slm_size = (WINO_IC_BLOCK * WINO_D * IW_BLOCK) / VTRANS_BLOCK;
+    const uint slm_size
+            = (WINO_IC_BLOCK * WINO_D * IW_INTERNAL_BLOCK) / VTRANS_BLOCK;
     __local VTRANS_DATA_T V[slm_size]; // 8 KB
 
     const DATA_T scl = TO_TYPE(16);
@@ -366,11 +393,14 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
     // and iw. Compute oc'OC_BLOCK'oh'WINO_M'ow'OW_BLOCK' output tile.
 
     // Initialize variables to accumulate intermediate output tile
-    const int M_size = OW_BLOCK;
-    DATA_T M[M_size];
+    const int M_ow_size = OW_BLOCK;
 
-    for (int i = 0; i < M_size; i++) {
-        M[i] = 0;
+    DATA_T M[COMP_OC_COUNT][M_ow_size];
+
+    for (int i = 0; i < COMP_OC_COUNT; i++) {
+        for (int j = 0; j < M_ow_size; j++) {
+            M[i][j] = 0;
+        }
     }
 
     // Computation is separated into three main stages, load/transform input,
@@ -436,18 +466,20 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
         __local const COMP_DATA_T *V_read_outer = V_read;
 
         const int outer_c_blocking = COMP_UNROLL * COMP_BLOCK;
+        const int V_local_count = outer_c_blocking * IW_INTERNAL_BLOCK / LWX;
+
         __attribute__((opencl_unroll_hint(
                 1))) for (uint c_outer = 0; c_outer < WINO_IC_BLOCK
                           && (WINO_D == 8 || ly < WINO_D);
                           c_outer += outer_c_blocking) {
             // Fetch input components, spread across subgroup.
-            DATA_T V_block[outer_c_blocking];
+            DATA_T V_block[V_local_count];
 
             // Blocking/Stride parameters for how elements are loaded from V
             // into V_block
-            const int c_block = 8;
-            const int w_count = outer_c_blocking / c_block;
-            const int w_stride = outer_c_blocking / w_count;
+            const int c_block = IC_BLOCK / VCOMP_LX_CYCLE;
+            const int w_count = V_local_count / c_block;
+            const int w_stride = IW_INTERNAL_BLOCK / w_count;
 
             unroll_for(int w_load = 0; w_load < w_count; w_load++) {
                 unroll_for(int c_load = 0; c_load < c_block;
@@ -467,13 +499,15 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
             unroll_for(int c_inner = 0; c_inner < outer_c_blocking;
                        c_inner += COMP_BLOCK) {
                 unroll_for(int kw_in = 0; kw_in < KW; kw_in++) {
-                    const COMP_DATA_T f0
-                            = COMP_BLOCK_READ(&U[U_off(0, 0, 0, kw_in)]);
-
-                    unroll_for(int c_in = 0; c_in < COMP_BLOCK; c_in++) {
-                        unroll_for(int ow_in = 0; ow_in < OW_BLOCK; ow_in++) {
-                            DOTi(M[ow_in], f0[c_in],
-                                    V_BLOCK(c_in + c_inner, kw_in + ow_in));
+                    unroll_for(int c_out = 0; c_out < COMP_OC_COUNT; c_out++) {
+                        const COMP_DATA_T f0 = COMP_BLOCK_READ(
+                                &U[U_off(c_out * COMP_OC_STRIDE, 0, 0, kw_in)]);
+                        unroll_for(int c_in = 0; c_in < COMP_BLOCK; c_in++) {
+                            unroll_for(int ow_in = 0; ow_in < OW_BLOCK;
+                                       ow_in++) {
+                                DOTi(M[c_out][ow_in], f0[c_in],
+                                        V_BLOCK(c_in + c_inner, kw_in + ow_in));
+                            }
                         }
                     }
                 }
@@ -494,8 +528,10 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
         __local DATA_T *M_write = (__local DATA_T *)&V[M_off(0, M_oh, 0, 4)];
         M_write += M_off(M_oc, 0, 0, 1);
 
-        for (int i = 0; i < M_size; i++) {
-            M_write[M_off(0, 0, M_ow + i, 1)] = M[i];
+        for (int i = 0; i < COMP_OC_COUNT; i++) {
+            for (int j = 0; j < M_ow_size; j++) {
+                M_write[M_off(i * COMP_OC_STRIDE, 0, M_ow + j, 1)] = M[i][j];
+            }
         }
 
         barrier(CLK_LOCAL_MEM_FENCE);
@@ -514,15 +550,20 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
                 = (__local OUT_BLOCK_DATA_T *)&V[M_off(0, 0, M_ow, 4)];
         M_read += M_off(M_oc, 0, 0, OUT_TYPE_BLOCK);
 
-        OUT_BLOCK_DATA_T M[WINO_D];
-        for (int i = 0; i < WINO_D; i++) {
-            M[i] = M_read[M_off(0, M_oh + i, 0, OUT_TYPE_BLOCK)];
+        OUT_BLOCK_DATA_T M[COMP_OC_COUNT][WINO_D];
+        for (int i = 0; i < COMP_OC_COUNT; i++) {
+            for (int j = 0; j < WINO_D; j++) {
+                M[i][j] = M_read[M_off(
+                        i * COMP_OC_STRIDE, M_oh + j, 0, OUT_TYPE_BLOCK)];
+            }
         }
-        OUT_BLOCK_DATA_T C[WINO_M];
+        OUT_BLOCK_DATA_T C[COMP_OC_COUNT][WINO_M];
         DATA_T *C_dat = C;
 
-        wino_m_transform(C, M);
-        unroll_for(int i = 0; i < WINO_M; i++) { C[i] = C[i] * scl; }
+        unroll_for(int i = 0; i < COMP_OC_COUNT; i++) {
+            wino_m_transform(C[i], M[i]);
+            unroll_for(int j = 0; j < WINO_M; j++) { C[i][j] = C[i][j] * scl; }
+        }
 
         // Write data
         const int oc = oc0 + M_oc;
@@ -531,32 +572,36 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
         int dst_idx = dst_off(mb, oc, 0, oh, ow);
 
         if (WITH_BIAS || WITH_POST_OP) {
-            const int c_size = WINO_M * OUT_TYPE_BLOCK;
+            const int c_size = COMP_OC_COUNT * WINO_M * OUT_TYPE_BLOCK;
             if (WITH_BIAS) {
-                for (int oh_block = 0; oh_block < WINO_M; oh_block++) {
-                    for (int ow_block = 0; ow_block < OUT_TYPE_BLOCK;
-                            ow_block++) {
-                        const int c_off = oh_block * OUT_TYPE_BLOCK + ow_block;
-                        C_dat[c_off] += (OC_WO_PADDING % OC_BLOCK == 0
-                                                || oc < OC_WO_PADDING)
-                                ? bias[oc]
-                                : DATA_ZERO;
-                    }
+                for_(int oc_block = 0; oc_block < COMP_OC_COUNT; oc_block++)
+                for_(int oh_block = 0; oh_block < WINO_M; oh_block++)
+                for (int ow_block = 0; ow_block < OUT_TYPE_BLOCK; ow_block++) {
+                    const int c_off = oc_block * WINO_M * OUT_TYPE_BLOCK
+                            + oh_block * OUT_TYPE_BLOCK + ow_block;
+                    const int oc_tmp = oc + COMP_OC_STRIDE * oc_block;
+                    C_dat[c_off] += (OC_WO_PADDING % OC_BLOCK == 0
+                                            || oc_tmp < OC_WO_PADDING)
+                            ? bias[oc_tmp]
+                            : DATA_ZERO;
                 }
             }
 
             DATA_T S[c_size];
             if (WITH_SUM) {
+                for_(int oc_block = 0; oc_block < COMP_OC_COUNT; oc_block++)
                 for (int oh_block = 0; oh_block < WINO_M; oh_block++) {
                     bool valid_oh = OH % OH_BLOCK == 0 || oh + oh_block < OH;
                     for (int ow_block = 0; ow_block < OUT_TYPE_BLOCK;
                             ow_block++) {
-                        const int s_off = oh_block * OUT_TYPE_BLOCK + ow_block;
+                        const int s_off = oc_block * WINO_M * OUT_TYPE_BLOCK
+                                + oh_block * OUT_TYPE_BLOCK + ow_block;
                         bool valid_ow
                                 = OW % OW_BLOCK == 0 || ow + ow_block < OW;
                         S[s_off] = valid_oh && valid_ow
                                 ? dst[dst_idx
-                                        + dst_off(0, 0, 0, oh_block, ow_block)]
+                                        + dst_off(0, oc_block * COMP_OC_STRIDE,
+                                                0, oh_block, ow_block)]
                                 : 0;
                     }
                 }
@@ -573,13 +618,18 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
             }
         }
 
-        unroll_for(int h_off = 0; h_off < WINO_M; h_off++) {
-            if (h_off == 0 || OH % OH_BLOCK == 0 || oh + h_off < OH) {
-                unroll_for(int w_off = 0; w_off < OUT_TYPE_BLOCK; w_off++) {
-                    int c_off = 2 * h_off + w_off;
-                    if (OW % OW_BLOCK == 0 || ow + w_off < OW)
-                        dst[dst_idx + dst_off(0, 0, 0, h_off, w_off)]
-                                = C_dat[c_off];
+        unroll_for(int oc_off = 0; oc_off < COMP_OC_COUNT; oc_off++) {
+            unroll_for(int h_off = 0; h_off < WINO_M; h_off++) {
+                if (h_off == 0 || OH % OH_BLOCK == 0 || oh + h_off < OH) {
+                    unroll_for(int w_off = 0; w_off < OUT_TYPE_BLOCK; w_off++) {
+                        int c_off = oc_off * WINO_M * OUT_TYPE_BLOCK
+                                + OUT_TYPE_BLOCK * h_off + w_off;
+                        if (OW % OW_BLOCK == 0 || ow + w_off < OW)
+                            dst[dst_idx
+                                    + dst_off(0, oc_off * COMP_OC_STRIDE, 0,
+                                            h_off, w_off)]
+                                    = C_dat[c_off];
+                    }
                 }
             }
         }
