@@ -181,7 +181,7 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
     using namespace x64::injector;
     static constexpr bool sum_at_pos_0_only = true;
     static constexpr bool sum_requires_scale_one = false;
-    return x64::injector::post_ops_ok({x64::isa_all, {binary, eltwise, sum},
+    return x64::injector::post_ops_ok({x64::avx512_core, {binary, eltwise, sum},
             post_ops, dst_d, sum_at_pos_0_only, sum_requires_scale_one});
 #endif
     for (size_t i = 0; i < post_ops.entry_.size(); i++) {
