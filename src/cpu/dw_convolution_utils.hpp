@@ -78,8 +78,13 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
 
     memory_desc_t src_md, weights_md, bias_md, dst_md;
 
-    dnnl_memory_desc_init_by_tag(&src_md, ndims, src_dw_md.dims,
-            src_dw_md.data_type, format_tag::any);
+    const auto src_dw_tag = src_dw_d.matches_one_of_tag(
+            format_tag::nChw16c, format_tag::nChw8c, format_tag::nhwc);
+    const auto data_tag
+            = (src_dw_tag == format_tag::undef) ? format_tag::any : src_dw_tag;
+
+    dnnl_memory_desc_init_by_tag(
+            &src_md, ndims, src_dw_md.dims, src_dw_md.data_type, data_tag);
 
     dnnl_memory_desc_init_by_tag(
             &weights_md, ndims + 1, weights_tz, dw_po.wei_dt, format_tag::any);
@@ -89,7 +94,7 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
                 &bias_md, 1, bias_tz, dw_po.bias_dt, format_tag::a);
 
     dnnl_memory_desc_init_by_tag(
-            &dst_md, ndims, dst_tz, dw_po.dst_dt, format_tag::any);
+            &dst_md, ndims, dst_tz, dw_po.dst_dt, data_tag);
 
     CHECK(conv_desc_init(&cd_dw, prop_kind::forward_inference,
             alg_kind::convolution_auto, &src_md, &weights_md,
