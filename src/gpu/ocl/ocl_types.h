@@ -593,11 +593,13 @@
 #define AS_DST_DATA16_T CONCAT2(as_, DST_DATA16_T)
 
 #if DST_DT_F32 || DST_DT_F16
+#define CONVERT_DST_DATA_T CONCAT2(convert_, DST_DATA_T)
 #define CONVERT_DST_DATA2_T CONCAT2(convert_, DST_DATA2_T)
 #define CONVERT_DST_DATA4_T CONCAT2(convert_, DST_DATA4_T)
 #define CONVERT_DST_DATA8_T CONCAT2(convert_, DST_DATA8_T)
 #define CONVERT_DST_DATA16_T CONCAT2(convert_, DST_DATA16_T)
 #else
+#define CONVERT_DST_DATA_T CONCAT3(convert_, DST_DATA_T, _sat_rte)
 #define CONVERT_DST_DATA2_T CONCAT3(convert_, DST_DATA2_T, _sat_rte)
 #define CONVERT_DST_DATA4_T CONCAT3(convert_, DST_DATA4_T, _sat_rte)
 #define CONVERT_DST_DATA8_T CONCAT3(convert_, DST_DATA8_T, _sat_rte)

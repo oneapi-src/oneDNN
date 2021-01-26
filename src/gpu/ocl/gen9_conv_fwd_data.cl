@@ -26,14 +26,27 @@
 #define _BLOCK_READ(ptr) \
     AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T *)(ptr)))
 
+#define BASE_OC_TAIL (SUB_GROUP_SIZE - (OC - OC_WO_PADDING))
+
+#ifdef DST_DT_S8
 #define _BLOCK_WRITE8(ptr, v) \
-    BLOCK_WRITE8((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA8_T(v))
+    vstore8(CONVERT_DST_DATA8_T(v), 0, (__global DST_DATA_T *)(ptr))
 #define _BLOCK_WRITE4(ptr, v) \
-    BLOCK_WRITE4((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA4_T(v))
+    vstore4(CONVERT_DST_DATA4_T(v), 0, (__global DST_DATA_T *)(ptr))
 #define _BLOCK_WRITE2(ptr, v) \
-    BLOCK_WRITE2((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA2_T(v))
+    vstore2(CONVERT_DST_DATA2_T(v), 0, (__global DST_DATA_T *)(ptr))
 #define _BLOCK_WRITE(ptr, v) \
-    BLOCK_WRITE((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA_T(v))
+    *(__global DST_DATA_T *)(ptr) = CONVERT_DST_DATA_T(v);
+#else
+#define _BLOCK_WRITE8(ptr, v) \
+    BLOCK_WRITE8((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA8_T(v));
+#define _BLOCK_WRITE4(ptr, v) \
+    BLOCK_WRITE4((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA4_T(v));
+#define _BLOCK_WRITE2(ptr, v) \
+    BLOCK_WRITE2((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA2_T(v));
+#define _BLOCK_WRITE(ptr, v) \
+    BLOCK_WRITE((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA_T(v));
+#endif
 
 #define IS_3D (OD > 1)
 #define IS_1STCONV (IC == 3)
@@ -109,6 +122,31 @@ int off_NCdhw16n16c(
     return off;
 }
 
+int off_nCdhw32c(
+        int n, int c, int d, int h, int w, int C, int D, int H, int W) {
+    int off = 0;
+    off += n * (C / 32) * D * H * W * 32;
+    off += (c / 32) * D * H * W * 32;
+    off += d * H * W * 32;
+    off += h * W * 32;
+    off += w * 32;
+    off += c % 32;
+    return off;
+}
+
+int off_NCdhw32n32c(
+        int n, int c, int d, int h, int w, int C, int D, int H, int W) {
+    int off = 0;
+    off += (n / 32) * (C / 32) * D * H * W * 32 * 32;
+    off += (c / 32) * D * H * W * 32 * 32;
+    off += d * H * W * 32 * 32;
+    off += h * W * 32 * 32;
+    off += w * 32 * 32;
+    off += (n % 32) * 32;
+    off += (c % 32);
+    return off;
+}
+
 int off_gOdhwi16o(int g, int o, int i, int d, int h, int w, int O, int I, int D,
         int H, int W) {
     int off = 0;
@@ -168,6 +206,8 @@ int wei_off(int g, int o, int i, int d, int h, int w) {
 }
 
 int dst_off(int n, int c, int d, int h, int w) {
+    if (DST_NCHW)
+        return off_ncdhw(n, c, d, h, w, G * OC_WO_PADDING, OD, OH, OW);
     if (DST_W16C) return off_nCdhw16c(n, c, d, h, w, G * OC, OD, OH, OW);
     if (DST_16N16C) return off_NCdhw16n16c(n, c, d, h, w, G * OC, OD, OH, OW);
     return 0;
@@ -557,6 +597,29 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                         unrolled_write(min(16, MB_BLOCK), &(block)[idx], \
                                 &(ptr)[off]); \
                     } \
+        } else if (DST_NCHW && sglid < OC_WO_PADDING - oc) { \
+            for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) { \
+                int n_channels = min(min(C_SIZE, OW - ow), OW_BLOCK); \
+                bool w_oc_tail = BASE_OC_TAIL > 0 \
+                        && OC_WO_PADDING - (ocb ? ocb : SUB_GROUP_SIZE) \
+                                < OC_BLOCK; \
+                int loc_oc_tail = w_oc_tail ? BASE_OC_TAIL : SUB_GROUP_SIZE; \
+                int oc_loop = (!w_oc_tail || sglid < loc_oc_tail) \
+                        ? C_SIZE \
+                        : n_channels; \
+                for (int oc_outer = 0; oc_outer < oc_loop; \
+                        oc_outer += n_channels) { \
+                    int oc_tail_idx = ((sglid < loc_oc_tail \
+                                               && oc_outer >= n_channels) \
+                                    ? (sglid + (16 * (C_SIZE / OW_BLOCK - 1))) \
+                                    : sglid); \
+                    int off = dst_off(mb, ocb + oc_tail_idx, od, oh, \
+                            ow + (oc_outer % n_channels)); \
+                    int idx = oc_outer; \
+                    unrolled_write( \
+                            n_channels, &(block)[oc_outer], &(ptr)[off]); \
+                } \
+            } \
         } \
     } while (0)
 
@@ -638,8 +701,7 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
-        const __global DATA_T *bia, __global DATA_T *dst POST_OP_ARGS) {
-
+        const __global DATA_T *bia, __global DST_DATA_T *dst POST_OP_ARGS) {
     int local_id = get_local_id(0);
     int sglid = get_sub_group_local_id();
     int g_ocb = get_group_id(0);
@@ -663,7 +725,7 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     int ih = oh * SH - PH;
     int iw = ow * SW - PW;
     int id = od * SD - PD;
-
+    const int ref_dst = dst;
     // Vector type variables have less chance of being spilled for half data
     // type.
 #if DT_F16 && C_SIZE == 8
@@ -702,7 +764,10 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
     src += src_off(mb, g * IC, id, ih, iw);
     wei += wei_off(g, oc, 0, 0, 0, 0);
+#if DST_NCHW
+#else
     dst += dst_off(mb, g * OC + oc, od, oh, ow);
+#endif
 
     if (OW_BLOCK == 1) {
         loop_kdhw_outermost(src, wei, C, id, ih, iw);

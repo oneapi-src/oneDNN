@@ -99,6 +99,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     set_default_conf(conf, cd, *src_md(), *weights_md(), *dst_md(),
             *weights_md(1), *attr());
 
+    const bool int8_dst = conf.dst_data_type == data_type::s8;
     const bool is_src_nhwc
             = src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef;
     const bool is_dst_nhwc
@@ -213,9 +214,9 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
             conf.lws_d[1] = 1;
             conf.lws_d[2] = 1;
             conf.gws_d[0] = conf.ngroups * conf.ocb / (conf.oc_block / 16);
-            conf.gws_d[1] = conf.od * conf.oh
-                    * utils::div_up(conf.ow, conf.ow_block)
-                    * (conf.omb / conf.mb_block);
+            conf.gws_d[1]
+                    = (conf.od * conf.oh * utils::div_up(conf.ow, conf.ow_block)
+                            * (conf.omb / conf.mb_block));
             conf.gws_d[2] = (conf.oc / conf.ocb) * (conf.mb / conf.omb);
             break;
         }
@@ -280,6 +281,16 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
                                                 OIhw16i16o, OIdhw16i16o));
             break;
         default: return status::unimplemented;
+    }
+    if (int8_dst) {
+        if (true || conf.ic_without_padding <= 4) {
+            dst_tag = utils::pick(conf.ndims - 3, ncw, nchw, ncdhw);
+        } else if (conf.mb % 16 == 0 || conf.mb == 8) {
+            dst_tag = utils::pick(
+                    conf.ndims - 3, NCw32n32c, NChw32n32c, NCdhw32n32c);
+        } else {
+            dst_tag = utils::pick(conf.ndims - 3, nCw32c, nChw32c, nCdhw32c);
+        }
     }
 
     if (src_mdw.format_kind() == format_kind::any) {
@@ -364,6 +375,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_kernel_ctx(
                 "SRC_SP_GROUP", conf.stride_w * (conf.lws_d[1] - 1) + conf.kw);
 
     kernel_ctx.set_data_type(conf.src_data_type);
+    def_data_type(kernel_ctx, conf.dst_data_type, "DST");
 
     kernel_ctx.define_int("VER_1STCONV", conf.ver == ver_1stconv);
     kernel_ctx.define_int("VER_8OW16C", conf.ver == ver_8ow16c);
@@ -390,6 +402,8 @@ status_t gen9_convolution_fwd_t::pd_t::init_kernel_ctx(
             utils::one_of(conf.dst_tag, NCw16n16c, NChw16n16c, NCdhw16n16c));
     kernel_ctx.define_int(
             "DST_W16C", utils::one_of(conf.dst_tag, nCw16c, nChw16c, nCdhw16c));
+    kernel_ctx.define_int(
+            "DST_NCHW", utils::one_of(conf.dst_tag, ncw, nchw, ncdhw));
 
     kernel_ctx.define_int("LWS_0", conf.lws_d[0]);
     kernel_ctx.define_int("LWS_1", conf.lws_d[1]);
