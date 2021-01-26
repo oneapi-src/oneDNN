@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,6 +97,8 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
     dnnl_engine_kind_t eng_kind;
     const dnnl_memory_desc_t *md;
 
+    if (!handle) COMPLAIN_EXAMPLE_ERROR_AND_EXIT("%s", "handle is NULL.");
+
     CHECK(dnnl_memory_get_engine(mem, &eng));
     CHECK(dnnl_engine_get_kind(eng, &eng_kind));
     CHECK(dnnl_memory_get_memory_desc(mem, &md));
@@ -159,6 +161,8 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
     dnnl_engine_t eng;
     dnnl_engine_kind_t eng_kind;
     const dnnl_memory_desc_t *md;
+
+    if (!handle) COMPLAIN_EXAMPLE_ERROR_AND_EXIT("%s", "handle is NULL.");
 
     CHECK(dnnl_memory_get_engine(mem, &eng));
     CHECK(dnnl_engine_get_kind(eng, &eng_kind));
