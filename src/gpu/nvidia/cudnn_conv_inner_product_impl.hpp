@@ -297,20 +297,13 @@ struct cudnn_conv_inner_product_fwd_impl_t
 
             // perf_results are sorted ascending by compute time, so the first suitable
             // algorithm found is the one with best performance
-            bool found_algo = false;
-            for (int i = 0; !found_algo && i < returned_algo_count; i++) {
+            for (int i = 0; i < returned_algo_count; i++) {
                 if (perf_results[i].status == CUDNN_STATUS_SUCCESS
                         && perf_results[i].memory < free_memory) {
 
-                    found_algo = true;
                     algo_ = perf_results[i].algo;
+                    break;
                 }
-            }
-
-            if (!found_algo) {
-                std::cout << "Not suitable algorithm for convolution found"
-                          << std::endl;
-                return status::runtime_error;
             }
         } else {
             algo_ = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
@@ -533,20 +526,13 @@ struct cudnn_conv_inner_product_bwd_data_impl_t
 
         // perf_results are sorted ascending by compute time, so the first suitable
         // algorithm found is the one with best performance
-        bool found_algo = false;
-        for (int i = 0; !found_algo && i < returned_algo_count; i++) {
+        for (int i = 0; i < returned_algo_count; i++) {
             if (perf_results[i].status == CUDNN_STATUS_SUCCESS
                     && perf_results[i].memory < free_memory) {
 
-                found_algo = true;
                 algo_ = perf_results[i].algo;
+                break;
             }
-        }
-
-        if (!found_algo) {
-            std::cout << "Not suitable algorithm for convolution bwd found"
-                      << std::endl;
-            return status::runtime_error;
         }
 
         // Allocate the workspace from the algorithm selection, if applicable.
@@ -714,21 +700,13 @@ struct cudnn_conv_inner_product_bwd_weights_impl_t
 
         // perf_results are sorted ascending by compute time, so the first suitable
         // algorithm found is the one with best performance
-        bool found_algo = false;
-        for (int i = 0; !found_algo && i < returned_algo_count; i++) {
+        for (int i = 0; i < returned_algo_count; i++) {
             if (perf_results[i].status == CUDNN_STATUS_SUCCESS
                     && perf_results[i].memory < free_memory) {
 
-                found_algo = true;
                 algo_ = perf_results[i].algo;
+                break;
             }
-        }
-
-        if (!found_algo) {
-            std::cout
-                    << "Not suitable algorithm for convolution bwd filter found"
-                    << std::endl;
-            return status::runtime_error;
         }
 
         // Allocate the workspace from the algorithm selection, if applicable.
