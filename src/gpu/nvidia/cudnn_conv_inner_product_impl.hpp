@@ -280,17 +280,38 @@ struct cudnn_conv_inner_product_fwd_impl_t
         // cudnnGetConvolutionForwardAlgorithm for int8 type
         if (pd->src_md()->data_type != data_type::s8
                 && pd->weights_md(0)->data_type != data_type::s8) {
-            const int num_algos = 1;
-            int returnedAlgoCount = 0;
-            std::unique_ptr<cudnnConvolutionFwdAlgoPerf_t[]> perf_results(
-                              new cudnnConvolutionFwdAlgoPerf_t[num_algos]);
+            int num_algos = 0, returned_algo_count = 0;
+            CHECK(CUDNN_EXECUTE_FUNC_S(
+                    cudnnGetConvolutionForwardAlgorithmMaxCount, handle,
+                    &num_algos));
+            std::vector<cudnnConvolutionFwdAlgoPerf_t> perf_results(num_algos);
 
             CHECK(CUDNN_EXECUTE_FUNC_S(cudnnGetConvolutionForwardAlgorithm_v7,
                     handle, tensor_descs_[io::src], filter_desc_, conv_desc_,
-                    tensor_descs_[io::dst], num_algos, &returnedAlgoCount,
-                    perf_results.get()));
+                    tensor_descs_[io::dst], num_algos, &returned_algo_count,
+                    &perf_results[0]));
 
-            algo_ = perf_results[0].algo;
+            size_t free_memory, total_memory;
+            CHECK(CUDA_EXECUTE_FUNC_S(
+                    cuMemGetInfo, &free_memory, &total_memory));
+
+            // perf_results are sorted ascending by compute time, so the first suitable
+            // algorithm found is the one with best performance
+            bool found_algo = false;
+            for (int i = 0; !found_algo && i < returned_algo_count; i++) {
+                if (perf_results[i].status == CUDNN_STATUS_SUCCESS
+                        && perf_results[i].memory < free_memory) {
+
+                    found_algo = true;
+                    algo_ = perf_results[i].algo;
+                }
+            }
+
+            if (!found_algo) {
+                std::cout << "Not suitable algorithm for convolution found"
+                          << std::endl;
+                return status::runtime_error;
+            }
         } else {
             algo_ = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
         }
@@ -497,17 +518,36 @@ struct cudnn_conv_inner_product_bwd_data_impl_t
         auto handle = cuda_stream->get_cudnn_handle();
 
         // Inner product can choose whatever algorithm it prefers.
-        const int num_algos = 1;
-        int returnedAlgoCount = 0;
-        std::unique_ptr<cudnnConvolutionBwdDataAlgoPerf_t[]> perf_results(
-                              new cudnnConvolutionBwdDataAlgoPerf_t[num_algos]);
+        int num_algos = 0, returned_algo_count = 0;
+        CHECK(CUDNN_EXECUTE_FUNC_S(cudnnGetConvolutionForwardAlgorithmMaxCount,
+                handle, &num_algos));
+        std::vector<cudnnConvolutionBwdDataAlgoPerf_t> perf_results(num_algos);
 
         CUDNN_EXECUTE_FUNC(cudnnGetConvolutionBackwardDataAlgorithm_v7, handle,
                 filter_desc_, tensor_descs_[io::dst], conv_desc_,
-                tensor_descs_[io::src], num_algos, &returnedAlgoCount,
-                    perf_results.get());
+                tensor_descs_[io::src], num_algos, &returned_algo_count,
+                &perf_results[0]);
 
-        algo_ = perf_results[0].algo;
+        size_t free_memory, total_memory;
+        CHECK(CUDA_EXECUTE_FUNC_S(cuMemGetInfo, &free_memory, &total_memory));
+
+        // perf_results are sorted ascending by compute time, so the first suitable
+        // algorithm found is the one with best performance
+        bool found_algo = false;
+        for (int i = 0; !found_algo && i < returned_algo_count; i++) {
+            if (perf_results[i].status == CUDNN_STATUS_SUCCESS
+                    && perf_results[i].memory < free_memory) {
+
+                found_algo = true;
+                algo_ = perf_results[i].algo;
+            }
+        }
+
+        if (!found_algo) {
+            std::cout << "Not suitable algorithm for convolution bwd found"
+                      << std::endl;
+            return status::runtime_error;
+        }
 
         // Allocate the workspace from the algorithm selection, if applicable.
         CUDNN_EXECUTE_FUNC(cudnnGetConvolutionBackwardDataWorkspaceSize, handle,
@@ -657,17 +697,39 @@ struct cudnn_conv_inner_product_bwd_weights_impl_t
         auto handle = cuda_stream->get_cudnn_handle();
 
         // Inner product can choose whatever algorithm it prefers.
-        const int num_algos = 1;
-        int returnedAlgoCount = 0;
-        std::unique_ptr<cudnnConvolutionBwdFilterAlgoPerf_t[]> perf_results(
-                              new cudnnConvolutionBwdFilterAlgoPerf_t[num_algos]);
+        int num_algos = 0, returned_algo_count = 0;
+        CHECK(CUDNN_EXECUTE_FUNC_S(
+                cudnnGetConvolutionBackwardFilterAlgorithmMaxCount, handle,
+                &num_algos));
+        std::vector<cudnnConvolutionBwdFilterAlgoPerf_t> perf_results(
+                num_algos);
 
-        CUDNN_EXECUTE_FUNC(cudnnGetConvolutionBackwardFilterAlgorithm_v7, handle,
-                tensor_descs_[io::src], tensor_descs_[io::dst], conv_desc_,
-                filter_desc_, num_algos, &returnedAlgoCount,
-                perf_results.get());
+        CUDNN_EXECUTE_FUNC(cudnnGetConvolutionBackwardFilterAlgorithm_v7,
+                handle, tensor_descs_[io::src], tensor_descs_[io::dst],
+                conv_desc_, filter_desc_, num_algos, &returned_algo_count,
+                &perf_results[0]);
 
-        algo_ = perf_results[0].algo;
+        size_t free_memory, total_memory;
+        CHECK(CUDA_EXECUTE_FUNC_S(cuMemGetInfo, &free_memory, &total_memory));
+
+        // perf_results are sorted ascending by compute time, so the first suitable
+        // algorithm found is the one with best performance
+        bool found_algo = false;
+        for (int i = 0; !found_algo && i < returned_algo_count; i++) {
+            if (perf_results[i].status == CUDNN_STATUS_SUCCESS
+                    && perf_results[i].memory < free_memory) {
+
+                found_algo = true;
+                algo_ = perf_results[i].algo;
+            }
+        }
+
+        if (!found_algo) {
+            std::cout
+                    << "Not suitable algorithm for convolution bwd filter found"
+                    << std::endl;
+            return status::runtime_error;
+        }
 
         // Allocate the workspace from the algorithm selection, if applicable.
         CUDNN_EXECUTE_FUNC_S(cudnnGetConvolutionBackwardFilterWorkspaceSize,
