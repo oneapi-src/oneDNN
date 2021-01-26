@@ -75,7 +75,7 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                     && post_ops_with_binary_ok(attr(), dst_data_t);
             if (!ok) return status::unimplemented;
 
-            status_t status = init_conf();
+            status_t status = init_conf(compute_engine);
             if (status != status::success) return status;
 
             init_scratchpad();
@@ -86,7 +86,7 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
             return ok ? status::success : status::unimplemented;
         }
 
-        status_t init_conf();
+        status_t init_conf(compute::compute_engine_t *engine);
         void init_scratchpad();
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 

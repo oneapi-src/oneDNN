@@ -21,6 +21,7 @@
 #include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
+#include "gpu/compute/device_info.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 
 using namespace dnnl::impl::memory_tracking::names;
@@ -33,7 +34,10 @@ namespace ocl {
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::format_tag;
 
-static void fwd_compute_block_sizes(conv_conf_t &conf) {
+static void fwd_compute_block_sizes(
+        conv_conf_t &conf, compute::compute_engine_t *engine) {
+
+    const compute::gpu_arch_t arch = engine->device_info()->gpu_arch();
 
     if (conf.ver == ver_16mb16c) {
         conf.mb_block = (conf.src_data_type == data_type::f16)
@@ -52,8 +56,9 @@ static void fwd_compute_block_sizes(conv_conf_t &conf) {
     conf.wino_r = r;
     conf.tile_size = m + r - 1;
 
-    conf.vect_size
-            = static_cast<int>(16 / types::data_type_size(conf.src_data_type));
+    conf.vect_size = (arch == compute::gpu_arch_t::gen9)
+            ? static_cast<int>(16 / types::data_type_size(conf.src_data_type))
+            : 8;
     conf.oc_block = 16;
     conf.ic_block = nstl::min(conf.ic, 16);
     conf.wino_ic_block = 32;
@@ -78,7 +83,8 @@ static void fwd_compute_block_sizes(conv_conf_t &conf) {
     conf.wino_oc = utils::rnd_up(conf.oc, conf.wino_oc_block);
 }
 
-status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
+status_t gen9_wino_convolution_fwd_t::pd_t::init_conf(
+        compute::compute_engine_t *engine) {
 
     const convolution_desc_t &cd = *desc();
     const memory_desc_wrapper src_mdw(src_md());
@@ -119,7 +125,7 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
         return status::unimplemented;
     }
 
-    fwd_compute_block_sizes(conf);
+    fwd_compute_block_sizes(conf, engine);
 
     size_t U_sz = conf.tile_size * conf.kh * conf.wino_ic * conf.wino_oc;
     size_t M_sz = 0, V_sz = 0;
