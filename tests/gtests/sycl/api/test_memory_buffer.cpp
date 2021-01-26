@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -101,6 +101,7 @@ TEST_P(sycl_memory_buffer_test, ConstructorAllocate) {
     }
 
     float *mapped_ptr = mem.map_data<float>();
+    GTEST_EXPECT_NE(mapped_ptr, nullptr);
     for (int i = 0; i < n; i++) {
         ASSERT_EQ(mapped_ptr[i], float(i));
     }

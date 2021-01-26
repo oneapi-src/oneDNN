@@ -78,6 +78,13 @@ using dnnl::impl::f16_support::float16_t;
     } while (0)
 #endif
 
+// XXX: Using EXPECT_NE in 'if' statement raises a warning when GCC compiler is
+// used: suggest explicit braces to avoid ambiguous 'else'
+#define GTEST_EXPECT_NE(val1, val2) \
+    do { \
+        EXPECT_NE(val1, val2); \
+    } while (0)
+
 using memory = dnnl::memory;
 
 bool is_current_test_failed();

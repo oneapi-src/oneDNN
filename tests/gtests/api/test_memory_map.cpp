@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,9 +89,10 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_c_t, Map) {
     float buffer_ref[N];
     std::iota(buffer_ref, buffer_ref + N, 1);
 
-    void *mapped_ptr_ref;
+    void *mapped_ptr_ref = nullptr;
     DNNL_CHECK(dnnl_memory_map_data(mem_ref, &mapped_ptr_ref));
     float *mapped_ptr_ref_f32 = static_cast<float *>(mapped_ptr_ref);
+    GTEST_EXPECT_NE(mapped_ptr_ref_f32, nullptr);
     std::copy(buffer_ref, buffer_ref + N, mapped_ptr_ref_f32);
     DNNL_CHECK(dnnl_memory_unmap_data(mem_ref, mapped_ptr_ref));
 
@@ -113,9 +114,10 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_c_t, Map) {
     DNNL_CHECK(dnnl_stream_wait(stream));
 
     // Validate the results
-    void *mapped_ptr;
+    void *mapped_ptr = nullptr;
     DNNL_CHECK(dnnl_memory_map_data(mem, &mapped_ptr));
     float *mapped_ptr_f32 = static_cast<float *>(mapped_ptr);
+    GTEST_EXPECT_NE(mapped_ptr_f32, nullptr);
     for (size_t i = 0; i < N; i++) {
         ASSERT_EQ(mapped_ptr_f32[i], buffer_ref[i]);
     }
@@ -146,6 +148,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_cpp_t, Map) {
     std::iota(buffer_ref, buffer_ref + N, 1);
 
     float *mapped_ptr_ref = mem_ref.map_data<float>();
+    GTEST_EXPECT_NE(mapped_ptr_ref, nullptr);
     std::copy(buffer_ref, buffer_ref + N, mapped_ptr_ref);
     mem_ref.unmap_data(mapped_ptr_ref);
 
@@ -160,6 +163,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_cpp_t, Map) {
     strm.wait();
 
     float *mapped_ptr = mem.map_data<float>();
+    GTEST_EXPECT_NE(mapped_ptr, nullptr);
     for (size_t i = 0; i < N; i++) {
         ASSERT_EQ(mapped_ptr[i], buffer_ref[i]);
     }

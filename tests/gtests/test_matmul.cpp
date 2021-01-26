@@ -172,6 +172,7 @@ protected:
                 scales_m = test::make_memory(
                         {{scale_size}, memory::data_type::f32, {1}}, eng);
                 auto s = map_memory<float>(scales_m);
+                GTEST_EXPECT_NE(s, nullptr);
                 for (memory::dim i = 0; i < scale_size; ++i)
                     s[i] = 2.f;
             } else {
@@ -214,6 +215,7 @@ protected:
                 zero_points_m = test::make_memory(
                         {{zero_points_size}, memory::data_type::s32, {1}}, eng);
                 auto z = map_memory<int32_t>(zero_points_m);
+                GTEST_EXPECT_NE(z, nullptr);
                 for (memory::dim i = 0; i < zero_points_size; ++i)
                     z[i] = (arg % 7) - 3;
             } else {
@@ -303,6 +305,7 @@ protected:
         auto set_to_zero = [](memory &m) {
             if (m) {
                 auto p = map_memory<char>(m);
+                GTEST_EXPECT_NE(p, nullptr);
                 memset(p, 0, m.get_desc().get_size());
             }
         };
