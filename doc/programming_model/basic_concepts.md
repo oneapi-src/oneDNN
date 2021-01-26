@@ -18,8 +18,8 @@ much more details.
 ### Primitives
 
 oneDNN is built around the notion of a *primitive* (@ref dnnl::primitive). A
-*primitive* is a functor object that encapsulates a particular computation such
-as forward convolution, backward LSTM computations, or a data transformation
+*primitive* is an object that encapsulates a particular computation such as
+forward convolution, backward LSTM computations, or a data transformation
 operation. Additionally, using primitive *attributes* (@ref
 dnnl::primitive_attr) certain primitives can represent more complex *fused*
 computations such as a forward convolution followed by a ReLU.
