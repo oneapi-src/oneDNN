@@ -17,6 +17,24 @@
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
+#define BASE_OC_TAIL (SUB_GROUP_SIZE - (OC - OC_WO_PADDING))
+
+#ifdef DST_DT_S8
+#define _BLOCK_READ_DST(v, n_c, ptr) \
+    if (n_c == 8) \
+        (*(DATA8_T *)(v)) = CONVERT_DATA8_T( \
+                vload8(0, (const __global DST_DATA_T *)(ptr))); \
+    if (n_c == 4) \
+        (*(DATA4_T *)(v)) = CONVERT_DATA4_T( \
+                vload4(0, (const __global DST_DATA_T *)(ptr))); \
+    if (n_c == 2) \
+        (*(DATA2_T *)(v)) = CONVERT_DATA2_T( \
+                vload2(0, (const __global DST_DATA_T *)(ptr))); \
+    if (n_c == 1) \
+        (*(DATA_T *)(v)) = CONVERT_DATA_T(*(__global DST_DATA_T *)(ptr));
+
+#endif
+
 #define _BLOCK_READ8(ptr) \
     AS_DATA8_T(BLOCK_READ8((const __global BLOCK_DATA_T *)(ptr)))
 #define _BLOCK_READ4(ptr) \
@@ -25,8 +43,6 @@
     AS_DATA2_T(BLOCK_READ2((const __global BLOCK_DATA_T *)(ptr)))
 #define _BLOCK_READ(ptr) \
     AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T *)(ptr)))
-
-#define BASE_OC_TAIL (SUB_GROUP_SIZE - (OC - OC_WO_PADDING))
 
 #ifdef DST_DT_S8
 #define _BLOCK_WRITE8(ptr, v) \
@@ -558,16 +574,40 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
 // Read MB_BLOCK x OC_BLOCK x OW_BLOCK block of dst.
 #define read_dst_block(block, ptr, ow) \
     do { \
-        int ow_bound \
-                = (OW % OW_BLOCK == 0) ? OW_BLOCK : min(OW_BLOCK, OW - (ow)); \
-        for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) \
-            for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) \
-                for (int ow_block = 0; ow_block < ow_bound; ow_block++) { \
-                    int off = dst_off( \
-                            mb_block, oc_outer * 16, 0, 0, ow_block); \
-                    int idx = dst_idx(mb_block, oc_outer, ow_block); \
-                    (block)[idx] = _BLOCK_READ(&(ptr)[off]); \
+        if (DST_NCHW) { \
+            for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) { \
+                int n_channels = min(min(C_SIZE, OW - ow), OW_BLOCK); \
+                bool w_oc_tail = BASE_OC_TAIL > 0 \
+                        && OC_WO_PADDING - (ocb ? ocb : SUB_GROUP_SIZE) \
+                                < OC_BLOCK; \
+                int loc_oc_tail = w_oc_tail ? BASE_OC_TAIL : SUB_GROUP_SIZE; \
+                int oc_loop = (!w_oc_tail || sglid < loc_oc_tail) \
+                        ? C_SIZE \
+                        : n_channels; \
+                for (int oc_outer = 0; oc_outer < oc_loop; \
+                        oc_outer += n_channels) { \
+                    int oc_tail_idx = ((sglid < loc_oc_tail \
+                                               && oc_outer >= n_channels) \
+                                    ? (sglid + (16 * (C_SIZE / OW_BLOCK - 1))) \
+                                    : sglid); \
+                    int off = dst_off(mb, ocb + oc_tail_idx, od, oh, \
+                            ow + (oc_outer % n_channels)); \
+                    int idx = oc_outer; \
+                    _BLOCK_READ_DST(&(block)[idx], n_channels, &(ptr)[off]); \
                 } \
+            } \
+        } else { \
+            int ow_bound = (OW % OW_BLOCK == 0) ? OW_BLOCK \
+                                                : min(OW_BLOCK, OW - (ow)); \
+            for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) \
+                for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) \
+                    for (int ow_block = 0; ow_block < ow_bound; ow_block++) { \
+                        int off = dst_off( \
+                                mb_block, oc_outer * 16, 0, 0, ow_block); \
+                        int idx = dst_idx(mb_block, oc_outer, ow_block); \
+                        (block)[idx] = _BLOCK_READ(&(ptr)[off]); \
+                    } \
+        } \
     } while (0)
 
 #define write_dst_block(block, ptr, ow) \
