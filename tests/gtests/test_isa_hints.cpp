@@ -16,6 +16,11 @@
 
 #include <map>
 #include <set>
+#include <utility>
+
+#if DNNL_X64
+#include "tests/cpu_x64_isa_common.hpp"
+#endif
 
 #include "gtest/gtest.h"
 
@@ -24,25 +29,32 @@
 
 namespace dnnl {
 
-using namespace impl::cpu::x64;
-
-const std::set<cpu_isa_t> cpu_isa_all = {sse41, avx, avx2, avx2_vnni,
-        avx512_mic, avx512_mic_4ops, avx512_core, avx512_core_vnni,
-        avx512_core_bf16, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16,
-        avx512_core_amx, isa_all};
-
 class isa_hints_test_t : public ::testing::TestWithParam<cpu_isa_hints> {
 protected:
     void SetUp() override {
+        using impl::cpu::x64::cpu_isa_t;
         auto hints = ::testing::TestWithParam<cpu_isa_hints>::GetParam();
 
-        // soft version of mayiuse that allows resetting the cpu_isa_hints
-        auto test_mayiuse = [](cpu_isa_t isa) { return mayiuse(isa, true); };
+        // Use soft version of mayiuse that allows resetting the cpu_isa_hints
+        const bool test_flag = true;
 
         std::map<cpu_isa_t, bool> compat_before_hint;
 
-        for (auto isa : cpu_isa_all)
-            compat_before_hint[isa] = test_mayiuse(isa);
+        for (auto isa : cpu_isa_all()) {
+            const auto &internal_isa_set = masked_internal_cpu_isa(isa);
+            for (auto internal_isa : internal_isa_set) {
+                compat_before_hint[internal_isa]
+                        = mayiuse(internal_isa, test_flag);
+            }
+        }
+
+        std::map<std::pair<cpu_isa_t, cpu_isa_t>, std::pair<bool, bool>>
+                masked_compat_before_hint;
+        for (const auto &isa_pair : hints_masked_internal_cpu_isa(hints)) {
+            masked_compat_before_hint[isa_pair]
+                    = {mayiuse(isa_pair.first, test_flag),
+                            mayiuse(isa_pair.second, test_flag)};
+        }
 
         status st = set_cpu_isa_hints(hints);
         // status::unimplemented if the feature was disabled at compile time
@@ -50,10 +62,34 @@ protected:
 
         ASSERT_TRUE(st == status::success);
 
-        for (auto isa : cpu_isa_all) {
-            bool is_compat = test_mayiuse(isa);
-            // ISA specific hint will never lower down the ISA
-            ASSERT_TRUE(is_compat == compat_before_hint[isa]);
+        for (auto isa : cpu_isa_all()) {
+            const auto &internal_isa_set = masked_internal_cpu_isa(isa);
+            for (auto internal_isa : internal_isa_set) {
+                // ISA specific hint will not change the non-hint-complying ISA
+                ASSERT_TRUE(compat_before_hint[internal_isa]
+                        == mayiuse(internal_isa, test_flag));
+            }
+        }
+
+        for (const auto &isa_pair : hints_masked_internal_cpu_isa(hints)) {
+            auto compat_pair = masked_compat_before_hint[isa_pair];
+            // isa_pair = {isa_no_hint, isa_hints} is a pair of two ISA that are
+            // only distinguished w.r.t. the CPU ISA hints. Also compat_pair
+            // verifies ISA use before the CPU_ISA hints is applied i.e.
+            //
+            // {compat_pair.frst, compat_pair.second} :=
+            //     { mayiuse(isa_no_hints), mayiuse(isa_hints) }
+
+            // CPU_ISA_HINT will not affect the availability of isa_no_hint
+            ASSERT_TRUE(
+                    mayiuse(isa_pair.first, test_flag) == compat_pair.first);
+            // Without proper CPU_ISA_HINT isa_hints will not be available
+            ASSERT_FALSE(compat_pair.second);
+
+            // With proper CPU_ISA_HINT isa_hints is available if and only if
+            // isa_no_hints is available
+            ASSERT_TRUE(mayiuse(isa_pair.first, test_flag)
+                    == mayiuse(isa_pair.second, test_flag));
         }
     }
 };

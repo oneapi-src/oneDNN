@@ -14,91 +14,60 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
+#include <iterator>
 #include <map>
 #include <set>
 
 #include "gtest/gtest.h"
 
 #include "oneapi/dnnl/dnnl.hpp"
-#include "src/cpu/x64/cpu_isa_traits.hpp"
+
+#if DNNL_X64
+#include "tests/cpu_x64_isa_common.hpp"
+#endif
 
 namespace dnnl {
-
-using namespace impl::cpu::x64;
-
-const std::set<cpu_isa_t> cpu_isa_all = {sse41, avx, avx2, avx2_vnni,
-        avx512_mic, avx512_mic_4ops, avx512_core, avx512_core_vnni,
-        avx512_core_bf16, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16,
-        avx512_core_amx, isa_all};
-
-struct isa_compat_info_t {
-    cpu_isa_t this_isa;
-    std::set<cpu_isa_t> cpu_isa_compatible;
-};
-
-// This mostly duplicates isa_traits, but the idea is to *not* rely on that
-// information...
-static std::map<cpu_isa, isa_compat_info_t> isa_compatibility_table = {
-        {cpu_isa::sse41, {sse41, {sse41}}},
-        {cpu_isa::avx, {avx, {sse41, avx}}},
-        {cpu_isa::avx2, {avx2, {sse41, avx, avx2}}},
-        {cpu_isa::avx512_mic, {avx512_mic, {sse41, avx, avx2, avx512_mic}}},
-        {cpu_isa::avx512_mic_4ops,
-                {avx512_mic_4ops,
-                        {sse41, avx, avx2, avx512_mic, avx512_mic_4ops}}},
-        {cpu_isa::avx512_core, {avx512_core, {sse41, avx, avx2, avx512_core}}},
-        {cpu_isa::avx512_core_vnni,
-                {avx512_core_vnni,
-                        {sse41, avx, avx2, avx512_core, avx512_core_vnni}}},
-        {cpu_isa::avx512_core_bf16,
-                {avx512_core_bf16,
-                        {sse41, avx, avx2, avx512_core, avx512_core_vnni,
-                                avx512_core_bf16}}},
-        {cpu_isa::avx512_core_amx,
-                {avx512_core_amx,
-                        {sse41, avx, avx2, avx512_core, avx512_core_vnni,
-                                avx512_core_bf16, avx512_core_bf16_amx_int8,
-                                avx512_core_bf16_amx_bf16, avx512_core_amx}}},
-        {cpu_isa::avx2_vnni, {avx2_vnni, {sse41, avx, avx2, avx2_vnni}}},
-        {cpu_isa::all,
-                {isa_all,
-                        {sse41, avx, avx2, avx512_mic, avx512_mic_4ops,
-                                avx512_core, avx512_core_vnni, avx512_core_bf16,
-                                avx2_vnni, isa_all}}},
-};
 
 class isa_test_t : public ::testing::TestWithParam<cpu_isa> {
 protected:
     void SetUp() override {
-        auto isa = ::testing::TestWithParam<cpu_isa>::GetParam();
+        const cpu_isa cur_isa = ::testing::TestWithParam<cpu_isa>::GetParam();
+        const auto cur_internal_isa = cvt_to_internal_cpu_isa(cur_isa);
 
-        // soft version of mayiuse that allows resetting the max_cpu_isa
-        auto test_mayiuse = [](cpu_isa_t isa) { return mayiuse(isa, true); };
+        // Use soft version of mayiuse that allows resetting the max_cpu_isa
+        const bool test_flag = true;
 
-        status st = set_max_cpu_isa(isa);
+        status st = set_max_cpu_isa(cur_isa);
         // status::unimplemented if the feature was disabled at compile time
         if (st == status::unimplemented) return;
 
         ASSERT_TRUE(st == status::success);
 
-        auto info = isa_compatibility_table[isa];
-        for (auto cur_isa : cpu_isa_all) {
-            if (info.cpu_isa_compatible.find(cur_isa)
-                    != info.cpu_isa_compatible.end())
-                ASSERT_TRUE(
-                        !test_mayiuse(info.this_isa) || test_mayiuse(cur_isa));
-            else
-                ASSERT_TRUE(!test_mayiuse(cur_isa));
+        const std::set<cpu_isa> &compatible_isa = compatible_cpu_isa(cur_isa);
+        const std::set<cpu_isa> &all_isa = cpu_isa_all();
+
+        std::set<cpu_isa> incompatible_isa;
+        std::set_difference(all_isa.cbegin(), all_isa.cend(),
+                compatible_isa.cbegin(), compatible_isa.cend(),
+                std::inserter(incompatible_isa, incompatible_isa.begin()));
+
+        for (const cpu_isa cmpt_isa : compatible_isa) {
+            const auto &internal_isa_set = masked_internal_cpu_isa(cmpt_isa);
+            for (auto internal_isa : internal_isa_set) {
+                ASSERT_TRUE(!mayiuse(cur_internal_isa, test_flag)
+                        || mayiuse(internal_isa, test_flag));
+            }
+        }
+
+        for (const cpu_isa incmpt_isa : incompatible_isa) {
+            ASSERT_TRUE(!mayiuse(incmpt_isa, test_flag));
         }
     }
 };
 
 TEST_P(isa_test_t, TestISA) {}
 INSTANTIATE_TEST_SUITE_P(TestISACompatibility, isa_test_t,
-        ::testing::Values(cpu_isa::sse41, cpu_isa::avx, cpu_isa::avx2,
-                cpu_isa::avx512_mic, cpu_isa::avx512_mic_4ops,
-                cpu_isa::avx512_core, cpu_isa::avx512_core_vnni,
-                cpu_isa::avx512_core_bf16, cpu_isa::avx512_core_amx,
-                cpu_isa::avx2_vnni, cpu_isa::all));
+        ::testing::ValuesIn(cpu_isa_all().cbegin(), cpu_isa_all().cend()));
 
 } // namespace dnnl
