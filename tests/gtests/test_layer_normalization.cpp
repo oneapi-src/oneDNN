@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -258,15 +258,22 @@ protected:
         const bool is_training = pk == prop_kind::forward_training;
 
         auto src_data = map_memory<const float>(src);
+        GTEST_EXPECT_NE(src_data, nullptr);
         auto dst_data = map_memory<const float>(dst);
+        GTEST_EXPECT_NE(dst_data, nullptr);
         auto weights_data
                 = use_weights ? map_memory<const float>(weights) : nullptr;
+        if (use_weights) GTEST_EXPECT_NE(weights_data, nullptr);
         auto mean_data = (!calculate_stats || is_training)
                 ? map_memory<const float>(mean)
                 : nullptr;
+        if (!calculate_stats || is_training)
+            GTEST_EXPECT_NE(mean_data, nullptr);
         auto variance_data = (!calculate_stats || is_training)
                 ? map_memory<const float>(variance)
                 : nullptr;
+        if (!calculate_stats || is_training)
+            GTEST_EXPECT_NE(variance_data, nullptr);
 
         const memory::desc src_d = src.get_desc();
         const memory::desc dst_d = dst.get_desc();
@@ -358,6 +365,7 @@ protected:
             prop_kind pk) {
         const ptrdiff_t nelems = std::accumulate(p.dims.begin(), p.dims.end(),
                 size_t(1), std::multiplies<size_t>());
+        if (!nelems) return;
 
         const bool use_weights
                 = (bool)(flags & normalization_flags::use_scale_shift);
@@ -365,15 +373,23 @@ protected:
                 = !(bool)(flags & normalization_flags::use_global_stats);
 
         auto src_data = map_memory<const float>(src);
+        GTEST_EXPECT_NE(src_data, nullptr);
         auto weights_data
                 = use_weights ? map_memory<const float>(weights) : nullptr;
+        if (use_weights) GTEST_EXPECT_NE(weights_data, nullptr);
         auto diff_dst_data = map_memory<const float>(diff_dst);
+        GTEST_EXPECT_NE(diff_dst_data, nullptr);
         auto mean_data = map_memory<const float>(mean);
+        GTEST_EXPECT_NE(mean_data, nullptr);
         auto variance_data = map_memory<const float>(variance);
+        GTEST_EXPECT_NE(variance_data, nullptr);
         const auto diff_src_data = map_memory<float>(diff_src);
+        GTEST_EXPECT_NE(diff_src_data, nullptr);
         const auto diff_weights_data = (pk == prop_kind::backward)
                 ? map_memory<float>(diff_weights)
                 : nullptr;
+        if (pk == prop_kind::backward)
+            GTEST_EXPECT_NE(diff_weights_data, nullptr);
 
         const memory::desc src_d = src.get_desc();
         const memory::desc diff_dst_d = diff_dst.get_desc();

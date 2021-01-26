@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -144,6 +144,7 @@ TEST(sycl_engine_test, HostDevice) {
 
     {
         auto *ptr = mem.map_data<float>();
+        GTEST_EXPECT_NE(ptr, nullptr);
         for (size_t i = 0; i < mem_d.get_size() / sizeof(float); ++i)
             ptr[i] = float(i) * (i % 2 == 0 ? 1 : -1);
         mem.unmap_data(ptr);
@@ -159,6 +160,7 @@ TEST(sycl_engine_test, HostDevice) {
 
     {
         auto *ptr = mem.map_data<float>();
+        GTEST_EXPECT_NE(ptr, nullptr);
         for (size_t i = 0; i < mem_d.get_size() / sizeof(float); ++i)
             ASSERT_EQ(ptr[i], (i % 2 == 0 ? i : 0));
         mem.unmap_data(ptr);

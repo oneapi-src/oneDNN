@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,6 +77,7 @@ TEST_P(sycl_memory_usm_test, Constructor) {
 
     {
         float *ptr_f32 = (float *)mem.get_data_handle();
+        GTEST_EXPECT_NE(ptr_f32, nullptr);
         for (int i = 0; i < n; i++) {
             ASSERT_EQ(ptr_f32[i], float(i));
         }
@@ -118,9 +119,11 @@ TEST_P(sycl_memory_usm_test, ConstructorAllocate) {
             mem_d, eng, sycl_interop::memory_kind::usm, DNNL_MEMORY_ALLOCATE);
 
     void *ptr = mem.get_data_handle();
+    GTEST_EXPECT_NE(ptr, nullptr);
     fill_data(ptr, n, eng);
 
     float *mapped_ptr = mem.map_data<float>();
+    GTEST_EXPECT_NE(mapped_ptr, nullptr);
     for (int i = 0; i < n; i++) {
         ASSERT_EQ(mapped_ptr[i], float(i));
     }
@@ -143,9 +146,11 @@ TEST_P(sycl_memory_usm_test, DefaultConstructor) {
             mem_d, eng, sycl_interop::memory_kind::usm);
 
     void *ptr = mem.get_data_handle();
+    GTEST_EXPECT_NE(ptr, nullptr);
     fill_data(ptr, n, eng);
 
     float *mapped_ptr = mem.map_data<float>();
+    GTEST_EXPECT_NE(mapped_ptr, nullptr);
     for (int i = 0; i < n; i++) {
         ASSERT_EQ(mapped_ptr[i], float(i));
     }

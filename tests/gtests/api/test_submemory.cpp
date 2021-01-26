@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(submemory_test_cpp_t, SubmemoryMemoryInteraction) {
             {{1}, memory::data_type::f32, memory::format_tag::a}, eng);
     {
         auto mapped_src_ptr = map_memory<float>(src);
+        GTEST_EXPECT_NE(mapped_src_ptr, nullptr);
         std::copy(src_buf, src_buf + sizeof(src_buf) / sizeof(src_buf[0]),
                 static_cast<float *>(mapped_src_ptr));
     }
@@ -54,6 +55,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(submemory_test_cpp_t, SubmemoryMemoryInteraction) {
             {{2}, memory::data_type::f32, memory::format_tag::a}, eng);
     {
         auto mapped_dst_ptr = map_memory<float>(dst);
+        GTEST_EXPECT_NE(mapped_dst_ptr, nullptr);
         std::copy(dst_buf, dst_buf + sizeof(dst_buf) / sizeof(dst_buf[0]),
                 static_cast<float *>(mapped_dst_ptr));
     }
@@ -72,6 +74,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(submemory_test_cpp_t, SubmemoryMemoryInteraction) {
     dst_buf[dst_offset] = src_buf[0];
     {
         auto mapped_dst_ptr = map_memory<float>(dst);
+        GTEST_EXPECT_NE(mapped_dst_ptr, nullptr);
         for (size_t i = 0; i < sizeof(dst_buf) / sizeof(dst_buf[0]); ++i)
             ASSERT_EQ(mapped_dst_ptr[i], dst_buf[i]) << "at position " << i;
     }
