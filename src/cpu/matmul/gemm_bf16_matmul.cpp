@@ -171,7 +171,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     bool need_free_acc = false;
     if (acc == nullptr) {
         acc = (acc_data_t *)malloc(sizeof(acc_data_t) * acc_stride
-                        * (can_fuse_src_batch_dims
+                        * ((can_fuse_src_batch_dims || batch == 1)
                                         ? 1
                                         : (dim_t)dnnl_get_max_threads()),
                 64);

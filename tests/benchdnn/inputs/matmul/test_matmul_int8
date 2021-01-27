@@ -44,3 +44,6 @@
 
 # Run-time
 --batch=harness_matmul_runtime_int8
+
+# regression
+--batch=harness_matmul_regression_int8

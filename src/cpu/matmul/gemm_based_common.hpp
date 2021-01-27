@@ -98,7 +98,7 @@ inline size_t get_scratchpad_size(const dim_t batch, dim_t M, const dim_t N,
     assert(M > 0);
     assert(N > 0);
     size_t buffer_size;
-    if (can_fuse_src_batch_dims) {
+    if (can_fuse_src_batch_dims || batch == 1) {
         buffer_size = (size_t)batch * M * N;
     } else {
         const int nthr = dnnl_get_max_threads();

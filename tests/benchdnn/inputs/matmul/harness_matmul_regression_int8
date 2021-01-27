@@ -1,0 +1,3 @@
+--reset
+--cfg=s8s8s8
+97x2053:2053x997n"test_scratchpad_allocation_for_non_batched_case"
