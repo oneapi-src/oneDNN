@@ -61,12 +61,12 @@ private:
         zmm_idx_limit_int8 = 27,
     };
 
-    int row_count_;
-    int buf_count_;
-    bool is_store_done_;
-    bool is_buffer_empty_;
-    bool check_last_sb_;
-    bool last_oc_block_flag_;
+    int row_count_ = 0;
+    int buf_count_ = 0;
+    bool is_store_done_ = false;
+    bool is_buffer_empty_ = true;
+    bool check_last_sb_ = false;
+    bool last_oc_block_flag_ = false;
 
     /* data regs */
     const Xbyak::Reg64 &inp_ptr = r15;
