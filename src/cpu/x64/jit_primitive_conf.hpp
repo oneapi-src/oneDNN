@@ -489,6 +489,11 @@ struct jit_deconv_call_s {
     const void *bias; /* hack, non-const for backward_bias */
     const void *scales;
     const void *compensation;
+    const int32_t *zp_src_pad_str_compensation;
+    const int32_t *zp_compensation;
+    const int32_t *src_zero_point;
+    const int32_t *dst_zero_point;
+
     /*
      * ptr to table of void * elements that are pointers to post_op binary
      * src1 tensors
