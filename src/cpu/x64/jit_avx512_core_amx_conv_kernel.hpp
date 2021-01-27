@@ -158,10 +158,10 @@ private:
         zmm_idx_limit_int8 = 27,
     };
 
-    int prv_width_;
-    int row_count_;
-    bool is_store_done_;
-    bool is_buffer_empty_;
+    int prv_width_ = 0;
+    int row_count_ = 0;
+    bool is_store_done_ = false;
+    bool is_buffer_empty_ = true;
 
     /* data regs */
     const Xbyak::Reg64 &reg_inp_ptr = r15;
@@ -353,10 +353,10 @@ private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
     jit_avx512_core_amx_bwd_data_copy_kernel_t *bwd_data_copy_kernel_;
 
-    int prv_width_;
-    int row_count_;
-    bool is_store_done_;
-    bool is_buffer_empty_;
+    int prv_width_ = 0;
+    int row_count_ = 0;
+    bool is_store_done_ = false;
+    bool is_buffer_empty_ = true;
 
     /* data regs */
     const Xbyak::Reg64 &reg_inp_ptr = r15;
