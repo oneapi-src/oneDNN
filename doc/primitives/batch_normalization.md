@@ -110,7 +110,7 @@ argument index as specified by the following table.
 | \src                        | DNNL_ARG_SRC              |
 | \f$\gamma, \beta\f$         | DNNL_ARG_SCALE_SHIFT      |
 | mean (\f$\mu\f$)            | DNNL_ARG_MEAN             |
-| variance (\f$\sigma\f$)     | DNNL_ARG_VARIANCE         |
+| variance (\f$\sigma^2\f$)   | DNNL_ARG_VARIANCE         |
 | \dst                        | DNNL_ARG_DST              |
 | workspace                   | DNNL_ARG_WORKSPACE        |
 | \diffdst                    | DNNL_ARG_DIFF_DST         |
