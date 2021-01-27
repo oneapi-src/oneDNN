@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,6 +85,12 @@ private:
             postops_injector_;
 
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
+
+#ifdef _WIN32
+    const Xbyak::Reg64 reg_binary_inj_param_ = abi_not_param1;
+#else
+    const Xbyak::Reg64 reg_binary_inj_param_ = abi_param1;
+#endif
 
     Xbyak::Reg64 reg_param = abi_param1;
     Xbyak::Reg64 reg_dst = rdx;
@@ -207,8 +213,9 @@ jit_pp_kernel_t<acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
                 preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
                 memory_desc_wrapper(*dst_md), tail_size, kreg_rem_mask,
                 use_exact_tail_scalar_bcast};
+
         const binary_injector::static_params_t binary_static_params {
-                this->param1, rhs_arg_static_params};
+                reg_binary_inj_param_, rhs_arg_static_params};
         static constexpr bool save_state = true;
         const eltwise_injector::static_params_t eltwise_static_params {
                 save_state, reg_tmp_comp, eltwise_reserved_opmask_};
@@ -703,6 +710,13 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_mb_blk() {
 template <data_type_t acc_type, data_type_t dst_type>
 void jit_pp_kernel_t<acc_type, dst_type>::generate() {
     preamble();
+
+#ifdef _WIN32
+    // binary postops injector needs params held (in case of WIN32)
+    // in rcx register that is also used as a temp reg, so the pointer to
+    // params needs to be stored in extra reg
+    if (this->do_binary_) mov(reg_binary_inj_param_, param1);
+#endif
 
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
     mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
