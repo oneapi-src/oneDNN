@@ -512,8 +512,9 @@ struct cudnn_conv_inner_product_bwd_data_impl_t
 
         // Inner product can choose whatever algorithm it prefers.
         int num_algos = 0, returned_algo_count = 0;
-        CHECK(CUDNN_EXECUTE_FUNC_S(cudnnGetConvolutionForwardAlgorithmMaxCount,
-                handle, &num_algos));
+        CHECK(CUDNN_EXECUTE_FUNC_S(
+                cudnnGetConvolutionBackwardDataAlgorithmMaxCount, handle,
+                &num_algos));
         std::vector<cudnnConvolutionBwdDataAlgoPerf_t> perf_results(num_algos);
 
         CUDNN_EXECUTE_FUNC(cudnnGetConvolutionBackwardDataAlgorithm_v7, handle,
