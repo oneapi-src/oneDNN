@@ -80,6 +80,8 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     const auto sdt = mem_dt.dt();
     const auto ddt = prb->ddt;
+    if (!nelems) return OK;
+
     const int range = prb->alg == alg_t::MUL
             ? (sdt == dnnl_u8 || sdt == dnnl_s8) ? 1024 : 4
             : 16;
