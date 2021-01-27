@@ -96,6 +96,7 @@ private:
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_matmul];
     char brg_kernel_palettes_[max_num_brg_kernels_matmul][64];
     std::unique_ptr<jit_brgemm_matmul_copy_B_t> copy_B_kernel_;
+    std::unique_ptr<jit_brgemm_matmul_copy_A_t> copy_A_kernel_;
 };
 
 } // namespace matmul

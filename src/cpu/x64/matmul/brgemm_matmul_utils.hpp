@@ -49,6 +49,7 @@ struct brgemm_matmul_conf_t {
     bool signed_input;
     bool is_oscale_per_n;
     bool use_buffer_b;
+    bool use_buffer_a;
     post_ops_t::entry_t::eltwise_t eltwise;
 
     data_type_t src_dt;

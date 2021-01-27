@@ -179,6 +179,11 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     auto get_chunk_size = [&]() -> size_t {
         size_t A_chunk_sz = types::data_type_size(bgmmc.src_dt) * bgmmc.K_blk
                 * bgmmc.brgemm_batch_size * bgmmc.M_blk * bgmmc.M_chunk_size;
+        size_t A_buf_sz = 0;
+        if (bgmmc.use_buffer_a)
+            A_buf_sz = types::data_type_size(bgmmc.src_dt) * bgmmc.LDA
+                    * bgmmc.brgemm_batch_size * bgmmc.M_blk
+                    * bgmmc.M_chunk_size;
         size_t B_chunk_sz = types::data_type_size(bgmmc.wei_dt) * bgmmc.K_blk
                 * bgmmc.brgemm_batch_size * bgmmc.N_blk * bgmmc.N_chunk_size;
         size_t B_buf_sz = 0;
@@ -191,19 +196,28 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         if (bgmmc.use_buffer)
             C_buf_sz = types::data_type_size(bgmmc.acc_dt) * bgmmc.M_blk
                     * bgmmc.M_chunk_size * bgmmc.N_blk * bgmmc.N_chunk_size;
-        return A_chunk_sz + B_chunk_sz + B_buf_sz + C_chunk_sz + C_buf_sz;
+        return A_chunk_sz + A_buf_sz + B_chunk_sz + B_buf_sz + C_chunk_sz
+                + C_buf_sz;
     };
 
     bgmmc.brgemm_batch_size = 1;
     bgmmc.M_chunk_size = bgmmc.N_chunk_size = 1;
 
     const auto L2_treshold = 3 * platform::get_per_core_cache_size(2) / 4;
+    bgmmc.use_buffer_a = false;
     int attempts = 3;
     // Try to improve blocking wrt L2 size
     // TODO: improve blocking algorithm
     while (attempts > 0) {
         bgmmc.use_buffer
                 = bgmmc.acc_dt != bgmmc.dst_dt && bgmmc.K != bgmmc.K_blk;
+        bgmmc.LDA = bgmmc.K;
+        if (bgmmc.use_buffer_a) {
+            const int elems_in_cacheline
+                    = 64 / types::data_type_size(bgmmc.src_dt);
+            bgmmc.LDA = rnd_up(bgmmc.K_blk, elems_in_cacheline);
+        }
+
         int num_M_blk = div_up(bgmmc.M, bgmmc.M_blk);
         int num_N_blk = div_up(bgmmc.N, bgmmc.N_blk);
         if (4 * bgmmc.nthr < bgmmc.batch) {
@@ -230,7 +244,6 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.N_tail = bgmmc.N % bgmmc.N_blk;
     bgmmc.K_tail = bgmmc.K % bgmmc.K_blk;
 
-    bgmmc.LDA = bgmmc.K;
     bgmmc.LDB = bgmmc.wei_n_blk;
     bgmmc.LDD = bgmmc.N;
     bgmmc.LDC = bgmmc.use_buffer ? bgmmc.N_blk : bgmmc.LDD;
@@ -264,6 +277,13 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             scratchpad.book(key_brgemm_primitive_buffer_comp, nelements_comp,
                     types::data_type_size(bgmmc.acc_dt));
         }
+    }
+
+    if (bgmmc.use_buffer_a) {
+        size_t nelements = (size_t)bgmmc.nthr * bgmmc.LDA
+                * bgmmc.brgemm_batch_size * bgmmc.M_blk * bgmmc.M_chunk_size;
+        scratchpad.book(key_brgemm_primitive_buffer_a, nelements,
+                types::data_type_size(bgmmc.src_dt));
     }
 
     if (bgmmc.isa == avx512_core_bf16_amx_int8)

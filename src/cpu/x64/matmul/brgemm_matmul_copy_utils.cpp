@@ -34,6 +34,148 @@ using namespace Xbyak;
 
 #define GET_OFF(x) offsetof(ctx_t, x)
 
+struct jit_brgemm_matmul_copy_A_int8_t : public jit_brgemm_matmul_copy_A_t,
+                                         public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_A_int8_t)
+
+    jit_brgemm_matmul_copy_A_int8_t(const brgemm_matmul_conf_t *conf)
+        : jit_brgemm_matmul_copy_A_t(conf) {}
+
+    void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
+    using opmask_t = const Xbyak::Opmask;
+    using zmm = const Xbyak::Zmm;
+
+    enum { typesize = sizeof(int8_t), k_step = 64 };
+    dim_t src_stride = 0, tr_src_stride = 0;
+
+    opmask_t kTail_load = k7;
+    opmask_t kTail_store = k6;
+
+    reg64_t reg_src = rax;
+    reg64_t reg_tr_src = rbx;
+
+    reg64_t reg_M_blk = r9;
+    reg64_t reg_K_blk = r10;
+    reg64_t reg_batch = r11;
+    reg64_t reg_aux_src = r12;
+    reg64_t reg_aux_tr_src = r13;
+    reg64_t regq_tmp = r14;
+    reg64_t imm_addr64 = r15;
+
+    zmm zmm_comp_add = zmm30;
+    zmm zmm_zero = zmm31;
+
+    // Allows to shift A data by 128 for s8s8 problem for AVX512 in copy
+    // routine, not in compute kernel. It's disabled for now, as it
+    // requires setting some hint to brgemm kerenel to avoid double shifting
+    const bool allow_input_shift_for_s8s8 = false;
+
+    void copy_row(int ncolumns);
+    void generate() override;
+};
+
+void jit_brgemm_matmul_copy_A_int8_t::generate() {
+    preamble();
+    vpxord(zmm_zero, zmm_zero, zmm_zero);
+    src_stride = conf_->K * typesize;
+    const dim_t LDA = conf_->use_buffer_a_tail_only ? (dim_t)conf_->wei_k_blk
+                                                    : conf_->LDA;
+    tr_src_stride = LDA * typesize;
+
+    mov(reg_src, ptr[param1 + GET_OFF(src)]);
+    mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
+    mov(reg_K_blk, ptr[param1 + GET_OFF(current_K_blk)]);
+    mov(reg_M_blk, ptr[param1 + GET_OFF(current_M_blk)]);
+
+    if (allow_input_shift_for_s8s8 && conf_->signed_input) {
+        mov(imm_addr64, 128);
+        vpbroadcastb(zmm_comp_add, imm_addr64.cvt8());
+    }
+
+    auto copy_K_loop = [=](bool is_K_tail) {
+        const int k_unroll = 16;
+        const int K_blk = is_K_tail ? conf_->K % conf_->K_blk
+                                    : nstl::min(conf_->K, conf_->K_blk);
+        const int k_tail = K_blk % k_step;
+        const int num_k_iters = K_blk / k_step;
+        for (int kb = 0; kb < div_up(num_k_iters, k_unroll); kb++) {
+            int k_start = kb * k_unroll;
+            int k_end = nstl::min(k_start + k_unroll, num_k_iters);
+            for (int k = k_start; k < k_end; k++) {
+                vmovdqu8(zmm(k), EVEX_compress_addr(reg_src, k * k_step));
+            }
+            if (allow_input_shift_for_s8s8 && conf_->signed_input) {
+                for (int k = k_start; k < k_end; k++)
+                    vpaddb(zmm(k), zmm(k), zmm_comp_add);
+            }
+
+            for (int k = k_start; k < k_end; k++) {
+                vmovdqu8(EVEX_compress_addr(reg_tr_src, k * k_step), zmm(k));
+            }
+        }
+        if (k_tail > 0) {
+            auto kmovq = [=](Opmask k, size_t q) {
+                mov(regq_tmp, q);
+                jit_generator::kmovq(k, regq_tmp);
+            };
+            const size_t k_gran
+                    = conf_->isa == avx512_core_bf16_amx_int8 ? 4 : 1;
+            const size_t tail_mask_load = size_t(((size_t)1 << k_tail) - 1);
+            kmovq(kTail_load, tail_mask_load);
+            size_t k_tail_st = rnd_up(k_tail, k_gran);
+            const size_t tail_mask_store = k_tail_st == k_step
+                    ? 0xffffffffffffffff
+                    : size_t(((size_t)1 << k_tail_st) - 1);
+            kmovq(kTail_store, tail_mask_store);
+        }
+
+        if (k_tail > 0) {
+            auto zmm_tail = zmm(0) | kTail_load | T_z;
+            vmovdqu8(zmm_tail,
+                    EVEX_compress_addr(reg_src, num_k_iters * k_step));
+            if (allow_input_shift_for_s8s8 && conf_->signed_input)
+                vpaddb(zmm(0), zmm(0), zmm_comp_add);
+
+            vmovdqu8(EVEX_compress_addr(reg_tr_src, num_k_iters * k_step),
+                    zmm(0) | kTail_store);
+        }
+    };
+    auto copy_M_loop = [=](bool is_K_tail) {
+        Label loop_M;
+        L(loop_M);
+
+        copy_K_loop(is_K_tail);
+
+        add(reg_src, src_stride);
+        add(reg_tr_src, tr_src_stride);
+        dec(reg_M_blk);
+        jnz(loop_M, T_NEAR);
+    };
+
+    Label done;
+    // might be different from conf_->K_tail
+    const dim_t K_blk_tail = conf_->K_tail > 0 ? conf_->K % conf_->K_blk : 0;
+    if (K_blk_tail > 0) {
+        Label not_K_tail;
+        cmp(reg_K_blk, K_blk_tail);
+        jne(not_K_tail, T_NEAR);
+        copy_M_loop(true);
+        jmp(done, T_NEAR);
+
+        L(not_K_tail);
+    }
+
+    copy_M_loop(false);
+    L(done);
+
+    postamble();
+}
+
 struct jit_brgemm_matmul_copy_B_int8_t : public jit_brgemm_matmul_copy_B_t,
                                          public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_B_int8_t)
@@ -319,6 +461,13 @@ status_t create_brgemm_matmul_copy_B(
         std::unique_ptr<jit_brgemm_matmul_copy_B_t> &copy_ker,
         const brgemm_matmul_conf_t *conf) {
     CHECK(safe_ptr_assign(copy_ker, new jit_brgemm_matmul_copy_B_int8_t(conf)));
+    return copy_ker->create_kernel();
+}
+
+status_t create_brgemm_matmul_copy_A(
+        std::unique_ptr<jit_brgemm_matmul_copy_A_t> &copy_ker,
+        const brgemm_matmul_conf_t *conf) {
+    CHECK(safe_ptr_assign(copy_ker, new jit_brgemm_matmul_copy_A_int8_t(conf)));
     return copy_ker->create_kernel();
 }
 
