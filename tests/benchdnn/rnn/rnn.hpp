@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -293,6 +293,7 @@ struct prb_t : public desc_t {
                 break;
             default: assert(!"unsupported scaling policy");
         }
+        wei_scales = (float *)zmalloc(sizeof(float) * wei_nscales, 64);
 
         if (with_projection) {
             switch (wei_proj_scales_policy) {
@@ -306,11 +307,10 @@ struct prb_t : public desc_t {
                     break;
                 default: assert(!"unsupported scaling policy");
             }
+            wei_proj_scales
+                    = (float *)zmalloc(sizeof(float) * wei_proj_nscales, 64);
         }
 
-        wei_scales = (float *)zmalloc(sizeof(float) * wei_nscales, 64);
-        wei_proj_scales
-                = (float *)zmalloc(sizeof(float) * wei_proj_nscales, 64);
         set_qparams(-1., 1.);
     }
     ~prb_t() {
