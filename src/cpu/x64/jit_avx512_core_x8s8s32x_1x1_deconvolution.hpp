@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@
 
 #include "cpu/x64/jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
 #include "cpu/x64/jit_uni_1x1_conv_utils.hpp"
+#include "cpu/zero_point_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -90,7 +91,12 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
                     && desc()->accum_data_type == data_type::s32
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
-                            | primitive_attr_t::skip_mask_t::post_ops);
+                            | primitive_attr_t::skip_mask_t::post_ops
+                            | primitive_attr_t::skip_mask_t::
+                                    zero_points_runtime)
+                    && zero_points_valid(
+                            attr(), true /*per_oc_bcast_accepted*/);
+
             if (!ok) return status::unimplemented;
 
             CHECK(init_convolution(engine));

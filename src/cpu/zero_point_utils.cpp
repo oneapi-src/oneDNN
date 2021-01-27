@@ -96,13 +96,25 @@ zero_point_call_params_t::zero_point_call_params_t(const int32_t *src,
         const int32_t *src_pad_comp)
     : src(src), dst(dst), src_comp(src_comp), src_pad_comp(src_pad_comp) {}
 
-bool zero_points_valid(const primitive_attr_t *attr) noexcept {
+bool zero_points_valid(
+        const primitive_attr_t *attr, bool per_oc_bcast_accepted) noexcept {
 
     int mask_src = -1, mask_dst = -1;
+    static constexpr int c_mask = 0x1,
+                         g_mask = 0x3; // mask for i/o-channel and ngroups
+
     attr->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
     attr->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+
+    const bool src_mask_valid = per_oc_bcast_accepted
+            ? utils::one_of(mask_src, 0, c_mask, g_mask)
+            : mask_src == 0;
+    const bool dst_mask_valid = per_oc_bcast_accepted
+            ? utils::one_of(mask_dst, 0, c_mask, g_mask)
+            : mask_dst == 0;
+
     return attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-            && mask_src == 0 && mask_dst == 0;
+            && src_mask_valid && dst_mask_valid;
 }
 
 void set_zp_src_comp_flags(memory_desc_t &weights_md, bool with_groups) {

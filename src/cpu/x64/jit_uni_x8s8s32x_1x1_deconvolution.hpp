@@ -1,10 +1,10 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
-* 
+*
 *     http://www.apache.org/licenses/LICENSE-2.0
 *
 * Unless required by applicable law or agreed to in writing, software
@@ -29,6 +29,7 @@
 
 #include "cpu/x64/jit_uni_1x1_conv_utils.hpp"
 #include "cpu/x64/jit_uni_x8s8s32x_1x1_convolution.hpp"
+#include "cpu/zero_point_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -90,7 +91,11 @@ struct jit_uni_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
                     && desc()->accum_data_type == data_type::s32
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
-                            | primitive_attr_t::skip_mask_t::post_ops);
+                            | primitive_attr_t::skip_mask_t::post_ops
+                            | primitive_attr_t::skip_mask_t::
+                                    zero_points_runtime)
+                    && zero_points_valid(
+                            attr(), true /*per_oc_bcast_accepted*/);
             if (!ok) return status::unimplemented;
 
             CHECK(init_convolution(engine));
