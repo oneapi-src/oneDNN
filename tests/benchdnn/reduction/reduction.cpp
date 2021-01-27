@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,6 +69,8 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
 
 int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
+    if (!nelems) return OK;
+
     const auto dt = mem_dt.dt();
     const int range = prb->alg == alg_t::MUL
             ? (dt == dnnl_u8 || dt == dnnl_s8) ? 1024 : 4
