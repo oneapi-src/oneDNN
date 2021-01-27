@@ -74,13 +74,13 @@ propagation.
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
-| Primitive input/output | Execution argument index                                                  |
-| ---                    | ---                                                                       |
-| \src                   | DNNL_ARG_SRC                                                              |
-| \dst                   | DNNL_ARG_DST                                                              |
-| \diffsrc               | DNNL_ARG_DIFF_SRC                                                         |
-| \diffdst               | DNNL_ARG_DIFF_DST                                                         |
-| \f$binary post-op\f$   | DNNL_ARG_ATTR_MULTIPLE_POST_OP(binary_post_op_position) \| DNNL_ARG_SRC_1 |
+| Primitive input/output      | Execution argument index                                                  |
+| ---                         | ---                                                                       |
+| \src                        | DNNL_ARG_SRC                                                              |
+| \dst                        | DNNL_ARG_DST                                                              |
+| \diffsrc                    | DNNL_ARG_DIFF_SRC                                                         |
+| \diffdst                    | DNNL_ARG_DIFF_DST                                                         |
+| \f$\text{binary post-op}\f$ | DNNL_ARG_ATTR_MULTIPLE_POST_OP(binary_post_op_position) \| DNNL_ARG_SRC_1 |
 
 ## Implementation Details
 
