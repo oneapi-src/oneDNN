@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2020 Intel Corporation
+# Copyright 2019-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,12 @@ set(TEST_EXE test_api)
 
 file(GLOB TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
 list(APPEND TEST_SOURCES ${MAIN_SRC_GTEST})
+
+if(DNNL_USE_CLANG_SANITIZER)
+    # Due to the following tests trigger memory sanitizer
+    # `allocation-size-too-big`, remove them.
+    list(REMOVE_ITEM TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_memory.cpp)
+endif()
 
 # Switch off C API tests for CUDA since USM model is not supported
 if(NOT DNNL_SYCL_CUDA)
