@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1956,9 +1956,12 @@ dnnl_status_t jit_avx512_common_gemm_f32(int nthrs, const char *transa,
         }
     }
 
-    if (nthr_to_use == 1)
-        return sgemm_nocopy_driver(transa, transb, m, n, k, p_alpha, A, lda, B,
-                ldb, p_beta, C, ldc, bias, ws_buffers);
+    if (nthr_to_use == 1) {
+        auto status = sgemm_nocopy_driver(transa, transb, m, n, k, p_alpha, A,
+                lda, B, ldb, p_beta, C, ldc, bias, ws_buffers);
+        if (ws_buffers) free(ws_buffers);
+        return status;
+    }
 
     // Always use the maximum number of threads to avoid OMP overhead that can
     // occur due to change thread counts.
