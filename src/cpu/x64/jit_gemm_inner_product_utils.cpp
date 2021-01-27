@@ -826,7 +826,7 @@ template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type> *jit_pp_kernel_create(size_t OC, size_t MB,
         dim_t dst_mb_stride, const primitive_attr_t *attr, data_type_t bias_dt,
         const memory_desc_t *dst_md, bool skip_sum) {
-    if (!mayiuse(avx512_core)) return nullptr;
+    if (!mayiuse(jit_pp_kernel_supported_isa())) return nullptr;
     return new jit_pp_kernel_t<acc_type, dst_type>(
             OC, MB, dst_mb_stride, attr, bias_dt, dst_md, skip_sum);
 }

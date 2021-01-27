@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +29,10 @@ template <data_type_t acc_type, data_type_t dst_type>
 cpu::inner_product_utils::pp_kernel_t<acc_type, dst_type> *jit_pp_kernel_create(
         size_t OC, size_t MB, dim_t dst_mb_stride, const primitive_attr_t *attr,
         data_type_t bias_dt, const memory_desc_t *dst_md, bool skip_sum);
+
+constexpr cpu_isa_t jit_pp_kernel_supported_isa() {
+    return avx512_core;
+}
 
 } // namespace inner_product_utils
 } // namespace x64

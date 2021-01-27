@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
@@ -454,6 +453,59 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusion) {
         // implementation is deployed.
         if (!test_out_of_memory()) {
             ASSERT_EQ(impl_info_fused, impl_info_unfused);
+        }
+    }
+}
+
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, InnerProdPostops) {
+
+    auto engine_kind = get_test_engine_kind();
+
+    engine e {engine_kind, 0};
+
+    std::vector<memory::data_type> test_dts {
+            memory::data_type::f32, memory::data_type::s8};
+
+    for (auto dt : test_dts) {
+        memory::desc src_md {{1024, 512, 64, 64}, dt, memory::format_tag::any};
+        memory::desc wht_md {{256, 512, 64, 64}, dt, memory::format_tag::any};
+        memory::desc bia_md {{256}, dt, memory::format_tag::any};
+        memory::desc dst_md {{1024, 256}, dt, memory::format_tag::any};
+
+        auto ip_desc = inner_product_forward::desc(
+                prop_kind::forward_training, src_md, wht_md, bia_md, dst_md);
+
+        std::string impl_info_no_postops;
+
+        auto pd = inner_product_forward::primitive_desc(ip_desc, e);
+        ASSERT_NO_THROW(impl_info_no_postops = pd.impl_info_str(););
+
+        dnnl::primitive_attr attr;
+        const float scale = 1.f;
+        const float alpha = 1.f;
+        const float beta = 1.f;
+        dnnl::post_ops ops;
+
+        ops.append_sum(1.0);
+
+        ops.append_eltwise(scale, algorithm::eltwise_relu, alpha, beta);
+
+        memory::desc src1_md({1}, data_type::f32, {1});
+        ops.append_binary(algorithm::binary_add, src1_md);
+
+        attr.set_post_ops(ops);
+
+        std::string impl_info_with_postops;
+
+        pd = inner_product_forward::primitive_desc(ip_desc, attr, e);
+        ASSERT_NO_THROW(impl_info_with_postops = pd.impl_info_str(););
+
+        // Make sure ref fused impl is not deployed.
+        // NOTE: When out_of_memory testing enabled, all implementations that
+        // construct primitive attributes will fail, hence the ref
+        // implementation is deployed.
+        if (!test_out_of_memory()) {
+            ASSERT_EQ(impl_info_no_postops, impl_info_with_postops);
         }
     }
 }
