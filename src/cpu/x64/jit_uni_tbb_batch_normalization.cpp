@@ -16,6 +16,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <memory>
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -2116,11 +2117,11 @@ private:
     dim_t C_, C_blks_; // C / simd_w
     dim_t C_blk_step_; // for C_blks = 0 .. C_blks_, += C_blk_step_
 
-    jit_bnorm_fwd_t<isa> *ker_fwd_;
-    jit_bnorm_fwd_mean_t<isa> *ker_fwd_mean_;
-    jit_bnorm_fwd_var_t<isa> *ker_fwd_var_;
-    jit_bnorm_bwd_t<isa> *ker_bwd_;
-    jit_bnorm_bwd_diff_ss_t<isa> *ker_bwd_diff_ss_;
+    std::unique_ptr<jit_bnorm_fwd_t<isa>> ker_fwd_;
+    std::unique_ptr<jit_bnorm_fwd_mean_t<isa>> ker_fwd_mean_;
+    std::unique_ptr<jit_bnorm_fwd_var_t<isa>> ker_fwd_var_;
+    std::unique_ptr<jit_bnorm_bwd_t<isa>> ker_bwd_;
+    std::unique_ptr<jit_bnorm_bwd_diff_ss_t<isa>> ker_bwd_diff_ss_;
 
     size_t dt_size_;
 };
