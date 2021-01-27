@@ -28,6 +28,7 @@ subset of the operation set.
    arithmetic/Divide_1.rst   
    activation/Elu_1.rst
    activation/EluBackprop_1.rst
+   misc/End_1.rst
    arithmetic/Erf_1.rst   
    activation/Exp_1.rst
    activation/GELU_2.rst
