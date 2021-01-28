@@ -102,7 +102,18 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
     const bool is_16oc = conf.oc % 16 == 0;
     const bool is_16ic = conf.ic % 16 == 0;
 
-    if ((is_16oc && is_16ic)) {
+    if (src_mdw.matches_one_of_tag(nhwc)
+            && (dst_mdw.matches_one_of_tag(nhwc)
+                    || dst_mdw.format_kind() == format_kind::any)) {
+        // Technically this implementation currently requires ic is a multiple
+        // of VTRANS_BLOCK = 4. This condition was not implemented yet due to no
+        // known use case, and small IC is expected to have poor performance
+        // because of extra work created by the current blocking.
+        if (conf.ic_without_padding % 16 != 0
+                || conf.oc_without_padding % 16 != 0)
+            return status::unimplemented;
+        conf.ver = ver_nhwc;
+    } else if ((is_16oc && is_16ic)) {
         conf.ver = (conf.mb % 16 == 0) ? ver_16mb16c : ver_8ow16c;
     } else {
         return status::unimplemented;
@@ -183,6 +194,11 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
         case ver_8ow16c:
             src_tag = nChw16c;
             dst_tag = nChw16c;
+            wei_tag = conf.with_groups ? gOIhw16i16o : OIhw16i16o;
+            break;
+        case ver_nhwc:
+            src_tag = nhwc;
+            dst_tag = nhwc;
             wei_tag = conf.with_groups ? gOIhw16i16o : OIhw16i16o;
             break;
         default: return status::unimplemented;
@@ -279,8 +295,7 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("VER_8OW16C", conf.ver == ver_8ow16c);
     kernel_ctx.define_int("VER_16MB16C", conf.ver == ver_16mb16c);
 
-    kernel_ctx.define_int("SRC_16N16C",
-            utils::one_of(conf.src_tag, NCw16n16c, NChw16n16c, NCdhw16n16c));
+    kernel_ctx.define_int("SRC_NHWC", utils::one_of(conf.src_tag, nhwc));
     kernel_ctx.define_int(
             "SRC_16N16C", utils::one_of(conf.src_tag, NChw16n16c));
     kernel_ctx.define_int("SRC_W16C", utils::one_of(conf.src_tag, nChw16c));
@@ -290,6 +305,7 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("WEI_16I16O_FLIPPED",
             utils::one_of(conf.wei_tag, gIOhw16i16o, IOhw16i16o));
 
+    kernel_ctx.define_int("DST_NHWC", utils::one_of(conf.src_tag, nhwc));
     kernel_ctx.define_int(
             "DST_16N16C", utils::one_of(conf.dst_tag, NChw16n16c));
     kernel_ctx.define_int("DST_W16C", utils::one_of(conf.dst_tag, nChw16c));

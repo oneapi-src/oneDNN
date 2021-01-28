@@ -162,6 +162,9 @@ int dst_off(int n, int c, int d, int h, int w) {
 #if DST_NCHW
     return off_ncdhw(n, c, d, h, w, G * OC_WO_PADDING, OD, OH, OW);
 #endif
+#if DST_NHWC
+    return off_ndhwc(n, c, d, h, w, G * OC, OD, OH, OW);
+#endif
 #if DST_W16C
     return off_nCdhw16c(n, c, d, h, w, G * OC, OD, OH, OW);
 #endif

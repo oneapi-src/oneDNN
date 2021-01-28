@@ -529,8 +529,6 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
         const int ow = ow0 + M_ow;
         const int oh = oh0 + M_oh;
         int dst_idx = dst_off(mb, oc, 0, oh, ow);
-        const int w_size = dst_off(0, 0, 0, 0, 1);
-        const int h_size = dst_off(0, 0, 0, 1, 0);
 
         if (WITH_BIAS || WITH_POST_OP) {
             const int c_size = WINO_M * OUT_TYPE_BLOCK;
@@ -554,13 +552,11 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
                     for (int ow_block = 0; ow_block < OUT_TYPE_BLOCK;
                             ow_block++) {
                         const int s_off = oh_block * OUT_TYPE_BLOCK + ow_block;
-                        const int dst_off = dst_idx + oh_block * h_size
-                                + ow_block * w_size;
                         bool valid_ow
                                 = OW % OW_BLOCK == 0 || ow + ow_block < OW;
                         S[s_off] = valid_oh && valid_ow
-                                ? dst[dst_idx + oh_block * h_size
-                                        + ow_block * w_size]
+                                ? dst[dst_idx
+                                        + dst_off(0, 0, 0, oh_block, ow_block)]
                                 : 0;
                     }
                 }
@@ -582,7 +578,7 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
                 unroll_for(int w_off = 0; w_off < OUT_TYPE_BLOCK; w_off++) {
                     int c_off = 2 * h_off + w_off;
                     if (OW % OW_BLOCK == 0 || ow + w_off < OW)
-                        dst[dst_idx + h_off * h_size + w_off * w_size]
+                        dst[dst_idx + dst_off(0, 0, 0, h_off, w_off)]
                                 = C_dat[c_off];
                 }
             }
