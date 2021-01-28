@@ -1324,13 +1324,6 @@ void jit_brgemm_kernel_base_t::generate() {
 
     read_params();
 
-    if (!n_bcast_1_load) {
-        if (!brg.embd_bcst && (brg.is_bf16 || brg.is_int8)) {
-            auto zmm_tmp = bcst();
-            vpxord(zmm_tmp, zmm_tmp, zmm_tmp);
-        }
-    }
-
     bdb_loop();
 
     add(rsp, stack_space_needed_);
