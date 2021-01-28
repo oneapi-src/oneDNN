@@ -92,8 +92,7 @@ struct jit_sve_512_convolution_fwd_t : public primitive_t {
         else
             assert(false);
 
-        if (pd()->wants_zero_pad_dst())
-            ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
+        if (pd()->wants_zero_pad_dst()) ctx.zero_pad_output(DNNL_ARG_DST);
 
         return status::success;
     }
