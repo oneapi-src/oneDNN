@@ -222,7 +222,7 @@ current directory by setting environment variable `JITDUMPDIR` to point to the
 current directory.
 
 ~~~sh
-$ JITDUMPDIR=. DNNL_JIT_PROFILE=6 perf record -k1 ./tests/benchdnn/benchdnn --mode=P mb1ic32ih14oc32oh14kh3ph1n"resnet_50:res4a_branch2b*6"
+$ JITDUMPDIR=. DNNL_JIT_PROFILE=6 perf record -k1 ./tests/benchdnn/benchdnn --conv --mode=P mb1ic32ih14oc32oh14kh3ph1n"resnet_50:res4a_branch2b*6"
 Output template: perf,%engine%,%name%,%desc%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%
 perf,cpu,resnet_50:res4a_branch2b*6,--conv mb1ic32ih14oc32oh14kh3ph1nresnet_50:res4a_branch2b*6,0.0032768,0,0.0131836,248.551,0.0262988,124.599
 tests:1 passed:0 skipped:0 mistrusted:0 unimplemented:0 failed:0 listed:0
