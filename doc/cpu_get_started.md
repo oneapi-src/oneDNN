@@ -101,7 +101,7 @@ g.add_op(conv0_bias_add);
 g.add_op(conv1_bias_add);
 ~~~
 
-Then by calling [`get_partitions()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1211),
+Then by calling [`get_partitions()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1256),
 users can get several partitions. In this example, there should be two
 partitions: `conv0+relu0` and `conv1+relu1`.
 

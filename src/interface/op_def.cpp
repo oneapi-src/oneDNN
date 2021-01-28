@@ -338,6 +338,10 @@ DNNL_GRAPH_OP_SCHEMA(EluBackprop, 1,
                         attribute_kind::f)
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(End, 1,
+        op_schema().set_num_inputs(1).set_num_outputs(0).set_input(
+                0, "input", "input tensor"))
+
 DNNL_GRAPH_OP_SCHEMA(Erf, 1,
         op_schema()
                 .set_num_inputs(1)

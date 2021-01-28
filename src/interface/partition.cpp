@@ -121,34 +121,41 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_outputs_num(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_get_inputs(
-        const partition_t *partition, uint64_t num,
-        const logical_tensor_t **inputs) {
-    if (partition == nullptr || inputs == nullptr
+        const partition_t *partition, uint64_t num, size_t *inputs) {
+    if (utils::any_null(partition, inputs)
             || partition->get_inputs_num() != num) {
         return status::invalid_argument;
     }
 
     auto &in = partition->get_inputs();
     for (size_t i = 0; i < num; ++i) {
-        inputs[i] = &(in[i]);
+        inputs[i] = in[i].id;
     }
 
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_get_outputs(
-        const partition_t *partition, uint64_t num,
-        const logical_tensor_t **outputs) {
-    if (partition == nullptr || outputs == nullptr
+        const partition_t *partition, uint64_t num, size_t *outputs) {
+    if (utils::any_null(partition, outputs)
             || partition->get_outputs_num() != num) {
         return status::invalid_argument;
     }
 
     auto &out = partition->get_outputs();
     for (size_t i = 0; i < num; ++i) {
-        outputs[i] = &(out[i]);
+        outputs[i] = out[i].id;
     }
 
+    return status::success;
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_partition_is_supported(
+        const partition_t *partition, uint8_t *is_supported) {
+    if (utils::any_null(partition, is_supported))
+        return status::invalid_argument;
+
+    *is_supported = static_cast<uint8_t>(partition->is_supported());
     return status::success;
 }
 

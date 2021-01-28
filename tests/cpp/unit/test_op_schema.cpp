@@ -2173,6 +2173,17 @@ TEST(op_schema_test, EluBackprop_infer_shape) {
     verify_two_ins_identity_shape_infer(op_kind_);
 }
 
+TEST(op_schema_test, End) {
+    const op_schema *op_schema
+            = op_schema_registry::get_op_schema(op_kind::End);
+
+    op_t end_op {0, op_kind::End, "end"};
+    logical_tensor_t lt_in_0 = logical_tensor_init(0, data_type::f32);
+
+    end_op.add_input(&lt_in_0);
+    EXPECT_TRUE(op_schema->verify(&end_op));
+}
+
 TEST(op_schema_test, Erf) {
     const op_kind_t op_kind_ = op_kind::Erf;
     const size_t expected_in_size = 1;

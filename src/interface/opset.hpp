@@ -41,6 +41,7 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ConvolutionBackpropFilters, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Divide, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Elu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(EluBackprop, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(End, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Erf, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Exp, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(GELU, 2);
@@ -157,6 +158,7 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Divide, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Elu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(EluBackprop, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(End, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Erf, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Exp, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(HardTanh, 1)>());

@@ -779,6 +779,50 @@ public:
                 "inferring output shape of the partition failed");
     }
 
+    /// Returns the supporting status of the partition
+    ///
+    /// @returns @c true if this partition is supported by oneDNN graph backend
+    ///     @c if this partition isn't supported by oneDNN graph backend
+    bool is_supported() const {
+        uint8_t supported {0};
+        error::check_succeed(
+                dnnl_graph_partition_is_supported(get(), &supported),
+                "could not get supporting status of the partition");
+        return static_cast<bool>(supported);
+    }
+
+    /// Returns ids of input logical tensors of the partition
+    ///
+    /// @returns A list of ids
+    std::vector<size_t> get_inputs() const {
+        uint64_t num;
+        error::check_succeed(dnnl_graph_partition_get_inputs_num(get(), &num),
+                "could not get number of inputs of the partition");
+
+        std::vector<size_t> inputs(num);
+        error::check_succeed(
+                dnnl_graph_partition_get_inputs(get(), num, inputs.data()),
+                "could not get ids of inputs of the partition");
+
+        return inputs;
+    }
+
+    /// Returns ids of output logical tensors of the partition
+    ///
+    /// @returns A list of ids
+    std::vector<size_t> get_outputs() const {
+        uint64_t num;
+        error::check_succeed(dnnl_graph_partition_get_outputs_num(get(), &num),
+                "cannot get number of outputs of the partition");
+
+        std::vector<size_t> outputs(num);
+        error::check_succeed(
+                dnnl_graph_partition_get_outputs(get(), num, outputs.data()),
+                "could not get ids of outputs of the partition");
+
+        return outputs;
+    }
+
 private:
     compiled_partition compile_(const std::vector<logical_tensor> &inputs,
             const std::vector<logical_tensor> &outputs, const engine *e) const {
@@ -936,6 +980,7 @@ public:
         Index = kIndex,
         InterpolateBackprop = kInterpolateBackprop,
         PowBackpropExponent = kPowBackpropExponent,
+        End = kEnd,
         LastSymbol = kLastSymbol,
     };
 
