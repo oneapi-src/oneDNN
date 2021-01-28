@@ -59,11 +59,13 @@ private:
     const reg64_t reg_src_zero_point = r9;
     const reg64_t reg_filt = r10;
     const reg64_t aux_reg_filt = r11;
+    const reg64_t aux_reg_filt_d = r15;
 
     const reg64_t reg_oc_blocks = r12;
     const reg64_t reg_icb = r13;
     const reg64_t reg_oi = r14;
     const reg64_t reg_kj = rax;
+    const reg64_t reg_ki = rbx;
     const reg64_t reg_overflow = reg_kj;
     const reg64_t reg_scratch = rsi;
 
@@ -76,8 +78,10 @@ private:
     void prepare_output(int ur_w);
     void store_output(int ur_w, bool last_oc_block_flag);
     void compute_ker(int ur_w, int pad_l, int pad_r,
-            ic_block_t last_ic_block_flag, bool h_padded);
+            ic_block_t last_ic_block_flag, bool padded);
     void kh_loop(int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag,
+            bool handle_h_pad);
+    void kd_loop(int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag,
             bool handle_h_pad);
     void icb_loop(int ur_w, int pad_l, int pad_r, bool handle_h_pad);
     void unroll_width(const bool h_padding);
@@ -296,7 +300,7 @@ private:
     const Xbyak::Reg64 &reg_out_ptr = r13;
     const Xbyak::Reg64 &reg_wsp_ptr = r12;
 
-    const Xbyak::Reg64 &reg_kd = rsi;
+    const Xbyak::Reg64 &reg_kd = r9;
 
     const Xbyak::Reg64 &reg_bias = r11;
     const Xbyak::Reg64 &reg_ptr_scales = r10;
@@ -391,15 +395,18 @@ private:
     void store_output(int width, int tail, bool do_store,
             const bool handle_h_block, const int t_pad_output,
             const int b_pad_output, const int l_pad_output,
-            const int r_pad_output, const bool is_last_oh_block);
-    void interleave_store(
-            int width, int const t_pad_output, int const b_pad_output);
+            const int r_pad_output, const bool is_last_oh_block,
+            const bool zp_3d_pad = false);
+    void interleave_store(int width, int const t_pad_output,
+            int const b_pad_output, const bool zp_3d_pad = false);
     void compute_icb_loop(int width, bool do_store, const bool handle_h_block,
             const int t_pad_output, const int b_pad_output,
             const int l_pad_output, const int r_pad_output,
-            const bool is_last_oh_block = false);
+            const bool zp_3d_pad, const bool is_last_oh_block = false);
     void dispatch_icb_loop(int width, bool do_store, const int l_pad_output,
-            const int r_pad_output);
+            const int r_pad_output, const bool zp_3d_pad);
+    void dispatch_zp_3d_compute(int width, bool do_store,
+            const int l_pad_output, const int r_pad_output);
     void compute_ow_loop();
 
     void generate() override;
