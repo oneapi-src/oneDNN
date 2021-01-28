@@ -248,11 +248,14 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("G", conf.ngroups);
     kernel_ctx.define_int("MB", conf.mb);
     kernel_ctx.define_int("IC", conf.ic);
+    kernel_ctx.define_int("ID", conf.id);
     kernel_ctx.define_int("IH", conf.ih);
     kernel_ctx.define_int("IW", conf.iw);
     kernel_ctx.define_int("OC", conf.oc);
+    kernel_ctx.define_int("OD", conf.od);
     kernel_ctx.define_int("OH", conf.oh);
     kernel_ctx.define_int("OW", conf.ow);
+    kernel_ctx.define_int("KD", conf.kd);
     kernel_ctx.define_int("KH", conf.kh);
     kernel_ctx.define_int("KW", conf.kw);
     kernel_ctx.define_int("PH", conf.t_pad);
@@ -289,7 +292,7 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int(
             "SRC_W16C", utils::one_of(conf.src_tag, nCw16c, nChw16c, nCdhw16c));
 
-    kernel_ctx.define_int("WEI_16I16O",
+    kernel_ctx.define_int("WEI_16I16O_FLIPPED",
             utils::one_of(conf.wei_tag, gIOw16i16o, gIOhw16i16o, gIOdhw16i16o,
                     IOw16i16o, IOhw16i16o, IOdhw16i16o));
 

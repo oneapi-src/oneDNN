@@ -16,6 +16,7 @@
 
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
+#include "gpu/ocl/offsets.h"
 
 #define IW_BLOCK (OW_BLOCK + KW - 1)
 
@@ -55,55 +56,6 @@
             (ptr)[_i] = result[_i]; \
         } \
     } while (0)
-
-static inline int off_nCdhw16c(
-        int n, int c, int d, int h, int w, int C, int D, int H, int W) {
-    int off = 0;
-    off += n * (C / 16) * D * H * W * 16;
-    off += (c / 16) * D * H * W * 16;
-    off += d * H * W * 16;
-    off += h * W * 16;
-    off += w * 16;
-    off += c % 16;
-    return off;
-}
-
-static inline int off_NCdhw16n16c(
-        int n, int c, int d, int h, int w, int C, int D, int H, int W) {
-    int off = 0;
-    off += (n / 16) * (C / 16) * D * H * W * 16 * 16;
-    off += (c / 16) * D * H * W * 16 * 16;
-    off += d * H * W * 16 * 16;
-    off += h * W * 16 * 16;
-    off += w * 16 * 16;
-    off += (n % 16) * 16;
-    off += (c % 16);
-    return off;
-}
-
-static inline int off_gIOdhw16i16o(int g, int o, int i, int d, int h, int w,
-        int O, int I, int D, int H, int W) {
-    int off = 0;
-    off += g * (I / 16) * (O / 16) * D * H * W * 16 * 16;
-    off += (i / 16) * (O / 16) * D * H * W * 16 * 16;
-    off += (o / 16) * D * H * W * 16 * 16;
-    off += d * H * W * 16 * 16;
-    off += h * W * 16 * 16;
-    off += w * 16 * 16;
-    off += (i % 16) * 16;
-    off += (o % 16);
-    return off;
-}
-
-static inline int src_off(int n, int c, int d, int h, int w) {
-    if (SRC_W16C) return off_nCdhw16c(n, c, d, h, w, G * IC, 1, IH, IW);
-    if (SRC_16N16C) return off_NCdhw16n16c(n, c, d, h, w, G * IC, 1, IH, IW);
-    return 0;
-}
-
-static inline int wei_off(int g, int o, int i, int d, int h, int w) {
-    return off_gIOdhw16i16o(g, o, i, d, h, w, OC, IC, 1, KH, KW);
-}
 
 static inline int U_off(int o, int i, int z, int w) {
 
@@ -151,12 +103,6 @@ static inline int M_off(int o, int z, int w, int block_size) {
     off += o * ow_internal_block;
     off += ow;
     return off / block_size;
-}
-
-static inline int dst_off(int n, int c, int d, int h, int w) {
-    if (DST_W16C) return off_nCdhw16c(n, c, d, h, w, G * OC, 1, OH, OW);
-    if (DST_16N16C) return off_NCdhw16n16c(n, c, d, h, w, G * OC, 1, OH, OW);
-    return 0;
 }
 
 static inline int get_Vtrans_ic0(int lx, int ly) {
