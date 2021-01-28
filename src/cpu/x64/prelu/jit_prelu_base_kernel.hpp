@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ private:
     size_t calc_tail_size(const memory_desc_wrapper &tensor_md) const noexcept;
     const memory_desc_wrapper tensor_md_;
     const size_t number_vmm_single_compute_ = 0;
-    int number_reserved_vmms_ = 0;
+    size_t number_reserved_vmms_ = 0;
 };
 
 } // namespace x64

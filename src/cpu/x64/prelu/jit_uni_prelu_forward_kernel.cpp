@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,7 +56,8 @@ template <typename Vmm>
 jit_uni_prelu_forward_kernel_t<Vmm>::jit_uni_prelu_forward_kernel_t(
         const cpu_prelu_fwd_pd_t *pd, const cpu_isa_t &isa)
     : jit_prelu_forward_kernel_t(pd, isa,
-            utils::one_of(isa, sse41, avx) || data_type_ == data_type::bf16
+            (utils::one_of(isa, sse41, avx)
+                    || pd->src_md(0)->data_type == data_type::bf16)
                     ? 4u
                     : 3u)
     , vmm_zeros_(reserve_vmm())
@@ -83,38 +84,54 @@ void jit_uni_prelu_forward_kernel_t<Vmm>::prepare_kernel_const_vars() {
         io_.load(ptr[reg_weights_], weights_const_vmm_, false /*tail*/);
 }
 
-template <typename Vmm>
-const Xbyak::Operand &jit_uni_prelu_forward_kernel_t<Vmm>::get_or_load_weights(
-        const Xbyak::Address &src_addr, const Vmm &weights_vmm, bool tail) {
-    if (utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
-                prelu::bcast::per_oc_blocked))
-        return weights_const_vmm_;
-    else if (data_type_ == data_type::bf16) {
-        io_.load(src_addr, weights_vmm, tail);
-        return weights_vmm;
-    }
-    return src_addr;
+template <>
+bool jit_uni_prelu_forward_kernel_t<
+        Xbyak::Zmm>::can_load_wei_from_addr_directly(bool tail) const noexcept {
+    return data_type_ == data_type::f32
+            && !utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
+                    prelu::bcast::per_oc_blocked);
 }
 
 template <>
-const Xbyak::Operand &
-jit_uni_prelu_forward_kernel_t<Xbyak::Ymm>::get_or_load_weights(
+bool jit_uni_prelu_forward_kernel_t<
+        Xbyak::Ymm>::can_load_wei_from_addr_directly(bool tail) const noexcept {
+    return is_superset(isa_, avx2) && !tail
+            && !utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
+                    prelu::bcast::per_oc_blocked);
+}
+
+template <>
+bool jit_uni_prelu_forward_kernel_t<
+        Xbyak::Xmm>::can_load_wei_from_addr_directly(bool tail) const noexcept {
+    return false;
+}
+
+template <>
+Xbyak::Zmm jit_uni_prelu_forward_kernel_t<Xbyak::Zmm>::get_or_load_weights(
+        const Xbyak::Address &src_addr, const Xbyak::Zmm &weights_vmm,
+        bool tail) {
+    if (utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
+                prelu::bcast::per_oc_blocked))
+        return weights_const_vmm_;
+
+    io_.load(src_addr, weights_vmm, tail);
+    return weights_vmm;
+}
+
+template <>
+Xbyak::Ymm jit_uni_prelu_forward_kernel_t<Xbyak::Ymm>::get_or_load_weights(
         const Xbyak::Address &src_addr, const Xbyak::Ymm &weights_vmm,
         bool tail) {
     if (utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
                 prelu::bcast::per_oc_blocked))
         return weights_const_vmm_;
-    else if (tail || isa_ == avx) {
-        io_.load(src_addr, weights_vmm, tail);
-        return weights_vmm;
-    }
 
-    return src_addr;
+    io_.load(src_addr, weights_vmm, tail);
+    return weights_vmm;
 }
 
 template <>
-const Xbyak::Operand &
-jit_uni_prelu_forward_kernel_t<Xbyak::Xmm>::get_or_load_weights(
+Xbyak::Xmm jit_uni_prelu_forward_kernel_t<Xbyak::Xmm>::get_or_load_weights(
         const Xbyak::Address &src_addr, const Xbyak::Xmm &weights_vmm,
         bool tail) {
 
@@ -166,12 +183,19 @@ void jit_uni_prelu_forward_kernel_t<Vmm>::compute_dst(
 
         const auto offset = unroll_group * simd_w_ * dt_size;
         io_.load(data_ptr(DNNL_ARG_SRC, offset), src_vmm, tail);
-        const auto &weights_operand = get_or_load_weights(
-                data_ptr(DNNL_ARG_WEIGHTS, offset), weights_vmm, tail);
         uni_vmaxps(max_vmm, vmm_zeros_, src_vmm);
         uni_vminps(min_vmm, vmm_zeros_, src_vmm);
         const auto &dst_vmm = min_vmm;
-        uni_vfmadd132ps(dst_vmm, max_vmm, weights_operand, tail);
+
+        const Xbyak::Address weights_addr = data_ptr(DNNL_ARG_WEIGHTS, offset);
+        if (can_load_wei_from_addr_directly(tail)) {
+            uni_vfmadd132ps(dst_vmm, max_vmm, weights_addr, tail);
+        } else {
+            const Vmm weights_operand
+                    = get_or_load_weights(weights_addr, weights_vmm, tail);
+            uni_vfmadd132ps(dst_vmm, max_vmm, weights_operand, tail);
+        }
+
         io_.store(dst_vmm, data_ptr(DNNL_ARG_DST, offset), tail);
     }
 }

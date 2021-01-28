@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,7 +72,9 @@ private:
 
     void prepare_kernel_const_vars() override;
     void compute_dst(size_t unrolling_factor, bool tail) override;
-    const Xbyak::Operand &get_or_load_weights(
+    bool can_load_wei_from_addr_directly(bool tail) const noexcept;
+
+    Vmm get_or_load_weights(
             const Xbyak::Address &src_addr, const Vmm &dst_vmm, bool tail);
     void uni_vfmadd132ps(
             const Vmm &x1, const Vmm &x2, const Xbyak::Operand &op, bool tail);
