@@ -44,10 +44,10 @@ on Intel CPUs and GPUs. Deep learning practitioners should use one of the
 
 # Documentation
 
-* [Developer guide](https://oneapi-src.github.io/oneDNN/v2) explains programming
+* [Developer guide](https://oneapi-src.github.io/oneDNN) explains programming
   model, supported functionality, and implementation details, and
   includes annotated examples.
-* [API reference](https://oneapi-src.github.io/oneDNN/v2/modules.html) provides
+* [API reference](https://oneapi-src.github.io/oneDNN/modules.html) provides
   a comprehensive reference of the library API.
 
 # Installation
@@ -81,12 +81,12 @@ interoperability with CPU or GPU runtime libraries used by the application.
 The packages do not include library dependencies and these need to be resolved
 in the application at build time. See the
 [System Requirements](#system-requirements) section below and the
-[Build Options](https://oneapi-src.github.io/oneDNN/v2/dev_guide_build_options.html)
-section in the [developer guide](https://oneapi-src.github.io/oneDNN/v2) for more
+[Build Options](https://oneapi-src.github.io/oneDNN/dev_guide_build_options.html)
+section in the [developer guide](https://oneapi-src.github.io/oneDNN) for more
 details on CPU and GPU runtimes.
 
 If the configuration you need is not available, you can
-[build the library from source](https://oneapi-src.github.io/oneDNN/v2/dev_guide_build.html).
+[build the library from source](https://oneapi-src.github.io/oneDNN/dev_guide_build.html).
 
 # System Requirements
 
@@ -129,7 +129,7 @@ requires that Arm Compute Library is downloaded and built separately, see
 >
 > On macOS, applications that use oneDNN may need to request special
 > entitlements if they use the hardened runtime. See the
-> [linking guide](https://oneapi-src.github.io/oneDNN/v2/dev_guide_link.html)
+> [linking guide](https://oneapi-src.github.io/oneDNN/dev_guide_link.html)
 > for more details.
 
 The library is optimized for the following GPUs:
