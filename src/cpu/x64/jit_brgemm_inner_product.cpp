@@ -318,7 +318,7 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
                         + diff_dst_d.blk_off(n, oc + oc_block * jbgp.oc_block);
                 addr_batch[oc_block].ptr.B = b_buffer + oc_block * size_B;
 #ifndef BRGEMM_IP_BWD_D_GLOBAL_B_TRANSPOSE
-                transform_b_chunk(addr_B[oc_block],
+                transform_b_chunk((wei_data_t *)addr_batch[oc_block].ptr.B,
                         get_weights_ptr(icb, ocb + oc_block), 1,
                         is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block,
                         jbgp.oc_block);
@@ -344,8 +344,9 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
                     + diff_dst_d.blk_off(n, oc + oc_block * jbgp.oc_block);
 #ifndef BRGEMM_IP_BWD_D_GLOBAL_B_TRANSPOSE
             addr_batch[0].ptr.B = b_buffer;
-            transform_b_chunk(addr_B[0], get_weights_ptr(icb, ocb + oc_block),
-                    1, is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block,
+            transform_b_chunk((wei_data_t *)addr_batch[0].ptr.B,
+                    get_weights_ptr(icb, ocb + oc_block), 1,
+                    is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block,
                     jbgp.K_tail);
 #else
             addr_batch[0].ptr.B = b_buffer + oc_block * size_B;
