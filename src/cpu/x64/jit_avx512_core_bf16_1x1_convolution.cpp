@@ -368,7 +368,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
 
             par_conv_dw.kh_padding = (size_t)nstl::max(0, kh_padding);
 
-            par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw->nb_ch) - ch;
+            par_conv_dw.load_work = (nstl::min(ch + ch_num, jcp_dw->nb_ch) - ch)
+                    * jcp_dw->ch_block;
 
             par_conv_dw.oc_l_off = ch * jcp_dw->ch_block;
             par_conv_dw.post_ops_binary_rhs_arg_vec
