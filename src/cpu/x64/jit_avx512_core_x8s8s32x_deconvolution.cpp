@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -943,6 +943,69 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::icb_loop(
 }
 
 template <typename Vmm>
+ur_w_blks_params_t
+jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::get_ur_w_blks_params() {
+    const int n_ur_blocks = jcp.ow / jcp.ur_w;
+
+    ur_w_blks_params_t ur_w_blks_params;
+    int num_blks_to_process_sp_carefully = 0;
+    int idx_last_non_zero_l_overflow_blk = -1;
+    int idx_first_non_zero_r_overflow_blk = n_ur_blocks;
+
+    static constexpr int src_pixels_loaded_for_bcast = 4;
+    const auto ic_mod = jcp.ic_without_padding % src_pixels_loaded_for_bcast;
+    for (int blk_idx = 0; blk_idx < n_ur_blocks; blk_idx++) {
+        const int first_blk_dst_elem = blk_idx * jcp.ur_w;
+        const int last_dst_blk_elem = first_blk_dst_elem + jcp.ur_w - 1;
+
+        const int last_blk_src_idx = nstl::min(
+                jcp.iw - 1, (last_dst_blk_elem + jcp.l_pad) / jcp.stride_w);
+        const bool is_out_of_src_pixels_scope
+                = ((jcp.iw - 1 - last_blk_src_idx) * jcp.ic_without_padding
+                                + ic_mod
+                        < src_pixels_loaded_for_bcast);
+
+        const bool process_sp_carefully
+                = (ic_mod != 0) && is_out_of_src_pixels_scope;
+        const int curr_l_overflow = nstl::max(0,
+                ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad
+                        - first_blk_dst_elem)
+                        / jcp.stride_w);
+        const int curr_r_overflow = nstl::max(0,
+                (last_dst_blk_elem + jcp.l_pad) / jcp.stride_w - (jcp.iw - 1));
+
+        ur_w_blks_params.blks_params.emplace_back(
+                curr_l_overflow, curr_r_overflow, process_sp_carefully);
+
+        num_blks_to_process_sp_carefully
+                += static_cast<int>(process_sp_carefully);
+        if (curr_l_overflow > 0) idx_last_non_zero_l_overflow_blk = blk_idx;
+        if (curr_r_overflow > 0 && idx_first_non_zero_r_overflow_blk > blk_idx)
+            idx_first_non_zero_r_overflow_blk = blk_idx;
+    }
+    idx_first_non_zero_r_overflow_blk
+            = nstl::max(idx_first_non_zero_r_overflow_blk,
+                    idx_last_non_zero_l_overflow_blk + 1);
+    // limit num_r_overflow_blks and num_blks_to_process_last_sp_carefully so that:
+    // n_ur_blocks >= num_l_overflow_blks + max(num_r_overflow_blks, num_blks_to_process_last_sp_carefully)
+    ur_w_blks_params.num_pre_blks
+            = nstl::max(0, idx_last_non_zero_l_overflow_blk + 1);
+    const int num_r_overflow_blks = idx_first_non_zero_r_overflow_blk
+                    <= idx_last_non_zero_l_overflow_blk
+            ? n_ur_blocks - ur_w_blks_params.num_pre_blks
+            : n_ur_blocks - idx_first_non_zero_r_overflow_blk;
+    num_blks_to_process_sp_carefully
+            = ur_w_blks_params.num_pre_blks + num_blks_to_process_sp_carefully
+                    < n_ur_blocks
+            ? num_blks_to_process_sp_carefully
+            : n_ur_blocks - ur_w_blks_params.num_pre_blks;
+    ur_w_blks_params.num_post_blks
+            = nstl::max(num_r_overflow_blks, num_blks_to_process_sp_carefully);
+
+    return ur_w_blks_params;
+}
+
+template <typename Vmm>
 void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::generate() {
     preamble();
 
@@ -977,55 +1040,72 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::generate() {
     int src_shift = jcp.typesize_in * (jcp.ur_w / jcp.stride_w) * jcp.ngroups
             * jcp.ic_without_padding;
 
-    int l_overflow = max(
-            0, ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad) / jcp.stride_w);
-    int r_overflow = max(0,
-            ((jcp.kw - 1) * (jcp.dilate_w + 1) - max(0, jcp.r_pad))
-                    / jcp.stride_w);
+    const auto ur_w_blks_params = get_ur_w_blks_params();
+    const int nur_w = jcp.ow / jcp.ur_w - ur_w_blks_params.num_pre_blks
+            + ur_w_blks_params.num_post_blks;
 
-    int r_overflow1 = nstl::max(0,
-            ((jcp.kw - 1) * (jcp.dilate_w + 1) - nstl::max(0, jcp.r_pad)
-                    - jcp.ur_w_tail)
-                    / jcp.stride_w);
-    int nur_w = jcp.ow / jcp.ur_w;
-    if (r_overflow1 > 0) nur_w--;
+    const auto &blks_params = ur_w_blks_params.blks_params;
+    const auto num_pre_blks = ur_w_blks_params.num_pre_blks;
+    const auto num_post_blks = ur_w_blks_params.num_post_blks;
 
-    if (jcp.ur_w == jcp.ow) {
-        icb_loop(jcp.ur_w, l_overflow, r_overflow, true);
-    } else if (nur_w == 0) {
-        icb_loop(jcp.ur_w, l_overflow, r_overflow1, jcp.ur_w_tail == 0);
+    for (int i = 0; i < num_pre_blks; i++) {
+        const bool blk_process_carefully = blks_params[i].process_sp_carefully;
+        const int blk_l_overflow = blks_params[i].l_overflow;
+        const int blk_r_overflow = blks_params[i].r_overflow;
+
+        icb_loop(jcp.ur_w, blk_l_overflow, blk_r_overflow,
+                blk_process_carefully);
         add(reg_src, src_shift);
         add(reg_dst, dst_shift);
-        if (jcp.ur_w_tail != 0) icb_loop(jcp.ur_w_tail, 0, r_overflow, true);
-    } else {
+    }
+
+    if (nur_w > 0) {
         xor_(reg_nur_w, reg_nur_w);
-        if (l_overflow > 0) {
-            icb_loop(jcp.ur_w, l_overflow, 0, false);
+        Label ow_loop_label;
+        L(ow_loop_label);
+        {
+            icb_loop(jcp.ur_w, 0, 0, false);
             add(reg_src, src_shift);
             add(reg_dst, dst_shift);
             inc(reg_nur_w);
+            cmp(reg_nur_w, nur_w);
+            jl(ow_loop_label, T_NEAR);
         }
-        if ((l_overflow <= 0 && nur_w > 0) || (l_overflow > 0 && nur_w > 1)) {
-            Label ow_loop_label;
-            L(ow_loop_label);
-            {
-                icb_loop(jcp.ur_w, 0, 0, false);
-                add(reg_src, src_shift);
-                add(reg_dst, dst_shift);
-                inc(reg_nur_w);
-                cmp(reg_nur_w, nur_w);
-                jl(ow_loop_label, T_NEAR);
-            }
-        }
-        if (r_overflow1 > 0) {
-            icb_loop(jcp.ur_w, 0, r_overflow1, jcp.ur_w_tail == 0);
+    }
+
+    if (num_post_blks > 0) {
+        const auto blks_params_size = blks_params.size();
+        const auto start_blk_idx = blks_params_size - num_post_blks;
+        for (size_t i = start_blk_idx; i < blks_params_size; i++) {
+            const bool blk_process_carefully
+                    = blks_params[i].process_sp_carefully;
+            const int blk_l_overflow = blks_params[i].l_overflow;
+            const int blk_r_overflow = blks_params[i].r_overflow;
+
+            icb_loop(jcp.ur_w, blk_l_overflow, blk_r_overflow,
+                    blk_process_carefully);
             add(reg_src, src_shift);
             add(reg_dst, dst_shift);
         }
-        if (jcp.ur_w_tail != 0) {
-            icb_loop(jcp.ur_w_tail, 0, r_overflow, true);
-        }
     }
+
+    if (jcp.ur_w_tail != 0) {
+        // l_overflow - no. of spatial elements of weights standing out of src spatial
+        //              when computing the left-most (in w dim) output pixel
+        int l_overflow = 0;
+        if (jcp.ur_w == jcp.ow)
+            l_overflow = max(0,
+                    ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad)
+                            / jcp.stride_w);
+        // r_overflow - no/ of spatial elements of weights standing out of src spatial
+        //              when computing the right-most (in w dim) output pixel
+        const int r_overflow = max(0,
+                ((jcp.kw - 1) * (jcp.dilate_w + 1) - max(0, jcp.r_pad))
+                        / jcp.stride_w);
+
+        icb_loop(jcp.ur_w_tail, l_overflow, r_overflow, true);
+    }
+
     postamble();
 
     if (jcp.with_eltwise) postops_injector_->prepare_table();
