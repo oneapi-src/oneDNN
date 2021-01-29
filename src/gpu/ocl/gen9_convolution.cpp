@@ -283,7 +283,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
         default: return status::unimplemented;
     }
     if (int8_dst) {
-        if (true || conf.ic_without_padding <= 4) {
+        if (conf.ic_without_padding < 4) {
             dst_tag = utils::pick(conf.ndims - 3, ncw, nchw, ncdhw);
         } else if (conf.mb % 16 == 0 || conf.mb == 8) {
             dst_tag = utils::pick(
@@ -402,6 +402,10 @@ status_t gen9_convolution_fwd_t::pd_t::init_kernel_ctx(
             utils::one_of(conf.dst_tag, NCw16n16c, NChw16n16c, NCdhw16n16c));
     kernel_ctx.define_int(
             "DST_W16C", utils::one_of(conf.dst_tag, nCw16c, nChw16c, nCdhw16c));
+    kernel_ctx.define_int("DST_32N32C",
+            utils::one_of(conf.dst_tag, NCw32n32c, NChw32n32c, NCdhw32n32c));
+    kernel_ctx.define_int(
+            "DST_W32C", utils::one_of(conf.dst_tag, nCw32c, nChw32c, nCdhw32c));
     kernel_ctx.define_int(
             "DST_NCHW", utils::one_of(conf.dst_tag, ncw, nchw, ncdhw));
 

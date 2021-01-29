@@ -619,6 +619,16 @@
 // Block read/write macros for dst.
 #if DST_DT_U8 || DST_DT_S8
 
+#define BLOCK_READ_DST(ptr) \
+    AS_DST_DATA_T(intel_sub_group_block_read_uc((__global uchar *)ptr))
+#define BLOCK_WRITE_DST(ptr, v) \
+    intel_sub_group_block_write_uc((__global uchar *)ptr, as_uchar(v))
+
+#define BLOCK_READ_DST2(ptr) \
+    AS_DST_DATA2_T(intel_sub_group_block_read_uc2((__global uchar *)ptr))
+#define BLOCK_WRITE_DST2(ptr, v) \
+    intel_sub_group_block_write_uc2((__global uchar *)ptr, as_uchar2(v))
+
 #define BLOCK_READ_DST4(ptr) \
     AS_DST_DATA4_T(intel_sub_group_block_read_uc4((__global uchar *)ptr))
 #define BLOCK_WRITE_DST4(ptr, v) \
@@ -635,6 +645,16 @@
     intel_sub_group_block_write_uc16((__global uchar *)ptr, as_uchar16(v))
 
 #elif DST_DT_S32 || DST_DT_F32
+
+#define BLOCK_READ_DST(ptr) \
+    AS_DST_DATA_T(intel_sub_group_block_read((__global uint *)ptr))
+#define BLOCK_WRITE_DST(ptr, v) \
+    intel_sub_group_block_write((__global uint *)ptr, as_uint(v))
+
+#define BLOCK_READ_DST2(ptr) \
+    AS_DST_DATA2_T(intel_sub_group_block_read2((__global uint *)ptr))
+#define BLOCK_WRITE_DST2(ptr, v) \
+    intel_sub_group_block_write2((__global uint *)ptr, as_uint2(v))
 
 #define BLOCK_READ_DST4(ptr) \
     AS_DST_DATA4_T(intel_sub_group_block_read4((__global uint *)ptr))

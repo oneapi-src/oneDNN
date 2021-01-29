@@ -19,7 +19,6 @@
 
 #define BASE_OC_TAIL (SUB_GROUP_SIZE - (OC - OC_WO_PADDING))
 
-#ifdef DST_DT_S8
 #define _BLOCK_READ_DST(v, n_c, ptr) \
     if (n_c == 8) \
         (*(DATA8_T *)(v)) = CONVERT_DATA8_T( \
@@ -33,8 +32,6 @@
     if (n_c == 1) \
         (*(DATA_T *)(v)) = CONVERT_DATA_T(*(__global DST_DATA_T *)(ptr));
 
-#endif
-
 #define _BLOCK_READ8(ptr) \
     AS_DATA8_T(BLOCK_READ8((const __global BLOCK_DATA_T *)(ptr)))
 #define _BLOCK_READ4(ptr) \
@@ -45,23 +42,103 @@
     AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T *)(ptr)))
 
 #ifdef DST_DT_S8
+#if DST_NCHW
 #define _BLOCK_WRITE8(ptr, v) \
-    vstore8(CONVERT_DST_DATA8_T(v), 0, (__global DST_DATA_T *)(ptr))
+    { \
+        vstore8(CONVERT_DST_DATA8_T(v), 0, (__global DST_DATA_T *)(ptr)); \
+        printf("id: %i dst_vals %v#8f , %v#8hhi off: %i idx: %i\n", sglid, v, \
+                CONVERT_DST_DATA8_T(v), (int)ptr - ref_dst, idx); \
+    }
 #define _BLOCK_WRITE4(ptr, v) \
-    vstore4(CONVERT_DST_DATA4_T(v), 0, (__global DST_DATA_T *)(ptr))
+    { \
+        vstore4(CONVERT_DST_DATA4_T(v), 0, (__global DST_DATA_T *)(ptr)); \
+        printf("id: %i dst_vals %v#4f , %v#4hhi off: %i idx: %i\n", sglid, v, \
+                CONVERT_DST_DATA4_T(v), (int)ptr - ref_dst, idx); \
+    }
 #define _BLOCK_WRITE2(ptr, v) \
-    vstore2(CONVERT_DST_DATA2_T(v), 0, (__global DST_DATA_T *)(ptr))
+    { \
+        vstore2(CONVERT_DST_DATA2_T(v), 0, (__global DST_DATA_T *)(ptr)); \
+        printf("id: %i dst_vals %v#2f , %v#2hhi off: %i idx: %i\n", sglid, v, \
+                CONVERT_DST_DATA2_T(v), (int)ptr - ref_dst, idx); \
+    }
 #define _BLOCK_WRITE(ptr, v) \
-    *(__global DST_DATA_T *)(ptr) = CONVERT_DST_DATA_T(v);
+    { \
+        *(__global DST_DATA_T *)(ptr) = CONVERT_DST_DATA_T(v); \
+        printf("id: %i dst_vals %f , %i off: %i oc: %i idx: %i\n", sglid, v, \
+                CONVERT_DST_DATA_T(v), (int)ptr - ref_dst, oc, idx); \
+    }
 #else
 #define _BLOCK_WRITE8(ptr, v) \
-    BLOCK_WRITE8((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA8_T(v));
+    { \
+        BLOCK_WRITE_DST8( \
+                (__global DST_DATA_T *)(ptr), CONVERT_DST_DATA8_T(v)); \
+        printf("id: %i dst_vals %v#8f , %v#8hhi off: %i idx: %i mb %i g %i " \
+               "oc %i od %i oh %i ow %i\n", \
+                sglid, v, CONVERT_DST_DATA8_T(v), (int)ptr - ref_dst, idx, mb, \
+                g, oc, od, oh, ow); \
+    }
 #define _BLOCK_WRITE4(ptr, v) \
-    BLOCK_WRITE4((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA4_T(v));
+    { \
+        BLOCK_WRITE_DST4( \
+                (__global DST_DATA_T *)(ptr), CONVERT_DST_DATA4_T(v)); \
+        printf("id: %i dst_vals %v#4f , %v#4hhi off: %i idx: %i\n", sglid, v, \
+                CONVERT_DST_DATA4_T(v), (int)ptr - ref_dst, idx); \
+    }
 #define _BLOCK_WRITE2(ptr, v) \
-    BLOCK_WRITE2((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA2_T(v));
+    { \
+        BLOCK_WRITE_DST2( \
+                (__global DST_DATA_T *)(ptr), CONVERT_DST_DATA2_T(v)); \
+        printf("id: %i dst_vals %v#2f , %v#2hhi off: %i idx: %i mb %i g %i " \
+               "oc %i od %i oh %i ow %i\n", \
+                sglid, v, CONVERT_DST_DATA2_T(v), (int)ptr - ref_dst, idx, mb, \
+                g, oc, od, oh, ow); \
+    }
 #define _BLOCK_WRITE(ptr, v) \
-    BLOCK_WRITE((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA_T(v));
+    { \
+        if ((int)ptr - ref_dst == 544) { \
+            BLOCK_WRITE_DST( \
+                    (__global DST_DATA_T *)(ptr), CONVERT_DST_DATA_T(v)); \
+            printf("id: %i dst_vals %f , %i off: %i idx: %i mb %i g %i oc %i " \
+                   "od %i oh %i ow %i\n", \
+                    sglid, v + 1, CONVERT_DST_DATA_T(v), (int)ptr - ref_dst, \
+                    idx, mb, g, oc, od, oh, ow); \
+        } else { \
+            BLOCK_WRITE_DST( \
+                    (__global DST_DATA_T *)(ptr), CONVERT_DST_DATA_T(v)); \
+            printf("id: %i dst_vals %f , %i off: %i idx: %i mb %i g %i oc %i " \
+                   "od %i oh %i ow %i\n", \
+                    sglid, v, CONVERT_DST_DATA_T(v), (int)ptr - ref_dst, idx, \
+                    mb, g, oc, od, oh, ow); \
+        } \
+    }
+#endif
+#else
+#define _BLOCK_WRITE8(ptr, v) \
+    { \
+        BLOCK_WRITE8((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA8_T(v)); \
+        printf("id: %i dst_vals %v#8f , %v#8hhi off: %i idx: %i mb %i g %i " \
+               "oc %i od %i oh %i ow %i\n", \
+                sglid, v, CONVERT_DST_DATA8_T(v), ((int)ptr - ref_dst) / 4, \
+                idx, mb, g, oc, od, oh, ow); \
+    }
+#define _BLOCK_WRITE4(ptr, v) \
+    { \
+        BLOCK_WRITE4((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA4_T(v)); \
+        printf("id: %i dst_vals %v#4f , %v#4hhi off: %i idx: %i\n", sglid, v, \
+                CONVERT_DST_DATA4_T(v), (int)ptr - ref_dst, idx); \
+    }
+#define _BLOCK_WRITE2(ptr, v) \
+    { \
+        BLOCK_WRITE2((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA2_T(v)); \
+        printf("id: %i dst_vals %v#2f , %v#2hhi off: %i idx: %i\n", sglid, v, \
+                CONVERT_DST_DATA2_T(v), (int)ptr - ref_dst, idx); \
+    }
+#define _BLOCK_WRITE(ptr, v) \
+    { \
+        BLOCK_WRITE((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA_T(v)); \
+        printf("id: %i dst_vals %f , %i off: %i idx: %i\n", sglid, v, \
+                CONVERT_DST_DATA_T(v), (int)ptr - ref_dst, idx); \
+    }
 #endif
 
 #define IS_3D (OD > 1)
@@ -140,8 +217,13 @@ int off_NCdhw16n16c(
 
 int off_nCdhw32c(
         int n, int c, int d, int h, int w, int C, int D, int H, int W) {
+    //int c_32_block = OC % 32 ? (32 + OC - (OC % 32)) : OC;
+    int c_32_block = OC % 32 ? (32 + OC - (OC % 32)) : OC;
     int off = 0;
-    off += n * (C / 32) * D * H * W * 32;
+    //off += n * (C / min(OC, 32)) * D * H * W * 32;
+    //off += (c / min(OC, 32)) * D * H * W * 32;
+
+    off += n * (c_32_block / 32) * D * H * W * 32;
     off += (c / 32) * D * H * W * 32;
     off += d * H * W * 32;
     off += h * W * 32;
@@ -152,8 +234,9 @@ int off_nCdhw32c(
 
 int off_NCdhw32n32c(
         int n, int c, int d, int h, int w, int C, int D, int H, int W) {
+    int c_32_block = OC % 32 ? (32 + OC - (OC % 32)) : OC;
     int off = 0;
-    off += (n / 32) * (C / 32) * D * H * W * 32 * 32;
+    off += (n / 32) * (c_32_block / 32) * D * H * W * 32 * 32;
     off += (c / 32) * D * H * W * 32 * 32;
     off += d * H * W * 32 * 32;
     off += h * W * 32 * 32;
@@ -226,6 +309,8 @@ int dst_off(int n, int c, int d, int h, int w) {
         return off_ncdhw(n, c, d, h, w, G * OC_WO_PADDING, OD, OH, OW);
     if (DST_W16C) return off_nCdhw16c(n, c, d, h, w, G * OC, OD, OH, OW);
     if (DST_16N16C) return off_NCdhw16n16c(n, c, d, h, w, G * OC, OD, OH, OW);
+    if (DST_W32C) return off_nCdhw32c(n, c, d, h, w, G * OC, OD, OH, OW);
+    if (DST_32N32C) return off_NCdhw32n32c(n, c, d, h, w, G * OC, OD, OH, OW);
     return 0;
 }
 
@@ -590,8 +675,8 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                                                && oc_outer >= n_channels) \
                                     ? (sglid + (16 * (C_SIZE / OW_BLOCK - 1))) \
                                     : sglid); \
-                    int off = dst_off(mb, ocb + oc_tail_idx, od, oh, \
-                            ow + (oc_outer % n_channels)); \
+                    int off = dst_off( \
+                            0, oc_tail_idx, 0, 0, (oc_outer % n_channels)); \
                     int idx = oc_outer; \
                     _BLOCK_READ_DST(&(block)[idx], n_channels, &(ptr)[off]); \
                 } \
@@ -605,40 +690,82 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                         int off = dst_off( \
                                 mb_block, oc_outer * 16, 0, 0, ow_block); \
                         int idx = dst_idx(mb_block, oc_outer, ow_block); \
-                        (block)[idx] = _BLOCK_READ(&(ptr)[off]); \
+                        if (DST_W32C) { \
+                            for (int i = 0; i < OW_BLOCK && ow + i < OW; \
+                                    ++i) { \
+                                _BLOCK_READ_DST(&(block)[idx + i], 1, \
+                                        &(ptr)[off + (32 * i)]); \
+                            } \
+                        } else if (DST_32N32C) { \
+                            for (int i = 0; i < 16; ++i) { \
+                                _BLOCK_READ_DST(&(block)[idx + i], 1, \
+                                        &(ptr)[off + (32 * i)]); \
+                            } \
+                        } else { \
+                            (block)[idx] = _BLOCK_READ(&(ptr)[off]); \
+                        } \
                     } \
         } \
     } while (0)
 
 #define write_dst_block(block, ptr, ow) \
     do { \
-        if (DST_W16C) { \
+        if (DST_W16C || DST_W32C) { \
             for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) \
                 for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) { \
                     int off = dst_off(mb_block, oc_outer * 16, 0, 0, 0); \
                     int idx = dst_idx(mb_block, oc_outer, 0); \
-                    if (OW % OW_BLOCK == 0 || (ow) + OW_BLOCK <= OW) { \
+                    if (DST_W32C) { \
+                        for (int i = 0; i < OW_BLOCK && ow + i < OW; ++i) { \
+                            printf("base_off: %i off: %i oc_outer: %i " \
+                                   "mb_block: %i mb: %i oc: %i oh: %i ow: %i " \
+                                   "block: %f i: %i,sglid %i\n", \
+                                    (int)ptr - ref_dst, off + (32 * i), \
+                                    OC_OUTER, mb_block, mb, oc, oh, ow, \
+                                    *((float *)&(block)[idx]), i, sglid); \
+                            unrolled_write(1, &(block)[idx + i], \
+                                    &(ptr)[off + (32 * i)]); \
+                        } \
+                    } else if (OW % OW_BLOCK == 0 || (ow) + OW_BLOCK <= OW) { \
                         unrolled_write(OW_BLOCK, &(block)[idx], &(ptr)[off]); \
                     } else { \
                         unrolled_write( \
                                 OW % OW_BLOCK, &(block)[idx], &(ptr)[off]); \
                     } \
                 } \
-        } else if (DST_16N16C) { \
+        } else if (DST_16N16C || DST_32N32C) { \
             int ow_bound = (OW % OW_BLOCK == 0) ? OW_BLOCK \
                                                 : min(OW_BLOCK, OW - (ow)); \
             for (int ow_block = 0; ow_block < ow_bound; ow_block++) \
                 for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) \
                     for (int mb_block = 0; mb_block < MB_BLOCK; \
-                            mb_block += 16) { \
-                        int off = dst_off( \
-                                mb_block, oc_outer * 16, 0, 0, ow_block); \
+                            mb_block += (DST_32N32C ? 32 : 16)) { \
+                        printf("HERE2\n"); \
+                        int off = dst_off(mb_block, \
+                                oc_outer * (DST_32N32C ? 32 : 16), 0, 0, \
+                                ow_block); \
+                        if (sglid == 0) printf("off: %i \n", off); \
                         int idx = dst_idx(mb_block, oc_outer, ow_block); \
-                        unrolled_write(min(16, MB_BLOCK), &(block)[idx], \
-                                &(ptr)[off]); \
+                        if (DST_32N32C && MB > 8) { \
+                            for (int i = 0; i < 16; ++i) { \
+                                printf("base_off: %i off: %i oc_outer: %i " \
+                                       "mb_block: %i mb: %i oc: %i oh: %i " \
+                                       "ow: %i block: %f i: %i,sglid %i\n", \
+                                        (int)ptr - ref_dst, off + (32 * i), \
+                                        OC_OUTER, mb_block, mb, oc, oh, ow, \
+                                        *((float *)&(block)[idx + i]), i, \
+                                        sglid); \
+                                unrolled_write(1, &(block)[idx + i], \
+                                        &(ptr)[off + (32 * i)]); \
+                            } \
+                        } else { \
+                            unrolled_write(min(16, MB_BLOCK), &(block)[idx], \
+                                    &(ptr)[off]); \
+                        } \
                     } \
         } else if (DST_NCHW && sglid < OC_WO_PADDING - oc) { \
             for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) { \
+                printf("HERE3\n"); \
                 int n_channels = min(min(C_SIZE, OW - ow), OW_BLOCK); \
                 bool w_oc_tail = BASE_OC_TAIL > 0 \
                         && OC_WO_PADDING - (ocb ? ocb : SUB_GROUP_SIZE) \
@@ -653,8 +780,8 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                                                && oc_outer >= n_channels) \
                                     ? (sglid + (16 * (C_SIZE / OW_BLOCK - 1))) \
                                     : sglid); \
-                    int off = dst_off(mb, ocb + oc_tail_idx, od, oh, \
-                            ow + (oc_outer % n_channels)); \
+                    int off = dst_off( \
+                            0, oc_tail_idx, 0, 0, (oc_outer % n_channels)); \
                     int idx = oc_outer; \
                     unrolled_write( \
                             n_channels, &(block)[oc_outer], &(ptr)[off]); \
@@ -805,8 +932,13 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     src += src_off(mb, g * IC, id, ih, iw);
     wei += wei_off(g, oc, 0, 0, 0, 0);
 #if DST_NCHW
+    dst += dst_off(mb, g * OC + oc, od, oh, ow);
+    printf("dst_off: %i mb %i g %i OC %i oc %i od %i oh %i ow %i \n",
+            dst_off(mb, g * 32 + oc, od, oh, ow), mb, g, OC, oc, od, oh, ow);
 #else
     dst += dst_off(mb, g * OC + oc, od, oh, ow);
+    printf("dst_off: %i mb %i g %i OC %i oc %i od %i oh %i ow %i \n",
+            dst_off(mb, g * 32 + oc, od, oh, ow), mb, g, OC, oc, od, oh, ow);
 #endif
 
     if (OW_BLOCK == 1) {
