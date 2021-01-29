@@ -496,14 +496,9 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
             const int oc_tail_shift
                     = jcp.ch_block - jcp.oc_without_padding % jcp.ch_block;
             static constexpr auto zmm_full_mask = ((1 << 16) - 1);
-            Label done;
-            mov(reg_tail, ptr[param1 + GET_OFF(load_work)]);
-            cmp(reg_tail, jcp.nb_ch_blocking * jcp.ch_block);
-            je(done, T_NEAR);
             Reg32 reg_tail_32 = reg_tail.cvt32();
             mov(reg_tail_32, (zmm_full_mask >> oc_tail_shift));
             kmovw(k_oc_tail_mask, reg_tail_32);
-            L(done);
         }
     }
 
