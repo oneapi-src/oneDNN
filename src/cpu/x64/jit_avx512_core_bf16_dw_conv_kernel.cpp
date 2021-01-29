@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -381,6 +381,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
     if (ch_loop) {
         Label ch_loop_label, ch_tail_label, skip_ch_tail_label;
         const int ch_tail = jcp.nb_ch % jcp.nb_ch_blocking;
+        const int ch_step = jcp.nb_ch_blocking * jcp.ch_block;
 
         mov(aux_reg_ch_blocks, reg_ch_blocks);
         push(reg_kernel);
@@ -389,7 +390,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
         if (jcp.with_bias) push(reg_bias);
 
         if (ch_tail) {
-            cmp(aux_reg_ch_blocks, jcp.nb_ch_blocking);
+            cmp(aux_reg_ch_blocks, ch_step);
             jl(ch_tail_label, T_NEAR);
         }
 
@@ -400,8 +401,8 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
             add(reg_input, inp_ch_stride);
             add(reg_output, out_ch_stride);
             if (jcp.with_bias) add(reg_bias, bias_stride);
-            sub(aux_reg_ch_blocks, jcp.nb_ch_blocking);
-            cmp(aux_reg_ch_blocks, jcp.nb_ch_blocking);
+            sub(aux_reg_ch_blocks, ch_step);
+            cmp(aux_reg_ch_blocks, ch_step);
             jge(ch_loop_label, T_NEAR);
         }
 
@@ -519,7 +520,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::generate() {
     mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
     if (jcp.with_bias) mov(reg_bias, ptr[this->param1 + GET_OFF(bias)]);
     mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
-    mov(reg_ch_blocks, ptr[this->param1 + GET_OFF(ch_blocks)]);
+    mov(reg_ch_blocks, ptr[this->param1 + GET_OFF(load_work)]);
 
     Label ch_blocks_tail_label;
     Label exit_label;
@@ -544,16 +545,14 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::generate() {
     if (is_src_layout_nxc()) {
         loop_ow(jcp.nb_ch);
     } else {
-        cmp(reg_ch_blocks, jcp.nb_ch_blocking);
-        jne(ch_blocks_tail ? ch_blocks_tail_label : exit_label, T_NEAR);
+        cmp(reg_ch_blocks, (jcp.nb_ch_blocking - 1) * jcp.ch_block);
+        jle(ch_blocks_tail ? ch_blocks_tail_label : exit_label, T_NEAR);
 
         loop_ow(jcp.nb_ch_blocking); // channel main loop
 
         if (ch_blocks_tail) {
+            jmp(exit_label, T_NEAR);
             L(ch_blocks_tail_label);
-
-            cmp(reg_ch_blocks, ch_blocks_tail);
-            jne(exit_label, T_NEAR);
 
             loop_ow(ch_blocks_tail); // channel tail loop
         }

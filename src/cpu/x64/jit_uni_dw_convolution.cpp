@@ -130,22 +130,14 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
 
             par_conv.kh_padding = (size_t)nstl::max(0, kh_padding);
 
-            if (is_src_layout_nxc) {
-                // maximize jit work along contiguous dimension
-                int work_rem = end - iwork;
-                par_conv.ch_blocks = ch + work_rem * ch_step >= jcp.nb_ch
-                        ? jcp.nb_ch - ch
-                        : work_rem * ch_step;
-                assert(jcp.loop_order == loop_nhwcg);
-            } else {
-                par_conv.ch_blocks
-                        = utils::this_block_size(ch, jcp.nb_ch, ch_step);
-                assert(jcp.loop_order != loop_nhwcg);
-            }
-
-            const int oc_work = utils::this_block_size(ch * jcp.ch_block,
-                    jcp.oc_without_padding, jcp.nb_ch_blocking * jcp.ch_block);
-            par_conv.load_work = oc_work;
+            assert(IMPLICATION(
+                    jcp.loop_order == loop_nhwcg, is_src_layout_nxc));
+            // For is_src_layout_nxc maximize jit work along contiguous dim.
+            const int work_rem = end - iwork;
+            par_conv.load_work = utils::this_block_size(ch * jcp.ch_block,
+                    jcp.oc_without_padding,
+                    (is_src_layout_nxc ? work_rem * ch_step : ch_step)
+                            * jcp.ch_block);
 
             par_conv.oc_l_off = ch * jcp.ch_block;
             par_conv.post_ops_binary_rhs_arg_vec
