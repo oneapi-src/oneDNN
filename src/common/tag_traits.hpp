@@ -92,11 +92,16 @@ enum class inner_blk_t {
 
     _16a16b2a,
     _16b16a2b,
+    _16b32a2b,
+    _16b48a2b,
+    _16b64a2b,
     _16b16a4b,
+    _16b32a4b,
+    _16b48a4b,
+    _16b64a4b,
     _16b16c2b,
     _16c16b2c,
     _16c16b4c,
-
     _2a8b8a2b,
     _2b8c8b2c,
     _4a8b8a4b,
@@ -118,7 +123,9 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
                     ib::_4c16b4c, ib::_8c16b2c, ib::_2b4c2b, ib::_2c4b2c,
                     ib::_4b8c2b, ib::_4c8b2c, ib::_16a16b2a, ib::_16b16a2b,
                     ib::_16b16a4b, ib::_16b16c2b, ib::_16c16b2c, ib::_16c16b4c,
-                    ib::_2a8b8a2b, ib::_2b8c8b2c, ib::_4a8b8a4b, ib::_4b8c8b4c),
+                    ib::_2a8b8a2b, ib::_2b8c8b2c, ib::_4a8b8a4b, ib::_4b8c8b4c,
+                    ib::_16b32a2b, ib::_16b48a2b, ib::_16b64a2b, ib::_16b32a4b,
+                    ib::_16b48a4b, ib::_16b64a4b),
             "unexpected inner_blk format");
 
     // clang-format off
@@ -149,6 +156,12 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
         : (f == ib::_4b8c2b || f == ib::_4c8b2c) ? (x0 / 2) * 16 + x1 * 2 + x0 % 2
         : (f == ib::_2a8b8a2b || f == ib::_2b8c8b2c) ? (x0 / 8) * 128 + (x1 / 2) * 16 + (x0 % 8) * 2 + x1 % 2
         : (f == ib::_4a8b8a4b || f == ib::_4b8c8b4c) ? (x0 / 8) * 256 + (x1 / 4) * 32 + (x0 % 8) * 4 + x1 % 4
+        : (f == ib::_16b32a2b) ? (x1 / 2) * 64 + x0 * 2 + x1 % 2
+        : (f == ib::_16b48a2b) ? (x1 / 2) * 96 + x0 * 2 + x1 % 2
+        : (f == ib::_16b64a2b) ? (x1 / 2) * 128 + x0 * 2 + x1 % 2
+        : (f == ib::_16b32a4b) ? (x1 / 4) * 128 + x0 * 4 + x1 % 4
+        : (f == ib::_16b48a4b) ? (x1 / 4) * 192 + x0 * 4 + x1 % 4
+        : (f == ib::_16b64a4b) ? (x1 / 4) * 256 + x0 * 4 + x1 % 4
         : INT_MIN;
     // clang-format on
 }
@@ -224,7 +237,13 @@ DECL_TRAITS(ABc4b64a4b, _AB, _4b64a4b, 3);
 DECL_TRAITS(ABc2b8a4b, _AB, _2b8a4b, 3);
 DECL_TRAITS(ABc16a16b2a, _AB, _16a16b2a, 3);
 DECL_TRAITS(ABc16b16a4b, _AB, _16b16a4b, 3);
+DECL_TRAITS(ABc16b32a4b, _AB, _16b32a4b, 3);
+DECL_TRAITS(ABc16b48a4b, _AB, _16b48a4b, 3);
+DECL_TRAITS(ABc16b64a4b, _AB, _16b64a4b, 3);
 DECL_TRAITS(ABc16b16a2b, _AB, _16b16a2b, 3);
+DECL_TRAITS(ABc16b32a2b, _AB, _16b32a2b, 3);
+DECL_TRAITS(ABc16b48a2b, _AB, _16b48a2b, 3);
+DECL_TRAITS(ABc16b64a2b, _AB, _16b64a2b, 3);
 DECL_TRAITS(ABc4b4a, _AB, _4b4a, 3);
 DECL_TRAITS(Abcd4a, _A, _4a, 4);
 DECL_TRAITS(aBcd4b, _B, _4b, 4);
@@ -264,6 +283,13 @@ DECL_TRAITS(AB4b16a4b, _AB, _4b16a4b, 2);
 DECL_TRAITS(AB4b32a4b, _AB, _4b32a4b, 2);
 DECL_TRAITS(AB4b64a4b, _AB, _4b64a4b, 2);
 DECL_TRAITS(AB16b16a4b, _AB, _16b16a4b, 2);
+DECL_TRAITS(AB16b32a4b, _AB, _16b32a4b, 2);
+DECL_TRAITS(AB16b48a4b, _AB, _16b48a4b, 2);
+DECL_TRAITS(AB16b64a4b, _AB, _16b64a4b, 2);
+DECL_TRAITS(AB16b16a2b, _AB, _16b16a2b, 2);
+DECL_TRAITS(AB16b32a2b, _AB, _16b32a2b, 2);
+DECL_TRAITS(AB16b48a2b, _AB, _16b48a2b, 2);
+DECL_TRAITS(AB16b64a2b, _AB, _16b64a2b, 2);
 DECL_TRAITS(Abc16a, _A, _16a, 3);
 DECL_TRAITS(ABc16a16b, _AB, _16a16b, 3);
 DECL_TRAITS(ABc4a4b, _AB, _4a4b, 3);
@@ -294,8 +320,17 @@ DECL_TRAITS(ABcd4b64a4b, _AB, _4b64a4b, 4);
 DECL_TRAITS(ABcd2b8a4b, _AB, _2b8a4b, 4);
 DECL_TRAITS(ABcd16a16b2a, _AB, _16a16b2a, 4);
 DECL_TRAITS(ABcd16b16a4b, _AB, _16b16a4b, 4);
+DECL_TRAITS(ABcd16b32a4b, _AB, _16b32a4b, 4);
+DECL_TRAITS(ABcd16b48a4b, _AB, _16b48a4b, 4);
+DECL_TRAITS(ABcd16b64a4b, _AB, _16b64a4b, 4);
 DECL_TRAITS(ABcd16b16a2b, _AB, _16b16a2b, 4);
+DECL_TRAITS(ABcd16b32a2b, _AB, _16b32a2b, 4);
+DECL_TRAITS(ABcd16b48a2b, _AB, _16b48a2b, 4);
+DECL_TRAITS(ABcd16b64a2b, _AB, _16b64a2b, 4);
 DECL_TRAITS(ABcde16b16a2b, _AB, _16b16a2b, 5);
+DECL_TRAITS(ABcde16b32a2b, _AB, _16b32a2b, 5);
+DECL_TRAITS(ABcde16b48a2b, _AB, _16b48a2b, 5);
+DECL_TRAITS(ABcde16b64a2b, _AB, _16b64a2b, 5);
 DECL_TRAITS(ABcd8a16b2a, _AB, _8a16b2a, 4);
 DECL_TRAITS(ABcd8a8b, _AB, _8a8b, 4);
 DECL_TRAITS(aBcd8b, _B, _8b, 4);
@@ -316,6 +351,9 @@ DECL_TRAITS(ABcde4b16a4b, _AB, _4b16a4b, 5);
 DECL_TRAITS(ABcde4b32a4b, _AB, _4b32a4b, 5);
 DECL_TRAITS(ABcde4b64a4b, _AB, _4b64a4b, 5);
 DECL_TRAITS(ABcde16b16a4b, _AB, _16b16a4b, 5);
+DECL_TRAITS(ABcde16b32a4b, _AB, _16b32a4b, 5);
+DECL_TRAITS(ABcde16b48a4b, _AB, _16b48a4b, 5);
+DECL_TRAITS(ABcde16b64a4b, _AB, _16b64a4b, 5);
 DECL_TRAITS(ABcde2b8a4b, _AB, _2b8a4b, 5);
 DECL_TRAITS(aBcde16b, _B, _16b, 5);
 DECL_TRAITS(ABcde16b16a, _AB, _16b16a, 5);
