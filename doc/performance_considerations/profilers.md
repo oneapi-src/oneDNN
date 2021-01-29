@@ -23,8 +23,8 @@ variable can be used to manage integration with performance profilers.
 
 | Environment variable | Value            | Description                                                            | x64            | AArch64
 | :---                 | :---             | :---                                                                   | :---           | :---
-| DNNL_JIT_PROFILE     | 1                | Enables VTune Amplifier integration                                    | **x(default)** | **N/A(default)**
-|                      | 2                | Enables basic Linux perf integration                                   | x              | x
+| DNNL_JIT_PROFILE     | 1                | Enables VTune Amplifier integration                                    | **x(default)** | N/A
+|                      | 2                | Enables basic Linux perf integration                                   | x              | **x(default)**
 |                      | 6                | Enables Linux perf integration with JIT dump output                    | x              | x
 |                      | 14               | Enables Linux perf integration with JIT dump output and TSC timestamps | x              | N/A
 
