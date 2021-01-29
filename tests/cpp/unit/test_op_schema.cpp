@@ -1669,6 +1669,17 @@ TEST(op_schema_test, conv_bias_bn_add_relu_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
+TEST(op_schema_test, Abs) {
+    const op_kind_t op_kind_ = op_kind::Abs;
+    const size_t expected_in_size = 1;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 0;
+    const std::map<std::string, bool> attrs_data {};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
 TEST(op_schema_test, Add) {
     const op_kind_t op_kind_ = op_kind::Add;
     const size_t expected_in_size = 2;

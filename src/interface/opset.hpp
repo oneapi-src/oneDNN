@@ -24,6 +24,7 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Abs, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(AvgPool, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(AvgPoolBackprop, 1);
@@ -134,6 +135,7 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_add_sigmoid, 1);
 class opset_v1 {
 public:
     static void for_each_schema(std::function<void(op_schema &&)> fn) {
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Abs, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(AvgPool, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(

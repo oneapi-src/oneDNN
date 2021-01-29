@@ -2094,12 +2094,14 @@ TEST(pass_test, single_node_replacement) {
             = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
     auto pm = dnnl::graph::impl::pass::pass_manager(
             backend_ptr.get_pass_registry());
-    std::vector<op_kind_t> single_node_set = {BatchNormInference, Add, ReLU,
-            MatMul, AvgPool, MaxPool, AvgPoolBackprop,
+    std::vector<op_kind_t> single_node_set_supported = {BatchNormInference, Add,
+            ReLU, MatMul, AvgPool, MaxPool, AvgPoolBackprop,
             BatchNormTrainingBackprop, ConvolutionBackpropData,
             ConvolutionBackpropFilters, MaxPoolBackprop, ReLUBackprop,
-            GELUBackprop, LogSoftmax, LogSoftmaxBackprop, SoftMax, LayerNorm};
-    for (auto akind : single_node_set) {
+            GELUBackprop, LogSoftmax, LogSoftmaxBackprop, SoftMax, LayerNorm,
+            BatchNormForwardTraining, Elu, Exp, HardTanh, Log, Multiply,
+            Maximum, Minimum, Pow, Sqrt, Square, Tanh, SoftMaxBackprop};
+    for (auto akind : single_node_set_supported) {
         graph_t agraph;
         op_t *node = agraph.create_op(akind);
         ASSERT_EQ(node->get_kind(), akind);
@@ -2110,6 +2112,26 @@ TEST(pass_test, single_node_replacement) {
 
         auto replaced_node = get_fused_op(agraph.get_partitions()[0]);
         ASSERT_EQ(replaced_node->get_kind(), akind);
+    }
+
+    std::vector<op_kind_t> single_node_set_unsupported = {
+            /* not enabling ops = */ Concat, Divide, EluBackprop,
+            LayerNormBackprop, Reshape, Round, Sigmoid, SigmoidBackprop,
+            SqrtBackprop, TanhBackprop,
+            /* no dnnl primitive support = */ BiasAdd, BiasAddBackprop, Clamp,
+            ClampBackprop, Erf, HardTanhBackprop, PowBackprop, ReduceSum,
+            SoftPlus, SoftPlusBackprop, Wildcard, End, Interpolate,
+            InterpolateBackprop, Transpose, Index, PowBackpropExponent};
+    for (auto akind : single_node_set_unsupported) {
+        graph_t agraph;
+        node_t *node = agraph.create_node(akind);
+        ASSERT_EQ(node->get_op_kind(), akind);
+        pm.run_passes(agraph, "no_config");
+
+        const node_ptr &replaced_node = agraph.get_nodes()[0];
+        ASSERT_EQ(replaced_node->get_op_kind(), akind);
+        ASSERT_EQ(replaced_node->has_attr("backend"), true);
+        ASSERT_EQ(replaced_node->get_attr<std::string>("backend"), "none");
     }
 }
 

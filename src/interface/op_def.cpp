@@ -21,6 +21,14 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 
+DNNL_GRAPH_OP_SCHEMA(Abs, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_shape_inference_function(infer_identity_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(Add, 1,
         op_schema()
                 .set_num_inputs(2)
