@@ -1,6 +1,6 @@
 # *******************************************************************************
 # Copyright 2020 Arm Limited and affiliates.
-# Copyright 2020 FUJITSU LIMITED
+# Copyright 2020-2021 FUJITSU LIMITED
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -134,3 +134,19 @@ steps:
   - export QEMU_LD_PREFIX=/usr/aarch64-linux-gnu
   - export QEMU_CPU="max,sve512=on"
   - .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
+
+---
+kind: pipeline
+name: Ubuntu18-build-debug
+
+platform:
+  arch: amd64
+
+steps:
+- name: gcc-build-debug
+  image: ubuntu:18.04
+  commands:
+  - apt-get update && apt-get install -y git build-essential cmake binutils-aarch64-linux-gnu crossbuild-essential-arm64 pkg-config-aarch64-linux-gnu python3 wget libglib2.0-dev
+  - export CC=aarch64-linux-gnu-gcc
+  - export CXX=aarch64-linux-gnu-g++
+  - .github/automation/build.sh --threading omp --mode Debug --source-dir $(pwd) --build-dir $(pwd)/build --cmake-opt "-DDNNL_TARGET_ARCH=AARCH64 -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=AARCH64 -DCMAKE_FIND_ROOT_PATH=/usr/aarch64-linux-gnu -DDNNL_TARGET_EMULATOR=qemu-aarch64"
