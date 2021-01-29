@@ -75,7 +75,7 @@ int get_verbose() {
         if (getenv("DNNL_VERBOSE", val, len) == 1) verbose.set(atoi(val));
         if (!verbose.initialized()) verbose.set(0);
     }
-    static std::atomic_flag version_printed(false);
+    static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
     if (!version_printed.test_and_set() && verbose.get() > 0) {
         printf("dnnl_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
