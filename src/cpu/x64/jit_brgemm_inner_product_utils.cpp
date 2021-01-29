@@ -134,18 +134,15 @@ status_t init_ip_conf_fwd(
     }
 
     jbgp.use_buffer = IMPLICATION(jbgp.dst_dt == jbgp.acc_dt, jbgp.with_sum);
-    if (is_amx) {
-        jbgp.ic_block = 4 * jbgp.simd_w;
-        jbgp.oc_block = jbgp.simd_w;
+
+    constexpr int amx_int8_row = 64;
+    jbgp.ic_block = (is_amx_int8) ? amx_int8_row : jbgp.simd_w;
+    if (jbgp.oc >= 64) {
+        jbgp.oc_block = 64;
+    } else if (jbgp.oc >= 32) {
+        jbgp.oc_block = 32;
     } else {
-        jbgp.ic_block = jbgp.simd_w;
-        if (jbgp.oc >= 4 * jbgp.simd_w) {
-            jbgp.oc_block = 4 * jbgp.simd_w;
-        } else if (jbgp.oc >= 2 * jbgp.simd_w) {
-            jbgp.oc_block = 2 * jbgp.simd_w;
-        } else {
-            jbgp.oc_block = jbgp.simd_w;
-        }
+        jbgp.oc_block = 16;
     }
 
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
