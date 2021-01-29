@@ -1028,129 +1028,129 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         assert(!"no implementation available");
     }
 
-    void cvt_z_s32_f32(const int startIdx, const int regNum) {
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+    void cvt_z_s32_f32(const size_t startIdx, const size_t regNum) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegS tmp(i);
             scvtf(tmp, p_lsb_256 / T_m, tmp);
         }
     }
 
-    void cvt_z_f32_s32(const int startIdx, const int regNum) {
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+    void cvt_z_f32_s32(const size_t startIdx, const size_t regNum) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegS tmp(i);
             frinti(tmp, p_lsb_256 / T_m, tmp);
         }
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegS tmp(i);
             fcvtzs(tmp, p_lsb_256 / T_m, tmp);
         }
     }
 
-    void cvt_z_s8_s32(const int startIdx, const int regNum) {
+    void cvt_z_s8_s32(const size_t startIdx, const size_t regNum) {
         cvt_z_b_s(startIdx, regNum);
 
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegS tmp(i);
             sxtb(tmp, p_lsb_256 / T_m, tmp);
         }
     }
 
-    void cvt_z_s8_f32(const int startIdx, const int regNum) {
+    void cvt_z_s8_f32(const size_t startIdx, const size_t regNum) {
         cvt_z_b_s(startIdx, regNum);
         cvt_z_s32_f32(startIdx, regNum);
     }
 
-    void cvt_z_b_s(const int startIdx, const int regNum) {
+    void cvt_z_b_s(const size_t startIdx, const size_t regNum) {
         assert(z_tmp7.getIdx() < startIdx
                 || startIdx + regNum - 1 < z_tmp7.getIdx());
 
         dup(z_tmp7.b, 0);
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegB tmp(i);
             zip1(tmp, tmp, z_tmp7.b);
         }
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegH tmp(i);
             zip1(tmp, tmp, z_tmp7.h);
         }
     }
 
-    void cvt_z_u8_s32(const int startIdx, const int regNum) {
+    void cvt_z_u8_s32(const size_t startIdx, const size_t regNum) {
         cvt_z_b_s(startIdx, regNum);
 
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegS tmp(i);
             uxtb(tmp, p_lsb_256 / T_m, tmp);
         }
     }
 
-    void cvt_z_s32_s8(const int startIdx, const int regNum) {
+    void cvt_z_s32_s8(const size_t startIdx, const size_t regNum) {
         assert(z_tmp7.getIdx() < startIdx
                 || startIdx + regNum - 1 < z_tmp7.getIdx());
 
         dup(z_tmp7.s, 0);
 
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             smin(ZRegS(i), 127);
         }
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             smax(ZRegS(i), -128);
         }
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegH z(i);
             uzp1(z, z, z_tmp7.h);
         }
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegB z(i);
             uzp1(z, z, z_tmp7.b);
         }
     }
 
-    void cvt_z_u8_s8(const int startIdx, const int regNum) {
-        for (int i = startIdx; i < startIdx + regNum; i++)
+    void cvt_z_u8_s8(const size_t startIdx, const size_t regNum) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++)
             umin(ZRegB(i), 127);
     }
 
-    void cvt_z_u32_u8(const int startIdx, const int regNum) {
-        for (int i = startIdx; i < startIdx + regNum; i++)
+    void cvt_z_u32_u8(const size_t startIdx, const size_t regNum) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++)
             umin(ZRegS(i), 255);
 
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegH z(i);
             uzp1(z, z, z);
         }
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegB z(i);
             uzp1(z, z, z);
         }
     }
 
-    void cvt_z_s32_u8(const int startIdx, const int regNum) {
+    void cvt_z_s32_u8(const size_t startIdx, const size_t regNum) {
         assert(z_tmp7.getIdx() < startIdx
                 || startIdx + regNum - 1 < z_tmp7.getIdx());
         dupm(z_tmp7.s, 255);
 
-        for (int i = startIdx; i < startIdx + regNum; i++)
+        for (size_t i = startIdx; i < startIdx + regNum; i++)
             smax(ZRegS(i), 0);
 
-        for (int i = startIdx; i < startIdx + regNum; i++)
+        for (size_t i = startIdx; i < startIdx + regNum; i++)
             smin(ZRegS(i), p_512 / T_m, z_tmp7.s);
 
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegH z(i);
             uzp1(z, z, z);
         }
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             ZRegB z(i);
             uzp1(z, z, z);
         }
-        for (int i = startIdx; i < startIdx + regNum; i++) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++) {
             mov(ZRegB(i), P_MSB_384 / T_m, 0);
         }
     }
 
-    void cvt_z_s8_u8(const int startIdx, const int regNum) {
-        for (int i = startIdx; i < startIdx + regNum; i++)
+    void cvt_z_s8_u8(const size_t startIdx, const size_t regNum) {
+        for (size_t i = startIdx; i < startIdx + regNum; i++)
             smax(ZRegB(i), 0);
     }
 
