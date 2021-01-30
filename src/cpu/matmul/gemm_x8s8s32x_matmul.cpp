@@ -228,7 +228,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
                 = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
         const int wei_mask
                 = utils::get_dims_mask(dst_d.dims(), weights_d.dims(), ndims);
-        const int bia_dt_size = !pd()->with_bias()
+        const size_t bia_dt_size = !pd()->with_bias()
                 ? 0
                 : types::data_type_size(pd()->weights_md(1)->data_type);
         const size_t work_amount = (size_t)batch * M * N;
@@ -321,8 +321,11 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
 
                 if (postops_in_matmul) {
                     (*pp_kernel_)(curr_dst, curr_acc,
-                            bias + (i_work % N) * bia_dt_size, scales, 0,
-                            gemm_M * gemm_N, static_cast<size_t>(gemm_N), ldc,
+                            bias
+                                    + static_cast<ptrdiff_t>(i_work % N)
+                                            * bia_dt_size,
+                            scales, 0, gemm_M * gemm_N,
+                            static_cast<size_t>(gemm_N), ldc,
                             &dst_zero_point_f32, nullptr, nullptr, ctx,
                             *pd()->dst_md());
                 }
