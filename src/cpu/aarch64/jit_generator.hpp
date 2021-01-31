@@ -202,6 +202,10 @@ public:
         L(label);
     }
 
+    void uni_clear(const Xbyak_aarch64::VReg &dst) { eor(dst.b, dst.b, dst.b); }
+
+    void uni_clear(const Xbyak_aarch64::ZReg &dst) { eor(dst.d, dst.d, dst.d); }
+
     template <typename TReg>
     void uni_fdiv(const TReg &dst, const TReg &src, const TReg &src2) {
         fdiv(dst, src, src2);
@@ -259,6 +263,26 @@ public:
         eor(Xbyak_aarch64::ZRegD(z1.getIdx()),
                 Xbyak_aarch64::ZRegD(z2.getIdx()),
                 Xbyak_aarch64::ZRegD(z3.getIdx()));
+    }
+
+    void uni_ldr(
+            const Xbyak_aarch64::VReg &dst, const Xbyak_aarch64::XReg &addr) {
+        ldr(Xbyak_aarch64::QReg(dst.getIdx()), ptr(addr));
+    }
+
+    void uni_ldr(
+            const Xbyak_aarch64::ZReg &dst, const Xbyak_aarch64::XReg &addr) {
+        ldr(dst, ptr(addr));
+    }
+
+    void uni_str(
+            const Xbyak_aarch64::VReg &src, const Xbyak_aarch64::XReg &addr) {
+        str(Xbyak_aarch64::QReg(src.getIdx()), ptr(addr));
+    }
+
+    void uni_str(
+            const Xbyak_aarch64::ZReg &src, const Xbyak_aarch64::XReg &addr) {
+        str(src, ptr(addr));
     }
 
     /*
