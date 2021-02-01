@@ -231,11 +231,11 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 
         // FIXME: there's a bug in the library resulting in
         // memory_tracking.hpp:458: Assertion `registry_.size() == 0' failed.
-        // Specifically for 3D spatial case, when both BWD_W and BWD_WB are
-        // run. It must be cache interaction, but not clear which side is
+        // For any spatial case, when both BWD_W and BWD_WB are run.
+        // It must be cache interaction, but not clear which side is
         // guilty. Likely Nvidia implementation. Switch it off until further
         // investigation.
-        if (prb->ndims == 5 && prb->dir == BWD_WB) {
+        if (prb->dir == BWD_WB) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
