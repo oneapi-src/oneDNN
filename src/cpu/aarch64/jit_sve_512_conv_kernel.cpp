@@ -3983,8 +3983,6 @@ status_t jit_sve_512_conv_bwd_weights_kernel_f32::init_conf(
 
     /* Set bounds for large filter 'kw > 14' support and optimized JIT
      * implementation for small output-width 'ow = 1' */
-    const int min_filter_size = 14;
-    const int max_filter_size = 20;
     const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
     const auto dat_tag_ncx = pick(ndims - 3, ncw, nchw, ncdhw);
     const auto dat_tag_nCx16c = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
@@ -3996,28 +3994,7 @@ status_t jit_sve_512_conv_bwd_weights_kernel_f32::init_conf(
             = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
     if (mayiuse(sve_512) && is_data_layout_nxc) return status::unimplemented;
 
-    /* Optimization: when `output-width == 1' deploy a special case of the
-     * JIT-Kernel by unrolling with regards to height instead of width for
-     * the source and filter tensors. The JIT-Kernel also transposes the
-     * strides for the input and filter memory access. */
     jcp.is_hw_transp = false;
-    /* TODO: support hw-transpose optimization */
-    /*
-    jcp.is_hw_transp = !is_data_layout_nxc && ndims == 4
-            && jcp.kw >= min_filter_size && jcp.kw < max_filter_size
-            && jcp.ow == 1 && jcp.kw == jcp.iw
-            && everyone_is(1, jcp.stride_w, jcp.stride_h)
-            && everyone_is(0, jcp.dilate_h, jcp.dilate_w)
-            && everyone_is(0, jcp.l_pad, jcp.t_pad, jcp.r_pad, jcp.b_pad);
-
-    if (jcp.is_hw_transp) {
-        jcp.tr_kw = jcp.kh;
-        jcp.tr_kh = jcp.kw;
-        jcp.tr_iw = jcp.ih;
-        jcp.tr_ih = jcp.iw;
-    }
-    */
-
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
     jcp.ohp = jcp.oh;
