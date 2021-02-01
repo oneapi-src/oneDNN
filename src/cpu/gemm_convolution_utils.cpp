@@ -2180,30 +2180,6 @@ void bwd_weights_reduction_par_nspc(int ithr, int nthr, size_t g_start,
     }
 }
 
-bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
-#if DNNL_X64
-    using namespace x64::injector;
-    static constexpr bool sum_at_pos_0_only = true;
-    static constexpr bool sum_requires_scale_one = true;
-    return x64::injector::post_ops_ok({x64::isa_all, {binary, eltwise, sum},
-            post_ops, dst_d, sum_at_pos_0_only, sum_requires_scale_one});
-#endif
-    for (size_t i = 0; i < post_ops.entry_.size(); i++) {
-        const auto &post_op = post_ops.entry_[i];
-        const bool sum_postop_present = post_op.is_sum();
-        if (sum_postop_present && i > 0) return false;
-        if (!(sum_postop_present || post_op.is_eltwise()
-                    || post_op.is_binary()))
-            return false;
-    }
-    return true;
-}
-
-bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d) {
-    const auto dst_md = memory_desc_wrapper(dst_d);
-    return post_ops_ok(post_ops, &dst_md);
-}
-
 bool padding_exists(const conv_gemm_conf_t &jcp) noexcept {
     return jcp.l_pad || jcp.t_pad || jcp.f_pad || jcp.e_pad || jcp.b_pad
             || jcp.r_pad;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,8 +48,7 @@ struct gemm_convolution_fwd_t : public primitive_t {
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops,
                             data_type::f32)
-                    && jit_gemm_convolution_utils::post_ops_ok(
-                            attr()->post_ops_, &dst_md_);
+                    && post_ops_ok();
 
             if (!ok) return status::unimplemented;
 
@@ -60,6 +59,23 @@ struct gemm_convolution_fwd_t : public primitive_t {
         }
 
         conv_gemm_conf_t jcp_;
+
+    protected:
+        bool post_ops_ok() const {
+            auto const &po = attr()->post_ops_;
+            auto is_eltwise
+                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
+            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
+            auto is_binary
+                    = [&](int idx) { return po.entry_[idx].is_binary(); };
+
+            for (int idx = 0; idx < po.len(); idx++)
+                if ((is_sum(idx) && idx != 0) && !is_binary(idx)
+                        && !is_eltwise(idx))
+                    return false;
+
+            return true;
+        }
     };
 
     gemm_convolution_fwd_t(const pd_t *apd)

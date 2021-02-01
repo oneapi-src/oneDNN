@@ -126,9 +126,6 @@ void bwd_weights_reduction_par_nspc(int ithr, int nthr, size_t g_start,
         size_t g_end, const conv_gemm_conf_t &jcp,
         const float *weights_reduce_base, float *diff_weights);
 
-bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d);
-bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d);
-
 bool padding_exists(const conv_gemm_conf_t &jcp) noexcept;
 
 } // namespace jit_gemm_convolution_utils
