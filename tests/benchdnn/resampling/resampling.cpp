@@ -163,7 +163,9 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED) return;
 
     if (is_nvidia_gpu()) {
-        if (prb->ndims == 5 || prb->alg == nearest) {
+        const bool dt_ok = prb->sdt != dnnl_s8 && prb->ddt != dnnl_s8;
+        if (prb->ndims == 5 || prb->alg == nearest || !prb->attr.is_def()
+                || !dt_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
