@@ -128,7 +128,7 @@ private:
 
     void prefetch(
             const std::string prfop, int level, reg64_t in, long long int ofs) {
-        bool for_load;
+        bool for_load = false;
         if (prfop == "LD") {
             for_load = true;
         } else if (prfop == "ST") {
