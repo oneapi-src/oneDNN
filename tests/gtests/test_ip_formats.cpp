@@ -47,8 +47,9 @@ protected:
         e = get_test_engine();
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
                 "GPU takes a lot of time to complete this test.");
-        static auto isa = get_effective_cpu_isa();
-        bool supports_bf16 = is_superset(isa, cpu_isa::avx512_core);
+
+        bool supports_bf16
+                = dnnl::impl::cpu::platform::has_data_type_support(dnnl_bf16);
 
         bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
 

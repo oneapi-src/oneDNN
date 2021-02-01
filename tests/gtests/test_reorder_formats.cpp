@@ -45,12 +45,15 @@ protected:
         e = get_test_engine();
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
                 "GPU takes a lot of time to complete this test.");
+        bool has_bf16
+                = dnnl::impl::cpu::platform::has_data_type_support(dnnl_bf16);
+#if DNNL_X64
         static auto isa = get_effective_cpu_isa();
-        bool has_bf16 = is_superset(isa, cpu_isa::avx512_core);
-
         // to be removed once {sse41, avx2} are enabled
         bool has_int8_zp_support = is_superset(isa, cpu_isa::avx512_core);
-
+#else
+        bool has_int8_zp_support = false;
+#endif
         bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
 
         memory::dims SP1D = {2};
