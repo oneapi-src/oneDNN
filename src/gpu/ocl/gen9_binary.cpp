@@ -21,6 +21,21 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+// Gen9_binary requires that dst and both src tensors have the same
+// format, with one exception: it also works if src0 and dst are blocked,
+// src1 is plain, src's D1 is divisible by 16 and src1 has broadcast on all
+// dimensions except D0 and D1. This function checks for such circumstance.
+bool perf_workaround(const memory_desc_t *md) {
+    if (md->ndims < 2) { return false; }
+    if (md->format_desc.blocking.inner_nblks != 0) { return false; }
+    if (md->format_desc.blocking.strides[1] != 1) { return false; }
+    if (md->dims[1] % 16 != 0) { return false; }
+    for (int i = 2; i < md->ndims; i++) {
+        if (md->dims[i] != 1) { return false; }
+    }
+    return true;
+}
+
 status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     const memory_desc_wrapper src0_d(src_md(0));
     const memory_desc_wrapper src1_d(src_md(1));
@@ -76,8 +91,9 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
             return blocking.inner_nblks == 1 && blocking.inner_idxs[0] == 1
                     && blocking.inner_blks[0] == 16 && md.dims[1] % 16 == 0;
         };
-        if (!(format_fits(*src_md(0)) && format_fits(*src_md(1))
-                    && format_fits(*dst_md()))) {
+        if (!(format_fits(*src_md(0)) && format_fits(*dst_md())
+                    && (format_fits(*src_md(1))
+                            || perf_workaround(src_md(1))))) {
             return status::unimplemented;
         }
         // Setting the MB as the innermost dim for optimized performance
