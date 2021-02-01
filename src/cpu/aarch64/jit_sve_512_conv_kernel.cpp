@@ -40,7 +40,6 @@ using namespace dnnl::impl::utils;
 namespace {
 
 constexpr auto small_spatial = 14;
-unsigned int L1_cache_size = platform::get_per_core_cache_size(1);
 unsigned int L2_cache_size = platform::get_per_core_cache_size(2);
 
 inline void pick_loop_order(jit_conv_conf_t &jcp) {
