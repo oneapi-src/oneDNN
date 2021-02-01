@@ -179,7 +179,8 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 
     if (is_nvidia_gpu()) {
-        const bool alg_ok = !(prb->alg == alg_t::DIV || prb->alg == alg_t::SUB);
+        const bool alg_ok = !(prb->alg == alg_t::DIV || prb->alg == alg_t::SUB
+                || prb->alg == alg_t::GE);
         const bool dt_ok = prb->sdt[0] == prb->sdt[1];
         const bool diff_dt_ok = dt_ok
                 && IMPLICATION(

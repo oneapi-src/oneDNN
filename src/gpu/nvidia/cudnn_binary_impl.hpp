@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -118,11 +118,8 @@ struct cudnn_binary_impl_t : public cudnn_binary_impl_base_t {
         CHECK(convert_data_type(pd->src_md(1), &data_types[src_1]));
         CHECK(convert_data_type(pd->dst_md(), &data_types[dst_0]));
 
-        bool do_scaling = pd->src_md(0)->data_type == dnnl_data_type_t::dnnl_s8;
-        auto scales_0 = pd->attr()->scales_.get(1).scales_;
-        auto scales_1 = pd->attr()->scales_.get(2).scales_;
-        alpha[0] = do_scaling ? scales_0[0] : 1.0f;
-        alpha[1] = do_scaling ? scales_1[0] : 1.0f;
+        alpha[0] = pd->attr()->scales_.get(1).scales_[0];
+        alpha[1] = pd->attr()->scales_.get(2).scales_[0];
 
         CHECK(create_and_set_tensor_descriptor(&tensor_descs[src_0],
                 data_types[src_0], ndims, dims[src_0], strides[src_0]));
