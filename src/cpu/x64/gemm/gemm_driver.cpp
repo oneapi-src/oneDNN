@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -924,8 +924,8 @@ static inline bool nocopy_checker_avx512(int nthr, const int transa,
     static const dim_t K_NOTRANSB_PER_THR = 1;
     static const double FORCE_NOCOPY_THRESH = 0.00196;
 
-    bool is_NT_case = transa == no_trans && transb == do_trans;
-    bool is_TN_case = transa == do_trans && transb == no_trans;
+    bool is_NT = transa == no_trans && transb == do_trans;
+    bool is_TN = transa == do_trans && transb == no_trans;
 
     bool is_lda_bad = lda % BAD_LD_MULT == 0;
     bool is_ldb_bad = ldb % BAD_LD_MULT == 0;
@@ -935,14 +935,14 @@ static inline bool nocopy_checker_avx512(int nthr, const int transa,
     bool is_lda_verybad = lda % VERYBAD_LD_MULT == 0;
 
     // Copy-based performs better for TN case with small N in sequential case.
-    if (nthr == 1 && is_TN_case && m > 100
+    if (nthr == 1 && is_TN && m > 100
             && ((m < 1200 && n < 200 && k < 1200)
                     || (is_lda_bad && is_ldb_bad)))
         return false;
 
     // Crude threshold for nocopy kernels if copy overhead is significant.
     if (1.0 / m + 1.0 / n >= FORCE_NOCOPY_THRESH
-            && !(is_lda_verybad && is_NT_case)) {
+            && !(is_lda_verybad && is_NT)) {
         return true;
     }
 
