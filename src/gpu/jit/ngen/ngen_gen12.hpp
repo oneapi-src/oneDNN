@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,76 @@
  */
 
 // Gen12 binary encoding.
+
+struct EncodingTag12 {};
+template <HW hw> struct EncodingTag12Dispatch { using tag = EncodingTag12; };
+
+class SWSBInfo12
+{
+    friend class InstructionModifier;
+protected:
+    union {
+        struct {
+            unsigned dist : 3;
+            unsigned pipe : 4;
+            unsigned combined : 1;
+        } pipeline;
+        struct {
+            unsigned sbid : 4;
+            unsigned mode : 3;
+            unsigned combined : 1;
+        } scoreboard;
+        struct {
+            unsigned sbid : 4;
+            unsigned dist : 3;
+            unsigned combined : 1;
+        } combined;
+        uint8_t all;
+    };
+
+    constexpr SWSBInfo12(uint8_t all_, bool dummy) : all{all_} {}
+
+    constexpr bool isPipeline() const {
+        return !combined.combined && ((scoreboard.mode < 2) || (scoreboard.mode > 4));
+    }
+
+public:
+    constexpr SWSBInfo12() : all{0} {}
+
+    SWSBInfo12(SWSBInfo info, Opcode op) {
+        if (info.hasDist() && info.hasToken()) {
+            combined.sbid = info.parts.token;
+            combined.dist = info.parts.dist;
+            combined.combined = true;
+        } else if (info.hasDist()) {
+            combined.combined = false;
+            uint8_t pipeMap[8] = {0, 1, 2, 3, 10, 0, 0, 0};
+            pipeline.dist = info.parts.dist;
+            pipeline.pipe = pipeMap[info.parts.pipe & 7];
+        } else if (info.hasToken()) {
+            combined.combined = false;
+            combined.sbid = info.parts.token;
+            scoreboard.mode = 1 + info.tokenMode();
+        } else
+            all = 0;
+    }
+
+    SWSBInfo decode(Opcode op) const {
+        if (combined.combined) {
+            bool vl = isVariableLatency(HW::Gen12LP, op);
+            auto pipe = (op == Opcode::send || op == Opcode::sendc) ? Pipe::A : Pipe::Default;
+            return SWSBInfo(combined.sbid, vl, true) | SWSBInfo(pipe, combined.dist);
+        } else if (isPipeline()) {
+            auto pipe = (pipeline.pipe == 1) ? Pipe::A : Pipe::Default;
+            return SWSBInfo(pipe, pipeline.dist);
+        } else
+            return SWSBInfo(scoreboard.sbid, scoreboard.mode != 2, scoreboard.mode != 3);
+    }
+
+    constexpr bool empty() const                              { return all == 0; }
+    constexpr uint8_t raw() const                             { return all; }
+    static constexpr14 SWSBInfo12 createFromRaw(uint8_t all_) { return SWSBInfo12(all_, false); }
+};
 
 // 24 bits of data common between src0 and src1 (lower 16 bits common with dst)
 union BinaryOperand12 {
@@ -53,142 +123,145 @@ union TernaryOperand12 {
     } direct;
 };
 
-union Instruction12 {
-    struct {                            // Lower 35 bits are essentially common.
-        unsigned opcode : 8;            // High bit reserved, used for auto-SWSB flag.
-        unsigned swsb : 8;
-        unsigned execSize : 3;
-        unsigned execOffset : 3;
-        unsigned flagReg : 2;
-        unsigned predCtrl : 4;
-        unsigned predInv : 1;
-        unsigned cmptCtrl : 1;
-        unsigned debugCtrl : 1;
-        unsigned maskCtrl : 1;
-        //
-        unsigned atomicCtrl : 1;
-        unsigned accWrCtrl : 1;
-        unsigned saturate : 1;
-        unsigned : 29;
-        //
-        unsigned : 32;
-        unsigned : 32;
-    } common;
-    struct {
-        unsigned : 32;
-        //
-        unsigned : 3;
-        unsigned dstAddrMode : 1;
-        unsigned dstType : 4;
-        unsigned src0Type : 4;
-        unsigned src0Mods : 2;
-        unsigned src0Imm : 1;
-        unsigned src1Imm : 1;
-        unsigned dst : 16;              // first 16 bits of BinaryOperand12
-        //
-        unsigned src0 : 24;             // BinaryOperand12
-        unsigned src1Type : 4;
-        unsigned cmod : 4;
-        //
-        unsigned src1 : 24;             // BinaryOperand12
-        unsigned src1Mods : 2;
-        unsigned _ : 6;
-    } binary;
-    struct {
-        uint64_t _;
-        uint32_t __;
-        uint32_t value;
-    } imm32;
-    struct {
-        uint64_t _;
-        uint32_t high;
-        uint32_t low;
-    } imm64;
-    struct {
-        unsigned : 32;                  // common
-        unsigned : 3;
-        unsigned src0VS0 : 1;
-        unsigned dstType : 3;
-        unsigned execType : 1;
-        unsigned src0Type : 3;
-        unsigned src0VS1 : 1;
-        unsigned src0Mods : 2;
-        unsigned src0Imm : 1;
-        unsigned src2Imm : 1;
-        unsigned dst : 16;              // TernaryOperand12 or immediate
-        //
-        unsigned src0 : 16;
-        unsigned src2Type : 3;
-        unsigned src1VS0 : 1;
-        unsigned src2Mods : 2;
-        unsigned src1Mods : 2;
-        unsigned src1Type : 3;
-        unsigned src1VS1 : 1;
-        unsigned cmod : 4;              // same location as binary
-        //
-        unsigned src1 : 16;             // TernaryOperand12
-        unsigned src2 : 16;             // TernaryOperand12 or immediate
-    } ternary;
-    struct {
-        unsigned : 32;
-        //
-        unsigned : 1;
-        unsigned fusionCtrl : 1;
-        unsigned eot : 1;
-        unsigned exDesc11_23 : 13;
-        unsigned descIsReg : 1;
-        unsigned exDescIsReg : 1;
-        unsigned dstRegFile : 1;
-        unsigned desc20_24 : 5;
-        unsigned dstReg : 8;
-        //
-        unsigned exDesc24_25 : 2;
-        unsigned src0RegFile : 1;
-        unsigned desc25_29 : 5;
-        unsigned src0Reg : 8;
-        unsigned : 1;
-        unsigned desc0_10 : 11;
-        unsigned sfid : 4;
-        //
-        unsigned exDesc26_27 : 2;
-        unsigned src1RegFile : 1;
-        unsigned exDesc6_10 : 5;
-        unsigned src1Reg : 8;
-        unsigned : 1;
-        unsigned desc11_19 : 9;
-        unsigned desc30_31 : 2;
-        unsigned exDesc28_31 : 4;
-    } send;
-    struct {
-        unsigned : 32;
-        unsigned : 8;
-        unsigned exDescReg : 3;
-        unsigned : 21;
-        unsigned : 32;
-        unsigned : 32;
-    } sendIndirect;
-    struct {
-        unsigned : 32;                  // common
-        unsigned : 1;
-        unsigned branchCtrl : 1;
-        unsigned : 30;
-        int32_t uip;
-        int32_t jip;
-    } branches;
-    uint64_t qword[2];
+struct Instruction12 {
+    union {
+        struct {                            // Lower 35 bits are essentially common.
+            unsigned opcode : 8;            // High bit reserved, used for auto-SWSB flag.
+            unsigned swsb : 8;
+            unsigned execSize : 3;
+            unsigned execOffset : 3;
+            unsigned flagReg : 2;
+            unsigned predCtrl : 4;
+            unsigned predInv : 1;
+            unsigned cmptCtrl : 1;
+            unsigned debugCtrl : 1;
+            unsigned maskCtrl : 1;
+            //
+            unsigned atomicCtrl : 1;
+            unsigned accWrCtrl : 1;
+            unsigned saturate : 1;
+            unsigned : 29;
+            //
+            unsigned : 32;
+            unsigned : 32;
+        } common;
+        struct {
+            unsigned : 32;
+            //
+            unsigned : 3;
+            unsigned dstAddrMode : 1;
+            unsigned dstType : 4;
+            unsigned src0Type : 4;
+            unsigned src0Mods : 2;
+            unsigned src0Imm : 1;
+            unsigned src1Imm : 1;
+            unsigned dst : 16;              // first 16 bits of BinaryOperand12
+            //
+            unsigned src0 : 24;             // BinaryOperand12
+            unsigned src1Type : 4;
+            unsigned cmod : 4;
+            //
+            unsigned src1 : 24;             // BinaryOperand12
+            unsigned src1Mods : 2;
+            unsigned _ : 6;
+        } binary;
+        struct {
+            uint64_t _;
+            uint32_t __;
+            uint32_t value;
+        } imm32;
+        struct {
+            uint64_t _;
+            uint32_t high;
+            uint32_t low;
+        } imm64;
+        struct {
+            unsigned : 32;                  // common
+            unsigned : 3;
+            unsigned src0VS0 : 1;
+            unsigned dstType : 3;
+            unsigned execType : 1;
+            unsigned src0Type : 3;
+            unsigned src0VS1 : 1;
+            unsigned src0Mods : 2;
+            unsigned src0Imm : 1;
+            unsigned src2Imm : 1;
+            unsigned dst : 16;              // TernaryOperand12 or immediate
+            //
+            unsigned src0 : 16;
+            unsigned src2Type : 3;
+            unsigned src1VS0 : 1;
+            unsigned src2Mods : 2;
+            unsigned src1Mods : 2;
+            unsigned src1Type : 3;
+            unsigned src1VS1 : 1;
+            unsigned cmod : 4;              // same location as binary
+            //
+            unsigned src1 : 16;             // TernaryOperand12
+            unsigned src2 : 16;             // TernaryOperand12 or immediate
+        } ternary;
+        struct {
+            unsigned : 32;
+            //
+            unsigned : 1;
+            unsigned fusionCtrl : 1;
+            unsigned eot : 1;
+            unsigned exDesc11_23 : 13;
+            unsigned descIsReg : 1;
+            unsigned exDescIsReg : 1;
+            unsigned dstRegFile : 1;
+            unsigned desc20_24 : 5;
+            unsigned dstReg : 8;
+            //
+            unsigned exDesc24_25 : 2;
+            unsigned src0RegFile : 1;
+            unsigned desc25_29 : 5;
+            unsigned src0Reg : 8;
+            unsigned : 1;
+            unsigned desc0_10 : 11;
+            unsigned sfid : 4;
+            //
+            unsigned exDesc26_27 : 2;
+            unsigned src1RegFile : 1;
+            unsigned exDesc6_10 : 5;
+            unsigned src1Reg : 8;
+            unsigned : 1;
+            unsigned desc11_19 : 9;
+            unsigned desc30_31 : 2;
+            unsigned exDesc28_31 : 4;
+        } send;
+        struct {
+            unsigned : 32;
+            unsigned : 8;
+            unsigned exDescReg : 3;
+            unsigned : 21;
+            unsigned : 32;
+            unsigned : 32;
+        } sendIndirect;
+        struct {
+            unsigned : 32;                  // common
+            unsigned : 1;
+            unsigned branchCtrl : 1;
+            unsigned : 30;
+            int32_t uip;
+            int32_t jip;
+        } branches;
+        uint64_t qword[2];
+    };
 
     constexpr Instruction12() : qword{0,0} {};
 
     // Decoding routines for auto-SWSB.
     bool autoSWSB() const        { return (common.opcode & 0x80); }
-    SWSBInfo swsb() const        { return SWSBInfo::createFromRaw(common.swsb); }
-    void setSWSB(SWSBInfo swsb)  { common.swsb = swsb.raw(); }
+    SWSBInfo swsb() const        { return SWSBInfo12::createFromRaw(common.swsb).decode(opcode()); }
+    void setSWSB(SWSBInfo swsb)  { common.swsb = SWSBInfo12(swsb, opcode()).raw(); }
     void clearAutoSWSB()         { common.opcode &= 0x7F; }
     Opcode opcode() const        { return static_cast<Opcode>(common.opcode & 0x7F); }
     SyncFunction syncFC() const  { return static_cast<SyncFunction>(binary.cmod); }
     SharedFunction sfid() const  { return static_cast<SharedFunction>(send.sfid); }
     bool eot() const             { return (opcode() == Opcode::send || opcode() == Opcode::sendc) && send.eot; }
     bool predicated() const      { return !common.maskCtrl || (static_cast<PredCtrl>(common.predCtrl) != PredCtrl::None); }
+    bool atomic() const          { return common.atomicCtrl; }
     unsigned dstTypecode() const { return binary.dstType; }
     void shiftJIP(int32_t shift) { branches.jip += shift * sizeof(Instruction12); }
     void shiftUIP(int32_t shift) { branches.uip += shift * sizeof(Instruction12); }
@@ -216,8 +289,13 @@ static inline unsigned getTypecode12(DataType type)
     return conversionTable[static_cast<unsigned>(type) & 0xF];
 }
 
+static inline unsigned pow2Encode(unsigned x)
+{
+    return (x == 0) ? 0 : (1 + utils::log2(x));
+}
+
 template <bool dest, bool encodeHS = true>
-static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &rd)
+static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &rd, EncodingTag12 tag)
 {
     BinaryOperand12 op{0};
 
@@ -229,39 +307,36 @@ static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &r
         op.indirect.addrOff = rd.getOffset();
         op.indirect.addrReg = rd.getIndirectOff();
         op.indirect.addrMode = 1;
-        if (!dest) {
-            op.indirect.vs = (rd.isVxIndirect()) ? 0xFFFF :
-                               (rd.getVS() == 0) ? 0 :
-                                                   (1 + utils::log2(rd.getVS()));
-        }
+        if (!dest)
+            op.indirect.vs = (rd.isVxIndirect()) ? 0xFFFF : pow2Encode(rd.getVS());
     } else {
         op.direct.regFile = getRegFile(rd);
         op.direct.subRegNum = rd.getByteOffset();
         op.direct.regNum = rd.getBase();
         op.direct.addrMode = 0;
         if (!dest)
-            op.direct.vs = (rd.getVS() == 0) ? 0 : (1 + utils::log2(rd.getVS()));
+            op.direct.vs = pow2Encode(rd.getVS());
     }
 
     if (encodeHS)
-        op.direct.hs = (rd.getHS() == 0) ? 0 : (1 + utils::log2(rd.getHS()));
+        op.direct.hs = pow2Encode(rd.getHS());
 
     if (!dest) op.direct.width = utils::log2(rd.getWidth());
 
     return op;
 }
 
-template <bool dest>
-static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const ExtendedReg &reg)
+template <bool dest, typename Tag>
+static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const ExtendedReg &reg, Tag tag)
 {
-    auto op = encodeBinaryOperand12<dest>(reg.getBase());
+    auto op = encodeBinaryOperand12<dest>(reg.getBase(), tag);
     op.direct.subRegNum = reg.getMMENum();
 
     return op;
 }
 
 template <bool dest, bool encodeHS = true>
-static inline constexpr14 TernaryOperand12 encodeTernaryOperand12(const RegData &rd)
+static inline constexpr14 TernaryOperand12 encodeTernaryOperand12(const RegData &rd, EncodingTag12 tag)
 {
 #ifdef NGEN_SAFE
     if (rd.isInvalid()) throw invalid_object_exception();
@@ -270,12 +345,8 @@ static inline constexpr14 TernaryOperand12 encodeTernaryOperand12(const RegData 
 
     TernaryOperand12 op{0};
 
-    if (encodeHS) {
-        if (dest)
-            op.direct.hs = utils::log2(rd.getHS());
-        else
-            op.direct.hs = (rd.getHS() == 0) ? 0 : (1 + utils::log2(rd.getHS()));
-    }
+    if (encodeHS)
+        op.direct.hs = dest ? utils::log2(rd.getHS()) : pow2Encode(rd.getHS());
 
     op.direct.regFile = getRegFile(rd);
     op.direct.subRegNum = rd.getByteOffset();
@@ -284,19 +355,19 @@ static inline constexpr14 TernaryOperand12 encodeTernaryOperand12(const RegData 
     return op;
 }
 
-template <bool dest>
-static inline constexpr14 TernaryOperand12 encodeTernaryOperand12(const ExtendedReg &reg)
+template <bool dest, typename Tag>
+static inline constexpr14 TernaryOperand12 encodeTernaryOperand12(const ExtendedReg &reg, Tag tag)
 {
-    auto op = encodeTernaryOperand12<dest>(reg.getBase());
+    auto op = encodeTernaryOperand12<dest>(reg.getBase(), tag);
     op.direct.subRegNum = reg.getMMENum();
 
     return op;
 }
 
-static inline void encodeCommon12(Instruction12 &i, Opcode opcode, const InstructionModifier &mod)
+static inline void encodeCommon12(Instruction12 &i, Opcode opcode, const InstructionModifier &mod, const RegData &dst, EncodingTag12 tag)
 {
     i.common.opcode = static_cast<unsigned>(opcode) | (mod.parts.autoSWSB << 7);
-    i.common.swsb = mod.parts.swsb;
+    i.common.swsb = SWSBInfo12(mod.getSWSB(), opcode).raw();
     i.common.execSize = mod.parts.eSizeField;
     i.common.execOffset = mod.parts.chanOff;
     i.common.flagReg = (mod.parts.flagRegNum << 1) | mod.parts.flagSubRegNum;
@@ -308,6 +379,12 @@ static inline void encodeCommon12(Instruction12 &i, Opcode opcode, const Instruc
     i.common.atomicCtrl = mod.parts.threadCtrl;
     i.common.accWrCtrl = mod.parts.accWrCtrl;
     i.common.saturate = mod.parts.saturate;
+}
+
+template <typename Tag>
+static inline void encodeCommon12(Instruction12 &i, Opcode opcode, const InstructionModifier &mod, const ExtendedReg &dst, Tag tag)
+{
+    encodeCommon12(i, opcode, mod, dst.getBase(), tag);
 }
 
 static inline unsigned encodeTernaryVS01(const RegData &rd)
@@ -351,10 +428,10 @@ static inline void encodeTernaryTypes(Instruction12 &i, D dst, S0 src0, S1 src1,
 #endif
 }
 
-template <typename S0>
-static inline void encodeTernarySrc0(Instruction12 &i, S0 src0)
+template <typename S0, typename Tag>
+static inline void encodeTernarySrc0(Instruction12 &i, S0 src0, Tag tag)
 {
-    i.ternary.src0 = encodeTernaryOperand12<false>(src0).bits;
+    i.ternary.src0 = encodeTernaryOperand12<false>(src0, tag).bits;
     i.ternary.src0Mods = src0.getMods();
 
     auto vs0 = encodeTernaryVS01(src0);
@@ -363,16 +440,17 @@ static inline void encodeTernarySrc0(Instruction12 &i, S0 src0)
     i.ternary.src0VS1 = vs0 >> 1;
 }
 
-static inline void encodeTernarySrc0(Instruction12 &i, const Immediate &src0)
+template <typename Tag>
+static inline void encodeTernarySrc0(Instruction12 &i, const Immediate &src0, Tag tag)
 {
     i.ternary.src0Imm = true;
     i.ternary.src0 = static_cast<uint64_t>(src0);
 }
 
-template <typename S1>
-static inline void encodeTernarySrc1(Instruction12 &i, S1 src1)
+template <typename S1, typename Tag>
+static inline void encodeTernarySrc1(Instruction12 &i, S1 src1, Tag tag)
 {
-    i.ternary.src1 = encodeTernaryOperand12<false>(src1).bits;
+    i.ternary.src1 = encodeTernaryOperand12<false>(src1, tag).bits;
     i.ternary.src1Mods = src1.getMods();
 
     auto vs1 = encodeTernaryVS01(src1);
@@ -381,14 +459,15 @@ static inline void encodeTernarySrc1(Instruction12 &i, S1 src1)
     i.ternary.src1VS1 = vs1 >> 1;
 }
 
-template <typename S2>
-static inline void encodeTernarySrc2(Instruction12 &i, S2 src2)
+template <typename S2, typename Tag>
+static inline void encodeTernarySrc2(Instruction12 &i, S2 src2, Tag tag)
 {
-    i.ternary.src2 = encodeTernaryOperand12<false>(src2).bits;
+    i.ternary.src2 = encodeTernaryOperand12<false>(src2, tag).bits;
     i.ternary.src2Mods = src2.getMods();
 }
 
-static inline void encodeTernarySrc2(Instruction12 &i, const Immediate &src2)
+template <typename Tag>
+static inline void encodeTernarySrc2(Instruction12 &i, const Immediate &src2, Tag tag)
 {
     i.ternary.src2Imm = true;
     i.ternary.src2 = static_cast<uint64_t>(src2);
@@ -453,6 +532,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
 {
     using namespace autoswsb;
 
+    auto hw = region.hw;
     auto op = opcode();
     RegData rd;
 
@@ -485,9 +565,9 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             if (len == 0)
                 return false;
             else if (len == -1)
-                region = DependencyRegion();
+                region = DependencyRegion(hw);
             else
-                region = DependencyRegion(GRFRange(base, len));
+                region = DependencyRegion(hw, GRFRange(base, len));
             return true;
         }
         case Opcode::dp4a:
@@ -525,7 +605,8 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             if (o.direct.regFile == RegFileARF) return false;
             if (op == Opcode::madm) o.direct.subRegNum = 0;
             auto base = GRF(o.direct.regNum).retype(decodeRegTypecode12(dt));
-            auto sub = base[o.direct.subRegNum / getBytes(base.getType())];
+            auto sr = o.direct.subRegNum;
+            auto sub = base[sr / getBytes(base.getType())];
             auto hs = (1 << o.direct.hs);
             if (opNum >= 0) hs >>= 1;
             if ((opNum < 0) || (opNum == 2))
@@ -554,24 +635,26 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                     break;
                 default: return false;
             }
-            if (o.direct.addrMode) { region = DependencyRegion(); return true; } // indirect
+            if (o.direct.addrMode) { region = DependencyRegion(hw); return true; } // indirect
             if (o.direct.regFile == RegFileARF) return false;
             if (isMathMacro())
                 o.direct.subRegNum = 0;
+            auto sr = o.direct.subRegNum;
+            auto vs = o.direct.vs;
             auto base = GRF(o.direct.regNum).retype(decodeRegTypecode12(dt));
-            auto sub = base[o.direct.subRegNum / getBytes(base.getType())];
+            auto sub = base[sr / getBytes(base.getType())];
             auto hs = (1 << o.direct.hs) >> 1;
             if (opNum < 0)
                 rd = sub(hs);
             else
-                rd = sub((1 << o.direct.vs) >> 1, 1 << o.direct.width, hs);
+                rd = sub((1 << vs) >> 1, 1 << o.direct.width, hs);
             break;
         }
     }
 
     auto esize = 1 << common.execSize;
     rd.fixup(esize, DataType::invalid, opNum < 0, 2);
-    region = DependencyRegion(esize, rd);
+    region = DependencyRegion(hw, esize, rd);
     return true;
 }
 

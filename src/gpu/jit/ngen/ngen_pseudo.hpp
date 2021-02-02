@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -164,11 +164,13 @@ void sqt(const InstructionModifier &mod, const RegData &dst, const RegData &src0
 //   dst, num, denom must be distinct GRFs.
 template <typename DT = void, typename A>
 void fdiv_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, RegData num, RegData denom,
-               RegData zero, RegData one, const A &tmp)
+               RegData zero, RegData one, const A &tmp, InstructionModifier cfmod = InstructionModifier())
 {
     DataType dt = getDataType<DT>();
     if (dt == DataType::invalid)
         dt = dst.getType();
+    if (cfmod.getExecSize() == 0)
+        cfmod = mod;
 
     Label labelSkip;
 
@@ -178,7 +180,7 @@ void fdiv_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, R
             break;
         case DataType::f:
             invm<DT>(mod | eo | flag,         dst | mme0,      num | nomme,   denom | nomme);
-            if_(mod | ~flag, labelSkip);
+            if_(cfmod | ~flag, labelSkip);
 
             madm<DT>(mod, TMP(0) | mme1,     zero | nomme,     num | nomme,     dst | mme0);
             madm<DT>(mod, TMP(1) | mme2,      one | nomme,  -denom | nomme,     dst | mme0);
@@ -189,11 +191,11 @@ void fdiv_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, R
             madm<DT>(mod,    dst | nomme,  TMP(0) | mme5,   TMP(1) | mme6,   TMP(2) | mme3);
 
             mark(labelSkip);
-            endif(mod);
+            endif(cfmod);
             break;
         case DataType::df:
             invm<DT>(mod | eo | flag,         dst | mme0,      num | nomme,   denom | nomme);
-            if_(mod | ~flag, labelSkip);
+            if_(cfmod | ~flag, labelSkip);
 
             madm<DT>(mod, TMP(0) | mme1,     zero | nomme,     num | nomme,     dst | mme0);
             madm<DT>(mod, TMP(1) | mme2,      one | nomme,  -denom | nomme,     dst | mme0);
@@ -207,7 +209,7 @@ void fdiv_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, R
             madm<DT>(mod,    dst | nomme,  TMP(0) | mme7,   TMP(2) | mme1,   TMP(3) | mme0);
 
             mark(labelSkip);
-            endif(mod);
+            endif(cfmod);
             break;
         default:
 #ifdef NGEN_SAFE
@@ -217,15 +219,18 @@ void fdiv_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, R
     }
 }
 
-// IEEE 754-compliant reciprocal math macro sequence. Only needed for double precision (use math.inv for single/half precision).
+// IEEE 754-compliant reciprocal math macro sequence.
 //   Requires GRF initialized with 1.0, as well as 3 temporary GRFs.
 //   dst and src must be distinct GRFs.
 template <typename DT = void, typename A>
-void inv_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, RegData src, RegData one, const A &tmp)
+void inv_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, RegData src, RegData one,
+              const A &tmp, InstructionModifier cfmod = InstructionModifier())
 {
     DataType dt = getDataType<DT>();
     if (dt == DataType::invalid)
         dt = dst.getType();
+    if (cfmod.getExecSize() == 0)
+        cfmod = mod;
 
     Label labelSkip;
 
@@ -235,7 +240,7 @@ void inv_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, Re
             break;
         case DataType::f:
             invm<DT>(mod | eo | flag,         dst | mme0,      one | nomme,     src | nomme);
-            if_(mod | ~flag, labelSkip);
+            if_(cfmod | ~flag, labelSkip);
 
             madm<DT>(mod, TMP(1) | mme2,      one | nomme,    -src | nomme,     dst | mme0);
             madm<DT>(mod, TMP(2) | mme3,      dst | mme0,   TMP(1) | mme2,      dst | mme0);
@@ -244,11 +249,11 @@ void inv_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, Re
             madm<DT>(mod,    dst | nomme,  TMP(0) | mme5,   TMP(1) | mme6,   TMP(2) | mme3);
 
             mark(labelSkip);
-            endif(mod);
+            endif(cfmod);
             break;
         case DataType::df:
             invm<DT>(mod | eo | flag,        dst | mme0,      one | nomme,     src | nomme);
-            if_(mod | ~flag, labelSkip);
+            if_(cfmod | ~flag, labelSkip);
 
             madm<DT>(mod, TMP(0) | mme2,     one | nomme,    -src | nomme,     dst | mme0);
             madm<DT>(mod, TMP(1) | mme4,     dst | mme0,   TMP(0) | mme2,      dst | mme0);
@@ -259,7 +264,7 @@ void inv_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, Re
             madm<DT>(mod,    dst | nomme,    dst | mme6,   TMP(0) | mme1,   TMP(1) | mme0);
 
             mark(labelSkip);
-            endif(mod);
+            endif(cfmod);
             break;
         default:
 #ifdef NGEN_SAFE
@@ -275,11 +280,13 @@ void inv_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, Re
 //   dst and src must be distinct GRFs.
 template <typename DT = void, typename A>
 void sqt_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, RegData src,
-               RegData zero, RegData oneHalf, RegData one, const A &tmp)
+               RegData zero, RegData oneHalf, RegData one, const A &tmp, InstructionModifier cfmod = InstructionModifier())
 {
     DataType dt = getDataType<DT>();
     if (dt == DataType::invalid)
         dt = dst.getType();
+    if (cfmod.getExecSize() == 0)
+        cfmod = mod;
 
     Label labelSkip;
 
@@ -289,7 +296,7 @@ void sqt_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, Re
             break;
         case DataType::f:
             rsqtm<DT>(mod | eo | flag,        dst | mme0,       src | nomme);
-            if_(mod | ~flag, labelSkip);
+            if_(cfmod | ~flag, labelSkip);
 
             madm<DT>(mod, TMP(0) | mme1,     zero | nomme,  oneHalf | nomme,     dst | mme0);
             madm<DT>(mod, TMP(1) | mme2,     zero | nomme,      src | nomme,     dst | mme0);
@@ -300,11 +307,11 @@ void sqt_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, Re
             madm<DT>(mod,    dst | nomme,     dst | mme5,    TMP(0) | mme4,   TMP(2) | mme6);
 
             mark(labelSkip);
-            endif(mod);
+            endif(cfmod);
             break;
         case DataType::df:
             rsqtm<DT>(mod | eo | flag,        dst | mme0,       src | nomme);
-            if_(mod | ~flag, labelSkip);
+            if_(cfmod | ~flag, labelSkip);
 
             madm<DT>(mod, TMP(0) | mme1,     zero | mme0,   oneHalf | nomme,     dst | mme0);
             madm<DT>(mod, TMP(1) | mme2,     zero | mme0,       src | nomme,     dst | mme0);
@@ -319,7 +326,7 @@ void sqt_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, Re
             madm<DT>(mod,    dst | nomme,     dst | mme6,    TMP(0) | mme1,   TMP(3) | mme5);
 
             mark(labelSkip);
-            endif(mod);
+            endif(cfmod);
             break;
         default:
 #ifdef NGEN_SAFE
@@ -333,7 +340,9 @@ void sqt_ieee(const InstructionModifier &mod, FlagRegister flag, RegData dst, Re
 
 // Thread spawner messages.
 void threadend(const InstructionModifier &mod, const RegData &r0_info) {
-    send(8 | EOT | mod | NoMask, null, r0_info, 0x27, 0x2000010);
+    auto sf = SharedFunction::ts;
+    uint32_t exdesc = 0x20 | (static_cast<int>(sf) & 0xF);
+    send(8 | EOT | mod | NoMask, null, r0_info, exdesc, 0x2000010);
 }
 
 void threadend(const RegData &r0_info) { threadend(InstructionModifier(), r0_info); }
@@ -341,18 +350,29 @@ void threadend(const RegData &r0_info) { threadend(InstructionModifier(), r0_inf
 // Gateway messages.
 void barriermsg(const InstructionModifier &mod, const GRF &header)
 {
-    send(1 | mod | NoMask, null, header, 0x3, 0x2000004);
+    uint32_t exdesc = static_cast<int>(SharedFunction::gtwy) & 0xF;
+    send(1 | mod | NoMask, null, header, exdesc, 0x2000004);
 }
 
 void barriermsg(const GRF &header) { barriermsg(InstructionModifier(), header); }
 
 void barriersignal(const InstructionModifier &mod, const GRF &temp, const GRF &r0_info = r0)
 {
-    and_(8 | NoMask, temp.ud(), r0_info.ud(2), uint32_t((hardware >= HW::Gen11) ? 0x7F000000 : 0x8F000000));
+        and_(8 | NoMask, temp.ud(), r0_info.ud(2), uint32_t((hardware >= HW::Gen11) ? 0x7F000000 : 0x8F000000));
+    barriermsg(mod, temp);
+}
+
+void barriersignal(const InstructionModifier &mod, const GRF &temp, uint32_t threadCount, const GRF &r0_info = r0)
+{
+    {
+        and_(8 | NoMask, temp.ud(), r0_info.ud(2), uint32_t((hardware >= HW::Gen11) ? 0x7F000000 : 0x8F000000));
+        mov(1 | NoMask, temp.ub(9), 0x80 | (threadCount & 0x7F));
+    }
     barriermsg(mod, temp);
 }
 
 void barriersignal(const GRF &temp, const GRF &r0_info = r0) { barriersignal(InstructionModifier(), temp, r0_info); }
+void barriersignal(const GRF &temp, uint32_t threadCount, const GRF &r0_info = r0) { barriersignal(InstructionModifier(), temp, threadCount, r0_info); }
 
 void barrierwait()
 {
@@ -362,57 +382,18 @@ void barrierwait()
         wait(NoMask, n0[0]);
 }
 
-void barrier(const GRF &temp, const GRF &r0_info = r0)
+template <typename... Targs>
+void barrier(const Targs &...barrierArgs)
 {
-    barriersignal(temp, r0_info);
+    barriersignal(barrierArgs...);
     barrierwait();
-}
-
-// Data port messages.
-template <typename DataSpec>
-void load(const InstructionModifier &mod, const RegData &dst, const DataSpec &spec, AddressBase base, const RegData &addr)
-{
-    MessageDescriptor desc;
-    ExtendedMessageDescriptor exdesc;
-
-    encodeLoadDescriptors(desc, exdesc, mod, spec, base);
-    send(mod, dst, addr, exdesc.all, desc.all);
-}
-
-template <typename DataSpec>
-void store(const InstructionModifier &mod, const DataSpec &spec, AddressBase base, const RegData &addr, const RegData &data)
-{
-    MessageDescriptor desc;
-    ExtendedMessageDescriptor exdesc;
-
-    encodeStoreDescriptors(desc, exdesc, mod, spec, base);
-    sends(mod, NullRegister(), addr, data, exdesc.all, desc.all);
-}
-
-// For write-only atomics, dest is null; for unary atomics, data is null.
-template <typename DataSpec>
-void atomic(AtomicOp op, const InstructionModifier &mod, const RegData &dst, const DataSpec &spec, AddressBase base, const RegData &addr, const RegData &data = NullRegister())
-{
-    MessageDescriptor desc;
-    ExtendedMessageDescriptor exdesc;
-
-    encodeAtomicDescriptors(desc, exdesc, op, mod, dst, spec, base);
-    if (data.isNull())
-        send(mod, dst, addr, exdesc.all, desc.all);
-    else
-        sends(mod, dst, addr, data, exdesc.all, desc.all);
-}
-
-template <typename DataSpec>
-void atomic(AtomicOp op, const InstructionModifier &mod, const DataSpec &spec, AddressBase base, const RegData &addr, const RegData &data = NullRegister())
-{
-    atomic(op, mod, NullRegister(), spec, base, addr, data);
 }
 
 // Global memory fence.
 void memfence(const InstructionModifier &mod, const RegData &dst, const RegData &header = GRF(0))
 {
-    send(8 | mod | NoMask, dst, header, 0xA, 0x219E000);
+    const uint32_t exdesc = static_cast<int>(SharedFunction::dc0) & 0xF;
+    send(8 | mod | NoMask, dst, header, exdesc, 0x219E000);
 }
 
 void memfence(const RegData &dst, const RegData &header = GRF(0)) { memfence(InstructionModifier(), dst, header); }
@@ -420,7 +401,8 @@ void memfence(const RegData &dst, const RegData &header = GRF(0)) { memfence(Ins
 // SLM-only memory fence.
 void slmfence(const InstructionModifier &mod, const RegData &dst, const RegData &header = GRF(0))
 {
-    send(8 | mod | NoMask, dst, header, 0xA, 0x219E0FE);
+    const uint32_t exdesc = static_cast<int>(SharedFunction::dc0) & 0xF;
+    send(8 | mod | NoMask, dst, header, exdesc, 0x219E0FE);
 }
 
 void slmfence(const RegData &dst, const RegData &header = GRF(0)) { slmfence(InstructionModifier(), dst, header); }

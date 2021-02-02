@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,15 +21,10 @@
 #ifndef NGEN_AUTO_SWSB_HPP
 #define NGEN_AUTO_SWSB_HPP
 
-// temporary
-//#define DEBUG
-//#define DEBUG_PROPAGATE
-//#define DEBUG_BB
-#if defined(DEBUG) || defined(DEBUG_PROPAGATE) || defined(DEBUG_BB)
+#if defined(NGEN_DEBUG) || defined(NGEN_DEBUG_PROPAGATE) || defined(NGEN_DEBUG_BB)
 #include <iomanip>
 #include <iostream>
 #endif
-//
 
 #include <list>
 #include <map>
@@ -47,9 +42,12 @@ enum {
     PipeMaskA = 1,      // All in-order pipes
     PipeMaskO = 4,      // All out-of-order pipes.
     PipeBitA = 0,
-    PipeBitO = 2
+    PipeBitO = 2,
 };
 static constexpr int NPipes = 2;
+
+static inline PipeMask toMask(Pipe pipe)   { return (1 << (static_cast<unsigned>(pipe) - 1)); }
+static inline Pipe fromMask(PipeMask mask) { return mask ? static_cast<Pipe>(1 + utils::log2(mask)) : Pipe::Default; }
 
 typedef uint8_t DestinationMask;
 enum {
@@ -82,9 +80,10 @@ public:
 
     bool inOrder() const { return ((v & vTypeMask) == vInOrder) && (v != PipeMaskNone); }
     PipeMask inOrderPipe() const { return inOrder() ? (v & ~vTypeMask) : PipeMaskNone; }
+    Pipe toPipe() const { return fromMask(inOrderPipe()); }
     inline PipeMask syncPipes(HW hw) const;
 
-#ifdef DEBUG
+#ifdef NGEN_DEBUG
     inline void dump() const;
 #endif
 };
@@ -92,11 +91,15 @@ public:
 struct DependencyRegion {
     uint8_t base, size;
     bool unspecified;
+    HW hw;
     std::array<uint32_t, 8> masks;
 
-    DependencyRegion() : base(0), size(0), unspecified{true}, masks{{0,0,0,0,0,0,0,0}} {}
-    inline DependencyRegion(GRFRange r);
-    inline DependencyRegion(int esize, RegData rr);
+    DependencyRegion() : DependencyRegion(HW::Unknown) {}
+    explicit DependencyRegion(HW hw_) : base(0), size(0), unspecified{true}, hw{hw_} {
+        for (auto &m: masks) m = 0;
+    }
+    inline DependencyRegion(HW hw, GRFRange r);
+    inline DependencyRegion(HW hw, int esize, RegData rr);
 
     inline void intersect(const DependencyRegion &other);
     inline void subtract(const DependencyRegion &other);
@@ -108,9 +111,9 @@ struct DependencyRegion {
                 return false;
         return true;
     }
-    void clear()        { *this = DependencyRegion(); unspecified = false; }
+    void clear()        { *this = DependencyRegion(hw); unspecified = false; }
 
-#ifdef DEBUG
+#ifdef NGEN_DEBUG
     inline void dump() const;
 #endif
 };
@@ -155,7 +158,7 @@ struct Dependency {
 
     static constexpr uint8_t tokenTBD = 0xFF;
 
-#ifdef DEBUG
+#ifdef NGEN_DEBUG
     inline void dump() const;
 #endif
 };
@@ -180,14 +183,14 @@ public:
     template <typename Func> inline void forEach(Func f)                { for (auto &entry : deps) f(entry); }
     template <typename Func> inline void forEach(Func f) const          { for (auto &entry : deps) f(entry); }
 
-#ifdef DEBUG
+#ifdef NGEN_DEBUG
     inline void dump() const;
 #endif
 };
 
 struct SyncInsertion {
     uint32_t inum;
-    uint16_t swsb;
+    SWSBInfo swsb;
     SyncFunction fc;
     uint32_t mask;                                  // (allrd/allwr) 0 indicates no mask to be applied.
 };
@@ -215,12 +218,14 @@ using BasicBlockList = std::vector<BasicBlock>;
 // Get all pipes to track in-order dependencies on.
 inline PipeMask allPipes(HW hw)
 {
-    return PipeMaskA | PipeMaskO;
+    PipeMask mask = PipeMaskA | PipeMaskO;
+
+    return mask;
 }
 
 // Get the execution pipe for an instruction.
 template <typename Instruction>
-GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = true)
+inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = true)
 {
     // Check jumps and no-ops
     auto op = insn.opcode();
@@ -228,7 +233,7 @@ GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = true)
         return GeneralizedPipe();
 
     // Check OOO instructions.
-    if (isVariableLatency(op)) {
+    if (isVariableLatency(hw, op)) {
         if (!checkOOO)
             return GeneralizedPipe();
         switch (op) {
@@ -247,7 +252,7 @@ GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = true)
 }
 
 template <typename Instruction>
-PipeMask getPipeMask(HW hw, const Instruction &insn)
+inline PipeMask getPipeMask(HW hw, const Instruction &insn)
 {
     PipeMask pipe = getPipe(hw, insn, false).inOrderPipe();
     if (pipe != PipeMaskNone)
@@ -263,7 +268,7 @@ PipeMask GeneralizedPipe::syncPipes(HW hw) const
 /**********************/
 /* Dependency Regions */
 /**********************/
-DependencyRegion::DependencyRegion(GRFRange r)
+DependencyRegion::DependencyRegion(HW hw_, GRFRange r)
 {
     auto nmasks = int(masks.size());
 #ifdef NGEN_SAFE
@@ -271,18 +276,22 @@ DependencyRegion::DependencyRegion(GRFRange r)
         throw invalid_region_exception();
 #endif
 
+    hw = hw_;
     unspecified = false;
     base = r.getBase();
     size = r.getLen();
+    auto fullMask = ~uint32_t(0);
     for (int i = 0; i < nmasks; i++)
-        masks[i] = (i < r.getLen()) ? ~uint32_t(0) : uint32_t(0);
+        masks[i] = (i < r.getLen()) ? fullMask : 0u;
 }
 
-DependencyRegion::DependencyRegion(int esize, RegData rr)
+DependencyRegion::DependencyRegion(HW hw_, int esize, RegData rr)
 {
     using mtype = decltype(masks)::value_type;
-    static constexpr auto mbits = sizeof(mtype) * 8;
+    const auto mbits = GRF::bytes(hw_);
+    const auto log2MBits = GRF::log2Bytes(hw_);
 
+    hw = hw_;
     base = rr.getBase();
     int hs = rr.getHS(), vs = rr.getVS();
     int nh = rr.getWidth();
@@ -307,11 +316,11 @@ DependencyRegion::DependencyRegion(int esize, RegData rr)
 
     mtype hmask = makeMask(bytes) * (makeMask(nh * hs) / makeMask(hs));
     for (int j = 0; j < nv; j++) {
-        masks[off / mbits] |= hmask << (off & (mbits - 1));
+        masks[off >> log2MBits] |= hmask << (off & (mbits - 1));
         off += vs;
     }
 
-    size = (off - vs) / mbits + 1;
+    size = ((off - vs) >> log2MBits) + 1;
     unspecified = false;
 }
 
@@ -450,7 +459,7 @@ inline bool intersects(const Dependency<false> &dep1, const Dependency<true> &de
         if (dep1.pipe.inOrder()) {
             auto commonPipe = (dep1.pipe.inOrderPipe() | PipeMaskA) & dep2.depPipe;
             if (commonPipe)
-                return (distance(dep1, dep2, commonPipe) >= dep2.dist);     // In theory should check timeout, but this
+                return (distance(dep1, dep2, dep1.pipe) >= dep2.dist);      // In theory should check timeout, but this
                                                                             // path is only used for removing dependencies.
         }
         return false;
@@ -523,6 +532,8 @@ inline bool impliesWithoutRegion(const Dependency<true> &dep1, const Dependency<
         if (dep2.hasDist())
             if (distance(dep1, dep2, dep2.pipe) - dep2.dist + dep1.dist < 0)
                 return false;
+        if (dep1.read() && dep2.write())
+            return false;
     }
     return true;
 }
@@ -622,7 +633,6 @@ void DependencyTable<consumer>::subtractAllRegions(DependencyRegion &region)
 }
 
 // Remove dependencies from the table matching a token mask.
-// Use an all-1s mask (0xFFFFFFFF) for all OOO dependencies, including those w/o tokens.
 // Returns mask of unmatched tokens.
 template <bool consumer>
 uint32_t DependencyTable<consumer>::removeByTokenMask(uint32_t mask, bool dst)
@@ -654,7 +664,7 @@ inline bool DependencyTable<false>::implies(const Dependency<false> &other)
     return false;
 }
 
-#ifdef DEBUG
+#ifdef NGEN_DEBUG
 inline void dumpPipeMask(PipeMask mask, bool spacers = true)
 {
     if (spacers) {
@@ -688,14 +698,15 @@ void DependencyRegion::dump() const
         if (size > 1)
             std::cerr << "-r" << int(base + size - 1);
 
+    auto fullMask = ~uint32_t(0);
         bool partial = false;
         for (int ii = 0; ii < size; ii++)
-            partial |= ~masks[ii];
+            partial |= (masks[ii] != fullMask);
 
         if (partial) {
             std::cerr << " (" << std::hex;
             for (int ii = 0; ii < size; ii++) {
-                if (~masks[ii])
+                if (masks[ii] != fullMask)
                     std::cerr << std::setw(sizeof(masks[ii]) * 2) << masks[ii];
                 else
                     std::cerr << "all";
@@ -792,7 +803,7 @@ inline BasicBlockList getBasicBlocks(HW hw, const Program &program)
         if (dests == DestNextIP)
             continue;
 
-#ifdef DEBUG_BB
+#ifdef NGEN_DEBUG_BB
         std::cerr << "Instruction " << n << " ->";
         if (dests & DestNextIP) std::cerr << " " << n + 1;
         if (dests & DestJIP) std::cerr << " " << n + jip;
@@ -862,18 +873,6 @@ inline BasicBlockList getBasicBlocks(HW hw, const Program &program)
     return list;
 }
 
-// Extract SBID.set, if any, from OOO SWSB.
-inline uint8_t getOOOSBIDSet(HW hw, SWSBInfo swsb)
-{
-    auto raw = swsb.raw();
-    if (raw & 0x80)
-        return raw & 0xF;
-    else if ((raw & 0xF0) == 0x40)
-        return raw & 0xF;
-    else
-        return Dependency<false>::tokenTBD;
-}
-
 // Read SWSB from instruction and output:
 //  * token dependency it produces, if any
 //  * dependencies it consumes
@@ -892,89 +891,56 @@ inline bool getSWSBDependencies(HW hw, const Instruction &insn, Dependency<false
     consume.tokenDst = false;
     consume.swsb = true;
 
-    auto swsb = insn.swsb().raw();
+    SWSBInfo swsb = insn.swsb();
     bool autoSWSB = insn.autoSWSB();
 
-    bool var = isVariableLatency(insn.opcode());
-    PipeMask defaultPipeMask = var ? PipeMaskA : consume.pipe.inOrderPipe();
-
-    if (swsb == 0) {
-        // No dependency marked.
-    } else if (swsb & 0x80) {
-        // Dual pipeline + scoreboard dependency.
-        consume.depPipe = defaultPipeMask;
-        consume.dist = (swsb >> 4) & 0x7;
-        consume.token = swsb & 0xF;
-        consume.tokenSrc = var;
-        consume.tokenDst = true;
-        if (var) {
-            produce.token = consume.token;
-            produce.tokenSrc = produce.tokenDst = true;
-        }
-        autoSWSB = false;
-    } else if (swsb < 0x20 || swsb >= 0x50) {
-        // Pipeline dependency.
-        consume.dist = swsb & 0x7;
-        switch (static_cast<Pipe>(swsb >> 3)) {
-            case Pipe::Default:     consume.depPipe = defaultPipeMask; break;
-            case Pipe::A:           consume.depPipe = PipeMaskA; break;
-            default: break;
-        }
-        autoSWSB = false;
-    } else {
-        // Scoreboard dependency.
-        auto mode = swsb >> 4;
-        consume.token = swsb & 0xF;
-        consume.tokenSrc = (mode == 3 || mode == 4);
-        consume.tokenDst = (mode == 2 || mode == 4);
-        if (mode == 4) {
-            produce.tokenSrc = produce.tokenDst = true;
-            produce.token = consume.token;
-        } else
+    if (swsb.hasDist()) {
+        auto pipe = swsb.getPipe();
+        consume.depPipe =     (hw == HW::Gen12LP) ? PipeMaskA :
+                          (pipe == Pipe::Default) ? getPipe(hw, insn).inOrderPipe()
+                                                  : toMask(pipe);
+        if (consume.depPipe) {      // if is here to ignore default pipe deps for OOO instructions.
+            consume.dist = swsb.parts.dist;
             autoSWSB = false;
+        }
+    }
+    if (swsb.hasToken()) {
+        consume.token = swsb.parts.token;
+        consume.tokenSrc = swsb.parts.src;
+        consume.tokenDst = swsb.parts.dst;
+        if (swsb.hasTokenSet()) {
+            produce.token = consume.token;
+            produce.tokenSrc = consume.tokenSrc;
+            produce.tokenDst = consume.tokenDst;
+        }
     }
 
     return autoSWSB;
 }
 
 // Encode SWSB information.
-inline SWSBInfo encodeSWSB(HW hw, Dependency<false> &produce, Dependency<true> &consume)
+inline SWSBInfo encodeSWSB(HW hw, const Dependency<false> &produce, const Dependency<true> &consume)
 {
-    bool hasDist = false;
-    int dist = 0;
-    bool hasToken = true;
-    SBInfo token = SBInfo(0);
-    SWSBInfo swsb;
-    Pipe pipe = Pipe::Default;
+    SWSBInfo swsb{};
 
-    if (produce.hasToken())
-        token = SBID(produce.token);
-    else if (consume.tokenSrc)
-        token = SBID(consume.token).src;
-    else if (consume.tokenDst)
-        token = SBID(consume.token).dst;
-    else
-        hasToken = false;
-
-    if (consume.dist > 0) {
-        hasDist = true;
-        if (hw == HW::Gen12LP)
-            pipe = Pipe::Default;
-        else if (GeneralizedPipe(consume.depPipe) == consume.pipe)
-            pipe = Pipe::Default;
-        else if (consume.depPipe == PipeMaskA)
-            pipe = Pipe::A;
-        dist = std::min<int>(consume.dist, 7);
+    if (produce.hasToken()) {
+        swsb.parts.token = produce.token;
+        swsb.parts.src = swsb.parts.dst = true;
+    } else if (consume.tokenSrc) {
+        swsb.parts.token = consume.token;
+        swsb.parts.src = true;
+    } else if (consume.tokenDst) {
+        swsb.parts.token = consume.token;
+        swsb.parts.dst = true;
     }
 
-    if (hasDist && hasToken)
-        swsb = SWSBInfo(token, dist);
-    else if (hasToken)
-        swsb = token;
-    else if (hasDist)
-        swsb = SWSBInfo(pipe, dist);
-    else
-        swsb = SWSBInfo();
+    if (consume.hasDist()) {
+        if ((hw == HW::Gen12LP) || (GeneralizedPipe(consume.depPipe) == consume.pipe))
+            swsb.setPipe(Pipe::Default);
+        else
+            swsb.setPipe(fromMask(consume.depPipe));
+        swsb.parts.dist = std::min<int>(consume.dist, 7);
+    }
 
     return swsb;
 }
@@ -995,7 +961,7 @@ inline uint8_t preferredSBID(HW hw, uint8_t base)
 template <typename Program>
 inline uint8_t chooseSBID(HW hw, Program &program, int32_t inum, int32_t counterA, const DependencyTable<false> &incoming, const DependencyTable<false> &producers, uint32_t maskDst)
 {
-    uint32_t unclaimed = 0xFFFF;
+    uint32_t unclaimed = (uint64_t(1) << tokenCount(hw)) - 1;
     std::array<int32_t, 16> pastExpiration;
     constexpr int32_t infinite = std::numeric_limits<int32_t>::max();
     int32_t bestPE = std::numeric_limits<int32_t>::min();
@@ -1011,9 +977,10 @@ inline uint8_t chooseSBID(HW hw, Program &program, int32_t inum, int32_t counter
     auto accumulateTokens = [&](const Dependency<false> &dep) {
         if (!dep.hasToken()) return;
 
-        auto token = getOOOSBIDSet(hw, program[dep.inum()].swsb());
-        if (token == dep.tokenTBD) return;
+        auto depSWSB = program[dep.inum()].swsb();
+        if (!depSWSB.hasTokenSet()) return;
 
+        auto token = depSWSB.parts.token;
         unclaimed &= ~(1 << token);
 
         int32_t pe = counterA - (dep.counters[PipeBitA] + dep.tokenTime);
@@ -1032,6 +999,7 @@ inline uint8_t chooseSBID(HW hw, Program &program, int32_t inum, int32_t counter
     //  if it's unclaimed or expired.
     for (int opNum : {-1, 1, 0}) {
         DependencyRegion region;
+        region.hw = hw;
         if (program[inum].getOperandRegion(region, opNum) && (region.size > 0)) {
             auto sbid = preferredSBID(hw, region.base);
             if (pastExpiration[sbid] >= 0)
@@ -1070,8 +1038,11 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
     const bool final = (phase == 2);
     const bool computeSWSB = (phase > 0);
     bool forceA1 = false;
+    int inumChain = -1;
+    uint32_t chainTokenMaskSrc = 0, chainTokenMaskDst = 0;
+    Dependency<true> chainGenerated;
     std::array<int32_t, NPipes> counters;
-    std::vector<Dependency<false>> depList;
+    std::vector<Dependency<false>> depList, chainProducers;
 
     // Initialize "preconsumes." These are region-less consumes arising from SWSB.
     int noPreconsume = std::numeric_limits<int>::min();
@@ -1079,12 +1050,14 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
     uint32_t preconsumeTokenSrc = 0, preconsumeTokenDst = 0;
 
     auto recordIOPreconsumes = [&](Dependency<true> &generated) {
-        if ((phase == 1) && (generated.dist > 0)) {
-            auto pDep = utils::log2(generated.depPipe);
+        if ((phase == 1) && generated.hasDist()) {
             auto spipes = generated.pipe.syncPipes(hw);
-            for (int pidx = 0; pidx <= NPipes; pidx++)
-                if (spipes & (1 << pidx))
-                    preconsumeIO[pDep][pidx] = std::max<int>(preconsumeIO[pDep][pidx], counters[pDep] - generated.dist);
+            auto dpipes = GeneralizedPipe(generated.depPipe).syncPipes(hw);
+            for (int dpidx = 0; dpidx < NPipes; dpidx++)
+                if (dpipes & (1 << dpidx))
+                    for (int pidx = 0; pidx <= NPipes; pidx++)
+                        if (spipes & (1 << pidx))
+                            preconsumeIO[dpidx][pidx] = std::max<int>(preconsumeIO[dpidx][pidx], counters[dpidx] - generated.dist);
         }
     };
 
@@ -1093,13 +1066,18 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
             for (auto &pc : pcList)
                 pc = noPreconsume;
 
-    // Initialize counters
+    // Initialize counters.
     for (auto &counter : counters)
         counter = 0;
 
     for (uint32_t inum = bb.istart; inum < bb.iend; inum++) {
         auto &insn = program[inum];
         bool forceA1Next = false;
+        bool atChainStart = false;
+
+        // Ignore illegal instructions.
+        if (insn.opcode() == Opcode::illegal)
+            continue;
 
         // Placeholder for dependency consumers from this instruction's operands.
         Dependency<true> consumeOp;
@@ -1111,12 +1089,18 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
         Dependency<true> generated = consumeOp;
         bool autoSWSB = getSWSBDependencies(hw, insn, tokenInfo, generated);
 
+        // Check for beginning of {Atomic} chain.
+        if (insn.atomic() && inumChain < 0) {
+            inumChain = inum;
+            atChainStart = true;
+        }
+
         // If token assigned, start by removing all live dependencies with this token.
         if (tokenInfo.hasToken()) {
             bb.producers.removeByTokenMask(1 << tokenInfo.token, true);
             preconsumeTokenSrc |= (1 << tokenInfo.token);
             preconsumeTokenDst |= (1 << tokenInfo.token);
-        } else if (isVariableLatency(insn.opcode())) {
+        } else if (isVariableLatency(hw, insn.opcode())) {
             generated.token = tokenInfo.token = tokenInfo.tokenTBD;
             tokenInfo.tokenSrc = tokenInfo.tokenDst = true;
         }
@@ -1133,7 +1117,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                 if (!insn.getImm32(imm))
                     imm = ~0;
 
-                auto unmatched = bb.producers.removeByTokenMask(uint16_t(imm), allwr);
+                auto unmatched = bb.producers.removeByTokenMask(imm, allwr);
                 preconsumeTokenSrc |= unmatched;
                 if (allwr) preconsumeTokenDst |= unmatched;
             }
@@ -1142,6 +1126,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
         // Decode all regions.
         DependencyRegion regions[4];
         for (int srcN = -1; srcN < 3; srcN++) {
+            regions[srcN + 1].hw = hw;
             if (!insn.getOperandRegion(regions[srcN + 1], srcN))
                 regions[srcN + 1].clear();
         }
@@ -1158,11 +1143,17 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
             uint32_t tokenMaskSrc = 0, tokenMaskDst = 0;
             SWSBInfo syncSWSB;
 
+            if (!atChainStart && (inumChain >= 0)) {
+                tokenMaskSrc = chainTokenMaskSrc;
+                tokenMaskDst = chainTokenMaskDst;
+                generated = chainGenerated;
+            }
+
             // Jumps with unknown destination: preconsume all dependencies.
             if (inum == (bb.iend - 1)) {
                 int jip, uip;
                 if (insn.destinations(jip, uip) & DestUnknown) {
-                    tokenMaskDst = preconsumeTokenDst = ~0;
+                    tokenMaskDst = preconsumeTokenDst = (uint64_t(1) << tokenCount(hw)) - 1;
                     for (auto &p : preconsumeIO[PipeBitA])
                         p = 0;
                     bb.producers.clear();
@@ -1188,9 +1179,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                 consumeOp.rw = (srcN < 0);
                 consumeOp.region = regions[srcN + 1];
 
-                // Grab all intersecting live producers.
-                // If src op, clear this pipe from the live pipe list of each intersecting producer.
-                // If dst op, clear the entire live pipe list.
+                // Remove all intersecting live producers from the table and save them.
                 auto dStart = depList.size();
                 bb.producers.findAndRemoveIntersections(consumeOp, &depList, hw);
                 auto dEnd = depList.size();
@@ -1218,11 +1207,11 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                         else if (generated.depPipe != thisPipe)
                             generated.depPipe = PipeMaskA;
 
-                        if (generated.dist > 0)
+                        if (generated.hasDist())
                             generated.dist = std::min<int>(generated.dist, thisDist);
                         else
                             generated.dist = thisDist;
-                    } else {
+                    } else if (dep.token != dep.tokenTBD) {
                         // Remember out-of-order dependencies for later.
                         if (dep.tokenSrc) tokenMaskSrc |= (1 << dep.token);
                         if (dep.tokenDst) tokenMaskDst |= (1 << dep.token);
@@ -1230,9 +1219,19 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                 }
             }
 
+            // Transfer dependencies down the {Atomic} chain (will be put later on first instruction).
+            if (insn.atomic()) {
+                chainTokenMaskSrc = tokenMaskSrc;
+                chainTokenMaskDst = tokenMaskDst;
+                chainGenerated = generated;
+                tokenMaskSrc = tokenMaskDst = 0;
+                generated = consumeOp;
+            }
+
             // If token missing on OOO instruction, assign one during phase 1.
-            if ((phase == 1) && isVariableLatency(insn.opcode()) && (tokenInfo.token == tokenInfo.tokenTBD)) {
-                generated.token = tokenInfo.token = chooseSBID(hw, program, inum, counters[PipeBitA], bb.incoming, bb.producers, tokenMaskDst);
+            if ((phase == 1) && isVariableLatency(hw, insn.opcode()) && (tokenInfo.token == tokenInfo.tokenTBD) && !insn.atomic()) {
+                auto newToken = chooseSBID(hw, program, inum, counters[PipeBitA], bb.incoming, bb.producers, tokenMaskDst);
+                generated.token = tokenInfo.token = newToken;
                 generated.tokenSrc = generated.tokenDst = true;
                 insn.setSWSB(SBID(generated.token).set);
                 preconsumeTokenSrc |= (1 << tokenInfo.token);
@@ -1244,6 +1243,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
             // Finalize SWSB computation.
             if (computeSWSB) {
                 bool recordSWSB = (final || foundAllDeps);
+                bool tokenAssigned = tokenInfo.hasToken() && (tokenInfo.token != tokenInfo.tokenTBD);
 
                 // If last instruction forced A@1, enforce now.
                 if (forceA1) {
@@ -1255,18 +1255,27 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                         generated.dist = 0;
                         auto swsb = (hw == HW::Gen12LP) ? SWSB(1) : SWSB<AllPipes>(1);
                         if (recordSWSB)
-                            bb.syncs.push_back({uint32_t(inum), swsb.raw(), SyncFunction::nop, 0});
+                            bb.syncs.push_back({uint32_t(inum), swsb, SyncFunction::nop, 0});
                     }
                 }
 
-                // If dual dependency (token + pipe) on OOO instruction, make sure to use A pipe.
-                if ((generated.hasToken() || tokenInfo.hasToken()) && (generated.dist > 0))
-                    generated.depPipe = PipeMaskA;
+                // If dual dependency (token + pipe) on OOO instruction, use A pipe for send, sync for others.
+                if ((generated.hasToken() || tokenAssigned) && generated.hasDist()) {
+                    if (insn.opcode() == Opcode::send || insn.opcode() == Opcode::sendc) {
+                            generated.depPipe = PipeMaskA;
+                    } else {
+                        auto distGen = generated;
+                        distGen.tokenSrc = distGen.tokenDst = false;
+                        syncSWSB = encodeSWSB(hw, Dependency<false>(), distGen);
+                        generated.dist = 0;
+                        generated.depPipe = PipeMaskNone;
+                    }
+                }
 
                 // Handle OOO shootdown. Unless predicate is (W), it's possible that our token won't be claimed.
-                // In this case, add sync on our token as a precaution.
-                if (tokenInfo.hasToken() && insn.predicated())
-                    syncSWSB = SBID(tokenInfo.token).dst;
+                // In this case, add sync on our token as a precaution. TODO: should check producer table.
+                if (tokenAssigned && (insn.predicated() || inumChain >= 0))
+                    tokenMaskDst |= (1 << tokenInfo.token);
 
                 // Handle OOO dependencies.
                 //    - dst implies src
@@ -1274,7 +1283,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                 //    - add sync for any remaining dependencies.
                 tokenMaskSrc &= ~tokenMaskDst;
 
-                bool acceptsSrc = (!tokenInfo.hasToken() || generated.pipe.inOrder()) && (generated.depPipe == PipeMaskNone);
+                bool acceptsSrc = (!tokenAssigned || generated.pipe.inOrder()) && (generated.depPipe == PipeMaskNone);
                 bool acceptsDst = acceptsSrc || (generated.pipe.inOrder() && (generated.depPipe == generated.pipe.inOrderPipe()));
 
                 if (tokenMaskDst && acceptsDst) {
@@ -1289,27 +1298,41 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
 
                 bool oneSrc = tokenMaskSrc && utils::is_zero_or_pow2(tokenMaskSrc);
                 bool oneDst = tokenMaskDst && utils::is_zero_or_pow2(tokenMaskDst);
+                bool oneSrcSWSB = false, oneDstSWSB = false;
+                auto inumSync = (inumChain >= 0) ? inumChain : inum;
 
-                if (oneSrc && syncSWSB.empty())
-                    syncSWSB = SBID(utils::bsr(tokenMaskSrc)).src;
-                else if (tokenMaskSrc) {
+                if (syncSWSB.empty()) {
+                    if (oneSrc) {
+                        syncSWSB = SBID(utils::bsr(tokenMaskSrc)).src;
+                        oneSrcSWSB = true;
+                    } else if (oneDst) {
+                        syncSWSB = SBID(utils::bsr(tokenMaskDst)).dst;
+                        oneDstSWSB = true;
+                    }
+                }
+                if (tokenMaskSrc && !oneSrcSWSB) {
                     if (recordSWSB)
-                        bb.syncs.push_back({uint32_t(inum), syncSWSB.raw(), SyncFunction::allrd, tokenMaskSrc});
+                        bb.syncs.push_back({uint32_t(inumSync), syncSWSB, SyncFunction::allrd, tokenMaskSrc});
                     syncSWSB = SWSBInfo();
                 }
-                if (oneDst && syncSWSB.empty())
-                    syncSWSB = SBID(utils::bsr(tokenMaskDst)).dst;
-                else if (tokenMaskDst) {
+                if (tokenMaskDst && !oneDstSWSB) {
                     if (recordSWSB)
-                        bb.syncs.push_back({uint32_t(inum), syncSWSB.raw(), SyncFunction::allwr, tokenMaskDst});
+                        bb.syncs.push_back({uint32_t(inumSync), syncSWSB, SyncFunction::allwr, tokenMaskDst});
                     syncSWSB = SWSBInfo();
                 }
-                if (syncSWSB.raw() && recordSWSB)
-                    bb.syncs.push_back({uint32_t(inum), syncSWSB.raw(), SyncFunction::nop, 0});
+                if (!syncSWSB.empty() && recordSWSB)
+                    bb.syncs.push_back({uint32_t(inumSync), syncSWSB, SyncFunction::nop, 0});
 
                 // If final or nothing added to consumer table, assign SWSB.
+                // For {Atomic} chains, put SWSB for consumed dependencies at head of chain.
                 if (recordSWSB) {
-                    insn.setSWSB(encodeSWSB(hw, tokenInfo, generated));
+                    if (inumChain >= 0) {
+                        if (!insn.atomic()) {
+                            program[inumChain].setSWSB(encodeSWSB(hw, Dependency<false>(), generated));
+                            insn.setSWSB(encodeSWSB(hw, tokenInfo, Dependency<true>()));
+                        }
+                    } else
+                        insn.setSWSB(encodeSWSB(hw, tokenInfo, generated));
                     insn.clearAutoSWSB();
                 }
 
@@ -1329,6 +1352,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
             }
 
             // Consume destination dependencies too.
+            consumeOp.region.hw = hw;
             if (insn.getOperandRegion(consumeOp.region, -1)) {
                 consumeOp.rw = true;
                 bb.producers.removeIntersections(consumeOp, hw);
@@ -1361,11 +1385,28 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                         produceOp.tokenDst = (srcN < 0);
                     }
                     produceOp.region = regions[srcN + 1];
-                    bb.producers.insertStrong(produceOp);
+                    if (insn.atomic())
+                        chainProducers.push_back(produceOp);
+                    else
+                        bb.producers.insertStrong(produceOp);
                     if (phase == 0 && srcN == -1) break;
                 }
             }
+
+            // Add producers for previous instructions in {Atomic} chain.
+            if (!insn.atomic()) {
+                for (auto &op : chainProducers) {
+                    if (!op.pipe.inOrder() || op.hasToken())
+                        op.token = tokenInfo.token;
+                    bb.producers.insertStrong(op);
+                }
+                chainProducers.clear();
+            }
         }
+
+        // Check for end of {Atomic} chain.
+        if (!insn.atomic())
+            inumChain = -1;
 
         // Increment counters.
         auto pipeMask = getPipeMask(hw, insn);
@@ -1395,7 +1436,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
         }
         // Out of order preconsumes.
         auto preconsumeToken = preconsumeTokenSrc | preconsumeTokenDst;
-        for (int token = 0; token < 16; token++) {
+        for (int token = 0; token < tokenCount(hw); token++) {
             if (preconsumeToken & (1 << token)) {
                 Dependency<true> preconsume;
                 preconsume.swsb = true;
@@ -1448,7 +1489,7 @@ inline void propagate(std::vector<BasicBlock> &BBs)
                     // New incoming dependency? If not, skip it.
                     if (dep.label != age) return;
 
-#ifdef DEBUG_PROPAGATE
+#ifdef NGEN_DEBUG_PROPAGATE
                     std::cerr << "Prop BB " << pred->id << " -> " << bb.id << ": ";
                     dep.dump();
 #endif
@@ -1463,7 +1504,7 @@ inline void propagate(std::vector<BasicBlock> &BBs)
                     if (newDep.pipe.inOrder()) {
                         auto pidx = utils::log2(newDep.pipe.inOrderPipe());
                         if (newDep.counters[pidx] <= -timeout(dep.pipe)) {
-#ifdef DEBUG_PROPAGATE
+#ifdef NGEN_DEBUG_PROPAGATE
                             std::cerr << " timeout\n";
 #endif
                             return;
@@ -1478,14 +1519,14 @@ inline void propagate(std::vector<BasicBlock> &BBs)
                     for (auto &consumer : consumerList) {
                         newDep.region.subtract(consumer.region);
                         if (newDep.region.empty()) {
-#ifdef DEBUG_PROPAGATE
+#ifdef NGEN_DEBUG_PROPAGATE
                             std::cerr << " killed\n";
 #endif
                             return;
                         }
                     }
 
-#ifdef DEBUG_PROPAGATE
+#ifdef NGEN_DEBUG_PROPAGATE
                     std::cerr << " propagated\n";
 #endif
 
@@ -1564,7 +1605,7 @@ inline BasicBlockList autoSWSB(HW hw, Program &program)
     // Find basic blocks.
     BasicBlockList bbList = getBasicBlocks(hw, program);
 
-#ifdef DEBUG
+#ifdef NGEN_DEBUG
     std::cerr << "BASIC BLOCKS\n";
     std::cerr << "------------\n";
     for (auto &bb : bbList) {
@@ -1588,7 +1629,7 @@ inline BasicBlockList autoSWSB(HW hw, Program &program)
     for (auto &bb : bbList)
         analyze(hw, program, bb, 0);
 
-#ifdef DEBUG
+#ifdef NGEN_DEBUG
     std::cerr << "ANALYZE PHASE 0\n";
     std::cerr << "---------------\n";
     for (auto &bb : bbList) {
@@ -1606,7 +1647,7 @@ inline BasicBlockList autoSWSB(HW hw, Program &program)
         bb.consumers.clear();
     }
 
-#ifdef DEBUG
+#ifdef NGEN_DEBUG
     std::cerr << "PROPAGATE\n";
     std::cerr << "---------\n";
     for (auto &bb : bbList) {
@@ -1622,7 +1663,7 @@ inline BasicBlockList autoSWSB(HW hw, Program &program)
         bb.incoming.clear();
     }
 
-#ifdef DEBUG
+#ifdef NGEN_DEBUG
     std::cerr << "ANALYZE PHASE 1\n";
     std::cerr << "---------------\n";
     for (auto &bb : bbList) {
@@ -1645,7 +1686,7 @@ inline BasicBlockList autoSWSB(HW hw, Program &program)
         bb.incoming.clear();
     }
 
-#ifdef DEBUG
+#ifdef NGEN_DEBUG
     std::cerr << "PROPAGATE\n";
     std::cerr << "---------\n";
     for (auto &bb : bbList) {
@@ -1659,7 +1700,7 @@ inline BasicBlockList autoSWSB(HW hw, Program &program)
     for (auto &bb : bbList)
         analyze(hw, program, bb, 2);
 
-#ifdef DEBUG
+#ifdef NGEN_DEBUG
     std::cerr << "ANALYZE PHASE 2\n";
     std::cerr << "---------------\n";
     for (auto &bb : bbList) {

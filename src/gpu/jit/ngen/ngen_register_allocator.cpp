@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -116,12 +116,13 @@ Bundle Bundle::locate(HW hw, RegData reg)
 
 void RegisterAllocator::init()
 {
+    fullSubMask = (1u << (GRF::bytes(hw) >> 2)) - 1;
     for (int r = 0; r < max_regs; r++)
-        free_sub[r] = 0xFF;
+        free_sub[r] = fullSubMask;
     for (int r_whole = 0; r_whole < (max_regs >> 3); r_whole++)
         free_whole[r_whole] = 0xFF;
 
-    free_flag = 0xF;
+    free_flag = (1u << FlagRegister::subcount(hw)) - 1;
     reg_count = max_regs;
 
 }
@@ -164,7 +165,7 @@ void RegisterAllocator::release(GRF reg)
 {
     int r = reg.getBase();
 
-    free_sub[r] = 0xFF;
+    free_sub[r] = fullSubMask;
     free_whole[r >> 3] |= (1 << (r & 7));
 }
 
@@ -181,7 +182,7 @@ void RegisterAllocator::release(Subregister subreg)
     int o = (subreg.getByteOffset()) >> 2;
 
     free_sub[r] |= (1 << (o + dw)) - (1 << o);
-    if (free_sub[r] == 0xFF)
+    if (free_sub[r] == fullSubMask)
         free_whole[r >> 3] |= (1 << (r & 7));
 }
 
@@ -278,7 +279,7 @@ Subregister RegisterAllocator::try_alloc_sub(DataType type, Bundle bundle)
 
     auto find_alloc_sub = [&,bundle,dwords](bool search_full_grf) -> bool {
         static const uint8_t alloc_patterns[4] = {0b11111111, 0b01010101, 0, 0b00010001};
-        uint8_t alloc_pattern = alloc_patterns[dwords - 1];
+        uint8_t alloc_pattern = alloc_patterns[(dwords - 1) & 3];
         int64_t *free_whole64 = (int64_t *) free_whole;
 
         for (int rchunk = 0; rchunk < (max_regs >> 6); rchunk++) {
@@ -290,7 +291,7 @@ Subregister RegisterAllocator::try_alloc_sub(DataType type, Bundle bundle)
                 int r = rr + (rchunk << 6);
                 free &= ~(int64_t(1) << rr);
 
-                if (search_full_grf || free_sub[r] != 0xFF) {
+                if (search_full_grf || free_sub[r] != fullSubMask) {
                     int subfree = free_sub[r];
                     for (int dw = 1; dw < dwords; dw++)
                         subfree &= (subfree >> dw);
@@ -334,7 +335,7 @@ FlagRegister RegisterAllocator::try_alloc_flag()
 void RegisterAllocator::dump(std::ostream &str)
 {
     str << "\n// Flag registers: ";
-    for (int r = 0; r < 4; r++)
+    for (int r = 0; r < FlagRegister::subcount(hw); r++)
         str << char((free_flag & (1 << r)) ? '.' : 'x');
 
     for (int r = 0; r < reg_count; r++) {
@@ -347,20 +348,18 @@ void RegisterAllocator::dump(std::ostream &str)
         if (!(r & 0xF))  str << ' ';
         if (!(r & 0x3))  str << ' ';
 
-        switch (free_sub[r]) {
-            case 0x00: str << 'x'; break;
-            case 0xFF: str << '.'; break;
-            default:   str << '/'; break;
-        }
+        if (free_sub[r] == 0x00)             str << 'x';
+        else if (free_sub[r] == fullSubMask) str << '.';
+        else                                 str << '/';
     }
 
     str << "\n//\n";
 
     for (int r = 0; r < max_regs; r++) {
         int rr = r >> 3, rb = 1 << (r & 7);
-        if ((free_sub[r] == 0xFF) != bool(free_whole[rr] & rb))
+        if ((free_sub[r] == fullSubMask) != bool(free_whole[rr] & rb))
             str << "// Inconsistent bitmaps at r" << r << std::endl;
-        if (free_sub[r] != 0x00 && free_sub[r] != 0xFF) {
+        if (free_sub[r] != 0x00 && free_sub[r] != fullSubMask) {
             str << "//  r" << std::setw(3) << r << "   ";
             for (int s = 0; s < 8; s++)
                 str << char((free_sub[r] & (1 << s)) ? '.' : 'x');

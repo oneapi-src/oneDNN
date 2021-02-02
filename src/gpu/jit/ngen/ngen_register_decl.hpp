@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,12 +15,13 @@
 *******************************************************************************/
 
 /*
- * When compiling nGEN in C++11 or C++14 mode; \
-PREFIX constexpr ngen::GRF this header file should be
+ * When compiling nGEN in C++11 or C++14 mode, this header file should be
  *  #include'd exactly once in your source code.
  */
 
 #if (defined(NGEN_CPP11) || defined(NGEN_CPP14)) && !defined(NGEN_GLOBAL_REGS)
+
+#include "ngen.hpp"
 
 #define NGEN_REGISTER_DECL_MAIN(CG, PREFIX) \
 PREFIX constexpr ngen::IndirectRegisterFrame CG::indirect; \
@@ -191,9 +192,17 @@ PREFIX constexpr ngen::NotificationRegister CG::n0; \
 PREFIX constexpr ngen::InstructionPointerRegister CG::ip; \
 PREFIX constexpr ngen::ThreadDependencyRegister CG::tdr0; \
 PREFIX constexpr ngen::PerformanceRegister CG::tm0; \
+PREFIX constexpr ngen::PerformanceRegister CG::tm1; \
+PREFIX constexpr ngen::PerformanceRegister CG::tm2; \
+PREFIX constexpr ngen::PerformanceRegister CG::tm3; \
+PREFIX constexpr ngen::PerformanceRegister CG::tm4; \
 PREFIX constexpr ngen::PerformanceRegister CG::pm0; \
 PREFIX constexpr ngen::PerformanceRegister CG::tp0; \
 PREFIX constexpr ngen::DebugRegister CG::dbg0; \
+PREFIX constexpr ngen::FlowControlRegister CG::fc0; \
+PREFIX constexpr ngen::FlowControlRegister CG::fc1; \
+PREFIX constexpr ngen::FlowControlRegister CG::fc2; \
+PREFIX constexpr ngen::FlowControlRegister CG::fc3; \
 \
 PREFIX constexpr ngen::InstructionModifier CG::NoDDClr; \
 PREFIX constexpr ngen::InstructionModifier CG::NoDDChk; \
@@ -273,19 +282,26 @@ PREFIX constexpr ngen::AddressBase CG::A64; \
 PREFIX constexpr ngen::AddressBase CG::A64NC; \
 PREFIX constexpr ngen::AddressBase CG::SLM; \
 
-#define NGEN_REGISTER_DECL_EXTRA(CG,PREFIX)
+#define NGEN_REGISTER_DECL_EXTRA1(CG,PREFIX)
 
-#ifdef NGEN_SHORT_NAMES
-#define NGEN_REGISTER_DECL(CG,PREFIX) \
-NGEN_REGISTER_DECL_MAIN(CG,PREFIX) \
-NGEN_REGISTER_DECL_EXTRA(CG,PREFIX) \
+#define NGEN_REGISTER_DECL_EXTRA2(CG,PREFIX)
+
+#define NGEN_REGISTER_DECL_EXTRA3(CG,PREFIX)
+
+#ifndef NGEN_SHORT_NAMES
+#define NGEN_REGISTER_DECL_EXTRA4(CG,PREFIX)
+#else
+#define NGEN_REGISTER_DECL_EXTRA4(CG,PREFIX) \
 PREFIX constexpr const ngen::IndirectRegisterFrame &CG::r; \
 PREFIX constexpr const ngen::InstructionModifier &CG::W;
-#else
+#endif
+
 #define NGEN_REGISTER_DECL(CG,PREFIX) \
 NGEN_REGISTER_DECL_MAIN(CG,PREFIX) \
-NGEN_REGISTER_DECL_EXTRA(CG,PREFIX)
-#endif
+NGEN_REGISTER_DECL_EXTRA1(CG,PREFIX) \
+NGEN_REGISTER_DECL_EXTRA2(CG,PREFIX) \
+NGEN_REGISTER_DECL_EXTRA3(CG,PREFIX) \
+NGEN_REGISTER_DECL_EXTRA4(CG,PREFIX)
 
 #include "ngen.hpp"
 NGEN_REGISTER_DECL(ngen::BinaryCodeGenerator<hw>, template <ngen::HW hw>)

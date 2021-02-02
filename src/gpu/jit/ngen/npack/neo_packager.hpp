@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ inline void findDeviceBinary(const std::vector<uint8_t> &binary, const SElf64Sec
     if (sectionsAfterBinaryOut != nullptr) *sectionsAfterBinaryOut = sections_after_binary;
 }
 
-inline void replaceKernel(std::vector<uint8_t> &binary, const std::vector<uint8_t> &kernel, const std::vector<uint8_t> &patches)
+inline void replaceKernel(std::vector<uint8_t> &binary, const std::vector<uint8_t> &kernel, const std::vector<uint8_t> &patches = std::vector<uint8_t>())
 {
     using std::memmove;
 
@@ -162,22 +162,49 @@ inline void replaceKernel(std::vector<uint8_t> &binary, const std::vector<uint8_
     std::swap(new_binary, binary);
 }
 
+inline HW decodeGfxCoreFamily(GfxCoreFamily family)
+{
+    switch (family) {
+        case GfxCoreFamily::Gen9:     return HW::Gen9;
+        case GfxCoreFamily::Gen10:    return HW::Gen10;
+        case GfxCoreFamily::Gen10LP:  return HW::Gen10;
+        case GfxCoreFamily::Gen11:    return HW::Gen11;
+        case GfxCoreFamily::Gen11LP:  return HW::Gen11;
+        case GfxCoreFamily::Gen12LP:  return HW::Gen12LP;
+        default:                      return HW::Unknown;
+    }
+}
+
+inline GfxCoreFamily encodeGfxCoreFamily(HW hw)
+{
+    switch (hw) {
+        case HW::Gen9:    return GfxCoreFamily::Gen9;
+        case HW::Gen10:   return GfxCoreFamily::Gen10;
+        case HW::Gen11:   return GfxCoreFamily::Gen11LP;
+        case HW::Gen12LP: return GfxCoreFamily::Gen12LP;
+        default:          return GfxCoreFamily::Unknown;
+    }
+}
+
+inline HW decodeProductFamily(ProductFamily family)
+{
+    if (family >= ProductFamily::SKL && family < ProductFamily::CNL) return HW::Gen9;
+    if (family >= ProductFamily::CNL && family < ProductFamily::ICL) return HW::Gen10;
+    if (family >= ProductFamily::ICL && family < ProductFamily::TGLLP) return HW::Gen11;
+    if (family >= ProductFamily::TGLLP && family <= ProductFamily::DG1) return HW::Gen12LP;
+    return HW::Unknown;
+}
+
 inline HW getBinaryArch(const std::vector<uint8_t> &binary)
 {
     const SProgramBinaryHeader *pheader = nullptr;
 
     findDeviceBinary(binary, nullptr, &pheader, nullptr);
+    auto hw = decodeGfxCoreFamily(pheader->Device);
 
-    switch (pheader->Device) {
-        case OpenCLProgramDeviceType::Gen9:     return HW::Gen9;
-        case OpenCLProgramDeviceType::Gen10:    return HW::Gen10;
-        case OpenCLProgramDeviceType::Gen10LP:  return HW::Gen10;
-        case OpenCLProgramDeviceType::Gen11:    return HW::Gen11;
-        case OpenCLProgramDeviceType::Gen11LP:  return HW::Gen11;
-        case OpenCLProgramDeviceType::Gen12LP:  return HW::Gen12LP;
-        default:                                return HW::Unknown;
-    }
+    return hw;
 }
+
 
 } /* namespace npack */
 } /* namespace ngen */

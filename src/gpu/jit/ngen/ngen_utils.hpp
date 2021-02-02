@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,9 +83,9 @@ template <typename T> static inline constexpr14 int popcnt(T x)
 {
 #if defined(_MSC_VER) && !defined(__clang__)
     if (sizeof(T) > 4)
-        return __popcnt64(x);
+        return _mm_popcnt_u64(x);
     else
-        return __popcnt(x);
+        return _mm_popcnt_u32(x);
 #else
     if (sizeof(T) > 4)
         return __builtin_popcountll(x);

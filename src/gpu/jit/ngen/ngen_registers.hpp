@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,8 +65,13 @@ static constexpr_reg NotificationRegister n0{0};
 static constexpr_reg InstructionPointerRegister ip{};
 static constexpr_reg ThreadDependencyRegister tdr0{0};
 static constexpr_reg PerformanceRegister tm0{0};
+static constexpr_reg PerformanceRegister tm1{1};
+static constexpr_reg PerformanceRegister tm2{2};
+static constexpr_reg PerformanceRegister tm3{3};
+static constexpr_reg PerformanceRegister tm4{4};
 static constexpr_reg PerformanceRegister pm0{0,3}, tp0{0,4};
 static constexpr_reg DebugRegister dbg0{0};
+static constexpr_reg FlowControlRegister fc0{0}, fc1{1}, fc2{2}, fc3{3};
 
 static constexpr_reg InstructionModifier NoDDClr = InstructionModifier::createNoDDClr();
 static constexpr_reg InstructionModifier NoDDChk = InstructionModifier::createNoDDChk();
@@ -144,3 +149,4 @@ static constexpr_reg AddressBase SLM = AddressBase::createSLM();
 static inline AddressBase Surface(uint8_t index) { return AddressBase::createBTS(index); }
 static inline AddressBase CC(uint8_t index) { return AddressBase::createCC(index); }
 static inline AddressBase SC(uint8_t index) { return AddressBase::createSC(index); }
+

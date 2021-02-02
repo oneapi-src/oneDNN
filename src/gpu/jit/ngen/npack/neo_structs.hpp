@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,8 @@ namespace npack {
 
 static constexpr uint32_t MAGIC_CL = 0x494E5443;
 
-enum class OpenCLProgramDeviceType : uint32_t {
+enum class GfxCoreFamily : uint32_t {
+    Unknown = 0,
     Gen9 = 12,
     Gen10 = 13,
     Gen10LP = 14,
@@ -40,11 +41,20 @@ enum class OpenCLProgramDeviceType : uint32_t {
     Gen12LP = 18,
 };
 
+enum class ProductFamily : uint32_t {
+    Unknown = 0,
+    SKL = 0x12,
+    CNL = 0x1A,
+    ICL = 0x1C,
+    TGLLP = 0x22,
+    DG1 = 1210,
+};
+
 typedef struct
 {
     uint32_t Magic; // = MAGIC_CL ("INTC")
     uint32_t Version;
-    OpenCLProgramDeviceType Device;
+    GfxCoreFamily Device;
     uint32_t GPUPointerSizeInBytes;
     uint32_t NumberOfKernels;
     uint32_t SteppingId;

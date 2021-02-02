@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -137,12 +137,14 @@ public:
 
 protected:
     static constexpr int max_regs = 128;
+    using mtype = uint8_t;
 
     HW hw;                              // HW generation.
     uint8_t free_whole[max_regs / 8];   // Bitmap of free whole GRFs.
-    uint8_t free_sub[max_regs];         // Bitmap of free partial GRFs, at dword granularity.
+    mtype free_sub[max_regs];           // Bitmap of free partial GRFs, at dword granularity.
     uint16_t reg_count;                 // # of registers.
     uint8_t free_flag;                  // Bitmap of free flag registers.
+    mtype fullSubMask;
 
     void init();
     void claim_sub(int r, int o, int dw);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 
 #ifndef NGEN_NO_OP_NAMES
 #if not +0
-#error use -fno-operator-names [Linux/OS X] or without /Za [Windows] if you want to use and(), or(), xor(), not(), or define NGEN_NO_OP_NAMES and use and_(), or_(), xor_(), not().
+#error Compile with -fno-operator-names [Linux/OS X] or without /Za [Windows] if you want to use and(), or(), xor(), or define NGEN_NO_OP_NAMES and use and_(), or_(), xor_().
 #endif
 #endif
 
@@ -91,14 +91,16 @@ static constexpr bool _safe_ = 0;
 // Forward declarations.
 class RegData;
 class Register;
+class GRFDisp;
 class Subregister;
 class RegisterRegion;
 class NullRegister;
 class InstructionModifier;
-union Instruction12;
+struct Instruction12;
 enum class Opcode;
 
-static inline void encodeCommon12(Instruction12 &i, Opcode opcode, const InstructionModifier &mod);
+struct EncodingTag12;
+static inline void encodeCommon12(Instruction12 &i, Opcode opcode, const InstructionModifier &mod, const RegData &dst, EncodingTag12 tag);
 
 // Exceptions, used when NGEN_SAFE is defined.
 
@@ -179,6 +181,10 @@ class unsupported_instruction : public std::runtime_error {
 public:
     unsupported_instruction() : std::runtime_error("Instruction is not supported by the chosen hardware") {}
 };
+class unsupported_message : public std::runtime_error {
+public:
+    unsupported_message() : std::runtime_error("Message is not supported by the chosen hardware") {}
+};
 class iga_align16_exception : public std::runtime_error {
 public:
     iga_align16_exception() : std::runtime_error("Align16 not supported by the IGA assembler; use binary output") {}
@@ -202,18 +208,18 @@ enum class HW {
     Gen12LP,
 };
 
-// Data types. Bits[0:3] are the ID, bits[4:7] hold the width, in bytes.
+// Data types. Bits[0:4] are the ID, bits[5:7] hold log2(width in bytes).
 enum class DataType : uint8_t {
     ud = 0x40,
     d  = 0x41,
     uw = 0x22,
     w  = 0x23,
-    ub = 0x14,
-    b  = 0x15,
-    df = 0x86,
+    ub = 0x04,
+    b  = 0x05,
+    df = 0x66,
     f  = 0x47,
-    uq = 0x88,
-    q  = 0x89,
+    uq = 0x68,
+    q  = 0x69,
     hf = 0x2A,
     uv = 0x4D,
     v  = 0x4E,
@@ -230,7 +236,8 @@ static inline std::ostream &operator<<(std::ostream &str, DataType type)
 }
 #endif
 
-static inline constexpr   int getBytes(DataType type)                  { return static_cast<int>(type) >> 4; }
+static inline constexpr   int getLog2Bytes(DataType type)              { return static_cast<int>(type) >> 5; }
+static inline constexpr   int getBytes(DataType type)                  { return 1 << getLog2Bytes(type); }
 static inline constexpr14 int getDwords(DataType type)                 { return std::max<int>(getBytes(type) >> 2, 1); }
 
 static inline constexpr bool isSigned(DataType type)
@@ -287,6 +294,11 @@ static inline std::ostream &operator<<(std::ostream &str, MathFunction func)
 }
 #endif
 
+static inline bool hasIEEEMacro(HW hw) {
+    if (hw == HW::Gen12LP) return false;
+    return true;
+}
+
 // Sync function codes.
 enum class SyncFunction : uint8_t {
     nop   = 0,
@@ -307,30 +319,35 @@ static inline std::ostream &operator<<(std::ostream &str, SyncFunction func)
 
 // Shared function IDs (SFIDs).
 enum class SharedFunction : uint8_t {
-    null = 0,
-    smpl = 2,
-    sampler = 2,
-    gtwy = 3,
-    gateway = 3,
-    dc2 = 4,
-    rc = 5,
-    urb = 6,
-    ts = 7,
-    spawner = 7,
-    vme = 8,
-    dcro = 9,
-    dc0 = 10,
-    pixi = 11,
-    dc1 = 12,
-    cre = 13
+    null = 0x0,
+    smpl = 0x2,
+    gtwy = 0x3,
+    dc2 = 0x4,
+    rc = 0x5,
+    urb = 0x6,
+    ts = 0x7,
+    vme = 0x8,
+    dcro = 0x9,
+    dc0 = 0xA,
+    pixi = 0xB,
+    dc1 = 0xC,
+    cre = 0xD,
+
+    // alias
+    sampler = smpl,
+    gateway = gtwy,
+    spawner = ts,
 };
 
 #ifdef NGEN_ASM
-static inline std::ostream &operator<<(std::ostream &str, SharedFunction sfid)
+static inline const char *getMnemonic(SharedFunction sfid, HW hw)
 {
-    static const char *names[16] = {"null", "", "smpl", "gtwy", "dc2", "rc", "urb", "ts", "vme", "dcro", "dc0", "pixi", "dc1", "cre", "", ""};
-    str << names[static_cast<uint8_t>(sfid) & 0xF];
-    return str;
+    static const char *names[16] = {
+        "null", ""    , "smpl", "gtwy", "dc2", "rc" , "urb", "ts" ,
+        "vme" , "dcro", "dc0" , "pixi", "dc1", "cre", ""   , ""   ,
+    };
+    const auto &table = names;
+    return table[static_cast<uint8_t>(sfid) & 0xF];
 }
 #endif
 
@@ -384,23 +401,27 @@ public:
         return nextID++;
     }
 
+    bool hasTarget(uint32_t id) const {
+        return (targets[id] != TargetConstants::noTarget);
+    }
+
     void setTarget(uint32_t id, uint32_t target) {
 #ifdef NGEN_SAFE
-        if (targets[id] != TargetConstants::noTarget) throw multiple_label_exception();
+        if (hasTarget(id)) throw multiple_label_exception();
 #endif
         targets[id] = target;
     }
 
     void offsetTarget(uint32_t id, uint32_t offset) {
 #ifdef NGEN_SAFE
-        if (targets[id] == TargetConstants::noTarget) throw dangling_label_exception();
+        if (!hasTarget(id)) throw dangling_label_exception();
 #endif
         targets[id] += offset;
     }
 
     uint32_t getTarget(uint32_t id) const {
 #ifdef NGEN_SAFE
-        if (targets[id] == TargetConstants::noTarget) throw dangling_label_exception();
+        if (!hasTarget(id)) throw dangling_label_exception();
 #endif
         return targets[id];
     }
@@ -442,11 +463,11 @@ class RegData {
 protected:
     unsigned base : 8;
     unsigned arf : 1;
-      signed off : 10;
+      signed off : 11;
     unsigned mods : 2;
     unsigned type : 8;
     unsigned indirect : 1;
-    unsigned _pad1 : 2;
+    unsigned _pad1 : 1;
     unsigned vs : 7;
     unsigned width : 5;
     unsigned hs : 6;
@@ -813,12 +834,35 @@ public:
         return *this;
     }
 
-    GRF operator+(const int &a) const {
-        GRF sum = *this;
-        sum += a;
-        return sum;
+    GRF advance(int inc) {
+        auto result = *this;
+        result += inc;
+        return result;
     }
+
+    inline GRFDisp operator+(int offset) const;
+    inline GRFDisp operator-(int offset) const;
+
+    static constexpr int log2Bytes(HW hw)                  { return 5; }
+    static constexpr int bytes(HW hw)                      { return (1 << log2Bytes(hw)); }
+    static constexpr int bytesToGRFs(HW hw, unsigned x)    { return (x + bytes(hw) - 1) >> log2Bytes(hw); }
 };
+
+class GRFDisp {
+protected:
+    GRF base;
+    int32_t disp;
+
+public:
+    GRFDisp(const GRF &base_, int32_t disp_) : base(base_), disp(disp_) {}
+    /* implicit */ GRFDisp(const RegData &rd) : base(reinterpret_cast<const GRF &>(rd)), disp(0) {}
+
+    constexpr GRF     getBase() const { return base; }
+    constexpr int32_t getDisp() const { return disp; }
+};
+
+GRFDisp GRF::operator+(int offset) const { return GRFDisp(*this, offset); }
+GRFDisp GRF::operator-(int offset) const { return *this + (-offset); }
 
 class ARF : public Register
 {
@@ -852,6 +896,8 @@ public:
     explicit constexpr AccumulatorRegister(int reg_) : ARF(ARFType::acc, reg_) {}
 
     AccumulatorRegister &operator=(const Invalid &i) { this->invalidate(); return *this; }
+
+    static constexpr int count(HW hw) { return 2; }
 };
 
 class SpecialAccumulatorRegister : public AccumulatorRegister
@@ -910,7 +956,8 @@ class FlagRegister : public ARF
 {
 public:
     constexpr FlagRegister() : ARF() {}
-    explicit constexpr FlagRegister(int reg_, int off_ = 0) : ARF(ARFType::f, reg_, DataType::uw, off_) {}
+    explicit constexpr FlagRegister(int reg_)  : ARF(ARFType::f, reg_, DataType::ud, 0) {}
+    constexpr FlagRegister(int reg_, int off_) : ARF(ARFType::f, reg_, DataType::uw, off_) {}
 
     static FlagRegister createFromIndex(int index) {
         return FlagRegister(index >> 1, index & 1);
@@ -927,6 +974,11 @@ public:
     constexpr FlagRegister operator[](int offset) const { return FlagRegister(getARFBase(), getOffset() + offset); }
 
     int index() const { return (getARFBase() << 1) + getOffset(); }
+
+    static inline constexpr int count(HW hw) {
+        return 2;
+    }
+    static inline constexpr int subcount(HW hw) { return count(hw) * 2; }
 };
 
 class ChannelEnableRegister : public ARF
@@ -981,6 +1033,12 @@ class DebugRegister : public ARF
 {
 public:
     explicit constexpr DebugRegister(int reg_ = 0) : ARF(ARFType::dbg, reg_, DataType::ud) {}
+};
+
+class FlowControlRegister : public ARF
+{
+public:
+    explicit constexpr FlowControlRegister(int reg_ = 0) : ARF(ARFType::fc, reg_, DataType::ud) {}
 };
 
 inline RegisterRegion Subregister::operator()(int vs, int width, int hs) const
@@ -1144,7 +1202,7 @@ enum class ChannelMask {
     b = 11,
     rg = 12,
     g = 13,
-    r = 14
+    r = 14,
 };
 
 enum class PredCtrl {
@@ -1165,13 +1223,13 @@ enum class PredCtrl {
     x = 2,
     y = 3,
     z = 4,
-    w = 5
+    w = 5,
 };
 
 #ifdef NGEN_ASM
 static const char *toText(PredCtrl ctrl, bool align16) {
-    const char *names[2][16] = {{"", "", "anyv", "allv", "any2h", "all2h", "any4h", "all4h", "any8h", "all8h", "any16h", "all16h", "any32h", "all32h", "", ""},
-                                {"", "", "x",    "y",    "z",     "w",     "",      "",      "",      "",      "",       "",       "",       "",       "", ""}};
+    const char *names[2][16] = {{"", "", "anyv", "allv", "any2h", "all2h", "any4h", "all4h", "any8h", "all8h", "any16h", "all16h", "any32h", "all32h", "",    ""},
+                                {"", "", "x",    "y",    "z",     "w",     "",      "",      "",      "",      "",       "",       "",       "",       "",    ""}};
     return names[align16][static_cast<int>(ctrl) & 0xF];
 }
 #endif
@@ -1279,12 +1337,12 @@ enum class Opcode {
     nop = 0x7E,
 };
 
-static inline bool isVariableLatency(Opcode op)
+static inline bool isVariableLatency(HW hw, Opcode op)
 {
     switch (op) {
+        case Opcode::math:
         case Opcode::send:
         case Opcode::sendc:
-        case Opcode::math:
             return true;
         default:
             return false;
@@ -1331,44 +1389,11 @@ static const char *getMnemonic(Opcode op, HW hw)
 }
 #endif
 
-class SBInfo
-{
-protected:
-    unsigned id : 4;
-    unsigned src : 1;
-    unsigned dst : 1;
-
-public:
-    constexpr SBInfo(int id_) : id(id_), src(false), dst(false) {}
-    constexpr SBInfo(int id_, bool src_, bool dst_) : id(id_), src(src_), dst(dst_) {}
-    constexpr unsigned getID() const { return id; }
-    constexpr bool isSrc() const { return src; }
-    constexpr bool isDst() const { return dst; }
-
-    constexpr unsigned getMode() const {
-        return isDst() ? 0b010 : isSrc() ? 0b011 : 0b100;
-    }
-};
-
-class SBID
-{
-public:
-    SBInfo set;
-    SBInfo src;
-    SBInfo dst;
-
-    constexpr SBID(int id) : set(id), src(id, true, false), dst(id, false, true) {}
-    constexpr operator SBInfo() const { return set; }
-};
-
 class AllPipes {};
-enum class Pipe {
+enum class Pipe : uint8_t {
     Default = 0,
-    A = 1,
+    A = 1, All = A,
 };
-
-template <typename T> static constexpr Pipe getPipe() { return Pipe::Default; }
-template <> constexpr Pipe getPipe<AllPipes>()        { return Pipe::A; }
 
 #ifdef NGEN_ASM
 static inline std::ostream &operator<<(std::ostream &str, Pipe pipe)
@@ -1381,72 +1406,65 @@ static inline std::ostream &operator<<(std::ostream &str, Pipe pipe)
 class SWSBInfo
 {
     friend class InstructionModifier;
-protected:
-    union {
-        struct {
-            unsigned dist : 3;
-            unsigned pipe : 4;
-            unsigned combined : 1;
-        } pipeline;
-        struct {
-            unsigned sbid : 4;
-            unsigned mode : 3;
-            unsigned combined : 1;
-        } scoreboard;
-        struct {
-            unsigned sbid : 4;
-            unsigned dist : 3;
-            unsigned combined : 1;
-        } combined;
-        uint8_t all;
-    };
-
-    constexpr SWSBInfo(uint8_t all_, bool dummy) : all{all_} {}
-
-    constexpr bool isPipeline() const {
-        return !combined.combined && ((scoreboard.mode < 2) || (scoreboard.mode > 4));
-    }
 
 public:
-    constexpr SWSBInfo() : all{0} {}
-    constexpr SWSBInfo(SBInfo info) : scoreboard{info.getID(), info.getMode(), false} {}
-    constexpr SWSBInfo(Pipe pipe, unsigned dist) : pipeline{dist,static_cast<unsigned>(pipe),false} {}
-    constexpr SWSBInfo(SBInfo info, unsigned dist) : combined{info.getID(), dist, true} {}
+    union {
+        struct {
+            unsigned token : 6;
+            unsigned src : 1;
+            unsigned dst : 1;
+            unsigned dist : 4;
+            unsigned pipe : 4;
+        } parts;
+        uint16_t all;
+    };
 
-    constexpr bool empty() const { return all == 0; }
-    constexpr14 int dist() const {
-        if (combined.combined)
-            return combined.dist;
-        else if (isPipeline())
-            return pipeline.dist;
-        else
-            return 0;
-    }
-    constexpr bool hasSB() const { return !isPipeline(); }
-    constexpr14 SBInfo sb() const {
-        if (combined.combined)
-            return SBInfo(combined.sbid);
-        else if (isPipeline())
-            return SBInfo(0);
-        else
-            return SBInfo(scoreboard.sbid, scoreboard.mode == 3, scoreboard.mode == 2);
-    }
-    constexpr14 Pipe pipe() const {
-        if (combined.combined)
-            return Pipe::A;
-        else if (isPipeline())
-            return static_cast<Pipe>(pipeline.pipe);
-        else
-            return Pipe::Default;
-    }
+    constexpr bool hasDist() const       { return parts.dist > 0; }
+    constexpr bool hasToken() const      { return parts.src || parts.dst; }
+    constexpr bool hasTokenSet() const   { return parts.src && parts.dst; }
+    constexpr int getToken() const       { return hasToken() ? parts.token : 0; }
+    constexpr unsigned tokenMode() const { return (parts.src << 1) | parts.dst; }
+    constexpr Pipe getPipe() const       { return static_cast<Pipe>(parts.pipe); }
+    void setPipe(Pipe pipe)              { parts.pipe = static_cast<unsigned>(pipe); }
+    constexpr bool empty() const         { return (all == 0); }
 
-    constexpr uint8_t raw() const { return all; }
-    static constexpr14 SWSBInfo createFromRaw(uint8_t all_) { return SWSBInfo(all_, false); }
+protected:
+    explicit constexpr SWSBInfo(uint16_t all_) : all(all_) {}
+
+public:
+    constexpr SWSBInfo() : all(0) {}
+    constexpr SWSBInfo(Pipe pipe_, int dist_) : all(((dist_ & 0xF) << 8) | (static_cast<unsigned>(pipe_) << 12)) {}
+    constexpr SWSBInfo(int id_, bool src_, bool dst_) : all(id_ | (uint16_t(src_) << 6) | (uint16_t(dst_) << 7)) {}
+
+    friend constexpr SWSBInfo operator|(const SWSBInfo &i1, const SWSBInfo &i2) { return SWSBInfo(i1.all | i2.all); }
 };
 
-constexpr SWSBInfo SWSB(SBInfo info)                             { return SWSBInfo(info); }
-template <typename T = void> constexpr SWSBInfo SWSB(int dist)   { return SWSBInfo(getPipe<T>(), dist); }
-constexpr SWSBInfo SWSB(SBInfo info, int dist)                   { return SWSBInfo(info, dist); }
+// Token count.
+constexpr inline int tokenCount(HW hw)
+{
+    return 16;
+}
+
+class SBID
+{
+public:
+    SWSBInfo set;
+    SWSBInfo src;
+    SWSBInfo dst;
+
+    constexpr SBID(int id) : set(id, true, true), src(id, true, false), dst(id, false, true) {}
+    constexpr operator SWSBInfo() const { return set; }
+
+    constexpr int getID() const { return set.getToken(); }
+};
+
+template <typename T> static constexpr Pipe getPipe() { return Pipe::Default; }
+template <> constexpr Pipe getPipe<AllPipes>()        { return Pipe::A; }
+
+constexpr SWSBInfo SWSB(SWSBInfo info)                                        { return info; }
+constexpr SWSBInfo SWSB(Pipe pipe, int dist)                                  { return SWSBInfo(pipe, dist); }
+template <typename T = void> constexpr SWSBInfo SWSB(int dist)                { return SWSB(getPipe<T>(), dist); }
+template <typename T = void> constexpr SWSBInfo SWSB(SWSBInfo info, int dist) { return SWSB<T>(dist) | info; }
 
 class InstructionModifier {
 protected:
@@ -1469,18 +1487,18 @@ protected:
             unsigned flagSubRegNum : 1;
             unsigned flagRegNum : 1;
             unsigned maskCtrl : 1;
-            unsigned _zeros_: 18;
+            unsigned _zeros_: 10;
             unsigned autoSWSB : 1;
             unsigned fusionCtrl : 1;        // Gen12
             unsigned eot : 1;
-            unsigned swsb : 8;
+            unsigned swsb : 16;
         } parts;
         uint64_t all;
     };
 
     constexpr InstructionModifier(uint64_t all_) : all(all_) {}
 
-    friend inline void encodeCommon12(Instruction12 &i, Opcode opcode, const InstructionModifier &mod);
+    friend inline void encodeCommon12(Instruction12 &i, Opcode opcode, const InstructionModifier &mod, const RegData &dst, EncodingTag12 tag);
 
 public:
     constexpr int getExecSize()            const { return parts.execSize; }
@@ -1489,10 +1507,12 @@ public:
     constexpr bool isNoDDChk()             const { return parts.noDDChk; }
     constexpr int getChannelOffset()       const { return parts.chanOff << 2; }
     constexpr ThreadCtrl getThreadCtrl()   const { return static_cast<ThreadCtrl>(parts.threadCtrl); }
+    constexpr bool isAtomic()              const { return getThreadCtrl() == ThreadCtrl::Atomic; }
     constexpr PredCtrl getPredCtrl()       const { return static_cast<PredCtrl>(parts.predCtrl); }
     constexpr bool isPredInv()             const { return parts.predInv; }
     constexpr ConditionModifier getCMod()  const { return static_cast<ConditionModifier>(parts.cmod); }
     constexpr bool isAccWrEn()             const { return parts.accWrCtrl; }
+    constexpr bool getBranchCtrl()         const { return parts.accWrCtrl; }
     constexpr bool isCompact()             const { return parts.cmptCtrl; }
     constexpr bool isBreakpoint()          const { return parts.debugCtrl; }
     constexpr bool isSaturate()            const { return parts.saturate; }
@@ -1501,17 +1521,19 @@ public:
     constexpr bool isAutoSWSB()            const { return parts.autoSWSB; }
     constexpr bool isSerialized()          const { return parts.fusionCtrl; }
     constexpr bool isEOT()                 const { return parts.eot; }
-    constexpr SWSBInfo getSWSB()           const { return SWSBInfo(parts.swsb, false); }
+    constexpr SWSBInfo getSWSB()           const { return SWSBInfo(parts.swsb); }
     constexpr uint64_t getAll()            const { return all; }
 
     constexpr14 void setExecSize(int execSize_)              { parts.execSize = execSize_; parts.eSizeField = utils::log2(execSize_); }
+    constexpr14 void setPredCtrl(PredCtrl predCtrl_)         { parts.predCtrl = static_cast<unsigned>(predCtrl_); }
     constexpr14 void setPredInv(bool predInv_)               { parts.predInv = predInv_; }
     constexpr14 void setCMod(const ConditionModifier &cmod_) { parts.cmod = static_cast<unsigned>(cmod_); }
     constexpr14 void setBranchCtrl(bool branchCtrl)          { parts.accWrCtrl = branchCtrl; }
+    constexpr14 void setFlagReg(FlagRegister &flag)          { parts.flagRegNum = flag.getBase(); parts.flagSubRegNum = flag.getOffset(); }
     constexpr14 void setWrEn(bool maskCtrl_)                 { parts.maskCtrl = maskCtrl_; }
     constexpr14 void setAutoSWSB(bool autoSWSB_)             { parts.autoSWSB = autoSWSB_; }
-    constexpr14 void setSWSB(SWSBInfo swsb_)                 { parts.swsb = swsb_.raw(); }
-    constexpr14 void setSWSB(uint8_t swsb_)                  { parts.swsb = swsb_; }
+    constexpr14 void setSWSB(SWSBInfo swsb_)                 { parts.swsb = swsb_.all; }
+    constexpr14 void setSWSB(uint16_t swsb_)                 { parts.swsb = swsb_; }
 
     constexpr InstructionModifier() : all(0) {}
 
@@ -1531,7 +1553,6 @@ public:
     constexpr14 /* implicit */ InstructionModifier(const SWSBInfo &swsb) : InstructionModifier() {
         parts.swsb = swsb.all;
     }
-    constexpr14 /* implicit */ InstructionModifier(const SBInfo &sb) : InstructionModifier(SWSB(sb)) {}
     constexpr14 /* implicit */ InstructionModifier(const SBID &sb)   : InstructionModifier(SWSB(sb)) {}
 
 protected:
@@ -1539,7 +1560,7 @@ protected:
                                   bool debugCtrl_, bool saturate_, bool maskCtrl_, bool autoSWSB_, bool fusionCtrl_, bool eot_)
         : all{(uint64_t(accessMode_) << 8) | (uint64_t(noDDClr_) << 9) | (uint64_t(noDDChk_) << 10) | (uint64_t(chanOff_ >> 2) << 11)
             | (uint64_t(accWrCtrl_) << 28) | (uint64_t(debugCtrl_) << 30) | (uint64_t(saturate_) << 31)
-            | (uint64_t(maskCtrl_) << 34) | (uint64_t(autoSWSB_) << 53) | (uint64_t(fusionCtrl_) << 54) | (uint64_t(eot_) << 55)} {}
+            | (uint64_t(maskCtrl_) << 34) | (uint64_t(autoSWSB_) << 45) | (uint64_t(fusionCtrl_) << 46) | (uint64_t(eot_) << 47)} {}
 
 public:
     static constexpr InstructionModifier createAccessMode(int accessMode_) {
@@ -1610,7 +1631,7 @@ inline constexpr14 InstructionModifier operator|(const InstructionModifier &mod1
 {
     InstructionModifier mod = mod1;
 
-    mod.parts.flagRegNum = flag.getBase();
+    mod.parts.flagRegNum = flag.getBase() & 1;
     mod.parts.flagSubRegNum = flag.getOffset();
 
     if (mod.getCMod() == ConditionModifier::none) {
@@ -1688,9 +1709,9 @@ public:
     Immediate(uint16_t imm) { set(imm); }
     Immediate(int16_t  imm) { set(imm); }
     Immediate(uint32_t imm) { shrinkUnsigned(imm); }
-    Immediate(int32_t imm)  { shrinkSigned(imm); }
+    Immediate(int32_t  imm) { shrinkSigned(imm); }
     Immediate(uint64_t imm) { shrinkUnsigned(imm); }
-    Immediate(int64_t imm)  { shrinkSigned(imm); }
+    Immediate(int64_t  imm) { shrinkSigned(imm); }
 
     Immediate(float    imm) { set(imm); }
     Immediate(double   imm) { set(imm); }
@@ -1747,7 +1768,7 @@ public:
 protected:
     static inline uint32_t toV(int8_t i) {
 #ifdef NGEN_SAFE
-        if (i & 0x78) throw invalid_immediate_exception();
+        if (i < -8 || i > 7) throw invalid_immediate_exception();
 #endif
         return (i & 0x7) | ((i >> 4) & 0x8);
     }
@@ -1902,13 +1923,17 @@ union MessageDescriptor {
     } surface;
 
     MessageDescriptor() : all(0) {}
+    explicit constexpr MessageDescriptor(uint32_t all_) : all(all_) {}
 };
+
+inline constexpr MessageDescriptor operator|(const MessageDescriptor &desc1, const MessageDescriptor &desc2) {
+    return MessageDescriptor{desc1.all | desc2.all};
+}
 
 union ExtendedMessageDescriptor {
     uint32_t all;
     struct {
-        unsigned sfid : 4;
-        unsigned : 1;
+        unsigned sfid : 5;
         unsigned eot : 1;
         unsigned extMessageLen : 5;    /* # of GRFs sent in src1: valid range 0-15 (pre-Gen12) */
         unsigned : 1;
@@ -1917,10 +1942,10 @@ union ExtendedMessageDescriptor {
     } parts;
 
     ExtendedMessageDescriptor() : all(0) {}
-    /* implicit */ ExtendedMessageDescriptor(SharedFunction sfid_) : all(0) { parts.sfid = static_cast<int>(sfid_); }
+    ExtendedMessageDescriptor& operator=(SharedFunction sfid_) { parts.sfid = static_cast<int>(sfid_); return *this; }
 };
 
-enum class AtomicOp : uint8_t {
+enum class AtomicOp : uint16_t {
     cmpwr_2w = 0x00,
     and_ = 0x1,
     or_ = 0x2,
@@ -1958,7 +1983,7 @@ static inline int operandCount(AtomicOp op) {
 }
 
 static inline constexpr bool isFloatAtomicOp(AtomicOp op) {
-    return static_cast<int>(op) >> 4;
+    return static_cast<int>(op) & 0x10;
 }
 
 // Access types.
@@ -1971,14 +1996,14 @@ enum AddressModel : uint8_t {
     ModelA32 = 2,
     ModelA64 = 4,
     ModelSLM = 8,
-    ModelCC = 16,
-    ModelSC = 32,
-    ModelScratch = 64
+    ModelCC = 0x10,
+    ModelSC = 0x20,
+    ModelScratch = 0x40,
 };
 
 class AddressBase {
 protected:
-    uint8_t index;
+    uint32_t index;
     AddressModel model;
 
     constexpr AddressBase(uint8_t index_, AddressModel model_) : index(index_), model(model_) {}
@@ -1988,7 +2013,7 @@ protected:
 public:
     constexpr AddressBase() : AddressBase(invalidIndex, ModelInvalid) {}
 
-    constexpr uint8_t getIndex()      const { return index; }
+    constexpr uint32_t getIndex()     const { return index; }
     constexpr AddressModel getModel() const { return model; }
 
     void setIndex(uint8_t newIndex)         { index = newIndex; }
@@ -2016,10 +2041,7 @@ public:
         return (getModel() == ModelSC || getModel() == ModelCC);
     }
     inline constexpr bool isStateless() const {
-        return (index >= 0xF0);
-    }
-    void apply(ExtendedMessageDescriptor &exdesc, MessageDescriptor &desc) const {
-        desc.bti.index = getIndex();
+        return model & (ModelA32 | ModelA64);
     }
 
     void checkModel(uint8_t allowed) { checkModel(static_cast<AddressModel>(allowed)); }
@@ -2029,8 +2051,6 @@ public:
             throw invalid_model_exception();
 #endif
     }
-
-
 };
 
 
@@ -2041,14 +2061,17 @@ protected:
 public:
     block_hword(int count_ = 1) : count(count_) {};
 
-    template <Access access> void getDescriptors(const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc) const
+    template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
+        int dataGRFCount = count;
+
         base.checkModel(ModelA64 | ModelBTS | ModelA32 | ModelSLM);
         desc.all = 0;
+        desc.bti.index = base.getIndex();
         desc.block.elements = 1 + utils::log2(count);
         desc.block.header = true;
         desc.block.messageLen = 1;
-        desc.block.responseLen = count;
+        desc.block.responseLen = dataGRFCount;
 
         if (base.getModel() == ModelA64) {
             exdesc = SharedFunction::dc1;
@@ -2073,7 +2096,7 @@ public:
     block_oword(int count_ = 1) : count(count_), highHalf(false) {}
     static block_oword high() { return block_oword(1, true); }
 
-    template <Access access> void getDescriptors(const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc) const
+    template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
         int dataGRFCount = (count + 1) >> 1;
 
@@ -2083,6 +2106,7 @@ public:
                                                  SharedFunction::dc0;
 
         desc.all = 0;
+        desc.bti.index = base.getIndex();
         desc.parts.header = true;
         desc.parts.messageLen = 1;
         desc.parts.responseLen = dataGRFCount;
@@ -2106,7 +2130,7 @@ public:
     aligned_block_oword(int count_ = 1) : count(count_), highHalf(false) {}
     static aligned_block_oword high() { return aligned_block_oword(1, true); }
 
-    template <Access access> void getDescriptors(const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc) const
+    template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
         int dataGRFCount = (count + 1) >> 1;
 
@@ -2116,6 +2140,7 @@ public:
                                                                               SharedFunction::dc0;
 
         desc.all = 0;
+        desc.bti.index = base.getIndex();
         desc.parts.header = true;
         desc.parts.messageLen = 1;
         desc.parts.responseLen = dataGRFCount;
@@ -2138,16 +2163,18 @@ protected:
 public:
     scattered_byte(int count_ = 1) : count(count_) {}
 
-    template <Access access> void getDescriptors(const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc) const
+    template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
         bool a64 = (base.getModel() == ModelA64);
         int simd16 = mod.getExecSize() >> 4;
         int dataGRFCount = 1 + simd16;
+        int addrGRFCount = dataGRFCount << int(a64);
 
         base.checkModel(ModelA32 | ModelA64 | ModelBTS | ModelSLM);
         desc.all = 0;
+        desc.bti.index = base.getIndex();
         desc.parts.header = false;
-        desc.parts.messageLen = dataGRFCount << int(a64);
+        desc.parts.messageLen = addrGRFCount;
         desc.parts.responseLen = dataGRFCount;
 
         if (a64) {
@@ -2168,9 +2195,18 @@ public:
     }
 };
 
-class scattered_word {
+class scattered_atomic {
 public:
-    template <Access access> void getDescriptors(const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc) const
+    void applyAtomicOp(AtomicOp op, const RegData &dst, MessageDescriptor &desc) const
+    {
+        desc.atomic.returnData = !dst.isNull();
+        desc.atomic.atomicOp = static_cast<int>(op) & 0xF;
+    }
+};
+
+class scattered_word : public scattered_atomic {
+public:
+    template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
         bool a64 = (base.getModel() == ModelA64);
         int simd16 = mod.getExecSize() >> 4;
@@ -2184,6 +2220,7 @@ public:
         base.checkModel(ModelA32 | ModelA64 | ModelBTS | ModelSLM);
         exdesc = SharedFunction::dc1;
         desc.all = 0;
+        desc.bti.index = base.getIndex();
         desc.parts.header = false;
         desc.parts.messageLen = addrGRFCount;
         desc.parts.responseLen = dataGRFCount;
@@ -2197,14 +2234,14 @@ public:
     }
 };
 
-class scattered_dword {
+class scattered_dword : public scattered_atomic {
 protected:
     uint8_t count;
 
 public:
     scattered_dword(int count_ = 1) : count(count_) {}
 
-    template <Access access> void getDescriptors(const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc) const
+    template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
         bool a64 = (base.getModel() == ModelA64);
         int simd16 = mod.getExecSize() >> 4;
@@ -2212,6 +2249,7 @@ public:
         int dataGRFCount = count * (1 + simd16);
 
         desc.all = 0;
+        desc.bti.index = base.getIndex();
         desc.parts.header = false;
         desc.parts.messageLen = addrGRFCount;
         desc.parts.responseLen = dataGRFCount;
@@ -2241,14 +2279,14 @@ public:
     }
 };
 
-class scattered_qword {
+class scattered_qword : public scattered_atomic {
 protected:
     uint8_t count;
 
 public:
     scattered_qword(int count_ = 1) : count(count_) {}
 
-    template <Access access> void getDescriptors(const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc) const
+    template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
         bool a64 = (base.getModel() == ModelA64);
         int simd16 = mod.getExecSize() >> 4;
@@ -2257,6 +2295,7 @@ public:
 
         base.checkModel(ModelA32 | ModelA64 | ModelBTS | ModelSLM);
         desc.all = 0;
+        desc.bti.index = base.getIndex();
         desc.parts.header = false;
         desc.parts.messageLen = addrGRFCount;
         desc.parts.responseLen = dataGRFCount;
@@ -2294,9 +2333,9 @@ protected:
     bool structured;
 
 public:
-    surface_dword(ChannelMask cmask_, bool structured_ = false) : cmask(cmask_), structured(structured_) {}
+    surface_dword(ChannelMask cmask_ = ChannelMask::r, bool structured_ = false) : cmask(cmask_), structured(structured_) {}
 
-    template <Access access> void getDescriptors(const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc) const
+    template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
         int simd16 = mod.getExecSize() >> 4;
         int nChannels = utils::popcnt(0xF ^ static_cast<int8_t>(cmask));
@@ -2309,6 +2348,7 @@ public:
         exdesc = SharedFunction::dc1;
 
         desc.all = 0;
+        desc.bti.index = base.getIndex();
         desc.parts.header = false;
         desc.parts.messageLen = addrGRFCount;
         desc.parts.responseLen = dataGRFCount;
@@ -2332,10 +2372,11 @@ public:
         vls_offset(vls_offset_), width(width_), height(height_) {}
     media_block() : media_block(0, 0) {}
 
-    template <Access access> void getDescriptors(const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc) const
+    template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
         exdesc = SharedFunction::dc1;
         desc.all = 0;
+        desc.bti.index = base.getIndex();
         desc.block.messageType = (base.getModel() == ModelSC) ? 0x05 :
                                     (access == Access::Write) ? 0x0A :
                                                                 0x04;
@@ -2354,53 +2395,45 @@ public:
 };
 
 // Generate descriptors for a load operation.
-template <typename DataSpec>
-void encodeLoadDescriptors(MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc,
-    const InstructionModifier &mod, const DataSpec &spec, AddressBase base)
+template <typename DataSpec, typename Addr>
+static inline void encodeLoadDescriptors(HW hw, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc,
+    const InstructionModifier &mod, const RegData &dst, const DataSpec &spec, AddressBase base, const Addr &addr)
 {
-    spec.template getDescriptors<Access::Read>(mod, base, desc, exdesc);
-    base.apply(exdesc, desc);
+    spec.template getDescriptors<Access::Read>(hw, mod, base, desc, exdesc, addr);
+    if (dst.isNull())
+        desc.parts.responseLen = 0;
 }
 
 // Generate descriptors for a store operation. Requires split send for pre-Gen12.
-template <typename DataSpec>
-void encodeStoreDescriptors(MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc,
-    const InstructionModifier &mod, const DataSpec &spec, AddressBase base)
+template <typename DataSpec, typename Addr>
+static inline void encodeStoreDescriptors(HW hw, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc,
+    const InstructionModifier &mod, const DataSpec &spec, AddressBase base, const Addr &addr)
 {
 #ifdef NGEN_SAFE
     if (base.isRO()) throw read_only_exception();
 #endif
 
-    spec.template getDescriptors<Access::Write>(mod, base, desc, exdesc);
+    spec.template getDescriptors<Access::Write>(hw, mod, base, desc, exdesc, addr);
     exdesc.parts.extMessageLen = desc.parts.responseLen;
     desc.parts.responseLen = 0;
-
-    base.apply(exdesc, desc);
 }
 
 // Generate descriptors for an atomic operation. Requires split send for binary and ternary atomics pre-Gen12.
-template <typename DataSpec>
-void encodeAtomicDescriptors(MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc,
-    AtomicOp op, const InstructionModifier &mod, const RegData &dst, const DataSpec &spec, AddressBase base)
+template <typename DataSpec, typename Addr>
+static inline void encodeAtomicDescriptors(HW hw, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc,
+    AtomicOp op, const InstructionModifier &mod, const RegData &dst, const DataSpec &spec, AddressBase base, const Addr &addr)
 {
     if (isFloatAtomicOp(op))
-        spec.template getDescriptors<Access::AtomicFloat>(mod, base, desc, exdesc);
+        spec.template getDescriptors<Access::AtomicFloat>(hw, mod, base, desc, exdesc, addr);
     else
-        spec.template getDescriptors<Access::AtomicInteger>(mod, base, desc, exdesc);
+        spec.template getDescriptors<Access::AtomicInteger>(hw, mod, base, desc, exdesc, addr);
 
-    desc.atomic.returnData = !dst.isNull();
-    desc.atomic.atomicOp = static_cast<int>(op);
+    spec.applyAtomicOp(op, dst, desc);
 
     exdesc.parts.extMessageLen = desc.parts.responseLen * (operandCount(op) - 1);
     if (dst.isNull())
         desc.parts.responseLen = 0;
-
-    base.apply(exdesc, desc);
 }
-
-
-
-
 
 } /* namespace ngen */
 
