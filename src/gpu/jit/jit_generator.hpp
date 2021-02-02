@@ -17,7 +17,15 @@
 #ifndef GPU_JIT_JIT_GENERATOR_HPP
 #define GPU_JIT_JIT_GENERATOR_HPP
 
+#include "common/float16.hpp"
 #include "gpu/jit/jit_generator_base.hpp"
+
+namespace ngen {
+using half = dnnl::impl::float16_t;
+}
+
+#define NGEN_HALF_TYPE
+
 #include "gpu/jit/ngen/ngen_opencl.hpp"
 
 namespace dnnl {

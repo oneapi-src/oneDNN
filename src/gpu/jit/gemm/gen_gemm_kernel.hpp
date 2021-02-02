@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,6 +76,7 @@ protected:
     ngen::NEOInterfaceHandler interface_ {ngen::HW::Unknown};
 
 private:
+    static bool matching_hw(ngen::HW hw, ngen::HW hw_ref);
     status_t complete_strategy();
     status_t read_strategy(const char *str);
     status_t init_interface();
@@ -89,7 +90,7 @@ struct gen_gemm_nocopy_kernel_t : public gen_gemm_kernel_t {
         problem_.Ta = convert_dnnl_to_kernel_type(a_type);
         problem_.Tb = convert_dnnl_to_kernel_type(b_type);
         problem_.Tc = convert_dnnl_to_kernel_type(c_type);
-        problem_.Ts = problem_.Tc;
+        problem_.Tc_ext = problem_.Ts = problem_.Tc;
         problem_.A.layout = trans_a ? MatrixLayout::T : MatrixLayout::N;
         problem_.B.layout = trans_b ? MatrixLayout::T : MatrixLayout::N;
         problem_.C.layout = MatrixLayout::N;

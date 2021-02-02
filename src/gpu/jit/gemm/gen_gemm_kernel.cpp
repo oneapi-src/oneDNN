@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,8 +54,7 @@ AccessType get_access_type(char c) {
         default: assert(!"Unknown access type.");
         case 'b': return AccessType::Block;
         case 's': return AccessType::Scattered;
-        case 'u': return AccessType::SurfaceScattered;
-        case 'm': return AccessType::MediaBlock;
+        case 'u': return AccessType::ChannelScattered;
     }
 }
 
@@ -71,19 +70,23 @@ ngen::AddressBase get_address_base(char c) {
 
 } // anonymous namespace
 
+bool gen_gemm_kernel_t::matching_hw(ngen::HW hw, ngen::HW hw_ref) {
+    if (hw == hw_ref) return true;
+    return false;
+}
+
 status_t gen_gemm_kernel_t::complete_strategy() {
     using ngen::HW;
 
     problem_.nonuniformWGs = false;
     problem_.fused = (hw_ >= HW::Gen12LP);
-    strategy_.emulate64 = (hw_ == HW::Gen11 || hw_ == HW::Gen12LP);
-    strategy_.emulateDWxDW = (hw_ >= HW::Gen12LP);
-    strategy_.checkAdd32 = strategy_.emulate64;
+    strategy_.emulate = EmulationStrategy(hw_);
+    strategy_.checkAdd32 = strategy_.emulate.emulate64;
     strategy_.spf = !problem_.fused;
 
     for (int r = 0; r < gemm_recipe_count; r++) {
         auto &recipe = gemm_recipes[r];
-        if (recipe.hw == hw_
+        if (matching_hw(hw_, recipe.hw)
                 && recipe.precisions[0] == precision_char(problem_.Ta)
                 && recipe.precisions[1] == precision_char(problem_.Tb)
                 && recipe.precisions[2] == precision_char(problem_.Tc)
@@ -110,16 +113,11 @@ status_t gen_gemm_kernel_t::read_strategy(const char *str) {
     bool override_register_scheme = false;
     bool override_c_remainder = false;
 
-    bool dp4aIGEMM = hw_ >= HW::Gen12LP && problem_.Ta.size() == 1
-            && problem_.Tb.size() == 1 && problem_.Tc.size() == 4;
-
     strategy_.ka_load_masked = strategy_.kb_load_masked = 0;
     strategy_.unroll[LoopK] = 1;
     strategy_.fmaSIMD = 64
             / std::max<int>({problem_.Ta.size(), problem_.Tb.size(),
                     problem_.Tc.size()});
-
-    strategy_.kernelCrosspack = dp4aIGEMM ? 4 : 1;
 
     strategy_.remHandling[LoopM] = RemainderHandling::Split;
     strategy_.remHandling[LoopN] = RemainderHandling::Split;
@@ -144,17 +142,22 @@ status_t gen_gemm_kernel_t::read_strategy(const char *str) {
     while (!s.eof()) {
         std::string mod;
         s >> mod;
-        if (mod == "cs")
+        if (mod == "cs") {
+            override_register_scheme = true;
             strategy_.registerScheme = GEMMStrategy::CSeparate;
-        else if (mod == "acb")
+        } else if (mod == "acb") {
+            override_register_scheme = true;
             strategy_.registerScheme = GEMMStrategy::ACB;
-        else if (mod == "bca")
+        } else if (mod == "bca") {
+            override_register_scheme = true;
             strategy_.registerScheme = GEMMStrategy::BCA;
-        else if (mod == "vnc")
+        } else if (mod == "vnc") {
+            override_register_scheme = true;
             strategy_.registerScheme = GEMMStrategy::VNC;
-        else if (mod == "int")
+        } else if (mod == "int") {
+            override_register_scheme = true;
             strategy_.registerScheme = GEMMStrategy::ABInterleave;
-        else if (mod == "ar") {
+        } else if (mod == "ar") {
             override_c_remainder = true;
             strategy_.altCRemainder = true;
         } else if (mod == "sr") {
@@ -172,6 +175,8 @@ status_t gen_gemm_kernel_t::read_strategy(const char *str) {
             strategy_.delayABInc = true;
         else if (mod == "ws")
             strategy_.wgInSS = true;
+        else if (mod == "pab")
+            problem_.A.padded = problem_.B.padded = true;
         else if (mod == "nmk") {
             strategy_.loopOrder[0] = LoopN;
             strategy_.loopOrder[1] = LoopM;
@@ -532,6 +537,7 @@ const kernel_table_t *gen12lp_x8_nocopy_tables[2][2] = {
     {gen12lp_x8_nocopy_nn_table, gen12lp_x8_nocopy_nt_table},
     {gen12lp_x8_nocopy_tn_table, gen12lp_x8_nocopy_tt_table}
 };
+
 // clang-format on
 
 } // anonymous namespace
@@ -544,15 +550,16 @@ void gen_gemm_nocopy_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
     unroll_m = unroll_n = 1;
 
     using tables_t = decltype(gen9_f32_nocopy_tables);
-    const tables_t *all_tables[3][2]
+    const tables_t *all_tables[4][3]
             = {{&gen9_f32_nocopy_tables, &gen12lp_f32_nocopy_tables},
                     {&gen9_f16_nocopy_tables, &gen12lp_f16_nocopy_tables},
                     {&gen9_x8_nocopy_tables, &gen12lp_x8_nocopy_tables}};
 
+    // clang-format off
     int arch_idx = (arch == compute::gpu_arch_t::gen12lp) ? 1 : 0;
-    int type_idx = (c_type == data_type::f16)
-            ? 1
-            : (c_type == data_type::s32) ? 2 : 0;
+    int type_idx = (c_type == data_type::f16) ? 1
+                :  (c_type == data_type::s32) ? 2 : 0;
+    // clang-format on
 
     const kernel_table_t *table
             = (*all_tables[type_idx][arch_idx])[trans_a][trans_b];
