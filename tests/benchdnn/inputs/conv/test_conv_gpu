@@ -1,4 +1,5 @@
 # f32
+--cfg=f32
 --reset
 --mb=2,16
 --dir=FWD_B,BWD_D,BWD_WB --stag=any --batch=set_gpu
@@ -83,3 +84,9 @@ g2ic2ih1iw2oc4oh1ow2kh1kw1ph0pw0
 g1ic16iw5oc16ow5kw1pw0
 mb3g1ic33iw5oc33ow17kw1pw0
 mb16ic16ih224oc64oh112kh7sh2ph3n
+
+#int8dst
+--reset
+--cfg=f16f16s8,f32f32s8
+--mb=2,16
+--dir=FWD_B --stag=any --batch=set_gpu

@@ -457,6 +457,8 @@ the convolution.)
    - Winograd are implemented only for processors with Intel AVX-512 and
      Intel DL Boost instruction sets
    - Run-time output scales are not supported
+   - s8 dst is not supported for f32 src and weights
+   - BWD_D convolution with bias is not supported
 
 ## Performance Tips
 

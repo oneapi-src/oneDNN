@@ -8,7 +8,7 @@
 # Training
 ## Forward
 --dir=FWD_B
---cfg=f32,bf16bf16bf16,f16
+--cfg=f32,bf16bf16bf16,f16,f32f32s8,f16f16s8
 --attr-post-ops='','sum:0.25;relu:0.5'
 --batch=shapes_basic_gpu
 ## Backward

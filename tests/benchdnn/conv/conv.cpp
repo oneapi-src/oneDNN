@@ -643,6 +643,16 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
             res);
     if (res->state == SKIPPED) return;
+    // GPU only case
+    bool is_f32_wei = prb->cfg[WEI].dt == dnnl_f32;
+    bool is_f32_src = prb->cfg[SRC].dt == dnnl_f32;
+    bool is_int8_dst = prb->cfg[DST].dt == dnnl_s8;
+    const bool f32_s8_conv = is_f32_src && is_f32_wei && is_int8_dst;
+
+    if (is_cpu() && f32_s8_conv) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 
     // Winograd implementation limitations.
     if (prb->alg == WINO) {
