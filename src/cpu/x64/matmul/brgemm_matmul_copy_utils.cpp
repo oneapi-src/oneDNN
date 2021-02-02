@@ -195,6 +195,7 @@ private:
 
     enum { typesize = sizeof(int8_t), k_blk_step = 4, n_blk_step = 64 };
     dim_t src_stride = 0, tr_src_stride = 0;
+    bool is_amx = false;
 
     opmask_t kTail = k7;
 
@@ -216,12 +217,109 @@ private:
     zmm zmm_zero = zmm31;
 
     Xbyak::Zmm get_comp_acc(int i) { return Xbyak::Zmm(25 - i); }
-
+    void copy_4x64_vnni_avx512_core(int nrows, int ncolumns);
+    void copy_4x64_vnni_amx(int nrows, int ncolumns);
     void copy_4x64_vnni(int nrows, int ncolumns);
     void generate() override;
 };
 
 void jit_brgemm_matmul_copy_B_int8_t::copy_4x64_vnni(int nrows, int ncolumns) {
+    if (is_amx)
+        copy_4x64_vnni_amx(nrows, ncolumns);
+    else
+        copy_4x64_vnni_avx512_core(nrows, ncolumns);
+}
+
+void jit_brgemm_matmul_copy_B_int8_t::copy_4x64_vnni_amx(
+        int nrows, int ncolumns) {
+    auto kmovq = [=](Opmask k, size_t q) {
+        mov(regq_tmp, q);
+        jit_generator::kmovq(k, regq_tmp);
+    };
+
+    const auto tail_mask = size_t(((size_t)1 << ncolumns) - 1);
+    if (ncolumns < n_blk_step) kmovq(kTail, tail_mask);
+
+    const int blk_sz = 6;
+    const int max_unroll = (conf_->signed_input ? 21 : 25) / blk_sz;
+    auto get_zmm = [=](int blk, int idx) {
+        assert(idx >= 0 && idx < blk_sz && blk >= 0);
+        auto reg_idx = blk_sz * blk + idx;
+        assert(reg_idx >= 0 && reg_idx < 32);
+        return zmm(reg_idx);
+    };
+
+    auto load = [=](int blk, int i) {
+        auto src_reg = get_zmm(blk, i % k_blk_step);
+        auto src_load = ncolumns < n_blk_step ? src_reg | kTail | T_z : src_reg;
+        vmovdqu8(src_load, EVEX_compress_addr(reg_src, i * src_stride));
+    };
+
+    for_(int kb = 0; kb < div_up(nrows, max_unroll * k_blk_step); kb++)
+    for (int k = 0;
+            k < nstl::min(max_unroll,
+                    div_up(nrows - kb * max_unroll * k_blk_step, k_blk_step));
+            k++) {
+        const int row_start = (kb * max_unroll + k) * k_blk_step;
+        const int row_end = nstl::min(row_start + k_blk_step, nrows);
+
+        for (int i = row_start; i < row_end; i++)
+            load(k, i);
+        if (row_end == nrows && nrows % k_blk_step > 0) {
+            for (int i = nrows; i < rnd_up(nrows, k_blk_step); i++) {
+                auto src_reg = get_zmm(k, i % k_blk_step);
+                vpxord(src_reg, src_reg, src_reg);
+            }
+        }
+
+        vmovups(get_zmm(k, 4), vreg_idx_lo_256);
+        vpermi2b(get_zmm(k, 4), get_zmm(k, 0), get_zmm(k, 2));
+        vmovups(get_zmm(k, 5), vreg_idx_hi_256);
+        vpermi2b(get_zmm(k, 5), get_zmm(k, 0), get_zmm(k, 2));
+        vmovups(get_zmm(k, 0), vreg_idx_lo_256);
+        vpermi2b(get_zmm(k, 0), get_zmm(k, 1), get_zmm(k, 3));
+        vmovups(get_zmm(k, 2), vreg_idx_hi_256);
+        vpermi2b(get_zmm(k, 2), get_zmm(k, 1), get_zmm(k, 3));
+
+        vmovups(get_zmm(k, 1), vreg_idx_lo_128);
+        vpermi2b(get_zmm(k, 1), get_zmm(k, 4), get_zmm(k, 0));
+        dim_t tr_src_off_base = (kb * max_unroll + k) * tr_src_stride;
+        vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base), get_zmm(k, 1));
+
+        if (ncolumns > 16) {
+            vmovups(get_zmm(k, 3), vreg_idx_hi_128);
+            vpermi2b(get_zmm(k, 3), get_zmm(k, 4), get_zmm(k, 0));
+            vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 64),
+                    get_zmm(k, 3));
+        } else if (conf_->wei_n_blk > 16) {
+            vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 64),
+                    zmm_zero);
+        }
+
+        if (ncolumns > 32) {
+            vmovups(get_zmm(k, 4), vreg_idx_lo_128);
+            vpermi2b(get_zmm(k, 4), get_zmm(k, 5), get_zmm(k, 2));
+            vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 128),
+                    get_zmm(k, 4));
+        } else if (conf_->wei_n_blk > 32) {
+            vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 128),
+                    zmm_zero);
+        }
+
+        if (ncolumns > 48) {
+            vmovups(get_zmm(k, 0), vreg_idx_hi_128);
+            vpermi2b(get_zmm(k, 0), get_zmm(k, 5), get_zmm(k, 2));
+            vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 192),
+                    get_zmm(k, 0));
+        } else if (conf_->wei_n_blk > 48) {
+            vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 192),
+                    zmm_zero);
+        }
+    }
+}
+
+void jit_brgemm_matmul_copy_B_int8_t::copy_4x64_vnni_avx512_core(
+        int nrows, int ncolumns) {
     auto kmovq = [=](Opmask k, size_t q) {
         mov(regq_tmp, q);
         jit_generator::kmovq(k, regq_tmp);
@@ -330,16 +428,18 @@ void jit_brgemm_matmul_copy_B_int8_t::generate() {
     vpxord(zmm_zero, zmm_zero, zmm_zero);
     src_stride = conf_->N * typesize;
     tr_src_stride = conf_->LDB * k_blk_step * typesize;
+    is_amx = conf_->isa == avx512_core_bf16_amx_int8;
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
     mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
     mov(reg_N_blk, ptr[param1 + GET_OFF(current_N_blk)]);
 
-    auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
+    auto vmovdqa64 = [=](Zmm z, const void *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa64(z, ptr[imm_addr64]);
     };
+
     alignas(64) static constexpr const int64_t idx_lo_256[8]
             = {0, 1, 2, 3, 8, 9, 10, 11};
     alignas(64) static constexpr const int64_t idx_hi_256[8]
@@ -349,11 +449,38 @@ void jit_brgemm_matmul_copy_B_int8_t::generate() {
             = {0, 1, 8, 9, 4, 5, 12, 13};
     alignas(64) static constexpr const int64_t idx_hi_128[8]
             = {2, 3, 10, 11, 6, 7, 14, 15};
+    alignas(64) static constexpr const uint8_t idx_lo_16[64]
+            = {0, 1, 64, 65, 4, 5, 68, 69, 2, 3, 66, 67, 6, 7, 70, 71, 8, 9, 72,
+                    73, 12, 13, 76, 77, 10, 11, 74, 75, 14, 15, 78, 79, 16, 17,
+                    80, 81, 20, 21, 84, 85, 18, 19, 82, 83, 22, 23, 86, 87, 24,
+                    25, 88, 89, 28, 29, 92, 93, 26, 27, 90, 91, 30, 31, 94, 95};
 
-    vmovdqa64(vreg_idx_lo_256, idx_lo_256);
-    vmovdqa64(vreg_idx_hi_256, idx_hi_256);
-    vmovdqa64(vreg_idx_lo_128, idx_lo_128);
-    vmovdqa64(vreg_idx_hi_128, idx_hi_128);
+    alignas(64) static constexpr const uint8_t idx_hi_16[64] = {32, 33, 96, 97,
+            36, 37, 100, 101, 34, 35, 98, 99, 38, 39, 102, 103, 40, 41, 104,
+            105, 44, 45, 108, 109, 42, 43, 106, 107, 46, 47, 110, 111, 48, 49,
+            112, 113, 52, 53, 116, 117, 50, 51, 114, 115, 54, 55, 118, 119, 56,
+            57, 120, 121, 60, 61, 124, 125, 58, 59, 122, 123, 62, 63, 126, 127};
+
+    alignas(64) static constexpr const uint8_t idx_lo_8[64]
+            = {0, 64, 2, 66, 1, 65, 3, 67, 8, 72, 10, 74, 9, 73, 11, 75, 4, 68,
+                    6, 70, 5, 69, 7, 71, 12, 76, 14, 78, 13, 77, 15, 79, 16, 80,
+                    18, 82, 17, 81, 19, 83, 24, 88, 26, 90, 25, 89, 27, 91, 20,
+                    84, 22, 86, 21, 85, 23, 87, 28, 92, 30, 94, 29, 93, 31, 95};
+
+    alignas(64) static constexpr const uint8_t idx_hi_8[64] = {32, 96, 34, 98,
+            33, 97, 35, 99, 40, 104, 42, 106, 41, 105, 43, 107, 36, 100, 38,
+            102, 37, 101, 39, 103, 44, 108, 46, 110, 45, 109, 47, 111, 48, 112,
+            50, 114, 49, 113, 51, 115, 56, 120, 58, 122, 57, 121, 59, 123, 52,
+            116, 54, 118, 53, 117, 55, 119, 60, 124, 62, 126, 61, 125, 63, 127};
+
+    vmovdqa64(vreg_idx_lo_256,
+            is_amx ? (const void *)idx_lo_16 : (const void *)idx_lo_256);
+    vmovdqa64(vreg_idx_hi_256,
+            is_amx ? (const void *)idx_hi_16 : (const void *)idx_hi_256);
+    vmovdqa64(vreg_idx_lo_128,
+            is_amx ? (const void *)idx_lo_8 : (const void *)idx_lo_128);
+    vmovdqa64(vreg_idx_hi_128,
+            is_amx ? (const void *)idx_hi_8 : (const void *)idx_hi_128);
 
     if (conf_->signed_input) {
         mov(reg_comp_ptr, ptr[param1 + GET_OFF(compensation_ptr)]);
