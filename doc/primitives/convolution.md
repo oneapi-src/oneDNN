@@ -153,11 +153,12 @@ source, destination, and weights memory objects:
 
 | Propagation        | Source    | Weights   | Destination       | Bias             |
 | :--                | :--       | :--       | :--               | :--              |
-| forward / backward | f32       | f32       | f32               | f32              |
-| forward            | f16       | f16       | f16, f32          | f16, f32         |
+| forward            | f32       | f32       | f32, s8           | f32              |
+| forward            | f16       | f16       | f16, f32, s8      | f16, f32         |
 | forward            | u8, s8    | s8        | u8, s8, s32, f32  | u8, s8, s32, f32 |
 | forward            | bf16      | bf16      | f32, bf16         | f32, bf16        |
 | backward           | f32, bf16 | bf16      | bf16              |                  |
+| backward           | f32       | f32       | f32               | f32              |
 | weights update     | bf16      | f32, bf16 | bf16              | f32, bf16        |
 
 @warning
@@ -457,8 +458,8 @@ the convolution.)
    - Winograd are implemented only for processors with Intel AVX-512 and
      Intel DL Boost instruction sets
    - Run-time output scales are not supported
-   - s8 dst is not supported for f32 src and weights
-   - BWD_D convolution with bias is not supported
+   - s8 \dst is not supported for f32 \src and \weights
+   - backward convolution with bias is not supported
 
 ## Performance Tips
 
