@@ -50,6 +50,10 @@ inline int gcd(int a, int b) {
     return b;
 }
 
+inline int lcm(int a, int b) {
+    return a * b / gcd(a, b);
+}
+
 template <typename T>
 inline bool is_pow2(const T &v) {
     return (v != 0) && ((v & (v - 1)) == 0);
