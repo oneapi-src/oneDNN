@@ -80,6 +80,12 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
             ? reinterpret_cast<const int32_t *>(&weights[offset])
             : nullptr;
 
+    bool is_os_tail = (jbgp.mb < jbgp.os_block);
+    bool is_oc_tail = (jbgp.oc < jbgp.oc_block);
+    int base_brg_ker_idx
+            = pd()->get_brg_kernel_idx( // TODO: Can be calculated on initialization stage
+                    false, is_os_tail, is_oc_tail, false);
+
     const auto ker = [&](const int ithr, int n, int ocb, int icc) {
         auto addr_batch = addr_batch_global + ithr * jbgp.adjusted_batch_size;
 
@@ -108,7 +114,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
         auto ptr_bias = jbgp.with_bias ? bias + bia_dt_size * oc : nullptr;
 
         if (nb_ic_b > 0 && brg_kernel != nullptr) {
-            if (is_amx)
+            if (is_amx && is_os_tail)
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
             for (int b = 0; b < gemm_batch; b++) {
                 addr_batch[b].ptr.A = src
@@ -132,6 +138,8 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
                 brgemm_kernel_execute(brg_kernel, gemm_batch, addr_batch,
                         (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
             }
+            if (is_amx && is_os_tail)
+                amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
         }
 
         if (is_ic_tail) {
@@ -161,6 +169,8 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
                 brgemm_kernel_execute(brg_kernel_ic_tail, 1, addr_batch,
                         (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
             }
+            if (is_amx)
+                amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
         }
     };
 
@@ -175,6 +185,9 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
     parallel(work_amount == 1 ? 1 : 0, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
+
+        if (is_amx)
+            amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
 
         int occ {0}, osc {0};
         nd_iterator_init(start, osc, os_chunks, occ, oc_chunks);
