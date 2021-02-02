@@ -924,6 +924,7 @@ static inline bool nocopy_checker_avx512(int nthr, const int transa,
     static const dim_t K_NOTRANSB_PER_THR = 1;
     static const double FORCE_NOCOPY_THRESH = 0.00196;
 
+    bool is_NN = transa == no_trans && transb == no_trans;
     bool is_NT = transa == no_trans && transb == do_trans;
     bool is_TN = transa == do_trans && transb == no_trans;
 
@@ -938,6 +939,11 @@ static inline bool nocopy_checker_avx512(int nthr, const int transa,
     if (nthr == 1 && is_TN && m > 100
             && ((m < 1200 && n < 200 && k < 1200)
                     || (is_lda_bad && is_ldb_bad)))
+        return false;
+
+    // Copy-based performs better for NN case on very bad leading dimension if
+    // each thread has enough work.
+    if (nthr <= 8 && is_NN && is_lda_verybad && k > 500 && n > 100)
         return false;
 
     // Crude threshold for nocopy kernels if copy overhead is significant.
