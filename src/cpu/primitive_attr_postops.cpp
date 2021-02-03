@@ -198,7 +198,7 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
 
                 const auto &b = e.binary;
                 const memory_desc_wrapper src1_binary_po_d(b.src1_desc);
-                dims_t l_dims_binary_po;
+                dims_t l_dims_binary_po {};
                 utils::l_dims_by_l_offset(
                         l_dims_binary_po, args.l_offset, dst_dims, dst_ndims);
                 int mask_binary_po = utils::get_dims_mask(
