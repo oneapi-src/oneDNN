@@ -117,6 +117,12 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 auto LDD = jbgp_.oc_without_padding;
                 CHECK(brgemm_desc_set_postops(
                         &brg, attr(), jbgp_.dst_dt, LDD, jbgp_.bia_dt));
+                if (isa == avx512_core_bf16_amx_int8) {
+                    brgemm_attr_t brgattr;
+                    brgattr.max_bs = jbgp_.gemm_batch_size;
+                    brgattr.wary_tail_read = false;
+                    CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                }
             }
 
             auto scratchpad = scratchpad_registry().registrar();
