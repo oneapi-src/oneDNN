@@ -132,10 +132,10 @@ conv_fwd_ow_block_x8s8x(const __global SRC_DATA_T *src,
 
     const bool left_tail = iw < 0;
     const bool left_nozero_tail = sub_group_id == 0 && iw >= 0;
-    const bool right_tail = (iw + PW + OW_SLM_TAIL >= IW) && (iw + PW < IW);
+    const bool right_tail = (iw + PW + SLM_TAIL >= IW) && (iw + PW < IW);
     const bool empty = (iw + PW >= IW);
     const bool right_nozero_tail
-            = sp == (LWS_1 - 1) && (iw + PW + OW_SLM_TAIL < IW);
+            = sp == (LWS_1 - 1) && (iw + PW + SLM_TAIL < IW);
 
     dst += OC_BLOCK * OD * OH * OW * MB_BLOCK * (group_oc + oc);
     dst += OC_BLOCK * OD * OH * OW * OC_NCHUNK * G * MB_BLOCK * group_mb;
@@ -156,12 +156,12 @@ conv_fwd_ow_block_x8s8x(const __global SRC_DATA_T *src,
 
 #if ZERO_TAIL > 0
     if (right_tail) {
-        for (int i = OW_SLM_TAIL; i < SW * OW_BLOCK + (KW - 1) * (1 + DW) - PW;
+        for (int i = SLM_TAIL; i < SW * OW_BLOCK + (KW - 1) * (1 + DW) - PW;
                 i++) {
             block_write(S_part + i * 8, 0);
         }
     }
-#if SLM_WORKING_GROUPS < OW_NCHUNK
+#if SLM_NCHUNK < OW_NCHUNK
     if (empty) {
         for (int i = 0; i < SW * OW_BLOCK + (KW - 1) * (1 + DW) - PW; i++) {
             block_write(S_part + i * 8, 0);
@@ -189,7 +189,7 @@ conv_fwd_ow_block_x8s8x(const __global SRC_DATA_T *src,
                 }
 
                 barrier(CLK_LOCAL_MEM_FENCE);
-#if SLM_WORKING_GROUPS < OW_NCHUNK
+#if SLM_NCHUNK < OW_NCHUNK
                 if (iw + PW < IW) {
 #endif
 #if OW_NCHUNK > LWS_1
@@ -218,13 +218,13 @@ conv_fwd_ow_block_x8s8x(const __global SRC_DATA_T *src,
                         }
 #endif
 
-#if OW_SLM_TAIL != OW_BLOCK * SW
+#if SLM_TAIL != OW_BLOCK * SW
                         /* Copy last block to SLM */
                         if (right_tail) {
-                            __attribute__((
-                                    opencl_unroll_hint)) for (int i = 0;
-                                                              i < OW_SLM_TAIL;
-                                                              i++) {
+                            __attribute__((opencl_unroll_hint)) for (int i = 0;
+                                                                     i
+                                                                     < SLM_TAIL;
+                                                                     i++) {
                                 block_write(S_part + i * 8,
                                         intel_sub_group_block_read(
                                                 (const __global uint *)(&src[i
@@ -243,14 +243,14 @@ conv_fwd_ow_block_x8s8x(const __global SRC_DATA_T *src,
                                                         * IC_BLOCK])));
                             }
 
-#if OW_SLM_TAIL != OW_BLOCK * SW
+#if SLM_TAIL != OW_BLOCK * SW
                         }
 #endif
 
 #if OW_NCHUNK > LWS_1
                     }
 #endif
-#if SLM_WORKING_GROUPS < OW_NCHUNK
+#if SLM_NCHUNK < OW_NCHUNK
                 }
 #endif
                 barrier(CLK_LOCAL_MEM_FENCE);

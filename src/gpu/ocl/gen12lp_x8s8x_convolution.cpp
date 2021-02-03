@@ -359,6 +359,24 @@ status_t gen12lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
 
 status_t gen12lp_x8s8x_convolution_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
+    int owx = nstl::max(
+            1, utils::div_up(conf.iw + 2 * conf.l_pad, conf.stride_w));
+    int ow_block_with_stride = conf.stride_w * conf.ow_block;
+    int iw_with_l_pad = conf.iw + conf.l_pad;
+    int iw_len = iw_with_l_pad < ow_block_with_stride + conf.kw - 1
+            ? iw_with_l_pad - ow_block_with_stride
+            : iw_with_l_pad % ow_block_with_stride;
+    int iw_tail
+            = iw_len < (conf.kw - 1) ? ow_block_with_stride + iw_len : iw_len;
+    int ow_tail = conf.ow % conf.ow_block;
+    int iw_nchunk = utils::div_up(conf.iw, ow_block_with_stride);
+    int ow_nchunk = utils::div_up(conf.ow, conf.ow_block);
+    int min_w_nchunk = nstl::min(ow_nchunk, iw_nchunk);
+    int slm_tail
+            = conf.iw - (conf.stride_w * conf.ow_block * (min_w_nchunk - 1));
+    int zero_tail = utils::rnd_up(conf.ow, conf.ow_block) * conf.stride_w
+            - conf.iw + (conf.kw - 1) * (1 + conf.dilate_w) - conf.l_pad;
+
     kernel_ctx.define_int("NCHW", conf.is_nchw);
     kernel_ctx.define_int("DST_NHWC", conf.is_dst_nhwc);
     kernel_ctx.define_int("G", conf.ngroups);
@@ -383,60 +401,36 @@ status_t gen12lp_x8s8x_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("DD", conf.dilate_d);
     kernel_ctx.define_int("DH", conf.dilate_h);
     kernel_ctx.define_int("DW", conf.dilate_w);
-
-    kernel_ctx.define_int("OW_PADDED",
-            utils::rnd_up(
-                    utils::div_up(conf.ow, conf.ow_block), conf.lws_d[1]));
-    kernel_ctx.define_int("G_PADDED",
-            utils::div_up(conf.ngroups, conf.oc_block) * conf.oc_block);
-    int ow = nstl::max(
-            1, utils::div_up(conf.iw + 2 * conf.l_pad, conf.stride_w));
-    kernel_ctx.define_int("OWX", ow);
-    kernel_ctx.define_int("OWB", utils::div_up(conf.ow, conf.ow_block));
-
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
     kernel_ctx.define_int("OC_BLOCK", conf.oc_block);
     kernel_ctx.define_int("IC_BLOCK", conf.ic_block);
     kernel_ctx.define_int("OW_BLOCK", conf.ow_block);
-
-    kernel_ctx.define_int("OC_GROUP", utils::div_up(conf.lws_d[0], 8));
-    kernel_ctx.define_int("MB_GROUP", 1);
-    kernel_ctx.define_int("SP_GROUP", conf.lws_d[1]);
-    kernel_ctx.define_int("OW_NCHUNK", utils::div_up(conf.ow, conf.ow_block));
-    kernel_ctx.define_int("OC_NCHUNK", utils::div_up(conf.oc, conf.oc_block));
-    kernel_ctx.define_int("IC_NCHUNK", utils::div_up(conf.ic, conf.ic_block));
-
-    kernel_ctx.define_int("SLM_WORKING_GROUPS",
-            nstl::min(utils::div_up(conf.ow, conf.ow_block),
-                    utils::div_up(conf.iw, conf.ow_block * conf.stride_w)));
-
-    int divx
-            = conf.iw + conf.l_pad < conf.stride_w * conf.ow_block + conf.kw - 1
-            ? conf.iw + conf.l_pad - conf.ow_block * conf.stride_w
-            : (conf.iw + conf.l_pad) % (conf.stride_w * conf.ow_block);
-    kernel_ctx.define_int("OW_TAIL", conf.ow % conf.ow_block);
-    kernel_ctx.define_int("IW_TAIL",
-            divx < conf.kw - 1 ? conf.stride_w * conf.ow_block + divx : divx);
-    kernel_ctx.define_int("OW_SLM_TAIL",
-            conf.iw
-                    - conf.stride_w * conf.ow_block
-                            * (nstl::min(utils::div_up(conf.ow, conf.ow_block),
-                                       utils::div_up(conf.iw,
-                                               conf.ow_block * conf.stride_w))
-                                    - 1));
-    kernel_ctx.define_int("ZERO_TAIL",
-            utils::rnd_up(conf.ow, conf.ow_block) * conf.stride_w - conf.iw
-                    + (conf.kw - 1) * (1 + conf.dilate_w) - conf.l_pad);
-
     kernel_ctx.define_int("SRC_SLM_SIZE", conf.src_slm_size);
-
-    kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
-    def_attr_info(kernel_ctx, conf.attr_info);
-
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
+    kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
     kernel_ctx.define_int("LWS_0", conf.lws_d[0]);
     kernel_ctx.define_int("LWS_1", conf.lws_d[1]);
     kernel_ctx.define_int("LWS_2", conf.lws_d[2]);
+
+    kernel_ctx.define_int("OW_TAIL", ow_tail);
+    kernel_ctx.define_int("IW_TAIL", iw_tail);
+    kernel_ctx.define_int("SLM_TAIL", slm_tail);
+    kernel_ctx.define_int("ZERO_TAIL", zero_tail);
+
+    kernel_ctx.define_int("OW_PADDED", utils::rnd_up(ow_nchunk, conf.lws_d[1]));
+    kernel_ctx.define_int("G_PADDED",
+            utils::div_up(conf.ngroups, conf.oc_block) * conf.oc_block);
+
+    kernel_ctx.define_int("MB_GROUP", 1);
+    kernel_ctx.define_int("SP_GROUP", conf.lws_d[1]);
+    kernel_ctx.define_int("OC_GROUP", utils::div_up(conf.lws_d[0], 8));
+
+    kernel_ctx.define_int("OC_NCHUNK", utils::div_up(conf.oc, conf.oc_block));
+    kernel_ctx.define_int("IC_NCHUNK", utils::div_up(conf.ic, conf.ic_block));
+    kernel_ctx.define_int("OW_NCHUNK", ow_nchunk);
+    kernel_ctx.define_int("SLM_NCHUNK", min_w_nchunk);
+    kernel_ctx.define_int("OWB", ow_nchunk);
+    kernel_ctx.define_int("OWX", owx);
 
     if (conf.is_depthwise)
         kernel_ctx.define_int("WEI_32G", 1);
@@ -444,6 +438,7 @@ status_t gen12lp_x8s8x_convolution_fwd_t::pd_t::init_kernel_ctx(
         kernel_ctx.define_int("WEI_4O8I8O4I", 1);
 
     kernel_ctx.set_data_type(conf.dst_data_type);
+
     def_data_type(kernel_ctx, conf.src_data_type, "SRC");
     def_data_type(kernel_ctx, conf.dst_data_type, "DST");
     def_data_type(kernel_ctx,
@@ -451,6 +446,8 @@ status_t gen12lp_x8s8x_convolution_fwd_t::pd_t::init_kernel_ctx(
                     ? conf.dst_data_type
                     : conf.attr_info.sum_data_type,
             "SUM");
+
+    def_attr_info(kernel_ctx, conf.attr_info);
 
     kernel_ctx.add_option("-Dcl_intel_subgroups_char");
     kernel_ctx.add_option("-Dcl_intel_subgroups_long");
