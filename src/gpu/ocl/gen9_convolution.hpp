@@ -62,6 +62,7 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
                     && utils::one_of(true,
                             expect_data_types(f32, f32, f32, f32, f32),
                             expect_data_types(f32, f32, f32, s8, f32),
+                            expect_data_types(f16, f16, f16, s8, f16),
                             expect_data_types(f16, f16, f16, f16, f16))
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)

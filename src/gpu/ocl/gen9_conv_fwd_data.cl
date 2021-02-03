@@ -44,101 +44,33 @@
 #ifdef DST_DT_S8
 #if DST_NCHW
 #define _BLOCK_WRITE8(ptr, v) \
-    { \
-        vstore8(CONVERT_DST_DATA8_T(v), 0, (__global DST_DATA_T *)(ptr)); \
-        printf("id: %i dst_vals %v#8f , %v#8hhi off: %i idx: %i\n", sglid, v, \
-                CONVERT_DST_DATA8_T(v), (int)ptr - ref_dst, idx); \
-    }
+    vstore8(CONVERT_DST_DATA8_T(v), 0, (__global DST_DATA_T *)(ptr));
 #define _BLOCK_WRITE4(ptr, v) \
-    { \
-        vstore4(CONVERT_DST_DATA4_T(v), 0, (__global DST_DATA_T *)(ptr)); \
-        printf("id: %i dst_vals %v#4f , %v#4hhi off: %i idx: %i\n", sglid, v, \
-                CONVERT_DST_DATA4_T(v), (int)ptr - ref_dst, idx); \
-    }
+    vstore4(CONVERT_DST_DATA4_T(v), 0, (__global DST_DATA_T *)(ptr));
 #define _BLOCK_WRITE2(ptr, v) \
-    { \
-        vstore2(CONVERT_DST_DATA2_T(v), 0, (__global DST_DATA_T *)(ptr)); \
-        printf("id: %i dst_vals %v#2f , %v#2hhi off: %i idx: %i\n", sglid, v, \
-                CONVERT_DST_DATA2_T(v), (int)ptr - ref_dst, idx); \
-    }
+    vstore2(CONVERT_DST_DATA2_T(v), 0, (__global DST_DATA_T *)(ptr));
 #define _BLOCK_WRITE(ptr, v) \
-    { \
-        *(__global DST_DATA_T *)(ptr) = CONVERT_DST_DATA_T(v); \
-        printf("id: %i dst_vals %f , %i off: %i oc: %i idx: %i\n", sglid, v, \
-                CONVERT_DST_DATA_T(v), (int)ptr - ref_dst, oc, idx); \
-    }
+    *(__global DST_DATA_T *)(ptr) = CONVERT_DST_DATA_T(v);
 #else
 #define _BLOCK_WRITE8(ptr, v) \
-    { \
-        BLOCK_WRITE_DST8( \
-                (__global DST_DATA_T *)(ptr), CONVERT_DST_DATA8_T(v)); \
-        printf("id: %i dst_vals %v#8f , %v#8hhi off: %i idx: %i mb %i g %i " \
-               "oc %i od %i oh %i ow %i\n", \
-                sglid, v, CONVERT_DST_DATA8_T(v), (int)ptr - ref_dst, idx, mb, \
-                g, oc, od, oh, ow); \
-    }
+    BLOCK_WRITE_DST8((__global DST_DATA_T *)(ptr), CONVERT_DST_DATA8_T(v));
 #define _BLOCK_WRITE4(ptr, v) \
-    { \
-        BLOCK_WRITE_DST4( \
-                (__global DST_DATA_T *)(ptr), CONVERT_DST_DATA4_T(v)); \
-        printf("id: %i dst_vals %v#4f , %v#4hhi off: %i idx: %i\n", sglid, v, \
-                CONVERT_DST_DATA4_T(v), (int)ptr - ref_dst, idx); \
-    }
+    BLOCK_WRITE_DST4((__global DST_DATA_T *)(ptr), CONVERT_DST_DATA4_T(v));
 #define _BLOCK_WRITE2(ptr, v) \
-    { \
-        BLOCK_WRITE_DST2( \
-                (__global DST_DATA_T *)(ptr), CONVERT_DST_DATA2_T(v)); \
-        printf("id: %i dst_vals %v#2f , %v#2hhi off: %i idx: %i mb %i g %i " \
-               "oc %i od %i oh %i ow %i\n", \
-                sglid, v, CONVERT_DST_DATA2_T(v), (int)ptr - ref_dst, idx, mb, \
-                g, oc, od, oh, ow); \
-    }
+    BLOCK_WRITE_DST2((__global DST_DATA_T *)(ptr), CONVERT_DST_DATA2_T(v));
 #define _BLOCK_WRITE(ptr, v) \
-    { \
-        if ((int)ptr - ref_dst == 544) { \
-            BLOCK_WRITE_DST( \
-                    (__global DST_DATA_T *)(ptr), CONVERT_DST_DATA_T(v)); \
-            printf("id: %i dst_vals %f , %i off: %i idx: %i mb %i g %i oc %i " \
-                   "od %i oh %i ow %i\n", \
-                    sglid, v + 1, CONVERT_DST_DATA_T(v), (int)ptr - ref_dst, \
-                    idx, mb, g, oc, od, oh, ow); \
-        } else { \
-            BLOCK_WRITE_DST( \
-                    (__global DST_DATA_T *)(ptr), CONVERT_DST_DATA_T(v)); \
-            printf("id: %i dst_vals %f , %i off: %i idx: %i mb %i g %i oc %i " \
-                   "od %i oh %i ow %i\n", \
-                    sglid, v, CONVERT_DST_DATA_T(v), (int)ptr - ref_dst, idx, \
-                    mb, g, oc, od, oh, ow); \
-        } \
-    }
+    BLOCK_WRITE_DST((__global DST_DATA_T *)(ptr), CONVERT_DST_DATA_T(v));
+
 #endif
 #else
 #define _BLOCK_WRITE8(ptr, v) \
-    { \
-        BLOCK_WRITE8((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA8_T(v)); \
-        printf("id: %i dst_vals %v#8f , %v#8hhi off: %i idx: %i mb %i g %i " \
-               "oc %i od %i oh %i ow %i\n", \
-                sglid, v, CONVERT_DST_DATA8_T(v), ((int)ptr - ref_dst) / 4, \
-                idx, mb, g, oc, od, oh, ow); \
-    }
+    BLOCK_WRITE8((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA8_T(v));
 #define _BLOCK_WRITE4(ptr, v) \
-    { \
-        BLOCK_WRITE4((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA4_T(v)); \
-        printf("id: %i dst_vals %v#4f , %v#4hhi off: %i idx: %i\n", sglid, v, \
-                CONVERT_DST_DATA4_T(v), (int)ptr - ref_dst, idx); \
-    }
+    BLOCK_WRITE4((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA4_T(v));
 #define _BLOCK_WRITE2(ptr, v) \
-    { \
-        BLOCK_WRITE2((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA2_T(v)); \
-        printf("id: %i dst_vals %v#2f , %v#2hhi off: %i idx: %i\n", sglid, v, \
-                CONVERT_DST_DATA2_T(v), (int)ptr - ref_dst, idx); \
-    }
+    BLOCK_WRITE2((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA2_T(v));
 #define _BLOCK_WRITE(ptr, v) \
-    { \
-        BLOCK_WRITE((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA_T(v)); \
-        printf("id: %i dst_vals %f , %i off: %i idx: %i\n", sglid, v, \
-                CONVERT_DST_DATA_T(v), (int)ptr - ref_dst, idx); \
-    }
+    BLOCK_WRITE((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA_T(v));
 #endif
 
 #define IS_3D (OD > 1)
@@ -217,13 +149,9 @@ int off_NCdhw16n16c(
 
 int off_nCdhw32c(
         int n, int c, int d, int h, int w, int C, int D, int H, int W) {
-    //int c_32_block = OC % 32 ? (32 + OC - (OC % 32)) : OC;
     int c_32_block = OC % 32 ? (32 + OC - (OC % 32)) : OC;
     int off = 0;
-    //off += n * (C / min(OC, 32)) * D * H * W * 32;
-    //off += (c / min(OC, 32)) * D * H * W * 32;
-
-    off += n * (c_32_block / 32) * D * H * W * 32;
+    off += n * (c_32_block / 32) * G * D * H * W * 32;
     off += (c / 32) * D * H * W * 32;
     off += d * H * W * 32;
     off += h * W * 32;
@@ -413,6 +341,25 @@ int dst_idx(int mb_block, int oc_outer, int ow_block) {
     } while (0)
 
 // ptr[i * 16 + j] = block[i].j, 0 <= i < n, 0 <= j < 16
+#if DST_NCHW
+#define unrolled_write(n, block, ptr) \
+    do { \
+        if ((n)&16) { \
+            _BLOCK_WRITE8((ptr), *(DATA8_T *)((block))); \
+            _BLOCK_WRITE8((ptr) + 8 * 16, *(DATA8_T *)((block) + 8)); \
+        } \
+        if ((n)&8) \
+            _BLOCK_WRITE8( \
+                    (ptr) + ((n) & ~15), *(DATA8_T *)((block) + ((n) & ~15))); \
+        if ((n)&4) \
+            _BLOCK_WRITE4( \
+                    (ptr) + ((n) & ~7), *(DATA4_T *)((block) + ((n) & ~7))); \
+        if ((n)&2) \
+            _BLOCK_WRITE2( \
+                    (ptr) + ((n) & ~3), *(DATA2_T *)((block) + ((n) & ~3))); \
+        if ((n)&1) _BLOCK_WRITE((ptr) + ((n) & ~1), *((block) + ((n) & ~1))); \
+    } while (0)
+#else
 #define unrolled_write(n, block, ptr) \
     do { \
         if ((n)&16) { \
@@ -431,7 +378,7 @@ int dst_idx(int mb_block, int oc_outer, int ow_block) {
         if ((n)&1) \
             _BLOCK_WRITE((ptr) + ((n) & ~1) * 16, *((block) + ((n) & ~1))); \
     } while (0)
-
+#endif
 // Supports C vectorization only.
 #define multiply_row(C, A, B, mb_block, oc_outer, ic_outer, ow_outer) \
     do { \
@@ -691,15 +638,25 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                                 mb_block, oc_outer * 16, 0, 0, ow_block); \
                         int idx = dst_idx(mb_block, oc_outer, ow_block); \
                         if (DST_W32C) { \
+                            int off = dst_off( \
+                                    mb_block, oc_outer * 16, 0, 0, 0); \
+                            int idx = dst_idx(mb_block, oc_outer, 0); \
                             for (int i = 0; i < OW_BLOCK && ow + i < OW; \
                                     ++i) { \
-                                _BLOCK_READ_DST(&(block)[idx + i], 1, \
-                                        &(ptr)[off + (32 * i)]); \
+                                *((DATA_T *)&(block)[idx + i]) \
+                                        = CONVERT_DATA_T(BLOCK_READ_DST( \
+                                                &(ptr)[off + (32 * i)])); \
                             } \
                         } else if (DST_32N32C) { \
+                            int off = dst_off(mb_block, \
+                                    oc_outer * (DST_32N32C ? 32 : 16), 0, 0, \
+                                    ow_block); \
+                            int idx = dst_idx(mb_block, oc_outer, ow_block); \
+                            mb_block ? mb_block += 31 : mb_block; \
                             for (int i = 0; i < 16; ++i) { \
-                                _BLOCK_READ_DST(&(block)[idx + i], 1, \
-                                        &(ptr)[off + (32 * i)]); \
+                                *((DATA_T *)&(block)[idx + i]) \
+                                        = CONVERT_DATA_T(BLOCK_READ_DST( \
+                                                &(ptr)[off + (32 * i)])); \
                             } \
                         } else { \
                             (block)[idx] = _BLOCK_READ(&(ptr)[off]); \
@@ -717,12 +674,6 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                     int idx = dst_idx(mb_block, oc_outer, 0); \
                     if (DST_W32C) { \
                         for (int i = 0; i < OW_BLOCK && ow + i < OW; ++i) { \
-                            printf("base_off: %i off: %i oc_outer: %i " \
-                                   "mb_block: %i mb: %i oc: %i oh: %i ow: %i " \
-                                   "block: %f i: %i,sglid %i\n", \
-                                    (int)ptr - ref_dst, off + (32 * i), \
-                                    OC_OUTER, mb_block, mb, oc, oh, ow, \
-                                    *((float *)&(block)[idx]), i, sglid); \
                             unrolled_write(1, &(block)[idx + i], \
                                     &(ptr)[off + (32 * i)]); \
                         } \
@@ -740,21 +691,12 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                 for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) \
                     for (int mb_block = 0; mb_block < MB_BLOCK; \
                             mb_block += (DST_32N32C ? 32 : 16)) { \
-                        printf("HERE2\n"); \
                         int off = dst_off(mb_block, \
                                 oc_outer * (DST_32N32C ? 32 : 16), 0, 0, \
                                 ow_block); \
-                        if (sglid == 0) printf("off: %i \n", off); \
                         int idx = dst_idx(mb_block, oc_outer, ow_block); \
                         if (DST_32N32C && MB > 8) { \
-                            for (int i = 0; i < 16; ++i) { \
-                                printf("base_off: %i off: %i oc_outer: %i " \
-                                       "mb_block: %i mb: %i oc: %i oh: %i " \
-                                       "ow: %i block: %f i: %i,sglid %i\n", \
-                                        (int)ptr - ref_dst, off + (32 * i), \
-                                        OC_OUTER, mb_block, mb, oc, oh, ow, \
-                                        *((float *)&(block)[idx + i]), i, \
-                                        sglid); \
+                            for (int i = 0; i < C_SIZE; ++i) { \
                                 unrolled_write(1, &(block)[idx + i], \
                                         &(ptr)[off + (32 * i)]); \
                             } \
@@ -765,7 +707,6 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                     } \
         } else if (DST_NCHW && sglid < OC_WO_PADDING - oc) { \
             for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) { \
-                printf("HERE3\n"); \
                 int n_channels = min(min(C_SIZE, OW - ow), OW_BLOCK); \
                 bool w_oc_tail = BASE_OC_TAIL > 0 \
                         && OC_WO_PADDING - (ocb ? ocb : SUB_GROUP_SIZE) \
@@ -892,7 +833,6 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     int ih = oh * SH - PH;
     int iw = ow * SW - PW;
     int id = od * SD - PD;
-    const int ref_dst = dst;
     // Vector type variables have less chance of being spilled for half data
     // type.
 #if DT_F16 && C_SIZE == 8
@@ -931,14 +871,10 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
     src += src_off(mb, g * IC, id, ih, iw);
     wei += wei_off(g, oc, 0, 0, 0, 0);
-#if DST_NCHW
+#ifdef DST_DT_S8
     dst += dst_off(mb, g * OC + oc, od, oh, ow);
-    printf("dst_off: %i mb %i g %i OC %i oc %i od %i oh %i ow %i \n",
-            dst_off(mb, g * 32 + oc, od, oh, ow), mb, g, OC, oc, od, oh, ow);
 #else
     dst += dst_off(mb, g * OC + oc, od, oh, ow);
-    printf("dst_off: %i mb %i g %i OC %i oc %i od %i oh %i ow %i \n",
-            dst_off(mb, g * 32 + oc, od, oh, ow), mb, g, OC, oc, od, oh, ow);
 #endif
 
     if (OW_BLOCK == 1) {

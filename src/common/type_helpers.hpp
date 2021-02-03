@@ -267,7 +267,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     using namespace prop_kind;
 
     /* prop_kind doesn't matter */
-    if (everyone_is(f16, src_dt, wei_dt) && one_of(dst_dt, f16, f32))
+    if (everyone_is(f16, src_dt, wei_dt) && one_of(dst_dt, f16, f32, s8))
         return f16;
     if (one_of(bf16, src_dt, wei_dt, dst_dt)) return f32;
     if (everyone_is(f32, src_dt, wei_dt)) return f32;
