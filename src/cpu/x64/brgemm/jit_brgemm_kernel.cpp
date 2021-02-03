@@ -346,7 +346,7 @@ void jit_brgemm_kernel_base_t::read_params() {
 
     // ptr_buf is re-used for passing compensations for
     // brg.req_s8s8_compensation case
-    if (brg.is_int8_amx || brg.is_bf16_amx || brg.req_s8s8_compensation) {
+    if (brg.is_amx || brg.req_s8s8_compensation) {
         mov(reg_buf, ptr[param1 + GET_OFF(ptr_buf)]);
         mov(ptr[rsp + reg_buf_offs_], reg_buf);
     }
@@ -366,7 +366,7 @@ void jit_brgemm_kernel_base_t::read_params() {
 
 void jit_brgemm_kernel_base_t::load_accumulators(
         int bd_block2, bool is_bdb_tail, int ld_block2, bool is_ld_tail) {
-    if (brg.is_int8_amx || brg.is_bf16_amx) {
+    if (brg.is_amx) {
         for_(int bdb = 0; bdb < bd_block2; bdb++)
         for (int ldb = 0; ldb < ld_block2; ldb++) {
             int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
@@ -592,8 +592,7 @@ void jit_brgemm_kernel_base_t::store_accumulators(
             brg.req_s8s8_compensation);
     const bool need_to_apply_alpha_beta = brg.beta != 0.f || brg.alpha != 1.f;
 
-    if (brg.is_int8_amx || brg.is_bf16_amx) {
-        mov(ptr[rsp + reg_ldb_loop_offs_], reg_ldb_loop);
+    if (brg.is_amx) {
         if (need_to_apply_alpha_beta || are_post_ops_applicable)
             mov(reg_stride_ld_block, brg.ld_block * brg.typesize_C);
         else
@@ -688,8 +687,6 @@ void jit_brgemm_kernel_base_t::store_accumulators(
         }
         store_accumulators_amx(false);
         L_aligned(label_done);
-
-        mov(reg_ldb_loop, ptr[rsp + reg_ldb_loop_offs_]);
     } else {
         int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
         if (need_to_apply_alpha_beta)
@@ -803,29 +800,36 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_amx(int bd_block2,
         }
     };
 
-    mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
-    mov(ptr[rsp + reg_ldb_loop_offs_], reg_ldb_loop);
+    auto maybe_tileloadd_nt = [=](const Tmm &t1, int offset) {
+        if (brg.brgattr.hint_expected_A_size != LLONG_MAX
+                && brg.brgattr.hint_expected_B_size != LLONG_MAX
+                && brg.brgattr.hint_expected_C_size != LLONG_MAX) {
+            if (static_cast<size_t>(
+                        brg.typesize_A * brg.brgattr.hint_expected_A_size
+                        + brg.typesize_B * brg.brgattr.hint_expected_B_size
+                        + brg.typesize_C * brg.brgattr.hint_expected_C_size)
+                    >= platform::get_per_core_cache_size(1))
+                tileloaddt1(t1, ptr[reg_aux_B + offset + reg_stride_ldb]);
+            else
+                tileloadd(t1, ptr[reg_aux_B + offset + reg_stride_ldb]);
+        } else
+            tileloaddt1(t1, ptr[reg_aux_B + offset + reg_stride_ldb]);
+    };
 
-    mov(reg_stride_lda, brg.typesize_A * brg.LDA);
-    mov(reg_stride_ldb, brg.rd_step * brg.typesize_B * brg.LDB);
-
-    for (int ldb = 0; ldb < ld_block2; ldb++) {
-        int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
-        tileloadd(Tmm(brgemm_amx::get_B_tensor(idx)),
-                ptr[reg_aux_B + B_offset(ldb, 0, true) + reg_stride_ldb]);
-    }
     for (int bdb = 0; bdb < bd_block2; bdb++) {
         tileloadd(Tmm(brgemm_amx::get_A_tensor(bdb)),
                 ptr[reg_aux_A + A_offset(bdb, 0, true) + reg_stride_lda]);
-        for (int ldb = 0; ldb < ld_block2; ldb++) {
-            int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
+    }
+    for (int ldb = 0; ldb < ld_block2; ldb++) {
+        const int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
+        maybe_tileloadd_nt(
+                Tmm(brgemm_amx::get_B_tensor(idx)), B_offset(ldb, 0, true));
+        for (int bdb = 0; bdb < bd_block2; bdb++) {
             tdpbxxd(Tmm(brgemm_amx::get_C_tensor(bdb, idx)),
                     Tmm(brgemm_amx::get_A_tensor(bdb)),
                     Tmm(brgemm_amx::get_B_tensor(idx)));
         }
     }
-    mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
-    mov(reg_ldb_loop, ptr[rsp + reg_ldb_loop_offs_]);
 }
 
 void jit_brgemm_kernel_base_t::gemm_microkernel_avx512(int bd_block2,
@@ -952,7 +956,7 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_avx512(int bd_block2,
 void jit_brgemm_kernel_base_t::gemm_microkernel(int bd_block2, bool is_bdb_tail,
         int ld_block2, bool is_rd_tail, bool is_ld_tail, int vpad,
         int rows_for_rd_tail) {
-    if (brg.is_int8_amx || brg.is_bf16_amx) {
+    if (brg.is_amx) {
         gemm_microkernel_amx(
                 bd_block2, is_bdb_tail, ld_block2, is_rd_tail, is_ld_tail);
     } else {
@@ -1051,19 +1055,27 @@ void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
         }
     };
 
-    if (is_ldb_loop) mov(reg_ldb_loop, ldb_loop_length);
+    if (is_ldb_loop) {
+        mov(reg_ldb_loop, ldb_loop_length);
+        if (brg.is_amx) mov(ptr[rsp + reg_ldb_loop_offs_], reg_ldb_loop);
+    }
     L_aligned(ldb_loop_label, 64);
     {
         load_accumulators(bd_block2, is_bdb_tail, ld_block2, is_ld_tail);
 
         if (is_ldb_loop)
             mov(ptr[rsp + reg_D_offs_], reg_D);
-        else
+        else {
             mov(reg_ldb_loop, reg_D);
+            if (brg.is_amx) mov(ptr[rsp + reg_ldb_loop_offs_], reg_ldb_loop);
+        }
         if (brg.brgattr.max_bs > 1) mov(ptr[rsp + reg_aux_D_offs_], reg_aux_D);
 
         restore_A_B_matrices();
-
+        if (brg.is_amx) {
+            mov(reg_stride_lda, brg.typesize_A * brg.LDA);
+            mov(reg_stride_ldb, brg.rd_step * brg.typesize_B * brg.LDB);
+        }
         if (brg.req_s8s8_compensation) {
             mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
             mov(reg_s8_input_shift, 128);
@@ -1137,18 +1149,22 @@ void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
 
         if (is_ldb_loop)
             mov(reg_D, ptr[rsp + reg_D_offs_]);
-        else
+        else {
+            if (brg.is_amx) mov(reg_ldb_loop, ptr[rsp + reg_ldb_loop_offs_]);
             mov(reg_D, reg_ldb_loop);
+        }
         if (brg.brgattr.max_bs > 1) mov(reg_aux_D, ptr[rsp + reg_aux_D_offs_]);
 
         store_accumulators(bd_block2, is_bdb_tail, ld_block2, is_ld_tail);
         if (is_ldb_loop) {
+            if (brg.is_amx) mov(reg_ldb_loop, ptr[rsp + reg_ldb_loop_offs_]);
             if (!is_ld_tail)
                 ldb_shift(ld_block2);
             else
                 ldb_shift(1, true);
             dec(reg_ldb_loop);
             cmp(reg_ldb_loop, 0);
+            if (brg.is_amx) mov(ptr[rsp + reg_ldb_loop_offs_], reg_ldb_loop);
             jg(ldb_loop_label, T_NEAR);
         }
     }
@@ -1193,7 +1209,7 @@ void jit_brgemm_kernel_base_t::bdb_loop() {
 
     int rows_for_rd_tail, bd_blocks_for_rd_tail;
 
-    if (brg.is_int8_amx || brg.is_bf16_amx) {
+    if (brg.is_amx) {
         rows_for_rd_tail = 0;
         bd_blocks_for_rd_tail = 0;
         n_bcast_1_load = false;
@@ -1303,12 +1319,14 @@ void jit_brgemm_kernel_base_t::bdb_loop() {
         Label bdb_loop_label;
         if (brg.bd_block2 > 1) {
             mov(reg_bdb_loop, brg.bdb2);
+            mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
             L_aligned(bdb_loop_label, 64);
             {
                 bdb_loop_body(brg.bd_block2, false, false, false, 0);
-
+                mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
                 dec(reg_bdb_loop);
                 cmp(reg_bdb_loop, 0);
+                mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
             }
             jg(bdb_loop_label, T_NEAR);
         }
@@ -1323,7 +1341,7 @@ void jit_brgemm_kernel_base_t::bdb_loop() {
     }
 
     xor_(reg_a_offset, reg_a_offset);
-    if (brg.is_int8_amx || brg.is_bf16_amx)
+    if (brg.is_amx)
         bdb_loop_amx();
     else
         bdb_loop_avx512();

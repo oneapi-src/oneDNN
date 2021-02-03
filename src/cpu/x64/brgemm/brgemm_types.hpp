@@ -137,6 +137,7 @@ struct brgemm_t {
     bool is_int8, is_int8_amx;
     bool is_bf16, is_bf16_amx;
     bool is_f32;
+    bool is_amx;
 
     dim_t stride_a; // Offset in bytes
     dim_t stride_b;

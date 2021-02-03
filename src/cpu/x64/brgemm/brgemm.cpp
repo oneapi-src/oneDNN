@@ -176,6 +176,7 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
         brg->is_int8_amx = brg->is_int8 && mayiuse(avx512_core_bf16_amx_int8);
         brg->is_bf16_amx = brg->is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
     }
+    brg->is_amx = (brg->is_int8_amx || brg->is_bf16_amx);
     brg->req_s8s8_compensation
             = brg->is_int8 && !brg->is_int8_amx && brg->dt_a == data_type::s8;
     brg->LDA = (is_row_major()) ? (int)LDA : (int)LDB;
@@ -378,7 +379,7 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
 
     // virtual padding is not supported for "amx"
     if ((brgattr.max_top_vpad > 0 || brgattr.max_bottom_vpad > 0)
-            && (brg->is_int8_amx || brg->is_bf16_amx))
+            && (brg->is_amx))
         return status::unimplemented;
 
     // virtual padding size is restricted by MAX_VPAD value
@@ -416,7 +417,7 @@ void brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel) {
 status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
     constexpr int max_palette_size_in_bytes = 64;
 
-    if (!(brg.is_int8_amx || brg.is_bf16_amx)) return status::unimplemented;
+    if (!brg.is_amx) return status::unimplemented;
 
     //TODO: Add support of tail processing by reduction dimension
     int rd_block = (!brg.rdb && brg.rdb_tail) ? brg.rdb_tail : brg.rd_block;
