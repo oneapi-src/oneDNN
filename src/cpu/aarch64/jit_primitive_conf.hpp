@@ -34,6 +34,7 @@ enum class jit_memory_tag_kind_t { ncsp, nspc, blocked, undef };
 enum conv_version_t {
     ver_unused,
     ver_fma,
+    ver_sve_512,
 };
 
 enum conv_loop_order_t {
@@ -48,6 +49,15 @@ enum conv_loop_order_t {
 };
 
 enum conv_kernel_kind_t { embd_bcast, expl_bcast };
+
+enum conv_1x1_loop_order_t {
+    loop_rbl,
+    loop_rlb,
+    loop_lbr,
+    loop_lrb,
+    loop_blr,
+    loop_brl
+};
 
 enum conv_harness_t {
     harness_2d_reduction,
@@ -183,6 +193,8 @@ struct jit_conv_conf_t {
     bool transpose_dst;
     int ic_block_step;
 
+    cpu_isa_t isa;
+
     bool is_hw_transp; // spatial dim height-width transposed
 };
 
@@ -273,6 +285,114 @@ struct jit_conv_call_s {
     int flags;
     int flags_prf;
     int oc_flag;
+};
+
+struct jit_dw_conv_call_s {
+    const void *input;
+    const void *output;
+    const void *filter;
+    const void *bias;
+    size_t kh_count;
+    size_t oh_count;
+    size_t oh_index;
+    size_t filter_pad_off;
+    unsigned char
+            exec_flags; /* Flags passed by driver execution to inner kernel */
+};
+
+struct jit_1x1_conv_conf_t {
+    prop_kind_t prop_kind;
+    conv_version_t ver;
+
+    int ndims;
+    int mb;
+    int ngroups, ic, oc, oc_without_padding, ic_without_padding;
+    int id, ih, iw, od, oh, ow;
+    int f_pad, t_pad, l_pad;
+    int kd, kh, kw;
+    int stride_d, stride_h, stride_w;
+    format_tag_t src_tag, wei_tag, dst_tag; // temporary workaround
+    bool with_bias;
+    bool with_sum;
+    bool with_eltwise;
+    bool with_binary;
+    bool with_dw_conv;
+
+    post_ops_t post_ops;
+    post_ops_t::entry_t::eltwise_t eltwise;
+
+    int is, os;
+    int ic_block, oc_block;
+
+    int ur, ur_tail;
+
+    int reduce_dim, reduce_block, nb_reduce, nb_reduce_blocking,
+            nb_reduce_blocking_max;
+    int load_dim, load_block, nb_load, nb_load_blocking, nb_load_blocking_max,
+            nb_load_chunk;
+    int bcast_dim, bcast_block, nb_bcast, nb_bcast_blocking,
+            nb_bcast_blocking_max;
+
+    int reduce_loop_unroll, reduce_loop_bcast_step, reduce_loop_load_step;
+    int load_loop_load_step, load_loop_iter_step;
+    int bcast_loop_output_step, bcast_loop_output_substep;
+    int bcast_loop_bcast_step, bcast_loop_bcast_substep;
+    int fma_step;
+    int load_grp_count;
+    conv_1x1_loop_order_t loop_order;
+    bool use_vmovntps;
+    /* sve512 core */
+    bool expl_bcast;
+    int typesize_in;
+    int typesize_out;
+    int typesize_bia;
+    int typesize_acc;
+    /* 4fma */
+    bool transpose_src;
+    int tr_is;
+    int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
+    int is_oc_scale;
+    data_type_t bia_dt;
+    data_type_t dst_dt;
+    bool signed_input;
+    float wei_adj_scale;
+    // zero-point compensation
+    bool src_zero_point;
+    bool dst_zero_point;
+    bool zp_src_is_common; // common, otherwise (TODO) per-channel
+
+    cpu_isa_t isa;
+    bool uses_permw_transposition;
+};
+
+struct jit_1x1_conv_call_s {
+    const void *bcast_data;
+    const void *load_data;
+    const void *output_data;
+    const void *bias_data; // used in forward and backward_weights only
+    const void *acc_s32;
+    const void *scales;
+    const void *compensation;
+    const void *store_buffer;
+    const int32_t *zp_compensation;
+    const int32_t *src_zero_point;
+    const int32_t *dst_zero_point;
+
+    // ptr to table of void * elements that are pointers to
+    // post_op binary src1 tensors
+    const void *post_ops_binary_rhs_arg_vec;
+    // logical (# of elems) offset to the processed output channel
+    // (for broadcasting [1,OC,1,1])
+    size_t oc_l_off;
+    const void *dst_orig; // pointer to dst memory (not offseted)
+
+    size_t load_dim;
+    size_t bcast_dim;
+    size_t reduce_dim;
+
+    size_t output_stride; // used in backward_weights only
+
+    size_t first_last_flag;
 };
 
 struct jit_pool_conf_t {
