@@ -925,8 +925,8 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     if (jcp.tile_tail != 0) return status::unimplemented;
 
     // TODO: Implement efficient tile tail processing. Now just go to common
-    // case if we utilize less than half of tile.
-    if (jcp.tile_width < jcp.max_width / 2 - 1) return status::unimplemented;
+    // case if we utilize half of tile or less.
+    if (jcp.tile_width <= jcp.max_width / 2) return status::unimplemented;
 
     jcp.nb_oc_blocking = (jcp.nb_oc % 2 == 0) ? 2 : 1;
     jcp.nb_ic_blocking = 1;
