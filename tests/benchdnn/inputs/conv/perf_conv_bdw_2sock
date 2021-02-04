@@ -1,8 +1,0 @@
---reset
-
---cfg=f32
---dir=FWD_D,BWD_D,BWD_W
---alg=direct
-
---mb=0,56,128
---batch=set_perf_cpu_large_mb

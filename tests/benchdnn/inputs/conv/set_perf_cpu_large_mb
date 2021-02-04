@@ -1,7 +1,7 @@
 --batch=shapes_1d_wavenet
---batch=shapes_a3c
 --batch=shapes_alexnet
 --batch=shapes_densnet
+--batch=shapes_efficientdet
 --batch=shapes_googlenet_v1
 --batch=shapes_googlenet_v2
 --batch=shapes_googlenet_v3
@@ -10,6 +10,7 @@
 --batch=shapes_resnet_50
 --batch=shapes_resnet_50_sparse
 --batch=shapes_ssd_300_voc0712
+--batch=shapes_ssd_mobilenet
 --batch=shapes_ssd_resnet34_training
 --batch=shapes_unet
 --batch=shapes_vgg_19
