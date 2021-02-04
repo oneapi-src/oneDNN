@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@
 #define DST_DATA_MIN CHAR_MIN
 #elif DST_DT_U8
 #define DST_DATA_MIN 0
+#elif DST_DT_F16
+#define DST_DATA_MIN -HALF_MAX
 #else
 #define DST_DATA_MIN DATA_MIN
 #endif

@@ -49,6 +49,10 @@ The table below shows supported name configurations for this driver:
 | bf16  | bf16  | bf16  |
 | s8    | s8    | s8    |
 | u8    | u8    | u8    |
+| s8    | f16   | s8f16 |
+| f16   | s8    | f16s8 |
+| u8    | f16   | u8f16 |
+| f16   | u8    | f16u8 |
 | s8    | f32   | s8f32 |
 | f32   | s8    | f32s8 |
 | u8    | f32   | u8f32 |

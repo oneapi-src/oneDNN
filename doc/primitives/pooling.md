@@ -97,6 +97,8 @@ The pooling primitive supports the following combinations of data types:
 | forward / backward | f32, bf16            | f32
 | forward            | f16                  | f16
 | forward            | s8, u8, s32          | s32
+| forward inference  | s8, u8 / f16         | s32
+| forward inference  | f16 / s8, u8         | f16
 | forward inference  | s8, u8 / f32         | f32
 | forward inference  | f32 / s8, u8         | f32
 

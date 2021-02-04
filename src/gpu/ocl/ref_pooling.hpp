@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,12 +60,13 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
                             desc()->prop_kind == forward_inference)
                     && IMPLICATION(src_data_t != dst_data_t,
                             desc()->prop_kind == forward_inference)
-                    && IMPLICATION(utils::one_of(src_data_t, bf16, f16),
-                            src_data_t == dst_data_t)
+                    && IMPLICATION(src_data_t == bf16, src_data_t == dst_data_t)
+                    && IMPLICATION(src_data_t == f16,
+                            utils::one_of(dst_data_t, s8, u8, f16))
                     && IMPLICATION(src_data_t == s8,
-                            utils::one_of(dst_data_t, s8, f32))
+                            utils::one_of(dst_data_t, s8, f16, f32))
                     && IMPLICATION(src_data_t == u8,
-                            utils::one_of(dst_data_t, u8, f32))
+                            utils::one_of(dst_data_t, u8, f16, f32))
                     && IMPLICATION(src_data_t == f32,
                             utils::one_of(dst_data_t, s8, u8, f32))
                     && IMPLICATION(utils::one_of(f32, src_data_t, dst_data_t),
