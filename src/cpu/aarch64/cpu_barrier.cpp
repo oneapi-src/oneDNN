@@ -27,17 +27,17 @@ namespace aarch64 {
 namespace simple_barrier {
 
 void generate(jit_generator &code, Xbyak_aarch64::XReg reg_ctx,
-        Xbyak_aarch64::XReg reg_nthr) {
+        Xbyak_aarch64::XReg reg_nthr, bool usedAsFunc) {
 #define BAR_CTR_OFF offsetof(ctx_t, ctr)
 #define BAR_SENSE_OFF offsetof(ctx_t, sense)
     using namespace Xbyak_aarch64;
 
-    const XReg x_tmp_0 = code.X_TMP_0;
-    const WReg w_tmp_1 = code.W_TMP_1;
-    const XReg x_addr_sense = code.X_TMP_2;
-    const XReg x_addr_ctx = code.X_TMP_3;
-    const XReg x_sense = code.X_TMP_4;
-    const XReg x_tmp_addr = code.X_DEFAULT_ADDR;
+    const XReg x_tmp_0 = (usedAsFunc) ? code.x9 : code.X_TMP_0;
+    const WReg w_tmp_1 = (usedAsFunc) ? code.w10 : code.W_TMP_1;
+    const XReg x_addr_sense = (usedAsFunc) ? code.x11 : code.X_TMP_2;
+    const XReg x_addr_ctx = (usedAsFunc) ? code.x12 : code.X_TMP_3;
+    const XReg x_sense = (usedAsFunc) ? code.x13 : code.X_TMP_4;
+    const XReg x_tmp_addr = (usedAsFunc) ? code.x14 : code.X_DEFAULT_ADDR;
 
     Label barrier_exit_label, spin_label, atomic_label;
 
@@ -98,9 +98,8 @@ void generate(jit_generator &code, Xbyak_aarch64::XReg reg_ctx,
 struct jit_t : public jit_generator {
 
     void generate() override {
-        this->preamble();
-        simple_barrier::generate(*this, abi_param1, abi_param2);
-        this->postamble();
+        simple_barrier::generate(*this, abi_param1, abi_param2, true);
+        ret();
     }
 
     // TODO: Need to check status
@@ -110,7 +109,7 @@ struct jit_t : public jit_generator {
 };
 
 void barrier(ctx_t *ctx, int nthr) {
-    static jit_t j; // constructed during load
+    static jit_t j; /* XXX: constructed on load ... */
     j(ctx, nthr);
 }
 
