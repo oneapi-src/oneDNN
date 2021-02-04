@@ -21,6 +21,7 @@
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/prelu/jit_prelu_backward.hpp"
 #include "cpu/x64/prelu/jit_prelu_reduction_kernel.hpp"
+#include "cpu/x64/prelu/jit_prelu_utils.hpp"
 #include "cpu/x64/prelu/jit_uni_prelu_backward_kernel.hpp"
 
 namespace dnnl {
@@ -39,15 +40,15 @@ status_t jit_prelu_bwd_t::pd_t::init(engine_t *engine) {
     const memory_desc_wrapper dst_diff_d {diff_dst_md(0)};
 
     bool ok = !is_fwd() && !has_zero_dim_memory()
-            && dt_supported(
-                    src_d, weights_d, src_diff_d, weights_diff_d, dst_diff_d)
+            && prelu::dt_supported({src_d.data_type(), weights_d.data_type(),
+                    src_diff_d.data_type(), weights_diff_d.data_type(),
+                    dst_diff_d.data_type()})
             && set_default_formats() && src_d.is_dense(true)
             && weights_d.is_dense(true) && src_diff_d.is_dense(true)
             && weights_diff_d.is_dense(true) && dst_diff_d.is_dense(true)
             && !has_zero_dim_memory()
             && utils::one_of(prelu::get_supported_isa(), avx512_core_bf16,
                     avx512_core, avx512_common, avx2, avx, sse41);
-    ;
 
     const auto bcast = prelu::get_bcast_type(src_diff_d, weights_diff_d);
 
@@ -68,24 +69,6 @@ status_t jit_prelu_bwd_t::pd_t::init(engine_t *engine) {
     }
 
     return status::unimplemented;
-}
-
-bool jit_prelu_bwd_t::pd_t::dt_supported(const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &weights_d,
-        const memory_desc_wrapper &src_diff_d,
-        const memory_desc_wrapper &weights_diff_d,
-        const memory_desc_wrapper &dst_diff_d) const noexcept {
-
-    const auto &src_dt = src_d.data_type();
-    const auto &weights_dt = weights_d.data_type();
-    const auto &src_diff_dt = src_diff_d.data_type();
-    const auto &weights_diff_dt = weights_diff_d.data_type();
-    const auto dst_diff_dt = dst_diff_d.data_type();
-
-    return utils::everyone_is(src_dt, weights_dt, src_diff_dt, weights_diff_dt,
-                   dst_diff_dt)
-            && utils::one_of(src_dt, data_type::bf16, data_type::f32)
-            && IMPLICATION(src_dt == data_type::bf16, mayiuse(avx512_core));
 }
 
 bool jit_prelu_bwd_t::pd_t::bcast_supported(const prelu::bcast &bcast,
@@ -160,7 +143,16 @@ status_t jit_prelu_bwd_t::execute(const exec_ctx_t &ctx) const {
     byte *const src_diff = CTX_OUT_CLEAN_MEM(byte *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
     const memory_desc_wrapper src_d {pd()->src_md(0)};
-    const auto dt_size = types::data_type_size(src_d.data_type());
+    const auto src_dt_size = types::data_type_size(src_d.data_type());
+    const auto wei_dt_size
+            = types::data_type_size(pd()->weights_md(0)->data_type);
+    const auto diff_wei_dt_size
+            = types::data_type_size(pd()->diff_weights_md(0)->data_type);
+    const auto diff_src_dt_size
+            = types::data_type_size(pd()->diff_src_md(0)->data_type);
+    const auto diff_dst_dt_size
+            = types::data_type_size(pd()->diff_dst_md(0)->data_type);
+
     const auto kernel = kernel_.get();
     const auto &bcast = kernel->get_bcast();
     const auto &simd_w = kernel->simd_w();
@@ -180,17 +172,17 @@ status_t jit_prelu_bwd_t::execute(const exec_ctx_t &ctx) const {
             const bool ithr_process_tail
                     = nelems_tail && end == nelems_parallel;
             const auto n_simd_size = (end - start - ithr_process_tail) * simd_w;
-            const auto offset = start * simd_w * dt_size;
+            const auto offset = start * simd_w;
 
             jit_prelu_backward_kernel_t::call_params_t params;
 
             params.compute_data_size
-                    = (n_simd_size + (nelems_tail ? nelems_tail : 0)) * dt_size;
-            params.src = src + offset;
-            params.weights = weights + offset;
-            params.dst_diff = dst_diff + offset;
-            params.src_diff = src_diff + offset;
-            params.weights_diff = weights_diff + offset;
+                    = (n_simd_size + (nelems_tail ? nelems_tail : 0));
+            params.src = src + offset * src_dt_size;
+            params.weights = weights + offset * wei_dt_size;
+            params.dst_diff = dst_diff + offset * diff_dst_dt_size;
+            params.src_diff = src_diff + offset * diff_src_dt_size;
+            params.weights_diff = weights_diff + offset * diff_wei_dt_size;
             (*kernel)(&params);
         });
     } else {
@@ -219,14 +211,13 @@ status_t jit_prelu_bwd_t::execute(const exec_ctx_t &ctx) const {
             parallel_nd_ext(
                     0, MB, C_blocks, [&](int ithr, int, dim_t mb, dim_t c_blk) {
                         jit_prelu_backward_kernel_t::call_params_t params;
-                        params.compute_data_size = SP * simd_w * dt_size;
+                        params.compute_data_size = SP * simd_w;
                         const dim_t offset
-                                = (mb * nelems_single_mb + c_blk * SP * simd_w)
-                                * dt_size;
-                        params.src = src + offset;
-                        params.dst_diff = dst_diff + offset;
-                        params.src_diff = src_diff + offset;
-                        params.weights = weights + c_blk * simd_w * dt_size;
+                                = (mb * nelems_single_mb + c_blk * SP * simd_w);
+                        params.src = src + offset * src_dt_size;
+                        params.dst_diff = dst_diff + offset * diff_dst_dt_size;
+                        params.src_diff = src_diff + offset * diff_src_dt_size;
+                        params.weights = weights + c_blk * simd_w * wei_dt_size;
                         params.weights_diff = reinterpret_cast<void *>(
                                 weights_diff_scratchpad
                                 + ithr * C_cache_line_aligned + c_blk * simd_w);
@@ -238,12 +229,12 @@ status_t jit_prelu_bwd_t::execute(const exec_ctx_t &ctx) const {
 
             parallel_nd_ext(0, MB, C, [&](int ithr, int, dim_t mb, dim_t c) {
                 jit_prelu_backward_kernel_t::call_params_t params;
-                const auto offset = (mb * nelems_single_mb + c * SP) * dt_size;
-                params.compute_data_size = SP * dt_size;
-                params.src = src + offset;
-                params.dst_diff = dst_diff + offset;
-                params.src_diff = src_diff + offset;
-                params.weights = weights + c * dt_size;
+                const auto offset = (mb * nelems_single_mb + c * SP);
+                params.compute_data_size = SP;
+                params.src = src + offset * src_dt_size;
+                params.dst_diff = dst_diff + offset * diff_dst_dt_size;
+                params.src_diff = src_diff + offset * diff_src_dt_size;
+                params.weights = weights + c * wei_dt_size;
                 params.weights_diff
                         = reinterpret_cast<void *>(weights_diff_scratchpad
                                 + ithr * C_cache_line_aligned + c);
@@ -254,11 +245,11 @@ status_t jit_prelu_bwd_t::execute(const exec_ctx_t &ctx) const {
 
             parallel_nd_ext(0, MB, SP, [&](int ithr, int, dim_t mb, dim_t sp) {
                 jit_prelu_backward_kernel_t::call_params_t params;
-                const auto offset = (mb * nelems_single_mb + sp * C) * dt_size;
-                params.compute_data_size = C * dt_size;
-                params.src = src + offset;
-                params.dst_diff = dst_diff + offset;
-                params.src_diff = src_diff + offset;
+                const auto offset = (mb * nelems_single_mb + sp * C);
+                params.compute_data_size = C;
+                params.src = src + offset * src_dt_size;
+                params.dst_diff = dst_diff + offset * diff_dst_dt_size;
+                params.src_diff = src_diff + offset * diff_src_dt_size;
                 params.weights = weights;
                 params.weights_diff = reinterpret_cast<void *>(
                         weights_diff_scratchpad + ithr * C_cache_line_aligned);
@@ -269,7 +260,7 @@ status_t jit_prelu_bwd_t::execute(const exec_ctx_t &ctx) const {
         const size_t max_threads = dnnl_get_max_threads();
         const size_t reduction_blocks = nstl::min(work_amount, max_threads);
         scratchpad_to_diff_weights_reduction(weights_diff_scratchpad,
-                weights_diff, dt_size, C, reduction_blocks);
+                weights_diff, diff_wei_dt_size, C, reduction_blocks);
     }
 
     return status::success;

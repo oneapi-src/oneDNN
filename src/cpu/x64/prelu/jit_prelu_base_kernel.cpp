@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ jit_prelu_base_kernel_t::jit_prelu_base_kernel_t(const cpu_isa_t &isa,
     , simd_w_(prelu::get_vlen(isa) / sizeof(float))
     , bcast_(bcast)
     , tail_size_(calc_tail_size(tensor_md))
-    , data_type_(tensor_md.data_type())
     , tensor_md_(tensor_md)
     , number_vmm_single_compute_(number_vmm_single_compute) {}
 
@@ -43,9 +42,8 @@ prelu::bcast jit_prelu_base_kernel_t::get_bcast() const noexcept {
 
 void jit_prelu_base_kernel_t::generate() {
     Xbyak::Label unroll_loop, unroll_loop_tail, nelems_tail, end;
-    const auto dt_size = types::data_type_size(data_type_);
-    const auto dt_vec_size = simd_w_ * dt_size;
     const auto unrolling_factor = calc_unrolling_factor();
+
     preamble();
     load_kernel_call_params();
     prepare_kernel_const_vars();
@@ -53,7 +51,7 @@ void jit_prelu_base_kernel_t::generate() {
     xor_(reg_offset_, reg_offset_);
     L(unroll_loop);
     {
-        const size_t offt = unrolling_factor * dt_vec_size;
+        const size_t offt = unrolling_factor * simd_w_;
         cmp(reg_data_size_, offt);
         jl(unroll_loop_tail, T_NEAR);
 
@@ -66,12 +64,12 @@ void jit_prelu_base_kernel_t::generate() {
     static constexpr size_t single_unrolling = 1u;
     L(unroll_loop_tail);
     {
-        cmp(reg_data_size_, dt_vec_size);
+        cmp(reg_data_size_, simd_w_);
         jl(nelems_tail, T_NEAR);
 
         compute_dst(single_unrolling, false /*tail*/);
-        sub(reg_data_size_, dt_vec_size);
-        add(reg_offset_, dt_vec_size);
+        sub(reg_data_size_, simd_w_);
+        add(reg_offset_, simd_w_);
         jmp(unroll_loop_tail);
     }
 
@@ -110,8 +108,8 @@ int jit_prelu_base_kernel_t::reserve_vmm() {
 
 size_t jit_prelu_base_kernel_t::get_number_reserved_vmms() const noexcept {
     static constexpr size_t number_vmm_reserved_bf16_process = 4u;
-    const bool process_bf16_with_emu
-            = data_type_ == data_type::bf16 && isa_ == avx512_core;
+
+    const bool process_bf16_with_emu = any_tensor_bf16() && isa_ == avx512_core;
 
     return number_reserved_vmms_
             + (process_bf16_with_emu ? number_vmm_reserved_bf16_process : 0);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,14 @@ jit_prelu_backward_kernel_t::jit_prelu_backward_kernel_t(
             prelu::get_bcast_type(memory_desc_wrapper(pd->diff_src_md(0)),
                     memory_desc_wrapper(pd->diff_weights_md(0))),
             memory_desc_wrapper(pd->diff_src_md(0)), number_vmm_single_compute)
-    , pd_(pd) {}
+    , pd_(pd)
+    , src_dt_(pd->src_md(0)->data_type)
+    , wei_dt_(pd->weights_md(0)->data_type)
+    , diff_src_dt_(pd->diff_src_md(0)->data_type)
+    , diff_dst_dt_(pd->diff_dst_md(0)->data_type)
+    , diff_wei_dt_(bcast_ == prelu::bcast::full
+                      ? pd->diff_weights_md(0)->data_type
+                      : data_type::f32) {}
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)
 
@@ -45,23 +52,28 @@ void jit_prelu_backward_kernel_t::load_kernel_call_params() {
 #undef PARAM_OFF
 
 Xbyak::Address jit_prelu_backward_kernel_t::data_ptr(int arg_num, size_t offt) {
+    const auto get_addr
+            = [&](const Xbyak::Reg64 &reg_base, const data_type_t dt) {
+                  const auto dt_size = types::data_type_size(dt);
+                  return ptr[reg_base + reg_offset_ * dt_size + offt * dt_size];
+              };
+
     switch (arg_num) {
-        case DNNL_ARG_SRC: return ptr[reg_src_ + reg_offset_ + offt];
-        case DNNL_ARG_WEIGHTS: return ptr[reg_weights_ + reg_offset_ + offt];
-        case DNNL_ARG_DIFF_SRC: return ptr[reg_src_diff_ + reg_offset_ + offt];
+        case DNNL_ARG_SRC: return get_addr(reg_src_, src_dt_);
+        case DNNL_ARG_WEIGHTS: return get_addr(reg_weights_, wei_dt_);
+        case DNNL_ARG_DIFF_SRC: return get_addr(reg_src_diff_, diff_src_dt_);
         case DNNL_ARG_DIFF_WEIGHTS:
-            if (bcast_ != prelu::bcast::full) {
-                const auto dt_size = types::data_type_size(data_type_);
-                const int scale_factor = sizeof(float) / dt_size;
-                return ptr[reg_weights_diff_ + reg_offset_ * scale_factor
-                        + offt];
-            } else
-                return ptr[reg_weights_diff_ + reg_offset_ + offt];
-        case DNNL_ARG_DIFF_DST: return ptr[reg_dst_diff_ + reg_offset_ + offt];
+            return get_addr(reg_weights_diff_, diff_wei_dt_);
+        case DNNL_ARG_DIFF_DST: return get_addr(reg_dst_diff_, diff_dst_dt_);
 
         default: assert(!"unsupported arg_num"); break;
     }
     return Xbyak::Address(0);
+}
+
+bool jit_prelu_backward_kernel_t::any_tensor_bf16() const {
+    return utils::one_of(data_type::bf16, src_dt_, wei_dt_, diff_src_dt_,
+            diff_dst_dt_, diff_wei_dt_);
 }
 
 template <typename Vmm>
@@ -69,7 +81,18 @@ jit_uni_prelu_backward_kernel_t<Vmm>::jit_uni_prelu_backward_kernel_t(
         const cpu_prelu_bwd_pd_t *pd, const cpu_isa_t &isa)
     : jit_prelu_backward_kernel_t(
             pd, isa, std::is_same<Vmm, Xbyak::Zmm>::value ? 4u : 6u)
+    , saturation_needed_diff_src_(utils::one_of(
+              diff_src_dt_, data_type::u8, data_type::s8, data_type::s32))
+    , saturation_needed_diff_weights_(utils::one_of(
+              diff_wei_dt_, data_type::u8, data_type::s8, data_type::s32))
     , vmm_zeros_(reserve_vmm())
+    , saturation_ubound_diff_src_(
+              saturation_needed_diff_src_ ? reserve_vmm() : 0)
+    , saturation_ubound_diff_weights_(saturation_needed_diff_weights_
+                      ? (diff_wei_dt_ == diff_src_dt_
+                                      ? saturation_ubound_diff_src_.getIdx()
+                                      : reserve_vmm())
+                      : 0)
     , tail_vmm_mask_(
               tail_size_ && utils::one_of(isa, avx, avx2) ? reserve_vmm() : 0)
     , vmm_ones_(reserve_vmm())
@@ -82,8 +105,10 @@ jit_uni_prelu_backward_kernel_t<Vmm>::jit_uni_prelu_backward_kernel_t(
                       prelu::bcast::per_oc_blocked)
                       ? reserve_vmm()
                       : 0)
-    , io_(this, isa, data_type_, tail_size_, tail_opmask_, tail_vmm_mask_,
-              reg_tmp_) {}
+    , io_(this, isa,
+              {src_dt_, wei_dt_, diff_src_dt_, diff_dst_dt_, diff_wei_dt_},
+              tail_size_, tail_opmask_, tail_vmm_mask_, reg_tmp_,
+              create_saturation_vmm_map()) {}
 
 template <typename Vmm>
 jit_uni_prelu_backward_kernel_t<Vmm>::~jit_uni_prelu_backward_kernel_t()
@@ -93,7 +118,9 @@ template <typename Vmm>
 void jit_uni_prelu_backward_kernel_t<Vmm>::prepare_kernel_const_vars() {
     uni_vxorps(vmm_zeros_, vmm_zeros_, vmm_zeros_);
     if (tail_size_) io_.prepare_tail_mask();
-
+    if (saturation_needed_diff_src_ || saturation_needed_diff_weights_) {
+        io_.init_saturate_f32({diff_src_dt_, diff_wei_dt_});
+    }
     // load ones
     this->mov(this->reg_tmp_, float2int(1));
     const Xbyak::Xmm xmm_ones_ {vmm_ones_.getIdx()};
@@ -101,10 +128,11 @@ void jit_uni_prelu_backward_kernel_t<Vmm>::prepare_kernel_const_vars() {
     this->uni_vbroadcastss(vmm_ones_, xmm_ones_);
 
     if (bcast_ == prelu::bcast::per_oc_blocked) {
-        io_.load(ptr[reg_weights_], weights_const_vmm_, false /*tail*/);
+        io_.at(wei_dt_)->load(
+                ptr[reg_weights_], weights_const_vmm_, false /*tail*/);
         vmovups(weights_diff_acc_vmm_, ptr[reg_weights_diff_]);
     } else if (bcast_ == prelu::bcast::per_oc_n_c_spatial) {
-        io_.broadcast(ptr[reg_weights_], weights_const_vmm_);
+        io_.at(wei_dt_)->broadcast(ptr[reg_weights_], weights_const_vmm_);
         uni_vxorps(weights_diff_acc_vmm_, weights_diff_acc_vmm_,
                 weights_diff_acc_vmm_);
         uni_vmovss(weights_diff_acc_vmm_, ptr[reg_weights_diff_]);
@@ -121,9 +149,6 @@ void jit_uni_prelu_backward_kernel_t<Vmm>::compute_dst(
     static constexpr size_t src_gt_zero_idx = 3;
     static constexpr size_t weights_diff_idx = 4;
     static constexpr size_t weights_idx = 5;
-    const auto dt_size = types::data_type_size(data_type_);
-    const int scale_factor
-            = bcast_ != prelu::bcast::full ? sizeof(float) / dt_size : 1u;
 
     for (size_t unroll_group = 0; unroll_group < unrolling_factor;
             ++unroll_group) {
@@ -138,9 +163,10 @@ void jit_uni_prelu_backward_kernel_t<Vmm>::compute_dst(
                 get_compute_vmm(weights_diff_idx, unroll_group)};
         const Vmm weights_vmm {get_compute_vmm(weights_idx, unroll_group)};
 
-        const auto offset = unroll_group * simd_w_ * dt_size;
-        io_.load(data_ptr(DNNL_ARG_DIFF_DST, offset), dst_diff_vmm, tail);
-        io_.load(data_ptr(DNNL_ARG_SRC, offset), src_vmm, tail);
+        const auto offset = unroll_group * simd_w_;
+        io_.at(diff_dst_dt_)
+                ->load(data_ptr(DNNL_ARG_DIFF_DST, offset), dst_diff_vmm, tail);
+        io_.at(src_dt_)->load(data_ptr(DNNL_ARG_SRC, offset), src_vmm, tail);
         static constexpr int VCMPLEPS = 2;
         uni_vcmpps(src_le_zero_vmm, src_vmm, vmm_zeros_, VCMPLEPS);
         uni_vandps(src_le_zero_vmm, src_le_zero_vmm, vmm_ones_);
@@ -158,10 +184,12 @@ void jit_uni_prelu_backward_kernel_t<Vmm>::compute_dst(
         uni_vfmadd231ps(src_gt_zero_vmm, src_le_zero_vmm, weights_operand);
         const auto &src_diff_vmm = src_gt_zero_vmm;
         uni_vmulps(src_diff_vmm, src_diff_vmm, dst_diff_vmm);
-        io_.store(src_diff_vmm, data_ptr(DNNL_ARG_DIFF_SRC, offset), tail);
+        io_.at(diff_src_dt_)
+                ->store(src_diff_vmm, data_ptr(DNNL_ARG_DIFF_SRC, offset),
+                        tail);
 
         accumulate_weights_diff(weights_diff_vmm, src_gt_zero_vmm,
-                data_ptr(DNNL_ARG_DIFF_WEIGHTS, offset * scale_factor), tail);
+                data_ptr(DNNL_ARG_DIFF_WEIGHTS, offset), tail);
     }
 }
 
@@ -184,20 +212,17 @@ void jit_uni_prelu_backward_kernel_t<Xbyak::Zmm>::compute_dst(
     static constexpr size_t weights_diff_idx = 2;
     static constexpr size_t weights_idx = 3;
 
-    const auto dt_size = types::data_type_size(data_type_);
-    const int scale_factor
-            = bcast_ != prelu::bcast::full ? sizeof(float) / dt_size : 1u;
-
     for (size_t unroll_group = 0; unroll_group < unrolling_factor;
             ++unroll_group) {
 
-        const auto offset = unroll_group * simd_w_ * dt_size;
+        const auto offset = unroll_group * simd_w_;
         const Xbyak::Zmm dst_diff_vmm {
                 get_compute_vmm(dst_diff_idx, unroll_group)};
         const Xbyak::Zmm src_vmm {get_compute_vmm(src_idx, unroll_group)};
 
-        io_.load(data_ptr(DNNL_ARG_DIFF_DST, offset), dst_diff_vmm, tail);
-        io_.load(data_ptr(DNNL_ARG_SRC, offset), src_vmm, tail);
+        io_.at(diff_dst_dt_)
+                ->load(data_ptr(DNNL_ARG_DIFF_DST, offset), dst_diff_vmm, tail);
+        io_.at(src_dt_)->load(data_ptr(DNNL_ARG_SRC, offset), src_vmm, tail);
 
         const Xbyak::Opmask src_le_zero_opmask = get_next_opmask();
         static constexpr int VCMPLEPS = 2;
@@ -212,7 +237,7 @@ void jit_uni_prelu_backward_kernel_t<Xbyak::Zmm>::compute_dst(
         vmulps(weights_diff_vmm | src_le_zero_opmask | T_z, dst_diff_vmm,
                 src_vmm);
         accumulate_weights_diff(weights_diff_vmm, weights_diff_acc_vmm_,
-                data_ptr(DNNL_ARG_DIFF_WEIGHTS, offset * scale_factor), tail);
+                data_ptr(DNNL_ARG_DIFF_WEIGHTS, offset), tail);
 
         //src_diff calculations
         const Xbyak::Zmm weights_vmm {
@@ -224,7 +249,9 @@ void jit_uni_prelu_backward_kernel_t<Xbyak::Zmm>::compute_dst(
         vmovaps(src_diff_vmm | src_le_zero_opmask | T_z, weights_operand);
         vaddps(src_diff_vmm | src_gt_zero_vmm_opmask, src_diff_vmm, vmm_ones_);
         vmulps(src_diff_vmm, src_diff_vmm, dst_diff_vmm);
-        io_.store(src_diff_vmm, data_ptr(DNNL_ARG_DIFF_SRC, offset), tail);
+        io_.at(diff_src_dt_)
+                ->store(src_diff_vmm, data_ptr(DNNL_ARG_DIFF_SRC, offset),
+                        tail);
     }
 }
 
@@ -246,7 +273,7 @@ void jit_uni_prelu_backward_kernel_t<Vmm>::accumulate_weights_diff(
         }
         uni_vmovups(dst_addr, partial_sum_vmm);
     } else
-        io_.store(partial_sum_vmm, dst_addr, tail);
+        io_.at(diff_wei_dt_)->store(partial_sum_vmm, dst_addr, tail);
 }
 
 template <typename Vmm>
@@ -257,7 +284,7 @@ const Xbyak::Operand &jit_uni_prelu_backward_kernel_t<Vmm>::get_or_load_weights(
                 prelu::bcast::per_oc_blocked))
         return weights_const_vmm_;
 
-    io_.load(src_addr, weights_vmm, tail);
+    io_.at(wei_dt_)->load(src_addr, weights_vmm, tail);
     return weights_vmm;
 }
 
@@ -301,6 +328,23 @@ void jit_uni_prelu_backward_kernel_t<Vmm>::finalize() {
         reduce(this, weights_diff_acc_vmm_, weights_const_vmm_, isa_);
         uni_vmovss(ptr[reg_weights_diff_], weights_diff_acc_vmm_);
     }
+}
+
+template <typename Vmm>
+std::map<data_type_t, std::pair<Vmm, Vmm>>
+jit_uni_prelu_backward_kernel_t<Vmm>::create_saturation_vmm_map() const {
+
+    std::map<data_type_t, std::pair<Vmm, Vmm>> saturation_map {};
+
+    if (saturation_needed_diff_src_)
+        saturation_map.emplace(diff_src_dt_,
+                std::make_pair(vmm_zeros_, saturation_ubound_diff_src_));
+
+    if (saturation_needed_diff_weights_ && diff_src_dt_ != diff_wei_dt_)
+        saturation_map.emplace(diff_wei_dt_,
+                std::make_pair(vmm_zeros_, saturation_ubound_diff_weights_));
+
+    return saturation_map;
 }
 
 jit_prelu_backward_kernel_t *jit_prelu_backward_kernel_t::create(

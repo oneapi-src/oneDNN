@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,10 +66,12 @@ private:
 protected:
     jit_prelu_reduction_kernel_t(const cpu_prelu_bwd_pd_t *pd, int simd_w);
     Xbyak::Address diff_scratch_ptr(int unrolling_group) const;
+    int reserve_vmm();
 
     const data_type_t data_type_;
     const size_t tail_size_ = 0;
     const Xbyak::Reg64 &reg_weights_diff_ = r11;
+    size_t number_reserved_vmms_ = 0;
 };
 
 template <typename Vmm>
@@ -85,12 +87,16 @@ private:
     void compute_dst(int unrolling_factor, bool tail) override;
 
     const cpu_isa_t isa_;
-    const Vmm accumulator_ = Vmm(0);
-    const Vmm tail_vmm_mask_ = Vmm(1);
+    const bool saturation_needed_;
+    const Vmm accumulator_;
+    const Vmm tail_vmm_mask_;
+    const Vmm saturation_lower_bound_;
+    const Vmm saturation_upper_bound_;
+
     const Xbyak::Opmask &tail_opmask_ = k1;
     const Xbyak::Reg64 &reg_tmp_ = r15;
 
-    prelu::jit_prelu_io_helper<Vmm> io_;
+    prelu::jit_prelu_io_helper_t<Vmm> io_;
 };
 
 } // namespace x64

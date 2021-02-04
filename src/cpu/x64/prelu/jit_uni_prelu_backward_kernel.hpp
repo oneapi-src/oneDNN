@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,8 +17,9 @@
 #ifndef CPU_X64_PRELU_JIT_PRELU_BACKWARD_KERNEL_HPP
 #define CPU_X64_PRELU_JIT_PRELU_BACKWARD_KERNEL_HPP
 
+#include <map>
 #include <memory>
-
+#include <utility>
 #include "cpu/cpu_prelu_pd.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/prelu/jit_prelu_base_kernel.hpp"
@@ -54,7 +55,15 @@ protected:
     const Xbyak::Reg64 &reg_weights_ = r10;
     const Xbyak::Reg64 &reg_weights_diff_ = r11;
 
+    const data_type_t src_dt_;
+    const data_type_t wei_dt_;
+    const data_type_t diff_src_dt_;
+    const data_type_t diff_dst_dt_;
+    const data_type_t diff_wei_dt_;
+
 private:
+    bool any_tensor_bf16() const override;
+
     void load_kernel_call_params() override;
 
     const Xbyak::Reg64 &reg_src_ = r12;
@@ -77,8 +86,16 @@ private:
     void accumulate_weights_diff(const Vmm &partial_sum_vmm, const Vmm &tmp_vmm,
             const Xbyak::Address &dst_addr, bool tail);
     void finalize() override;
+    std::map<data_type_t, std::pair<Vmm, Vmm>>
+    create_saturation_vmm_map() const;
+
+    const bool saturation_needed_diff_src_;
+    const bool saturation_needed_diff_weights_;
 
     const Vmm vmm_zeros_;
+    const Vmm saturation_ubound_diff_src_;
+    const Vmm saturation_ubound_diff_weights_;
+
     const Vmm tail_vmm_mask_;
     const Vmm vmm_ones_;
     const Vmm weights_const_vmm_;
@@ -87,7 +104,7 @@ private:
     const Xbyak::Opmask &tail_opmask_ = k1;
     const Xbyak::Reg64 &reg_tmp_ = r15;
 
-    prelu::jit_prelu_io_helper<Vmm> io_;
+    prelu::jit_prelu_io_multi_dt_helper_t<Vmm> io_;
 };
 
 } // namespace x64

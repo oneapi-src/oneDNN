@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #define CPU_X64_PRELU_JIT_PRELU_FORWARD_HPP
 
 #include <memory>
+#include <set>
 
 #include "common/primitive.hpp"
 #include "cpu/cpu_prelu_pd.hpp"
@@ -38,8 +39,6 @@ public:
         status_t init(engine_t *engine);
 
     private:
-        bool dt_supported(const memory_desc_wrapper &src_d,
-                const memory_desc_wrapper &weights_d) const noexcept;
         bool bcast_supported(const memory_desc_wrapper &src_d,
                 const memory_desc_wrapper &weights_d) const;
     };

@@ -17,7 +17,7 @@
 #ifndef CPU_X64_PRELU_JIT_PRELU_FORWARD_KERNEL_HPP
 #define CPU_X64_PRELU_JIT_PRELU_FORWARD_KERNEL_HPP
 
-#include <memory>
+#include <map>
 
 #include "cpu/cpu_prelu_pd.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
@@ -45,11 +45,16 @@ public:
     }
 
 protected:
+    const data_type_t src_dt_;
+    const data_type_t wei_dt_;
+    const data_type_t dst_dt_;
+
     jit_prelu_forward_kernel_t(const cpu_prelu_fwd_pd_t *pd,
             const cpu_isa_t &isa, size_t number_vmm_single_compute);
     Xbyak::Address data_ptr(int arg_num, size_t offt = 0);
 
 private:
+    bool any_tensor_bf16() const override;
     void load_kernel_call_params() override;
     void finalize() override {}
     const Xbyak::Reg64 &reg_src_ = r10;
@@ -78,15 +83,19 @@ private:
             const Xbyak::Address &src_addr, const Vmm &dst_vmm, bool tail);
     void uni_vfmadd132ps(
             const Vmm &x1, const Vmm &x2, const Xbyak::Operand &op, bool tail);
+    std::map<data_type_t, std::pair<Vmm, Vmm>>
+    create_saturation_vmm_map() const;
 
+    const bool saturation_needed_ = false;
     const Vmm vmm_zeros_;
+    const Vmm dst_saturate_ubound_;
     const Vmm tail_vmm_mask_;
     const Vmm weights_const_vmm_;
     const size_t number_vmm_single_compute_ = 0;
     const Xbyak::Opmask &tail_opmask_ = k1;
     const Xbyak::Reg64 &reg_tmp_ = r15;
 
-    prelu::jit_prelu_io_helper<Vmm> io_;
+    prelu::jit_prelu_io_multi_dt_helper_t<Vmm> io_;
 };
 
 } // namespace x64

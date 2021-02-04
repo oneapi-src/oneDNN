@@ -1073,8 +1073,12 @@ public:
     }
 
     void uni_vcvtdq2ps(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
-        cvtdq2ps(x, op);
+        if (is_valid_isa(avx))
+            vcvtdq2ps(x, op);
+        else
+            cvtdq2ps(x, op);
     }
+
     void uni_vcvtdq2ps(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
         vcvtdq2ps(x, op);
     }
@@ -1361,8 +1365,33 @@ public:
     * memory instructions.
     */
     template <typename Vmm>
+    void load_bytes(
+            const Vmm &vmm, const Xbyak::Address &src_addr, int load_size) {
+        const auto addr = [&](int bytes_offset) {
+            return ptr[src_addr.getRegExp()
+                    + Xbyak::RegExp(bytes_offset * sizeof(int8_t))];
+        };
+
+        load_bytes(vmm, load_size, addr);
+    }
+
+    template <typename Vmm>
     void load_bytes(const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset,
             int load_size) {
+
+        // Ensure offset is at most 4 bytes to be encoded in the instruction
+        assert(offset >= INT_MIN && offset <= INT_MAX);
+
+        const auto addr = [&](int bytes_offset) {
+            return ptr[reg + offset + bytes_offset * sizeof(int8_t)];
+        };
+
+        load_bytes(vmm, load_size, addr);
+    }
+
+private:
+    template <typename Vmm, typename AddrFunc>
+    void load_bytes(const Vmm &vmm, int load_size, const AddrFunc &addr) {
 
         constexpr bool is_xmm = std::is_same<Vmm, Xbyak::Xmm>::value;
         constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
@@ -1375,9 +1404,6 @@ public:
         // Ensure data fits completely inside the Xmm/Ymm register
         assert(load_size >= 0 && load_size <= 32);
 
-        // Ensure offset is at most 4 bytes to be encoded in the instruction
-        assert(offset >= INT_MIN && offset <= INT_MAX);
-
         // At most 16 bytes can fit inside the Xmm register
         assert(IMPLICATION(load_size > 16, is_ymm));
 
@@ -1389,11 +1415,6 @@ public:
 
         auto xmm = Xbyak::Xmm(vmm.getIdx());
         auto ymm = Xbyak::Ymm(vmm.getIdx());
-
-        // addr(i) denotes the memory pointed by ptr[reg + offset + (i bytes)]
-        const auto addr = [&](int bytes_offset) {
-            return ptr[reg + offset + bytes_offset * sizeof(int8_t)];
-        };
 
         if (load_size == 32) {
             vmovups(ymm, addr(0));
@@ -1485,9 +1506,34 @@ public:
     * past the provided memory buffer so as to minimize the total number of
     * write memory instructions.
     */
+public:
+    template <typename Vmm>
+    void store_bytes(
+            const Vmm &vmm, const Xbyak::Address &dst_addr, int store_size) {
+        const auto addr = [&](int bytes_offset) {
+            return ptr[dst_addr.getRegExp()
+                    + Xbyak::RegExp(bytes_offset * sizeof(int8_t))];
+        };
+        store_bytes(vmm, store_size, addr);
+    }
+
     template <typename Vmm>
     void store_bytes(const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset,
             int store_size) {
+
+        // Ensure offset is at most 4 bytes to be encoded in the instruction
+        assert(offset >= INT_MIN && offset <= INT_MAX);
+
+        const auto addr = [&](int bytes_offset) {
+            return ptr[reg + offset + bytes_offset * sizeof(int8_t)];
+        };
+
+        store_bytes(vmm, store_size, addr);
+    }
+
+private:
+    template <typename Vmm, typename AddrFunc>
+    void store_bytes(const Vmm &vmm, int store_size, const AddrFunc &addr) {
 
         constexpr bool is_xmm = std::is_same<Vmm, Xbyak::Xmm>::value;
         constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
@@ -1500,9 +1546,6 @@ public:
         // Ensure data fits completely inside the Xmm/Ymm register
         assert(store_size >= 0 && store_size <= 32);
 
-        // Ensure offset is at most 4 bytes to be encoded in the instruction
-        assert(offset >= INT_MIN && offset <= INT_MAX);
-
         // At most 16 bytes can fit inside the Xmm register
         assert(IMPLICATION(store_size > 16, is_ymm));
 
@@ -1514,10 +1557,6 @@ public:
 
         auto xmm = Xbyak::Xmm(vmm.getIdx());
         auto ymm = Xbyak::Ymm(vmm.getIdx());
-
-        const auto addr = [&](int bytes_offset) {
-            return ptr[reg + offset + bytes_offset * sizeof(int8_t)];
-        };
 
         if (store_size == 32) {
             vmovups(addr(0), ymm);
@@ -1587,6 +1626,7 @@ public:
         }
     }
 
+public:
     /**
     * load_bytes_to_dword_extension is the utility function to facilitate
     * loading of load_size (0 <= load_size <= 16) many contiguous bytes in
@@ -1605,10 +1645,18 @@ public:
     * [0..8] for YMM version of the function.
     * TODO: Implement this routine for every ISA.
     */
-
     template <typename Vmm>
     void load_bytes_to_dword_extension(const Vmm &vmm, const Xbyak::Reg64 &reg,
             int64_t offset, bool is_signed, int load_size) {
+        // Ensure offset is at most 4 bytes to be encoded in the instruction
+        assert(offset >= INT_MIN && offset <= INT_MAX);
+        load_bytes_to_dword_extension(
+                vmm, ptr[reg + offset], is_signed, load_size);
+    }
+
+    template <typename Vmm>
+    void load_bytes_to_dword_extension(const Vmm &vmm,
+            const Xbyak::Address &src_addr, bool is_signed, int load_size) {
 
         constexpr bool is_xmm = std::is_same<Vmm, Xbyak::Xmm>::value;
         constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
@@ -1622,9 +1670,6 @@ public:
         // For Xmm register, load capacity is halved (32 * load_size <= 128)
         assert(IMPLICATION(is_xmm, load_size <= 4));
 
-        // Ensure offset is at most 4 bytes to be encoded in the instruction
-        assert(offset >= INT_MIN && offset <= INT_MAX);
-
         // Ensure that vector register is compatible with the ISA in hand
         assert(IMPLICATION(is_ymm, is_valid_isa(avx)));
 
@@ -1635,17 +1680,17 @@ public:
         if (load_size == 8) {
             const auto ymm = Xbyak::Ymm(vmm.getIdx());
             if (is_signed)
-                vpmovsxbd(ymm, ptr[reg + offset]);
+                vpmovsxbd(ymm, src_addr);
             else
-                vpmovzxbd(ymm, ptr[reg + offset]);
+                vpmovzxbd(ymm, src_addr);
         } else if (load_size == 4) {
             const auto xmm = Xbyak::Xmm(vmm.getIdx());
             if (is_signed)
-                uni_vpmovsxbd(xmm, ptr[reg + offset]);
+                uni_vpmovsxbd(xmm, src_addr);
             else
-                uni_vpmovzxbd(xmm, ptr[reg + offset]);
+                uni_vpmovzxbd(xmm, src_addr);
         } else {
-            load_bytes(vmm, reg, offset, load_size);
+            load_bytes(vmm, src_addr, load_size);
             if (is_signed)
                 uni_vpmovsxbd(vmm, vmm);
             else
@@ -1715,6 +1760,14 @@ public:
     template <typename Vmm>
     void load_data(data_type_t type_in, const Vmm &vmm, const Xbyak::Reg64 &reg,
             int64_t offset, int load_size) {
+        // Ensure offset is at most 4 bytes to be encoded in the instruction
+        assert(offset >= INT_MIN && offset <= INT_MAX);
+        load_data(type_in, vmm, ptr[reg + offset], load_size);
+    }
+
+    template <typename Vmm>
+    void load_data(data_type_t type_in, const Vmm &vmm,
+            const Xbyak::Address &src_addr, int load_size) {
 
         assert(is_valid_isa(sse41)
                 && "routine is not supported for the current isa");
@@ -1722,12 +1775,12 @@ public:
         switch (type_in) {
             case data_type::f32:
             case data_type::s32:
-                load_bytes(vmm, reg, offset, sizeof(int32_t) * load_size);
+                load_bytes(vmm, src_addr, sizeof(int32_t) * load_size);
                 break;
             case data_type::s8:
             case data_type::u8:
                 load_bytes_to_dword_extension(
-                        vmm, reg, offset, type_in == data_type::s8, load_size);
+                        vmm, src_addr, type_in == data_type::s8, load_size);
                 break;
             default: assert(!"unsupported source data type");
         }

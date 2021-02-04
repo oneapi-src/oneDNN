@@ -13,11 +13,12 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+#include <algorithm>
 #include <cmath>
 
 #include "common/memory_desc_wrapper.hpp"
 #include "common/type_helpers.hpp"
-
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/prelu/jit_prelu_forward.hpp"
 #include "cpu/x64/prelu/jit_prelu_utils.hpp"
@@ -31,8 +32,11 @@ namespace x64 {
 status_t jit_prelu_fwd_t::pd_t::init(engine_t *engine) {
     const memory_desc_wrapper src_d {src_md(0)};
     const memory_desc_wrapper weights_d {weights_md(0)};
+    const memory_desc_wrapper dst_d {dst_md(0)};
 
-    const bool ok = is_fwd() && dt_supported(src_d, weights_d)
+    const bool ok = is_fwd()
+            && prelu::dt_supported({src_d.data_type(), weights_d.data_type(),
+                    dst_d.data_type()})
             && set_default_formats() && bcast_supported(src_d, weights_d)
             && !has_zero_dim_memory() && src_d.is_dense(true)
             && weights_d.is_dense(true) && attr()->has_default_values()
@@ -40,16 +44,6 @@ status_t jit_prelu_fwd_t::pd_t::init(engine_t *engine) {
                     avx512_core, avx512_common, avx2, avx, sse41);
 
     return ok ? status::success : status::unimplemented;
-}
-
-bool jit_prelu_fwd_t::pd_t::dt_supported(const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &weights_d) const noexcept {
-    const auto &src_dt = src_d.data_type();
-    const auto &weights_dt = weights_d.data_type();
-
-    return utils::everyone_is(src_dt, weights_dt)
-            && utils::one_of(src_dt, data_type::bf16, data_type::f32)
-            && IMPLICATION(src_dt == data_type::bf16, mayiuse(avx512_core));
 }
 
 bool jit_prelu_fwd_t::pd_t::bcast_supported(const memory_desc_wrapper &src_d,
@@ -106,7 +100,12 @@ status_t jit_prelu_fwd_t::execute(const exec_ctx_t &ctx) const {
     byte *const dst = CTX_OUT_CLEAN_MEM(byte *, DNNL_ARG_DST, status);
     CHECK(status);
     const memory_desc_wrapper src_d {pd()->src_md(0)};
-    const auto dt_size = types::data_type_size(src_d.data_type());
+
+    const auto src_dt_size = types::data_type_size(src_d.data_type());
+    const auto weights_dt_size
+            = types::data_type_size(pd()->weights_md(0)->data_type);
+    const auto dst_dt_size = types::data_type_size(pd()->dst_md(0)->data_type);
+
     const auto kernel = kernel_.get();
     const auto bcast = kernel->get_bcast();
     const auto ndims = src_d.ndims();
@@ -134,15 +133,15 @@ status_t jit_prelu_fwd_t::execute(const exec_ctx_t &ctx) const {
             const bool ithr_process_tail
                     = nelems_tail && end == nelems_parallel;
             const auto n_simd_size = (end - start - ithr_process_tail) * simd_w;
-            const auto offset = start * simd_w * dt_size;
+            const auto offset = start * simd_w;
 
             jit_prelu_forward_kernel_t::call_params_t params;
 
             params.compute_data_size
-                    = (n_simd_size + (nelems_tail ? nelems_tail : 0)) * dt_size;
-            params.src = src + offset;
-            params.weights = weights + offset;
-            params.dst = dst + offset;
+                    = (n_simd_size + (nelems_tail ? nelems_tail : 0));
+            params.src = src + (offset * src_dt_size);
+            params.weights = weights + (offset * weights_dt_size);
+            params.dst = dst + (offset * dst_dt_size);
 
             (*kernel)(&params);
         });
@@ -153,22 +152,22 @@ status_t jit_prelu_fwd_t::execute(const exec_ctx_t &ctx) const {
 
         if (bcast == prelu::bcast::per_oc_n_spatial_c) {
             parallel_nd(MB, SP, [&](dim_t mb, dim_t sp) {
-                const auto offset = (mb * nelems_single_mb + sp * C) * dt_size;
+                const auto offset = (mb * nelems_single_mb + sp * C);
                 jit_prelu_forward_kernel_t::call_params_t params;
-                params.compute_data_size = C * dt_size;
-                params.src = src + offset;
+                params.compute_data_size = C;
+                params.src = src + offset * src_dt_size;
                 params.weights = weights;
-                params.dst = dst + offset;
+                params.dst = dst + offset * dst_dt_size;
                 (*kernel)(&params);
             });
         } else if (bcast == prelu::bcast::per_oc_n_c_spatial) {
             parallel_nd(MB, C, [&](dim_t mb, dim_t c) {
                 jit_prelu_forward_kernel_t::call_params_t params;
-                const auto offset = (mb * nelems_single_mb + c * SP) * dt_size;
-                params.compute_data_size = SP * dt_size;
-                params.src = src + offset;
-                params.weights = weights + c * dt_size;
-                params.dst = dst + offset;
+                const auto offset = (mb * nelems_single_mb + c * SP);
+                params.compute_data_size = SP;
+                params.src = src + offset * src_dt_size;
+                params.weights = weights + c * weights_dt_size;
+                params.dst = dst + offset * dst_dt_size;
                 (*kernel)(&params);
             });
         } else if (bcast == prelu::bcast::per_oc_blocked) {
@@ -177,13 +176,13 @@ status_t jit_prelu_fwd_t::execute(const exec_ctx_t &ctx) const {
 
             parallel_nd(MB, C_blocks, [&](dim_t mb, dim_t c_blk) {
                 jit_prelu_forward_kernel_t::call_params_t params;
-                params.compute_data_size = SP * simd_w * dt_size;
+                params.compute_data_size = SP * simd_w;
                 const dim_t offset
-                        = (mb * nelems_single_mb + c_blk * SP * simd_w)
-                        * dt_size;
-                params.src = src + offset;
-                params.weights = weights + c_blk * simd_w * dt_size;
-                params.dst = dst + offset;
+                        = (mb * nelems_single_mb + c_blk * SP * simd_w);
+
+                params.src = src + offset * src_dt_size;
+                params.weights = weights + c_blk * simd_w * weights_dt_size;
+                params.dst = dst + offset * dst_dt_size;
                 (*kernel)(&params);
             });
         }

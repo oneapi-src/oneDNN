@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -104,6 +104,10 @@ void jit_prelu_reduction_kernel_t::generate(bool tail) {
     finalize(tail);
 }
 
+int jit_prelu_reduction_kernel_t::reserve_vmm() {
+    return number_reserved_vmms_++;
+}
+
 Xbyak::Address jit_prelu_reduction_kernel_t::diff_scratch_ptr(
         int unrolling_group) const {
     return ptr[reg_weights_diff_scratch_ + reg_offset_
@@ -115,20 +119,26 @@ jit_uni_prelu_reduction_kernel_t<Vmm>::jit_uni_prelu_reduction_kernel_t(
         const cpu_prelu_bwd_pd_t *pd, const cpu_isa_t &isa)
     : jit_prelu_reduction_kernel_t(pd, prelu::get_vlen(isa) / sizeof(float))
     , isa_(isa)
+    , saturation_needed_(utils::one_of(
+              data_type_, data_type::s8, data_type::u8, data_type::s32))
+    , accumulator_(reserve_vmm())
+    , tail_vmm_mask_(
+              tail_size_ && utils::one_of(isa, avx, avx2) ? reserve_vmm() : 0)
+    , saturation_lower_bound_(saturation_needed_ ? reserve_vmm() : 0)
+    , saturation_upper_bound_(saturation_needed_ ? reserve_vmm() : 0)
     , io_(this, isa, data_type_, tail_size_, tail_opmask_, tail_vmm_mask_,
-              reg_tmp_) {}
+              saturation_lower_bound_, saturation_upper_bound_, reg_tmp_) {}
 
 template <typename Vmm>
 size_t jit_uni_prelu_reduction_kernel_t<Vmm>::get_unrolling_factor(
         bool tail) const {
     const size_t max_num_threads = dnnl_get_max_threads();
     const size_t n_vregs = prelu::get_n_vregs(isa_);
-    int numer_reserved_regs = 1; // accumulator
-    if (tail && utils::one_of(isa_, avx, avx2))
-        ++numer_reserved_regs;
-    else if (data_type_ == data_type::bf16 && isa_ == avx512_core)
-        numer_reserved_regs += 4;
-    const size_t number_of_available_regs = n_vregs - numer_reserved_regs;
+    const size_t number_of_available_regs = n_vregs
+            - (number_reserved_vmms_
+                    + (data_type_ == data_type::bf16 && isa_ == avx512_core
+                                    ? 4
+                                    : 0));
 
     return nstl::min(number_of_available_regs, max_num_threads);
 }
@@ -144,13 +154,14 @@ void jit_uni_prelu_reduction_kernel_t<Vmm>::prepare_kernel_const_vars(
     uni_vxorps(accumulator_, accumulator_, accumulator_);
 
     if (tail) io_.prepare_tail_mask();
+    if (saturation_needed_) io_.init_saturate_f32();
 }
 
 template <typename Vmm>
 void jit_uni_prelu_reduction_kernel_t<Vmm>::compute_dst(
         int unrolling_factor, bool tail) {
 
-    const int vmm_begin = tail && utils::one_of(isa_, avx, avx2) ? 2 : 1;
+    const int vmm_begin = number_reserved_vmms_;
 
     for (int unrolling_group = 0; unrolling_group < unrolling_factor;
             ++unrolling_group) {

@@ -39,16 +39,17 @@ protected:
     int get_compute_vmm(size_t base_idx, size_t unroll_group);
 
     size_t get_number_reserved_vmms() const noexcept;
+
     const cpu_isa_t isa_;
     const size_t simd_w_ = 0;
     const prelu::bcast bcast_ = prelu::bcast::unsupported;
     const size_t tail_size_ = 0u;
-    const data_type_t data_type_ = data_type::undef;
     const Xbyak::Reg64 &reg_data_size_ = r8;
     const Xbyak::Reg64 &reg_offset_ = r9;
 
 private:
     void generate() override;
+    virtual bool any_tensor_bf16() const = 0;
     virtual void load_kernel_call_params() = 0;
     virtual void prepare_kernel_const_vars() = 0;
     virtual void compute_dst(size_t unrolling_factor, bool tail) = 0;
