@@ -2,15 +2,23 @@
 
 # Direct
 ## f32
---batch=perf_conv_bdw_1sock
+--cfg=f32
+--dir=FWD_D,BWD_D,BWD_W
+--alg=direct
+
+--mb=0,16,32,64
+--batch=set_perf_cpu_large_mb
+
+--mb=1,4,8
+--batch=set_perf_cpu_all_mb
 
 --reset
 ## int8
---cfg=u8s8f32
+--cfg=u8s8u8
 --dir=FWD_D
 --alg=direct
 
---mb=0,16,28,56,128
+--mb=0,16,32,64
 --batch=set_perf_cpu_large_mb
 
 --mb=1,4,8
@@ -23,18 +31,12 @@
 --cfg=f32_wino
 --dir=FWD_D,BWD_D,BWD_W
 
---mb=0,16,28,56,128
+--mb=0,16,32,64
 --batch=set_perf_cpu_large_mb
-
---mb=1,4,8
---batch=set_perf_cpu_all_mb
 
 ## int8
---cfg=u8s8f32_wino
+--cfg=u8s8u8_wino
 --dir=FWD_D
 
---mb=0,16,28,56,128
+--mb=0,16,32,64
 --batch=set_perf_cpu_large_mb
-
---mb=1,4,8
---batch=set_perf_cpu_all_mb
