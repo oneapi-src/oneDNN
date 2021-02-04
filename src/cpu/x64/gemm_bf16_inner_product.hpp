@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,7 +58,9 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
                             one_of(weights_md(1)->data_type, f32, bf16))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops)
-                    && post_ops_ok() && set_default_params() == status::success
+                    && inner_product_utils::post_ops_ok(
+                            attr()->post_ops_, &dst_md_)
+                    && set_default_params() == status::success
                     && dense_gemm_consitency_check(
                             src_md(), weights_md(), dst_md());
             if (!ok) return status::unimplemented;
@@ -73,20 +75,6 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
         bool dst_is_acc_;
 
     protected:
-        bool post_ops_ok() const {
-            auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(false); };
-            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(false); };
-            switch (po.len()) {
-                case 0: return true; // no post_ops
-                case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-                case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-                default: return false;
-            }
-            return false;
-        }
-
         void init_scratchpad() {
             if (!dst_is_acc_) {
                 auto scratchpad = scratchpad_registry().registrar();
@@ -105,13 +93,15 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
     status_t init(engine_t *engine) override {
-        bool has_bias = pd()->with_bias(),
-             has_eltwise
-                = pd()->attr()->post_ops_.find(primitive_kind::eltwise) >= 0,
-             has_sum_as_postops = !pd()->dst_is_acc_;
+        const bool has_bias = pd()->with_bias();
+        const bool has_eltwise
+                = pd()->attr()->post_ops_.find(primitive_kind::eltwise) >= 0;
+        const bool has_binary
+                = pd()->attr()->post_ops_.find(primitive_kind::binary) >= 0;
+        const bool has_sum_as_postops = !pd()->dst_is_acc_;
         postops_in_ip_ = false
                 || !pd()->dst_is_acc_ /* includes has_sum_as_postops */
-                || has_bias || has_eltwise;
+                || has_bias || has_eltwise || has_binary;
         if (postops_in_ip_)
             CHECK(safe_ptr_assign(pp_kernel_,
                     pp_kernel_t::create(pd(), !has_sum_as_postops)));
