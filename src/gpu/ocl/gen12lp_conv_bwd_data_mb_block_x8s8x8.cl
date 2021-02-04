@@ -29,8 +29,9 @@
 
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
-conv_bwd_data_x8s8x(const __global uchar *src, const __global char *wei,
-        const __global float *bias, __global DATA_T *dst) {
+conv_bwd_data_mb_block_x8s8x8(const __global uchar *src,
+        const __global char *wei, const __global float *bias,
+        __global DATA_T *dst) {
 
     const int mb_blocks = 2;
 

@@ -238,10 +238,10 @@ struct gen12lp_x8s8x_convolution_bwd_data_t : public gpu_primitive_t {
 
     status_t init(engine_t *engine) override {
         const char *kernel_name = nullptr;
-        if (pd()->conf.ver == ver_ow_block)
-            kernel_name = "conv_bwd_data_ow_block_x8s8x8";
+        if (pd()->conf.ver == ver_mb_block)
+            kernel_name = "conv_bwd_data_mb_block_x8s8x8";
         else
-            kernel_name = "conv_bwd_data_x8s8x";
+            kernel_name = "conv_bwd_data_x8s8x8";
         compute::kernel_ctx_t kernel_ctx;
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;

@@ -85,7 +85,7 @@ DECLARE_MMAD(
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __kernel void
-conv_bwd_data_ow_block_x8s8x8(const __global SRC_DATA_T *src,
+conv_bwd_data_x8s8x8(const __global SRC_DATA_T *src,
         const __global char *wei, const __global float *bias,
         __global DATA_T *dst) {
 
