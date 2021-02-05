@@ -69,10 +69,12 @@ struct gemm_convolution_fwd_t : public primitive_t {
             auto is_binary
                     = [&](int idx) { return po.entry_[idx].is_binary(); };
 
-            for (int idx = 0; idx < po.len(); idx++)
-                if ((is_sum(idx) && idx != 0) && !is_binary(idx)
-                        && !is_eltwise(idx))
-                    return false;
+            for (int idx = 0; idx < po.len(); idx++) {
+                bool ok = utils::one_of(true, is_sum(idx), is_binary(idx),
+                                  is_eltwise(idx))
+                        && IMPLICATION(is_sum(idx), idx == 0);
+                if (!ok) return false;
+            }
 
             return true;
         }
