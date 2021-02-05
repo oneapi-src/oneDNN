@@ -25,13 +25,15 @@ namespace gpu {
 namespace nvidia {
 
 cublasHandle_t &sycl_cuda_stream_t::get_cublas_handle() {
-    return *(utils::downcast<sycl_cuda_engine_t *>(engine())
-                     ->get_cublas_handle());
+    auto e = utils::downcast<sycl_cuda_engine_t *>(engine());
+    e->activate_stream_cublas(this);
+    return *(e->get_cublas_handle());
 }
 
 cudnnHandle_t &sycl_cuda_stream_t::get_cudnn_handle() {
-    return *(utils::downcast<sycl_cuda_engine_t *>(engine())
-                     ->get_cudnn_handle());
+    auto e = utils::downcast<sycl_cuda_engine_t *>(engine());
+    e->activate_stream_cudnn(this);
+    return *(e->get_cudnn_handle());
 }
 // the sycl_cuda_stream_t will not own this. it is an observer pointer
 CUstream sycl_cuda_stream_t::get_underlying_stream() {
@@ -90,21 +92,6 @@ status_t sycl_cuda_stream_t::init() {
                 : status::success;
     }
 
-    cuda_sycl_scoped_context_handler_t sc(sycl_engine);
-    auto streamId = get_underlying_stream();
-    auto cublas_handle = sycl_engine.get_cublas_handle();
-    auto cudnn_handle = sycl_engine.get_cudnn_handle();
-    assert(sycl_engine.context() == base_t::queue().get_context());
-    cudaStream_t current_stream_id = nullptr;
-    CUDNN_EXECUTE_FUNC(cudnnGetStream, *cudnn_handle, &current_stream_id);
-    if (current_stream_id != streamId) {
-        CUDNN_EXECUTE_FUNC(cudnnSetStream, *cudnn_handle, streamId);
-    }
-
-    CUBLAS_EXECUTE_FUNC(cublasGetStream, *cublas_handle, &current_stream_id);
-    if (current_stream_id != streamId) {
-        CUBLAS_EXECUTE_FUNC(cublasSetStream, *cublas_handle, streamId);
-    }
     return status;
 }
 
