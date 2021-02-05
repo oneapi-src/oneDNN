@@ -85,8 +85,9 @@ cmake .. \
          -DDNNL_AARCH64_USE_ACL=ON \
          <extra build options>
 ~~~
-Using ACL versions above 20.11 may require the `-DCMAKE_CXX_STANDARD=14`
-and `-DCMAKE_CXX_EXTENSIONS=OFF` flags to be passed.
+Only ACL versions 20.11 or above are supported. Using ACL versions above	
+20.11 may require the `-DCMAKE_CXX_STANDARD=14` and `-DCMAKE_CXX_EXTENSIONS=OFF`
+flags to be passed.
 
 #### Build and Install the Library
 
