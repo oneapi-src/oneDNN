@@ -95,7 +95,7 @@ get_filename_component(DNNL_CONFIGURATION "${DNNL_CONFIGURATION}" NAME)
 # The hint can be used to find CMake config in oneAPI directory layout.
 set(ONEAPI_CMAKE_CONFIG_HINT "../..")
 
-find_package(dnnl 2.1.0 CONFIG REQUIRED HINTS ${DNNLROOT} ${ONEAPI_CMAKE_CONFIG_HINT})
+find_package(dnnl @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${DNNLROOT} ${ONEAPI_CMAKE_CONFIG_HINT})
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DNNL_COMPILE_FLAGS}")
 
