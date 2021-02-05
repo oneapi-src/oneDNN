@@ -61,6 +61,8 @@ const _dt_conf_t conf_s8 = {conf_entry_s8, {}, {}, conf_entry_s8};
 const _dt_conf_t conf_u8 = {conf_entry_u8, {}, {}, conf_entry_u8};
 
 // Configurations with different SRC and DST datatypes
+const _dt_conf_t conf_s8u8 {conf_entry_s8, {}, {}, conf_entry_u8};
+const _dt_conf_t conf_u8s8 {conf_entry_u8, {}, {}, conf_entry_s8};
 const _dt_conf_t conf_s8f32 {conf_entry_s8, {}, {}, conf_entry_f32};
 const _dt_conf_t conf_f32s8 {conf_entry_f32, {}, {}, conf_entry_s8};
 const _dt_conf_t conf_u8f32 {conf_entry_u8, {}, {}, conf_entry_f32};
@@ -79,6 +81,8 @@ const dt_conf_t *str2cfg(const char *str) {
     CASE(bf16);
     CASE(s8);
     CASE(u8);
+    CASE(s8u8);
+    CASE(u8s8);
     CASE(s8f32);
     CASE(f32s8);
     CASE(u8f32);
@@ -105,6 +109,8 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     CASE(bf16);
     CASE(s8);
     CASE(u8);
+    CASE(s8u8);
+    CASE(u8s8);
     CASE(s8f32);
     CASE(f32s8);
     CASE(u8f32);

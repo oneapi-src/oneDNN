@@ -45,18 +45,20 @@ The table below shows supported name configurations for this driver:
 |:---   |:---   |:---   |:---
 | f32   | f32   | f32   | TBA.
 | s32   | s32   | s32   |
-| f16   | f16   | f16   |
-| bf16  | bf16  | bf16  |
+| f16   | f16   | f16   | Only on GPU engine
+| bf16  | bf16  | bf16  | Only on GPU engine
 | s8    | s8    | s8    |
 | u8    | u8    | u8    |
-| s8    | f16   | s8f16 |
-| f16   | s8    | f16s8 |
-| u8    | f16   | u8f16 |
-| f16   | u8    | f16u8 |
-| s8    | f32   | s8f32 |
-| f32   | s8    | f32s8 |
-| u8    | f32   | u8f32 |
-| f32   | u8    | f32u8 |
+| s8    | u8    | s8u8  | Only on GPU engine
+| u8    | s8    | u8s8  | Only on GPU engine
+| s8    | f16   | s8f16 | Only on GPU engine
+| f16   | s8    | f16s8 | Only on GPU engine
+| u8    | f16   | u8f16 | Only on GPU engine
+| f16   | u8    | f16u8 | Only on GPU engine
+| s8    | f32   | s8f32 | Only on GPU engine
+| f32   | s8    | f32s8 | Only on GPU engine
+| u8    | f32   | u8f32 | Only on GPU engine
+| f32   | u8    | f32u8 | Only on GPU engine
 
 
 ## Essence of Testing
