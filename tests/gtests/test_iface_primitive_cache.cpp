@@ -20,13 +20,6 @@
 #include "oneapi/dnnl/dnnl.hpp"
 #include "src/common/primitive_cache.hpp"
 
-int get_primitive_cache_size() {
-    int result = 0;
-    auto status = dnnl::impl::get_primitive_cache_size(&result);
-    if (status != dnnl::impl::status::success) return -1;
-    return result;
-}
-
 namespace dnnl {
 
 void fill_primitive_cache(int n) {

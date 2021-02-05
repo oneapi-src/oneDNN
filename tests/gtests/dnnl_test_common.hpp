@@ -54,6 +54,7 @@
 #include "src/common/float16.hpp"
 #include "src/common/memory_desc_wrapper.hpp"
 #include "src/common/nstl.hpp"
+#include "src/common/primitive_cache.hpp"
 #include "tests/gtests/test_malloc.hpp"
 #include "tests/test_thread.hpp"
 
@@ -973,6 +974,13 @@ inline dnnl::stream make_stream(dnnl::engine engine,
                 engine, dnnl::testing::get_threadpool());
 #endif
     return dnnl::stream(engine, flags);
+}
+
+inline int get_primitive_cache_size() {
+    int result = 0;
+    auto status = dnnl::impl::get_primitive_cache_size(&result);
+    if (status != dnnl::impl::status::success) return -1;
+    return result;
 }
 
 #endif
