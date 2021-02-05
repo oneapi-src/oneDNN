@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -215,7 +215,7 @@ std::function<void(void *)> ocl_gpu_engine_t::get_program_list_deleter() const {
 }
 
 status_t ocl_gpu_engine_t::init_device_info() {
-    device_info_.reset(new ocl_gpu_device_info_t());
+    device_info_ = std::make_shared<ocl_gpu_device_info_t>();
     CHECK(device_info_->init(this));
     return status::success;
 }

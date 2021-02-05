@@ -68,10 +68,10 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
         if (status == dnnl_success) {
             // Create CPU memory objects wrapping mapped pointers of source and
             // destination
-            r_src.reset(new dnn_mem_t(dnn_mem_t::create_from_host_ptr(
-                    src.md_, cpu_engine, (void *)src)));
-            r_dst.reset(new dnn_mem_t(dnn_mem_t::create_from_host_ptr(
-                    dst.md_, cpu_engine, (void *)dst)));
+            r_src = std::make_shared<dnn_mem_t>(dnn_mem_t::create_from_host_ptr(
+                    src.md_, cpu_engine, (void *)src));
+            r_dst = std::make_shared<dnn_mem_t>(dnn_mem_t::create_from_host_ptr(
+                    dst.md_, cpu_engine, (void *)dst));
         }
     }
 #endif
