@@ -1857,14 +1857,11 @@ void jit_avx512_core_amx_fwd_kernel_t::dispatch_icb_loop(int width,
             putL(h_blk_label[u]);
         }
 
-#define push_var(n, t) const t n = n##_
-#define pop_var(n) n##_ = n
-
-        // Save variables for the next 'h_blk' iteration
-        push_var(prv_width, int);
-        push_var(row_count, int);
-        push_var(is_store_done, bool);
-        push_var(is_buffer_empty, bool);
+        // Save value of global variables for the next 'h_blk' iteration
+        const int local_prv_width = prv_width_;
+        const int local_row_count = row_count_;
+        const bool local_is_store_done = is_store_done_;
+        const bool local_is_buffer_empty = is_buffer_empty_;
 
         // Unroll ow_block with regards to l_pad_output and r_pad_output
         int cur_t_pad = reduce_to_block(oh_step_size, jcp.t_pad_output);
@@ -1875,10 +1872,10 @@ void jit_avx512_core_amx_fwd_kernel_t::dispatch_icb_loop(int width,
             L(h_blk_label[u]);
 
             // restore to previous 'h_blk' state of variables
-            pop_var(prv_width);
-            pop_var(row_count);
-            pop_var(is_store_done);
-            pop_var(is_buffer_empty);
+            prv_width_ = local_prv_width;
+            row_count_ = local_row_count;
+            is_store_done_ = local_is_store_done;
+            is_buffer_empty_ = local_is_buffer_empty;
             compute_icb_loop(width, do_store, false, cur_t_pad, cur_b_pad,
                     l_pad_output, r_pad_output, zp_3d_pad, last);
             cur_t_pad = nstl::max(0, cur_t_pad - oh_step_size);
@@ -1886,8 +1883,6 @@ void jit_avx512_core_amx_fwd_kernel_t::dispatch_icb_loop(int width,
             if (!last) jmp(h_blk_end_label, T_NEAR);
         }
         L(h_blk_end_label);
-#undef pop_var
-#undef push_var
     } else {
         compute_icb_loop(width, do_store, true, 0, jcp.oh, l_pad_output,
                 r_pad_output, zp_3d_pad);
