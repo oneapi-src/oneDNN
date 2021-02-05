@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Arm Ltd. and affiliates
+* Copyright 2020-2021 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -246,6 +246,40 @@ status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
         acp.weights_info,
         acp.dilation_info,
         acp.act_info);
+    // clang-format on
+    if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
+        return status::unimplemented;
+    }
+
+    return status::success;
+}
+
+status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
+        memory_desc_t &weights_md, memory_desc_t &dst_md,
+        memory_desc_t &bias_md, const convolution_desc_t &cd,
+        const primitive_attr_t &attr) {
+    // Indirect convolution results in slowdown for low thread count or 1x1
+    // kernels, so fall back to GEMM-based convolution in these cases
+    if (one_of(true, weights_md.dims[2] == 1, // kh
+                weights_md.dims[3] == 1, // kw
+                dnnl_get_max_threads() < 28)) {
+        return status::unimplemented;
+    }
+
+    CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
+
+    // clang-format off
+    // NOTE: indirect convolution method supports only nhwc layout.
+    auto acl_st = arm_compute::NEGEMMConv2d::validate(
+        &acp.src_info,
+        &acp.wei_info,
+        acp.with_bias ? &acp.bia_info : nullptr,
+        &acp.dst_info,
+        arm_compute::Conv2dInfo(acp.padstride_info,
+                                acp.dilation_info,
+                                acp.act_info,
+                                false,
+                                1));
     // clang-format on
     if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
         return status::unimplemented;
