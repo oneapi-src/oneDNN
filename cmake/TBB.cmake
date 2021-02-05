@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2018-2020 Intel Corporation
+# Copyright 2018-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,6 +43,8 @@ if(TBB_FOUND)
 
     unset(_tbb_include_dirs)
     unset(_tbb_root)
+elseif(DNNL_CPU_THREADING_RUNTIME MATCHES "TBB")
+    message(FATAL_ERROR "DNNL_CPU_THREADING_RUNTIME is ${DNNL_CPU_THREADING_RUNTIME} but TBB is not found.")
 endif()
 
 get_target_property(_tbb_lib_path TBB::tbb IMPORTED_LOCATION_RELEASE)
