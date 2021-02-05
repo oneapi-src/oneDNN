@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2021 Intel Corporation
-* Copyright 2020 Arm Ltd. and affiliates
+* Copyright 2020-2021 Arm Ltd. and affiliates
 * Copyright 2020-2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,6 +31,7 @@
 
 #if DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
 #include "cpu/aarch64/acl_gemm_convolution.hpp"
+#include "cpu/aarch64/acl_indirect_gemm_convolution.hpp"
 #include "cpu/aarch64/acl_winograd_convolution.hpp"
 using namespace dnnl::impl::cpu::aarch64;
 #endif
@@ -112,6 +113,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         CPU_INSTANCE_X64(jit_avx2_convolution_fwd_t)
         CPU_INSTANCE_X64(jit_sse41_convolution_fwd_t)
         CPU_INSTANCE_AARCH64(jit_sve_512_convolution_fwd_t<f32>)
+        CPU_INSTANCE_AARCH64_ACL(acl_indirect_gemm_convolution_fwd_t)
         CPU_INSTANCE_AARCH64_ACL(acl_gemm_convolution_fwd_t<f32>)
         CPU_INSTANCE(gemm_convolution_fwd_t)
         CPU_INSTANCE(ref_convolution_fwd_t<f32>)
