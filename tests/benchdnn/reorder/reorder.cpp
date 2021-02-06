@@ -372,7 +372,9 @@ int doit(const prb_t *prb, res_t *res) {
     /* Step 5: execute necessary reorders */
     SAFE(src_dt_in_fmt_in.reorder(src_dt_in_fmt_ref), WARN);
 
-    if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0) {
+    const bool has_sum
+            = prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0;
+    if (has_sum) {
         SAFE(fill_memory(prb, DST, dst_dt_out_fmt_ref), WARN);
         SAFE(dst_dt_out_fmt_out.reorder(dst_dt_out_fmt_ref), WARN);
     }
@@ -432,6 +434,21 @@ int doit(const prb_t *prb, res_t *res) {
                 cmp.set_zero_trust_percent(58.f); // 4/7 inputs becomes 0
             else if (has_s32 || has_s8)
                 cmp.set_zero_trust_percent(43.f); // 3/7 inputs becomes 0
+
+            // A hack to avoid false-positive result from f32->s32 conversion
+            // in case of sum post-op on GPU happening when two max_dt values
+            // are summed together.
+            const auto reorder_add_check
+                    = [&](int64_t i, float got, float diff) {
+                          if (has_sum && dst_dt == dnnl_s32
+                                  && got == max_dt(dnnl_s32) && is_gpu()) {
+                              // 128.f = float(INT_MAX)
+                              //                - BENCHDNN_S32_TO_F32_SAT_CONST;
+                              return diff == 128.f;
+                          }
+                          return false;
+                      };
+            cmp.set_driver_check_function(reorder_add_check);
 
             // TODO: enable additional checks for border values validity.
             SAFE(cmp.compare(dst_dt_out_fmt_ref, dst_dt_out_fmt_out, prb->attr,
