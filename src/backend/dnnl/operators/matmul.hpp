@@ -98,11 +98,6 @@ struct matmul_op_set {
 
 struct matmul_forward : public dnnl::matmul, public kernel_base {
     using super = dnnl::matmul;
-    // TODO(qun) the inner product primitive related code will be removed,
-    // onece oneDNN issues are fixed. Currently, we need this workaround to
-    // improve performance and get correct results on GPU device.
-    using ip_super = dnnl::inner_product_forward;
-    using ip_primitive_desc = dnnl::inner_product_forward::primitive_desc;
 
 private:
     // cached pd is in this struct
@@ -131,12 +126,6 @@ private:
     size_t bn_input_offset_;
 
     float epsilon_; // bn epsilon
-
-    // inner_product primitive_desc
-    // used for ndx2d input
-    ip_primitive_desc ip_pd_;
-
-    bool is_ndx2d_ {false};
 
     tensor::desc ori_src_desc_ {};
     tensor::desc ori_weight_desc_ {};
@@ -249,9 +238,6 @@ public:
                                           + matmul_fwd::kShift)}
                                            : desc {});
 
-        ori_src_desc_ = src;
-        ori_weight_desc_ = weight;
-
         dims old_bias_dims = with_bias_ ? bias.get_dims() : dims {};
 
         impl::logical_tensor_t *dst_lt = const_cast<impl::logical_tensor_t *>(
@@ -262,34 +248,27 @@ public:
         // check the input dimension
         int src_ndims = src.get_ndims();
         int weight_ndims = weight.get_ndims();
-        if (src_ndims > 2 && weight_ndims == 2) { is_ndx2d_ = true; }
+        int bias_ndims = bias.get_ndims();
+        int dst_ndims = dst.get_ndims();
 
-        //if bias has different dims with src, reshape it
-        if (with_bias_) {
-            int bias_ndims = bias.get_ndims();
-            // inner_product support 1d bias
-            if (src_ndims != bias_ndims && !is_ndx2d_) {
-                dims expected_dims = src.get_dims();
-                dims expected_strides = src.get_strides();
-                const auto broadcast_ndims
-                        = static_cast<size_t>(src_ndims - bias_ndims);
-                for (size_t i = 0; i < broadcast_ndims; ++i)
-                    expected_dims[i] = 1;
-                for (size_t i = broadcast_ndims; i < src_ndims; ++i)
-                    expected_dims[i] = bias.get_dim(
-                            static_cast<int>(i - broadcast_ndims));
-                expected_strides[static_cast<dims::size_type>(src_ndims) - 1]
-                        = 1;
-                for (size_t i = static_cast<dims::size_type>(src_ndims) - 1;
-                        i > 0; --i)
-                    expected_strides[i - 1]
-                            = expected_strides[i] * expected_dims[i];
-                bias = desc {
-                        expected_dims, bias.get_data_type(), expected_strides};
+        // expand src or weight for broadcast
+        if (src_ndims != weight_ndims) {
+            if (src_ndims > weight_ndims) {
+                weight = expand(weight, src_ndims);
+            } else {
+                src = expand(src, weight_ndims);
             }
         }
 
+        // if bias has different dims with dst, expand
+        if (with_bias_ && bias_ndims != dst_ndims) {
+            bias = expand(bias, dst_ndims);
+        }
+
+        ori_src_desc_ = src;
+        ori_weight_desc_ = weight;
         ori_bias_desc_ = bias;
+
         if (with_bn_) epsilon_ = anode->get_attr<float>("epsilon");
 
         // append post_ops to attrs
@@ -315,24 +294,12 @@ public:
         }
 
         dims old_dst_dims = dst.get_dims();
-        if (is_ndx2d_) {
-            src = src.reshape(flatten_to_2d(src.get_dims()));
-            dst = dst.reshape(flatten_to_2d(dst.get_dims()));
-            weight = weight.permute_axes({1, 0}); // ip requires [OC, IC]
-            prop_kind pkind = prop_kind::forward_inference;
-            ip_pd_ = with_bias_ ? ip_primitive_desc(
-                             {pkind, src, weight, bias, dst}, attr_, p_engine_)
-                                : ip_primitive_desc({pkind, src, weight, dst},
-                                        attr_, p_engine_);
-        } else {
-            pd_ = with_bias_
-                    ? primitive_desc({src, weight, bias, dst}, attr_, p_engine_)
-                    : primitive_desc({src, weight, dst}, attr_, p_engine_);
-        }
 
-        fill_layout_info(dst_lt,
-                is_ndx2d_ ? ip_pd_.dst_desc().reshape(old_dst_dims)
-                          : pd_.dst_desc());
+        pd_ = with_bias_
+                ? primitive_desc({src, weight, bias, dst}, attr_, p_engine_)
+                : primitive_desc({src, weight, dst}, attr_, p_engine_);
+
+        fill_layout_info(dst_lt, pd_.dst_desc());
 
         // TODO(wuxun): for prepacking, temporarily skip when `with_bn_` is True
         // need to think about how to implement bn folding outside, maybe then
@@ -346,18 +313,13 @@ public:
             // DNNL also needs padding in this broadcast dim, reshaping will
             // fail. A possible solution is that in conversion's reorder, we
             // also add check for the broadcast-able dims.
-            fill_layout_info(ori_weight_lt,
-                    is_ndx2d_ ? ip_pd_.weights_desc()
-                                        .permute_axes({1, 0})
-                                        .reshape(old_weights_dims)
-                              : pd_.weights_desc());
+            fill_layout_info(ori_weight_lt, pd_.weights_desc());
             if (with_bias_) {
                 impl::logical_tensor_t *ori_bias_lt
                         = const_cast<impl::logical_tensor_t *>(
                                 &inputs.at(matmul_fwd::kBias));
-                fill_layout_info(ori_bias_lt,
-                        is_ndx2d_ ? ip_pd_.bias_desc()
-                                  : pd_.bias_desc().reshape(old_bias_dims));
+                fill_layout_info(
+                        ori_bias_lt, pd_.bias_desc().reshape(old_bias_dims));
             }
         }
         return impl::status::success;
@@ -371,33 +333,20 @@ public:
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        auto pd_src_desc = is_ndx2d_ ? ip_pd_.src_desc() : pd_.src_desc();
-        auto pd_weights_desc
-                = is_ndx2d_ ? ip_pd_.weights_desc() : pd_.weights_desc();
-        auto pd_bias_desc = is_ndx2d_ ? ip_pd_.bias_desc() : pd_.bias_desc();
-        auto pd_dst_desc = is_ndx2d_ ? ip_pd_.dst_desc() : pd_.dst_desc();
+        auto pd_src_desc = pd_.src_desc();
+        auto pd_weights_desc = pd_.weights_desc();
+        auto pd_bias_desc = pd_.bias_desc();
+        auto pd_dst_desc = pd_.dst_desc();
 
-        //create src and weight tensor, and change the desc of them if
-        //they have transpose_* attr or ndims = 1
-        tensor src {inputs.at(matmul_fwd::kSrc), p_engine_, alc};
-        if (transpose_a_ || src.ndims() == 1) {
-            src = tensor {ori_src_desc_, p_engine_, alc,
-                    inputs.at(matmul_fwd::kSrc).get_data_handle()};
-        }
-        tensor weight {inputs.at(matmul_fwd::kWeight), p_engine_, alc};
-        if (transpose_b_ || weight.ndims() == 1) {
-            weight = tensor {ori_weight_desc_, p_engine_, alc,
-                    inputs.at(matmul_fwd::kWeight).get_data_handle()};
-        }
+        // always parse the inputs buffer with processed desc
+        tensor src {ori_src_desc_, p_engine_, alc,
+                inputs.at(matmul_fwd::kSrc).get_data_handle()};
+        tensor weight {ori_weight_desc_, p_engine_, alc,
+                inputs.at(matmul_fwd::kWeight).get_data_handle()};
 
-        tensor bias = with_bias_
-                ? tensor {inputs.at(matmul_fwd::kBias), p_engine_, alc}
-                : tensor {};
-
-        if (!is_ndx2d_ && with_bias_ && bias.ndims() != src.ndims()) {
-            bias = tensor {ori_bias_desc_, p_engine_, alc,
-                    inputs.at(matmul_fwd::kBias).get_data_handle()};
-        }
+        tensor bias = with_bias_ ? tensor {ori_bias_desc_, p_engine_, alc,
+                              inputs.at(matmul_fwd::kBias).get_data_handle()}
+                                 : tensor {};
 
         tensor post_src = with_sum_ ? tensor {inputs.back(), p_engine_, alc}
                                     : tensor {};
@@ -445,7 +394,6 @@ public:
             }
 
         } else {
-            if (is_ndx2d_) { weight = weight.transpose_(1, 0); }
             if (weight.get_desc() != pd_weights_desc) { //need to reorder
                 if (expected_weights_.is_empty()) {
                     expected_weights_
@@ -468,11 +416,6 @@ public:
             }
         }
 
-        if (is_ndx2d_) {
-            src = src.reshape(p_stream_, flatten_to_2d(src.get_dims()));
-            dst = dst.reshape(p_stream_, flatten_to_2d(dst.get_dims()));
-        }
-
         if (src.get_desc() != pd_src_desc) {
             if (expected_src_.is_empty()) {
                 expected_src_ = tensor {pd_src_desc, p_engine_, alc};
@@ -490,38 +433,15 @@ public:
             expected_dst_ = dst;
         }
 
-        if (with_sum_) {
-            if (is_ndx2d_)
-                post_src = post_src.reshape(
-                        p_stream_, flatten_to_2d(post_src.get_dims()));
-            post_src.reorder_to(p_stream_, expected_dst_);
-        }
+        if (with_sum_) { post_src.reorder_to(p_stream_, expected_dst_); }
 
-        if (is_ndx2d_) {
-            ip_super(ip_pd_).execute(p_stream_,
-                    {{DNNL_ARG_SRC, expected_src_},
-                            {DNNL_ARG_WEIGHTS, expected_weights_},
-                            // won't be used if not with_bias_
-                            {DNNL_ARG_BIAS, expected_bias_},
-                            {DNNL_ARG_DST, expected_dst_}});
+        compute(p_stream_);
 
-        } else {
-            compute(p_stream_);
-        }
         if (expected_dst_ != dst) expected_dst_.reorder_to(p_stream_, dst);
         return impl::status::success;
     }
 
 private:
-    // Covert a shape from nd to 2d by flatening the first n-1 dims
-    dims flatten_to_2d(const dims &in) {
-        assert(in.size() >= 2);
-        if (in.size() == 2) return in;
-        int64_t batch = std::accumulate(in.begin(), in.end() - 1,
-                static_cast<int64_t>(1), std::multiplies<int64_t>());
-        return {batch, in.back()};
-    }
-
     algorithm get_eltwise_algo(op_kind_t kind) {
         switch (static_cast<int>(kind)) {
             case op_kind::matmul_relu:
