@@ -621,9 +621,9 @@ TEST(op_schema_test, generate_default_attrib) {
     matmul_op.set_attr("transpose_a", true);
     const bool *flag;
     const bool **ret_flag = &flag;
-    matmul_op.attr<bool>("transpose_a", ret_flag);
+    matmul_op.get_attr<bool>("transpose_a", ret_flag);
     EXPECT_TRUE(ret_flag);
-    EXPECT_EQ(matmul_op.attr<bool>("transpose_b", ret_flag),
+    EXPECT_EQ(matmul_op.get_attr<bool>("transpose_b", ret_flag),
             status::invalid_argument);
 
     graph_t agraph;
@@ -3101,7 +3101,7 @@ TEST(op_schema_test, test_add_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -3114,13 +3114,13 @@ TEST(op_schema_test, test_avgpool_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
 
-    tmp_op.attr<std::string>("rounding_type", &sval);
+    tmp_op.get_attr<std::string>("rounding_type", &sval);
     EXPECT_EQ(*sval, "floor");
 
-    tmp_op.attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>("auto_pad", &sval);
     EXPECT_EQ(*sval, "None");
 }
 
@@ -3133,10 +3133,10 @@ TEST(op_schema_test, test_avgpoolbackprop_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
 
-    tmp_op.attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>("auto_pad", &sval);
     EXPECT_EQ(*sval, "None");
 }
 
@@ -3149,7 +3149,7 @@ TEST(op_schema_test, test_batchnorminference_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
 }
 
@@ -3162,7 +3162,7 @@ TEST(op_schema_test, test_batchnormforwardtraining_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
 }
 
@@ -3175,11 +3175,11 @@ TEST(op_schema_test, test_batchnormtrainingbackprop_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
 
     const bool *bval {nullptr};
-    tmp_op.attr<bool>("is_training", &bval);
+    tmp_op.get_attr<bool>("is_training", &bval);
     EXPECT_TRUE(*bval);
 }
 
@@ -3192,7 +3192,7 @@ TEST(op_schema_test, test_biasadd_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
 }
 
@@ -3205,7 +3205,7 @@ TEST(op_schema_test, test_biasaddbackprop_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
 }
 
@@ -3218,17 +3218,17 @@ TEST(op_schema_test, test_convolution_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
 
-    tmp_op.attr<std::string>("filter_format", &sval);
+    tmp_op.get_attr<std::string>("filter_format", &sval);
     EXPECT_EQ(*sval, "XIO");
 
-    tmp_op.attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>("auto_pad", &sval);
     EXPECT_EQ(*sval, "None");
 
     const int64_t *ival {nullptr};
-    tmp_op.attr<int64_t>("groups", &ival);
+    tmp_op.get_attr<int64_t>("groups", &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3242,22 +3242,22 @@ TEST(op_schema_test, test_convolutionbackpropdata_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::vector<int64_t> *vval {nullptr};
-    tmp_op.attr<std::vector<int64_t>>("output_padding", &vval);
+    tmp_op.get_attr<std::vector<int64_t>>("output_padding", &vval);
     std::vector<int64_t> vector_value(0, DNNL_GRAPH_MAX_NDIMS);
     EXPECT_EQ(*vval, vector_value);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
 
-    tmp_op.attr<std::string>("filter_format", &sval);
+    tmp_op.get_attr<std::string>("filter_format", &sval);
     EXPECT_EQ(*sval, "XIO");
 
-    tmp_op.attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>("auto_pad", &sval);
     EXPECT_EQ(*sval, "None");
 
     const int64_t *ival {nullptr};
-    tmp_op.attr<int64_t>("groups", &ival);
+    tmp_op.get_attr<int64_t>("groups", &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3271,17 +3271,17 @@ TEST(op_schema_test, test_convolutionbackpropfilter_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
 
-    tmp_op.attr<std::string>("filter_format", &sval);
+    tmp_op.get_attr<std::string>("filter_format", &sval);
     EXPECT_EQ(*sval, "XIO");
 
-    tmp_op.attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>("auto_pad", &sval);
     EXPECT_EQ(*sval, "None");
 
     const int64_t *ival {nullptr};
-    tmp_op.attr<int64_t>("groups", &ival);
+    tmp_op.get_attr<int64_t>("groups", &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3295,7 +3295,7 @@ TEST(op_schema_test, test_divide_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -3308,26 +3308,26 @@ TEST(op_schema_test, test_interpolate_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("coordinate_transformation_mode", &sval);
+    tmp_op.get_attr<std::string>("coordinate_transformation_mode", &sval);
     EXPECT_EQ(*sval, "half_pixel");
 
-    tmp_op.attr<std::string>("nearest_mode", &sval);
+    tmp_op.get_attr<std::string>("nearest_mode", &sval);
     EXPECT_EQ(*sval, "round_prefer_floor");
 
     const bool *bval {nullptr};
-    tmp_op.attr<bool>("antialias", &bval);
+    tmp_op.get_attr<bool>("antialias", &bval);
     EXPECT_FALSE(*bval);
 
     const std::vector<int64_t> *vval {nullptr};
-    tmp_op.attr<std::vector<int64_t>>("pads_begin", &vval);
+    tmp_op.get_attr<std::vector<int64_t>>("pads_begin", &vval);
     std::vector<int64_t> vector_value(0, DNNL_GRAPH_MAX_NDIMS);
     EXPECT_EQ(*vval, vector_value);
 
-    tmp_op.attr<std::vector<int64_t>>("pads_end", &vval);
+    tmp_op.get_attr<std::vector<int64_t>>("pads_end", &vval);
     EXPECT_EQ(*vval, vector_value);
 
     const float *fval {nullptr};
-    tmp_op.attr<float>("cube_coeff", &fval);
+    tmp_op.get_attr<float>("cube_coeff", &fval);
     float float_value {-0.75};
     EXPECT_FLOAT_EQ(*fval, float_value);
 }
@@ -3341,26 +3341,26 @@ TEST(op_schema_test, test_interpolatebackprop_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("coordinate_transformation_mode", &sval);
+    tmp_op.get_attr<std::string>("coordinate_transformation_mode", &sval);
     EXPECT_EQ(*sval, "half_pixel");
 
-    tmp_op.attr<std::string>("nearest_mode", &sval);
+    tmp_op.get_attr<std::string>("nearest_mode", &sval);
     EXPECT_EQ(*sval, "round_prefer_floor");
 
     const bool *bval {nullptr};
-    tmp_op.attr<bool>("antialias", &bval);
+    tmp_op.get_attr<bool>("antialias", &bval);
     EXPECT_FALSE(*bval);
 
     const std::vector<int64_t> *vval {nullptr};
-    tmp_op.attr<std::vector<int64_t>>("pads_begin", &vval);
+    tmp_op.get_attr<std::vector<int64_t>>("pads_begin", &vval);
     std::vector<int64_t> vector_value(0, DNNL_GRAPH_MAX_NDIMS);
     EXPECT_EQ(*vval, vector_value);
 
-    tmp_op.attr<std::vector<int64_t>>("pads_end", &vval);
+    tmp_op.get_attr<std::vector<int64_t>>("pads_end", &vval);
     EXPECT_EQ(*vval, vector_value);
 
     const float *fval {nullptr};
-    tmp_op.attr<float>("cube_coeff", &fval);
+    tmp_op.get_attr<float>("cube_coeff", &fval);
     float float_value {-0.75};
     EXPECT_FLOAT_EQ(*fval, float_value);
 }
@@ -3374,19 +3374,19 @@ TEST(op_schema_test, test_layernorm_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.attr<bool>("keep_stats", &bval);
+    tmp_op.get_attr<bool>("keep_stats", &bval);
     EXPECT_TRUE(bval);
 
     const int64_t *ival {nullptr};
-    tmp_op.attr<int64_t>("begin_norm_axis", &ival);
+    tmp_op.get_attr<int64_t>("begin_norm_axis", &ival);
     int64_t int_value {-1};
     EXPECT_EQ(*ival, int_value);
 
-    tmp_op.attr<bool>("use_affine", &bval);
+    tmp_op.get_attr<bool>("use_affine", &bval);
     EXPECT_TRUE(bval);
 
     const float *fval {nullptr};
-    tmp_op.attr<float>("epsilon", &fval);
+    tmp_op.get_attr<float>("epsilon", &fval);
     float float_value {1e-5f};
     EXPECT_FLOAT_EQ(*fval, float_value);
 }
@@ -3400,19 +3400,19 @@ TEST(op_schema_test, test_layernormbackprop_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.attr<bool>("use_affine", &bval);
+    tmp_op.get_attr<bool>("use_affine", &bval);
     EXPECT_TRUE(bval);
 
     const int64_t *ival {nullptr};
-    tmp_op.attr<int64_t>("begin_norm_axis", &ival);
+    tmp_op.get_attr<int64_t>("begin_norm_axis", &ival);
     int64_t int_value {-1};
     EXPECT_EQ(*ival, int_value);
 
-    tmp_op.attr<bool>("use_stats", &bval);
+    tmp_op.get_attr<bool>("use_stats", &bval);
     EXPECT_TRUE(bval);
 
     const float *fval {nullptr};
-    tmp_op.attr<float>("epsilon", &fval);
+    tmp_op.get_attr<float>("epsilon", &fval);
     float float_value {1e-5f};
     EXPECT_FLOAT_EQ(*fval, float_value);
 }
@@ -3426,7 +3426,7 @@ TEST(op_schema_test, test_logsoftmax_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const int64_t *ival {nullptr};
-    tmp_op.attr<int64_t>("axis", &ival);
+    tmp_op.get_attr<int64_t>("axis", &ival);
     int64_t int_value {-1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3440,7 +3440,7 @@ TEST(op_schema_test, test_logsoftmaxbackprop_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const int64_t *ival {nullptr};
-    tmp_op.attr<int64_t>("axis", &ival);
+    tmp_op.get_attr<int64_t>("axis", &ival);
     int64_t int_value {-1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3454,10 +3454,10 @@ TEST(op_schema_test, test_matmul_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.attr<bool>("transpose_a", &bval);
+    tmp_op.get_attr<bool>("transpose_a", &bval);
     EXPECT_FALSE(*bval);
 
-    tmp_op.attr<bool>("transpose_b", &bval);
+    tmp_op.get_attr<bool>("transpose_b", &bval);
     EXPECT_FALSE(*bval);
 }
 
@@ -3470,17 +3470,17 @@ TEST(op_schema_test, test_maxpool_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
 
-    tmp_op.attr<std::string>("rounding_type", &sval);
+    tmp_op.get_attr<std::string>("rounding_type", &sval);
     EXPECT_EQ(*sval, "floor");
 
-    tmp_op.attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>("auto_pad", &sval);
     EXPECT_EQ(*sval, "None");
 
     const std::vector<int64_t> *vval {nullptr};
-    tmp_op.attr<std::vector<int64_t>>("dilations", &vval);
+    tmp_op.get_attr<std::vector<int64_t>>("dilations", &vval);
     std::vector<int64_t> vector_value(1, DNNL_GRAPH_MAX_NDIMS);
     EXPECT_EQ(*vval, vector_value);
 }
@@ -3494,15 +3494,15 @@ TEST(op_schema_test, test_maxpoolbackprop_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>("data_format", &sval);
     EXPECT_EQ(*sval, "NXC");
 
     const std::vector<int64_t> *vval {nullptr};
-    tmp_op.attr<std::vector<int64_t>>("dilations", &vval);
+    tmp_op.get_attr<std::vector<int64_t>>("dilations", &vval);
     std::vector<int64_t> vector_value(1, DNNL_GRAPH_MAX_NDIMS);
     EXPECT_EQ(*vval, vector_value);
 
-    tmp_op.attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>("auto_pad", &sval);
     EXPECT_EQ(*sval, "None");
 }
 
@@ -3515,7 +3515,7 @@ TEST(op_schema_test, test_maximum_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -3528,7 +3528,7 @@ TEST(op_schema_test, test_minimum_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -3541,7 +3541,7 @@ TEST(op_schema_test, test_multiply_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -3554,7 +3554,7 @@ TEST(op_schema_test, test_pow_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -3567,7 +3567,7 @@ TEST(op_schema_test, test_reducesum_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.attr<bool>("keep_dims", &bval);
+    tmp_op.get_attr<bool>("keep_dims", &bval);
     EXPECT_FALSE(*bval);
 }
 
@@ -3580,7 +3580,7 @@ TEST(op_schema_test, test_sigmoidbackprop_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.attr<bool>("use_dst", &bval);
+    tmp_op.get_attr<bool>("use_dst", &bval);
     EXPECT_TRUE(bval);
 }
 
@@ -3593,7 +3593,7 @@ TEST(op_schema_test, test_softmax_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const int64_t *ival {nullptr};
-    tmp_op.attr<int64_t>("axis", &ival);
+    tmp_op.get_attr<int64_t>("axis", &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3607,7 +3607,7 @@ TEST(op_schema_test, test_softmaxbackprop_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const int64_t *ival {nullptr};
-    tmp_op.attr<int64_t>("axis", &ival);
+    tmp_op.get_attr<int64_t>("axis", &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3621,7 +3621,7 @@ TEST(op_schema_test, test_softplus_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const int64_t *ival {nullptr};
-    tmp_op.attr<int64_t>("beta", &ival);
+    tmp_op.get_attr<int64_t>("beta", &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3635,7 +3635,7 @@ TEST(op_schema_test, test_softplusbackprop_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const int64_t *ival {nullptr};
-    tmp_op.attr<int64_t>("beta", &ival);
+    tmp_op.get_attr<int64_t>("beta", &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3649,7 +3649,7 @@ TEST(op_schema_test, test_sqrtbackprop_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.attr<bool>("use_dst", &bval);
+    tmp_op.get_attr<bool>("use_dst", &bval);
     EXPECT_TRUE(bval);
 }
 
@@ -3662,6 +3662,6 @@ TEST(op_schema_test, test_tanhbackprop_default_attributes) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.attr<bool>("use_dst", &bval);
+    tmp_op.get_attr<bool>("use_dst", &bval);
     EXPECT_TRUE(bval);
 }

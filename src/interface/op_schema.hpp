@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "attribute_value.hpp"
 #include "c_types_map.hpp"
 #include "ir.hpp"
 #include "op.hpp"
@@ -69,14 +70,21 @@ public:
     class attribute {
     public:
         attribute() = default;
-        attribute(std::string name, std::string description, bool required);
+
         attribute(std::string name, std::string description, bool required,
-                utils::any attr_value);
+                attribute_value value)
+            : name_(std::move(name))
+            , description_(std::move(description))
+            , required_(required)
+            , attr_(value) {}
+
+        attribute(std::string name, std::string description, bool required)
+            : attribute(name, description, required, {}) {}
 
         std::string name_;
         std::string description_;
-        utils::any attr_;
         bool required_;
+        attribute_value attr_;
     };
 
     enum class param_num_option { fixed, optional, variadic };
@@ -131,24 +139,22 @@ public:
             const std::string &out_description);
 
     /*! @brief Set a particular attribute of the op schema. */
-    op_schema &set_attr(const std::string &attr_name,
-            const std::string &attr_description, bool required = true);
+    op_schema &set_attr(const std::string &name, const std::string &description,
+            bool required = true);
 
     /*! @brief Set a particular attribute of the op schema. */
     template <typename T>
-    op_schema &set_attr(const std::string &attr_name,
-            const std::string &attr_description, bool required, T attr_value) {
-        assertm(attributes_.count(attr_name) == 0,
+    op_schema &set_attr(const std::string &name, const std::string &description,
+            bool required, T value) {
+        assertm(attributes_.count(name) == 0,
                 "provided attribute has already been set");
-        attributes_[attr_name]
-                = attribute(attr_name, attr_description, required, attr_value);
+        attributes_[name] = attribute(name, description, required, {value});
         return *this;
     }
 
     /*! @brief Set a particular attribute of the op schema. */
-    op_schema &set_attr(const std::string &attr_name,
-            const std::string &attr_description, bool required,
-            const char *attr_value);
+    op_schema &set_attr(const std::string &name, const std::string &description,
+            bool required, const char *value);
 
     /*! @brief Set shape inference function of the op schema. */
     op_schema &set_shape_inference_function(shape_infer_fn fn);

@@ -546,7 +546,7 @@ public:
     */
     void parse_op_attr(const op_t *l_op) {
         status_t state = status::success;
-        for (const auto &a : l_op->attributes()) {
+        for (const auto &a : l_op->get_attributes()) {
             attribute_kind_t kind = attribute_kind::f;
             state = l_op->kind_of(a.first, kind);
             assertm(state == status::success,
@@ -556,7 +556,7 @@ public:
                 case attribute_kind::i: {
                     const int64_t *ival {nullptr};
                     const auto **ret = &ival;
-                    state = l_op->attr<int64_t>(a.first, ret);
+                    state = l_op->get_attr<int64_t>(a.first, ret);
                     assertm(state == status::success,
                             "failed to get attribute according to the name.");
                     state = this->set_attr<int64_t>(a.first, **ret);
@@ -566,7 +566,7 @@ public:
                 case attribute_kind::is: {
                     const std::vector<int64_t> *isval {nullptr};
                     const auto **ret = &isval;
-                    state = l_op->attr<std::vector<int64_t>>(a.first, ret);
+                    state = l_op->get_attr<std::vector<int64_t>>(a.first, ret);
                     assertm(state == status::success,
                             "failed to get attribute according to the name.");
                     state = this->set_attr<std::vector<int64_t>>(
@@ -577,7 +577,7 @@ public:
                 case attribute_kind::f: {
                     const float *fval {nullptr};
                     const auto **ret = &fval;
-                    state = l_op->attr<float>(a.first, ret);
+                    state = l_op->get_attr<float>(a.first, ret);
                     assertm(state == status::success,
                             "failed to get attribute according to the name.");
                     state = this->set_attr<float>(a.first, **ret);
@@ -587,7 +587,7 @@ public:
                 case attribute_kind::fs: {
                     const std::vector<float> *fsval {nullptr};
                     const auto **ret = &fsval;
-                    state = l_op->attr<std::vector<float>>(a.first, ret);
+                    state = l_op->get_attr<std::vector<float>>(a.first, ret);
                     assertm(state == status::success,
                             "failed to get attribute according to the name.");
                     state = this->set_attr<std::vector<float>>(a.first, **ret);
@@ -597,7 +597,7 @@ public:
                 case attribute_kind::s: {
                     const std::string *sval {nullptr};
                     const auto **ret = &sval;
-                    state = l_op->attr<std::string>(a.first, ret);
+                    state = l_op->get_attr<std::string>(a.first, ret);
                     assertm(state == status::success,
                             "failed to get attribute according to the name.");
                     state = this->set_attr<std::string>(a.first, **ret);
@@ -607,7 +607,7 @@ public:
                 case attribute_kind::b: {
                     const bool *bval {nullptr};
                     const auto **ret = &bval;
-                    state = l_op->attr<bool>(a.first, ret);
+                    state = l_op->get_attr<bool>(a.first, ret);
                     assertm(state == status::success,
                             "failed to get attribute according to the name.");
                     state = this->set_attr<bool>(a.first, **ret);

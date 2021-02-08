@@ -84,6 +84,7 @@ APPLY_VERSION_DEFINITIONS("${TEST_FILES_NEED_VERSION}")
 add_library(${LIB_NAME}_unit_test_objlib OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/unit_test_common.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_allocator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_attribute_value.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_compile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_compiled_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_dnnl_tensor.cpp

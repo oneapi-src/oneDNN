@@ -23,11 +23,10 @@
 #include <utility>
 #include <vector>
 
+#include "attribute_value.hpp"
 #include "c_types_map.hpp"
 #include "internal_ops.hpp"
 #include "logical_tensor.hpp"
-
-#include "utils/compatible.hpp"
 
 struct dnnl_graph_op {
 public:
@@ -73,47 +72,47 @@ public:
             return dnnl::graph::impl::status::invalid_argument;
         }
 
-        found->second.match(
-                []() { assert(0 && "Unknown type for attribute kind"); },
-                [&kind](float) { kind = dnnl::graph::impl::attribute_kind::f; },
-                [&kind](const std::vector<float> &) {
-                    kind = dnnl::graph::impl::attribute_kind::fs;
-                },
-                [&kind](int64_t) {
-                    kind = dnnl::graph::impl::attribute_kind::i;
-                },
-                [&kind](const std::vector<int64_t> &) {
-                    kind = dnnl::graph::impl::attribute_kind::is;
-                },
-                [&kind](const std::string &) {
-                    kind = dnnl::graph::impl::attribute_kind::s;
-                },
-                [&kind](bool) { kind = dnnl::graph::impl::attribute_kind::b; });
-
+        kind = found->second.get_kind();
         return dnnl::graph::impl::status::success;
     }
 
     template <typename Attr>
     dnnl_graph_op &set_attr(const std::string &name, Attr &&a) {
-        attributes_[name] = std::forward<Attr>(a);
+        auto it = attributes_.find(name);
+        if (it != end(attributes_)) {
+            it->second = {a};
+        } else {
+            attributes_.insert({name, {a}});
+        }
+        return *this;
+    }
+
+    dnnl_graph_op &set_attr(const std::string &name,
+            const dnnl::graph::impl::attribute_value &a) {
+        auto it = attributes_.find(name);
+        if (it != end(attributes_)) {
+            it->second = a;
+        } else {
+            attributes_.insert({name, a});
+        }
         return *this;
     }
 
     template <typename Attr>
-    dnnl::graph::impl::status_t attr(
+    dnnl::graph::impl::status_t get_attr(
             const std::string &name, const Attr **attr) const {
         const auto &found = attributes_.find(name);
         if (found == end(attributes_)) {
             return dnnl::graph::impl::status::invalid_argument;
         }
 
-        Attr &val = dnnl::graph::impl::utils::any_cast<Attr &>(found->second);
+        Attr &val = found->second.get<Attr>();
         *attr = &val;
         return dnnl::graph::impl::status::success;
     }
 
-    const std::map<std::string, dnnl::graph::impl::utils::any> &
-    attributes() const {
+    const std::map<std::string, dnnl::graph::impl::attribute_value> &
+    get_attributes() const {
         return attributes_;
     }
 
@@ -136,7 +135,7 @@ private:
     std::string debug_string_ {};
     std::vector<dnnl::graph::impl::logical_tensor_t> inputs_ {};
     std::vector<dnnl::graph::impl::logical_tensor_t> outputs_ {};
-    std::map<std::string, dnnl::graph::impl::utils::any> attributes_;
+    std::map<std::string, dnnl::graph::impl::attribute_value> attributes_;
 };
 
 #endif

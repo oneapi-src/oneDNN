@@ -86,35 +86,35 @@ status_t DNNL_GRAPH_API dnnl_graph_op_get_attr(const op_t *op, const char *name,
     switch (kind) {
         case attribute_kind::i: {
             const int64_t *attr_addr {nullptr};
-            status = op->attr(name, &attr_addr);
+            status = op->get_attr(name, &attr_addr);
             *attr = attr_addr;
         } break;
         case attribute_kind::is: {
             const std::vector<int64_t> *attr_addr {nullptr};
-            status = op->attr(name, &attr_addr);
+            status = op->get_attr(name, &attr_addr);
             assert(attr_addr != nullptr);
             *attr = attr_addr->data();
             *attr_no = static_cast<int64_t>(attr_addr->size());
         } break;
         case attribute_kind::f: {
             const float *attr_addr = static_cast<const float *>(*attr);
-            status = op->attr(name, &attr_addr);
+            status = op->get_attr(name, &attr_addr);
             *attr = attr_addr;
         } break;
         case attribute_kind::fs: {
             const std::vector<float> *attr_addr {nullptr};
-            status = op->attr(name, &attr_addr);
+            status = op->get_attr(name, &attr_addr);
             *attr = attr_addr->data();
             *attr_no = static_cast<int64_t>(attr_addr->size());
         } break;
         case attribute_kind::s: {
             const std::string *attr_addr {nullptr};
-            status = op->attr(name, &attr_addr);
+            status = op->get_attr(name, &attr_addr);
             *attr = attr_addr->c_str();
         } break;
         case attribute_kind::b: {
             const bool *attr_addr = static_cast<const bool *>(*attr);
-            status = op->attr(name, &attr_addr);
+            status = op->get_attr(name, &attr_addr);
             *attr = attr_addr;
         } break;
         default: return status::unsupported;

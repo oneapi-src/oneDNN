@@ -109,21 +109,20 @@ const std::vector<op_schema::formal_parameter> &op_schema::get_outputs() const {
     return outputs_;
 }
 
-op_schema &op_schema::set_attr(const std::string &attr_name,
-        const std::string &attr_description, bool required) {
-    assertm(attributes_.count(attr_name) == 0,
+op_schema &op_schema::set_attr(const std::string &name,
+        const std::string &description, bool required) {
+    assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
-    attributes_[attr_name] = attribute(attr_name, attr_description, required);
+    attributes_[name] = attribute(name, description, required);
     return *this;
 }
 
-op_schema &op_schema::set_attr(const std::string &attr_name,
-        const std::string &attr_description, bool required,
-        const char *attr_value) {
-    assertm(attributes_.count(attr_name) == 0,
+op_schema &op_schema::set_attr(const std::string &name,
+        const std::string &description, bool required, const char *value) {
+    assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
-    attributes_[attr_name] = attribute(
-            attr_name, attr_description, required, std::string(attr_value));
+    attributes_[name]
+            = attribute(name, description, required, {std::string(value)});
     return *this;
 }
 
@@ -168,15 +167,15 @@ bool op_schema::verify_param_num(size_t actual_num,
 }
 
 void op_schema::set_default_attribute(op_t *l_op) const {
-    auto actual_attrs = l_op->attributes();
-    auto expected_attrs = get_attrs();
+    auto actual_attrs = l_op->get_attributes();
+    auto expected_attrs = this->get_attrs();
     for (auto iter = expected_attrs.begin(); iter != expected_attrs.end();
             ++iter) {
         // if default attribute not set in op, set it to default value
         if (!iter->second.required_ && actual_attrs.count(iter->first) == 0) {
-            auto attr_value = iter->second.attr_;
+            auto value = iter->second.attr_;
             const auto &name = iter->first;
-            l_op->set_attr(name, attr_value);
+            l_op->set_attr(name, value);
         }
     }
 }
@@ -194,7 +193,7 @@ bool op_schema::verify(op_t *l_op) const {
             actual_num_outputs, expected_num_outputs, outputs_option);
     if (!param_num_verify_result) { return false; }
 
-    const auto &actual_attrs = l_op->attributes();
+    const auto &actual_attrs = l_op->get_attributes();
     auto expected_attrs = get_attrs();
     for (auto iter = expected_attrs.begin(); iter != expected_attrs.end();
             ++iter) {
@@ -266,23 +265,6 @@ op_schema &op_schema::set_outputs_option(param_num_option option) {
 
 op_schema::param_num_option op_schema::get_outputs_option() const {
     return outputs_option;
-}
-
-op_schema::attribute::attribute(
-        std::string name, std::string description, bool required)
-    : name_(std::move(name))
-    , description_(std::move(description))
-    , required_(required) {}
-
-op_schema::attribute::attribute(std::string name, std::string description,
-        bool required, utils::any attr_value)
-    : name_(std::move(name))
-    , description_(std::move(description))
-    , required_(required) {
-    // when attribute is not required, will use default value,
-    // but if no default value used, this attribute should not
-    // be registed in op_schema
-    attr_ = required ? utils::any() : std::move(attr_value);
 }
 
 op_schema_registry::op_schema_registry_once::op_schema_registry_once(
