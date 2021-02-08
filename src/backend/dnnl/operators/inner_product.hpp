@@ -89,12 +89,12 @@ public:
         }
 
         tensor::desc dst_desc(dst_dims, dst_data_type, format_tag::any);
-        pd_ = with_bias ? primitive_desc({prop_kind::forward_inference, src,
-                                                 weight, bias, dst_desc},
-                      attr_, p_engine_)
-                        : primitive_desc({prop_kind::forward_inference, src,
-                                                 weight, dst_desc},
-                                attr_, p_engine_);
+        pd_ = with_bias
+                ? primitive_desc(
+                        {prop_kind::forward, src, weight, bias, dst_desc},
+                        attr_, p_engine_)
+                : primitive_desc({prop_kind::forward, src, weight, dst_desc},
+                        attr_, p_engine_);
 
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         fill_layout_info(dst_lt, optimal_dst_desc);
@@ -129,9 +129,9 @@ public:
 
         if (inputs.size() > inner_product::kBias) {
             tensor b {inputs.at(inner_product::kBias), p_engine_, alc};
-            compute(x, w, b, y, alc, p_stream_, prop_kind::forward_inference);
+            compute(x, w, b, y, alc, p_stream_, prop_kind::forward);
         } else {
-            compute(x, w, y, alc, p_stream_, prop_kind::forward_inference);
+            compute(x, w, y, alc, p_stream_, prop_kind::forward);
         }
         return impl::status::success;
     }

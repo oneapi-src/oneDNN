@@ -40,7 +40,7 @@ private:
     algorithm algo_;
     float alpha_ = 0.f;
     float beta_ = 0.f;
-    prop_kind prop_kind_ = prop_kind::forward_inference;
+    prop_kind prop_kind_ = prop_kind::forward;
     dnnl::engine p_engine_;
     dnnl::stream p_stream_;
 
