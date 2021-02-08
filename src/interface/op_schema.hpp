@@ -131,12 +131,12 @@ public:
             const std::string &out_description);
 
     /*! @brief Set a particular attribute of the op schema. */
-    op_schema &set_attr(std::string attr_name,
+    op_schema &set_attr(const std::string &attr_name,
             const std::string &attr_description, bool required = true);
 
     /*! @brief Set a particular attribute of the op schema. */
     template <typename T>
-    op_schema &set_attr(std::string attr_name,
+    op_schema &set_attr(const std::string &attr_name,
             const std::string &attr_description, bool required, T attr_value) {
         assertm(attributes_.count(attr_name) == 0,
                 "provided attribute has already been set");
@@ -146,7 +146,7 @@ public:
     }
 
     /*! @brief Set a particular attribute of the op schema. */
-    op_schema &set_attr(std::string attr_name,
+    op_schema &set_attr(const std::string &attr_name,
             const std::string &attr_description, bool required,
             const char *attr_value);
 
@@ -191,7 +191,7 @@ private:
     bool verify_param_num(size_t actual_num, std::set<size_t> expected_num,
             param_num_option option) const;
     size_t get_max_valid_param_num(
-            std::set<size_t> param_num, param_num_option option) const;
+            const std::set<size_t> &param_num, param_num_option option) const;
 
     std::string doc_;
     std::string name_;

@@ -37,7 +37,7 @@ using namespace dnnl::graph::impl;
 namespace {
 
 // FIXME(qun) Workaround: op in this list can have repeated inputs
-static const std::set<op_kind_t> s_whitelist {op_kind::Multiply, op_kind::Add};
+const std::set<op_kind_t> s_whitelist {op_kind::Multiply, op_kind::Add};
 
 //RCONT is for const or non-const logical_tensor_t
 template <typename RCONT>

@@ -14,6 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <utility>
+
 #include "backend.hpp"
 #include "operators.hpp"
 #include "tensor.hpp"
@@ -43,7 +45,7 @@ dnnl_executable::get_inplace_pairs() const {
 }
 
 dnnl_backend::dnnl_backend(std::string name, size_t id)
-    : backend(name, id), layout_id_manager_(this) {
+    : backend(std::move(name), id), layout_id_manager_(this) {
     // Register DNNL kernel
 #define DNNL_REGISTER_KERNEL(op_kind_, kernel_class_) \
     static auto _flag_##op_kind_##_ \

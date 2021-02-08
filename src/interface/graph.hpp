@@ -191,7 +191,7 @@ public:
      */
     dnnl::graph::impl::status_t build_graph();
 
-    void visualize(std::string filename);
+    void visualize(const std::string &filename);
 };
 
 #endif

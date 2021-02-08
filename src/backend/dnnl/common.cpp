@@ -75,7 +75,7 @@ format_tag get_default_format(size_t ndim) {
     }
 }
 
-format_tag get_default_format(const dims adims) {
+format_tag get_default_format(const dims &adims) {
     const auto size = adims.size();
     return get_default_format(size);
 }

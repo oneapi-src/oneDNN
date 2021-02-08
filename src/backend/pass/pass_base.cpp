@@ -43,14 +43,14 @@ void transformation_pass::run(graph &agraph) {
             = get_attr<FCreatePattern>("FCreatePattern");
 
     pattern_utils pu;
-    for (auto pfunc : pfuncs) {
+    for (auto &pfunc : pfuncs) {
         pattern original_pattern;
         pfunc(&original_pattern);
         node_t *pstarter = original_pattern.get_starter_node();
         // for each pattern. match it
         std::vector<std::vector<node_t *>> fusion_nodes;
         pu.match(agraph, pstarter, fusion_nodes);
-        if (fusion_nodes.size() != 0) {
+        if (!fusion_nodes.empty()) {
             // temporary solution here for showing which pattern matched
             char *val = std::getenv("DNNL_GRAPH_DUMP");
             if (val != nullptr && std::strcmp(val, "1") == 0) {
@@ -74,7 +74,7 @@ pass_base &pass_registry::register_pass(const std::string &backend_name,
                 return p->get_pass_name() == pass_name;
             });
     if (find != passes_.end()) {
-        return *find->get();
+        return **find;
     } else {
         auto new_pass_ptr = fn(backend_name, pass_name);
         passes_.push_back(new_pass_ptr);

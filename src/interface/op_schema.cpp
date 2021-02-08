@@ -57,7 +57,7 @@ opset_version op_schema::get_since_version() const {
 }
 
 op_schema &op_schema::set_num_inputs(std::set<size_t> input_num) {
-    num_inputs_ = input_num;
+    num_inputs_ = std::move(input_num);
     return *this;
 }
 
@@ -71,7 +71,7 @@ std::set<size_t> op_schema::get_num_inputs() const {
 }
 
 op_schema &op_schema::set_num_outputs(std::set<size_t> output_num) {
-    num_outputs_ = output_num;
+    num_outputs_ = std::move(output_num);
     return *this;
 }
 
@@ -109,7 +109,7 @@ const std::vector<op_schema::formal_parameter> &op_schema::get_outputs() const {
     return outputs_;
 }
 
-op_schema &op_schema::set_attr(std::string attr_name,
+op_schema &op_schema::set_attr(const std::string &attr_name,
         const std::string &attr_description, bool required) {
     assertm(attributes_.count(attr_name) == 0,
             "provided attribute has already been set");
@@ -117,7 +117,7 @@ op_schema &op_schema::set_attr(std::string attr_name,
     return *this;
 }
 
-op_schema &op_schema::set_attr(std::string attr_name,
+op_schema &op_schema::set_attr(const std::string &attr_name,
         const std::string &attr_description, bool required,
         const char *attr_value) {
     assertm(attributes_.count(attr_name) == 0,
@@ -133,7 +133,7 @@ op_schema::get_attrs() const {
 }
 
 op_schema &op_schema::set_shape_inference_function(shape_infer_fn fn) {
-    tensor_inference_function_ = fn;
+    tensor_inference_function_ = std::move(fn);
     return *this;
 }
 
@@ -194,7 +194,7 @@ bool op_schema::verify(op_t *l_op) const {
             actual_num_outputs, expected_num_outputs, outputs_option);
     if (!param_num_verify_result) { return false; }
 
-    auto actual_attrs = l_op->attributes();
+    const auto &actual_attrs = l_op->attributes();
     auto expected_attrs = get_attrs();
     for (auto iter = expected_attrs.begin(); iter != expected_attrs.end();
             ++iter) {
@@ -213,7 +213,7 @@ status_t op_schema::shape_infer(node_t *n,
 }
 
 size_t op_schema::get_max_valid_param_num(
-        std::set<size_t> param_num, param_num_option option) const {
+        const std::set<size_t> &param_num, param_num_option option) const {
     size_t max_valid_num = 0;
     if (option == param_num_option::fixed
             || option == param_num_option::optional) {
@@ -282,7 +282,7 @@ op_schema::attribute::attribute(std::string name, std::string description,
     // when attribute is not required, will use default value,
     // but if no default value used, this attribute should not
     // be registed in op_schema
-    attr_ = required ? utils::any() : attr_value;
+    attr_ = required ? utils::any() : std::move(attr_value);
 }
 
 op_schema_registry::op_schema_registry_once::op_schema_registry_once(
@@ -304,11 +304,11 @@ op_schema_registry::get_map_without_ensuring_registration() {
 
 op_name_version_schema_map &op_schema_registry::get_map() {
     auto &op_map = get_map_without_ensuring_registration();
-    class register_opset {
+    class register_opset_t {
     public:
-        register_opset() { register_opset_schema(); }
+        register_opset_t() { register_opset_schema(); }
     };
-    static register_opset ro;
+    static register_opset_t ro;
 
     return op_map;
 }

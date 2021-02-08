@@ -1,0 +1,77 @@
+#===============================================================================
+# Copyright 2021 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#===============================================================================
+
+Checks: >
+    -*,
+    readability-identifier-naming,
+    readability-const-return-type,
+    readability-redundant-smartptr-get,
+    readability-misleading-indentation,
+    readability-redundant-control-flow,
+    readability-redundant-member-init,
+    readability-redundant-string-cstr,
+    readability-redundant-string-init,
+    readability-simplify-subscript-expr,
+    readability-static-accessed-through-instance,
+    readability-static-definition-in-anonymous-namespace,
+    readability-uniqueptr-delete-release,
+    readability-container-size-empty,
+    readability-delete-null-pointer,
+    performance-for-range-copy,
+    performance-implicit-conversion-in-loop,
+    performance-inefficient-algorithm,
+    performance-inefficient-string-concatenation,
+    performance-inefficient-vector-operation,
+    performance-move-const-arg,
+    performance-unnecessary-copy-initialization,
+    performance-unnecessary-value-param,
+    modernize-make-shared,
+    modernize-use-bool-literals,
+    modernize-use-emplace,
+    modernize-use-equals-default,
+    modernize-use-override,
+    modernize-use-nullptr,
+    modernize-use-using,
+    bugprone-assert-side-effect,
+    bugprone-copy-constructor-init,
+    bugprone-forward-declaration-namespace,
+    bugprone-move-forwarding-reference,
+    bugprone-parent-virtual-call,
+    bugprone-too-small-loop-variable,
+    bugprone-undefined-memory-manipulation,
+    bugprone-unhandled-self-assignment,
+    bugprone-multiple-statement-macro,
+    bugprone-macro-parentheses,
+    google-default-arguments,
+    misc-misplaced-const,
+    misc-definitions-in-headers,
+    misc-redundant-expression,
+    misc-uniqueptr-reset-release,
+    misc-unused-alias-decls,
+    misc-unused-using-decls,
+
+# We may open the option below to enable checks in headers.
+# HeaderFilterRegex: '.*\/src\/.*'
+WarningsAsErrors: '*'
+CheckOptions:
+  - key:             readability-identifier-naming.ClassCase
+    value:           lower_case
+  - key:             readability-identifier-naming.StructCase
+    value:           lower_case
+  - key:             readability-identifier-naming.ClassSuffix
+    value:           _t
+  - key:             readability-identifier-naming.StructSuffix
+    value:           _t

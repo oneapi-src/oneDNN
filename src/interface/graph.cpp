@@ -142,7 +142,7 @@ status_t dnnl_graph_graph::build_graph() {
     return status::success;
 }
 
-void dnnl_graph_graph::visualize(std::string filename) {
+void dnnl_graph_graph::visualize(const std::string &filename) {
     std::ofstream out;
     static size_t i = 0;
     out.open(std::to_string(i++).append(filename));
