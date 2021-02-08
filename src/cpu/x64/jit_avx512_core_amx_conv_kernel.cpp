@@ -2271,7 +2271,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.ic_block_int = jcp.ic_block * vnni_width; // 32 for bf16, 64 for int8
 
     // fallback to non-amx impl when accumulation is too small
-    const dim_t total_k = jcp.ic * jcp.kd * jcp.kh * jcp.kw;
+    const dim_t total_k = jcp.ic_without_padding * jcp.kd * jcp.kh * jcp.kw;
     const bool is_tiny_k = total_k < jcp.ic_block_int / 2;
     if (is_tiny_k) return status::unimplemented;
 
