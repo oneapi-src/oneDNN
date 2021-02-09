@@ -98,7 +98,9 @@ lru_primitive_cache_t::value_t lru_primitive_cache_t::get_or_add(
 }
 
 void lru_primitive_cache_t::add(const key_t &key, const value_t &value) {
-    if (cache_list_.size() >= capacity_) {
+    // std::list::size() method has linear complexity. Check the primitive cache
+    // size using std::unordered_map::size();
+    if (cache_mapper_.size() == capacity_) {
         // Evict the least recently used entry
         evict(1);
     }
