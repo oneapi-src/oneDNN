@@ -86,7 +86,7 @@ void jit_avx2_gemm_s8u8s32_kern::kernel_loop(
 
     L_aligned(label_kernel_loop);
     {
-        for (int h = 0; h < 2; h++) {
+        for (int h = 0; h < 4; h++) {
             for (int j = 0; j < max_unroll_n_; j++) {
                 const Ymm b = b_regs_[0];
 
@@ -100,18 +100,25 @@ void jit_avx2_gemm_s8u8s32_kern::kernel_loop(
 
                 if (h == 0 && j == 0)
                     prefetch_a(ptr[AO_ + prefetch_size_a_ - offset_a_]);
-                else if (h == 0 && j == 1) {
+                else if (h == 0 && j == 1)
                     prefetch_b(ptr[BO_ + prefetch_size_b_ - offset_b_]);
-                    if (cfetch) prefetch_c(ptr[CO2_]);
-                } else if (h == 0 && j == 2 && um_vecs >= 2)
+                else if (h == 0 && j == 2 && um_vecs >= 2)
                     prefetch_a(ptr[AO_ + prefetch_size_a_ + 64 - offset_a_]);
-                else if (h == 0 && j == 3 && um_vecs >= 2 && cfetch)
-                    prefetch_c(ptr[CO2_ + 16 * size_]);
                 else if (h == 1 && j == 1 && um_vecs >= 3)
                     prefetch_a(ptr[AO_ + prefetch_size_a_ + 128 - offset_a_]);
-                else if (h == 1 && j == 2)
-                    add(AA_, 32);
-                else if (h == 1 && j == 3 && cfetch)
+                else if (h == 2 && j == 0)
+                    prefetch_a(ptr[AO_ + prefetch_size_a_ + 192 - offset_a_]);
+                else if (h == 2 && j == 1 && cfetch)
+                    prefetch_c(ptr[CO2_]);
+                else if (h == 2 && j == 2 && um_vecs >= 2)
+                    prefetch_a(ptr[AO_ + prefetch_size_a_ + 256 - offset_a_]);
+                else if (h == 2 && j == 3 && um_vecs >= 2 && cfetch)
+                    prefetch_c(ptr[CO2_ + 16 * size_]);
+                else if (h == 3 && j == 1 && um_vecs >= 3)
+                    prefetch_a(ptr[AO_ + prefetch_size_a_ + 320 - offset_a_]);
+                else if (h == 3 && j == 2)
+                    add(AA_, 8);
+                else if (h == 3 && j == 3 && cfetch)
                     lea(CO2_, ptr[CO2_ + LDC_]);
             }
 
@@ -119,11 +126,11 @@ void jit_avx2_gemm_s8u8s32_kern::kernel_loop(
                 vmovdqu(a_regs_[i],
                         ptr[AO_ + 32 * i + (h + 1) * 4 * unroll_m - offset_a_]);
 
-            if (h == 0) prefetch_x(ptr[AA_]);
+            if (h == 2) prefetch_x(ptr[AA_]);
         }
 
-        sub(AO_, -unroll_m * 8);
-        sub(BO_, -unroll_n * 8);
+        sub(AO_, -unroll_m * 16);
+        sub(BO_, -unroll_n * 16);
         sub(LoopCount_, 1);
         jg(label_kernel_loop, T_NEAR);
     }
@@ -131,42 +138,48 @@ void jit_avx2_gemm_s8u8s32_kern::kernel_loop(
 
 // k remainder loop for kernel.
 void jit_avx2_gemm_s8u8s32_kern::remainder_kernel(
-        int unroll_m, int unroll_n, int bwidth) {
+        int unroll_m, int unroll_n, int unroll_k, int bwidth) {
     Ymm b = b_regs_[0];
 
     int um_vecs = (unroll_m + 7) >> 3;
-    for (int j = 0; j < unroll_n; j++) {
-        auto b_src = ptr[BO_ + j * bwidth - offset_b_];
-
-        switch (bwidth) {
-            case 4: vpbroadcastd(b, b_src); break;
-            case 2: vpbroadcastw(b, b_src); break;
-            case 1: vpbroadcastb(b, b_src); break;
+    for (int h = 0; h < unroll_k; h++) {
+        for (int j = 0; j < unroll_n; j++) {
+            auto b_src = ptr[BO_ + j * bwidth + 4 * h * unroll_n - offset_b_];
+            switch (bwidth) {
+                case 4: vpbroadcastd(b, b_src); break;
+                case 2: vpbroadcastw(b, b_src); break;
+                case 1: vpbroadcastb(b, b_src); break;
+            }
+            for (int i = 0; i < um_vecs; i++)
+                dot_product(c_regs_[i][j], b, a_regs_[i]);
         }
-        for (int i = 0; i < um_vecs; i++)
-            dot_product(c_regs_[i][j], b, a_regs_[i]);
+
+        if (unroll_k > 1)
+            for (int i = 0; i < um_vecs; i++)
+                vmovdqu(a_regs_[i],
+                        ptr[AO_ + 32 * i + (h + 1) * 4 * unroll_m - offset_a_]);
     }
 
-    sub(AO_, -unroll_m * bwidth);
-    sub(BO_, -unroll_n * bwidth);
+    sub(AO_, -unroll_m * unroll_k * bwidth);
+    sub(BO_, -unroll_n * unroll_k * bwidth);
 }
 
 // Inner loop.
 void jit_avx2_gemm_s8u8s32_kern::innerloop(int unroll_m, int unroll_n) {
     int um_vecs = (unroll_m + 7) >> 3;
-    int stage1 = unroll_n, stage2 = 16;
+    int stage1 = unroll_n, stage2 = mayiuse(avx2_vnni) ? 32 : 16;
 
     Label label_k_main_loop_2;
     Label label_k_main_loop_3;
     Label label_k_remainder_loop_begin;
-    Label label_k_rem_2, label_k_rem_1, label_k_rem_0;
+    Label label_k_rem_3, label_k_rem_2, label_k_rem_1, label_k_rem_0;
 
     mov(AO_, A_);
     for (int i = 0; i < um_vecs; i++)
         vmovdqu(a_regs_[i], ptr[AO_ + 32 * i - offset_a_]);
 
     mov(LoopCount_, K_);
-    sar(LoopCount_, 3);
+    sar(LoopCount_, 4);
     jle(label_k_remainder_loop_begin, T_NEAR);
 
     // Main k loops, broken into three parts to time C prefetching.
@@ -191,10 +204,17 @@ void jit_avx2_gemm_s8u8s32_kern::innerloop(int unroll_m, int unroll_n) {
     // k remainder handling
     L_aligned(label_k_remainder_loop_begin);
     mov(LoopCount_, K_);
+    test(LoopCount_, 8);
+    je(label_k_rem_3, T_NEAR);
+
+    remainder_kernel(unroll_m, unroll_n, 2, 4);
+
+    L_aligned(label_k_rem_3);
+    mov(LoopCount_, K_);
     test(LoopCount_, 4);
     je(label_k_rem_2, T_NEAR);
 
-    remainder_kernel(unroll_m, unroll_n, 4);
+    remainder_kernel(unroll_m, unroll_n, 1, 4);
 
     L_aligned(label_k_rem_2);
     mov(LoopCount_, K_);
@@ -207,7 +227,7 @@ void jit_avx2_gemm_s8u8s32_kern::innerloop(int unroll_m, int unroll_n) {
         vpshufb(a, a, bcast_k2_);
     }
 
-    remainder_kernel(unroll_m, unroll_n, 2);
+    remainder_kernel(unroll_m, unroll_n, 1, 2);
 
     L_aligned(label_k_rem_1);
     mov(LoopCount_, K_);
@@ -220,7 +240,7 @@ void jit_avx2_gemm_s8u8s32_kern::innerloop(int unroll_m, int unroll_n) {
         vpshufb(a, a, bcast_k1_);
     }
 
-    remainder_kernel(unroll_m, unroll_n, 1);
+    remainder_kernel(unroll_m, unroll_n, 1, 1);
 
     L_aligned(label_k_rem_0);
 
