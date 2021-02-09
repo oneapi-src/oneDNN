@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
 #include "common/memory_storage.hpp"
+#include "common/stream.hpp"
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
@@ -42,6 +43,21 @@ public:
 
     status_t set_data_handle(void *handle) override {
         data_ = decltype(data_)(handle, release);
+        return status::success;
+    }
+
+    status_t map_data(
+            void **mapped_ptr, stream_t *stream, size_t size) const override {
+        UNUSED(size);
+        if (stream != nullptr && stream->engine() != engine())
+            return status::invalid_arguments;
+        return get_data_handle(mapped_ptr);
+    }
+
+    status_t unmap_data(void *mapped_ptr, stream_t *stream) const override {
+        UNUSED(mapped_ptr);
+        if (stream != nullptr && stream->engine() != engine())
+            return status::invalid_arguments;
         return status::success;
     }
 

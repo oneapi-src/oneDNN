@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,9 +62,9 @@ struct memory_storage_t : public c_compatible {
     virtual size_t base_offset() const { return 0; }
 
     virtual status_t map_data(
-            void **mapped_ptr, stream_t *stream, size_t size) const;
+            void **mapped_ptr, stream_t *stream, size_t size) const = 0;
 
-    virtual status_t unmap_data(void *mapped_ptr, stream_t *stream) const;
+    virtual status_t unmap_data(void *mapped_ptr, stream_t *stream) const = 0;
 
     virtual bool is_host_accessible() const { return false; }
 
@@ -116,6 +116,20 @@ struct empty_memory_storage_t : public memory_storage_t {
     status_t set_data_handle(void *handle) override {
         assert(!"not expected");
         return status::runtime_error;
+    }
+
+    status_t map_data(
+            void **mapped_ptr, stream_t *stream, size_t size) const override {
+        UNUSED(mapped_ptr);
+        UNUSED(stream);
+        UNUSED(size);
+        return status::success;
+    }
+
+    status_t unmap_data(void *mapped_ptr, stream_t *stream) const override {
+        UNUSED(mapped_ptr);
+        UNUSED(stream);
+        return status::success;
     }
 
     std::unique_ptr<memory_storage_t> get_sub_storage(
