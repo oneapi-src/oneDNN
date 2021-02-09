@@ -49,14 +49,20 @@ public:
     status_t map_data(
             void **mapped_ptr, stream_t *stream, size_t size) const override {
         UNUSED(size);
-        if (stream != nullptr && stream->engine() != engine())
+        // This function is called for non-SYCL CPU engines only, where the
+        // runtime_kind is constant for a specific build, and engine_kind is
+        // only cpu. However, at the same time, the stream engine and memory
+        // object engine may have different memory locations. Therefore, at
+        // most, we need to ensure that the indexes of these engines are
+        // identical.
+        if (stream != nullptr && stream->engine()->index() != engine()->index())
             return status::invalid_arguments;
         return get_data_handle(mapped_ptr);
     }
 
     status_t unmap_data(void *mapped_ptr, stream_t *stream) const override {
         UNUSED(mapped_ptr);
-        if (stream != nullptr && stream->engine() != engine())
+        if (stream != nullptr && stream->engine()->index() != engine()->index())
             return status::invalid_arguments;
         return status::success;
     }
