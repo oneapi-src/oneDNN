@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,10 @@ TEST(primitive_cache_mt_test, TestGeneralCase) {
 
     engine eng(get_test_engine_kind(), 0);
 
+    // Flush the cache
+    set_primitive_cache_capacity(0);
+    set_primitive_cache_capacity(1024);
+
     int n_primitives = 12;
 
     dnnl::impl::parallel_nd(n_primitives, [&](int np) {
@@ -36,6 +40,8 @@ TEST(primitive_cache_mt_test, TestGeneralCase) {
         auto relu_pd = eltwise_forward::primitive_desc(relu_d, eng);
         auto relu = eltwise_forward(relu_pd);
     });
+
+    ASSERT_EQ(get_primitive_cache_size(), n_primitives);
 }
 
 TEST(primitive_cache_mt_test, TestNestedCase) {
@@ -43,6 +49,10 @@ TEST(primitive_cache_mt_test, TestNestedCase) {
     using dt = memory::data_type;
 
     engine eng(get_test_engine_kind(), 0);
+
+    // Flush the cache
+    set_primitive_cache_capacity(0);
+    set_primitive_cache_capacity(1024);
 
     int n_primitives = 12;
     int n_srcs = 32;
@@ -57,6 +67,39 @@ TEST(primitive_cache_mt_test, TestNestedCase) {
         auto sum_pd = sum::primitive_desc(scales, src_mds, eng);
         auto sum_prim = sum(sum_pd);
     });
+}
+
+TEST(primitive_cache_mt_test, TestMTCacheHit) {
+    using tag = memory::format_tag;
+    using dt = memory::data_type;
+
+    engine eng(get_test_engine_kind(), 0);
+
+    // Flush the cache
+    dnnl::set_primitive_cache_capacity(0);
+    dnnl::set_primitive_cache_capacity(1024);
+
+    int n_primitives = 10;
+
+    auto create_eltwise_primitive = [&](int np) {
+        auto relu_d = eltwise_forward::desc(prop_kind::forward_inference,
+                algorithm::eltwise_relu, {{np, 1, 1, 1}, dt::f32, tag::nchw},
+                0.f, 0.f);
+        auto relu_pd = eltwise_forward::primitive_desc(relu_d, eng);
+        auto relu = eltwise_forward(relu_pd);
+    };
+
+    // Fill the cache with n_primitives (cache_miss)
+    for (int i = 0; i < n_primitives; i++)
+        create_eltwise_primitive(i);
+
+    // This section should only perform cache_hits
+    dnnl::impl::parallel(0, [&](int ithr, int nthr) {
+        for (int i = 0; i < n_primitives; i++)
+            create_eltwise_primitive(i);
+    });
+
+    ASSERT_EQ(get_primitive_cache_size(), n_primitives);
 }
 
 } // namespace dnnl
