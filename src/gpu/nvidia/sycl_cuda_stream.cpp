@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -55,7 +55,14 @@ status_t sycl_cuda_stream_t::init() {
     if (!queue_) {
         auto &sycl_ctx = sycl_engine.context();
         auto &sycl_dev = sycl_engine.device();
-        queue_.reset(new cl::sycl::queue(sycl_ctx, sycl_dev));
+        if (!sycl_engine.is_service_stream_created())
+            queue_.reset(new cl::sycl::queue(sycl_ctx, sycl_dev));
+        else {
+            stream_t *service_stream;
+            CHECK(sycl_engine.get_service_stream(service_stream));
+            auto sycl_stream = utils::downcast<sycl_stream_t *>(service_stream);
+            queue_.reset(new cl::sycl::queue(sycl_stream->queue()));
+        }
     } else {
         auto queue_streamId = get_underlying_stream();
         auto sycl_dev = queue().get_device();
