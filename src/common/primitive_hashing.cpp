@@ -282,13 +282,13 @@ size_t get_desc_hash(const concat_desc_t &desc) {
     // Kinds
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
     // Memory descriptors
-    seed = hash_combine(seed, get_md_hash(desc.dst_md));
+    seed = hash_combine(seed, get_md_hash(*desc.dst_md));
     // N
     seed = hash_combine(seed, desc.n);
     // Concat dimension
     seed = hash_combine(seed, desc.concat_dimension);
     // Array of mds
-    seed = get_array_hash(seed, desc.src_mds.data(), desc.n);
+    seed = get_array_hash(seed, desc.src_mds, desc.n);
     // Combined hash for concat desc
     return seed;
 }
@@ -515,8 +515,8 @@ size_t get_desc_hash(const reorder_desc_t &desc) {
     // Kinds
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
     // Memory descriptors
-    seed = hash_combine(seed, get_md_hash(desc.src_md));
-    seed = hash_combine(seed, get_md_hash(desc.dst_md));
+    seed = hash_combine(seed, get_md_hash(*desc.src_md));
+    seed = hash_combine(seed, get_md_hash(*desc.dst_md));
     // Kinds of source and destination engines
     seed = hash_combine(seed, static_cast<size_t>(desc.src_engine_kind));
     seed = hash_combine(seed, static_cast<size_t>(desc.dst_engine_kind));
@@ -616,15 +616,13 @@ size_t get_desc_hash(const sum_desc_t &desc) {
     // Kinds
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
     // Memory descriptors
-    seed = hash_combine(seed, get_md_hash(desc.dst_md));
+    seed = hash_combine(seed, get_md_hash(*desc.dst_md));
     // N
     seed = hash_combine(seed, desc.n);
     // Scales
-    if (!desc.scales.empty()) {
-        seed = get_array_hash(seed, desc.scales.data(), desc.n);
-    }
+    if (desc.scales) { seed = get_array_hash(seed, desc.scales, desc.n); }
     // Array of mds
-    seed = get_array_hash(seed, desc.src_mds.data(), desc.n);
+    seed = get_array_hash(seed, desc.src_mds, desc.n);
     // Combined hash for sum desc
     return seed;
 }

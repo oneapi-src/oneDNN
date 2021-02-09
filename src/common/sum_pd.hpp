@@ -26,6 +26,8 @@
 
 #include "utils.hpp"
 
+#include "primitive_hashing.hpp"
+
 namespace dnnl {
 namespace impl {
 
@@ -78,11 +80,16 @@ protected:
     std::vector<float> scales_;
     memory_desc_t dst_md_, dst_acc_md_;
     std::vector<memory_desc_t> src_mds_;
+    memory_desc_t original_dst_md_;
+
     sum_desc_t desc_;
 
     sum_pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
             const float *scales, const memory_desc_t *src_mds)
-        : primitive_desc_t(attr, primitive_kind::sum), n_(n), dst_md_(*dst_md) {
+        : primitive_desc_t(attr, primitive_kind::sum)
+        , n_(n)
+        , dst_md_(*dst_md)
+        , original_dst_md_(*dst_md) {
         scales_.reserve(n_);
         for (int i = 0; i < n_; ++i)
             scales_.push_back(scales[i]);
@@ -90,13 +97,18 @@ protected:
         for (int i = 0; i < n_; ++i)
             src_mds_.push_back(src_mds[i]);
 
-        // Fill a desc that is intended for internal use only
-        desc_ = sum_desc_t();
-        desc_.primitive_kind = primitive_kind::sum;
-        desc_.dst_md = dst_md_;
-        desc_.n = n_;
-        desc_.scales = scales_;
-        desc_.src_mds = src_mds_;
+        init_desc();
+    }
+
+    sum_pd_t(const sum_pd_t &other) : primitive_desc_t(other) {
+        n_ = other.n_;
+        scales_ = other.scales_;
+        dst_md_ = other.dst_md_;
+        dst_acc_md_ = other.dst_acc_md_;
+        src_mds_ = other.src_mds_;
+        original_dst_md_ = other.original_dst_md_;
+
+        init_desc();
     }
 
     // backends could redefine the accumulation tensor if required
@@ -142,6 +154,16 @@ protected:
         memory_desc_init_by_md_and_dt(dst_md_, src_mds_[0], dst_md_.data_type);
 
         return status::success;
+    }
+
+private:
+    void init_desc() {
+        desc_ = sum_desc_t();
+        desc_.primitive_kind = primitive_kind::sum;
+        desc_.dst_md = &original_dst_md_;
+        desc_.n = n_;
+        desc_.scales = scales_.data();
+        desc_.src_mds = src_mds_.data();
     }
 };
 

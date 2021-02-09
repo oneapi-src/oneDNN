@@ -70,6 +70,7 @@ struct concat_pd_t : public primitive_desc_t {
 protected:
     int n_, concat_dim_;
     memory_desc_t dst_md_;
+    memory_desc_t original_dst_;
     std::vector<memory_desc_t> src_mds_;
 
     /* contains images of srcs in the dst memory (if possible)
@@ -85,18 +86,24 @@ protected:
         : primitive_desc_t(attr, primitive_kind::concat)
         , n_(n)
         , concat_dim_(concat_dim)
-        , dst_md_(*dst_md) {
+        , dst_md_(*dst_md)
+        , original_dst_(*dst_md) {
         src_mds_.reserve(n_);
         for (int i = 0; i < n_; ++i)
             src_mds_.push_back(src_mds[i]);
 
-        // Fill a desc that is intended for internal use only
-        desc_ = concat_desc_t();
-        desc_.primitive_kind = primitive_kind::concat;
-        desc_.dst_md = dst_md_;
-        desc_.n = n_;
-        desc_.concat_dimension = concat_dim_;
-        desc_.src_mds = src_mds_;
+        init_desc();
+    }
+
+    concat_pd_t(const concat_pd_t &other) : primitive_desc_t(other) {
+        n_ = other.n_;
+        concat_dim_ = other.concat_dim_;
+        dst_md_ = other.dst_md_;
+        original_dst_ = other.original_dst_;
+        src_mds_ = other.src_mds_;
+        src_image_mds_ = other.src_image_mds_;
+
+        init_desc();
     }
 
     /* inits src_image_mds_ and dst_md_ in simple cases. It is possible to
@@ -207,6 +214,16 @@ protected:
             status = memory_desc_init_by_strides(dst_md_, nullptr);
 
         return status;
+    }
+
+private:
+    void init_desc() {
+        desc_ = concat_desc_t();
+        desc_.primitive_kind = primitive_kind::concat;
+        desc_.dst_md = &original_dst_;
+        desc_.n = n_;
+        desc_.concat_dimension = concat_dim_;
+        desc_.src_mds = src_mds_.data();
     }
 };
 

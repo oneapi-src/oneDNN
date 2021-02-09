@@ -320,6 +320,7 @@ inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
 // Comparison operators for descriptors
 #define COMPARE_DESC_MEMBERS(m) lhs.m == rhs.m
 #define COMPARE_DESC_ARRAY_MEMBERS(m, s) utils::array_cmp(lhs.m, rhs.m, s)
+#define DEREF_AND_COMPARE_DESC_MEMBERS(m) *lhs.m == *rhs.m
 
 // clang-format off
 inline bool operator==(const batch_normalization_desc_t &lhs,
@@ -347,7 +348,7 @@ inline bool operator==(const binary_desc_t &lhs, const binary_desc_t &rhs) {
 
 inline bool operator==(const concat_desc_t &lhs, const concat_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(dst_md)
+            && DEREF_AND_COMPARE_DESC_MEMBERS(dst_md)
             && COMPARE_DESC_MEMBERS(n)
             && COMPARE_DESC_MEMBERS(concat_dimension);
 
@@ -495,8 +496,8 @@ inline bool operator==(
 
 inline bool operator==(const reorder_desc_t &lhs, const reorder_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(src_md)
-            && COMPARE_DESC_MEMBERS(dst_md)
+            && DEREF_AND_COMPARE_DESC_MEMBERS(src_md)
+            && DEREF_AND_COMPARE_DESC_MEMBERS(dst_md)
             && COMPARE_DESC_MEMBERS(src_engine_kind)
             && COMPARE_DESC_MEMBERS(dst_engine_kind);
     return ret;
@@ -568,15 +569,21 @@ inline bool operator==(const softmax_desc_t &lhs, const softmax_desc_t &rhs) {
 
 inline bool operator==(const sum_desc_t &lhs, const sum_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(dst_md)
-            && COMPARE_DESC_MEMBERS(n)
-            && COMPARE_DESC_MEMBERS(scales);
+            && DEREF_AND_COMPARE_DESC_MEMBERS(dst_md)
+            && COMPARE_DESC_MEMBERS(n);
     if (!ret) return ret;
 
     for (int i = 0; i < lhs.n; i++) {
         ret = COMPARE_DESC_MEMBERS(src_mds[i]);
         if (!ret) break;
     }
+    if (!ret) return ret;
+
+    for (int i = 0; i < lhs.n; i++) {
+        ret = ret && COMPARE_DESC_MEMBERS(scales[i]);
+        if (!ret) break;
+    }
+
     return ret;
 }
 
