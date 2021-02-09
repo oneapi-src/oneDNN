@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,6 +31,12 @@
 #include "cpu/x64/cpu_isa_traits.hpp"
 #elif DNNL_AARCH64
 #include "cpu/aarch64/cpu_isa_traits.hpp"
+#endif
+
+// For DNNL_X64 build we compute the timestamp using rdtsc. Use std::chrono for
+// other builds.
+#if !DNNL_X64
+#include <chrono>
 #endif
 
 namespace dnnl {
@@ -188,6 +194,23 @@ int get_vector_register_size() {
     if (mayiuse(sve_512)) return cpu_isa_traits<sve_512>::vlen;
 #endif
     return 0;
+}
+
+/* The purpose of this function is to provide a very efficient timestamp
+ * calculation (used primarily for primitive cache). For DNNL_X64, this can be
+ * accomplished using *rdtsc* since it provides a timestamp value that (i) is
+ * independent for each core, and (ii) is synchronized across cores in multiple
+ * sockets.
+ * TODO: For now, use std::chrono::steady_clock for other builds, however
+ * another more optimized function may be called here.
+ */
+size_t get_timestamp() {
+#if DNNL_X64
+    return static_cast<size_t>(Xbyak::util::Clock::getRdtsc());
+#else
+    return static_cast<size_t>(
+            std::chrono::steady_clock::now().time_since_epoch().count());
+#endif
 }
 
 } // namespace platform

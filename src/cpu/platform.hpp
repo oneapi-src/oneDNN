@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -110,6 +110,8 @@ constexpr int get_cache_line_size() {
 }
 
 int get_vector_register_size();
+
+size_t get_timestamp();
 
 } // namespace platform
 
