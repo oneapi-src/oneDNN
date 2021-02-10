@@ -55,7 +55,7 @@ static status_t init_conf_common(
     }
 
     const auto &ndims = dst_mdw.ndims();
-    const auto &dims = dst_mdw.dims();
+    const auto &dims = conf.is_forward ? dst_mdw.padded_dims() : dst_mdw.dims();
 
     const auto *compute_engine
             = utils::downcast<compute::compute_engine_t *>(engine);
@@ -105,12 +105,9 @@ status_t ref_prelu_fwd_t::pd_t::init_kernel_ctx(
 
 status_t ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
-    status_t status = status::success;
-
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
-    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
-    CHECK(status);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -119,7 +116,7 @@ status_t ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
-    status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;
 }
