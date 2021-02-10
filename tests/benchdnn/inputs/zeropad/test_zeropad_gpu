@@ -63,3 +63,8 @@
 
 # end of test block optimized zero pad  #
 #########################################
+
+# test kernel optimized for RCAN dim
+--dt=s8
+--tag=aBcd32b
+1x4x360x640

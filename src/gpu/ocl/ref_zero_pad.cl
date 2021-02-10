@@ -168,3 +168,34 @@ ref_zero_pad_subg_16(__global void *a, const uint type_size,
         p += stride;
     }
 }
+
+__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+ref_zero_pad_subg_16_mask_and_clear_dt_1b(__global void *a, const uint mask) {
+    const uint block_size = 8;
+    const uint data_stride = 32;
+    const uint simd = 16;
+
+    const ulong offset = get_global_id(0) * block_size;
+    const unsigned subg_local_id = get_sub_group_local_id();
+
+    __global void *p = a + offset;
+
+    const uint mask_val = mask > subg_local_id ? 1 : 0;
+
+    uchar val_c[block_size];
+
+    for (unsigned idx = 0; idx < block_size / 2; ++idx) {
+        val_c[idx * 2] = intel_sub_group_block_read_uc(
+                (__global uchar *)(p + data_stride * idx));
+    }
+    for (unsigned idx = 1; idx < block_size; idx += 2) {
+        val_c[idx] = 0;
+    }
+    for (unsigned idx = 0; idx < block_size; idx += 2) {
+        val_c[idx] *= (uchar)mask_val;
+    }
+    for (unsigned idx = 0; idx < block_size; idx += 8) {
+        intel_sub_group_block_write_uc8(
+                (__global uchar *)(p + simd * idx), *((uchar8 *)(&val_c[idx])));
+    }
+}

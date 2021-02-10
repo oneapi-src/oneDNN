@@ -288,6 +288,40 @@ status_t ref_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
     return status;
 }
 
+status_t ref_zero_pad_t::execute_subg_16_mask_and_clear_dt_1B(
+        const exec_ctx_t &ctx, const memory_desc_wrapper &mdw,
+        const blocking_desc_t &blocking_desc) const {
+
+    const memory_t *memory = ctx.input(DNNL_ARG_SRC);
+    const memory_storage_t *mem_storage = memory->memory_storage();
+
+    const compute::compute_engine_t *engine
+            = utils::downcast<compute::compute_engine_t *>(
+                    ctx.stream()->engine());
+    const compute::device_info_t *device = engine->device_info();
+    const unsigned int hw_threads = device->hw_threads();
+
+    const auto &dims = mdw.dims();
+    const auto nelems = mdw.nelems(true);
+
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, *mem_storage);
+
+    const unsigned mask
+            = dims[blocking_desc.inner_idxs[0]] % blocking_desc.inner_blks[0];
+    arg_list.set(1, mask);
+
+    const unsigned block_size = 16 * 8; // SIMD * block_size
+    const size_t gws[3] = {static_cast<size_t>(16 * nelems / block_size), 1, 1};
+    const size_t lws[3]
+            = {static_cast<size_t>(hw_threads == 168 ? 256 : 512), 1, 1};
+
+    const compute::nd_range_t zp_nd_range = compute::nd_range_t(3, gws, lws);
+
+    return parallel_for(
+            ctx, zp_nd_range, kernel_subg16_mask_and_clear_dt_1b_, arg_list);
+}
+
 status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
     const memory_t *memory = ctx.input(DNNL_ARG_SRC);
     const memory_desc_wrapper mdw(memory->md());
@@ -298,10 +332,15 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
             && mdw.dims()[blocking_desc.inner_idxs[1]] % 16 == 0
             && blocking_desc.inner_blks[1] % 16 == 0) {
         return execute_subg_16(ctx, mdw, blocking_desc);
+    } else if (blocking_desc.inner_nblks == 1
+            && blocking_desc.inner_blks[0] == 32
+            && mdw.dims()[blocking_desc.inner_idxs[0]] < 16
+            && (mdw.nelems(true) % 4096) == 0 && mdw.data_type_size() == 1) {
+        return execute_subg_16_mask_and_clear_dt_1B(ctx, mdw, blocking_desc);
     } else {
         return execute_ref(ctx);
     }
-} // namespace ocl
+}
 
 } // namespace ocl
 } // namespace gpu
