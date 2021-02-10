@@ -71,6 +71,16 @@ int get_n_vregs(const cpu_isa_t &isa) noexcept {
     return cpu_isa_traits<sse41>::n_vregs;
 }
 
+static bool dims_equal(
+        const dims_t &lhs_dims, const dims_t &rhs_dims, const dim_t ndims) {
+
+    for (dim_t i = 0; i < ndims; ++i) {
+        if (lhs_dims[i] != rhs_dims[i]) return false;
+    }
+
+    return true;
+}
+
 static bool is_full_bcast(
         const memory_desc_wrapper &lhs, const memory_desc_wrapper &rhs) {
     const auto lhs_ndims = lhs.ndims();
@@ -78,9 +88,7 @@ static bool is_full_bcast(
     const dims_t &lhs_dims = lhs.dims();
     const dims_t &rhs_dims = rhs.dims();
 
-    if (lhs_ndims == rhs_ndims
-            && std::equal(std::begin(lhs_dims), std::end(lhs_dims),
-                    std::begin(rhs_dims))
+    if (lhs_ndims == rhs_ndims && dims_equal(lhs_dims, rhs_dims, lhs_ndims)
             && lhs.format_kind() == rhs.format_kind()) {
 
         if (lhs.is_blocking_desc()) {
@@ -94,14 +102,9 @@ static bool is_full_bcast(
             const dims_t &rhs_inner_idxs = rhs_bd.inner_idxs;
 
             return lhs_bd.inner_nblks == rhs_bd.inner_nblks
-                    && std::equal(std::begin(lhs_strides),
-                            std::end(lhs_strides), std::begin(rhs_strides))
-                    && std::equal(std::begin(lhs_inner_blks),
-                            std::end(lhs_inner_blks),
-                            std::begin(rhs_inner_blks))
-                    && std::equal(std::begin(lhs_inner_idxs),
-                            std::end(lhs_inner_idxs),
-                            std::begin(rhs_inner_idxs));
+                    && dims_equal(lhs_strides, rhs_strides, lhs_ndims)
+                    && dims_equal(lhs_inner_blks, rhs_inner_blks, lhs_ndims)
+                    && dims_equal(lhs_inner_idxs, rhs_inner_idxs, lhs_ndims);
         }
 
         return true;
