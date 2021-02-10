@@ -113,7 +113,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.K = helper.K();
     bgmmc.batch = helper.batch();
 
-    if (is_amx && bgmmc.K % 4 != 0) return status::unimplemented;
+    // required granularity for k dimension
+    const int k_gran = is_amx ? 4 : 1;
+    const int k_blk_gran = is_amx ? 64 : 4;
 
     auto set_or_check_tags = [&]() -> status_t {
         format_tag_t desired_src_tag = pick(bgmmc.ndims - 2, ab, abc);
@@ -143,7 +145,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             bgmmc.wei_tag = memory_desc_matches_one_of_tag(
                     weights_md, desired_wei_tag);
         }
-        bgmmc.wei_k_blk = is_amx ? 64 : 4;
+        bgmmc.wei_k_blk = k_blk_gran;
         bgmmc.wei_n_blk = 64;
         bgmmc.use_buffer_b = true;
 
@@ -172,9 +174,17 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     bgmmc.N_blk = nstl::min(
             (dim_t)(bgmmc.wei_n_blk == 1 ? 64 : bgmmc.wei_n_blk), bgmmc.N);
+    bgmmc.M_chunk_size = bgmmc.N_chunk_size = 1;
+
+    // AMX BRGEMM kernel requires (K_brgemm % 64 == 0 || K_brgemm < 64) for
+    // for K_brgemm reduction value to avoid AMX tiles re-configuration.
+    // To satisfy this condition K_tail value is fixed to K % wei_k_blk here.
+    const bool fixed_K_tail_size = is_amx && bgmmc.K % bgmmc.wei_k_blk > 0
+            && bgmmc.K > bgmmc.wei_k_blk;
     bgmmc.K_blk = IMPLICATION(is_amx, bgmmc.K < bgmmc.wei_k_blk)
-            ? bgmmc.K
-            : rnd_dn(bgmmc.K, bgmmc.wei_k_blk);
+            ? rnd_up(bgmmc.K, k_gran)
+            : fixed_K_tail_size ? bgmmc.wei_k_blk : bgmmc.K;
+    bgmmc.brgemm_batch_size = nstl::max(bgmmc.K / bgmmc.K_blk, (dim_t)1);
 
     auto get_chunk_size = [&]() -> size_t {
         size_t A_chunk_sz = types::data_type_size(bgmmc.src_dt) * bgmmc.K_blk
@@ -200,23 +210,34 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
                 + C_buf_sz;
     };
 
-    bgmmc.brgemm_batch_size = 1;
-    bgmmc.M_chunk_size = bgmmc.N_chunk_size = 1;
+    auto get_actual_LDA = [&]() -> dim_t {
+        if (bgmmc.use_buffer_a) {
+            constexpr int bytes_in_cacheline = 64;
+            const int elems_in_cacheline
+                    = bytes_in_cacheline / types::data_type_size(bgmmc.src_dt);
+            dim_t lda = rnd_up(bgmmc.K_blk, elems_in_cacheline);
+            const bool is_big_2_pow = lda >= 512 && (lda & (lda - 1)) == 0;
+            if (is_big_2_pow) lda += elems_in_cacheline;
+            return lda;
+        }
+        return bgmmc.K;
+    };
 
     const auto L2_treshold = 3 * platform::get_per_core_cache_size(2) / 4;
-    bgmmc.use_buffer_a = false;
+    const bool is_copy_a_required = bgmmc.K % k_gran != 0;
+    bgmmc.use_buffer_a = is_copy_a_required;
+    // Supported computation with copy only part of A related to K_tail if
+    // is_copy_a_required == true, but the current performance measurements
+    // show worse performance for it in comparison with copy whole A approach
+    // (especially for big K sizes).
+    bgmmc.use_buffer_a_tail_only = false;
     int attempts = 3;
     // Try to improve blocking wrt L2 size
     // TODO: improve blocking algorithm
     while (attempts > 0) {
         bgmmc.use_buffer
-                = bgmmc.acc_dt != bgmmc.dst_dt && bgmmc.K != bgmmc.K_blk;
-        bgmmc.LDA = bgmmc.K;
-        if (bgmmc.use_buffer_a) {
-            const int elems_in_cacheline
-                    = 64 / types::data_type_size(bgmmc.src_dt);
-            bgmmc.LDA = rnd_up(bgmmc.K_blk, elems_in_cacheline);
-        }
+                = bgmmc.acc_dt != bgmmc.dst_dt && bgmmc.K > bgmmc.K_blk;
+        bgmmc.LDA = get_actual_LDA();
 
         int num_M_blk = div_up(bgmmc.M, bgmmc.M_blk);
         int num_N_blk = div_up(bgmmc.N, bgmmc.N_blk);
@@ -235,14 +256,38 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         if ((float)chunk_sz <= 1.1f * L2_treshold) break;
         int k_div = div_up(chunk_sz, L2_treshold);
 
-        bgmmc.K_blk = nstl::min(
-                rnd_up(bgmmc.K_blk / k_div, bgmmc.wei_k_blk), bgmmc.K);
+        if (fixed_K_tail_size) // try to ajust brgemm_batch_size, not K_blk
+            bgmmc.brgemm_batch_size
+                    = nstl::max(bgmmc.brgemm_batch_size / k_div, 1);
+        else
+            bgmmc.K_blk
+                    = nstl::min(rnd_up(bgmmc.K_blk / k_div, bgmmc.wei_k_blk),
+                            rnd_up(bgmmc.K, k_gran));
         attempts--;
+    }
+
+    // try to refine K_blk size
+    if (fixed_K_tail_size) {
+        // K_tail might be different from bgmmc.K_tail
+        const dim_t K_tail = bgmmc.K % bgmmc.K_blk;
+        const dim_t K_no_tail = bgmmc.K - K_tail;
+        const dim_t K_chunk_size = bgmmc.brgemm_batch_size * bgmmc.K_blk;
+        const bool the_same_num_blocks_in_all_chunks
+                = K_no_tail == K_no_tail / K_chunk_size * K_chunk_size;
+        // it's better to avoid using of too small K_blk values like wei_k_blk
+        if (the_same_num_blocks_in_all_chunks) {
+            bgmmc.K_blk = K_chunk_size;
+            // do not separate K_tail calculation to another chunk
+            const bool use_single_K_chunk = K_no_tail == K_chunk_size;
+            bgmmc.brgemm_batch_size = use_single_K_chunk ? 2 : 1;
+            bgmmc.LDA = get_actual_LDA();
+        }
     }
 
     bgmmc.M_tail = bgmmc.M % bgmmc.M_blk;
     bgmmc.N_tail = bgmmc.N % bgmmc.N_blk;
-    bgmmc.K_tail = bgmmc.K % bgmmc.K_blk;
+    bgmmc.K_tail
+            = bgmmc.K > bgmmc.K_blk ? rnd_up(bgmmc.K % bgmmc.K_blk, k_gran) : 0;
 
     bgmmc.LDB = bgmmc.wei_n_blk;
     bgmmc.LDD = bgmmc.N;
@@ -282,6 +327,11 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     if (bgmmc.use_buffer_a) {
         size_t nelements = (size_t)bgmmc.nthr * bgmmc.LDA
                 * bgmmc.brgemm_batch_size * bgmmc.M_blk * bgmmc.M_chunk_size;
+        scratchpad.book(key_brgemm_primitive_buffer_a, nelements,
+                types::data_type_size(bgmmc.src_dt));
+    } else if (bgmmc.use_buffer_a_tail_only) {
+        size_t nelements = (size_t)bgmmc.nthr * bgmmc.wei_k_blk * bgmmc.M_blk
+                * bgmmc.M_chunk_size;
         scratchpad.book(key_brgemm_primitive_buffer_a, nelements,
                 types::data_type_size(bgmmc.src_dt));
     }

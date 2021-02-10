@@ -88,9 +88,12 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         int idx = get_brg_kernel_idx(i_init, i_M, i_N, i_K);
         if (idx < 0) continue;
         brgemm_t &brg = brg_descs_[idx];
+        auto LDA = i_K && bgmmc_.use_buffer_a_tail_only
+                ? (dim_t)bgmmc_.wei_k_blk
+                : bgmmc_.LDA;
         CHECK(brgemm_desc_init(&brg, isa, bgmmc_.brg_type, bgmmc_.src_dt,
                 bgmmc_.wei_dt, false, false, brgemm_row_major, alpha, vbeta,
-                bgmmc_.LDA, bgmmc_.LDB, bgmmc_.LDC, vM, vN, vK));
+                LDA, bgmmc_.LDB, bgmmc_.LDC, vM, vN, vK));
 
         auto LDD = bgmmc_.N;
         CHECK(brgemm_desc_set_postops(
@@ -124,7 +127,7 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
     if (bgmmc.use_buffer_b)
         CHECK(create_brgemm_matmul_copy_B(copy_B_kernel_, &bgmmc));
 
-    if (bgmmc.use_buffer_a)
+    if (bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only)
         CHECK(create_brgemm_matmul_copy_A(copy_A_kernel_, &bgmmc));
 
     return status::success;
@@ -161,11 +164,14 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             ? scratchpad.template get<char>(key_brgemm_primitive_buffer_b)
             : nullptr;
 
-    const size_t a_buffer_sz
-            = types::data_type_size(bgmmc.src_dt) * bgmmc.LDA * bgmmc.M_blk;
-    const size_t a_buffer_per_thr
-            = a_buffer_sz * bgmmc.brgemm_batch_size * bgmmc.M_chunk_size;
-    auto a_buffer_global = (bgmmc.use_buffer_a)
+    const size_t a_buffer_sz = types::data_type_size(bgmmc.src_dt) * bgmmc.M_blk
+            * (bgmmc.use_buffer_a_tail_only ? bgmmc.wei_k_blk : bgmmc.LDA);
+    const size_t a_buffer_K_chunk_sz = a_buffer_sz
+            * (bgmmc.use_buffer_a_tail_only ? 1 : bgmmc.brgemm_batch_size);
+    const size_t a_buffer_per_thr = a_buffer_K_chunk_sz * bgmmc.M_chunk_size;
+    const bool use_buffer_a
+            = bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only;
+    auto a_buffer_global = (use_buffer_a)
             ? scratchpad.template get<char>(key_brgemm_primitive_buffer_a)
             : nullptr;
 
@@ -210,10 +216,9 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                 ? b_buffer_global + ithr * b_buffer_per_thr
                 : nullptr;
 
-        auto a_buffer = (bgmmc.use_buffer_a)
+        auto a_buffer = (use_buffer_a)
                 ? a_buffer_global + ithr * a_buffer_per_thr
-                        + a_buffer_sz * bgmmc.brgemm_batch_size
-                                * (m_blk_idx % bgmmc.M_chunk_size)
+                        + a_buffer_K_chunk_sz * (m_blk_idx % bgmmc.M_chunk_size)
                 : nullptr;
 
         char *wsp_tile = is_amx ? wsp_tile_base + ithr * 1024 : nullptr;
@@ -279,8 +284,10 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
         if (is_K_tail) {
             auto src_off = get_blk_off(src_d, bgmmc.src_dt, b_idx, m,
                     k + gemm_batch * bgmmc.K_blk);
-            addr_batch[0].ptr.A = (bgmmc.use_buffer_a)
-                    ? a_buffer + gemm_batch * a_buffer_sz
+            const int a_buf_gemm_batch
+                    = bgmmc.use_buffer_a_tail_only ? 0 : gemm_batch;
+            addr_batch[0].ptr.A = (use_buffer_a)
+                    ? a_buffer + a_buf_gemm_batch * a_buffer_sz
                     : src + src_off;
             auto wei_off = get_blk_off(weights_d, bgmmc.wei_dt, b_idx,
                     (k + gemm_batch * bgmmc.K_blk) / bgmmc.wei_k_blk,
@@ -362,7 +369,7 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                         ctx.current_K_start
                                 = (kc * bgmmc.brgemm_batch_size + gb)
                                 * bgmmc.K_blk;
-                        ctx.current_K_iters = bgmmc.K_blk;
+                        ctx.current_K_iters = nstl::min(bgmmc.K_blk, bgmmc.K);
                         ctx.current_N_blk = N_blk;
                         (*copy_B_kernel_)(&ctx);
                     }
@@ -376,13 +383,13 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                         ctx.current_K_start
                                 = (kc * bgmmc.brgemm_batch_size + gb)
                                 * bgmmc.K_blk;
-                        ctx.current_K_iters = bgmmc.K_tail;
+                        ctx.current_K_iters = bgmmc.K % bgmmc.K_blk;
                         ctx.current_N_blk = N_blk;
                         (*copy_B_kernel_)(&ctx);
                     }
                 }
                 for (int mb = m_start; mb < m_end; mb++) {
-                    if (bgmmc.use_buffer_a && nb == n_start) {
+                    if (use_buffer_a && nb == n_start) {
                         auto ctx = jit_brgemm_matmul_copy_A_t::ctx_t();
                         int m = mb * bgmmc.M_blk;
                         bool is_M_tail = (bgmmc.M - m < bgmmc.M_blk);
@@ -395,27 +402,30 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                                 ? (nstl::max(bgmmc.K, bgmmc.K_blk) - k)
                                         / bgmmc.K_blk
                                 : bgmmc.brgemm_batch_size;
+                        const int gemm_batch_iters
+                                = bgmmc.use_buffer_a_tail_only ? 0 : gemm_batch;
 
                         auto a_buffer = a_buffer_global
                                 + ithr * a_buffer_per_thr
-                                + a_buffer_sz * bgmmc.brgemm_batch_size
+                                + a_buffer_K_chunk_sz
                                         * (mb % bgmmc.M_chunk_size);
-                        int gb = 0;
-                        for (; gb < gemm_batch; gb++) {
+
+                        for (int gb = 0; gb < gemm_batch_iters; gb++) {
                             auto src_off = get_blk_off(src_d, bgmmc.src_dt, b,
                                     m, k + gb * bgmmc.K_blk);
                             ctx.src = (void *)(src + src_off);
                             ctx.tr_src = (void *)(a_buffer + gb * a_buffer_sz);
-                            ctx.current_K_blk = bgmmc.K_blk;
+                            ctx.current_K_blk = nstl::min(bgmmc.K_blk, bgmmc.K);
                             ctx.current_M_blk = M_blk;
                             (*copy_A_kernel_)(&ctx);
                         }
                         if (is_K_tail) {
                             auto K_tail = bgmmc.K % bgmmc.K_blk;
                             auto src_off = get_blk_off(src_d, bgmmc.src_dt, b,
-                                    m, k + gb * bgmmc.K_blk);
+                                    m, k + gemm_batch * bgmmc.K_blk);
                             ctx.src = (void *)(src + src_off);
-                            ctx.tr_src = (void *)(a_buffer + gb * a_buffer_sz);
+                            ctx.tr_src = (void *)(a_buffer
+                                    + gemm_batch_iters * a_buffer_sz);
                             ctx.current_K_blk = K_tail;
                             ctx.current_M_blk = M_blk;
                             (*copy_A_kernel_)(&ctx);
