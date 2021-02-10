@@ -283,9 +283,9 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
         default: return status::unimplemented;
     }
     if (int8_dst) {
-        if (conf.ic_without_padding < 4) {
+        if (is_1stconv && conf.ic_without_padding < 4) {
             dst_tag = utils::pick(conf.ndims - 3, ncw, nchw, ncdhw);
-        } else if (conf.mb % 16 == 0 || conf.mb == 8) {
+        } else if (conf.mb % 16 == 0 || (conf.mb == 8 && !is_depthwise)) {
             dst_tag = utils::pick(
                     conf.ndims - 3, NCw32n32c, NChw32n32c, NCdhw32n32c);
         } else {
