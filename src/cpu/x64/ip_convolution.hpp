@@ -115,8 +115,11 @@ struct ip_convolution_fwd_t : public primitive_t {
             if (!is_ip_applicable) return status::unimplemented;
 
             // Check that nspc is default layout (ie data type is int8).
-            // TODO: Add support for f32 and bf16 on avx512_core and higher.
-            const bool is_nspc_default = weights_md_.data_type == data_type::s8;
+            // TODO: Add support for bf16 on avx512_core and higher.
+            const bool is_nspc_default = false
+                    || (weights_md_.data_type == data_type::f32
+                            && mayiuse(avx512_core))
+                    || weights_md_.data_type == data_type::s8;
             if (!is_nspc_default) return status::unimplemented;
 
             // Simple heuristic to only target arches and shapes that benefit.
