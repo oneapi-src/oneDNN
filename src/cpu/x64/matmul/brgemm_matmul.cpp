@@ -180,6 +180,8 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             ? ctx.get_scratchpad_grantor().template get<char>(
                     key_conv_amx_tile_buffer)
             : nullptr;
+    const int base_brg_ker_idx
+            = pd()->get_brg_kernel_idx(true, false, false, false);
 
     int K_chunks = div_up(bgmmc.K, bgmmc.K_blk * bgmmc.brgemm_batch_size);
     bool are_post_ops_applicable = one_of(true, bgmmc.with_sum, bgmmc.with_bias,
@@ -252,7 +254,8 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                 = bgmmc.use_buffer_b ? buffer_comp_idx : weights_comp_idx;
 
         if (gemm_batch > 0 && brg_kernel != nullptr) {
-            if (is_amx)
+            const bool is_tile_reconf_required = is_amx && is_M_tail;
+            if (is_tile_reconf_required)
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
             for (int b = 0; b < gemm_batch; b++) {
                 auto src_off = get_blk_off(
@@ -280,6 +283,9 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                 brgemm_kernel_execute(brg_kernel, gemm_batch, addr_batch,
                         (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
             }
+
+            if (is_tile_reconf_required)
+                amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
         }
         if (is_K_tail) {
             auto src_off = get_blk_off(src_d, bgmmc.src_dt, b_idx, m,
@@ -300,7 +306,9 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             int brg_ker_idx = pd()->get_brg_kernel_idx(
                     use_init_ker, is_M_tail, is_N_tail, true);
             auto brg_kernel_k_tail = brg_kernels_[brg_ker_idx].get();
-            if (is_amx)
+            const bool is_tile_reconf_required
+                    = is_amx && bgmmc.K_tail != bgmmc.K_blk;
+            if (is_tile_reconf_required)
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
             if (are_post_ops_applicable && k_blk_idx == K_chunks - 1) {
                 brgemm_kernel_execute_postops(brg_kernel_k_tail, 1, addr_batch,
@@ -314,6 +322,8 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                 brgemm_kernel_execute(brg_kernel_k_tail, 1, addr_batch,
                         (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
             }
+            if (is_tile_reconf_required)
+                amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
         }
     };
 
@@ -330,6 +340,9 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     parallel(work_amount == 1 ? 1 : 0, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
+
+        if (is_amx)
+            amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
 
         int b {0}, mc {0}, nc {0};
         nd_iterator_init(start, b, bgmmc.batch, mc, M_chunks, nc, N_chunks);
