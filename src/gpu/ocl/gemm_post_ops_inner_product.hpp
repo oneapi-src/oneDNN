@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,9 +87,7 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type)
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
-                            attr()->scratchpad_mode_ == scratchpad_mode::library
-                                    && one_of(attr()->output_scales_.mask_, 0,
-                                            1 << 1));
+                            one_of(attr()->output_scales_.mask_, 0, 1 << 1));
 
             if (!ok) return unimplemented;
 
