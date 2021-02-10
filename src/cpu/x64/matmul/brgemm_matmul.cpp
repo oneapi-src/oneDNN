@@ -62,7 +62,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         return attr()->zero_points_.has_default_values();
     };
 
-    bool ok = true && mayiuse(isa)
+    bool ok = true && mayiuse(isa) && !has_runtime_dims_or_strides()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::zero_points_runtime
