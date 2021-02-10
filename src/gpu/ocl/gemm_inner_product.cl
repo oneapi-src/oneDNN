@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,12 +26,12 @@ __kernel void gemm_inner_product_forward_bias(
 }
 
 __kernel void gemm_inner_product_backward_weights_bias(
-        __global DATA_T *diff_dst, __global DATA_T *diff_bias) {
+        __global DATA_T *diff_dst, __global BIA_DATA_T *diff_bias) {
     const uint oc = get_global_id(0);
-    DATA_T sum = DATA_ZERO;
+    DEF_ACC_DATA_T sum = DATA_ZERO;
 
     for (uint n = 0; n < MB; ++n)
-        sum += diff_dst[n * OC + oc];
+        sum += TO_DEF_ACC_DATA_T(diff_dst[n * OC + oc]);
 
-    diff_bias[oc] = sum;
+    diff_bias[oc] = TO_BIA(sum);
 }
