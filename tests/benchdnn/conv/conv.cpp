@@ -772,7 +772,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         const bool dtag_is_axb = dtag == normalize_tag(tag::axb, prb->ndims);
         const bool tag_ok = !((prb->dir & FLAG_BWD) && dtag_is_axb);
         // TODO: specified wtag (even for supported formats) is not working?
-        if (!pad_ok || !out_ok || !post_ops_ok || !tag_ok) {
+        if (!pad_ok || !out_ok || !post_ops_ok || !tag_ok || f32_s8_conv) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
