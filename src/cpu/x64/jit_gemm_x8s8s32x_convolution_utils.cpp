@@ -126,8 +126,8 @@ private:
     const Xbyak::Zmm vreg_saturation_ubound_;
     const Xbyak::Zmm vreg_zp_dst_common_;
 
-    const Xbyak::Opmask &kreg_rem_mask_short_ = k1;
-    const Xbyak::Opmask &kreg_rem_mask_vlen_ = k3;
+    const Xbyak::Opmask &kreg_rem_mask_short_ = k3;
+    const Xbyak::Opmask &kreg_rem_mask_vlen_ = k4;
 
     static constexpr size_t def_unroll_ = 4u;
     size_t zmm_step_;
