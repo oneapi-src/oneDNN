@@ -279,7 +279,6 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::store_dst(
     const auto ch_blk = jcp.ch_block;
     const auto ocb_stride = dst_layout_nxc ? ch_blk : jcp.oh * jcp.ow * ch_blk;
     const auto ow_stride = dst_layout_nxc ? jcp.ngroups : ch_blk;
-    const auto mask_tail = jcp.oc % jcp.ch_block;
 
     int repeats = isa == sse41 ? 2 : 1;
     for (int i = 0; i < repeats; i++) {
@@ -288,22 +287,8 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::store_dst(
                 const int o_off = ch * ocb_stride + ow * ow_stride + i * 4;
                 Vmm vmm_dst
                         = get_acc_reg(i * ur_ch_blocks * ur_w + ch * ur_w + ow);
-                // mask only needed for last oc_block (if binary postops present)
-                if (mask_tail && ch + 1 == ur_ch_blocks) {
-                    Label done, store_no_tail;
-                    mov(reg_tail, ptr[param1 + GET_OFF(load_work)]);
-                    cmp(reg_tail, jcp.nb_ch_blocking * jcp.ch_block);
-                    je(store_no_tail, T_NEAR);
-                    store_tail(vmm_dst, reg_output, o_off * sizeof(float),
-                            mask_tail * sizeof(float));
-                    jmp(done, T_NEAR);
-                    L(store_no_tail);
-                    uni_vmovups(vmmword[reg_output + o_off * sizeof(float)],
-                            vmm_dst);
-                    L(done);
-                } else
-                    uni_vmovups(vmmword[reg_output + o_off * sizeof(float)],
-                            vmm_dst);
+                uni_vmovups(
+                        vmmword[reg_output + o_off * sizeof(float)], vmm_dst);
             }
         }
     }
