@@ -274,10 +274,10 @@ Consider the following pseudo-code:
     attr.set_output_scale(mask=0, alpha);
     attr.set_post_ops({
             { sum={scale=beta} },
-            { eltwise={scale=gamma, type=tanh, alpha=ignore, beta=ignored }
+            { eltwise={scale=gamma, type=tanh, alpha=ignore, beta=ignored } }
         });
 
-    convolution_forward(src, weights, dst, attr)
+    convolution_forward(src, weights, dst, attr);
 ~~~
 
 The would lead to the following:
@@ -298,11 +298,11 @@ The following pseudo-code:
     primitive_attr attr;
     attr.set_output_scale(mask=0, alpha);
     attr.set_post_ops({
-            { eltwise={scale=gamma, type=relu, alpha=eta, beta=ignored }
-            { sum={scale=beta} },
+            { eltwise={scale=gamma, type=relu, alpha=eta, beta=ignored } },
+            { sum={scale=beta} }
         });
 
-    convolution_forward(src, weights, dst, attr)
+    convolution_forward(src, weights, dst, attr);
 ~~~
 
 That would lead to the following:
@@ -326,10 +326,10 @@ The following pseudo-code:
     attr.set_zero_point(src, mask=0, shift_src);
     attr.set_zero_point(dst, mask=0, shift_dst);
     attr.set_post_ops({
-            { eltwise={scale=gamma, type=relu, alpha=eta, beta=ignored }
+            { eltwise={scale=gamma, type=relu, alpha=eta, beta=ignored } }
         });
 
-    convolution_forward(src, weights, dst, attr)
+    convolution_forward(src, weights, dst, attr);
 ~~~
 
 That would lead to the following:
