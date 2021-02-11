@@ -102,7 +102,7 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
 
     const int ndims = pd()->ndims();
 
-    const bool is_ic_tail = jcp.ic_without_padding % jcp.ic_block_int;
+    const bool is_ic_tail = jcp.ic_without_padding % jcp.ic_block_int_np;
     auto wsp = ctx.get_scratchpad_grantor().template get<int32_t>(
             key_conv_amx_wsp_buffer);
     int32_t *wsp_tile = (is_ic_tail)
@@ -112,7 +112,8 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
     auto tcfg = ctx.get_scratchpad_grantor().template get<char>(
             key_conv_amx_tilecfg);
 
-    const size_t wei_oc_shift = (size_t)jcp.nb_ic_int * jcp.ic_block_int
+    const size_t wei_oc_shift
+            = (size_t)utils::rnd_up(jcp.ic_without_padding, jcp.ic_block_int)
             * jcp.oc_block * jcp.nb_oc_blocking;
 
     int nb_os = (jcp.tile_tail) ? jcp.nb_os + 1 : jcp.nb_os;

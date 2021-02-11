@@ -100,7 +100,7 @@ size_t jit_avx512_core_amx_1x1_fwd_kernel_t::inp_offset(
     return (size_t)jcp.typesize_in
             * (h * jcp.iw * jcp.ngroups * jcp.ic_without_padding
                     + w * jcp.ngroups * jcp.ic_without_padding
-                    + icb * jcp.ic_block_int);
+                    + icb * jcp.ic_block_int_np);
 }
 
 size_t jit_avx512_core_amx_1x1_fwd_kernel_t::out_row_offset(
@@ -445,9 +445,9 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
 
     auto tileloadd_nt = [=](const Tmm &t1, int offset) {
         int ab_size = jcp.nb_os2_blocking * jcp.nb_os_blocking * jcp.tile_width
-                * (jcp.nb_ic_int * jcp.ic_block_int
+                * (jcp.nb_ic_int * jcp.ic_block_int_np
                         + jcp.nb_oc_blocking * jcp.oc_block);
-        int c_size = (jcp.nb_ic_int * jcp.ic_block_int * jcp.nb_oc_blocking
+        int c_size = (jcp.nb_ic_int * jcp.ic_block_int_np * jcp.nb_oc_blocking
                 * jcp.oc_block);
         // If the size of  src + wei used in the kernel cannot fit into L1 cache,
         // use non-temporal load of weights to help keep src in L1 cache
@@ -467,8 +467,11 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
         }
         for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
             const int wei_offset = jcp.typesize_in
-                    * (ocb * jcp.nb_ic_int * jcp.ic_block_int * jcp.oc_block
-                            + icb * jcp.ic_block_int * jcp.oc_block);
+                    * (ocb
+                                    * utils::rnd_up(jcp.ic_without_padding,
+                                            jcp.ic_block_int)
+                                    * jcp.oc_block
+                            + icb * jcp.ic_block_int_np * jcp.oc_block);
             tileloadd_nt(Tmm(get_wei_tensor(ocb)), wei_offset);
             for (int osb = 0; osb < os_b; osb++) {
                 tdpbxxd(Tmm(get_out_tensor(osb, ocb)), Tmm(get_inp_tensor(osb)),
@@ -590,7 +593,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::osb_loop(int nb_os) {
 }
 
 int jit_avx512_core_amx_1x1_fwd_kernel_t::get_ic_tail() const {
-    return (jcp.ic_without_padding % jcp.ic_block_int);
+    return (jcp.ic_without_padding % jcp.ic_block_int_np);
 }
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::generate() {
@@ -683,7 +686,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::tile_configure(char *tcfg_buff) {
 
     int Ac = jcp.typesize_in
             * ((jcp.nb_ic_int == 1 && get_ic_tail()) ? get_ic_tail()
-                                                     : jcp.ic_block_int);
+                                                     : jcp.ic_block_int_np);
 
     cfg_tiles((palette_config_t *)tcfg_buff, Ac);
     if (jcp.nb_ic_int > 1 && get_ic_tail()) {
@@ -791,6 +794,19 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     jcp.ic_block = 16;
     jcp.ic_block_int = is_bf16_convolution ? 32 : 64;
+    jcp.ic_block_int_np = jcp.ic_block_int;
+    if (jcp.ic_block_int < jcp.ic_without_padding
+            && jcp.ic_without_padding % jcp.ic_block_int != 0) {
+        // Order of blocks comes from empirical observation
+        static const int try_blocks[] = {32, 48, 40, 56};
+        for (auto blk_size : try_blocks) {
+            const int _blk_size = is_bf16_convolution ? blk_size / 2 : blk_size;
+            if (jcp.ic_without_padding % _blk_size == 0) {
+                jcp.ic_block_int_np = _blk_size;
+                break;
+            }
+        }
+    }
     jcp.oc_block = 16;
 
     bool args_ok = true && jcp.ic % 4 == 0
@@ -882,7 +898,7 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     jcp.nb_ic = jcp.ic / jcp.ic_block;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
-    jcp.nb_ic_int = div_up(jcp.ic, jcp.ic_block_int);
+    jcp.nb_ic_int = div_up(jcp.ic_without_padding, jcp.ic_block_int_np);
 
     jcp.max_width = amx::get_max_rows(amx::get_max_palette());
     const int size_treshold = 32;
@@ -956,7 +972,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::init_scratchpad(
         const primitive_attr_t &attr) {
     scratchpad.book(key_conv_amx_wsp_buffer, jcp.nthr * jcp.wsp_buffer_size,
             jcp.typesize_acc);
-    if (jcp.ic_without_padding % jcp.ic_block_int)
+    if (jcp.ic_without_padding % jcp.ic_block_int_np)
         scratchpad.book(key_conv_amx_tile_buffer,
                 jcp.nthr * (jcp.wsp_buffer_size / 2), jcp.typesize_acc);
     if (jcp.with_bias && jcp.oc != jcp.oc_without_padding) {
