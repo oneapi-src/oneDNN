@@ -23,9 +23,9 @@ namespace cpu {
 namespace x64 {
 
 jit_prelu_forward_kernel_t::jit_prelu_forward_kernel_t(
-        const cpu_prelu_fwd_pd_t *pd, const cpu_isa_t &isa,
-        size_t number_vmm_single_compute)
-    : jit_prelu_base_kernel_t(isa,
+        const cpu_prelu_fwd_pd_t *pd, const cpu_isa_t &isa, const int vlen,
+        const size_t number_vmm_single_compute)
+    : jit_prelu_base_kernel_t(isa, vlen,
             prelu::get_bcast_type(memory_desc_wrapper(pd->src_md(0)),
                     memory_desc_wrapper(pd->weights_md(0))),
             memory_desc_wrapper(pd->src_md(0)), number_vmm_single_compute)
@@ -69,7 +69,7 @@ bool jit_prelu_forward_kernel_t::any_tensor_bf16() const {
 template <typename Vmm>
 jit_uni_prelu_forward_kernel_t<Vmm>::jit_uni_prelu_forward_kernel_t(
         const cpu_prelu_fwd_pd_t *pd, const cpu_isa_t &isa)
-    : jit_prelu_forward_kernel_t(pd, isa,
+    : jit_prelu_forward_kernel_t(pd, isa, prelu::vmm_traits_t<Vmm>::vlen,
             (utils::one_of(isa, sse41, avx)
                     || pd->src_md(0)->data_type != data_type::f32)
                     ? 4u
@@ -238,10 +238,17 @@ jit_prelu_forward_kernel_t *jit_prelu_forward_kernel_t::create(
         const cpu_prelu_fwd_pd_t *pd) {
 
     const auto isa = prelu::get_supported_isa();
+    const auto &src_dt = pd->src_md(0)->data_type;
+    const auto &wei_dt = pd->weights_md(0)->data_type;
+    const auto &dst_dt = pd->dst_md(0)->data_type;
+
     if (is_superset(isa, avx512_common))
         return new jit_uni_prelu_forward_kernel_t<Xbyak::Zmm>(pd, isa);
     else if (is_superset(isa, avx))
-        return new jit_uni_prelu_forward_kernel_t<Xbyak::Ymm>(pd, isa);
+        if (isa == avx && prelu::is_s8u8({src_dt, wei_dt, dst_dt}))
+            return new jit_uni_prelu_forward_kernel_t<Xbyak::Xmm>(pd, isa);
+        else
+            return new jit_uni_prelu_forward_kernel_t<Xbyak::Ymm>(pd, isa);
     else if (isa == sse41)
         return new jit_uni_prelu_forward_kernel_t<Xbyak::Xmm>(pd, isa);
 

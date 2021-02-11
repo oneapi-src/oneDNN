@@ -38,6 +38,10 @@ jit_prelu_reduction_kernel_t::jit_prelu_reduction_kernel_t(
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)
 
+size_t jit_prelu_reduction_kernel_t::simd_w() {
+    return simd_w_;
+}
+
 void jit_prelu_reduction_kernel_t::load_kernel_call_params() {
     mov(reg_reduction_blocks_, ptr[abi_param1 + PARAM_OFF(reduction_blocks)]);
     mov(reg_weights_diff_scratch_,
@@ -117,7 +121,8 @@ Xbyak::Address jit_prelu_reduction_kernel_t::diff_scratch_ptr(
 template <typename Vmm>
 jit_uni_prelu_reduction_kernel_t<Vmm>::jit_uni_prelu_reduction_kernel_t(
         const cpu_prelu_bwd_pd_t *pd, const cpu_isa_t &isa)
-    : jit_prelu_reduction_kernel_t(pd, prelu::get_vlen(isa) / sizeof(float))
+    : jit_prelu_reduction_kernel_t(
+            pd, prelu::vmm_traits_t<Vmm>::vlen / sizeof(float))
     , isa_(isa)
     , saturation_needed_(utils::one_of(
               data_type_, data_type::s8, data_type::u8, data_type::s32))
@@ -179,7 +184,10 @@ jit_prelu_reduction_kernel_t *jit_prelu_reduction_kernel_t::create(
     if (is_superset(isa, avx512_common))
         return new jit_uni_prelu_reduction_kernel_t<Xbyak::Zmm>(pd, isa);
     else if (is_superset(isa, avx))
-        return new jit_uni_prelu_reduction_kernel_t<Xbyak::Ymm>(pd, isa);
+        if (isa == avx && prelu::is_s8u8({pd->diff_weights_md(0)->data_type}))
+            return new jit_uni_prelu_reduction_kernel_t<Xbyak::Xmm>(pd, isa);
+        else
+            return new jit_uni_prelu_reduction_kernel_t<Xbyak::Ymm>(pd, isa);
     else if (isa == sse41)
         return new jit_uni_prelu_reduction_kernel_t<Xbyak::Xmm>(pd, isa);
 

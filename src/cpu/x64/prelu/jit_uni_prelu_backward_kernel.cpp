@@ -23,9 +23,9 @@ namespace cpu {
 namespace x64 {
 
 jit_prelu_backward_kernel_t::jit_prelu_backward_kernel_t(
-        const cpu_prelu_bwd_pd_t *pd, const cpu_isa_t &isa,
-        size_t number_vmm_single_compute)
-    : jit_prelu_base_kernel_t(isa,
+        const cpu_prelu_bwd_pd_t *pd, const cpu_isa_t &isa, const int vlen,
+        const size_t number_vmm_single_compute)
+    : jit_prelu_base_kernel_t(isa, vlen,
             prelu::get_bcast_type(memory_desc_wrapper(pd->diff_src_md(0)),
                     memory_desc_wrapper(pd->diff_weights_md(0))),
             memory_desc_wrapper(pd->diff_src_md(0)), number_vmm_single_compute)
@@ -79,8 +79,8 @@ bool jit_prelu_backward_kernel_t::any_tensor_bf16() const {
 template <typename Vmm>
 jit_uni_prelu_backward_kernel_t<Vmm>::jit_uni_prelu_backward_kernel_t(
         const cpu_prelu_bwd_pd_t *pd, const cpu_isa_t &isa)
-    : jit_prelu_backward_kernel_t(
-            pd, isa, std::is_same<Vmm, Xbyak::Zmm>::value ? 4u : 6u)
+    : jit_prelu_backward_kernel_t(pd, isa, prelu::vmm_traits_t<Vmm>::vlen,
+            std::is_same<Vmm, Xbyak::Zmm>::value ? 4u : 6u)
     , saturation_needed_diff_src_(utils::one_of(
               diff_src_dt_, data_type::u8, data_type::s8, data_type::s32))
     , saturation_needed_diff_weights_(utils::one_of(
@@ -352,11 +352,22 @@ jit_prelu_backward_kernel_t *jit_prelu_backward_kernel_t::create(
 
     const auto isa = prelu::get_supported_isa();
 
+    const auto &src_dt = pd->src_md(0)->data_type;
+    const auto &wei_dt = pd->weights_md(0)->data_type;
+    const auto &diff_src_dt = pd->diff_src_md(0)->data_type;
+    const auto &diff_dst_dt = pd->diff_dst_md(0)->data_type;
+    const auto &diff_wei_dt = pd->diff_weights_md(0)->data_type;
+
     if (is_superset(isa, avx512_common))
         return new jit_uni_prelu_backward_kernel_t<Xbyak::Zmm>(pd, isa);
-    else if (is_superset(isa, avx))
-        return new jit_uni_prelu_backward_kernel_t<Xbyak::Ymm>(pd, isa);
-    else if (isa == sse41)
+    else if (is_superset(isa, avx)) {
+        if (isa == avx
+                && prelu::is_s8u8({src_dt, wei_dt, diff_src_dt, diff_dst_dt,
+                        diff_wei_dt}))
+            return new jit_uni_prelu_backward_kernel_t<Xbyak::Xmm>(pd, isa);
+        else
+            return new jit_uni_prelu_backward_kernel_t<Xbyak::Ymm>(pd, isa);
+    } else if (isa == sse41)
         return new jit_uni_prelu_backward_kernel_t<Xbyak::Xmm>(pd, isa);
 
     return nullptr;

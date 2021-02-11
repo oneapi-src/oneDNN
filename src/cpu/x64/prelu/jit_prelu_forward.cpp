@@ -37,7 +37,7 @@ status_t jit_prelu_fwd_t::pd_t::init(engine_t *engine) {
     const bool ok = is_fwd()
             && prelu::dt_supported({src_d.data_type(), weights_d.data_type(),
                     dst_d.data_type()})
-            && set_default_formats() && bcast_supported(src_d, weights_d)
+            && set_default_formats() && bcast_supported(src_d, weights_d, dst_d)
             && !has_zero_dim_memory() && src_d.is_dense(true)
             && weights_d.is_dense(true) && attr()->has_default_values()
             && utils::one_of(prelu::get_supported_isa(), avx512_core_bf16,
@@ -47,7 +47,8 @@ status_t jit_prelu_fwd_t::pd_t::init(engine_t *engine) {
 }
 
 bool jit_prelu_fwd_t::pd_t::bcast_supported(const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &weights_d) const {
+        const memory_desc_wrapper &weights_d,
+        const memory_desc_wrapper &dst_d) const {
 
     const auto bcast = prelu::get_bcast_type(src_d, weights_d);
     if (bcast == prelu::bcast::full)
@@ -55,7 +56,9 @@ bool jit_prelu_fwd_t::pd_t::bcast_supported(const memory_desc_wrapper &src_d,
     else if (bcast == prelu::bcast::unsupported)
         return false;
     else if (bcast == prelu::bcast::per_oc_blocked) {
-        const int simd_w = mayiuse(avx512_common) ? 16 : (mayiuse(avx) ? 8 : 4);
+        const int simd_w = prelu::get_simd_w(
+                {src_d.data_type(), weights_d.data_type(), dst_d.data_type()});
+
         const auto check_block_consistency
                 = [&](const memory_desc_wrapper &mdw) {
                       const auto &bd = mdw.blocking_desc();

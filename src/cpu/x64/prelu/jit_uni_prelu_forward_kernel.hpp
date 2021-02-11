@@ -50,7 +50,8 @@ protected:
     const data_type_t dst_dt_;
 
     jit_prelu_forward_kernel_t(const cpu_prelu_fwd_pd_t *pd,
-            const cpu_isa_t &isa, size_t number_vmm_single_compute);
+            const cpu_isa_t &isa, const int vlen,
+            const size_t number_vmm_single_compute);
     Xbyak::Address data_ptr(int arg_num, size_t offt = 0);
 
 private:

@@ -47,9 +47,28 @@ enum class bcast {
 bcast get_bcast_type(
         const memory_desc_wrapper &lhs, const memory_desc_wrapper &rhs);
 cpu_isa_t get_supported_isa();
-int get_vlen(const cpu_isa_t &isa) noexcept;
 int get_n_vregs(const cpu_isa_t &isa) noexcept;
 bool dt_supported(const std::set<data_type_t> &tensor_data_types) noexcept;
+bool is_s8u8(const std::set<data_type_t> &tensor_data_types) noexcept;
+int get_simd_w(const std::set<data_type_t> &tensor_data_types) noexcept;
+
+template <typename Vmm>
+struct vmm_traits_t {};
+
+template <>
+struct vmm_traits_t<Xbyak::Zmm> {
+    static constexpr int vlen = 64;
+};
+
+template <>
+struct vmm_traits_t<Xbyak::Ymm> {
+    static constexpr int vlen = 32;
+};
+
+template <>
+struct vmm_traits_t<Xbyak::Xmm> {
+    static constexpr int vlen = 16;
+};
 
 template <typename Vmm>
 class jit_prelu_io_helper_t {

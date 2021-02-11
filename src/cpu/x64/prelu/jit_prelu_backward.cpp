@@ -52,7 +52,11 @@ status_t jit_prelu_bwd_t::pd_t::init(engine_t *engine) {
 
     const auto bcast = prelu::get_bcast_type(src_diff_d, weights_diff_d);
 
-    ok = ok && bcast_supported(bcast, src_diff_d, weights_diff_d);
+    ok = ok
+            && bcast_supported(bcast, src_diff_d, weights_diff_d,
+                    prelu::get_simd_w({src_d.data_type(), weights_d.data_type(),
+                            src_diff_d.data_type(), weights_diff_d.data_type(),
+                            dst_diff_d.data_type()}));
 
     if (ok) {
         if (utils::one_of(bcast, prelu::bcast::per_oc_blocked,
@@ -73,15 +77,13 @@ status_t jit_prelu_bwd_t::pd_t::init(engine_t *engine) {
 
 bool jit_prelu_bwd_t::pd_t::bcast_supported(const prelu::bcast &bcast,
         const memory_desc_wrapper &src_diff_d,
-        const memory_desc_wrapper &weights_diff_d) const {
+        const memory_desc_wrapper &weights_diff_d, int simd_w) const {
 
     if (bcast == prelu::bcast::full)
         return true;
     else if (bcast == prelu::bcast::unsupported)
         return false;
     else if (bcast == prelu::bcast::per_oc_blocked) {
-        const int simd_w
-                = prelu::get_vlen(prelu::get_supported_isa()) / sizeof(float);
         const auto check_block_consistency
                 = [&](const memory_desc_wrapper &mdw) {
                       const auto &bd = mdw.blocking_desc();
@@ -270,7 +272,7 @@ void jit_prelu_bwd_t::scratchpad_to_diff_weights_reduction(float *scratchpad,
         byte *weights_diff, size_t weights_diff_dt, dim_t C,
         size_t reduction_blocks) const {
     const auto reduction_kernel = reduction_kernel_.get();
-    const auto &simd_w = kernel_->simd_w();
+    const auto &simd_w = reduction_kernel_->simd_w();
     const bool tail_exists = C % simd_w;
     const dim_t C_blocks = std::ceil(static_cast<float>(C) / simd_w);
 

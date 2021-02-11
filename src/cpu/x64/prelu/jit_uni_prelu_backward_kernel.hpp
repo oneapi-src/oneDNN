@@ -48,7 +48,8 @@ public:
 
 protected:
     jit_prelu_backward_kernel_t(const cpu_prelu_bwd_pd_t *pd,
-            const cpu_isa_t &isa, size_t number_vmm_single_compute);
+            const cpu_isa_t &isa, const int vlen,
+            size_t number_vmm_single_compute);
     Xbyak::Address data_ptr(int arg_num, size_t offt = 0);
 
     const cpu_prelu_bwd_pd_t *pd_;

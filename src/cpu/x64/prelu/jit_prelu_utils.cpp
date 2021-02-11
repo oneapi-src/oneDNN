@@ -43,7 +43,7 @@ cpu_isa_t get_supported_isa() {
     return isa_any;
 }
 
-int get_vlen(const cpu_isa_t &isa) noexcept {
+static int get_vlen(const cpu_isa_t &isa) noexcept {
     if (isa == avx512_core_bf16)
         return cpu_isa_traits<avx512_core_bf16>::vlen;
     else if (isa == avx512_core)
@@ -69,6 +69,21 @@ int get_n_vregs(const cpu_isa_t &isa) noexcept {
     else if (isa == avx)
         return cpu_isa_traits<avx>::n_vregs;
     return cpu_isa_traits<sse41>::n_vregs;
+}
+
+bool is_s8u8(const std::set<data_type_t> &tensor_data_types) noexcept {
+    return std::any_of(tensor_data_types.cbegin(), tensor_data_types.cend(),
+            [](const data_type_t &dt) {
+                return utils::one_of(dt, data_type::s8, data_type::u8);
+            });
+}
+
+int get_simd_w(const std::set<data_type_t> &tensor_data_types) noexcept {
+    const auto &isa = prelu::get_supported_isa();
+
+    return (isa == avx && is_s8u8(tensor_data_types))
+            ? vmm_traits_t<Xbyak::Xmm>::vlen / sizeof(float)
+            : prelu::get_vlen(isa) / sizeof(float);
 }
 
 static bool dims_equal(
@@ -195,9 +210,24 @@ jit_prelu_io_helper_t<Vmm>::jit_prelu_io_helper_t(jit_generator *host,
                               host_->zmm28, host_->zmm29, host_->zmm30,
                               host_->rax, host_->zmm31)
                       : nullptr) {
+
     assert(utils::one_of(data_type_, data_type::bf16, data_type::f32,
                    data_type::s8, data_type::u8, data_type::s32)
             && "Supported data types bf16, f32, s8, u8,s32");
+
+    /*
+     * vpmovsxbd, vpmovzxbd for AVX are defined only for XMM. Since AVX2
+     * they are defined also for YMM. In order to avoid workaround with
+     * potential performance penalty AVX with s8u8 disabled with YMM.
+     */
+    static constexpr bool is_xmm = std::is_same<Vmm, Xbyak::Xmm>::value;
+    const bool is_avx_u8s8 = (isa_ == avx
+            && utils::one_of(data_type_, data_type::s8, data_type::u8));
+    MAYBE_UNUSED(is_xmm);
+    MAYBE_UNUSED(is_avx_u8s8);
+
+    assert(IMPLICATION(is_avx_u8s8, is_xmm)
+            && "s8u8 with AVX should be used with XMM vreg");
 
     if (bf16_emu_) bf16_emu_->init_vcvtneps2bf16();
 }

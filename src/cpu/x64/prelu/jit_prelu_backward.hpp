@@ -46,7 +46,7 @@ public:
                 noexcept;
         bool bcast_supported(const prelu::bcast &bcast,
                 const memory_desc_wrapper &src_diff_d,
-                const memory_desc_wrapper &weights_diff_d) const;
+                const memory_desc_wrapper &weights_diff_d, int simd_w) const;
     };
 
     jit_prelu_bwd_t(const pd_t *apd);

@@ -40,7 +40,8 @@ public:
 
     private:
         bool bcast_supported(const memory_desc_wrapper &src_d,
-                const memory_desc_wrapper &weights_d) const;
+                const memory_desc_wrapper &weights_d,
+                const memory_desc_wrapper &dst_d) const;
     };
 
     jit_prelu_fwd_t(const pd_t *apd);
