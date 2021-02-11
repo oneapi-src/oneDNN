@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -242,8 +242,8 @@ protected:
         , queue_(new cl::sycl::queue(queue)) {}
 
     static status_t init_flags(unsigned *flags, cl::sycl::queue &queue) {
-        // SYCL queue is always out-of-order
-        *flags = stream_flags::out_of_order;
+        *flags = queue.is_in_order() ? stream_flags::in_order
+                                     : stream_flags::out_of_order;
         return status::success;
     }
 
