@@ -676,6 +676,37 @@
         BLOCK_WRITE_DST8(ptr + 8 * SUB_GROUP_SIZE, (v).s89abcdef); \
     } while (0)
 
+#elif DST_DT_F16
+
+#define BLOCK_READ_DST(ptr) \
+    AS_DST_DATA_T(intel_sub_group_block_read_us((__global uint *)ptr))
+#define BLOCK_WRITE_DST(ptr, v) \
+    intel_sub_group_block_write_us((__global uint *)ptr, as_uint(v))
+
+#define BLOCK_READ_DST2(ptr) \
+    AS_DST_DATA2_T(intel_sub_group_block_read_us2((__global uint *)ptr))
+#define BLOCK_WRITE_DST2(ptr, v) \
+    intel_sub_group_block_write_us2((__global uint *)ptr, as_uint2(v))
+
+#define BLOCK_READ_DST4(ptr) \
+    AS_DST_DATA4_T(intel_sub_group_block_read_us4((__global uint *)ptr))
+#define BLOCK_WRITE_DST4(ptr, v) \
+    intel_sub_group_block_write_us4((__global uint *)ptr, as_uint4(v))
+
+#define BLOCK_READ_DST8(ptr) \
+    AS_DST_DATA8_T(intel_sub_group_block_read_us8((__global uint *)ptr))
+#define BLOCK_WRITE_DST8(ptr, v) \
+    intel_sub_group_block_write_us8((__global uint *)ptr, as_uint8(v))
+
+#define BLOCK_READ_DST16(ptr) \
+    (DST_DATA16_T)( \
+            BLOCK_READ_DST8(ptr), BLOCK_READ_DST8(ptr + 8 * SUB_GROUP_SIZE))
+#define BLOCK_WRITE_DST16(ptr, v) \
+    do { \
+        BLOCK_WRITE_DST8(ptr, (v).s01234567); \
+        BLOCK_WRITE_DST8(ptr + 8 * SUB_GROUP_SIZE, (v).s89abcdef); \
+    } while (0)
+
 #endif
 
 #if DST_DT_BF16
