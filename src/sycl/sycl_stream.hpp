@@ -185,7 +185,6 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         bool usm = sycl_dst->memory_kind() == memory_kind::usm;
 
         cl::sycl::event out_event;
-        std::vector<cl::sycl::event> in_deps = get_deps();
 
         if (usm) {
             auto *usm_dst
@@ -194,7 +193,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             // Note: we cannot use queue_.fill since it cannot handle
             // events as input
             out_event = queue_->submit([&](cl::sycl::handler &cgh) {
-                register_deps(cgh, in_deps);
+                register_deps(cgh);
                 cgh.memset(dst_ptr, pattern, size);
             });
         } else {
@@ -207,7 +206,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                         cl::sycl::access::target::global_buffer>
                         acc_dst(buffer_dst->buffer(), cgh,
                                 cl::sycl::range<1>(size), cl::sycl::id<1>(0));
-                register_deps(cgh, in_deps);
+                register_deps(cgh);
                 cgh.fill(acc_dst, pattern);
             });
         }
@@ -231,12 +230,8 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         });
         return e;
     }
-    void register_deps(cl::sycl::handler &cgh,
-            const std::vector<cl::sycl::event> &event_list) const {
-        cgh.depends_on(event_list);
-    }
     void register_deps(cl::sycl::handler &cgh) const {
-        register_deps(cgh, get_deps());
+        cgh.depends_on(get_deps());
     }
 
 protected:
