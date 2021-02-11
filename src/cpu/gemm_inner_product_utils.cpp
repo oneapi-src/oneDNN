@@ -178,11 +178,16 @@ template struct pp_kernel_t<f32, bf16>;
 
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
 #if DNNL_X64
-    using namespace x64::injector;
-    static constexpr bool sum_at_pos_0_only = true;
-    static constexpr bool sum_requires_scale_one = false;
-    return x64::injector::post_ops_ok({x64::isa_all, {binary, eltwise, sum},
-            post_ops, dst_d, sum_at_pos_0_only, sum_requires_scale_one});
+    static constexpr auto isa_supported
+            = x64::inner_product_utils::jit_pp_kernel_supported_isa();
+    using namespace cpu::x64;
+    if (mayiuse(isa_supported)) {
+        using namespace x64::injector;
+        static constexpr bool sum_at_pos_0_only = true;
+        static constexpr bool sum_requires_scale_one = false;
+        return injector::post_ops_ok({isa_supported, {binary, eltwise, sum},
+                post_ops, dst_d, sum_at_pos_0_only, sum_requires_scale_one});
+    }
 #endif
     for (size_t i = 0; i < post_ops.entry_.size(); i++) {
         const auto &post_op = post_ops.entry_[i];
