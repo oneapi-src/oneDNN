@@ -98,6 +98,19 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         auto LDD = bgmmc_.N;
         CHECK(brgemm_desc_set_postops(
                 &brg, attr(), bgmmc_.dst_dt, LDD, bgmmc_.bia_dt));
+
+        if (isa == avx512_core_bf16_amx_int8) {
+            brgemm_attr_t brgattr;
+            brgattr.max_bs = bgmmc_.brgemm_batch_size;
+            brgattr.wary_tail_read = false;
+
+            // TODO: change expected sizes to local chunks wrt L2 blocking
+            brgattr.hint_expected_A_size = bgmmc_.M * bgmmc_.K;
+            brgattr.hint_expected_B_size = bgmmc_.N * bgmmc_.K;
+            brgattr.hint_expected_C_size = bgmmc_.M * bgmmc_.N;
+
+            CHECK(brgemm_desc_set_attr(&brg, brgattr));
+        }
     }
 
     auto scratchpad = scratchpad_registry().registrar();
