@@ -59,43 +59,51 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &spd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
-    dnnl_memory_desc_t data_d;
     dnnl_shuffle_desc_t sd;
 
+    dnnl_memory_desc_t data_d;
     SAFE(init_md(&data_d, prb->ndims, prb->dims.data(), prb->dt, prb->tag),
-            CRIT);
-
-    auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
-                                         : dnnl_forward_training;
-    DNN_SAFE(dnnl_shuffle_forward_desc_init(
-                     &sd, prop_kind, &data_d, prb->axis, prb->group),
             WARN);
 
-    dnnl_primitive_desc_t _hint = nullptr;
-    auto cleanup_pd = [&]() { dnnl_primitive_desc_destroy(_hint); };
+    if (prb->dir & FLAG_FWD) {
+        auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
+                                             : dnnl_forward_training;
+
+        DNN_SAFE(dnnl_shuffle_forward_desc_init(
+                         &sd, prop_kind, &data_d, prb->axis, prb->group),
+                WARN);
+    } else {
+        dnnl_memory_desc_t diff_data_d;
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, prb->ndims,
+                         prb->dims.data(), prb->dt, dnnl_format_tag_any),
+                WARN);
+
+        DNN_SAFE(dnnl_shuffle_backward_desc_init(
+                         &sd, &diff_data_d, prb->axis, prb->group),
+                WARN);
+    }
+
+    dnnl_primitive_desc_t hint_fwd_pd = nullptr;
     if (prb->dir & FLAG_BWD) {
+        dnnl_shuffle_desc_t sd_fwd;
+        DNN_SAFE(dnnl_shuffle_forward_desc_init(&sd_fwd, dnnl_forward_training,
+                         &data_d, prb->axis, prb->group),
+                WARN);
+
         dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
-                &_hint, &sd, nullptr, engine, nullptr);
+                &hint_fwd_pd, &sd_fwd, nullptr, engine, nullptr);
         if (init_fwd_status == dnnl_unimplemented)
             return res->state = UNIMPLEMENTED, OK;
         SAFE(init_fwd_status, WARN);
-
-        DNN_SAFE_CLEAN(dnnl_memory_desc_init_by_tag(&data_d, prb->ndims,
-                               prb->dims.data(), prb->dt, dnnl_format_tag_any),
-                WARN, cleanup_pd);
-
-        DNN_SAFE_CLEAN(dnnl_shuffle_backward_desc_init(
-                               &sd, &data_d, prb->axis, prb->group),
-                WARN, cleanup_pd);
     }
 
     auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args_t());
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&spd, &sd, dnnl_attr, engine, _hint);
+    dnnl_status_t init_status = dnnl_primitive_desc_create(
+            &spd, &sd, dnnl_attr, engine, hint_fwd_pd);
 
-    dnnl_primitive_desc_destroy(_hint);
-    dnnl_primitive_attr_destroy(dnnl_attr);
+    DNN_SAFE(dnnl_primitive_desc_destroy(hint_fwd_pd), WARN);
+    DNN_SAFE(dnnl_primitive_attr_destroy(dnnl_attr), WARN);
 
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
