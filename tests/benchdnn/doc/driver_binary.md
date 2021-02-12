@@ -15,8 +15,8 @@ where *binary-knobs* are:
  - `--stag={nchw:nchw [default], ...}` -- physical src memory layout.
             Refer to ``Inputs`` below.
             Refer to [tags](knobs_tag.md) for details.
- - `--alg={ADD [default], DIV, GE, MAX, MIN, MUL, SUB}` -- algorithm for binary
-            operations.
+ - `--alg={ADD [default], DIV, EQ, GE, GT, LE, LT, MAX, MIN, MUL, NE, SUB}` --
+            algorithm for binary operations.
             Refer to [binary primitive](https://oneapi-src.github.io/oneDNN/dev_guide_binary.html)
             for details.
  - `--attr-scales="STRING"` -- per argument scales primitive attribute. No

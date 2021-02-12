@@ -17,7 +17,8 @@ between tensors source 0 and source 1 (the variable names follow the standard
 \f]
 
 where \f$op\f$ is one of addition, subtraction, multiplication, division, 
-greater than or equal to, get maximum value, and get minimum value.
+greater than or equal to, greater than, less than or equal to, less than, 
+equal to, not equal to, get maximum value, and get minimum value.
 
 The binary primitive does not have a notion of forward or backward propagations.
 

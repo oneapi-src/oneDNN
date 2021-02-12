@@ -2,12 +2,12 @@
 --reset
 
 --inplace=true,false
---alg=ADD,MUL,MAX,MIN,DIV,SUB,GE
+--alg=ADD,MUL,MAX,MIN,DIV,SUB,GE,GT,LE,LT,EQ,NE
 
 ## post_ops
 --ddt=f32 --sdt=f32:f32
---attr-post-ops='','sum:0.5','linear:2:0.125','sum:0.25;relu:-0.01', \
-                'relu:-0.01;sum:2','add:f32:per_oc','ge:f32;', \
+--attr-post-ops='','sum:0.5','linear:2:0.125','sum:0.25;relu:-0.01;gt:f32', \
+                'relu:-0.01;sum:2','add:f32:per_oc','ge:f32;','eq:f32;', \
                 'add:bf16:per_oc;linear:2:1','mul:s8;add:f32:common;sum:0.5;abs'
 --batch=option_set_all
 --batch=shapes_src0_bcast

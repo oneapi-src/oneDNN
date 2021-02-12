@@ -42,6 +42,11 @@ float fwd_Xnary(unsigned algorithm, float x, float y, float alpha, float beta,
         case BINARY_DIV: return x / y; break;
         case BINARY_SUB: return x - y; break;
         case BINARY_GE: return x >= y; break;
+        case BINARY_GT: return x > y; break;
+        case BINARY_LE: return x <= y; break;
+        case BINARY_LT: return x < y; break;
+        case BINARY_EQ: return x == y; break;
+        case BINARY_NE: return x != y; break;
 
         // unary
         default:

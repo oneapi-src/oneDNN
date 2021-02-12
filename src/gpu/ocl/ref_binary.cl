@@ -55,6 +55,16 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     d = tmp_src0 - tmp_src1;
 #elif IS_GE
     d = tmp_src0 >= tmp_src1;
+#elif IS_GT
+    d = tmp_src0 > tmp_src1;
+#elif IS_LE
+    d = tmp_src0 <= tmp_src1;
+#elif IS_LT
+    d = tmp_src0 < tmp_src1;
+#elif IS_EQ
+    d = tmp_src0 == tmp_src1;
+#elif IS_NE
+    d = tmp_src0 != tmp_src1;
 #endif
 
     float dst_data;
@@ -138,6 +148,16 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         d = tmp_src0 - tmp_src1;
 #elif IS_GE
         d = tmp_src0 >= tmp_src1;
+#elif IS_GT
+        d = tmp_src0 > tmp_src1;
+#elif IS_LE
+        d = tmp_src0 <= tmp_src1;
+#elif IS_LT
+        d = tmp_src0 < tmp_src1;
+#elif IS_EQ
+        d = tmp_src0 == tmp_src1;
+#elif IS_NE
+        d = tmp_src0 != tmp_src1;
 #endif
 
         float dst_data;

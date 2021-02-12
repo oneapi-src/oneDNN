@@ -218,7 +218,17 @@ static auto zero_dim = []() {
             binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
                     algorithm::binary_sub, {4, 0, 7, 5}},
             binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
-                    algorithm::binary_ge, {4, 16, 7, 0}});
+                    algorithm::binary_ge, {4, 16, 7, 0}},
+            binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
+                    algorithm::binary_gt, {4, 16, 7, 0}},
+            binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
+                    algorithm::binary_le, {4, 16, 7, 0}},
+            binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
+                    algorithm::binary_lt, {4, 16, 7, 0}},
+            binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
+                    algorithm::binary_eq, {4, 16, 7, 0}},
+            binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
+                    algorithm::binary_ne, {4, 16, 7, 0}});
 };
 
 static auto simple_cases = []() {
@@ -236,7 +246,17 @@ static auto simple_cases = []() {
             binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
                     algorithm::binary_sub, {5, 16, 8, 7}},
             binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
-                    algorithm::binary_ge, {5, 16, 8, 7}});
+                    algorithm::binary_ge, {5, 16, 8, 7}},
+            binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
+                    algorithm::binary_gt, {5, 16, 8, 7}},
+            binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
+                    algorithm::binary_le, {5, 16, 8, 7}},
+            binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
+                    algorithm::binary_lt, {5, 16, 8, 7}},
+            binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
+                    algorithm::binary_eq, {5, 16, 8, 7}},
+            binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
+                    algorithm::binary_ne, {5, 16, 8, 7}});
 };
 
 #define INST_TEST_CASE(test) \

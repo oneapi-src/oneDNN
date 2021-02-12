@@ -87,7 +87,8 @@ struct jit_uni_binary_t : public primitive_t {
             using namespace utils;
             using namespace alg_kind;
             return utils::one_of(desc()->alg_kind, binary_add, binary_max,
-                    binary_min, binary_mul, binary_sub, binary_ge);
+                    binary_min, binary_mul, binary_sub, binary_ge, binary_gt,
+                    binary_le, binary_lt, binary_eq, binary_ne);
         }
 
         bool check_scales_mask() const {

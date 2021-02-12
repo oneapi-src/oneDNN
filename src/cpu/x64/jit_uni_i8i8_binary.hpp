@@ -113,10 +113,14 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
             const dim_t C = ndims >= 2 ? src0_d.dims()[1] : 1;
             const bool has_oc_tail = C != src0_d.padded_dims()[1];
 
-            // Disable GreaterEqual when blocked tag with tail.
+            // Disable compare operations when blocked tag with tail.
             // Tail processing is not supported and the vcmps instruction
             // overwrites the output vector.
-            if (desc()->alg_kind == alg_kind::binary_ge && has_oc_tail)
+            if (utils::one_of(desc()->alg_kind, alg_kind::binary_ge,
+                        alg_kind::binary_gt, alg_kind::binary_le,
+                        alg_kind::binary_lt, alg_kind::binary_eq,
+                        alg_kind::binary_ne)
+                    && has_oc_tail)
                 return false;
 
             // full tensor operation

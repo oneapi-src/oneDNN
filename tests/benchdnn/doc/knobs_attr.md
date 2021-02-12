@@ -145,10 +145,15 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
 `BINARY` supported values are:
   - `add`
   - `div`
+  - `eq`
   - `ge`
+  - `gt`
+  - `le`
+  - `lt`
   - `max`
   - `min`
   - `mul`
+  - `ne`
   - `sub`
 
 ## Examples:

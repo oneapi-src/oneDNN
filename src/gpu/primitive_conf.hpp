@@ -533,6 +533,11 @@ struct binary_conf_t {
     bool is_div;
     bool is_sub;
     bool is_ge;
+    bool is_gt;
+    bool is_le;
+    bool is_lt;
+    bool is_eq;
+    bool is_ne;
     bool is_tensor_op;
     compute::dispatch_t dispatch;
     int dim0[MAX_NDIMS];
@@ -883,6 +888,11 @@ inline void def_binary_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("BINARY_DIV", alg_kind::binary_div);
     kernel_ctx.define_int("BINARY_SUB", alg_kind::binary_sub);
     kernel_ctx.define_int("BINARY_GE", alg_kind::binary_ge);
+    kernel_ctx.define_int("BINARY_GT", alg_kind::binary_gt);
+    kernel_ctx.define_int("BINARY_LE", alg_kind::binary_le);
+    kernel_ctx.define_int("BINARY_LT", alg_kind::binary_lt);
+    kernel_ctx.define_int("BINARY_EQ", alg_kind::binary_eq);
+    kernel_ctx.define_int("BINARY_NE", alg_kind::binary_ne);
 }
 
 inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {

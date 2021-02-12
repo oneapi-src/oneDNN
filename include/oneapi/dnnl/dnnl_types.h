@@ -1269,6 +1269,16 @@ typedef enum {
     dnnl_binary_sub = 0x1fff5,
     /// Binary greater or equal
     dnnl_binary_ge = 0x1fff6,
+    /// Binary greater than
+    dnnl_binary_gt = 0x1fff7,
+    /// Binary less or equal
+    dnnl_binary_le = 0x1fff8,
+    /// Binary less than
+    dnnl_binary_lt = 0x1fff9,
+    /// Binary equal
+    dnnl_binary_eq = 0x1fffa,
+    /// Binary not equal
+    dnnl_binary_ne = 0x1fffb,
     /// Nearest Neighbor Resampling Method
     dnnl_resampling_nearest = 0x2fff0,
     /// Linear Resampling Method

@@ -337,10 +337,12 @@ static po_table_entry_t kind_table[] = {
         // binary
         {pk_t::BINARY_START, "binary_undef", dnnl_alg_kind_undef},
         {pk_t::ADD, "add", dnnl_binary_add},
-        {pk_t::DIV, "div", dnnl_binary_div}, {pk_t::GE, "ge", dnnl_binary_ge},
+        {pk_t::DIV, "div", dnnl_binary_div}, {pk_t::EQ, "eq", dnnl_binary_eq},
+        {pk_t::GE, "ge", dnnl_binary_ge}, {pk_t::GT, "gt", dnnl_binary_gt},
+        {pk_t::LE, "le", dnnl_binary_le}, {pk_t::LT, "lt", dnnl_binary_lt},
         {pk_t::MAX, "max", dnnl_binary_max},
         {pk_t::MIN, "min", dnnl_binary_min},
-        {pk_t::MUL, "mul", dnnl_binary_mul},
+        {pk_t::MUL, "mul", dnnl_binary_mul}, {pk_t::NE, "ne", dnnl_binary_ne},
         {pk_t::SUB, "sub", dnnl_binary_sub},
         {pk_t::BINARY_END, "binary_undef", dnnl_alg_kind_undef},
         // guard entry
@@ -1230,6 +1232,16 @@ float compute_binary(pk_t kind, float src0, float src1) {
         return src0 - src1;
     } else if (kind == pk_t::GE) {
         return src0 >= src1;
+    } else if (kind == pk_t::GT) {
+        return src0 > src1;
+    } else if (kind == pk_t::LE) {
+        return src0 <= src1;
+    } else if (kind == pk_t::LT) {
+        return src0 < src1;
+    } else if (kind == pk_t::EQ) {
+        return src0 == src1;
+    } else if (kind == pk_t::NE) {
+        return src0 != src1;
     } else {
         assert(!"operation not supported!");
     }

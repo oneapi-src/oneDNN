@@ -237,10 +237,15 @@ struct attr_t {
             BINARY_START, // a guard to check kind is binary
             ADD,
             DIV,
+            EQ,
             GE,
+            GT,
+            LE,
+            LT,
             MAX,
             MIN,
             MUL,
+            NE,
             SUB,
             BINARY_END, // a guard to check kind is binary
             // guard entry

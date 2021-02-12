@@ -1,7 +1,7 @@
 --reset
 
 --inplace=true,false
---alg=ADD,MUL,MAX,MIN,DIV,SUB,GE
+--alg=ADD,MUL,MAX,MIN,DIV,SUB,GE,GT,LE,LT,EQ,NE
 --stag=abx:abx,axb:axb
 --attr-post-ops='','sum:0.5','linear:2:0.125','add:f32',\
                 'mul:s8:per_oc;sum:0.25;relu:-0.01'

@@ -508,6 +508,9 @@ void jit_uni_binary_injector_t<isa>::inject_binary(
         const Xbyak::Address &rhs_addr, bool with_tail) const {
 
     const auto &alg = post_op.binary.alg;
+    const bool cmp_op = utils::one_of(alg, alg_kind::binary_ge,
+            alg_kind::binary_gt, alg_kind::binary_le, alg_kind::binary_lt,
+            alg_kind::binary_eq, alg_kind::binary_ne);
     const auto &rhs_arg_data_type = post_op.binary.src1_desc.data_type;
     const bool scalar_f32
             = rhs_addr.isBroadcast() && rhs_arg_data_type == data_type::f32;
@@ -517,7 +520,7 @@ void jit_uni_binary_injector_t<isa>::inject_binary(
             = rhs_arg_data_type != data_type::f32 || (scalar_f32 && !is_avx512_)
             || with_tail_not_fusable_to_binary_op
             || !binary_op_with_unaligned_mem_operand_allowed_
-            || (alg == alg_kind::binary_ge && !is_avx512_);
+            || (cmp_op && !is_avx512_);
 
     if (process_rhs_arg_using_tmp_vmm) {
 
@@ -1078,6 +1081,21 @@ void jit_uni_binary_injector_t<isa>::execute_binary(alg_kind_t binary_alg,
         case alg_kind::binary_ge:
             execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_nlt_us);
             break;
+        case alg_kind::binary_gt:
+            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_nle_us);
+            break;
+        case alg_kind::binary_le:
+            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_le_os);
+            break;
+        case alg_kind::binary_lt:
+            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_lt_os);
+            break;
+        case alg_kind::binary_eq:
+            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_eq_oq);
+            break;
+        case alg_kind::binary_ne:
+            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_neq_uq);
+            break;
         default: assert(!"unsupported algorithm");
     }
 }
@@ -1095,6 +1113,21 @@ void jit_uni_binary_injector_t<avx>::execute_binary(alg_kind_t binary_alg,
         case alg_kind::binary_sub: host_->vsubps(dst, lhs, rhs); break;
         case alg_kind::binary_ge:
             execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_nlt_us);
+            break;
+        case alg_kind::binary_gt:
+            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_nle_us);
+            break;
+        case alg_kind::binary_le:
+            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_le_os);
+            break;
+        case alg_kind::binary_lt:
+            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_lt_os);
+            break;
+        case alg_kind::binary_eq:
+            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_eq_oq);
+            break;
+        case alg_kind::binary_ne:
+            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_neq_uq);
             break;
         default: assert(!"unsupported algorithm");
     }

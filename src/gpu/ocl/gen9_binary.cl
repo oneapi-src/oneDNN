@@ -268,6 +268,12 @@
     intel_sub_group_block_write_us8((__global ushort *)(dst), as_ushort8(val))
 #endif // SRC_DT_F16
 
+#if NVECT == 1
+#define VECT_INT_TO_FLOAT convert_float
+#else
+#define VECT_INT_TO_FLOAT CONCAT2(convert_float, NVECT)
+#endif
+
 #if !IS_NCX_LAYOUT
 
 KERNEL_ATTR
@@ -347,15 +353,17 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #elif IS_SUB
     d = tmp_src0 - tmp_src1;
 #elif IS_GE
-#if NVECT == 1
-    d = tmp_src0 >= tmp_src1;
-#elif NVECT == 2
-    d = convert_float2(tmp_src0 >= tmp_src1);
-#elif NVECT == 4
-    d = convert_float4(tmp_src0 >= tmp_src1);
-#elif NVECT == 8
-    d = convert_float8(tmp_src0 >= tmp_src1);
-#endif
+    d = VECT_INT_TO_FLOAT(tmp_src0 >= tmp_src1);
+#elif IS_GT
+    d = VECT_INT_TO_FLOAT(tmp_src0 > tmp_src1);
+#elif IS_LE
+    d = VECT_INT_TO_FLOAT(tmp_src0 <= tmp_src1);
+#elif IS_LT
+    d = VECT_INT_TO_FLOAT(tmp_src0 < tmp_src1);
+#elif IS_EQ
+    d = VECT_INT_TO_FLOAT(tmp_src0 == tmp_src1);
+#elif IS_NE
+    d = VECT_INT_TO_FLOAT(tmp_src0 != tmp_src1);
 #endif
 
 #if WITH_SUM
@@ -500,6 +508,16 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         tmp[idx] = tmp_src0[idx] - tmp_src1[idx * SRC1_IDX_MASK];
 #elif IS_GE
         tmp[idx] = tmp_src0[idx] >= tmp_src1[idx * SRC1_IDX_MASK];
+#elif IS_GT
+        tmp[idx] = tmp_src0[idx] > tmp_src1[idx * SRC1_IDX_MASK];
+#elif IS_LE
+        tmp[idx] = tmp_src0[idx] <= tmp_src1[idx * SRC1_IDX_MASK];
+#elif IS_LT
+        tmp[idx] = tmp_src0[idx] < tmp_src1[idx * SRC1_IDX_MASK];
+#elif IS_EQ
+        tmp[idx] = tmp_src0[idx] == tmp_src1[idx * SRC1_IDX_MASK];
+#elif IS_NE
+        tmp[idx] = tmp_src0[idx] != tmp_src1[idx * SRC1_IDX_MASK];
 #endif
     }
 

@@ -581,6 +581,16 @@ enum class algorithm {
     binary_sub = dnnl_binary_sub,
     /// Binary greater than or equal
     binary_ge = dnnl_binary_ge,
+    /// Binary greater than
+    binary_gt = dnnl_binary_gt,
+    /// Binary less than or equal
+    binary_le = dnnl_binary_le,
+    /// Binary less than
+    binary_lt = dnnl_binary_lt,
+    /// Binary equal
+    binary_eq = dnnl_binary_eq,
+    /// Binary not equal
+    binary_ne = dnnl_binary_ne,
     /// Nearest Neighbor resampling method
     resampling_nearest = dnnl_resampling_nearest,
     /// Linear (Bilinear, Trilinear) resampling method

@@ -365,10 +365,26 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
         return vmmword[reg_dst_ + reg_offt_src0_ + offt];
     }
 
+    unsigned int cmp_predicate(alg_kind_t alg) {
+        using namespace alg_kind;
+        switch (alg) {
+            case binary_ge: return _cmp_nlt_us;
+            case binary_gt: return _cmp_nle_us;
+            case binary_le: return _cmp_le_os;
+            case binary_lt: return _cmp_lt_os;
+            case binary_eq: return _cmp_eq_oq;
+            case binary_ne: return _cmp_neq_uq;
+            default: assert(!"not supported operation!"); return -1;
+        }
+    }
+
     void perform_op(const Vmm &v0, const Vmm &v1, const Vmm &s_src0,
             const Vmm &s_src1) {
         using namespace alg_kind;
         const auto alg = pd_->desc()->alg_kind;
+        const bool cmp_op = utils::one_of(alg, alg_kind::binary_ge,
+                alg_kind::binary_gt, alg_kind::binary_le, alg_kind::binary_lt,
+                alg_kind::binary_eq, alg_kind::binary_ne);
         if (do_scale_src0_) uni_vmulps(v0, v0, s_src0);
         if (do_scale_src1_ && offt_src1_ != 0 && !broadcast_src1_value_)
             uni_vmulps(v1, v1, s_src1);
@@ -385,12 +401,13 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
             uni_vdivps(v0, v0, v1);
         else if (alg == binary_sub)
             uni_vsubps(v0, v0, v1);
-        else if (alg == binary_ge) {
+        else if (cmp_op) {
+            const unsigned int predicate = cmp_predicate(alg);
             if (is_avx512) {
-                vcmpps(cmp_mask, v0, v1, _cmp_nlt_us);
+                vcmpps(cmp_mask, v0, v1, predicate);
                 vmovups(v0 | cmp_mask | T_z, vreg_one_);
             } else {
-                uni_vcmpps(v0, v0, v1, _cmp_nlt_us);
+                uni_vcmpps(v0, v0, v1, predicate);
                 uni_vminps(v0, v0, vreg_one_);
             }
         } else
@@ -417,7 +434,9 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
         const size_t vec_size = simd_w_ * data_type_size_;
         const auto alg = pd_->desc()->alg_kind;
 
-        if (alg == alg_kind::binary_ge) {
+        if (utils::one_of(alg, alg_kind::binary_ge, alg_kind::binary_gt,
+                    alg_kind::binary_le, alg_kind::binary_lt,
+                    alg_kind::binary_eq, alg_kind::binary_ne)) {
             Xmm xreg_one = Xmm(vreg_one_.getIdx());
             mov(reg_tmp_, float2int(1));
             uni_vmovq(xreg_one, reg_tmp_);
@@ -1266,7 +1285,9 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
     const auto alg = pd()->desc()->alg_kind;
     // Use strategy with kernel_tail for GreaterEqual op with oc_tail and
     // blocked format due to overwriting the vector tail by vcmpps.
-    const bool vector_overwrite = alg == alg_kind::binary_ge;
+    const bool vector_overwrite = utils::one_of(alg, alg_kind::binary_ge,
+            alg_kind::binary_gt, alg_kind::binary_le, alg_kind::binary_lt,
+            alg_kind::binary_eq, alg_kind::binary_ne);
     const bool blocked_oc_tail = op_type == op_t::c_blocked && has_oc_tail
             && (with_postops || point_broadcast || bcast_type == bcast_t::per_w
                     || vector_overwrite);
