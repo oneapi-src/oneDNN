@@ -312,15 +312,15 @@ int doit(const prb_t *prb, res_t *res) {
     // 7. performance measurement
 
     /* Step 2: create target reorder primitive */
-    dnnl_primitive_t rp {};
-    SAFE(init_prim(&rp, init_pd, prb, res), WARN);
+    dnnl_primitive_t prim {};
+    SAFE(init_prim(&prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(rp, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(rp), CRIT);
+        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -395,7 +395,7 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
 
-    SAFE(execute_and_wait(rp, args), WARN);
+    SAFE(execute_and_wait(prim, args), WARN);
 
     /* Step 6: check correctness */
     if (bench_mode & CORR) {
@@ -458,9 +458,9 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     /* Step 7: performance measurement */
-    measure_perf(res->timer, rp, args);
+    measure_perf(res->timer, prim, args);
 
-    DNN_SAFE(dnnl_primitive_destroy(rp), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
 
     return OK;
 }

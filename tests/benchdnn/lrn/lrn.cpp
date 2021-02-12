@@ -139,15 +139,15 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t l {};
-    SAFE(init_prim(&l, init_pd, prb, res), WARN);
+    dnnl_primitive_t prim {};
+    SAFE(init_prim(&prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_fpd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(l, &const_fpd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_fpd), CRIT);
 
     if (check_mem_size(const_fpd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(l), CRIT);
+        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -186,7 +186,7 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(DNNL_ARG_WORKSPACE, ws_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    SAFE(execute_and_wait(l, args), WARN);
+    SAFE(execute_and_wait(prim, args), WARN);
 
     if (prb->dir & FLAG_FWD) {
         if (bench_mode & CORR) {
@@ -200,18 +200,19 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     if (prb->dir & FLAG_BWD) {
-        dnnl_primitive_t bwd_p {};
-        int status = init_prim(&bwd_p, init_pd, prb, res, FLAG_BWD, const_fpd);
-        dnnl_primitive_destroy(l);
+        dnnl_primitive_t bwd_prim {};
+        int status
+                = init_prim(&bwd_prim, init_pd, prb, res, FLAG_BWD, const_fpd);
+        dnnl_primitive_destroy(prim);
         if (status != OK) return status;
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-        l = bwd_p;
+        prim = bwd_prim;
 
         const_dnnl_primitive_desc_t const_bpd;
-        DNN_SAFE(dnnl_primitive_get_primitive_desc(l, &const_bpd), CRIT);
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_bpd), CRIT);
 
         if (check_mem_size(const_bpd) != OK) {
-            DNN_SAFE(dnnl_primitive_destroy(l), CRIT);
+            DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
             return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
         }
 
@@ -235,7 +236,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_WORKSPACE, ws_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(l, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(prb, src_fp, d_dst_fp, d_src_fp);
@@ -246,9 +247,9 @@ int doit(const prb_t *prb, res_t *res) {
             SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
         }
     }
-    measure_perf(res->timer, l, args);
+    measure_perf(res->timer, prim, args);
 
-    DNN_SAFE(dnnl_primitive_destroy(l), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
 
     return OK;
 }

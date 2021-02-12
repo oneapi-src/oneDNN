@@ -484,15 +484,15 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t l {};
-    SAFE(init_prim(&l, init_pd, prb, res), WARN);
+    dnnl_primitive_t prim {};
+    SAFE(init_prim(&prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(l, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(l), CRIT);
+        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -543,7 +543,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (prb->dir & FLAG_FWD) {
         if (prepare_fwd(prb, src_fp, mean_fp, var_fp, ss_fp) != OK) {
-            DNN_SAFE(dnnl_primitive_destroy(l), CRIT);
+            DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
             return res->state = MISTRUSTED, OK;
         }
 
@@ -562,7 +562,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(l, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(prb, src_fp, mean_fp, var_fp, ss_fp, dst_fp);
@@ -588,7 +588,7 @@ int doit(const prb_t *prb, res_t *res) {
         dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
 
         if (prepare_bwd(prb, src_fp, d_dst_fp, mean_fp, var_fp, ss_fp) != OK) {
-            DNN_SAFE(dnnl_primitive_destroy(l), CRIT);
+            DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
             return res->state = MISTRUSTED, OK;
         }
 
@@ -607,7 +607,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(l, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(prb, src_fp, mean_fp, var_fp, d_dst_fp, ss_fp,
@@ -620,9 +620,9 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    measure_perf(res->timer, l, args);
+    measure_perf(res->timer, prim, args);
 
-    DNN_SAFE(dnnl_primitive_destroy(l), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
 
     return OK;
 }

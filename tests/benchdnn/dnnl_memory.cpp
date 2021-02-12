@@ -38,7 +38,7 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     std::shared_ptr<dnn_mem_t> r_dst(&dst, [](dnn_mem_t *) {});
 
     dnnl_primitive_desc_t r_pd = nullptr;
-    dnnl_primitive_t r {};
+    dnnl_primitive_t prim {};
 
     // Optimization to reduce testing time for GPU.
     //
@@ -89,10 +89,10 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
     dnn_mem_t scratchpad(scratchpad_md, src.engine());
 
-    DNN_SAFE(dnnl_primitive_create(&r, r_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_create(&prim, r_pd), CRIT);
     dnnl_status_t pd_destroy_status = dnnl_primitive_desc_destroy(r_pd);
     if (pd_destroy_status != dnnl_success) {
-        dnnl_primitive_destroy(r);
+        dnnl_primitive_destroy(prim);
         DNN_SAFE(pd_destroy_status, CRIT);
     }
 
@@ -101,8 +101,8 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     args.set(DNNL_ARG_TO, *r_dst);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad);
 
-    SAFE(execute_and_wait(r, args), CRIT);
-    DNN_SAFE(dnnl_primitive_destroy(r), CRIT);
+    SAFE(execute_and_wait(prim, args), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
 
     return OK;
 }

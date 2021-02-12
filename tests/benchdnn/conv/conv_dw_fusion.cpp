@@ -254,17 +254,17 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED) return OK;
 
     // Original problem with fusion attributes
-    dnnl_primitive_t c {};
-    SAFE(init_prim(&c, init_pd, prb, res), WARN);
+    dnnl_primitive_t prim {};
+    SAFE(init_prim(&prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     // Check memory requirements only for original problem though it's broken
     // due to quering not by arg md.
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
+        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -337,12 +337,12 @@ int doit(const prb_t *prb, res_t *res) {
     // Fill first convolution
     std::unique_ptr<prb_t> p0 = get_first_conv_prb(prb);
 
-    dnnl_primitive_t c0 {};
-    SAFE(init_prim(&c0, init_pd, p0.get(), res), WARN);
+    dnnl_primitive_t prim0 {};
+    SAFE(init_prim(&prim0, init_pd, p0.get(), res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd0;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(c0, &const_pd0), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim0, &const_pd0), CRIT);
 
     const auto q0 = [&](int index = 0) -> const dnnl_memory_desc_t & {
         return *dnnl_primitive_desc_query_md(
@@ -391,12 +391,12 @@ int doit(const prb_t *prb, res_t *res) {
     std::unique_ptr<prb_t> p1 = get_fused_conv_prb(prb);
     if (!p1) SAFE(FAIL, CRIT);
 
-    dnnl_primitive_t c1 {};
-    SAFE(init_prim(&c1, init_pd, p1.get(), res), WARN);
+    dnnl_primitive_t prim1 {};
+    SAFE(init_prim(&prim1, init_pd, p1.get(), res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd1;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(c1, &const_pd1), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim1, &const_pd1), CRIT);
 
     const auto q1 = [&](int index = 0) -> const dnnl_memory_desc_t & {
         return *dnnl_primitive_desc_query_md(
@@ -467,7 +467,7 @@ int doit(const prb_t *prb, res_t *res) {
         args0.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt0);
         args0.set(binary_po_args0, binary_po_dt0);
 
-        SAFE(execute_and_wait(c0, args0), WARN);
+        SAFE(execute_and_wait(prim0, args0), WARN);
         SAFE(src_dt1.reorder(dst_dt0), WARN);
 
         args1.set(DNNL_ARG_SRC, src_dt1);
@@ -477,7 +477,7 @@ int doit(const prb_t *prb, res_t *res) {
         args1.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt1);
         args1.set(binary_po_args1, binary_po_dt1);
 
-        SAFE(execute_and_wait(c1, args1), WARN);
+        SAFE(execute_and_wait(prim1, args1), WARN);
 
         // Reverse engineer binary post-ops indices from second conv and update
         // them in-place to follow fused conv enumaration.
@@ -515,7 +515,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
         args.set(binary_po_args, binary_po_dt);
 
-        SAFE(execute_and_wait(c, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
             dnn_mem_t dst_fused(dst_dt, fp, tag::abx, test_engine);
@@ -531,11 +531,11 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(FAIL, CRIT);
     }
 
-    measure_perf(res->timer, c, args);
+    measure_perf(res->timer, prim, args);
 
-    DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
-    DNN_SAFE(dnnl_primitive_destroy(c0), CRIT);
-    DNN_SAFE(dnnl_primitive_destroy(c1), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(prim0), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(prim1), CRIT);
 
     return OK;
 }

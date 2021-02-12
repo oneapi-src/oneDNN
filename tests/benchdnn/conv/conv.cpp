@@ -785,7 +785,7 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t c {};
+    dnnl_primitive_t prim {};
     // TODO: align init_pd interface with a common one which is used
     // in the rest of the benchdnn drivers
     auto init_pd = [&](dnnl_engine_t engine, const prb_t *prb,
@@ -795,14 +795,14 @@ int doit(const prb_t *prb, res_t *res) {
         return OK;
     };
 
-    SAFE(init_prim(&c, init_pd, prb, res), WARN);
+    SAFE(init_prim(&prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
+        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -840,7 +840,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     // Try to use CPU primitive as the reference in GPU testing to reduce
     // testing time
-    dnnl_primitive_t c_ref {};
+    dnnl_primitive_t prim_ref {};
 
     if (bench_mode & CORR && is_gpu() && fast_ref_gpu &&
             // TODO: temporary disable cpu as ref for testcases with binary post-ops
@@ -850,7 +850,7 @@ int doit(const prb_t *prb, res_t *res) {
                      fp, fp, src_tag, wei_tag, tag::x, src_tag),
                 WARN);
         if (cpd_ref) {
-            DNN_SAFE(dnnl_primitive_create(&c_ref, cpd_ref), WARN);
+            DNN_SAFE(dnnl_primitive_create(&prim_ref, cpd_ref), WARN);
             BENCHDNN_PRINT(
                     5, "%s\n", "benchdnn: use CPU primitive as the reference");
             DNN_SAFE(dnnl_primitive_desc_destroy(cpd_ref), CRIT);
@@ -901,11 +901,11 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
         args.set(binary_po_args, binary_po_dt);
 
-        SAFE(execute_and_wait(c, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_fwd(
-                    prb, c_ref, src_fp, wei_fp, bia_fp, binary_po_fp, dst_fp);
+            compute_ref_fwd(prb, prim_ref, src_fp, wei_fp, bia_fp, binary_po_fp,
+                    dst_fp);
             dnn_mem_t dst(dst_dt, fp, src_tag, test_engine);
             SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
         }
@@ -915,10 +915,10 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_SRC, src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(c, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_bwd_d(prb, c_ref, src_fp, wei_fp, bia_fp,
+            compute_ref_bwd_d(prb, prim_ref, src_fp, wei_fp, bia_fp,
                     std::vector<dnn_mem_t>(), dst_fp);
             dnn_mem_t src(src_dt, fp, src_tag, test_engine);
             SAFE(compare_src(prb, src, src_fp, res, true), WARN);
@@ -930,10 +930,10 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(c, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_bwd_w(prb, c_ref, src_fp, wei_fp, bia_fp, dst_fp);
+            compute_ref_bwd_w(prb, prim_ref, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t wei(wei_dt, fp, wei_tag, test_engine);
             SAFE(compare_wei(prb, wei, wei_fp, res, true), WARN);
             if (prb->dir & FLAG_BIA) {
@@ -945,10 +945,10 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(FAIL, CRIT);
     }
 
-    measure_perf(res->timer, c, args);
+    measure_perf(res->timer, prim, args);
 
-    DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
-    DNN_SAFE(dnnl_primitive_destroy(c_ref), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(prim_ref), CRIT);
 
     return OK;
 }

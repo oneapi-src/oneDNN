@@ -255,15 +255,15 @@ int doit(const prb_t *prb, res_t *res) {
     swap(p_tr.id, p_tr.od);
     swap(p_tr.iw, p_tr.ow);
 
-    dnnl_primitive_t d {};
-    SAFE(init_prim(&d, init_pd, prb, res), WARN);
+    dnnl_primitive_t prim {};
+    SAFE(init_prim(&prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(d, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(d), CRIT);
+        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -335,7 +335,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
         args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
 
-        SAFE(execute_and_wait(d, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd_d(&p_tr, nullptr, dst_fp, wei_tr_fp, bia_fp,
@@ -349,7 +349,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_SRC, src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(d, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
             dnn_mem_t zero_fp;
@@ -365,7 +365,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(d, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd_weights(&p_tr, dst_fp, wei_tr_fp, src_fp);
@@ -382,9 +382,9 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(FAIL, CRIT);
     }
 
-    measure_perf(res->timer, d, args);
+    measure_perf(res->timer, prim, args);
 
-    DNN_SAFE(dnnl_primitive_destroy(d), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
 
     return OK;
 }

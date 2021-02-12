@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -339,13 +339,13 @@ inline void inv_dst_off_f(const prb_t *prb, int64_t off, int64_t &mb,
 
 float oscale(const prb_t *prb, int oc);
 
-void compute_ref_fwd(const prb_t *prb, dnnl_primitive_t c_ref, dnn_mem_t &src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
+void compute_ref_fwd(const prb_t *prb, dnnl_primitive_t prim_ref,
+        dnn_mem_t &src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m);
-void compute_ref_bwd_d(const prb_t *prb, dnnl_primitive_t c_ref,
+void compute_ref_bwd_d(const prb_t *prb, dnnl_primitive_t prim_ref,
         dnn_mem_t &diff_src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m);
-void compute_ref_bwd_w(const prb_t *prb, dnnl_primitive_t c_ref,
+void compute_ref_bwd_w(const prb_t *prb, dnnl_primitive_t prim_ref,
         dnn_mem_t &src_m, dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m,
         dnn_mem_t &diff_dst_m);
 

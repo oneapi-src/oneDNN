@@ -267,15 +267,15 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t m {};
-    SAFE(init_prim(&m, init_pd, prb, res), WARN);
+    dnnl_primitive_t prim {};
+    SAFE(init_prim(&prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(m, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(m), CRIT);
+        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -382,7 +382,7 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
     args.set(binary_po_args, binary_po_dt);
 
-    SAFE(execute_and_wait(m, args), WARN);
+    SAFE(execute_and_wait(prim, args), WARN);
 
     if (bench_mode & CORR) {
         compute_ref(
@@ -394,9 +394,9 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    measure_perf(res->timer, m, args);
+    measure_perf(res->timer, prim, args);
 
-    DNN_SAFE(dnnl_primitive_destroy(m), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
 
     return OK;
 }
