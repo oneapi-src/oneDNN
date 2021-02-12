@@ -24,6 +24,7 @@
 #include "cpu/cpu_resampling_pd.hpp"
 
 #include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
@@ -33,12 +34,18 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+static bcast_set_t get_supported_bcast_strategies() {
+    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
+            broadcasting_strategy_t::per_oc_spatial};
+}
+
 template <cpu_isa_t isa>
 struct jit_uni_resampling_kernel : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_resampling)
 
-    jit_uni_resampling_kernel(const jit_resampling_conf_t conf);
+    jit_uni_resampling_kernel(
+            const jit_resampling_conf_t conf, const memory_desc_t *dst_md);
 
     virtual ~jit_uni_resampling_kernel() = default;
 
@@ -78,6 +85,11 @@ protected:
     void load_data(const Reg64 &reg_src_addr, const int offset,
             const int data_idx, const bool is_tail = false);
 
+    void apply_sum(const int data_idx, const bool is_tail);
+
+    void apply_postops(
+            const int data_idx, const bool is_tail, const Reg64 *reg_c = nullptr);
+
     void nearest_ncsp_format();
     void nearest_c_oriented_format();
     void linear_ncsp_format();
@@ -95,29 +107,31 @@ protected:
     const Vmm vmm_src_ = Vmm(2);
     const Vmm vmm_weights_ = Vmm(3);
     const Vmm vmm_indices_ = Vmm(4);
-    const Vmm vmm_tmp_ = Vmm(5);
+    const Vmm vmm_sum_scale_ = Vmm(7);
+    const Vmm vmm_tmp_ = Vmm(8);
+    const Vmm vmm_post_op_helper_ = Vmm(9);
 
-    const Opmask k_tail_mask_ = k1;
-    const Opmask k_full_mask_ = k2;
+    const Opmask &k_tail_mask_ = k3;
+    const Opmask &k_full_mask_ = k4;
 
-    const Zmm bf16_emu_reserv_1 = Zmm(7);
-    const Zmm bf16_emu_reserv_2 = Zmm(8);
-    const Zmm bf16_emu_reserv_3 = Zmm(9);
-    const Reg64 bf16_emu_scratch = r15;
-    const Zmm bf16_emu_reserv_4 = Zmm(10);
+    const Zmm bf16_emu_reserv_1_ = Zmm(10);
+    const Zmm bf16_emu_reserv_2_ = Zmm(11);
+    const Zmm bf16_emu_reserv_3_ = Zmm(12);
+    const Reg64 &bf16_emu_scratch_ = r15;
+    const Zmm bf16_emu_reserv_4_ = Zmm(13);
 
-    const Reg64 reg_tmp_ = rax;
-    const Reg64 reg_dst_ = rbx;
-    const Reg64 reg_indices_ = rcx;
-    const Reg64 reg_work_ = rdx;
-    // Always mimic the Unix ABI
-    const Reg64 reg_param = rdi;
-    const Reg64 reg_weights = rsi;
-    const Reg64 reg_src_ = r8;
-    const Reg64 reg_aux_src_0_ = r9;
-    const Reg64 reg_aux_src_1_ = r10;
-    const Reg64 reg_aux_src_2_ = r11;
-    const Reg64 reg_tmp1_ = r15;
+    const Reg64 &reg_tmp_ = rax;
+    const Reg64 &reg_dst_ = rbx;
+    const Reg64 &reg_work_ = rdx;
+    const Reg64 &reg_indices_ = rsi;
+    const Reg64 &reg_c_offset = rbp;
+    const Reg64 &reg_param = abi_param1;
+    const Reg64 &reg_weights = abi_not_param1;
+    const Reg64 &reg_src_ = r8;
+    const Reg64 &reg_aux_src_0_ = r9;
+    const Reg64 &reg_aux_src_1_ = r10;
+    const Reg64 &reg_aux_src_2_ = r11;
+    const Reg64 &reg_tmp1_ = r15;
 
     // Registers which are used only for linear algorithm
     // and for channel oriented formats.
@@ -144,17 +158,19 @@ protected:
     const Vmm src_bbl_ = Vmm(vmm_idx(6));
     const Vmm src_bbr_ = Vmm(vmm_idx(7));
 
-    const Reg64 reg_src_ftl_ = reg_src_;
-    const Reg64 reg_src_ftr_ = reg_aux_src_0_;
-    const Reg64 reg_src_fbl_ = reg_aux_src_1_;
-    const Reg64 reg_src_fbr_ = reg_aux_src_2_;
-    const Reg64 reg_src_btl_ = r12;
-    const Reg64 reg_src_btr_ = r13;
-    const Reg64 reg_src_bbl_ = r14;
-    const Reg64 reg_src_bbr_ = r15;
+    const Reg64 &reg_src_ftl_ = reg_src_;
+    const Reg64 &reg_src_ftr_ = reg_aux_src_0_;
+    const Reg64 &reg_src_fbl_ = reg_aux_src_1_;
+    const Reg64 &reg_src_fbr_ = reg_aux_src_2_;
+    const Reg64 &reg_src_btl_ = r12;
+    const Reg64 &reg_src_btr_ = r13;
+    const Reg64 &reg_src_bbl_ = r14;
+    const Reg64 &reg_src_bbr_ = r15;
 
-    const jit_resampling_conf_t conf_;
+    jit_resampling_conf_t conf_;
     std::unique_ptr<bf16_emulation_t> bf16_emulation_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+            postops_injector_;
 };
 } // namespace x64
 } // namespace cpu

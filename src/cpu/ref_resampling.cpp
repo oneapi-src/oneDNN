@@ -14,9 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <assert.h>
-#include <float.h>
-#include <math.h>
+#include <cassert>
+#include <cfloat>
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -42,6 +41,13 @@ static inline dim_t get_offset(
 }
 
 using namespace resampling_utils;
+
+template <impl::data_type_t data_type>
+ref_resampling_fwd_t<data_type>::ref_resampling_fwd_t(const pd_t *apd)
+    : primitive_t(apd), ref_post_ops_(pd()->attr()->post_ops_) {}
+
+template <impl::data_type_t data_type>
+ref_resampling_fwd_t<data_type>::~ref_resampling_fwd_t() = default;
 
 template <impl::data_type_t data_type>
 void ref_resampling_fwd_t<data_type>::execute_forward(
@@ -81,12 +87,16 @@ void ref_resampling_fwd_t<data_type>::execute_forward(
     };
     parallel_nd(MB, C, OD, OH, OW,
             [&](dim_t mb, dim_t ch, dim_t od, dim_t oh, dim_t ow) {
+                const dim_t data_p_off = get_offset(dst_d, mb, ch, od, oh, ow);
+                const dim_t data_l_off
+                        = (((mb * C + ch) * OD + od) * OH + oh) * OW + ow;
+                float res = std::numeric_limits<data_t>::lowest();
+
                 if (alg == alg_kind::resampling_nearest) {
                     const dim_t id = nearest_idx(od, OD, ID);
                     const dim_t ih = nearest_idx(oh, OH, IH);
                     const dim_t iw = nearest_idx(ow, OW, IW);
-                    dst[get_offset(dst_d, mb, ch, od, oh, ow)]
-                            = src[get_offset(src_d, mb, ch, id, ih, iw)];
+                    res = src[get_offset(src_d, mb, ch, id, ih, iw)];
                 } else if (alg == alg_kind::resampling_linear) {
                     // Trilinear interpolation (linear interpolation on a 3D spatial
                     // tensor) can be expressed as linear interpolation along
@@ -109,16 +119,31 @@ void ref_resampling_fwd_t<data_type>::execute_forward(
                         src_l[4 * i + 2 * j + k] = src[get_offset(src_d, mb, ch,
                                 id.idx[i], ih.idx[j], iw.idx[k])];
                     }
-                    dst[get_offset(dst_d, mb, ch, od, oh, ow)]
-                            = trilin_interp(src_l[0], src_l[1], src_l[2],
-                                    src_l[3], src_l[4], src_l[5], src_l[6],
-                                    src_l[7], id.wei[0], ih.wei[0], iw.wei[0]);
+                    res = trilin_interp(src_l[0], src_l[1], src_l[2], src_l[3],
+                            src_l[4], src_l[5], src_l[6], src_l[7], id.wei[0],
+                            ih.wei[0], iw.wei[0]);
                 }
+
+                ref_post_ops_t::args_t args;
+                args.ctx = &ctx;
+                args.dst_md = pd()->dst_md();
+                args.l_offset = data_l_off;
+                args.dst_val = dst[data_p_off];
+                ref_post_ops_.execute(res, args);
+
+                dst[data_p_off] = res;
             });
 }
 
 template struct ref_resampling_fwd_t<data_type::f32>;
 template struct ref_resampling_fwd_t<data_type::bf16>;
+
+template <impl::data_type_t data_type>
+ref_resampling_bwd_t<data_type>::ref_resampling_bwd_t(const pd_t *apd)
+    : primitive_t(apd) {}
+
+template <impl::data_type_t data_type>
+ref_resampling_bwd_t<data_type>::~ref_resampling_bwd_t() = default;
 
 template <impl::data_type_t data_type>
 void ref_resampling_bwd_t<data_type>::execute_backward(

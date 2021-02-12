@@ -202,7 +202,7 @@ enum class tail_lode_mode_t { STATIC, DYNAMIC, DEFAULT };
  * passed as raw value intended to use in per_oc broadcast strategies.
  * @param vmm_idx_to_oc_off_oprnd - vmm mapped to output channel offset in elements inside
  * operand intended to use in per_oc broadcast strategies.
- * @param vmm_tail_idx - vmm idxes that contains data don't fill the whole vector (tail).
+ * @param vmm_tail_idx - vmm indices that contains data don't fill the whole vector (tail).
  * @param is_dynamic_tail_load - determines whether to load with tail in
  * runtime (based on the value from reg_tail_size or opmask) or based on given
  * integer.

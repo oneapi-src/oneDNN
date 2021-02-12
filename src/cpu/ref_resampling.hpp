@@ -17,7 +17,7 @@
 #ifndef CPU_REF_RESAMPLING_HPP
 #define CPU_REF_RESAMPLING_HPP
 
-#include <assert.h>
+#include <cassert>
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
@@ -25,6 +25,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/primitive_attr_postops.hpp"
 
 #include "cpu/cpu_resampling_pd.hpp"
 
@@ -41,23 +42,24 @@ struct ref_resampling_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            using sm = primitive_attr_t::skip_mask_t;
+
             bool ok = is_fwd()
                     && utils::everyone_is(
                             data_type, src_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(data_type)
                     && set_default_params() == status::success
-                    && attr()->has_default_values();
+                    && attr()->has_default_values(sm::post_ops, data_type);
             if (!ok) return status::unimplemented;
 
             return status::success;
         }
     };
 
-    ref_resampling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_resampling_fwd_t(const pd_t *apd);
+    ~ref_resampling_fwd_t();
 
-    ~ref_resampling_fwd_t() {}
-
-    typedef typename prec_traits<data_type>::type data_t;
+    using data_t = typename prec_traits<data_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
@@ -67,6 +69,8 @@ struct ref_resampling_fwd_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     void execute_forward(const exec_ctx_t &ctx) const;
+
+    const ref_post_ops_t ref_post_ops_;
 };
 
 template <impl::data_type_t data_type>
@@ -90,11 +94,10 @@ struct ref_resampling_bwd_t : public primitive_t {
         }
     };
 
-    ref_resampling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_resampling_bwd_t(const pd_t *apd);
+    ~ref_resampling_bwd_t();
 
-    ~ref_resampling_bwd_t() {}
-
-    typedef typename prec_traits<data_type>::type data_t;
+    using data_t = typename prec_traits<data_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward(ctx);

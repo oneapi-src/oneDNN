@@ -32,15 +32,83 @@ using namespace format_tag;
 
 template <cpu_isa_t isa>
 jit_uni_resampling_kernel<isa>::jit_uni_resampling_kernel(
-        const jit_resampling_conf_t conf)
+        const jit_resampling_conf_t conf, const memory_desc_t *dst_md)
     : jit_generator(nullptr, MAX_CODE_SIZE, true, isa), conf_(conf) {
     const bool use_bf16_emulation = conf_.data_type == data_type::bf16
             && conf_.isa != avx512_core_bf16;
     bf16_emulation_ = use_bf16_emulation
-            ? utils::make_unique<bf16_emulation_t>(this, bf16_emu_reserv_1,
-                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
-                    bf16_emu_reserv_4)
+            ? utils::make_unique<bf16_emulation_t>(this, bf16_emu_reserv_1_,
+                    bf16_emu_reserv_2_, bf16_emu_reserv_3_, bf16_emu_scratch_,
+                    bf16_emu_reserv_4_)
             : nullptr;
+
+    if (conf_.with_postops) {
+        static constexpr bool preserve_gpr = true;
+        static constexpr bool preserve_vmm = false;
+        static constexpr bool use_exact_tail_scalar_bcast = true;
+
+        const binary_injector::rhs_arg_static_params_t rhs_sp {
+                static_cast<size_t>(vmm_post_op_helper_.getIdx()), reg_src_,
+                reg_tmp_, preserve_gpr, preserve_vmm,
+                GET_OFF(post_ops_binary_rhs_arg_vec),
+                memory_desc_wrapper(*dst_md), conf_.tail, k_tail_mask_,
+                use_exact_tail_scalar_bcast};
+
+        const binary_injector::static_params_t bsp {
+                reg_param, get_supported_bcast_strategies(), rhs_sp};
+
+        postops_injector_
+                = utils::make_unique<injector::jit_uni_postops_injector_t<isa>>(
+                        this, conf_.post_ops, bsp);
+    }
+}
+
+template <cpu_isa_t isa>
+void jit_uni_resampling_kernel<isa>::apply_sum(
+        const int data_idx, const bool is_tail) {
+    if (conf_.with_sum) {
+        assert(!conf_.sum_scales.empty() && "No scales for sum post operation.");
+        const auto sum_injector = [this, data_idx, is_tail]() {
+            load_data(reg_dst_, 0, vmm_tmp_.getIdx(), is_tail);
+            const float sum_scale = conf_.sum_scales.front();
+            if (sum_scale == 1.f)
+                uni_vaddps(Vmm(data_idx), Vmm(data_idx), vmm_tmp_);
+            else {
+                mov(reg_tmp1_.cvt32(), float2int(sum_scale));
+                vmovd(Xmm(vmm_sum_scale_.getIdx()), reg_tmp1_.cvt32());
+                vbroadcastss(vmm_sum_scale_, Xmm(vmm_sum_scale_.getIdx()));
+            }
+        };
+        postops_injector_->set_lambda_injector(
+                primitive_kind::sum, sum_injector);
+    }
+}
+
+template <cpu_isa_t isa>
+void jit_uni_resampling_kernel<isa>::apply_postops(
+        const int data_idx, const bool is_tail, const Reg64 *reg_c) {
+    binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+
+    if (conf_.with_sum) apply_sum(data_idx, is_tail);
+
+    if (conf_.with_binary) {
+        if (conf_.tag_kind == jit_memory_tag_kind_t::blocked)
+        {
+            if (isa == sse41) add(reg_c_offset, *reg_c);
+            rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
+                    data_idx, reg_c_offset);
+            if (isa == sse41) sub(reg_c_offset, *reg_c);
+        } else if (conf_.tag_kind == jit_memory_tag_kind_t::ncsp) {
+            rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
+                    data_idx, reg_c_offset);
+        }
+        else {
+            rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(data_idx, *reg_c);
+        }
+        if (is_tail) { rhs_arg_params.vmm_tail_idx_.emplace(data_idx); }
+    }
+
+    postops_injector_->compute_vector(data_idx, rhs_arg_params);
 }
 
 template <cpu_isa_t isa>
@@ -311,6 +379,7 @@ void jit_uni_resampling_kernel<isa>::nearest_ncsp_format() {
         uni_vmovdqu(vmm_indices_, ptr[reg_indices_w]);
         gather_data(reg_src_shifted, vmm_indices_.getIdx(), vmm_src_.getIdx(),
                 is_tail);
+        if (conf_.with_postops) apply_postops(vmm_src_.getIdx(), is_tail);
         store_data(vmm_src_.getIdx(), reg_dst_, 0, is_tail);
     });
 
@@ -367,6 +436,8 @@ void jit_uni_resampling_kernel<isa>::nearest_ncsp_format() {
 
 template <cpu_isa_t isa>
 void jit_uni_resampling_kernel<isa>::nearest_c_oriented_format() {
+    const unsigned c_to_compute_without_tail
+            = (conf_.inner_stride / conf_.simd_w) * conf_.simd_w;
     const Reg64 &reg_c = reg_tmp_;
     const Reg64 &reg_src_shifted = reg_aux_src_0_;
 
@@ -382,24 +453,28 @@ void jit_uni_resampling_kernel<isa>::nearest_c_oriented_format() {
         add(reg_src_shifted, reg_tmp1_);
 
         Label c_loop_begin, c_loop_end;
-        mov(reg_c, conf_.inner_stride);
+        mov(reg_c, 0);
         L(c_loop_begin);
         {
-            cmp(reg_c, conf_.simd_w);
-            jl(c_loop_end, T_NEAR);
+            cmp(reg_c, c_to_compute_without_tail);
+            je(c_loop_end, T_NEAR);
 
             load_data(reg_src_shifted, 0, vmm_src_.getIdx());
+            if (conf_.with_postops)
+                apply_postops(vmm_src_.getIdx(), false, &reg_c);
             store_data(vmm_src_.getIdx(), reg_dst_);
             add(reg_src_shifted, conf_.simd_w * conf_.dt_size);
             add(reg_dst_, conf_.simd_w * conf_.dt_size);
 
-            sub(reg_c, conf_.simd_w);
+            add(reg_c, conf_.simd_w);
             jmp(c_loop_begin, T_NEAR);
         }
         L(c_loop_end);
 
         if (conf_.tail > 0) {
             load_data(reg_src_shifted, 0, vmm_src_.getIdx(), true);
+            if (conf_.with_postops)
+                apply_postops(vmm_src_.getIdx(), true, &reg_c);
             store_data(vmm_src_.getIdx(), reg_dst_, 0, true);
             add(reg_dst_, conf_.tail * conf_.dt_size);
         }
@@ -432,6 +507,8 @@ void jit_uni_resampling_kernel<isa>::linear_ncsp_format() {
             uni_vfmadd231ps(Vmm(vmm_idx(0)), Vmm(vmm_idx(i)), vmm_weights_);
         }
 
+        if (conf_.with_postops) apply_postops(vmm_idx(0), is_tail);
+
         store_data(vmm_idx(0), reg_dst_, 0, is_tail);
     });
 
@@ -458,21 +535,24 @@ void jit_uni_resampling_kernel<isa>::linear_ncsp_format() {
 
 template <cpu_isa_t isa>
 void jit_uni_resampling_kernel<isa>::linear_c_oriented_format() {
+    const unsigned c_to_compute_without_tail
+            = (conf_.inner_stride / conf_.simd_w) * conf_.simd_w;
+
     const Reg64 &reg_c = reg_tmp_;
     const Reg64 &reg_index_left = reg_tmp_;
     const Reg64 &reg_index_right = reg_tmp_;
 
-    std::vector<std::reference_wrapper<const Reg64>> src_regs
+    const std::vector<std::reference_wrapper<const Reg64>> src_regs
             = {reg_src_ftl_, reg_src_ftr_, reg_src_fbl_, reg_src_fbr_,
                     reg_src_btl_, reg_src_btr_, reg_src_bbl_, reg_src_bbr_};
-    std::vector<std::reference_wrapper<const Vmm>> src_vmms
+    const std::vector<std::reference_wrapper<const Vmm>> src_vmms
             = {src_ftl_, src_ftr_, src_fbl_, src_fbr_, src_btl_, src_btr_,
                     src_bbl_, src_bbr_};
 
     assert(src_regs.size() >= conf_.number_of_corners
             && src_vmms.size() >= conf_.number_of_corners);
 
-    auto linear_interpolation = ([&](const unsigned offset,
+    auto linear_interpolation = ([&](const Reg64 &reg_c, const unsigned offset,
                                          const bool is_tail) {
         for (unsigned i = 0; i < conf_.number_of_corners; i++) {
             load_data(src_regs[i], offset, src_vmms[i].get().getIdx(), is_tail);
@@ -502,6 +582,8 @@ void jit_uni_resampling_kernel<isa>::linear_c_oriented_format() {
             uni_vfmadd231ps(src_ftl_, src_btl_, weight_back_);
         }
 
+        if (conf_.with_postops)
+            apply_postops(src_ftl_.getIdx(), is_tail, &reg_c);
         store_data(src_ftl_.getIdx(), reg_dst_, offset, is_tail);
     });
 
@@ -531,25 +613,25 @@ void jit_uni_resampling_kernel<isa>::linear_c_oriented_format() {
         uni_vbroadcastss(weight_right_, ptr[reg_weights + sizeof(float)]);
 
         Label c_loop_begin, c_loop_end;
-        mov(reg_c, conf_.inner_stride);
+        mov(reg_c, 0);
         L(c_loop_begin);
         {
-            cmp(reg_c, conf_.simd_w);
-            jl(c_loop_end, T_NEAR);
+            cmp(reg_c, c_to_compute_without_tail);
+            je(c_loop_end, T_NEAR);
 
-            linear_interpolation(0, false);
+            linear_interpolation(reg_c, 0, false);
             add(reg_dst_, conf_.simd_w * conf_.dt_size);
 
             for (unsigned i = 0; i < conf_.number_of_corners; i++)
                 add(src_regs[i], conf_.simd_w * conf_.dt_size);
 
-            sub(reg_c, conf_.simd_w);
+            add(reg_c, conf_.simd_w);
             jmp(c_loop_begin, T_NEAR);
         }
         L(c_loop_end);
 
         if (conf_.tail > 0) {
-            linear_interpolation(0, true);
+            linear_interpolation(reg_c, 0, true);
             add(reg_dst_, conf_.tail * conf_.dt_size);
         }
 
@@ -574,12 +656,6 @@ template <cpu_isa_t isa>
 void jit_uni_resampling_kernel<isa>::generate() {
     preamble();
 
-#if defined(_WIN32)
-    // Always mimic the Unix ABI
-    xor_(rdi, rcx);
-    xor_(rcx, rdi);
-    xor_(rdi, rcx);
-#endif
     if (bf16_emulation_) bf16_emulation_->init_vcvtneps2bf16();
 
     if (conf_.isa == avx2 && conf_.tag_kind == jit_memory_tag_kind_t::ncsp) {
@@ -597,6 +673,7 @@ void jit_uni_resampling_kernel<isa>::generate() {
     mov(reg_dst_, ptr[reg_param + GET_OFF(dst)]);
     mov(reg_work_, ptr[reg_param + GET_OFF(batch_of_sp_points_to_process)]);
     mov(reg_indices_, ptr[reg_param + GET_OFF(indices)]);
+    mov(reg_c_offset, ptr[reg_param + GET_OFF(c_offset)]);
 
     if (conf_.alg == alg_kind::resampling_nearest) {
         mov(reg_src_, ptr[reg_param + GET_OFF(src)]);
@@ -647,6 +724,9 @@ void jit_uni_resampling_kernel<isa>::generate() {
     }
 
     postamble();
+
+    if (conf_.with_eltwise && postops_injector_)
+        postops_injector_->prepare_table();
 }
 
 template struct jit_uni_resampling_kernel<avx512_common>;

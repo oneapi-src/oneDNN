@@ -153,8 +153,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->sdt, prb->ddt}, prb->dir, res);
 
     // TODO: temporary disable post-ops and mixed dt on CPU
-    if (engine_tgt_kind == dnnl_cpu
-            && (prb->attr.post_ops.len() > 0 || prb->sdt != prb->ddt)) {
+    if (engine_tgt_kind == dnnl_cpu && (prb->sdt != prb->ddt)) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
@@ -235,11 +234,18 @@ int doit(const prb_t *prb, res_t *res) {
         if (bench_mode & CORR) {
             compute_ref_fwd(prb, src_fp, dst_fp, binary_po_fp);
             float trh = prb->alg == nearest ? 0.f : 3 * epsilon_dt(prb->ddt);
+
+            const auto &po = prb->attr.post_ops;
+            const bool has_binary = po.binary_index() != -1;
+            if (has_binary && prb->alg == linear)
+                trh = 50 * epsilon_dt(prb->ddt);
+
             if (is_nvidia_gpu()) {
                 // cuDNN precision is different from ref one due to different
                 // computation algorithm used for resampling.
                 trh = prb->ddt == dnnl_f16 ? 4e-2 : 2e-5;
             }
+
             compare::compare_t cmp;
             cmp.set_threshold(trh);
             // No sense to test zero trust for upsampling since it produces

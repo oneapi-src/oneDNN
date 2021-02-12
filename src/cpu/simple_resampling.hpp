@@ -17,7 +17,7 @@
 #ifndef CPU_SIMPLE_RESAMPLING_HPP
 #define CPU_SIMPLE_RESAMPLING_HPP
 
-#include <assert.h>
+#include <cassert>
 #include <functional>
 
 #include "common/c_types_map.hpp"
@@ -26,6 +26,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/primitive_attr_postops.hpp"
 
 #include "cpu/cpu_resampling_pd.hpp"
 #include "cpu/resampling_utils.hpp"
@@ -44,12 +45,14 @@ struct simple_resampling_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
+            using sm = primitive_attr_t::skip_mask_t;
+
             bool ok = is_fwd() && !has_zero_dim_memory()
                     && utils::everyone_is(
                             data_type, src_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(data_type)
                     && set_default_params() == status::success
-                    && attr()->has_default_values();
+                    && attr()->has_default_values(sm::post_ops, data_type);
             if (!ok) return status::unimplemented;
 
             format_tag_t dat_tag = memory_desc_matches_one_of_tag(*src_md(),
@@ -62,11 +65,11 @@ struct simple_resampling_fwd_t : public primitive_t {
         }
     };
 
-    simple_resampling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    simple_resampling_fwd_t(const pd_t *apd);
     status_t init(engine_t *engine) override;
     ~simple_resampling_fwd_t();
 
-    typedef typename prec_traits<data_type>::type data_t;
+    using data_t = typename prec_traits<data_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
@@ -75,24 +78,30 @@ struct simple_resampling_fwd_t : public primitive_t {
 
 private:
     void fill_coeffs();
-    void nearest(
-            const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
-    void linear(
-            const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
-    void bilinear(
-            const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
-    void trilinear(
-            const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
+    void nearest(const data_t *src, data_t *dst,
+            ref_post_ops_t::args_t &po_args, dim_t od, dim_t oh,
+            dim_t ow) const;
+    void linear(const data_t *src, data_t *dst, ref_post_ops_t::args_t &po_args,
+            dim_t od, dim_t oh, dim_t ow) const;
+    void bilinear(const data_t *src, data_t *dst,
+            ref_post_ops_t::args_t &po_args, dim_t od, dim_t oh,
+            dim_t ow) const;
+    void trilinear(const data_t *src, data_t *dst,
+            ref_post_ops_t::args_t &po_args, dim_t od, dim_t oh,
+            dim_t ow) const;
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    dim_t nsp_outer_;
-    dim_t stride_d_;
-    dim_t stride_h_;
-    dim_t stride_w_;
-    dim_t inner_stride_;
+    dim_t nsp_outer_ = 0;
+    dim_t stride_d_ = 0;
+    dim_t stride_h_ = 0;
+    dim_t stride_w_ = 0;
+    dim_t inner_stride_ = 0;
     std::vector<resampling_utils::linear_coeffs_t> linear_coeffs_;
-    std::function<void(const data_t *, data_t *, dim_t, dim_t, dim_t)>
+    const bool are_postops_set;
+    const ref_post_ops_t ref_post_ops_;
+    std::function<void(const data_t *, data_t *, ref_post_ops_t::args_t &,
+            dim_t, dim_t, dim_t)>
             interpolate_fn_;
 };
 
@@ -124,11 +133,11 @@ struct simple_resampling_bwd_t : public primitive_t {
         }
     };
 
-    simple_resampling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    simple_resampling_bwd_t(const pd_t *apd);
     status_t init(engine_t *engine) override;
     ~simple_resampling_bwd_t();
 
-    typedef typename prec_traits<data_type>::type data_t;
+    using data_t = typename prec_traits<data_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward(ctx);
@@ -149,11 +158,11 @@ private:
     void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    dim_t nsp_outer_;
-    dim_t stride_d_;
-    dim_t stride_h_;
-    dim_t stride_w_;
-    dim_t inner_stride_;
+    dim_t nsp_outer_ = 0;
+    dim_t stride_d_ = 0;
+    dim_t stride_h_ = 0;
+    dim_t stride_w_ = 0;
+    dim_t inner_stride_ = 0;
     std::vector<resampling_utils::bwd_linear_coeffs_t> bwd_linear_coeffs_;
     std::vector<float> bwd_linear_weights_;
     std::function<void(data_t *, const data_t *, dim_t, dim_t, dim_t)>

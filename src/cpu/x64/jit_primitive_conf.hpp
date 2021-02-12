@@ -17,6 +17,7 @@
 #ifndef CPU_X64_JIT_PRIMITIVE_CONF_HPP
 #define CPU_X64_JIT_PRIMITIVE_CONF_HPP
 
+#include <queue>
 #include <stdint.h>
 
 #include "common/primitive_attr.hpp"
@@ -735,6 +736,13 @@ struct jit_resampling_conf_t {
     alg_kind_t alg = alg_kind::undef;
 
     cpu_isa_t isa = isa_any;
+
+    post_ops_t post_ops = post_ops_t();
+    bool with_postops = false;
+    bool with_eltwise = false;
+    bool with_binary = false;
+    bool with_sum = false;
+    std::queue<float> sum_scales = std::queue<float>();
 };
 
 struct jit_resampling_call_s {
@@ -744,6 +752,9 @@ struct jit_resampling_call_s {
     const void *dst = nullptr;
     const void *indices = nullptr;
     const void *weights = nullptr;
+    const void *post_ops_binary_rhs_arg_vec;
+
+    size_t c_offset = 0;
 
     size_t src_offset_top = 0;
     size_t src_offset_bottom = 0;

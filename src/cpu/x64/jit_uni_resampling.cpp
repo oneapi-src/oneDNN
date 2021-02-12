@@ -36,9 +36,40 @@ namespace x64 {
 using namespace resampling_utils;
 
 template <cpu_isa_t isa>
+bool jit_uni_resampling_fwd_t<isa>::pd_t::post_ops_ok() {
+    const auto &post_ops = attr()->post_ops_;
+    const auto &entries = post_ops.entry_;
+
+    for (const auto &entry : entries) {
+        if (entry.is_eltwise()) {
+            const auto alg = entry.eltwise.alg;
+            conf_.with_eltwise = eltwise_injector::is_supported(isa, alg);
+        } else if (entry.is_binary()) {
+            if (isa != avx512_core
+                    && entry.binary.src1_desc.data_type == data_type::bf16)
+                return false;
+
+            conf_.with_binary = true;
+        } else if (entry.is_sum() && entry.sum.scale != 0.f)
+        {
+            conf_.with_sum = true;
+            conf_.sum_scales.push(entry.sum.scale);
+        } else {
+            return false;
+        }
+    }
+
+    conf_.with_postops = conf_.with_eltwise || conf_.with_binary || conf_.with_sum;
+
+    return binary_injector::binary_args_broadcast_supported(
+            post_ops, dst_md(), get_supported_bcast_strategies());
+}
+
+template <cpu_isa_t isa>
 status_t jit_uni_resampling_fwd_t<isa>::pd_t::init(engine_t *engine) {
     using namespace format_tag;
     using namespace data_type;
+    using sm = primitive_attr_t::skip_mask_t;
 
     conf_.data_type = src_md()->data_type;
 
@@ -54,7 +85,7 @@ status_t jit_uni_resampling_fwd_t<isa>::pd_t::init(engine_t *engine) {
                     conf_.data_type, src_md()->data_type, dst_md()->data_type)
             && platform::has_data_type_support(conf_.data_type)
             && set_default_params() == status::success
-            && attr()->has_default_values();
+            && attr()->has_default_values(sm::post_ops, conf_.data_type);
     if (!ok) return status::unimplemented;
 
     if (conf_.data_type == bf16)
@@ -127,13 +158,18 @@ status_t jit_uni_resampling_fwd_t<isa>::pd_t::init(engine_t *engine) {
 
     conf_.el_size_of_indices = sizeof(unsigned);
 
+    if (!post_ops_ok()) return status::unimplemented;
+
+    conf_.post_ops = attr()->post_ops_;
+
     return status::success;
 }
 
 template <cpu_isa_t isa>
 status_t jit_uni_resampling_fwd_t<isa>::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(
-            kernel_, new jit_uni_resampling_kernel<isa>(pd()->get_conf())));
+    CHECK(safe_ptr_assign(kernel_,
+            new jit_uni_resampling_kernel<isa>(
+                    pd()->get_conf(), pd()->dst_md())));
 
     CHECK(kernel_->create_kernel());
 
@@ -284,9 +320,15 @@ status_t jit_uni_resampling_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     const auto src = CTX_IN_MEM(const uint8_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(uint8_t *, DNNL_ARG_DST);
 
+    const std::vector<const void *> post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(
+                    pd()->get_conf().post_ops, ctx);
+
     switch (pd()->desc()->alg_kind) {
-        case alg_kind::resampling_nearest: return interpolate_nearest(src, dst);
-        case alg_kind::resampling_linear: return interpolate_linear(src, dst);
+        case alg_kind::resampling_nearest:
+            return interpolate_nearest(src, dst, post_ops_binary_rhs_arg_vec);
+        case alg_kind::resampling_linear:
+            return interpolate_linear(src, dst, post_ops_binary_rhs_arg_vec);
         default:
             assert(!"Invalid resampling algorithm.");
             return status::invalid_arguments;
@@ -294,8 +336,8 @@ status_t jit_uni_resampling_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
 }
 
 template <cpu_isa_t isa>
-status_t jit_uni_resampling_fwd_t<isa>::interpolate_nearest(
-        const uint8_t *src, uint8_t *dst) const {
+status_t jit_uni_resampling_fwd_t<isa>::interpolate_nearest(const uint8_t *src,
+        uint8_t *dst, const std::vector<const void *> &post_ops_args) const {
     const size_t dt_size = pd()->get_conf().dt_size;
     const size_t inner_stride = pd()->get_conf().inner_stride;
 
@@ -325,6 +367,8 @@ status_t jit_uni_resampling_fwd_t<isa>::interpolate_nearest(
             args.src = src + src_off;
             args.dst = dst + dst_off;
             args.indices = &indices_h[0];
+            args.post_ops_binary_rhs_arg_vec = post_ops_args.data();
+            args.c_offset = static_cast<size_t>(c);
 
             (*kernel_)(&args);
         });
@@ -336,11 +380,15 @@ status_t jit_uni_resampling_fwd_t<isa>::interpolate_nearest(
             const dim_t dst_off
                     = ((nsp * OD + od) * OH + oh) * OW * inner_stride * dt_size;
 
+            const size_t cb = std::div(nsp, CB).rem;
+
             jit_resampling_call_s args = jit_resampling_call_s();
             args.batch_of_sp_points_to_process = OW;
             args.src = src + src_off;
             args.dst = dst + dst_off;
             args.indices = &indices_w[0];
+            args.post_ops_binary_rhs_arg_vec = post_ops_args.data();
+            args.c_offset = static_cast<size_t>(cb * inner_stride);
 
             (*kernel_)(&args);
         });
@@ -353,8 +401,8 @@ status_t jit_uni_resampling_fwd_t<isa>::interpolate_nearest(
 }
 
 template <cpu_isa_t isa>
-status_t jit_uni_resampling_fwd_t<isa>::interpolate_linear(
-        const uint8_t *src, uint8_t *dst) const {
+status_t jit_uni_resampling_fwd_t<isa>::interpolate_linear(const uint8_t *src,
+        uint8_t *dst, const std::vector<const void *> &post_ops_args) const {
     const size_t dt_size = pd()->get_conf().dt_size;
     const size_t inner_stride = pd()->get_conf().inner_stride;
 
@@ -380,6 +428,8 @@ status_t jit_uni_resampling_fwd_t<isa>::interpolate_linear(
             args.dst = dst + dst_off;
             args.indices = &indices_[0];
             args.weights = &weights_[0];
+            args.post_ops_binary_rhs_arg_vec = post_ops_args.data();
+            args.c_offset = static_cast<size_t>(c);
 
             (*kernel_)(&args);
         });
@@ -399,12 +449,17 @@ status_t jit_uni_resampling_fwd_t<isa>::interpolate_linear(
             const dim_t dst_off = (((nsp * OD + od) * OH + oh) * OW)
                     * inner_stride * dt_size;
 
+            const size_t cb = std::div(nsp, CB).rem;
+
             jit_resampling_call_s args = jit_resampling_call_s();
             args.batch_of_sp_points_to_process = OW;
             args.src = src + src_off;
             args.dst = dst + dst_off;
             args.indices = &indices_[0];
             args.weights = &weights_[0];
+            args.post_ops_binary_rhs_arg_vec = post_ops_args.data();
+            args.c_offset = static_cast<size_t>(cb * inner_stride);
+
             args.src_offset_front = indices_front[od];
             args.src_offset_back = indices_back[od];
             args.src_offset_top = indices_top[oh];

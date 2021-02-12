@@ -23,6 +23,7 @@
 #include "cpu/cpu_resampling_pd.hpp"
 
 #include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_resampling_kernel.hpp"
 
@@ -47,6 +48,8 @@ struct jit_uni_resampling_fwd_t : public primitive_t {
         jit_resampling_conf_t get_conf() const { return conf_; };
 
     private:
+        bool post_ops_ok();
+
         jit_resampling_conf_t conf_;
     };
 
@@ -165,8 +168,10 @@ private:
      * ...
      */
 
-    status_t interpolate_nearest(const uint8_t *src, uint8_t *dst) const;
-    status_t interpolate_linear(const uint8_t *src, uint8_t *dst) const;
+    status_t interpolate_nearest(const uint8_t *src, uint8_t *dst,
+            const std::vector<const void *> &post_ops_args) const;
+    status_t interpolate_linear(const uint8_t *src, uint8_t *dst,
+            const std::vector<const void *> &post_ops_args) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
