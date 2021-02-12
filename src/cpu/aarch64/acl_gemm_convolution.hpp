@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Arm Ltd. and affiliates
+* Copyright 2020-2021 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,18 +47,28 @@ struct acl_resource_t : public resource_t {
         acl_obj_->wei_tensor.allocator()->init(acp.wei_info);
         acl_obj_->dst_tensor.allocator()->init(acp.dst_info);
         acl_obj_->bia_tensor.allocator()->init(acp.bia_info);
-
+        if (acp.sum_with_eltwise) {
+            acl_obj_->dst_acc_tensor.allocator()->init(acp.dst_info);
+        }
         // clang-format off
         acl_obj_->conv.configure(
             &acl_obj_->src_tensor,
             &acl_obj_->wei_tensor,
             acp.with_bias ? &acl_obj_->bia_tensor : nullptr,
-            &acl_obj_->dst_tensor,
+            acp.sum_with_eltwise ? &acl_obj_->dst_acc_tensor : &acl_obj_->dst_tensor,
             acp.padstride_info,
             acp.weights_info,
             acp.dilation_info,
-            acp.act_info);
+            acp.sum_with_eltwise ? arm_compute::ActivationLayerInfo() : acp.act_info);
         // clang-format on
+        if (acp.sum_with_eltwise) {
+            acl_obj_->add.configure(&acl_obj_->dst_tensor,
+                    &acl_obj_->dst_acc_tensor, &acl_obj_->dst_acc_tensor,
+                    arm_compute::ConvertPolicy::SATURATE);
+            acl_obj_->act.configure(&acl_obj_->dst_acc_tensor,
+                    &acl_obj_->dst_tensor, acp.act_info);
+            acl_obj_->dst_acc_tensor.allocator()->allocate();
+        }
 
         return status::success;
     }
@@ -144,11 +154,16 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
             auto const &po = attr()->post_ops_;
             auto is_eltwise
                     = [&](int idx) { return po.entry_[idx].is_eltwise(); };
+            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
 
+            bool sum_with_eltwise
+                    = (po.len() == 2) && is_sum(0) && is_eltwise(1);
+            bool eltwise_only = (po.len() == 1) ? is_eltwise(0) : false;
             bool eltwise_ok = false;
-            // Compute Library supports only one eltwise post-op
-            if (po.len() == 1 && is_eltwise(0)) {
-                const auto act_type = po.entry_[0].eltwise.alg;
+            // Compute Library supports either one eltwise post-op or
+            // sum+eltwise post-ops
+            if (eltwise_only || sum_with_eltwise) {
+                const auto act_type = po.entry_[sum_with_eltwise].eltwise.alg;
                 eltwise_ok = acl_convolution_utils::acl_act_ok(act_type);
             }
 

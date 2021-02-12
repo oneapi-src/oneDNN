@@ -34,15 +34,19 @@ namespace aarch64 {
 template <typename NEConv>
 struct acl_obj_t {
     NEConv conv;
+    arm_compute::NEArithmeticAddition add;
+    arm_compute::NEActivationLayer act;
     arm_compute::Tensor src_tensor;
     arm_compute::Tensor wei_tensor;
     arm_compute::Tensor bia_tensor;
     arm_compute::Tensor dst_tensor;
+    arm_compute::Tensor dst_acc_tensor;
 };
 
 struct acl_conv_conf_t {
     bool with_bias;
     bool is_int8;
+    bool sum_with_eltwise;
     arm_compute::TensorInfo src_info;
     arm_compute::TensorInfo wei_info;
     arm_compute::TensorInfo bia_info;
