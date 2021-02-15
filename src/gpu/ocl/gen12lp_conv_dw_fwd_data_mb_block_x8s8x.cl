@@ -53,10 +53,10 @@ conv_dw_fwd_mb_block_x8s8x(const __global uchar *src, const __global char *wei,
     const int ih = oh * SH - PH;
     const int iw = ow * SW - PW;
 
-    dst += mb * G * OD * OH * OW + g * OD * OH * OW * MB_BLOCK
+    dst += mb * G_PADDED * OD * OH * OW + g * OD * OH * OW * MB_BLOCK
             + (od * OH * OW + oh * OW + ow) * MB_BLOCK * OC_BLOCK
             + mb_half * OC_BLOCK;
-    src += mb * G * ID * IH * IW + g * ID * IH * IW * MB_BLOCK
+    src += mb * G_PADDED * ID * IH * IW + g * ID * IH * IW * MB_BLOCK
             + (id * IH * IW + ih * IW + iw) * MB_BLOCK * IC_BLOCK
             + mb_half * IC_BLOCK;
     wei += g * KDHW_SIZE;
