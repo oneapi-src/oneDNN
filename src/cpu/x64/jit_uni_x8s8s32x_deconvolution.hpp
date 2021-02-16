@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #ifndef CPU_X64_JIT_UNI_X8S8S32X_DECONVOLUTION_HPP
 #define CPU_X64_JIT_UNI_X8S8S32X_DECONVOLUTION_HPP
 
+#include <memory>
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory.hpp"
@@ -27,7 +28,7 @@
 
 #include "cpu/cpu_deconvolution_pd.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -42,24 +43,15 @@ template <cpu_isa_t isa, typename Vmm>
 struct _jit_uni_x8s8s32x_deconv_fwd_kernel : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_uni_x8s8s32x_deconv_fwd_kernel);
 
-    _jit_uni_x8s8s32x_deconv_fwd_kernel(
-            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
-        , jcp(ajcp)
-        , attr_(attr)
-        , eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_
-                    = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
-    }
-
-    ~_jit_uni_x8s8s32x_deconv_fwd_kernel() { delete eltwise_injector_; }
-
+    _jit_uni_x8s8s32x_deconv_fwd_kernel(const jit_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_wrapper &dst_d);
+    ~_jit_uni_x8s8s32x_deconv_fwd_kernel();
     const jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
 
 private:
-    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+            postops_injector_;
     using reg64_t = const Xbyak::Reg64;
 
     enum {
@@ -158,9 +150,8 @@ private:
                                 : jcp.oc_without_padding % jcp.oc_block;
     }
 
-    bool maybe_eltwise(int position);
-    void compute_eltwise(int ur_w);
     void prepare_output(int ur_w);
+    void apply_postops(int ur_w, bool last_oc_block, const float *p_sum_scale);
     void store_output(int ur_w, bool last_oc_block);
     void compute_ker(int ur_w, int l_overflow, int r_overflow,
             ker_block_t last_ic_block_flag, bool h_padded = false);
@@ -174,8 +165,8 @@ private:
 template <cpu_isa_t isa>
 struct jit_uni_x8s8s32x_deconv_fwd_kernel {
 
-    jit_uni_x8s8s32x_deconv_fwd_kernel(
-            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
+    jit_uni_x8s8s32x_deconv_fwd_kernel(const jit_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_wrapper &dst_d)
         : kernel_(nullptr) {
 
         int ch_block = ajcp.is_depthwise ? ajcp.ch_block : ajcp.ic_block;
@@ -183,13 +174,13 @@ struct jit_uni_x8s8s32x_deconv_fwd_kernel {
             case 8:
                 if (isa == avx2) {
                     kernel_ = new _jit_avx2_x8s8s32x_deconv_fwd_kernel(
-                            ajcp, attr);
+                            ajcp, attr, dst_d);
                     return;
                 } else
                     assert(!"invalid channel blocking for current ISA");
             case 4:
                 kernel_ = new _jit_uni_x8s8s32x_deconv_fwd_kernel<isa,
-                        Xbyak::Xmm>(ajcp, attr);
+                        Xbyak::Xmm>(ajcp, attr, dst_d);
                 return;
             default: assert(!"invalid channel blocking");
         }
@@ -201,7 +192,8 @@ struct jit_uni_x8s8s32x_deconv_fwd_kernel {
 
     void operator()(const jit_deconv_call_s *p) const { (*kernel_)(p); }
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
+    static bool post_ops_ok(jit_conv_conf_t &jcp,
+            const memory_desc_wrapper &dst_d, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const deconvolution_desc_t &cd, memory_desc_t &src_md,
@@ -271,8 +263,8 @@ struct _jit_uni_x8s8s32x_deconvolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
-                new jit_uni_x8s8s32x_deconv_fwd_kernel<isa>(
-                        pd()->jcp_, *pd()->attr())));
+                new jit_uni_x8s8s32x_deconv_fwd_kernel<isa>(pd()->jcp_,
+                        *pd()->attr(), memory_desc_wrapper(pd()->dst_md()))));
         return kernel_->create_kernel();
     }
 
