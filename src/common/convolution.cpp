@@ -135,7 +135,8 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
         dim_t dst = dst_desc->dims[i];
         dim_t ker_range = 1 + (ker - 1) * (dil + 1);
         VCHECK_CONV(str > 0, VERBOSE_BAD_DIM, "strides", i - 2);
-        VCHECK_CONV(dil >= 0 && pad_l >= 0 && pad_r + str > 0,
+        //VCHECK_CONV(dil >= 0 && pad_l >= 0 && pad_r + str > 0, // TODO: [dmitrygo] Commented as WA to support dw conv fusing
+        VCHECK_CONV(dil >= 0 && pad_l >= 0,
                 VERBOSE_INCONSISTENT_PRB);
         VCHECK_CONV((src - ker_range + pad_l + pad_r) / str + 1 == dst,
                 VERBOSE_INCONSISTENT_PRB);

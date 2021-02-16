@@ -263,6 +263,11 @@ struct jit_conv_conf_t {
     int oh_block;
     int oh_block_step;
     int nb_ow_blocking;
+
+    int dw_conv_oh, dw_conv_ow;
+    data_type_t dw_conv_dst_dt;
+    const float* conv_weights;
+    const float* conv_biases;
 };
 
 // calculates filter size taking into account dilation
@@ -361,6 +366,11 @@ struct jit_conv_call_s {
     size_t oh_blocks;
 
     const void *input_zp;
+
+    size_t oc_work;
+    const void *src_row0; /* hack, non-const for backward_data */
+    const void *src_row1; /* hack, non-const for backward_data */
+    const void *src_row2; /* hack, non-const for backward_data */
 };
 
 struct jit_deconv_call_s {
@@ -459,6 +469,7 @@ struct jit_1x1_conv_conf_t {
     bool transpose_src;
     int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
     int is_oc_scale;
+    data_type_t src_dt;
     data_type_t bia_dt;
     data_type_t dst_dt;
     data_type_t sum_dt;
@@ -476,6 +487,9 @@ struct jit_1x1_conv_conf_t {
 
     bool with_input_zp;
     bool with_weights_zp;
+
+    int dw_conv_oh, dw_conv_ow;
+    data_type_t dw_conv_dst_dt;
 };
 
 struct jit_1x1_conv_call_s {

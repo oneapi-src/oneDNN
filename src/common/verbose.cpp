@@ -664,12 +664,14 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                     if (s.dt != data_type::undef) ss << ":" << s.dt;
                 } break;
                 case primitive_kind::convolution: {
-                    using namespace data_type;
-                    const auto &c = e.depthwise_conv;
-                    ss << delim << "dw:k" << c.kernel << "s" << c.stride << "p"
-                       << c.padding;
-                    if (c.wei_dt == s8 || c.dst_dt != f32)
-                        ss << ":" << c.dst_dt;
+                    // using namespace data_type;
+                    // const auto &c = e.depthwise_conv;
+                    // ss << delim << "dw:k" << c.kernel << "s" << c.stride << "p"
+                    //    << c.padding;
+                    // if (c.wei_dt == s8 || c.dst_dt != f32)
+                    //     ss << ":" << c.dst_dt;
+                    const char *alg_str = "depthwise_conv_old";
+                    ss << delim << alg_str;
                 } break;
                 case primitive_kind::eltwise: {
                     const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;

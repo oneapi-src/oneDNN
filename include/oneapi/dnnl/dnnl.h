@@ -573,6 +573,14 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_dw(
         dnnl_data_type_t *dst_data_type, dnnl_dim_t *kernel_size,
         dnnl_dim_t *stride_size, dnnl_dim_t *padding_l_size);
 
+/// Appends DW convolution post operation to the @p post_ops with given parameters
+/// @p weights and @p bias.
+///
+/// The kind of this post operation is #dnnl_convolution.
+dnnl_status_t DNNL_API dnnl_post_ops_append_dw_conv(
+        dnnl_post_ops_t post_ops, int in_h, int in_w, int ker_h, int ker_w, int str_h, int str_w, dnnl_data_type_t in_dt,
+        const float* weights_data, const float* biases_data);
+
 /// Appends a binary post-op.
 ///
 /// The kind of this post operation is #dnnl_binary.

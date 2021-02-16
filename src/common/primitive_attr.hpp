@@ -487,7 +487,19 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             dnnl::impl::alg_kind_t alg;
             const float* weights_data;
             const float* output_mask_data;
-        } ;
+        };
+
+        struct depthwise_conv_old_t {
+            int in_h;
+            int in_w;
+            int ker_h;
+            int ker_w;
+            int str_h;
+            int str_w;
+            dnnl::impl::data_type_t in_dt;
+            const float* weights_data;
+            const float* biases_data;
+        };
 
         dnnl::impl::primitive_kind_t kind
                 = dnnl::impl::primitive_kind::undefined;
@@ -499,6 +511,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             } sum;
             eltwise_t eltwise;
             depthwise_conv_t depthwise_conv;
+            depthwise_conv_old_t depthwise_conv_old;
             binary_t binary;
             prelu_t prelu;
             depthwise_t depthwise;
@@ -577,18 +590,26 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                             && sum.dt == rhs.sum.dt;
                     break;
                 case primitive_kind::convolution:
-                    // Depthwise Only
-                    ret = depthwise_conv.kernel == rhs.depthwise_conv.kernel
-                            && depthwise_conv.stride
-                                    == rhs.depthwise_conv.stride
-                            && depthwise_conv.padding
-                                    == rhs.depthwise_conv.padding
-                            && depthwise_conv.wei_dt
-                                    == rhs.depthwise_conv.wei_dt
-                            && depthwise_conv.bias_dt
-                                    == rhs.depthwise_conv.bias_dt
-                            && depthwise_conv.dst_dt
-                                    == rhs.depthwise_conv.dst_dt;
+                    // todo: [antonvor] uncomment when new behavior of dw convolution fusing from oneDNN 1.6 will be supported
+                    // // Depthwise Only
+                    // ret = depthwise_conv.kernel == rhs.depthwise_conv.kernel
+                    //         && depthwise_conv.stride
+                    //                 == rhs.depthwise_conv.stride
+                    //         && depthwise_conv.padding
+                    //                 == rhs.depthwise_conv.padding
+                    //         && depthwise_conv.wei_dt
+                    //                 == rhs.depthwise_conv.wei_dt
+                    //         && depthwise_conv.bias_dt
+                    //                 == rhs.depthwise_conv.bias_dt
+                    //         && depthwise_conv.dst_dt
+                    //                 == rhs.depthwise_conv.dst_dt;
+                    ret = depthwise_conv_old.in_h == rhs.depthwise_conv_old.in_h
+                        && depthwise_conv_old.in_w == rhs.depthwise_conv_old.in_w
+                        && depthwise_conv_old.ker_h == rhs.depthwise_conv_old.ker_h
+                        && depthwise_conv_old.ker_w == rhs.depthwise_conv_old.ker_w
+                        && depthwise_conv_old.str_h == rhs.depthwise_conv_old.str_h
+                        && depthwise_conv_old.str_w == rhs.depthwise_conv_old.str_w
+                        && depthwise_conv_old.in_dt == rhs.depthwise_conv_old.in_dt;
                     break;
                 case primitive_kind::binary:
                     ret = binary.alg == rhs.binary.alg
@@ -659,6 +680,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             const void* output_scale, const void* output_shift);
     dnnl::impl::status_t append_binarization(dnnl::impl::alg_kind_t alg, const float* weights_data,
             const float* output_mask_data);
+    dnnl::impl::status_t append_dw_conv(int in_h, int in_w, int ker_h, int ker_w, int str_h, int str_w,
+            dnnl::impl::data_type_t in_dt, const float* weights_data, const float* biases_data);
 
     dnnl::impl::status_t prepend_binary(dnnl::impl::alg_kind_t alg,
             const dnnl::impl::memory_desc_t *user_src1_desc);
