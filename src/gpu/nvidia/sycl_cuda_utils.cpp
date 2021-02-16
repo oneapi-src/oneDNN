@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2021 Intel Corporation
+* Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,37 +15,21 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_LEVEL_ZERO_UTILS_HPP
-#define SYCL_LEVEL_ZERO_UTILS_HPP
-
-#include <memory>
-#include <string>
-#include <vector>
-
-#include <CL/sycl.hpp>
-
-#include "gpu/compute/kernel.hpp"
+#include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace sycl {
+namespace gpu {
+namespace nvidia {
 
-using device_uuid_t = std::tuple<uint64_t, uint64_t>;
-device_uuid_t get_device_uuid(const cl::sycl::device &dev);
+bool compare_cuda_devices(
+        const cl::sycl::device &lhs, const cl::sycl::device &rhs) {
+    auto lhs_cuda_handle = lhs.get_native<cl::sycl::backend::cuda>();
+    auto rhs_cuda_handle = rhs.get_native<cl::sycl::backend::cuda>();
+    return lhs_cuda_handle == rhs_cuda_handle;
+}
 
-// including sycl_gpu_engine.hpp leads to circular dependencies, w/a for now.
-struct sycl_gpu_engine_t;
-
-status_t sycl_create_program_with_level_zero(
-        std::unique_ptr<cl::sycl::program> &sycl_program,
-        const sycl_gpu_engine_t *sycl_engine,
-        const gpu::compute::binary_t *binary);
-
-bool compare_ze_devices(
-        const cl::sycl::device &lhs, const cl::sycl::device &rhs);
-
-} // namespace sycl
+} // namespace nvidia
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
-
-#endif // SYCL_LEVEL_ZERO_UTILS_HPP

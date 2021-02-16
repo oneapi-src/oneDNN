@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,8 +24,6 @@
 
 #include <vector>
 #include <CL/sycl.hpp>
-
-#include "sycl/level_zero_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -106,57 +104,8 @@ inline backend_t get_sycl_backend(const cl::sycl::device &dev) {
     return backend_t::unknown;
 }
 
-inline bool are_equal(
-        const cl::sycl::device &lhs, const cl::sycl::device &rhs) {
-    auto lhs_be = get_sycl_backend(lhs);
-    auto rhs_be = get_sycl_backend(rhs);
-    if (lhs_be != rhs_be) return false;
-
-    // Only one host device exists.
-    if (lhs_be == backend_t::host) return true;
-
-    // Compare cl_device_id for OpenCL backend.
-    if (lhs_be == backend_t::opencl) {
-        // Use wrapper objects to avoid memory leak.
-        auto lhs_ocl_dev = gpu::ocl::make_ocl_wrapper(lhs.get());
-        auto rhs_ocl_dev = gpu::ocl::make_ocl_wrapper(rhs.get());
-        return lhs_ocl_dev == rhs_ocl_dev;
-    }
-
-    // Other backends do not retain the returned handles.
-    auto lhs_handle = lhs.get();
-    auto rhs_handle = rhs.get();
-
-    return lhs_handle == rhs_handle;
-}
-
-inline device_id_t sycl_device_id(const cl::sycl::device &dev) {
-    if (dev.is_host())
-        return std::make_tuple(static_cast<int>(backend_t::host), 0, 0);
-
-    device_id_t device_id
-            = device_id_t {static_cast<int>(backend_t::unknown), 0, 0};
-    switch (get_sycl_backend(dev)) {
-        case backend_t::opencl:
-            device_id = std::make_tuple(static_cast<int>(backend_t::opencl),
-                    reinterpret_cast<uint64_t>(dev.get()), 0);
-            break;
-        case backend_t::level0: {
-#if defined(DNNL_WITH_LEVEL_ZERO)
-            device_id = std::tuple_cat(
-                    std::make_tuple(static_cast<int>(backend_t::level0)),
-                    get_device_uuid(dev));
-#else
-            assert(!"unreachable");
-#endif
-            break;
-        }
-        case backend_t::unknown: assert(!"unknown backend"); break;
-        default: assert(!"unreachable");
-    }
-    assert(std::get<0>(device_id) != static_cast<int>(backend_t::unknown));
-    return device_id;
-}
+bool are_equal(const cl::sycl::device &lhs, const cl::sycl::device &rhs);
+device_id_t sycl_device_id(const cl::sycl::device &dev);
 
 } // namespace sycl
 } // namespace impl

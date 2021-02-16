@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+#include <CL/sycl/backend/opencl.hpp>
 
 #include "sycl/sycl_device_info.hpp"
 #include "sycl/sycl_gpu_engine.hpp"
@@ -49,7 +51,7 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
     if (be == backend_t::opencl) {
         cl_int err = CL_SUCCESS;
 
-        cl_device_id ocl_device = device.get();
+        auto ocl_device = device.get_native<cl::sycl::backend::opencl>();
         auto context = gpu::ocl::make_ocl_wrapper(clCreateContext(
                 nullptr, 1, &ocl_device, nullptr, nullptr, &err));
         OCL_CHECK(err);

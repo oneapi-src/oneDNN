@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "sycl/level_zero_utils.hpp"
 #include "oneapi/dnnl/dnnl_config.h"
 
 #if defined(DNNL_WITH_LEVEL_ZERO)
@@ -46,25 +47,9 @@
 
 #include "sycl/sycl_gpu_engine.hpp"
 
-#include "sycl/level_zero_utils.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace sycl {
-
-#if defined(LEVEL_ZERO_NOT_SUPPORTED)
-
-device_uuid_t get_device_uuid(const cl::sycl::device &) {
-    return device_uuid_t(0, 0);
-}
-
-status_t sycl_create_program_with_level_zero(
-        std::unique_ptr<cl::sycl::kernel> &, const sycl_gpu_engine_t *,
-        const gpu::compute::binary_t *) {
-    return status::unimplemented;
-}
-
-#else
 
 namespace {
 
@@ -193,7 +178,36 @@ status_t sycl_create_program_with_level_zero(
     return status::success;
 }
 
-#endif // defined(LEVEL_ZERO_NOT_SUPPORTED)
+bool compare_ze_devices(
+        const cl::sycl::device &lhs, const cl::sycl::device &rhs) {
+    auto lhs_ze_handle = lhs.get_native<cl::sycl::backend::level_zero>();
+    auto rhs_ze_handle = rhs.get_native<cl::sycl::backend::level_zero>();
+    return lhs_ze_handle == rhs_ze_handle;
+}
+
+} // namespace sycl
+} // namespace impl
+} // namespace dnnl
+
+#else
+
+namespace dnnl {
+namespace impl {
+namespace sycl {
+
+device_uuid_t get_device_uuid(const cl::sycl::device &) {
+    return device_uuid_t(0, 0);
+}
+
+status_t sycl_create_program_with_level_zero(
+        std::unique_ptr<cl::sycl::kernel> &, const sycl_gpu_engine_t *,
+        const gpu::compute::binary_t *) {
+    return status::unimplemented;
+}
+
+bool compare_ze_devices(const cl::sycl::device &, const cl::sycl::device &) {
+    return false;
+}
 
 } // namespace sycl
 } // namespace impl

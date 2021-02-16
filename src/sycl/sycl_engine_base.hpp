@@ -19,6 +19,8 @@
 
 #include <memory>
 
+#include <CL/sycl/backend/opencl.hpp>
+
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/memory_storage.hpp"
@@ -126,7 +128,8 @@ public:
             return nullptr;
         }
         assert(device_.is_cpu() || device_.is_gpu());
-        return gpu::ocl::make_ocl_wrapper(device().get());
+        return gpu::ocl::make_ocl_wrapper(
+                device().get_native<cl::sycl::backend::opencl>());
     }
     cl_context ocl_context() const {
         if (backend() != backend_t::opencl) {
@@ -134,7 +137,8 @@ public:
             return nullptr;
         }
         assert(device_.is_cpu() || device_.is_gpu());
-        return gpu::ocl::make_ocl_wrapper(context().get());
+        return gpu::ocl::make_ocl_wrapper(
+                context().get_native<cl::sycl::backend::opencl>());
     }
 
     device_id_t device_id() const override { return sycl_device_id(device_); }
