@@ -276,6 +276,8 @@ enum {
     // even though they are not in alphabetical order
     key_nested,
     key_nested_multiple,
+    key_dw_conv_buffer,
+    key_dw_conv_padded_bias,
 };
 
 enum {

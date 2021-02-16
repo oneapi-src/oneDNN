@@ -118,7 +118,10 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
         int ker_range = 1 + (ker - 1) * (dil + 1);
 
         if (str < 1) return invalid_arguments;
-        consistency = consistency && dil >= 0 && pad_l >= 0 && pad_r + str > 0
+        consistency = consistency
+                && dil >= 0
+                && pad_l >= 0
+                // && pad_r + str > 0 // TODO: [dmitrygo] Commented as WA to support dw conv fusing
                 && (src - ker_range + pad_l + pad_r) / str + 1 == dst;
     }
     if (!consistency) return invalid_arguments;

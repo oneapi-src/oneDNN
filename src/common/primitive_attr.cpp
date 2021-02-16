@@ -373,6 +373,28 @@ status_t post_ops_t::append_binarization(alg_kind_t alg, const float* weights_da
     return success;
 }
 
+status_t post_ops_t::append_dw_conv(int in_h, int in_w, int ker_h, int ker_w, int str_h, int str_w,
+                                    dnnl::impl::data_type_t in_dt,
+                                    const float* weights_data,
+                                    const float* biases_data) {
+    if (len() == post_ops_limit) return out_of_memory;
+
+    entry_.emplace_back();
+    auto &e = entry_.back();
+    e.kind = primitive_kind::convolution;
+    e.depthwise_conv_old.in_h = in_h;
+    e.depthwise_conv_old.in_w = in_w;
+    e.depthwise_conv_old.ker_h = ker_h;
+    e.depthwise_conv_old.ker_w = ker_w;
+    e.depthwise_conv_old.str_h = str_h;
+    e.depthwise_conv_old.str_w = str_w;
+    e.depthwise_conv_old.in_dt = in_dt;
+    e.depthwise_conv_old.weights_data = weights_data;
+    e.depthwise_conv_old.biases_data = biases_data;
+
+    return success;
+}
+
 bool post_ops_t::defined() const {
     for (int idx = 0; idx < len(); ++idx) {
         auto kind = entry_[idx].kind;
@@ -926,6 +948,17 @@ status_t dnnl_post_ops_append_binarization(post_ops_t *post_ops, alg_kind_t kind
         return invalid_arguments;
 
     return post_ops->append_binarization(kind, weights_data, output_mask_data);
+}
+
+status_t dnnl_post_ops_append_dw_conv(post_ops_t *post_ops,
+                                      int in_h, int in_w, int ker_h, int ker_w, int str_h, int str_w,
+                                      dnnl::impl::data_type_t in_dt,
+                                      const float* weights_data,
+                                      const float* biases_data) {
+    if (post_ops == nullptr)
+        return invalid_arguments;
+
+    return post_ops->append_dw_conv(in_h, in_w, ker_h, ker_w, str_h, str_w, in_dt, weights_data, biases_data);
 }
 
 status_t dnnl_primitive_attr_set_rnn_data_qparams(

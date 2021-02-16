@@ -39,6 +39,10 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
             || !attr_1x1.post_ops_.entry_[dw_po_index].is_convolution())
         return status::invalid_arguments;
 
+    // todo: [AV] remove this check when we use original oneDNN dw conv fusing
+    if (attr_1x1.post_ops_.entry_[dw_po_index].is_convolution())
+        return status::unimplemented;
+
     // Create new attributes with scales from depthwise post-op and copy
     // post-ops after depthwise post-op.
     auto &dw_po = attr_1x1.post_ops_.entry_[dw_po_index].depthwise_conv;

@@ -34,6 +34,7 @@
 #include "cpu/x64/gemm_bf16_convolution.hpp"
 #include "cpu/x64/ip_convolution.hpp"
 #include "cpu/x64/jit_avx2_1x1_convolution.hpp"
+#include "cpu/x64/jit_avx2_1x1_convolution_with_dw_conv.hpp"
 #include "cpu/x64/jit_avx2_convolution.hpp"
 #include "cpu/x64/jit_avx512_common_1x1_convolution.hpp"
 #include "cpu/x64/jit_avx512_common_convolution.hpp"
@@ -101,6 +102,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE_AVX2(jit_avx2_planar_convolution_fwd_t)
             CPU_INSTANCE_AVX2(jit_avx2_dw_convolution_fwd_t)
             CPU_INSTANCE_AVX2(jit_avx2_fork_dw_convolution_fwd_t)
+            CPU_INSTANCE_AVX2(jit_avx2_1x1_convolution_with_dw_conv_fwd_t)
             CPU_INSTANCE_AVX2(jit_avx2_1x1_convolution_fwd_t)
             CPU_INSTANCE_SSE41(jit_sse41_dw_convolution_fwd_t)
             CPU_INSTANCE_SSE41(jit_sse41_fork_dw_convolution_fwd_t)

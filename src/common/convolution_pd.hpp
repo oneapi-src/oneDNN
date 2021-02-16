@@ -288,7 +288,8 @@ struct convolution_fwd_pd_t : public convolution_pd_t {
     }
 
     int n_inputs() const override {
-        return 2 + with_bias() + attr_post_op_dw_inputs() + n_binary_po_inputs()
+        // todo: [antonvor] uncomment when new behavior of dw convolution fusing from oneDNN 1.6 will be supported
+        return 2 + with_bias() /* + attr_post_op_dw_inputs() */ + n_binary_po_inputs()
                 + n_prelu_po_inputs();
     }
 

@@ -74,7 +74,11 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
 
             CHECK(jit_avx2_1x1_conv_kernel_f32::init_conf(
                     jcp_, *conv_d, *src_d, *weights_md(), *dst_md(), *attr()));
-            if (jcp_.with_dw_conv) CHECK(depthwise_po_init(engine));
+            if (jcp_.with_dw_conv) {
+                // todo: [antonvor] enable when new behavior of dw convolution fusing from oneDNN 1.6 will be supported
+                return status::unimplemented;
+                CHECK(depthwise_po_init(engine));
+            }
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx2_1x1_conv_kernel_f32::init_scratchpad(scratchpad, jcp_);
