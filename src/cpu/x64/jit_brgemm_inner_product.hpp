@@ -74,21 +74,38 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             using namespace data_type;
 
             auto src_dt = invariant_src_md()->data_type;
-            const bool is_int8 = utils::one_of(src_dt, u8, s8);
+            auto dst_dt = invariant_dst_md()->data_type;
+            auto wei_dt = invariant_wei_md()->data_type;
+
             auto check_attr = [=]() {
-                auto attr_to_check = primitive_attr_t::skip_mask_t::post_ops;
-                if (is_int8)
-                    attr_to_check |= primitive_attr_t::skip_mask_t::oscale;
-                return attr()->has_default_values(attr_to_check);
+                if (utils::one_of(src_dt, data_type::u8, data_type::s8)) {
+                    return attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::oscale
+                            | primitive_attr_t::skip_mask_t::post_ops);
+                } else {
+                    return attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops);
+                }
             };
 
-            auto bia_dt = bias_md_.data_type;
-            const bool is_bias_dt_ok = IMPLICATION(with_bias(),
-                    (is_int8 && one_of(bia_dt, f32, s32, s8, u8))
-                            || (src_dt == bf16 && one_of(bia_dt, f32, bf16))
-                            || everyone_is(f32, src_dt, bia_dt));
-            bool ok = true && mayiuse(isa) && is_fwd() && is_bias_dt_ok
+            bool ok = true && is_fwd() && mayiuse(isa)
+                    && expect_data_types(src_dt, wei_dt, data_type::undef,
+                            dst_dt, data_type::undef)
+                    && IMPLICATION(with_bias(),
+                            ((utils::one_of(
+                                      src_dt, data_type::u8, data_type::s8)
+                                     && utils::one_of(bias_md_.data_type,
+                                             data_type::f32, data_type::s32,
+                                             data_type::s8, data_type::u8))
+                                    || (utils::one_of(src_dt, data_type::bf16)
+                                            && utils::one_of(bias_md_.data_type,
+                                                    data_type::f32,
+                                                    data_type::bf16))
+                                    || (utils::one_of(src_dt, data_type::f32)
+                                            && utils::one_of(bias_md_.data_type,
+                                                    data_type::f32))))
                     && check_attr() && !has_zero_dim_memory();
+
             if (!ok) return status::unimplemented;
 
             CHECK(brgemm_inner_product_utils::init_ip_conf(isa, jbgp_, *desc(),
@@ -117,7 +134,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 auto LDD = jbgp_.oc_without_padding;
                 CHECK(brgemm_desc_set_postops(
                         &brg, attr(), jbgp_.dst_dt, LDD, jbgp_.bia_dt));
-                if (isa == avx512_core_bf16_amx_int8) {
+                if (isa == avx512_core_bf16_amx_int8
+                        || isa == avx512_core_bf16_amx_bf16) {
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = jbgp_.gemm_batch_size;
                     brgattr.wary_tail_read = false;
@@ -158,7 +176,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             brgemm_kernel_t *ker = nullptr;
             CHECK(brgemm_kernel_create(&ker, pd()->brg_descs_[idx]));
             CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
-            if (isa == avx512_core_bf16_amx_int8)
+            if (isa == avx512_core_bf16_amx_int8
+                    || isa == avx512_core_bf16_amx_bf16)
                 CHECK(brgemm_init_tiles(
                         pd()->brg_descs_[idx], &brg_kernel_palettes_[idx][0]));
         }

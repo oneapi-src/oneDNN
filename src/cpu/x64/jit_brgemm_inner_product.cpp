@@ -63,13 +63,15 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
     auto c_buffer_global = (jbgp.use_buffer)
             ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
             : nullptr;
-    constexpr bool is_amx = isa == avx512_core_bf16_amx_int8;
+    static constexpr bool is_amx = (isa == avx512_core_bf16_amx_int8
+            || isa == avx512_core_bf16_amx_bf16);
     auto wsp_tile_base = is_amx
             ? ctx.get_scratchpad_grantor().template get<char>(
                     key_conv_amx_tile_buffer)
             : nullptr;
 
     int ic_chunks = jbgp.nb_ic / jbgp.nb_ic_blocking;
+
     bool are_post_ops_applicable = one_of(true, jbgp.with_sum, jbgp.with_bias,
             jbgp.with_scales, jbgp.with_eltwise, jbgp.acc_dt != jbgp.dst_dt,
             jbgp.signed_input);
@@ -208,6 +210,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
 
 template struct brgemm_inner_product_fwd_t<avx512_core_bf16>;
 template struct brgemm_inner_product_fwd_t<avx512_core_vnni>;
+template struct brgemm_inner_product_fwd_t<avx512_core_bf16_amx_bf16>;
 template struct brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>;
 
 template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,

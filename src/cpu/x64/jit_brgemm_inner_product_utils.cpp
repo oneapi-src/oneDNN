@@ -47,14 +47,17 @@ format_tag_t get_brgemm_ip_weights_tag(
         cpu_isa_t isa, dim_t oc, data_type_t wei_dt, int n_sp_dims) {
     using namespace format_tag;
     const bool is_amx_int8 = isa == avx512_core_bf16_amx_int8;
+    const bool is_amx_bf16 = isa == avx512_core_bf16_amx_bf16;
     if (oc >= 64) {
         switch (wei_dt) {
             case data_type::f32:
                 return pick(n_sp_dims, OI16i64o, OIw16i64o, OIhw16i64o,
                         OIdhw16i64o);
             case data_type::bf16:
-                return pick(n_sp_dims, OI8i64o2i, OIw8i64o2i, OIhw8i64o2i,
-                        OIdhw8i64o2i);
+                return (!is_amx_bf16) ? pick(n_sp_dims, OI8i64o2i, OIw8i64o2i,
+                               OIhw8i64o2i, OIdhw8i64o2i)
+                                      : pick(n_sp_dims, OI16i64o2i, OIw16i64o2i,
+                                              OIhw16i64o2i, OIdhw16i64o2i);
             case data_type::s8:
                 return (!is_amx_int8) ? pick(n_sp_dims, OI4i64o4i, OIw4i64o4i,
                                OIhw4i64o4i, OIdhw4i64o4i)
@@ -68,8 +71,10 @@ format_tag_t get_brgemm_ip_weights_tag(
                 return pick(n_sp_dims, OI16i32o, OIw16i32o, OIhw16i32o,
                         OIdhw16i32o);
             case data_type::bf16:
-                return pick(n_sp_dims, OI8i32o2i, OIw8i32o2i, OIhw8i32o2i,
-                        OIdhw8i32o2i);
+                return (!is_amx_bf16) ? pick(n_sp_dims, OI8i32o2i, OIw8i32o2i,
+                               OIhw8i32o2i, OIdhw8i32o2i)
+                                      : pick(n_sp_dims, OI16i32o2i, OIw16i32o2i,
+                                              OIhw16i32o2i, OIdhw16i32o2i);
             case data_type::s8:
                 return (!is_amx_int8) ? pick(n_sp_dims, OI4i32o4i, OIw4i32o4i,
                                OIhw4i32o4i, OIdhw4i32o4i)
@@ -83,8 +88,10 @@ format_tag_t get_brgemm_ip_weights_tag(
                 return pick(n_sp_dims, OI16i16o, OIw16i16o, OIhw16i16o,
                         OIdhw16i16o);
             case data_type::bf16:
-                return pick(n_sp_dims, OI8i16o2i, OIw8i16o2i, OIhw8i16o2i,
-                        OIdhw8i16o2i);
+                return (!is_amx_bf16) ? pick(n_sp_dims, OI8i16o2i, OIw8i16o2i,
+                               OIhw8i16o2i, OIdhw8i16o2i)
+                                      : pick(n_sp_dims, OI16i16o2i, OIw16i16o2i,
+                                              OIhw16i16o2i, OIdhw16i16o2i);
             case data_type::s8:
                 return (!is_amx_int8) ? pick(n_sp_dims, OI4i16o4i, OIw4i16o4i,
                                OIhw4i16o4i, OIdhw4i16o4i)
@@ -119,6 +126,7 @@ bool post_ops_ok(
 status_t init_ip_conf_fwd(
         jit_brgemm_primitive_conf_t &jbgp, const primitive_attr_t &attr) {
     const bool is_amx_int8 = jbgp.isa == avx512_core_bf16_amx_int8;
+    const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
     const bool is_int8 = one_of(jbgp.src_dt, u8, s8) && jbgp.wei_dt == s8;
     const auto &p = attr.post_ops_;
     jbgp.with_sum = p.find(primitive_kind::sum) != -1;
@@ -138,7 +146,9 @@ status_t init_ip_conf_fwd(
     jbgp.use_buffer = IMPLICATION(jbgp.dst_dt == jbgp.acc_dt, jbgp.with_sum);
 
     constexpr int amx_int8_row = 64;
-    jbgp.ic_block = (is_amx_int8) ? amx_int8_row : jbgp.simd_w;
+    constexpr int amx_bf16_row = 32;
+    jbgp.ic_block = (is_amx_int8) ? amx_int8_row
+                                  : (is_amx_bf16) ? amx_bf16_row : jbgp.simd_w;
     if (jbgp.oc >= 64) {
         jbgp.oc_block = 64;
     } else if (jbgp.oc >= 32) {
@@ -152,7 +162,7 @@ status_t init_ip_conf_fwd(
     jbgp.os = jbgp.mb;
 
     // Configure matrix sizes
-    const int max_M = 64, min_M = is_amx_int8 ? 16 : 6;
+    static const int max_M = 64, min_M = (is_amx_int8 || is_amx_bf16) ? 16 : 6;
     jbgp.os_block = 1;
     for (int m_ = max_M; m_ >= min_M; m_--) {
         if (jbgp.os % m_ == 0) {
@@ -513,7 +523,8 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     if (!IMPLICATION(is_int8,
                 one_of(isa, avx512_core_vnni, avx512_core_bf16_amx_int8)))
         return status::unimplemented;
-    if (!IMPLICATION(is_bf16, isa == avx512_core_bf16))
+    if (!IMPLICATION(is_bf16,
+                one_of(isa, avx512_core_bf16, avx512_core_bf16_amx_bf16)))
         return status::unimplemented;
 
     if (is_int8) {
@@ -648,7 +659,8 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book<simple_barrier::ctx_t>(
                 key_conv_wei_bia_reduction_bctx, 1);
 
-    if (jbgp.isa == avx512_core_bf16_amx_int8)
+    if (jbgp.isa == avx512_core_bf16_amx_int8
+            || jbgp.isa == avx512_core_bf16_amx_bf16)
         scratchpad.book(
                 key_conv_amx_tile_buffer, jbgp.nthr * 1024, sizeof(char));
 }
