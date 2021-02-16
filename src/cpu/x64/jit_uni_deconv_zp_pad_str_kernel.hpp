@@ -95,6 +95,8 @@ private:
     const Vmm vmm_tmp_;
     const Vmm vmm_one_bytes_;
     const Vmm vmm_one_words_;
+
+    const Xbyak::Opmask &ktail_mask_ = k2;
     dim_t current_vmm_;
 };
 

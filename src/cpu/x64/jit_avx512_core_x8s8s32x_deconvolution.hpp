@@ -17,7 +17,9 @@
 #ifndef CPU_X64_JIT_AVX512_CORE_X8S8S32X_DECONVOLUTION_HPP
 #define CPU_X64_JIT_AVX512_CORE_X8S8S32X_DECONVOLUTION_HPP
 
+#include <functional>
 #include <vector>
+
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory.hpp"
@@ -30,6 +32,7 @@
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
+#include "cpu/x64/jit_uni_deconv_zp_pad_str_kernel.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -112,6 +115,12 @@ private:
     const Xbyak::Reg64 reg_overflow = rax;
     const Xbyak::Reg64 reg_comp_strides = reg_overflow;
     const Xbyak::Reg64 reg_ker_long_offt = r15;
+    const Xbyak::Reg64 &reg_zp_dst_ = r15;
+    const Xbyak::Reg64 &reg_zp_src_ = r15;
+    const Xbyak::Reg64 &reg_zp_compensation = r11;
+    static constexpr int reserved_stack_size_ = 16;
+    const Xbyak::Address zp_src_pad_comp_addr = ptr[rsp];
+    const Xbyak::Address reg_scratch_preserved = ptr[rsp + 8];
 
     Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
     const Vmm vmm_tmp = Vmm(28);
@@ -132,7 +141,7 @@ private:
         assert(idx < 31);
         return Vmm(idx);
     }
-    Vmm vmm_inp(int i_ic, int nb_x_blocking) {
+    Vmm vmm_inp(int i_ic, int nb_x_blocking) const {
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
         assert(idx < 31);
         return Vmm(idx);
@@ -160,8 +169,18 @@ private:
             res += jcp.stride_w;
         return ur_w - res;
     }
+
+    int get_blocking_size() const noexcept;
+    int get_tail_size() const noexcept;
     void prepare_output(int ur_w);
     void store_output(int ur_w, bool last_oc_block);
+    void compute(const Vmm &vreg_acc, const Vmm &vreg_wei, const Vmm &vreg_src);
+    std::function<Vmm()> prepare_round_robin_vmm_inp_generator(int ur_w) const
+            noexcept;
+    void apply_zp_src_pad_str_comp(
+            int ur_w, int l_overflow, int r_overflow, bool h_padded);
+    void append_zp_src_pad_str_comp(int ur_w, int l_overflow, int r_overflow,
+            bool h_padded, bool last_oc_block);
     void compute_ker(int ur_w, int l_overflow, int r_overflow,
             ker_block_t last_ic_block_flag, bool h_padded = false);
     void kh_loop(int ur_w, int pad_l, int pad_r, ker_block_t last_ker_block);
@@ -175,7 +194,6 @@ private:
 };
 
 struct _jit_avx512_core_x8s8s32x_deconv_fwd_kernel {
-
     _jit_avx512_core_x8s8s32x_deconv_fwd_kernel(const jit_conv_conf_t &ajcp,
             const primitive_attr_t &attr, const memory_desc_t &dst_md)
         : kernel_(nullptr) {
@@ -243,8 +261,9 @@ struct jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
                                     weights_md(1)->data_type, f32, s32, s8, u8))
                     && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
                     && desc()->accum_data_type == s32
-                    && attr()->has_default_values(
-                            skip_mask_t::oscale | skip_mask_t::post_ops);
+                    && attr()->has_default_values(skip_mask_t::oscale
+                            | skip_mask_t::post_ops
+                            | skip_mask_t::zero_points_runtime);
             if (!ok) return status::unimplemented;
 
             CHECK(_jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(jcp_,
@@ -268,28 +287,38 @@ struct jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
         CHECK(safe_ptr_assign(kernel_,
                 new _jit_avx512_core_x8s8s32x_deconv_fwd_kernel(
                         pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
+
+        if (zp::should_calculate_deconv_zp_src_pad_str_comp(pd()->jcp_)) {
+            CHECK(safe_ptr_assign(zp_src_pad_comp_kernel_,
+                    zp::create_deconv_zp_pad_str_comp_ker<avx512_common>(
+                            pd()->jcp_)));
+            const auto zp_kernel_status
+                    = zp_src_pad_comp_kernel_->create_kernel();
+            if (zp_kernel_status != status::success) return zp_kernel_status;
+        }
+
         return kernel_->create_kernel();
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         auto ndims = pd()->ndims();
         if (ndims == 3)
-            execute_forward_1d(ctx);
+            return execute_forward_1d(ctx);
         else if (ndims == 4)
-            execute_forward_2d(ctx);
+            return execute_forward_2d(ctx);
         else if (ndims == 5)
-            execute_forward_3d(ctx);
-        else
-            return status::unimplemented;
-        return status::success;
+            return execute_forward_3d(ctx);
+        return status::runtime_error;
     }
 
 private:
-    void execute_forward_1d(const exec_ctx_t &ctx) const;
-    void execute_forward_2d(const exec_ctx_t &ctx) const;
-    void execute_forward_3d(const exec_ctx_t &ctx) const;
+    status_t execute_forward_1d(const exec_ctx_t &ctx) const;
+    status_t execute_forward_2d(const exec_ctx_t &ctx) const;
+    status_t execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::unique_ptr<_jit_avx512_core_x8s8s32x_deconv_fwd_kernel> kernel_;
+    std::unique_ptr<zp::jit_uni_deconv_zp_pad_str_kernel_base_t>
+            zp_src_pad_comp_kernel_;
 };
 
 } // namespace x64
