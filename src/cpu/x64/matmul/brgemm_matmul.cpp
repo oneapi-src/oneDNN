@@ -63,9 +63,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     };
 
     bool ok = true && mayiuse(isa) && !has_runtime_dims_or_strides()
-            && attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::oscale_runtime
-                    | primitive_attr_t::skip_mask_t::zero_points_runtime
+            && attr()->has_default_values(primitive_attr_t::skip_mask_t::oscale
+                    | primitive_attr_t::skip_mask_t::zero_points
                     | primitive_attr_t::skip_mask_t::post_ops)
             && check_attr_oscale() && check_attr_zero_points() && check_bias();
     if (!ok) return status::unimplemented;
