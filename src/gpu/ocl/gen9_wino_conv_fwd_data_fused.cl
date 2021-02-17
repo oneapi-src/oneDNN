@@ -41,7 +41,7 @@
 #define COMP_READ(ptr) CONCAT2(vload, COMP_BLOCK)(0, ptr)
 #define COMP_WRITE(data, ptr) CONCAT2(vstore, COMP_BLOCK)(data, 0, ptr)
 #define COMP_BLOCK_READ(ptr) \
-    AS_COMP_DATA_T(VECT_BLOCK_READ((const __global VECT_BLOCK_DATA_T *)ptr))
+    AS_COMP_DATA_T(VECT_BLOCK_READ((const __global BLOCK_DATA_T *)ptr))
 
 #define COMP_UNROLL (IC_BLOCK / COMP_BLOCK)
 
