@@ -268,7 +268,7 @@ void jit_avx512_core_amx_compute_zp_pbuff_t::icb_loop(
         int ur_w, int pad_l, int pad_r, bool handle_h_pad) {
 
     Label icb_label;
-    const int nb_ic = jcp.nb_ic_int;
+    const size_t nb_ic = jcp.nb_ic_int;
     const bool do_icb_loop = nb_ic > 1;
 
     /* Initialize zmm_one for weight accumulation */
