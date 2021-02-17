@@ -184,8 +184,8 @@ void jit_uni_eltwise_injector_f32<isa>::injector_postamble() {
         h->add_imm(h->X_SP, h->X_SP, preserved_vecs_count * vlen, h->X_TMP_0);
 
     for (int i = aux_gprs_count() - 1; i >= 0; --i)
-        h->ldr(XReg(preserved_gpr_idxs[i]), pre_ptr(h->X_SP, 8));
-    h->ldr(x_table, pre_ptr(h->X_SP, 8));
+        h->ldr(XReg(preserved_gpr_idxs[i]), post_ptr(h->X_SP, 8));
+    h->ldr(x_table, post_ptr(h->X_SP, 8));
 }
 
 template <cpu_isa_t isa>
