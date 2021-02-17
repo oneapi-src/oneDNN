@@ -27,106 +27,130 @@
 using namespace cl::sycl;
 
 namespace dnnl {
-class sycl_stream_test : public ::testing::Test {
+class sycl_stream_test : public ::testing::TestWithParam<engine::kind> {
 protected:
     virtual void SetUp() {
-#ifdef DNNL_SYCL_CUDA
-        SKIP_IF(true, "OpenCL features are not supported on CUDA backend");
-#endif
-        if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) { return; }
-
-        eng.reset(new engine(engine::kind::gpu, 0));
-        dev.reset(new device(sycl_interop::get_device(*eng)));
-        ctx.reset(new context(sycl_interop::get_context(*eng)));
+        if (engine::get_count(engine::kind::cpu) > 0) {
+            cpu_eng = engine(engine::kind::cpu, 0);
+        }
+        if (engine::get_count(engine::kind::gpu) > 0) {
+            gpu_eng = engine(engine::kind::gpu, 0);
+        }
     }
 
-    std::unique_ptr<engine> eng;
-    std::unique_ptr<device> dev;
-    std::unique_ptr<context> ctx;
+    bool has(engine::kind eng_kind) const {
+        switch (eng_kind) {
+            case engine::kind::cpu: return bool(cpu_eng);
+            case engine::kind::gpu: return bool(gpu_eng);
+            default: assert(!"Not expected");
+        }
+        return false;
+    }
+
+    engine get_engine(engine::kind eng_kind) const {
+        switch (eng_kind) {
+            case engine::kind::cpu: return cpu_eng;
+            case engine::kind::gpu: return gpu_eng;
+            default: assert(!"Not expected");
+        }
+        return {};
+    }
+
+    device get_device(engine::kind eng_kind) const {
+        switch (eng_kind) {
+            case engine::kind::cpu: return sycl_interop::get_device(cpu_eng);
+            case engine::kind::gpu: return sycl_interop::get_device(gpu_eng);
+            default: assert(!"Not expected");
+        }
+        return {};
+    }
+
+    context get_context(engine::kind eng_kind) const {
+        switch (eng_kind) {
+            case engine::kind::cpu: return sycl_interop::get_context(cpu_eng);
+            case engine::kind::gpu: return sycl_interop::get_context(gpu_eng);
+            default: assert(!"Not expected");
+        }
+        return context();
+    }
+
+    engine cpu_eng;
+    engine gpu_eng;
 };
 
-#ifndef DNNL_WITH_LEVEL_ZERO
-TEST_F(sycl_stream_test, Create) {
-    SKIP_IF(!eng, "GPU device not found.");
+TEST_P(sycl_stream_test, Create) {
+    engine::kind kind = GetParam();
+    SKIP_IF(!has(kind), "Device not found.");
 
-    stream s(*eng);
+    stream s(get_engine(kind));
     queue sycl_queue = sycl_interop::get_queue(s);
 
-    auto eng_dev = make_ocl_wrapper(dev->get());
-    auto eng_ctx = make_ocl_wrapper(ctx->get());
-    auto queue_dev = make_ocl_wrapper(sycl_queue.get_device().get());
-    auto queue_ctx = make_ocl_wrapper(sycl_queue.get_context().get());
+    auto queue_dev = sycl_queue.get_device();
+    auto queue_ctx = sycl_queue.get_context();
 
-    EXPECT_EQ(eng_dev, queue_dev);
-    EXPECT_EQ(eng_ctx, queue_ctx);
+    EXPECT_EQ(get_device(kind), queue_dev);
+    EXPECT_EQ(get_context(kind), queue_ctx);
 }
 
-TEST_F(sycl_stream_test, BasicInterop) {
-    SKIP_IF(!eng, "GPU devices not found.");
+TEST_P(sycl_stream_test, BasicInterop) {
+    engine::kind kind = GetParam();
+    SKIP_IF(!has(kind), "Device not found.");
 
-    auto ocl_dev = make_ocl_wrapper(sycl_interop::get_device(*eng).get());
-    auto ocl_ctx = make_ocl_wrapper(sycl_interop::get_context(*eng).get());
+    queue interop_queue(get_context(kind), get_device(kind));
+    stream s = sycl_interop::make_stream(get_engine(kind), interop_queue);
 
-    ::cl_int err;
-    cl_command_queue interop_ocl_queue = clCreateCommandQueueWithProperties(
-            ocl_ctx, ocl_dev, nullptr, &err);
-    TEST_OCL_CHECK(err);
-
-    queue interop_sycl_queue(
-            interop_ocl_queue, sycl_interop::get_context(*eng));
-    clReleaseCommandQueue(interop_ocl_queue);
-
-    {
-        auto s = sycl_interop::make_stream(*eng, interop_sycl_queue);
-
-        // TODO: enable the following check when Intel(R) oneAPI DPC++ Compiler
-        // adds support for it
-#if 0
-        auto ref_count = interop_sycl_queue.get_info<info::queue::reference_count>();
-        EXPECT_EQ(ref_count, 2);
-#endif
-
-        auto sycl_queue = sycl_interop::get_queue(s);
-        EXPECT_EQ(sycl_queue, interop_sycl_queue);
-    }
-
-    // TODO: enable the following check when Intel(R) oneAPI DPC++ Compiler adds
-    // support for it
-#if 0
-    auto ref_count = interop_sycl_queue.get_info<info::queue::reference_count>();
-    EXPECT_EQ(ref_count, 1);
-#endif
+    EXPECT_EQ(interop_queue, sycl_interop::get_queue(s));
 }
 
-TEST_F(sycl_stream_test, BasicInteropCPU) {
-    cl_device_id cpu_ocl_dev = find_ocl_device(CL_DEVICE_TYPE_CPU);
-    SKIP_IF(!cpu_ocl_dev, "CPU device not found.");
+TEST_P(sycl_stream_test, InteropIncompatibleQueue) {
+    engine::kind kind = GetParam();
+    SKIP_IF(!has(engine::kind::cpu) || !has(engine::kind::gpu),
+            "CPU or GPU device not found.");
 
-    queue cpu_sycl_queue(cpu_selector {});
-    SKIP_IF(!cpu_sycl_queue.get_device().is_cpu(), "CPU-only device not found");
-
-    {
-        auto cpu_eng = sycl_interop::make_engine(
-                cpu_sycl_queue.get_device(), cpu_sycl_queue.get_context());
-        auto s = sycl_interop::make_stream(cpu_eng, cpu_sycl_queue);
-        auto sycl_queue = sycl_interop::get_queue(s);
-        EXPECT_EQ(sycl_queue, cpu_sycl_queue);
-    }
-}
-
-TEST_F(sycl_stream_test, InteropIncompatibleQueue) {
-    SKIP_IF(!eng, "GPU device not found.");
-
-    cl_device_id cpu_ocl_dev = find_ocl_device(CL_DEVICE_TYPE_CPU);
-    SKIP_IF(!cpu_ocl_dev, "CPU device not found.");
-
-    queue cpu_sycl_queue(cpu_selector {});
-    SKIP_IF(cpu_sycl_queue.get_device().is_gpu(), "CPU-only device not found");
+    auto other_kind = (kind == engine::kind::gpu) ? engine::kind::cpu
+                                                  : engine::kind::gpu;
+    queue interop_queue(get_context(other_kind), get_device(other_kind));
 
     catch_expected_failures(
-            [&] { sycl_interop::make_stream(*eng, cpu_sycl_queue); }, true,
-            dnnl_invalid_arguments);
+            [&] { sycl_interop::make_stream(get_engine(kind), interop_queue); },
+            true, dnnl_invalid_arguments);
+}
+
+// TODO: Enable the test below after sycl_stream_t is fixed to not reuse the
+// service stream. Now it ignores the input stream flags and reuses the service
+// stream which is constructed without any flags.
+#if 0
+TEST_P(sycl_stream_test, Flags) {
+    engine::kind kind = GetParam();
+    SKIP_IF(!has(kind), "Device not found.");
+
+    stream in_order_stream(get_engine(kind), stream::flags::in_order);
+    auto in_order_queue = sycl_interop::get_queue(in_order_stream);
+    EXPECT_TRUE(in_order_queue.is_in_order());
+
+    stream out_of_order_stream(get_engine(kind), stream::flags::out_of_order);
+    auto out_of_order_queue = sycl_interop::get_queue(out_of_order_stream);
+    EXPECT_TRUE(!out_of_order_queue.is_in_order());
 }
 #endif
+
+namespace {
+struct PrintToStringParamName {
+    template <class ParamType>
+    std::string operator()(
+            const ::testing::TestParamInfo<ParamType> &info) const {
+        switch (info.param) {
+            case engine::kind::cpu: return "cpu";
+            case engine::kind::gpu: return "gpu";
+            default: assert(!"Not expected");
+        }
+        return {};
+    }
+};
+} // namespace
+
+INSTANTIATE_TEST_SUITE_P(AllEngineKinds, sycl_stream_test,
+        ::testing::Values(engine::kind::cpu, engine::kind::gpu),
+        PrintToStringParamName());
 
 } // namespace dnnl
