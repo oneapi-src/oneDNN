@@ -21,6 +21,7 @@
 
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/jit_brgemm_inner_product.hpp"
 
 namespace dnnl {
@@ -46,6 +47,9 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
     auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(
+                    pd()->attr()->post_ops_, ctx);
 
     memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
     const memory_desc_wrapper src_d(pd()->src_md());
@@ -72,9 +76,9 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
 
     int ic_chunks = jbgp.nb_ic / jbgp.nb_ic_blocking;
 
-    bool are_post_ops_applicable = one_of(true, jbgp.with_sum, jbgp.with_bias,
-            jbgp.with_scales, jbgp.with_eltwise, jbgp.acc_dt != jbgp.dst_dt,
-            jbgp.signed_input);
+    const bool are_post_ops_applicable = one_of(true, jbgp.with_sum,
+            jbgp.with_bias, jbgp.with_scales, jbgp.with_eltwise,
+            jbgp.with_binary, jbgp.acc_dt != jbgp.dst_dt, jbgp.signed_input);
 
     size_t offset = types::data_type_size(jbgp.wei_dt)
             * (weights_d.size() - weights_d.additional_buffer_size());
@@ -133,6 +137,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
                 brgemm_kernel_execute_postops(brg_kernel, gemm_batch,
                         addr_batch, (void *)ptr_C, (void *)ptr_D,
                         (void *)ptr_bias, &oscales[jbgp.is_oc_scale * oc],
+                        post_ops_binary_rhs_arg_vec.data(), oc,
                         is_amx ? (void *)wsp_tile
                                : (jbgp.signed_input ? (void *)&compensation[oc]
                                                     : nullptr));
@@ -164,6 +169,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
                 brgemm_kernel_execute_postops(brg_kernel_ic_tail, 1, addr_batch,
                         (void *)ptr_C, (void *)ptr_D, (void *)ptr_bias,
                         &oscales[jbgp.is_oc_scale * oc],
+                        post_ops_binary_rhs_arg_vec.data(), oc,
                         is_amx ? (void *)wsp_tile
                                : (jbgp.signed_input ? (void *)&compensation[oc]
                                                     : nullptr));
@@ -374,8 +380,9 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                 auto ptr_D = diff_src
                         + get_blk_off(diff_src_d, jbgp.src_dt, n, ic);
                 brgemm_kernel_execute_postops(brg_kernel, nb_oc_b, addr_batch,
-                        (void *)c_buffer, (void *)ptr_D, nullptr, nullptr,
+                        (void *)c_buffer, (void *)ptr_D, nullptr, nullptr, nullptr, 0,
                         is_amx ? (void *)wsp_tile : nullptr);
+
             } else {
                 char *ptr_C = (jbgp.use_buffer) ? c_buffer
                                                 : (char *)diff_src
@@ -412,7 +419,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                         + get_blk_off(diff_src_d, jbgp.src_dt, n, ic);
                 brgemm_kernel_execute_postops(brg_kernel_oc_tail, 1, addr_batch,
                         (void *)c_buffer, (void *)ptr_D, nullptr, nullptr,
-                        is_amx ? (void *)wsp_tile : nullptr);
+                        nullptr, 0, is_amx ? (void *)wsp_tile : nullptr);
+
             } else {
                 char *ptr_C = (jbgp.use_buffer) ? c_buffer
                                                 : (char *)diff_src

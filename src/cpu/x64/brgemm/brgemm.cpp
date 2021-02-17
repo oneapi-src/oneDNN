@@ -23,7 +23,7 @@
 
 #include "cpu/x64/brgemm/brgemm_types.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
-
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -70,7 +70,8 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
         const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
-        const void *bias, const float *scales, void *scratch) {
+        const void *bias, const float *scales, const void *binary_post_ops_rhs,
+        size_t oc_logical_off, void *scratch) {
     brgemm_kernel_params_t brgemm_p;
 
     brgemm_p.batch = batch;
@@ -83,13 +84,16 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_scales = scales;
     brgemm_p.do_post_ops = 1;
     brgemm_p.BS = bs;
+    brgemm_p.post_ops_binary_rhs_arg_vec = binary_post_ops_rhs;
+    brgemm_p.oc_logical_off = oc_logical_off;
     (*brg_kernel)(&brgemm_p);
 }
 
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
         const void *addr_A, const void *addr_B,
         const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
-        const void *bias, const float *scales, void *scratch) {
+        const void *bias, const float *scales, const void *binary_post_ops_rhs,
+        size_t oc_logical_off, void *scratch) {
     brgemm_kernel_params_t brgemm_p;
 
     brgemm_p.batch = batch;
@@ -102,6 +106,9 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_scales = scales;
     brgemm_p.do_post_ops = 1;
     brgemm_p.BS = bs;
+    brgemm_p.post_ops_binary_rhs_arg_vec = binary_post_ops_rhs;
+    brgemm_p.oc_logical_off = oc_logical_off;
+
     (*brg_kernel)(&brgemm_p);
 }
 
@@ -320,10 +327,11 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 }
 
 status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
-        impl::data_type_t dt_d, int LDD, impl::data_type_t dt_bias) {
-    if (brg == nullptr) return status::invalid_arguments;
+        const memory_desc_t *dst_md, int LDD, impl::data_type_t dt_bias) {
+    if (!brg || !dst_md) return status::invalid_arguments;
 
     brg->attr = attr;
+    brg->dst_md = dst_md;
 
     brg->with_bias = (dt_bias == data_type::undef) ? false : true;
     brg->dt_bias = dt_bias;
@@ -332,7 +340,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
             : types::data_type_size(brg->dt_bias);
 
     brg->LDD = LDD;
-
+    const auto dt_d = dst_md->data_type;
     if ((brg->dt_a == data_type::u8 && brg->dt_b == data_type::s8)
             && (!one_of(dt_d, data_type::u8, data_type::s8, data_type::s32,
                     data_type::f32))
@@ -349,6 +357,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
             && (!one_of(dt_bias, data_type::undef, data_type::f32)))
         return status::unimplemented;
 
+
     brg->dt_d = dt_d;
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
@@ -360,14 +369,27 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
         return status::success;
     }
 
-    const auto &p = brg->attr->post_ops_;
-    const int sum_idx = p.find(primitive_kind::sum);
-    brg->with_sum = sum_idx != -1;
-    brg->sum_scale = (sum_idx != -1) ? p.entry_[sum_idx].sum.scale : 0;
+    using namespace injector;
 
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    const auto &post_ops = brg->attr->post_ops_;
+    const memory_desc_wrapper dst_d(dst_md);
+
+    if (!injector::post_ops_ok(post_ops_ok_args_t(avx512_common,
+                {sum, eltwise, binary}, post_ops, &dst_d,
+                false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
+                {broadcasting_strategy_t::per_oc,
+                        broadcasting_strategy_t::scalar})))
+        return status::unimplemented;
+
+    const int sum_idx = post_ops.find(primitive_kind::sum);
+    brg->with_sum = sum_idx != -1;
+    brg->sum_scale = (sum_idx != -1) ? post_ops.entry_[sum_idx].sum.scale : 0;
+
+    const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     brg->with_eltwise = eltwise_ind != -1;
-    if (brg->with_eltwise) brg->eltwise = p.entry_[eltwise_ind].eltwise;
+
+    const int binary_ind = post_ops.find(primitive_kind::binary);
+    brg->with_binary = binary_ind != -1;
 
     if (brg->is_int8) {
         const auto &oscales = brg->attr->output_scales_;

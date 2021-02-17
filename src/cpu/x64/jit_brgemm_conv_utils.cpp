@@ -24,6 +24,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_brgemm_conv_utils.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
@@ -62,23 +63,17 @@ inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
     return status::success;
 }
 
-bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, const primitive_attr_t &attr) {
-    using namespace primitive_kind;
-    const auto &p = attr.post_ops_;
+bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, const primitive_attr_t &attr,
+        const memory_desc_wrapper &dst_d) {
+    using namespace injector;
 
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
+    const auto &post_ops = attr.post_ops_;
 
-    switch (p.len()) {
-        case 0: return true;
-        case 1: return is_eltwise(0) || p.contain(sum, 0);
-        case 2:
-            return (p.contain(sum, 0) && is_eltwise(1))
-                    || (one_of(jcp.src_dt, u8, s8) && p.contain(sum, 1)
-                            && is_eltwise(0));
-        default: return false;
-    }
-
-    return false;
+    return injector::post_ops_ok(post_ops_ok_args_t(avx512_common,
+            {sum, eltwise, binary}, post_ops, &dst_d,
+            false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
+            {broadcasting_strategy_t::per_oc,
+                    broadcasting_strategy_t::scalar}));
 }
 
 status_t init_jcp(jit_brgemm_conv_conf_t &jcp, const convolution_desc_t &cd,
@@ -170,18 +165,20 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.acc_dsz = types::data_type_size(jcp.acc_dt);
     jcp.bia_dsz = jcp.with_bias ? types::data_type_size(jcp.bia_dt) : 0;
 
+    if (!post_ops_ok(jcp, attr, dst_d)) return status::unimplemented;
+
     jcp.simd_w = cpu_isa_traits<avx512_common>::vlen / jcp.src_dsz;
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
     jcp.with_eltwise = eltwise_ind != -1;
-    if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+    const int binary_ind = p.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
+
     if (jcp.with_bias) {
         if (bias_d.format_kind() == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, x));
     }
-
-    if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
     jcp.nthr = nthreads;
 
@@ -473,7 +470,8 @@ struct brg_blocking_t {
 };
 
 int get_brgemm_ur(const jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
-        const brg_blocking_t &brgb, const primitive_attr_t *attr, bool is_1x1) {
+        const brg_blocking_t &brgb, const memory_desc_t &dst_md,
+        const primitive_attr_t *attr, bool is_1x1) {
     // Simulation of brgemm_desc init
     brgemm_t brg;
     const auto ic_block = brgb.ic_block;
@@ -544,10 +542,9 @@ int get_brgemm_ur(const jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                     status = brgemm_desc_set_attr(&brg, brgattr);
                     if (status != success) break;
 
-                    auto dt_d = jcp.dst_dt;
                     brg.with_sum = jcp.with_sum;
                     status = brgemm_desc_set_postops(
-                            &brg, attr, dt_d, LDD, jcp.bia_dt);
+                            &brg, attr, &dst_md, LDD, jcp.bia_dt);
                     if (status != success) break;
                 }
                 if (status != success) break;
@@ -763,7 +760,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
             calc_blocks(jcp, cur_brgb);
             const bool is_1x1 = false;
-            const auto ur = get_brgemm_ur(jcp, isa, cur_brgb, &attr, is_1x1);
+            const auto ur
+                    = get_brgemm_ur(jcp, isa, cur_brgb, dst_md, &attr, is_1x1);
             if (ur == 0) continue;
 
             const auto oc_block_disb
@@ -1080,7 +1078,8 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         cur_brgb.nb_oc = utils::div_up(jcp.oc, cur_brgb.oc_block);
         calc_blocks(jcp, cur_brgb);
         const bool is_1x1 = true;
-        const auto ur = get_brgemm_ur(jcp, isa, cur_brgb, &attr, is_1x1);
+        const auto ur
+                = get_brgemm_ur(jcp, isa, cur_brgb, dst_md, &attr, is_1x1);
         if (ur == 0) continue;
 
         const auto oc_block_disb

@@ -133,7 +133,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
 
                 auto LDD = jbgp_.oc_without_padding;
                 CHECK(brgemm_desc_set_postops(
-                        &brg, attr(), jbgp_.dst_dt, LDD, jbgp_.bia_dt));
+                        &brg, attr(), &dst_md_, LDD, jbgp_.bia_dt));
                 if (isa == avx512_core_bf16_amx_int8
                         || isa == avx512_core_bf16_amx_bf16) {
                     brgemm_attr_t brgattr;
@@ -252,7 +252,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
 
                 auto LDD = jbgp_.ic_without_padding;
                 CHECK(brgemm_desc_set_postops(
-                        &brg, attr(), jbgp_.src_dt, LDD, jbgp_.bia_dt));
+                        &brg, attr(), &diff_src_md_, LDD, jbgp_.bia_dt));
                 if (isa == avx512_core_bf16_amx_bf16) {
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = jbgp_.gemm_batch_size;

@@ -15,8 +15,9 @@
 *******************************************************************************/
 
 #include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
-#include "cpu/matmul/matmul_utils.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 
+#include "cpu/matmul/matmul_utils.hpp"
 #include "oneapi/dnnl/dnnl_debug.h"
 
 namespace dnnl {
@@ -34,23 +35,17 @@ using namespace data_type;
 using namespace format_tag;
 
 // TODO: add support of post-ops with multiple binary and eltwise execution
-bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr) {
-    using namespace primitive_kind;
-    const auto &p = attr.post_ops_;
+bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
+        const memory_desc_wrapper &dst_d) {
+    using namespace injector;
 
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
+    const auto &post_ops = attr.post_ops_;
 
-    switch (p.len()) {
-        case 0: return true;
-        case 1: return is_eltwise(0) || p.contain(sum, 0);
-        case 2:
-            return (p.contain(sum, 0) && is_eltwise(1))
-                    || (one_of(bgmmc.src_dt, u8, s8) && p.contain(sum, 1)
-                            && is_eltwise(0));
-        default: return false;
-    }
-
-    return false;
+    return injector::post_ops_ok(post_ops_ok_args_t(avx512_common,
+            {sum, eltwise, binary}, post_ops, &dst_d,
+            false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
+            {broadcasting_strategy_t::per_oc,
+                    broadcasting_strategy_t::scalar}));
 }
 
 status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
@@ -96,8 +91,10 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.with_sum = p.find(primitive_kind::sum) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
     bgmmc.with_eltwise = eltwise_ind != -1;
-    if (bgmmc.with_eltwise) bgmmc.eltwise = p.entry_[eltwise_ind].eltwise;
-    if (!post_ops_ok(bgmmc, attr)) return status::unimplemented;
+    const int binary_ind = p.find(primitive_kind::binary);
+    bgmmc.with_binary = binary_ind != -1;
+
+    if (!post_ops_ok(bgmmc, attr, dst_d)) return status::unimplemented;
 
     if (IMPLICATION(is_int8,
                 !one_of(isa, avx512_core_vnni, avx512_core_bf16_amx_int8)))

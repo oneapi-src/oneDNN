@@ -129,12 +129,13 @@ private:
     void perform_outwork(dst_data_t *dst_base, char *c_buffer,
             const char *bias_w, int od, int oh, int ow, int g_oc,
             bool is_oc_tail, int ker_ow_s, int ker_ow_f, int kd_l, int kh_l,
-            bool do_init, bool do_postwork) const;
+            const void *post_ops_binary_rhs_arg_vec, bool do_init,
+            bool do_postwork) const;
 
     void call_brgemm_kernel(brgemm_kernel_t *brg_ker, int batch_size,
             brgemm_batch_element_t *const __restrict brg_batch, char *ptr_C,
-            dst_data_t *ptr_D, const char *bias_w, int g_oc,
-            bool do_postops) const;
+            dst_data_t *ptr_D, const char *bias_w, int g_oc, bool do_postops,
+            const void *binary_post_ops_rhs) const;
 
     void maybe_conv_inp(int ithr, const src_data_t *__restrict src,
             src_data_t *__restrict inp_buffer,

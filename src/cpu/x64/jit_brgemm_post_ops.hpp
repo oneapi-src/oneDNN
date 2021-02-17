@@ -17,12 +17,14 @@
 #ifndef CPU_X64_JIT_BRGEMM_POST_OPS_HPP
 #define CPU_X64_JIT_BRGEMM_POST_OPS_HPP
 
+#include <memory>
+
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
 #include "cpu/cpu_engine.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_brgemm_primitive_conf.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
@@ -75,7 +77,6 @@ private:
 
     Xbyak::Opmask k_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_tail_mask = Xbyak::Opmask(3);
-    Xbyak::Opmask k_tail_store_mask = Xbyak::Opmask(4);
     Xbyak::Zmm vreg_unit = Xbyak::Zmm(31);
 
     const int n_max_regs_ = 4;
@@ -258,28 +259,53 @@ struct brgemm_kernel_post_ops_t {
     void *ptr_out;
     void *ptr_bias;
     void *ptr_scales;
+    const void *ptr_binary_post_ops_rhs;
+    size_t oc_l_offset;
 };
 
 struct jit_brgemm_kernel_post_ops : public jit_generator {
 
     jit_brgemm_kernel_post_ops(const jit_brgemm_conv_conf_t &ajcp,
             const brgemm_t &abrg, const primitive_attr_t &aattr)
-        : brg(abrg), jcp(ajcp), attr(aattr), eltwise_injector_(nullptr) {
+        : brg(abrg)
+        , jcp(ajcp)
+        , attr(aattr)
+        , postops_injector_(nullptr)
+        , with_binary_per_oc_bcast_(brg.with_binary
+                  && binary_injector::any_binary_postop_rhs_per_oc_broadcast(
+                          brg.attr->post_ops_,
+                          memory_desc_wrapper(brg.dst_md))) {
 
-        const auto &p = attr.post_ops_;
-        with_sum_ = p.find(primitive_kind::sum) != -1;
-        const int eltwise_ind = p.find(primitive_kind::eltwise);
-        with_eltwise_ = eltwise_ind != -1;
-        if (with_eltwise_) eltwise_ = p.entry_[eltwise_ind].eltwise;
+        if ((jcp.with_sum && brg.beta != 0)
+                || ((jcp.with_binary || jcp.with_eltwise) && brg.alpha != 0)) {
+            static constexpr bool preserve_gpr = true;
+            static constexpr bool preserve_vmm = true;
+            static constexpr bool use_exact_tail_scalar_bcast = false;
 
-        if (brg.alpha != 0 && with_eltwise_)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
-                    this, eltwise_, true, rax, Xbyak::Opmask(1));
+            const binary_injector::rhs_arg_static_params_t rhs_sp {
+                    static_cast<size_t>(Xbyak::Zmm(28).getIdx()), this->rax,
+                    this->r11, preserve_gpr, preserve_vmm,
+                    GET_OFF(ptr_binary_post_ops_rhs),
+                    memory_desc_wrapper(brg.dst_md),
+                    static_cast<size_t>(brg.load_dim % brg.ld_block),
+                    k_tail_mask, use_exact_tail_scalar_bcast};
+            const binary_injector::static_params_t bsp {this->param1, rhs_sp};
+
+            static constexpr bool save_state = true;
+            const auto &reserved_eltwise_gpr = rax;
+            const auto reserved_eltwise_maskr = Xbyak::Opmask(1);
+
+            const eltwise_injector::static_params_t esp {
+                    save_state, reserved_eltwise_gpr, reserved_eltwise_maskr};
+
+            postops_injector_ = utils::make_unique<
+                    injector::jit_uni_postops_injector_t<avx512_common>>(
+                    this, attr.post_ops_, bsp, esp);
+        }
 
         const auto &oscales = attr.output_scales_;
         is_oc_scale_ = oscales.mask_ == 1 << 1;
 
-        with_bias_ = jcp.with_bias;
         LDD_ = brg.LDD;
         inp_dt_ = brg.dt_c;
         out_dt_ = brg.dt_d;
@@ -289,7 +315,7 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
         bia_typesize_ = (jcp.with_bias) ? types::data_type_size(bia_dt_) : 0;
     }
 
-    ~jit_brgemm_kernel_post_ops() { delete eltwise_injector_; }
+    ~jit_brgemm_kernel_post_ops() = default;
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_post_ops)
 
@@ -298,18 +324,15 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
     const primitive_attr_t &attr;
 
 private:
-    bool with_sum_;
-    bool with_eltwise_;
-    bool with_bias_;
     int LDD_;
 
     data_type_t inp_dt_;
     data_type_t out_dt_;
     data_type_t bia_dt_;
 
-    post_ops_t::entry_t::eltwise_t eltwise_;
-
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_common>>
+            postops_injector_;
+    const bool with_binary_per_oc_bcast_;
 
     int inp_typesize_;
     int out_typesize_;
@@ -333,6 +356,9 @@ private:
     const reg64_t aux_reg_scales = r8;
 
     const reg64_t reg_ptr_sum_scale = rdx;
+
+    const reg64_t reg_oc_l_offset_ = abi_not_param1;
+    const reg64_t aux_reg_oc_l_offset_ = rbx;
 
     Xbyak::Opmask k_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_tail_mask = Xbyak::Opmask(3);
@@ -372,24 +398,63 @@ private:
             vcvtdq2ps(zmm_in, zmm_in);
     }
 
-    bool maybe_eltwise(int position) {
-        using namespace primitive_kind;
+    Xbyak::Zmm vector(int m, int n, int n_block) {
+        return Xbyak::Zmm(m * n_block + n);
+    };
+
+    void inject_attr_postops(int m_block, int n_block, int tail = 0) {
         const auto &p = attr.post_ops_;
-        if (position == 0) {
-            /* eltwise before sum */
-            return p.contain(eltwise, 0);
-        } else if (position == 1) {
-            /* eltwise after sum */
-            return p.contain(sum, 0) && p.contain(eltwise, 1);
+        const int sum_idx = p.find(primitive_kind::sum);
+        const auto k_mask = tail == 0 ? k_full_mask : k_tail_mask;
+
+        const auto sum_injector = [&] {
+            const float *p_sum_scale = &p.entry_[sum_idx].sum.scale;
+            if (*p_sum_scale != 1.f)
+                mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
+
+            for_(int m = 0; m < m_block; m++)
+            for (int n = 0; n < n_block; n++) {
+                const auto zmm = vector(m, n, n_block);
+                const auto addr = ptr[aux_reg_out
+                        + out_typesize_ * (m * LDD_ + n * brg.ld_block)];
+
+                const auto zmm_prev_dst = Xbyak::Zmm(31);
+                cvt2ps(out_dt_, zmm_prev_dst, addr, true, false, k_mask);
+                if (*p_sum_scale == 1.f)
+                    vaddps(zmm, zmm_prev_dst);
+                else
+                    vfmadd231ps(zmm, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
+            }
+        };
+
+        if (jcp.with_sum && brg.beta != 0) {
+            postops_injector_->set_lambda_injector(
+                    primitive_kind::sum, sum_injector);
         }
-        return false;
+
+        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+
+        if (with_binary_per_oc_bcast_) {
+            for_(int m = 0; m < m_block; m++)
+            for (int n = 0; n < n_block; n++) {
+                const auto zmm_idx = vector(m, n, n_block).getIdx();
+
+                rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
+                        zmm_idx, aux_reg_oc_l_offset_);
+                rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                        zmm_idx, n * brg.ld_block);
+                if (tail) rhs_arg_params.vmm_tail_idx_.emplace(zmm_idx);
+            }
+        }
+
+        postops_injector_->compute_vector_range(
+                0, m_block * n_block, rhs_arg_params);
     }
 
     void apply_post_ops(int m_block, int n_block, int tail = 0) {
-        auto vector = [=](int m, int n) { return Xbyak::Zmm(m * n_block + n); };
-
+        const auto vector
+                = [=](int m, int n) { return Xbyak::Zmm(m * n_block + n); };
         auto k_mask = (tail == 0) ? k_full_mask : k_tail_mask;
-
         const auto &p = attr.post_ops_;
         const int sum_idx = p.find(primitive_kind::sum);
 
@@ -410,7 +475,7 @@ private:
             }
         }
 
-        if (brg.alpha != 0 && with_bias_) {
+        if (brg.alpha != 0 && jcp.with_bias) {
             for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
                 auto zmm_bias = Xbyak::Zmm(31);
@@ -434,36 +499,12 @@ private:
             }
         }
 
-        if (brg.alpha != 0 && with_eltwise_ && maybe_eltwise(0))
-            eltwise_injector_->compute_vector_range(0, m_block * n_block);
-
-        if (sum_idx != -1 && brg.beta != 0) {
-            const float *p_sum_scale = &p.entry_[sum_idx].sum.scale;
-            if (*p_sum_scale != 1.f)
-                mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
-
-            for_(int m = 0; m < m_block; m++)
-            for (int n = 0; n < n_block; n++) {
-                auto zmm = vector(m, n);
-                auto addr = ptr[aux_reg_out
-                        + out_typesize_ * (m * LDD_ + n * brg.ld_block)];
-
-                auto zmm_prev_dst = Xbyak::Zmm(31);
-                cvt2ps(out_dt_, zmm_prev_dst, addr, true, false, k_mask);
-                if (*p_sum_scale == 1.f)
-                    vaddps(zmm, zmm_prev_dst);
-                else
-                    vfmadd231ps(zmm, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
-            }
-        }
-
-        if (brg.alpha != 0 && with_eltwise_ && maybe_eltwise(1))
-            eltwise_injector_->compute_vector_range(0, m_block * n_block);
+        if (postops_injector_) inject_attr_postops(m_block, n_block, tail);
 
         const bool dt_requires_saturation = utils::one_of(
                 brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
 
-        const reg64_t reg_tmp_gpr = rbx;
+        const reg64_t reg_tmp_gpr = rax;
         auto zmm_lbound = Xbyak::Zmm(31);
         auto zmm_ubound = Xbyak::Zmm(30);
         if (dt_requires_saturation) {
@@ -503,45 +544,57 @@ private:
 
     void loop_by_N(int m_block, int nb2, int nb2_tail, int nb_tail) {
 
-        if (brg.alpha != 0) mov(aux_reg_in, reg_in);
-        if (brg.alpha != 0 && with_bias_) mov(aux_reg_bias, reg_bias);
-        if (brg.alpha != 0) mov(aux_reg_scales, reg_scales);
+        if (brg.alpha) {
+            mov(aux_reg_in, reg_in);
+            if (jcp.with_bias) mov(aux_reg_bias, reg_bias);
+            if (with_binary_per_oc_bcast_)
+                mov(aux_reg_oc_l_offset_, reg_oc_l_offset_);
+            mov(aux_reg_scales, reg_scales);
+        }
         mov(aux_reg_out, reg_out);
 
         for (int n_loop_ = 0; n_loop_ < nb2; n_loop_++) {
             apply_post_ops(m_block, n_block2_);
 
-            if (brg.alpha != 0)
-                add(aux_reg_in, inp_typesize_ * (n_block2_ * brg.ld_block));
-            add(aux_reg_out, out_typesize_ * (n_block2_ * brg.ld_block));
-            if (brg.alpha != 0 && with_bias_)
-                add(aux_reg_bias, bia_typesize_ * (n_block2_ * brg.ld_block));
-            if (brg.alpha != 0)
-                add(aux_reg_scales,
-                        is_oc_scale_ * sizeof(float)
-                                * (n_block2_ * brg.ld_block));
+            const auto oc_l_offset = n_block2_ * brg.ld_block;
+
+            add(aux_reg_out, out_typesize_ * oc_l_offset);
+            if (brg.alpha != 0) {
+                add(aux_reg_in, inp_typesize_ * oc_l_offset);
+
+                if (jcp.with_bias)
+                    add(aux_reg_bias, bia_typesize_ * oc_l_offset);
+                if (with_binary_per_oc_bcast_)
+                    add(aux_reg_oc_l_offset_, oc_l_offset);
+
+                add(aux_reg_scales, is_oc_scale_ * sizeof(float) * oc_l_offset);
+            }
         }
         if (nb2_tail > 0) {
             apply_post_ops(m_block, nb2_tail);
+            const auto oc_l_offset = nb2_tail * brg.ld_block;
 
-            if (brg.alpha != 0)
-                add(aux_reg_in, inp_typesize_ * (nb2_tail * brg.ld_block));
-            add(aux_reg_out, out_typesize_ * (nb2_tail * brg.ld_block));
-            if (brg.alpha != 0 && with_bias_)
-                add(aux_reg_bias, bia_typesize_ * (nb2_tail * brg.ld_block));
-            if (brg.alpha != 0)
-                add(aux_reg_scales,
-                        is_oc_scale_ * sizeof(float)
-                                * (nb2_tail * brg.ld_block));
+            add(aux_reg_out, out_typesize_ * oc_l_offset);
+            if (brg.alpha != 0) {
+                add(aux_reg_in, inp_typesize_ * oc_l_offset);
+                if (jcp.with_bias)
+                    add(aux_reg_bias, bia_typesize_ * oc_l_offset);
+                if (with_binary_per_oc_bcast_)
+                    add(aux_reg_oc_l_offset_, oc_l_offset);
+
+                add(aux_reg_scales, is_oc_scale_ * sizeof(float) * oc_l_offset);
+            }
         }
         if (nb_tail > 0) {
             apply_post_ops(m_block, 1, nb_tail);
 
-            if (brg.alpha != 0) add(aux_reg_in, inp_typesize_ * (nb_tail));
-            if (brg.alpha != 0 && with_bias_)
-                add(aux_reg_bias, bia_typesize_ * (nb_tail));
-            if (brg.alpha != 0)
+            if (brg.alpha != 0) {
+                add(aux_reg_in, inp_typesize_ * (nb_tail));
+                if (jcp.with_bias) add(aux_reg_bias, bia_typesize_ * (nb_tail));
+                if (with_binary_per_oc_bcast_)
+                    add(aux_reg_oc_l_offset_, nb_tail);
                 add(aux_reg_scales, is_oc_scale_ * bia_typesize_ * (nb_tail));
+            }
             add(aux_reg_out, out_typesize_ * (nb_tail));
         }
     }
@@ -572,10 +625,14 @@ private:
         mov(reg_mask, tail_mask);
         kmovq(k_tail_mask, reg_mask);
 
-        if (brg.alpha != 0) mov(reg_in, ptr[param1 + GET_OFF(ptr_in)]);
-        if (brg.alpha != 0 && with_bias_)
-            mov(reg_bias, ptr[param1 + GET_OFF(ptr_bias)]);
-        if (brg.alpha != 0) mov(reg_scales, ptr[param1 + GET_OFF(ptr_scales)]);
+        if (brg.alpha != 0) {
+            mov(reg_in, ptr[param1 + GET_OFF(ptr_in)]);
+            mov(reg_scales, ptr[param1 + GET_OFF(ptr_scales)]);
+
+            if (jcp.with_bias) mov(reg_bias, ptr[param1 + GET_OFF(ptr_bias)]);
+            if (with_binary_per_oc_bcast_)
+                mov(reg_oc_l_offset_, ptr[param1 + GET_OFF(oc_l_offset)]);
+        }
         mov(reg_out, ptr[param1 + GET_OFF(ptr_out)]);
 
         // brg.alpha == 0 means no read from input, no bias, no eltwise - just
@@ -600,7 +657,8 @@ private:
 
         postamble();
 
-        if (brg.alpha != 0 && with_eltwise_) eltwise_injector_->prepare_table();
+        if (brg.alpha != 0 && jcp.with_eltwise)
+            postops_injector_->prepare_table();
     }
 };
 

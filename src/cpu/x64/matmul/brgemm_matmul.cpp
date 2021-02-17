@@ -23,6 +23,7 @@
 #include "cpu/cpu_primitive.hpp"
 
 #include "cpu/x64/amx_tile_configure.hpp"
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/matmul/brgemm_matmul.hpp"
 
 namespace dnnl {
@@ -96,7 +97,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
 
         auto LDD = bgmmc_.N;
         CHECK(brgemm_desc_set_postops(
-                &brg, attr(), bgmmc_.dst_dt, LDD, bgmmc_.bia_dt));
+                &brg, attr(), &dst_md_, LDD, bgmmc_.bia_dt));
 
         if (isa == avx512_core_bf16_amx_int8) {
             brgemm_attr_t brgattr;
@@ -159,6 +160,10 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
 
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(
+                    pd()->attr()->post_ops_, ctx);
+
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
     const size_t bia_dt_size
             = bgmmc.with_bias ? types::data_type_size(bgmmc.bia_dt) : 0;
@@ -196,9 +201,10 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             = pd()->get_brg_kernel_idx(true, false, false, false);
 
     int K_chunks = div_up(bgmmc.K, bgmmc.K_blk * bgmmc.brgemm_batch_size);
-    bool are_post_ops_applicable = one_of(true, bgmmc.with_sum, bgmmc.with_bias,
-            bgmmc.with_scales, bgmmc.with_eltwise, bgmmc.acc_dt != bgmmc.dst_dt,
-            bgmmc.signed_input);
+    const bool are_post_ops_applicable
+            = one_of(true, bgmmc.with_sum, bgmmc.with_bias, bgmmc.with_scales,
+                    bgmmc.with_eltwise, bgmmc.with_binary,
+                    bgmmc.acc_dt != bgmmc.dst_dt, bgmmc.signed_input);
 
     size_t offset = types::data_type_size(bgmmc.wei_dt)
             * (weights_d.size() - weights_d.additional_buffer_size());
@@ -286,6 +292,7 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                 brgemm_kernel_execute_postops(brg_kernel, gemm_batch,
                         addr_batch, (void *)ptr_C, (void *)ptr_D,
                         (void *)ptr_bias, &oscales[bgmmc.is_oscale_per_n * n],
+                        post_ops_binary_rhs_arg_vec.data(), n,
                         is_amx ? (void *)wsp_tile
                                : (bgmmc.signed_input
                                                ? (void *)&compensation[comp_idx]
@@ -325,6 +332,7 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                 brgemm_kernel_execute_postops(brg_kernel_k_tail, 1, addr_batch,
                         (void *)ptr_C, (void *)ptr_D, (void *)ptr_bias,
                         &oscales[bgmmc.is_oscale_per_n * n],
+                        post_ops_binary_rhs_arg_vec.data(), n,
                         is_amx ? (void *)wsp_tile
                                : (bgmmc.signed_input
                                                ? (void *)&compensation[comp_idx]

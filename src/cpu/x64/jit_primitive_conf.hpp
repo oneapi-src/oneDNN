@@ -793,8 +793,9 @@ struct jit_brgemm_conv_conf_t {
     bool with_bias;
     bool with_sum;
     bool with_eltwise;
+    bool with_binary;
+
     bool is_fused_conv;
-    post_ops_t::entry_t::eltwise_t eltwise;
     int nb_ic, ic_block;
     int nb_oc, oc_block;
     int nb_iw, iw_block;

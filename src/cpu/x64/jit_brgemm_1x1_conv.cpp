@@ -18,6 +18,7 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 
 #include "cpu/x64/jit_brgemm_1x1_conv.hpp"
 
@@ -109,10 +110,10 @@ brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::pd_t::init(
         brgattr.max_bottom_vpad = jcp_.max_vpad;
         brgattr.wary_tail_read = false;
         CHECK(brgemm_desc_set_attr(&brg, brgattr));
-        auto dt_d = dst_type;
         auto LDD = jcp_.oc_without_padding;
         brg.with_sum = with_sum;
-        CHECK(brgemm_desc_set_postops(&brg, attr(), dt_d, LDD, jcp_.bia_dt));
+        CHECK(brgemm_desc_set_postops(
+                &brg, attr(), &dst_md_, LDD, jcp_.bia_dt));
     }
 
     auto scratchpad = scratchpad_registry().registrar();
@@ -168,7 +169,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::init(
     wei_ocb_sz = jcp.wei_plain ? jcp.oc_block * last_ic_block
                                : jcp.nb_oc * wei_ic_sz;
 
-    need_postwork = jcp.with_bias || jcp.with_eltwise
+    need_postwork = jcp.with_bias || jcp.with_eltwise || jcp.with_binary
             || (one_of(src_type, u8, s8) && wei_type == s8) // oscales needed
             || (jcp.dst_dt != jcp.acc_dt) || jcp.with_sum;
 
@@ -209,6 +210,9 @@ void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::exec_ker(
     dst_data_t *const __restrict dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(
+                    pd()->attr()->post_ops_, ctx);
 
     const auto &jcp = pd()->jcp_;
     auto ndims = pd()->ndims();
@@ -265,7 +269,8 @@ void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::exec_ker(
         if (do_postops) {
             brgemm_kernel_execute_postops(brg_ker, n_ic_blocks, brg_batch,
                     (void *)ptr_C, (void *)ptr_D, (void *)bias_w,
-                    &oscales[jcp.is_oc_scale * g_oc]);
+                    &oscales[jcp.is_oc_scale * g_oc],
+                    post_ops_binary_rhs_arg_vec.data(), g_oc);
         } else {
             brgemm_kernel_execute(
                     brg_ker, n_ic_blocks, brg_batch, (void *)ptr_C);

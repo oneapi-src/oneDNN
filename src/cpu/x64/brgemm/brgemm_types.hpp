@@ -151,12 +151,13 @@ struct brgemm_t {
     bool with_sum;
     float sum_scale;
     bool with_eltwise;
+    bool with_binary;
     bool with_scales;
     bool req_s8s8_compensation;
     int is_oc_scale;
 
     const primitive_attr_t *attr;
-    post_ops_t::entry_t::eltwise_t eltwise;
+    const memory_desc_t *dst_md;
 
     brgemm_attr_t brgattr;
     static constexpr int MAX_VPAD = 100;
@@ -176,6 +177,13 @@ struct brgemm_kernel_params_t {
 
     size_t do_post_ops;
     size_t BS;
+
+    /*
+     * ptr to table of void * elements that are pointers to post_op binary
+     * src1 tensors
+     */
+    const void *post_ops_binary_rhs_arg_vec;
+    size_t oc_logical_off;
 };
 
 struct jit_brgemm_kernel_base_t;

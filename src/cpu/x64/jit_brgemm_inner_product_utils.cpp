@@ -25,6 +25,7 @@
 
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_brgemm_inner_product_utils.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
@@ -102,29 +103,21 @@ format_tag_t get_brgemm_ip_weights_tag(
     }
 }
 
-// TODO: add support of post-ops with multiple binary and eltwise execution
-bool post_ops_ok(
-        jit_brgemm_primitive_conf_t &jbgp, const primitive_attr_t &attr) {
-    using namespace primitive_kind;
-    const auto &p = attr.post_ops_;
+bool post_ops_ok(jit_brgemm_primitive_conf_t &jbgp,
+        const primitive_attr_t &attr, const memory_desc_wrapper &dst_d) {
+    using namespace injector;
 
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
+    const auto &post_ops = attr.post_ops_;
 
-    switch (p.len()) {
-        case 0: return true;
-        case 1: return is_eltwise(0) || p.contain(sum, 0);
-        case 2:
-            return (p.contain(sum, 0) && is_eltwise(1))
-                    || (one_of(jbgp.src_dt, u8, s8) && p.contain(sum, 1)
-                            && is_eltwise(0));
-        default: return false;
-    }
-
-    return false;
+    return injector::post_ops_ok(post_ops_ok_args_t(avx512_common,
+            {sum, eltwise, binary}, post_ops, &dst_d,
+            false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
+            {broadcasting_strategy_t::per_oc,
+                    broadcasting_strategy_t::scalar}));
 }
 
-status_t init_ip_conf_fwd(
-        jit_brgemm_primitive_conf_t &jbgp, const primitive_attr_t &attr) {
+status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
+        const primitive_attr_t &attr, const memory_desc_wrapper &dst_d) {
     const bool is_amx_int8 = jbgp.isa == avx512_core_bf16_amx_int8;
     const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
     const bool is_int8 = one_of(jbgp.src_dt, u8, s8) && jbgp.wei_dt == s8;
@@ -132,8 +125,9 @@ status_t init_ip_conf_fwd(
     jbgp.with_sum = p.find(primitive_kind::sum) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
     jbgp.with_eltwise = eltwise_ind != -1;
-    if (jbgp.with_eltwise) jbgp.eltwise = p.entry_[eltwise_ind].eltwise;
-    if (!post_ops_ok(jbgp, attr)) return status::unimplemented;
+    const int binary_ind = p.find(primitive_kind::binary);
+    jbgp.with_binary = binary_ind != -1;
+    if (!post_ops_ok(jbgp, attr, dst_d)) return status::unimplemented;
     if (jbgp.with_scales) {
         const auto &oscales = attr.output_scales_;
         jbgp.is_oc_scale = oscales.mask_ == 1 << 1;
@@ -595,7 +589,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
 
     switch (jbgp.prop_kind) {
         case forward_training:
-        case forward_inference: return init_ip_conf_fwd(jbgp, attr);
+        case forward_inference: return init_ip_conf_fwd(jbgp, attr, dst_d);
         case backward_data: return init_ip_conf_bwd_d(jbgp);
         case backward_weights: return init_ip_conf_bwd_w(jbgp);
         default: assert(!"invalid prop_kind"); return invalid_arguments;
