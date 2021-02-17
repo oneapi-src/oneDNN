@@ -147,6 +147,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
         if (!conf.is_depthwise && conf.ngroups > 1 && !(is_16oc && is_16ic)) {
             return status::unimplemented;
         }
+        if (int8_dst) { return status::unimplemented; }
         conf.ver = ver_nhwc;
     } else if (is_1stconv) {
         if (!is_16oc) return status::unimplemented;
