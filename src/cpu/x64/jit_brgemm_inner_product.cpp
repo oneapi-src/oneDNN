@@ -114,7 +114,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
         auto ptr_bias = jbgp.with_bias ? bias + bia_dt_size * oc : nullptr;
 
         if (nb_ic_b > 0 && brg_kernel != nullptr) {
-            if (is_amx && is_os_tail)
+            if (is_amx && (is_os_tail || is_oc_tail))
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
             for (int b = 0; b < gemm_batch; b++) {
                 addr_batch[b].ptr.A = src
@@ -138,7 +138,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
                 brgemm_kernel_execute(brg_kernel, gemm_batch, addr_batch,
                         (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
             }
-            if (is_amx && is_os_tail)
+            if (is_amx && (is_os_tail || is_oc_tail))
                 amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
         }
 
