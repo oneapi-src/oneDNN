@@ -225,7 +225,6 @@ void jit_sve_512_conv_fwd_kernel::store_output(int ur_w) {
         tst(reg_channel, FLAG_IC_LAST);
         b(EQ, store_label);
 
-#ifndef DISABLE_ELTWISE
         if (ur_w == jcp.ur_w) {
             eltwise_injector_->compute_vector_range(
                     0, jcp.nb_oc_blocking * jcp.ur_w);
@@ -234,9 +233,6 @@ void jit_sve_512_conv_fwd_kernel::store_output(int ur_w) {
                 eltwise_injector_->compute_vector_range(
                         k * jcp.ur_w, k * jcp.ur_w + ur_w);
         }
-#else // #ifndef DISABLE_ELTWISE
-        assert(!"Error: with_eltwise is not supported");
-#endif // #ifndef DISABLE_ELTWISE
     }
     auto out_str = [=](int j, int k, int aux_output_offset, int prev_out_ofs) {
         int ofs = aux_output_offset;
@@ -806,14 +802,7 @@ void jit_sve_512_conv_fwd_kernel::generate() {
     }
     postamble();
 
-    if (jcp.with_eltwise) {
-#ifndef DISABLE_ELTWISE
-        eltwise_injector_->prepare_table();
-        binCommit();
-#else // #ifndef DISABLE_ELTWISE
-        assert(!"Error: with_eltwise is not supported");
-#endif // #ifndef DISABLE_ELTWISE
-    }
+    if (jcp.with_eltwise) { eltwise_injector_->prepare_table(); }
 }
 
 bool jit_sve_512_conv_fwd_kernel::post_ops_ok(
@@ -937,14 +926,10 @@ status_t jit_sve_512_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     const int eltwise_ind = p.find(primitive_kind::eltwise);
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) {
-#ifndef DISABLE_ELTWISE
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
         if (jcp.eltwise.alg == alg_kind::eltwise_pow)
             return status::unimplemented;
         if (dst_d.data_type() == data_type::s32) return status::unimplemented;
-#else
-        return status::unimplemented;
-#endif
     }
 
     format_tag_t src_tag, dst_tag, wei_tag;
