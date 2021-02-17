@@ -24,10 +24,7 @@
 #include "cpu/aarch64/jit_generator.hpp"
 #include "cpu/aarch64/jit_primitive_conf.hpp"
 
-#define DISABLE_ELTWISE
-#ifndef DISABLE_ELTWISE
-#include "cpu/aarch64/jit_uni_eltwise_injector.hpp"
-#endif // #ifndef DISABLE_ELTWISE
+#include "cpu/aarch64/injectors/jit_uni_eltwise_injector.hpp"
 
 #include "cpu/aarch64/jit_op_imm_check.hpp"
 
@@ -47,27 +44,14 @@ struct jit_sve_512_conv_fwd_kernel : public jit_generator {
 
     jit_sve_512_conv_fwd_kernel(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp)
-        , attr_(attr)
-#ifndef DISABLE_ELTWISE
-        , eltwise_injector_(nullptr)
-#endif // #ifndef DISABLE_ELTWISE
-    {
+        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
 
         if (jcp.with_eltwise)
-#ifndef DISABLE_ELTWISE
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<sve_512>(
                     this, jcp.eltwise);
-#else // #ifndef DISABLE_ELTWISE
-            assert(!"Error: Generation of eltwise_injector in not supported");
-#endif // #ifndef DISABLE_ELTWISE
     }
 
-    ~jit_sve_512_conv_fwd_kernel() {
-#ifndef DISABLE_ELTWISE
-        delete eltwise_injector_;
-#endif // #ifndef DISABLE_ELTWISE
-    }
+    ~jit_sve_512_conv_fwd_kernel() { delete eltwise_injector_; }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sve_512_conv_fwd_kernel)
 
@@ -89,7 +73,7 @@ private:
         ker_reg_base_idx = 28,
     };
 
-    const PReg reg_p_all_ones = p2;
+    const PReg reg_p_all_ones = p3;
 
     reg64_t param = abi_param1;
     reg64_t reg_inp = x1; // src base addr (2d)
@@ -179,9 +163,7 @@ private:
         }
     }
 
-#ifndef DISABLE_ELTWISE
     jit_uni_eltwise_injector_f32<sve_512> *eltwise_injector_;
-#endif // #ifndef DISABLE_ELTWISE
 
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
@@ -310,7 +292,7 @@ private:
     reg64_t reg_input_org = x22;
     reg64_t reg_kernel_org = x26;
 
-    const PReg reg_p_all_ones = p2;
+    const PReg reg_p_all_ones = p3;
 
     long long int prefetch(const std::string prfop, int level, reg64_t in,
             long long int ofs, long long int prev_ofs) {
@@ -510,7 +492,7 @@ private:
     reg64_t reg_ker_start_addr = x27;
     reg64_t reg_addr_diff_input = x28;
 
-    const PReg reg_p_all_ones = p2;
+    const PReg reg_p_all_ones = p3;
 
     void prefetch(
             const std::string prfop, int level, reg64_t in, long long int ofs) {
