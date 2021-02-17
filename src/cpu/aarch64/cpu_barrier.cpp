@@ -109,7 +109,7 @@ struct jit_t : public jit_generator {
 };
 
 void barrier(ctx_t *ctx, int nthr) {
-    static jit_t j; /* XXX: constructed on load ... */
+    static jit_t j;
     j(ctx, nthr);
 }
 
