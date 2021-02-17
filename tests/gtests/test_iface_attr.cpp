@@ -463,9 +463,11 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusion) {
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, InnerProdPostops) {
-
     auto engine_kind = get_test_engine_kind();
-
+#ifdef DNNL_SYCL_CUDA
+    SKIP_IF(eng_kind == engine::kind::gpu,
+            "Inner Prod postops are not supported on CUDA backend");
+#endif
     engine e {engine_kind, 0};
 
     std::vector<memory::data_type> test_dts {
