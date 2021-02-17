@@ -495,6 +495,10 @@ size_t dnnl_memory_desc_get_size(const memory_desc_t *md) {
     return memory_desc_wrapper(*md).size();
 }
 
+size_t dnnl_data_type_size(dnnl_data_type_t data_type) {
+    return types::data_type_size(data_type);
+}
+
 status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
         engine_t *engine, void *handle) {
 #ifdef DNNL_WITH_SYCL

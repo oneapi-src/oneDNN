@@ -1019,6 +1019,12 @@ int DNNL_API dnnl_memory_desc_equal(
 size_t DNNL_API dnnl_memory_desc_get_size(
         const dnnl_memory_desc_t *memory_desc);
 
+/// Returns the size of data type.
+///
+/// @param data_type Data type.
+/// @returns The number of bytes occupied by data type.
+size_t DNNL_API dnnl_data_type_size(dnnl_data_type_t data_type);
+
 /// Creates a memory object.
 ///
 /// Unless @p handle is equal to DNNL_MEMORY_NONE, the constructed memory

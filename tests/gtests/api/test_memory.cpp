@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,6 +73,7 @@ TEST_P(memory_test_c, OutOfMemory) {
     dnnl_memory_t mem;
     dnnl_status_t s
             = dnnl_memory_create(&mem, &md, engine, DNNL_MEMORY_ALLOCATE);
+    ASSERT_EQ(dnnl_data_type_size(md.data_type), sizeof(uint8_t));
     ASSERT_EQ(s, dnnl_out_of_memory);
 }
 
@@ -98,6 +99,7 @@ TEST_P(memory_test_cpp, OutOfMemory) {
     auto dt = memory::data_type::u8;
     auto tag = memory::format_tag::x;
     memory::desc md({sz}, dt, tag);
+    ASSERT_EQ(memory::data_type_size(dt), sizeof(uint8_t));
     try {
         auto mem = test::make_memory(md, eng);
         ASSERT_NE(mem.get_data_handle(), nullptr);

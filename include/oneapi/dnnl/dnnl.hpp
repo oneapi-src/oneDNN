@@ -1151,6 +1151,12 @@ struct memory : public handle<dnnl_memory_t> {
         u8 = dnnl_u8,
     };
 
+    /// Returns size of data type in bytes.
+    /// @returns The number of bytes occupied by data type.
+    static size_t data_type_size(data_type adata_type) {
+        return dnnl_data_type_size(convert_to_c(adata_type));
+    }
+
     /// Memory format kind
     enum class format_kind {
         /// Undefined memory format kind, used for empty memory descriptors.
@@ -2228,18 +2234,18 @@ struct memory : public handle<dnnl_memory_t> {
             return desc(out_md);
         }
 
+        /// Returns the data type of the memory descriptor.
+        /// @returns The data type.
+        memory::data_type data_type() const {
+            return static_cast<memory::data_type>(data.data_type);
+        }
+
         /// Returns dimensions of the memory descriptor.
         ///
         /// Potentially expensive due to the data copy involved.
         /// @returns A copy of the dimensions vector.
         memory::dims dims() const {
             return memory::dims(data.dims, data.dims + data.ndims);
-        }
-
-        /// Returns the data type of the memory descriptor.
-        /// @returns The data type.
-        memory::data_type data_type() const {
-            return static_cast<memory::data_type>(data.data_type);
         }
 
         /// Returns size of the memory descriptor in bytes.
