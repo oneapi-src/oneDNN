@@ -1042,7 +1042,7 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::generate() {
 
     const auto ur_w_blks_params = get_ur_w_blks_params();
     const int nur_w = jcp.ow / jcp.ur_w - ur_w_blks_params.num_pre_blks
-            + ur_w_blks_params.num_post_blks;
+            - ur_w_blks_params.num_post_blks;
 
     const auto &blks_params = ur_w_blks_params.blks_params;
     const auto num_pre_blks = ur_w_blks_params.num_pre_blks;
