@@ -92,13 +92,13 @@ void jit_avx512_core_amx_compute_zp_pbuff_t::compute_ker(int ur_w, int pad_l,
 
     auto get_filter_offset = [=](int ocb, int ic, int ki) {
         size_t w_step = jcp.is_relo ? jcp.kh : 1;
-        size_t kw_offset
-                = (size_t)ki * w_step * jcp.ic_block_int_np * jcp.oc_block;
+        size_t kw_offset = static_cast<size_t>(ki) * w_step
+                * jcp.ic_block_int_np * jcp.oc_block;
         size_t oc_subblock_step = static_cast<size_t>(jcp.kd) * jcp.kh * jcp.kw
                 * jcp.ic_block_int_np * jcp.oc_block;
         size_t offset = kw_offset
-                + (size_t)ocb * jcp.nb_ic_int * oc_subblock_step
-                + (size_t)ic * oc_block * ic_inner_block;
+                + static_cast<size_t>(ocb) * jcp.nb_ic_int * oc_subblock_step
+                + static_cast<size_t>(ic) * oc_block * ic_inner_block;
         return sizeof(char) * offset;
     };
     auto compute_fma = [=](const Zmm zmm_accum, const int ic,
@@ -149,8 +149,9 @@ void jit_avx512_core_amx_compute_zp_pbuff_t::kh_loop(int ur_w, int pad_l,
 
     Label kh_label, skip_kh_loop;
     const size_t wei_h_step = jcp.is_relo ? 1 : jcp.kw;
-    const size_t shift_wei_h_step = sizeof(char) * (size_t)wei_h_step
-            * jcp.ic_block_int_np * jcp.oc_block;
+    const size_t shift_wei_h_step = sizeof(char)
+            * static_cast<size_t>(wei_h_step) * jcp.ic_block_int_np
+            * jcp.oc_block;
 
     // Compute zero_point compensation for the padded region. Total compute
     // area is 'overflow * kw' where 'overflow' indicates the overlap
