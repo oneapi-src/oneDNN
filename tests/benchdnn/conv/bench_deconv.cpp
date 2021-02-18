@@ -103,7 +103,7 @@ int bench(int argc, char **argv) {
             catch_unknown_options(argv[0]);
 
             bool is_deconv = true;
-            SAFE_V(str2desc(&s.desc, argv[0], is_deconv));
+            SAFE(str2desc(&s.desc, argv[0], is_deconv), CRIT);
             check_correctness(s);
         }
     }

@@ -502,7 +502,7 @@ std::string locate_batch_file(const std::string &fname) {
 
 int batch(const char *fname, bench_f bench) {
     std::ifstream ifs(locate_batch_file(std::string(fname)));
-    SAFE_V(ifs.is_open() ? OK : FAIL);
+    SAFE(ifs.is_open() ? OK : FAIL, CRIT);
 
     std::vector<std::string> opts;
     std::string str;

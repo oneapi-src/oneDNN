@@ -53,7 +53,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                              &sd, prop, &data_d, prb->axis),
                     WARN);
         else
-            SAFE_V(FAIL);
+            SAFE(FAIL, CRIT);
     } else {
         dnnl_memory_desc_t diff_data_d;
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, prb->ndims,
@@ -68,7 +68,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                              &sd, &diff_data_d, &data_d, prb->axis),
                     WARN);
         else
-            SAFE_V(FAIL);
+            SAFE(FAIL, CRIT);
     }
 
     auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args_t());

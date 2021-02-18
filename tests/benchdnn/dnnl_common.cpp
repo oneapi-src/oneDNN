@@ -43,7 +43,7 @@ float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
         case dnnl_s32:
         case dnnl_s8:
         case dnnl_u8: value = maybe_saturate(dt, value); break;
-        default: SAFE_V(FAIL);
+        default: SAFE(FAIL, CRIT);
     }
 
     return value;

@@ -190,7 +190,7 @@ int attr_t::get_default_mask(policy_t policy) {
         case PER_DIM_01: return (1 << 0) + (1 << 1);
         case PER_TENSOR: return (1 << DNNL_MAX_NDIMS) - 1;
         case COMMON: return 0;
-        default: SAFE_V(FAIL); return 0;
+        default: SAFE(FAIL, CRIT); return 0;
     }
 }
 
