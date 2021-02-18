@@ -90,7 +90,6 @@ void key_t::init_mds(const primitive_desc_t *pd) {
         case primitive_kind::matmul: {
             break;
         }
-        case primitive_kind::pooling:
         case primitive_kind::pooling_v2: {
             auto typed_pd = utils::downcast<const pooling_pd_t *>(pd);
             if (!typed_pd->is_fwd()) {
@@ -544,28 +543,6 @@ size_t get_desc_hash(const matmul_desc_t &desc) {
     // Accumulator type
     seed = hash_combine(seed, static_cast<size_t>(desc.accum_data_type));
     // Combined hash for matmul op desc
-    return seed;
-}
-
-size_t get_desc_hash(const pooling_desc_t &desc) {
-    size_t seed = 0;
-    // Kinds
-    seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
-    seed = hash_combine(seed, static_cast<size_t>(desc.prop_kind));
-    seed = hash_combine(seed, static_cast<size_t>(desc.alg_kind));
-    // Memory descriptors
-    seed = hash_combine(seed, get_md_hash(desc.src_desc));
-    seed = hash_combine(seed, get_md_hash(desc.diff_src_desc));
-    seed = hash_combine(seed, get_md_hash(desc.dst_desc));
-    seed = hash_combine(seed, get_md_hash(desc.diff_dst_desc));
-    // Strides, padding
-    seed = get_array_hash(seed, desc.strides, DNNL_MAX_NDIMS);
-    seed = get_array_hash(seed, desc.kernel, DNNL_MAX_NDIMS);
-    seed = get_array_hash(seed, desc.padding[0], DNNL_MAX_NDIMS);
-    seed = get_array_hash(seed, desc.padding[1], DNNL_MAX_NDIMS);
-    // Accumulator type
-    seed = hash_combine(seed, static_cast<size_t>(desc.accum_data_type));
-    // Combined hash for pooling desc
     return seed;
 }
 

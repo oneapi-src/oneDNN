@@ -1092,7 +1092,6 @@ struct op_desc_t {
         convolution_desc_t convolution;
         deconvolution_desc_t deconvolution;
         shuffle_desc_t shuffle;
-        pooling_desc_t pooling;
         pooling_v2_desc_t pooling_v2;
         prelu_desc_t prelu;
         eltwise_desc_t eltwise;
@@ -1124,7 +1123,6 @@ struct op_desc_t {
 
     DECL_CTOR_AND_CONVERTERS(convolution_desc_t);
     DECL_CTOR_AND_CONVERTERS(shuffle_desc_t);
-    DECL_CTOR_AND_CONVERTERS(pooling_desc_t);
     DECL_CTOR_AND_CONVERTERS(pooling_v2_desc_t);
     DECL_CTOR_AND_CONVERTERS(prelu_desc_t);
     DECL_CTOR_AND_CONVERTERS(eltwise_desc_t);
