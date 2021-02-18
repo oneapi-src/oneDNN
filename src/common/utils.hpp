@@ -627,13 +627,11 @@ template <typename T>
 struct set_before_first_get_setting_t {
 private:
     T value_;
-    bool initialized_;
     std::atomic<unsigned> state_;
     enum : unsigned { idle = 0, busy_setting = 1, locked_after_a_get = 2 };
 
 public:
-    set_before_first_get_setting_t(T init = T(0))
-        : value_ {init}, initialized_ {false}, state_ {0} {}
+    set_before_first_get_setting_t(T init) : value_ {init}, state_ {idle} {}
 
     bool set(T new_value) {
         if (state_.load() == locked_after_a_get) return false;
@@ -645,12 +643,9 @@ public:
         }
 
         value_ = new_value;
-        initialized_ = true;
         state_.store(idle);
         return true;
     }
-
-    bool initialized() { return initialized_; }
 
     T get(bool soft = false) {
         if (!soft && state_.load() != locked_after_a_get) {

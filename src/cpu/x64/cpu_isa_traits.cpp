@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,15 +28,7 @@ namespace x64 {
 
 namespace {
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
-
-set_before_first_get_setting_t<cpu_isa_t> &max_cpu_isa() {
-    static set_before_first_get_setting_t<cpu_isa_t> max_cpu_isa_setting;
-    return max_cpu_isa_setting;
-}
-
-bool init_max_cpu_isa() {
-    if (max_cpu_isa().initialized()) return false;
-
+cpu_isa_t init_max_cpu_isa() {
     cpu_isa_t max_cpu_isa_val = isa_all;
     char buf[64];
     if (getenv("DNNL_MAX_CPU_ISA", buf, sizeof(buf)) > 0) {
@@ -61,28 +53,31 @@ bool init_max_cpu_isa() {
 #undef IF_HANDLE_CASE
 #undef ELSEIF_HANDLE_CASE
     }
+    return max_cpu_isa_val;
+}
 
-    return max_cpu_isa().set(max_cpu_isa_val);
+set_before_first_get_setting_t<cpu_isa_t> &max_cpu_isa() {
+    static set_before_first_get_setting_t<cpu_isa_t> max_cpu_isa_setting(
+            init_max_cpu_isa());
+    return max_cpu_isa_setting;
 }
 #endif
 
 #ifdef DNNL_ENABLE_CPU_ISA_HINTS
-set_before_first_get_setting_t<dnnl_cpu_isa_hints_t> &cpu_isa_hints() {
-    static set_before_first_get_setting_t<dnnl_cpu_isa_hints_t>
-            cpu_isa_hints_setting;
-    return cpu_isa_hints_setting;
-}
-
-bool init_cpu_isa_hints() {
-    if (cpu_isa_hints().initialized()) return false;
-
+dnnl_cpu_isa_hints_t init_cpu_isa_hints() {
     dnnl_cpu_isa_hints_t cpu_isa_hints_val = dnnl_cpu_isa_no_hints;
     char buf[64];
     if (getenv("DNNL_CPU_ISA_HINTS", buf, sizeof(buf)) > 0) {
         if (std::strcmp(buf, "PREFER_YMM") == 0)
             cpu_isa_hints_val = dnnl_cpu_isa_prefer_ymm;
     }
-    return cpu_isa_hints().set(cpu_isa_hints_val);
+    return cpu_isa_hints_val;
+}
+
+set_before_first_get_setting_t<dnnl_cpu_isa_hints_t> &cpu_isa_hints() {
+    static set_before_first_get_setting_t<dnnl_cpu_isa_hints_t>
+            cpu_isa_hints_setting(init_cpu_isa_hints());
+    return cpu_isa_hints_setting;
 }
 #endif
 } // namespace
@@ -178,7 +173,6 @@ const char *get_isa_info() {
 cpu_isa_t get_max_cpu_isa_mask(bool soft) {
     MAYBE_UNUSED(soft);
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
-    init_max_cpu_isa();
     return max_cpu_isa().get(soft);
 #else
     return isa_all;
@@ -188,7 +182,6 @@ cpu_isa_t get_max_cpu_isa_mask(bool soft) {
 dnnl_cpu_isa_hints_t get_cpu_isa_hints(bool soft) {
     MAYBE_UNUSED(soft);
 #ifdef DNNL_ENABLE_CPU_ISA_HINTS
-    init_cpu_isa_hints();
     return cpu_isa_hints().get(soft);
 #else
     return dnnl_cpu_isa_no_hints;
