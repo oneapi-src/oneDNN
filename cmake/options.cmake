@@ -214,8 +214,10 @@ option(BENCHDNN_USE_RDPMC
 set(DNNL_USE_CLANG_SANITIZER "" CACHE STRING
     "instructs build system to use a Clang sanitizer. Possible values:
     Address: enables AddressSanitizer
+    Leak: enables LeakSanitizer
     Memory: enables MemorySanitizer
     MemoryWithOrigin: enables MemorySanitizer with origin tracking
+    Thread: enables ThreadSanitizer
     Undefined: enables UndefinedBehaviourSanitizer
     This feature is experimental and is only available on Linux.")
 
