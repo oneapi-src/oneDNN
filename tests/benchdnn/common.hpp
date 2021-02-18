@@ -61,24 +61,25 @@ enum { CRIT = 1, WARN = 2 };
 
 #define SAFE(f, s) \
     do { \
-        int status = (f); \
-        if (status != OK) { \
+        int status__ = (f); \
+        if (status__ != OK) { \
             if (s == CRIT || s == WARN) { \
                 fprintf(stderr, "@@@ error [%s:%d]: '%s' -> %d\n", \
-                        __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), status); \
+                        __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), \
+                        status__); \
                 fflush(0); \
                 if (s == CRIT) exit(1); \
             } \
-            return status; \
+            return status__; \
         } \
     } while (0)
 
 #define SAFE_V(f) \
     do { \
-        int status = (f); \
-        if (status != OK) { \
+        int status__ = (f); \
+        if (status__ != OK) { \
             fprintf(stderr, "@@@ error [%s:%d]: '%s' -> %d\n", \
-                    __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), status); \
+                    __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), status__); \
             fflush(0); \
             exit(1); \
         } \
@@ -86,16 +87,17 @@ enum { CRIT = 1, WARN = 2 };
 
 #define SAFE_CLEAN(f, s, clean) \
     do { \
-        int status = (f); \
-        if (status != OK) { \
+        int status__ = (f); \
+        if (status__ != OK) { \
             if (s == CRIT || s == WARN) { \
                 fprintf(stderr, "@@@ error [%s:%d]: '%s' -> %d\n", \
-                        __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), status); \
+                        __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), \
+                        status__); \
                 fflush(0); \
                 if (s == CRIT) exit(1); \
             } \
             clean(); \
-            return status; \
+            return status__; \
         } \
     } while (0)
 

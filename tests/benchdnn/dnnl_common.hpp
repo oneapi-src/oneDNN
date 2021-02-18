@@ -36,12 +36,12 @@
 
 #define DNN_SAFE(f, s) \
     do { \
-        dnnl_status_t status = f; \
-        if (status != dnnl_success) { \
+        dnnl_status_t status__ = f; \
+        if (status__ != dnnl_success) { \
             if (s == CRIT || s == WARN) { \
                 BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
-                        __PRETTY_FUNCTION__, __LINE__, #f, status2str(status), \
-                        (int)status); \
+                        __PRETTY_FUNCTION__, __LINE__, #f, \
+                        status2str(status__), (int)status__); \
                 fflush(0); \
                 if (s == CRIT) exit(2); \
             } \
@@ -51,11 +51,11 @@
 
 #define DNN_SAFE_V(f) \
     do { \
-        dnnl_status_t status = f; \
-        if (status != dnnl_success) { \
+        dnnl_status_t status__ = f; \
+        if (status__ != dnnl_success) { \
             BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
                     __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), \
-                    status2str(status), (int)status); \
+                    status2str(status__), (int)status__); \
             fflush(0); \
             exit(2); \
         } \
@@ -63,12 +63,12 @@
 
 #define DNN_SAFE_CLEAN(f, s, clean) \
     do { \
-        dnnl_status_t status = f; \
-        if (status != dnnl_success) { \
+        dnnl_status_t status__ = f; \
+        if (status__ != dnnl_success) { \
             if (s == CRIT || s == WARN) { \
                 BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
-                        __PRETTY_FUNCTION__, __LINE__, #f, status2str(status), \
-                        (int)status); \
+                        __PRETTY_FUNCTION__, __LINE__, #f, \
+                        status2str(status__), (int)status__); \
                 fflush(0); \
                 if (s == CRIT) exit(2); \
             } \
