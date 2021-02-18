@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -492,7 +492,7 @@ int doit(const prb_t *prb, res_t *res) {
     DNN_SAFE(dnnl_primitive_get_primitive_desc(l, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(l));
+        DNN_SAFE(dnnl_primitive_destroy(l), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -543,7 +543,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (prb->dir & FLAG_FWD) {
         if (prepare_fwd(prb, src_fp, mean_fp, var_fp, ss_fp) != OK) {
-            DNN_SAFE_V(dnnl_primitive_destroy(l));
+            DNN_SAFE(dnnl_primitive_destroy(l), CRIT);
             return res->state = MISTRUSTED, OK;
         }
 
@@ -588,7 +588,7 @@ int doit(const prb_t *prb, res_t *res) {
         dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
 
         if (prepare_bwd(prb, src_fp, d_dst_fp, mean_fp, var_fp, ss_fp) != OK) {
-            DNN_SAFE_V(dnnl_primitive_destroy(l));
+            DNN_SAFE(dnnl_primitive_destroy(l), CRIT);
             return res->state = MISTRUSTED, OK;
         }
 
@@ -622,7 +622,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     measure_perf(res->timer, l, args);
 
-    DNN_SAFE_V(dnnl_primitive_destroy(l));
+    DNN_SAFE(dnnl_primitive_destroy(l), CRIT);
 
     return OK;
 }

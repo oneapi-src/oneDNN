@@ -206,7 +206,7 @@ int doit(const prb_t *prb, res_t *res) {
     DNN_SAFE(dnnl_primitive_get_primitive_desc(b, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(b));
+        DNN_SAFE(dnnl_primitive_destroy(b), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -280,7 +280,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     measure_perf(res->timer, b, args);
 
-    DNN_SAFE_V(dnnl_primitive_destroy(b));
+    DNN_SAFE(dnnl_primitive_destroy(b), CRIT);
 
     return OK;
 }

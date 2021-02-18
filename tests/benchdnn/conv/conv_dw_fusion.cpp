@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -264,7 +264,7 @@ int doit(const prb_t *prb, res_t *res) {
     // Check memory requirements only for original problem though it's broken
     // due to quering not by arg md.
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(c));
+        DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -276,8 +276,9 @@ int doit(const prb_t *prb, res_t *res) {
     const auto adjust_alg = [](const_dnnl_primitive_desc_t pd, alg_t &alg) {
         if (alg == alg_t::AUTO) {
             dnnl_convolution_desc_t *temp_conv_desc = {nullptr};
-            DNN_SAFE_V(dnnl_primitive_desc_query(
-                    pd, dnnl_query_convolution_d, 0, &temp_conv_desc));
+            DNN_SAFE(dnnl_primitive_desc_query(
+                             pd, dnnl_query_convolution_d, 0, &temp_conv_desc),
+                    CRIT);
             alg = conv::alg_kind2alg(temp_conv_desc->alg_kind);
         }
         return OK;
@@ -532,9 +533,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     measure_perf(res->timer, c, args);
 
-    DNN_SAFE_V(dnnl_primitive_destroy(c));
-    DNN_SAFE_V(dnnl_primitive_destroy(c0));
-    DNN_SAFE_V(dnnl_primitive_destroy(c1));
+    DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(c0), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(c1), CRIT);
 
     return OK;
 }

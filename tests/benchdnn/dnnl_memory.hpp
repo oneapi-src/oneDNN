@@ -234,7 +234,7 @@ private:
             SAFE(init_md(&md_, md.ndims, md.dims, dt, tag), CRIT);
         }
         engine_ = engine;
-        DNN_SAFE_V(dnnl_engine_get_kind(engine_, &engine_kind_));
+        DNN_SAFE(dnnl_engine_get_kind(engine_, &engine_kind_), CRIT);
 
         SAFE(initialize_memory_create(handle_info), CRIT);
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -141,7 +141,7 @@ int doit(const prb_t *prb, res_t *res) {
     DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(c));
+        DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -186,7 +186,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     measure_perf(res->timer, c, args);
 
-    DNN_SAFE_V(dnnl_primitive_destroy(c));
+    DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
 
     return OK;
 }
