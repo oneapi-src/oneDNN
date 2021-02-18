@@ -339,7 +339,8 @@ primitive for each input and output memory object.
  Forward                    |  All (3)                     | f16        | f16                | f16     | f16  | f16
  Forward inference          |  Vanilla LSTM, LSTMP and GRU | u8         | u8                 | s8      | f32  | u8, f32
 
-(1) With LSTM and Peephole LSTM cells, the cell state datatype is always f32.
+(1) With LSTM and Peephole LSTM cells, the cell state datatype is f32,
+except for the f16 configuration.
 
 (2) In backward propagation, all `diff_*` tensors are in f32.
 
