@@ -81,9 +81,6 @@ void key_t::init_mds(const primitive_desc_t *pd) {
         case primitive_kind::layer_normalization: {
             break;
         }
-        case primitive_kind::logsoftmax: {
-            break;
-        }
         case primitive_kind::lrn: {
             break;
         }
@@ -175,7 +172,6 @@ bool key_t::operator==(const key_t &rhs) const {
             CASE(resampling)
             CASE(rnn)
             CASE(shuffle)
-            CASE(logsoftmax)
             CASE(softmax)
             CASE(sum)
             CASE(zero_pad)
