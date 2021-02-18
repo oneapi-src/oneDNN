@@ -76,7 +76,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::load_src(
     const int vlen = cpu_isa_traits<isa>::vlen / sizeof(float);
     const int c_tail = jcp.oc % jcp.ch_block;
 
-    int repeats = jcp.ch_block / vlen;
+    const int repeats = jcp.ch_block / vlen;
     assert((repeats == 1) || (repeats == 2 && isa == sse41));
     for (int i = 0; i < repeats; i++) {
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
@@ -88,7 +88,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::load_src(
                 Vmm vmm_acc
                         = get_acc_reg(i * ur_ch_blocks * ur_w + ch * ur_w + ow);
 
-                int b_off = ch * ch_blk + i * vlen;
+                const int b_off = ch * ch_blk + i * vlen;
                 if (this->jcp.with_bias) {
                     if (is_tail_load) {
                         load_tail(vmm_acc, reg_bias, b_off * sizeof(float),
@@ -101,7 +101,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::load_src(
                     uni_vpxor(vmm_acc, vmm_acc, vmm_acc);
                 }
 
-                int o_off = ch * ocb_stride + ow * ow_stride + i * vlen;
+                const int o_off = ch * ocb_stride + ow * ow_stride + i * vlen;
                 if (this->jcp.with_sum) {
                     if (is_tail_load) {
                         if (this->jcp.with_bias) {
@@ -157,7 +157,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
         }
         const int vlen = cpu_isa_traits<isa>::vlen / sizeof(float);
         const int c_tail = jcp.oc % jcp.ch_block;
-        int repeats = jcp.ch_block / vlen;
+        const int repeats = jcp.ch_block / vlen;
         assert((repeats == 1) || (repeats == 2 && isa == sse41));
         for (int i = 0; i < repeats; i++) {
             for (int ch = 0; ch < ur_ch_blocks; ch++) {
@@ -167,8 +167,8 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
                         && c_tail <= i * vlen)
                     continue;
                 for (int kw = 0; kw < jcp.kw; kw++) {
-                    int ker_off = ch * jcp.kh * jcp.kw * ch_blk + kw * ch_blk
-                            + i * vlen;
+                    const int ker_off = ch * jcp.kh * jcp.kw * ch_blk
+                            + kw * ch_blk + i * vlen;
 
                     Vmm vmm_ker = get_ker_reg(0);
                     uni_vmovups(vmm_ker,
@@ -177,7 +177,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
                     int ow_start = get_ow_start(kw, pad_l);
                     int ow_end = get_ow_end(ur_w, kw, pad_r);
                     for (int ow = ow_start; ow < ow_end; ow++) {
-                        int inp_off = ch * icb_stride
+                        const int inp_off = ch * icb_stride
                                 + (ow * stride_w - pad_l) * iw_stride
                                 + kw * dilate_w * iw_stride + i * vlen;
 
@@ -387,7 +387,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::store_dst(
     const int vlen = cpu_isa_traits<isa>::vlen / sizeof(float);
     const int c_tail = jcp.oc_without_padding % jcp.ch_block;
 
-    int repeats = jcp.ch_block / vlen;
+    const int repeats = jcp.ch_block / vlen;
     assert((repeats == 1) || (repeats == 2 && isa == sse41));
     for (int i = 0; i < repeats; i++) {
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
