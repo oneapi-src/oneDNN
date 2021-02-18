@@ -13,6 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+#include <cassert>
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 
 namespace dnnl {
@@ -56,9 +57,11 @@ jit_uni_postops_injector_t<isa>::jit_uni_postops_injector_t(jit_generator *host,
 
     const auto &esp = eltwise_static_params;
     bool is_binary = false;
+    bool is_eltwise = false;
 
     for (const auto &post_op : post_ops.entry_) {
         if (post_op.is_eltwise()) {
+            is_eltwise = true;
             alg_to_eltwise_injector_.emplace(post_op.eltwise.alg,
                     jit_uni_eltwise_injector_f32<isa>(host_, post_op.eltwise,
                             esp.save_state, esp.p_table, esp.k_mask, esp.is_fwd,
@@ -67,6 +70,14 @@ jit_uni_postops_injector_t<isa>::jit_uni_postops_injector_t(jit_generator *host,
             is_binary = true;
         }
     }
+
+    if (is_superset(isa, avx512_common) && is_eltwise && is_binary
+            && binary_static_params.rhs_arg_static_params.tail_size)
+        assert(eltwise_static_params.k_mask
+                != binary_static_params.rhs_arg_static_params.tail_opmask &&
+                "Binary tail opmask should be different than eltwise injector \
+                opmask. Otherwise eltwise injector will overwrite binary tail \
+                opmask.");
 
     if (is_binary)
         binary_injector_ = utils::make_unique<
