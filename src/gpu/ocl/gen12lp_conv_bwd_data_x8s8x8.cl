@@ -232,10 +232,10 @@ conv_bwd_data_x8s8x8(const __global SRC_DATA_T *src,
     }
 
 #define PACK(idx) \
-    BIAS_SUM_RELU(D00[0], tmp[0], C00[idx], b[0]); \
-    BIAS_SUM_RELU(D00[1], tmp[1], C01[idx], b[1]); \
-    BIAS_SUM_RELU(D00[2], tmp[2], C02[idx], b[2]); \
-    BIAS_SUM_RELU(D00[3], tmp[3], C03[idx], b[3]); \
+    BIAS_SUM_RELU(D00[0], tmp[0], C00[idx], bia[0]); \
+    BIAS_SUM_RELU(D00[1], tmp[1], C01[idx], bia[1]); \
+    BIAS_SUM_RELU(D00[2], tmp[2], C02[idx], bia[2]); \
+    BIAS_SUM_RELU(D00[3], tmp[3], C03[idx], bia[3]); \
     src_pack[idx] = as_uint(D00);
 
 #if WITH_BIAS
