@@ -18,8 +18,8 @@
 --cfg=s8s8s32 --batch=shapes_3d
 --dir=FWD_I
 --attr-post-ops='sum:0.25;add:f32:per_oc;relu:0.5:0:0.75'
---cfg=u8s8s32 --shapes_tails
---cfg=u8s8sf32 --shapes_basic
+--cfg=u8s8s32 --batch=shapes_tails
+--cfg=u8s8f32 --batch=shapes_basic
 
 --reset
 --mb=2
