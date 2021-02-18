@@ -31,15 +31,7 @@ namespace aarch64 {
 
 namespace {
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
-
-set_before_first_get_setting_t<cpu_isa_t> &max_cpu_isa() {
-    static set_before_first_get_setting_t<cpu_isa_t> max_cpu_isa_setting;
-    return max_cpu_isa_setting;
-}
-
-bool init_max_cpu_isa() {
-    if (max_cpu_isa().initialized()) return false;
-
+cpu_isa_t init_max_cpu_isa() {
     cpu_isa_t max_cpu_isa_val = isa_all;
     char buf[64];
     if (getenv("DNNL_MAX_CPU_ISA", buf, sizeof(buf)) > 0) {
@@ -57,7 +49,13 @@ bool init_max_cpu_isa() {
 #undef ELSEIF_HANDLE_CASE
     }
 
-    return max_cpu_isa().set(max_cpu_isa_val);
+    return max_cpu_isa_val;
+}
+
+set_before_first_get_setting_t<cpu_isa_t> &max_cpu_isa() {
+    static set_before_first_get_setting_t<cpu_isa_t> max_cpu_isa_setting(
+            init_max_cpu_isa());
+    return max_cpu_isa_setting;
 }
 #endif
 } // namespace
@@ -105,7 +103,6 @@ const char *get_isa_info() {
 cpu_isa_t get_max_cpu_isa_mask(bool soft) {
     MAYBE_UNUSED(soft);
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
-    init_max_cpu_isa();
     return max_cpu_isa().get(soft);
 #else
     return isa_all;
