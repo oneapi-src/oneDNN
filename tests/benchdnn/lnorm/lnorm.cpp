@@ -417,39 +417,34 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                 WARN);
     }
 
-    dnnl_primitive_desc_t hint_fwd_pd = nullptr;
+    dnnl_primitive_desc_t hint_fwd_pd_ {};
+    dnnl_status_t status = dnnl_success;
     if (prb->dir & FLAG_BWD) {
         dnnl_layer_normalization_desc_t ld_fwd;
         DNN_SAFE(dnnl_layer_normalization_forward_desc_init(&ld_fwd,
                          dnnl_forward_training, &data_d, stat_d_ptr, prb->eps,
                          flags),
                 WARN);
-        dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
-                &hint_fwd_pd, &ld_fwd, nullptr, engine, nullptr);
-        if (init_fwd_status == dnnl_unimplemented)
-            return res->state = UNIMPLEMENTED, OK;
-        else
-            SAFE(init_fwd_status, WARN);
+        status = dnnl_primitive_desc_create(
+                &hint_fwd_pd_, &ld_fwd, nullptr, engine, nullptr);
+        if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
     }
+    auto hint_fwd_pd = make_benchdnn_dnnl_wrapper(hint_fwd_pd_);
+    SAFE(status, WARN);
 
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args_t());
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args_t()));
 
-    dnnl_status_t init_status = dnnl_primitive_desc_create(
+    status = dnnl_primitive_desc_create(
             &lpd, &ld, dnnl_attr, engine, hint_fwd_pd);
 
-    dnnl_primitive_desc_destroy(hint_fwd_pd);
-    dnnl_primitive_attr_destroy(dnnl_attr);
-
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    else
-        SAFE(init_status, WARN);
+    if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
+    SAFE(status, WARN);
 
     res->impl_name = query_impl_info(lpd);
     if (maybe_skip(res->impl_name)) {
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                 res->impl_name.c_str());
-        DNN_SAFE(dnnl_primitive_desc_destroy(lpd), WARN);
         return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
     } else {
         BENCHDNN_PRINT(
@@ -484,15 +479,14 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t prim {};
-    SAFE(init_prim(&prim, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -543,7 +537,6 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (prb->dir & FLAG_FWD) {
         if (prepare_fwd(prb, src_fp, mean_fp, var_fp, ss_fp) != OK) {
-            DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
             return res->state = MISTRUSTED, OK;
         }
 
@@ -588,7 +581,6 @@ int doit(const prb_t *prb, res_t *res) {
         dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
 
         if (prepare_bwd(prb, src_fp, d_dst_fp, mean_fp, var_fp, ss_fp) != OK) {
-            DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
             return res->state = MISTRUSTED, OK;
         }
 
@@ -620,11 +612,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    measure_perf(res->timer, prim, args);
-
-    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace lnorm

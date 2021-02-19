@@ -135,12 +135,11 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     attr_args.prepare_dw_post_op(
             prb->attr, prb->cfg[WEI].dt, dw_bia_dt, prb->scales_dw, prb->oc);
     attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims, dst_dims);
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args);
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args));
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, nullptr);
-
-    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented) {
         if (res) res->state = UNIMPLEMENTED;
@@ -155,7 +154,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     if (maybe_skip(res->impl_name)) {
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                 res->impl_name.c_str());
-        DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
         return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
     } else {
         BENCHDNN_PRINT(
@@ -254,8 +252,8 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED) return OK;
 
     // Original problem with fusion attributes
-    dnnl_primitive_t prim {};
-    SAFE(init_prim(&prim, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
@@ -264,7 +262,6 @@ int doit(const prb_t *prb, res_t *res) {
     // Check memory requirements only for original problem though it's broken
     // due to quering not by arg md.
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -337,8 +334,8 @@ int doit(const prb_t *prb, res_t *res) {
     // Fill first convolution
     std::unique_ptr<prb_t> p0 = get_first_conv_prb(prb);
 
-    dnnl_primitive_t prim0 {};
-    SAFE(init_prim(&prim0, init_pd, p0.get(), res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim0;
+    SAFE(init_prim(prim0, init_pd, p0.get(), res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd0;
@@ -391,8 +388,8 @@ int doit(const prb_t *prb, res_t *res) {
     std::unique_ptr<prb_t> p1 = get_fused_conv_prb(prb);
     if (!p1) SAFE(FAIL, CRIT);
 
-    dnnl_primitive_t prim1 {};
-    SAFE(init_prim(&prim1, init_pd, p1.get(), res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim1;
+    SAFE(init_prim(prim1, init_pd, p1.get(), res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd1;
@@ -531,13 +528,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(FAIL, CRIT);
     }
 
-    measure_perf(res->timer, prim, args);
-
-    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
-    DNN_SAFE(dnnl_primitive_destroy(prim0), CRIT);
-    DNN_SAFE(dnnl_primitive_destroy(prim1), CRIT);
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace conv_dw_fusion

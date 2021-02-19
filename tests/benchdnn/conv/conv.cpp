@@ -611,12 +611,11 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *prb,
     attr_args_t attr_args;
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
     attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims, dst_dims);
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args);
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args));
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, nullptr);
-
-    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (!res) return OK;
 
@@ -628,7 +627,6 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *prb,
     if (maybe_skip(res->impl_name)) {
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                 res->impl_name.c_str());
-        DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
         return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
     } else {
         BENCHDNN_PRINT(
@@ -785,7 +783,7 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t prim {};
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     // TODO: align init_pd interface with a common one which is used
     // in the rest of the benchdnn drivers
     auto init_pd = [&](dnnl_engine_t engine, const prb_t *prb,
@@ -795,14 +793,13 @@ int doit(const prb_t *prb, res_t *res) {
         return OK;
     };
 
-    SAFE(init_prim(&prim, init_pd, prb, res), WARN);
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -840,22 +837,23 @@ int doit(const prb_t *prb, res_t *res) {
 
     // Try to use CPU primitive as the reference in GPU testing to reduce
     // testing time
-    dnnl_primitive_t prim_ref {};
-
+    dnnl_primitive_t prim_ref_ {};
     if (bench_mode & CORR && is_gpu() && fast_ref_gpu &&
             // TODO: temporary disable cpu as ref for testcases with binary post-ops
             prb->attr.post_ops.binary_index() == -1) {
-        dnnl_primitive_desc_t cpd_ref = nullptr;
-        SAFE(init_pd_custom(get_cpu_engine(), prb, cpd_ref, nullptr, fp, fp, fp,
-                     fp, fp, src_tag, wei_tag, tag::x, src_tag),
+        dnnl_primitive_desc_t cpd_ref_ {};
+        SAFE(init_pd_custom(get_cpu_engine(), prb, cpd_ref_, nullptr, fp, fp,
+                     fp, fp, fp, src_tag, wei_tag, tag::x, src_tag),
                 WARN);
+        auto cpd_ref = make_benchdnn_dnnl_wrapper(cpd_ref_);
+
         if (cpd_ref) {
-            DNN_SAFE(dnnl_primitive_create(&prim_ref, cpd_ref), WARN);
+            DNN_SAFE(dnnl_primitive_create(&prim_ref_, cpd_ref), WARN);
             BENCHDNN_PRINT(
                     5, "%s\n", "benchdnn: use CPU primitive as the reference");
-            DNN_SAFE(dnnl_primitive_desc_destroy(cpd_ref), CRIT);
         }
     }
+    auto prim_ref = make_benchdnn_dnnl_wrapper(prim_ref_);
 
     const auto &test_engine = get_test_engine();
 
@@ -945,12 +943,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(FAIL, CRIT);
     }
 
-    measure_perf(res->timer, prim, args);
-
-    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
-    DNN_SAFE(dnnl_primitive_destroy(prim_ref), CRIT);
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace conv

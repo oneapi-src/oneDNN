@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -827,19 +827,14 @@ int doit(const prb_t &prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t prim {};
-    SAFE(init_prim(&prim, init_pd, &prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, &prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    auto cleanup = [&]() {
-        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
-        return OK;
-    };
 
     const_dnnl_primitive_desc_t const_fpd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_fpd), CRIT);
 
     if (check_mem_size(const_fpd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -957,7 +952,7 @@ int doit(const prb_t &prb, res_t *res) {
     args.set(DNNL_ARG_WORKSPACE, workspace_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    SAFE_CLEAN(execute_and_wait(prim, args), WARN, cleanup);
+    SAFE(execute_and_wait(prim, args), WARN);
 
     if (prb.prop != dnnl_backward) {
         if (bench_mode & CORR) {
@@ -972,21 +967,18 @@ int doit(const prb_t &prb, res_t *res) {
             if (prb.alg == VANILLA_LSTM)
                 COMPARE_DAT(compare_status, DST_ITER_C, dst_iter_c,
                         tag::abx /*ldnc*/);
-            SAFE_CLEAN(compare_status, WARN, cleanup);
+            SAFE(compare_status, WARN);
         }
     } else {
-        dnnl_primitive_t bwd_prim {};
-        int status = init_prim(&bwd_prim, init_pd, &prb, res, FLAG_BWD);
-        dnnl_primitive_destroy(prim);
-        if (status != OK) return status;
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
+        SAFE(init_prim(tmp_prim, init_pd, &prb, res, FLAG_BWD), WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-        prim = bwd_prim;
+        prim.reset(tmp_prim.release());
 
         const_dnnl_primitive_desc_t const_bpd;
         DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_bpd), CRIT);
 
         if (check_mem_size(const_bpd) != OK) {
-            DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
             return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
         }
 
@@ -1118,7 +1110,7 @@ int doit(const prb_t &prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_BIAS, diff_bias_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE_CLEAN(execute_and_wait(prim, args), WARN, cleanup);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(prb, src_layer_fp, src_iter_fp, src_iter_c_fp,
@@ -1138,7 +1130,7 @@ int doit(const prb_t &prb, res_t *res) {
             if (prb.alg == VANILLA_LSTM)
                 COMPARE_DAT(compare_fwd_status, DST_ITER_C, dst_iter_c,
                         tag::abx /*ldnc*/);
-            SAFE_CLEAN(compare_fwd_status, WARN, cleanup);
+            SAFE(compare_fwd_status, WARN);
 
             int compare_bwd_data_status = OK;
             COMPARE_DAT(compare_bwd_data_status, DIFF_SRC_LAYER, diff_src_layer,
@@ -1148,7 +1140,7 @@ int doit(const prb_t &prb, res_t *res) {
             if (prb.alg == VANILLA_LSTM)
                 COMPARE_DAT(compare_bwd_data_status, DIFF_SRC_ITER_C,
                         diff_src_iter_c, tag::abx /*ldnc*/);
-            SAFE_CLEAN(compare_bwd_data_status, WARN, cleanup);
+            SAFE(compare_bwd_data_status, WARN);
 
             int compare_bwd_weights_status = OK;
             COMPARE_DAT(compare_bwd_weights_status, DIFF_WEIGHTS_LAYER,
@@ -1163,13 +1155,11 @@ int doit(const prb_t &prb, res_t *res) {
                         diff_weights_projection, tag::abx /*ldio*/);
             COMPARE_DAT(compare_bwd_weights_status, DIFF_BIAS, diff_bias,
                     tag::abx /*ldgo*/);
-            SAFE_CLEAN(compare_bwd_weights_status, WARN, cleanup);
+            SAFE(compare_bwd_weights_status, WARN);
         }
     }
 
-    measure_perf(res->timer, prim, args);
-    cleanup();
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
+
 } // namespace rnn

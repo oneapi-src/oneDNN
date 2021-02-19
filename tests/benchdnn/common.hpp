@@ -85,22 +85,6 @@ enum { CRIT = 1, WARN = 2 };
         } \
     } while (0)
 
-#define SAFE_CLEAN(f, s, clean) \
-    do { \
-        int status__ = (f); \
-        if (status__ != OK) { \
-            if (s == CRIT || s == WARN) { \
-                fprintf(stderr, "@@@ error [%s:%d]: '%s' -> %d\n", \
-                        __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), \
-                        status__); \
-                fflush(0); \
-                if (s == CRIT) exit(1); \
-            } \
-            clean(); \
-            return status__; \
-        } \
-    } while (0)
-
 extern int verbose;
 extern bool canonical;
 extern bool mem_check;

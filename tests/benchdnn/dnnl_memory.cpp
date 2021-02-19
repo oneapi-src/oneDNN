@@ -37,8 +37,8 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     std::shared_ptr<const dnn_mem_t> r_src(&src, [](const dnn_mem_t *) {});
     std::shared_ptr<dnn_mem_t> r_dst(&dst, [](dnn_mem_t *) {});
 
-    dnnl_primitive_desc_t r_pd = nullptr;
-    dnnl_primitive_t prim {};
+    dnnl_primitive_desc_t r_pd_ {};
+    dnnl_primitive_t prim_ {};
 
     // Optimization to reduce testing time for GPU.
     //
@@ -64,7 +64,7 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
                     || dst.engine_kind() == dnnl_gpu)) {
 
         dnnl_status_t status = dnnl_reorder_primitive_desc_create(
-                &r_pd, &src.md_, cpu_engine, &dst.md_, cpu_engine, attr);
+                &r_pd_, &src.md_, cpu_engine, &dst.md_, cpu_engine, attr);
         if (status == dnnl_success) {
             // Create CPU memory objects wrapping mapped pointers of source and
             // destination
@@ -76,11 +76,12 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     }
 #endif
 
-    if (!r_pd) {
-        DNN_SAFE(dnnl_reorder_primitive_desc_create(&r_pd, &src.md_,
+    if (!r_pd_) {
+        DNN_SAFE(dnnl_reorder_primitive_desc_create(&r_pd_, &src.md_,
                          src.engine(), &dst.md_, dst.engine(), attr),
                 CRIT);
     }
+    auto r_pd = make_benchdnn_dnnl_wrapper(r_pd_);
 
     const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
         return *dnnl_primitive_desc_query_md(
@@ -89,22 +90,15 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
     dnn_mem_t scratchpad(scratchpad_md, src.engine());
 
-    DNN_SAFE(dnnl_primitive_create(&prim, r_pd), CRIT);
-    dnnl_status_t pd_destroy_status = dnnl_primitive_desc_destroy(r_pd);
-    if (pd_destroy_status != dnnl_success) {
-        dnnl_primitive_destroy(prim);
-        DNN_SAFE(pd_destroy_status, CRIT);
-    }
+    DNN_SAFE(dnnl_primitive_create(&prim_, r_pd), CRIT);
+    auto prim = make_benchdnn_dnnl_wrapper(prim_);
 
     args_t args;
     args.set(DNNL_ARG_FROM, *r_src);
     args.set(DNNL_ARG_TO, *r_dst);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad);
 
-    SAFE(execute_and_wait(prim, args), CRIT);
-    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
-
-    return OK;
+    return execute_and_wait(prim, args);
 }
 int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr) {
     if (this == &rhs) return OK;

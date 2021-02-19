@@ -61,22 +61,6 @@
         } \
     } while (0)
 
-#define DNN_SAFE_CLEAN(f, s, clean) \
-    do { \
-        dnnl_status_t status__ = f; \
-        if (status__ != dnnl_success) { \
-            if (s == CRIT || s == WARN) { \
-                BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
-                        __PRETTY_FUNCTION__, __LINE__, #f, \
-                        status2str(status__), (int)status__); \
-                fflush(0); \
-                if (s == CRIT) exit(2); \
-            } \
-            clean(); \
-            return FAIL; \
-        } \
-    } while (0)
-
 /* aux */
 using bfloat16_t = dnnl::impl::bfloat16_t;
 using float16_t = dnnl::impl::float16_t;
@@ -255,6 +239,76 @@ private:
     std::vector<std::pair<int, const dnn_mem_t *>> args_;
 };
 
+template <typename T>
+struct dnnl_api_traits;
+//{
+//    static void destroy(T t) {}
+//};
+
+template <>
+struct dnnl_api_traits<dnnl_primitive_t> {
+    static void destroy(dnnl_primitive_t t) {
+        DNN_SAFE_V(dnnl_primitive_destroy(t));
+    }
+};
+
+template <>
+struct dnnl_api_traits<dnnl_primitive_desc_t> {
+    static void destroy(dnnl_primitive_desc_t t) {
+        DNN_SAFE_V(dnnl_primitive_desc_destroy(t));
+    }
+};
+
+template <>
+struct dnnl_api_traits<dnnl_primitive_attr_t> {
+    static void destroy(dnnl_primitive_attr_t t) {
+        DNN_SAFE_V(dnnl_primitive_attr_destroy(t));
+    }
+};
+
+// Generic class providing RAII support for DNNL objects in benchdnn
+template <typename T>
+struct benchdnn_dnnl_wrapper_t {
+    benchdnn_dnnl_wrapper_t(T t = nullptr) : t_(t) {
+        static_assert(std::is_pointer<T>::value, "T is not a pointer type.");
+    }
+
+    benchdnn_dnnl_wrapper_t(benchdnn_dnnl_wrapper_t &&rhs) {
+        T t = rhs.release();
+        t_ = t;
+    }
+
+    ~benchdnn_dnnl_wrapper_t() { do_destroy(); }
+
+    T release() {
+        T tmp = t_;
+        t_ = nullptr;
+        return tmp;
+    }
+
+    void reset(T t) {
+        do_destroy();
+        t_ = t;
+    }
+
+    operator T() const { return t_; }
+
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(benchdnn_dnnl_wrapper_t);
+
+private:
+    T t_;
+
+    void do_destroy() {
+        if (t_) { dnnl_api_traits<T>::destroy(t_); }
+    }
+};
+
+// Constructs a wrapper object (providing RAII support)
+template <typename T>
+benchdnn_dnnl_wrapper_t<T> make_benchdnn_dnnl_wrapper(T t) {
+    return benchdnn_dnnl_wrapper_t<T>(t);
+}
+
 // Engine used to run oneDNN primitives for testing.
 inline const engine_t &get_test_engine() {
     static const engine_t instance(engine_tgt_kind);
@@ -270,14 +324,12 @@ inline const engine_t &get_cpu_engine() {
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 
 template <typename func_t, typename prb_t>
-int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *prb,
-        res_t *res, dir_t dir = FLAG_FWD,
-        const_dnnl_primitive_desc_t hint = nullptr) {
+int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
+        const func_t &init_pd_func, prb_t *prb, res_t *res,
+        dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr) {
     dnnl_primitive_desc_t pd {};
-    dnnl_primitive_t return_prim {};
+    dnnl_primitive_t prim_ {};
 
-    auto cleanup_pd = [&]() { dnnl_primitive_desc_destroy(pd); };
-    auto cleanup_prim = [&]() { dnnl_primitive_destroy(return_prim); };
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     // The idea is to create the requested primitive twice using
     // different engines.
@@ -294,22 +346,25 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *prb,
     // The first primitive creation using a temporary engine.
     engine_t engine(engine_tgt_kind);
     SAFE(init_pd_func(engine, prb, pd, res, dir, hint), WARN);
+    auto pd1 = make_benchdnn_dnnl_wrapper(pd);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
-    DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(pd), WARN, cleanup_prim);
-    DNN_SAFE(dnnl_primitive_destroy(return_prim), WARN);
 
+    DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
+    DNN_SAFE(dnnl_primitive_destroy(prim_), CRIT);
 #endif
     // The second (if the cache is enabled) primitive creation using
     // the global test engine.
     SAFE(init_pd_func(get_test_engine(), prb, pd, res, dir, hint), WARN);
+    auto pd2 = make_benchdnn_dnnl_wrapper(pd);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+
     // Collect memory footprint for a given primitive descriptor.
     SAFE(get_memory_footprint(pd, res), WARN);
+
     // This primitive is expected to come from the cache.
-    DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
-    DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(pd), WARN, cleanup_prim);
-    (*prim) = return_prim;
+    DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
+    user_prim.reset(prim_);
+
     return OK;
 }
 

@@ -426,12 +426,11 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
                 WARN);
     }
 
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args_t());
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args_t()));
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, hint);
-
-    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
@@ -445,7 +444,6 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
     if (maybe_skip(res->impl_name)) {
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                 res->impl_name.c_str());
-        DNN_SAFE(dnnl_primitive_desc_destroy(bpd), WARN);
         return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
     } else {
         BENCHDNN_PRINT(
@@ -488,15 +486,14 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t prim {};
-    SAFE(init_prim(&prim, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_fpd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_fpd), CRIT);
 
     if (check_mem_size(const_fpd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -549,7 +546,6 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
     if (prepare_fwd(prb, src_fp, mean_fp, var_fp, ss_fp) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = MISTRUSTED, OK;
     }
 
@@ -589,22 +585,17 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     if (prb->dir & FLAG_BWD) {
-        dnnl_primitive_t bwd_prim {};
-        int status
-                = init_prim(&bwd_prim, init_pd, prb, res, FLAG_BWD, const_fpd);
-        dnnl_primitive_destroy(prim);
-        if (status != OK) return status;
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
+        SAFE(init_prim(tmp_prim, init_pd, prb, res, FLAG_BWD, const_fpd), WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-        prim = bwd_prim;
+        prim.reset(tmp_prim.release());
 
         const_dnnl_primitive_desc_t const_bpd;
         DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_bpd), CRIT);
 
         if (check_mem_size(const_bpd) != OK) {
-            DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
             return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
         }
-
         const auto &d_data_md = q(const_bpd, DNNL_ARG_DIFF_DST);
         const auto &d_scratchpad_md = q(const_bpd, DNNL_ARG_SCRATCHPAD);
 
@@ -644,11 +635,8 @@ int doit(const prb_t *prb, res_t *res) {
             SAFE(compare(prb, DATA, d_src_fp, d_src, res), WARN);
         }
     }
-    measure_perf(res->timer, prim, args);
 
-    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace bnorm

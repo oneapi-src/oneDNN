@@ -202,12 +202,11 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 
     attr_args_t attr_args;
     attr_args.prepare_output_scales(prb->attr, prb->scales, get_n_scales(prb));
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args);
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args));
 
     dnnl_status_t init_status = dnnl_reorder_primitive_desc_create(
             &rpd, &src_d, src_engine, &dst_d, dst_engine, dnnl_attr);
-
-    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
@@ -217,7 +216,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     if (maybe_skip(res->impl_name)) {
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                 res->impl_name.c_str());
-        DNN_SAFE(dnnl_primitive_desc_destroy(rpd), WARN);
         return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
     } else {
         BENCHDNN_PRINT(
@@ -312,15 +310,14 @@ int doit(const prb_t *prb, res_t *res) {
     // 7. performance measurement
 
     /* Step 2: create target reorder primitive */
-    dnnl_primitive_t prim {};
-    SAFE(init_prim(&prim, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -458,11 +455,7 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     /* Step 7: performance measurement */
-    measure_perf(res->timer, prim, args);
-
-    DNN_SAFE(dnnl_primitive_destroy(prim), CRIT);
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace reorder
