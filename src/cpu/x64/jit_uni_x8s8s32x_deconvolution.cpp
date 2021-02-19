@@ -955,8 +955,6 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::store_output(
     const int sum_idx = p.find(primitive_kind::sum);
     const float *p_sum_scale
             = (sum_idx != -1) ? &p.entry_[sum_idx].sum.scale : nullptr;
-    if (p_sum_scale && *p_sum_scale != 1.f)
-        mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
 
     if (jcp.with_bias && jcp.signed_input && jcp.ver != ver_vnni) {
         mov(reg_bias_alpha, float2int(jcp.wei_adj_scale));
@@ -1015,6 +1013,9 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::store_output(
             uni_vmulps(vmm, vmm, vmm_scale);
         }
     }
+
+    if (p_sum_scale && *p_sum_scale != 1.f)
+        mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
 
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum)
         apply_postops(ur_w, last_oc_block, p_sum_scale);
