@@ -198,9 +198,7 @@ private:
     char brg_kernel_palettes_[max_num_brg_kernels_ip][64];
 };
 
-template <cpu_isa_t isa, impl::data_type_t diff_src_type,
-        impl::data_type_t wei_type = diff_src_type,
-        impl::data_type_t diff_dst_type = diff_src_type>
+template <cpu_isa_t isa>
 struct brgemm_inner_product_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_inner_product_bwd_data_pd_t {
         pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
@@ -212,10 +210,16 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
 
         status_t init(engine_t *engine) {
 
+            auto diff_src_dt = invariant_src_md()->data_type;
+            auto diff_dst_dt = invariant_dst_md()->data_type;
+            auto wei_dt = invariant_wei_md()->data_type;
+
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
                     && !has_zero_dim_memory() && mayiuse(isa)
-                    && expect_data_types(diff_src_type, wei_type,
-                            data_type::undef, diff_dst_type, data_type::undef)
+                    && (diff_dst_dt == data_type::bf16
+                            && wei_dt == data_type::bf16
+                            && utils::one_of(diff_src_dt, data_type::bf16,
+                                    data_type::f32))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
@@ -242,14 +246,13 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                 if (idx < 0) continue;
 
                 brgemm_t &brg = brg_descs_[idx];
-                CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, diff_dst_type,
-                        wei_type, false, false, brgemm_row_major, alpha, vbeta,
+                CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, diff_dst_dt,
+                        wei_dt, false, false, brgemm_row_major, alpha, vbeta,
                         jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
 
-                auto dt_d = diff_src_type;
                 auto LDD = jbgp_.ic_without_padding;
                 CHECK(brgemm_desc_set_postops(
-                        &brg, attr(), dt_d, LDD, jbgp_.bia_dt));
+                        &brg, attr(), jbgp_.src_dt, LDD, jbgp_.bia_dt));
             }
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -297,10 +300,6 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
-    typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_ip];
     std::unique_ptr<jit_brgemm_trans_wei_t> trans_B_kernel_;
