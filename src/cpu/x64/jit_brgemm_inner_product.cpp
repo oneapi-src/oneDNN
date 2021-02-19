@@ -365,7 +365,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                   (*trans_B_kernel_)(&ctx);
               };
 
-    const auto ker = [&](const int ithr, int n, int icb, int occ) {
+    const auto ker = [&](const int ithr, int n, int icb, int occ,
+                             bool do_b_transpose) {
         brgemm_batch_element_t *addr_batch
                 = addr_batch_global + ithr * jbgp.adjusted_batch_size;
 
@@ -411,7 +412,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                                 oc + oc_block * jbgp.oc_block);
                 addr_batch[oc_block].ptr.B
                         = b_buffer + wei_dt_size * (oc_block * size_B);
-                if (!jbgp.ip_bwd_d_global_b_transpose)
+                if (!jbgp.ip_bwd_d_global_b_transpose && do_b_transpose)
                     transform_b_chunk((char *)addr_batch[oc_block].ptr.B,
                             get_weights_ptr(icb, ocb + oc_block), 1,
                             is_ic_tail ? jbgp.ic % jbgp.ic_block
@@ -445,7 +446,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                     + get_blk_off(diff_dst_d, jbgp.dst_dt, n,
                             oc + oc_block * jbgp.oc_block);
             addr_batch[0].ptr.B = b_buffer + wei_dt_size * (oc_block * size_B);
-            if (!jbgp.ip_bwd_d_global_b_transpose) {
+            if (!jbgp.ip_bwd_d_global_b_transpose && do_b_transpose) {
                 transform_b_chunk((char *)addr_batch[0].ptr.B,
                         get_weights_ptr(icb, ocb + oc_block), 1,
                         is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block,
@@ -537,10 +538,10 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         int icb {0}, oss {0};
         nd_iterator_init(start, oss, os_chunks, icb, jbgp.nb_ic);
         while (start < end) {
-            for_(int osb = 0; osb < jbgp.nb_os_blocking; osb++)
-            for (int occ = 0; occ < oc_chunks; occ++) {
+            for_(int occ = 0; occ < oc_chunks; occ++)
+            for (int osb = 0; osb < jbgp.nb_os_blocking; osb++) {
                 int n = (oss * jbgp.nb_os_blocking + osb) * jbgp.os_block;
-                ker(ithr, n, icb, occ);
+                ker(ithr, n, icb, occ, osb == 0 || oc_chunks > 1);
             }
             ++start;
             nd_iterator_step(oss, os_chunks, icb, jbgp.nb_ic);
