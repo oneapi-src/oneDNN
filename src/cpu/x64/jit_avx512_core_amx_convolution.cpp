@@ -38,10 +38,12 @@ using namespace nstl;
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
 
-#define mem_blk_off(md, ndims, n, c, d, h, w) \
-    (ndims) == 3 ? (md).blk_off((n), (c), (w)) \
-                 : (ndims) == 4 ? (md).blk_off((n), (c), (h), (w)) \
-                                : (md).blk_off((n), (c), (d), (h), (w))
+#define mem_blk_off(md, n, c, d, h, w) \
+    (pd()->ndims() == 3 \
+                    ? (md).blk_off((n), (c), (w)) \
+                    : (pd()->ndims() == 4 \
+                                    ? (md).blk_off((n), (c), (h), (w)) \
+                                    : (md).blk_off((n), (c), (d), (h), (w))))
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
 void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
@@ -318,7 +320,6 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     // Initialize the tile configuration in memory, so that each thread can
     // load this configuration from memory via `amx_tile_configure(tcfg)`.
     kernel_->tile_configure(tcfg);
-    const int ndims = pd()->ndims();
 
     // TODO: implement 2D parallelization driver (g * spatial x oc) to increase
     // input data reuse and parallelize input data reorders
@@ -358,8 +359,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
             const int d_back_overflow = nstl::min(jcp.kd,
                     div_up(max(0, id_s - jcp.id + (jcp.kd - 1) * dilate_d + 1),
                             dilate_d));
-            const size_t inp_src_d_stride
-                    = mem_blk_off(src_d, ndims, 0, 0, 1, 0, 0);
+            const size_t inp_src_d_stride = mem_blk_off(src_d, 0, 0, 1, 0, 0);
             p.kd_padding
                     = nstl::max(0, jcp.kd - d_f_overflow - d_back_overflow);
             int oh_s = ohc * jcp.oh_blk_size;
@@ -410,8 +410,8 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                         p.b_overflow = ih_zero_bottom;
                         p.owb = owb;
                         int ih = nstl::max(ih_copy_start, 0);
-                        size_t inp_offset = mem_blk_off(src_d, ndims, mb, icb,
-                                                    id_s, ih, iw)
+                        size_t inp_offset
+                                = mem_blk_off(src_d, mb, icb, id_s, ih, iw)
                                 + d_f_overflow * dilate_d * inp_src_d_stride;
                         p.src = src + src_dt_size * inp_offset;
                         // inp_buffer has physical padding
@@ -432,8 +432,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                 p.src = inp_buffer
                         + (size_t)ih_buf * jcp.iwp * jcp.ic_block_int_np;
 
-                size_t dst_offset
-                        = mem_blk_off(dst_d, ndims, mb, ocb, odc, oh, ow);
+                size_t dst_offset = mem_blk_off(dst_d, mb, ocb, odc, oh, ow);
                 p.dst = dst + dst_dt_size * dst_offset;
                 p.filt = weights
                         + ((g * oc_chunks + occ) * wei_oc_shift
