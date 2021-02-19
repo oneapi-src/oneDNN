@@ -13,8 +13,10 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
 #include "cpu/x64/prelu/jit_prelu_reduction_kernel.hpp"
 #include "common/nstl.hpp"
+#include "cpu/x64/prelu/jit_prelu_utils.hpp"
 
 namespace dnnl {
 namespace impl {

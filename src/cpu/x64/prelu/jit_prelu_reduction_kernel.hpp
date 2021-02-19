@@ -22,7 +22,7 @@
 #include "cpu/cpu_prelu_pd.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/jit_generator.hpp"
-#include "cpu/x64/prelu/jit_prelu_utils.hpp"
+#include "cpu/x64/utils/jit_io_helper.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -98,7 +98,7 @@ private:
     const Xbyak::Opmask &tail_opmask_ = k1;
     const Xbyak::Reg64 &reg_tmp_ = r15;
 
-    prelu::jit_prelu_io_helper_t<Vmm> io_;
+    io::jit_io_helper_t<Vmm> io_;
 };
 
 } // namespace x64
