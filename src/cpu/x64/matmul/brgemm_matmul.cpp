@@ -230,10 +230,9 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                 ? b_buffer_global + ithr * b_buffer_per_thr
                 : nullptr;
 
-        auto a_buffer = (use_buffer_a)
-                ? a_buffer_global + ithr * a_buffer_per_thr
+        auto a_buffer = use_buffer_a ? a_buffer_global + ithr * a_buffer_per_thr
                         + a_buffer_K_chunk_sz * (m_blk_idx % bgmmc.M_chunk_size)
-                : nullptr;
+                                     : nullptr;
 
         char *wsp_tile = is_amx ? wsp_tile_base + ithr * 1024 : nullptr;
         int m = m_blk_idx * bgmmc.M_blk;
@@ -304,7 +303,7 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                     k + gemm_batch * bgmmc.K_blk);
             const int a_buf_gemm_batch
                     = bgmmc.use_buffer_a_tail_only ? 0 : gemm_batch;
-            addr_batch[0].ptr.A = (use_buffer_a)
+            addr_batch[0].ptr.A = use_buffer_a
                     ? a_buffer + a_buf_gemm_batch * a_buffer_sz
                     : src + src_off;
             auto wei_off = get_blk_off(weights_d, bgmmc.wei_dt, b_idx,
