@@ -478,8 +478,7 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                 int oc_loop = (!w_oc_tail || sglid < loc_oc_tail) \
                         ? C_SIZE \
                         : n_channels; \
-                for (int oc_outer = 0; oc_outer < oc_loop; \
-                        oc_outer += n_channels) { \
+                for (int oc_outer = 0; oc_outer < oc_loop; oc_outer += 1) { \
                     int oc_tail_idx = ((sglid < loc_oc_tail \
                                                && oc_outer >= n_channels) \
                                     ? (sglid + (16 * (C_SIZE / OW_BLOCK - 1))) \
@@ -487,7 +486,7 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                     int off = dst_off( \
                             0, oc_tail_idx, 0, 0, (oc_outer % n_channels)); \
                     int idx = oc_outer; \
-                    _BLOCK_READ_DST(&(block)[idx], n_channels, &(ptr)[off]); \
+                    _BLOCK_READ_DST(&(block)[idx], 1, &(ptr)[off]); \
                 } \
             } \
         } else { \
@@ -577,8 +576,7 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                 int oc_loop = (!w_oc_tail || sglid < loc_oc_tail) \
                         ? C_SIZE \
                         : n_channels; \
-                for (int oc_outer = 0; oc_outer < oc_loop; \
-                        oc_outer += n_channels) { \
+                for (int oc_outer = 0; oc_outer < oc_loop; oc_outer += 1) { \
                     int oc_tail_idx = ((sglid < loc_oc_tail \
                                                && oc_outer >= n_channels) \
                                     ? (sglid + (16 * (C_SIZE / OW_BLOCK - 1))) \
@@ -586,8 +584,7 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                     int off = dst_off( \
                             0, oc_tail_idx, 0, 0, (oc_outer % n_channels)); \
                     int idx = oc_outer; \
-                    unrolled_write( \
-                            n_channels, &(block)[oc_outer], &(ptr)[off]); \
+                    unrolled_write(1, &(block)[oc_outer], &(ptr)[off]); \
                 } \
             } \
         } \
