@@ -51,6 +51,9 @@ Ideally, the semantics of these operations should be as follows:
 
 Depending on the hardware, the first step might vary slightly.
 
+The data type of computations within a primitive is defined based on the type 
+of the input tensors. 
+
 This document focuses on the first two steps (since the last two steps are
 independent from the hardware used), and describes the behaviors on different
 systems and the reasons behind them.
