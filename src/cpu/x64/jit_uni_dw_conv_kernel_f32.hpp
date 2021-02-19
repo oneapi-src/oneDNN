@@ -78,6 +78,8 @@ private:
             const int ur_ch_blocks, const int ur_w, const bool is_ch_tail);
     inline void store_dst(int ur_ch_blocks, int ur_w, bool is_ch_tail);
 
+    int max_repeats() { return jcp.isa == sse41 ? 2 : 1; }
+
     inline Vmm get_ker_reg(int idx) { return Vmm(idx + 0); }
     inline Vmm get_src_reg(int idx) { return Vmm(idx + 1); }
     inline int get_acc_reg_idx(int idx) { return idx + 4; }
