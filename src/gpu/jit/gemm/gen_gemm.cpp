@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         int32_t batch, int32_t stride_a, int32_t stride_b,
         int32_t stride_c) const {
 
+    bool with_offset = (pd()->desc()->c_type() == data_type::s32);
     uint32_t flags = 0;
 
     if (!last_k_block) flags |= FlagNonfinalKBlock;
@@ -60,11 +61,11 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     arg_list.set(argn++, k);
     arg_list.set(argn++, alpha);
     arg_list.set(argn++, beta);
-    if (pd()->desc()->c_type() == data_type::s32) {
+    if (with_offset) {
         uint32_t abo = uint16_t(-ao) | (uint16_t(-bo) << 16);
         arg_list.set(argn++, abo);
     }
-    if (pd()->with_c_offset()) {
+    if (pd()->with_c_offset() || pd()->with_bias()) {
         arg_list.set(argn++, co);
         arg_list.set(argn++, offset_co);
     }
@@ -141,7 +142,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &a = GEMM_CTX_ARG_STORAGE(b);
     auto &b = GEMM_CTX_ARG_STORAGE(a);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
-    auto &co = GEMM_CTX_ARG_STORAGE(c_zero_point);
+    auto &c_zp = GEMM_CTX_ARG_STORAGE(c_zero_point);
+    auto &bias = GEMM_CTX_ARG_STORAGE(bias);
+    auto *co = &c_zp;
 
     size_t off_a0
             = a.offset() / types::data_type_size(a_type) + pd()->dyn_offset_a;
@@ -149,8 +152,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             = b.offset() / types::data_type_size(b_type) + pd()->dyn_offset_b;
     size_t off_c0
             = c.offset() / types::data_type_size(c_type) + pd()->dyn_offset_c;
-    size_t off_co0
-            = co.offset() / types::data_type_size(c_type) + pd()->dyn_offset_co;
+    size_t off_co0 = 0;
 
     int16_t ao = 0, bo = 0;
     int cmask = 0;
@@ -163,6 +165,13 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                 DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
         ao = *ao_i32;
         bo = *bo_i32;
+        off_co0 = co->offset() / types::data_type_size(c_type)
+                + pd()->dyn_offset_co;
+    } else if (pd()->with_bias()) {
+        off_co0 = bias.offset() / types::data_type_size(c_type);
+        co = &bias;
+        cmask = pd()->bias_cmask();
+        off_co0 = bias.offset() / types::data_type_size(c_type);
     }
 
     if (pd()->with_c_offset())
@@ -177,7 +186,8 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto block_k
             = utils::rnd_up(nocopy_info_.blocking[2], nocopy_info_.unroll[2]);
 
-    if (pd()->desc()->acc_type != pd()->desc()->c_type()) block_k = k;
+    if (pd()->with_bias() || (pd()->desc()->acc_type != pd()->desc()->c_type()))
+        block_k = k;
 
     for (int64_t Bk = 0; Bk < k; Bk += block_k) {
         int64_t size_k = k - Bk;
@@ -204,7 +214,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                 if (cmask & 2) off_co += Bm;
 
                 float eff_beta = (Bk == 0) ? beta : 1.0f;
-                status = launch_nocopy(ctx, compute_stream, a, b, c, co,
+                status = launch_nocopy(ctx, compute_stream, a, b, c, *co,
                         off_a_src, off_b_src, off_c, off_co, lda, ldb, ldc,
                         size_m, size_n, size_k, alpha, eff_beta, ao, bo, cmask,
                         last_k_block, eltwise_alpha, eltwise_beta,

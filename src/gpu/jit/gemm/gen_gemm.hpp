@@ -22,6 +22,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"
+#include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/compute/kernel.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
@@ -45,6 +46,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             using namespace data_type;
             using namespace primitive_kind;
             using smask_t = primitive_attr_t::skip_mask_t;
+            using arch_t = compute::gpu_arch_t;
 
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
@@ -52,7 +54,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             // LIMITATIONS:
             // - runtime dims are not supported
-            // - bias is not supported
+            // - bias only supported for f16 and f32 with same c_type.
             bool ok = true;
 
             auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
@@ -90,7 +92,10 @@ struct gen_gemm_t : public gpu_gemm_t {
                             d->a_desc.dims[0] == d->b_desc.dims[0])
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
                             d->k(), d->lda(), d->ldb(), d->ldc(), d->batch())
-                    && d->bias_type() == data_type::undef
+                    && IMPLICATION(with_bias(),
+                            (d->bias_type() == d->c_type())
+                                    && utils::one_of(
+                                            bias_cmask(), 0, 1 << 0, 1 << 1))
                     && compute_engine->mayiuse_ngen_kernels()
                     && attr()->has_default_values(attr_skip_mask)
                     && attr()->output_scales_.mask_ == 0
@@ -104,8 +109,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             arch_ = dev_info->gpu_arch();
 
-            ok &= utils::one_of(arch_, compute::gpu_arch_t::gen9,
-                    compute::gpu_arch_t::gen12lp);
+            ok &= utils::one_of(arch_, arch_t::gen9, arch_t::gen12lp);
 
             if (!ok) return status::unimplemented;
 
@@ -139,6 +143,15 @@ struct gen_gemm_t : public gpu_gemm_t {
             using namespace primitive_kind;
             const auto &p = attr()->post_ops_;
             return p.contain(sum, 0) ? p.entry_[0].sum.scale : 0.f;
+        }
+
+        bool with_bias() const {
+            return desc()->bias_type() != data_type::undef;
+        }
+
+        int bias_cmask() const {
+            unsigned char to_cmask[4] = {0, 2, 1, 3};
+            return with_bias() ? to_cmask[(desc()->bias_mask() >> 1) & 3] : -1;
         }
 
         size_t dyn_offset_a = 0;
@@ -175,8 +188,8 @@ struct gen_gemm_t : public gpu_gemm_t {
         kernel_t kernel;
 
         auto status = kernel.init(pd()->arch_, batched, transa, transb,
-                pd()->with_c_offset(), a_type, b_type, c_type, unroll_m,
-                unroll_n);
+                pd()->with_c_offset(), pd()->with_bias(), a_type, b_type,
+                c_type, unroll_m, unroll_n);
         if (status != status::success) return status;
 
         create_kernel(engine, &nocopy_kernel_, kernel);
