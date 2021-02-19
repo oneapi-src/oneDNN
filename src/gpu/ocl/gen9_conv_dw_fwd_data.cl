@@ -21,6 +21,11 @@
 #error "Kernel supports depth-wise convolutions only"
 #endif
 
+#ifdef DST_DT_S8
+#define DST_MB_BLOCK MB_BLOCK * 2
+#define DST_OC_BLOCK OC_BLOCK * 2
+#endif
+
 #define APPLY_POST_OPS_COMMON(nelems, accumulator, dest_data, mb_shift) \
     { \
         const int po_mb = mb_shift + mb; \
@@ -59,7 +64,7 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     const int G_32block = G % 32 ? (32 + G - (G % 32)) : G;
     dst += mb * G_32block * OD * OH * OW
             + (g / 32 * 32) * OD * OH * OW * MB_BLOCK
-            + (od * OH * OW + oh * OW + ow) * MB_BLOCK * (OC_BLOCK * 2)
+            + (od * OH * OW + oh * OW + ow) * MB_BLOCK * (DST_OC_BLOCK)
             + (g % 32);
 #else
     dst += mb * G * OD * OH * OW + g * OD * OH * OW * MB_BLOCK
@@ -130,13 +135,21 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
         }
 #endif
 
-    DATA_T D00[OW_BLOCK];
+    DATA_T D00[OW_BLOCK] = {0};
 #if WITH_SUM
+#ifdef DST_DT_S8
+    __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+    for (int k = 0; k < OW_BLOCK; k++) {
+        D00[k] = CONVERT_DATA_T(BLOCK_READ_DST(
+                (const __global DST_DATA_T *)&dst[k * DST_OC_BLOCK]));
+    }
+#else
     __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
     for (int k = 0; k < OW_BLOCK; k++) {
         D00[k] = AS_DATA_T(
                 BLOCK_READ((const __global BLOCK_DATA_T *)&dst[k * OC_BLOCK]));
     }
+#endif
 #endif
 
     APPLY_POST_OPS_COMMON(OW_BLOCK, S00, D00, 0);
@@ -145,7 +158,7 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
         __attribute__((opencl_unroll_hint)) // attr:no-format
         for (int k = 0; k < OW_BLOCK; k++) {
 #ifdef DST_DT_S8
-            BLOCK_WRITE_DST((__global DST_DATA_T *)&dst[k * OC_BLOCK * 2],
+            BLOCK_WRITE_DST((__global DST_DATA_T *)&dst[k * DST_OC_BLOCK],
                     CONVERT_DST_DATA_T(S00[k]));
 #else
             BLOCK_WRITE((__global BLOCK_DATA_T *)&dst[k * OC_BLOCK],
@@ -156,7 +169,7 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
         __attribute__((opencl_unroll_hint)) // attr:no-format
         for (int k = 0; k < OW % OW_BLOCK; k++) {
 #ifdef DST_DT_S8
-            BLOCK_WRITE_DST((__global DST_DATA_T *)&dst[k * OC_BLOCK * 2],
+            BLOCK_WRITE_DST((__global DST_DATA_T *)&dst[k * DST_OC_BLOCK],
                     CONVERT_DST_DATA_T(S00[k]));
 #else
             BLOCK_WRITE((__global BLOCK_DATA_T *)&dst[k * OC_BLOCK],
@@ -182,8 +195,8 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 #ifdef DST_DT_S8 //32n32c dst
     const int G_32block = G % 32 ? (32 + G - (G % 32)) : G;
     dst += (mb * 2) * G_32block * OD * OH * OW
-            + (g / 32 * 32) * OD * OH * OW * (MB_BLOCK * 2)
-            + (od * OH * OW + oh * OW + ow) * (MB_BLOCK * 2) * (OC_BLOCK * 2)
+            + (g / 32 * 32) * OD * OH * OW * DST_MB_BLOCK
+            + (od * OH * OW + oh * OW + ow) * DST_MB_BLOCK * DST_OC_BLOCK
             + (g % 32);
 #else
     dst += mb * G * OD * OH * OW + g * OD * OH * OW * MB_BLOCK
@@ -245,10 +258,18 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     DATA8_T D00;
     DATA8_T D01;
 #if WITH_SUM
+#ifdef DST_DT_S8
+    for (int i = 0; i < 8; ++i) {
+        D00[i] = CONVERT_DATA_T(
+                BLOCK_READ_DST((__global DST_DATA_T *)&dst[i * 32]));
+        D01[i] = CONVERT_DATA_T(
+                BLOCK_READ_DST((__global DST_DATA_T *)&dst[(i * 32) + 256]));
+    }
+#else
     D00 = AS_DATA8_T(BLOCK_READ8((const __global BLOCK_DATA_T *)dst));
     D01 = AS_DATA8_T(
             BLOCK_READ8((const __global BLOCK_DATA_T *)&dst[8 * OC_BLOCK]));
-
+#endif
 #endif
 
     APPLY_POST_OPS_COMMON(8, S00, D00, 0);
@@ -256,9 +277,9 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
 #ifdef DST_DT_S8
     for (int i = 0; i < 8; ++i) {
-        BLOCK_WRITE_DST((__global DST_DATA_T *)&dst[i * 32],
+        BLOCK_WRITE_DST((__global DST_DATA_T *)&dst[i * DST_MB_BLOCK],
                 CONVERT_DST_DATA_T(S00[i]));
-        BLOCK_WRITE_DST((__global DST_DATA_T *)&dst[(i * 32) + 256],
+        BLOCK_WRITE_DST((__global DST_DATA_T *)&dst[(i + 8) * DST_MB_BLOCK],
                 CONVERT_DST_DATA_T(S01[i]));
     }
 #else
