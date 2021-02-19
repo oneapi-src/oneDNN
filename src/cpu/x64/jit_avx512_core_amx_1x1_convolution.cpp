@@ -38,10 +38,12 @@ using namespace nstl;
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
 
-#define md_blk_off(md, ndims, n, c, d, h, w) \
-    (ndims) == 3 ? (md).blk_off((n), (c), (w)) \
-                 : (ndims) == 4 ? (md).blk_off((n), (c), (h), (w)) \
-                                : (md).blk_off((n), (c), (d), (h), (w));
+#define md_blk_off(md, n, c, d, h, w) \
+    (pd()->ndims() == 3 \
+                    ? (md).blk_off((n), (c), (w)) \
+                    : (pd()->ndims() == 4 \
+                                    ? (md).blk_off((n), (c), (h), (w)) \
+                                    : (md).blk_off((n), (c), (d), (h), (w))))
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
 void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
@@ -99,8 +101,6 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
             : nullptr;
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-
-    const int ndims = pd()->ndims();
 
     const bool is_ic_tail = jcp.ic_without_padding % jcp.ic_block_int_np;
     auto wsp = ctx.get_scratchpad_grantor().template get<int32_t>(
@@ -176,15 +176,13 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
                     int od {0}, oh {0}, ow {0};
                     nd_iterator_init(osb_i * jcp.tile_width, od, jcp.od, oh,
                             jcp.oh, ow, jcp.ow);
-                    size_t dst_offset
-                            = md_blk_off(dst_d, ndims, mb, oc, od, oh, ow);
+                    size_t dst_offset = md_blk_off(dst_d, mb, oc, od, oh, ow);
                     p.dst = dst + dst_dt_size * dst_offset;
 
                     int id = od * jcp.stride_d;
                     int ih = oh * jcp.stride_h;
                     int iw = ow * jcp.stride_w;
-                    size_t inp_offset
-                            = md_blk_off(src_d, ndims, mb, ic, id, ih, iw);
+                    size_t inp_offset = md_blk_off(src_d, mb, ic, id, ih, iw);
                     p.src = src + src_dt_size * inp_offset;
 
                     bool l_overflow = osb_i + jcp.nb_os_blocking >= nb_os;
@@ -197,15 +195,13 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
                 int od {0}, oh {0}, ow {0};
                 nd_iterator_init(osb * jcp.tile_width, od, jcp.od, oh, jcp.oh,
                         ow, jcp.ow);
-                size_t dst_offset
-                        = md_blk_off(dst_d, ndims, mb, oc, od, oh, ow);
+                size_t dst_offset = md_blk_off(dst_d, mb, oc, od, oh, ow);
                 p.dst = dst + dst_dt_size * dst_offset;
 
                 int id = od * jcp.stride_d;
                 int ih = oh * jcp.stride_h;
                 int iw = ow * jcp.stride_w;
-                size_t inp_offset
-                        = md_blk_off(src_d, ndims, mb, ic, id, ih, iw);
+                size_t inp_offset = md_blk_off(src_d, mb, ic, id, ih, iw);
                 p.src = src + src_dt_size * inp_offset;
 
                 p.last_h = 0;
