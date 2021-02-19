@@ -25,9 +25,9 @@
 
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
-#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
+#include "cpu/x64/utils/jit_io_helper.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -59,36 +59,13 @@ protected:
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
     constexpr int vmm_idx(int idx) const {
-        return (cpu_isa_traits<isa>::n_vregs - 1) - idx;
+        return (cpu_isa_traits<avx>::n_vregs - 1) - idx;
     }
-
-    /*
-     * Prepare the mask to be used during tail processing.
-     * vmm_tail_mask_ is filled if it is avx and
-     * if it is avx512_common at least then k_tail_mask_ is filled.
-     */
-    void prepare_mask();
-
-    /*
-     * Emulates the behavior of vgatherdps for architectures
-     * that do not support this instruction.
-     */
-    void emu_gather_data(const Reg64 &reg_src_addr, const int indices_idx,
-            const int data_idx, const bool is_tail = false);
-
-    void gather_data(const Reg64 &reg_src_addr, const int indices_idx,
-            const int data_idx, const bool is_tail = false);
-
-    void store_data(const int data_idx, const Reg64 &reg_dst_addr,
-            const int offset = 0, const bool is_tail = false);
-
-    void load_data(const Reg64 &reg_src_addr, const int offset,
-            const int data_idx, const bool is_tail = false);
 
     void apply_sum(const int data_idx, const bool is_tail);
 
-    void apply_postops(
-            const int data_idx, const bool is_tail, const Reg64 *reg_c = nullptr);
+    void apply_postops(const int data_idx, const bool is_tail,
+            const Reg64 *reg_c = nullptr);
 
     void nearest_ncsp_format();
     void nearest_c_oriented_format();
@@ -113,12 +90,6 @@ protected:
 
     const Opmask &k_tail_mask_ = k3;
     const Opmask &k_full_mask_ = k4;
-
-    const Zmm bf16_emu_reserv_1_ = Zmm(10);
-    const Zmm bf16_emu_reserv_2_ = Zmm(11);
-    const Zmm bf16_emu_reserv_3_ = Zmm(12);
-    const Reg64 &bf16_emu_scratch_ = r15;
-    const Zmm bf16_emu_reserv_4_ = Zmm(13);
 
     const Reg64 &reg_tmp_ = rax;
     const Reg64 &reg_dst_ = rbx;
@@ -168,7 +139,7 @@ protected:
     const Reg64 &reg_src_bbr_ = r15;
 
     jit_resampling_conf_t conf_;
-    std::unique_ptr<bf16_emulation_t> bf16_emulation_;
+    io::jit_io_helper_t<Vmm> io_;
     std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
             postops_injector_;
 };

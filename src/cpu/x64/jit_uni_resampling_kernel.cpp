@@ -33,15 +33,15 @@ using namespace format_tag;
 template <cpu_isa_t isa>
 jit_uni_resampling_kernel<isa>::jit_uni_resampling_kernel(
         const jit_resampling_conf_t conf, const memory_desc_t *dst_md)
-    : jit_generator(nullptr, MAX_CODE_SIZE, true, isa), conf_(conf) {
-    const bool use_bf16_emulation = conf_.data_type == data_type::bf16
-            && conf_.isa != avx512_core_bf16;
-    bf16_emulation_ = use_bf16_emulation
-            ? utils::make_unique<bf16_emulation_t>(this, bf16_emu_reserv_1_,
-                    bf16_emu_reserv_2_, bf16_emu_reserv_3_, bf16_emu_scratch_,
-                    bf16_emu_reserv_4_)
-            : nullptr;
-
+    : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
+    , conf_(conf)
+    , io_(this, conf_.isa, conf_.data_type,
+              {conf_.is_data_size_bigger_than_L3 && conf_.tail == 0},
+              io::io_tail_conf_t<Vmm> {conf_.simd_w, conf_.tail, k_tail_mask_,
+                      vmm_tail_mask_, reg_tmp_},
+              io::io_emu_bf16_conf_t {}, utils::null_opt,
+              io::io_gather_conf_t<Vmm> {conf_.simd_w, k_full_mask_,
+                      vmm_full_mask_, reg_tmp_, reg_tmp1_}) {
     if (conf_.with_postops) {
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
@@ -67,9 +67,10 @@ template <cpu_isa_t isa>
 void jit_uni_resampling_kernel<isa>::apply_sum(
         const int data_idx, const bool is_tail) {
     if (conf_.with_sum) {
-        assert(!conf_.sum_scales.empty() && "No scales for sum post operation.");
+        assert(!conf_.sum_scales.empty()
+                && "No scales for sum post operation.");
         const auto sum_injector = [this, data_idx, is_tail]() {
-            load_data(reg_dst_, 0, vmm_tmp_.getIdx(), is_tail);
+            io_.load(ptr[reg_dst_], vmm_tmp_, is_tail);
             const float sum_scale = conf_.sum_scales.front();
             if (sum_scale == 1.f)
                 uni_vaddps(Vmm(data_idx), Vmm(data_idx), vmm_tmp_);
@@ -92,8 +93,7 @@ void jit_uni_resampling_kernel<isa>::apply_postops(
     if (conf_.with_sum) apply_sum(data_idx, is_tail);
 
     if (conf_.with_binary) {
-        if (conf_.tag_kind == jit_memory_tag_kind_t::blocked)
-        {
+        if (conf_.tag_kind == jit_memory_tag_kind_t::blocked) {
             if (isa == sse41) add(reg_c_offset, *reg_c);
             rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
                     data_idx, reg_c_offset);
@@ -101,8 +101,7 @@ void jit_uni_resampling_kernel<isa>::apply_postops(
         } else if (conf_.tag_kind == jit_memory_tag_kind_t::ncsp) {
             rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
                     data_idx, reg_c_offset);
-        }
-        else {
+        } else {
             rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(data_idx, *reg_c);
         }
         if (is_tail) { rhs_arg_params.vmm_tail_idx_.emplace(data_idx); }
@@ -111,262 +110,6 @@ void jit_uni_resampling_kernel<isa>::apply_postops(
     postops_injector_->compute_vector(data_idx, rhs_arg_params);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_resampling_kernel<isa>::prepare_mask() {}
-
-template <>
-void jit_uni_resampling_kernel<avx512_common>::prepare_mask() {
-    const size_t tail_mask = (1ULL << conf_.tail) - 1ULL;
-    const Reg64 &reg_tail = reg_tmp_;
-    mov(reg_tail.cvt32(), tail_mask);
-    kmovw(k_tail_mask_, reg_tail.cvt32());
-}
-
-template <>
-void jit_uni_resampling_kernel<avx>::prepare_mask() {
-    static constexpr uint32_t mask[16]
-            = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
-                    0xffffffff, 0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0, 0, 0};
-    mov(reg_tmp_, reinterpret_cast<size_t>(&mask[8 - conf_.tail]));
-    vmovups(vmm_tail_mask_, ptr[reg_tmp_]);
-}
-
-template <>
-void jit_uni_resampling_kernel<avx512_common>::emu_gather_data(
-        const Reg64 &reg_src_addr, const int indices_idx, const int data_idx,
-        const bool is_tail) {
-    assert(conf_.data_type == data_type::bf16);
-
-    const Xmm xmm_tmp = Xmm(vmm_full_mask_.getIdx());
-    const Xmm xmm_dst = Xmm(vmm_tmp_.getIdx());
-
-    mov(reg_tmp_, 0);
-    mov(reg_tmp1_, reg_src_addr);
-
-    constexpr unsigned xmm_size_elem = 4;
-
-    const unsigned number_of_xmms = is_tail
-            ? utils::div_up(conf_.tail, xmm_size_elem)
-            : utils::div_up(conf_.simd_w, xmm_size_elem);
-    for (unsigned i = 0; i < number_of_xmms; i++) {
-        vextractf32x4(xmm_tmp, Zmm(indices_idx), i);
-
-        const unsigned number_of_values_to_load = i == number_of_xmms - 1
-                        && is_tail && conf_.tail % xmm_size_elem != 0
-                ? conf_.tail % xmm_size_elem
-                : xmm_size_elem;
-        for (unsigned j = 0; j < number_of_values_to_load; j++) {
-            vpextrd(reg_tmp_.cvt32(), xmm_tmp, j);
-            add(reg_src_addr, reg_tmp_);
-            vpinsrw(xmm_dst, xmm_dst, ptr[reg_src_addr], j * 2);
-            mov(reg_src_addr, reg_tmp1_);
-        }
-
-        vinsertf32x4(Zmm(data_idx), Zmm(data_idx), xmm_dst, i);
-    }
-
-    uni_vpslld(Zmm(data_idx), Zmm(data_idx), 16);
-}
-
-template <>
-void jit_uni_resampling_kernel<avx>::emu_gather_data(const Reg64 &reg_src_addr,
-        const int indices_idx, const int data_idx, const bool is_tail) {
-    const Xmm xmm_tmp = Xmm(vmm_full_mask_.getIdx());
-    const Xmm xmm_dst = Xmm(vmm_tmp_.getIdx());
-
-    mov(reg_tmp_, 0);
-    mov(reg_tmp1_, reg_src_addr);
-
-    constexpr unsigned xmm_size_elem = 4;
-
-    const unsigned number_of_xmms = is_tail
-            ? utils::div_up(conf_.tail, xmm_size_elem)
-            : utils::div_up(conf_.simd_w, xmm_size_elem);
-    for (unsigned i = 0; i < number_of_xmms; i++) {
-        vextractf128(xmm_tmp, Ymm(indices_idx), i);
-
-        const unsigned number_of_values_to_load = i == number_of_xmms - 1
-                        && is_tail && conf_.tail % xmm_size_elem != 0
-                ? conf_.tail % xmm_size_elem
-                : xmm_size_elem;
-        for (unsigned j = 0; j < number_of_values_to_load; j++) {
-            vpextrd(reg_tmp_.cvt32(), xmm_tmp, j);
-            add(reg_src_addr, reg_tmp_);
-            vpinsrd(xmm_dst, xmm_dst, ptr[reg_src_addr], j);
-            mov(reg_src_addr, reg_tmp1_);
-        }
-
-        vinsertf128(Ymm(data_idx), Ymm(data_idx), xmm_dst, i);
-    }
-}
-
-template <>
-void jit_uni_resampling_kernel<sse41>::emu_gather_data(
-        const Reg64 &reg_src_addr, const int indices_idx, const int data_idx,
-        const bool is_tail) {
-    mov(reg_tmp_, 0);
-    mov(reg_tmp1_, reg_src_addr);
-
-    constexpr unsigned xmm_size_elem = 4;
-
-    const unsigned number_of_values_to_load
-            = is_tail ? conf_.tail : xmm_size_elem;
-    for (unsigned j = 0; j < number_of_values_to_load; j++) {
-        pextrd(reg_tmp_.cvt32(), Xmm(indices_idx), j);
-        add(reg_src_addr, reg_tmp_);
-        pinsrd(Xmm(data_idx), ptr[reg_src_addr], j);
-        mov(reg_src_addr, reg_tmp1_);
-    }
-}
-
-template <>
-void jit_uni_resampling_kernel<avx512_common>::gather_data(
-        const Reg64 &reg_src_addr, const int indices_idx, const int data_idx,
-        const bool is_tail) {
-    if (conf_.data_type == data_type::f32) {
-        const Opmask &mask = is_tail ? k_tail_mask_ : k_full_mask_;
-        if (!is_tail) {
-            // Have to set the all bits to 1 gather full
-            // register. It is needed after each gather, because
-            // vgatherdps zeros the mask if successful
-            mov(reg_tmp_.cvt32(), (1ULL << conf_.simd_w) - 1ULL);
-            kmovw(k_full_mask_, reg_tmp_.cvt32());
-        }
-        vgatherdps(Vmm(data_idx) | mask, ptr[reg_src_addr + Vmm(indices_idx)]);
-        // Have to restore tail processing mask after gather because mask
-        // was zeroed after vgatherdps.
-        if (is_tail) prepare_mask();
-    } else {
-        emu_gather_data(reg_src_addr, indices_idx, data_idx, is_tail);
-    }
-}
-
-template <>
-void jit_uni_resampling_kernel<avx>::gather_data(const Reg64 &reg_src_addr,
-        const int indices_idx, const int data_idx, const bool is_tail) {
-    if (conf_.isa == avx2) {
-        const Vmm &mask = is_tail ? vmm_tail_mask_ : vmm_full_mask_;
-        if (!is_tail) {
-            // Have to set the all bits to 1 gather full
-            // register. It is needed after each gather, because
-            // vgatherdps zeros the mask if successful
-            vcmpps(vmm_full_mask_, vmm_full_mask_, vmm_full_mask_, _cmp_eq_oq);
-        }
-        vgatherdps(Vmm(data_idx), ptr[reg_src_addr + Vmm(indices_idx)], mask);
-        // Have to restore tail processing mask after gather because mask
-        // was zeroed after vgatherdps.
-        if (is_tail) prepare_mask();
-    } else {
-        emu_gather_data(reg_src_addr, indices_idx, data_idx, is_tail);
-    }
-}
-
-template <>
-void jit_uni_resampling_kernel<sse41>::gather_data(const Reg64 &reg_src_addr,
-        const int indices_idx, const int data_idx, const bool is_tail) {
-    emu_gather_data(reg_src_addr, indices_idx, data_idx, is_tail);
-}
-
-template <>
-void jit_uni_resampling_kernel<avx512_common>::store_data(const int data_idx,
-        const Reg64 &reg_dst_addr, const int offset, const bool is_tail) {
-    if (conf_.data_type == data_type::bf16) {
-        const Ymm to_store_data = Ymm(data_idx);
-
-        if (bf16_emulation_)
-            bf16_emulation_->vcvtneps2bf16(to_store_data, Zmm(data_idx));
-        else
-            vcvtneps2bf16(to_store_data, Zmm(data_idx));
-
-        if (is_tail) {
-            vmovdqu16(ptr[reg_dst_addr + offset] | k_tail_mask_, to_store_data);
-        } else {
-            if (conf_.is_data_size_bigger_than_L3 && conf_.tail == 0)
-                vmovntps(ptr[reg_dst_addr + offset], to_store_data);
-            else
-                vmovups(ptr[reg_dst_addr + offset], to_store_data);
-        }
-    } else {
-        if (is_tail) {
-            vmovups(ptr[reg_dst_addr + offset] | k_tail_mask_, Vmm(data_idx));
-        } else {
-            if (conf_.is_data_size_bigger_than_L3 && conf_.tail == 0)
-                vmovntps(ptr[reg_dst_addr + offset], Vmm(data_idx));
-            else
-                vmovups(ptr[reg_dst_addr + offset], Vmm(data_idx));
-        }
-    }
-}
-
-template <>
-void jit_uni_resampling_kernel<avx>::store_data(const int data_idx,
-        const Reg64 &reg_dst_addr, const int offset, const bool is_tail) {
-    if (is_tail) {
-        vmaskmovps(ptr[reg_dst_addr + offset], vmm_tail_mask_, Vmm(data_idx));
-    } else {
-        if (conf_.is_data_size_bigger_than_L3 && conf_.tail == 0
-                && conf_.isa == avx2)
-            vmovntps(ptr[reg_dst_addr + offset], Vmm(data_idx));
-        else
-            vmovups(ptr[reg_dst_addr + offset], Vmm(data_idx));
-    }
-}
-
-template <>
-void jit_uni_resampling_kernel<sse41>::store_data(const int data_idx,
-        const Reg64 &reg_dst_addr, const int offset, const bool is_tail) {
-    if (is_tail) {
-        for (unsigned i = 0; i < conf_.tail; i++) {
-            pextrd(ptr[reg_dst_addr + offset + i * conf_.dt_size],
-                    Xmm(data_idx), i);
-        }
-    } else {
-        movups(ptr[reg_dst_addr + offset], Vmm(data_idx));
-    }
-}
-
-template <>
-void jit_uni_resampling_kernel<avx512_common>::load_data(
-        const Reg64 &reg_src_addr, const int offset, const int data_idx,
-        const bool is_tail) {
-    if (conf_.data_type == data_type::bf16) {
-        const Zmm loaded_data = is_tail
-                ? Zmm(data_idx) | k_tail_mask_ | Xbyak::util::T_z
-                : Zmm(data_idx);
-        vpmovzxwd(loaded_data, ptr[reg_src_addr + offset]);
-        vpslld(loaded_data, loaded_data, 16);
-    } else {
-        if (is_tail) {
-            vmovups(Vmm(data_idx) | k_tail_mask_ | T_z,
-                    ptr[reg_src_addr + offset]);
-        } else {
-            vmovups(Vmm(data_idx), ptr[reg_src_addr + offset]);
-        }
-    }
-}
-
-template <>
-void jit_uni_resampling_kernel<avx>::load_data(const Reg64 &reg_src_addr,
-        const int offset, const int data_idx, const bool is_tail) {
-    if (is_tail) {
-        vmaskmovps(Vmm(data_idx), vmm_tail_mask_, ptr[reg_src_addr + offset]);
-    } else {
-        vmovups(Vmm(data_idx), ptr[reg_src_addr + offset]);
-    }
-}
-
-template <>
-void jit_uni_resampling_kernel<sse41>::load_data(const Reg64 &reg_src_addr,
-        const int offset, const int data_idx, const bool is_tail) {
-    if (is_tail) {
-        for (unsigned i = 0; i < conf_.tail; i++) {
-            pinsrd(Xmm(data_idx),
-                    ptr[reg_src_addr + offset + i * conf_.dt_size], i);
-        }
-    } else {
-        movups(Vmm(data_idx), ptr[reg_src_addr + offset]);
-    }
-}
 
 template <cpu_isa_t isa>
 void jit_uni_resampling_kernel<isa>::nearest_ncsp_format() {
@@ -377,10 +120,9 @@ void jit_uni_resampling_kernel<isa>::nearest_ncsp_format() {
 
     auto nearest_interpolation = ([&](bool is_tail) {
         uni_vmovdqu(vmm_indices_, ptr[reg_indices_w]);
-        gather_data(reg_src_shifted, vmm_indices_.getIdx(), vmm_src_.getIdx(),
-                is_tail);
+        io_.gather(reg_src_shifted, vmm_indices_, vmm_src_, is_tail);
         if (conf_.with_postops) apply_postops(vmm_src_.getIdx(), is_tail);
-        store_data(vmm_src_.getIdx(), reg_dst_, 0, is_tail);
+        io_.store(vmm_src_, ptr[reg_dst_], is_tail);
     });
 
     mov(reg_indices_h, reg_indices_);
@@ -459,10 +201,10 @@ void jit_uni_resampling_kernel<isa>::nearest_c_oriented_format() {
             cmp(reg_c, c_to_compute_without_tail);
             je(c_loop_end, T_NEAR);
 
-            load_data(reg_src_shifted, 0, vmm_src_.getIdx());
+            io_.load(ptr[reg_src_shifted], vmm_src_, false);
             if (conf_.with_postops)
                 apply_postops(vmm_src_.getIdx(), false, &reg_c);
-            store_data(vmm_src_.getIdx(), reg_dst_);
+            io_.store(vmm_src_, ptr[reg_dst_], false);
             add(reg_src_shifted, conf_.simd_w * conf_.dt_size);
             add(reg_dst_, conf_.simd_w * conf_.dt_size);
 
@@ -472,10 +214,10 @@ void jit_uni_resampling_kernel<isa>::nearest_c_oriented_format() {
         L(c_loop_end);
 
         if (conf_.tail > 0) {
-            load_data(reg_src_shifted, 0, vmm_src_.getIdx(), true);
+            io_.load(ptr[reg_src_shifted], vmm_src_, true);
             if (conf_.with_postops)
                 apply_postops(vmm_src_.getIdx(), true, &reg_c);
-            store_data(vmm_src_.getIdx(), reg_dst_, 0, true);
+            io_.store(vmm_src_, ptr[reg_dst_], true);
             add(reg_dst_, conf_.tail * conf_.dt_size);
         }
 
@@ -495,21 +237,23 @@ void jit_uni_resampling_kernel<isa>::linear_ncsp_format() {
             = conf_.ow * conf_.oh * conf_.od * sizeof(float);
 
     auto linear_interpolation = ([&](const bool is_tail) {
+        const Vmm vmm_dst(vmm_idx(0));
+
         for (unsigned i = 0; i < conf_.number_of_corners; i++) {
             uni_vmovdqu(vmm_indices_, ptr[reg_indices_ + i * indices_stride]);
-            gather_data(reg_src_, vmm_indices_.getIdx(), vmm_idx(i), is_tail);
+            io_.gather(reg_src_, vmm_indices_, Vmm(vmm_idx(i)), is_tail);
         }
 
         uni_vmovups(vmm_weights_, ptr[reg_weights]);
-        uni_vmulps(Vmm(vmm_idx(0)), Vmm(vmm_idx(0)), vmm_weights_);
+        uni_vmulps(vmm_dst, vmm_dst, vmm_weights_);
         for (unsigned i = 1; i < conf_.number_of_corners; i++) {
             uni_vmovups(vmm_weights_, ptr[reg_weights + i * weights_stride]);
-            uni_vfmadd231ps(Vmm(vmm_idx(0)), Vmm(vmm_idx(i)), vmm_weights_);
+            uni_vfmadd231ps(vmm_dst, Vmm(vmm_idx(i)), vmm_weights_);
         }
 
         if (conf_.with_postops) apply_postops(vmm_idx(0), is_tail);
 
-        store_data(vmm_idx(0), reg_dst_, 0, is_tail);
+        io_.store(vmm_dst, ptr[reg_dst_], is_tail);
     });
 
     Label loop_begin, loop_end;
@@ -552,10 +296,10 @@ void jit_uni_resampling_kernel<isa>::linear_c_oriented_format() {
     assert(src_regs.size() >= conf_.number_of_corners
             && src_vmms.size() >= conf_.number_of_corners);
 
-    auto linear_interpolation = ([&](const Reg64 &reg_c, const unsigned offset,
+    auto linear_interpolation = ([&](const Reg64 &reg_c,
                                          const bool is_tail) {
         for (unsigned i = 0; i < conf_.number_of_corners; i++) {
-            load_data(src_regs[i], offset, src_vmms[i].get().getIdx(), is_tail);
+            io_.load(ptr[src_regs[i].get()], src_vmms[i].get(), is_tail);
         }
 
         // w_d[0]*(w_h[0]*(src[0][0][0]*w_w[0] + src[0][0][1]*w_w[1]) +
@@ -584,7 +328,7 @@ void jit_uni_resampling_kernel<isa>::linear_c_oriented_format() {
 
         if (conf_.with_postops)
             apply_postops(src_ftl_.getIdx(), is_tail, &reg_c);
-        store_data(src_ftl_.getIdx(), reg_dst_, offset, is_tail);
+        io_.store(src_ftl_, ptr[reg_dst_], is_tail);
     });
 
     mov(reg_index_left, 0);
@@ -619,7 +363,7 @@ void jit_uni_resampling_kernel<isa>::linear_c_oriented_format() {
             cmp(reg_c, c_to_compute_without_tail);
             je(c_loop_end, T_NEAR);
 
-            linear_interpolation(reg_c, 0, false);
+            linear_interpolation(reg_c, false);
             add(reg_dst_, conf_.simd_w * conf_.dt_size);
 
             for (unsigned i = 0; i < conf_.number_of_corners; i++)
@@ -631,7 +375,7 @@ void jit_uni_resampling_kernel<isa>::linear_c_oriented_format() {
         L(c_loop_end);
 
         if (conf_.tail > 0) {
-            linear_interpolation(reg_c, 0, true);
+            linear_interpolation(reg_c, true);
             add(reg_dst_, conf_.tail * conf_.dt_size);
         }
 
@@ -656,19 +400,13 @@ template <cpu_isa_t isa>
 void jit_uni_resampling_kernel<isa>::generate() {
     preamble();
 
-    if (bf16_emulation_) bf16_emulation_->init_vcvtneps2bf16();
-
-    if (conf_.isa == avx2 && conf_.tag_kind == jit_memory_tag_kind_t::ncsp) {
-        // Sometimes the values in the register can be nan at the
-        // beginning of the kernel, then using vcmpps(vmm, vmm, vmm)
-        // will not set all bits to 1 for that value, instead
-        // this instruction will zeroed this value. At the beginning,
-        // it is worth to zeroing this register to be sure, that vcmpps
-        // will work properly.
-        uni_vxorps(vmm_full_mask_, vmm_full_mask_, vmm_full_mask_);
+    io_.init_bf16();
+    if (conf_.tail > 0) io_.prepare_tail_mask();
+    if (is_superset(conf_.isa, avx2)
+            && conf_.tag_kind == jit_memory_tag_kind_t::ncsp) {
+        io_.init_full_mask();
+        io_.prepare_full_mask();
     }
-
-    if (conf_.tail > 0) prepare_mask();
 
     mov(reg_dst_, ptr[reg_param + GET_OFF(dst)]);
     mov(reg_work_, ptr[reg_param + GET_OFF(batch_of_sp_points_to_process)]);

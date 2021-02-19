@@ -27,6 +27,8 @@
 
 #include "cpu/x64/jit_avx512_common_resampling.hpp"
 
+#include "utils/jit_io_helper.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -64,7 +66,6 @@ protected:
         else
             return pd_->diff_src_md()->data_type;
     }
-    bool is_bf16() const { return data_type() == data_type::bf16; }
     int dtype_size() const { return types::data_type_size(data_type()); }
 };
 
@@ -74,6 +75,7 @@ namespace {
 struct jit_avx512_common_resampling_t
     : public jit_avx512_common_resampling_kernel {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_resampling)
+
 
     jit_avx512_common_resampling_t(const resampling_pd_t *pd)
         : jit_avx512_common_resampling_kernel(pd) {
@@ -95,8 +97,17 @@ struct jit_avx512_common_resampling_t
 
         number_of_loops_ = (inner_stride_ / simd_w());
         tail_mask_ = (((size_t)1 << (inner_stride_ % simd_w())) - (size_t)1);
-        if (tail_mask_ != 0) prepare_mask();
         stack_size_needed_ = 0;
+
+        cpu_isa_t isa = mayiuse(avx512_core_bf16)
+                ? avx512_core_bf16
+                : mayiuse(avx512_core) ? avx512_core : avx512_common;
+
+        io_ = utils::make_unique<io::jit_io_helper_t<Zmm>>(this, isa,
+                data_type(), io::io_conf_t<Zmm> {},
+                io::io_tail_conf_t<Zmm> {
+                        simd_w(), tail_mask_, k_tail_mask, Zmm(), reg_tmp},
+                io::io_emu_bf16_conf_t {});
     }
 
 private:
@@ -162,24 +173,11 @@ private:
         vmovd(xmm, tmp.cvt32());
     }
 
-    void prepare_mask() {
-        Reg64 reg_tail = reg_tmp;
-        mov(reg_tail.cvt32(), tail_mask_);
-        kmovw(k_tail_mask, reg_tail.cvt32());
-    }
-
     void generate() override {
         preamble();
 
-        if (is_bf16()) {
-            use_bf16_emulation_ = !mayiuse(avx512_core_bf16);
-            if (use_bf16_emulation_) {
-                bf16_emulation_.reset(new bf16_emulation_t(this,
-                        bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
-                        bf16_emu_scratch, bf16_emu_reserv_5));
-                bf16_emulation_->init_vcvtneps2bf16();
-            }
-        }
+        io_->init_bf16();
+        if (tail_mask_) io_->prepare_tail_mask();
 
         mov(reg_src, ptr[abi_param1 + GET_OFF(src)]);
         mov(reg_dst, ptr[abi_param1 + GET_OFF(dst)]);
@@ -391,52 +389,6 @@ private:
         }
     }
 
-    void load_data(const Zmm &zmm_to_load, const Reg64 &src_address,
-            const Reg64 &offset, bool is_tail) {
-        Reg64 reg_address = reg_tmp;
-
-        mov(reg_address, src_address);
-        add(reg_address, offset);
-
-        if (is_bf16()) {
-            Zmm zmm_loaded_data = is_tail
-                    ? zmm_to_load | k_tail_mask | Xbyak::util::T_z
-                    : zmm_to_load;
-            vpmovzxwd(zmm_loaded_data, ptr[reg_address]);
-            vpslld(zmm_loaded_data, zmm_loaded_data, 16);
-        } else {
-            Zmm zmm_loaded_data
-                    = is_tail ? zmm_to_load | k_tail_mask : zmm_to_load;
-            vmovups(zmm_loaded_data, ptr[reg_address]);
-        }
-    }
-
-    void store_data(const Zmm &zmm_to_store, const Reg64 &dst_address,
-            size_t offset, bool is_tail) {
-        if (is_bf16()) {
-            Ymm ymm_bf16_to_store = Ymm(zmm_to_store.getIdx());
-
-            if (use_bf16_emulation_) {
-                bf16_emulation_->vcvtneps2bf16(ymm_bf16_to_store, zmm_to_store);
-            } else {
-                vcvtneps2bf16(ymm_bf16_to_store, zmm_to_store);
-            }
-
-            if (!is_tail) {
-                vmovups(ptr[reg_dst + offset], ymm_bf16_to_store);
-            } else {
-                vmovdqu16(
-                        ptr[reg_dst + offset] | k_tail_mask, ymm_bf16_to_store);
-            }
-        } else {
-            if (is_tail) {
-                vmovups(ptr[reg_dst + offset] | k_tail_mask, zmm_to_store);
-            } else {
-                vmovups(ptr[reg_dst + offset], zmm_to_store);
-            }
-        }
-    }
-
     void count_idx_and_weight_for_linear(const Xmm &coeff, const Zmm &weight,
             const Reg64 &idx, dim_t dim_max, rounding_mode rm) {
         Reg64 reg_idx_floor;
@@ -515,7 +467,7 @@ private:
         imul(reg_offset, reg_offset, dtype_size());
 
         // read src
-        load_data(zmm_src, reg_src, reg_offset, is_tail);
+        io_->load(ptr[reg_src, reg_offset], zmm_src, is_tail);
 
         // mul src, weight
         vmulps(zmm_tmp, zmm_src, zmm_weight);
@@ -557,8 +509,8 @@ private:
             }
 
             // store dst
-            store_data(
-                    zmm_dst, reg_dst, channel_offset * dtype_size(), is_tail);
+            io_->store(
+                    zmm_dst, ptr[reg_dst + channel_offset * dtype_size()], is_tail);
         });
 
         for (unsigned i = 0; i < number_of_loops_;
@@ -619,8 +571,8 @@ private:
             }
 
             // store dst
-            store_data(
-                    zmm_dst, reg_dst, channel_offset * dtype_size(), is_tail);
+            io_->store(
+                    zmm_dst, ptr[reg_dst + channel_offset * dtype_size()], is_tail);
         });
 
         for (unsigned i = 0; i < number_of_loops_;
@@ -695,8 +647,8 @@ private:
             }
 
             // store dst
-            store_data(
-                    zmm_dst, reg_dst, channel_offset * dtype_size(), is_tail);
+            io_->store(
+                    zmm_dst, ptr[reg_dst + channel_offset * dtype_size()], is_tail);
         });
 
         for (unsigned i = 0; i < number_of_loops_;
@@ -741,10 +693,10 @@ private:
 
         if (pd_->is_fwd()) {
             // read nearest to dst
-            load_data(zmm_dst, reg_src, reg_offset, is_tail);
+            io_->load(ptr[reg_src + reg_offset], zmm_dst, is_tail);
         } else {
             // add nearest to dst
-            load_data(zmm_tmp, reg_src, reg_offset, is_tail);
+            io_->load(ptr[reg_src + reg_offset], zmm_tmp, is_tail);
             vaddps(zmm_dst, zmm_dst, zmm_tmp);
         }
     }
@@ -779,8 +731,8 @@ private:
             }
 
             // store dst
-            store_data(
-                    zmm_dst, reg_dst, channel_offset * dtype_size(), is_tail);
+            io_->store(
+                    zmm_dst, ptr[reg_dst + channel_offset * dtype_size()], is_tail);
         });
 
         for (unsigned i = 0; i < number_of_loops_;
@@ -790,21 +742,8 @@ private:
         if (tail_mask_ != 0) resample_nearest(true);
     }
 
-    int vlen() {
-        int vlen = cpu_isa_traits<avx512_common>::vlen;
-        return is_bf16() ? vlen / 2 : vlen;
-    }
-    int simd_w() { return vlen() / dtype_size(); }
+    static constexpr std::size_t simd_w() { return cpu_isa_traits<avx512_common>::vlen / sizeof(float); }
 
-    /* bf16 emulator registers */
-    Zmm bf16_emu_reserv_1 = Zmm(26);
-    Zmm bf16_emu_reserv_2 = Zmm(27);
-    Zmm bf16_emu_reserv_3 = Zmm(28);
-    Reg64 bf16_emu_scratch = r14;
-    Zmm bf16_emu_reserv_5 = Zmm(29);
-    /* ----------------------- */
-
-    /* registers used */
     Zmm zmm_src = Zmm(1);
     Ymm ymm_dst = Ymm(2);
     Zmm zmm_dst = Zmm(2);
@@ -827,15 +766,12 @@ private:
     Reg64 reg_curr_w = r11;
     Reg64 reg_offset = r12;
     Reg64 reg_tmp_idx = r12;
-    /* -------------- */
-
-    /* additional instruction builders */
-    std::unique_ptr<bf16_emulation_t> bf16_emulation_;
-    /* ------------------------------- */
 
     bwd_counting_range_t ow;
     bwd_counting_range_t oh;
     bwd_counting_range_t od;
+
+    std::unique_ptr<io::jit_io_helper_t<Zmm>> io_;
 
     dim_t stride_d_ = 0;
     dim_t stride_h_ = 0;
