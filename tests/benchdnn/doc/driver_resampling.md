@@ -13,9 +13,10 @@ where *resampling-knobs* are:
             Refer to [data types](knobs_dt.md) for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
- - `--alg={nearest [default], linear}` -- resampling algorithm.
+ - `--alg={nearest [default], linear, linear_no_shift}` -- resampling algorithm.
             `nearest` is dnnl_resampling_nearest;
             `linear` is dnnl_resampling_linear;
+            `linear_no_shift` is dnnl_resampling_linear_no_shift;
             Refer to [resampling primitive](https://oneapi-src.github.io/oneDNN/dev_guide_resampling.html)
             for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
@@ -31,6 +32,7 @@ Refer to [descriptor](knobs_desc.md) for details.
 ## Essence of Testing
 nearest: Fill input data with integers and expect an integer answer.
 linear: Fill input data with integers and expect a float answer.
+linear_no_shift: Fill input data with integers and expect a float answer.
 
 
 ## Examples
@@ -47,8 +49,8 @@ Run a named problem with single precision src/dst, iterating by:
 4) using default minibatch of 96 and 5:
 ``` sh
     ./benchdnn --resampling --dt=f32 --tag=nChw8c,nChw16c \
-               --dir=FWD_D,BWD_D --alg=nearest,linear --mb=0,5 \
-               mb96ic768_ih17oh34
+               --dir=FWD_D,BWD_D --alg=nearest,linear,linear,linear_no_shift \
+                --mb=0,5 mb96ic768_ih17oh34
 ```
 
 More examples with different driver options can be found at

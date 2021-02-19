@@ -12,6 +12,7 @@ The resampling primitive computes forward or backward resampling operation on
 tensor using one of the supported interpolation algorithms:
 - Nearest Neighbor
 - Linear (or Bilinear for 2D spatial tensor, Trilinear for 3D spatial tensor).
+- Linear no shift (or Bilinear for 2D spatial tensor, Trilinear for 3D spatial tensor).
 
 Resampling operation is defined by the source tensor and scaling factors in
 each spatial dimension. Upsampling and downsampling are the alternative terms
@@ -29,7 +30,7 @@ Let \src and \dst be \f$N \times C \times IH \times IW\f$ and \f$N
 factors in each spatial dimension.
 
 The following formulas show how oneDNN computes resampling for nearest neighbor
-and bilinear interpolation methods.
+and bilinear and bilinear no shift interpolation methods.
 To further simplify the formulas, we assume the following:
 - \f$\src(n, ic, ih, iw) = 0\f$ if \f$ih < 0\f$ or \f$iw < 0\f$,
 - \f$\src(n, ic, ih, iw) = \src(n, ic, IH - 1, iw)\f$ if \f$ih \geq IH\f$,
@@ -56,13 +57,21 @@ where
             \src(n, c, ih_1, iw_1) \cdot (1 - W_{ih}) \cdot (1 - W_{iw}) \\
 \f]
 
-where
+where for bilinear:
 - \f$ih_0 = \left\lfloor{\frac {oh + 0.5} {F_h} - 0.5}\right\rfloor\f$,
 - \f$ih_1 = \left\lceil {\frac {oh + 0.5} {F_h} - 0.5}\right\rceil\f$,
 - \f$iw_0 = \left\lfloor{\frac {ow + 0.5} {F_w} - 0.5}\right\rfloor\f$,
 - \f$iw_1 = \left\lceil {\frac {ow + 0.5} {F_w} - 0.5}\right\rceil\f$,
 - \f$W_{ih} = \frac{oh + 0.5}{F_h} - 0.5 - ih_0\f$,
 - \f$W_{iw} = \frac{ow + 0.5}{F_w} - 0.5 - iw_0\f$.
+
+and for bilinear no shift:
+- \f$ih_0 = \left\lfloor{\frac {oh} {F_h}}\right\rfloor\f$,
+- \f$ih_1 = \left\lceil {\frac {oh} {F_h}}\right\rceil\f$,
+- \f$iw_0 = \left\lfloor{\frac {ow} {F_w}}\right\rfloor\f$,
+- \f$iw_1 = \left\lceil {\frac {ow} {F_w}}\right\rceil\f$,
+- \f$W_{ih} = \frac{oh}{F_h} - ih_0\f$,
+- \f$W_{iw} = \frac{ow}{F_w} - iw_0\f$.
 
 
 #### Difference Between Forward Training and Forward Inference
