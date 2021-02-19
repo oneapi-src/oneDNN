@@ -84,8 +84,10 @@ jit_uni_prelu_forward_kernel_t<Vmm>::jit_uni_prelu_forward_kernel_t(
                                  prelu::bcast::per_oc_blocked)
                       ? reserve_vmm()
                       : 0)
-    , io_(this, isa, {src_dt_, wei_dt_, dst_dt_}, tail_size_, tail_opmask_,
-              tail_vmm_mask_, reg_tmp_, create_saturation_vmm_map()) {}
+    , io_(this, isa, {src_dt_, wei_dt_, dst_dt_}, {},
+              io::io_tail_conf_t<Vmm> {simd_w_, tail_size_, tail_opmask_,
+                      tail_vmm_mask_, reg_tmp_},
+              io::io_emu_bf16_conf_t {}, create_saturation_vmm_map()) {}
 
 template <typename Vmm>
 jit_uni_prelu_forward_kernel_t<Vmm>::~jit_uni_prelu_forward_kernel_t()
@@ -95,8 +97,8 @@ template <typename Vmm>
 void jit_uni_prelu_forward_kernel_t<Vmm>::prepare_kernel_const_vars() {
     uni_vxorps(vmm_zeros_, vmm_zeros_, vmm_zeros_);
 
+    io_.init_bf16();
     if (saturation_needed_) io_.init_saturate_f32({dst_dt_});
-
     if (tail_size_) io_.prepare_tail_mask();
     if (bcast_ == prelu::bcast::per_oc_n_c_spatial)
         io_.at(wei_dt_)->broadcast(ptr[reg_weights_], weights_const_vmm_);
@@ -106,14 +108,15 @@ void jit_uni_prelu_forward_kernel_t<Vmm>::prepare_kernel_const_vars() {
 }
 
 template <typename Vmm>
-std::map<data_type_t, std::pair<Vmm, Vmm>>
+std::map<data_type_t, io::io_saturation_conf_t<Vmm>>
 jit_uni_prelu_forward_kernel_t<Vmm>::create_saturation_vmm_map() const {
 
-    std::map<data_type_t, std::pair<Vmm, Vmm>> saturation_map {};
+    std::map<data_type_t, io::io_saturation_conf_t<Vmm>> saturation_map {};
 
     if (saturation_needed_) {
-        saturation_map.emplace(
-                dst_dt_, std::make_pair(vmm_zeros_, dst_saturate_ubound_));
+        saturation_map.emplace(dst_dt_,
+                io::io_saturation_conf_t<Vmm> {
+                        vmm_zeros_, dst_saturate_ubound_, reg_tmp_});
     }
 
     return saturation_map;

@@ -61,7 +61,6 @@ private:
     const Xbyak::Reg64 &reg_weights_diff_scratch_ = r10;
     const Xbyak::Reg8 &reg_tail_ = r12b;
 
-    const size_t simd_w_ = 0;
     const size_t scratchpad_c_block_offset_ = 0;
 
 protected:
@@ -69,6 +68,7 @@ protected:
     Xbyak::Address diff_scratch_ptr(int unrolling_group) const;
     int reserve_vmm();
 
+    const size_t simd_w_ = 0;
     const data_type_t data_type_;
     const size_t tail_size_ = 0;
     const Xbyak::Reg64 &reg_weights_diff_ = r11;

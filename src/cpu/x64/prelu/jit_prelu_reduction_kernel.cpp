@@ -155,8 +155,12 @@ jit_uni_prelu_reduction_kernel_t<Vmm>::jit_uni_prelu_reduction_kernel_t(
               tail_size_ && utils::one_of(isa, avx, avx2) ? reserve_vmm() : 0)
     , saturation_lower_bound_(saturation_needed_ ? reserve_vmm() : 0)
     , saturation_upper_bound_(saturation_needed_ ? reserve_vmm() : 0)
-    , io_(this, isa, data_type_, tail_size_, tail_opmask_, tail_vmm_mask_,
-              saturation_lower_bound_, saturation_upper_bound_, reg_tmp_) {}
+    , io_(this, isa_, data_type_, {},
+              io::io_tail_conf_t<Vmm> {simd_w_, tail_size_, tail_opmask_,
+                      tail_vmm_mask_, reg_tmp_},
+              io::io_emu_bf16_conf_t {},
+              io::io_saturation_conf_t<Vmm> {saturation_lower_bound_,
+                      saturation_upper_bound_, reg_tmp_}) {}
 
 template <typename Vmm>
 size_t jit_uni_prelu_reduction_kernel_t<Vmm>::get_unrolling_factor(
@@ -208,6 +212,7 @@ void jit_uni_prelu_reduction_kernel_t<Vmm>::prepare_kernel_const_vars(
         bool tail) {
     uni_vxorps(accumulator_, accumulator_, accumulator_);
 
+    io_.init_bf16();
     if (tail) io_.prepare_tail_mask();
     if (saturation_needed_) io_.init_saturate_f32();
 }

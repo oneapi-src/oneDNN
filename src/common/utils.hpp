@@ -151,6 +151,79 @@ inline T &&forward(typename utils::remove_reference<T>::type &&t) {
     return static_cast<T &&>(t);
 }
 
+// This is a simple version of the std::optional class
+// When C++17 will be supported it is highly recommended
+// to remove this class and start using std::optional instead.
+struct null_opt_t {};
+static constexpr null_opt_t null_opt;
+
+template <typename T>
+class optional_t;
+
+template <typename T>
+struct is_optional_t : public std::false_type {};
+template <typename T>
+struct is_optional_t<optional_t<T>> : public std::true_type {};
+
+template <typename T>
+constexpr bool is_optional = is_optional_t<T>::value;
+
+template <class T>
+class optional_t {
+public:
+    static_assert(!std::is_lvalue_reference<T>::value, "");
+    static_assert(!std::is_rvalue_reference<T>::value, "");
+    static_assert(!std::is_const<T>::value, "");
+    static_assert(!std::is_volatile<T>::value, "");
+    static_assert(!is_optional<T>, "");
+
+    optional_t<T>() : has_value_(true), value_() {}
+
+    optional_t<T>(const null_opt_t &null_opt)
+        : has_value_(false), dummy_ {} {}
+
+    optional_t<T>(T object) : has_value_(true), value_(object) {}
+
+    optional_t(const optional_t &other)
+        : has_value_(other.has_value_)
+        , dummy_(other.dummy_)
+        , value_(other.value_) {}
+
+    optional_t(optional_t &&other) noexcept
+        : has_value_(other.has_value_)
+        , dummy_(other.dummy_)
+        , value_(std::move(other.value_)) {}
+
+    optional_t &operator=(const optional_t &other) = delete;
+
+    optional_t &operator=(optional_t &&other) = delete;
+
+    T &value_or(T returned_value) const {
+        return has_value_ ? value_ : returned_value;
+    }
+
+    T value() const {
+        assert(has_value_);
+        return value_;
+    }
+
+    const T *operator->() const
+    {
+        assert(has_value_);
+        return &value_;
+    }
+
+    bool has_value() const { return has_value_; }
+
+private:
+    bool has_value_;
+
+    union {
+        char dummy_;
+        T value_;
+    };
+};
+
 template <typename T>
 inline typename remove_reference<T>::type zero() {
     auto zero = typename remove_reference<T>::type();
@@ -569,8 +642,8 @@ private:
 public:
     setting_t() : initialized_ {false} {}
     setting_t(const T init) : value_ {init}, initialized_ {false} {}
-    bool initialized() { return initialized_; }
-    T get() { return value_; }
+    bool initialized() const { return initialized_; }
+    T get() const { return value_; }
     void set(T new_value) {
         value_ = new_value;
         initialized_ = true;
