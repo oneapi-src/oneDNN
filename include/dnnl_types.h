@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1049,6 +1049,8 @@ typedef enum {
     dnnl_resampling_nearest = 0x2fff0,
     /// Linear Resampling Method
     dnnl_resampling_linear = 0x2fff1,
+    /// Linear Resampling Method with no shift
+    dnnl_resampling_linear_no_shift = 0x2fff2,
     /// Reduction using max
     dnnl_reduction_max,
     /// Reduction using min
@@ -1920,7 +1922,8 @@ typedef struct {
     /// #dnnl_forward_inference, #dnnl_backward_data,
     dnnl_prop_kind_t prop_kind;
     /// The kind of the resampling algorithm. Possible values:
-    /// #dnnl_resampling_nearest, #dnnl_resampling_linear.
+    /// #dnnl_resampling_nearest, #dnnl_resampling_linear,
+    /// #dnnl_resampling_linear_no_shift.
     dnnl_alg_kind_t alg_kind;
     /// Source memory descriptor.
     dnnl_memory_desc_t src_desc;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -3267,7 +3267,7 @@ dnnl_status_t DNNL_API dnnl_matmul_desc_init(dnnl_matmul_desc_t *matmul_desc,
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param alg_kind resampling algorithm kind: either #dnnl_resampling_nearest,
-///     or #dnnl_resampling_linear.
+///        #dnnl_resampling_linear, or #dnnl_resampling_linear_no_shift.
 /// @param factors Array of scaling factors for spatial dimension.
 /// @param src_desc Source memory descriptor.
 /// @param dst_desc Destination memory descriptor.
@@ -3281,8 +3281,8 @@ dnnl_status_t DNNL_API dnnl_resampling_forward_desc_init(
 /// Initializes a descriptor for resampling backward propagation primitive.
 ///
 /// @param resampling_desc Output descriptor for a resampling primitive.
-/// @param alg_kind resamplinging algorithm kind: either
-///     #dnnl_resampling_nearest, or #dnnl_resampling_linear.
+/// @param alg_kind resampling algorithm kind: either #dnnl_resampling_nearest,
+///        #dnnl_resampling_linear, or #dnnl_resampling_linear_no_shift.
 /// @param diff_src_desc Diff source memory descriptor.
 /// @param diff_dst_desc Diff destination memory descriptor.
 /// @param factors Array of scaling factors for spatial dimension.

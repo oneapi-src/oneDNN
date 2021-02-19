@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -119,6 +119,7 @@ const alg_kind_t binary_div = dnnl_binary_div;
 const alg_kind_t binary_sub = dnnl_binary_sub;
 const alg_kind_t resampling_nearest = dnnl_resampling_nearest;
 const alg_kind_t resampling_linear = dnnl_resampling_linear;
+const alg_kind_t resampling_linear_no_shift = dnnl_resampling_linear_no_shift;
 const alg_kind_t reduction_max = dnnl_reduction_max;
 const alg_kind_t reduction_min = dnnl_reduction_min;
 const alg_kind_t reduction_sum = dnnl_reduction_sum;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -586,6 +586,8 @@ enum class algorithm {
     resampling_nearest = dnnl_resampling_nearest,
     /// Linear (Bilinear, Trilinear) resampling method
     resampling_linear = dnnl_resampling_linear,
+    /// Linear (Bilinear, Trilinear) resampling method with no shift
+    resampling_linear_no_shift = dnnl_resampling_linear_no_shift,
     /// Reduction using max operation
     reduction_max = dnnl_reduction_max,
     /// Reduction using min operation
@@ -9913,8 +9915,8 @@ struct matmul : public primitive {
 /// @addtogroup dnnl_api_resampling Resampling
 ///
 /// A primitive to compute resampling operation on 1D, 2D or 3D data tensor
-/// using Nearest Neighbor, or Linear (Bilinear, Trilinear) interpolation
-/// method.
+/// using either Nearest Neighbor, Linear (Bilinear, Trilinear), or
+/// Linear (Bilinear, Trilinear) with no shift interpolation method.
 ///
 /// @sa @ref dev_guide_resampling in developer guide
 ///
@@ -9937,8 +9939,9 @@ struct resampling_forward : public primitive {
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
         /// @param aalgorithm resampling algorithm kind: either
-        ///     #dnnl::algorithm::resampling_nearest, or
-        ///     #dnnl::algorithm::resampling_linear
+        ///     #dnnl::algorithm::resampling_nearest,
+        ///     #dnnl::algorithm::resampling_linear, or
+        ///     #dnnl::algorithm::resampling_linear_no_shift.
         /// @param src_desc Source memory descriptor.
         /// @param dst_desc Destination memory descriptor.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
@@ -9957,8 +9960,9 @@ struct resampling_forward : public primitive {
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
         /// @param aalgorithm resampling algorithm kind: either
-        ///     #dnnl::algorithm::resampling_nearest, or
-        ///     #dnnl::algorithm::resampling_linear
+        ///     #dnnl::algorithm::resampling_nearest,
+        ///     #dnnl::algorithm::resampling_linear, or
+        ///     #dnnl::algorithm::resampling_linear_no_shift.
         /// @param factors Vector of scaling factors for spatial dimension.
         /// @param src_desc Source memory descriptor.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
@@ -9983,8 +9987,9 @@ struct resampling_forward : public primitive {
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
         /// @param aalgorithm resampling algorithm kind: either
-        ///     #dnnl::algorithm::resampling_nearest, or
-        ///     #dnnl::algorithm::resampling_linear
+        ///     #dnnl::algorithm::resampling_nearest,
+        ///     #dnnl::algorithm::resampling_linear, or
+        ///     #dnnl::algorithm::resampling_linear_no_shift.
         /// @param factors Vector of scaling factors for spatial dimension.
         /// @param src_desc Source memory descriptor.
         /// @param dst_desc Destination memory descriptor.
@@ -10074,8 +10079,9 @@ struct resampling_backward : public primitive {
         /// primitive using source and destination memory descriptors.
         ///
         /// @param aalgorithm resampling algorithm kind: either
-        ///     #dnnl::algorithm::resampling_nearest, or
-        ///     #dnnl::algorithm::resampling_linear
+        ///     #dnnl::algorithm::resampling_nearest,
+        ///     #dnnl::algorithm::resampling_linear, or
+        ///     #dnnl::algorithm::resampling_linear_no_shift.
         /// @param diff_src_desc Diff source memory descriptor.
         /// @param diff_dst_desc Diff destination memory descriptor.
         desc(algorithm aalgorithm, const memory::desc &diff_src_desc,
@@ -10090,8 +10096,9 @@ struct resampling_backward : public primitive {
         /// primitive.
         ///
         /// @param aalgorithm resampling algorithm kind: either
-        ///     #dnnl::algorithm::resampling_nearest, or
-        ///     #dnnl::algorithm::resampling_linear
+        ///     #dnnl::algorithm::resampling_nearest,
+        ///     #dnnl::algorithm::resampling_linear, or
+        ///     #dnnl::algorithm::resampling_linear_no_shift.
         /// @param factors Vector of scaling factors for spatial dimension.
         /// @param diff_src_desc Diff source memory descriptor.
         /// @param diff_dst_desc Diff destination memory descriptor.

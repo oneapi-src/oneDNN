@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,8 @@ status_t resampling_desc_init(resampling_desc_t *resampling_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind, const float *factors,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc) {
     bool args_ok = true
-            && one_of(alg_kind, resampling_nearest, resampling_linear)
+            && one_of(alg_kind, resampling_nearest, resampling_linear,
+                    resampling_linear_no_shift)
             && src_desc && IMPLICATION(dst_desc == nullptr, factors)
             && utils::one_of(src_desc->ndims, 3, 4, 5);
     if (!args_ok) return invalid_arguments;
