@@ -89,4 +89,6 @@ mb16ic16ih224oc64oh112kh7sh2ph3n
 --reset
 --cfg=f16f16s8,f32f32s8
 --mb=2,16
---dir=FWD_B --stag=any --batch=set_gpu
+--dir=FWD_B --stag=any 
+--batch=set_gpu
+--batch=shapes_basic_gpu
