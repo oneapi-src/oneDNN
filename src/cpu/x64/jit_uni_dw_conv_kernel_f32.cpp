@@ -76,8 +76,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::load_src(
     const int vlen = cpu_isa_traits<isa>::vlen / sizeof(float);
     const int c_tail = jcp.oc % jcp.ch_block;
 
-    const int repeats = jcp.ch_block / vlen;
-    assert((repeats == 1) || (repeats == 2 && isa == sse41));
+    const int repeats = max_repeats();
     for (int i = 0; i < repeats; i++) {
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
             const bool is_tail_load = check_if_tail_load(
@@ -157,8 +156,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
         }
         const int vlen = cpu_isa_traits<isa>::vlen / sizeof(float);
         const int c_tail = jcp.oc % jcp.ch_block;
-        const int repeats = jcp.ch_block / vlen;
-        assert((repeats == 1) || (repeats == 2 && isa == sse41));
+        const int repeats = max_repeats();
         for (int i = 0; i < repeats; i++) {
             for (int ch = 0; ch < ur_ch_blocks; ch++) {
                 const bool is_tail_load = check_if_tail_load(
@@ -237,7 +235,7 @@ template <cpu_isa_t isa>
 void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postops(
         const int ur_ch_blocks, const int ur_w, const bool is_ch_tail) {
     if (this->jcp.with_eltwise || this->jcp.with_binary) {
-        const int repeats = isa == sse41 ? 2 : 1;
+        const int repeats = max_repeats();
         injector_utils::vmm_index_set_t vmm_idxs;
         if (jcp.with_binary) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
@@ -387,8 +385,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::store_dst(
     const int vlen = cpu_isa_traits<isa>::vlen / sizeof(float);
     const int c_tail = jcp.oc_without_padding % jcp.ch_block;
 
-    const int repeats = jcp.ch_block / vlen;
-    assert((repeats == 1) || (repeats == 2 && isa == sse41));
+    const int repeats = max_repeats();
     for (int i = 0; i < repeats; i++) {
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
             const bool is_tail_load = check_if_tail_load(
