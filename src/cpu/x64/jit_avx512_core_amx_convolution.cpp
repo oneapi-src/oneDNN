@@ -46,8 +46,10 @@ using namespace nstl;
                                     ? (md).blk_off((n), (c), (h), (w)) \
                                     : (md).blk_off((n), (c), (d), (h), (w))))
 
-#define accum_with_upper_bound(ub, lv, uv) \
-    (nstl::min(ub, nstl::min(ub, lv) + nstl::max(0, (ub) - (uv))))
+template <typename T>
+static inline T accum_with_upper_bound(T ub, T lv, T uv) {
+    return nstl::min(ub, nstl::min(ub, lv) + nstl::max(0, ub - uv));
+}
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
 void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
