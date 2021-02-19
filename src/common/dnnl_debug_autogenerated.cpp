@@ -103,7 +103,10 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_abcdefghijlk) return "abcdefghijlk";
     if (v == dnnl_Abc16a) return "Abc16a";
     if (v == dnnl_ABc16a16b) return "ABc16a16b";
+    if (v == dnnl_ABc32a16b) return "ABc32a16b";
+    if (v == dnnl_ABc40a16b) return "ABc40a16b";
     if (v == dnnl_ABc32a32b) return "ABc32a32b";
+    if (v == dnnl_ABc40a32b) return "ABc40a32b";
     if (v == dnnl_ABc4a4b) return "ABc4a4b";
     if (v == dnnl_aBc16b) return "aBc16b";
     if (v == dnnl_ABc16b16a) return "ABc16b16a";
@@ -131,6 +134,9 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_Abcd16a) return "Abcd16a";
     if (v == dnnl_Abcd8a) return "Abcd8a";
     if (v == dnnl_ABcd16a16b) return "ABcd16a16b";
+    if (v == dnnl_ABcd32a16b) return "ABcd32a16b";
+    if (v == dnnl_ABcd40a16b) return "ABcd40a16b";
+    if (v == dnnl_ABcd40a32b) return "ABcd40a32b";
     if (v == dnnl_Abcd32a) return "Abcd32a";
     if (v == dnnl_ABcd32a32b) return "ABcd32a32b";
     if (v == dnnl_aBcd16b) return "aBcd16b";
@@ -309,6 +315,10 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_AB4b16a4b) return "AB4b16a4b";
     if (v == dnnl_AB4b32a4b) return "AB4b32a4b";
     if (v == dnnl_AB4b64a4b) return "AB4b64a4b";
+    if (v == dnnl_AB48a16b) return "AB48a16b";
+    if (v == dnnl_AB48a32b) return "AB48a32b";
+    if (v == dnnl_aBC48b16c) return "aBC48b16c";
+    if (v == dnnl_aBC48b32c) return "aBC48b32c";
     if (v == dnnl_AB16b16a4b) return "AB16b16a4b";
     if (v == dnnl_AB16b32a4b) return "AB16b32a4b";
     if (v == dnnl_AB16b48a4b) return "AB16b48a4b";
@@ -489,6 +499,9 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_NCw16n16c) return "NCw16n16c";
     if (v == dnnl_NCdhw16n16c) return "NCdhw16n16c";
     if (v == dnnl_NChw16n16c) return "NChw16n16c";
+    if (v == dnnl_NCw32n16c) return "NCw32n16c";
+    if (v == dnnl_NChw32n16c) return "NChw32n16c";
+    if (v == dnnl_NCdhw32n16c) return "NCdhw32n16c";
     if (v == dnnl_NCw32n32c) return "NCw32n32c";
     if (v == dnnl_NChw32n32c) return "NChw32n32c";
     if (v == dnnl_NCdhw32n32c) return "NCdhw32n32c";
