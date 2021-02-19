@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         else
             trh = prb->dt != dnnl_f32 ? epsilon_dt(prb->dt) : 0;
     } else {
-        assert(prb->alg == linear);
+        assert(prb->alg == linear || prb->alg == linear_no_shift);
         trh = prb->dt == dnnl_f32 ? 1e-6 : 1e-2;
     }
 

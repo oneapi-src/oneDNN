@@ -4,5 +4,5 @@
 --dir=FWD_D,BWD_D
 --dt=f32,bf16,f16
 --tag=abx,axb
---alg=nearest,linear
+--alg=nearest,linear,linear_no_shift
 --batch=shapes_ci

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@
 
 namespace resampling {
 
-enum alg_t { nearest, linear };
+enum alg_t { nearest, linear, linear_no_shift };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 dnnl_alg_kind_t alg2alg_kind(alg_t alg);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,21 +21,30 @@
 
 namespace resampling {
 
-float linear_map(const int64_t y, const int64_t y_max, const int64_t x_max) {
-    const float s = (y + 0.5f) * x_max / y_max;
-    return s - 0.5f;
+float linear_map(const int64_t y, const int64_t y_max, const int64_t x_max,
+        bool pixel_shift = true) {
+    const float s = pixel_shift ? (y + 0.5f) * x_max / y_max
+                                : static_cast<float>(y) * x_max / y_max;
+    return pixel_shift ? s - 0.5f : s;
 }
-int64_t left(const int64_t y, const int64_t y_max, const int64_t x_max) {
-    return MAX2((int64_t)floorf(linear_map(y, y_max, x_max)), (int64_t)0);
+int64_t left(const int64_t y, const int64_t y_max, const int64_t x_max,
+        bool pixel_shift = true) {
+    return MAX2((int64_t)floorf(linear_map(y, y_max, x_max, pixel_shift)),
+            (int64_t)0);
 }
-int64_t right(const int64_t y, const int64_t y_max, const int64_t x_max) {
-    return MIN2((int64_t)ceilf(linear_map(y, y_max, x_max)), x_max - 1);
+int64_t right(const int64_t y, const int64_t y_max, const int64_t x_max,
+        bool pixel_shift = true) {
+    return MIN2((int64_t)ceilf(linear_map(y, y_max, x_max, pixel_shift)),
+            x_max - 1);
 }
-int64_t near(const int64_t y, const int64_t y_max, const int64_t x_max) {
-    return roundf(linear_map(y, y_max, x_max));
+int64_t near(const int64_t y, const int64_t y_max, const int64_t x_max,
+        bool pixel_shift = true) {
+    return roundf(linear_map(y, y_max, x_max, pixel_shift));
 }
-float weight(const int64_t y, const int64_t y_max, const int64_t x_max) {
-    return fabs(linear_map(y, y_max, x_max) - left(y, y_max, x_max));
+float weight(const int64_t y, const int64_t y_max, const int64_t x_max,
+        bool pixel_shift = true) {
+    return fabs(linear_map(y, y_max, x_max, pixel_shift)
+            - left(y, y_max, x_max, pixel_shift));
 }
 
 void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
@@ -58,12 +67,19 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
     };
     auto ker_linear = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh,
                               int64_t ow) {
-        const int64_t id[2] = {left(od, OD, ID), right(od, OD, ID)};
-        const int64_t ih[2] = {left(oh, OH, IH), right(oh, OH, IH)};
-        const int64_t iw[2] = {left(ow, OW, IW), right(ow, OW, IW)};
-        const float wd[2] = {1.f - weight(od, OD, ID), weight(od, OD, ID)};
-        const float wh[2] = {1.f - weight(oh, OH, IH), weight(oh, OH, IH)};
-        const float ww[2] = {1.f - weight(ow, OW, IW), weight(ow, OW, IW)};
+        const bool pixel_shift = prb->alg == linear;
+        const int64_t id[2] = {
+                left(od, OD, ID, pixel_shift), right(od, OD, ID, pixel_shift)};
+        const int64_t ih[2] = {
+                left(oh, OH, IH, pixel_shift), right(oh, OH, IH, pixel_shift)};
+        const int64_t iw[2] = {
+                left(ow, OW, IW, pixel_shift), right(ow, OW, IW, pixel_shift)};
+        const float wd[2] = {1.f - weight(od, OD, ID, pixel_shift),
+                weight(od, OD, ID, pixel_shift)};
+        const float wh[2] = {1.f - weight(oh, OH, IH, pixel_shift),
+                weight(oh, OH, IH, pixel_shift)};
+        const float ww[2] = {1.f - weight(ow, OW, IW, pixel_shift),
+                weight(ow, OW, IW, pixel_shift)};
 
         float cd[2][2] = {{0}};
         for_(int i = 0; i < 2; i++)
@@ -117,12 +133,20 @@ void compute_ref_bwd(
                               int64_t ow) {
         const auto diff_dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
         float diff_dst_val = diff_dst.get_elem(diff_dst_off);
-        const int64_t id[2] = {left(od, OD, ID), right(od, OD, ID)};
-        const int64_t ih[2] = {left(oh, OH, IH), right(oh, OH, IH)};
-        const int64_t iw[2] = {left(ow, OW, IW), right(ow, OW, IW)};
-        const float wd[2] = {1.f - weight(od, OD, ID), weight(od, OD, ID)};
-        const float wh[2] = {1.f - weight(oh, OH, IH), weight(oh, OH, IH)};
-        const float ww[2] = {1.f - weight(ow, OW, IW), weight(ow, OW, IW)};
+
+        const bool pixel_shift = prb->alg == linear;
+        const int64_t id[2] = {
+                left(od, OD, ID, pixel_shift), right(od, OD, ID, pixel_shift)};
+        const int64_t ih[2] = {
+                left(oh, OH, IH, pixel_shift), right(oh, OH, IH, pixel_shift)};
+        const int64_t iw[2] = {
+                left(ow, OW, IW, pixel_shift), right(ow, OW, IW, pixel_shift)};
+        const float wd[2] = {1.f - weight(od, OD, ID, pixel_shift),
+                weight(od, OD, ID, pixel_shift)};
+        const float wh[2] = {1.f - weight(oh, OH, IH, pixel_shift),
+                weight(oh, OH, IH, pixel_shift)};
+        const float ww[2] = {1.f - weight(ow, OW, IW, pixel_shift),
+                weight(ow, OW, IW, pixel_shift)};
         for_(int i = 0; i < 2; i++)
         for_(int j = 0; j < 2; j++)
         for (int k = 0; k < 2; k++) {

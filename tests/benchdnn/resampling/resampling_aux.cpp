@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ alg_t str2alg(const char *str) {
     if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
     CASE(nearest);
     CASE(linear);
+    CASE(linear_no_shift);
 #undef CASE
     assert(!"unknown algorithm");
     return nearest;
@@ -41,6 +42,7 @@ alg_t str2alg(const char *str) {
 const char *alg2str(alg_t alg) {
     if (alg == nearest) return "nearest";
     if (alg == linear) return "linear";
+    if (alg == linear_no_shift) return "linear_no_shift";
     assert(!"unknown algorithm");
     return "unknown algorithm";
 }
@@ -48,6 +50,7 @@ const char *alg2str(alg_t alg) {
 dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
     if (alg == nearest) return dnnl_resampling_nearest;
     if (alg == linear) return dnnl_resampling_linear;
+    if (alg == linear_no_shift) return dnnl_resampling_linear_no_shift;
     assert(!"unknown algorithm");
     return dnnl_alg_kind_undef;
 }
