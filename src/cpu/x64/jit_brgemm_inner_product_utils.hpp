@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,8 +25,6 @@
 #include "cpu/cpu_inner_product_pd.hpp"
 #include "cpu/platform.hpp"
 #include "cpu/x64/jit_brgemm_primitive_conf.hpp"
-
-#define BRGEMM_IP_BWD_D_GLOBAL_B_TRANSPOSE
 
 namespace dnnl {
 namespace impl {

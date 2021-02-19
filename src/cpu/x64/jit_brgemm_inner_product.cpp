@@ -255,6 +255,7 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto &jbgp = pd()->jbgp_;
+    const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
 
     memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
     brgemm_batch_element_t *addr_batch_global
@@ -316,7 +317,8 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
                   (*trans_B_kernel_)(&ctx);
               };
 
-    const auto ker = [&](const int ithr, int n, int icb, int occ) {
+    const auto ker = [&](const int ithr, int n, int icb, int occ,
+                             bool do_b_transpose) {
         brgemm_batch_element_t *addr_batch
                 = addr_batch_global + ithr * jbgp.adjusted_batch_size;
 
@@ -343,13 +345,11 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
                                   .get();
 
         const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
-#ifndef BRGEMM_IP_BWD_D_GLOBAL_B_TRANSPOSE
-        wei_data_t *b_buffer
-                = b_buffer_global + ithr * jbgp.gemm_batch_size * size_B;
-#else
         wei_data_t *b_buffer = b_buffer_global
-                + (dim_t)icb * jbgp.nb_oc * size_B + (dim_t)ocb * size_B;
-#endif
+                + (jbgp.ip_bwd_d_global_b_transpose
+                                ? ((dim_t)icb * jbgp.nb_oc * size_B
+                                        + (dim_t)ocb * size_B)
+                                : (ithr * jbgp.gemm_batch_size * size_B));
 
         if (nb_oc_b > 0 && brg_kernel != nullptr) {
             for (int oc_block = 0; oc_block < nb_oc_b; oc_block++) {
@@ -357,12 +357,12 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
                 addr_batch[oc_block].ptr.A = diff_dst
                         + diff_dst_d.blk_off(n, oc + oc_block * jbgp.oc_block);
                 addr_batch[oc_block].ptr.B = b_buffer + oc_block * size_B;
-#ifndef BRGEMM_IP_BWD_D_GLOBAL_B_TRANSPOSE
-                transform_b_chunk((wei_data_t *)addr_batch[oc_block].ptr.B,
-                        get_weights_ptr(icb, ocb + oc_block), 1,
-                        is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block,
-                        jbgp.oc_block);
-#endif
+                if (!jbgp.ip_bwd_d_global_b_transpose && do_b_transpose)
+                    transform_b_chunk((wei_data_t *)addr_batch[oc_block].ptr.B,
+                            get_weights_ptr(icb, ocb + oc_block), 1,
+                            is_ic_tail ? jbgp.ic % jbgp.ic_block
+                                       : jbgp.ic_block,
+                            jbgp.oc_block);
             }
 
             if (jbgp.use_buffer && occ == oc_chunks - 1 && !is_oc_tail) {
@@ -382,16 +382,13 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
             int oc_block = jbgp.nb_oc_blocking - 1;
             addr_batch[0].ptr.A = diff_dst
                     + diff_dst_d.blk_off(n, oc + oc_block * jbgp.oc_block);
-#ifndef BRGEMM_IP_BWD_D_GLOBAL_B_TRANSPOSE
-            addr_batch[0].ptr.B = b_buffer;
-            transform_b_chunk((wei_data_t *)addr_batch[0].ptr.B,
-                    get_weights_ptr(icb, ocb + oc_block), 1,
-                    is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block,
-                    jbgp.K_tail);
-#else
             addr_batch[0].ptr.B = b_buffer + oc_block * size_B;
-#endif
-
+            if (!jbgp.ip_bwd_d_global_b_transpose && do_b_transpose) {
+                transform_b_chunk((wei_data_t *)addr_batch[0].ptr.B,
+                        get_weights_ptr(icb, ocb + oc_block), 1,
+                        is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block,
+                        jbgp.K_tail);
+            }
             auto use_init_ker = (kernel_init && nb_oc_b == 0);
             auto brg_kernel_oc_tail
                     = brg_kernels_[pd()->get_brg_kernel_idx(use_init_ker,
@@ -415,47 +412,50 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
 
     int os_chunks = jbgp.nb_os / jbgp.nb_os_blocking;
     int work_amount = jbgp.nb_ic * os_chunks;
-#if defined(BRGEMM_IP_BWD_D_GLOBAL_B_TRANSPOSE)
-    if (jbgp.use_buffer_b) {
-        parallel(0, [&](const int ithr, const int nthr) {
-            int start {0}, end {0};
-            int max_ch_block = nstl::max(jbgp.ic_block, jbgp.oc_block);
-            int ic_chunk_sz = max_ch_block / jbgp.ic_block;
-            int oc_chunk_sz = max_ch_block / jbgp.oc_block;
-            int nc_ic = utils::div_up(jbgp.nb_ic, ic_chunk_sz);
-            int nc_oc = utils::div_up(jbgp.nb_oc, oc_chunk_sz);
-            int transp_work_amount = nc_ic * nc_oc;
-            balance211(transp_work_amount, nthr, ithr, start, end);
-            int icc, occ;
-            nd_iterator_init(start, icc, nc_ic, occ, nc_oc);
-            while (start < end) {
-                int icb_start = icc * ic_chunk_sz;
-                int icb_end = nstl::min((icc + 1) * ic_chunk_sz, jbgp.nb_ic);
-                int ocb_start = occ * oc_chunk_sz;
-                int ocb_end = nstl::min((occ + 1) * oc_chunk_sz, jbgp.nb_oc);
-                for_(int icb = icb_start; icb < icb_end; icb++)
-                for (int ocb = ocb_start; ocb < ocb_end; ocb++) {
-                    int ic = icb * jbgp.ic_block;
-                    int oc = ocb * jbgp.oc_block;
-                    bool is_ic_tail = (jbgp.ic - ic < jbgp.ic_block);
-                    bool is_oc_tail = (jbgp.oc - oc < jbgp.oc_block);
-                    const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
-                    wei_data_t *b_buffer = b_buffer_global
-                            + (dim_t)icb * jbgp.nb_oc * size_B
-                            + (dim_t)ocb * size_B;
+    if (jbgp.ip_bwd_d_global_b_transpose) {
+        if (jbgp.use_buffer_b) {
+            parallel(0, [&](const int ithr, const int nthr) {
+                int start {0}, end {0};
+                int max_ch_block = nstl::max(jbgp.ic_block, jbgp.oc_block);
+                int ic_chunk_sz = max_ch_block / jbgp.ic_block;
+                int oc_chunk_sz = max_ch_block / jbgp.oc_block;
+                int nc_ic = utils::div_up(jbgp.nb_ic, ic_chunk_sz);
+                int nc_oc = utils::div_up(jbgp.nb_oc, oc_chunk_sz);
+                int transp_work_amount = nc_ic * nc_oc;
+                balance211(transp_work_amount, nthr, ithr, start, end);
+                int icc, occ;
+                nd_iterator_init(start, icc, nc_ic, occ, nc_oc);
+                while (start < end) {
+                    int icb_start = icc * ic_chunk_sz;
+                    int icb_end
+                            = nstl::min((icc + 1) * ic_chunk_sz, jbgp.nb_ic);
+                    int ocb_start = occ * oc_chunk_sz;
+                    int ocb_end
+                            = nstl::min((occ + 1) * oc_chunk_sz, jbgp.nb_oc);
+                    for_(int icb = icb_start; icb < icb_end; icb++)
+                    for (int ocb = ocb_start; ocb < ocb_end; ocb++) {
+                        int ic = icb * jbgp.ic_block;
+                        int oc = ocb * jbgp.oc_block;
+                        bool is_ic_tail = (jbgp.ic - ic < jbgp.ic_block);
+                        bool is_oc_tail = (jbgp.oc - oc < jbgp.oc_block);
+                        const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
+                        wei_data_t *b_buffer = b_buffer_global
+                                + (dim_t)icb * jbgp.nb_oc * size_B
+                                + (dim_t)ocb * size_B;
 
-                    transform_b_chunk(b_buffer, get_weights_ptr(icb, ocb), 1,
-                            is_ic_tail ? jbgp.ic % jbgp.ic_block
-                                       : jbgp.ic_block,
-                            is_oc_tail ? jbgp.oc % jbgp.oc_block
-                                       : jbgp.oc_block);
+                        transform_b_chunk(b_buffer, get_weights_ptr(icb, ocb),
+                                1,
+                                is_ic_tail ? jbgp.ic % jbgp.ic_block
+                                           : jbgp.ic_block,
+                                is_oc_tail ? jbgp.oc % jbgp.oc_block
+                                           : jbgp.oc_block);
+                    }
+                    ++start;
+                    nd_iterator_step(icc, nc_ic, occ, nc_oc);
                 }
-                ++start;
-                nd_iterator_step(icc, nc_ic, occ, nc_oc);
-            }
-        });
+            });
+        }
     }
-#endif
 
     parallel(0, [&](const int ithr, const int nthr) {
         if (ithr >= work_amount) return;
@@ -467,10 +467,20 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
 
         nd_iterator_init(start, oss, os_chunks, icb, jbgp.nb_ic);
         while (start < end) {
-            for_(int osb = 0; osb < jbgp.nb_os_blocking; osb++)
-            for (int occ = 0; occ < oc_chunks; occ++) {
+            const int nb_os_blocking = jbgp.nb_os_blocking;
+            const int loop_iteration = nb_os_blocking * oc_chunks;
+
+            for (int iter = 0; iter < loop_iteration; ++iter) {
+                int osb = 0, occ = 0;
+                if (jbgp.use_buffer || !is_f32) {
+                    osb += iter / oc_chunks;
+                    occ += iter % oc_chunks;
+                } else {
+                    occ += iter / nb_os_blocking;
+                    osb += iter % nb_os_blocking;
+                }
                 int n = (oss * jbgp.nb_os_blocking + osb) * jbgp.os_block;
-                ker(ithr, n, icb, occ);
+                ker(ithr, n, icb, occ, osb == 0 || oc_chunks > 1);
             }
             ++start;
             nd_iterator_step(oss, os_chunks, icb, jbgp.nb_ic);

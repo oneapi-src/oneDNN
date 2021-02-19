@@ -244,22 +244,21 @@ status_t init_ip_conf_fwd(
 }
 
 status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
+    const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
+
     jbgp.use_buffer_b = true;
     jbgp.use_buffer = jbgp.src_dt != jbgp.acc_dt;
+    jbgp.ip_bwd_d_global_b_transpose = true;
 
-    jbgp.ic_block = jbgp.simd_w;
-    if (jbgp.ic >= 4 * jbgp.simd_w)
-        jbgp.ic_block = 4 * jbgp.simd_w;
-    else if (jbgp.ic >= 2 * jbgp.simd_w)
-        jbgp.ic_block = 2 * jbgp.simd_w;
     jbgp.oc_block = jbgp.simd_w;
+    jbgp.ic_block = jbgp.ic >= 64 ? 64 : jbgp.ic >= 32 ? 32 : 16;
 
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
     jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
     jbgp.os = jbgp.mb;
 
     // Configure matrix sizes
-    const int max_M = 64, min_M = 6;
+    const int max_M = nstl::min(64, jbgp.os), min_M = 6;
     jbgp.os_block = 1;
     for (int m_ = max_M; m_ >= min_M; m_--) {
         if (jbgp.os % m_ == 0) {
@@ -270,6 +269,36 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     if (jbgp.os_block == 1) jbgp.os_block = nstl::min(jbgp.os, max_M);
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
     jbgp.nb_os_blocking = 1;
+    int os_blocking_max = 2;
+    for (int bl = os_blocking_max; bl >= 1; bl--)
+        if (jbgp.nb_os % bl == 0) {
+            jbgp.nb_os_blocking = bl;
+            break;
+        }
+
+    const auto improper_thr_balance = [&](float cutoff) -> bool {
+        float work_amount = jbgp.nb_ic * jbgp.nb_os / jbgp.nb_os_blocking;
+        return work_amount < cutoff * jbgp.nthr;
+    };
+
+    // We have ic_block in either of {64, 32, 16}. For f32 data type, if
+    // channels are small in size or work is too small to be properly balanced
+    // between threads then reducing the "ic_block" is potentially useful.
+    if (is_f32 && jbgp.ic_block > 16
+            && (improper_thr_balance(0.9f)
+                    || (jbgp.ic <= 1024 && jbgp.oc <= 512))) {
+        jbgp.ic_block /= 2;
+        jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
+
+        // repeat the previous step
+        if (jbgp.ic_block > 16 && improper_thr_balance(0.9f))
+            jbgp.ic_block /= 2;
+        jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
+
+        // don't use nb_os_blocking if work per thread is too small
+        if (improper_thr_balance(1.25f)) jbgp.nb_os_blocking = 1;
+    }
+
     jbgp.M = jbgp.os_block;
     jbgp.M_tail = jbgp.os % jbgp.os_block;
 
@@ -662,15 +691,14 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
 
     if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_data) {
         int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
-#ifndef BRGEMM_IP_BWD_D_GLOBAL_B_TRANSPOSE
-        scratchpad.book(key_brgemm_primitive_buffer_b,
-                (dim_t)jbgp.nthr * jbgp.gemm_batch_size * size_B,
-                types::data_type_size(jbgp.wei_dt));
-#else
-        scratchpad.book(key_brgemm_primitive_buffer_b,
-                (dim_t)jbgp.nb_oc * jbgp.nb_ic * size_B,
-                types::data_type_size(jbgp.wei_dt));
-#endif
+        if (!jbgp.ip_bwd_d_global_b_transpose)
+            scratchpad.book(key_brgemm_primitive_buffer_b,
+                    (dim_t)jbgp.nthr * jbgp.gemm_batch_size * size_B,
+                    types::data_type_size(jbgp.wei_dt));
+        else
+            scratchpad.book(key_brgemm_primitive_buffer_b,
+                    (dim_t)jbgp.nb_oc * jbgp.nb_ic * size_B,
+                    types::data_type_size(jbgp.wei_dt));
     }
 
     if (jbgp.prop_kind == dnnl_backward_weights && jbgp.with_bias
