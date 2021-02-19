@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,6 +89,9 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
         switch (desc->alg_kind) {
             case resampling_nearest: kernel_ctx.define_int("NEAREST", 1); break;
             case resampling_linear: kernel_ctx.define_int("LINEAR", 1); break;
+            case resampling_linear_no_shift:
+                kernel_ctx.define_int("LINEAR_NO_SHIFT", 1);
+                break;
             default: status = status::unimplemented;
         }
         if (status != status::success) return status;
@@ -189,6 +192,9 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
         switch (desc->alg_kind) {
             case resampling_nearest: kernel_ctx.define_int("NEAREST", 1); break;
             case resampling_linear: kernel_ctx.define_int("LINEAR", 1); break;
+            case resampling_linear_no_shift:
+                kernel_ctx.define_int("LINEAR_NO_SHIFT", 1);
+                break;
             default: status = status::unimplemented;
         }
         if (status != status::success) return status;

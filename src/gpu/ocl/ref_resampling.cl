@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,25 +25,40 @@ __kernel void ref_resampling_fwd(
     const uint od = GWS_GET_OD();
     const uint oh = GWS_GET_OH();
     const uint ow = GWS_GET_OW();
+
+#if NEAREST
+
     const float id = (od + .5f) * ID / OD;
     const float ih = (oh + .5f) * IH / OH;
     const float iw = (ow + .5f) * IW / OW;
-#if NEAREST
     for (int c = ch; c < min((uint)C, ch + (uint)C_BLOCK); c++) {
         const uint src_index = SRC_OFF(mb, c, (uint)id, (uint)ih, (uint)iw);
         const uint dst_index = DST_OFF(mb, c, od, oh, ow);
         dst[dst_index] = src[src_index];
     }
-#else
-    const uint id0 = max((uint)floor(id - .5f), (uint)0);
-    const uint id1 = min((uint)ceil(id - .5f), (uint)ID - 1);
-    const uint ih0 = max((uint)floor(ih - .5f), (uint)0);
-    const uint ih1 = min((uint)ceil(ih - .5f), (uint)IH - 1);
-    const uint iw0 = max((uint)floor(iw - .5f), (uint)0);
-    const uint iw1 = min((uint)ceil(iw - .5f), (uint)IW - 1);
-    float Wid = 1.0f - fabs(id - .5f - id0);
-    float Wih = 1.0f - fabs(ih - .5f - ih0);
-    float Wiw = 1.0f - fabs(iw - .5f - iw0);
+
+#elif LINEAR || LINEAR_NO_SHIFT
+
+#if LINEAR
+    const float id = ((od + .5f) * ID / OD) - .5f;
+    const float ih = ((oh + .5f) * IH / OH) - .5f;
+    const float iw = ((ow + .5f) * IW / OW) - .5f;
+#elif LINEAR_NO_SHIFT
+    const float id = (float)od * ID / OD;
+    const float ih = (float)oh * IH / OH;
+    const float iw = (float)ow * IW / OW;
+#endif
+
+    const uint id0 = max((uint)floor(id), (uint)0);
+    const uint id1 = min((uint)ceil(id), (uint)ID - 1);
+    const uint ih0 = max((uint)floor(ih), (uint)0);
+    const uint ih1 = min((uint)ceil(ih), (uint)IH - 1);
+    const uint iw0 = max((uint)floor(iw), (uint)0);
+    const uint iw1 = min((uint)ceil(iw), (uint)IW - 1);
+
+    float Wid = 1.0f - fabs(id - id0);
+    float Wih = 1.0f - fabs(ih - ih0);
+    float Wiw = 1.0f - fabs(iw - iw0);
     for (int c = ch; c < min((uint)C, ch + (uint)C_BLOCK); c++) {
         dst[DST_OFF(mb, c, od, oh, ow)] = CONVERT_DATA_T(
                 ((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih0, iw0)]) * Wih
@@ -68,10 +83,16 @@ __kernel void ref_resampling_fwd(
 #endif
 }
 #endif
+
 #if IS_BWD == 1
 float linear(uint x, int fo, int fi) {
+#if LINEAR_NO_SHIFT
+    return (float)x * fo / fi;
+#else
     return ((x + .5f) * fo / fi) - .5f;
+#endif
 }
+
 KERNEL_ATTR
 __kernel void ref_resampling_bwd(
         __global DATA_T *diff_src, __global const DATA_T *diff_dst) {
@@ -105,7 +126,7 @@ __kernel void ref_resampling_bwd(
         }
     }
     diff_src[src_index] = TO_DATA_T(src_val);
-#else
+#elif LINEAR || LINEAR_NO_SHIFT
     uint left_sd = id == 0 ? 0 : LS(id, OD, ID);
     uint left_sh = ih == 0 ? 0 : LS(ih, OH, IH);
     uint left_sw = iw == 0 ? 0 : LS(iw, OW, IW);
