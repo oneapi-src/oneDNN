@@ -19,7 +19,7 @@
 
 # Documentation
 *.md  @intel-innersource/dnn-doc @intel-innersource/dnn-mgmt @intel-innersource/dnn-arch
-/doc/ @intel-innersource/dnn-doc @intel-innersource/dnn-mgmt @intel-innersource/dnn-arch
+/doc/ @intel-innersource/dnn-doc @intel-innersource/dnn-arch
 
 # CPU-specific optimizations
 /src/cpu/ @intel-innersource/dnn-cpu
