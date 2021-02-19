@@ -32,12 +32,13 @@
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
 
-#define COMPARE_DAT(rc, kind, a, lay) \
+#define COMPARE_DAT(kind, a, lay) \
     do { \
         dnn_mem_t CONCAT2(a, _dt_plain)( \
                 CONCAT2(a, _dt), fp, lay, test_engine); \
-        (rc) |= compare_dat( \
-                prb, kind, CONCAT2(a, _dt_plain), CONCAT2(a, _fp), res, true); \
+        SAFE(compare_dat(prb, kind, CONCAT2(a, _dt_plain), CONCAT2(a, _fp), \
+                     res, true), \
+                WARN); \
     } while (0)
 
 // Using hidden attr API for testing RNN
@@ -961,13 +962,10 @@ int doit(const prb_t &prb, res_t *res) {
                     weights_projection_fp, bias_fp, dst_layer_fp, dst_iter_fp,
                     dst_iter_c_fp);
 
-            int compare_status = OK;
-            COMPARE_DAT(compare_status, DST_LAYER, dst_layer, tag::abx /*tnc*/);
-            COMPARE_DAT(compare_status, DST_ITER, dst_iter, tag::abx /*ldnc*/);
+            COMPARE_DAT(DST_LAYER, dst_layer, tag::abx /*tnc*/);
+            COMPARE_DAT(DST_ITER, dst_iter, tag::abx /*ldnc*/);
             if (prb.alg == VANILLA_LSTM)
-                COMPARE_DAT(compare_status, DST_ITER_C, dst_iter_c,
-                        tag::abx /*ldnc*/);
-            SAFE(compare_status, WARN);
+                COMPARE_DAT(DST_ITER_C, dst_iter_c, tag::abx /*ldnc*/);
         }
     } else {
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
@@ -1122,40 +1120,28 @@ int doit(const prb_t &prb, res_t *res) {
                     diff_weights_iter_fp, diff_weights_peephole_fp,
                     diff_weights_projection_fp, diff_bias_fp);
 
-            int compare_fwd_status = OK;
-            COMPARE_DAT(
-                    compare_fwd_status, DST_LAYER, dst_layer, tag::abx /*tnc*/);
-            COMPARE_DAT(
-                    compare_fwd_status, DST_ITER, dst_iter, tag::abx /*ldnc*/);
+            COMPARE_DAT(DST_LAYER, dst_layer, tag::abx /*tnc*/);
+            COMPARE_DAT(DST_ITER, dst_iter, tag::abx /*ldnc*/);
             if (prb.alg == VANILLA_LSTM)
-                COMPARE_DAT(compare_fwd_status, DST_ITER_C, dst_iter_c,
-                        tag::abx /*ldnc*/);
-            SAFE(compare_fwd_status, WARN);
+                COMPARE_DAT(DST_ITER_C, dst_iter_c, tag::abx /*ldnc*/);
 
-            int compare_bwd_data_status = OK;
-            COMPARE_DAT(compare_bwd_data_status, DIFF_SRC_LAYER, diff_src_layer,
-                    tag::abx /*tnc*/);
-            COMPARE_DAT(compare_bwd_data_status, DIFF_SRC_ITER, diff_src_iter,
-                    tag::abx /*ldnc*/);
+            COMPARE_DAT(DIFF_SRC_LAYER, diff_src_layer, tag::abx /*tnc*/);
+            COMPARE_DAT(DIFF_SRC_ITER, diff_src_iter, tag::abx /*ldnc*/);
             if (prb.alg == VANILLA_LSTM)
-                COMPARE_DAT(compare_bwd_data_status, DIFF_SRC_ITER_C,
-                        diff_src_iter_c, tag::abx /*ldnc*/);
-            SAFE(compare_bwd_data_status, WARN);
+                COMPARE_DAT(
+                        DIFF_SRC_ITER_C, diff_src_iter_c, tag::abx /*ldnc*/);
 
-            int compare_bwd_weights_status = OK;
-            COMPARE_DAT(compare_bwd_weights_status, DIFF_WEIGHTS_LAYER,
-                    diff_weights_layer, tag::abx /*ldigo*/);
-            COMPARE_DAT(compare_bwd_weights_status, DIFF_WEIGHTS_ITER,
-                    diff_weights_iter, tag::abx /*ldigo*/);
+            COMPARE_DAT(
+                    DIFF_WEIGHTS_LAYER, diff_weights_layer, tag::abx /*ldigo*/);
+            COMPARE_DAT(
+                    DIFF_WEIGHTS_ITER, diff_weights_iter, tag::abx /*ldigo*/);
             if (prb.is_lstm_peephole())
-                COMPARE_DAT(compare_bwd_weights_status, DIFF_WEIGHTS_PEEPHOLE,
-                        diff_weights_peephole, tag::abx /*ldgo*/);
+                COMPARE_DAT(DIFF_WEIGHTS_PEEPHOLE, diff_weights_peephole,
+                        tag::abx /*ldgo*/);
             if (prb.is_lstm_projection())
-                COMPARE_DAT(compare_bwd_weights_status, DIFF_WEIGHTS_PROJECTION,
-                        diff_weights_projection, tag::abx /*ldio*/);
-            COMPARE_DAT(compare_bwd_weights_status, DIFF_BIAS, diff_bias,
-                    tag::abx /*ldgo*/);
-            SAFE(compare_bwd_weights_status, WARN);
+                COMPARE_DAT(DIFF_WEIGHTS_PROJECTION, diff_weights_projection,
+                        tag::abx /*ldio*/);
+            COMPARE_DAT(DIFF_BIAS, diff_bias, tag::abx /*ldgo*/);
         }
     }
 
