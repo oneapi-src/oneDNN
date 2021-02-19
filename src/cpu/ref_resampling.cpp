@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,9 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <assert.h>
-#include <float.h>
-#include <math.h>
+#include <cassert>
+#include <cfloat>
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -31,7 +30,9 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-static inline dim_t get_offset(
+using namespace resampling_utils;
+
+static dim_t get_offset(
         const memory_desc_wrapper &data_d, int n, int c, int d, int h, int w) {
     if (data_d.ndims() == 5)
         return data_d.off(n, c, d, h, w);
@@ -41,7 +42,11 @@ static inline dim_t get_offset(
         return data_d.off(n, c, w);
 }
 
-using namespace resampling_utils;
+template <impl::data_type_t data_type>
+status_t ref_resampling_fwd_t<data_type>::init(engine_t *engine) {
+    scale_fn_ = bind_proper_scale_function(pd()->desc()->alg_kind);
+    return status::success;
+}
 
 template <impl::data_type_t data_type>
 void ref_resampling_fwd_t<data_type>::execute_forward(
@@ -87,7 +92,7 @@ void ref_resampling_fwd_t<data_type>::execute_forward(
                     const dim_t iw = nearest_idx(ow, OW, IW);
                     dst[get_offset(dst_d, mb, ch, od, oh, ow)]
                             = src[get_offset(src_d, mb, ch, id, ih, iw)];
-                } else if (alg == alg_kind::resampling_linear) {
+                } else {
                     // Trilinear interpolation (linear interpolation on a 3D spatial
                     // tensor) can be expressed as linear interpolation along
                     // dimension x followed by interpolation along dimension y and z
@@ -99,9 +104,9 @@ void ref_resampling_fwd_t<data_type>::execute_forward(
                     // -          -    -
                     // -          -  -
                     //C000--C00--C100
-                    auto id = linear_coeffs_t(od, OD, ID);
-                    auto iw = linear_coeffs_t(ow, OW, IW);
-                    auto ih = linear_coeffs_t(oh, OH, IH);
+                    auto id = linear_coeffs_t(od, OD, ID, scale_fn_);
+                    auto iw = linear_coeffs_t(ow, OW, IW, scale_fn_);
+                    auto ih = linear_coeffs_t(oh, OH, IH, scale_fn_);
                     data_t src_l[8] = {0};
                     for_(int i = 0; i < 2; i++)
                     for_(int j = 0; j < 2; j++)
@@ -119,6 +124,12 @@ void ref_resampling_fwd_t<data_type>::execute_forward(
 
 template struct ref_resampling_fwd_t<data_type::f32>;
 template struct ref_resampling_fwd_t<data_type::bf16>;
+
+template <impl::data_type_t data_type>
+status_t ref_resampling_bwd_t<data_type>::init(engine_t *engine) {
+    scale_fn_ = bind_proper_scale_function(pd()->desc()->alg_kind);
+    return status::success;
+}
 
 template <impl::data_type_t data_type>
 void ref_resampling_bwd_t<data_type>::execute_backward(
@@ -167,13 +178,13 @@ void ref_resampling_bwd_t<data_type>::execute_backward(
                                 diff_dst_d, mb, ch, od, oh, ow)];
                     diff_src[get_offset(diff_src_d, mb, ch, id, ih, iw)] = ds;
                 });
-        return;
-    } else {
+    } else if (utils::one_of(alg, alg_kind::resampling_linear,
+                       alg_kind::resampling_linear_no_shift)) {
         parallel_nd(MB, C, ID, IH, IW,
                 [&](dim_t mb, dim_t ch, dim_t id, dim_t ih, dim_t iw) {
-                    bwd_linear_coeffs_t d(id, OD, ID);
-                    bwd_linear_coeffs_t h(ih, OH, IH);
-                    bwd_linear_coeffs_t w(iw, OW, IW);
+                    bwd_linear_coeffs_t d(id, OD, ID, scale_fn_);
+                    bwd_linear_coeffs_t h(ih, OH, IH, scale_fn_);
+                    bwd_linear_coeffs_t w(iw, OW, IW, scale_fn_);
 
                     float ds = 0;
                     for_(int i = 0; i < 2; i++)
@@ -182,9 +193,12 @@ void ref_resampling_bwd_t<data_type>::execute_backward(
                     for_(dim_t od = d.start[i]; od < d.end[i]; od++)
                     for_(dim_t oh = h.start[j]; oh < h.end[j]; oh++)
                     for (dim_t ow = w.start[k]; ow < w.end[k]; ow++) {
-                        const float weight_d = linear_weight(i, od, OD, ID);
-                        const float weight_h = linear_weight(j, oh, OH, IH);
-                        const float weight_w = linear_weight(k, ow, OW, IW);
+                        const float weight_d
+                                = linear_weight(i, od, OD, ID, scale_fn_);
+                        const float weight_h
+                                = linear_weight(j, oh, OH, IH, scale_fn_);
+                        const float weight_w
+                                = linear_weight(k, ow, OW, IW, scale_fn_);
 
                         float dd = diff_dst[get_offset(
                                 diff_dst_d, mb, ch, od, oh, ow)];

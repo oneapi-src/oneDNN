@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,10 +34,13 @@ using namespace std::placeholders;
 
 template <impl::data_type_t data_type>
 status_t simple_resampling_fwd_t<data_type>::init(engine_t *engine) {
+    scale_fn_ = bind_proper_scale_function(pd()->desc()->alg_kind);
+
     if (pd()->desc()->alg_kind == alg_kind::resampling_nearest)
         interpolate_fn_ = std::bind(
                 &simple_resampling_fwd_t::nearest, this, _1, _2, _3, _4, _5);
-    else {
+    else if (utils::one_of(pd()->desc()->alg_kind, alg_kind::resampling_linear,
+                     alg_kind::resampling_linear_no_shift)) {
         if (pd()->ndims() == 5)
             interpolate_fn_ = std::bind(&simple_resampling_fwd_t::trilinear,
                     this, _1, _2, _3, _4, _5);
@@ -50,6 +53,7 @@ status_t simple_resampling_fwd_t<data_type>::init(engine_t *engine) {
 
         fill_coeffs();
     }
+
     const memory_desc_wrapper src_d(pd()->src_md());
     inner_stride_ = src_d.blocking_desc().strides[pd()->ndims() - 1];
     nsp_outer_ = src_d.nelems(true)
@@ -68,11 +72,14 @@ void simple_resampling_fwd_t<data_type>::fill_coeffs() {
     using namespace resampling_utils;
     linear_coeffs_.reserve(pd()->OD() + pd()->OH() + pd()->OW());
     for (dim_t od = 0; od < pd()->OD(); od++)
-        linear_coeffs_.push_back(linear_coeffs_t(od, pd()->OD(), pd()->ID()));
+        linear_coeffs_.push_back(
+                linear_coeffs_t(od, pd()->OD(), pd()->ID(), scale_fn_));
     for (dim_t oh = 0; oh < pd()->OH(); oh++)
-        linear_coeffs_.push_back(linear_coeffs_t(oh, pd()->OH(), pd()->IH()));
+        linear_coeffs_.push_back(
+                linear_coeffs_t(oh, pd()->OH(), pd()->IH(), scale_fn_));
     for (dim_t ow = 0; ow < pd()->OW(); ow++)
-        linear_coeffs_.push_back(linear_coeffs_t(ow, pd()->OW(), pd()->IW()));
+        linear_coeffs_.push_back(
+                linear_coeffs_t(ow, pd()->OW(), pd()->IW(), scale_fn_));
 }
 
 template <impl::data_type_t data_type>
@@ -169,10 +176,13 @@ template struct simple_resampling_fwd_t<data_type::bf16>;
 
 template <impl::data_type_t data_type>
 status_t simple_resampling_bwd_t<data_type>::init(engine_t *engine) {
+    scale_fn_ = bind_proper_scale_function(pd()->desc()->alg_kind);
+
     if (pd()->desc()->alg_kind == alg_kind::resampling_nearest)
         interpolate_fn_ = std::bind(
                 &simple_resampling_bwd_t::nearest, this, _1, _2, _3, _4, _5);
-    else {
+    else if (utils::one_of(pd()->desc()->alg_kind, alg_kind::resampling_linear,
+                     alg_kind::resampling_linear_no_shift)) {
         if (pd()->ndims() == 5)
             interpolate_fn_ = std::bind(&simple_resampling_bwd_t::trilinear,
                     this, _1, _2, _3, _4, _5);
@@ -186,6 +196,7 @@ status_t simple_resampling_bwd_t<data_type>::init(engine_t *engine) {
         fill_coeffs();
         fill_weights();
     }
+
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     inner_stride_ = diff_src_d.blocking_desc().strides[pd()->ndims() - 1];
     nsp_outer_ = diff_src_d.nelems(true)
@@ -205,13 +216,13 @@ void simple_resampling_bwd_t<data_type>::fill_coeffs() {
     bwd_linear_coeffs_.reserve(pd()->ID() + pd()->IH() + pd()->IW());
     for (dim_t id = 0; id < pd()->ID(); id++)
         bwd_linear_coeffs_.push_back(
-                bwd_linear_coeffs_t(id, pd()->OD(), pd()->ID()));
+                bwd_linear_coeffs_t(id, pd()->OD(), pd()->ID(), scale_fn_));
     for (dim_t ih = 0; ih < pd()->IH(); ih++)
         bwd_linear_coeffs_.push_back(
-                bwd_linear_coeffs_t(ih, pd()->OH(), pd()->IH()));
+                bwd_linear_coeffs_t(ih, pd()->OH(), pd()->IH(), scale_fn_));
     for (dim_t iw = 0; iw < pd()->IW(); iw++)
         bwd_linear_coeffs_.push_back(
-                bwd_linear_coeffs_t(iw, pd()->OW(), pd()->IW()));
+                bwd_linear_coeffs_t(iw, pd()->OW(), pd()->IW(), scale_fn_));
 }
 
 template <impl::data_type_t data_type>
@@ -220,21 +231,21 @@ void simple_resampling_bwd_t<data_type>::fill_weights() {
     bwd_linear_weights_.reserve(2 * (pd()->OD() + pd()->OH() + pd()->OW()));
     for (dim_t od = 0; od < pd()->OD(); od++) {
         bwd_linear_weights_.push_back(
-                linear_weight(0, od, pd()->OD(), pd()->ID()));
+                linear_weight(0, od, pd()->OD(), pd()->ID(), scale_fn_));
         bwd_linear_weights_.push_back(
-                linear_weight(1, od, pd()->OD(), pd()->ID()));
+                linear_weight(1, od, pd()->OD(), pd()->ID(), scale_fn_));
     }
     for (dim_t oh = 0; oh < pd()->OH(); oh++) {
         bwd_linear_weights_.push_back(
-                linear_weight(0, oh, pd()->OH(), pd()->IH()));
+                linear_weight(0, oh, pd()->OH(), pd()->IH(), scale_fn_));
         bwd_linear_weights_.push_back(
-                linear_weight(1, oh, pd()->OH(), pd()->IH()));
+                linear_weight(1, oh, pd()->OH(), pd()->IH(), scale_fn_));
     }
     for (dim_t ow = 0; ow < pd()->OW(); ow++) {
         bwd_linear_weights_.push_back(
-                linear_weight(0, ow, pd()->OW(), pd()->IW()));
+                linear_weight(0, ow, pd()->OW(), pd()->IW(), scale_fn_));
         bwd_linear_weights_.push_back(
-                linear_weight(1, ow, pd()->OW(), pd()->IW()));
+                linear_weight(1, ow, pd()->OW(), pd()->IW(), scale_fn_));
     }
 }
 

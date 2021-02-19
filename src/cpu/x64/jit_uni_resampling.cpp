@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,7 +73,8 @@ status_t jit_uni_resampling_fwd_t<isa>::pd_t::init(engine_t *engine) {
     conf_.iw = IW();
     conf_.ndims = ndims();
 
-    if (conf_.alg == alg_kind::resampling_linear)
+    if (utils::one_of(conf_.alg, alg_kind::resampling_linear,
+                alg_kind::resampling_linear_no_shift))
         conf_.number_of_corners = pow(2, conf_.ndims - 2);
 
     conf_.dt_size = types::data_type_size(conf_.data_type);
@@ -120,7 +121,8 @@ status_t jit_uni_resampling_fwd_t<isa>::pd_t::init(engine_t *engine) {
         conf_.tag_kind = jit_memory_tag_kind_t::ncsp;
         if (conf_.alg == alg_kind::resampling_nearest)
             conf_.tail = conf_.ow % conf_.simd_w;
-        else
+        else if (utils::one_of(conf_.alg, alg_kind::resampling_linear,
+                         alg_kind::resampling_linear_no_shift))
             conf_.tail = (conf_.od * conf_.oh * conf_.ow) % conf_.simd_w;
     } else
         return status::unimplemented;
@@ -132,6 +134,8 @@ status_t jit_uni_resampling_fwd_t<isa>::pd_t::init(engine_t *engine) {
 
 template <cpu_isa_t isa>
 status_t jit_uni_resampling_fwd_t<isa>::init(engine_t *engine) {
+    scale_fn_ = bind_proper_scale_function(pd()->desc()->alg_kind);
+
     CHECK(safe_ptr_assign(
             kernel_, new jit_uni_resampling_kernel<isa>(pd()->get_conf())));
 
@@ -144,6 +148,7 @@ template <cpu_isa_t isa>
 status_t jit_uni_resampling_fwd_t<isa>::fill_data_for_interpolation() {
     switch (pd()->desc()->alg_kind) {
         case alg_kind::resampling_nearest: return fill_data_for_nearest();
+        case alg_kind::resampling_linear_no_shift:
         case alg_kind::resampling_linear: return fill_data_for_linear();
         default:
             assert(!"Invalid resampling algorithm.");
@@ -205,14 +210,17 @@ status_t jit_uni_resampling_fwd_t<isa>::fill_data_for_linear() {
         const size_t weights_stride = pd()->OW() * pd()->OH() * pd()->OD();
 
         parallel_nd(pd()->OD(), pd()->OH(), [&](dim_t od, dim_t oh) {
-            const linear_coeffs_t coeffs_id(od, pd()->OD(), pd()->ID());
-            const linear_coeffs_t coeffs_ih(oh, pd()->OH(), pd()->IH());
+            const linear_coeffs_t coeffs_id(
+                    od, pd()->OD(), pd()->ID(), scale_fn_);
+            const linear_coeffs_t coeffs_ih(
+                    oh, pd()->OH(), pd()->IH(), scale_fn_);
 
             for (dim_t ow = 0; ow < pd()->OW(); ow++) {
                 const size_t offset
                         = od * pd()->OH() * pd()->OW() + oh * pd()->OW() + ow;
 
-                const linear_coeffs_t coeffs_iw(ow, pd()->OW(), pd()->IW());
+                const linear_coeffs_t coeffs_iw(
+                        ow, pd()->OW(), pd()->IW(), scale_fn_);
 
                 for (unsigned i = 0; i < number_of_corners; i++) {
                     std::bitset<3> corners(i);
@@ -242,7 +250,8 @@ status_t jit_uni_resampling_fwd_t<isa>::fill_data_for_linear() {
         float *weights_d = &weights_[2 * (pd()->OW() + pd()->OH())];
 
         for (dim_t ow = 0; ow < pd()->OW(); ow++) {
-            const linear_coeffs_t coeffs_iw(ow, pd()->OW(), pd()->IW());
+            const linear_coeffs_t coeffs_iw(
+                    ow, pd()->OW(), pd()->IW(), scale_fn_);
 
             // The right and left corners are set one after
             // the other because in the kernel these values
@@ -255,7 +264,8 @@ status_t jit_uni_resampling_fwd_t<isa>::fill_data_for_linear() {
         }
 
         for (dim_t oh = 0; oh < pd()->OH(); oh++) {
-            const linear_coeffs_t coeffs_ih(oh, pd()->OH(), pd()->IH());
+            const linear_coeffs_t coeffs_ih(
+                    oh, pd()->OH(), pd()->IH(), scale_fn_);
 
             weights_h[oh] = coeffs_ih.wei[0];
             weights_h[pd()->OH() + oh] = coeffs_ih.wei[1];
@@ -264,7 +274,8 @@ status_t jit_uni_resampling_fwd_t<isa>::fill_data_for_linear() {
         }
 
         for (dim_t od = 0; od < pd()->OD(); od++) {
-            const linear_coeffs_t coeffs_id(od, pd()->OD(), pd()->ID());
+            const linear_coeffs_t coeffs_id(
+                    od, pd()->OD(), pd()->ID(), scale_fn_);
 
             weights_d[od] = coeffs_id.wei[0];
             weights_d[pd()->OD() + od] = coeffs_id.wei[1];
@@ -286,6 +297,7 @@ status_t jit_uni_resampling_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
 
     switch (pd()->desc()->alg_kind) {
         case alg_kind::resampling_nearest: return interpolate_nearest(src, dst);
+        case alg_kind::resampling_linear_no_shift:
         case alg_kind::resampling_linear: return interpolate_linear(src, dst);
         default:
             assert(!"Invalid resampling algorithm.");

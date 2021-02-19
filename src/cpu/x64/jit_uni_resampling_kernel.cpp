@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -605,7 +605,8 @@ void jit_uni_resampling_kernel<isa>::generate() {
         else if (conf_.tag_kind == jit_memory_tag_kind_t::nspc
                 || conf_.tag_kind == jit_memory_tag_kind_t::blocked)
             nearest_c_oriented_format();
-    } else if (conf_.alg == alg_kind::resampling_linear) {
+    } else if (utils::one_of(conf_.alg, alg_kind::resampling_linear,
+                       alg_kind::resampling_linear_no_shift)) {
         mov(reg_weights, ptr[reg_param + GET_OFF(weights)]);
         if (conf_.tag_kind == jit_memory_tag_kind_t::ncsp) {
             mov(reg_src_, ptr[reg_param + GET_OFF(src)]);

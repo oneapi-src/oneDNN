@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,6 +94,7 @@ private:
     std::vector<resampling_utils::linear_coeffs_t> linear_coeffs_;
     std::function<void(const data_t *, data_t *, dim_t, dim_t, dim_t)>
             interpolate_fn_;
+    std::function<float(dim_t, dim_t, dim_t)> scale_fn_;
 };
 
 template <impl::data_type_t data_type>
@@ -158,6 +159,7 @@ private:
     std::vector<float> bwd_linear_weights_;
     std::function<void(data_t *, const data_t *, dim_t, dim_t, dim_t)>
             interpolate_fn_;
+    std::function<float(dim_t, dim_t, dim_t)> scale_fn_;
 };
 
 } // namespace cpu

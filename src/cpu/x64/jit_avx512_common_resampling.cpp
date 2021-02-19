@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -184,7 +184,9 @@ private:
         mov(reg_src, ptr[abi_param1 + GET_OFF(src)]);
         mov(reg_dst, ptr[abi_param1 + GET_OFF(dst)]);
 
-        move_imm_float_to_xmm(xmm_zero_point_five, reg_tmp, 0.5f);
+        if (utils::one_of(pd_->desc()->alg_kind, alg_kind::resampling_linear,
+                    alg_kind::resampling_nearest))
+            move_imm_float_to_xmm(xmm_zero_point_five, reg_tmp, 0.5f);
 
         if (pd_->is_fwd()) {
             // Count coeffs
@@ -205,7 +207,34 @@ private:
                 count_dim_coeff(xmm_w_coeff, reg_curr_w, pd_->OW(), pd_->IW());
             }
         } else {
-            if (pd_->desc()->alg_kind == alg_kind::resampling_linear) {
+            if (pd_->desc()->alg_kind == alg_kind::resampling_nearest) {
+                // Stack:
+                // ow_loop_counter:
+                // ow_start       : 8
+                // ow_end         : 16
+                // oh_loop_counter: 24
+                // oh_start       : 32
+                // oh_end         : 40
+                // od_loop_counter: 48
+                // od_start       : 56
+                // od_end         : 64
+
+                // 3*size(int64)*max_nr_of_spatial_dims
+                stack_size_needed_ = 3 * 8 * 3;
+                sub(rsp, stack_size_needed_);
+
+                mov(reg_curr_d, ptr[abi_param1 + GET_OFF(d)]);
+                mov(reg_curr_h, ptr[abi_param1 + GET_OFF(h)]);
+                mov(reg_curr_w, ptr[abi_param1 + GET_OFF(w)]);
+                count_bwd_counting_range(
+                        rsp + 48, od, reg_curr_d, pd_->OD(), pd_->ID());
+                count_bwd_counting_range(
+                        rsp + 24, oh, reg_curr_h, pd_->OH(), pd_->IH());
+                count_bwd_counting_range(
+                        rsp, ow, reg_curr_w, pd_->OW(), pd_->IW());
+            } else if (utils::one_of(pd_->desc()->alg_kind,
+                               alg_kind::resampling_linear,
+                               alg_kind::resampling_linear_no_shift)) {
                 // Stack:
                 // ow_loop_counter:
                 // ow_left_start  : 8
@@ -252,36 +281,15 @@ private:
                     count_bwd_counting_range(
                             rsp, ow, reg_curr_w, pd_->OW(), pd_->IW());
                 }
-            } else {
-                // Stack:
-                // ow_loop_counter:
-                // ow_start       : 8
-                // ow_end         : 16
-                // oh_loop_counter: 24
-                // oh_start       : 32
-                // oh_end         : 40
-                // od_loop_counter: 48
-                // od_start       : 56
-                // od_end         : 64
-
-                // 3*size(int64)*max_nr_of_spatial_dims
-                stack_size_needed_ = 3 * 8 * 3;
-                sub(rsp, stack_size_needed_);
-
-                mov(reg_curr_d, ptr[abi_param1 + GET_OFF(d)]);
-                mov(reg_curr_h, ptr[abi_param1 + GET_OFF(h)]);
-                mov(reg_curr_w, ptr[abi_param1 + GET_OFF(w)]);
-                count_bwd_counting_range(
-                        rsp + 48, od, reg_curr_d, pd_->OD(), pd_->ID());
-                count_bwd_counting_range(
-                        rsp + 24, oh, reg_curr_h, pd_->OH(), pd_->IH());
-                count_bwd_counting_range(
-                        rsp, ow, reg_curr_w, pd_->OW(), pd_->IW());
             }
         }
 
         // Choose algorithm
-        if (pd_->desc()->alg_kind == alg_kind::resampling_linear) {
+        if (pd_->desc()->alg_kind == alg_kind::resampling_nearest) {
+            nearest();
+        } else if (utils::one_of(pd_->desc()->alg_kind,
+                           alg_kind::resampling_linear,
+                           alg_kind::resampling_linear_no_shift)) {
             if (pd_->ndims() == 5) {
                 trilinear();
             } else if (pd_->ndims() == 4) {
@@ -289,8 +297,6 @@ private:
             } else {
                 linear();
             }
-        } else {
-            nearest();
         }
 
         if (!pd_->is_fwd()) add(rsp, stack_size_needed_);
@@ -299,39 +305,68 @@ private:
 
     void count_dim_coeff(const Xmm &xmm_coeff, const Reg64 &reg_dim,
             dim_t y_max, dim_t x_max) {
+        // Nearest, linear:
         // Formula = ((y + 0.5f) * x_max / y_max) - 0.5f
+        // linear_no_shift:
+        // Formula = y * x_max / y_max
         vcvtsi2ss(xmm_coeff, xmm_coeff, reg_dim); // y
-        vaddss(xmm_coeff, xmm_coeff, xmm_zero_point_five); // y + 0.5f
+
+        const bool with_shift = utils::one_of(pd_->desc()->alg_kind,
+                alg_kind::resampling_linear, alg_kind::resampling_nearest);
+
+        if (with_shift)
+            vaddss(xmm_coeff, xmm_coeff, xmm_zero_point_five); // y + 0.5f
 
         move_imm_float_to_xmm(xmm_tmp_factor, reg_tmp, (float)x_max);
-        vmulss(xmm_coeff, xmm_coeff,
-                xmm_tmp_factor); // (y + 0.5f) * x_max
+        vmulss(xmm_coeff, xmm_coeff, xmm_tmp_factor);
         move_imm_float_to_xmm(xmm_tmp_factor, reg_tmp, (float)y_max);
-        vdivss(xmm_coeff, xmm_coeff,
-                xmm_tmp_factor); // (y + 0.5f) * x_max / y_max
+        vdivss(xmm_coeff, xmm_coeff, xmm_tmp_factor);
 
-        vsubss(xmm_coeff, xmm_coeff,
-                xmm_zero_point_five); // ((y + 0.5) * x_max / y_max) - 0.5
+        if (with_shift)
+            vsubss(xmm_coeff, xmm_coeff,
+                    xmm_zero_point_five); // ((y + 0.5) * x_max / y_max) - 0.5
     }
 
     void count_bwd_counting_range(RegExp stack_position,
             bwd_counting_range_t &c_range, const Reg64 &curr_position,
             dim_t y_max, dim_t x_max) {
         c_range.loop_counter = stack_position;
-        if (pd_->desc()->alg_kind == alg_kind::resampling_linear) {
+        if (pd_->desc()->alg_kind == alg_kind::resampling_nearest) {
+            c_range.start.nearest = stack_position + 8;
+            c_range.end.nearest = stack_position + 16;
+        } else if (utils::one_of(pd_->desc()->alg_kind,
+                           alg_kind::resampling_linear,
+                           alg_kind::resampling_linear_no_shift)) {
             c_range.start.linear[0] = stack_position + 8;
             c_range.end.linear[0] = stack_position + 16;
             c_range.start.linear[1] = stack_position + 24;
             c_range.end.linear[1] = stack_position + 32;
-        } else {
-            c_range.start.nearest = stack_position + 8;
-            c_range.end.nearest = stack_position + 16;
         }
 
         EvexModifierRounding rm_ceil(EvexModifierRounding::T_RU_SAE);
         EvexModifierRounding rm_floor(EvexModifierRounding::T_RD_SAE);
 
-        if (pd_->desc()->alg_kind == alg_kind::resampling_linear) {
+        if (pd_->desc()->alg_kind == alg_kind::resampling_nearest) {
+            float factor = (float)y_max / x_max;
+
+            // start: ceil(pos * factor - 0.5f)
+            vcvtsi2ss(xmm_coeff, xmm_coeff, curr_position);
+            move_imm_float_to_xmm(xmm_tmp_factor, reg_tmp, factor);
+            vmulss(xmm_coeff, xmm_coeff, xmm_tmp_factor);
+            vsubss(xmm_coeff, xmm_coeff, xmm_zero_point_five);
+            vcvtss2si(reg_tmp_idx, xmm_coeff | rm_ceil);
+            mov(ptr[c_range.start.nearest], reg_tmp_idx);
+
+            // start: ceil((pos+1) * factor - 0.5f)
+            add(curr_position, 1);
+            vcvtsi2ss(xmm_coeff, xmm_coeff, curr_position);
+            vmulss(xmm_coeff, xmm_coeff, xmm_tmp_factor);
+            vsubss(xmm_coeff, xmm_coeff, xmm_zero_point_five);
+            vcvtss2si(reg_tmp_idx, xmm_coeff | rm_ceil);
+            mov(ptr[c_range.end.nearest], reg_tmp_idx);
+        } else if (utils::one_of(pd_->desc()->alg_kind,
+                           alg_kind::resampling_linear,
+                           alg_kind::resampling_linear_no_shift)) {
             // coeff = (pos + 0.5) * y_max / x_max - 0.5
             count_dim_coeff(xmm_coeff, curr_position, x_max, y_max);
 
@@ -370,24 +405,6 @@ private:
             vcvtss2si(reg_tmp_idx, xmm_coeff | rm_ceil);
             min(reg_tmp_idx, y_max);
             mov(ptr[c_range.end.linear[0]], reg_tmp_idx);
-        } else {
-            float factor = (float)y_max / x_max;
-
-            // start: ceil(pos * factor - 0.5f)
-            vcvtsi2ss(xmm_coeff, xmm_coeff, curr_position);
-            move_imm_float_to_xmm(xmm_tmp_factor, reg_tmp, factor);
-            vmulss(xmm_coeff, xmm_coeff, xmm_tmp_factor);
-            vsubss(xmm_coeff, xmm_coeff, xmm_zero_point_five);
-            vcvtss2si(reg_tmp_idx, xmm_coeff | rm_ceil);
-            mov(ptr[c_range.start.nearest], reg_tmp_idx);
-
-            // start: ceil((pos+1) * factor - 0.5f)
-            add(curr_position, 1);
-            vcvtsi2ss(xmm_coeff, xmm_coeff, curr_position);
-            vmulss(xmm_coeff, xmm_coeff, xmm_tmp_factor);
-            vsubss(xmm_coeff, xmm_coeff, xmm_zero_point_five);
-            vcvtss2si(reg_tmp_idx, xmm_coeff | rm_ceil);
-            mov(ptr[c_range.end.nearest], reg_tmp_idx);
         }
     }
 
