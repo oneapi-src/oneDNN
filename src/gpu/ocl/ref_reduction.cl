@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,37 +53,57 @@
 #define FINALIZE(x) (x)
 #endif
 
-#if !defined(SRC_OFF) && !defined(DST_OFF) && NDIMS == 1
-#define SRC_OFF(n, c, d, h, w) (n)
-#define DST_OFF(n, c, d, h, w) (n)
+#if NDIMS == 6
+#define _SRC_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC, x0, x1, x2, x3, x4, x5)
+#define _DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
+#elif NDIMS == 1
+#define _SRC_OFF(x0, x1, x2, x3, x4, x5) (x0)
+#define _DST_OFF(x0, x1, x2, x3, x4, x5) (x0)
+#else
+#define _SRC_OFF(x0, x1, ignore, x3, x4, x5) SRC_OFF(x0, x1, x3, x4, x5)
+#define _DST_OFF(x0, x1, ignore, x3, x4, x5) DST_OFF(x0, x1, x3, x4, x5)
+#endif
+
+// Remove unnecessary loop as performance degradation was observed
+// for some cases with multiple additional loops
+#if NDIMS == 6
+#define ITERATE_OVER_REDUCTION_D2 \
+    for_(int d2_off = 0; d2_off < REDUCTION_D2; d2_off++)
+#define D2_OFF d2_off
+#else
+#define ITERATE_OVER_REDUCTION_D2
+#define D2_OFF 0
 #endif
 
 __kernel void ref_reduce(
         __global SRC_DATA_T *src, __global DST_DATA_T *dst POST_OP_ARGS) {
-    int n = GWS_GET_IN();
-    int c = GWS_GET_IC();
-    int d = GWS_GET_ID();
-    int h = GWS_GET_IH();
-    int w = GWS_GET_IW();
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+    const int d2 = GWS_GET_D2();
+    const int d3 = GWS_GET_D3();
+    const int d4 = GWS_GET_D4();
+    const int d5 = GWS_GET_D5();
 
     float acc = INIT_ACC;
-    for_(int n_off = 0; n_off < REDUCTION_IN; n_off++)
-    for_(int c_off = 0; c_off < REDUCTION_IC; c_off++)
-    for_(int d_off = 0; d_off < REDUCTION_ID; d_off++)
-    for_(int h_off = 0; h_off < REDUCTION_IH; h_off++)
-    for_(int w_off = 0; w_off < REDUCTION_IW; w_off++)
+    for_(int d0_off = 0; d0_off < REDUCTION_D0; d0_off++)
+    for_(int d1_off = 0; d1_off < REDUCTION_D1; d1_off++)
+    ITERATE_OVER_REDUCTION_D2
+    for_(int d3_off = 0; d3_off < REDUCTION_D3; d3_off++)
+    for_(int d4_off = 0; d4_off < REDUCTION_D4; d4_off++)
+    for_(int d5_off = 0; d5_off < REDUCTION_D5; d5_off++)
     {
-        acc = ACCUMULATE(acc,
-                CONVERT_FLOAT_T(src[SRC_OFF(n + n_off, c + c_off, d + d_off,
-                        h + h_off, w + w_off)]));
+        const int src_off = _SRC_OFF(d0 + d0_off, d1 + d1_off, d2 + D2_OFF,
+                d3 + d3_off, d4 + d4_off, d5 + d5_off);
+        acc = ACCUMULATE(acc, CONVERT_FLOAT_T(src[src_off]));
     }
 
     acc = FINALIZE(acc);
+    const int dst_off = _DST_OFF(d0, d1, d2, d3, d4, d5);
     float dst_val;
 #if WITH_SUM
-    dst_val = DST_TO_REF(dst[DST_OFF(n, c, d, h, w)]);
+    dst_val = DST_TO_REF(dst[dst_off]);
 #endif
-    APPLY_POST_OPS_SERIAL(
-            acc, float, dst_val, float, n, 1, c, 1, d, 1, h, 1, w, 1, 0, 1);
-    dst[DST_OFF(n, c, d, h, w)] = TO_DST(acc);
+    APPLY_POST_OPS_SERIAL(acc, float, dst_val, float, d0, 1, d1, 1, d2, 1, d3,
+            1, d4, 1, d5, 1);
+    dst[dst_off] = TO_DST(acc);
 }
