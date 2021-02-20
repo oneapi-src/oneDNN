@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1044,7 +1044,11 @@ void jit_brgemm_trans_wei_f32_t::generate() {
         case OI8i64o2i:
         case OIw8i64o2i:
         case OIhw8i64o2i:
-        case OIdhw8i64o2i: fwd_oc_block = 4 * conf_->simd_w; break;
+        case OIdhw8i64o2i:
+        case OI16i64o2i:
+        case OIw16i64o2i:
+        case OIhw16i64o2i:
+        case OIdhw16i64o2i: fwd_oc_block = 4 * conf_->simd_w; break;
         case OI16i32o:
         case OIw16i32o:
         case OIhw16i32o:
@@ -1052,7 +1056,11 @@ void jit_brgemm_trans_wei_f32_t::generate() {
         case OI8i32o2i:
         case OIw8i32o2i:
         case OIhw8i32o2i:
-        case OIdhw8i32o2i: fwd_oc_block = 2 * conf_->simd_w; break;
+        case OIdhw8i32o2i:
+        case OI16i32o2i:
+        case OIw16i32o2i:
+        case OIhw16i32o2i:
+        case OIdhw16i32o2i: fwd_oc_block = 2 * conf_->simd_w; break;
         default: fwd_oc_block = conf_->simd_w;
     };
 
@@ -1254,7 +1262,6 @@ void jit_brgemm_trans_wei_bf16_t::transpose_16x16_vnni(
 
 void jit_brgemm_trans_wei_bf16_t::generate() {
     preamble();
-    assert(transpose_size == conf_->oc_block);
     int fwd_oc_block = 0;
     switch (conf_->wei_tag) {
         case OI16i64o:
@@ -1264,7 +1271,11 @@ void jit_brgemm_trans_wei_bf16_t::generate() {
         case OI8i64o2i:
         case OIw8i64o2i:
         case OIhw8i64o2i:
-        case OIdhw8i64o2i: fwd_oc_block = 4 * conf_->simd_w; break;
+        case OIdhw8i64o2i:
+        case OI16i64o2i:
+        case OIw16i64o2i:
+        case OIhw16i64o2i:
+        case OIdhw16i64o2i: fwd_oc_block = 4 * conf_->simd_w; break;
         case OI16i32o:
         case OIw16i32o:
         case OIhw16i32o:
@@ -1272,7 +1283,11 @@ void jit_brgemm_trans_wei_bf16_t::generate() {
         case OI8i32o2i:
         case OIw8i32o2i:
         case OIhw8i32o2i:
-        case OIdhw8i32o2i: fwd_oc_block = 2 * conf_->simd_w; break;
+        case OIdhw8i32o2i:
+        case OI16i32o2i:
+        case OIw16i32o2i:
+        case OIhw16i32o2i:
+        case OIdhw16i32o2i: fwd_oc_block = 2 * conf_->simd_w; break;
         default: fwd_oc_block = conf_->simd_w;
     };
 

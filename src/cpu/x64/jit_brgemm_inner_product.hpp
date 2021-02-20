@@ -253,6 +253,16 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                 auto LDD = jbgp_.ic_without_padding;
                 CHECK(brgemm_desc_set_postops(
                         &brg, attr(), jbgp_.src_dt, LDD, jbgp_.bia_dt));
+                if (isa == avx512_core_bf16_amx_bf16) {
+                    brgemm_attr_t brgattr;
+                    brgattr.max_bs = jbgp_.gemm_batch_size;
+                    brgattr.wary_tail_read = false;
+                    brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.ic;
+                    brgattr.hint_expected_B_size = jbgp_.oc * jbgp_.ic;
+                    brgattr.hint_expected_C_size = jbgp_.mb * jbgp_.oc;
+
+                    CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                }
             }
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -285,6 +295,9 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             brgemm_kernel_t *ker = nullptr;
             CHECK(brgemm_kernel_create(&ker, pd()->brg_descs_[idx]));
             CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
+            if (isa == avx512_core_bf16_amx_bf16)
+                CHECK(brgemm_init_tiles(
+                        pd()->brg_descs_[idx], &brg_kernel_palettes_[idx][0]));
         }
 
         if (jbgp.use_buffer_b)
@@ -303,6 +316,7 @@ private:
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_ip];
     std::unique_ptr<jit_brgemm_trans_wei_t> trans_B_kernel_;
+    char brg_kernel_palettes_[max_num_brg_kernels_ip][64];
 };
 
 template <cpu_isa_t isa, impl::data_type_t src_type,

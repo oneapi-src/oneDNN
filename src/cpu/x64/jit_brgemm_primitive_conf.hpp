@@ -76,6 +76,7 @@ struct jit_brgemm_primitive_conf_t {
     int nthr, nthr_mb, nthr_oc_b, nthr_ic_b;
 
     cpu_isa_t isa;
+    bool ip_bwd_d_global_b_transpose;
 };
 
 } // namespace x64

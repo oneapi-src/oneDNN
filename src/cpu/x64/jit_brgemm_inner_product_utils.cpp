@@ -222,22 +222,28 @@ status_t init_ip_conf_fwd(
 }
 
 status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
+    const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
+
     jbgp.use_buffer_b = true;
     jbgp.use_buffer = jbgp.src_dt != jbgp.acc_dt;
 
-    jbgp.ic_block = jbgp.simd_w;
-    if (jbgp.ic >= 4 * jbgp.simd_w)
-        jbgp.ic_block = 4 * jbgp.simd_w;
-    else if (jbgp.ic >= 2 * jbgp.simd_w)
-        jbgp.ic_block = 2 * jbgp.simd_w;
-    jbgp.oc_block = jbgp.simd_w;
+    jbgp.ip_bwd_d_global_b_transpose = is_amx_bf16 ? false : true;
+
+    constexpr int amx_bf16_row = 32;
+    jbgp.oc_block = (is_amx_bf16) ? amx_bf16_row : jbgp.simd_w;
+    if (jbgp.ic >= 64)
+        jbgp.ic_block = 64;
+    else if (jbgp.oc >= 32)
+        jbgp.ic_block = 32;
+    else
+        jbgp.ic_block = 16;
 
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
     jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
     jbgp.os = jbgp.mb;
 
     // Configure matrix sizes
-    const int max_M = 64, min_M = 6;
+    static const int max_M = 64, min_M = is_amx_bf16 ? 16 : 6;
     jbgp.os_block = 1;
     for (int m_ = max_M; m_ >= min_M; m_--) {
         if (jbgp.os % m_ == 0) {
@@ -637,15 +643,15 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
 
     if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_data) {
         int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
-#ifndef BRGEMM_IP_BWD_D_GLOBAL_B_TRANSPOSE
-        scratchpad.book(key_brgemm_primitive_buffer_b,
-                (dim_t)jbgp.nthr * jbgp.gemm_batch_size * size_B,
-                types::data_type_size(jbgp.wei_dt));
-#else
-        scratchpad.book(key_brgemm_primitive_buffer_b,
-                (dim_t)jbgp.nb_oc * jbgp.nb_ic * size_B,
-                types::data_type_size(jbgp.wei_dt));
-#endif
+
+        if (!jbgp.ip_bwd_d_global_b_transpose)
+            scratchpad.book(key_brgemm_primitive_buffer_b,
+                    (dim_t)jbgp.nthr * jbgp.gemm_batch_size * size_B,
+                    types::data_type_size(jbgp.wei_dt));
+        else
+            scratchpad.book(key_brgemm_primitive_buffer_b,
+                    (dim_t)jbgp.nb_oc * jbgp.nb_ic * size_B,
+                    types::data_type_size(jbgp.wei_dt));
     }
 
     if (jbgp.prop_kind == dnnl_backward_weights && jbgp.with_bias
