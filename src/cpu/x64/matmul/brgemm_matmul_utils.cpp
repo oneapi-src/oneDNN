@@ -142,8 +142,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             CHECK(memory_desc_init_by_tag(weights_md, desired_wei_tag));
             bgmmc.wei_tag = desired_wei_tag;
         } else {
+            format_tag_t transposed_wei_tag = pick(bgmmc.ndims - 2, ba, acb);
             bgmmc.wei_tag = memory_desc_matches_one_of_tag(
-                    weights_md, desired_wei_tag);
+                    weights_md, desired_wei_tag, transposed_wei_tag);
         }
         bgmmc.wei_k_blk = k_blk_gran;
         bgmmc.wei_n_blk = 64;
