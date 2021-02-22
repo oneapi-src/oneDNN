@@ -140,6 +140,33 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
     const auto icb_stride = src_layout_nxc
             ? ch_blk
             : (jcp.is_fused_conv ? 1 : jcp.ih) * jcp.iw * ch_blk;
+    const int vlen = cpu_isa_traits<isa>::vlen / sizeof(float);
+
+    auto get_input_spatial_index = [=](int oi, int ki) {
+        return (ki * dilate_w + oi * stride_w - pad_l);
+    };
+
+    auto get_input_offset = [=](int ii, int ci, int rep) {
+        return (ci * icb_stride + ii * iw_stride + rep * vlen)
+                * jcp.typesize_in;
+    };
+
+    int ii_start = 0;
+    int ii_end = -1;
+    if (jcp.is_resrc_depthwise) {
+        // find bounds of input spatial indices
+        bool first = true;
+        for (int ki = 0; ki < jcp.kw; ki++) {
+            int oi_start = get_ow_start(ki, pad_l);
+            int oi_end = get_ow_end(ur_w, ki, pad_r);
+            for (int oi = oi_start; oi < oi_end; oi++) {
+                int ii = get_input_spatial_index(oi, ki);
+                if (first || ii < ii_start) ii_start = ii;
+                if (first || ii > ii_end) ii_end = ii;
+                first = false;
+            }
+        }
+    }
 
     Label iter_exit_label;
 
@@ -154,7 +181,6 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
             mov(aux_reg_input, ptr[aux_reg_input_buffer_ptr]);
             add(aux_reg_input, reg_iw_offset);
         }
-        const int vlen = cpu_isa_traits<isa>::vlen / sizeof(float);
         const int c_tail = jcp.oc % jcp.ch_block;
         const int repeats = max_repeats();
         for (int i = 0; i < repeats; i++) {
@@ -164,6 +190,19 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
                 if ((ch + 1 == ur_ch_blocks) && is_ch_tail
                         && c_tail <= i * vlen)
                     continue;
+                if (jcp.is_resrc_depthwise) {
+                    // now we can load input once and reuse up to jcp.kw times
+                    for (int ii = ii_start; ii <= ii_end; ii++) {
+                        Vmm vmm_src = get_src_reg(ii);
+                        const int inp_off = get_input_offset(ii, ch, i);
+                        if (is_tail_load) {
+                            load_tail(vmm_src, aux_reg_input, inp_off,
+                                    (c_tail - i * vlen) * jcp.typesize_in);
+                        } else {
+                            uni_vmovups(vmm_src, ptr[aux_reg_input + inp_off]);
+                        }
+                    }
+                }
                 for (int kw = 0; kw < jcp.kw; kw++) {
                     int ker_off = ch * jcp.kh * jcp.kw * ch_blk + kw * ch_blk
                             + i * 4;
@@ -175,21 +214,19 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
                     int ow_start = get_ow_start(kw, pad_l);
                     int ow_end = get_ow_end(ur_w, kw, pad_r);
                     for (int ow = ow_start; ow < ow_end; ow++) {
-                        int inp_off = ch * icb_stride
-                                + (ow * stride_w - pad_l) * iw_stride
-                                + kw * dilate_w * iw_stride + i * vlen;
-
-                        Vmm vmm_src = get_src_reg(0);
-                        if (is_tail_load) {
-                            load_tail(vmm_src, aux_reg_input,
-                                    inp_off * jcp.typesize_in,
-                                    (c_tail - i * vlen) * jcp.typesize_in);
-                        } else {
-                            uni_vmovups(vmm_src,
-                                    ptr[aux_reg_input
-                                            + inp_off * jcp.typesize_in]);
+                        const int ii = get_input_spatial_index(ow, kw);
+                        Vmm vmm_src = jcp.is_resrc_depthwise ? get_src_reg(ii)
+                                                             : get_src_reg(0);
+                        if (!jcp.is_resrc_depthwise) {
+                            const int inp_off = get_input_offset(ii, ch, i);
+                            if (is_tail_load) {
+                                load_tail(vmm_src, aux_reg_input, inp_off,
+                                        (c_tail - i * vlen) * jcp.typesize_in);
+                            } else {
+                                uni_vmovups(
+                                        vmm_src, ptr[aux_reg_input + inp_off]);
+                            }
                         }
-
                         Vmm vmm_acc = get_acc_reg(
                                 i * ur_ch_blocks * ur_w + ch * ur_w + ow);
                         uni_vfmadd231ps(vmm_acc, vmm_src, vmm_ker);

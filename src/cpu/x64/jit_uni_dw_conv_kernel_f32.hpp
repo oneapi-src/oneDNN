@@ -82,7 +82,11 @@ private:
 
     inline Vmm get_ker_reg(int idx) { return Vmm(idx + 0); }
     inline Vmm get_src_reg(int idx) { return Vmm(idx + 1); }
-    inline int get_acc_reg_idx(int idx) { return idx + 4; }
+    inline int get_acc_reg_idx(int idx) {
+        const int max_regs
+                = utils::one_of(jcp.isa, avx512_common, avx512_core) ? 32 : 16;
+        return idx + (max_regs - jcp.ur_w * jcp.nb_ch_blocking * max_repeats());
+    }
     inline Vmm get_acc_reg(int idx) { return Vmm(get_acc_reg_idx(idx)); }
 
     void load_tail(
