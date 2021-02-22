@@ -46,6 +46,8 @@
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 
+#include "cpu/platform.hpp"
+
 #include "cpu/jit_utils/linux_perf/linux_perf.hpp"
 
 namespace dnnl {
