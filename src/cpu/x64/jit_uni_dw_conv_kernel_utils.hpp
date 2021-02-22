@@ -177,8 +177,23 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
                        : isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;
     jcp.ur_w = nstl::min(jcp.ur_w, jcp.ow);
 
+    jcp.ch_block = simd_w;
+    jcp.nb_ch = div_up(jcp.oc, jcp.ch_block);
+    jcp.nb_ch_blocking
+            = one_of(isa, avx512_common, avx512_core) ? 4 : isa == avx2 ? 3 : 2;
+    if (jcp.nb_ch < jcp.nb_ch_blocking) jcp.nb_ch_blocking = jcp.nb_ch;
+
     if (is_data_layout_nxc) {
         jcp.loop_order = loop_nhwcg;
+        const int resrc_depthwise_ur_w = (31 - jcp.kw + jcp.stride_w)
+                / (jcp.nb_ch_blocking + jcp.stride_w);
+        jcp.is_resrc_depthwise = (!is_bf16)
+                && one_of(isa, avx512_common, avx512_core)
+                && jcp.stride_w < jcp.kw && jcp.kw <= 5 && jcp.dilate_w == 0
+                && resrc_depthwise_ur_w >= 2;
+        if (jcp.is_resrc_depthwise) {
+            jcp.ur_w = nstl::min(jcp.ow, resrc_depthwise_ur_w);
+        }
         bool cache_aliasing
                 = (jcp.ngroups * jcp.iw * jcp.typesize_in) % 1024 == 0;
         if (cache_aliasing) {
@@ -242,12 +257,6 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
             && jcp.oc <= dst_d.padded_dims()[1]
             && jcp.ngroups <= weights_d.padded_dims()[0];
     if (!args_ok) return status::unimplemented;
-
-    jcp.ch_block = simd_w;
-    jcp.nb_ch = div_up(jcp.oc, jcp.ch_block);
-    jcp.nb_ch_blocking
-            = one_of(isa, avx512_common, avx512_core) ? 4 : isa == avx2 ? 3 : 2;
-    if (jcp.nb_ch < jcp.nb_ch_blocking) jcp.nb_ch_blocking = jcp.nb_ch;
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
 
