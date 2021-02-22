@@ -19,6 +19,8 @@
 
 #include "common/utils.hpp"
 
+#include "cpu/platform.hpp"
+
 #ifndef DNNL_ENABLE_JIT_PROFILING
 #define DNNL_ENABLE_JIT_PROFILING 1
 #endif
