@@ -881,6 +881,45 @@ struct jit_shuffle_call_s {
             = 0; // number of loop iterations over corresponding C batches
 };
 
+enum class binary_op_t : unsigned { none, c_blocked, n_spatial_c, n_c_spatial };
+
+enum class binary_bcast_t : unsigned {
+    none, // tensor operation
+    scalar,
+    per_c,
+    per_w
+};
+
+struct jit_binary_conf_t {
+    binary_op_t op_type = binary_op_t::none;
+    binary_bcast_t bcast_type = binary_bcast_t::none;
+    bool do_scale_src0 = false;
+    bool do_scale_src1 = false;
+    bool do_sum = false;
+    bool with_eltwise = false;
+    bool with_postops = false;
+    float sum_scale = 0.f;
+    bool use_stride_src1 = false;
+    bool broadcast_src1_value = false;
+    bool use_stride_rhs_postops = false;
+    bool postops_per_oc_broadcast_exists = false;
+    bool is_i8 = false;
+    bool is_bf16 = false;
+
+    data_type_t src0_type = data_type::undef;
+    data_type_t src1_type = data_type::undef;
+    data_type_t dst_type = data_type::undef;
+};
+
+struct jit_binary_call_s {
+    // keep all sizes at 8 bytes -- jit code expects this
+    const void *src0, *src1, *dst;
+    const float *scales_src0, *scales_src1;
+    size_t spat_offt_count;
+    const void *post_ops_binary_rhs_arg_vec;
+    size_t oc_l_off;
+};
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl
