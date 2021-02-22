@@ -395,6 +395,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::compute(
     if (jcp.ver == ver_vnni) {
         vpdpbusd(vreg_acc, vreg_src, vreg_wei, Xbyak::VexEncoding);
     } else if (jcp.is_depthwise) {
+        uni_vmovups(vmm_tmp, vreg_src);
         uni_vpmulld(vmm_tmp, vmm_tmp, vreg_wei);
         uni_vpaddd(vreg_acc, vreg_acc, vmm_tmp);
     } else {
