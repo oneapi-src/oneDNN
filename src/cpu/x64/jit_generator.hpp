@@ -466,10 +466,10 @@ public:
     }
 
     void uni_vmovntps(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
-        movntps(addr, x);
-    }
-    void uni_vmovntps(const Xbyak::Address &addr, const Xbyak::Ymm &x) {
-        vmovntps(addr, x);
+        if (is_valid_isa(avx))
+            vmovntps(addr, x);
+        else
+            movntps(addr, x);
     }
 
     void uni_vbroadcastss(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
@@ -1059,6 +1059,18 @@ public:
         vblendvps(x1, x2, op, msk);
     }
 
+    void uni_vblendps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op, const int imm) {
+        assert(!x1.isZMM() && !x2.isZMM());
+
+        if (is_valid_isa(avx))
+            vblendps(x1, x2, op, imm);
+        else {
+            assert(x1.getIdx() == x2.getIdx());
+            blendps(x1, op, imm);
+        }
+    }
+
     void uni_vroundps(
             const Xbyak::Xmm &x, const Xbyak::Operand &op, const int imm) {
         roundps(x, op, imm);
@@ -1097,6 +1109,12 @@ public:
         vmovmskps(x1, x2);
     }
 
+    void uni_vmovd(const Xbyak::Xmm &x, const Xbyak::Reg32 &r) {
+        if (is_valid_isa(avx))
+            vmovd(x, r);
+        else
+            movd(x, r);
+    }
     void uni_vmovd(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
         if (is_valid_isa(avx))
             vmovd(addr, x);
@@ -1804,7 +1822,7 @@ public:
      * on tail size, stored in Reg64. Tail size must be value from 0 to 3/7
      * (Xmm/Ymm). Tail process functions require integer as argument to specify
      * behavior for each tail size.
-     * 
+     *
      * Only supported for Xmm and Ymm.
      */
     template <typename Vmm>

@@ -32,7 +32,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace dnnl::impl::math;
+using namespace math;
 using namespace data_type;
 
 static float load(data_type_t src_dtype, const byte *base, dim_t offset) {

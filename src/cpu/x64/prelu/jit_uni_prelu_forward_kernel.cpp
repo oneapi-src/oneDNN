@@ -85,8 +85,8 @@ jit_uni_prelu_forward_kernel_t<Vmm>::jit_uni_prelu_forward_kernel_t(
                       ? reserve_vmm()
                       : 0)
     , io_(this, isa, {src_dt_, wei_dt_, dst_dt_}, {},
-              io::io_tail_conf_t<Vmm> {simd_w_, tail_size_, tail_opmask_,
-                      tail_vmm_mask_, reg_tmp_},
+              io::io_tail_conf_t {simd_w_, tail_size_, tail_opmask_,
+                      tail_vmm_mask_.getIdx(), reg_tmp_},
               io::io_emu_bf16_conf_t {}, create_saturation_vmm_map()) {}
 
 template <typename Vmm>
@@ -108,15 +108,15 @@ void jit_uni_prelu_forward_kernel_t<Vmm>::prepare_kernel_const_vars() {
 }
 
 template <typename Vmm>
-std::map<data_type_t, io::io_saturation_conf_t<Vmm>>
+std::map<data_type_t, io::io_saturation_conf_t>
 jit_uni_prelu_forward_kernel_t<Vmm>::create_saturation_vmm_map() const {
 
-    std::map<data_type_t, io::io_saturation_conf_t<Vmm>> saturation_map {};
+    std::map<data_type_t, io::io_saturation_conf_t> saturation_map {};
 
     if (saturation_needed_) {
         saturation_map.emplace(dst_dt_,
-                io::io_saturation_conf_t<Vmm> {
-                        vmm_zeros_, dst_saturate_ubound_, reg_tmp_});
+                io::io_saturation_conf_t {vmm_zeros_.getIdx(),
+                        dst_saturate_ubound_.getIdx(), reg_tmp_});
     }
 
     return saturation_map;

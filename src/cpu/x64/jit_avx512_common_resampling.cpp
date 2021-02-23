@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,15 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <assert.h>
-
 #include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
 #include "cpu/x64/jit_avx512_common_resampling.hpp"
@@ -45,40 +42,17 @@ struct jit_resampling_args_t {
     dim_t w; // fwd: ow  bwd: iw
 };
 
-struct jit_avx512_common_resampling_kernel : public jit_generator {
-    jit_avx512_common_resampling_kernel(const resampling_pd_t *pd) : pd_(pd) {}
-    void operator()(const jit_resampling_args_t *args) {
-        jit_generator::operator()(args);
-    }
-
-protected:
-    // Convert between vector register lengths.
-    template <typename Vmm>
-    static inline Vmm cvt_reg(const Xmm &xmm) {
-        return Vmm(xmm.getIdx());
-    }
-
-    const resampling_pd_t *pd_;
-
-    data_type_t data_type() const {
-        if (pd_->is_fwd())
-            return pd_->src_md()->data_type;
-        else
-            return pd_->diff_src_md()->data_type;
-    }
-    int dtype_size() const { return types::data_type_size(data_type()); }
-};
-
 // jit kernels
 namespace {
 
-struct jit_avx512_common_resampling_t
-    : public jit_avx512_common_resampling_kernel {
+struct jit_avx512_common_resampling_kernel_t
+    : public jit_avx512_common_resampling_kernel_base_t {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_resampling)
 
-
-    jit_avx512_common_resampling_t(const resampling_pd_t *pd)
-        : jit_avx512_common_resampling_kernel(pd) {
+    jit_avx512_common_resampling_kernel_t(const resampling_pd_t *pd)
+        : jit_avx512_common_resampling_kernel_base_t(pd)
+        , is_saturation_needed_(utils::one_of(dst_data_type(), data_type::u8,
+                  data_type::s8, data_type::s32)) {
 
         if (pd_->is_fwd()) {
             const memory_desc_wrapper src_d(pd_->src_md());
@@ -96,18 +70,27 @@ struct jit_avx512_common_resampling_t
         }
 
         number_of_loops_ = (inner_stride_ / simd_w());
-        tail_mask_ = (((size_t)1 << (inner_stride_ % simd_w())) - (size_t)1);
+        tail_size_ = inner_stride_ % simd_w();
         stack_size_needed_ = 0;
 
         cpu_isa_t isa = mayiuse(avx512_core_bf16)
                 ? avx512_core_bf16
                 : mayiuse(avx512_core) ? avx512_core : avx512_common;
 
-        io_ = utils::make_unique<io::jit_io_helper_t<Zmm>>(this, isa,
-                data_type(), io::io_conf_t<Zmm> {},
-                io::io_tail_conf_t<Zmm> {
-                        simd_w(), tail_mask_, k_tail_mask, Zmm(), reg_tmp},
-                io::io_emu_bf16_conf_t {});
+        const io::jit_io_multi_dt_helper_t<Zmm>::data_types_t data_types {
+                src_data_type(), dst_data_type()};
+        std::map<data_type_t, io::io_saturation_conf_t> saturation_conf {};
+        if (is_saturation_needed_) {
+            saturation_conf.emplace(dst_data_type(),
+                    io::io_saturation_conf_t {zmm_zero_saturation_.getIdx(),
+                            zmm_saturation_ubound_.getIdx(), reg_tmp});
+        }
+
+        io_ = utils::make_unique<io::jit_io_multi_dt_helper_t<Zmm>>(this, isa,
+                data_types, io::io_conf_t {},
+                io::io_tail_conf_t {
+                        simd_w(), tail_size_, k_tail_mask, 0, reg_tmp},
+                io::io_emu_bf16_conf_t {}, saturation_conf);
     }
 
 private:
@@ -177,7 +160,8 @@ private:
         preamble();
 
         io_->init_bf16();
-        if (tail_mask_) io_->prepare_tail_mask();
+        if (is_saturation_needed_) io_->init_saturate_f32({dst_data_type()});
+        if (tail_size_) io_->prepare_tail_mask();
 
         mov(reg_src, ptr[abi_param1 + GET_OFF(src)]);
         mov(reg_dst, ptr[abi_param1 + GET_OFF(dst)]);
@@ -391,7 +375,9 @@ private:
 
     void count_idx_and_weight_for_linear(const Xmm &coeff, const Zmm &weight,
             const Reg64 &idx, dim_t dim_max, rounding_mode rm) {
+        const Xmm xmm_weight = Xmm(weight.getIdx());
         Reg64 reg_idx_floor;
+
         if (pd_->is_fwd() && rm == rounding_mode::ceil) {
             EvexModifierRounding rm_ceil(EvexModifierRounding::T_RU_SAE);
             EvexModifierRounding rm_floor(EvexModifierRounding::T_RD_SAE);
@@ -408,15 +394,15 @@ private:
             reg_idx_floor = idx;
         }
 
-        vcvtsi2ss(cvt_reg<Xmm>(zmm_tmp), cvt_reg<Xmm>(zmm_tmp), reg_idx_floor);
-        vsubss(cvt_reg<Xmm>(weight), coeff,
+        vcvtsi2ss(xmm_tmp, xmm_tmp, reg_idx_floor);
+        vsubss(xmm_weight, coeff,
                 zmm_tmp); // W = coeff - idx
         if (rm == rounding_mode::floor) {
-            move_imm_float_to_xmm(cvt_reg<Xmm>(zmm_tmp), reg_tmp, 1.0f);
-            vsubss(cvt_reg<Xmm>(weight), cvt_reg<Xmm>(zmm_tmp),
-                    cvt_reg<Xmm>(weight)); // W = 1 - (coeff - idx)
+            move_imm_float_to_xmm(xmm_tmp, reg_tmp, 1.0f);
+            vsubss(xmm_weight, xmm_tmp,
+                    xmm_weight); // W = 1 - (coeff - idx)
         }
-        vbroadcastss(weight, cvt_reg<Xmm>(weight));
+        vbroadcastss(weight, xmm_weight);
 
         if (pd_->is_fwd()) {
             if (rm == rounding_mode::ceil) {
@@ -464,10 +450,11 @@ private:
         }
 
         add(reg_offset, channel_offset);
-        imul(reg_offset, reg_offset, dtype_size());
+        imul(reg_offset, reg_offset, types::data_type_size(src_data_type()));
 
         // read src
-        io_->load(ptr[reg_src, reg_offset], zmm_src, is_tail);
+        io_->at(src_data_type())
+                ->load(ptr[reg_src + reg_offset], zmm_src, is_tail);
 
         // mul src, weight
         vmulps(zmm_tmp, zmm_src, zmm_weight);
@@ -475,11 +462,11 @@ private:
     }
 
     void linear() {
-        int64_t channel_offset = 0;
+        int64_t number_of_processed_points = 0;
 
         auto resample_linear = ([&](bool is_tail) {
             auto call_linear = ([&](int i) {
-                linear_alg(channel_offset,
+                linear_alg(number_of_processed_points,
                         i % 2 ? rounding_mode::floor
                               : rounding_mode::ceil /* rounding_mode_w */,
                         rounding_mode::none /* rounding_mode_h */,
@@ -508,24 +495,26 @@ private:
                 }
             }
 
+            const size_t offset = number_of_processed_points
+                    * types::data_type_size(dst_data_type());
+            const auto address = ptr[reg_dst + offset];
             // store dst
-            io_->store(
-                    zmm_dst, ptr[reg_dst + channel_offset * dtype_size()], is_tail);
+            io_->at(dst_data_type())->store(zmm_dst, address, is_tail);
         });
 
         for (unsigned i = 0; i < number_of_loops_;
-                i++, channel_offset += simd_w())
+                i++, number_of_processed_points += simd_w())
             resample_linear(false);
 
-        if (tail_mask_ != 0) resample_linear(true);
+        if (tail_size_ != 0) resample_linear(true);
     }
 
     void bilinear() {
-        int64_t channel_offset = 0;
+        int64_t number_of_processed_points = 0;
 
         auto resample_linear = ([&](bool is_tail) {
             auto call_linear = ([&](int i, int j) {
-                linear_alg(channel_offset,
+                linear_alg(number_of_processed_points,
                         i % 2 ? rounding_mode::floor
                               : rounding_mode::ceil /* rounding_mode_w */,
                         j % 2 ? rounding_mode::floor
@@ -570,24 +559,26 @@ private:
                 }
             }
 
+            const size_t offset = number_of_processed_points
+                    * types::data_type_size(dst_data_type());
+            const auto address = ptr[reg_dst + offset];
             // store dst
-            io_->store(
-                    zmm_dst, ptr[reg_dst + channel_offset * dtype_size()], is_tail);
+            io_->at(dst_data_type())->store(zmm_dst, address, is_tail);
         });
 
         for (unsigned i = 0; i < number_of_loops_;
-                i++, channel_offset += simd_w())
+                i++, number_of_processed_points += simd_w())
             resample_linear(false);
 
-        if (tail_mask_ != 0) resample_linear(true);
+        if (tail_size_ != 0) resample_linear(true);
     }
 
     void trilinear() {
-        int64_t channel_offset = 0;
+        int64_t number_of_processed_points = 0;
 
         auto resample_linear = ([&](bool is_tail) {
             auto call_linear = ([&](int i, int j, int k) {
-                linear_alg(channel_offset,
+                linear_alg(number_of_processed_points,
                         i % 2 ? rounding_mode::floor
                               : rounding_mode::ceil /* rounding_mode_w */,
                         j % 2 ? rounding_mode::floor
@@ -646,16 +637,18 @@ private:
                 }
             }
 
+            const size_t offset = number_of_processed_points
+                    * types::data_type_size(dst_data_type());
+            const auto address = ptr[reg_dst + offset];
             // store dst
-            io_->store(
-                    zmm_dst, ptr[reg_dst + channel_offset * dtype_size()], is_tail);
+            io_->at(dst_data_type())->store(zmm_dst, address, is_tail);
         });
 
         for (unsigned i = 0; i < number_of_loops_;
-                i++, channel_offset += simd_w())
+                i++, number_of_processed_points += simd_w())
             resample_linear(false);
 
-        if (tail_mask_ != 0) resample_linear(true);
+        if (tail_size_ != 0) resample_linear(true);
     }
 
     void nearest_alg(int64_t channel_offset, bool is_tail = false) {
@@ -664,7 +657,7 @@ private:
         auto get_idx = ([&](const Reg64 &idx, const Xmm &coeff,
                                 dim_t dim_max_size) {
             round_to_near_away_from_zero(idx, coeff, xmm_zero_point_five,
-                    cvt_reg<Xmm>(zmm_tmp)); // round_to_nearest(coeff)
+                    xmm_tmp); // round_to_nearest(coeff)
             min(idx, dim_max_size - 1);
             max(idx, 0);
         });
@@ -689,27 +682,30 @@ private:
         add(reg_offset,
                 channel_offset); // iw * stride_w_ + ih * stride_h_ + id * stride_d_ + channel_offset
         imul(reg_offset, reg_offset,
-                dtype_size()); // (iw * stride_w_ + ih * stride_h_ + id * stride_d_ + channel_offset)*dt_size
+                types::data_type_size(
+                        src_data_type())); // (iw * stride_w_ + ih * stride_h_ + id * stride_d_ + channel_offset)*dt_size
 
         if (pd_->is_fwd()) {
             // read nearest to dst
-            io_->load(ptr[reg_src + reg_offset], zmm_dst, is_tail);
+            io_->at(src_data_type())
+                    ->load(ptr[reg_src + reg_offset], zmm_dst, is_tail);
         } else {
             // add nearest to dst
-            io_->load(ptr[reg_src + reg_offset], zmm_tmp, is_tail);
+            io_->at(src_data_type())
+                    ->load(ptr[reg_src + reg_offset], zmm_tmp, is_tail);
             vaddps(zmm_dst, zmm_dst, zmm_tmp);
         }
     }
 
     void nearest() {
-        int64_t channel_offset = 0;
+        int64_t number_of_processed_points = 0;
 
         auto resample_nearest = ([&](bool is_tail) {
             // zero dst
             vpxorq(zmm_dst, zmm_dst, zmm_dst);
 
             if (pd_->is_fwd()) {
-                nearest_alg(channel_offset, is_tail);
+                nearest_alg(number_of_processed_points, is_tail);
             } else {
                 Label label[6];
 
@@ -723,29 +719,32 @@ private:
                 for_begin(label[4], label[5], od.loop_counter, od.start.nearest,
                         od.end.nearest, reg_tmp);
 
-                nearest_alg(channel_offset, is_tail);
+                nearest_alg(number_of_processed_points, is_tail);
 
                 for_end(label[4], label[5], od.loop_counter, reg_tmp);
                 for_end(label[2], label[3], oh.loop_counter, reg_tmp);
                 for_end(label[0], label[1], ow.loop_counter, reg_tmp);
             }
 
+            const size_t offset = number_of_processed_points
+                    * types::data_type_size(dst_data_type());
+            const auto address = ptr[reg_dst + offset];
             // store dst
-            io_->store(
-                    zmm_dst, ptr[reg_dst + channel_offset * dtype_size()], is_tail);
+            io_->at(dst_data_type())->store(zmm_dst, address, is_tail);
         });
 
         for (unsigned i = 0; i < number_of_loops_;
-                i++, channel_offset += simd_w())
+                i++, number_of_processed_points += simd_w())
             resample_nearest(false);
 
-        if (tail_mask_ != 0) resample_nearest(true);
+        if (tail_size_ != 0) resample_nearest(true);
     }
 
-    static constexpr std::size_t simd_w() { return cpu_isa_traits<avx512_common>::vlen / sizeof(float); }
+    static constexpr std::size_t simd_w() {
+        return cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+    }
 
     Zmm zmm_src = Zmm(1);
-    Ymm ymm_dst = Ymm(2);
     Zmm zmm_dst = Zmm(2);
     Zmm zmm_weight = Zmm(3);
     Xmm xmm_coeff = Xmm(4);
@@ -754,8 +753,11 @@ private:
     Xmm xmm_w_coeff = Xmm(6);
     Xmm xmm_zero_point_five = Xmm(7);
     Zmm zmm_tmp = Zmm(8);
+    Xmm xmm_tmp = Xmm(8);
     Zmm zmm_tmp_weight = Zmm(9);
     Xmm xmm_tmp_factor = Xmm(9);
+    Zmm zmm_zero_saturation_ = Zmm(10);
+    Zmm zmm_saturation_ubound_ = Zmm(11);
 
     Opmask k_tail_mask = k6;
     Reg64 reg_src = rax;
@@ -771,30 +773,45 @@ private:
     bwd_counting_range_t oh;
     bwd_counting_range_t od;
 
-    std::unique_ptr<io::jit_io_helper_t<Zmm>> io_;
+    std::unique_ptr<io::jit_io_multi_dt_helper_t<Zmm>> io_;
 
     dim_t stride_d_ = 0;
     dim_t stride_h_ = 0;
     dim_t stride_w_ = 0;
     dim_t inner_stride_ = 0;
     unsigned number_of_loops_ = 0;
-    size_t tail_mask_ = 0;
-    bool use_bf16_emulation_ = false;
+    size_t tail_size_ = 0;
+    bool is_saturation_needed_ = false;
     unsigned stack_size_needed_ = 0;
 };
 
 } // namespace
 
-template <data_type_t d_type>
-status_t jit_avx512_common_resampling_bwd_t<d_type>::pd_t::init(
-        engine_t *engine) {
+jit_avx512_common_resampling_kernel_base_t::
+        jit_avx512_common_resampling_kernel_base_t(const resampling_pd_t *pd)
+    : pd_(pd) {}
+
+data_type_t jit_avx512_common_resampling_kernel_base_t::src_data_type() const {
+    if (pd_->is_fwd())
+        return pd_->src_md()->data_type;
+    else
+        return pd_->diff_dst_md()->data_type;
+}
+
+data_type_t jit_avx512_common_resampling_kernel_base_t::dst_data_type() const {
+    if (pd_->is_fwd())
+        return pd_->dst_md()->data_type;
+    else
+        return pd_->diff_src_md()->data_type;
+}
+
+status_t jit_avx512_common_resampling_bwd_t::pd_t::init(engine_t *engine) {
     using namespace format_tag;
     using namespace data_type;
-    bool ok = mayiuse(avx512_common)
-            && IMPLICATION(d_type == bf16, mayiuse(avx512_core)) && !is_fwd()
+    const bool ok = mayiuse(avx512_common) && !is_fwd()
             && !has_zero_dim_memory()
-            && utils::everyone_is(
-                    d_type, diff_src_md()->data_type, diff_dst_md()->data_type)
+            && platform::has_data_type_support(diff_dst_md()->data_type)
+            && platform::has_data_type_support(diff_src_md()->data_type)
             && set_default_params() == status::success
             && attr()->has_default_values();
     if (!ok) return status::unimplemented;
@@ -807,35 +824,32 @@ status_t jit_avx512_common_resampling_bwd_t<d_type>::pd_t::init(
     return status::success;
 }
 
-template <impl::data_type_t d_type>
-inline jit_avx512_common_resampling_bwd_t<
-        d_type>::jit_avx512_common_resampling_bwd_t(const pd_t *apd)
-    : primitive_t(apd) {}
+jit_avx512_common_resampling_bwd_t::~jit_avx512_common_resampling_bwd_t()
+        = default;
 
-template <impl::data_type_t d_type>
-status_t jit_avx512_common_resampling_bwd_t<d_type>::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(kernel_, new jit_avx512_common_resampling_t(pd())));
+status_t jit_avx512_common_resampling_bwd_t::init(engine_t *engine) {
+    CHECK(safe_ptr_assign(
+            kernel_, new jit_avx512_common_resampling_kernel_t(pd())));
     return kernel_->create_kernel();
 }
 
-template <impl::data_type_t d_type>
-jit_avx512_common_resampling_bwd_t<
-        d_type>::~jit_avx512_common_resampling_bwd_t()
-        = default;
-
-template <impl::data_type_t d_type>
-status_t jit_avx512_common_resampling_bwd_t<d_type>::execute(
+status_t jit_avx512_common_resampling_bwd_t::execute(
         const exec_ctx_t &ctx) const {
 
-    const auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    const auto diff_dst = CTX_IN_MEM(const unsigned char *, DNNL_ARG_DIFF_DST);
+    auto diff_src = CTX_OUT_MEM(unsigned char *, DNNL_ARG_DIFF_SRC);
 
-    const int OD = pd()->OD();
-    const int OH = pd()->OH();
-    const int OW = pd()->OW();
-    const int ID = pd()->ID();
-    const int IH = pd()->IH();
-    const int IW = pd()->IW();
+    const std::size_t diff_dst_dt_size
+            = types::data_type_size(pd()->diff_dst_md()->data_type);
+    const std::size_t diff_src_dt_size
+            = types::data_type_size(pd()->diff_src_md()->data_type);
+
+    const dim_t OD = pd()->OD();
+    const dim_t OH = pd()->OH();
+    const dim_t OW = pd()->OW();
+    const dim_t ID = pd()->ID();
+    const dim_t IH = pd()->IH();
+    const dim_t IW = pd()->IW();
 
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const dim_t inner_stride
@@ -845,10 +859,11 @@ status_t jit_avx512_common_resampling_bwd_t<d_type>::execute(
 
     parallel_nd(nsp_outer, ID, IH, IW,
             [&](dim_t nsp, dim_t id, dim_t ih, dim_t iw) {
-                dim_t diff_dst_off = nsp * OD * OH * OW * inner_stride;
-                dim_t diff_src_off
+                const dim_t diff_dst_off
+                        = nsp * OD * OH * OW * inner_stride * diff_dst_dt_size;
+                const dim_t diff_src_off
                         = (nsp * ID * IH * IW + id * IH * IW + ih * IW + iw)
-                        * inner_stride;
+                        * inner_stride * diff_src_dt_size;
                 jit_resampling_args_t args;
                 args.src = diff_dst + diff_dst_off;
                 args.dst = diff_src + diff_src_off;
@@ -860,9 +875,6 @@ status_t jit_avx512_common_resampling_bwd_t<d_type>::execute(
 
     return status_t();
 }
-
-template struct jit_avx512_common_resampling_bwd_t<data_type::bf16>;
-template struct jit_avx512_common_resampling_bwd_t<data_type::f32>;
 
 } // namespace x64
 } // namespace cpu

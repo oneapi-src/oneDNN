@@ -348,14 +348,11 @@ private:
             bool with_tail = false) const;
     void execute_broadcast_tail(const dnnl_data_type_t &data_type,
             const Vmm &tmp_reg, const Xbyak::Address &rhs_addr) const;
-    template <typename T>
-    typename std::enable_if<std::is_same<T, Xbyak::Zmm>::value>::type
-    load_rhs_tail_dynamically(const dnnl_data_type_t &data_type,
-            const T &tmp_vmm, const Xbyak::Address &rhs_addr) const;
-    template <typename T>
-    typename std::enable_if<!std::is_same<T, Xbyak::Zmm>::value>::type
-    load_rhs_tail_dynamically(const dnnl_data_type_t &data_type,
-            const T &tmp_vmm, const Xbyak::Address &rhs_addr) const;
+    void load_rhs_tail_dynamically_with_opmask(
+            const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
+            const Xbyak::Address &rhs_addr) const;
+    void load_rhs_tail_dynamically_with_gpr(
+            const dnnl_data_type_t &data_type, const Vmm &tmp_vmm) const;
     void load_rhs_tail_statically(const dnnl_data_type_t &data_type,
             const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) const;
     void execute_broadcast_no_tail(const dnnl_data_type_t &data_type,
@@ -382,7 +379,7 @@ private:
     const rhs_arg_static_params_t rhs_arg_static_params_;
     const Xbyak::Reg64 param1_;
     const bcast_set_t supported_strategy_set_;
-    static constexpr bool is_avx512_ = std::is_same<Vmm, Xbyak::Zmm>::value;
+    const bool is_avx512_ = is_superset(isa, avx512_common);
 
     static constexpr int sizeof_reg64 = 8;
     /*

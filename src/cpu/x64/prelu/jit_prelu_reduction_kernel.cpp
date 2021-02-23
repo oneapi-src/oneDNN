@@ -54,9 +54,9 @@ static dim_t get_tail_size(const cpu_prelu_bwd_pd_t *pd, const size_t simd_w,
 
 jit_prelu_reduction_kernel_t::jit_prelu_reduction_kernel_t(
         const cpu_prelu_bwd_pd_t *pd, int simd_w)
-    : simd_w_(simd_w)
-    , scratchpad_c_block_offset_(
-              utils::rnd_up(get_C(pd), alignment) * sizeof(float))
+    : scratchpad_c_block_offset_(
+            utils::rnd_up(get_C(pd), alignment) * sizeof(float))
+    , simd_w_(simd_w)
     , data_type_(pd->diff_weights_md(0)->data_type)
     , tail_size_(get_tail_size(pd, simd_w, zero_pad_size_)) {}
 
@@ -156,11 +156,11 @@ jit_uni_prelu_reduction_kernel_t<Vmm>::jit_uni_prelu_reduction_kernel_t(
     , saturation_lower_bound_(saturation_needed_ ? reserve_vmm() : 0)
     , saturation_upper_bound_(saturation_needed_ ? reserve_vmm() : 0)
     , io_(this, isa_, data_type_, {},
-              io::io_tail_conf_t<Vmm> {simd_w_, tail_size_, tail_opmask_,
-                      tail_vmm_mask_, reg_tmp_},
+              io::io_tail_conf_t {simd_w_, tail_size_, tail_opmask_,
+                      tail_vmm_mask_.getIdx(), reg_tmp_},
               io::io_emu_bf16_conf_t {},
-              io::io_saturation_conf_t<Vmm> {saturation_lower_bound_,
-                      saturation_upper_bound_, reg_tmp_}) {}
+              io::io_saturation_conf_t {saturation_lower_bound_.getIdx(),
+                      saturation_upper_bound_.getIdx(), reg_tmp_}) {}
 
 template <typename Vmm>
 size_t jit_uni_prelu_reduction_kernel_t<Vmm>::get_unrolling_factor(

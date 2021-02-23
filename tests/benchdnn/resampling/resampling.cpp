@@ -41,9 +41,10 @@ int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const float gen = ((97 * i) - 19 * kind + 101) % (range + 1);
-        const float value = (dt == dnnl_f32)
+        const float value = dt == dnnl_f32 || is_integral_dt(dt)
                 ? (f_min + gen) * (1.0f + 4.0f / range)
                 : (f_min + gen) / range;
+
         mem_fp.set_elem(i, round_to_nearest_representable(dt, value));
     });
 
@@ -152,12 +153,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->sdt, prb->ddt}, prb->dir, res);
 
-    // TODO: temporary disable post-ops and mixed dt on CPU
-    if (engine_tgt_kind == dnnl_cpu && (prb->sdt != prb->ddt)) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
-
     if (res->state == SKIPPED) return;
 
     if (is_nvidia_gpu()) {
@@ -234,11 +229,6 @@ int doit(const prb_t *prb, res_t *res) {
         if (bench_mode & CORR) {
             compute_ref_fwd(prb, src_fp, dst_fp, binary_po_fp);
             float trh = prb->alg == nearest ? 0.f : 3 * epsilon_dt(prb->ddt);
-
-            const auto &po = prb->attr.post_ops;
-            const bool has_binary = po.binary_index() != -1;
-            if (has_binary && prb->alg == linear)
-                trh = 50 * epsilon_dt(prb->ddt);
 
             if (is_nvidia_gpu()) {
                 // cuDNN precision is different from ref one due to different

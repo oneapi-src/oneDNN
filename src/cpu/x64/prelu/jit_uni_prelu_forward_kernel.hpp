@@ -84,7 +84,7 @@ private:
             const Xbyak::Address &src_addr, const Vmm &dst_vmm, bool tail);
     void uni_vfmadd132ps(
             const Vmm &x1, const Vmm &x2, const Xbyak::Operand &op, bool tail);
-    std::map<data_type_t, io::io_saturation_conf_t<Vmm>>
+    std::map<data_type_t, io::io_saturation_conf_t>
     create_saturation_vmm_map() const;
 
     const bool saturation_needed_ = false;

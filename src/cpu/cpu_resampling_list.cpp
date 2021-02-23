@@ -34,19 +34,14 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 const impl_list_item_t impl_list[] = {
-        CPU_INSTANCE_X64(jit_uni_resampling_fwd_t<avx512_common>)
-        CPU_INSTANCE_X64(jit_uni_resampling_fwd_t<avx>)
-        CPU_INSTANCE_X64(jit_uni_resampling_fwd_t<sse41>)
-        CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t<f32>)
-        CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t<bf16>)
-        CPU_INSTANCE(simple_resampling_fwd_t<f32>)
-        CPU_INSTANCE(simple_resampling_fwd_t<bf16>)
-        CPU_INSTANCE(simple_resampling_bwd_t<f32>)
-        CPU_INSTANCE(simple_resampling_bwd_t<bf16>)
-        CPU_INSTANCE(ref_resampling_fwd_t<f32>)
-        CPU_INSTANCE(ref_resampling_fwd_t<bf16>)
-        CPU_INSTANCE(ref_resampling_bwd_t<f32>)
-        CPU_INSTANCE(ref_resampling_bwd_t<bf16>)
+        CPU_INSTANCE_X64(jit_uni_resampling_fwd_t)
+        CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t)
+
+        CPU_INSTANCE(simple_resampling_fwd_t)
+        CPU_INSTANCE(simple_resampling_bwd_t)
+
+        CPU_INSTANCE(ref_resampling_fwd_t)
+        CPU_INSTANCE(ref_resampling_bwd_t)
         /* eol */
         nullptr,
 };

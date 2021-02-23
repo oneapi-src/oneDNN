@@ -87,7 +87,7 @@ private:
     void accumulate_weights_diff(const Vmm &partial_sum_vmm, const Vmm &tmp_vmm,
             const Xbyak::Address &dst_addr, bool tail);
     void finalize() override;
-    std::map<data_type_t, io::io_saturation_conf_t<Vmm>>
+    std::map<data_type_t, io::io_saturation_conf_t>
     create_saturation_vmm_map() const;
 
     const bool saturation_needed_diff_src_;

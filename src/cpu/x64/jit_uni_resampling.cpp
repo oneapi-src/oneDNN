@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_uni_resampling.hpp"
 
+#include "oneapi/dnnl/dnnl.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -35,67 +37,44 @@ namespace x64 {
 
 using namespace resampling_utils;
 
-template <cpu_isa_t isa>
-bool jit_uni_resampling_fwd_t<isa>::pd_t::post_ops_ok() {
-    const auto &post_ops = attr()->post_ops_;
-    const auto &entries = post_ops.entry_;
+static cpu_isa_t get_supported_isa(bool is_blocked_8_format) {
+    if (mayiuse(avx512_core_bf16)) return avx512_core_bf16;
+    if (mayiuse(avx512_core)) return avx512_core;
+    // YMM registers are used for the avx512 architecture when
+    // the datastream structure is based on an 8-block format.
+    // Unfortunately, registers from 16 to 31 cannot be used
+    // with avx512_common when using YMM. If the kernel does this,
+    // it will receive a SIGILL (Illegal instruction) error.
+    // Therefore, the avx version is preferred when primitive
+    // is running on avx512_common and with the 8-block format.
+    if (mayiuse(avx512_common) && !is_blocked_8_format) return avx512_common;
+    if (mayiuse(avx2)) return avx2;
+    if (mayiuse(avx)) return avx;
+    if (mayiuse(sse41)) return sse41;
 
-    for (const auto &entry : entries) {
-        if (entry.is_eltwise()) {
-            const auto alg = entry.eltwise.alg;
-            conf_.with_eltwise = eltwise_injector::is_supported(isa, alg);
-        } else if (entry.is_binary()) {
-            if (isa != avx512_core
-                    && entry.binary.src1_desc.data_type == data_type::bf16)
-                return false;
-
-            conf_.with_binary = true;
-        } else if (entry.is_sum() && entry.sum.scale != 0.f)
-        {
-            conf_.with_sum = true;
-            conf_.sum_scales.push(entry.sum.scale);
-        } else {
-            return false;
-        }
-    }
-
-    conf_.with_postops = conf_.with_eltwise || conf_.with_binary || conf_.with_sum;
-
-    return binary_injector::binary_args_broadcast_supported(
-            post_ops, dst_md(), get_supported_bcast_strategies());
+    return isa_any;
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_resampling_fwd_t<isa>::pd_t::init(engine_t *engine) {
+status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
     using namespace format_tag;
     using namespace data_type;
     using sm = primitive_attr_t::skip_mask_t;
 
-    conf_.data_type = src_md()->data_type;
+    const memory_desc_wrapper src_d(src_md());
+    const memory_desc_wrapper dst_d(dst_md());
 
-    const bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
-            && utils::one_of(conf_.data_type, f32, bf16)
-            && IMPLICATION(conf_.data_type == bf16,
-                    // extra check for isa is required because
-                    // the avx512_common version may reject a
-                    // problem because it is blocked by 8
-                    // instead of 16.
-                    is_superset(isa, avx512_common) && mayiuse(avx512_core))
-            && utils::everyone_is(
-                    conf_.data_type, src_md()->data_type, dst_md()->data_type)
-            && platform::has_data_type_support(conf_.data_type)
+    conf_.src_data_type = src_md()->data_type;
+    conf_.dst_data_type = dst_md()->data_type;
+
+    const bool ok = is_fwd() && !has_zero_dim_memory()
+            && platform::has_data_type_support(conf_.src_data_type)
+            && platform::has_data_type_support(conf_.dst_data_type)
             && set_default_params() == status::success
-            && attr()->has_default_values(sm::post_ops, conf_.data_type);
+            && attr()->has_default_values(sm::post_ops, conf_.dst_data_type);
     if (!ok) return status::unimplemented;
 
-    if (conf_.data_type == bf16)
-        conf_.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
-    else if (isa != avx512_common)
-        conf_.isa = mayiuse(avx2) ? avx2 : isa;
-    else
-        conf_.isa = isa;
-
     conf_.alg = desc()->alg_kind;
+    conf_.c = C();
     conf_.od = OD();
     conf_.oh = OH();
     conf_.ow = OW();
@@ -107,77 +86,144 @@ status_t jit_uni_resampling_fwd_t<isa>::pd_t::init(engine_t *engine) {
     if (conf_.alg == alg_kind::resampling_linear)
         conf_.number_of_corners = pow(2, conf_.ndims - 2);
 
-    conf_.dt_size = types::data_type_size(conf_.data_type);
+    conf_.src_dt_size = types::data_type_size(conf_.src_data_type);
+    conf_.dst_dt_size = types::data_type_size(conf_.dst_data_type);
 
-    const size_t L3_size = static_cast<size_t>(dnnl_get_max_threads())
+    conf_.is_saturation_needed
+            = utils::one_of(conf_.dst_data_type, s32, s8, u8);
+
+    const size_t L3_size = static_cast<size_t>(dnnl_get_current_num_threads())
             * platform::get_per_core_cache_size(3);
-    size_t input_data_size = conf_.dt_size;
-    size_t output_data_size = conf_.dt_size;
-    for (unsigned i = 0; i < conf_.ndims; ++i) {
-        output_data_size *= dst_md()->dims[i];
-        input_data_size *= src_md()->dims[i];
-    }
+    const size_t input_data_size = src_d.nelems(true) * conf_.src_dt_size;
+    const size_t output_data_size = dst_d.nelems(true) * conf_.dst_dt_size;
+    const size_t whole_data_size = input_data_size + output_data_size;
+    conf_.output_data_size = output_data_size;
     conf_.is_data_size_bigger_than_L3
-            = input_data_size + output_data_size > L3_size;
+            = L3_size > 0 ? whole_data_size > L3_size : false;
 
-    const memory_desc_wrapper src_d(src_md());
+    conf_.el_size_of_indices = sizeof(unsigned);
+
     conf_.inner_stride = src_d.blocking_desc().strides[ndims() - 1];
-    conf_.stride_d = IH() * IW() * conf_.inner_stride * conf_.dt_size;
-    conf_.stride_h = IW() * conf_.inner_stride * conf_.dt_size;
-    conf_.stride_w = conf_.inner_stride * conf_.dt_size;
+    conf_.stride_d = IH() * IW() * conf_.inner_stride * conf_.src_dt_size;
+    conf_.stride_h = IW() * conf_.inner_stride * conf_.src_dt_size;
+    conf_.stride_w = conf_.inner_stride * conf_.src_dt_size;
 
-    conf_.simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
-
-    const format_tag_t blocked_tag = is_superset(isa, avx512_common)
-            ? utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c)
-            : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
-
-    const format_tag_t blocked_format
-            = memory_desc_matches_tag(*src_md(), blocked_tag)
-            ? blocked_tag
-            : format_tag::undef;
+    const format_tag_t blocked_16_format = memory_desc_matches_one_of_tag(
+            *src_md(), nCw16c, nChw16c, nCdhw16c);
+    const bool is_blocked_16_format
+            = memory_desc_matches_tag(*dst_md(), blocked_16_format);
+    const format_tag_t blocked_8_format
+            = memory_desc_matches_one_of_tag(*src_md(), nCw8c, nChw8c, nCdhw8c);
+    const bool is_blocked_8_format
+            = memory_desc_matches_tag(*dst_md(), blocked_8_format);
     const format_tag_t nspc_format
             = memory_desc_matches_one_of_tag(*src_md(), nwc, nhwc, ndhwc);
     const format_tag_t ncsp_format
             = memory_desc_matches_one_of_tag(*src_md(), ncw, nchw, ncdhw);
 
-    if (memory_desc_matches_tag(*dst_md(), blocked_format)) {
+    if (is_blocked_16_format || is_blocked_8_format) {
         conf_.tag_kind = jit_memory_tag_kind_t::blocked;
-        conf_.tail = 0;
     } else if (memory_desc_matches_tag(*dst_md(), nspc_format)) {
         conf_.tag_kind = jit_memory_tag_kind_t::nspc;
-        conf_.tail = conf_.inner_stride % conf_.simd_w;
     } else if (memory_desc_matches_tag(*dst_md(), ncsp_format)) {
         conf_.tag_kind = jit_memory_tag_kind_t::ncsp;
-        if (conf_.alg == alg_kind::resampling_nearest)
-            conf_.tail = conf_.ow % conf_.simd_w;
-        else
-            conf_.tail = (conf_.od * conf_.oh * conf_.ow) % conf_.simd_w;
     } else
         return status::unimplemented;
 
-    conf_.el_size_of_indices = sizeof(unsigned);
+    conf_.isa = get_supported_isa(is_blocked_8_format);
 
-    if (!post_ops_ok()) return status::unimplemented;
+    const std::vector<injector::post_op_type> accepted_post_ops
+            = {injector::sum, injector::eltwise, injector::binary};
+    static constexpr bool sum_at_0_pos_only = false;
+    static constexpr bool sum_requires_scale_one = false;
+    const bcast_set_t accepted_broadcasts
+            = {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
+                    broadcasting_strategy_t::per_oc_spatial};
+    injector::post_ops_ok_args_t post_ops_args(conf_.isa, accepted_post_ops,
+            attr()->post_ops_, &dst_d, sum_at_0_pos_only,
+            sum_requires_scale_one, accepted_broadcasts);
+    if (!post_ops_ok(post_ops_args)) return status::unimplemented;
 
     conf_.post_ops = attr()->post_ops_;
+
+    static constexpr bool require_scale_one = false;
+    conf_.with_eltwise = conf_.with_binary = conf_.with_sum = false;
+    for (const auto &entry : conf_.post_ops.entry_) {
+        if (entry.is_eltwise()) {
+            conf_.with_eltwise = true;
+        } else if (entry.is_binary()) {
+            conf_.with_binary = true;
+        } else if (entry.is_sum(require_scale_one) && entry.sum.scale != 0.f) {
+            conf_.with_sum = true;
+            conf_.sum_scales.push(entry.sum.scale);
+        }
+    }
+    conf_.with_postops
+            = conf_.with_eltwise || conf_.with_binary || conf_.with_sum;
 
     return status::success;
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_resampling_fwd_t<isa>::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(kernel_,
-            new jit_uni_resampling_kernel<isa>(
-                    pd()->get_conf(), pd()->dst_md())));
+status_t jit_uni_resampling_fwd_t::get_proper_kernel_for_avx512(
+        const memory_desc_t *dst_md, const jit_resampling_conf_t &conf) {
+    const format_tag_t blocked_8_tag = utils::pick(conf.ndims - 3,
+            format_tag::nCw8c, format_tag::nChw8c, format_tag::nCdhw8c);
+    if (memory_desc_matches_tag(*pd()->src_md(), blocked_8_tag)) {
+        assert(is_superset(conf.isa, avx512_core)
+                && "YMMs 16-31 are not available for avx512_common.");
+        return safe_ptr_assign(kernel_,
+                new jit_uni_resampling_kernel_t<avx512_common, Xbyak::Ymm>(
+                        conf, dst_md));
+    }
+
+    return safe_ptr_assign(kernel_,
+            new jit_uni_resampling_kernel_t<avx512_common, Xbyak::Zmm>(
+                    conf, dst_md));
+}
+
+status_t jit_uni_resampling_fwd_t::get_proper_kernel_for_avx(
+        const memory_desc_t *dst_md, const jit_resampling_conf_t &conf) {
+    using namespace data_type;
+
+    const bool is_src_i8 = utils::one_of(conf.src_data_type, s8, u8);
+    const bool is_dst_i8 = utils::one_of(conf.dst_data_type, s8, u8);
+    if (is_src_i8 || is_dst_i8)
+        return safe_ptr_assign(kernel_,
+                new jit_uni_resampling_kernel_t<avx, Xbyak::Xmm>(conf, dst_md));
+
+    return safe_ptr_assign(kernel_,
+            new jit_uni_resampling_kernel_t<avx, Xbyak::Ymm>(conf, dst_md));
+}
+
+status_t jit_uni_resampling_fwd_t::get_proper_kernel_for_sse(
+        const memory_desc_t *dst_md, const jit_resampling_conf_t &conf) {
+    return safe_ptr_assign(kernel_,
+            new jit_uni_resampling_kernel_t<sse41, Xbyak::Xmm>(conf, dst_md));
+}
+
+status_t jit_uni_resampling_fwd_t::init(engine_t *engine) {
+    using namespace format_tag;
+
+    const memory_desc_t *dst_md = pd()->dst_md();
+    const jit_resampling_conf_t &conf = pd()->get_conf();
+
+    if (is_superset(conf.isa, avx512_common))
+        CHECK(get_proper_kernel_for_avx512(dst_md, conf));
+    else if (is_superset(conf.isa, avx))
+        CHECK(get_proper_kernel_for_avx(dst_md, conf));
+    else if (conf.isa == sse41) {
+        CHECK(get_proper_kernel_for_sse(dst_md, conf));
+    } else {
+        assert(!"Unsupported isa.");
+        return status::runtime_error;
+    }
 
     CHECK(kernel_->create_kernel());
 
     return fill_data_for_interpolation();
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_resampling_fwd_t<isa>::fill_data_for_interpolation() {
+status_t jit_uni_resampling_fwd_t::fill_data_for_interpolation() {
     switch (pd()->desc()->alg_kind) {
         case alg_kind::resampling_nearest: return fill_data_for_nearest();
         case alg_kind::resampling_linear: return fill_data_for_linear();
@@ -187,36 +233,34 @@ status_t jit_uni_resampling_fwd_t<isa>::fill_data_for_interpolation() {
     }
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_resampling_fwd_t<isa>::fill_data_for_nearest() {
+status_t jit_uni_resampling_fwd_t::fill_data_for_nearest() {
     // In kernel is used vmovdqu to get indices. This instruction don't have
     // tail processing possibilities on sse41 and avx. To avoid problems
     // with that, OW is aligned to simd width, because indices for ow
     // are read in the kernel.
     indices_.reserve(pd()->OD() + pd()->OH()
-            + utils::rnd_up(pd()->OW(), pd()->get_conf().simd_w));
+            + utils::rnd_up(pd()->OW(), kernel_->get_simd_w()));
 
     for (dim_t od = 0; od < pd()->OD(); od++) {
         const int offset_id = nearest_idx(od, pd()->OD(), pd()->ID())
                 * pd()->get_conf().stride_d;
-        indices_.push_back(offset_id);
+        indices_.emplace_back(offset_id);
     }
     for (dim_t oh = 0; oh < pd()->OH(); oh++) {
         const int offset_ih = nearest_idx(oh, pd()->OH(), pd()->IH())
                 * pd()->get_conf().stride_h;
-        indices_.push_back(offset_ih);
+        indices_.emplace_back(offset_ih);
     }
     for (dim_t ow = 0; ow < pd()->OW(); ow++) {
         const int offset_iw = nearest_idx(ow, pd()->OW(), pd()->IW())
                 * pd()->get_conf().stride_w;
-        indices_.push_back(offset_iw);
+        indices_.emplace_back(offset_iw);
     }
 
     return status::success;
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_resampling_fwd_t<isa>::fill_data_for_linear() {
+status_t jit_uni_resampling_fwd_t::fill_data_for_linear() {
     using namespace resampling_utils;
 
     const unsigned number_of_corners = pd()->get_conf().number_of_corners;
@@ -232,7 +276,7 @@ status_t jit_uni_resampling_fwd_t<isa>::fill_data_for_linear() {
         // all of them are read in the kernel.
         num_of_elements = number_of_corners
                 * utils::rnd_up(pd()->OD() * pd()->OH() * pd()->OW(),
-                        pd()->get_conf().simd_w);
+                        kernel_->get_simd_w());
 
         indices_.resize(num_of_elements);
         weights_.resize(num_of_elements);
@@ -315,8 +359,7 @@ status_t jit_uni_resampling_fwd_t<isa>::fill_data_for_linear() {
     return status::success;
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_resampling_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_resampling_fwd_t::execute(const exec_ctx_t &ctx) const {
     const auto src = CTX_IN_MEM(const uint8_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(uint8_t *, DNNL_ARG_DST);
 
@@ -335,10 +378,10 @@ status_t jit_uni_resampling_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     }
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_resampling_fwd_t<isa>::interpolate_nearest(const uint8_t *src,
+status_t jit_uni_resampling_fwd_t::interpolate_nearest(const uint8_t *src,
         uint8_t *dst, const std::vector<const void *> &post_ops_args) const {
-    const size_t dt_size = pd()->get_conf().dt_size;
+    const size_t src_dt_size = pd()->get_conf().src_dt_size;
+    const size_t dst_dt_size = pd()->get_conf().dst_dt_size;
     const size_t inner_stride = pd()->get_conf().inner_stride;
 
     const dim_t MB = pd()->MB();
@@ -359,9 +402,9 @@ status_t jit_uni_resampling_fwd_t<isa>::interpolate_nearest(const uint8_t *src,
     if (pd()->get_conf().tag_kind == jit_memory_tag_kind_t::ncsp) {
         parallel_nd(MB, C, OD, [&](dim_t mb, dim_t c, dim_t od) {
             const dim_t src_off
-                    = (mb * C + c) * ID * IH * IW * dt_size + indices_d[od];
-            const dim_t dst_off
-                    = ((mb * C + c) * OD * OH * OW + od * OH * OW) * dt_size;
+                    = (mb * C + c) * ID * IH * IW * src_dt_size + indices_d[od];
+            const dim_t dst_off = ((mb * C + c) * OD * OH * OW + od * OH * OW)
+                    * dst_dt_size;
 
             jit_resampling_call_s args = jit_resampling_call_s();
             args.src = src + src_off;
@@ -375,10 +418,11 @@ status_t jit_uni_resampling_fwd_t<isa>::interpolate_nearest(const uint8_t *src,
     } else if (pd()->get_conf().tag_kind == jit_memory_tag_kind_t::nspc
             || pd()->get_conf().tag_kind == jit_memory_tag_kind_t::blocked) {
         parallel_nd(nsp_outer, OD, OH, [&](dim_t nsp, dim_t od, dim_t oh) {
-            const dim_t src_off = nsp * ID * IH * IW * inner_stride * dt_size
+            const dim_t src_off
+                    = nsp * ID * IH * IW * inner_stride * src_dt_size
                     + indices_d[od] + indices_h[oh];
-            const dim_t dst_off
-                    = ((nsp * OD + od) * OH + oh) * OW * inner_stride * dt_size;
+            const dim_t dst_off = ((nsp * OD + od) * OH + oh) * OW
+                    * inner_stride * dst_dt_size;
 
             const size_t cb = std::div(nsp, CB).rem;
 
@@ -400,10 +444,10 @@ status_t jit_uni_resampling_fwd_t<isa>::interpolate_nearest(const uint8_t *src,
     return status::success;
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_resampling_fwd_t<isa>::interpolate_linear(const uint8_t *src,
+status_t jit_uni_resampling_fwd_t::interpolate_linear(const uint8_t *src,
         uint8_t *dst, const std::vector<const void *> &post_ops_args) const {
-    const size_t dt_size = pd()->get_conf().dt_size;
+    const size_t src_dt_size = pd()->get_conf().src_dt_size;
+    const size_t dst_dt_size = pd()->get_conf().dst_dt_size;
     const size_t inner_stride = pd()->get_conf().inner_stride;
 
     const dim_t MB = pd()->MB();
@@ -419,8 +463,8 @@ status_t jit_uni_resampling_fwd_t<isa>::interpolate_linear(const uint8_t *src,
 
     if (pd()->get_conf().tag_kind == jit_memory_tag_kind_t::ncsp) {
         parallel_nd(MB, C, [&](dim_t mb, dim_t c) {
-            const dim_t src_off = (mb * C + c) * ID * IH * IW * dt_size;
-            const dim_t dst_off = (mb * C + c) * OD * OH * OW * dt_size;
+            const dim_t src_off = (mb * C + c) * ID * IH * IW * src_dt_size;
+            const dim_t dst_off = (mb * C + c) * OD * OH * OW * dst_dt_size;
 
             jit_resampling_call_s args = jit_resampling_call_s();
             args.batch_of_sp_points_to_process = OW * OH * OD;
@@ -445,9 +489,10 @@ status_t jit_uni_resampling_fwd_t<isa>::interpolate_linear(const uint8_t *src,
         const float *weights_back = &weights_[2 * (OW + OH) + OD];
 
         parallel_nd(nsp_outer, OD, OH, [&](dim_t nsp, dim_t od, dim_t oh) {
-            const dim_t src_off = nsp * ID * IH * IW * inner_stride * dt_size;
+            const dim_t src_off
+                    = nsp * ID * IH * IW * inner_stride * src_dt_size;
             const dim_t dst_off = (((nsp * OD + od) * OH + oh) * OW)
-                    * inner_stride * dt_size;
+                    * inner_stride * dst_dt_size;
 
             const size_t cb = std::div(nsp, CB).rem;
 
@@ -478,10 +523,6 @@ status_t jit_uni_resampling_fwd_t<isa>::interpolate_linear(const uint8_t *src,
 
     return status::success;
 }
-
-template struct jit_uni_resampling_fwd_t<sse41>;
-template struct jit_uni_resampling_fwd_t<avx>;
-template struct jit_uni_resampling_fwd_t<avx512_common>;
 
 } // namespace x64
 } // namespace cpu

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t data_type>
 struct ref_resampling_fwd_t : public primitive_t {
     struct pd_t : public cpu_resampling_fwd_pd_t {
         using cpu_resampling_fwd_pd_t::cpu_resampling_fwd_pd_t;
@@ -45,11 +44,11 @@ struct ref_resampling_fwd_t : public primitive_t {
             using sm = primitive_attr_t::skip_mask_t;
 
             bool ok = is_fwd()
-                    && utils::everyone_is(
-                            data_type, src_md()->data_type, dst_md()->data_type)
-                    && platform::has_data_type_support(data_type)
+                    && platform::has_data_type_support(src_md()->data_type)
+                    && platform::has_data_type_support(dst_md()->data_type)
                     && set_default_params() == status::success
-                    && attr()->has_default_values(sm::post_ops, data_type);
+                    && attr()->has_default_values(
+                            sm::post_ops, dst_md()->data_type);
             if (!ok) return status::unimplemented;
 
             return status::success;
@@ -58,8 +57,6 @@ struct ref_resampling_fwd_t : public primitive_t {
 
     ref_resampling_fwd_t(const pd_t *apd);
     ~ref_resampling_fwd_t();
-
-    using data_t = typename prec_traits<data_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
@@ -73,7 +70,6 @@ private:
     const ref_post_ops_t ref_post_ops_;
 };
 
-template <impl::data_type_t data_type>
 struct ref_resampling_bwd_t : public primitive_t {
     struct pd_t : public cpu_resampling_bwd_pd_t {
         using cpu_resampling_bwd_pd_t::cpu_resampling_bwd_pd_t;
@@ -83,9 +79,8 @@ struct ref_resampling_bwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             bool ok = !is_fwd()
-                    && utils::everyone_is(data_type, diff_src_md()->data_type,
-                            diff_dst_md()->data_type)
-                    && platform::has_data_type_support(data_type)
+                    && platform::has_data_type_support(diff_src_md()->data_type)
+                    && platform::has_data_type_support(diff_dst_md()->data_type)
                     && set_default_params() == status::success
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
@@ -96,8 +91,6 @@ struct ref_resampling_bwd_t : public primitive_t {
 
     ref_resampling_bwd_t(const pd_t *apd);
     ~ref_resampling_bwd_t();
-
-    using data_t = typename prec_traits<data_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward(ctx);

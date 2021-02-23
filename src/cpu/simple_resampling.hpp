@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,23 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t data_type>
+struct simple_resampling_base_t {
+    simple_resampling_base_t(const resampling_pd_t *pd) : pd_(pd) {}
+    virtual ~simple_resampling_base_t() = default;
+
+    virtual status_t init() = 0;
+    virtual status_t execute(const exec_ctx_t &ctx) const = 0;
+
+protected:
+    const resampling_pd_t *pd_;
+
+    dim_t nsp_outer_ = 0;
+    dim_t stride_d_ = 0;
+    dim_t stride_h_ = 0;
+    dim_t stride_w_ = 0;
+    dim_t inner_stride_ = 0;
+};
+
 struct simple_resampling_fwd_t : public primitive_t {
     struct pd_t : public cpu_resampling_fwd_pd_t {
         using cpu_resampling_fwd_pd_t::cpu_resampling_fwd_pd_t;
@@ -47,12 +63,12 @@ struct simple_resampling_fwd_t : public primitive_t {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
-            bool ok = is_fwd() && !has_zero_dim_memory()
-                    && utils::everyone_is(
-                            data_type, src_md()->data_type, dst_md()->data_type)
-                    && platform::has_data_type_support(data_type)
+            const bool ok = is_fwd() && !has_zero_dim_memory()
+                    && platform::has_data_type_support(src_md()->data_type)
+                    && platform::has_data_type_support(dst_md()->data_type)
                     && set_default_params() == status::success
-                    && attr()->has_default_values(sm::post_ops, data_type);
+                    && attr()->has_default_values(
+                            sm::post_ops, dst_md()->data_type);
             if (!ok) return status::unimplemented;
 
             format_tag_t dat_tag = memory_desc_matches_one_of_tag(*src_md(),
@@ -67,45 +83,16 @@ struct simple_resampling_fwd_t : public primitive_t {
 
     simple_resampling_fwd_t(const pd_t *apd);
     status_t init(engine_t *engine) override;
-    ~simple_resampling_fwd_t();
+    ~simple_resampling_fwd_t() = default;
 
-    using data_t = typename prec_traits<data_type>::type;
-
-    status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
-    }
+    status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    void fill_coeffs();
-    void nearest(const data_t *src, data_t *dst,
-            ref_post_ops_t::args_t &po_args, dim_t od, dim_t oh,
-            dim_t ow) const;
-    void linear(const data_t *src, data_t *dst, ref_post_ops_t::args_t &po_args,
-            dim_t od, dim_t oh, dim_t ow) const;
-    void bilinear(const data_t *src, data_t *dst,
-            ref_post_ops_t::args_t &po_args, dim_t od, dim_t oh,
-            dim_t ow) const;
-    void trilinear(const data_t *src, data_t *dst,
-            ref_post_ops_t::args_t &po_args, dim_t od, dim_t oh,
-            dim_t ow) const;
-    void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    dim_t nsp_outer_ = 0;
-    dim_t stride_d_ = 0;
-    dim_t stride_h_ = 0;
-    dim_t stride_w_ = 0;
-    dim_t inner_stride_ = 0;
-    std::vector<resampling_utils::linear_coeffs_t> linear_coeffs_;
-    const bool are_postops_set;
-    const ref_post_ops_t ref_post_ops_;
-    std::function<void(const data_t *, data_t *, ref_post_ops_t::args_t &,
-            dim_t, dim_t, dim_t)>
-            interpolate_fn_;
+    std::unique_ptr<simple_resampling_base_t> kernel_;
 };
 
-template <impl::data_type_t data_type>
 struct simple_resampling_bwd_t : public primitive_t {
     struct pd_t : public cpu_resampling_bwd_pd_t {
         using cpu_resampling_bwd_pd_t::cpu_resampling_bwd_pd_t;
@@ -115,10 +102,9 @@ struct simple_resampling_bwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
-            bool ok = !is_fwd() && !has_zero_dim_memory()
-                    && utils::everyone_is(data_type, diff_src_md()->data_type,
-                            diff_dst_md()->data_type)
-                    && platform::has_data_type_support(data_type)
+            const bool ok = !is_fwd() && !has_zero_dim_memory()
+                    && platform::has_data_type_support(diff_dst_md()->data_type)
+                    && platform::has_data_type_support(diff_src_md()->data_type)
                     && set_default_params() == status::success
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
@@ -135,38 +121,14 @@ struct simple_resampling_bwd_t : public primitive_t {
 
     simple_resampling_bwd_t(const pd_t *apd);
     status_t init(engine_t *engine) override;
-    ~simple_resampling_bwd_t();
+    ~simple_resampling_bwd_t() = default;
 
-    using data_t = typename prec_traits<data_type>::type;
-
-    status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward(ctx);
-        return status::success;
-    }
+    status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    void fill_coeffs();
-    void fill_weights();
-    void nearest(data_t *diff_src, const data_t *diff_dst, dim_t id, dim_t ih,
-            dim_t iw) const;
-    void linear(data_t *diff_src, const data_t *diff_dst, dim_t id, dim_t ih,
-            dim_t iw) const;
-    void bilinear(data_t *diff_src, const data_t *diff_dst, dim_t id, dim_t ih,
-            dim_t iw) const;
-    void trilinear(data_t *diff_src, const data_t *diff_dst, dim_t id, dim_t ih,
-            dim_t iw) const;
-    void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    dim_t nsp_outer_ = 0;
-    dim_t stride_d_ = 0;
-    dim_t stride_h_ = 0;
-    dim_t stride_w_ = 0;
-    dim_t inner_stride_ = 0;
-    std::vector<resampling_utils::bwd_linear_coeffs_t> bwd_linear_coeffs_;
-    std::vector<float> bwd_linear_weights_;
-    std::function<void(data_t *, const data_t *, dim_t, dim_t, dim_t)>
-            interpolate_fn_;
+    std::unique_ptr<simple_resampling_base_t> kernel_;
 };
 
 } // namespace cpu

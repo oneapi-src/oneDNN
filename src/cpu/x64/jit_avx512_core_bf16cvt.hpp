@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,17 +81,22 @@ struct bf16_emulation_t {
         host_->vfmadd231ps(acc, tr1_, tr0_);
     }
 
-    void vcvtneps2bf16(Ymm_t &out, Zmm_t in) {
-        vcvtneps2bf16(out, in, tr0_, one_, even_, selector_);
-    }
+    void vcvtneps2bf16(Xmm_t &out, Xmm_t &in) {
+        const bool input_is_zmm = in.isZMM() && out.isYMM();
+        const bool input_is_ymm = in.isYMM() && out.isXMM();
+        assert((input_is_zmm || input_is_ymm)
+                && "Incorrect usage of vcvtneps2bf16 instruction.");
 
-    void vcvtneps2bf16(Xmm_t &out, Ymm_t in) {
-        const Ymm_t tr0_y {tr0_.getIdx()};
-        const Ymm_t even_y {even_.getIdx()};
-        const Ymm_t selector_y {selector_.getIdx()};
-        const Ymm_t one_y {one_.getIdx()};
+        if (input_is_zmm)
+            vcvtneps2bf16(out, in, tr0_, one_, even_, selector_);
+        else if (input_is_ymm) {
+            const Ymm_t tr0_y {tr0_.getIdx()};
+            const Ymm_t even_y {even_.getIdx()};
+            const Ymm_t selector_y {selector_.getIdx()};
+            const Ymm_t one_y {one_.getIdx()};
 
-        vcvtneps2bf16(out, in, tr0_y, one_y, even_y, selector_y);
+            vcvtneps2bf16(out, in, tr0_y, one_y, even_y, selector_y);
+        }
     }
 
 private:

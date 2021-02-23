@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,43 +34,69 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-static bcast_set_t get_supported_bcast_strategies() {
-    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
-            broadcasting_strategy_t::per_oc_spatial};
-}
-
-template <cpu_isa_t isa>
-struct jit_uni_resampling_kernel : public jit_generator {
-
+struct jit_uni_resampling_kernel_base_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_resampling)
 
-    jit_uni_resampling_kernel(
-            const jit_resampling_conf_t conf, const memory_desc_t *dst_md);
+    jit_uni_resampling_kernel_base_t(const jit_resampling_conf_t &conf)
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, conf.isa)
+        , conf_(conf)
+        , sum_scales_(conf_.sum_scales) {}
 
-    virtual ~jit_uni_resampling_kernel() = default;
+    virtual ~jit_uni_resampling_kernel_base_t() = default;
+
+    virtual std::size_t get_simd_w() = 0;
 
 protected:
+    const jit_resampling_conf_t &conf_;
+    std::queue<float> sum_scales_;
+};
+
+template <cpu_isa_t isa, typename Vmm>
+struct jit_uni_resampling_kernel_t : public jit_uni_resampling_kernel_base_t {
+
+    jit_uni_resampling_kernel_t(
+            const jit_resampling_conf_t &conf, const memory_desc_t *dst_md);
+
+    virtual ~jit_uni_resampling_kernel_t() = default;
+
+    std::size_t get_simd_w() override { return simd_w_; }
+
+private:
     using Xmm = Xbyak::Xmm;
     using Ymm = Xbyak::Ymm;
     using Zmm = Xbyak::Zmm;
     using Opmask = Xbyak::Opmask;
     using Reg64 = Xbyak::Reg64;
-
-    using Vmm = typename cpu_isa_traits<isa>::Vmm;
+    using c_oriented_generation_fn_t = std::function<void(const bool)>;
 
     constexpr int vmm_idx(int idx) const {
-        return (cpu_isa_traits<avx>::n_vregs - 1) - idx;
+        return (cpu_isa_traits<isa>::n_vregs - 1) - idx;
     }
 
-    void apply_sum(const int data_idx, const bool is_tail);
+    bool can_movntps_be_used() const;
+    std::size_t calculate_tail_size() const;
+    int get_channels_to_compute_without_tail(
+            bool is_tail_in_blocked_format) const;
 
+    std::map<data_type_t, io::io_saturation_conf_t>
+    create_saturation_vmm_map() const;
+
+    void get_params_for_linear_in_c_oriented_format();
+
+    void preserve_zero_padding_in_post_ops(int data_idx);
+    void apply_sum(const int data_idx, const bool is_tail);
     void apply_postops(const int data_idx, const bool is_tail,
             const Reg64 *reg_c = nullptr);
 
+    void preserve_zero_padding(
+            int c_to_compute_without_tail, const bool is_tail);
+
+    void interpolate_c_oriented_format(
+            const c_oriented_generation_fn_t &generation_fn);
     void nearest_ncsp_format();
-    void nearest_c_oriented_format();
+    void nearest_c_oriented_format(const bool is_tail_in_blocked_format);
     void linear_ncsp_format();
-    void linear_c_oriented_format();
+    void linear_c_oriented_format(const bool is_tail_in_blocked_format);
 
     void generate() override;
 
@@ -84,9 +110,17 @@ protected:
     const Vmm vmm_src_ = Vmm(2);
     const Vmm vmm_weights_ = Vmm(3);
     const Vmm vmm_indices_ = Vmm(4);
+    const Vmm vmm_tmp_gather_ = Vmm(5);
     const Vmm vmm_sum_scale_ = Vmm(7);
     const Vmm vmm_tmp_ = Vmm(8);
     const Vmm vmm_post_op_helper_ = Vmm(9);
+    const Vmm vmm_zero_saturation_ = isa == avx512_common ? Vmm(18) : Vmm(10);
+    const Vmm vmm_saturation_ubound_ = isa == avx512_common ? Vmm(19) : Vmm(11);
+
+    const Zmm vmm_bf16_emu_1_ = Zmm(20);
+    const Zmm vmm_bf16_emu_2_ = Zmm(21);
+    const Zmm vmm_bf16_emu_3_ = Zmm(22);
+    const Zmm vmm_bf16_emu_4_ = Zmm(23);
 
     const Opmask &k_tail_mask_ = k3;
     const Opmask &k_full_mask_ = k4;
@@ -138,9 +172,18 @@ protected:
     const Reg64 &reg_src_bbl_ = r14;
     const Reg64 &reg_src_bbr_ = r15;
 
-    jit_resampling_conf_t conf_;
-    io::jit_io_helper_t<Vmm> io_;
-    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+    static constexpr bool is_zmm_ = std::is_same<Vmm, Xbyak::Zmm>::value;
+    static constexpr bool is_ymm_ = std::is_same<Vmm, Xbyak::Ymm>::value;
+    static constexpr bool is_xmm_ = std::is_same<Vmm, Xbyak::Ymm>::value;
+    static constexpr std::size_t vlen_ = is_zmm_ ? 64 : is_ymm_ ? 32 : 16;
+    static constexpr std::size_t simd_w_ = vlen_ / sizeof(float);
+    const std::size_t tail_size_;
+
+    bool any_binary_postop_is_per_oc_bcast_type_ = false;
+    bool any_binary_postop_is_per_oc_sp_bcast_type_ = false;
+
+    io::jit_io_multi_dt_helper_t<Vmm> io_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa, Vmm>>
             postops_injector_;
 };
 } // namespace x64
