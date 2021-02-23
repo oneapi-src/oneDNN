@@ -498,7 +498,7 @@ static void init_info_convolution(engine_t *e, pd_t *s, char *buffer) {
                     s->KSD(), s->KDD(), s->padFront(), s->IH(), s->OH(),
                     s->KH(), s->KSH(), s->KDH(), s->padT(), s->IW(), s->OW(),
                     s->KW(), s->KSW(), s->KDW(), s->padL());
-    } else {
+    } else if (s->ndims() == 4) {
         if (s->with_groups())
             DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
                     "mb" DFMT "_g" DFMT "ic" DFMT "oc" DFMT "_ih" DFMT "oh" DFMT
@@ -514,6 +514,19 @@ static void init_info_convolution(engine_t *e, pd_t *s, char *buffer) {
                     "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
                     s->MB(), s->IC(), s->OC(), s->IH(), s->OH(), s->KH(),
                     s->KSH(), s->KDH(), s->padT(), s->IW(), s->OW(), s->KW(),
+                    s->KSW(), s->KDW(), s->padL());
+    } else {
+        if (s->with_groups())
+            DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
+                    "mb" DFMT "_g" DFMT "ic" DFMT "oc" DFMT "_iw" DFMT "ow" DFMT
+                    "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
+                    s->MB(), s->G(), s->IC(), s->OC(), s->IW(), s->OW(),
+                    s->KW(), s->KSW(), s->KDW(), s->padL());
+        else
+            DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
+                    "mb" DFMT "_ic" DFMT "oc" DFMT "_iw" DFMT "ow" DFMT
+                    "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
+                    s->MB(), s->IC(), s->OC(), s->IW(), s->OW(), s->KW(),
                     s->KSW(), s->KDW(), s->padL());
     }
 
