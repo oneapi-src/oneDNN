@@ -72,6 +72,14 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
     return status::success;
 }
 
+static bool should_gemm_execute_sum_po(
+        const gemm_based::params_t &params) noexcept {
+    const auto &po = params.pp_attr_.post_ops_;
+    static constexpr int sum_idx = 0;
+    return po.len() > 0 && po.contain(primitive_kind::sum, sum_idx)
+            && params.dst_is_acc_;
+}
+
 template <impl::data_type_t dst_type>
 status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
     auto check_attr_oscale = [&]() -> bool {
@@ -102,15 +110,11 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
 
     // check post-ops
     if (check_attr_post_ops()) {
-        auto &po = params_.pp_attr_.post_ops_;
-        const int sum_idx = 0;
-        bool with_sum
-                = po.len() > 0 && po.contain(primitive_kind::sum, sum_idx);
-        if (with_sum && params_.dst_is_acc_) {
+        if (should_gemm_execute_sum_po(params_)) {
             // set state
+            const auto &po = params_.pp_attr_.post_ops_;
+            static constexpr int sum_idx = 0;
             params_.gemm_beta_ = po.entry_[sum_idx].sum.scale;
-            // drop sum from pp_attributes, as it will be applied by gemm
-            po.entry_.erase(po.entry_.begin());
         }
     } else {
         return status::unimplemented;
@@ -121,6 +125,11 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
             || !params_.pp_attr_.has_default_values();
 
     return status::success;
+}
+
+template <impl::data_type_t dst_type>
+bool gemm_bf16_matmul_t<dst_type>::should_skip_sum_po() const noexcept {
+    return should_gemm_execute_sum_po(pd()->params());
 }
 
 template <impl::data_type_t dst_type>

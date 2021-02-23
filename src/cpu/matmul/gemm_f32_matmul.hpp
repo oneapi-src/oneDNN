@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,11 +51,14 @@ struct gemm_f32_matmul_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         if (pd()->params().has_pp_kernel_) {
+
+            const bool skip_sum
+                    = should_skip_sum_po(); // sum can be done by gemm itself
             CHECK(safe_ptr_assign(pp_kernel_,
                     pp_kernel_t::create(pd()->N(), pd()->M(), pd()->ldc(),
                             &pd()->params().pp_attr_,
                             pd()->desc()->bias_desc.data_type, pd()->dst_md(),
-                            false)));
+                            skip_sum)));
             return pp_kernel_->create_kernel();
         }
 
@@ -79,6 +82,7 @@ struct gemm_f32_matmul_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
+    bool should_skip_sum_po() const noexcept;
 
     using pp_kernel_t = inner_product_utils::pp_kernel_t<acc_type, dst_type>;
     std::unique_ptr<pp_kernel_t> pp_kernel_;

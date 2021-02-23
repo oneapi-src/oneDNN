@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #ifndef CPU_PRIMITIVE_ATTR_POSTOPS_HPP
 #define CPU_PRIMITIVE_ATTR_POSTOPS_HPP
+
+#include <vector>
 
 #include "common/primitive.hpp"
 #include "common/primitive_attr.hpp"
@@ -63,7 +65,7 @@ struct ref_post_ops_t {
         const memory_desc_t *dst_md; // binary arg
     };
 
-    ref_post_ops_t(const post_ops_t &po);
+    ref_post_ops_t(const post_ops_t &po, bool skip_sum = false);
 
     virtual ~ref_post_ops_t() = default;
 
@@ -71,6 +73,10 @@ struct ref_post_ops_t {
 
 private:
     const post_ops_t &po_;
+    // some primitives for example gemm are able to perform sum postop itself,
+    // in such cases executing sum should be skipped
+    const bool skip_sum_;
+
     std::vector<ref_eltwise_scalar_fwd_t> eltwise_po_;
     std::vector<ref_binary_scalar_t> binary_po_;
 };
