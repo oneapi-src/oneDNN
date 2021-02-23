@@ -184,8 +184,8 @@ rhs_arg_static_params_t::rhs_arg_static_params_t(
     , use_exact_tail_scalar_bcast(use_exact_tail_scalar_bcast)
     , is_opmask_set_(is_opmask_set) {}
 
-template <cpu_isa_t isa>
-jit_uni_binary_injector_t<isa>::jit_uni_binary_injector_t(
+template <cpu_isa_t isa, typename Vmm>
+jit_uni_binary_injector_t<isa, Vmm>::jit_uni_binary_injector_t(
         jit_generator *host, const static_params_t &static_params)
     : host_(host)
     , rhs_arg_static_params_(static_params.rhs_arg_static_params)
@@ -230,8 +230,8 @@ static bool rhs_arg_params_differ(size_t vmm_idx1, size_t vmm_idx2,
     return true;
 }
 
-template <cpu_isa_t isa>
-int jit_uni_binary_injector_t<isa>::adjust_temp_vmm_hint(
+template <cpu_isa_t isa, typename Vmm>
+int jit_uni_binary_injector_t<isa, Vmm>::adjust_temp_vmm_hint(
         int user_hint, int start_idx, int end_idx, int max_vmm_idx) const {
     const bool user_hint_in_vector_range
             = user_hint >= start_idx && user_hint <= end_idx;
@@ -288,8 +288,8 @@ static void restore_stack(jit_generator *host, const Vmm &vmm) {
     host->add(host->rsp, injector_utils::vmm_size_t<Vmm>::bytes);
 }
 
-template <cpu_isa_t isa>
-std::pair<bool, int> jit_uni_binary_injector_t<isa>::should_preserve_vmm(
+template <cpu_isa_t isa, typename Vmm>
+std::pair<bool, int> jit_uni_binary_injector_t<isa, Vmm>::should_preserve_vmm(
         int curr_idx, int vmm_hint, int max_vmm_idx,
         bool dt_helper_vmm_needed) const {
     if (dt_helper_vmm_needed && vmm_hint == curr_idx) {
@@ -301,8 +301,8 @@ std::pair<bool, int> jit_uni_binary_injector_t<isa>::should_preserve_vmm(
     return std::make_pair(false, vmm_hint);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::compute_vector_range(size_t start_idx,
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::compute_vector_range(size_t start_idx,
         size_t end_idx, std::size_t rhs_arg_idx,
         const dnnl_post_ops::entry_t &post_op,
         const rhs_arg_dynamic_params_t &rhs_arg_params) const {
@@ -312,8 +312,8 @@ void jit_uni_binary_injector_t<isa>::compute_vector_range(size_t start_idx,
     compute_vector_range(vmm_idxs, rhs_arg_idx, post_op, rhs_arg_params);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::compute_vector_range(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::compute_vector_range(
         const injector_utils::vmm_index_set_t &vmm_idxs,
         std::size_t rhs_arg_idx, const dnnl_post_ops::entry_t &post_op,
         const rhs_arg_dynamic_params_t &rhs_arg_params) const {
@@ -402,8 +402,8 @@ void jit_uni_binary_injector_t<isa>::compute_vector_range(
     if (vmm0_was_preserved) pop_vmm(host_, zero_vmm);
 }
 
-template <cpu_isa_t isa>
-Xbyak::Address jit_uni_binary_injector_t<isa>::prepare_rhs_arg_addr(
+template <cpu_isa_t isa, typename Vmm>
+Xbyak::Address jit_uni_binary_injector_t<isa, Vmm>::prepare_rhs_arg_addr(
         std::size_t vmm_idx, std::size_t rhs_arg_idx,
         const dnnl_post_ops::entry_t &post_op,
         const rhs_arg_dynamic_params_t &rhs_arg_params,
@@ -454,8 +454,8 @@ Xbyak::Address jit_uni_binary_injector_t<isa>::prepare_rhs_arg_addr(
     return host_->ptr[rhs_addr_reg];
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::append_offset_from_operand(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::append_offset_from_operand(
         const std::map<int, Xbyak::Operand> &vmm_idx_to_elem_operand_off,
         int vmm_idx, const Xbyak::Reg64 &addr_reg, const Xbyak::Reg64 &tmp_reg,
         std::size_t elem_size_bytes) const {
@@ -473,8 +473,8 @@ void jit_uni_binary_injector_t<isa>::append_offset_from_operand(
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::append_offset_under_mem_addr(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::append_offset_under_mem_addr(
         const std::map<int, Xbyak::Address> &vmm_idx_to_elem_addr_off,
         int vmm_idx, const Xbyak::Reg64 &addr_reg, const Xbyak::Reg64 &tmp_reg,
         std::size_t elem_size_bytes) const {
@@ -492,8 +492,8 @@ void jit_uni_binary_injector_t<isa>::append_offset_under_mem_addr(
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::append_value_offset(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::append_value_offset(
         const std::map<int, int> &vmm_idx_to_elem_val_off, int vmm_idx,
         const Xbyak::Reg64 &addr_reg, std::size_t elem_size_bytes) const {
 
@@ -502,8 +502,8 @@ void jit_uni_binary_injector_t<isa>::append_value_offset(
         host_->add(addr_reg, it_off_val->second * elem_size_bytes);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::inject_binary(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::inject_binary(
         const dnnl_post_ops::entry_t &post_op, Vmm dst,
         const Xbyak::Address &rhs_addr, bool with_tail) const {
 
@@ -552,8 +552,8 @@ void jit_uni_binary_injector_t<isa>::inject_binary(
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::execute_broadcast(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast(
         const dnnl_data_type_t &data_type, const Vmm &tmp_reg,
         const Xbyak::Address &rhs_addr, bool with_tail) const {
     if (with_tail)
@@ -562,36 +562,35 @@ void jit_uni_binary_injector_t<isa>::execute_broadcast(
         execute_broadcast_no_tail(data_type, tmp_reg, rhs_addr);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::load_rhs(const dnnl_data_type_t &data_type,
-        const Vmm &tmp_reg, const Xbyak::Address &rhs_addr,
-        bool with_tail) const {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::load_rhs(
+        const dnnl_data_type_t &data_type, const Vmm &tmp_reg,
+        const Xbyak::Address &rhs_addr, bool with_tail) const {
     if (with_tail)
         load_rhs_tail(data_type, tmp_reg, rhs_addr);
     else
         load_rhs_no_tail(data_type, tmp_reg, rhs_addr);
 }
 
-template <cpu_isa_t isa>
-Xbyak::Address jit_uni_binary_injector_t<isa>::remove_bcast_bit(
+template <cpu_isa_t isa, typename Vmm>
+Xbyak::Address jit_uni_binary_injector_t<isa, Vmm>::remove_bcast_bit(
         const Xbyak::Address &rhs_addr) const {
     return Xbyak::Address(rhs_addr.getBit(), false, rhs_addr.getRegExp());
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::cvt_to_f32(const Vmm &tmp_vmm) const {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::cvt_to_f32(const Vmm &tmp_vmm) const {
     host_->vcvtdq2ps(tmp_vmm, tmp_vmm);
 }
 
 template <>
-void jit_uni_binary_injector_t<sse41>::cvt_to_f32(const Vmm &tmp_vmm) const {
-    static_assert(
-            std::is_same<Vmm, Xbyak::Xmm>::value, "Vmm type should match Xmm");
+void jit_uni_binary_injector_t<sse41, Xbyak::Xmm>::cvt_to_f32(
+        const Xbyak::Xmm &tmp_vmm) const {
     host_->cvtdq2ps(tmp_vmm, tmp_vmm);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::execute_broadcast_no_tail(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_no_tail(
         const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
     switch (data_type) {
@@ -612,8 +611,8 @@ void jit_uni_binary_injector_t<isa>::execute_broadcast_no_tail(
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::execute_broadcast_s8u8_no_tail(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_s8u8_no_tail(
         const data_type_t &data_type, const Vmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
     const Xbyak::Xmm xmm(tmp_vmm.getIdx());
@@ -630,35 +629,68 @@ void jit_uni_binary_injector_t<isa>::execute_broadcast_s8u8_no_tail(
     }
 }
 
+template <cpu_isa_t isa, typename Vmm>
+struct helper_broadcast_s8u8_t {};
+
+template <typename Vmm>
+struct helper_broadcast_s8u8_t<avx, Vmm> {
+    static void execute_broadcast_s8u8_no_tail(jit_generator *host,
+            const int rhs_helper_reg_idx, const data_type_t &data_type,
+            const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr,
+            const std::function<void()> &post_process) {
+
+        if (data_type != data_type::s8 && data_type != data_type::u8)
+            assert(!"unsupported data type");
+
+        const Xbyak::Reg8 tmp_reg8 = Xbyak::Reg8(rhs_helper_reg_idx);
+        const Xbyak::Reg32 tmp_reg32 = Xbyak::Reg32(rhs_helper_reg_idx);
+        const auto tmp_xmm = Xbyak::Xmm(tmp_vmm.getIdx());
+        host->mov(tmp_reg8, rhs_addr);
+        host->vmovd(tmp_xmm, tmp_reg32);
+        host->vpunpcklbw(tmp_xmm, tmp_xmm, tmp_xmm);
+        host->vpshuflw(tmp_xmm, tmp_xmm, 0);
+        if (data_type == data_type::s8)
+            host->vpmovsxbd(tmp_xmm, tmp_xmm);
+        else
+            host->vpmovzxbd(tmp_xmm, tmp_xmm);
+
+        if (post_process) post_process();
+    }
+};
+
 template <>
-void jit_uni_binary_injector_t<avx>::execute_broadcast_s8u8_no_tail(
-        const data_type_t &data_type, const Vmm &tmp_vmm,
+void jit_uni_binary_injector_t<avx, Xbyak::Ymm>::execute_broadcast_s8u8_no_tail(
+        const data_type_t &data_type, const Xbyak::Ymm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
 
-    if (data_type == data_type::s8 || data_type == data_type::u8) {
-        const auto tmp_reg64_idx
-                = rhs_arg_static_params_.rhs_helper_reg.getIdx();
-        const Xbyak::Reg8 tmp_reg8 = Xbyak::Reg8(tmp_reg64_idx);
-        const Xbyak::Reg32 tmp_reg32 = Xbyak::Reg32(tmp_reg64_idx);
+    const auto rhs_helper_reg_idx
+            = rhs_arg_static_params_.rhs_helper_reg.getIdx();
+    const auto expand_xmm_to_ymm = [&] {
         const auto tmp_xmm = Xbyak::Xmm(tmp_vmm.getIdx());
-        host_->mov(tmp_reg8, rhs_addr);
-        host_->vmovd(tmp_xmm, tmp_reg32);
-        host_->vpunpcklbw(tmp_xmm, tmp_xmm, tmp_xmm);
-        host_->vpshuflw(tmp_xmm, tmp_xmm, 0);
-        if (data_type == data_type::s8)
-            host_->vpmovsxbd(tmp_xmm, tmp_xmm);
-        else
-            host_->vpmovzxbd(tmp_xmm, tmp_xmm);
-
         host_->vinsertf128(tmp_vmm, tmp_vmm, tmp_xmm, 1);
-    } else
-        assert(!"unsupported data type");
+    };
+
+    helper_broadcast_s8u8_t<avx, Xbyak::Ymm>::execute_broadcast_s8u8_no_tail(
+            host_, rhs_helper_reg_idx, data_type, tmp_vmm, rhs_addr,
+            expand_xmm_to_ymm);
 }
 
 template <>
-void jit_uni_binary_injector_t<sse41>::execute_broadcast_s8u8_no_tail(
-        const data_type_t &data_type, const Vmm &tmp_vmm,
+void jit_uni_binary_injector_t<avx, Xbyak::Xmm>::execute_broadcast_s8u8_no_tail(
+        const data_type_t &data_type, const Xbyak::Xmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
+
+    const auto rhs_helper_reg_idx
+            = rhs_arg_static_params_.rhs_helper_reg.getIdx();
+    helper_broadcast_s8u8_t<avx, Xbyak::Xmm>::execute_broadcast_s8u8_no_tail(
+            host_, rhs_helper_reg_idx, data_type, tmp_vmm, rhs_addr, nullptr);
+}
+
+template <>
+void jit_uni_binary_injector_t<sse41,
+        Xbyak::Xmm>::execute_broadcast_s8u8_no_tail(const data_type_t
+                                                            &data_type,
+        const Xbyak::Xmm &tmp_vmm, const Xbyak::Address &rhs_addr) const {
 
     if (data_type == data_type::s8 || data_type == data_type::u8) {
         const auto tmp_reg64_idx
@@ -677,8 +709,8 @@ void jit_uni_binary_injector_t<sse41>::execute_broadcast_s8u8_no_tail(
         assert(!"unsupported data type");
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::execute_broadcast_tail(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail(
         const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
 
@@ -760,10 +792,11 @@ static Xbyak::uint8 MM_SHUFFLE(
 }
 
 static void execute_broadcast_f32_tail_avx(jit_generator *host,
-        std::size_t ymm_idx, const Xbyak::Address &rhs_addr,
+        const Xbyak::Ymm &vmm, const Xbyak::Address &rhs_addr,
         std::size_t tail_size) {
 
-    const auto tmp_xmm = Xbyak::Xmm(ymm_idx);
+    const auto vmm_idx = vmm.getIdx();
+    const auto tmp_xmm = Xbyak::Xmm(vmm_idx);
     static const std::array<Xbyak::uint8, 2> imms {
             {MM_SHUFFLE(3, 2, 0, 0), MM_SHUFFLE(3, 0, 0, 0)}};
 
@@ -780,46 +813,82 @@ static void execute_broadcast_f32_tail_avx(jit_generator *host,
     };
 
     load_tail_avx(
-            host, ymm_idx, tail_size, init_op, upper_half_op, lower_half_op);
+            host, vmm_idx, tail_size, init_op, upper_half_op, lower_half_op);
+}
+
+static void execute_broadcast_f32_tail_avx(jit_generator *host,
+        const Xbyak::Xmm &vmm, const Xbyak::Address &rhs_addr,
+        std::size_t tail_size) {
+
+    const auto vmm_idx = vmm.getIdx();
+    const auto tmp_xmm = Xbyak::Xmm(vmm_idx);
+    static const std::array<Xbyak::uint8, 2> imms {
+            {MM_SHUFFLE(3, 2, 0, 0), MM_SHUFFLE(3, 0, 0, 0)}};
+
+    host->vmovss(tmp_xmm, rhs_addr);
+    // one element is already loaded
+    if (tail_size > 1)
+        host->vshufps(tmp_xmm, tmp_xmm, tmp_xmm, imms.at(tail_size - 2));
+}
+
+template <cpu_isa_t isa, typename Vmm>
+struct helper_bcast_tail_t {};
+
+template <typename Vmm>
+struct helper_bcast_tail_t<avx2, Vmm> {
+    static void execute_broadcast_tail(jit_generator *host,
+            const size_t tail_size, const dnnl_data_type_t &data_type,
+            const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) {
+        host->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
+
+        if (data_type == data_type::f32 || data_type == data_type::s32) {
+            execute_broadcast_f32_tail_avx(host, tmp_vmm, rhs_addr, tail_size);
+        } else if (data_type == data_type::u8 || data_type == data_type::s8) {
+            const auto tmp_xmm = Xbyak::Xmm(tmp_vmm.getIdx());
+            for (std::size_t i = 0; i < tail_size; i++)
+                host->vpinsrb(tmp_xmm, tmp_xmm, rhs_addr, i);
+
+            if (data_type == data_type::s8)
+                host->vpmovsxbd(tmp_vmm, tmp_xmm);
+            else
+                host->vpmovzxbd(tmp_vmm, tmp_xmm);
+        } else
+            assert(!"unsupported data type");
+    }
+};
+
+template <>
+void jit_uni_binary_injector_t<avx2, Xbyak::Ymm>::execute_broadcast_tail(
+        const dnnl_data_type_t &data_type, const Xbyak::Ymm &tmp_vmm,
+        const Xbyak::Address &rhs_addr) const {
+    const auto &tail_size = rhs_arg_static_params_.tail_size;
+    helper_bcast_tail_t<avx2, Xbyak::Ymm>::execute_broadcast_tail(
+            host_, tail_size, data_type, tmp_vmm, rhs_addr);
 }
 
 template <>
-void jit_uni_binary_injector_t<avx2>::execute_broadcast_tail(
-        const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
+void jit_uni_binary_injector_t<avx2, Xbyak::Xmm>::execute_broadcast_tail(
+        const dnnl_data_type_t &data_type, const Xbyak::Xmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
     const auto &tail_size = rhs_arg_static_params_.tail_size;
-    host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
-
-    if (data_type == data_type::f32 || data_type == data_type::s32) {
-        execute_broadcast_f32_tail_avx(
-                host_, tmp_vmm.getIdx(), rhs_addr, tail_size);
-    } else if (data_type == data_type::u8 || data_type == data_type::s8) {
-        const auto tmp_xmm = Xbyak::Xmm(tmp_vmm.getIdx());
-        for (std::size_t i = 0; i < tail_size; i++)
-            host_->vpinsrb(tmp_xmm, tmp_xmm, rhs_addr, i);
-
-        if (data_type == data_type::s8)
-            host_->vpmovsxbd(tmp_vmm, tmp_xmm);
-        else
-            host_->vpmovzxbd(tmp_vmm, tmp_xmm);
-    } else
-        assert(!"unsupported data type");
+    helper_bcast_tail_t<avx2, Xbyak::Xmm>::execute_broadcast_tail(
+            host_, tail_size, data_type, tmp_vmm, rhs_addr);
 }
 
 template <>
-void jit_uni_binary_injector_t<avx>::execute_broadcast_tail(
-        const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
+void jit_uni_binary_injector_t<avx, Xbyak::Ymm>::execute_broadcast_tail(
+        const dnnl_data_type_t &data_type, const Xbyak::Ymm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
 
     const auto &tail_size = rhs_arg_static_params_.tail_size;
+
     host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
 
     if (data_type == data_type::f32 || data_type == data_type::s32) {
-        execute_broadcast_f32_tail_avx(
-                host_, tmp_vmm.getIdx(), rhs_addr, tail_size);
+        execute_broadcast_f32_tail_avx(host_, tmp_vmm, rhs_addr, tail_size);
     } else if (data_type == data_type::u8 || data_type == data_type::s8) {
-        const auto ymm_idx = tmp_vmm.getIdx();
-        const auto tmp_xmm = Xbyak::Xmm(ymm_idx);
+        const auto vmm_idx = tmp_vmm.getIdx();
+        const auto tmp_xmm = Xbyak::Xmm(vmm_idx);
         const auto cvt_to_dword = [&] {
             if (data_type == data_type::s8)
                 host_->vpmovsxbd(tmp_xmm, tmp_xmm);
@@ -851,15 +920,41 @@ void jit_uni_binary_injector_t<avx>::execute_broadcast_tail(
             }
         };
 
-        load_tail_avx(host_, ymm_idx, tail_size, init_op, upper_half_op,
+        load_tail_avx(host_, vmm_idx, tail_size, init_op, upper_half_op,
                 lower_half_op);
     } else
         assert(!"unsupported data type");
 }
 
 template <>
-void jit_uni_binary_injector_t<sse41>::execute_broadcast_tail(
-        const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
+void jit_uni_binary_injector_t<avx, Xbyak::Xmm>::execute_broadcast_tail(
+        const dnnl_data_type_t &data_type, const Xbyak::Xmm &tmp_vmm,
+        const Xbyak::Address &rhs_addr) const {
+
+    const auto &tail_size = rhs_arg_static_params_.tail_size;
+
+    host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
+
+    const auto load_tail_avx_xmm = [&]() {
+        for (size_t i = 0; i < tail_size; i++)
+            host_->vpinsrb(tmp_vmm, tmp_vmm, rhs_addr, i);
+    };
+
+    if (data_type == data_type::f32 || data_type == data_type::s32) {
+        execute_broadcast_f32_tail_avx(host_, tmp_vmm, rhs_addr, tail_size);
+    } else if (data_type == data_type::u8 || data_type == data_type::s8) {
+        load_tail_avx_xmm();
+        if (data_type == data_type::s8)
+            host_->vpmovsxbd(tmp_vmm, tmp_vmm);
+        else
+            host_->vpmovzxbd(tmp_vmm, tmp_vmm);
+    } else
+        assert(!"unsupported data type");
+}
+
+template <>
+void jit_uni_binary_injector_t<sse41, Xbyak::Xmm>::execute_broadcast_tail(
+        const dnnl_data_type_t &data_type, const Xbyak::Xmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
 
     host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
@@ -883,8 +978,8 @@ void jit_uni_binary_injector_t<sse41>::execute_broadcast_tail(
         assert(!"unsupported data type");
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::load_rhs_no_tail(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_no_tail(
         const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
     switch (data_type) {
@@ -903,8 +998,8 @@ void jit_uni_binary_injector_t<isa>::load_rhs_no_tail(
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::load_rhs_tail(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail(
         const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
 
@@ -937,49 +1032,74 @@ void jit_uni_binary_injector_t<isa>::load_rhs_tail(
     }
 }
 
+template <cpu_isa_t isa, typename Vmm>
+struct helper_load_tail_t {};
+
+template <typename Vmm>
+struct helper_load_tail_t<avx2, Vmm> {
+    static void load_rhs_tail(jit_generator *host, const size_t tail_size,
+            const Xbyak::Reg64 &rhs_addr_reg, const dnnl_data_type_t &data_type,
+            const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) {
+        if (!utils::one_of(data_type, data_type::f32, data_type::s32,
+                    data_type::s8, data_type::u8))
+            assert(!"unsupported data type");
+
+        host->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
+        host->load_data(data_type, tmp_vmm, rhs_addr_reg, 0, tail_size);
+    }
+};
+
 template <>
-void jit_uni_binary_injector_t<avx2>::load_rhs_tail(
-        const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
+void jit_uni_binary_injector_t<avx2, Xbyak::Ymm>::load_rhs_tail(
+        const dnnl_data_type_t &data_type, const Xbyak::Ymm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
-    if (!utils::one_of(data_type, data_type::f32, data_type::s32, data_type::s8,
-                data_type::u8))
-        assert(!"unsupported data type");
 
     const auto &tail_size = rhs_arg_static_params_.tail_size;
-    host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
-    host_->load_data(data_type, tmp_vmm, rhs_arg_static_params_.rhs_addr_reg, 0,
-            tail_size);
+    const auto &rhs_addr_reg = rhs_arg_static_params_.rhs_addr_reg;
+    helper_load_tail_t<avx2, Xbyak::Ymm>::load_rhs_tail(
+            host_, tail_size, rhs_addr_reg, data_type, tmp_vmm, rhs_addr);
 }
 
 template <>
-void jit_uni_binary_injector_t<avx>::load_rhs_tail(
-        const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
+void jit_uni_binary_injector_t<avx2, Xbyak::Xmm>::load_rhs_tail(
+        const dnnl_data_type_t &data_type, const Xbyak::Xmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
+
+    const auto &tail_size = rhs_arg_static_params_.tail_size;
+    const auto &rhs_addr_reg = rhs_arg_static_params_.rhs_addr_reg;
+    helper_load_tail_t<avx2, Xbyak::Xmm>::load_rhs_tail(
+            host_, tail_size, rhs_addr_reg, data_type, tmp_vmm, rhs_addr);
+}
+
+template <>
+void jit_uni_binary_injector_t<avx, Xbyak::Ymm>::load_rhs_tail(
+        const dnnl_data_type_t &data_type, const Xbyak::Ymm &tmp_vmm,
+        const Xbyak::Address &rhs_addr) const {
+    const auto &tail_size = rhs_arg_static_params_.tail_size;
+    const auto &rhs_addr_reg = rhs_arg_static_params_.rhs_addr_reg;
+
     host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
     static constexpr int xmm_size_elem = 4;
-    const auto &tail_size = rhs_arg_static_params_.tail_size;
     const auto res = std::div(tail_size, xmm_size_elem);
-    const auto ymm_idx = tmp_vmm.getIdx();
-    const auto tmp_xmm = Xbyak::Xmm(ymm_idx);
+    const auto vmm_idx = tmp_vmm.getIdx();
+    const auto tmp_xmm = Xbyak::Xmm(vmm_idx);
 
     if (data_type == data_type::f32 || data_type == data_type::s32) {
-
-        const auto upper_half_op
-                = [&](int upper_half_data_size, bool should_load_lower_half) {
-                      const int offset = should_load_lower_half
-                              ? xmm_size_elem * sizeof(float)
-                              : 0;
-                      for (int i = 0; i < res.rem; i++)
-                          host_->vpinsrd(tmp_xmm, tmp_xmm,
-                                  host_->ptr[rhs_arg_static_params_.rhs_addr_reg
-                                          + offset + i * sizeof(float)],
-                                  i);
-                  };
+        const auto upper_half_op = [&](int upper_half_data_size,
+                                           bool should_load_lower_half) {
+            const int offset = should_load_lower_half
+                    ? xmm_size_elem * sizeof(float)
+                    : 0;
+            for (int i = 0; i < res.rem; i++)
+                host_->vpinsrd(tmp_xmm, tmp_xmm,
+                        host_->ptr[rhs_addr_reg + offset + i * sizeof(float)],
+                        i);
+        };
 
         const auto lower_half_op = [&](int upper_half_data_size) {
             host_->vmovups(tmp_xmm, rhs_addr);
         };
-        load_tail_avx(host_, ymm_idx, tail_size, upper_half_op, lower_half_op);
+        load_tail_avx(host_, vmm_idx, tail_size, upper_half_op, lower_half_op);
 
     } else if (data_type == data_type::u8 || data_type == data_type::s8) {
         const auto cvt_to_dword = [&](const Xbyak::Operand &operand) {
@@ -994,8 +1114,7 @@ void jit_uni_binary_injector_t<avx>::load_rhs_tail(
             const int offset = should_load_lower_half ? xmm_size_elem : 0;
             for (int i = 0; i < upper_half_data_size; i++)
                 host_->vpinsrb(tmp_xmm, tmp_xmm,
-                        host_->ptr[rhs_arg_static_params_.rhs_addr_reg + offset
-                                + i * sizeof(float)],
+                        host_->ptr[rhs_addr_reg + offset + i * sizeof(float)],
                         i);
             cvt_to_dword(tmp_xmm);
         };
@@ -1003,15 +1122,40 @@ void jit_uni_binary_injector_t<avx>::load_rhs_tail(
         const auto lower_half_op
                 = [&](int upper_half_data_size) { cvt_to_dword(rhs_addr); };
 
-        load_tail_avx(host_, ymm_idx, tail_size, upper_half_op, lower_half_op);
-
+        load_tail_avx(host_, vmm_idx, tail_size, upper_half_op, lower_half_op);
     } else
         assert(!"unsupported data type");
 }
 
 template <>
-void jit_uni_binary_injector_t<sse41>::load_rhs_tail(
-        const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
+void jit_uni_binary_injector_t<avx, Xbyak::Xmm>::load_rhs_tail(
+        const dnnl_data_type_t &data_type, const Xbyak::Xmm &tmp_vmm,
+        const Xbyak::Address &rhs_addr) const {
+    const auto &tail_size = rhs_arg_static_params_.tail_size;
+    const auto &rhs_addr_reg = rhs_arg_static_params_.rhs_addr_reg;
+    host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
+
+    const auto load_tail_avx_xmm = [&] {
+        for (size_t i = 0; i < tail_size; i++)
+            host_->vpinsrb(tmp_vmm, tmp_vmm,
+                    host_->ptr[rhs_addr_reg + i * sizeof(float)], i);
+    };
+
+    if (data_type == data_type::f32 || data_type == data_type::s32) {
+        load_tail_avx_xmm();
+    } else if (data_type == data_type::u8 || data_type == data_type::s8) {
+        load_tail_avx_xmm();
+        if (data_type == data_type::s8)
+            host_->vpmovsxbd(tmp_vmm, tmp_vmm);
+        else
+            host_->vpmovzxbd(tmp_vmm, tmp_vmm);
+    } else
+        assert(!"unsupported data type");
+}
+
+template <>
+void jit_uni_binary_injector_t<sse41, Xbyak::Xmm>::load_rhs_tail(
+        const dnnl_data_type_t &data_type, const Xbyak::Xmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
     if (!utils::one_of(data_type, data_type::f32, data_type::s32, data_type::s8,
                 data_type::u8))
@@ -1025,11 +1169,11 @@ void jit_uni_binary_injector_t<sse41>::load_rhs_tail(
 
 // Support compare with Address param only when isa is avx512.
 // AVX512 implementation
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, typename Vmm>
 template <typename T>
 typename std::enable_if<std::is_same<T, Xbyak::Zmm>::value
         || std::is_same<T, Xbyak::Address>::value>::type
-jit_uni_binary_injector_t<isa>::execute_cmp_binary(const Vmm &dst,
+jit_uni_binary_injector_t<isa, Vmm>::execute_cmp_binary(const Vmm &dst,
         const Vmm &lhs, const T &rhs, const unsigned int cmp_predicate) const {
     // For GreaterEqual op, replace 0xFFFFFFFF by 1
     // which was returned by vcmpps.
@@ -1049,11 +1193,11 @@ jit_uni_binary_injector_t<isa>::execute_cmp_binary(const Vmm &dst,
 }
 
 // SSE4.1., AVX and AVX2 implementation
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, typename Vmm>
 template <typename T>
 typename std::enable_if<!(std::is_same<T, Xbyak::Zmm>::value
         || std::is_same<T, Xbyak::Address>::value)>::type
-jit_uni_binary_injector_t<isa>::execute_cmp_binary(const Vmm &dst,
+jit_uni_binary_injector_t<isa, Vmm>::execute_cmp_binary(const Vmm &dst,
         const Vmm &lhs, const T &rhs, const unsigned int cmp_predicate) const {
     const int vmm_idx = rhs_arg_static_params_.rhs_dt_helper_vmm_idx;
     const Vmm vreg_one = Vmm(vmm_idx);
@@ -1067,9 +1211,9 @@ jit_uni_binary_injector_t<isa>::execute_cmp_binary(const Vmm &dst,
     host_->uni_vminps(dst, dst, vreg_one);
 }
 
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, typename Vmm>
 template <typename T>
-void jit_uni_binary_injector_t<isa>::execute_binary(alg_kind_t binary_alg,
+void jit_uni_binary_injector_t<isa, Vmm>::execute_binary(alg_kind_t binary_alg,
         const Vmm &dst, const Vmm &lhs, const T &rhs) const {
     switch (binary_alg) {
         case alg_kind::binary_add: host_->uni_vaddps(dst, lhs, rhs); break;
@@ -1100,41 +1244,77 @@ void jit_uni_binary_injector_t<isa>::execute_binary(alg_kind_t binary_alg,
     }
 }
 
+template <cpu_isa_t isa, typename Vmm>
+struct helper_binary_t {};
+
+template <typename Vmm>
+struct helper_binary_t<avx, Vmm> {
+    template <typename T, typename F>
+    static void execute_binary(jit_generator *host, F execute_cmp_binary,
+            alg_kind_t binary_alg, const Vmm &dst, const Vmm &lhs,
+            const T &rhs) {
+        switch (binary_alg) {
+            case alg_kind::binary_add: host->uni_vaddps(dst, lhs, rhs); break;
+            case alg_kind::binary_mul: host->uni_vmulps(dst, lhs, rhs); break;
+            case alg_kind::binary_max: host->uni_vmaxps(dst, lhs, rhs); break;
+            case alg_kind::binary_min: host->uni_vminps(dst, lhs, rhs); break;
+            case alg_kind::binary_div: host->uni_vdivps(dst, lhs, rhs); break;
+            case alg_kind::binary_sub: host->uni_vsubps(dst, lhs, rhs); break;
+            case alg_kind::binary_ge:
+                execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_nlt_us);
+                break;
+            case alg_kind::binary_gt:
+                execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_nle_us);
+                break;
+            case alg_kind::binary_le:
+                execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_le_os);
+                break;
+            case alg_kind::binary_lt:
+                execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_lt_os);
+                break;
+            case alg_kind::binary_eq:
+                execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_eq_oq);
+                break;
+            case alg_kind::binary_ne:
+                execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_neq_uq);
+                break;
+            default: assert(!"unsupported algorithm");
+        }
+    }
+};
+
 template <>
 template <typename T>
-void jit_uni_binary_injector_t<avx>::execute_binary(alg_kind_t binary_alg,
-        const Vmm &dst, const Vmm &lhs, const T &rhs) const {
-    switch (binary_alg) {
-        case alg_kind::binary_add: host_->vaddps(dst, lhs, rhs); break;
-        case alg_kind::binary_mul: host_->vmulps(dst, lhs, rhs); break;
-        case alg_kind::binary_max: host_->vmaxps(dst, lhs, rhs); break;
-        case alg_kind::binary_min: host_->vminps(dst, lhs, rhs); break;
-        case alg_kind::binary_div: host_->vdivps(dst, lhs, rhs); break;
-        case alg_kind::binary_sub: host_->vsubps(dst, lhs, rhs); break;
-        case alg_kind::binary_ge:
-            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_nlt_us);
-            break;
-        case alg_kind::binary_gt:
-            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_nle_us);
-            break;
-        case alg_kind::binary_le:
-            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_le_os);
-            break;
-        case alg_kind::binary_lt:
-            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_lt_os);
-            break;
-        case alg_kind::binary_eq:
-            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_eq_oq);
-            break;
-        case alg_kind::binary_ne:
-            execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_neq_uq);
-            break;
-        default: assert(!"unsupported algorithm");
-    }
+void jit_uni_binary_injector_t<avx, Xbyak::Ymm>::execute_binary(
+        alg_kind_t binary_alg, const Xbyak::Ymm &dst, const Xbyak::Ymm &lhs,
+        const T &rhs) const {
+
+    const auto execute_cmp_binary_lam
+            = [this](const Xbyak::Ymm &dst, const Xbyak::Ymm &lhs, const T &rhs,
+                      const unsigned int cmp_predicate) {
+                  this->execute_cmp_binary<T>(dst, lhs, rhs, cmp_predicate);
+              };
+    helper_binary_t<avx, Xbyak::Ymm>::execute_binary<T>(
+            host_, execute_cmp_binary_lam, binary_alg, dst, lhs, rhs);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_injector_t<isa>::compute_vector(size_t idx,
+template <>
+template <typename T>
+void jit_uni_binary_injector_t<avx, Xbyak::Xmm>::execute_binary(
+        alg_kind_t binary_alg, const Xbyak::Xmm &dst, const Xbyak::Xmm &lhs,
+        const T &rhs) const {
+
+    const auto execute_cmp_binary_lam
+            = [this](const Xbyak::Xmm &dst, const Xbyak::Xmm &lhs, const T &rhs,
+                      const unsigned int cmp_predicate) {
+                  this->execute_cmp_binary<T>(dst, lhs, rhs, cmp_predicate);
+              };
+    helper_binary_t<avx, Xbyak::Xmm>::execute_binary<T>(
+            host_, execute_cmp_binary_lam, binary_alg, dst, lhs, rhs);
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::compute_vector(size_t idx,
         std::size_t rhs_arg_idx, const dnnl_post_ops::entry_t &post_op,
         const rhs_arg_dynamic_params_t &rhs_arg_params) const {
     compute_vector_range({idx}, rhs_arg_idx, post_op, rhs_arg_params);
@@ -1143,8 +1323,10 @@ void jit_uni_binary_injector_t<isa>::compute_vector(size_t idx,
 template class jit_uni_binary_injector_t<avx512_core_bf16>;
 template class jit_uni_binary_injector_t<avx512_core>;
 template class jit_uni_binary_injector_t<avx512_common>;
-template class jit_uni_binary_injector_t<avx2>;
-template class jit_uni_binary_injector_t<avx>;
+template class jit_uni_binary_injector_t<avx2, Xbyak::Ymm>;
+template class jit_uni_binary_injector_t<avx2, Xbyak::Xmm>;
+template class jit_uni_binary_injector_t<avx, Xbyak::Ymm>;
+template class jit_uni_binary_injector_t<avx, Xbyak::Xmm>;
 template class jit_uni_binary_injector_t<sse41>;
 
 } // namespace binary_injector

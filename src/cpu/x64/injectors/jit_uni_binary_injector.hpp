@@ -212,13 +212,11 @@ bool is_supported(cpu_isa_t isa, const dnnl::impl::memory_desc_t &src1_desc,
  * isa: sse41, avx, avx2, avx512 with core, bf16 extensions as well as data
  * types: f32, bf16, s32, u8, s8.
  */
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, typename Vmm = typename cpu_isa_traits<isa>::Vmm>
 class jit_uni_binary_injector_t {
 public:
     jit_uni_binary_injector_t(
             jit_generator *host, const static_params_t &static_params);
-
-    using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
     /*
      * Generates code of binary post_op injected to host primitive. Applied to
