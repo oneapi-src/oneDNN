@@ -109,7 +109,6 @@ struct pooling_pd_t : public primitive_desc_t {
 
     int ndims() const { return src_desc().ndims; }
     int spatial_ndims() const { return ndims() - 2; }
-    bool is_3d() const { return ndims() == 5; }
 
     bool is_pooling_v2() const {
         return desc_.primitive_kind == primitive_kind::pooling_v2;

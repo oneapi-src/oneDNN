@@ -829,7 +829,7 @@ static void init_info_pooling(engine_t *e, pd_t *s, char *buffer) {
     DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s",
             dnnl_alg_kind2str(s->desc()->alg_kind));
 
-    if (s->is_3d()) {
+    if (s->ndims() == 5) {
         DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
                 "mb" DFMT "ic" DFMT
                 "_"
@@ -842,7 +842,7 @@ static void init_info_pooling(engine_t *e, pd_t *s, char *buffer) {
                 s->padFront(), s->IH(), s->OH(), s->KH(), s->DH(), s->KSH(),
                 s->padT(), s->IW(), s->OW(), s->KW(), s->DW(), s->KSW(),
                 s->padL());
-    } else {
+    } else if (s->ndims() == 4) {
         DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
                 "mb" DFMT "ic" DFMT
                 "_"
@@ -851,6 +851,13 @@ static void init_info_pooling(engine_t *e, pd_t *s, char *buffer) {
                 "iw" DFMT "ow" DFMT "kw" DFMT "dw" DFMT "sw" DFMT "pw" DFMT,
                 s->MB(), s->C(), s->IH(), s->OH(), s->KH(), s->DH(), s->KSH(),
                 s->padT(), s->IW(), s->OW(), s->KW(), s->DW(), s->KSW(),
+                s->padL());
+    } else {
+        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
+                "mb" DFMT "ic" DFMT
+                "_"
+                "iw" DFMT "ow" DFMT "kw" DFMT "dw" DFMT "sw" DFMT "pw" DFMT,
+                s->MB(), s->C(), s->IW(), s->OW(), s->KW(), s->DW(), s->KSW(),
                 s->padL());
     }
 
