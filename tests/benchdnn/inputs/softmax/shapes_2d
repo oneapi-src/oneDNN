@@ -8,3 +8,9 @@
 2x19x128x256
 1x8x1024x16
 1x2x64x64
+
+# Shapes for blocked formats
+1x27x2x12
+1x16x2x12
+1x8x2x12
+1x5x2x12
