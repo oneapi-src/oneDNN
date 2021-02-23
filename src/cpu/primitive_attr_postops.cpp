@@ -169,7 +169,8 @@ float ref_eltwise_scalar_fwd_t::compute_scalar(float s) const {
     return compute_eltwise_scalar_fwd(alg_, s, alpha_, beta_) * scale_;
 }
 
-ref_post_ops_t::ref_post_ops_t(const post_ops_t &po) : po_(po) {
+ref_post_ops_t::ref_post_ops_t(const post_ops_t &po, bool skip_sum)
+    : po_(po), skip_sum_(skip_sum) {
     for (auto idx = 0; idx < po_.len(); ++idx) {
         const auto &e = po_.entry_[idx];
         if (po_.contain(primitive_kind::eltwise, idx)) {
@@ -188,7 +189,9 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
     for (auto idx = 0; idx < po_.len(); ++idx) {
         const auto &e = po_.entry_[idx];
         switch (e.kind) {
-            case primitive_kind::sum: res += e.sum.scale * args.dst_val; break;
+            case primitive_kind::sum:
+                if (!skip_sum_) { res += e.sum.scale * args.dst_val; }
+                break;
             case primitive_kind::eltwise:
                 res = it_eltwise_po->compute_scalar(res);
                 it_eltwise_po++;

@@ -38,10 +38,11 @@ struct ref_pp_kernel_t : public pp_kernel_t<acc_type, dst_type> {
     ref_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
             const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum)
         : pp_kernel_t<acc_type, dst_type>(
-                OC, MB, dst_mb_stride, attr, bias_dt, skip_sum) {
-        if (this->do_eltwise_ || this->do_binary_)
-            ref_post_ops_.reset(new ref_post_ops_t(this->post_ops_));
-    }
+                OC, MB, dst_mb_stride, attr, bias_dt, skip_sum)
+        , ref_post_ops_(this->do_sum_ || this->do_eltwise_ || this->do_binary_
+                          ? utils::make_unique<ref_post_ops_t>(
+                                  this->post_ops_, skip_sum)
+                          : nullptr) {}
 
     using acc_data_t = typename prec_traits<acc_type>::type;
     using dst_data_t = typename prec_traits<dst_type>::type;
@@ -73,7 +74,8 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
     ref_post_ops_t::args_t args;
     args.ctx = &ctx;
     args.dst_md = &dst_md;
-
+    const bool apply_postops
+            = this->do_sum_ || this->do_eltwise_ || this->do_binary_;
     auto calculate_dst_value_and_increment_oc
             = [&](const acc_data_t &acc_value, dst_data_t &dst_value,
                       size_t &oc_value, const size_t dst_offset) {
@@ -82,8 +84,8 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
                       d += get_bias(bias, oc_value, this->bias_data_type_);
                   if (this->do_scale_)
                       d *= scales[oc_value * this->scale_idx_mult_];
-                  if (this->do_sum_) d += this->sum_scale_ * dst_value;
-                  if (this->do_eltwise_ || this->do_binary_) {
+                  if (apply_postops) {
+                      if (this->do_sum_) args.dst_val = dst_value;
                       args.l_offset = dst_offset;
                       ref_post_ops_->execute(d, args);
                   }
