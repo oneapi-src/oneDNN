@@ -74,6 +74,23 @@ int innermost_block(dnnl_blocking_desc_t blk) {
     return blk.inner_blks[last];
 }
 
+bool is_alt_faster_than_ref(const memory_desc_wrapper &src_mdw,
+        const memory_desc_wrapper &dst_mdw,
+        const compute::device_info_t *dev_info) {
+    using namespace format_tag;
+    int ndims = src_mdw.ndims();
+    int last = ndims - 1;
+    if (!src_mdw.matches_one_of_tag(abcd, abc, ab)) { return false; }
+    // on GPUs newer than gen9 reference implementation is usually faster
+    if (dev_info->gpu_arch() != compute::gpu_arch_t::gen9) { return false; }
+    // ensure reasonable work group size
+    if (src_mdw.dims()[last] < 8) { return false; }
+    // abcd->???b reorders are faster with reference implementation
+    if (ndims == 4 && dst_mdw.blocking_desc().strides[1] == 1) { return false; }
+    if (ndims == 3 && dst_mdw.blocking_desc().strides[0] == 1) { return false; }
+    return true;
+}
+
 bool matches_one_NxN_layout(
         const memory_desc_wrapper &src, const memory_desc_wrapper &dst, int n) {
     if (dst.ndims() < 2) { return false; }
@@ -130,8 +147,8 @@ bool dim_is_div_by_16_or_less_than_16(
 }
 
 reorder_kernel_t select_kernel(const reorder_conf_t &conf,
-        const memory_desc_wrapper &src_mdw,
-        const memory_desc_wrapper &dst_mdw) {
+        const memory_desc_wrapper &src_mdw, const memory_desc_wrapper &dst_mdw,
+        const compute::device_info_t *dev_info) {
     using namespace format_tag;
 
     const auto &padded_dims = dst_mdw.padded_dims();
@@ -147,7 +164,6 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
 
     const bool allow_unroll
             = !conf.has_padding && !conf.scale_quant && !type_s8_u8;
-
     if (!conf.scale_quant) {
         if (matches_one_NxN_layout(src_mdw, dst_mdw, 16)) {
             return reorder_kernel_t::transpose16x16;
@@ -228,7 +244,51 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
         return reorder_kernel_t::plain_to_ABxx8ayb;
     }
 
+    if (conf.ndims >= 2 && conf.ndims <= 4
+            && src_mdw.md_->format_desc.blocking.inner_nblks == 0
+            && dst_mdw.md_->format_desc.blocking.inner_nblks == 0
+            && is_alt_faster_than_ref(src_mdw, dst_mdw, dev_info)
+            && !has_padding_or_scale_quant) {
+        return reorder_kernel_t::reorder_alt;
+    }
     return reorder_kernel_t::reorder_reference;
+}
+
+void simple_reorder_t::pd_t::alt_defines(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    const memory_desc_wrapper src_mdw(src_md());
+    const memory_desc_wrapper dst_mdw(dst_md());
+    size_t ndims = src_mdw.ndims();
+    size_t last = ndims - 1;
+
+    auto sdim = src_mdw.dims();
+    auto sstr = src_mdw.blocking_desc().strides;
+    auto dstr = dst_mdw.blocking_desc().strides;
+    kernel_ctx.define_int("ALT_OFFSETS", 1);
+    kernel_ctx.define_int("S0", sstr[last]);
+    kernel_ctx.define_int("S1", sstr[last - 1]);
+    kernel_ctx.define_int("S2", ndims > 2 ? sstr[last - 2] : 1);
+    kernel_ctx.define_int("SB", ndims > 3 ? sstr[last - 3] : 1);
+    kernel_ctx.define_int("D0", dstr[last]);
+    kernel_ctx.define_int("D1", dstr[last - 1]);
+    kernel_ctx.define_int("D2", ndims > 2 ? dstr[last - 2] : 1);
+    kernel_ctx.define_int("DB", ndims > 3 ? dstr[last - 3] : 1);
+    kernel_ctx.define_int("BLK", ndims > 3 ? sdim[last - 3] : 1);
+}
+
+void simple_reorder_t::pd_t::alt_gen() {
+    const memory_desc_wrapper src_mdw(src_md());
+    const memory_desc_wrapper dst_mdw(dst_md());
+    auto sdim = src_mdw.dims();
+
+    size_t last = src_mdw.ndims() - 1;
+    size_t gws3 = src_mdw.ndims() > 2 ? sdim[last - 2] : 1;
+    const size_t gws[3] = {(size_t)sdim[last], (size_t)sdim[last - 1], gws3};
+    size_t work_group_size = 32;
+    if (sdim[last] <= 16) { work_group_size = 16; }
+    if (sdim[last] <= 8) { work_group_size = 8; }
+    const size_t lws[3] = {work_group_size, 1, 1};
+    conf.dispatch.generate_override(gws, lws);
 }
 
 status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
@@ -259,20 +319,25 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     int last = conf.ndims - 1;
     size_t last_dim = padded_dims[last];
 
-    conf.implementation = select_kernel(conf, src_mdw, dst_mdw);
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+
+    conf.implementation = select_kernel(
+            conf, src_mdw, dst_mdw, compute_engine->device_info());
 
     dim_t blocks[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
     int vect_size = 1;
     int vect_dim = 0;
 
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
-
     int temp_block = 1;
 
     switch (conf.implementation) {
         case reorder_reference:
             blocks[2] = blocks[3] = blocks[4] = blocks[5] = 0;
+            break;
+        case reorder_alt:
+            // special handling with dispatcher override
+            conf.sub_group_size = 16;
             break;
         case dense_vector:
             // see special handling below
@@ -367,8 +432,11 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
         }
     }
 
-    conf.dispatch.generate();
-
+    if (conf.implementation == reorder_alt) {
+        alt_gen();
+    } else {
+        conf.dispatch.generate();
+    }
     return status;
 }
 
@@ -444,6 +512,7 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
         kernel_ctx.define_int("DST_16C16B", 1);
     }
 
+    if (conf.implementation == reorder_alt) { alt_defines(kernel_ctx); }
     if (conf.implementation == plain_xFxE_to_abcdef)
         kernel_ctx.define_int("PLAIN_xFxE_TO_ABCDEF", 1);
 

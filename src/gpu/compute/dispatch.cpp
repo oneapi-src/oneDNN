@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
-
 #include "gpu/compute/dispatch.hpp"
 
 #include "common/utils.hpp"
@@ -304,6 +303,16 @@ void dispatch_t::generate(bool generate_lws) {
     }
 
     nd_range_ = nd_range_t(gws, with_lws && generate_lws ? lws : nullptr);
+    generate_called = true;
+}
+
+// Allows manual setting of global and local work sizes.
+void dispatch_t::generate_override(const size_t *grange, const size_t *lrange) {
+    dims_[1].gws_index = 2;
+    dims_[2].gws_index = 1;
+    dims_[3].gws_index = 0;
+
+    nd_range_ = nd_range_t(grange, lrange);
     generate_called = true;
 }
 

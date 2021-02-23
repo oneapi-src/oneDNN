@@ -594,7 +594,8 @@ enum reorder_kernel_t {
     transpose8x8,
     transpose16x16,
     reorder_nchw,
-    unaligned_sizes
+    unaligned_sizes,
+    reorder_alt
 };
 struct reorder_conf_t {
     bool has_padding;

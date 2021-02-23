@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,6 +93,8 @@ struct simple_reorder_t : public gpu_primitive_t {
         }
 
         status_t init_conf(engine_t *engine);
+        void alt_gen();
+        void alt_defines(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
