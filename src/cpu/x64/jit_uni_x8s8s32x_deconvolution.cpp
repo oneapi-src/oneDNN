@@ -369,17 +369,17 @@ _jit_uni_x8s8s32x_deconv_fwd_kernel<isa,
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = true;
         static constexpr bool use_exact_tail_scalar_bcast = false;
+        static constexpr size_t vmm_helper_idx = 15;
 
-        const binary_injector::rhs_arg_static_params_t rhs_sp {
-                static_cast<size_t>(Xbyak::Xmm(15).getIdx()), this->rdx,
-                this->r10, preserve_gpr, preserve_vmm,
+        const binary_injector::rhs_arg_static_params_t rhs_sp {vmm_helper_idx,
+                this->rdx, this->r10, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), dst_d, tail_size,
                 Xbyak::Opmask(2), use_exact_tail_scalar_bcast};
         const binary_injector::static_params_t bsp {this->param1, rhs_sp};
 
-        postops_injector_
-                = utils::make_unique<injector::jit_uni_postops_injector_t<isa>>(
-                        this, jcp.post_ops, bsp);
+        postops_injector_ = utils::make_unique<
+                injector::jit_uni_postops_injector_t<isa, Vmm>>(
+                this, jcp.post_ops, bsp);
     }
 }
 

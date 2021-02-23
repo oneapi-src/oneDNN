@@ -54,7 +54,7 @@ struct _jit_uni_x8s8s32x_deconv_fwd_kernel : public jit_generator {
     const primitive_attr_t &attr_;
 
 private:
-    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa, Vmm>>
             postops_injector_;
     using reg64_t = const Xbyak::Reg64;
 

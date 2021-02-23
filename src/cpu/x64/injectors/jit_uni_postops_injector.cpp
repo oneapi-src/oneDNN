@@ -44,9 +44,9 @@ bool is_supported(const post_ops_ok_args_t &post_ops_ok_args) {
     return true;
 }
 
-template <cpu_isa_t isa>
-jit_uni_postops_injector_t<isa>::jit_uni_postops_injector_t(jit_generator *host,
-        const post_ops_t &post_ops,
+template <cpu_isa_t isa, typename Vmm>
+jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
+        jit_generator *host, const post_ops_t &post_ops,
         const binary_injector::static_params_t &binary_static_params,
         const eltwise_injector::static_params_t &eltwise_static_params,
         const lambda_jit_injectors_t &lambda_jit_injectors)
@@ -81,36 +81,36 @@ jit_uni_postops_injector_t<isa>::jit_uni_postops_injector_t(jit_generator *host,
 
     if (is_binary)
         binary_injector_ = utils::make_unique<
-                binary_injector::jit_uni_binary_injector_t<isa>>(
+                binary_injector::jit_uni_binary_injector_t<isa, Vmm>>(
                 host, binary_static_params);
 }
 
-template <cpu_isa_t isa>
-jit_uni_postops_injector_t<isa>::jit_uni_postops_injector_t(jit_generator *host,
-        const post_ops_t &post_ops,
+template <cpu_isa_t isa, typename Vmm>
+jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
+        jit_generator *host, const post_ops_t &post_ops,
         const binary_injector::static_params_t &binary_static_params)
     : jit_uni_postops_injector_t(host, post_ops, binary_static_params,
             eltwise_injector::static_params_t(), lambda_jit_injectors_t()) {}
 
-template <cpu_isa_t isa>
-jit_uni_postops_injector_t<isa>::jit_uni_postops_injector_t(jit_generator *host,
-        const post_ops_t &post_ops,
+template <cpu_isa_t isa, typename Vmm>
+jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
+        jit_generator *host, const post_ops_t &post_ops,
         const binary_injector::static_params_t &binary_static_params,
         const lambda_jit_injectors_t &lambda_jit_injectors)
     : jit_uni_postops_injector_t(host, post_ops, binary_static_params,
             eltwise_injector::static_params_t(), lambda_jit_injectors) {}
 
-template <cpu_isa_t isa>
-jit_uni_postops_injector_t<isa>::jit_uni_postops_injector_t(jit_generator *host,
-        const post_ops_t &post_ops,
+template <cpu_isa_t isa, typename Vmm>
+jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
+        jit_generator *host, const post_ops_t &post_ops,
         const binary_injector::static_params_t &binary_static_params,
         const eltwise_injector::static_params_t &eltwise_static_params)
     : jit_uni_postops_injector_t(host, post_ops, binary_static_params,
             eltwise_static_params, lambda_jit_injectors_t()) {}
 
-template <cpu_isa_t isa>
-void jit_uni_postops_injector_t<isa>::compute_vector_range(size_t start_idx,
-        size_t end_idx,
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
+        size_t start_idx, size_t end_idx,
         const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params) {
 
     injector_utils::vmm_index_set_t vmm_idxs;
@@ -119,15 +119,15 @@ void jit_uni_postops_injector_t<isa>::compute_vector_range(size_t start_idx,
     compute_vector_range(vmm_idxs, rhs_arg_params);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_postops_injector_t<isa>::compute_vector_range(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
         size_t start_idx, size_t end_idx) {
     compute_vector_range(
             start_idx, end_idx, binary_injector::rhs_arg_dynamic_params_t());
 }
 
-template <cpu_isa_t isa>
-void jit_uni_postops_injector_t<isa>::compute_vector_range(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
         const injector_utils::vmm_index_set_t &vmm_idxs,
         const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params) {
 
@@ -146,31 +146,31 @@ void jit_uni_postops_injector_t<isa>::compute_vector_range(
         }
     }
 }
-template <cpu_isa_t isa>
-void jit_uni_postops_injector_t<isa>::compute_vector_range(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
         const injector_utils::vmm_index_set_t &vmm_idxs) {
     compute_vector_range(vmm_idxs, binary_injector::rhs_arg_dynamic_params_t());
 }
 
-template <cpu_isa_t isa>
-void jit_uni_postops_injector_t<isa>::prepare_table(bool gen_table) {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_postops_injector_t<isa, Vmm>::prepare_table(bool gen_table) {
     for (auto &alg_elt_inject : alg_to_eltwise_injector_)
         alg_elt_inject.second.prepare_table(gen_table);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_postops_injector_t<isa>::compute_vector(size_t idx,
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_postops_injector_t<isa, Vmm>::compute_vector(size_t idx,
         const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params) {
     compute_vector_range({idx}, rhs_arg_params);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_postops_injector_t<isa>::compute_vector(size_t idx) {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_postops_injector_t<isa, Vmm>::compute_vector(size_t idx) {
     compute_vector_range({idx});
 }
 
-template <cpu_isa_t isa>
-void jit_uni_postops_injector_t<isa>::set_lambda_injector(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_postops_injector_t<isa, Vmm>::set_lambda_injector(
         dnnl_primitive_kind_t kind, const std::function<void()> &jit_injector) {
     lambda_jit_injectors_[kind] = jit_injector;
 }
@@ -267,7 +267,9 @@ template class jit_uni_postops_injector_t<avx512_core_bf16>;
 template class jit_uni_postops_injector_t<avx512_core>;
 template class jit_uni_postops_injector_t<avx512_common>;
 template class jit_uni_postops_injector_t<avx2>;
+template class jit_uni_postops_injector_t<avx2, Xbyak::Xmm>;
 template class jit_uni_postops_injector_t<avx>;
+template class jit_uni_postops_injector_t<avx, Xbyak::Xmm>;
 template class jit_uni_postops_injector_t<sse41>;
 
 } // namespace injector
