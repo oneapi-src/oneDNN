@@ -91,10 +91,12 @@ struct jit_softmax_base_t : public jit_generator {
     Vmm vsum = Vmm(isa == avx512_common ? 30 : 14);
     Vmm vmax = Vmm(isa == avx512_common ? 31 : 15);
     Vmm vsbr = vsum; // must be not equal to vmax
+    Vmm vzeropad = Vmm(isa == avx512_common ? 21 : 11);
 
     bool is_bf16_ = false;
     bool is_softmax_ = pd_->is_softmax();
     bool is_logsoftmax_ = pd_->is_logsoftmax();
+    bool axis_is_blocked_;
 
     size_t data_type_size_ = 0;
     size_t simd_w_ = 0;
@@ -112,6 +114,8 @@ struct jit_softmax_base_t : public jit_generator {
         n_loops_ = axis_simd_full_ / unroll_regs_;
         loop_tail_ = axis_simd_full_ - n_loops_ * unroll_regs_;
         axis_stride_ = compute_axis_stride();
+        axis_is_blocked_ = (pd_->src_md(0)->padded_dims[pd_->axis()]
+                != pd_->src_md(0)->dims[pd_->axis()]);
     }
 
     size_t compute_axis_stride() {
@@ -278,15 +282,29 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
 
     void store(const Address &addr, const Vmm &vmm, bool tail = false) {
         auto effective_addr = addr;
-        if (tail) effective_addr = addr | tail_opmask;
+        Vmm src_vmm = vmm;
+
+        if (tail) {
+            if (axis_is_blocked_) {
+                src_vmm = vzeropad | tail_opmask;
+                uni_vxorps(vzeropad, vzeropad, vzeropad);
+                uni_vmovups(src_vmm, vmm);
+                src_vmm = vzeropad;
+                effective_addr = addr;
+            } else {
+                effective_addr = addr | tail_opmask;
+            }
+        }
+
         if (is_bf16_) {
             if (bf16_emu_)
-                bf16_emu_->vcvtneps2bf16(bf16_cvt_ymm, vmm);
+                bf16_emu_->vcvtneps2bf16(bf16_cvt_ymm, src_vmm);
             else
-                vcvtneps2bf16(bf16_cvt_ymm, vmm);
+                vcvtneps2bf16(bf16_cvt_ymm, src_vmm);
             vmovdqu16(effective_addr, bf16_cvt_ymm);
-        } else
-            uni_vmovups(effective_addr, vmm);
+        } else {
+            uni_vmovups(effective_addr, src_vmm);
+        }
     };
 
     void load(const Vmm &vmm, const Address &addr, bool tail = false) {
@@ -535,8 +553,15 @@ struct jit_softmax_t<avx2> : public jit_softmax_base_t<avx2> {
                         uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
                     if (is_logsoftmax_)
                         uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
-                    uni_vmovups_tail(dst_ptr(axis_stride_ * i), tail_vmask,
-                            vreg_tmp_src);
+
+                    if (axis_is_blocked_) {
+                        uni_vxorps(vzeropad, vzeropad, vzeropad);
+                        vpblendvb(vzeropad, vzeropad, vreg_tmp_src, tail_vmask);
+                        uni_vmovups(dst_ptr(axis_stride_ * i), vzeropad);
+                    } else {
+                        uni_vmovups_tail(dst_ptr(axis_stride_ * i), tail_vmask,
+                                vreg_tmp_src);
+                    }
                 }
             }
         });
@@ -698,10 +723,8 @@ status_t jit_uni_softmax_fwd_t<isa>::init(engine_t *engine) {
 
 template <cpu_isa_t isa>
 status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
-    status_t status = status::success;
     auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_CLEAN_MEM(char *, DNNL_ARG_DST, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const auto data_type_size = data_d.data_type() == data_type::bf16
@@ -743,11 +766,9 @@ status_t jit_uni_softmax_bwd_t<isa>::init(engine_t *engine) {
 
 template <cpu_isa_t isa>
 status_t jit_uni_softmax_bwd_t<isa>::execute(const exec_ctx_t &ctx) const {
-    status_t status = status::success;
     auto dst = CTX_IN_MEM(const char *, DNNL_ARG_DST);
     auto diff_dst = CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_CLEAN_MEM(char *, DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
+    auto diff_src = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper data_d(pd()->dst_md());
     const auto data_type_size = data_d.data_type() == data_type::bf16
