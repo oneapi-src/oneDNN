@@ -37,6 +37,7 @@
 #include "tensor.hpp"
 #include "utils.hpp"
 #include "utils/compatible.hpp"
+#include "value.hpp"
 
 namespace dnnl {
 namespace graph {
