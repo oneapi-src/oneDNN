@@ -1,8 +1,8 @@
 # int8
 #Deconvolution with ic%4!=0 when vpbroadcastd can lead to segfault
 --reset --cfg=u8s8u8 g1ic2iw15oc1ow15kw5pw2n"deconv_ic%4!=0_segfault_tc1"
---reset --cfg=u8s8u8 ic1oc1_ih20oh17kh7ph6"deconv_ic%4!=0_segfault_tc2"
---reset --cfg=u8s8u8 ic1ih8oc1oh15kh5sh2ph0"deconv_ic%4!=0_segfault_tc3"
+--reset --cfg=u8s8u8 ic1oc1_ih20oh17kh7ph6n"deconv_ic%4!=0_segfault_tc2"
+--reset --cfg=u8s8u8 ic1ih8oc1oh15kh5sh2ph0n"deconv_ic%4!=0_segfault_tc3"
 --reset --cfg=u8s8u8 g1mb1ic1iw25oc2kw5pd0n"deconv_ic%4!=0_segfault_tc4"
 
 #Dilated deconvolution with ih <= dh when there is _no_ compute work
