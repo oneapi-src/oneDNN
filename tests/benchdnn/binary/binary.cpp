@@ -263,15 +263,14 @@ int doit(const prb_t *prb, res_t *res) {
         };
         cmp.set_driver_check_function(binary_add_check);
 
-        const bool is_cmp = prb->alg == alg_t::GE || prb->alg == alg_t::GT
-                || prb->alg == alg_t::LE || prb->alg == alg_t::LT
-                || prb->alg == alg_t::EQ || prb->alg == alg_t::NE
-                || prb->attr.post_ops.find(alg_t::GE) >= 0
-                || prb->attr.post_ops.find(alg_t::GT) >= 0
-                || prb->attr.post_ops.find(alg_t::LE) >= 0
-                || prb->attr.post_ops.find(alg_t::LT) >= 0
-                || prb->attr.post_ops.find(alg_t::EQ) >= 0
-                || prb->attr.post_ops.find(alg_t::NE) >= 0;
+        const std::vector<alg_t> cmp_alg = {alg_t::GE, alg_t::GT, alg_t::LE,
+                alg_t::LT, alg_t::EQ, alg_t::NE};
+        const bool is_cmp = std::any_of(
+                cmp_alg.cbegin(), cmp_alg.cend(), [&](const alg_t alg) {
+                    return (prb->alg == alg)
+                            || prb->attr.post_ops.find(alg) >= 0;
+                });
+
         if (is_cmp) cmp.set_zero_trust_percent(100.f);
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
