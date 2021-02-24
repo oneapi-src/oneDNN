@@ -240,3 +240,10 @@ mb1ic64ih1iw33oc1oh1ow33kh1kw24ph0pw23n"l_pad_exceeds_ow_block"
 --skip-impl='ref:gemm'
 --dir=BWD_WB
 ic3oc64_ih25oh18kh8sh1dh0ph0_iw20ow1kw20sw1dw0pw0n"1st_conv_hw-transpose"
+
+# certain eltwise postops can ruin zero-padding of dst
+--reset
+--skip-impl='ref:gemm'
+--attr-post-ops="'relu;logistic'"
+ic16ih9oc17oh9kh1ph0n"oc_tail_with_multiple_eltwise_postops:conv1"
+ic16ih9oc17oh9kh3ph1n"oc_tail_with_multiple_eltwise_postops:conv2"
