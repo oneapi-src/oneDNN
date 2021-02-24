@@ -178,8 +178,11 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 
     if (is_nvidia_gpu()) {
-        const bool alg_ok = !(prb->alg == alg_t::DIV || prb->alg == alg_t::SUB
-                || prb->alg == alg_t::GE);
+        const std::vector<alg_t> supported_algs
+                = {alg_t::ADD, alg_t::MUL, alg_t::MIN, alg_t::MAX};
+        const bool alg_ok
+                = std::any_of(supported_algs.cbegin(), supported_algs.cend(),
+                        [&](const alg_t alg) { return prb->alg == alg; });
         const bool dt_ok = prb->sdt[0] == prb->sdt[1];
         const bool diff_dt_ok = dt_ok
                 && IMPLICATION(
