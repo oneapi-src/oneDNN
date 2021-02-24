@@ -84,12 +84,14 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     const auto compare_point_values = [&](int64_t i) {
         driver_check_func_args_t args(exp_mem, got_f32, i, dt);
 
-        bool ok = false;
+        bool ok = args.diff == 0.f;
         if (std::isnan(args.exp_f32) && is_integral_dt(dt)) {
             // Relax output requirements for this case, since different backends
             // may implement NaN fp32 -> int32 conversion in a different manner.
             ok = true;
-        } else {
+        }
+        // If fast check failed, go through all of them.
+        if (!ok) {
             // Standard check for relative diff is under set threshold...
             ok = (fabsf(args.exp) > 1e-5 ? args.rel_diff : args.diff) <= trh_;
             // If not, check that both are NaNs or infinity with same sign...
@@ -110,7 +112,7 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             // big rdiff errors slip away hoping that absolute error is good
             // enough.
             if (!ok && has_eltwise) {
-                const float experimental_tolerated_trh = 2e-6;
+                const float experimental_tolerated_trh = 8e-6;
                 ok = args.diff <= experimental_tolerated_trh;
             }
 
