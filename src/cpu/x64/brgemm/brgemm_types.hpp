@@ -201,6 +201,31 @@ private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(brgemm_kernel_t);
 };
 
+/// @param bias Vector of bias (vector length is N)
+/// @param scales Vector of scales (vector length is N)
+/// @param binary_post_ops_rhs - Ptr to table of pointers to tensors used as rhs
+///     in binary post-operation { void* binary_op_tensor1, ...,
+//      void* binary_op_tensor_n}
+/// @param oc_logical_off - Used in binary postops in per_oc bcast strategy.
+///     Offset to start oc processed by given thread in elements.
+/// @param scratch Scratchpad needed for AMX version, can be nullptr for
+///     avx512 version
+///
+struct brgemm_post_ops_data_t {
+    brgemm_post_ops_data_t() = default;
+    brgemm_post_ops_data_t(const void *bias, const float *scales,
+            const void *binary_post_ops_rhs, size_t oc_logical_off)
+        : bias(bias)
+        , scales(scales)
+        , binary_post_ops_rhs(binary_post_ops_rhs)
+        , oc_logical_off(oc_logical_off) {}
+
+    const void *bias = nullptr;
+    const float *scales = nullptr;
+    const void *binary_post_ops_rhs = nullptr;
+    size_t oc_logical_off = 0;
+};
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl

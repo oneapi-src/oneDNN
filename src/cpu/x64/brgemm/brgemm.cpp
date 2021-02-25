@@ -70,8 +70,7 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
         const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
-        const void *bias, const float *scales, const void *binary_post_ops_rhs,
-        size_t oc_logical_off, void *scratch) {
+        const brgemm_post_ops_data_t &post_ops_data, void *scratch) {
     brgemm_kernel_params_t brgemm_p;
 
     brgemm_p.batch = batch;
@@ -80,20 +79,19 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_C = ptr_C;
     brgemm_p.ptr_D = ptr_D;
     brgemm_p.ptr_buf = scratch;
-    brgemm_p.ptr_bias = bias;
-    brgemm_p.ptr_scales = scales;
+    brgemm_p.ptr_bias = post_ops_data.bias;
+    brgemm_p.ptr_scales = post_ops_data.scales;
     brgemm_p.do_post_ops = 1;
     brgemm_p.BS = bs;
-    brgemm_p.post_ops_binary_rhs_arg_vec = binary_post_ops_rhs;
-    brgemm_p.oc_logical_off = oc_logical_off;
+    brgemm_p.post_ops_binary_rhs_arg_vec = post_ops_data.binary_post_ops_rhs;
+    brgemm_p.oc_logical_off = post_ops_data.oc_logical_off;
     (*brg_kernel)(&brgemm_p);
 }
 
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
         const void *addr_A, const void *addr_B,
         const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
-        const void *bias, const float *scales, const void *binary_post_ops_rhs,
-        size_t oc_logical_off, void *scratch) {
+        const brgemm_post_ops_data_t &post_ops_data, void *scratch) {
     brgemm_kernel_params_t brgemm_p;
 
     brgemm_p.batch = batch;
@@ -102,12 +100,12 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_C = ptr_C;
     brgemm_p.ptr_D = ptr_D;
     brgemm_p.ptr_buf = scratch;
-    brgemm_p.ptr_bias = bias;
-    brgemm_p.ptr_scales = scales;
+    brgemm_p.ptr_bias = post_ops_data.bias;
+    brgemm_p.ptr_scales = post_ops_data.scales;
     brgemm_p.do_post_ops = 1;
     brgemm_p.BS = bs;
-    brgemm_p.post_ops_binary_rhs_arg_vec = binary_post_ops_rhs;
-    brgemm_p.oc_logical_off = oc_logical_off;
+    brgemm_p.post_ops_binary_rhs_arg_vec = post_ops_data.binary_post_ops_rhs;
+    brgemm_p.oc_logical_off = post_ops_data.oc_logical_off;
 
     (*brg_kernel)(&brgemm_p);
 }
@@ -341,6 +339,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
 
     brg->LDD = LDD;
     const auto dt_d = dst_md->data_type;
+
     if ((brg->dt_a == data_type::u8 && brg->dt_b == data_type::s8)
             && (!one_of(dt_d, data_type::u8, data_type::s8, data_type::s32,
                     data_type::f32))
@@ -357,13 +356,12 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
             && (!one_of(dt_bias, data_type::undef, data_type::f32)))
         return status::unimplemented;
 
-
     brg->dt_d = dt_d;
     brg->typesize_D = types::data_type_size(brg->dt_d);
-
     if (brg->attr == nullptr) {
         brg->with_sum = false;
         brg->with_eltwise = false;
+        brg->with_binary = false;
         brg->with_scales = false;
 
         return status::success;
@@ -374,11 +372,16 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     const auto &post_ops = brg->attr->post_ops_;
     const memory_desc_wrapper dst_d(dst_md);
 
-    if (!injector::post_ops_ok(post_ops_ok_args_t(avx512_common,
-                {sum, eltwise, binary}, post_ops, &dst_d,
-                false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
-                {broadcasting_strategy_t::per_oc,
-                        broadcasting_strategy_t::scalar})))
+    const int binary_ind = post_ops.find(primitive_kind::binary);
+    brg->with_binary = binary_ind != -1;
+
+    if ((brg->with_binary && !dst_md)
+            || !injector::post_ops_ok(
+                    post_ops_ok_args_t(avx512_common, {sum, eltwise, binary},
+                            post_ops, &dst_d, false /*sum_at_pos_0_only*/,
+                            false /*sum_requires_scale_one*/,
+                            {broadcasting_strategy_t::per_oc,
+                                    broadcasting_strategy_t::scalar})))
         return status::unimplemented;
 
     const int sum_idx = post_ops.find(primitive_kind::sum);
@@ -387,9 +390,6 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
 
     const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     brg->with_eltwise = eltwise_ind != -1;
-
-    const int binary_ind = post_ops.find(primitive_kind::binary);
-    brg->with_binary = binary_ind != -1;
 
     if (brg->is_int8) {
         const auto &oscales = brg->attr->output_scales_;

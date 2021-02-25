@@ -289,14 +289,21 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             }
 
             if (are_post_ops_applicable && is_last_K_chunk && !is_K_tail) {
+                void *scratch = is_amx
+                        ? static_cast<void *>(wsp_tile)
+                        : (bgmmc.signed_input ? static_cast<void *>(
+                                   const_cast<int *>(&compensation[comp_idx]))
+                                              : nullptr);
+
+                const brgemm_post_ops_data_t post_ops_data {
+                        static_cast<const void *>(ptr_bias),
+                        &oscales[bgmmc.is_oscale_per_n * n],
+                        post_ops_binary_rhs_arg_vec.data(),
+                        static_cast<size_t>(n)};
+
                 brgemm_kernel_execute_postops(brg_kernel, gemm_batch,
-                        addr_batch, (void *)ptr_C, (void *)ptr_D,
-                        (void *)ptr_bias, &oscales[bgmmc.is_oscale_per_n * n],
-                        post_ops_binary_rhs_arg_vec.data(), n,
-                        is_amx ? (void *)wsp_tile
-                               : (bgmmc.signed_input
-                                               ? (void *)&compensation[comp_idx]
-                                               : nullptr));
+                        addr_batch, (void *)ptr_C, (void *)ptr_D, post_ops_data,
+                        scratch);
             } else {
                 brgemm_kernel_execute(brg_kernel, gemm_batch, addr_batch,
                         (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
@@ -329,14 +336,20 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             if (is_tile_reconf_required)
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
             if (are_post_ops_applicable && k_blk_idx == K_chunks - 1) {
-                brgemm_kernel_execute_postops(brg_kernel_k_tail, 1, addr_batch,
-                        (void *)ptr_C, (void *)ptr_D, (void *)ptr_bias,
+                void *scratch = is_amx
+                        ? static_cast<void *>(wsp_tile)
+                        : (bgmmc.signed_input ? static_cast<void *>(
+                                   const_cast<int *>(&compensation[comp_idx]))
+                                              : nullptr);
+
+                const brgemm_post_ops_data_t post_ops_data {
+                        static_cast<const void *>(ptr_bias),
                         &oscales[bgmmc.is_oscale_per_n * n],
-                        post_ops_binary_rhs_arg_vec.data(), n,
-                        is_amx ? (void *)wsp_tile
-                               : (bgmmc.signed_input
-                                               ? (void *)&compensation[comp_idx]
-                                               : nullptr));
+                        post_ops_binary_rhs_arg_vec.data(),
+                        static_cast<size_t>(n)};
+
+                brgemm_kernel_execute_postops(brg_kernel_k_tail, 1, addr_batch,
+                        (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);
             } else {
                 brgemm_kernel_execute(brg_kernel_k_tail, 1, addr_batch,
                         (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);

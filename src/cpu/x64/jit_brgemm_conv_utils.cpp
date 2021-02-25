@@ -545,6 +545,7 @@ int get_brgemm_ur(const jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                     brg.with_sum = jcp.with_sum;
                     status = brgemm_desc_set_postops(
                             &brg, attr, &dst_md, LDD, jcp.bia_dt);
+
                     if (status != success) break;
                 }
                 if (status != success) break;

@@ -664,11 +664,15 @@ void brgemm_convolution_fwd_t<isa, src_type, wei_type,
         dst_data_t *ptr_D, const char *bias_w, int g_oc, bool do_postops,
         const void *binary_post_ops_rhs) const {
     const auto &jcp = pd()->jcp_;
-    if (do_postops)
-        brgemm_kernel_execute_postops(brg_ker, batch_size, brg_batch, ptr_C,
-                ptr_D, (void *)bias_w, &oscales[jcp.is_oc_scale * g_oc],
-                binary_post_ops_rhs, g_oc);
-    else
+    if (do_postops) {
+        const brgemm_post_ops_data_t post_ops_data {
+                static_cast<const void *>(bias_w),
+                &oscales[jcp.is_oc_scale * g_oc], binary_post_ops_rhs,
+                static_cast<size_t>(g_oc)};
+
+        brgemm_kernel_execute_postops(
+                brg_ker, batch_size, brg_batch, ptr_C, ptr_D, post_ops_data);
+    } else
         brgemm_kernel_execute(brg_ker, batch_size, brg_batch, ptr_C);
 }
 

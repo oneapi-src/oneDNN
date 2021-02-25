@@ -134,13 +134,21 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
             auto ptr_C = (jbgp.use_buffer) ? c_buffer : ptr_D;
             if (are_post_ops_applicable && icc == ic_chunks - 1
                     && !is_ic_tail) {
+                void *scratch = is_amx
+                        ? static_cast<void *>(wsp_tile)
+                        : (jbgp.signed_input ? static_cast<void *>(
+                                   const_cast<int *>(&compensation[oc]))
+                                             : nullptr);
+
+                const brgemm_post_ops_data_t post_ops_data {
+                        static_cast<const void *>(ptr_bias),
+                        &oscales[jbgp.is_oc_scale * oc],
+                        post_ops_binary_rhs_arg_vec.data(),
+                        static_cast<size_t>(oc)};
+
                 brgemm_kernel_execute_postops(brg_kernel, gemm_batch,
-                        addr_batch, (void *)ptr_C, (void *)ptr_D,
-                        (void *)ptr_bias, &oscales[jbgp.is_oc_scale * oc],
-                        post_ops_binary_rhs_arg_vec.data(), oc,
-                        is_amx ? (void *)wsp_tile
-                               : (jbgp.signed_input ? (void *)&compensation[oc]
-                                                    : nullptr));
+                        addr_batch, (void *)ptr_C, (void *)ptr_D, post_ops_data,
+                        scratch);
             } else {
                 brgemm_kernel_execute(brg_kernel, gemm_batch, addr_batch,
                         (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
@@ -166,13 +174,20 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
             auto ptr_D = dst + get_blk_off(dst_d, jbgp.dst_dt, n, oc);
             auto ptr_C = (jbgp.use_buffer) ? c_buffer : ptr_D;
             if (are_post_ops_applicable && icc == ic_chunks - 1) {
-                brgemm_kernel_execute_postops(brg_kernel_ic_tail, 1, addr_batch,
-                        (void *)ptr_C, (void *)ptr_D, (void *)ptr_bias,
+                void *scratch = is_amx
+                        ? static_cast<void *>(wsp_tile)
+                        : (jbgp.signed_input ? static_cast<void *>(
+                                   const_cast<int *>(&compensation[oc]))
+                                             : nullptr);
+
+                const brgemm_post_ops_data_t post_ops_data {
+                        static_cast<const void *>(ptr_bias),
                         &oscales[jbgp.is_oc_scale * oc],
-                        post_ops_binary_rhs_arg_vec.data(), oc,
-                        is_amx ? (void *)wsp_tile
-                               : (jbgp.signed_input ? (void *)&compensation[oc]
-                                                    : nullptr));
+                        post_ops_binary_rhs_arg_vec.data(),
+                        static_cast<size_t>(oc)};
+
+                brgemm_kernel_execute_postops(brg_kernel_ic_tail, 1, addr_batch,
+                        (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);
             } else {
                 brgemm_kernel_execute(brg_kernel_ic_tail, 1, addr_batch,
                         (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
@@ -379,9 +394,12 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             if (jbgp.use_buffer && occ == oc_chunks - 1 && !is_oc_tail) {
                 auto ptr_D = diff_src
                         + get_blk_off(diff_src_d, jbgp.src_dt, n, ic);
+                void *scratch
+                        = is_amx ? static_cast<void *>(wsp_tile) : nullptr;
+                const brgemm_post_ops_data_t empty_po_data {};
                 brgemm_kernel_execute_postops(brg_kernel, nb_oc_b, addr_batch,
-                        (void *)c_buffer, (void *)ptr_D, nullptr, nullptr, nullptr, 0,
-                        is_amx ? (void *)wsp_tile : nullptr);
+                        (void *)c_buffer, (void *)ptr_D, empty_po_data,
+                        scratch);
 
             } else {
                 char *ptr_C = (jbgp.use_buffer) ? c_buffer
@@ -417,9 +435,12 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             if (jbgp.use_buffer && occ == oc_chunks - 1) {
                 auto ptr_D = diff_src
                         + get_blk_off(diff_src_d, jbgp.src_dt, n, ic);
+                void *scratch
+                        = is_amx ? static_cast<void *>(wsp_tile) : nullptr;
+                const brgemm_post_ops_data_t empty_po_data {};
                 brgemm_kernel_execute_postops(brg_kernel_oc_tail, 1, addr_batch,
-                        (void *)c_buffer, (void *)ptr_D, nullptr, nullptr,
-                        nullptr, 0, is_amx ? (void *)wsp_tile : nullptr);
+                        (void *)c_buffer, (void *)ptr_D, empty_po_data,
+                        scratch);
 
             } else {
                 char *ptr_C = (jbgp.use_buffer) ? c_buffer
