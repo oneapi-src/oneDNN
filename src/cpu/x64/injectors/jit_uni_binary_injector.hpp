@@ -82,12 +82,14 @@ bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
  * operations).
  * @param tail_opmask - register with loaded by user mask, used in avx512 for load with
  * tail handling.
- * @oaram tail_size - size of processed tail in elements.
+ * @param tail_size - size of processed tail in elements.
  * @param use_exact_tail_scalar_bcast - in case of scalar broadcast user can disable
  * loading data with tail, usually bcast through entire vector is faster (usually 1 instruction)
  * vs. broadcasting limited by tail size (potentially several instructions). In case
  * when user during storing ignores values from vmm above tail size, setting this option to
  * false can result in better performance.
+ * @param reg_tail_size - register with loaded size of tail, used in sse41/avx/avx2
+ * for load with tail in runtime.
  */
 struct rhs_arg_static_params_t {
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
@@ -102,6 +104,13 @@ struct rhs_arg_static_params_t {
             bool preserve_vmm_helper, std::size_t abi_param_offset,
             const memory_desc_wrapper &dst_d, std::size_t tail_size,
             const Xbyak::Opmask &tail_opmask, bool use_exact_tail_scalar_bcast);
+    rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
+            const Xbyak::Reg64 &rhs_addr_reg,
+            const Xbyak::Reg64 &rhs_helper_reg, bool preserve_gpr_helpers,
+            bool preserve_vmm_helper, std::size_t abi_param_offset,
+            const memory_desc_wrapper &dst_d, std::size_t tail_size,
+            const Xbyak::Opmask &tail_opmask, const Xbyak::Reg64 &reg_tail_size,
+            bool use_exact_tail_scalar_bcast);
 
     bool is_opmask_set() const noexcept { return is_opmask_set_; }
 
@@ -115,6 +124,8 @@ struct rhs_arg_static_params_t {
     std::size_t tail_size;
     Xbyak::Opmask tail_opmask;
     bool use_exact_tail_scalar_bcast;
+    Xbyak::Reg64 reg_tail_size;
+    bool is_tail;
 
 private:
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
@@ -123,7 +134,7 @@ private:
             bool preserve_vmm_helper, std::size_t abi_param_offset,
             const memory_desc_wrapper &dst_d, std::size_t tail_size,
             const Xbyak::Opmask &tail_opmask, bool use_exact_tail_scalar_bcast,
-            bool is_opmask_set);
+            const Xbyak::Reg64 &reg_tail_size, bool is_opmask_set);
 
     bool is_opmask_set_;
 };
@@ -154,6 +165,15 @@ struct static_params_t {
 };
 
 /*
+ * Mode of data load with tail for rhs:
+ * STATIC - load based on given integer.
+ * DYNAMIC - load based on opmask or 64-bit register.
+ * DEFAULT - DYNAMIC for avx512, STATIC for others.
+ */
+
+enum class tail_lode_mode_t { STATIC, DYNAMIC, DEFAULT };
+
+/*
  * Represents params passed to compute_vector_range method of
  * jit_uni_binary_injector_t that can be different for each call.
  * Contains configurable std::maps where key is vmm index and value is
@@ -175,6 +195,9 @@ struct static_params_t {
  * @param vmm_idx_to_oc_off_oprnd - vmm mapped to output channel offset in elements inside
  * operand intended to use in per_oc broadcast strategies.
  * @param vmm_tail_idx - vmm idxes that contains data don't fill the whole vector (tail).
+ * @param is_dynamic_tail_load - determines whether to load with tail in
+ * runtime (based on the value from reg_tail_size or opmask) or based on given
+ * integer.
  */
 
 struct rhs_arg_dynamic_params_t {
@@ -186,6 +209,7 @@ struct rhs_arg_dynamic_params_t {
     std::map<int, int> vmm_idx_to_oc_elem_off_val;
     std::map<int, Xbyak::Operand> vmm_idx_to_oc_off_oprnd;
     std::unordered_set<int> vmm_tail_idx_;
+    tail_lode_mode_t tail_load_mode = tail_lode_mode_t::DEFAULT;
 };
 
 /*
@@ -272,7 +296,8 @@ private:
      * Loads data and applies particular binary operation.
      */
     void inject_binary(const dnnl_post_ops::entry_t &post_op, Vmm dst,
-            const Xbyak::Address &rhs_addr, bool with_tail) const;
+            const Xbyak::Address &rhs_addr, bool with_tail,
+            const tail_lode_mode_t tail_load_mode) const;
 
     /*
      * Helper functions responsible for preparing rhs tensor slice address.
@@ -310,15 +335,25 @@ private:
             const Vmm &tmp_reg, const Xbyak::Address &rhs_addr,
             bool with_tail = false) const;
     void load_rhs(const dnnl_data_type_t &data_type, const Vmm &tmp_reg,
-            const Xbyak::Address &rhs_addr, bool with_tail = false) const;
+            const Xbyak::Address &rhs_addr,
+            const tail_lode_mode_t tail_load_mode,
+            bool with_tail = false) const;
     void execute_broadcast_tail(const dnnl_data_type_t &data_type,
             const Vmm &tmp_reg, const Xbyak::Address &rhs_addr) const;
-    void load_rhs_tail(const dnnl_data_type_t &data_type, const Vmm &tmp_reg,
-            const Xbyak::Address &rhs_addr) const;
+    template <typename T>
+    typename std::enable_if<std::is_same<T, Xbyak::Zmm>::value>::type
+    load_rhs_tail_dynamically(const dnnl_data_type_t &data_type,
+            const T &tmp_vmm, const Xbyak::Address &rhs_addr) const;
+    template <typename T>
+    typename std::enable_if<!std::is_same<T, Xbyak::Zmm>::value>::type
+    load_rhs_tail_dynamically(const dnnl_data_type_t &data_type,
+            const T &tmp_vmm, const Xbyak::Address &rhs_addr) const;
+    void load_rhs_tail_statically(const dnnl_data_type_t &data_type,
+            const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) const;
     void execute_broadcast_no_tail(const dnnl_data_type_t &data_type,
-            const Vmm &tmp_reg, const Xbyak::Address &rhs_addr) const;
+            const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) const;
     void execute_broadcast_s8u8_no_tail(const data_type_t &data_type,
-            const Vmm &tmp_reg, const Xbyak::Address &rhs_addr) const;
+            const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) const;
     void load_rhs_no_tail(const dnnl_data_type_t &data_type, const Vmm &tmp_reg,
             const Xbyak::Address &rhs_addr) const;
     void cvt_to_f32(const Vmm &tmp_reg) const;
