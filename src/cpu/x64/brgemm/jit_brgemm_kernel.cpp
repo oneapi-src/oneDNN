@@ -168,12 +168,12 @@ private:
             assert(idx > 0);
             return Xbyak::Zmm(idx);
         } else
-            return Xbyak::Zmm(0);
+            return this->zmm0;
     }
 
     Xbyak::Zmm load(int ld = 0) {
         if (n_bcast_1_load) {
-            return Xbyak::Zmm(0);
+            return this->zmm0;
         } else {
             int idx = 31 - (brg.ld_block2 * brg.bd_block) - ld;
             assert(idx > 0);
@@ -181,15 +181,15 @@ private:
         }
     }
 
-    Xbyak::Zmm zmm_tmp_1() { return Xbyak::Zmm(0); }
-    Xbyak::Zmm zmm_tmp_2() { return Xbyak::Zmm(1); }
-    Xbyak::Zmm zmm_tmp_3() { return Xbyak::Zmm(2); }
-    Xbyak::Zmm zmm_inp_shift() { return Xbyak::Zmm(1); }
+    const Xbyak::Zmm &zmm_tmp_1() const noexcept { return this->zmm0; }
+    const Xbyak::Zmm &zmm_tmp_2() const noexcept { return this->zmm1; }
+    const Xbyak::Zmm &zmm_tmp_3() const noexcept { return this->zmm2; }
+    const Xbyak::Zmm &zmm_inp_shift() const noexcept { return this->zmm1; }
 
     Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag, bool store,
-            Xbyak::Opmask ktail_mask);
+            Xbyak::Opmask ktail_mask) const;
     Xbyak::Ymm ymm_mask(const Xbyak::Ymm ymm_in, bool mask_flag, bool store,
-            Xbyak::Opmask ktail_mask);
+            Xbyak::Opmask ktail_mask) const;
 
     void cvt2ps(data_type_t type_in, const Xbyak::Zmm zmm_in,
             const Xbyak::Operand &op, bool mask_flag, bool store,
@@ -224,79 +224,84 @@ private:
 
     void generate() override;
 
-    int A_offset(int bd, int rd, bool is_amx = false);
-    int B_offset(int ld, int rd, bool is_amx = false);
-    int C_offset(int bd, int ld);
-    int D_offset(int bd, int ld);
+    int A_offset(int bd, int rd, bool is_amx = false) const noexcept;
+    int B_offset(int ld, int rd, bool is_amx = false) const noexcept;
+    int C_offset(int bd, int ld) const noexcept;
+    int D_offset(int bd, int ld) const noexcept;
 
-    int rdb_A_offset();
-    int rdb_B_offset();
+    int rdb_A_offset() const noexcept;
+    int rdb_B_offset() const noexcept;
 
-    int ldb_B_offset(int ld_block2, bool is_tail = false);
-    int ldb_C_offset(int ld_block2, bool is_tail = false);
-    int ldb_D_offset(int ld_block2, bool is_tail = false);
+    int ldb_B_offset(int ld_block2, bool is_tail = false) const noexcept;
+    int ldb_C_offset(int ld_block2, bool is_tail = false) const noexcept;
+    int ldb_D_offset(int ld_block2, bool is_tail = false) const noexcept;
 
-    int bdb_A_offset(int bd_block2);
-    int bdb_C_offset(int bd_block2);
-    int bdb_D_offset(int bd_block2);
+    int bdb_A_offset(int bd_block2) const noexcept;
+    int bdb_C_offset(int bd_block2) const noexcept;
+    int bdb_D_offset(int bd_block2) const noexcept;
 
-    int bias_offset(int ld, bool is_tail = false);
+    int bias_offset(int ld, bool is_tail = false) const noexcept;
     int oc_logical_offset(int ld, bool is_tail = false) const noexcept;
 
-    int compensations_offset(int ld, bool is_tail = false);
-    int scales_offset(int ld, bool is_tail = false);
+    int compensations_offset(int ld, bool is_tail = false) const noexcept;
+    int scales_offset(int ld, bool is_tail = false) const noexcept;
 
     bool n_bcast_1_load = false;
     bool vpad_exist = false;
 };
 
-int jit_brgemm_kernel_base_t::A_offset(int bd, int rd, bool is_amx) {
+int jit_brgemm_kernel_base_t::A_offset(int bd, int rd, bool is_amx) const
+        noexcept {
     return (is_amx) ? brg.typesize_A * (bd * brg.bd_block * brg.LDA)
                     : brg.typesize_A * (bd * brg.LDA + rd);
 }
-int jit_brgemm_kernel_base_t::B_offset(int ld, int rd, bool is_amx) {
+int jit_brgemm_kernel_base_t::B_offset(int ld, int rd, bool is_amx) const
+        noexcept {
     return (is_amx)
             ? brg.typesize_B * (brg.rd_step * ld * brg.ld_block)
             : brg.typesize_B * (rd * brg.LDB + brg.rd_step * ld * brg.ld_block);
 }
-int jit_brgemm_kernel_base_t::C_offset(int bd, int ld) {
+int jit_brgemm_kernel_base_t::C_offset(int bd, int ld) const noexcept {
     return brg.typesize_C * (bd * brg.LDC + ld * brg.ld_block);
 }
-int jit_brgemm_kernel_base_t::D_offset(int bd, int ld) {
+int jit_brgemm_kernel_base_t::D_offset(int bd, int ld) const noexcept {
     return brg.typesize_D * (bd * brg.LDD + ld * brg.ld_block);
 }
 
-int jit_brgemm_kernel_base_t::rdb_A_offset() {
+int jit_brgemm_kernel_base_t::rdb_A_offset() const noexcept {
     return brg.typesize_A * brg.rd_block;
 }
-int jit_brgemm_kernel_base_t::rdb_B_offset() {
+int jit_brgemm_kernel_base_t::rdb_B_offset() const noexcept {
     return brg.typesize_B * brg.rd_block * brg.LDB;
 }
 
-int jit_brgemm_kernel_base_t::ldb_B_offset(int ld_block2, bool is_tail) {
+int jit_brgemm_kernel_base_t::ldb_B_offset(int ld_block2, bool is_tail) const
+        noexcept {
     return (is_tail) ? brg.typesize_B * brg.ldb_tail * brg.ld_step
                      : brg.typesize_B * ld_block2 * brg.ld_block * brg.ld_step;
 }
-int jit_brgemm_kernel_base_t::ldb_C_offset(int ld_block2, bool is_tail) {
+int jit_brgemm_kernel_base_t::ldb_C_offset(int ld_block2, bool is_tail) const
+        noexcept {
     return (is_tail) ? brg.typesize_C * brg.ldb_tail
                      : brg.typesize_C * ld_block2 * brg.ld_block;
 }
-int jit_brgemm_kernel_base_t::ldb_D_offset(int ld_block2, bool is_tail) {
+int jit_brgemm_kernel_base_t::ldb_D_offset(int ld_block2, bool is_tail) const
+        noexcept {
     return (is_tail) ? brg.typesize_D * brg.ldb_tail
                      : brg.typesize_D * ld_block2 * brg.ld_block;
 }
 
-int jit_brgemm_kernel_base_t::bdb_A_offset(int bd_block2) {
+int jit_brgemm_kernel_base_t::bdb_A_offset(int bd_block2) const noexcept {
     return brg.typesize_A * bd_block2 * brg.bd_block * brg.LDA;
 }
-int jit_brgemm_kernel_base_t::bdb_C_offset(int bd_block2) {
+int jit_brgemm_kernel_base_t::bdb_C_offset(int bd_block2) const noexcept {
     return brg.typesize_C * bd_block2 * brg.bd_block * brg.LDC;
 }
-int jit_brgemm_kernel_base_t::bdb_D_offset(int bd_block2) {
+int jit_brgemm_kernel_base_t::bdb_D_offset(int bd_block2) const noexcept {
     return brg.typesize_D * bd_block2 * brg.bd_block * brg.LDD;
 }
 
-int jit_brgemm_kernel_base_t::bias_offset(int ld, bool is_tail) {
+int jit_brgemm_kernel_base_t::bias_offset(int ld, bool is_tail) const noexcept {
     return (is_tail) ? brg.typesize_bias * brg.ldb_tail
                      : brg.typesize_bias * ld * brg.ld_block;
 }
@@ -306,23 +311,25 @@ int jit_brgemm_kernel_base_t::oc_logical_offset(int ld, bool is_tail) const
     return (is_tail) ? brg.ldb_tail : ld * brg.ld_block;
 }
 
-int jit_brgemm_kernel_base_t::compensations_offset(int ld, bool is_tail) {
+int jit_brgemm_kernel_base_t::compensations_offset(int ld, bool is_tail) const
+        noexcept {
     return (is_tail) ? sizeof(int32_t) * brg.ldb_tail
                      : sizeof(int32_t) * ld * brg.ld_block;
 }
 
-int jit_brgemm_kernel_base_t::scales_offset(int ld, bool is_tail) {
+int jit_brgemm_kernel_base_t::scales_offset(int ld, bool is_tail) const
+        noexcept {
     return (is_tail) ? brg.is_oc_scale * sizeof(float) * brg.ldb_tail
                      : brg.is_oc_scale * sizeof(float) * ld * brg.ld_block;
 }
 Xbyak::Zmm jit_brgemm_kernel_base_t::zmm_mask(const Xbyak::Zmm zmm_in,
-        bool mask_flag, bool store, Xbyak::Opmask ktail_mask) {
+        bool mask_flag, bool store, Xbyak::Opmask ktail_mask) const {
     return mask_flag ? (store ? zmm_in | ktail_mask : zmm_in | ktail_mask | T_z)
                      : zmm_in;
 }
 
 Xbyak::Ymm jit_brgemm_kernel_base_t::ymm_mask(const Xbyak::Ymm ymm_in,
-        bool mask_flag, bool store, Xbyak::Opmask ktail_mask) {
+        bool mask_flag, bool store, Xbyak::Opmask ktail_mask) const {
     return mask_flag ? (store ? ymm_in | ktail_mask : ymm_in | ktail_mask | T_z)
                      : ymm_in;
 }
