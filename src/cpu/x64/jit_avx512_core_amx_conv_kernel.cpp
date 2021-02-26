@@ -2244,6 +2244,9 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.is_nspc = jcp.src_tag == dat_tag_nspc;
     assert(IMPLICATION(is_int8_convolution, jcp.is_nspc));
 
+    // TODO: remove all support for nChw16c from this implementation
+    if (!jcp.is_nspc) return status::unimplemented;
+
     if (dst_d.format_kind() == format_kind::any) {
         CHECK(memory_desc_init_by_tag(dst_md, jcp.src_tag));
         jcp.dst_tag = jcp.src_tag;
@@ -3463,7 +3466,7 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.is_nspc = jcp.src_tag == dat_tag_nspc;
     assert(IMPLICATION(is_int8_deconvolution, jcp.is_nspc));
 
-    // TODO: enable support for nChw16c
+    // TODO: remove all support for nChw16c from this implementation
     if (!jcp.is_nspc) return status::unimplemented;
 
     if (diff_dst_d.format_kind() == format_kind::any) {
