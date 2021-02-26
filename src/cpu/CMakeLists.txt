@@ -76,6 +76,22 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     endif()
 endif()
 
+# Default fp-model in icx may be precise or fast=1 depending on the version.
+# Also, make sure more precise division is used.
+if(CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
+    file(GLOB FILES_REQUIRED_FP_PRECISE
+        ${CMAKE_CURRENT_SOURCE_DIR}/ref_resampling.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/gemm_inner_product_utils.cpp
+        )
+    if(WIN32)
+        set_source_files_properties(${FILES_REQUIRED_FP_PRECISE}
+            PROPERTIES COMPILE_FLAGS "/fp:precise -fno-reciprocal-math")
+    else()
+        set_source_files_properties(${FILES_REQUIRED_FP_PRECISE}
+            PROPERTIES COMPILE_FLAGS "-fp-model=precise -fno-reciprocal-math")
+    endif()
+endif()
+
 if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STREQUAL "Intel"))
     file(GLOB FILES_REQUIRED_BIGOBJ
         ${CMAKE_CURRENT_SOURCE_DIR}/cpu_engine.cpp
