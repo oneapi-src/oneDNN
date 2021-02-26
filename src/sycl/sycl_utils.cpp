@@ -70,10 +70,8 @@ bool are_equal(const cl::sycl::device &lhs, const cl::sycl::device &rhs) {
 
     if (lhs_be == backend_t::opencl) {
         // Use wrapper objects to avoid memory leak.
-        auto lhs_ocl_dev = gpu::ocl::make_ocl_wrapper(
-                lhs.get_native<cl::sycl::backend::opencl>());
-        auto rhs_ocl_dev = gpu::ocl::make_ocl_wrapper(
-                rhs.get_native<cl::sycl::backend::opencl>());
+        auto lhs_ocl_dev = gpu::ocl::make_ocl_wrapper(lhs.get());
+        auto rhs_ocl_dev = gpu::ocl::make_ocl_wrapper(rhs.get());
         return lhs_ocl_dev == rhs_ocl_dev;
     }
 
@@ -96,12 +94,12 @@ device_id_t sycl_device_id(const cl::sycl::device &dev) {
     device_id_t device_id
             = device_id_t {static_cast<int>(backend_t::unknown), 0, 0};
     switch (get_sycl_backend(dev)) {
-        case backend_t::opencl:
+        case backend_t::opencl: {
+            auto ocl_device = gpu::ocl::make_ocl_wrapper(dev.get());
             device_id = std::make_tuple(static_cast<int>(backend_t::opencl),
-                    reinterpret_cast<uint64_t>(
-                            dev.get_native<cl::sycl::backend::opencl>()),
-                    0);
+                    reinterpret_cast<uint64_t>(ocl_device.get()), 0);
             break;
+        }
         case backend_t::level0: {
 #if defined(DNNL_WITH_LEVEL_ZERO)
             device_id = std::tuple_cat(
