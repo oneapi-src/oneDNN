@@ -1,6 +1,6 @@
 #pragma once
 /*******************************************************************************
- * Copyright 2019-2020 FUJITSU LIMITED
+ * Copyright 2019-2021 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -5447,11 +5447,14 @@ public:
     labelMgr_.set(this);
   }
   bool hasUndefinedLabel() const { return labelMgr_.hasUndefClabel(); }
+  void clearCache(void *begin, void *end) {
+    __builtin___clear_cache((char *)begin, (char *)end);
+  }
   /*
-        MUST call ready() to complete generating code if you use AutoGrow
-   mode.
-        It is not necessary for the other mode if hasUndefinedLabel() is true.
-*/
+    MUST call ready() to complete generating code if you use AutoGrow
+    mode.
+    It is not necessary for the other mode if hasUndefinedLabel() is true.
+  */
   void ready(ProtectMode mode = PROTECT_RWE) {
     if (hasUndefinedLabel())
       throw Error(ERR_LABEL_IS_NOT_FOUND);
@@ -5460,6 +5463,13 @@ public:
       if (useProtect())
         setProtectMode(mode);
     }
+    /* ToDo:
+       Update Xbyak_aarch64 to simplfy the cast of the following. The return
+       type of getCurr() of the latest Xbyak_aarch64 has been changed into
+       "const uint8_t". */
+    clearCache(const_cast<uint8_t *>(getCode()),
+               static_cast<uint8_t *>(
+                   static_cast<void *>(const_cast<uint32_t *>(getCurr()))));
   }
   // set read/exec
   void readyRE() { return ready(PROTECT_RE); }
