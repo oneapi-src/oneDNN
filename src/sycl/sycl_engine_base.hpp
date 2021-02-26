@@ -128,8 +128,7 @@ public:
             return nullptr;
         }
         assert(device_.is_cpu() || device_.is_gpu());
-        return gpu::ocl::make_ocl_wrapper(
-                device().get_native<cl::sycl::backend::opencl>());
+        return gpu::ocl::make_ocl_wrapper(device().get());
     }
     cl_context ocl_context() const {
         if (backend() != backend_t::opencl) {
@@ -137,8 +136,7 @@ public:
             return nullptr;
         }
         assert(device_.is_cpu() || device_.is_gpu());
-        return gpu::ocl::make_ocl_wrapper(
-                context().get_native<cl::sycl::backend::opencl>());
+        return gpu::ocl::make_ocl_wrapper(context().get());
     }
 
     device_id_t device_id() const override { return sycl_device_id(device_); }
