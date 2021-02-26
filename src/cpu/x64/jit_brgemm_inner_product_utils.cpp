@@ -184,8 +184,10 @@ status_t init_ip_conf_fwd(
         jbgp.nb_ic_blocking = jbgp.nb_ic;
         jbgp.gemm_batch_size = 1;
     } else {
-        jbgp.gemm_batch_size = jbgp.nb_ic_blocking
-                = max_div(jbgp.nb_ic, max_nb_ic_blocking);
+        jbgp.nb_ic_blocking = max_div(jbgp.nb_ic, max_nb_ic_blocking);
+        if (jbgp.nb_ic_blocking == 1) jbgp.nb_ic_blocking = max_nb_ic_blocking;
+        jbgp.gemm_batch_size = jbgp.nb_ic_blocking;
+
         jbgp.K = jbgp.ic_block;
     }
 
