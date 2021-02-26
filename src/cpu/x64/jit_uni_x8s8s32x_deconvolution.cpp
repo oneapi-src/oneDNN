@@ -483,7 +483,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::append_zp_src_pad_str_comp(
             load_data(data_type::s32, zp_pad_comp_vmm, comp_addr,
                     get_tail_size());
         else
-            vmovups(zp_pad_comp_vmm, comp_addr);
+            uni_vmovups(zp_pad_comp_vmm, comp_addr);
     };
 
     const auto get_zp_src_comp_pad_off = [&](int it_kw, int ocb) {
@@ -1025,7 +1025,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::store_output(
         mov(reg_zp_dst_, ptr[param1 + GET_OFF(dst_zero_point)]);
         const auto &vmm_zp_dst = vmm_tmp;
         uni_vbroadcastss(vmm_zp_dst, ptr[reg_zp_dst_]);
-        vcvtdq2ps(vmm_zp_dst, vmm_zp_dst);
+        uni_vcvtdq2ps(vmm_zp_dst, vmm_zp_dst);
 
         for_(int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++)
         for (int ur = 0; ur < ur_w; ur++) {
