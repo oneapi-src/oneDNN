@@ -124,7 +124,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(29, b_stride[3]);
     arg_list.set(30, b_stride[2]);
     arg_list.set(31, b_stride[1]);
-    arg_list.set(32, c_stride[0]);
+    arg_list.set(32, b_stride[0]);
     arg_list.set(33, c_stride[5]);
     arg_list.set(34, c_stride[4]);
     arg_list.set(35, c_stride[3]);
