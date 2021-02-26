@@ -75,7 +75,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
                     key_conv_amx_tile_buffer)
             : nullptr;
 
-    int ic_chunks = jbgp.nb_ic / jbgp.nb_ic_blocking;
+    int ic_chunks = div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
 
     const bool are_post_ops_applicable = one_of(true, jbgp.with_sum,
             jbgp.with_bias, jbgp.with_scales, jbgp.with_eltwise,
@@ -110,17 +110,17 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
 
         bool is_os_tail = (jbgp.mb - n < jbgp.os_block);
         bool is_oc_tail = (jbgp.oc - oc < jbgp.oc_block);
-        bool is_ic_tail = (jbgp.ic - ic < jbgp.ic_block * jbgp.nb_ic_blocking);
-        auto nb_ic_b = is_ic_tail ? (jbgp.ic - ic) / jbgp.ic_block
-                                  : jbgp.nb_ic_blocking;
-        const int gemm_batch = nstl::min(nb_ic_b, jbgp.gemm_batch_size);
+        bool is_last_ic_chunk = icc == ic_chunks - 1;
+        bool is_ic_tail = is_last_ic_chunk && jbgp.K_tail > 0;
+        const int gemm_batch = nstl::min(
+                jbgp.gemm_batch_size, (jbgp.ic - ic) / jbgp.ic_block);
 
         int brg_ker_idx = pd()->get_brg_kernel_idx(
                 kernel_init, is_os_tail, is_oc_tail, false);
         auto brg_kernel = brg_kernels_[brg_ker_idx].get();
         auto ptr_bias = jbgp.with_bias ? bias + bia_dt_size * oc : nullptr;
 
-        if (nb_ic_b > 0 && brg_kernel != nullptr) {
+        if (gemm_batch > 0 && brg_kernel != nullptr) {
             if (is_amx && (is_os_tail || is_oc_tail))
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
             for (int b = 0; b < gemm_batch; b++) {
@@ -133,8 +133,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
 
             auto ptr_D = dst + get_blk_off(dst_d, jbgp.dst_dt, n, oc);
             auto ptr_C = (jbgp.use_buffer) ? c_buffer : ptr_D;
-            if (are_post_ops_applicable && icc == ic_chunks - 1
-                    && !is_ic_tail) {
+            if (are_post_ops_applicable && is_last_ic_chunk && !is_ic_tail) {
                 void *scratch = is_amx
                         ? static_cast<void *>(wsp_tile)
                         : (jbgp.signed_input ? static_cast<void *>(
@@ -159,14 +158,14 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
         }
 
         if (is_ic_tail) {
-            int ic_block = jbgp.nb_ic_blocking - 1;
+            int ic_block = gemm_batch * jbgp.K / jbgp.ic_block;
             addr_batch[0].ptr.A = src
                     + get_blk_off(src_d, jbgp.src_dt, n,
                             ic + ic_block * jbgp.ic_block);
             addr_batch[0].ptr.B = weights
                     + get_blk_off(weights_d, jbgp.wei_dt, ocb, icb + ic_block);
 
-            auto use_init_ker = (kernel_init && nb_ic_b == 0);
+            auto use_init_ker = (kernel_init && gemm_batch == 0);
             int brg_ker_idx = pd()->get_brg_kernel_idx(
                     use_init_ker, is_os_tail, is_oc_tail, true);
             auto brg_kernel_ic_tail = brg_kernels_[brg_ker_idx].get();
@@ -198,7 +197,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
         }
     };
 
-    int os_chunks = jbgp.nb_os / jbgp.nb_os_blocking;
+    int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
     int oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
     int work_amount = oc_chunks * os_chunks;
 
@@ -218,10 +217,12 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
         while (start < end) {
             int ocb_s = occ * jbgp.nb_oc_blocking;
             int ocb_e = nstl::min(ocb_s + jbgp.nb_oc_blocking, jbgp.nb_oc);
-            for_(int osb = 0; osb < jbgp.nb_os_blocking; osb++)
+            int osb_s = osc * jbgp.nb_os_blocking;
+            int osb_e = nstl::min(osb_s + jbgp.nb_os_blocking, jbgp.nb_os);
+            for_(int osb = osb_s; osb < osb_e; osb++)
             for_(int ocb = ocb_s; ocb < ocb_e; ocb++)
             for (int icc = 0; icc < ic_chunks; icc++) {
-                int n = (osc * jbgp.nb_os_blocking + osb) * jbgp.os_block;
+                const int n = osb * jbgp.os_block;
                 ker(ithr, n, ocb, icc);
             }
             ++start;
