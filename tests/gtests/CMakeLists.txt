@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2020 Intel Corporation
+# Copyright 2016-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,6 +45,13 @@ if(WIN32)
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel" AND ${CMAKE_CXX_COMPILER_VERSION} LESS 19.1)
         append(CMAKE_CXX_FLAGS "/Qlong-double")
     endif()
+endif()
+
+# Default fp-model in icx may be precise or fast=1 depending on the version.
+# Also, make sure more precise division is used.
+if(CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
+    append_if(WIN32 CMAKE_CXX_FLAGS "/fp:precise -fno-reciprocal-math")
+    append_if(UNIX  CMAKE_CXX_FLAGS "-fp-model precise -fno-reciprocal-math")
 endif()
 
 # TODO: enable me!
