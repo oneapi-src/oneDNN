@@ -32,6 +32,10 @@
 #include "sycl/sycl_interop_gpu_kernel.hpp"
 #include "sycl/sycl_utils.hpp"
 
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+#include "sycl/sycl_engine_id.hpp"
+#endif
+
 #include <CL/sycl.hpp>
 
 namespace dnnl {
@@ -143,6 +147,12 @@ public:
 
     std::function<void(void *)> get_program_list_deleter() const override;
 
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    engine_id_t engine_id() const override {
+        return engine_id_t(new sycl_engine_id_impl_t(
+                device(), context(), kind(), runtime_kind(), index()));
+    }
+#endif
 protected:
     status_t init_device_info() override;
 

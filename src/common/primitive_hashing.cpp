@@ -34,9 +34,13 @@ key_t::key_t(const primitive_desc_t *pd, const engine_t *engine, int impl_nthr)
     , attr_(pd->attr())
     , impl_id_(pd->impl_id())
     , impl_nthr_(impl_nthr)
-    , engine_kind_(engine ? engine->kind() : engine_kind::any_engine)
-    , runtime_kind_(engine ? engine->runtime_kind() : runtime_kind::none)
-    , device_id_(engine ? engine->device_id() : device_id_t(0, 0, 0))
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    , engine_id_(engine->engine_id())
+#else
+    , engine_kind_(engine->kind())
+    , runtime_kind_(engine->runtime_kind())
+    , device_id_(engine->device_id())
+#endif
     , thread_id_(std::this_thread::get_id()) {
     init_mds(pd);
 }
@@ -137,9 +141,13 @@ bool key_t::operator==(const key_t &rhs) const {
     bool ret = true
         // Less expensive comparisons come first
         && primitive_kind_ == rhs.primitive_kind_
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+        && engine_id_ == rhs.engine_id_
+#else
         && engine_kind_ == rhs.engine_kind_
         && runtime_kind_ == rhs.runtime_kind_
         && device_id_ == rhs.device_id_
+#endif
         && mds.size() == rhs.mds.size()
         && impl_id_ == rhs.impl_id_
         && impl_nthr_ == rhs.impl_nthr_

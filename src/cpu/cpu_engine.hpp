@@ -24,6 +24,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
+#include "common/engine_id.hpp"
 
 #include "cpu/platform.hpp"
 
@@ -141,6 +142,13 @@ public:
     }
 
     device_id_t device_id() const override { return std::make_tuple(0, 0, 0); }
+
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    engine_id_t engine_id() const override {
+        // Non-sycl CPU engine doesn't have device and context.
+        return {};
+    }
+#endif
 };
 
 class cpu_engine_factory_t : public engine_factory_t {

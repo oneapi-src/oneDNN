@@ -23,6 +23,10 @@
 #include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 #endif
 
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+#include "engine_id.hpp"
+#endif
+
 #include "c_types_map.hpp"
 #include "memory.hpp"
 #include "memory_storage.hpp"
@@ -51,6 +55,10 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     size_t index() const { return index_; }
 
     virtual dnnl::impl::device_id_t device_id() const = 0;
+
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    virtual dnnl::impl::engine_id_t engine_id() const = 0;
+#endif
 
     /** create memory storage */
     virtual dnnl::impl::status_t create_memory_storage(

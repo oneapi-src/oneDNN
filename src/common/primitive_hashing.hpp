@@ -25,6 +25,10 @@
 #include "primitive_attr.hpp"
 #include "type_helpers.hpp"
 
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+#include "engine_id.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 
@@ -45,9 +49,13 @@ struct key_t {
     std::type_index impl_id_;
     int impl_nthr_;
     std::vector<memory_desc_t> mds;
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    engine_id_t engine_id_;
+#else
     engine_kind_t engine_kind_;
     runtime_kind_t runtime_kind_;
     device_id_t device_id_;
+#endif
 
 private:
     void init_mds(const primitive_desc_t *pd);
@@ -131,6 +139,10 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
         seed = hash_combine(seed, get_attr_hash(*key.attr_));
         seed = hash_combine(seed, hash_combine(0, key.impl_id_));
         seed = hash_combine(seed, hash_combine(0, key.impl_nthr_));
+
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+        seed = hash_combine(seed, key.engine_id_.hash());
+#else
         seed = hash_combine(
                 seed, hash_combine(0, static_cast<size_t>(key.engine_kind_)));
         seed = hash_combine(
@@ -138,6 +150,7 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
         seed = hash_combine(seed, hash_combine(0, std::get<0>(key.device_id_)));
         seed = hash_combine(seed, hash_combine(0, std::get<1>(key.device_id_)));
         seed = hash_combine(seed, hash_combine(0, std::get<2>(key.device_id_)));
+#endif
         // Combine hash for op_desc with the computed hash
 #define CASE(pkind) \
     case primitive_kind::pkind: \
