@@ -495,10 +495,13 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
 
     jbgp.use_buffer = IMPLICATION(jbgp.wei_dt == jbgp.acc_dt, jbgp.nthr_mb > 1);
     jbgp.use_buffer_a = true;
-    jbgp.use_buffer_b = jbgp.dst_dt == bf16;
+    const bool is_oc_big_2_pow = jbgp.oc >= 512 && math::is_pow2(jbgp.oc);
+    const bool is_huge_oc = jbgp.oc >= 4 * 1024;
+    jbgp.use_buffer_b = jbgp.dst_dt == bf16 || is_oc_big_2_pow || is_huge_oc;
 
     jbgp.LDA = jbgp.K;
-    jbgp.LDB = (jbgp.use_buffer_b) ? jbgp.N : jbgp.oc_without_padding;
+    jbgp.LDB = (jbgp.use_buffer_b) ? jbgp.N * jbgp.nb_oc_blocking
+                                   : jbgp.oc_without_padding;
     jbgp.LDC = jbgp.LDD = jbgp.N;
 
     return status::success;
@@ -689,7 +692,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 = div_up(div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
         scratchpad.book(key_brgemm_primitive_buffer_b,
                 jbgp.nthr * os_chunks * jbgp.gemm_batch_size * jbgp.os_block
-                        * jbgp.oc_block,
+                        * jbgp.LDB,
                 types::data_type_size(jbgp.dst_dt));
     }
 
