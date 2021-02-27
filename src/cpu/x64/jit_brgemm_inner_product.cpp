@@ -758,6 +758,8 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
             = jbgp.with_bias ? types::data_type_size(jbgp.bia_dt) : 0;
     const size_t acc_dt_size = types::data_type_size(jbgp.acc_dt);
 
+    const int oc_chunk_sz = jbgp.oc_block * jbgp.nb_oc_blocking;
+
     brgemm_batch_element_t *addr_batch_global
             = ti->scratchpad.template get<brgemm_batch_element_t>(
                     key_brgemm_primitive_batch);
@@ -839,8 +841,10 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
         char *b_buffer = b_buffer_global
                 + types::data_type_size(jbgp.dst_dt)
                         * ((ti->ithr * os_chunks_per_thr + b_buf_idx)
-                                * jbgp.gemm_batch_size * jbgp.os_block
-                                * jbgp.oc_block);
+                                        * jbgp.gemm_batch_size * jbgp.os_block
+                                        * jbgp.LDB
+                                + (ocb_l_idx % jbgp.nb_oc_blocking)
+                                        * jbgp.oc_block);
 
         char *wsp_tile
                 = is_amx ? wsp_tile_global + ti->ithr * tile_size : nullptr;
@@ -850,9 +854,14 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
 
         bool kernel_init = (osc == ti->os_c_start);
 
-        bool is_os_tail = (jbgp.mb - n < jbgp.os_block * jbgp.nb_os_blocking);
-        bool is_ic_tail = (jbgp.ic - ic < jbgp.ic_block);
-        bool is_oc_tail = (jbgp.oc - oc < jbgp.oc_block);
+        bool is_os_tail = jbgp.mb - n < jbgp.os_block * jbgp.nb_os_blocking;
+        bool is_ic_tail = jbgp.ic - ic < jbgp.ic_block;
+        bool is_oc_tail = jbgp.oc - oc < jbgp.oc_block;
+        const int oc_chunk_tail = jbgp.oc % oc_chunk_sz;
+        const bool is_last_oc_chunk = jbgp.oc - oc < oc_chunk_sz;
+        const int curr_oc_chunk_sz = oc_chunk_tail > 0 && is_last_oc_chunk
+                ? oc_chunk_tail
+                : oc_chunk_sz;
 
         const bool transform_weights_to_vnni = jbgp.wei_dt == bf16
                 && (jbgp.nthr_mb == 1 || os_chunks == 1)
@@ -882,13 +891,13 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                         jbgp.os_block);
             }
 
-            if (jbgp.use_buffer_b && icb_l_idx == 0) {
+            if (jbgp.use_buffer_b && icb_l_idx == 0
+                    && ocb_l_idx % jbgp.nb_oc_blocking == 0) {
                 auto diff_dst_ptr = diff_dst
                         + types::data_type_size(jbgp.dst_dt)
                                 * diff_dst_d.blk_off(n, oc);
                 transform_matrix_b_chunk(b_buffer, diff_dst_ptr, nb_os_b,
-                        is_oc_tail ? jbgp.oc % jbgp.oc_block : jbgp.oc_block,
-                        jbgp.os_block);
+                        curr_oc_chunk_sz, jbgp.os_block);
             }
 
             for (int os_block = 0; os_block < nb_os_b; os_block++) {
@@ -952,12 +961,11 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
             if (jbgp.use_buffer_b) {
                 auto b_ptr = b_buffer
                         + types::data_type_size(jbgp.dst_dt) * os_block
-                                * jbgp.oc_block * jbgp.os_block;
-                if (icb_l_idx == 0)
+                                * jbgp.os_block * jbgp.LDB;
+                if (icb_l_idx == 0 && ocb_l_idx % jbgp.nb_oc_blocking == 0)
                     transform_matrix_b_chunk(b_ptr, diff_dst_ptr, 1,
-                            is_oc_tail ? jbgp.oc % jbgp.oc_block
-                                       : jbgp.oc_block,
-                            jbgp.mb % jbgp.os_block);
+                            curr_oc_chunk_sz, jbgp.mb % jbgp.os_block);
+
                 addr_batch[0].ptr.B = b_ptr;
             } else {
                 addr_batch[0].ptr.B = diff_dst_ptr;

@@ -915,6 +915,148 @@ void jit_trans_to_vnni_t::generate() {
     postamble();
 }
 
+struct jit_copy_f32_t : public jit_brgemm_trans_to_vnni_t,
+                        public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_copy_f32_t)
+    jit_copy_f32_t(const jit_brgemm_primitive_conf_t *conf,
+            jit_brgemm_trans_to_vnni_t::matrix_to_transform_t
+                    matrix_to_transform)
+        : jit_brgemm_trans_to_vnni_t(conf, matrix_to_transform) {}
+
+    void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
+    using opmask_t = const Xbyak::Opmask;
+    using zmm = const Xbyak::Zmm;
+
+    enum {
+        typesize_data = sizeof(float),
+        column_step = 16,
+        num_regs = 32,
+    };
+
+    dim_t src_stride = 0, tr_src_stride = 0;
+    dim_t src_batch_shift = 0, tr_src_batch_shift = 0;
+    dim_t col_shift = column_step * typesize_data;
+
+    opmask_t mask_tail = k2;
+
+    reg64_t reg_src = r8;
+    reg64_t reg_tr_src = r9;
+    reg64_t reg_loop_batch = r10;
+    reg64_t reg_loop_row = r11;
+    reg64_t reg_loop_col = r12;
+    reg32_t regw_tmp = r14d;
+    reg64_t reg_long_offt = r15;
+
+    void copy_block(int nrows, int ncolumns);
+    void generate() override;
+};
+
+void jit_copy_f32_t::copy_block(int nrows, int ncolumns) {
+
+    auto kmovd = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovd(k, regw_tmp);
+    };
+
+    const int nc_tail = ncolumns % column_step;
+    if (nc_tail > 0) kmovd(mask_tail, (1 << nc_tail) - 1);
+
+    auto get_zmm = [=](int i) { return Zmm(i % num_regs); };
+
+    auto load = [=](int r, int cb) {
+        auto src_reg = get_zmm(r * cb);
+        const bool is_tail
+                = nc_tail > 0 && ncolumns - cb * column_step < column_step;
+        auto src_load = is_tail ? src_reg | mask_tail | T_z : src_reg;
+        const dim_t offset = r * src_stride + cb * col_shift;
+        auto addr = EVEX_compress_addr_safe(reg_src, offset, reg_long_offt);
+        vmovups(src_load, addr);
+    };
+
+    auto store = [=](int r, int cb) {
+        auto reg = get_zmm(r * cb);
+        const dim_t offset = r * tr_src_stride + cb * col_shift;
+        auto addr = EVEX_compress_addr_safe(reg_tr_src, offset, reg_long_offt);
+        vmovups(addr, reg);
+    };
+
+    for_(int r = 0; r < nrows; r++)
+    for (int cb = 0; cb < div_up(ncolumns, column_step); cb++) {
+        load(r, cb);
+        store(r, cb);
+    }
+}
+
+void jit_copy_f32_t::generate() {
+    preamble();
+
+    const int row_block = conf_->os_block;
+    const int row_tail = conf_->os % row_block;
+    const int col_block = conf_->oc_block * conf_->nb_oc_blocking;
+    const int col_tail = conf_->oc % col_block;
+    src_stride = conf_->oc * typesize_data;
+    tr_src_stride = conf_->LDB * typesize_data;
+    src_batch_shift = src_stride * row_block;
+    tr_src_batch_shift = tr_src_stride * row_block;
+
+    mov(reg_src, ptr[param1 + GET_OFF(src)]);
+    mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
+    mov(reg_loop_batch, ptr[param1 + GET_OFF(current_gemm_batch)]);
+    mov(reg_loop_row, ptr[param1 + GET_OFF(current_row_size)]);
+    mov(reg_loop_col, ptr[param1 + GET_OFF(current_col_size)]);
+
+    auto compute_batch = [=](int nrows, int ncolumns) {
+        Label batch_loop;
+        L(batch_loop);
+
+        copy_block(nrows, ncolumns);
+        add(reg_src, src_batch_shift);
+        add(reg_tr_src, tr_src_batch_shift);
+
+        sub(reg_loop_batch, 1);
+        jnz(batch_loop, T_NEAR);
+    };
+
+    auto compute_rows = [=](int ncolumns) {
+        Label row_done;
+        if (row_tail > 0) {
+            Label row_common;
+            cmp(reg_loop_row, row_block);
+            je(row_common, T_NEAR);
+
+            compute_batch(row_tail, ncolumns);
+            jmp(row_done, T_NEAR);
+
+            L(row_common);
+        }
+
+        compute_batch(row_block, ncolumns);
+        L(row_done);
+    };
+
+    Label col_done;
+    if (col_tail > 0) {
+        Label col_common;
+        cmp(reg_loop_col, col_block);
+        je(col_common, T_NEAR);
+
+        compute_rows(col_tail);
+        jmp(col_done, T_NEAR);
+
+        L(col_common);
+    }
+
+    compute_rows(col_block);
+    L(col_done);
+
+    postamble();
+}
+
 struct jit_brgemm_trans_wei_f32_t : public jit_brgemm_trans_wei_t,
                                     public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_wei_f32_t)
@@ -1458,6 +1600,10 @@ status_t create_brgemm_trans_to_vnni(
             && conf->dst_dt == data_type::bf16)
         CHECK(safe_ptr_assign(
                 trans_ker, new jit_trans_to_vnni_t(conf, matrix_to_transform)));
+    else if (conf->prop_kind == dnnl_backward_weights
+            && conf->dst_dt == data_type::f32)
+        CHECK(safe_ptr_assign(
+                trans_ker, new jit_copy_f32_t(conf, matrix_to_transform)));
     else
         return status::invalid_arguments;
 
