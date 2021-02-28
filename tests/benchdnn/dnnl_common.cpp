@@ -671,6 +671,46 @@ engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {
 
 engine_t::engine_t(dnnl_engine_t engine) : engine_(engine), is_owner_(false) {}
 
+engine_t::engine_t(const engine_t &other) {
+    is_owner_ = other.is_owner_;
+
+    if (!is_owner_) {
+        engine_ = other.engine_;
+        return;
+    }
+
+    dnnl_engine_kind_t engine_kind;
+    DNN_SAFE_V(dnnl_engine_get_kind(other.engine_, &engine_kind));
+
+    if (engine_kind == dnnl_cpu) {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+        void *dev;
+        void *ctx;
+        DNN_SAFE_V(dnnl_sycl_interop_engine_get_device(other.engine_, &dev));
+        DNN_SAFE_V(dnnl_sycl_interop_engine_get_context(other.engine_, &ctx));
+        DNN_SAFE_V(dnnl_sycl_interop_engine_create(&engine_, dev, ctx));
+#else
+        DNN_SAFE_V(dnnl_engine_create(&engine_, dnnl_cpu, 0));
+#endif
+    }
+
+    if (engine_kind == dnnl_gpu) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        cl_device_id dev;
+        cl_context ctx;
+        DNN_SAFE_V(dnnl_ocl_interop_get_device(other.engine_, &dev));
+        DNN_SAFE_V(dnnl_ocl_interop_engine_get_context(other.engine_, &ctx));
+        DNN_SAFE_V(dnnl_ocl_interop_engine_create(&engine_, dev, ctx));
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+        void *dev;
+        void *ctx;
+        DNN_SAFE_V(dnnl_sycl_interop_engine_get_device(other.engine_, &dev));
+        DNN_SAFE_V(dnnl_sycl_interop_engine_get_context(other.engine_, &ctx));
+        DNN_SAFE_V(dnnl_sycl_interop_engine_create(&engine_, dev, ctx));
+#endif
+    }
+}
+
 engine_t::~engine_t() {
     if (is_owner_) DNN_SAFE_V(dnnl_engine_destroy(engine_));
 }
