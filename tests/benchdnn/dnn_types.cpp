@@ -1277,35 +1277,13 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
 
 engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {
     size_t idx = engine_kind == dnnl_cpu ? 0 : engine_index;
-#ifdef DNNL_WITH_SYCL
-    // We need two static objects for CPU and GPU since we rely on CPU a lot
-    // when testing GPU. Otherwise, service reorder would fail due to inability
-    // create memory from host_ptr since static object would be initialized as
-    // GPU engine firstly.
-    if (engine_kind == dnnl_cpu) {
-        static dnnl_engine_t inst = nullptr;
-        if (!inst) DNN_SAFE_V(dnnl_engine_create(&inst, engine_kind, idx));
-        engine_ = inst;
-    } else if (engine_kind == dnnl_gpu) {
-        static dnnl_engine_t inst = nullptr;
-        if (!inst) DNN_SAFE_V(dnnl_engine_create(&inst, engine_kind, idx));
-        engine_ = inst;
-    } else
-        assert(!"unsupported engine_kind");
-#else
     DNN_SAFE_V(dnnl_engine_create(&engine_, engine_kind, idx));
-#endif
 }
 
 engine_t::engine_t(dnnl_engine_t engine) : engine_(engine), is_owner_(false) {}
 
 engine_t::~engine_t() {
-    if (!is_owner_) return;
-#ifdef DNNL_WITH_SYCL
-    engine_ = nullptr;
-#else
-    DNN_SAFE_V(dnnl_engine_destroy(engine_));
-#endif
+    if (is_owner_) DNN_SAFE_V(dnnl_engine_destroy(engine_));
 }
 
 stream_t::stream_t(dnnl_engine_t engine) {
