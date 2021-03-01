@@ -47,13 +47,6 @@ if(WIN32)
     endif()
 endif()
 
-# Default fp-model in icx may be precise or fast=1 depending on the version.
-# Also, make sure more precise division is used.
-if(CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
-    append_if(WIN32 CMAKE_CXX_FLAGS "/fp:precise -fno-reciprocal-math")
-    append_if(UNIX  CMAKE_CXX_FLAGS "-fp-model precise -fno-reciprocal-math")
-endif()
-
 # TODO: enable me!
 file(GLOB PRIM_TEST_CASES_SRC
                               test_primitive_cache_mt.cpp

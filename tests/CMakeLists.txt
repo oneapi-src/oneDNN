@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2020 Intel Corporation
+# Copyright 2016-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -59,6 +59,13 @@ endif()
 
 append(CMAKE_C_FLAGS "${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
+
+# Default fp-model in icx may be precise or fast=1 depending on the version.
+# Also, make sure more precise division is used.
+if(CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
+    append_if(WIN32 CMAKE_CXX_FLAGS "/fp:precise")
+    append_if(UNIX  CMAKE_CXX_FLAGS "-fp-model precise -fno-reciprocal-math")
+endif()
 
 register_exe(api-c api.c "test")
 
