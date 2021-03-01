@@ -1,13 +1,23 @@
 # i8 asymmetric
 --reset
+
 --skip-impl=ref
 --mb=2
---dir=FWD_B,FWD_D
---cfg=u8s8u8,s8s8u8,s8s8f32,u8s8s32
+
+--dir=FWD_B
 --stag=any,axb
---dtag=any,axb
---attr-zero-points=src:common:31_dst:common:15,src:common:31
---batch=set_all
+--attr-zero-points=src:common:31_dst:common:15
+--cfg=u8s8u8,s8s8u8
+--batch=shapes_1d
+--batch=shapes_1x1
+--batch=shapes_2d
+
+--dir=FWD_D
+--stag=any,axb
+--attr-zero-points=src:common:31
+--cfg=s8s8f32,u8s8s32
+--batch=shapes_3d
+--batch=shapes_dilated
 
 --attr-zero-points=src:per_dim_1:1*_dst:per_dim_1:1*,src:common:31_dst:per_dim_1:1*
 --batch=shapes_ci # Too slow to validate full set
