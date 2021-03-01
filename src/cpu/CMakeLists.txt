@@ -80,12 +80,15 @@ endif()
 # Also, make sure more precise division is used.
 if(CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
     file(GLOB FILES_REQUIRED_FP_PRECISE
-        ${CMAKE_CURRENT_SOURCE_DIR}/ref_resampling.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ref_*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/simple_*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/reorder/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/*normalization*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/gemm_inner_product_utils.cpp
         )
     if(WIN32)
         set_source_files_properties(${FILES_REQUIRED_FP_PRECISE}
-            PROPERTIES COMPILE_FLAGS "/fp:precise -fno-reciprocal-math")
+            PROPERTIES COMPILE_FLAGS "/fp:precise")
     else()
         set_source_files_properties(${FILES_REQUIRED_FP_PRECISE}
             PROPERTIES COMPILE_FLAGS "-fp-model=precise -fno-reciprocal-math")
