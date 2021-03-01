@@ -301,6 +301,10 @@ typedef struct dnnl_graph_tensor dnnl_graph_tensor_t;
 struct dnnl_graph_op;
 typedef struct dnnl_graph_op dnnl_graph_op_t;
 
+/// @brief A op_v2 handle, will be removed once the merge work is finished
+struct dnnl_graph_op_v2;
+typedef struct dnnl_graph_op_v2 dnnl_graph_op_v2_t;
+
 /// @brief A partition handle
 struct dnnl_graph_partition;
 typedef struct dnnl_graph_partition dnnl_graph_partition_t;

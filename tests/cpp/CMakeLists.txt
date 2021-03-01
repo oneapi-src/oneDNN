@@ -94,6 +94,7 @@ add_library(${LIB_NAME}_unit_test_objlib OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_logger.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_logical_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_op.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_op_v2.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_op_schema.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_pass.cpp

@@ -183,7 +183,10 @@ using compiled_partition_t = dnnl_graph_compiled_partition;
 using thread_pool_t = dnnl_graph_thread_pool;
 using stream_attr_t = dnnl_graph_stream_attr;
 using stream_t = dnnl_graph_stream;
-using tensor_t = ::dnnl_graph_tensor;
+using tensor_t = dnnl_graph_tensor;
+
+// will be removed once the merge work is finished
+using op_v2_t = dnnl_graph_op_v2;
 
 } // namespace impl
 } // namespace graph
