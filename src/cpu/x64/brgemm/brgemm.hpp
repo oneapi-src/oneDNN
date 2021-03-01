@@ -59,7 +59,7 @@ namespace x64 {
 /// @param N Specifies the number of columns of the matrix B and
 ///        the number of columns of the matrix C
 /// @param K Specifies the number of columns of the matrix A and
-///        the number of rows of the matrces B
+///        the number of rows of the matrix B
 /// @param strides Strides between the matrices in the batch. Can be nullptr.
 ///
 status_t DNNL_API brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,

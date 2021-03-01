@@ -261,7 +261,7 @@ private:
     void gemm_microkernel_avx512(int bd_block2, bool is_bdb_tail, int ld_block,
             bool is_rd_tail, bool is_ld_tail, int vpad, int rows_for_rd_tail);
     void gemm_microkernel_amx(int bd_block2, bool is_bdb_tail, int ld_block,
-            bool is_rd_tail, bool is_ldb_tail);
+            bool is_rd_tail, bool is_ld_tail);
 
     void ldb_loop(int bd_block2, bool is_bdb_tail, int ld_block,
             int ldb_loop_length, bool is_reg_tail, bool is_ld_tail,

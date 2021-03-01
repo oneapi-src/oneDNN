@@ -171,17 +171,15 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
 
     for_(int i_M = 0; i_M < 2; i_M++)
     for_(int i_N = 0; i_N < 2; i_N++)
-    {
-        for_(int i_K = 0; i_K < 2; i_K++)
-        for (int i_init = 0; i_init < 2; i_init++) {
-            auto brg_idx = get_brg_idx(i_init, i_M, i_N, i_K);
-            auto &brg = pd()->brgs_[brg_idx];
-            if (brg.bcast_dim > 0 && brg.load_dim > 0 && brg.reduce_dim > 0
-                    && !brg_kernels_[brg_idx]) {
-                brgemm_kernel_t *brg_kernel = nullptr;
-                CHECK(brgemm_kernel_create(&brg_kernel, brg));
-                CHECK(safe_ptr_assign(brg_kernels_[brg_idx], brg_kernel));
-            }
+    for_(int i_K = 0; i_K < 2; i_K++)
+    for (int i_init = 0; i_init < 2; i_init++) {
+        auto brg_idx = get_brg_idx(i_init, i_M, i_N, i_K);
+        auto &brg = pd()->brgs_[brg_idx];
+        if (brg.bcast_dim > 0 && brg.load_dim > 0 && brg.reduce_dim > 0
+                && !brg_kernels_[brg_idx]) {
+            brgemm_kernel_t *brg_kernel = nullptr;
+            CHECK(brgemm_kernel_create(&brg_kernel, brg));
+            CHECK(safe_ptr_assign(brg_kernels_[brg_idx], brg_kernel));
         }
     }
     return status::success;
