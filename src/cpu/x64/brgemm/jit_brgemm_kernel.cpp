@@ -786,7 +786,7 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_amx(int bd_block2,
     MAYBE_UNUSED(is_rd_tail);
     auto tdpbxxd = [=](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
         if (brg.dt_a == data_type::bf16 && brg.dt_b == data_type::bf16) {
-            tdpbf16ps(x1, x2, x3);
+            tdpbuud(x1, x2, x3);
         } else if (brg.dt_a == data_type::u8 && brg.dt_b == data_type::u8) {
             tdpbuud(x1, x2, x3);
         } else if (brg.dt_a == data_type::u8 && brg.dt_b == data_type::s8) {

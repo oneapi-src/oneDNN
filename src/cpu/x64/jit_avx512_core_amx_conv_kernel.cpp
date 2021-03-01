@@ -1633,7 +1633,7 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(int width,
 
     auto tdpbxxd = [=](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
         if (jcp.src_dt == data_type::bf16 && jcp.wei_dt == data_type::bf16) {
-            tdpbf16ps(x1, x2, x3);
+            tdpbuud(x1, x2, x3);
         } else if (jcp.src_dt == data_type::u8 && jcp.wei_dt == data_type::u8) {
             tdpbuud(x1, x2, x3);
         } else if (jcp.src_dt == data_type::u8 && jcp.wei_dt == data_type::s8) {
@@ -3169,7 +3169,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::compute_ocb_loop(
     auto tdpbxxd = [=](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
         switch (jcp.ddst_dt) {
             using namespace data_type;
-            case bf16: tdpbf16ps(x1, x2, x3); break;
+            case bf16: tdpbuud(x1, x2, x3); break;
             case s8: tdpbssd(x1, x2, x3); break;
             case u8: tdpbusd(x1, x2, x3); break;
             default: assert(!"unsupported data type");
@@ -3774,7 +3774,7 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::compute_full_spat_loop(
                                         * jcp.tr_diff_dst_buf_size
                                 + ur_w_ddst_offset]);
                 for (int icb = 0; icb < nb_ic_blocking; icb++)
-                    tdpbf16ps(Tmm(get_wei_tensor(ocb, icb)),
+                    tdpbuud(Tmm(get_wei_tensor(ocb, icb)),
                             Tmm(get_src_tensor(icb)),
                             Tmm(get_ddst_tensor(ocb)));
             }
@@ -4035,7 +4035,7 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::compute_ic_loop(
                                             * jcp.tr_diff_dst_buf_size
                                     + ur_w_ddst_offset + reg_b_stride]);
                     for (int icb = 0; icb < nb_ic_blocking; icb++)
-                        tdpbf16ps(Tmm(get_wei_tensor(ocb, icb)),
+                        tdpbuud(Tmm(get_wei_tensor(ocb, icb)),
                                 Tmm(get_src_tensor(icb)),
                                 Tmm(get_ddst_tensor(ocb)));
                 }

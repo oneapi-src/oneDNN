@@ -317,17 +317,14 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
                     && cpu_isa_hints_utils::is_hints_bit_set(
                             prefer_ymm_bit, soft);
         case amx_tile: return cpu().has(Cpu::tAMX_TILE);
+        case amx_bf16:
         case amx_int8:
             return mayiuse(amx_tile, soft) && cpu().has(Cpu::tAMX_INT8);
-        case amx_bf16:
-            return mayiuse(amx_tile, soft) && cpu().has(Cpu::tAMX_BF16);
+        case avx512_core_bf16_amx_bf16:
         case avx512_core_bf16_amx_int8:
             return mayiuse(avx512_core_bf16, soft) && mayiuse(amx_int8, soft);
-        case avx512_core_bf16_amx_bf16:
-            return mayiuse(avx512_core_bf16, soft) && mayiuse(amx_bf16, soft);
         case avx512_core_amx:
-            return mayiuse(avx512_core_bf16_amx_int8, soft)
-                    && mayiuse(avx512_core_bf16_amx_bf16, soft);
+            return mayiuse(avx512_core_bf16_amx_int8, soft);
         case isa_any: return true;
         case isa_all: return false;
     }

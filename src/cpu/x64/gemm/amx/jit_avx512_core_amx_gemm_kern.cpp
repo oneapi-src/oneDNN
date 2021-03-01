@@ -348,7 +348,7 @@ void jit_avx512_core_amx_gemm_kern::generate() {
         case 1: tdpbsud(tmm4, tmm2, tmm0); break;
         case 2: tdpbusd(tmm4, tmm2, tmm0); break;
         case 3: tdpbssd(tmm4, tmm2, tmm0); break;
-        case 4: tdpbf16ps(tmm4, tmm2, tmm0); break;
+        case 4: tdpbuud(tmm4, tmm2, tmm0); break;
     }
 
     test(FLAG, 2);
@@ -360,7 +360,7 @@ void jit_avx512_core_amx_gemm_kern::generate() {
         case 1: tdpbsud(tmm6, tmm2, tmm1); break;
         case 2: tdpbusd(tmm6, tmm2, tmm1); break;
         case 3: tdpbssd(tmm6, tmm2, tmm1); break;
-        case 4: tdpbf16ps(tmm6, tmm2, tmm1); break;
+        case 4: tdpbuud(tmm6, tmm2, tmm1); break;
     }
 
     L(l5);
@@ -373,7 +373,7 @@ void jit_avx512_core_amx_gemm_kern::generate() {
         case 1: tdpbsud(tmm5, tmm3, tmm0); break;
         case 2: tdpbusd(tmm5, tmm3, tmm0); break;
         case 3: tdpbssd(tmm5, tmm3, tmm0); break;
-        case 4: tdpbf16ps(tmm5, tmm3, tmm0); break;
+        case 4: tdpbuud(tmm5, tmm3, tmm0); break;
     }
 
     L(l6);
@@ -385,7 +385,7 @@ void jit_avx512_core_amx_gemm_kern::generate() {
         case 1: tdpbsud(tmm7, tmm3, tmm1); break;
         case 2: tdpbusd(tmm7, tmm3, tmm1); break;
         case 3: tdpbssd(tmm7, tmm3, tmm1); break;
-        case 4: tdpbf16ps(tmm7, tmm3, tmm1); break;
+        case 4: tdpbuud(tmm7, tmm3, tmm1); break;
     }
 
     L(l7);
