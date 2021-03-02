@@ -402,7 +402,7 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
     ic_chunks = div_up(jcp.nb_ic, jcp.nb_ic_blocking);
 
     // const variables used for address calculations
-    src_w_sz = static_cast<dim_t>(IW) * jcp.ic_without_padding;
+    src_w_sz = static_cast<dim_t>(IW) * jcp.ngroups * jcp.ic_without_padding;
     src_h_sz = IH * src_w_sz;
     src_d_sz = ID * src_h_sz;
     dst_w_sz = static_cast<dim_t>(OW) * jcp.oc_without_padding;
@@ -928,7 +928,7 @@ void brgemm_convolution_fwd_t<isa>::maybe_conv_inp(int ithr,
 
             inp_offset_start = static_cast<dim_t>(n) * src_d_sz
                     + max(ih_s, ih_start) * src_w_sz
-                    + iw * jcp.ic_without_padding + g_ic;
+                    + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
 
             // inp_buffer has physical padding
             out_offset_start = (jcp.copy_block_only ? 0
@@ -950,7 +950,8 @@ void brgemm_convolution_fwd_t<isa>::maybe_conv_inp(int ithr,
                     = (jcp.copy_block_only ? 0 : ih_start) + TP - cp.t_pad;
 
             inp_offset_start = static_cast<dim_t>(n) * src_d_sz
-                    + ih_start * src_w_sz + iw * jcp.ic_without_padding + g_ic;
+                    + ih_start * src_w_sz
+                    + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
 
             // inp_buffer has physical padding
             out_offset_start = (jcp.copy_block_only ? 0
@@ -1059,7 +1060,8 @@ void brgemm_convolution_fwd_t<isa>::ker_base(brgemm_thread_ctx_t &btc) const {
                     for (int kw = kw_b; kw < kw_e; kw++) {
                         const auto iw = iiw_b + kw * DW;
                         btc.brg_batch[n_icb_off + k].ptr.A = src_base_kh
-                                + src_dsz * iw * jcp.ic_without_padding;
+                                + src_dsz * iw * jcp.ngroups
+                                        * jcp.ic_without_padding;
                         btc.brg_batch[n_icb_off + k].vvpad.top = 0;
                         btc.brg_batch[n_icb_off + k].vvpad.bottom = 0;
                         // general wei layout is gOdhwI<block_o><block_i>
@@ -1390,7 +1392,7 @@ void brgemm_convolution_fwd_t<isa>::ker_vpad(brgemm_thread_ctx_t &btc) const {
                         const auto iw = iiw_b + kw * DW;
                         const auto ptr_A = src_base_kh
                                 + static_cast<ptrdiff_t>(src_dsz) * iw
-                                        * jcp.ic_without_padding;
+                                        * jcp.ngroups * jcp.ic_without_padding;
                         if (jcp.max_vpad) {
                             icb_batch[k].vvpad.top = kw_top_vpads[kw];
                             icb_batch[k].vvpad.bottom = kw_bottom_vpads[kw];

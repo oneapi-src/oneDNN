@@ -16,9 +16,11 @@
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
+#include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/jit_brgemm_1x1_conv.hpp"
 
@@ -98,10 +100,16 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                 jcp_.LDB, jcp_.LDC, vM, vN, vK, strides_ptr));
 
         brgemm_attr_t brgattr;
-        brgattr.max_bs = 1;
+        brgattr.max_bs = jcp_.gemm_batch_size;
         brgattr.max_top_vpad = jcp_.max_vpad;
         brgattr.max_bottom_vpad = jcp_.max_vpad;
+        brgattr.hint_expected_A_size = 0;
+        brgattr.hint_expected_B_size = brgattr.max_bs * vK * vN;
+        brgattr.hint_expected_C_size = 0;
         brgattr.wary_tail_read = false;
+        const bool is_amx = brgemm_convolution_utils::is_amx(isa);
+        brgattr.use_uker = is_amx && brg.rdb > 1;
+        brgattr.use_interleave_stores = brgattr.use_uker;
         CHECK(brgemm_desc_set_attr(&brg, brgattr));
         auto LDD = jcp_.oc_without_padding;
         brg.with_sum = with_sum;
@@ -142,7 +150,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
     ic_chunks = div_up(jcp.nb_ic, jcp.nb_ic_blocking);
 
     // const variables used for address calculations
-    src_w_sz = (dim_t)IW * jcp.ic_without_padding;
+    src_w_sz = (dim_t)IW * jcp.ngroups * jcp.ic_without_padding;
     src_h_sz = IH * src_w_sz;
     src_d_sz = ID * src_h_sz;
     dst_w_sz = (dim_t)OW * jcp.oc_without_padding;
@@ -169,6 +177,14 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
     for (int i = 0; i < 16; i++)
         brg_kernels_[i] = nullptr;
 
+    if (jcp.is_rtus) {
+        CHECK(safe_ptr_assign(rtus_kernel_,
+                new jit_avx512_core_brgemm_conv_trans_kernel::
+                        jit_avx512_core_brgemm_conv_rtus_kernel_t(jcp)));
+        CHECK(rtus_kernel_->create_kernel());
+    }
+
+    const bool is_amx = brgemm_convolution_utils::is_amx(isa);
     for_(int i_M = 0; i_M < 2; i_M++)
     for_(int i_N = 0; i_N < 2; i_N++)
     for_(int i_K = 0; i_K < 2; i_K++)
@@ -180,17 +196,90 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
             brgemm_kernel_t *brg_kernel = nullptr;
             CHECK(brgemm_kernel_create(&brg_kernel, brg));
             CHECK(safe_ptr_assign(brg_kernels_[brg_idx], brg_kernel));
+            if (is_amx) {
+                CHECK(brgemm_init_tiles(
+                        brg, &brg_kernel_palettes_[brg_idx][0]));
+            }
         }
     }
     return status::success;
 }
 
 template <cpu_isa_t isa>
+void brgemm_1x1_convolution_fwd_t<isa>::maybe_rtus(int ithr,
+        const char *__restrict src, char *__restrict inp_buffer,
+        uint8_t *__restrict inp_buffer_mask, int g, int n, int icc, int od,
+        int oh, int ow) const {
+    const auto &jcp = pd()->jcp_;
+    if (!jcp.is_rtus) return;
+    assert(jcp.is_os_blocking);
+    const size_t src_dt_size = jcp.src_dsz;
+
+    const auto os = (od * OH + oh) * OW + ow;
+    const auto osb = os / jcp.os_block;
+
+    uint8_t *bmask = &inp_buffer_mask[icc * jcp.nb_os + osb];
+    if (bmask && *bmask) return; // skip if already masked
+    if (bmask) *bmask = 1; // set mask to skip next time
+
+    const auto g_ic = g * jcp.ic_without_padding
+            + icc * jcp.nb_ic_blocking * jcp.ic_block;
+
+    auto call_kernel = [&](int nh, int nw, int od, int oh, int ow) {
+        assert(nh == 0 || (nw == 0 && ow == 0));
+        if (utils::everyone_is(0, nh, nw)) return;
+        const int id = od * jcp.stride_d;
+        const int ih = oh * jcp.stride_h;
+        const int iw = ow * jcp.stride_w;
+        const auto inp_offset = n * src_d_sz + id * src_h_sz + ih * src_w_sz
+                + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
+        auto p = jit_avx512_core_brgemm_conv_trans_kernel::
+                jit_brgemm_conv_trans_kernel_call_s();
+        p.h_count = nh;
+        p.owb = nw;
+        p.src = src + src_dt_size * inp_offset;
+        p.dst = inp_buffer;
+        (*rtus_kernel_)(&p);
+        inp_buffer += src_dt_size * (nh * jcp.ow + nw) * jcp.LDA;
+    };
+
+    const bool is_os_tail = jcp.os - os < jcp.os_block;
+    int count = is_os_tail ? jcp.M_tail : jcp.M;
+
+    if (count < OW || ow > 0) {
+        // copy to end of row
+        const auto nw = nstl::min(count, OW - ow);
+        call_kernel(0, nw, od, oh, ow);
+        count -= nw;
+        if (count == 0) return;
+        ow = 0;
+        oh = (oh + 1) % OH;
+        if (oh == 0) od++;
+    }
+
+    while (od < OD) {
+        // copy to end of column
+        const auto nh = nstl::min(count / OW, OH - oh);
+        call_kernel(nh, 0, od, oh, ow);
+        count -= nh * OW;
+        if (count == 0) return;
+        oh = (oh + nh) % OH;
+        if (oh == 0) od++;
+        if (count < OW) {
+            // copy partial row
+            const auto nw = count;
+            call_kernel(0, nw, od, oh, ow);
+            return;
+        }
+    }
+}
+
+template <cpu_isa_t isa>
 void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
         const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
         brgemm_batch_element_t *const __restrict brg_batch,
-        char *const c_buffer, int g, int n, int ocb, int od, int oh, int ow,
-        int icc) const {
+        char *const c_buffer, const char *inp_buffer, int g, int n, int ocb,
+        int od, int oh, int ow, int icc, int *last_brg_idx) const {
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md());
@@ -210,6 +299,10 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
 
     const auto &jcp = pd()->jcp_;
     auto ndims = pd()->ndims();
+
+    const bool is_amx = brgemm_convolution_utils::is_amx(isa);
+    char *const wsp_tile
+            = is_amx ? brgemm_ctx.wsp_tile + ithr * 4 * 1024 : nullptr;
 
     const int id = ndims_pick(od * SD, 0, 0);
     const int ih = ndims_pick(oh * SH, oh * SH, 0);
@@ -232,10 +325,10 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
     const bool is_ic_tail
             = (icc == ic_chunks - 1 && ((jcp.ic - ic) % jcp.ic_block != 0));
 
-    const auto src_base = src
-            + src_dt_size
-                    * (n * src_d_sz + id * src_h_sz + ih * src_w_sz
-                            + iw * jcp.ic_without_padding + g_ic);
+    const auto src_offset = n * src_d_sz + id * src_h_sz + ih * src_w_sz
+            + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
+    const auto src_base
+            = jcp.is_rtus ? inp_buffer : src + src_dt_size * src_offset;
     const auto wei_offset = jcp.wei_plain ? g * wei_ic_sz + ocb * wei_ocb_sz
                                           : g * wei_ocb_sz + ocb * wei_ic_sz;
     const auto wei_base = weights + wei_dt_size * wei_offset;
@@ -250,8 +343,8 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
     const auto nb_ic_b = nstl::min(jcp.nb_ic_blocking, jcp.nb_ic - icb)
             - (is_ic_tail ? 1 : 0);
 
-    const auto call_brgemm = [=](brgemm_kernel_t *brg_ker, int ic_block_s,
-                                     int n_ic_blocks, bool do_postops) {
+    const auto call_brgemm = [=](int brg_idx, int ic_block_s, int n_ic_blocks,
+                                     bool do_postops) {
         for (int k = 0; k < n_ic_blocks; k++) {
             const auto ic_off = (ic_block_s + k) * jcp.ic_block;
             const auto src_ic = ic_off;
@@ -264,6 +357,15 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
             brg_batch[k].vvpad.bottom = 0;
         }
 
+        // NOTE: avoid some costly tile reconfigurations here by keeping track
+        //       of the previous index of brg kernel tile configuration
+        // TODO: adjust harness to avoid even more tile reconfigurations
+        if (is_amx && brg_idx != *last_brg_idx) {
+            amx_tile_configure(&brg_kernel_palettes_[brg_idx][0]);
+            *last_brg_idx = brg_idx;
+        }
+
+        const brgemm_kernel_t *brg_ker = brg_kernels_[brg_idx].get();
         if (do_postops) {
             const brgemm_post_ops_data_t post_ops_data {
                     static_cast<const void *>(bias_w),
@@ -272,30 +374,28 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
                     static_cast<size_t>(g_oc)};
 
             brgemm_kernel_execute_postops(brg_ker, n_ic_blocks, brg_batch,
-                    (void *)ptr_C, (void *)ptr_D, post_ops_data);
+                    (void *)ptr_C, (void *)ptr_D, post_ops_data,
+                    (void *)wsp_tile);
         } else {
-            brgemm_kernel_execute(
-                    brg_ker, n_ic_blocks, brg_batch, (void *)ptr_C);
+            brgemm_kernel_execute(brg_ker, n_ic_blocks, brg_batch,
+                    (void *)ptr_C, (void *)wsp_tile);
         }
     };
-
-    const auto brg_ker = brg_kernels_[get_brg_idx(kernel_init, is_os_tail,
-                                              is_oc_tail, false)]
-                                 .get();
 
     const auto do_post_work
             = (need_postwork || jcp.use_buffer) && icc == ic_chunks - 1;
 
-    if (nb_ic_b > 0)
-        call_brgemm(brg_ker, 0, nb_ic_b, do_post_work && !is_ic_tail);
+    if (nb_ic_b > 0) {
+        const auto brg_idx
+                = get_brg_idx(kernel_init, is_os_tail, is_oc_tail, false);
+        call_brgemm(brg_idx, 0, nb_ic_b, do_post_work && !is_ic_tail);
+    }
     if (is_ic_tail) {
         const auto use_init_ker = (kernel_init && nb_ic_b == 0);
-        const auto brg_ic_tail_ker
-                = brg_kernels_[get_brg_idx(use_init_ker, is_os_tail, is_oc_tail,
-                                       true)]
-                          .get();
+        const auto brg_idx
+                = get_brg_idx(use_init_ker, is_os_tail, is_oc_tail, true);
 
-        call_brgemm(brg_ic_tail_ker, nb_ic_b, 1, do_post_work);
+        call_brgemm(brg_idx, nb_ic_b, 1, do_post_work);
     }
 }
 
@@ -308,6 +408,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
     const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
 
     const auto &jcp = pd()->jcp_;
+    const bool is_amx = brgemm_convolution_utils::is_amx(isa);
 
     brgemm_batch_element_t *const brg_batch_global
             = (jcp.brg_type != brgemm_strd)
@@ -316,6 +417,12 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
             : nullptr;
     char *const c_buffer_global = (jcp.use_buffer)
             ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
+            : nullptr;
+    char *inp_buffer_base = (jcp.is_rtus)
+            ? scratchpad.template get<char>(key_conv_brgemm_inp_buffer)
+            : nullptr;
+    uint8_t *inp_buffer_mask_base = (jcp.is_rtus)
+            ? scratchpad.template get<uint8_t>(key_conv_brgemm_inp_buffer_mask)
             : nullptr;
 
     if (jcp.is_os_blocking) {
@@ -330,11 +437,22 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
         char *const c_buffer = (jcp.use_buffer) \
                 ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M \
                 : nullptr; \
+        char *inp_buffer = (jcp.is_rtus) \
+                ? inp_buffer_base + ithr * src_dsz * jcp.inp_buffer_size \
+                : nullptr; \
+        uint8_t *__restrict inp_buffer_mask = (jcp.is_rtus) \
+                ? inp_buffer_mask_base + ithr * jcp.inp_buffer_mask_size \
+                : nullptr; \
+        int last_n = -1; \
+        int last_g = -1; \
+        int last_brg_idx = -1; \
         int start {0}, end {0}; \
         balance211(work_amount, nthr, ithr, start, end); \
         int n {0}, g {0}, ocb {0}, oss {0}; \
         nd_iterator_init(start, __VA_ARGS__); \
         for (auto work = start; work < end; work++) { \
+            if (jcp.is_rtus && (last_n != n || last_g != g)) \
+                std::memset(inp_buffer_mask, 0, jcp.inp_buffer_mask_size); \
             const auto osb_start = oss * jcp.nb_os_blocking; \
             const auto osb_range \
                     = nstl::min(jcp.nb_os - osb_start, jcp.nb_os_blocking); \
@@ -343,12 +461,23 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
                 const int od = os / (OH * OW); \
                 const int oh = (os % (OH * OW)) / OW; \
                 const int ow = os % OW; \
-                for (int icc = 0; icc < ic_chunks; icc++) \
-                    exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, g, n, ocb, \
-                            od, oh, ow, icc); \
+                char *inp_buffer_sp = (jcp.is_rtus) \
+                        ? inp_buffer + src_dsz * os * jcp.LDA \
+                        : nullptr; \
+                for (int icc = 0; icc < ic_chunks; icc++) { \
+                    if (jcp.is_rtus) \
+                        maybe_rtus(ithr, brgemm_ctx.src, inp_buffer_sp, \
+                                inp_buffer_mask, g, n, icc, od, oh, ow); \
+                    exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, \
+                            inp_buffer_sp, g, n, ocb, od, oh, ow, icc, \
+                            &last_brg_idx); \
+                } \
             } \
+            last_n = n; \
+            last_g = g; \
             nd_iterator_step(__VA_ARGS__); \
         } \
+        if (is_amx) amx_tile_release(); \
     });
 
         if (jcp.loop_order == loop_ndhwgc)
@@ -372,6 +501,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
         char *const c_buffer = (jcp.use_buffer) \
                 ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M \
                 : nullptr; \
+        int last_brg_idx = -1; \
         int start {0}, end {0}; \
         balance211(work_amount, nthr, ithr, start, end); \
         int n {0}, g {0}, ocb {0}, od {0}, oh {0}, owb {0}; \
@@ -379,11 +509,12 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
         for (auto work = start; work < end; work++) { \
             for (int icc = 0; icc < ic_chunks; icc++) { \
                 const int ow = owb * jcp.ow_block; \
-                exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, g, n, ocb, od, \
-                        oh, ow, icc); \
+                exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, nullptr, g, n, \
+                        ocb, od, oh, ow, icc, &last_brg_idx); \
             } \
             nd_iterator_step(__VA_ARGS__); \
         } \
+        if (is_amx) amx_tile_release(); \
     });
 
         if (jcp.loop_order == loop_ndhwgc)
@@ -402,6 +533,8 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
 template struct brgemm_1x1_convolution_fwd_t<avx512_core>;
 template struct brgemm_1x1_convolution_fwd_t<avx512_core_vnni>;
 template struct brgemm_1x1_convolution_fwd_t<avx512_core_bf16>;
+template struct brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>;
+template struct brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_bf16>;
 
 } // namespace x64
 } // namespace cpu

@@ -46,7 +46,7 @@ struct jit_avx512_core_brgemm_conv_trans_kernel_t : public jit_generator {
 
     int dst_w(int out_w) const;
 
-private:
+protected:
     jit_brgemm_conv_conf_t jcp;
     dim_t inp_dsz;
     dim_t ic_block_sz;
@@ -91,6 +91,17 @@ private:
     int inp_w(int out_w) const;
     int inp_w(int out_w, int kw) const;
     int inp_w_start(int owb) const;
+};
+
+struct jit_avx512_core_brgemm_conv_rtus_kernel_t
+    : jit_avx512_core_brgemm_conv_trans_kernel_t {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_brgemm_conv_rtus_kernel_t)
+
+    jit_avx512_core_brgemm_conv_rtus_kernel_t(
+            const jit_brgemm_conv_conf_t &ajcp);
+
+private:
+    void generate() override;
 };
 
 } // namespace jit_avx512_core_brgemm_conv_trans_kernel

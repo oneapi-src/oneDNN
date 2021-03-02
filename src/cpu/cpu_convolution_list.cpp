@@ -129,6 +129,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     {{forward, bf16, bf16, f32}, {
         REG_CONV_P_FWD(CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t))
         REG_CONV_P_FWD(REG_IP_P_FWD(CPU_INSTANCE_X64(ip_convolution_fwd_t)))
+        REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_bf16>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core_bf16_amx_bf16>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t))
@@ -144,6 +145,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     {{forward, bf16, bf16, bf16}, {
         REG_CONV_P_FWD(CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t))
         REG_CONV_P_FWD(REG_IP_P_FWD(CPU_INSTANCE_X64(ip_convolution_fwd_t)))
+        REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_bf16>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core_bf16_amx_bf16>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t))
@@ -238,6 +240,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     // FWD int8 (src:s8)
     {{forward, s8, s8, f32}, {
         REG_CONV_P_FWD(REG_IP_P_FWD(CPU_INSTANCE_X64(ip_convolution_fwd_t)))
+        REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t))
@@ -254,6 +257,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     }},
     {{forward, s8, s8, s32}, {
         REG_CONV_P_FWD(REG_IP_P_FWD(CPU_INSTANCE_X64(ip_convolution_fwd_t)))
+        REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t))
@@ -270,6 +274,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     }},
     {{forward, s8, s8, s8}, {
         REG_CONV_P_FWD(REG_IP_P_FWD(CPU_INSTANCE_X64(ip_convolution_fwd_t)))
+        REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t))
@@ -287,6 +292,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     }},
     {{forward, s8, s8, u8}, {
         REG_CONV_P_FWD(REG_IP_P_FWD(CPU_INSTANCE_X64(ip_convolution_fwd_t)))
+        REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t))
@@ -305,6 +311,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     {{forward, u8, s8, f32}, {
         REG_CONV_P_FWD(CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t))
         REG_CONV_P_FWD(REG_IP_P_FWD(CPU_INSTANCE_X64(ip_convolution_fwd_t)))
+        REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t))
@@ -325,6 +332,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     {{forward, u8, s8, s32}, {
         REG_CONV_P_FWD(CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t))
         REG_CONV_P_FWD(REG_IP_P_FWD(CPU_INSTANCE_X64(ip_convolution_fwd_t)))
+        REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t))
@@ -345,6 +353,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     {{forward, u8, s8, s8}, {
         REG_CONV_P_FWD(CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t))
         REG_CONV_P_FWD(REG_IP_P_FWD(CPU_INSTANCE_X64(ip_convolution_fwd_t)))
+        REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t))
@@ -366,6 +375,7 @@ const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     {{forward, u8, s8, u8}, {
         REG_CONV_P_FWD(CPU_INSTANCE_X64(brdgmm_dw_convolution_fwd_t))
         REG_CONV_P_FWD(REG_IP_P_FWD(CPU_INSTANCE_X64(ip_convolution_fwd_t)))
+        REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_1x1_convolution_fwd_t<avx512_core_bf16_amx_int8>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_1x1_convolution_fwd_t))
         REG_CONV_P_FWD(CPU_INSTANCE_X64(jit_avx512_core_amx_convolution_fwd_t))

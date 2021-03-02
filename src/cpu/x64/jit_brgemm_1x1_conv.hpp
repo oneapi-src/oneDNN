@@ -29,6 +29,7 @@
 #include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
+#include "cpu/x64/jit_brgemm_conv_trans_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_utils.hpp"
 #include "cpu/x64/jit_brgemm_post_ops.hpp"
 
@@ -83,18 +84,24 @@ private:
             , bias(CTX_IN_MEM(const char *, DNNL_ARG_BIAS))
             , dst(CTX_OUT_MEM(char *, DNNL_ARG_DST))
             , post_ops_binary_rhs_arg_vec(binary_injector::prepare_binary_args(
-                      pd->attr()->post_ops_, ctx)) {}
+                      pd->attr()->post_ops_, ctx))
+            , wsp_tile(ctx.get_scratchpad_grantor().template get<char>(
+                      memory_tracking::names::key_conv_amx_tile_buffer)) {}
         const char *const __restrict src;
         const char *const __restrict weights;
         const char *const __restrict bias;
         char *const __restrict dst;
         const std::vector<const void *> post_ops_binary_rhs_arg_vec;
+        char *const wsp_tile;
     };
 
+    void maybe_rtus(int ithr, const char *__restrict src,
+            char *__restrict inp_buffer, uint8_t *__restrict inp_buffer_mask,
+            int g, int n, int icc, int od, int oh, int ow) const;
     void exec_ker(const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
             brgemm_batch_element_t *const __restrict brg_batch,
-            char *const c_buffer, int g, int n, int ocb, int od, int oh, int ow,
-            int icc) const;
+            char *const c_buffer, const char *inp_buffer, int g, int n, int ocb,
+            int od, int oh, int ow, int icc, int *last_brg_idx) const;
     void execute_forward_all(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
@@ -112,6 +119,10 @@ private:
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[16];
     std::unique_ptr<jit_brgemm_kernel_post_ops> kernels_po_[4];
+    char brg_kernel_palettes_[16][64];
+    std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
+                    jit_avx512_core_brgemm_conv_rtus_kernel_t>
+            rtus_kernel_;
 
     const memory_desc_wrapper bias_d;
 

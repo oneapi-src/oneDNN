@@ -23,6 +23,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/platform.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_brgemm_conv_utils.hpp"
@@ -367,6 +368,8 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     }
     void init() {
         ur = 0;
+        ur_block = 0;
+        ur_block_tail = 0;
         eff = 0.f;
         nb_kd = 0;
         nb_kh = 0;
@@ -377,7 +380,7 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
         eff = 0;
     }
 
-    int ur;
+    int ur, ur_block, ur_block_tail;
     int nb_kd, nb_kh, nb_kw;
     float eff;
     static unsigned L1;
@@ -494,6 +497,15 @@ float brg_blocking_t::io_k(const loop_t loop, const array_in_loop_t arr,
 }
 
 void brg_blocking_t::select_ic_block() {
+    if (is_1x1 && is_amx(isa)) {
+        // TODO: merge with non-1x1 code block below
+        const int ic_padded_block = 16 * brg_blocking_t::last_ic_block_size;
+        assert(ic < ic_padded_block || ic % ic_padded_block == 0);
+        MAYBE_UNUSED(ic_padded_block);
+        ic_block = ic;
+        nb_ic = utils::div_up(ic, ic_block); // trivially 1 for now
+        return;
+    }
     auto nb_simd = utils::div_up(ic, simd_w);
     auto max_simd_blocks = nstl::min(5 * simd_w, nb_simd);
     const auto nb_icb_eff_threshold = 0.5f;
@@ -560,9 +572,11 @@ void brg_blocking_t::select_ic_block() {
 int brg_blocking_t::estimate_brgemm_ur(int spb) {
     // Simple simulation of brgemm_desc init
     if (sp_block <= 0) return 0;
-    brgemm_t brg;
-    LDA = (kh_sets > 1 ? kh_sets : 1) * (kw_sets > 1 ? kw_sets : stride_w)
-            * (exec_type == exec_trans ? ic_block : ic_without_padding);
+    LDA = is_rtus
+            ? (ic_block)
+            : (kh_sets > 1 ? kh_sets : 1) * (kw_sets > 1 ? kw_sets : stride_w)
+                    * (exec_type == exec_trans ? ic_block
+                                               : ngroups * ic_without_padding);
     LDB = oc_block;
     LDC = use_buffer ? oc_block : oc_without_padding;
 
@@ -610,9 +624,19 @@ int brg_blocking_t::estimate_brgemm_ur(int spb) {
 
     const float alpha = 1.0;
     const float beta = 0.0;
+    brgemm_t brg;
     const auto status = brgemm_desc_init(&brg, isa, brgemm_addr, src_dt, wei_dt,
             false, false, brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN,
             vK);
+    ur_block = brg.bd_block;
+    if (M > 0 && M_tail > 0) {
+        brgemm_t brg_sp_tail;
+        const auto status = brgemm_desc_init(&brg_sp_tail, isa, brgemm_addr,
+                src_dt, wei_dt, false, false, brgemm_row_major, alpha, beta,
+                LDA, LDB, LDC, M_tail, vN, vK);
+        ur_block_tail = status == success ? brg_sp_tail.bd_block : 0;
+    } else
+        ur_block_tail = 0;
     return status == success
             ? (is_amx(isa) ? brg.bd_block * brg.bd_block2 : brg.bd_block)
             : 0;
@@ -647,8 +671,8 @@ int brg_blocking_t::get_brgemm_ur(
                     auto vK = (i_K) ? K_tail : K;
                     if (vN == 0 || vK == 0) continue;
                     brgemm_strides_t brg_strides;
-                    brg_strides.stride_a
-                            = ic_without_padding * (dilate_w + 1) * src_dsz;
+                    brg_strides.stride_a = ngroups * ic_without_padding
+                            * (dilate_w + 1) * src_dsz;
                     //weights are padded by oc_block and last_ic_block
                     brg_strides.stride_b = rnd_up(ic, last_ic_block_size)
                             * rnd_up(oc, oc_block) * wei_dsz;
@@ -1144,6 +1168,7 @@ void brg_blocking_t::calc_blocks() {
 bool brg_blocking_t::fast_check_oc_block_1x1() const {
     // This function for reducing the number of blocking variants
     // TODO: eliminate heuristic in this function
+    if (is_1x1 && is_amx(isa)) return true;
     const auto rnd_oc = rnd_up(oc, 16);
     auto res = false;
     if (oc_block == 64) {
@@ -1162,8 +1187,28 @@ bool brg_blocking_t::fast_check_oc_block_1x1() const {
 float brg_blocking_t::est_eff_1x1() {
     const auto ocblock = oc_block / 16;
 
-    const auto brgemm_microkernel_eff
-            = (static_cast<float>(ocblock) * ur) / ((ur + ocblock) * max_regs);
+    auto calc_ave_blk = [&](int dim, int block, bool use_ave) -> float {
+        const int nb = dim / block;
+        constexpr int max_nb = 2; // only consider 2x2 tile blocking
+        const int block2 = nstl::min(max_nb, nb);
+        const int nb2 = nb / block2;
+        const int nb2_tail = nb % block2;
+        if (!use_ave) return block2;
+        return (float(nb2) * block2 + nb2_tail) / div_up(nb, block2);
+    };
+    const bool use_ocb_ave = true;
+    const auto ocb_ave = calc_ave_blk(oc_block, 16, use_ocb_ave);
+    const bool use_spb_ave = false;
+    const auto spb_ave = calc_ave_blk(sp_block, ur_block, use_spb_ave);
+    const auto M_n_sp_blks = M > 0 ? M / ur_block : 0;
+    const auto M_tail_n_sp_blks = M_tail > 0 ? M_tail / ur_block_tail : 0;
+    const auto amx_fac
+            = div_up(M + M_tail, 16) / (M_n_sp_blks + M_tail_n_sp_blks);
+
+    const auto brgemm_microkernel_eff = is_amx(isa)
+            ? amx_fac * (static_cast<float>(ocb_ave) * spb_ave)
+                    / (ocb_ave + spb_ave)
+            : (static_cast<float>(ocblock) * ur) / ((ur + ocblock) * max_regs);
     const auto ur_eff = static_cast<float>(sp_block) / rnd_up(sp_block, ur);
     const auto brgemm_eff = squeeze_val(ur
                     * (2.f - nstl::min(1.9f, static_cast<float>(ur) / sp_block))
@@ -1289,9 +1334,13 @@ float brg_blocking_t::est_eff_1x1() {
     // -- brgemm kernel: loop by ur in sp_block --
     l++;
     const auto nb_ur = div_up(sp_block, ur);
+    const auto nb_sp_no_tail = sp / sp_block;
+    const auto sp_block_tail = sp % sp_block;
+    const auto nb_ur_average
+            = (nb_sp_no_tail * nb_ur + div_up(sp_block_tail, ur)) / nb_sp;
     loop[l].src.set(ur * rnd_simd(ic_blocking_size), 1);
     loop[l].dst.set(ur * oc_block, 1);
-    loop[l].wei.set(oc_blocking_size, nb_ur);
+    loop[l].wei.set(oc_blocking_size, is_amx(isa) ? nb_ur_average : nb_ur);
     // -- brgemm kernel: loop by ic_chunks --
     l++;
     const auto ic_chunks = div_up(nb_ic, nb_ic_blocking);
@@ -1404,7 +1453,9 @@ float brg_blocking_t::est_eff_1x1() {
 void brg_blocking_t::calc_blocks_1x1() {
     const bool is_os_blocking_ok
             = utils::everyone_is(1, stride_d, stride_h) && iw % stride_w == 0;
-    if (is_os_blocking_ok) {
+    const bool is_ic_zero_padded = ic != ic_without_padding;
+    is_rtus = is_ic_zero_padded || (!is_os_blocking_ok && is_amx(isa));
+    if (is_os_blocking_ok || is_rtus) {
         sp = os;
         is_os_blocking = true;
     } else {
@@ -1425,7 +1476,7 @@ void brg_blocking_t::calc_blocks_1x1() {
     nb_os_blocking = 1;
     int start_sp_block = 0;
 
-    if (stride_d == 1 && stride_h == 1) {
+    if (is_os_blocking) {
         ow_block = 0;
 
         const auto max_os_block_thr = nstl::max(div_up(2048, oc_block),
@@ -1466,7 +1517,23 @@ void brg_blocking_t::calc_blocks_1x1() {
 
     auto prev_spb = 0;
     for (auto ns = 1; ns <= sp; ns++) {
-        const auto spb = div_up(sp, ns);
+        auto spb = div_up(sp, ns);
+        if (is_amx(isa)) {
+            auto min_dis = 16;
+            auto best_w = 16;
+            const auto max_tile_width = nstl::min(16, sp);
+            const auto min_tile_width = utils::saturate(1, 11, sp / 2);
+            if (spb < min_tile_width) break;
+            for (auto w = max_tile_width; w >= min_tile_width; w--) {
+                const auto dis = nstl::additive_inverse_modulo(spb, w);
+                if (dis < min_dis) {
+                    min_dis = dis;
+                    best_w = w;
+                }
+            }
+            spb = nstl::min(sp, rnd_dn(spb, best_w));
+            if (spb == prev_spb) continue;
+        }
         if (spb == prev_spb || spb > start_sp_block) continue;
         prev_spb = spb;
         os_block = ow_block = sp_block = spb;
@@ -1514,8 +1581,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.mb = src_d.dims()[0];
     jcp.oc_without_padding = dst_d.dims()[1];
     jcp.oc = jcp.oc_without_padding / jcp.ngroups;
-    jcp.ic_without_padding = src_d.dims()[1];
-    jcp.ic = jcp.ic_without_padding / jcp.ngroups;
+    jcp.ic_without_padding = src_d.dims()[1] / jcp.ngroups;
+    jcp.ic = jcp.ic_without_padding;
     jcp.id = (ndims == 5) ? src_d.dims()[2] : 1;
     jcp.ih = (ndims == 3) ? 1 : src_d.dims()[ndims - 2];
     jcp.iw = src_d.dims()[ndims - 1];
@@ -1549,6 +1616,10 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.r_pad = calculate_end_padding(
             jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, jcp.ext_kw);
 
+    jcp.is_1x1 = jcp.f_pad <= 0 && jcp.back_pad <= 0 && jcp.t_pad <= 0
+            && jcp.b_pad <= 0 && jcp.l_pad <= 0 && jcp.r_pad <= 0
+            && utils::everyone_is(1, jcp.kd, jcp.kh, jcp.kw);
+
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     jcp.src_dt = cd.src_desc.data_type;
@@ -1565,8 +1636,10 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (is_depthwise) return status::unimplemented;
 
     // TODO: optimize grouped convolutions with small ic
-    const bool is_grouped_small_ic
-            = with_groups && jcp.ngroups > 1 && jcp.ic <= 16;
+    const bool is_grouped_small_ic = with_groups && jcp.ngroups > 1
+            && jcp.ic <= 16
+            // already optimized for amx 1x1 convs
+            && IMPLICATION(is_amx(jcp.isa), !jcp.is_1x1);
     if (is_grouped_small_ic) return status::unimplemented;
 
     // TODO: support s8 in non-amx brgemm convolutions
@@ -1621,9 +1694,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.use_uker = false;
     jcp.use_interleave_stores = false;
     jcp.brgemm_bd_loop_innermost = false;
-    jcp.is_1x1 = true && jcp.f_pad <= 0 && jcp.back_pad <= 0 && jcp.t_pad <= 0
-            && jcp.b_pad <= 0 && jcp.l_pad <= 0 && jcp.r_pad <= 0 && jcp.kd == 1
-            && jcp.kh == 1 && jcp.kw == 1;
 
     // fast check data layout before spending time for blocking selection
     format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
@@ -1880,6 +1950,22 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     jcp.loop_order = (bcast_amount < wei_amount) ? loop_ngcdhw : loop_ndhwgc;
 
+    if (is_amx(isa)) {
+        // round up ic if needed
+        const int vnni_width = brg_blocking_t::last_ic_block_size;
+        const int n_vnni_blocks = utils::div_up(jcp.ic, vnni_width);
+        const int ic_block = nstl::min(16, n_vnni_blocks) * vnni_width;
+        const bool do_zeropad = jcp.ic % vnni_width != 0 || jcp.ic > ic_block;
+        if (do_zeropad) jcp.ic = utils::rnd_up(jcp.ic, ic_block);
+        const auto ic_padded_block = 16 * vnni_width;
+        jcp.is_ic_padded = jcp.ic > ic_padded_block;
+
+        // try to choose optimal loop order
+        auto wei_size = (size_t)jcp.oc * jcp.ic * jcp.wei_dsz;
+        auto max_size = 0.75f * brg_blocking_t::L2;
+        jcp.loop_order = max_size < wei_size ? loop_ngcdhw : loop_ndhwgc;
+    }
+
     const auto min_oc_block = 16;
 
     jcp.brg_type = brgemm_addr; // TODO: Choose right type of BRGEMM
@@ -1945,10 +2031,6 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.adjusted_batch_size
             = div_up(rnd_up(jcp.gemm_batch_size * sc_size, 4096), sc_size);
 
-    jcp.LDA = jcp.stride_w * jcp.ic_without_padding;
-    jcp.LDC = (jcp.use_buffer) ? jcp.oc_block : jcp.oc_without_padding;
-    jcp.LDD = jcp.oc_without_padding;
-
     CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
     CHECK(attr.set_default_formats(&dst_md));
 
@@ -1960,8 +2042,14 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (!oscales_ok) return status::unimplemented;
 
     // no inp buffer or brgemm_vpad for 1x1
-    jcp.exec_type = exec_base;
-    jcp.inp_buffer_size = 0;
+    constexpr int align_size = platform::get_cache_line_size();
+    jcp.exec_type = jcp.is_rtus ? exec_trans : exec_base;
+    jcp.inp_buffer_size
+            = jcp.is_rtus ? rnd_up(jcp.LDA * jcp.os, align_size) : 0;
+    jcp.inp_buffer_mask_size = jcp.is_rtus
+            ? rnd_up(div_up(jcp.nb_ic, jcp.nb_ic_blocking) * jcp.nb_os,
+                    align_size)
+            : 0;
     jcp.buffer_size = jcp.LDC * jcp.M;
 
 #if 0

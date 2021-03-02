@@ -40,10 +40,10 @@ jit_avx512_core_brgemm_conv_trans_kernel_t::
     dst_stride = jcp.copy_block_only ? dst_w_block : jcp.iwp;
     dst_w_offset = jcp.kh_sets * jcp.kw_sets * ic_block_sz;
     dst_h_offset = dst_stride * dst_w_offset;
-    iw_size = inp_dsz * jcp.ngroups * jcp.ic;
+    iw_size = inp_dsz * jcp.ngroups * jcp.ic_without_padding;
     VL = cpu_isa_traits<avx512_common>::vlen;
     n_vec = jcp.ic_block / jcp.simd_w;
-    n_tail_vec = (jcp.ic % jcp.ic_block) / jcp.simd_w;
+    n_tail_vec = (jcp.ic_without_padding % jcp.ic_block) / jcp.simd_w;
 }
 
 int get_inp_size(int dst_size, int ext_k, int stride, int dilate) {
@@ -120,8 +120,8 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::zero_ic_block(
         store(ptr[last_dst_off] | kblock_tail_mask | T_z, zmm_zero);
 }
 
-void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ic_block(
-        bool is_ic_tail, dim_t inp_off, dim_t dst_off, bool do_load) {
+void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ic_block(bool is_ic_tail,
+        dim_t inp_off = 0, dim_t dst_off = 0, bool do_load = true) {
     bool has_block_tail = (jcp.ic_block % jcp.simd_w);
 
     // TODO: use Xmm or Ymm moves for better small ic efficiency
@@ -160,8 +160,8 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::generate() {
 
     vpxord(zmm_zero, zmm_zero, zmm_zero);
 
-    if (jcp.ic % jcp.ic_block) {
-        int tail_size = (jcp.ic % jcp.ic_block) % jcp.simd_w;
+    if (jcp.ic_without_padding % jcp.ic_block) {
+        int tail_size = (jcp.ic_without_padding % jcp.ic_block) % jcp.simd_w;
         uint64_t mask = (UINT64_C(1) << tail_size) - 1;
         mov(reg_tmp, mask);
         kmovq(ktail_mask, reg_tmp);
@@ -390,10 +390,95 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ow_block_body(
         }
     }
 }
+
+jit_avx512_core_brgemm_conv_rtus_kernel_t::
+        jit_avx512_core_brgemm_conv_rtus_kernel_t(
+                const jit_brgemm_conv_conf_t &ajcp)
+    : jit_avx512_core_brgemm_conv_trans_kernel_t(ajcp) {
+    ic_block_sz = inp_dsz * jcp.LDA; // output may or may not be zero padded
+    dst_h_offset = jcp.iwp * ic_block_sz;
+}
+
+void jit_avx512_core_brgemm_conv_rtus_kernel_t::generate() {
+    preamble();
+
+    const Xbyak::Reg64 &reg_khp = reg_hc;
+    const Xbyak::Reg64 &reg_kwp = reg_owb;
+
+    mov(inp_ptr, ptr[param1 + GET_OFF(src)]);
+    mov(dst_ptr, ptr[param1 + GET_OFF(dst)]);
+    mov(reg_khp, ptr[param1 + GET_OFF(h_count)]);
+    mov(reg_kwp, ptr[param1 + GET_OFF(owb)]);
+
+    if (jcp.ic_without_padding % jcp.ic_block) {
+        int tail_size = (jcp.ic_without_padding % jcp.ic_block) % jcp.simd_w;
+        uint64_t mask = (UINT64_C(1) << tail_size) - 1;
+        mov(reg_tmp, mask);
+        kmovq(ktail_mask, reg_tmp);
+    }
+
+    if (jcp.ic_block % jcp.simd_w) {
+        int block_tail_size = jcp.ic_block % jcp.simd_w;
+        uint64_t mask = (UINT64_C(1) << block_tail_size) - 1;
+        mov(reg_tmp, mask);
+        kmovq(kblock_tail_mask, reg_tmp);
+    }
+
+    assert(jcp.nb_ic_blocking == 1 && "TODO: support multi-batch case");
+
+    for (int icb = 0; icb < jcp.nb_ic_blocking; icb++) {
+        const bool is_ic_tail
+                = (icb + 1) * jcp.ic_block > jcp.ic_without_padding;
+        mov(aux_inp_ptr, inp_ptr);
+        mov(aux_dst_ptr, dst_ptr);
+
+        // Section 1: copy nw spatial elements in a row
+        Xbyak::Label label_kwp_begin, label_kwp_end;
+        cmp(reg_kwp, 0);
+        jle(label_kwp_end, T_NEAR);
+        L(label_kwp_begin);
+        {
+            copy_ic_block(is_ic_tail);
+
+            auto inp_w_step = jcp.stride_w * iw_size;
+            auto out_w_step = ic_block_sz;
+            add(aux_inp_ptr, inp_w_step);
+            add(aux_dst_ptr, out_w_step);
+
+            dec(reg_kwp);
+            jnz(label_kwp_begin, T_NEAR);
+        }
+        L(label_kwp_end);
+
+        // Section 2: copy nh whole rows of OW spatial elements
+        Xbyak::Label label_khp_begin, label_khp_end;
+        cmp(reg_khp, 0);
+        jle(label_khp_end, T_NEAR);
+        L(label_khp_begin);
+        {
+            for (int ow = 0; ow < jcp.ow; ow++) {
+                auto inp_w_off = ow * jcp.stride_w * iw_size;
+                auto out_w_off = ow * ic_block_sz;
+                copy_ic_block(is_ic_tail, inp_w_off, out_w_off);
+            }
+
+            auto inp_h_step = jcp.stride_h * jcp.iw * iw_size;
+            auto out_h_step = jcp.ow * ic_block_sz;
+            add(aux_inp_ptr, inp_h_step);
+            add(aux_dst_ptr, out_h_step);
+
+            dec(reg_khp);
+            jnz(label_khp_begin, T_NEAR);
+        }
+        L(label_khp_end);
+    }
+
+    postamble();
+}
+
 } // namespace jit_avx512_core_brgemm_conv_trans_kernel
 
 } // namespace x64
-
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
