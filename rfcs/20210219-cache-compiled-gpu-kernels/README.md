@@ -10,7 +10,7 @@ CPU or GPU kernel. The GPU kernel can have two states:
 Currently, GPU primitive that is stored in the primitive cache contains GPU kernel
 which has the 2nd state.
 
-There are two cons of such approach:
+There are two pros of such approach:
 1. Binary representation is basically an array of bytes hence no 3rd party resources
 are stored in the primitive cache
 2. Binary representation is associated with a particular GPU device but is context
