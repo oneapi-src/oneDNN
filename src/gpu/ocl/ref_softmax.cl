@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@
 #define CONCAt2(a, b) a##b
 #define CONCAT2(a, b) CONCAt2(a, b)
 
+#define DD(i) CONCAt2(DST_D, i)
+
 #define OFF(dim, idx) \
     (dim % CONCAT2(DATA_B, idx)) * CONCAT2(DATA_SB, idx) \
             + (dim / CONCAT2(DATA_B, idx)) * CONCAT2(DATA_S, idx)
@@ -27,26 +29,44 @@
 #define DATA_OFF(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
     OFF(softmax_dim, 0) + OFF(dim0, 1) + OFF(dim1, 2) + OFF(dim2, 3) \
             + OFF(dim3, 4) + OFF(dim4, 5)
+#define NEEDS_PADDING(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
+    softmax_dim >= DD(0) || dim0 >= DD(1) || dim1 >= DD(2) || dim2 >= DD(3) \
+            || dim3 >= DD(4) || dim4 >= DD(5)
 #elif SOFTMAX_AXIS_IDX == 1
 #define DATA_OFF(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
     OFF(dim0, 0) + OFF(softmax_dim, 1) + OFF(dim1, 2) + OFF(dim2, 3) \
             + OFF(dim3, 4) + OFF(dim4, 5)
+#define NEEDS_PADDING(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
+    dim0 >= DD(0) || softmax_dim >= DD(1) || dim1 >= DD(2) || dim2 >= DD(3) \
+            || dim3 >= DD(4) || dim4 >= DD(5)
 #elif SOFTMAX_AXIS_IDX == 2
 #define DATA_OFF(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
     OFF(dim0, 0) + OFF(dim1, 1) + OFF(softmax_dim, 2) + OFF(dim2, 3) \
             + OFF(dim3, 4) + OFF(dim4, 5)
+#define NEEDS_PADDING(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
+    dim0 >= DD(0) || dim1 >= DD(1) || softmax_dim >= DD(2) || dim2 >= DD(3) \
+            || dim3 >= DD(4) || dim4 >= DD(5)
 #elif SOFTMAX_AXIS_IDX == 3
 #define DATA_OFF(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
     OFF(dim0, 0) + OFF(dim1, 1) + OFF(dim2, 2) + OFF(softmax_dim, 3) \
             + OFF(dim3, 4) + OFF(dim4, 5)
+#define NEEDS_PADDING(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
+    dim0 >= DD(0) || dim1 >= DD(1) || dim2 >= DD(2) || softmax_dim >= DD(3) \
+            || dim3 >= DD(4) || dim4 >= DD(5)
 #elif SOFTMAX_AXIS_IDX == 4
 #define DATA_OFF(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
     OFF(dim0, 0) + OFF(dim1, 1) + OFF(dim2, 2) + OFF(dim3, 3) \
             + OFF(softmax_dim, 4) + OFF(dim4, 5)
+#define NEEDS_PADDING(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
+    dim0 >= DD(0) || dim1 >= DD(1) || dim2 >= DD(2) || dim3 >= DD(3) \
+            || softmax_dim >= DD(4) || dim4 >= DD(5)
 #elif SOFTMAX_AXIS_IDX == 5
 #define DATA_OFF(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
     OFF(dim0, 0) + OFF(dim1, 1) + OFF(dim2, 2) + OFF(dim3, 3) + OFF(dim4, 4) \
             + OFF(softmax_dim, 5)
+#define NEEDS_PADDING(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
+    dim0 >= DD(0) || dim1 >= DD(1) || dim2 >= DD(2) || dim3 >= DD(3) \
+            || dim4 >= DD(4) || sofmtax_dim >= DD(5)
 #else
 #error unsupported softmax dimension
 #endif
@@ -66,6 +86,7 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
             get_global_id(1) / BLOCK_1,
             get_global_id(2) / BLOCK_2,
     };
+
     int local_id = get_local_id(0);
 
     // SOFTMAX_AXIS is the size of axis around which softmax operation is
@@ -79,13 +100,19 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
 
     // initializing max_ to first value of subgroup
     int start_idx = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], begin);
-    DEF_ACC_DATA_T max_ = TO_DEF_ACC_DATA_T(src[start_idx]);
+    DEF_ACC_DATA_T max_ = -FLT_MAX;
     DEF_ACC_DATA_T denom_ = DATA_ZERO;
 
     // finding max value for each sub_group
     for (int i = begin; i < end; ++i) {
-        size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
-        DEF_ACC_DATA_T temp = TO_DEF_ACC_DATA_T(src[data_off]);
+        DEF_ACC_DATA_T temp = -FLT_MAX;
+
+        if (!(NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i))) {
+            size_t data_off
+                    = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
+            temp = TO_DEF_ACC_DATA_T(src[data_off]);
+        }
+
         max_ = temp > max_ ? temp : max_;
     }
 
@@ -97,10 +124,15 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
 #else
     max_ = work_group_reduce_max(max_);
 #endif
-
     // updating dst tensor and accumulating denom for last step
     for (int i = begin; i < end; ++i) {
         size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
+
+        if (NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i)) {
+            dst[data_off] = DATA_ZERO;
+            continue;
+        }
+
         DEF_ACC_DATA_T temp = TO_DEF_ACC_DATA_T(src[data_off]);
 #if LOGSOFTMAX
         denom_ += exp(temp - max_);
@@ -118,13 +150,17 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
 
 #if LOGSOFTMAX
     denom_ = log(denom_);
-
 #else
     denom_ = 1.0 / denom_;
 #endif
 
     for (int i = begin; i < end; ++i) {
         size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
+
+        if (NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i)) {
+            continue;
+        }
+
 #if LOGSOFTMAX
         DEF_ACC_DATA_T temp = TO_DEF_ACC_DATA_T(src[data_off]);
         dst[data_off] = TO_DATA_T(temp - max_ - denom_);
@@ -152,6 +188,11 @@ __kernel void ref_softmax_bwd_generic(__global DATA_T *dst,
     DEF_ACC_DATA_T sbr = 0.f;
     for (int i = 0; i < SOFTMAX_AXIS; ++i) {
         size_t idx = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
+
+        if (NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i)) {
+            continue;
+        }
+
         DEF_ACC_DATA_T g_temp = TO_DEF_ACC_DATA_T(diff_dst[idx]);
 #if LOGSOFTMAX
         sbr += g_temp;
@@ -163,6 +204,11 @@ __kernel void ref_softmax_bwd_generic(__global DATA_T *dst,
 
     for (int i = 0; i < SOFTMAX_AXIS; ++i) {
         size_t idx = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
+
+        if (NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i)) {
+            diff_src[idx] = DATA_ZERO;
+            continue;
+        }
 #if LOGSOFTMAX
         diff_src[idx] = TO_DATA_T(TO_DEF_ACC_DATA_T(diff_dst[idx])
                 - exp(TO_DEF_ACC_DATA_T(dst[idx])) * sbr);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,14 +72,14 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
 
             for (int i = 0, j = 0; i < src_md()->ndims; ++i) {
                 if (i != desc()->softmax_axis) {
-                    auto dim = src_md()->dims[i];
+                    auto dim = src_md()->padded_dims[i];
                     gws[j % 3] *= dim;
                     if (j < 3) block[j % 3] = dim;
                     j++;
                 }
             }
 
-            int nelems = desc()->data_desc.dims[desc()->softmax_axis];
+            int nelems = desc()->data_desc.padded_dims[desc()->softmax_axis];
 
             if (nelems <= 100) {
                 group_size = 16;
@@ -115,8 +115,8 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
 
         const auto *desc = pd()->desc();
         kernel_ctx.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
-        kernel_ctx.define_int(
-                "SOFTMAX_AXIS", desc->data_desc.dims[desc->softmax_axis]);
+        kernel_ctx.define_int("SOFTMAX_AXIS",
+                desc->data_desc.padded_dims[desc->softmax_axis]);
         kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
         kernel_ctx.define_int("SUB_GROUP_SIZE", 16);
         kernel_ctx.define_int("IS_FWD", 1);
@@ -124,6 +124,9 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("LOGSOFTMAX",
                 desc->primitive_kind == primitive_kind::logsoftmax ? 1 : 0);
 
+        const memory_desc_wrapper dst_mdw(pd()->dst_md());
+        def_memory_desc_info(
+                kernel_ctx, memory_desc_info_t::create(dst_mdw), "DST");
         kernel_ctx.set_data_type(desc->data_desc.data_type);
         set_offsets(kernel_ctx, pd()->dst_md(), "DATA");
 
@@ -172,7 +175,7 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
 
             for (int i = 0, j = 0; i < desc()->data_desc.ndims; ++i) {
                 if (i != desc()->softmax_axis) {
-                    auto dim = desc()->data_desc.dims[i];
+                    auto dim = desc()->data_desc.padded_dims[i];
                     gws[j % 3] *= dim;
                     if (j < 3) block[j % 3] = dim;
                     j++;
@@ -197,11 +200,15 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
         const auto *desc = pd()->desc();
         kernel_ctx.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
         kernel_ctx.define_int("IS_BWD", 1);
-        kernel_ctx.define_int(
-                "SOFTMAX_AXIS", desc->data_desc.dims[desc->softmax_axis]);
+        kernel_ctx.define_int("SOFTMAX_AXIS",
+                desc->data_desc.padded_dims[desc->softmax_axis]);
         kernel_ctx.set_data_type(desc->data_desc.data_type);
         kernel_ctx.define_int("LOGSOFTMAX",
                 desc->primitive_kind == primitive_kind::logsoftmax ? 1 : 0);
+
+        const memory_desc_wrapper dst_mdw(pd()->dst_md());
+        def_memory_desc_info(
+                kernel_ctx, memory_desc_info_t::create(dst_mdw), "DST");
 
         set_offsets(kernel_ctx, *pd()->diff_src_md(), "DATA");
 
