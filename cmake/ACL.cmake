@@ -1,5 +1,5 @@
 # ******************************************************************************
-# Copyright 2020 Arm Limited and affiliates.
+# Copyright 2020-2021 Arm Limited and affiliates.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,19 +31,22 @@ endif()
 
 find_package(ACL REQUIRED)
 
+set(ACL_MINIMUM_VERSION "21.02")
+
 if(ACL_FOUND)
     file(GLOB_RECURSE ACL_VERSION_FILE $ENV{ACL_ROOT_DIR}/*/arm_compute_version.embed)
     if ("${ACL_VERSION_FILE}" STREQUAL "")
-        message(WARNING "Build may fail: Could not determine ACL version (minimum required is v20.11)")
+        message(WARNING "Build may fail: Could not determine ACL version (minimum required is ${ACL_MINIMUM_VERSION})")
     else()
         file(READ ${ACL_VERSION_FILE} ACL_VERSION_STRING)
-        string(REGEX MATCH "v[0-9]+\\.[0-9]+" ACL_VERSION ${ACL_VERSION_STRING})
+        string(REGEX MATCH "v([0-9]+\\.[0-9]+)" ACL_VERSION ${ACL_VERSION_STRING})
+        set(ACL_VERSION "${CMAKE_MATCH_1}")
         if (${ACL_VERSION} VERSION_EQUAL "0.0")
             # Unreleased ACL versions come with version string "v0.0-unreleased", and may not be compatible with oneDNN.
             # It is recommended to use the latest release of ACL.
-            message(WARNING "Build may fail: Using unreleased ACL version (minimum required is v20.11)")
-        elseif(${ACL_VERSION} VERSION_LESS "20.11")
-            message(FATAL_ERROR "Detected ACL version ${ACL_VERSION}, but minimum required is v20.11")
+            message(WARNING "Build may fail: Using unreleased ACL version (minimum required is ${ACL_MINIMUM_VERSION})")
+        elseif(${ACL_VERSION} VERSION_LESS ${ACL_MINIMUM_VERSION})
+            message(FATAL_ERROR "Detected ACL version ${ACL_VERSION}, but minimum required is ${ACL_MINIMUM_VERSION}")
         endif()
     endif()
 
@@ -55,4 +58,6 @@ if(ACL_FOUND)
     message(STATUS "Arm Compute Library headers: ${ACL_INCLUDE_DIRS}")
 
     add_definitions(-DDNNL_AARCH64_USE_ACL)
+    set(CMAKE_CXX_STANDARD 14)
+    set(CMAKE_CXX_EXTENSIONS "OFF")
 endif()
