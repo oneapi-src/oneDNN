@@ -120,10 +120,11 @@ require the use of run-time controls to enable them. See
 for more details.
 
 On a CPU based on Arm AArch64 architecture, oneDNN can be built with Arm Compute Library
-integration. Arm Compute Library is an open-source library for machine learning applications
+integration. Compute Library is an open-source library for machine learning applications
 and provides AArch64 optimized implementations of core functions. This functionality currently
-requires that Arm Compute Library is downloaded and built separately, see
-[Build from Source](https://oneapi-src.github.io/oneDNN/dev_guide_build.html).
+requires that Compute Library is downloaded and built separately, see
+[Build from Source](https://oneapi-src.github.io/oneDNN/dev_guide_build.html). oneDNN is only
+compatible with Compute Library versions 21.02 or later.
 
 > **WARNING**
 >
