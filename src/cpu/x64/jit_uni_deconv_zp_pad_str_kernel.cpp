@@ -28,7 +28,9 @@ namespace zp {
 
 jit_uni_deconv_zp_pad_str_kernel_base_t::
         jit_uni_deconv_zp_pad_str_kernel_base_t(const jit_conv_conf_t &jcp)
-    : jcp_(jcp), tail_size_(jcp_.oc_without_padding % jcp_.oc_block) {}
+    : jcp_(jcp)
+    , tail_size_(jcp.is_depthwise ? jcp.ngroups % jcp.ch_block
+                                  : jcp.oc_without_padding % jcp.oc_block) {}
 
 size_t jit_uni_deconv_zp_pad_str_kernel_base_t::reserve_vmm() {
     return number_reserved_vmms_++;
@@ -48,7 +50,7 @@ void jit_uni_deconv_zp_pad_str_kernel_base_t::compute() {
 
     const dim_t outer_icb_step = jcp_.kd * jcp_.kh * jcp_.kw * jcp_.ic_block
             * jcp_.oc_block * jcp_.ch_block;
-    const dim_t inner_icb_step = jcp_.oc_block * 4;
+    const dim_t inner_icb_step = jcp_.oc_block * jcp_.ch_block * 4;
     const bool ic_tail_exists = jcp_.ic_without_padding % jcp_.ic_block;
 
     for (dim_t icb = 0; icb < jcp_.nb_ic; ++icb) {
@@ -269,7 +271,8 @@ void compute_deconv_zp_pad_str_comp_ker(const jit_conv_conf_t &jcp,
             const auto g = ch_b * jcp.ch_block;
             params.wei = wei + wei_off(wei_d, with_groups, ch_b, oc_b, d, h, w);
             params.src_zero_point = src_zp;
-            params.last_oc_block = oc_b == jcp.nb_oc - 1;
+            params.last_oc_block = jcp.is_depthwise ? ch_b == jcp.nb_ch - 1
+                                                    : oc_b == jcp.nb_oc - 1;
             params.dst_scratchpad = dst
                     + dst_off(jcp, wei_d.ndims() - (with_groups ? 1 : 0), g, oc,
                             d, h, w);
