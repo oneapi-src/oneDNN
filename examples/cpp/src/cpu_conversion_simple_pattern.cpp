@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,18 +37,26 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
-#include "common/utils.hpp"
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
+#include "common/execution_context.hpp"
+#include "common/helpers_any_layout.hpp"
+#include "common/utils.hpp"
+
+#define assertm(exp, msg) assert(((void)msg, exp))
+
 using namespace dnnl::graph;
+using data_type = logical_tensor::data_type;
+using layout_type = logical_tensor::layout_type;
 
 // digraph G {
 // Wildcard_100002 -> Convolution_100003;
 // Convolution_100003 -> ReLU_100005;
 // }
 
-// Test conv relu different shape compile and execute
+// clang-format off
 int cpu_conversion_simple_pattern_tutorial(engine::kind engine_kind) {
     std::cout << "========Example: Conv+ReLU========\n";
 
@@ -57,20 +65,7 @@ int cpu_conversion_simple_pattern_tutorial(engine::kind engine_kind) {
         return -1;
     }
 
-    // Step 1: Initialize engine and stream
-    // (todo)xinyu: improve this part when gpu pass is ready
-    std::cout << "Initialize CPU engine and stream---------------";
-    /// Create an `engine` according to `engine_kind` and `device_id`. Then,
-    /// create a `stream` based on this engine
-    /// @snippet cpu_conversion_simple_pattern.cpp Create engine and stream
-    //[Create engine and stream]
-    const int32_t device_id = 0;
-    engine eng {engine_kind, device_id};
-    stream strm {eng};
-    //[Create engine and stream]
-    std::cout << "Success!\n";
-
-    // Step 2: Construct a graph
+    // Construct a graph
     /// Constructs a graph for further analysis
     /// @snippet cpu_conversion_simple_pattern.cpp Create graph
     //[Create graph]
@@ -79,17 +74,21 @@ int cpu_conversion_simple_pattern_tutorial(engine::kind engine_kind) {
 
     auto &id_mgr = logical_id_manager::get();
 
-    // Create OP and set attributes
-    std::cout << "Create op--------------------------------------";
-    // inuput node
-    op input0(id_mgr["input0"], op::kind::Wildcard, "input0");
+    std::cout << "Create logical tensor--------------------------";
 
-    // conv+relu
-    /// Create Ops and set attributes to them. In this example, we need to
-    /// create `conv` Op and `relu` Op.
-    /// @snippet cpu_conversion_simple_pattern.cpp Create op
-    //[Create op]
-    op conv0(id_mgr["conv0"], op::kind::Convolution, "conv0");
+    std::vector<int64_t> input_dims {8, 56, 56, 256}; // NXC
+    std::vector<int64_t> conv0_weight_dims {64, 256, 1, 1}; // OIX
+    std::vector<int64_t> conv0_dst_dims {8, 56, 56, 64};
+
+    /// Creates logical tensors for those inputs and outputs of the OPs, which
+    /// will be used to define the connection relationship between OPs.
+    /// @snippet cpu_conversion_simple_pattern.cpp Create op and logical tensor
+    //[Create op and logical tensor]
+    logical_tensor conv0_src_desc {id_mgr["conv0_src"], data_type::f32, input_dims, layout_type::strided};
+    logical_tensor conv0_weight_desc {id_mgr["conv0_weight"], data_type::f32, conv0_weight_dims, layout_type::any};
+    logical_tensor conv0_dst_desc {id_mgr["conv0_dst"], data_type::f32, conv0_dst_dims, layout_type::strided};
+    
+    op conv0(id_mgr["conv0"], op::kind::Convolution, {conv0_src_desc, conv0_weight_desc}, {conv0_dst_desc}, "conv0");
     conv0.set_attr("strides", std::vector<int64_t> {1, 1});
     conv0.set_attr("pads_begin", std::vector<int64_t> {0, 0});
     conv0.set_attr("pads_end", std::vector<int64_t> {0, 0});
@@ -97,49 +96,15 @@ int cpu_conversion_simple_pattern_tutorial(engine::kind engine_kind) {
     conv0.set_attr("data_format", std::string("NXC"));
     conv0.set_attr("filter_format", std::string("OIX"));
     conv0.set_attr("groups", int64_t {1});
-    op relu0(id_mgr["relu0"], op::kind::ReLU, "relu0");
-    //[Create op]
+
+    logical_tensor relu0_dst_desc {id_mgr["relu0_dst"], data_type::f32, conv0_dst_dims, layout_type::strided};
+    
+    op relu0(id_mgr["relu0"], op::kind::ReLU, {conv0_dst_desc}, {relu0_dst_desc}, "relu0");
+    //[Create op and logical tensor]
     std::cout << "Success!\n";
 
-    // Create logical tensor
-    std::cout << "Create logical tensor--------------------------";
-
-    std::vector<int64_t> input_dims {8, 56, 56, 256}; // NXC
-    std::vector<int64_t> conv0_weight_dims {64, 256, 1, 1}; // OIX
-    std::vector<int64_t> conv0_dst_dims {-1, -1, -1, -1};
-
-    /// Creates logical tensors for those inputs and outputs of the OPs, which
-    /// will be used to define the connection relationship between OPs.
-    /// @snippet cpu_conversion_simple_pattern.cpp Create logical tensor
-    //[Create logical tensor]
-    logical_tensor conv0_src_desc {id_mgr["conv0_src"],
-            logical_tensor::data_type::f32, input_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor conv0_weight_desc {id_mgr["conv0_weight"],
-            logical_tensor::data_type::f32, conv0_weight_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor conv0_dst_desc {id_mgr["conv0_dst"],
-            logical_tensor::data_type::f32, conv0_dst_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor relu0_dst_desc {id_mgr["relu0_dst"],
-            logical_tensor::data_type::f32, conv0_dst_dims,
-            logical_tensor::layout_type::undef};
-    //[Create logical tensor]
-    std::cout << "Success!\n";
-
-    // Add Input/Output
-    std::cout << "Add logical tensor to op-----------------------";
-    input0.add_output(conv0_src_desc);
-
-    /// Adds input and output logical tensors to the corresponding OPs.
-    /// @snippet cpu_conversion_simple_pattern.cpp Add input and output
-    //[Add input and output]
-    conv0.add_inputs({conv0_src_desc, conv0_weight_desc});
-    conv0.add_output(conv0_dst_desc);
-    relu0.add_input(conv0_dst_desc);
-    relu0.add_output(relu0_dst_desc);
-    //[Add input and output]
-    std::cout << "Success!\n";
+    std::unordered_map<size_t, op::kind> op_id_kind_map {{id_mgr["conv0"], op::kind::Convolution},
+        {id_mgr["relu0"], op::kind::ReLU}};
 
     /// Select OP
     std::cout << "Select op to graph-----------------------------";
@@ -147,7 +112,6 @@ int cpu_conversion_simple_pattern_tutorial(engine::kind engine_kind) {
     /// list to store all these OPs.
     /// @snippet cpu_conversion_simple_pattern.cpp Add op
     //[Add op]
-    g.add_op(input0);
     g.add_op(conv0);
     g.add_op(relu0);
     //[Add op]
@@ -166,138 +130,109 @@ int cpu_conversion_simple_pattern_tutorial(engine::kind engine_kind) {
     ///
     /// @snippet cpu_conversion_simple_pattern.cpp Get partition
     //[Get partition]
-    auto partitions = g.get_partitions(partition::policy::fusion);
+    auto partitions = g.get_partitions();
     //[Get partition]
+    std::cout << "Success!\n";
 
-    if (partitions.size() != 1) {
-        throw std::runtime_error("wrong partition number");
+    std::cout << "Number of returned partitions: " << partitions.size() << "\n";
+    for (size_t i = 0; i < partitions.size(); ++i) {
+        std::cout << "Partition[" << partitions[i].get_id()
+                  << "]'s supporting status: "
+                  << (partitions[i].is_supported() ? "true" : "false") << "\n";
     }
-    std::cout << "Success!\n";
 
-    // Step 4: Prepare logical tensors with proper format and compile partitions
-    std::cout << "Prepare logical tensors with proper format-----";
-    // layout_id::abcd, but format is NXC
-    /// Sets proper format to the logical tensors for inputs/outputs of
-    /// this partition.
-    ///
-    /// @note
-    ///    In this partition, input data has plain layout while weights and
-    ///    output have `any` layout. For `any` layout, backend will determine
-    ///    the best opaque layout.
-    ///
-    /// @snippet cpu_conversion_simple_pattern.cpp Set format for logical tensors
-    //[Set format for logical tensors]
-    logical_tensor conv0_src_desc_plain {id_mgr["conv0_src"],
-            logical_tensor::data_type::f32, input_dims,
-            logical_tensor::layout_type::strided};
-    logical_tensor conv0_weight_desc_any {id_mgr["conv0_weight"],
-            logical_tensor::data_type::f32, conv0_weight_dims,
-            logical_tensor::layout_type::any};
-    logical_tensor relu0_dst_desc_any {id_mgr["relu0_dst"],
-            logical_tensor::data_type::f32, conv0_dst_dims,
-            logical_tensor::layout_type::any};
-    //[Set format for logical tensors]
-    std::cout << "Success!\n";
+    /// mark the output logical tensors of partition as ANY layout enabled
+    std::unordered_set<size_t> id_to_set_any_layout;
+    set_any_layout(partitions, id_to_set_any_layout);
 
-    std::cout << "Infer shape------------------------------------";
-    std::vector<logical_tensor> in0 {
-            conv0_src_desc_plain, conv0_weight_desc_any};
-    std::vector<logical_tensor> out0 {relu0_dst_desc_any};
-    /// Infers the shape of output from the partition.
-    /// @snippet cpu_conversion_simple_pattern.cpp Infer shape
-    //[Infer shape]
-    partitions[0].infer_shape(in0, out0);
-    //[Infer shape]
-    std::cout << "Success!\n";
-    std::vector<int64_t> infered_relu0_dst_dims = out0[0].get_dims();
-    std::cout << "Infered_shape: " << infered_relu0_dst_dims[0] << ","
-              << infered_relu0_dst_dims[1] << "," << infered_relu0_dst_dims[2]
-              << "," << infered_relu0_dst_dims[3] << "\n";
+    /// Create an `engine` according to `engine_kind` and `device_id`. Then,
+    /// create a `stream` based on this engine
+    /// @snippet cpu_conversion_simple_pattern.cpp Create engine and stream
+    //[Create engine and stream]
+    int device_id = 0;
+    engine e {engine_kind, device_id};
+    stream s {e};
+    //[Create engine and stream]
 
-    std::cout << "Compile partition 0----------------------------";
-    /// Compile the partition to generate compiled partition based on the
-    /// input and output logical tensors.
-    /// @snippet cpu_conversion_simple_pattern.cpp Compile partition
-    //[Compile partition]
-    auto cp0 = partitions[0].compile(in0, out0, eng);
-    //[Compile partition]
-    std::cout << "Success!\n";
+    std::vector<compiled_partition> c_partitions(partitions.size());
 
-    std::cout << "Query layout id from compiled partition 0------";
-    relu0_dst_desc_any = cp0.query_logical_tensor(id_mgr["relu0_dst"]);
-    std::cout << "Success!\n";
+    // mapping from id to tensors
+    tensor_map tm;
 
-    // Step 5: Prepare tensor
-    std::cout << "Prepare tensors (data conversion) -------------";
-    std::vector<float> conv0_src_data(
-            static_cast<size_t>(product(input_dims)), 1.0f);
-    std::vector<float> conv0_weight_data(
-            static_cast<size_t>(product(conv0_weight_dims)), 1.0f);
-    std::vector<float> relu0_dst_data(
-            relu0_dst_desc_any.get_mem_size() / sizeof(float), 0.0);
+    // mapping from id to queried logical tensor from compiled partition
+    // used to record the logical tensors that are previously enabled with ANY layout
+    std::unordered_map<size_t, logical_tensor> id_to_queried_logical_tensors;
 
-    tensor conv0_src(conv0_src_desc_plain, conv0_src_data.data());
-    tensor relu0_dst(relu0_dst_desc_any, relu0_dst_data.data());
+    for (size_t i = 0; i < partitions.size(); ++i) {
+        if (partitions[i].is_supported()) {
+            std::cout << "\nPartition[" << partitions[i].get_id() << "] is being processed.\n";
+            std::vector<logical_tensor> inputs = partitions[i].get_inputs();
+            std::vector<logical_tensor> outputs = partitions[i].get_outputs();
 
-    /// Prepare input weight tensor. Firstly, we may create a logical tensor
-    /// with `strided` layout. And then, create a tensor associated with this
-    /// logical tensor and real data buffer.
-    /// @snippet cpu_conversion_simple_pattern.cpp Create tensor
-    //[Create tensor]
-    logical_tensor conv0_weight_desc_plain {id_mgr["conv0_weight"],
-            logical_tensor::data_type::f32, conv0_weight_dims,
-            logical_tensor::layout_type::strided};
-    tensor conv0_weight(conv0_weight_desc_plain, conv0_weight_data.data());
-    //[Create tensor]
+            /// replace input logical tensor with the queried one
+            replace_with_queried_logical_tensors(inputs, id_to_queried_logical_tensors);
 
-    /// Convert data to the opaque layout which is determined by the backend.
-    /// Here, we can query the logical tensor of `weight` tensor. And then,
-    /// compare the logical tensor created by users with the queried from
-    /// compiled partition. If the layouts are different, users can pre-allocate
-    /// memory buffer and use converison API to convert `weight` tensor to the
-    /// best layout.
-    /// @snippet cpu_conversion_simple_pattern.cpp Convert data
-    //[Convert data]
-    logical_tensor conv0_weight_desc_queried
-            = cp0.query_logical_tensor(id_mgr["conv0_weight"]);
-    void *buffer = nullptr;
-    if (!conv0_weight_desc_queried.has_same_layout_and_dtype(
-                conv0_weight_desc_plain)) {
-        buffer = allocate(conv0_weight_desc_queried.get_mem_size(),
-                allocator::attribute());
-        // create a conversion partition
-        dnnl::graph::conversion convert {};
-        // compile to compiled partition
-        compiled_partition convert_executable = convert.compile(
-                conv0_weight_desc_plain, conv0_weight_desc_queried, eng);
-        // real tensor with queried layout
-        tensor conv0_weight_r {conv0_weight_desc_queried, buffer};
-        // execute the conversion
-        convert_executable.execute(strm, {conv0_weight}, {conv0_weight_r});
-        // release conv0_weight's buffer, and update with new tensor
-        conv0_weight = conv0_weight_r;
+            /// update output logical tensors with ANY layout
+            update_tensors_with_any_layout(outputs, id_to_set_any_layout);
+
+            std::cout << "Compiling--------------------------------------";
+            /// Compile the partition to generate compiled partition based on the
+            /// input and output logical tensors.
+            /// @snippet cpu_conversion_simple_pattern.cpp Compile partition
+            //[Compile partition]
+            c_partitions[i] = partitions[i].compile(inputs, outputs, e);
+            //[Compile partition]
+            std::cout << "Success!\n";
+
+            record_queried_logical_tensors(partitions[i].get_outputs(), c_partitions[i],
+                id_to_queried_logical_tensors);
+
+            std::cout << "Creating tensors and allocating memory buffer--";
+            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(inputs, c_partitions[i], 1);
+            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(outputs, c_partitions[i], 0);
+            
+            /// Convert data to the opaque layout which is determined by the backend.
+            /// Here, we can query the logical tensor of `weight` tensor. And then,
+            /// compare the logical tensor created by users with the queried from
+            /// compiled partition. If the layouts are different, users can pre-allocate
+            /// memory buffer and use conversion API to convert `weight` tensor to the
+            /// best layout.
+            /// @snippet cpu_conversion_simple_pattern.cpp Convert data
+            //[Convert data]
+            tm.convert_tensor_with_queried_format(input_ts, inputs, c_partitions[i].query_logical_tensor(id_mgr["conv0_weight"]), e, s);
+            //[Convert data]
+            std::cout << "Success!\n";
+
+            std::cout << "Executing compiled partition-------------------";
+            /// Executes the compiled partition on the specified stream.
+            /// @snippet cpu_conversion_simple_pattern.cpp Execute compiled partition
+            //[Execute compiled partition]
+            c_partitions[i].execute(s, input_ts, output_ts);
+            //[Execute compiled partition]
+            std::cout << "Success!\n";
+        } else {
+            std::vector<size_t> unsupported_op_ids = partitions[i].get_ops();
+            assertm(unsupported_op_ids.size() == 1, "Unsupported partition only "
+                "contains single op.");
+            if (op_id_kind_map[unsupported_op_ids[0]] == op::kind::Wildcard) {
+                std::cout << "\nWarning (actually an error): partition " << partitions[i].get_id() <<
+                        " contains only a Wildcard op which cannot be computed.\n";
+            } else {
+                /// Users need to write implementation code by themselves.
+                continue;
+            }
+        }
     }
-    //[Convert data]
-
-    std::cout << "Success!\n";
-
-    // Step 6: Submit compiled partitions
-    std::cout << "Submit compiled partitions --------------------";
-    std::vector<tensor> in_list_0 {conv0_src, conv0_weight};
-    std::vector<tensor> out_list_0 {relu0_dst};
-    /// Executes the compiled partition on the specified stream.
-    /// @snippet cpu_conversion_simple_pattern.cpp Execute compiled partition
-    //[Execute compiled partition]
-    cp0.execute(strm, in_list_0, out_list_0);
-    //[Execute compiled partition]
-
-    std::cout << "Success!\n";
 
     //     Step 6 : Check correctness of the output results
     std::cout << "Check correctness------------------------------";
-    for (auto v : relu0_dst_data) {
-        if (std::abs(v - 256.0) > 1e-6f) {
-            if (buffer) deallocate(buffer);
+    float expected_result = 256.0;
+    float *actual_output_ptr = tm.get(relu0_dst_desc.get_id()).get_data_handle<float>();
+    auto output_dims = relu0_dst_desc.get_dims();
+    auto num_elem = product(output_dims);
+    for (int i = 0; i < num_elem; ++i) {
+        if (std::abs(expected_result - actual_output_ptr[i]) > 1e-6f) {
+            printf("expected = %.2f, actual = %.2f\n", expected_result, actual_output_ptr[i]);
             throw std::runtime_error(
                     "output result is not equal to excepted "
                     "results");
@@ -307,8 +242,6 @@ int cpu_conversion_simple_pattern_tutorial(engine::kind engine_kind) {
 
     std::cout << "============Run Example Successfully===========\n";
 
-    if (buffer) deallocate(buffer);
-
     /// @page cpu_conversion_simple_pattern_cpp
     return 0;
 }
@@ -317,3 +250,4 @@ int main(int argc, char **argv) {
     engine::kind engine_kind = parse_engine_kind(argc, argv);
     return cpu_conversion_simple_pattern_tutorial(engine_kind);
 }
+// clang-format on

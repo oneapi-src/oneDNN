@@ -1,5 +1,10 @@
 # Getting started on CPU {#get_started_with_cpu}
 
+@warning
+This tutorial is deprecated due to the programming model changes and will be
+removed soon, please refer to [cpu_programming.md](./cpu_programming.md) for
+latest version.
+
 This is an example to demonstrate how to build a simple graph and run on CPU.
 
 In this example, you will learn the below things about oneDNN graph.

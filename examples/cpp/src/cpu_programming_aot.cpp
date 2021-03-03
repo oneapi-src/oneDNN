@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cpu_programming.cpp
-/// @copybrief cpu_programming_cpp
-/// > Annotated version: @ref cpu_programming_cpp
+/// @example cpu_programming_aot.cpp
+/// @copybrief cpu_programming_aot_cpp
+/// > Annotated version: @ref cpu_programming_aot_cpp
 
-/// @page cpu_programming_cpp Example for demonstrating programming model
+/// @page cpu_programming_aot_cpp Example for demonstrating programming model with ahead-of-time compilation
 ///
-/// > Example code: @ref cpu_programming.cpp
+/// > Example code: @ref cpu_programming_aot.cpp
 ///
 /// This example will construct the below graph. The graph has two outputs which
 /// are connected to End op. Now, Conv and Add ops should not be fused due to
@@ -57,7 +57,7 @@ using data_type = logical_tensor::data_type;
 using layout_type = logical_tensor::layout_type;
 
 // clang-format off
-int cpu_programming_tutorial(engine::kind engine_kind) {
+int cpu_programming_aot_tutorial(engine::kind engine_kind) {
     /// construct a graph based on the given engine kind
     graph g(engine_kind);
 
@@ -129,25 +129,29 @@ int cpu_programming_tutorial(engine::kind engine_kind) {
     stream s {e};
 
     std::vector<compiled_partition> c_partitions(partitions.size());
+    /// compilation loop
+    for (size_t i = 0; i < partitions.size(); ++i) {
+        /// just skip compilation if this partition is not supported by oneDNN Graph backend
+        if (partitions[i].is_supported()) {
+            std::vector<logical_tensor> inputs = partitions[i].get_inputs();
+            std::vector<logical_tensor> outputs = partitions[i].get_outputs();
+            std::cout << "Compiling partition[" << partitions[i].get_id() << "]--------------------";
+            /// compile to generate compiled partition
+            c_partitions[i] = partitions[i].compile(inputs, outputs, e);
+            std::cout << "Success!\n";
+        }
+    }
 
     // mapping from id to tensors
     tensor_map tm;
 
-    /// compilation-execution loop
+    /// execution loop
     for (size_t i = 0; i < partitions.size(); ++i) {
         if (partitions[i].is_supported()) {
-            std::cout << "\nPartition[" << partitions[i].get_id() << "] is being processed.\n";
-            std::vector<logical_tensor> inputs = partitions[i].get_inputs();
-            std::vector<logical_tensor> outputs = partitions[i].get_outputs();
-
-            std::cout << "Compiling--------------------------------------";
-            /// compile to generate compiled partition
-            c_partitions[i] = partitions[i].compile(inputs, outputs, e);
-            std::cout << "Success!\n";
-
+            std::cout << "\nPartition[" << partitions[i].get_id() << "] is being executed.\n";
             std::cout << "Creating tensors and allocating memory buffer--";
-            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(inputs, c_partitions[i], 1);
-            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(outputs, c_partitions[i], 0);
+            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(partitions[i].get_inputs(), c_partitions[i], 1);
+            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(partitions[i].get_outputs(), c_partitions[i], 0);
             std::cout << "Success!\n";
 
             std::cout << "Executing compiled partition-------------------";
@@ -175,7 +179,7 @@ int cpu_programming_tutorial(engine::kind engine_kind) {
     if (partitions.size() == 6) {
         float *actual_output_ptr1 = tm.get(conv_dst_lt.get_id()).get_data_handle<float>();
         auto output_dims = conv_dst_lt.get_dims();
-        auto num_elem = std::accumulate(output_dims.begin(), output_dims.end(), 0);
+        auto num_elem = product(output_dims);
         for (int i = 0; i < num_elem; ++i) {
             if (std::abs(expected_output_1 - actual_output_ptr1[i]) > 1e-6f) {
                 printf("expected = %.2f, actual = %.2f\n", expected_output_1, actual_output_ptr1[i]);
@@ -204,5 +208,5 @@ int cpu_programming_tutorial(engine::kind engine_kind) {
 // clang-format on
 int main(int argc, char **argv) {
     engine::kind engine_kind = parse_engine_kind(argc, argv);
-    return cpu_programming_tutorial(engine_kind);
+    return cpu_programming_aot_tutorial(engine_kind);
 }

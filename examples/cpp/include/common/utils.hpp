@@ -26,22 +26,57 @@
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
-using namespace cl::sycl;
 #endif
 
-using namespace dnnl::graph;
+#define EXAMPLE_SWITCH_TYPE(type_enum, type_key, ...) \
+    switch (type_enum) { \
+        case dnnl::graph::logical_tensor::data_type::f32: { \
+            using type_key = float; \
+            __VA_ARGS__ \
+        } break; \
+        case dnnl::graph::logical_tensor::data_type::f16: { \
+            using type_key = int16_t; \
+            __VA_ARGS__ \
+        } break; \
+        case dnnl::graph::logical_tensor::data_type::bf16: { \
+            using type_key = uint16_t; \
+            __VA_ARGS__ \
+        } break; \
+        default: \
+            throw std::runtime_error( \
+                    "Not supported data type in current example."); \
+    }
 
-engine::kind parse_engine_kind(int argc, char **argv) {
+// get exact data handle from tensor according to the data type
+void *get_handle_from_tensor(const dnnl::graph::tensor &src,
+        dnnl::graph::logical_tensor::data_type dtype) {
+    switch (dtype) {
+        case dnnl::graph::logical_tensor::data_type::f32:
+            return src.get_data_handle<float>();
+            break;
+        case dnnl::graph::logical_tensor::data_type::f16:
+            return src.get_data_handle<int16_t>();
+            break;
+        case dnnl::graph::logical_tensor::data_type::bf16:
+            return src.get_data_handle<uint16_t>();
+            break;
+        default:
+            throw std::runtime_error(
+                    "Not supported data type in current example.");
+    }
+}
+
+dnnl::graph::engine::kind parse_engine_kind(int argc, char **argv) {
     // Returns default engine kind, i.e. CPU, if none given
     if (argc == 1) {
-        return engine::kind::cpu;
+        return dnnl::graph::engine::kind::cpu;
     } else if (argc == 2) {
         // Checking the engine type, i.e. CPU or GPU
         std::string engine_kind_str = argv[1];
         if (engine_kind_str == "cpu") {
-            return engine::kind::cpu;
+            return dnnl::graph::engine::kind::cpu;
         } else if (engine_kind_str == "gpu") {
-            return engine::kind::gpu;
+            return dnnl::graph::engine::kind::gpu;
         } else {
             throw std::runtime_error("only support cpu and gpu engine\n");
         }
@@ -60,13 +95,26 @@ inline dnnl_graph_dim_t product(const std::vector<int64_t> &dims) {
                     std::multiplies<dnnl_graph_dim_t>());
 }
 
-void *allocate(size_t n, allocator::attribute attr) {
+void *allocate(size_t n, dnnl::graph::allocator::attribute attr) {
     (void)attr;
     return malloc(n);
 }
 
 void deallocate(void *ptr) {
     free(ptr);
+}
+
+// fill the memory according to the given value
+//  src -> target memory buffer
+//  total_size -> total number of bytes of this buffer
+//  val -> fixed value for initialization
+template <typename T>
+void fill_buffer(void *src, size_t total_size, int val) {
+    int num_elem = static_cast<int>(total_size / sizeof(T));
+    T *src_casted = static_cast<T *>(src);
+    // can be implemented through OpenMP
+    for (size_t i = 0; i < num_elem; ++i)
+        *(src_casted + i) = static_cast<T>(val);
 }
 
 struct logical_id_manager {
@@ -105,15 +153,16 @@ private:
 #ifdef DNNL_GRAPH_WITH_SYCL
 template <typename dtype>
 void fill_buffer(
-        sycl::queue &q, float *usm_buffer, size_t length, dtype value) {
-    q.parallel_for(range<1>(length), [=](id<1> i) {
+        cl::sycl::queue &q, void *usm_buffer, size_t length, dtype value) {
+    dtype *usm_buffer_casted = static_cast<dtype *>(usm_buffer);
+    q.parallel_for(cl::sycl::range<1>(length), [=](cl::sycl::id<1> i) {
          int idx = (int)i[0];
-         usm_buffer[idx] = value;
+         usm_buffer_casted[idx] = value;
      }).wait();
 }
 
-void *sycl_malloc_wrapper(
-        size_t n, const void *dev, const void *ctx, allocator::attribute attr) {
+void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
+        dnnl::graph::allocator::attribute attr) {
     return malloc_device(n, *static_cast<const cl::sycl::device *>(dev),
             *static_cast<const cl::sycl::context *>(ctx));
 }

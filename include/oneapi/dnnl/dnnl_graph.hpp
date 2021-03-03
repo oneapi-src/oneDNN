@@ -509,7 +509,7 @@ public:
     /// @param lt The input logical tensor to be compared
     /// @returns @c true if they have the same layout
     ///        @c false if they have different layout
-    bool has_same_layout_and_dtype(const logical_tensor &lt) {
+    bool has_same_layout_and_dtype(const logical_tensor &lt) const {
         uint8_t is_same {0};
         error::check_succeed(
                 dnnl_graph_logical_tenosr_has_same_layout_and_dtype(
@@ -579,7 +579,7 @@ public:
     ///     is a pointer to the actual data.
     void set_data_handle(void *handle) {
         error::check_succeed(dnnl_graph_tensor_set_data_handle(get(), handle),
-                "setting data handlt to the tensor failed");
+                "setting data handle to the tensor failed");
     }
 
     /// Returns the number of elements in the tensor
@@ -618,7 +618,7 @@ public:
     ///
     /// @param tid The unique id of required tensor
     /// @returns The logical tensor
-    logical_tensor query_logical_tensor(uint64_t tid) {
+    logical_tensor query_logical_tensor(uint64_t tid) const {
         dnnl_graph_logical_tensor_t lt;
         error::check_succeed(dnnl_graph_compiled_partition_query_logical_tensor(
                                      get(), tid, &lt),

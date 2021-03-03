@@ -64,7 +64,7 @@ void sycl_get_started_tutorial(engine::kind engine_kind) {
     std::cout << "========Example: Conv->ReLU->Conv->ReLU========\n";
     // clang-format off
 
-    std::cout << "Create logical tensors and operators-------------------";
+    std::cout << "Create logical tensors and ops-----------------";
     const std::vector<size_t> logical_id {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
     std::vector<int64_t> input_dims {8, 3, 227, 227};
@@ -182,7 +182,7 @@ void sycl_get_started_tutorial(engine::kind engine_kind) {
     //[Create second relu]
     std::cout << "Success!\n";
 
-    std::cout << "Add OP to the graph------------------------";
+    std::cout << "Add OP to the graph----------------------------";
     /// Finally, those created ops will be added into the graph. The graph inside will maintain a
     /// list to store all these ops.
     /// @snippet sycl_get_started.cpp Add op
@@ -196,7 +196,7 @@ void sycl_get_started_tutorial(engine::kind engine_kind) {
     //[Add op]
     std::cout << "Success!\n";
 
-    std::cout << "Filter and get partition--------";
+    std::cout << "Filter and get partition-----------------------";
     /// After finished above operations, we can get partitions by calling #dnnl::graph::graph::get_partitions().
     /// Here we can slao specify the #dnnl::graph::partition::policy to get different partitions.
     ///
@@ -282,7 +282,6 @@ void sycl_get_started_tutorial(engine::kind engine_kind) {
     logical_tensor conv1_bias_desc_plain {logical_id[8], logical_tensor::data_type::f32, bias1_dims, logical_tensor::layout_type::strided};
     logical_tensor relu1_dst_desc_plain {logical_id[10], logical_tensor::data_type::f32, dst_dims, logical_tensor::layout_type::strided};
     //[Prepare format for logical tensors 1]
-    std::cout << "Success!\n";
 
     std::cout << "Compile partition 1----------------------------";
     /// Compile the partition 1 to generate compiled partition with the
@@ -294,7 +293,7 @@ void sycl_get_started_tutorial(engine::kind engine_kind) {
     std::cout << "Success!\n";
 
     // Step 5: Prepare tensor and execute compiled partitions
-    std::cout << "Prepare tensor and execute compiled partitions--";
+    std::cout << "Prepare tensor and execute compiled partitions-";
 
     /// @page sycl_get_started_cpp
     /// @subsection sycl_get_started_cpp_execute Execute compiled partition

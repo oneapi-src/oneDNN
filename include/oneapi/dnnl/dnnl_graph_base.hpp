@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -102,14 +102,22 @@ constexpr dnnl_graph_data_type_t get_data_type() {
     return dnnl_graph_f32;
 }
 
-template <typename T, requires<std::is_same<T, int8_t>::value> = true>
+// TODO(wuxun): now use int16 to simulate float16, need fix in the future
+template <typename T, requires<std::is_same<T, int16_t>::value> = true>
 constexpr dnnl_graph_data_type_t get_data_type() {
-    return dnnl_graph_s8;
+    return dnnl_graph_f16;
+}
+
+// TODO(wuxun): now use uint16 to simulate Bfloat16, need fix in the future
+template <typename T, requires<std::is_same<T, uint16_t>::value> = true>
+constexpr dnnl_graph_data_type_t get_data_type() {
+    return dnnl_graph_bf16;
 }
 
 template <typename T,
         requires<!std::is_same<T, float>::value
-                && !std::is_same<T, int8_t>::value> = true>
+                && !std::is_same<T, int16_t>::value
+                && !std::is_same<T, uint16_t>::value> = true>
 constexpr dnnl_graph_data_type_t get_data_type() {
     return dnnl_graph_data_type_undef;
 }

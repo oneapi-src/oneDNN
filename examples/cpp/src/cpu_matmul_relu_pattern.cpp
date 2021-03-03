@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,12 +30,19 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
+#include "common/execution_context.hpp"
+#include "common/helpers_any_layout.hpp"
 #include "common/utils.hpp"
 
+#define assertm(exp, msg) assert(((void)msg, exp))
+
 using namespace dnnl::graph;
+using data_type = logical_tensor::data_type;
+using layout_type = logical_tensor::layout_type;
 
 // digraph G {
 // Wildcard -> MatMul;
@@ -43,6 +50,7 @@ using namespace dnnl::graph;
 // }
 
 // Test matmul relu different shape compile and execute
+// clang-format off
 int main(int argc, char **argv) {
     std::cout << "========Example: MatMul+ReLU========\n";
 
@@ -52,64 +60,36 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    // Step 1: Initialize engine and stream
-    /// (todo)xinyu: improve this part when gpu pass is ready
-    std::cout << "Initialize CPU engine and stream---------------";
-    const int32_t device_id = 0;
-    engine eng {engine_kind, device_id};
-    stream strm {eng};
-    std::cout << "Success!\n";
-
     // Step 2: Construct a graph
     graph g(engine_kind);
 
     auto &id_mgr = logical_id_manager::get();
-
-    /// Create OP and set attributes
-    std::cout << "Create op---------------------------------";
-    /// inuput node
-    op wildcard(id_mgr["wildcard"], op::kind::Wildcard, "wildcard");
-
-    /// matmul+relu
-    op matmul(id_mgr["matmul"], op::kind::MatMul, "matmul");
-    op relu(id_mgr["relu"], op::kind::ReLU, "relu");
-    std::cout << "Success!\n";
 
     /// Create logical tensor
     std::cout << "Create logical tensor--------------------------";
 
     std::vector<int64_t> input0_dims {1, 64};
     std::vector<int64_t> input1_dims {64, 1};
-    std::vector<int64_t> dst_dims {-1, -1};
+    std::vector<int64_t> dst_dims {1, 1};
 
-    logical_tensor matmul_input0_desc {id_mgr["matmul_input0"],
-            logical_tensor::data_type::f32, input0_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor matmul_input1_desc {id_mgr["matmul_input1"],
-            logical_tensor::data_type::f32, input1_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor matmul_dst_desc {id_mgr["matmul_dst"],
-            logical_tensor::data_type::f32, dst_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor relu_dst_desc {id_mgr["relu_dst"],
-            logical_tensor::data_type::f32, dst_dims,
-            logical_tensor::layout_type::undef};
+    logical_tensor matmul_input0_desc {id_mgr["matmul_input0"], data_type::f32, input0_dims, layout_type::strided};
+    logical_tensor matmul_input1_desc {id_mgr["matmul_input1"], data_type::f32, input1_dims, layout_type::strided};
+    logical_tensor matmul_dst_desc {id_mgr["matmul_dst"], data_type::f32, dst_dims, layout_type::strided};
+    
+    op wildcard {id_mgr["wildcard"], op::kind::Wildcard, {}, {matmul_input0_desc, matmul_input1_desc}, "wildcard"};
 
+    op matmul {id_mgr["matmul"], op::kind::MatMul, {matmul_input0_desc, matmul_input1_desc}, {matmul_dst_desc}, "matmul"};
+
+    logical_tensor relu_dst_desc {id_mgr["relu_dst"], data_type::f32, dst_dims, layout_type::strided};
+    
+    op relu {id_mgr["relu"], op::kind::ReLU, {matmul_dst_desc}, {relu_dst_desc}, "relu"};
     std::cout << "Success!\n";
 
-    /// Add Input/Output
-    std::cout << "Add logical tensor to op------------------";
-    wildcard.add_output(matmul_input0_desc);
-    wildcard.add_output(matmul_input1_desc);
+    std::unordered_map<size_t, op::kind> op_id_kind_map {{id_mgr["wildcard"], op::kind::Wildcard},
+        {id_mgr["matmul"], op::kind::MatMul}, {id_mgr["relu"], op::kind::ReLU}};
 
-    matmul.add_inputs({matmul_input0_desc, matmul_input1_desc});
-    matmul.add_output(matmul_dst_desc);
-    relu.add_input(matmul_dst_desc);
-    relu.add_output(relu_dst_desc);
-    std::cout << "Success!\n";
-
-    /// Select OP
-    std::cout << "Select op to graph------------------------";
+    /// Add OP
+    std::cout << "Add op to graph--------------------------------";
     g.add_op(wildcard);
     g.add_op(matmul);
     g.add_op(relu);
@@ -120,72 +100,91 @@ int main(int argc, char **argv) {
     /// Graph will be filtered into 1 partitions: `matmul+relu`
     /// `export DNNL_GRAPH_DUMP=1` can save internal graphs before/after graph fusion into dot files
     std::cout << "Filter partitions------------------------------";
-    auto partitions = g.get_partitions(partition::policy::fusion);
+    auto partitions = g.get_partitions();
+    std::cout << "Success!\n";
 
-    if (partitions.size() != 1) {
-        throw std::runtime_error("wrong partition number");
+    std::cout << "Number of returned partitions: " << partitions.size() << "\n";
+    for (size_t i = 0; i < partitions.size(); ++i) {
+        std::cout << "Partition[" << partitions[i].get_id()
+                  << "]'s supporting status: "
+                  << (partitions[i].is_supported() ? "true" : "false") << "\n";
     }
-    std::cout << "Success!\n";
 
-    // Step 4: Prepare logical tensors with proper format and compile partitions
-    std::cout << "Prepare logical tensors with proper format-----";
-    // layout_id::abcd, but format is NXC
-    logical_tensor matmul_input0_desc_plain {id_mgr["matmul_input0"],
-            logical_tensor::data_type::f32, input0_dims,
-            logical_tensor::layout_type::strided};
-    logical_tensor matmul_input1_desc_plain {id_mgr["matmul_input1"],
-            logical_tensor::data_type::f32, input1_dims,
-            logical_tensor::layout_type::strided};
-    logical_tensor relu_dst_desc_plain {id_mgr["relu_dst"],
-            logical_tensor::data_type::f32, dst_dims,
-            logical_tensor::layout_type::strided};
-    std::cout << "Success!\n";
+    /// mark the output logical tensors of partition as ANY layout enabled
+    std::unordered_set<size_t> id_to_set_any_layout;
+    set_any_layout(partitions, id_to_set_any_layout);
 
-    std::cout << "Infer shape----------------------------------";
-    std::vector<logical_tensor> in0 {
-            matmul_input0_desc_plain, matmul_input1_desc_plain};
-    std::vector<logical_tensor> out0 {relu_dst_desc_plain};
-    partitions[0].infer_shape(in0, out0);
-    std::cout << "Success!\n";
-    std::vector<int64_t> infered_relu_dst_dims = out0[0].get_dims();
-    std::cout << "Infered_shape: " << infered_relu_dst_dims[0] << ","
-              << infered_relu_dst_dims[1] << "\n";
+    /// construct a new engine
+    int device_id = 0;
+    engine e {engine_kind, device_id};
 
-    std::cout << "Compile partition 0----------------------------";
-    auto cp0 = partitions[0].compile(in0, out0, eng);
-    std::cout << "Success!\n";
+    /// construct a new stream
+    stream s {e};
 
-    std::cout << "Query layout id from compiled partition 0------";
-    relu_dst_desc_plain = cp0.query_logical_tensor(id_mgr["relu_dst"]);
-    std::cout << "Success!\n";
+    std::vector<compiled_partition> c_partitions(partitions.size());
 
-    // Step 5: Prepare tensor and submit compiled partitions
-    std::cout << "Prepare tensor and submit compiled partitions--";
-    std::vector<float> matmul_input0_data(
-            static_cast<size_t>(product(input0_dims)), 1.0f);
-    std::vector<float> matmul_input1_data(
-            static_cast<size_t>(product(input1_dims)), 1.0f);
-    std::vector<float> relu_dst_data(
-            cp0.query_logical_tensor(id_mgr["relu_dst"]).get_mem_size()
-                    / sizeof(float),
-            0.0);
+    // mapping from id to tensors
+    tensor_map tm;
 
-    tensor matmul_input0(matmul_input0_desc_plain, matmul_input0_data.data());
-    tensor matmul_input1(matmul_input1_desc_plain, matmul_input1_data.data());
-    tensor relu_dst(relu_dst_desc_plain, relu_dst_data.data());
+    // mapping from id to queried logical tensor from compiled partition
+    // used to record the logical tensors that are previously enabled with ANY layout
+    std::unordered_map<size_t, logical_tensor> id_to_queried_logical_tensors;
 
-    std::vector<tensor> in_list_0 {matmul_input0, matmul_input1};
-    std::vector<tensor> out_list_0 {relu_dst};
-    cp0.execute(strm, in_list_0, out_list_0);
+    for (size_t i = 0; i < partitions.size(); ++i) {
+        if (partitions[i].is_supported()) {
+            std::cout << "\nPartition[" << partitions[i].get_id() << "] is being processed.\n";
+            std::vector<logical_tensor> inputs = partitions[i].get_inputs();
+            std::vector<logical_tensor> outputs = partitions[i].get_outputs();
 
-    std::cout << "Success!\n";
+            /// replace input logical tensor with the queried one
+            replace_with_queried_logical_tensors(inputs, id_to_queried_logical_tensors);
 
-    // Step 6 : Check correctness of the output results
+            /// update output logical tensors with ANY layout
+            update_tensors_with_any_layout(outputs, id_to_set_any_layout);
+
+            std::cout << "Compiling--------------------------------------";
+            /// compile to generate compiled partition
+            c_partitions[i] = partitions[i].compile(inputs, outputs, e);
+            std::cout << "Success!\n";
+
+            record_queried_logical_tensors(partitions[i].get_outputs(), c_partitions[i],
+                id_to_queried_logical_tensors);
+
+            std::cout << "Creating tensors and allocating memory buffer--";
+            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(inputs, c_partitions[i], 1);
+            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(outputs, c_partitions[i], 0);
+            std::cout << "Success!\n";
+
+            std::cout << "Executing compiled partition-------------------";
+            /// execute the compiled partition
+            c_partitions[i].execute(s, input_ts, output_ts);
+            std::cout << "Success!\n";
+        } else {
+            std::vector<size_t> unsupported_op_ids = partitions[i].get_ops();
+            assertm(unsupported_op_ids.size() == 1, "Unsupported partition only "
+                "contains single op.");
+            if (op_id_kind_map[unsupported_op_ids[0]] == op::kind::Wildcard) {
+                std::cout << "\nWarning (actually an error): partition " << partitions[i].get_id() <<
+                        " contains only a Wildcard op which cannot be computed.\n";
+            } else {
+                /// Users need to write implementation code by themselves.
+                continue;
+            }
+        }
+    }
+    
     std::cout << "Check correctness------------------------------";
-    if (std::abs(relu_dst_data[0] - 64.0) > 1e-6f) {
-        throw std::runtime_error(
-                "output result is not equal to excepted "
-                "results");
+    float expected_result = 64.0;
+    float *actual_output_ptr = tm.get(relu_dst_desc.get_id()).get_data_handle<float>();
+    auto output_dims = relu_dst_desc.get_dims();
+    auto num_elem = product(output_dims);
+    for (int i = 0; i < num_elem; ++i) {
+        if (std::abs(expected_result - actual_output_ptr[i]) > 1e-6f) {
+            printf("expected = %.2f, actual = %.2f\n", expected_result, actual_output_ptr[i]);
+            throw std::runtime_error(
+                    "output result is not equal to excepted "
+                    "results");
+        }
     }
     std::cout << "Success!\n";
 
@@ -193,3 +192,4 @@ int main(int argc, char **argv) {
 
     return 0;
 }
+// clang-format on

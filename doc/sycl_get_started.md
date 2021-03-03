@@ -1,5 +1,11 @@
 # Getting started on both CPU and GPU with SYCL extensions API {#get_started_with_sycl}
 
+@warning
+This tutorial is deprecated due to the programming model changes and will be
+removed soon, please refer to
+[sycl_simple_pattern.cpp](../examples/cpp/src/sycl_simple_pattern.cpp) for
+latest version.
+
 This is an example to demonstrate how to build a simple graph and run on CPU/GPU
 with SYCL extension APIs.
 

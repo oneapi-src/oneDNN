@@ -27,16 +27,23 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
-#include <stdexcept>
+#include <unordered_map>
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 
+#include "common/execution_context.hpp"
+#include "common/helpers_any_layout.hpp"
 #include "common/utils.hpp"
+
+#define assertm(exp, msg) assert(((void)msg, exp))
 
 using namespace dnnl::graph;
 using namespace cl::sycl;
+using data_type = logical_tensor::data_type;
+using layout_type = logical_tensor::layout_type;
 
+// clang-format off
 int main(int argc, char **argv) {
     std::cout
             << "========Example: "
@@ -44,41 +51,8 @@ int main(int argc, char **argv) {
 
     engine::kind engine_kind = parse_engine_kind(argc, argv);
 
-    // Step 1: Initialize engine and stream
-    std::cout << "Initialize engine and stream-------------------";
-    /// assuming framework cannot give sycl device and sycl context at this stage
-    /// so create a fake engine here just for graph optimization
-    std::cout << "Success!\n";
-
     // Step 2: Construct a example graph: `Conv->BiasAdd->BatchNorm->ReLU->Conv->BiasAdd->ReLU`
     graph g(engine_kind);
-
-    /// Create OP and set attributes
-    std::cout << "Create op--------------------------------------";
-    op conv0(0, op::kind::Convolution, "conv0");
-    conv0.set_attr<std::vector<int64_t>>("strides", {4, 4});
-    conv0.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
-    conv0.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
-    conv0.set_attr<std::vector<int64_t>>("dilations", {1, 1});
-    conv0.set_attr<std::string>("data_format", "NCX");
-    conv0.set_attr<std::string>("filter_format", "OIX");
-    conv0.set_attr<int64_t>("groups", 1);
-    op bn0(1, op::kind::BatchNormInference, "bn0");
-    const float epsilon = 0.f;
-    bn0.set_attr<float>("epsilon", epsilon);
-    op relu0(2, op::kind::ReLU, "relu0");
-    op conv1(3, op::kind::Convolution, "conv1");
-    conv1.set_attr<std::vector<int64_t>>("strides", {1, 1});
-    conv1.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
-    conv1.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
-    conv1.set_attr<std::vector<int64_t>>("dilations", {1, 1});
-    conv1.set_attr<std::string>("data_format", "NCX");
-    conv1.set_attr<std::string>("filter_format", "OIX");
-    conv1.set_attr<int64_t>("groups", 1);
-    op relu1(4, op::kind::ReLU, "relu1");
-    op conv0_bias_add(5, op::kind::BiasAdd, "conv0_bias_add");
-    op conv1_bias_add(6, op::kind::BiasAdd, "conv1_bias_add");
-    std::cout << "Success!\n";
 
     /// Create logical tensor
     std::cout << "Create logical tensor--------------------------";
@@ -91,75 +65,65 @@ int main(int argc, char **argv) {
     std::vector<int64_t> dst_dims {8, 96, 55, 55};
 
     auto &id_mgr = logical_id_manager::get();
-    logical_tensor conv0_src_desc {id_mgr["conv0_src"],
-            logical_tensor::data_type::f32, input_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor conv0_weight_desc {id_mgr["conv0_weight"],
-            logical_tensor::data_type::f32, weight_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor conv0_bias_desc {id_mgr["conv0_bias"],
-            logical_tensor::data_type::f32, bias_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor conv0_dst_desc {id_mgr["conv0_dst"],
-            logical_tensor::data_type::f32, dst_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor bn0_scale_desc {id_mgr["bn0_scale"],
-            logical_tensor::data_type::f32, bias_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor bn0_shift_desc {id_mgr["bn0_shift"],
-            logical_tensor::data_type::f32, bias_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor bn0_mean_desc {id_mgr["bn0_mean"],
-            logical_tensor::data_type::f32, bias_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor bn0_var_desc {id_mgr["bn0_var"],
-            logical_tensor::data_type::f32, bias_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor bn0_dst_desc {id_mgr["bn0_dst"],
-            logical_tensor::data_type::f32, dst_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor relu0_dst_desc {id_mgr["relu0_dst"],
-            logical_tensor::data_type::f32, dst_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor conv1_weight_desc {id_mgr["conv1_weight"],
-            logical_tensor::data_type::f32, weight1_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor conv1_bias_desc {id_mgr["conv1_bias"],
-            logical_tensor::data_type::f32, bias1_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor conv1_dst_desc {id_mgr["conv1_dst"],
-            logical_tensor::data_type::f32, dst_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor relu1_dst_desc {id_mgr["relu1_dst"],
-            logical_tensor::data_type::f32, dst_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor conv0_bias_add_dst_desc {id_mgr["conv0_bias_add_dst"],
-            logical_tensor::data_type::f32, dst_dims,
-            logical_tensor::layout_type::undef};
-    logical_tensor conv1_bias_add_dst_desc {id_mgr["conv1_bias_add_dst"],
-            logical_tensor::data_type::f32, dst_dims,
-            logical_tensor::layout_type::undef};
+
+    logical_tensor conv0_src_desc {id_mgr["conv0_src"], data_type::f32, input_dims, layout_type::strided};
+    logical_tensor conv0_weight_desc {id_mgr["conv0_weight"], data_type::f32, weight_dims, layout_type::strided};
+    logical_tensor conv0_bias_desc {id_mgr["conv0_bias"], data_type::f32, bias_dims, layout_type::strided};
+    logical_tensor conv0_dst_desc {id_mgr["conv0_dst"], data_type::f32, dst_dims, layout_type::strided};
+    
+    op conv0 {0, op::kind::Convolution, {conv0_src_desc, conv0_weight_desc}, {conv0_dst_desc}, "conv0"};
+    conv0.set_attr<std::vector<int64_t>>("strides", {4, 4});
+    conv0.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
+    conv0.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
+    conv0.set_attr<std::vector<int64_t>>("dilations", {1, 1});
+    conv0.set_attr<std::string>("data_format", "NCX");
+    conv0.set_attr<std::string>("filter_format", "OIX");
+    conv0.set_attr<int64_t>("groups", 1);
+
+    logical_tensor conv0_bias_add_dst_desc {id_mgr["conv0_bias_add_dst"], data_type::f32, dst_dims, layout_type::strided};
+    
+    op conv0_bias_add {1, op::kind::BiasAdd, {conv0_dst_desc, conv0_bias_desc}, {conv0_bias_add_dst_desc}, "conv0_bias_add"};
+
+    logical_tensor bn0_scale_desc {id_mgr["bn0_scale"], data_type::f32, bias_dims, layout_type::strided};
+    logical_tensor bn0_shift_desc {id_mgr["bn0_shift"], data_type::f32, bias_dims, layout_type::strided};
+    logical_tensor bn0_mean_desc {id_mgr["bn0_mean"], data_type::f32, bias_dims, layout_type::strided};
+    logical_tensor bn0_var_desc {id_mgr["bn0_var"], data_type::f32, bias_dims, layout_type::strided};
+    logical_tensor bn0_dst_desc {id_mgr["bn0_dst"], data_type::f32, dst_dims, layout_type::strided};
+    
+    op bn0 {2, op::kind::BatchNormInference, {conv0_bias_add_dst_desc, bn0_scale_desc, bn0_shift_desc,
+            bn0_mean_desc, bn0_var_desc}, {bn0_dst_desc}, "bn0"};
+    const float epsilon = 0.f;
+    bn0.set_attr<float>("epsilon", epsilon);
+
+    logical_tensor relu0_dst_desc {id_mgr["relu0_dst"], data_type::f32, dst_dims, layout_type::strided};
+    
+    op relu0 {3, op::kind::ReLU, {bn0_dst_desc}, {relu0_dst_desc}, "relu0"};
+
+    logical_tensor conv1_weight_desc {id_mgr["conv1_weight"], data_type::f32, weight1_dims, layout_type::strided};
+    logical_tensor conv1_bias_desc {id_mgr["conv1_bias"], data_type::f32, bias1_dims, layout_type::strided};
+    logical_tensor conv1_dst_desc {id_mgr["conv1_dst"], data_type::f32, dst_dims, layout_type::strided};
+    
+    op conv1 {4, op::kind::Convolution, {relu0_dst_desc, conv1_weight_desc}, {conv1_dst_desc}, "conv1"};
+    conv1.set_attr<std::vector<int64_t>>("strides", {1, 1});
+    conv1.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
+    conv1.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
+    conv1.set_attr<std::vector<int64_t>>("dilations", {1, 1});
+    conv1.set_attr<std::string>("data_format", "NCX");
+    conv1.set_attr<std::string>("filter_format", "OIX");
+    conv1.set_attr<int64_t>("groups", 1);
+    
+    logical_tensor conv1_bias_add_dst_desc {id_mgr["conv1_bias_add_dst"], data_type::f32, dst_dims, layout_type::strided};
+    
+    op conv1_bias_add {5, op::kind::BiasAdd, {conv1_dst_desc, conv1_bias_desc}, {conv1_bias_add_dst_desc}, "conv1_bias_add"};
+    
+    logical_tensor relu1_dst_desc {id_mgr["relu1_dst"], data_type::f32, dst_dims, layout_type::strided};
+    
+    op relu1 {6, op::kind::ReLU, {conv1_bias_add_dst_desc}, {relu1_dst_desc}, "relu1"};
     std::cout << "Success!\n";
 
-    /// Add Input/Output
-    std::cout << "Add logical tensor to op-----------------------";
-    conv0.add_inputs({conv0_src_desc, conv0_weight_desc});
-    conv0.add_output(conv0_dst_desc);
-    conv0_bias_add.add_inputs({conv0_dst_desc, conv0_bias_desc});
-
-    conv0_bias_add.add_output(conv0_bias_add_dst_desc);
-    bn0.add_inputs({conv0_bias_add_dst_desc, bn0_scale_desc, bn0_shift_desc,
-            bn0_mean_desc, bn0_var_desc});
-    bn0.add_output(bn0_dst_desc);
-    relu0.add_input(bn0_dst_desc);
-    relu0.add_output(relu0_dst_desc);
-    conv1.add_inputs({relu0_dst_desc, conv1_weight_desc});
-    conv1.add_output(conv1_dst_desc);
-    conv1_bias_add.add_inputs({conv1_dst_desc, conv1_bias_desc});
-    conv1_bias_add.add_output(conv1_bias_add_dst_desc);
-    relu1.add_input(conv1_bias_add_dst_desc);
-    relu1.add_output(relu1_dst_desc);
-    std::cout << "Success!\n";
+    std::unordered_map<size_t, op::kind> op_id_kind_map {{0, op::kind::Convolution},
+        {1, op::kind::BiasAdd}, {2, op::kind::BatchNormInference}, {3, op::kind::ReLU},
+        {4, op::kind::Convolution}, {5, op::kind::BiasAdd}, {6, op::kind::ReLU}};
 
     /// Add OP
     std::cout << "Add op to graph--------------------------------";
@@ -178,171 +142,88 @@ int main(int argc, char **argv) {
     /// Setting `DNNL_GRAPH_DUMP=1` can save internal graphs before/after graph fusion into dot files
     std::cout << "Filter partitions------------------------------";
     auto partitions = g.get_partitions(partition::policy::fusion);
-
-    if (partitions.size() != 2) {
-        throw std::runtime_error("wrong partition number");
-    }
     std::cout << "Success!\n";
+
+    std::cout << "Number of returned partitions: " << partitions.size() << "\n";
+    for (size_t i = 0; i < partitions.size(); ++i) {
+        std::cout << "Partition[" << partitions[i].get_id()
+                  << "]'s supporting status: "
+                  << (partitions[i].is_supported() ? "true" : "false") << "\n";
+    }
+
+    /// mark the output logical tensors of partition as ANY layout enabled
+    std::unordered_set<size_t> id_to_set_any_layout;
+    set_any_layout(partitions, id_to_set_any_layout);
 
     /// assuming framework can give sycl device ,sycl context and sycl queue at this stage
     sycl::queue q = (engine_kind == engine::kind::gpu)
             ? sycl::queue(gpu_selector {}, sycl::property::queue::in_order {})
             : sycl::queue(cpu_selector {}, sycl::property::queue::in_order {});
     engine eng = sycl_interop::make_engine(q.get_device(), q.get_context());
-    allocator alloc = sycl_interop::make_allocator(
-            sycl_malloc_wrapper, sycl_free_wrapper);
+    allocator alloc = sycl_interop::make_allocator(sycl_malloc_wrapper, sycl_free_wrapper);
     eng.set_allocator(alloc);
 
-    // Step 4: Prepare logical tensors with proper format and compile partitions
-    /// In this example, graph inputs(conv0), outputs(relu1) and weights logical tensors are created with plain layout
-    /// layout of logical tensors between partitions can be queried from compiled partition
-    std::cout << "Prepare logical tensors with proper format-----";
-    logical_tensor conv0_src_desc_plain {id_mgr["conv0_src"],
-            logical_tensor::data_type::f32, input_dims,
-            logical_tensor::layout_type::strided};
-    logical_tensor conv0_weight_desc_plain {id_mgr["conv0_weight"],
-            logical_tensor::data_type::f32, weight_dims,
-            logical_tensor::layout_type::strided};
-    logical_tensor conv0_bias_desc_plain {id_mgr["conv0_bias"],
-            logical_tensor::data_type::f32, bias_dims,
-            logical_tensor::layout_type::strided};
-    logical_tensor bn0_scale_desc_plain {id_mgr["bn0_scale"],
-            logical_tensor::data_type::f32, bias_dims,
-            logical_tensor::layout_type::strided};
-    logical_tensor bn0_shift_desc_plain {id_mgr["bn0_shift"],
-            logical_tensor::data_type::f32, bias_dims,
-            logical_tensor::layout_type::strided};
-    logical_tensor bn0_mean_desc_plain {id_mgr["bn0_mean"],
-            logical_tensor::data_type::f32, bias_dims,
-            logical_tensor::layout_type::strided};
-    logical_tensor bn0_var_desc_plain {id_mgr["bn0_var"],
-            logical_tensor::data_type::f32, bias_dims,
-            logical_tensor::layout_type::strided};
-    logical_tensor relu0_dst_desc_any {id_mgr["relu0_dst"],
-            logical_tensor::data_type::f32, dst_dims,
-            logical_tensor::layout_type::any};
-    std::cout << "Success!\n";
-
-    std::cout << "Compile partition 0----------------------------";
-    std::vector<logical_tensor> in0 {conv0_src_desc_plain,
-            conv0_weight_desc_plain, conv0_bias_desc_plain,
-            bn0_scale_desc_plain, bn0_shift_desc_plain, bn0_mean_desc_plain,
-            bn0_var_desc_plain};
-    std::vector<logical_tensor> out0 {relu0_dst_desc_any};
-    auto cp0 = partitions[0].compile(in0, out0, eng);
-    std::cout << "Success!\n";
-
-    std::cout << "Query logical tensor from compiled partition 0-";
-    auto conv1_src_desc_any = cp0.query_logical_tensor(id_mgr["relu0_dst"]);
-
-    logical_tensor conv1_weight_desc_plain {id_mgr["conv1_weight"],
-            logical_tensor::data_type::f32, weight1_dims,
-            logical_tensor::layout_type::strided};
-    logical_tensor conv1_bias_desc_plain {id_mgr["conv1_bias"],
-            logical_tensor::data_type::f32, bias1_dims,
-            logical_tensor::layout_type::strided};
-    logical_tensor relu1_dst_desc_plain {id_mgr["relu1_dst"],
-            logical_tensor::data_type::f32, dst_dims,
-            logical_tensor::layout_type::strided};
-    std::cout << "Success!\n";
-
-    std::cout << "Compile partition 1----------------------------";
-    std::vector<logical_tensor> in1 {
-            conv1_src_desc_any, conv1_weight_desc_plain, conv1_bias_desc_plain};
-    std::vector<logical_tensor> out1 {relu1_dst_desc_plain};
-    auto cp1 = partitions[1].compile(in1, out1, eng);
-    std::cout << "Success!\n";
-
-    // Step 5: Prepare tensor and submit compiled partitions
-    std::cout << "Prepare tensor and submit compiled partitions--";
-
-    auto conv0_src_data = (float *)malloc_shared(
-            static_cast<size_t>(product(input_dims)) * sizeof(float),
-            q.get_device(), q.get_context());
-    auto conv0_weight_data = (float *)malloc_shared(
-            static_cast<size_t>(product(weight_dims)) * sizeof(float),
-            q.get_device(), q.get_context());
-    auto conv0_bias_data = (float *)malloc_shared(
-            static_cast<size_t>(product(bias_dims)) * sizeof(float),
-            q.get_device(), q.get_context());
-    auto bn0_scale_data = (float *)malloc_shared(
-            static_cast<size_t>(product(bias_dims)) * sizeof(float),
-            q.get_device(), q.get_context());
-    auto bn0_shift_data = (float *)malloc_shared(
-            static_cast<size_t>(product(bias_dims)) * sizeof(float),
-            q.get_device(), q.get_context());
-    auto bn0_mean_data = (float *)malloc_shared(
-            static_cast<size_t>(product(bias_dims)) * sizeof(float),
-            q.get_device(), q.get_context());
-    auto bn0_var_data = (float *)malloc_shared(
-            static_cast<size_t>(product(bias_dims)) * sizeof(float),
-            q.get_device(), q.get_context());
-    auto relu0_dst_data = (float *)malloc_shared(
-            cp0.query_logical_tensor(id_mgr["relu0_dst"]).get_mem_size(),
-            q.get_device(), q.get_context());
-    auto conv1_weight_data = (float *)malloc_shared(
-            static_cast<size_t>(product(weight1_dims)) * sizeof(float),
-            q.get_device(), q.get_context());
-    auto conv1_bias_data = (float *)malloc_shared(
-            static_cast<size_t>(product(bias1_dims)) * sizeof(float),
-            q.get_device(), q.get_context());
-    auto relu1_dst_data = (float *)malloc_shared(
-            cp1.query_logical_tensor(id_mgr["relu1_dst"]).get_mem_size(),
-            q.get_device(), q.get_context());
-
-    const float bn_scale = 1.0f;
-    const float bn_shift = 1.0f;
-    const float bn_mean = 1.0f;
-    const float bn_var = 1.0f;
-
-    fill_buffer<float>(q, conv0_src_data, product(input_dims), 1.0f);
-    fill_buffer<float>(q, conv0_weight_data, product(weight_dims), 1.0f);
-    fill_buffer<float>(q, conv0_bias_data, product(bias_dims), 1.0f);
-    fill_buffer<float>(q, bn0_scale_data, product(bias_dims), bn_scale);
-    fill_buffer<float>(q, bn0_shift_data, product(bias_dims), bn_shift);
-    fill_buffer<float>(q, bn0_mean_data, product(bias_dims), bn_mean);
-    fill_buffer<float>(q, bn0_var_data, product(bias_dims), bn_var);
-    fill_buffer<float>(q, relu0_dst_data,
-            cp0.query_logical_tensor(id_mgr["relu0_dst"]).get_mem_size()
-                    / sizeof(float),
-            0.0f);
-    fill_buffer<float>(q, conv1_weight_data, product(weight1_dims), 1.0f);
-    fill_buffer<float>(q, conv1_bias_data, product(bias1_dims), 1.0f);
-    fill_buffer<float>(q, relu1_dst_data,
-            cp1.query_logical_tensor(id_mgr["relu1_dst"]).get_mem_size()
-                    / sizeof(float),
-            0.0f);
-
-    tensor conv0_src(conv0_src_desc_plain, conv0_src_data);
-    tensor conv0_weight(conv0_weight_desc_plain, conv0_weight_data);
-    tensor conv0_bias(conv0_bias_desc_plain, conv0_bias_data);
-    tensor bn0_scale(bn0_scale_desc_plain, bn0_scale_data);
-    tensor bn0_shift(bn0_shift_desc_plain, bn0_shift_data);
-    tensor bn0_mean(bn0_mean_desc_plain, bn0_mean_data);
-    tensor bn0_var(bn0_var_desc_plain, bn0_var_data);
-
-    logical_tensor relu0_dst_desc_opaque
-            = cp0.query_logical_tensor(id_mgr["relu0_dst"]);
-    tensor relu0_dst(relu0_dst_desc_opaque, relu0_dst_data);
-
-    std::vector<tensor> in_list_0 {conv0_src, conv0_weight, conv0_bias,
-            bn0_scale, bn0_shift, bn0_mean, bn0_var};
-    std::vector<tensor> out_list_0 {relu0_dst};
+    /// construct a new stream
     dnnl::graph::stream strm = sycl_interop::make_stream(eng, q);
-    sycl_interop::execute(cp0, strm, in_list_0, out_list_0);
 
-    tensor conv1_weight(conv1_weight_desc_plain, conv1_weight_data);
-    tensor conv1_bias(conv1_bias_desc_plain, conv1_bias_data);
-    tensor relu1_dst(relu1_dst_desc_plain, relu1_dst_data);
+    std::vector<compiled_partition> c_partitions(partitions.size());
 
-    std::vector<tensor> in_list_1 {relu0_dst, conv1_weight, conv1_bias};
-    std::vector<tensor> out_list_1 {relu1_dst};
-    sycl_interop::execute(cp1, strm, in_list_1, out_list_1);
+    // mapping from id to tensors
+    // need provide queue for later buffer deallocation
+    tensor_map tm {q};
+
+    // mapping from id to queried logical tensor from compiled partition
+    // used to record the logical tensors that are previously enabled with ANY layout
+    std::unordered_map<size_t, logical_tensor> id_to_queried_logical_tensors;
+
+    for (size_t i = 0; i < partitions.size(); ++i) {
+        if (partitions[i].is_supported()) {
+            std::cout << "\nPartition[" << partitions[i].get_id() << "] is being processed.\n";
+            std::vector<logical_tensor> inputs = partitions[i].get_inputs();
+            std::vector<logical_tensor> outputs = partitions[i].get_outputs();
+
+            /// replace input logical tensor with the queried one
+            replace_with_queried_logical_tensors(inputs, id_to_queried_logical_tensors);
+
+            /// update output logical tensors with ANY layout
+            update_tensors_with_any_layout(outputs, id_to_set_any_layout);
+
+            std::cout << "Compiling--------------------------------------";
+            /// compile to generate compiled partition
+            c_partitions[i] = partitions[i].compile(inputs, outputs, eng);
+            std::cout << "Success!\n";
+
+            record_queried_logical_tensors(partitions[i].get_outputs(), c_partitions[i],
+                id_to_queried_logical_tensors);
+
+            std::cout << "Creating tensors and allocating memory buffer--";
+            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(inputs, c_partitions[i], 1);
+            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(outputs, c_partitions[i], 0);
+            std::cout << "Success!\n";
+
+            std::cout << "Executing compiled partition-------------------";
+            /// execute the compiled partition
+            sycl_interop::execute(c_partitions[i], strm, input_ts, output_ts);
+            std::cout << "Success!\n";
+        } else {
+            std::vector<size_t> unsupported_op_ids = partitions[i].get_ops();
+            assertm(unsupported_op_ids.size() == 1, "Unsupported partition only "
+                "contains single op.");
+            if (op_id_kind_map[unsupported_op_ids[0]] == op::kind::Wildcard) {
+                std::cout << "\nWarning (actually an error): partition " << partitions[i].get_id() <<
+                        " contains only a Wildcard op which cannot be computed.\n";
+            } else {
+                /// Users need to write implementation code by themselves.
+                continue;
+            }
+        }
+    }
+    // wait for all compiled partition's execution finished
     strm.wait();
-    std::cout << "Success!\n";
 
     // Step 6: Check correctness of the output results
     std::cout << "Check correctness------------------------------";
+    float bn_scale = 1.0, bn_mean = 1.0, bn_var = 1.0, bn_shift = 1.0;
     float expected_result
             = (bn_scale * ((1 * 11 * 11 * 3 + /* conv0 bias */ 1.0f) - bn_mean)
                               / std::sqrt(bn_var + epsilon)
@@ -350,10 +231,12 @@ int main(int argc, char **argv) {
                     * (1 * 1 * 96)
             + /* conv1 bias */ 1.0f;
 
-    auto out_size = cp1.query_logical_tensor(id_mgr["relu1_dst"]).get_mem_size()
-            / sizeof(float);
-    for (size_t i = 0; i < out_size; i++) {
-        if ((float)expected_result != relu1_dst_data[i]) {
+    float *actual_output_ptr = tm.get(relu1_dst_desc.get_id()).get_data_handle<float>();
+    auto output_dims = relu1_dst_desc.get_dims();
+    auto num_elem = product(output_dims);
+    for (int i = 0; i < num_elem; ++i) {
+        if (std::abs(expected_result - actual_output_ptr[i]) > 1e-6f) {
+            printf("expected = %.2f, actual = %.2f\n", expected_result, actual_output_ptr[i]);
             throw std::runtime_error(
                     "output result is not equal to excepted "
                     "results");
@@ -362,18 +245,6 @@ int main(int argc, char **argv) {
     std::cout << "Success!\n";
 
     std::cout << "============Run Example Successfully===========\n";
-
-    free(conv0_src_data, q.get_context());
-    free(conv0_weight_data, q.get_context());
-    free(conv0_bias_data, q.get_context());
-    free(bn0_scale_data, q.get_context());
-    free(bn0_shift_data, q.get_context());
-    free(bn0_mean_data, q.get_context());
-    free(bn0_var_data, q.get_context());
-    free(relu0_dst_data, q.get_context());
-    free(conv1_weight_data, q.get_context());
-    free(conv1_bias_data, q.get_context());
-    free(relu1_dst_data, q.get_context());
-
     return 0;
 }
+// clang-format off

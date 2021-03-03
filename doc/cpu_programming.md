@@ -8,9 +8,8 @@ supports constructing a graph by users, but has limited support for users'
 program to directly compile and execute the returned partitions.
 
 Now, oneDNN Graph features the support of minimum programming model.
-Users can easily construct a self-defined graph and generate the
-corresponding partitions. After that, users can compile and execute those
-partitions.
+Users can easily construct a self-defined graph and generate the corresponding
+partitions. After that, users can compile and execute those partitions.
 
 Here, an example will be provided to show the programming model. The full
 example code can be found at
@@ -21,19 +20,17 @@ example code can be found at
 ### Create tensor mapping
 
 In order to provide a running context, a new
-class named [tensorMap](../examples/cpp/src/cpu_programming.cpp#L61)
+class named [tensor_map](../examples/cpp/include/common/execution_context.hpp#L36)
 is being introduced in this example. A tensor map will be responsible for
-holding all the tensors that will be used in the users' program. So, it contains
-the below map:
+holding all the tensors that will be used in the users' program. it contains the
+mapping from an unique logical tensor id to the corresponding tensor.
 
 - `std::unordered_map<size_t, tensor> data_`
 
-This is a mapping from an unique id to the corresponding tensor.
-
-Before building graph, a user should create such a tensor map like below:
+Before building graph, users should create such a tensor map like below:
 
 ~~~cpp
-tensorMap tm;
+tensor_map tm;
 ~~~
 
 ### Build graph and get partitions
@@ -64,7 +61,7 @@ In this example, the below graph will be used. It contains `Convolution`,
                 End
 ~~~
 
-As you may know, in oneDNN Graph, the id of
+In oneDNN Graph, the id of
 [dnnl::graph::logical_tensor](../include/oneapi/dnnl/dnnl_graph.hpp#L290) is
 used to express the connection relationship between different ops. So for the
 first `Convolution` op, users can construct all input and output logical tensors
@@ -77,14 +74,15 @@ logical_tensor conv_bias_lt {id_mgr["conv_bias"], data_type::f32, bias_dims, lay
 logical_tensor conv_dst_lt {id_mgr["dst_dims"], data_type::f32, dst_dims, layout_type::strided};
 ~~~
 
-Here [`id_mgr`](../examples/cpp/include/common/utils.hpp#72) is a utility class
-to generate unique id according to the given name. So, each logical tensor
-should be given with the unique name. Also the name will be a 1:1 mapping with
-the logical tensor id.
+Here [`id_mgr`](../examples/cpp/include/common/utils.hpp#120) is a utility class
+to generate unique id according to the given name. It requires the 1:1 mapping
+between id and the given name.
 
-**Note**: Currently users need to pass output logical tensors with complete
-shape info to oneDNN Graph for further compiling. In the future, the shape of
-output logical tensors can be unknown and can be derived from the compilation.
+**Note**: These examples create logical tensors with complete shape information
+and use them in the partition compilation. Currently, the library also supports
+an API to infer the output shapes according to input shapes. We don't leverage
+this API here as it's planned to be deprecated in the future so the compilation
+can accept incomplete output shapes.
 
 Next step is to create a `Convolution` op with the above inputs and outputs.
 
@@ -144,10 +142,11 @@ std::vector<partition> partitions = g.get_partitions();
 
 ### Compile partitions and execute
 
-In the real world, users need to provide device information for oneDNN Graph.
-For example, they may provide a device_id. And based on the given device_id,
-users can create a
-[dnnl::graph::engine](../include/oneapi/dnnl/dnnl_graph.hpp#L97).
+In the real workload, users need to provide the device information to compile a
+partition. Typically, a
+[dnnl::graph::engine](../include/oneapi/dnnl/dnnl_graph.hpp#L97) should be
+created with an engine kind and a device id. The engine kind should be the same
+as the one used to create the graph.
 
 ~~~cpp
 int device_id = 0;
@@ -175,10 +174,10 @@ std::vector<compiled_partition> c_partitions(partitions.size());
 // compilation-execution loop
 for (size_t i = 0; i < partitions.size(); ++i) {
     if (partitions[i].is_supported()) {
-        // get inputs and outputs from a partition
-        // compile the partition to generate compile partition
-        // construct tensors with allocated memory buffer
-        // execute compiled partition
+        // 1. get inputs and outputs from a partition
+        // 2. compile the partition to generate a compile partition
+        // 3. construct tensors with logical tensors and allocated memory buffer
+        // 4. execute the compiled partition with the stream
     } else {
         // users need to write code to compute this partition
     }
@@ -208,12 +207,12 @@ c_partitions[i] = partitions[i].compile(inputs, outputs, e);
 Before executing, users need to construct input and output tensors with memory
 buffer. So, a helper function is provided in the example like below:
 
-- `construct_and_initialize_tensors()`: construct tensors according to the given
-  logical tensors and then initialize them by a fixed value.
+- `construct_and_initialize_tensors()`: construct and initialize tensors
+  according to the given logical tensors.
 
 ~~~cpp
 std::vector<tensor> input_ts = construct_and_initialize_tensors(inputs, c_partitions[i], tm, 1);
-std::vector<tensor> output_ts = construct_and_initialize_tensors(outputs, c_partitions[i], tm, 0);   
+std::vector<tensor> output_ts = construct_and_initialize_tensors(outputs, c_partitions[i], tm, 0);
 ~~~
 
 Finally, users can execute the compiled partition with input and output tensors.
