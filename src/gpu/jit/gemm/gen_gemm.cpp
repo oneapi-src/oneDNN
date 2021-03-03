@@ -32,10 +32,8 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         const memory_storage_t &co, int64_t offset_a, int64_t offset_b,
         int64_t offset_c, int32_t offset_co, int32_t lda, int32_t ldb,
         int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha, float beta,
-        int16_t ao, int16_t bo, int32_t cmask, bool last_k_block,
-        float eltwise_alpha, float eltwise_beta, float eltwise_scale,
-        int32_t batch, int32_t stride_a, int32_t stride_b,
-        int32_t stride_c) const {
+        int16_t ao, int16_t bo, int32_t cmask, bool last_k_block, int32_t batch,
+        int32_t stride_a, int32_t stride_b, int32_t stride_c) const {
 
     bool with_offset = (pd()->desc()->c_type() == data_type::s32);
     uint32_t flags = 0;
@@ -70,9 +68,6 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         arg_list.set(argn++, offset_co);
     }
     arg_list.set(argn++, flags);
-    arg_list.set(argn++, eltwise_alpha);
-    arg_list.set(argn++, eltwise_beta);
-    arg_list.set(argn++, eltwise_scale);
     if (batch > 1) {
         arg_list.set(argn++, stride_a);
         arg_list.set(argn++, stride_b);
@@ -135,10 +130,6 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto alpha = pd()->alpha();
     auto beta = pd()->beta();
 
-    auto eltwise_alpha = pd()->eltwise_alpha();
-    auto eltwise_beta = pd()->eltwise_beta();
-    auto eltwise_scale = pd()->eltwise_scale();
-
     auto &a = GEMM_CTX_ARG_STORAGE(b);
     auto &b = GEMM_CTX_ARG_STORAGE(a);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
@@ -186,7 +177,8 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto block_k
             = utils::rnd_up(nocopy_info_.blocking[2], nocopy_info_.unroll[2]);
 
-    if (pd()->with_bias() || (pd()->desc()->acc_type != pd()->desc()->c_type()))
+    if (pd()->with_bias() || pd()->with_eltwise()
+            || (pd()->desc()->acc_type != pd()->desc()->c_type()))
         block_k = k;
 
     for (int64_t Bk = 0; Bk < k; Bk += block_k) {
@@ -217,8 +209,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                 status = launch_nocopy(ctx, compute_stream, a, b, c, *co,
                         off_a_src, off_b_src, off_c, off_co, lda, ldb, ldc,
                         size_m, size_n, size_k, alpha, eff_beta, ao, bo, cmask,
-                        last_k_block, eltwise_alpha, eltwise_beta,
-                        eltwise_scale, batch, stride_a, stride_b, stride_c);
+                        last_k_block, batch, stride_a, stride_b, stride_c);
 
                 if (status) return status;
             }

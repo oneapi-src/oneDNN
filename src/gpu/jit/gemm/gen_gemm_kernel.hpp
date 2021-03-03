@@ -84,9 +84,10 @@ private:
 
 struct gen_gemm_nocopy_kernel_t : public gen_gemm_kernel_t {
     status_t init(compute::gpu_arch_t arch, bool batch, bool trans_a,
-            bool trans_b, bool c_offset, bool bias, data_type_t a_type,
-            data_type_t b_type, data_type_t c_type, int unroll_m,
-            int unroll_n) {
+            bool trans_b, bool c_offset, bool bias, alg_kind_t eltwise_alg,
+            float eltwise_alpha, float eltwise_beta, float eltwise_scale,
+            data_type_t a_type, data_type_t b_type, data_type_t c_type,
+            int unroll_m, int unroll_n) {
 
         problem_.Ta = convert_dnnl_to_kernel_type(a_type);
         problem_.Tb = convert_dnnl_to_kernel_type(b_type);
@@ -108,6 +109,13 @@ struct gen_gemm_nocopy_kernel_t : public gen_gemm_kernel_t {
         if (c_type == data_type::s32) {
             problem_.abOffset = ABOffset::Calc;
             problem_.Ts = Type::f32;
+        }
+        if (eltwise_alg != alg_kind::undef) {
+            problem_.postOp = eltwise_alg;
+            problem_.eltwiseAlpha = eltwise_alpha;
+            problem_.eltwiseBeta = eltwise_beta;
+            problem_.eltwiseScale = eltwise_scale;
+            if (a_type == data_type::f16) problem_.Ts = Type::f32;
         }
         if (c_offset || bias) {
             assert(!(c_offset && bias));

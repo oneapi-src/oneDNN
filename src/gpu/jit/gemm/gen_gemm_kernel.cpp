@@ -316,9 +316,6 @@ status_t gen_gemm_kernel_t::init_interface() {
         interface_.newArgument("offset_CO", DataType::d);
     }
     interface_.newArgument("flags", DataType::ud);
-    interface_.newArgument("eltwise_alpha", DataType::f);
-    interface_.newArgument("eltwise_beta", DataType::f);
-    interface_.newArgument("eltwise_scale", DataType::f);
     if (problem_.batchedS) {
         interface_.newArgument("stride_A", DataType::d);
         interface_.newArgument("stride_B", DataType::d);
