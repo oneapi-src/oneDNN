@@ -28,7 +28,7 @@ otherwise disabled by default.
 | DNNL_MAX_CPU_ISA     | SSE41            | Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)
 |                      | AVX              | Intel Advanced Vector Extensions (Intel AVX)
 |                      | AVX2             | Intel Advanced Vector Extensions 2 (Intel AVX2)
-|                      | AVX2_VNNI        | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost)
+|                      | AVX_VNNI         | Intel AVX with Intel Deep Learning Boost (Intel DL Boost)
 |                      | AVX512_MIC       | Intel Advanced Vector Extensions 512 (Intel AVX-512) with AVX512CD, AVX512ER, and AVX512PF extensions
 |                      | AVX512_MIC_4OPS  | Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW extensions
 |                      | AVX512_CORE      | Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions
