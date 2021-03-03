@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # *******************************************************************************
-# Copyright 2020 Arm Limited and affiliates.
+# Copyright 2020-2021 Arm Limited and affiliates.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@
 # *******************************************************************************
 
 # Compute Library build defaults
-ACL_VERSION="v20.11"
+ACL_VERSION="v21.02"
 ACL_DIR="${PWD}/ComputeLibrary"
 ACL_ARCH="arm64-v8a"
 
