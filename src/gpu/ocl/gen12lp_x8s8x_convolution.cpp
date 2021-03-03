@@ -594,8 +594,9 @@ status_t gen12lp_x8s8x_convolution_bwd_data_t::pd_t::init_conf() {
         int iw_group = utils::max_div(iw_nchunk, max_iw_group);
 
         //an upper bound on the number of elems per subgroup
-        conf.dst_slm_size = (conf.oc_block / 4) * (iw_group * conf.iw_block)
-                + (conf.kw - 1) * (1 + conf.dilate_w);
+        conf.dst_slm_size = (conf.oc_block / 4)
+                * ((iw_group * conf.iw_block)
+                        + (conf.kw - 1) * (1 + conf.dilate_w));
         conf.iw_tail = conf.iw % conf.iw_block;
 
         conf.lws_d[0] = 8 * ic_group;
