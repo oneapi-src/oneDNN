@@ -358,14 +358,8 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
 
     brg->dt_d = dt_d;
     brg->typesize_D = types::data_type_size(brg->dt_d);
-    if (brg->attr == nullptr) {
-        brg->with_sum = false;
-        brg->with_eltwise = false;
-        brg->with_binary = false;
-        brg->with_scales = false;
 
-        return status::success;
-    }
+    if (!brg->attr) return status::success;
 
     using namespace injector;
 

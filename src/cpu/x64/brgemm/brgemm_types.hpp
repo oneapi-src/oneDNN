@@ -104,60 +104,61 @@ struct brgemm_batch_element_t {
 };
 
 struct brgemm_t {
-    int bcast_dim; // M;
-    int load_dim; // N;
-    int reduce_dim; // K;
-    int LDA;
-    int LDB;
-    int LDC;
-    int LDD;
+    int bcast_dim = 0; // M;
+    int load_dim = 0; // N;
+    int reduce_dim = 0; // K;
+    int LDA = 0;
+    int LDB = 0;
+    int LDC = 0;
+    int LDD = 0;
 
-    float alpha;
-    float beta;
+    float alpha = 0.0f;
+    float beta = 0.0f;
 
-    int bdb, bd_block, bdb_tail;
-    int bdb2, bd_block2, bdb2_tail;
-    int ldb, ld_block, ldb_tail;
-    int ldb2, ld_block2, ldb2_tail;
-    int rdb, rd_block, rdb_tail;
-    int rd_step, ld_step;
+    int bdb = 0, bd_block = 0, bdb_tail = 0;
+    int bdb2 = 0, bd_block2 = 0, bdb2_tail = 0;
+    int ldb = 0, ld_block = 0, ldb_tail = 0;
+    int ldb2 = 0, ld_block2 = 0, ldb2_tail = 0;
+    int rdb = 0, rd_block = 0, rdb_tail = 0;
+    int rd_step = 0, ld_step = 0;
 
-    impl::data_type_t dt_a;
-    impl::data_type_t dt_c;
-    impl::data_type_t dt_b;
-    impl::data_type_t dt_d;
-    impl::data_type_t dt_bias;
+    impl::data_type_t dt_a = data_type::undef;
+    impl::data_type_t dt_c = data_type::undef;
+    impl::data_type_t dt_b = data_type::undef;
+    impl::data_type_t dt_d = data_type::undef;
+    impl::data_type_t dt_bias = data_type::undef;
 
-    int typesize_A;
-    int typesize_B;
-    int typesize_C;
-    int typesize_D;
-    int typesize_bias;
+    int typesize_A = 0;
+    int typesize_B = 0;
+    int typesize_C = 0;
+    int typesize_D = 0;
+    int typesize_bias = 0;
 
-    bool is_int8, is_int8_amx;
-    bool is_bf16, is_bf16_amx;
-    bool is_f32;
-    bool is_amx;
+    bool is_int8 = false, is_int8_amx = false;
+    bool is_bf16 = false, is_bf16_amx = false;
+    bool is_f32 = false;
+    bool is_amx = false;
 
-    dim_t stride_a; // Offset in bytes
-    dim_t stride_b;
+    dim_t stride_a = 0; // Offset in bytes
+    dim_t stride_b = 0;
 
     brgemm_layout_t layout;
-
     brgemm_batch_kind_t type;
-    bool embd_bcst;
 
-    bool with_bias;
-    bool with_sum;
-    float sum_scale;
-    bool with_eltwise;
-    bool with_binary;
-    bool with_scales;
-    bool req_s8s8_compensation;
-    int is_oc_scale;
+    bool embd_bcst = false;
 
-    const primitive_attr_t *attr;
-    const memory_desc_t *dst_md;
+    bool with_bias = false;
+    bool with_sum = false;
+    float sum_scale = 0.0f;
+    bool with_eltwise = false;
+    bool with_binary = false;
+    bool with_scales = false;
+    bool req_s8s8_compensation = false;
+
+    int is_oc_scale = 0;
+
+    const primitive_attr_t *attr = nullptr;
+    const memory_desc_t *dst_md = nullptr;
 
     brgemm_attr_t brgattr;
     static constexpr int MAX_VPAD = 100;
