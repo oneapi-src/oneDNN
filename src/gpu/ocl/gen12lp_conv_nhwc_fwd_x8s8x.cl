@@ -196,11 +196,11 @@ conv_nhwc_fwd_x8s8x(const __global SRC_DATA_T *src, const __global char *wei,
     __local uint *S_work = S_slice + IC_BLOCK / 4 * (sp * SW * OW_BLOCK);
 
     const bool left_tail = iw < 0;
-    const bool left_nozero_tail = sub_group_id == 0 && iw >= 0;
+    const bool left_nozero_tail = sub_group_id == 0 && iw > -PW;
     const bool right_tail = (iw + PW + SLM_TAIL >= IW) && (iw + PW < IW);
-    const bool empty = (iw + PW >= IW);
     const bool right_nozero_tail
             = sp == (LWS_1 - 1) && (iw + PW + SLM_TAIL < IW);
+    const bool empty = (iw + PW >= IW);
 
     dst += group_mb * MB_BLOCK * OD * OH * OW * G * OC;
     dst += (OW * OH * od + OW * oh + ow) * G * OC;
@@ -269,7 +269,7 @@ conv_nhwc_fwd_x8s8x(const __global SRC_DATA_T *src, const __global char *wei,
                     if (ow < OW) {
 #if PW > 0
                         if (left_nozero_tail) {
-                            for (int i = -PW; i < 0; i++) {
+                            for (int i = -PW - min(iw, 0); i < 0; i++) {
                                 write_local_1(
                                         S_part + i * 8, src1 + i * G * IC);
                             }
@@ -277,11 +277,18 @@ conv_nhwc_fwd_x8s8x(const __global SRC_DATA_T *src, const __global char *wei,
 #endif
 
                         if (right_nozero_tail) {
-                            for (int i = SW * OW_BLOCK; i
-                                    < SW * OW_BLOCK + (KW - 1) * (1 + DW) - PW;
+                            int buffer_last = (KW - 1) * (1 + DW) - PW;
+                            int src_last = IW - iw - SW * OW_BLOCK - PW;
+                            for (int i = SW * OW_BLOCK; i < SW * OW_BLOCK
+                                            + min(buffer_last, src_last);
                                     i++) {
                                 write_local_1(
                                         S_part + i * 8, src1 + i * G * IC);
+                            }
+                            for (int i = SW * OW_BLOCK
+                                            + min(buffer_last, src_last);
+                                    i < SW * OW_BLOCK + buffer_last; i++) {
+                                block_write(S_part + i * 8, 0);
                             }
                         }
 #endif
