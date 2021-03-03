@@ -43,10 +43,16 @@ using namespace data_type;
 namespace brgemm_convolution_utils {
 
 inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
-        const memory_desc_wrapper &mdw, const format_tag_t tag_value) {
+        const memory_desc_wrapper &mdw, const format_tag_t tag_value,
+        bool any_eligible) {
+
     if (mdw.format_kind() == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(md, tag_value));
-        tag = tag_value;
+        if (any_eligible) {
+            CHECK(memory_desc_init_by_tag(md, tag_value));
+            tag = tag_value;
+        } else {
+            tag = format_tag::undef;
+        }
     } else {
         tag = mdw.matches_one_of_tag(tag_value);
     }
@@ -377,9 +383,10 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
 
     src_tag = dst_tag;
 
-    CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag));
-    CHECK(init_tag(jcp.dst_tag, dst_md, dst_d, dst_tag));
-    CHECK(init_tag(jcp.wei_tag, weights_md, weights_d, wei_tag));
+    const bool any_eligible = (jcp.prop_kind == prop_kind::forward_inference);
+    CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag, any_eligible));
+    CHECK(init_tag(jcp.dst_tag, dst_md, dst_d, dst_tag, any_eligible));
+    CHECK(init_tag(jcp.wei_tag, weights_md, weights_d, wei_tag, true));
 
     return status::success;
 }

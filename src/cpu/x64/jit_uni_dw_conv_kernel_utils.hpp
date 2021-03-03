@@ -90,12 +90,18 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     // Currently this kernel only supports 2D convolutions.
     if (ndims != 4) return status::unimplemented;
 
+    jcp.prop_kind = cd.prop_kind;
+
     const auto blocked_tag
             = one_of(isa, avx512_common, avx512_core) ? nChw16c : nChw8c;
     const auto wei_tag
             = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
     const auto nxc_tag = nhwc;
-    const auto def_tag = mayiuse(avx512_core) ? nxc_tag : blocked_tag;
+    const auto def_tag
+            = (mayiuse(avx512_core)
+                      && jcp.prop_kind == prop_kind::forward_inference)
+            ? nxc_tag
+            : blocked_tag;
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
@@ -138,8 +144,6 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         return status::unimplemented;
 
     const int simd_w = one_of(isa, avx512_common, avx512_core) ? 16 : 8;
-
-    jcp.prop_kind = cd.prop_kind;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     if (!with_groups) return status::unimplemented;
