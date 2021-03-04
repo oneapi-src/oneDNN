@@ -198,11 +198,13 @@ struct ip_convolution_fwd_t : public primitive_t {
                 CHECK(memory_desc_init_by_tag(dst_md_, atag));
             else
                 CHECK(check_tag(dst_md_, atag));
-            auto btag = x;
-            if (bias_md_.format_kind == format_kind::any)
-                CHECK(memory_desc_init_by_tag(bias_md_, btag));
-            else
-                CHECK(check_tag(bias_md_, btag));
+            if (bias_md_.format_kind != format_kind::undef) {
+                auto btag = x;
+                if (bias_md_.format_kind == format_kind::any)
+                    CHECK(memory_desc_init_by_tag(bias_md_, btag));
+                else
+                    CHECK(check_tag(bias_md_, btag));
+            }
             return status::success;
         }
     };
