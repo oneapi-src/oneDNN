@@ -34,10 +34,41 @@ namespace ocl {
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::format_tag;
 
-static void fwd_compute_block_sizes(
-        conv_conf_t &conf, compute::compute_engine_t *engine) {
+static bool is_impl_optimal(conv_conf_t &conf, const convolution_desc_t &cd,
+        const compute::gpu_arch_t arch) {
+    if (cd.alg_kind == alg_kind::convolution_winograd) return true;
 
-    const compute::gpu_arch_t arch = engine->device_info()->gpu_arch();
+    int ow_blocks = conf.wino_ow / conf.ow_block;
+    float ow_util = (float)conf.ow / conf.wino_ow;
+    int oh_blocks = conf.wino_oh / conf.oh_block;
+    float oh_util = (float)conf.oh / conf.wino_oh;
+    int oc_blocks = conf.ocb;
+    float oc_util = (float)conf.oc / conf.wino_oc;
+    float ic_util = (float)conf.ic / conf.wino_ic;
+
+    int blocks = ow_blocks * oh_blocks * oc_blocks;
+    float utilization = ow_util * oh_util * oc_util * ic_util;
+    float score;
+
+    switch (arch) {
+        case compute::gpu_arch_t::gen9:
+            score = blocks * utilization;
+            if (score >= 128 && utilization >= 0.50) return true;
+            return false;
+        case compute::gpu_arch_t::gen12lp:
+            // Performance is poor with large oc*ic and small spatial, this is
+            // likely due to overflowing cache and no blocking on ic.
+            score = (float)conf.oc * conf.ic / (oh_blocks * ow_blocks);
+            if (score < 32 * 1024 && utilization >= 0.50) return true;
+            return false;
+        default:
+            assert(!"Unhandled winograd convolution auto dispatch");
+            return false;
+    }
+}
+
+static void fwd_compute_block_sizes(
+        conv_conf_t &conf, const compute::gpu_arch_t arch) {
 
     if (conf.ver == ver_16mb16c) {
         conf.mb_block = (conf.src_data_type == data_type::f16)
@@ -131,7 +162,9 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf(
         return status::unimplemented;
     }
 
-    fwd_compute_block_sizes(conf, engine);
+    const compute::gpu_arch_t arch = engine->device_info()->gpu_arch();
+    fwd_compute_block_sizes(conf, arch);
+    if (!is_impl_optimal(conf, cd, arch)) return status::unimplemented;
 
     size_t U_sz = conf.tile_size * conf.kh * conf.wino_ic * conf.wino_oc;
     size_t M_sz = 0, V_sz = 0;
