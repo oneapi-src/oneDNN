@@ -73,9 +73,7 @@ struct ip_convolution_fwd_t : public primitive_t {
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         pd_t(const pd_t &other)
-            : cpu_convolution_fwd_pd_t(other)
-            , ip_pd_(other.ip_pd_->clone())
-            , conv_supports_bias_(other.conv_supports_bias_) {}
+            : cpu_convolution_fwd_pd_t(other), ip_pd_(other.ip_pd_->clone()) {}
 
         ~pd_t() = default;
 
@@ -149,7 +147,6 @@ struct ip_convolution_fwd_t : public primitive_t {
         }
 
         std::unique_ptr<primitive_desc_t> ip_pd_;
-        bool conv_supports_bias_ = false;
 
     private:
         std::string name_ = "ip:";
