@@ -183,14 +183,24 @@ status_t gen12lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
         }
 
         conf.sub_group_size = 16;
+        const int spatial_global_size
+                = conf.od * conf.oh * utils::div_up(conf.ow, conf.ow_block);
 
         conf.lws_d[0] = 16;
         conf.lws_d[1] = 1;
+        if (conf.ver == ver_mb_block) {
+            // Try to increase WG size in order to improve caching
+            for (const int pixels_per_wg : {2, 3, 5}) {
+                if (spatial_global_size % pixels_per_wg == 0) {
+                    conf.lws_d[1] = pixels_per_wg;
+                    break;
+                }
+            }
+        }
         conf.lws_d[2] = 1;
 
         conf.gws_d[0] = utils::div_up(conf.ngroups, 32) * conf.lws_d[0];
-        conf.gws_d[1]
-                = conf.od * conf.oh * utils::div_up(conf.ow, conf.ow_block);
+        conf.gws_d[1] = spatial_global_size;
         conf.gws_d[2] = utils::div_up(conf.mb, utils::div_up(conf.mb_block, 4));
 
     } else {
