@@ -116,6 +116,7 @@ struct ip_convolution_fwd_t : public primitive_t {
             // TODO: Add support for bf16 on avx512_core and higher.
             const bool is_nspc_default = false
                     || (weights_md_.data_type == data_type::f32
+                            && desc()->prop_kind == prop_kind::forward_inference
                             && mayiuse(avx512_core))
                     || weights_md_.data_type == data_type::s8;
             if (!is_nspc_default) return status::unimplemented;
