@@ -130,10 +130,11 @@ struct ip_convolution_fwd_t : public primitive_t {
             // Otherwise, do not set formats in case of `format_kind::any`.
             // Currently this means:
             //  - int8 with any forward prop_kind on any isa
-            //  - fp32 with any forward prop_kind on avx512_core and higher
+            //  - fp32 with `forward_inference` on avx512_core and higher
             // TODO: Add support for bf16 inference on avx512_core and higher.
             const bool set_any_to_nspc = false
                     || (weights_md_.data_type == data_type::f32
+                            && desc()->prop_kind == prop_kind::forward_inference
                             && mayiuse(avx512_core))
                     || weights_md_.data_type == data_type::s8;
             CHECK(set_and_or_check_formats(set_any_to_nspc));
