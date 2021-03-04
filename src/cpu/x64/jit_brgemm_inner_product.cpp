@@ -494,19 +494,17 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
 template struct brgemm_inner_product_bwd_data_t<avx512_core_bf16_amx_bf16>;
 template struct brgemm_inner_product_bwd_data_t<avx512_core_bf16>;
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_wei_type,
-        data_type_t diff_dst_type>
-struct brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
-        diff_dst_type>::thread_info_t {
-    const src_data_t *src;
-    const diff_dst_data_t *diff_dst;
-    diff_wei_data_t *diff_weights;
+template <cpu_isa_t isa>
+struct brgemm_inner_product_bwd_weights_t<isa>::thread_info_t {
+    const char *src;
+    const char *diff_dst;
+    char *diff_weights;
     char *diff_bias;
 
     const memory_tracking::grantor_t scratchpad;
 
-    src_data_t *buffer_a = nullptr;
-    diff_dst_data_t *buffer_b = nullptr;
+    char *buffer_a = nullptr;
+    char *buffer_b = nullptr;
     char *buffer_c = nullptr;
     char *buffer_bias = nullptr;
 
@@ -523,9 +521,9 @@ struct brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
     thread_info_t(const brgemm_inner_product_bwd_weights_t *self,
             const exec_ctx_t &ctx, int ithr)
         : scratchpad(ctx.get_scratchpad_grantor()), ithr(ithr) {
-        src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-        diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
-        diff_weights = CTX_OUT_MEM(diff_wei_data_t *, DNNL_ARG_DIFF_WEIGHTS);
+        src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+        diff_dst = CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST);
+        diff_weights = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_WEIGHTS);
         diff_bias = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_BIAS);
         const auto &jbgp = self->pd()->jbgp_;
 
@@ -539,11 +537,10 @@ struct brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
                 ? scratchpad.template get<char>(key_iprod_bias_bf16_convert_wsp)
                 : nullptr;
 
-        buffer_a = scratchpad.template get<src_data_t>(
-                key_brgemm_primitive_buffer_a);
-        buffer_b = jbgp.use_buffer_b ? scratchpad.template get<diff_dst_data_t>(
-                           key_brgemm_primitive_buffer_b)
-                                     : nullptr;
+        buffer_a = scratchpad.template get<char>(key_brgemm_primitive_buffer_a);
+        buffer_b = jbgp.use_buffer_b
+                ? scratchpad.template get<char>(key_brgemm_primitive_buffer_b)
+                : nullptr;
 
         nthr = jbgp.nthr;
         nthr_ic_c = jbgp.nthr_ic_b;
@@ -574,11 +571,9 @@ struct brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
     }
 };
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_wei_type,
-        data_type_t diff_dst_type>
-void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
-        diff_dst_type>::transform_matrix_a_chunk(src_data_t *tr_src,
-        const src_data_t *src, int trans_batch, int current_m,
+template <cpu_isa_t isa>
+void brgemm_inner_product_bwd_weights_t<isa>::transform_matrix_a_chunk(
+        char *tr_src, const char *src, int trans_batch, int current_m,
         int current_k) const {
     auto ctx = jit_brgemm_trans_src_t::ctx_t();
     ctx.src = (void *)src;
@@ -589,12 +584,10 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
     (*trans_A_kernel_)(&ctx);
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_wei_type,
-        data_type_t diff_dst_type>
-void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
-        diff_dst_type>::transform_matrix_b_chunk(diff_dst_data_t *tr_diff_dst,
-        const diff_dst_data_t *diff_dst, int trans_batch, int current_col_size,
-        int current_row_size) const {
+template <cpu_isa_t isa>
+void brgemm_inner_product_bwd_weights_t<isa>::transform_matrix_b_chunk(
+        char *tr_diff_dst, const char *diff_dst, int trans_batch,
+        int current_col_size, int current_row_size) const {
     auto ctx = jit_brgemm_trans_to_vnni_t::ctx_t();
     ctx.src = (void *)diff_dst;
     ctx.tr_src = (void *)tr_diff_dst;
@@ -604,13 +597,11 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
     (*trans_B_kernel_)(&ctx);
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_wei_type,
-        data_type_t diff_dst_type>
-void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
-        diff_dst_type>::compute_diff_weights_and_bias(const thread_info_t *ti)
-        const {
-    auto diff_dst = const_cast<diff_dst_data_t *>(ti->diff_dst);
-    auto diff_weights = const_cast<diff_wei_data_t *>(ti->diff_weights);
+template <cpu_isa_t isa>
+void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
+        const thread_info_t *ti) const {
+    auto diff_dst = const_cast<char *>(ti->diff_dst);
+    auto diff_weights = const_cast<char *>(ti->diff_weights);
     auto diff_bias = ti->diff_bias;
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
@@ -626,8 +617,8 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
             = ti->scratchpad.template get<brgemm_batch_element_t>(
                     key_brgemm_primitive_batch);
 
-    src_data_t *a_buffer_global = ti->buffer_a;
-    diff_dst_data_t *b_buffer_global = ti->buffer_b;
+    char *a_buffer_global = ti->buffer_a;
+    char *b_buffer_global = ti->buffer_b;
     int os_chunks = utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking);
 
     const auto get_wei_acc_ptr = [&](int ocb, int icb) {
@@ -679,14 +670,18 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
                 = addr_batch_global + ti->ithr * jbgp.adjusted_batch_size;
         const int size_A = jbgp.LDA * jbgp.M;
         const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
-        src_data_t *a_buffer = a_buffer_global
-                + (ti->ithr * os_chunks_per_thr * ic_chunks_per_thr
-                                  * jbgp.nb_ic_blocking
-                          + a_buf_idx)
-                        * jbgp.gemm_batch_size * jbgp.os_block * jbgp.ic_block;
-        diff_dst_data_t *b_buffer = b_buffer_global
-                + (ti->ithr * os_chunks_per_thr + b_buf_idx)
-                        * jbgp.gemm_batch_size * jbgp.os_block * jbgp.oc_block;
+        char *a_buffer = a_buffer_global
+                + types::data_type_size(jbgp.src_dt)
+                        * ((ti->ithr * os_chunks_per_thr * ic_chunks_per_thr
+                                           * jbgp.nb_ic_blocking
+                                   + a_buf_idx)
+                                * jbgp.gemm_batch_size * jbgp.os_block
+                                * jbgp.ic_block);
+        char *b_buffer = b_buffer_global
+                + types::data_type_size(jbgp.dst_dt)
+                        * ((ti->ithr * os_chunks_per_thr + b_buf_idx)
+                                * jbgp.gemm_batch_size * jbgp.os_block
+                                * jbgp.oc_block);
 
         int ic = icb * jbgp.ic_block;
         int oc = ocb * jbgp.oc_block;
@@ -716,26 +711,36 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
         if (nb_os_b > 0 && brg_kernel != nullptr) {
             if (jbgp.use_buffer_a && ocb_l_idx == 0) {
                 const memory_desc_wrapper src_d(pd()->src_md());
-                auto src_ptr = ti->src + src_d.blk_off(n, ic);
+                auto src_ptr = ti->src
+                        + types::data_type_size(jbgp.src_dt)
+                                * src_d.blk_off(n, ic);
                 transform_matrix_a_chunk(a_buffer, src_ptr, nb_os_b,
                         is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block,
                         jbgp.os_block);
             }
 
             if (jbgp.use_buffer_b && icb_l_idx == 0) {
-                auto diff_dst_ptr = diff_dst + diff_dst_d.blk_off(n, oc);
+                auto diff_dst_ptr = diff_dst
+                        + types::data_type_size(jbgp.dst_dt)
+                                * diff_dst_d.blk_off(n, oc);
                 transform_matrix_b_chunk(b_buffer, diff_dst_ptr, nb_os_b,
                         is_oc_tail ? jbgp.oc % jbgp.oc_block : jbgp.oc_block,
                         jbgp.os_block);
             }
 
             for (int os_block = 0; os_block < nb_os_b; os_block++) {
-                auto a_ptr = a_buffer + os_block * size_A;
+                auto a_ptr = a_buffer
+                        + types::data_type_size(jbgp.src_dt) * os_block
+                                * size_A;
                 addr_batch[os_block].ptr.A = a_ptr;
                 auto diff_dst_ptr = diff_dst
-                        + diff_dst_d.blk_off(n + os_block * jbgp.os_block, oc);
+                        + types::data_type_size(jbgp.dst_dt)
+                                * diff_dst_d.blk_off(
+                                        n + os_block * jbgp.os_block, oc);
                 if (jbgp.use_buffer_b) {
-                    auto b_ptr = b_buffer + os_block * size_B;
+                    auto b_ptr = b_buffer
+                            + types::data_type_size(jbgp.dst_dt) * os_block
+                                    * size_B;
                     addr_batch[os_block].ptr.B = b_ptr;
                 } else {
                     addr_batch[os_block].ptr.B = diff_dst_ptr;
@@ -762,11 +767,15 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
 
         if (is_os_tail) {
             int os_block = nb_os_b;
-            auto a_ptr = &a_buffer[os_block * jbgp.ic_block * jbgp.os_block];
+            auto a_ptr = a_buffer
+                    + types::data_type_size(jbgp.src_dt) * os_block
+                            * jbgp.ic_block * jbgp.os_block;
             if (jbgp.use_buffer_a && ocb_l_idx == 0) {
                 const memory_desc_wrapper src_d(pd()->src_md());
                 auto src_ptr = ti->src
-                        + src_d.blk_off(n + os_block * jbgp.os_block, ic);
+                        + types::data_type_size(jbgp.src_dt)
+                                * src_d.blk_off(
+                                        n + os_block * jbgp.os_block, ic);
                 transform_matrix_a_chunk(a_ptr, src_ptr, 1,
                         is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block,
                         jbgp.mb % jbgp.os_block);
@@ -774,10 +783,13 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
 
             addr_batch[0].ptr.A = a_ptr;
             auto diff_dst_ptr = diff_dst
-                    + diff_dst_d.blk_off(n + os_block * jbgp.os_block, oc);
+                    + types::data_type_size(jbgp.dst_dt)
+                            * diff_dst_d.blk_off(
+                                    n + os_block * jbgp.os_block, oc);
             if (jbgp.use_buffer_b) {
-                auto b_ptr
-                        = &b_buffer[os_block * jbgp.oc_block * jbgp.os_block];
+                auto b_ptr = b_buffer
+                        + types::data_type_size(jbgp.dst_dt) * os_block
+                                * jbgp.oc_block * jbgp.os_block;
                 if (icb_l_idx == 0)
                     transform_matrix_b_chunk(b_ptr, diff_dst_ptr, 1,
                             is_oc_tail ? jbgp.oc % jbgp.oc_block
@@ -816,7 +828,9 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
         }
 
         if (transform_weights_to_vnni) {
-            auto wei_ptr = diff_weights + diff_weights_d.blk_off(ocb, icb);
+            auto wei_ptr = diff_weights
+                    + types::data_type_size(jbgp.wei_dt)
+                            * diff_weights_d.blk_off(ocb, icb);
             auto ctx = jit_brgemm_trans_to_vnni_t::ctx_t();
             ctx.src = (void *)get_wei_acc_ptr(ocb, icb);
             ctx.tr_src = (void *)wei_ptr;
@@ -839,12 +853,10 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
     }
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_wei_type,
-        data_type_t diff_dst_type>
-void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
-        diff_dst_type>::
-        reduce_and_convert_diff_weights_and_bias(
-                const thread_info_t *ti) const {
+template <cpu_isa_t isa>
+void brgemm_inner_product_bwd_weights_t<
+        isa>::reduce_and_convert_diff_weights_and_bias(const thread_info_t *ti)
+        const {
     const auto &jbgp = pd()->jbgp_;
 
     if (dnnl_thr_syncable() && jbgp.nthr > 1)
@@ -858,6 +870,8 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
     const int ocb_work = ti->oc_c_work * jbgp.nb_oc_blocking;
     const int work = ocb_work * icb_work;
 
+    const size_t acc_dt_size = types::data_type_size(jbgp.acc_dt);
+
     int start {0}, end {0};
     balance211(work, ti->nthr_os_c, ti->ithr_os_c, start, end);
     if (start == end) return;
@@ -866,8 +880,7 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
     int os_chunks = utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking);
     int reduce_buffers = nstl::min(ti->nthr_os_c, os_chunks);
     if (reduce_buffers == 1) return;
-    float *wei_reduced
-            = is_bf16_out ? (float *)ti->buffer_c : (float *)ti->diff_weights;
+    char *wei_reduced = is_bf16_out ? ti->buffer_c : ti->diff_weights;
     const size_t red_buf_elems
             = (size_t)jbgp.nb_ic * jbgp.ic_block * jbgp.nb_oc * jbgp.oc_block;
 
@@ -875,24 +888,30 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
     int reduce_buf_idx_end = reduce_buffers - !is_bf16_out;
     const int acc_size = jbgp.ic_block * jbgp.oc_block;
     for (int ir = reduce_buf_idx_start; ir < reduce_buf_idx_end; ++ir) {
-        float *wei_to_reduce = (float *)ti->buffer_c + ir * red_buf_elems;
+        char *wei_to_reduce = ti->buffer_c + acc_dt_size * ir * red_buf_elems;
 
         int counter = start;
         nd_iterator_init(start, ocb_l, ocb_work, icb_l, icb_work);
         while (counter < end) {
             const int ocb = ti->oc_c_start * jbgp.nb_oc_blocking + ocb_l;
             const int icb = ti->ic_c_start * jbgp.nb_ic_blocking + icb_l;
-            acc_ker_->accumulate(&wei_reduced[diff_weights_d.blk_off(ocb, icb)],
-                    &wei_to_reduce[diff_weights_d.blk_off(ocb, icb)], acc_size);
+            acc_ker_->accumulate(
+                    (float *)(wei_reduced
+                            + acc_dt_size * diff_weights_d.blk_off(ocb, icb)),
+                    (float *)(wei_to_reduce
+                            + acc_dt_size * diff_weights_d.blk_off(ocb, icb)),
+                    acc_size);
 
             if (is_bf16_out && ir + 1 == reduce_buf_idx_end) {
-                diff_wei_data_t *out_wei_ptr
-                        = (diff_wei_data_t *)ti->diff_weights;
+                char *out_wei_ptr = (char *)ti->diff_weights;
                 auto ctx = jit_brgemm_trans_to_vnni_t::ctx_t();
-                ctx.src = (void *)&wei_reduced[diff_weights_d.blk_off(
-                        ocb, icb)];
-                ctx.tr_src = (void *)&out_wei_ptr[diff_weights_d.blk_off(
-                        ocb, icb)];
+
+                ctx.src = (void *)(wei_reduced
+                        + acc_dt_size * diff_weights_d.blk_off(ocb, icb));
+                ctx.tr_src = (void *)(out_wei_ptr
+                        + types::data_type_size(jbgp.wei_dt)
+                                * diff_weights_d.blk_off(ocb, icb));
+
                 ctx.current_gemm_batch = 1;
                 ctx.current_col_size = jbgp.oc_block;
                 ctx.current_row_size = jbgp.ic_block;
@@ -930,10 +949,9 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
     }
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_wei_type,
-        data_type_t diff_dst_type>
-void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
-        diff_dst_type>::execute_backward_weights(const exec_ctx_t &ctx) const {
+template <cpu_isa_t isa>
+void brgemm_inner_product_bwd_weights_t<isa>::execute_backward_weights(
+        const exec_ctx_t &ctx) const {
     const auto &jbgp = pd()->jbgp_;
     if (dnnl_thr_syncable() && jbgp.nthr > 1) {
         auto scratchpad = ctx.get_scratchpad_grantor();
@@ -958,9 +976,7 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
     }
 }
 
-template struct brgemm_inner_product_bwd_weights_t<avx512_core_bf16, bf16>;
-template struct brgemm_inner_product_bwd_weights_t<avx512_core_bf16, bf16, f32,
-        bf16>;
+template struct brgemm_inner_product_bwd_weights_t<avx512_core_bf16>;
 
 } // namespace x64
 } // namespace cpu

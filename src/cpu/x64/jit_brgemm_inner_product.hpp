@@ -319,9 +319,7 @@ private:
     char brg_kernel_palettes_[max_num_brg_kernels_ip][64];
 };
 
-template <cpu_isa_t isa, impl::data_type_t src_type,
-        impl::data_type_t diff_wei_type = src_type,
-        impl::data_type_t diff_dst_type = src_type>
+template <cpu_isa_t isa>
 struct brgemm_inner_product_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_inner_product_bwd_weights_pd_t {
         pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
@@ -332,10 +330,17 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 brgemm_inner_product_bwd_weights_t);
 
         status_t init(engine_t *engine) {
+
+            auto src_dt = invariant_src_md()->data_type;
+            auto diff_wei_type = invariant_wei_md()->data_type;
+            auto diff_dst_type = invariant_dst_md()->data_type;
+
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
                     && !has_zero_dim_memory() && mayiuse(isa)
-                    && expect_data_types(src_type, diff_wei_type,
-                            data_type::undef, diff_dst_type, data_type::undef)
+                    && (src_dt == data_type::bf16
+                            && diff_dst_type == data_type::bf16
+                            && utils::one_of(diff_wei_type, data_type::bf16,
+                                    data_type::f32))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
@@ -359,8 +364,8 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 int idx = get_brg_kernel_idx(i_init, i_M, i_N, i_K);
                 if (idx < 0) continue;
                 brgemm_t &brg = brg_descs_[idx];
-                CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, src_type,
-                        diff_dst_type, false, false, brgemm_row_major, alpha,
+                CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, jbgp_.src_dt,
+                        jbgp_.dst_dt, false, false, brgemm_row_major, alpha,
                         vbeta, jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
             }
 
@@ -432,10 +437,6 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
     }
 
 private:
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<diff_wei_type>::type diff_wei_data_t;
-    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
-
     struct thread_info_t;
     std::unique_ptr<jit_brgemm_kernel_diff_bias_t> kernels_db_[2][2];
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_ip];
@@ -449,11 +450,10 @@ private:
     void compute_diff_weights_and_bias(const thread_info_t *ti) const;
     void reduce_and_convert_diff_weights_and_bias(
             const thread_info_t *ti) const;
-    void transform_matrix_a_chunk(src_data_t *tr_src, const src_data_t *src,
+    void transform_matrix_a_chunk(char *tr_src, const char *src,
             int trans_batch, int current_m, int current_k) const;
-    void transform_matrix_b_chunk(diff_dst_data_t *tr_diff_dst,
-            const diff_dst_data_t *diff_dst, int trans_batch,
-            int current_col_size, int current_row_size) const;
+    void transform_matrix_b_chunk(char *tr_diff_dst, const char *diff_dst,
+            int trans_batch, int current_col_size, int current_row_size) const;
 };
 
 } // namespace x64
