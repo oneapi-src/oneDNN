@@ -18,14 +18,13 @@
 #ifndef GPU_NVIDIA_SYCL_CUDA_ENGINE_HPP
 #define GPU_NVIDIA_SYCL_CUDA_ENGINE_HPP
 
-#include <unordered_map>
-
 #include <cudnn.h>
 #include <cublas_v2.h>
 
 #include <CL/sycl.hpp>
 
 #include "common/stream.hpp"
+#include "common/thread_local_storage.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 #include "sycl/sycl_device_info.hpp"
 #include "sycl/sycl_engine_base.hpp"
@@ -55,8 +54,6 @@ public:
     sycl_cuda_engine_t(const cl::sycl::device &dev,
             const cl::sycl::context &ctx, size_t index);
 
-    ~sycl_cuda_engine_t() override;
-
     status_t create_stream(stream_t **stream, unsigned flags) override;
     status_t create_stream(stream_t **stream, cl::sycl::queue &queue);
 
@@ -79,8 +76,6 @@ public:
 
     void activate_stream_cudnn(stream_t *stream);
     void activate_stream_cublas(stream_t *stream);
-
-    void init_global_handle_maps();
 
     const primitive_desc_create_f *get_implementation_list(
             const op_desc_t *) const override;
@@ -105,11 +100,12 @@ private:
     // multi-threading programming If all the streams belongs to one thread, the
     // same handle will be used for all. Creation of handle is expensive and
     // must be avoided when it is not necessary.
-    thread_local static std::unordered_map<sycl_cuda_engine_t *,
-            std::shared_ptr<cudnnHandle_t>> *cudnn_handle_;
-    thread_local static std::unordered_map<sycl_cuda_engine_t *,
-            std::shared_ptr<cublasHandle_t>> *cublas_handle_;
-    thread_local static unsigned int reference_count_;
+    utils::thread_local_storage_t<
+            std::unique_ptr<cudnnHandle_t, void (*)(cudnnHandle_t *)>>
+            cudnn_handle_;
+    utils::thread_local_storage_t<
+            std::unique_ptr<cublasHandle_t, void (*)(cublasHandle_t *)>>
+            cublas_handle_;
 
     bool primary_context_;
 };

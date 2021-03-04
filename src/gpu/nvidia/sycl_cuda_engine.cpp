@@ -66,7 +66,6 @@ status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
 sycl_cuda_engine_t::sycl_cuda_engine_t(engine_kind_t kind,
         const cl::sycl::device &dev, const cl::sycl::context &ctx, size_t index)
     : base_t(kind, dev, ctx, index) {
-    init_global_handle_maps();
     underlying_context_type();
     set_cudnn_handle();
     set_cublas_handle();
@@ -76,27 +75,6 @@ sycl_cuda_engine_t::sycl_cuda_engine_t(
         const cl::sycl::device &dev, const cl::sycl::context &ctx, size_t index)
     : sycl_cuda_engine_t(engine_kind::gpu, dev, ctx, index) {
     assert(is_nvidia_gpu(dev));
-    init_global_handle_maps();
-}
-
-sycl_cuda_engine_t::~sycl_cuda_engine_t() {
-    reference_count_--;
-    if (reference_count_ == 0) {
-        delete cublas_handle_;
-        cublas_handle_ = nullptr;
-        delete cudnn_handle_;
-        cudnn_handle_ = nullptr;
-    }
-}
-
-void sycl_cuda_engine_t::init_global_handle_maps() {
-    if (reference_count_ == 0) {
-        cublas_handle_ = new std::unordered_map<sycl_cuda_engine_t *,
-                std::shared_ptr<cublasHandle_t>>();
-        cudnn_handle_ = new std::unordered_map<sycl_cuda_engine_t *,
-                std::shared_ptr<cudnnHandle_t>>();
-    }
-    reference_count_++;
 }
 
 status_t sycl_cuda_engine_t::set_cublas_handle() {
@@ -105,11 +83,12 @@ status_t sycl_cuda_engine_t::set_cublas_handle() {
     cuda_sycl_scoped_context_handler_t sc(*this);
     cublasHandle_t handle;
     CHECK(CUBLAS_EXECUTE_FUNC_S(cublasCreate, &handle));
-    std::shared_ptr<cublasHandle_t> shared_handle(
-            new cublasHandle_t(handle), [](cublasHandle_t *h) {
-                if (h != nullptr) CUBLAS_EXECUTE_FUNC_V(cublasDestroy, *h);
-            });
-    cublas_handle_->emplace(this, shared_handle);
+    cublas_handle_.set(
+            std::unique_ptr<cublasHandle_t, void (*)(cublasHandle_t *)>(
+                    new cublasHandle_t(handle), [](cublasHandle_t *h) {
+                        if (h != nullptr)
+                            CUBLAS_EXECUTE_FUNC_V(cublasDestroy, *h);
+                    }));
     handle = nullptr;
     return status::success;
 }
@@ -120,11 +99,10 @@ status_t sycl_cuda_engine_t::set_cudnn_handle() {
     cuda_sycl_scoped_context_handler_t sc(*this);
     cudnnHandle_t handle;
     CHECK(CUDNN_EXECUTE_FUNC_S(cudnnCreate, &handle));
-    std::shared_ptr<cudnnHandle_t> shared_handle(
+    cudnn_handle_.set(std::unique_ptr<cudnnHandle_t, void (*)(cudnnHandle_t *)>(
             new cudnnHandle_t(handle), [](cudnnHandle_t *h) {
                 if (h != nullptr) CUDNN_EXECUTE_FUNC_V(cudnnDestroy, *h);
-            });
-    cudnn_handle_->emplace(this, shared_handle);
+            }));
     handle = nullptr;
     return status::success;
 }
@@ -158,17 +136,13 @@ status_t sycl_cuda_engine_t::underlying_context_type() {
 }
 
 cudnnHandle_t *sycl_cuda_engine_t::get_cudnn_handle() {
-    if (cudnn_handle_->find(this) == cudnn_handle_->end()) {
-        set_cudnn_handle();
-    }
-    return cudnn_handle_->at(this).get();
+    if (!cudnn_handle_.is_set()) set_cudnn_handle();
+    return cudnn_handle_.get().get();
 }
 
 cublasHandle_t *sycl_cuda_engine_t::get_cublas_handle() {
-    if (cublas_handle_->find(this) == cublas_handle_->end()) {
-        set_cublas_handle();
-    }
-    return cublas_handle_->at(this).get();
+    if (!cublas_handle_.is_set()) set_cublas_handle();
+    return cublas_handle_.get().get();
 }
 
 device_id_t sycl_cuda_engine_t::device_id() const {
@@ -203,14 +177,6 @@ void sycl_cuda_engine_t::activate_stream_cudnn(stream_t *stream) {
         CUDNN_EXECUTE_FUNC(cudnnSetStream, *cudnn_handle, streamId);
     }
 }
-
-thread_local std::unordered_map<sycl_cuda_engine_t *,
-        std::shared_ptr<cudnnHandle_t>> *sycl_cuda_engine_t::cudnn_handle_
-        = nullptr;
-thread_local std::unordered_map<sycl_cuda_engine_t *,
-        std::shared_ptr<cublasHandle_t>> *sycl_cuda_engine_t::cublas_handle_
-        = nullptr;
-thread_local unsigned int sycl_cuda_engine_t::reference_count_ = 0;
 
 namespace {
 using namespace dnnl::impl::data_type;
