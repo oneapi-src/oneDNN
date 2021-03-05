@@ -1706,7 +1706,7 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
         /*        for (size_t d = 0; d < len; d += sizeof(table_entry_val_t))
             h->dd(te.val);*/
         for (size_t d = 0; d < len; d += sizeof(table_entry_val_t))
-            h->dw(te.val);
+            h->dd(te.val);
 
 #ifndef NDEBUG
         // we check that the precomputed offsets match the registered ones

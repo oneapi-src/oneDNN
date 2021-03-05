@@ -225,7 +225,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<sve_512>::load_src_avg_op(
                 ldr(vr_src, ptr(X_DEFAULT_ADDR));
             }
             break;
-        case s8:
+        case data_type::s8:
             add_imm(X_DEFAULT_ADDR, aux_reg_src_w, offset, X_TMP_0);
             if (masked) {
                 zip1(p_tmp0.b, mask(ll).b, p_all_zero.b);
@@ -296,7 +296,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<sve_512>::store_dst_max_op(
                 zip1(p_tmp0.h, p_tmp0.h, p_all_zero.h);
                 st1w(vreg_dst(jj).s, p_tmp0, ptr(X_DEFAULT_ADDR));
                 break;
-            case s8:
+            case data_type::s8:
             case u8:
                 add_imm(X_DEFAULT_ADDR, reg_ptr_dst_i8, offset, X_TMP_0);
                 st1b(vreg_dst(jj).b, mask(0), ptr(X_DEFAULT_ADDR));
@@ -329,7 +329,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<sve_512>::store_dst_avg_op(
                 str(vr_dst, ptr(X_DEFAULT_ADDR));
             }
             break;
-        case s8:
+        case data_type::s8:
             add_imm(X_DEFAULT_ADDR, reg_ptr_dst_i8, offset, X_TMP_0);
             if (masked) {
                 mov(z_tmp0.d, vr_dst.d);
@@ -399,7 +399,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<sve_512>::compute_max_op(const int jj) {
         case s32:
             cmplt(k_cmp_mask.s, p_512 / T_z, vreg_dst(jj).s, vreg_src(jj).s);
             break;
-        case s8:
+        case data_type::s8:
             cmplt(k_cmp_mask.b, p_512 / T_z, vreg_dst(jj).b, vreg_src(jj).b);
             break;
         case u8:
@@ -639,7 +639,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_tmp_reg() {
                 case s32:
                     mov_imm(reg_tmp, nstl::numeric_limits<int32_t>::lowest());
                     break;
-                case s8:
+                case data_type::s8:
                     mov_imm(reg_tmp, nstl::numeric_limits<int8_t>::lowest());
                     break;
                 case u8:
