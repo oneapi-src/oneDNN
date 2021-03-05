@@ -281,6 +281,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
     const auto &jbgp = pd()->jbgp_;
 
     static constexpr bool is_amx = (isa == avx512_core_bf16_amx_bf16);
+    const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
 
     const dim_t wei_dt_size = types::data_type_size(jbgp.wei_dt);
 
@@ -365,8 +366,10 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                   (*trans_B_kernel_)(&ctx);
               };
 
-    const auto ker = [&](const int ithr, int n, int icb, int occ,
+    const auto ker = [&](int ithr_ic_mb, int nthr_ic_mb, int ithr_oc,
+                             int nthr_oc, int n, int icb, int occ, bool do_init,
                              bool do_b_transpose) {
+        const int ithr = nthr_ic_mb * ithr_oc + ithr_ic_mb;
         brgemm_batch_element_t *addr_batch
                 = addr_batch_global + ithr * jbgp.adjusted_batch_size;
 
@@ -374,15 +377,18 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         const int ocb = occ * jbgp.nb_oc_blocking;
         const int oc = ocb * jbgp.oc_block;
         const size_t dsrc_off = get_blk_off(diff_src_d, jbgp.src_dt, n, ic);
-        const size_t c_buf_shift
-                = ithr * static_cast<size_t>(jbgp.LDC * jbgp.M);
+        const size_t c_buf_shift = jbgp.nthr_oc_b > 1
+                ? (ithr_oc - 1) * static_cast<size_t>(jbgp.mb * jbgp.ic)
+                : ithr * static_cast<size_t>(jbgp.LDC * jbgp.M);
         const size_t c_buf_off
-                = types::data_type_size(jbgp.acc_dt) * c_buf_shift;
-        char *c_buffer
-                = (jbgp.use_buffer) ? c_buffer_global + c_buf_off : nullptr;
+                = types::data_type_size(jbgp.acc_dt) * c_buf_shift
+                + (jbgp.nthr_oc_b > 1 ? dsrc_off : 0);
+        const bool use_c_buf
+                = (jbgp.use_buffer && (jbgp.nthr_oc_b == 1 || ithr_oc > 0));
+        char *c_buffer = use_c_buf ? c_buffer_global + c_buf_off : nullptr;
         char *wsp_tile = is_amx ? wsp_tile_base + ithr * 1024 : nullptr;
 
-        bool kernel_init = (occ == 0);
+        bool kernel_init = do_init;
 
         const bool is_os_tail = (jbgp.mb - n < jbgp.os_block);
         const bool is_ic_tail = (jbgp.ic - ic < jbgp.ic_block);
@@ -405,7 +411,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         char *b_buffer = b_buffer_global + b_buf_off;
 
         char *ptr_D = diff_src + dsrc_off;
-        char *ptr_C = jbgp.use_buffer ? c_buffer : ptr_D;
+        char *ptr_C = use_c_buf ? c_buffer : ptr_D;
 
         if (nb_oc_b > 0 && brg_kernel != nullptr) {
             if (is_amx && (is_os_tail || is_ic_tail))
@@ -425,7 +431,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                             jbgp.oc_block);
             }
 
-            if (jbgp.use_buffer && is_last_oc_chunk && !is_oc_tail) {
+            if (jbgp.use_buffer && jbgp.nthr_oc_b <= 1 && is_last_oc_chunk
+                    && !is_oc_tail) {
                 void *scratch
                         = is_amx ? static_cast<void *>(wsp_tile) : nullptr;
                 const brgemm_post_ops_data_t empty_po_data {};
@@ -441,7 +448,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                 amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
         }
         if (is_oc_tail) {
-            int oc_block = jbgp.nb_oc_blocking - 1;
+            const int oc_block = nb_oc_b;
             addr_batch[0].ptr.A = diff_dst
                     + get_blk_off(diff_dst_d, jbgp.dst_dt, n,
                             oc + oc_block * jbgp.oc_block);
@@ -461,7 +468,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             if (is_amx)
                 amx_tile_configure(
                         &brg_kernel_palettes_[brg_kernel_oc_tail_idx][0]);
-            if (jbgp.use_buffer) {
+            if (jbgp.use_buffer && jbgp.nthr_oc_b <= 1) {
                 void *scratch
                         = is_amx ? static_cast<void *>(wsp_tile) : nullptr;
                 const brgemm_post_ops_data_t empty_po_data {};
@@ -481,6 +488,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
     const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
     const int work_amount = jbgp.nb_ic * os_chunks;
     if (jbgp.ip_bwd_d_global_b_transpose && jbgp.use_buffer_b) {
+        assert(IMPLICATION(
+                jbgp.ip_bwd_d_global_b_transpose, jbgp.nthr_oc_b == 1));
         parallel(0, [&](const int ithr, const int nthr) {
             int start {0}, end {0};
             int max_ch_block = nstl::max(jbgp.ic_block, jbgp.oc_block);
@@ -522,10 +531,19 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
     }
 
     parallel(0, [&](const int ithr, const int nthr) {
-        if (ithr >= work_amount) return;
+        const int nthr_oc = jbgp.nthr_oc_b <= nthr ? jbgp.nthr_oc_b : 1;
+        const int nthr_ic_mb = nthr / nthr_oc;
+        const int ithr_ic_mb = ithr % nthr_ic_mb;
+        const int ithr_oc = ithr / nthr_ic_mb;
+        if (ithr_ic_mb >= work_amount || ithr_oc >= oc_chunks
+                || ithr >= rnd_dn(nthr, nthr_oc))
+            return;
 
         int start {0}, end {0};
-        balance211(work_amount, nthr, ithr, start, end);
+        balance211(work_amount, nthr_ic_mb, ithr_ic_mb, start, end);
+        int occ_start {0}, occ_end {oc_chunks};
+        if (nthr_oc > 1)
+            balance211(oc_chunks, nthr_oc, ithr_oc, occ_start, occ_end);
 
         if (is_amx)
             amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
@@ -536,15 +554,56 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             const int nb_os_blocking
                     = nstl::min(jbgp.nb_os - oss * jbgp.nb_os_blocking,
                             jbgp.nb_os_blocking);
-            for_(int occ = 0; occ < oc_chunks; occ++)
-            for (int osb = 0; osb < nb_os_blocking; osb++) {
+            const int occ_work = occ_end - occ_start;
+            const int loop_iteration = nb_os_blocking * occ_work;
+
+            for (int iter = 0; iter < loop_iteration; ++iter) {
+                int osb = 0, occ = occ_start;
+                if (jbgp.use_buffer || !is_f32) {
+                    osb += iter / occ_work;
+                    occ += iter % occ_work;
+                } else {
+                    occ += iter / nb_os_blocking;
+                    osb += iter % nb_os_blocking;
+                }
                 int n = (oss * jbgp.nb_os_blocking + osb) * jbgp.os_block;
-                ker(ithr, n, icb, occ, osb == 0 || oc_chunks > 1);
+                ker(ithr_ic_mb, nthr_ic_mb, ithr_oc, nthr_oc, n, icb, occ,
+                        occ == occ_start, osb == 0 || occ_work > 1);
             }
             ++start;
             nd_iterator_step(oss, os_chunks, icb, jbgp.nb_ic);
         }
     });
+
+    if (jbgp.nthr_oc_b > 1) {
+        assert(jbgp.use_buffer && is_f32);
+        parallel(0, [&](const int ithr, const int nthr) {
+            const int nthr_oc = jbgp.nthr_oc_b <= nthr ? jbgp.nthr_oc_b : 1;
+            if (nthr_oc <= 1) return;
+
+            const int ddst_elems = jbgp.ic * jbgp.mb;
+            const int reduce_chunk_size = 64;
+            int start {0}, end {0};
+            balance211(div_up(ddst_elems, reduce_chunk_size), nthr, ithr, start,
+                    end);
+            const dim_t reduce_start = start * reduce_chunk_size;
+            const dim_t reduce_finish
+                    = nstl::min(end * reduce_chunk_size, ddst_elems);
+            if (reduce_finish <= reduce_start) return;
+            const dim_t elems_to_reduce = reduce_finish - reduce_start;
+            const dim_t acc_dt_sz = types::data_type_size(jbgp.acc_dt);
+            const dim_t start_offt = acc_dt_sz * reduce_start;
+            char *dsrc_reduced = diff_src + start_offt;
+
+            for (int oc_buf = 0; oc_buf < nthr_oc - 1; oc_buf++) {
+                const dim_t c_buf_offt
+                        = oc_buf * acc_dt_sz * jbgp.mb * jbgp.ic + start_offt;
+                char *c_buffer = c_buffer_global + c_buf_offt;
+                acc_ker_->accumulate((float *)dsrc_reduced, (float *)c_buffer,
+                        elems_to_reduce);
+            }
+        });
+    }
 }
 
 template struct brgemm_inner_product_bwd_data_t<avx512_core>;

@@ -252,16 +252,16 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
 
     jbgp.use_buffer_b = true;
-    jbgp.use_buffer = jbgp.src_dt != jbgp.acc_dt;
-
-    jbgp.ip_bwd_d_global_b_transpose = is_amx_bf16 ? false : true;
+    jbgp.ip_bwd_d_global_b_transpose = false;
 
     constexpr int amx_bf16_row = 32;
     jbgp.oc_block = (is_amx_bf16) ? amx_bf16_row : jbgp.simd_w;
 
-    jbgp.ic_block = jbgp.ic >= 64 ? 64 : jbgp.ic >= 32 ? 32 : 16;
+    jbgp.ic_block
+            = (jbgp.ic >= (is_f32 ? 512 : 64)) ? 64 : jbgp.ic >= 32 ? 32 : 16;
 
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
+    jbgp.nb_ic_blocking = 1;
     jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
     jbgp.os = jbgp.mb;
 
@@ -285,29 +285,6 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
             break;
         }
 
-    const auto improper_thr_balance = [&](float cutoff) -> bool {
-        float work_amount = jbgp.nb_ic * jbgp.nb_os / jbgp.nb_os_blocking;
-        return work_amount < cutoff * jbgp.nthr;
-    };
-
-    // We have ic_block in either of {64, 32, 16}. For f32 data type, if
-    // channels are small in size or work is too small to be properly balanced
-    // between threads then reducing the "ic_block" is potentially useful.
-    if (is_f32 && jbgp.ic_block > 16
-            && (improper_thr_balance(0.9f)
-                    || (jbgp.ic <= 1024 && jbgp.oc <= 512))) {
-        jbgp.ic_block /= 2;
-        jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
-
-        // repeat the previous step
-        if (jbgp.ic_block > 16 && improper_thr_balance(0.9f))
-            jbgp.ic_block /= 2;
-        jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
-
-        // don't use nb_os_blocking if work per thread is too small
-        if (improper_thr_balance(1.25f)) jbgp.nb_os_blocking = 1;
-    }
-
     jbgp.M = jbgp.os_block;
     jbgp.M_tail = jbgp.os % jbgp.os_block;
 
@@ -322,17 +299,39 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.LDD = jbgp.ic_without_padding;
 
     jbgp.nb_oc_blocking = 1;
-    for (int bl = 64; bl >= 1; bl--)
+    const int oc_chunk_max_size = 64;
+    for (int bl = oc_chunk_max_size; bl >= 1; bl--)
         if (jbgp.nb_oc % bl == 0) {
             jbgp.nb_oc_blocking = bl;
             break;
         }
 
+    jbgp.nthr_oc_b = 1;
+    const int num_work_to_parallel = div_up(jbgp.nb_ic, jbgp.nb_ic_blocking)
+            * div_up(jbgp.nb_os, jbgp.nb_os_blocking);
+    // For f32 data type, use oc reduction if we have
+    //   * very large output channels
+    //   * small work amount available to each thread
+    if (is_f32 && (num_work_to_parallel < 2 * jbgp.nthr || jbgp.oc > 1024)) {
+        const int min_chunck_sz = 16;
+        const int num_min_chunk_sz = div_up(jbgp.nb_oc, min_chunck_sz);
+        float ratio = 0.5f * num_min_chunk_sz * jbgp.nb_os
+                + (float)num_min_chunk_sz / jbgp.nb_ic + 0.5f;
+        jbgp.nthr_oc_b
+                = saturate(1, nstl::min(4, num_min_chunk_sz), int(ratio));
+        if (jbgp.nthr_oc_b > 1) {
+            jbgp.nb_oc_blocking = div_up(jbgp.nb_oc, jbgp.nthr_oc_b);
+            jbgp.nb_oc_blocking
+                    /= div_up(jbgp.nb_oc_blocking, oc_chunk_max_size);
+        }
+    }
     jbgp.gemm_batch_size = jbgp.nb_oc_blocking;
     // to avoid cache concurrent write access from different threads
     size_t sc_size = sizeof(brgemm_batch_element_t);
     jbgp.adjusted_batch_size
             = div_up(rnd_up(jbgp.gemm_batch_size * sc_size, 4096), sc_size);
+
+    jbgp.use_buffer = jbgp.src_dt != jbgp.acc_dt || jbgp.nthr_oc_b > 1;
 
     return status::success;
 }
@@ -689,6 +688,9 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             int n_reduction_buffers = jbgp.nthr_mb - (jbgp.wei_dt == f32);
             nelements = (size_t)n_reduction_buffers * jbgp.nb_ic * jbgp.ic_block
                     * jbgp.nb_oc * jbgp.oc_block;
+        } else if (jbgp.prop_kind == dnnl_backward_data && jbgp.nthr_oc_b > 1) {
+            int n_reduction_buffers = jbgp.nthr_oc_b - (jbgp.dst_dt == f32);
+            nelements = (size_t)n_reduction_buffers * jbgp.ic * jbgp.os;
         }
         scratchpad.book(key_brgemm_primitive_buffer, nelements,
                 types::data_type_size(jbgp.acc_dt));
