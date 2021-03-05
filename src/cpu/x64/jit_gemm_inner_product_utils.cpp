@@ -98,37 +98,37 @@ private:
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
 #ifdef _WIN32
-    const Xbyak::Reg64 reg_binary_inj_param_ = abi_not_param1;
+    const Xbyak::Reg64 &reg_binary_inj_param_ = abi_not_param1;
 #else
-    const Xbyak::Reg64 reg_binary_inj_param_ = abi_param1;
+    const Xbyak::Reg64 &reg_binary_inj_param_ = abi_param1;
 #endif
 
-    Xbyak::Reg64 reg_stack_frame_ = rbp;
-    Xbyak::Reg64 reg_param = abi_param1;
-    Xbyak::Reg64 reg_dst = rdx;
-    Xbyak::Reg64 reg_acc = rax;
-    Xbyak::Reg64 reg_bias = rbx;
-    Xbyak::Reg64 reg_scales = rsi;
+    const Xbyak::Reg64 &reg_param = abi_param1;
+    const Xbyak::Reg64 &reg_stack_frame_ = rbp;
+    const Xbyak::Reg64 &reg_dst = rdx;
+    const Xbyak::Reg64 &reg_acc = rax;
+    const Xbyak::Reg64 &reg_bias = rbx;
+    const Xbyak::Reg64 &reg_scales = rsi;
 
-    Xbyak::Reg64 reg_oc = r13;
-    Xbyak::Reg64 reg_len = r8;
-    Xbyak::Reg64 reg_tmp = rcx; // intentional for shifting purposes
-    Xbyak::Reg64 reg_oc_offset = r9;
-    Xbyak::Reg64 reg_rem_mask = r10;
-    Xbyak::Opmask kreg_rem_mask = k1;
+    const Xbyak::Reg64 &reg_oc = r13;
+    const Xbyak::Reg64 &reg_len = r8;
+    const Xbyak::Reg64 &reg_tmp = rcx; // intentional for shifting purposes
+    const Xbyak::Reg64 &reg_oc_offset = r9;
+    const Xbyak::Reg64 &reg_rem_mask = r10;
+    const Xbyak::Opmask &kreg_rem_mask = k1;
     const Xbyak::Opmask &opmask_binary = k3;
     // register used for temp computation, needs not to be preserved
-    Xbyak::Reg64 reg_tmp_comp = r15;
+    const Xbyak::Reg64 &reg_tmp_comp = r15;
 
     // *mb_stride used only in matmul_pp_kernel && compute_oc_channel_blk()
-    Xbyak::Reg64 reg_dst_mb_stride = r12;
-    Xbyak::Reg64 reg_acc_mb_stride = r14;
+    const Xbyak::Reg64 &reg_dst_mb_stride = r12;
+    const Xbyak::Reg64 &reg_acc_mb_stride = r14;
 
     // Will be assigned in constructor
     Xbyak::Zmm vreg_zero, vreg_saturation_ubound, vreg_scale, vreg_sum_scale,
             vreg_dst_zero_points;
 
-    Xbyak::Reg64 eltwise_reserved_gpr_ = r11;
+    const Xbyak::Reg64 &eltwise_reserved_gpr_ = r11;
     const Xbyak::Opmask &eltwise_reserved_opmask_ = k2;
 
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(28);
