@@ -267,6 +267,13 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
 
         if (jbgp.use_buffer_b)
             CHECK(create_brgemm_trans_wei(trans_B_kernel_, &pd()->jbgp_));
+
+        if (jbgp.nthr_oc_b > 1) {
+            CHECK(safe_ptr_assign(
+                    acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
+            CHECK(acc_ker_->create_kernel());
+        }
+
         return status::success;
     }
 
@@ -285,6 +292,7 @@ private:
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_ip];
     std::unique_ptr<jit_brgemm_trans_wei_t> trans_B_kernel_;
+    std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
 };
 
 template <cpu_isa_t isa, impl::data_type_t src_type,
