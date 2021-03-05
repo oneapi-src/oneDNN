@@ -1429,10 +1429,8 @@ status_t jit_uni_i8i8_pooling_fwd_t<isa>::init(engine_t *engine) {
 template <cpu_isa_t isa>
 status_t jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
     auto src_i8 = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
-    auto dst_i8 = CTX_OUT_CLEAN_MEM(char *, DNNL_ARG_DST, status);
-    CHECK(status);
+    auto dst_i8 = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
