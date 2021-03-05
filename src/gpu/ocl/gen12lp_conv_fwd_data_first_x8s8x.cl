@@ -99,7 +99,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 
     __local uint S_slice[SRC_SLM_SIZE * KH * KD];
     __local uint *S_part = S_slice + (sp * SW * OW_BLOCK + PW);
-    __local MMAD_DATA_T *S_work = S_slice + (sp * SW * OW_BLOCK);
+    __local SRC_MMAD_DATA_T *S_work = S_slice + (sp * SW * OW_BLOCK);
 
     dst += OC_BLOCK * OD * OH * OW * MB_BLOCK * (group_oc + oc);
     dst += OC_BLOCK * OD * OH * OW * OC_NCHUNK * G * MB_BLOCK
@@ -269,7 +269,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 #endif
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    MMAD_DATA8_T S;
+    SRC_MMAD_DATA8_T S;
     int8 W0 = 0, W1 = 0, W2 = 0, W3 = 0;
     int W00 = 0, W10 = 0, W20 = 0, W30 = 0;
     int8 C00 = 0;
@@ -277,7 +277,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
     int8 C20 = 0;
     int8 C30 = 0;
 #if OW_BLOCK == 12
-    MMAD_DATA4_T SS;
+    SRC_MMAD_DATA4_T SS;
     int4 C01 = 0;
     int4 C11 = 0;
     int4 C21 = 0;
