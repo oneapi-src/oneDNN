@@ -342,6 +342,7 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
     nb_os_blocking_ = j.nb_os_blocking;
 
     const bool is_amx_bf16 = j.isa == avx512_core_bf16_amx_bf16;
+    const bool is_f32 = everyone_is(f32, j.src_dt, j.wei_dt, j.dst_dt);
 
     const int max_threads = j.nthr;
     const int nthr = max_threads;
@@ -356,6 +357,14 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
         float wei_compensation_scale = 0.5f * (dst_size + src_size) / wei_size;
         float oi_channels_ratio = (float)src_size / dst_size;
         auto get_src_coef = [=]() {
+            if (is_f32) {
+                float src_coef = nstl::max(1.0f / oi_channels_ratio, 1.0f);
+                src_coef *= types::data_type_size(j.src_dt);
+                src_coef *= 4 * saturate(1, 4, div_up(j.ic, 1024));
+                if (wei_compensation_scale < 2.0f)
+                    src_coef += sqrtf(2.0f / wei_compensation_scale);
+                return src_coef;
+            }
             float src_coef = nstl::max(1.0f / oi_channels_ratio, 1.0f);
             src_coef *= 4 * types::data_type_size(j.src_dt);
             if (wei_compensation_scale < 1.0f) src_coef *= 4.0f;
@@ -364,15 +373,27 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
         };
 
         auto get_dst_coef = [=]() {
+            if (is_f32) {
+                float dst_coef = types::data_type_size(j.dst_dt)
+                        * nstl::max(oi_channels_ratio, 1.0f);
+                return dst_coef;
+            }
+
             return 2 * types::data_type_size(j.dst_dt)
                     * nstl::max(oi_channels_ratio, 1.0f);
         };
 
-        auto get_wei_coef
-                = [=]() { return nstl::max(wei_compensation_scale, 1.0f); };
+        auto get_wei_coef = [=]() {
+            if (is_f32) {
+                return nstl::max(
+                        4.0f - j.mb / 2048 * wei_compensation_scale, 1.0f);
+            }
+
+            return nstl::max(wei_compensation_scale, 1.0f);
+        };
 
         float src_tr = 0.0f;
-        if (j.use_buffer_a) {
+        if (j.use_buffer_a && !is_f32) {
             int src_tr_oc_par_work = div_up(os_chunks, nthr_mb)
                     * div_up(ic_chunks, nthr_ic) * j.nb_ic_blocking;
             src_tr = get_src_coef() * div_up(src_tr_oc_par_work, nthr_oc)
@@ -380,7 +401,7 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
         }
 
         float dst_tr = 0.0f;
-        if (j.use_buffer_b) {
+        if (j.use_buffer_b && !is_f32) {
             int dst_tr_ic_par_work = div_up(os_chunks, nthr_mb)
                     * div_up(oc_chunks, nthr_oc) * j.nb_oc_blocking;
             dst_tr = get_dst_coef() * div_up(dst_tr_ic_par_work, nthr_ic)
@@ -405,9 +426,11 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
             int wei_r_mb_par_work = div_up(oc_chunks, nthr_oc)
                     * div_up(ic_chunks, nthr_ic) * j.nb_oc_blocking
                     * j.nb_ic_blocking;
-            wei_r = get_wei_coef() * (wei_dt_sz + nthr_mb * acc_dt_sz)
-                    * div_up(wei_r_mb_par_work, nthr_mb) * j.oc_block
-                    * j.ic_block;
+            wei_r = get_wei_coef() * div_up(wei_r_mb_par_work, nthr_mb)
+                    * j.oc_block * j.ic_block
+                    * (wei_dt_sz
+                            + (is_f32 ? div_up(j.os, 1024) : 1) * nthr_mb
+                                    * acc_dt_sz);
         }
 
         return src_tr + dst_tr + src_v + dst_v + wei_v + wei_r;
@@ -417,7 +440,8 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
             = calc_mem_cost(nb_os_blocking_, nthr_mb_, nthr_oc_b_, nthr_ic_b_);
 
     /* find the best thread distribution with lowest memory cost */
-    const int nthr_mb_max = nstl::min(nthr, j.nb_os);
+    const int min_osb_chunk = is_f32 ? 32 : 1;
+    const int nthr_mb_max = nstl::min(nthr, div_up(j.nb_os, min_osb_chunk));
     for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
         int nb_os_blocking = j.nb_os_blocking;
         int os_chunks = div_up(j.nb_os, nb_os_blocking);
