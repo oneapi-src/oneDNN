@@ -360,7 +360,9 @@ public:
 public:
     jit_generator(void *code_ptr = nullptr, size_t code_size = MAX_CODE_SIZE,
             bool use_autogrow = true)
-        : Xbyak_aarch64::CodeGenerator(code_size, code_ptr) {}
+        : Xbyak_aarch64::CodeGenerator(code_size,
+                (code_ptr == nullptr && use_autogrow) ? Xbyak_aarch64::AutoGrow
+                                                      : code_ptr) {}
     virtual ~jit_generator() {}
 
     virtual const char *name() const = 0;
