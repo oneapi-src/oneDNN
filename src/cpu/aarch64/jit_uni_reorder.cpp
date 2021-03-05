@@ -117,8 +117,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         using namespace data_type;
 
         bool ok = true && p.ndims > 0
-                && utils::one_of(p.itype, f32, s32, s8, u8)
-                && utils::one_of(p.otype, f32, s32, s8, u8)
+                && utils::one_of(p.itype, f32, s32, data_type::s8, u8)
+                && utils::one_of(p.otype, f32, s32, data_type::s8, u8)
                 && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
                 && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
                 && simple_impl_desc_init(p, nullptr) && mayiuse(sve_512);
@@ -200,7 +200,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                               // do nothing
                               break;
                           case s32: cvt_z_s32_f32(startIdx, regNum); break;
-                          case s8:
+                          case data_type::s8:
                               cvt_z_s8_s32(startIdx, regNum);
                               cvt_z_s32_f32(startIdx, regNum);
                               break;
@@ -221,12 +221,12 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 case s32:
                     if (idt == f32)
                         cvt_z_f32_s32(startIdx, regNum);
-                    else if (idt == s8)
+                    else if (idt == data_type::s8)
                         cvt_z_s8_s32(startIdx, regNum);
                     else if (idt == u8)
                         cvt_z_u8_s32(startIdx, regNum);
                     break;
-                case s8:
+                case data_type::s8:
                     if (idt == f32) cvt_z_f32_s32(startIdx, regNum);
                     if (utils::one_of(idt, f32, s32))
                         cvt_z_s32_s8(startIdx, regNum);
@@ -236,7 +236,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     if (idt == f32) cvt_z_f32_s32(startIdx, regNum);
                     if (utils::one_of(idt, f32, s32))
                         cvt_z_s32_u8(startIdx, regNum);
-                    if (idt == s8) cvt_z_s8_u8(startIdx, regNum);
+                    if (idt == data_type::s8) cvt_z_s8_u8(startIdx, regNum);
                     break;
                 default: assert(!"unreachable");
             }
@@ -248,7 +248,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 || utils::one_of(f32, prb_.itype, prb_.otype);
 
         const bool need_saturation
-                = (utils::one_of(prb_.otype, u8, s8, s32) && interim_f32);
+                = (utils::one_of(prb_.otype, u8, data_type::s8, s32)
+                        && interim_f32);
 
         add_imm(X_TMP_0, XReg(x_ptr_in_off), i_off * itype_sz, X_DEFAULT_ADDR);
         add_imm(X_TMP_1, X_TMP_0, is(0) * itype_sz, X_DEFAULT_ADDR);
@@ -377,8 +378,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         using namespace data_type;
 
         return mayiuse(sve_512) && prb_.ndims >= 2
-                && ((utils::one_of(prb_.itype, u8, s8, s32, f32)
-                        && utils::one_of(prb_.otype, u8, s8, s32, f32)))
+                && ((utils::one_of(prb_.itype, u8, data_type::s8, s32, f32)
+                        && utils::one_of(
+                                prb_.otype, u8, data_type::s8, s32, f32)))
                 && utils::everyone_is(8, n(0), n(1))
                 && utils::everyone_is(1, os(0), is(1))
                 && prb_.scale_type == scale_type_t::NONE && prb_.beta == 0.f;
@@ -517,7 +519,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                               // do nothing
                               break;
                           case s32: cvt_z_s32_f32(startIdx, regNum); break;
-                          case s8:
+                          case data_type::s8:
                               cvt_z_s8_s32(startIdx, regNum);
                               cvt_z_s32_f32(startIdx, regNum);
                               break;
@@ -534,12 +536,12 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 case s32:
                     if (idt == f32)
                         cvt_z_f32_s32(startIdx, regNum);
-                    else if (idt == s8)
+                    else if (idt == data_type::s8)
                         cvt_z_s8_s32(startIdx, regNum);
                     else if (idt == u8)
                         cvt_z_u8_s32(startIdx, regNum);
                     break;
-                case s8:
+                case data_type::s8:
                     if (idt == f32) cvt_z_f32_s32(startIdx, regNum);
                     if (idt == f32 || idt == s32)
                         cvt_z_s32_s8(startIdx, regNum);
@@ -549,7 +551,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     if (idt == f32) cvt_z_f32_s32(startIdx, regNum);
                     if (idt == f32 || idt == s32)
                         cvt_z_s32_u8(startIdx, regNum);
-                    if (idt == s8) cvt_z_s8_u8(startIdx, regNum);
+                    if (idt == data_type::s8) cvt_z_s8_u8(startIdx, regNum);
                     break;
                 default: assert(!"unreachable");
             }
@@ -572,7 +574,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 || prb_.scale_type != scale_type_t::NONE || prb_.beta != 0.f;
 
         const bool need_saturation
-                = (utils::one_of(prb_.otype, u8, s8, s32) && interim_f32);
+                = (utils::one_of(prb_.otype, u8, data_type::s8, s32)
+                        && interim_f32);
 
         if (!can_load_xmm && can_store_xmm) {
             assert(ur_step == 4);
@@ -675,7 +678,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         VReg4S v(ur);
                         VReg4S v_r(ur + r);
                         dup(VReg16B(ur + r), VReg16B(ur)[0]);
-                        ins_(VReg4S(ur + r)[0], VReg4S(ur)[r]);
+                        ins(VReg4S(ur + r)[0], VReg4S(ur)[r]);
                     }
             } else {
                 for (int ur = 0; ur < reg_unroll; ur += load_step)
@@ -767,7 +770,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
                         if (prb_.otype == f32 || prb_.otype == s32) {
                             ldr(QReg(tmp_vec_idx[i]), ptr(x_tmp_vec[i])); // bug
-                        } else if (prb_.otype == s8 || prb_.otype == u8) {
+                        } else if (prb_.otype == data_type::s8
+                                || prb_.otype == u8) {
                             ldr(SReg(tmp_vec_idx[i]), ptr(x_tmp_vec[i])); // bug
                         } else
                             assert(!"unreachable");
@@ -857,7 +861,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         for (int i = 0; i < count; i++) {
                             if (prb_.otype == s32) {
                                 ldr(SReg(tmp_vec_idx[i]), ptr(x_tmp_vec[i]));
-                            } else if (utils::one_of(prb_.otype, s8, u8)) {
+                            } else if (utils::one_of(
+                                               prb_.otype, data_type::s8, u8)) {
                                 ldr(BReg(tmp_vec_idx[i]), ptr(x_tmp_vec[i]));
                             } else {
                                 assert(!"unsupported o_type");
