@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2019-2020 FUJITSU LIMITED
+ * Copyright 2019-2021 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,8 +27,7 @@ struct JmpLabel {
   typedef std::function<uint32_t(int64_t)> EncFunc;
   size_t endOfJmp; /* offset from top to the end address of jmp */
   EncFunc encFunc;
-  explicit JmpLabel(const EncFunc &encFunc, size_t endOfJmp = 0)
-      : endOfJmp(endOfJmp), encFunc(encFunc) {}
+  explicit JmpLabel(const EncFunc &encFunc, size_t endOfJmp = 0) : endOfJmp(endOfJmp), encFunc(encFunc) {}
 };
 
 class LabelManager;
@@ -75,9 +74,7 @@ class LabelManager {
       label.id = labelId_++;
     return label.id;
   }
-  template <class DefList, class UndefList, class T>
-  void define_inner(DefList &defList, UndefList &undefList, const T &labelId,
-                    size_t addrOffset) {
+  template <class DefList, class UndefList, class T> void define_inner(DefList &defList, UndefList &undefList, const T &labelId, size_t addrOffset) {
     // add label
     typename DefList::value_type item(labelId, addrOffset);
     std::pair<typename DefList::iterator, bool> ret = defList.insert(item);
@@ -93,16 +90,14 @@ class LabelManager {
       int64_t labelOffset = (addrOffset - offset) * CSIZE;
       uint32_t disp = jmp->encFunc(labelOffset);
       if (base_->isAutoGrow()) {
-        base_->save(offset, disp, jmp->encFunc);
+        base_->save(offset, addrOffset, jmp->encFunc);
       } else {
         base_->rewrite(offset, disp);
       }
       undefList.erase(itr);
     }
   }
-  template <class DefList, class T>
-  bool getOffset_inner(const DefList &defList, size_t *offset,
-                       const T &label) const {
+  template <class DefList, class T> bool getOffset_inner(const DefList &defList, size_t *offset, const T &label) const {
     typename DefList::const_iterator i = defList.find(label);
     if (i == defList.end())
       return false;
@@ -135,9 +130,7 @@ class LabelManager {
   }
   // detach all labels linked to LabelManager
   void resetLabelPtrList() {
-    for (LabelPtrList::iterator i = labelPtrList_.begin(),
-                                ie = labelPtrList_.end();
-         i != ie; ++i) {
+    for (LabelPtrList::iterator i = labelPtrList_.begin(), ie = labelPtrList_.end(); i != ie; ++i) {
       (*i)->clear();
     }
     labelPtrList_.clear();
@@ -157,8 +150,7 @@ public:
   void set(CodeArray *base) { base_ = base; }
 
   void defineClabel(Label &label) {
-    define_inner(clabelDefList_, clabelUndefList_, getId(label),
-                 base_->getSize());
+    define_inner(clabelDefList_, clabelUndefList_, getId(label), base_->size_);
     label.mgr = this;
     labelPtrList_.insert(&label);
   }
@@ -170,19 +162,11 @@ public:
     dst.mgr = this;
     labelPtrList_.insert(&dst);
   }
-  bool getOffset(size_t *offset, const Label &label) const {
-    return getOffset_inner(clabelDefList_, offset, getId(label));
-  }
-  void addUndefinedLabel(const Label &label, const JmpLabel &jmp) {
-    clabelUndefList_.insert(ClabelUndefList::value_type(label.id, jmp));
-  }
-  bool hasUndefClabel() const {
-    return hasUndefinedLabel_inner(clabelUndefList_);
-  }
+  bool getOffset(size_t *offset, const Label &label) const { return getOffset_inner(clabelDefList_, offset, getId(label)); }
+  void addUndefinedLabel(const Label &label, const JmpLabel &jmp) { clabelUndefList_.insert(ClabelUndefList::value_type(label.id, jmp)); }
+  bool hasUndefClabel() const { return hasUndefinedLabel_inner(clabelUndefList_); }
   const uint8_t *getCode() const { return base_->getCode(); }
-  bool isReady() const {
-    return !base_->isAutoGrow() || base_->isCalledCalcJmpAddress();
-  }
+  bool isReady() const { return !base_->isAutoGrow() || base_->isCalledCalcJmpAddress(); }
 };
 
 inline Label::Label(const Label &rhs) {
@@ -204,13 +188,21 @@ inline Label::~Label() {
   if (id && mgr)
     mgr->decRefCount(id, this);
 }
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
+#endif
 inline const uint32_t *Label::getAddress() const {
   if (mgr == 0 || !mgr->isReady())
     return 0;
   size_t offset;
   if (!mgr->getOffset(&offset, *this))
     return 0;
-  return reinterpret_cast<const uint32_t *>(mgr->getCode()) + offset * CSIZE;
+  // getCode() is always a multiple of 4
+  return (const uint32_t *)mgr->getCode() + offset;
 }
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #endif

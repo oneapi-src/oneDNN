@@ -1,6 +1,6 @@
 #pragma once
 /*******************************************************************************
- * Copyright 2019-2020 FUJITSU LIMITED
+ * Copyright 2019-2021 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,12 +22,17 @@ enum {
 
 namespace inner {
 
-static const size_t ALIGN_PAGE_SIZE = 4096;
+inline size_t getPageSize() {
+#ifdef __GNUC__
+  static const size_t pageSize = sysconf(_SC_PAGESIZE);
+#else
+  static const size_t pageSize = 4096;
+#endif
+  return pageSize;
+}
 
 inline bool IsInDisp8(uint32_t x) { return 0xFFFFFF80 <= x || x <= 0x7F; }
-inline bool IsInInt32(uint64_t x) {
-  return ~uint64_t(0x7fffffffu) <= x || x <= 0x7FFFFFFFU;
-}
+inline bool IsInInt32(uint64_t x) { return ~uint64_t(0x7fffffffu) <= x || x <= 0x7FFFFFFFU; }
 
 inline uint32_t VerifyInInt32(uint64_t x) {
   if (!IsInInt32(x))
@@ -35,9 +40,6 @@ inline uint32_t VerifyInInt32(uint64_t x) {
   return static_cast<uint32_t>(x);
 }
 
-constexpr uint32_t genSysInstOp(uint32_t op1, uint32_t CRn, uint32_t CRm,
-                                uint32_t op2) {
-  return (op1 << 11) | (CRn << 7) | (CRm << 3) | op2;
-}
+constexpr uint32_t genSysInstOp(uint32_t op1, uint32_t CRn, uint32_t CRm, uint32_t op2) { return (op1 << 11) | (CRn << 7) | (CRm << 3) | op2; }
 
 } // namespace inner

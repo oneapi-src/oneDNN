@@ -1,6 +1,6 @@
 #pragma once
 /*******************************************************************************
- * Copyright 2019-2020 FUJITSU LIMITED
+ * Copyright 2019-2021 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -113,8 +113,7 @@ class Reg : public Operand {
   uint32_t index_;
 
 public:
-  explicit Reg(uint32_t index, Kind kind, uint32_t bit)
-      : Operand(kind, bit), index_(index) {}
+  explicit Reg(uint32_t index, Kind kind, uint32_t bit) : Operand(kind, bit), index_(index) {}
   uint32_t getIdx() const { return index_; }
 };
 
@@ -166,8 +165,7 @@ class VRegVec : public Reg {
   uint32_t lane_;
 
 public:
-  explicit VRegVec(uint32_t index, uint32_t bits, uint32_t lane)
-      : Reg(index, VREG_VEC, bits), lane_(lane){};
+  explicit VRegVec(uint32_t index, uint32_t bits, uint32_t lane) : Reg(index, VREG_VEC, bits), lane_(lane){};
   uint32_t getLane() const { return lane_; }
 };
 
@@ -176,8 +174,7 @@ class VRegElem : public VRegVec {
   uint32_t elem_idx_;
 
 public:
-  explicit VRegElem(uint32_t index, uint32_t eidx, uint32_t bit, uint32_t lane)
-      : VRegVec(index, bit, lane), elem_idx_(eidx) {}
+  explicit VRegElem(uint32_t index, uint32_t eidx, uint32_t bit, uint32_t lane) : VRegVec(index, bit, lane), elem_idx_(eidx) {}
   uint32_t getElemIdx() const { return elem_idx_; }
 };
 
@@ -186,12 +183,8 @@ class VRegList : public VRegVec {
   uint32_t len_;
 
 public:
-  explicit VRegList(const VRegVec &s)
-      : VRegVec(s.getIdx(), s.getBit(), s.getLane()),
-        len_(s.getIdx() - s.getIdx() + 1) {}
-  explicit VRegList(const VRegVec &s, const VRegVec &e)
-      : VRegVec(s.getIdx(), s.getBit(), s.getLane()),
-        len_(((e.getIdx() + 32 - s.getIdx()) % 32) + 1) {}
+  explicit VRegList(const VRegVec &s) : VRegVec(s.getIdx(), s.getBit(), s.getLane()), len_(s.getIdx() - s.getIdx() + 1) {}
+  explicit VRegList(const VRegVec &s, const VRegVec &e) : VRegVec(s.getIdx(), s.getBit(), s.getLane()), len_(((e.getIdx() + 32 - s.getIdx()) % 32) + 1) {}
   uint32_t getLen() const { return len_; }
 };
 
@@ -209,28 +202,23 @@ class VReg1Q;
 
 class VRegBElem : public VRegElem {
 public:
-  explicit VRegBElem(uint32_t index, uint32_t eidx, uint32_t lane)
-      : VRegElem(index, eidx, 8, lane) {}
+  explicit VRegBElem(uint32_t index, uint32_t eidx, uint32_t lane) : VRegElem(index, eidx, 8, lane) {}
 };
 class VRegHElem : public VRegElem {
 public:
-  explicit VRegHElem(uint32_t index, uint32_t eidx, uint32_t lane)
-      : VRegElem(index, eidx, 16, lane) {}
+  explicit VRegHElem(uint32_t index, uint32_t eidx, uint32_t lane) : VRegElem(index, eidx, 16, lane) {}
 };
 class VRegSElem : public VRegElem {
 public:
-  explicit VRegSElem(uint32_t index, uint32_t eidx, uint32_t lane)
-      : VRegElem(index, eidx, 32, lane) {}
+  explicit VRegSElem(uint32_t index, uint32_t eidx, uint32_t lane) : VRegElem(index, eidx, 32, lane) {}
 };
 class VRegDElem : public VRegElem {
 public:
-  explicit VRegDElem(uint32_t index, uint32_t eidx, uint32_t lane)
-      : VRegElem(index, eidx, 64, lane) {}
+  explicit VRegDElem(uint32_t index, uint32_t eidx, uint32_t lane) : VRegElem(index, eidx, 64, lane) {}
 };
 class VRegQElem : public VRegElem {
 public:
-  explicit VRegQElem(uint32_t index, uint32_t eidx, uint32_t lane)
-      : VRegElem(index, eidx, 128, lane) {}
+  explicit VRegQElem(uint32_t index, uint32_t eidx, uint32_t lane) : VRegElem(index, eidx, 128, lane) {}
 };
 
 class VReg4BList : public VRegList {
@@ -340,9 +328,7 @@ public:
     assert(getLane() > i);
     return VRegBElem(getIdx(), i, getLane());
   }
-  VReg4BList operator-(const VReg4B &other) const {
-    return VReg4BList(*this, other);
-  }
+  VReg4BList operator-(const VReg4B &other) const { return VReg4BList(*this, other); }
 };
 class VReg8B : public VRegVec {
 public:
@@ -351,9 +337,7 @@ public:
     assert(getLane() > i);
     return VRegBElem(getIdx(), i, getLane());
   }
-  VReg8BList operator-(const VReg8B &other) const {
-    return VReg8BList(*this, other);
-  }
+  VReg8BList operator-(const VReg8B &other) const { return VReg8BList(*this, other); }
 };
 class VReg16B : public VRegVec {
 public:
@@ -362,9 +346,7 @@ public:
     assert(getLane() > i);
     return VRegBElem(getIdx(), i, getLane());
   }
-  VReg16BList operator-(const VReg16B &other) const {
-    return VReg16BList(*this, other);
-  }
+  VReg16BList operator-(const VReg16B &other) const { return VReg16BList(*this, other); }
 };
 class VReg2H : public VRegVec {
 public:
@@ -373,9 +355,7 @@ public:
     assert(getLane() > i);
     return VRegHElem(getIdx(), i, getLane());
   }
-  VReg2HList operator-(const VReg2H &other) const {
-    return VReg2HList(*this, other);
-  }
+  VReg2HList operator-(const VReg2H &other) const { return VReg2HList(*this, other); }
 };
 class VReg4H : public VRegVec {
 public:
@@ -384,9 +364,7 @@ public:
     assert(getLane() > i);
     return VRegHElem(getIdx(), i, getLane());
   }
-  VReg4HList operator-(const VReg4H &other) const {
-    return VReg4HList(*this, other);
-  }
+  VReg4HList operator-(const VReg4H &other) const { return VReg4HList(*this, other); }
 };
 class VReg8H : public VRegVec {
 public:
@@ -395,9 +373,7 @@ public:
     assert(getLane() > i);
     return VRegHElem(getIdx(), i, getLane());
   }
-  VReg8HList operator-(const VReg8H &other) const {
-    return VReg8HList(*this, other);
-  }
+  VReg8HList operator-(const VReg8H &other) const { return VReg8HList(*this, other); }
 };
 class VReg2S : public VRegVec {
 public:
@@ -406,9 +382,7 @@ public:
     assert(getLane() > i);
     return VRegSElem(getIdx(), i, getLane());
   }
-  VReg2SList operator-(const VReg2S &other) const {
-    return VReg2SList(*this, other);
-  }
+  VReg2SList operator-(const VReg2S &other) const { return VReg2SList(*this, other); }
 };
 class VReg4S : public VRegVec {
 public:
@@ -417,9 +391,7 @@ public:
     assert(getLane() > i);
     return VRegSElem(getIdx(), i, getLane());
   }
-  VReg4SList operator-(const VReg4S &other) const {
-    return VReg4SList(*this, other);
-  }
+  VReg4SList operator-(const VReg4S &other) const { return VReg4SList(*this, other); }
 };
 class VReg1D : public VRegVec {
 public:
@@ -428,9 +400,7 @@ public:
     assert(getLane() > i);
     return VRegDElem(getIdx(), i, getLane());
   }
-  VReg1DList operator-(const VReg1D &other) const {
-    return VReg1DList(*this, other);
-  }
+  VReg1DList operator-(const VReg1D &other) const { return VReg1DList(*this, other); }
 };
 class VReg2D : public VRegVec {
 public:
@@ -439,9 +409,7 @@ public:
     assert(getLane() > i);
     return VRegDElem(getIdx(), i, getLane());
   }
-  VReg2DList operator-(const VReg2D &other) const {
-    return VReg2DList(*this, other);
-  }
+  VReg2DList operator-(const VReg2D &other) const { return VReg2DList(*this, other); }
 };
 class VReg1Q : public VRegVec {
 public:
@@ -450,9 +418,7 @@ public:
     assert(getLane() > i);
     return VRegQElem(getIdx(), i, getLane());
   }
-  VReg1QList operator-(const VReg1Q &other) const {
-    return VReg1QList(*this, other);
-  }
+  VReg1QList operator-(const VReg1Q &other) const { return VReg1QList(*this, other); }
 };
 
 inline VReg4BList::VReg4BList(const VReg4B &s) : VRegList(s, s) {}
@@ -470,10 +436,7 @@ inline VReg1QList::VReg1QList(const VReg1Q &s) : VRegList(s, s) {}
 // SIMD vector regisetr
 class VReg : public VRegVec {
 public:
-  explicit VReg(uint32_t index)
-      : VRegVec(index, 128, 1), b4(index), b8(index), b16(index), b(index),
-        h2(index), h4(index), h8(index), h(index), s2(index), s4(index),
-        s(index), d1(index), d2(index), d(index), q1(index), q(index) {}
+  explicit VReg(uint32_t index) : VRegVec(index, 128, 1), b4(index), b8(index), b16(index), b(index), h2(index), h4(index), h8(index), h(index), s2(index), s4(index), s(index), d1(index), d2(index), d(index), q1(index), q(index) {}
 
   VReg4B b4;
   VReg8B b8;
@@ -496,8 +459,7 @@ public:
 // SVE SIMD Vector Register Base
 class _ZReg : public Reg {
 public:
-  explicit _ZReg(uint32_t index, uint32_t bits = 128 * VL)
-      : Reg(index, ZREG, bits) {}
+  explicit _ZReg(uint32_t index, uint32_t bits = 128 * VL) : Reg(index, ZREG, bits) {}
 };
 
 // SVE SIMD Vector Register Element
@@ -505,8 +467,7 @@ class ZRegElem : public _ZReg {
   uint32_t elem_idx_;
 
 public:
-  explicit ZRegElem(uint32_t index, uint32_t eidx, uint32_t bit)
-      : _ZReg(index, bit), elem_idx_(eidx) {}
+  explicit ZRegElem(uint32_t index, uint32_t eidx, uint32_t bit) : _ZReg(index, bit), elem_idx_(eidx) {}
   uint32_t getElemIdx() const { return elem_idx_; }
 };
 
@@ -515,10 +476,8 @@ class ZRegList : public _ZReg {
   uint32_t len_;
 
 public:
-  explicit ZRegList(const _ZReg &s)
-      : _ZReg(s.getIdx(), s.getBit()), len_(s.getIdx() - s.getIdx() + 1) {}
-  explicit ZRegList(const _ZReg &s, const _ZReg &e)
-      : _ZReg(s.getIdx(), s.getBit()), len_(e.getIdx() - s.getIdx() + 1) {}
+  explicit ZRegList(const _ZReg &s) : _ZReg(s.getIdx(), s.getBit()), len_(s.getIdx() - s.getIdx() + 1) {}
+  explicit ZRegList(const _ZReg &s, const _ZReg &e) : _ZReg(s.getIdx(), s.getBit()), len_(e.getIdx() - s.getIdx() + 1) {}
   uint32_t getLen() const { return len_; }
 };
 
@@ -530,28 +489,23 @@ class ZRegQ;
 
 class ZRegBElem : public ZRegElem {
 public:
-  explicit ZRegBElem(uint32_t index, uint32_t eidx)
-      : ZRegElem(index, eidx, 8) {}
+  explicit ZRegBElem(uint32_t index, uint32_t eidx) : ZRegElem(index, eidx, 8) {}
 };
 class ZRegHElem : public ZRegElem {
 public:
-  explicit ZRegHElem(uint32_t index, uint32_t eidx)
-      : ZRegElem(index, eidx, 16) {}
+  explicit ZRegHElem(uint32_t index, uint32_t eidx) : ZRegElem(index, eidx, 16) {}
 };
 class ZRegSElem : public ZRegElem {
 public:
-  explicit ZRegSElem(uint32_t index, uint32_t eidx)
-      : ZRegElem(index, eidx, 32) {}
+  explicit ZRegSElem(uint32_t index, uint32_t eidx) : ZRegElem(index, eidx, 32) {}
 };
 class ZRegDElem : public ZRegElem {
 public:
-  explicit ZRegDElem(uint32_t index, uint32_t eidx)
-      : ZRegElem(index, eidx, 64) {}
+  explicit ZRegDElem(uint32_t index, uint32_t eidx) : ZRegElem(index, eidx, 64) {}
 };
 class ZRegQElem : public ZRegElem {
 public:
-  explicit ZRegQElem(uint32_t index, uint32_t eidx)
-      : ZRegElem(index, eidx, 128) {}
+  explicit ZRegQElem(uint32_t index, uint32_t eidx) : ZRegElem(index, eidx, 128) {}
 };
 
 class ZRegBList : public ZRegList {
@@ -589,48 +543,37 @@ class ZRegB : public _ZReg {
 public:
   explicit ZRegB(uint32_t index) : _ZReg(index, 8) {}
   ZRegBElem operator[](uint32_t i) const { return ZRegBElem(getIdx(), i); }
-  ZRegBList operator-(const ZRegB &other) const {
-    return ZRegBList(*this, other);
-  }
+  ZRegBList operator-(const ZRegB &other) const { return ZRegBList(*this, other); }
 };
 class ZRegH : public _ZReg {
 public:
   explicit ZRegH(uint32_t index) : _ZReg(index, 16) {}
   ZRegHElem operator[](uint32_t i) const { return ZRegHElem(getIdx(), i); }
-  ZRegHList operator-(const ZRegH &other) const {
-    return ZRegHList(*this, other);
-  }
+  ZRegHList operator-(const ZRegH &other) const { return ZRegHList(*this, other); }
 };
 class ZRegS : public _ZReg {
 public:
   explicit ZRegS(uint32_t index) : _ZReg(index, 32) {}
   ZRegSElem operator[](uint32_t i) const { return ZRegSElem(getIdx(), i); }
-  ZRegSList operator-(const ZRegS &other) const {
-    return ZRegSList(*this, other);
-  }
+  ZRegSList operator-(const ZRegS &other) const { return ZRegSList(*this, other); }
 };
 class ZRegD : public _ZReg {
 public:
   explicit ZRegD(uint32_t index) : _ZReg(index, 64) {}
   ZRegDElem operator[](uint32_t i) const { return ZRegDElem(getIdx(), i); }
-  ZRegDList operator-(const ZRegD &other) const {
-    return ZRegDList(*this, other);
-  }
+  ZRegDList operator-(const ZRegD &other) const { return ZRegDList(*this, other); }
 };
 class ZRegQ : public _ZReg {
 public:
   explicit ZRegQ(uint32_t index) : _ZReg(index, 128) {}
   ZRegQElem operator[](uint32_t i) const { return ZRegQElem(getIdx(), i); }
-  ZRegQList operator-(const ZRegQ &other) const {
-    return ZRegQList(*this, other);
-  }
+  ZRegQList operator-(const ZRegQ &other) const { return ZRegQList(*this, other); }
 };
 
 // SIMD Vector Regisetr for SVE
 class ZReg : public _ZReg {
 public:
-  explicit ZReg(uint32_t index)
-      : _ZReg(index), b(index), h(index), s(index), d(index), q(index) {}
+  explicit ZReg(uint32_t index) : _ZReg(index), b(index), h(index), s(index), d(index), q(index) {}
 
   ZRegB b;
   ZRegH h;
@@ -641,8 +584,7 @@ public:
 
 class _PReg : public Reg {
 public:
-  explicit _PReg(uint32_t index, bool M = false, uint32_t bits = 16 * VL)
-      : Reg(index, ((M == 0) ? PREG_Z : PREG_M), bits) {}
+  explicit _PReg(uint32_t index, bool M = false, uint32_t bits = 16 * VL) : Reg(index, ((M == 0) ? PREG_Z : PREG_M), bits) {}
   bool isM() const { return isPRegM(); }
   bool isZ() const { return isPRegZ(); }
 };
@@ -671,11 +613,8 @@ enum PredType {
 
 class PReg : public _PReg {
 public:
-  explicit PReg(uint32_t index, bool M = false)
-      : _PReg(index, M), b(index), h(index), s(index), d(index) {}
-  _PReg operator/(PredType t) const {
-    return (t == T_z) ? _PReg(getIdx(), false) : _PReg(getIdx(), true);
-  }
+  explicit PReg(uint32_t index, bool M = false) : _PReg(index, M), b(index), h(index), s(index), d(index) {}
+  _PReg operator/(PredType t) const { return (t == T_z) ? _PReg(getIdx(), false) : _PReg(getIdx(), true); }
 
   PRegB b;
   PRegH h;
