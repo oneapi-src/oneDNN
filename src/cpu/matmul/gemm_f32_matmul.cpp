@@ -229,14 +229,16 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                 if (params.has_pp_kernel_) {
                     const float *pp_scales
                             = params.get_post_processing_scales(scales);
+                    const size_t dst_logical_off = i_work;
+                    const size_t dst_row_idx = (i_work % (M * N)) / N;
                     (*pp_kernel_)(curr_dst, curr_dst,
                             bias
                                     + static_cast<ptrdiff_t>(i_work % N)
                                             * bia_dt_size,
-                            pp_scales, 0, gemm_M * gemm_N,
-                            static_cast<size_t>(gemm_N), ldc, nullptr,
-                            post_ops_binary_rhs_arg_vec.data(), dst, ctx,
-                            *pd()->dst_md());
+                            pp_scales, 0, dst_logical_off, dst_row_idx,
+                            gemm_M * gemm_N, static_cast<size_t>(gemm_N), ldc,
+                            nullptr, post_ops_binary_rhs_arg_vec.data(), dst,
+                            ctx, *pd()->dst_md());
                 }
                 i_work += gemm_M * gemm_N;
             }
@@ -255,9 +257,12 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
                 size_t start {}, end {};
                 balance211((size_t)(M * N), nthr, ithr, start, end);
-                (*pp_kernel_)(dst, dst, bias, pp_scales, start, end, (size_t)N,
-                        ldc, nullptr, post_ops_binary_rhs_arg_vec.data(), dst,
-                        ctx, *pd()->dst_md());
+                const size_t dst_logical_off = start;
+                const size_t dst_start_row_idx = start / N;
+                (*pp_kernel_)(dst, dst, bias, pp_scales, start, dst_logical_off,
+                        dst_start_row_idx, end, (size_t)N, ldc, nullptr,
+                        post_ops_binary_rhs_arg_vec.data(), dst, ctx,
+                        *pd()->dst_md());
             });
         }
     }

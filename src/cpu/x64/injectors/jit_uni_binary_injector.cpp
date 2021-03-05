@@ -19,6 +19,7 @@
 #include "common/primitive.hpp"
 #include "common/primitive_attr.hpp"
 #include "common/primitive_exec_types.hpp"
+#include "common/utils.hpp"
 #include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 
 namespace dnnl {
@@ -32,11 +33,35 @@ bool is_data_supported(cpu_isa_t isa, data_type_t data_type) {
             utils::one_of(isa, avx512_core_bf16, avx512_core));
 }
 
+static bool src1_desc_layout_same_as_dst_d(
+        const dnnl::impl::memory_desc_t &src1_desc,
+        const memory_desc_wrapper &dst_d) {
+    if (dst_d.md_ == nullptr) return false;
+    const auto &lhs = src1_desc;
+    const auto &rhs = *(dst_d.md_);
+
+    using namespace dnnl::impl::utils;
+    return lhs.ndims == rhs.ndims
+            && (lhs.format_kind == rhs.format_kind
+                    || one_of(
+                            format_kind::any, lhs.format_kind, rhs.format_kind))
+            && array_cmp(lhs.dims, rhs.dims, lhs.ndims)
+            && array_cmp(lhs.padded_dims, rhs.padded_dims, lhs.ndims)
+            && array_cmp(lhs.padded_offsets, rhs.padded_offsets, lhs.ndims)
+            && lhs.offset0 == rhs.offset0;
+}
+
 bool is_bcast_supported(const dnnl::impl::memory_desc_t &src1_desc,
         const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set) {
     const auto bcast_type = get_rhs_arg_broadcasting_strategy(
             src1_desc, dst_d, supported_strategy_set);
+
+    if (bcast_type == broadcasting_strategy_t::no_broadcast) {
+        // in case of no broadcast data layout of dst and src1 have to be the same
+        if (!src1_desc_layout_same_as_dst_d(src1_desc, dst_d)) return false;
+    }
+
     return bcast_type != broadcasting_strategy_t::unsupported;
 }
 
@@ -745,7 +770,6 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail(
             && "Opmask is not set for tail loading avx512");
     const auto &tail_opmask = rhs_arg_static_params_.tail_opmask;
 
-    host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
     switch (data_type) {
         case data_type::f32:
             host_->vbroadcastss(tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
@@ -1036,7 +1060,6 @@ jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail_dynamically(
             && "Opmask is not set for tail loading avx512");
 
     const auto &tail_opmask = rhs_arg_static_params_.tail_opmask;
-    host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
 
     switch (data_type) {
         case data_type::f32:

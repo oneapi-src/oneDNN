@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,9 +17,12 @@
 #ifndef CPU_BINARY_INJECTOR_UTILS_HPP
 #define CPU_BINARY_INJECTOR_UTILS_HPP
 
+#include <tuple>
 #include <vector>
 
+#include "common/broadcast_strategy.hpp"
 #include "common/c_types_map.hpp"
+#include "common/primitive_attr.hpp"
 #include "common/primitive_exec_types.hpp"
 
 namespace dnnl {
@@ -37,6 +40,29 @@ namespace binary_injector_utils {
 std::vector<const void *> prepare_binary_args(const post_ops_t &post_ops,
         const dnnl::impl::exec_ctx_t &ctx,
         const unsigned first_arg_idx_offset = 0);
+
+bool bcast_strategy_present(
+        const std::vector<broadcasting_strategy_t> &post_ops_bcasts,
+        const broadcasting_strategy_t bcast_strategy);
+
+std::vector<broadcasting_strategy_t> extract_bcast_strategies(
+        const std::vector<dnnl_post_ops::entry_t> &post_ops,
+        const memory_desc_wrapper &dst_md);
+
+/*
+ * Returns a tuple of bools, which size is equal to number of bcast
+ * strategies passed in. Values at consecutive positions indicate existence of
+ * binary postop with a particular bcast strategy in post_ops vector.
+ */
+template <typename... Str>
+auto bcast_strategies_present_tup(
+        const std::vector<dnnl_post_ops::entry_t> &post_ops,
+        const memory_desc_wrapper &dst_md, Str... bcast_strategies)
+        -> decltype(std::make_tuple((bcast_strategies, false)...)) {
+    const auto post_ops_bcasts = extract_bcast_strategies(post_ops, dst_md);
+    return std::make_tuple(
+            bcast_strategy_present(post_ops_bcasts, bcast_strategies)...);
+}
 
 } // namespace binary_injector_utils
 } // namespace cpu

@@ -13,5 +13,5 @@
 
 --runtime_m=1 --runtime_n=1 --runtime_k=1
 --attr-oscale=common:2.25*,per_oc:2.25*
---attr-post-ops='','sum;add:s8','mul:f32:per_oc'
+--attr-post-ops='','sum;add:s8','mul:f32:per_oc','mul:f32:per_tensor'
 --batch=shapes_2d

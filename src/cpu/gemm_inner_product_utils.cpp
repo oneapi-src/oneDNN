@@ -48,7 +48,8 @@ struct ref_pp_kernel_t : public pp_kernel_t<acc_type, dst_type> {
     using dst_data_t = typename prec_traits<dst_type>::type;
 
     void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
-            const float *scales, size_t start, size_t end, size_t runtime_oc,
+            const float *scales, size_t start, size_t dst_logical_offs,
+            size_t dst_row_idx, size_t end, size_t runtime_oc,
             dim_t dst_mb_stride, const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
             const exec_ctx_t &ctx, const memory_desc_t &dst_md) const override;
@@ -60,8 +61,8 @@ private:
 template <data_type_t acc_type, data_type_t dst_type>
 void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         const acc_data_t *acc, const char *bias, const float *scales,
-        size_t start, size_t end, size_t runtime_oc, dim_t dst_mb_stride,
-        const float *dst_zero_points,
+        size_t start, size_t dst_row_idx, size_t dst_logical_off, size_t end,
+        size_t runtime_oc, dim_t dst_mb_stride, const float *dst_zero_points,
         const void * /* post_ops_binary_rhs_arg_vec */,
         const void * /* dst_orig */, const exec_ctx_t &ctx,
         const memory_desc_t &dst_md) const {

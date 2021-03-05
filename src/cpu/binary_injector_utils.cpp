@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,6 +40,26 @@ std::vector<const void *> prepare_binary_args(const post_ops_t &post_ops,
     post_ops_binary_rhs_arg_vec.shrink_to_fit();
 
     return post_ops_binary_rhs_arg_vec;
+}
+
+bool bcast_strategy_present(
+        const std::vector<broadcasting_strategy_t> &post_ops_bcasts,
+        const broadcasting_strategy_t bcast_strategy) {
+    for (const auto &post_op_bcast : post_ops_bcasts)
+        if (post_op_bcast == bcast_strategy) return true;
+    return false;
+}
+
+std::vector<broadcasting_strategy_t> extract_bcast_strategies(
+        const std::vector<dnnl_post_ops::entry_t> &post_ops,
+        const memory_desc_wrapper &dst_md) {
+    std::vector<broadcasting_strategy_t> post_ops_bcasts;
+    post_ops_bcasts.reserve(post_ops.size());
+    for (const auto &post_op : post_ops)
+        if (post_op.is_binary())
+            post_ops_bcasts.emplace_back(get_rhs_arg_broadcasting_strategy(
+                    post_op.binary.src1_desc, dst_md));
+    return post_ops_bcasts;
 }
 
 } // namespace binary_injector_utils

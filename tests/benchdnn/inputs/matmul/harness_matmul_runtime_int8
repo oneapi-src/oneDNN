@@ -31,7 +31,7 @@
 --batch=shapes_2d
 
 --attr-zero-points=src:common:1*_wei:common:-1*_dst:per_dim_1:2*
---attr-post-ops='add:f32:per_oc'
+--attr-post-ops='add:f32:per_oc','add:f32:per_tensor'
 --batch=shapes_2d
 
 # zero point doesn't belong to the data type (e.g. -1 is not u8)
@@ -39,4 +39,3 @@
 --runtime_m=0 --runtime_n=0 --runtime_k=0
 --bia_dt=undef
 --attr-oscale=common:1 --attr-zero-points=src:per_dim_1:-1*_wei:common:1_dst:common:2       --batch=shapes_2d
-

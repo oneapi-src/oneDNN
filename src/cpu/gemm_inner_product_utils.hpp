@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,7 +49,8 @@ struct pp_kernel_t {
     bool sequential_kernel() const { return mb_blk_kernel_; }
 
     virtual void operator()(dst_data_t *dst, const acc_data_t *acc,
-            const char *bias, const float *scales, size_t start, size_t end,
+            const char *bias, const float *scales, size_t start,
+            size_t dst_row_idx, size_t dst_logical_off, size_t end,
             size_t runtime_oc, dim_t dst_mb_stride,
             const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,

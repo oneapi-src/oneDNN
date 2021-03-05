@@ -48,7 +48,8 @@ struct jit_pp_kernel_t : public pp_kernel_t<acc_type, dst_type>,
     using dst_data_t = typename prec_traits<dst_type>::type;
 
     void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
-            const float *scales, size_t start, size_t end, size_t runtime_oc,
+            const float *scales, size_t start, size_t dst_logical_off,
+            size_t dst_row_idx, size_t end, size_t runtime_oc,
             dim_t dst_mb_stride, const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
             const exec_ctx_t &ctx, const memory_desc_t &dst_md) const override;
@@ -56,13 +57,21 @@ struct jit_pp_kernel_t : public pp_kernel_t<acc_type, dst_type>,
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
 private:
-    void apply_postops(const bool apply_mask, const int vmm_idx);
+    void apply_postops(
+            const bool apply_mask, const int vmm_idx, const size_t offset);
     void generate() override;
     void compute_oc_channel_blk();
     void compute_mb_blk(); // vectorize across minibatch
+
+    void advance_binary_postops_off(const size_t offset);
+
+    void advance_binary_postops_off(const Xbyak::Reg64 offset);
+
     template <typename T>
-    void advance_binary_postops_off(const T &offset);
-    void zero_binary_postops_off();
+    void advance_binary_postops_per_oc_off(const T &offset);
+
+    template <typename T>
+    void advance_binary_postops_per_tensor_off(const T &offset);
 
     struct ker_args_t {
         dst_data_t *dst = nullptr;
@@ -74,6 +83,8 @@ private:
         size_t oc = 0;
         size_t len = 0;
         size_t oc_offset = 0;
+        size_t dst_row_idx = 0;
+        size_t dst_logical_off = 0;
         dim_t dst_mb_stride = 0;
         const void *post_ops_binary_rhs_arg_vec = nullptr;
         const void *dst_orig = nullptr;
@@ -92,6 +103,7 @@ private:
     const Xbyak::Reg64 reg_binary_inj_param_ = abi_param1;
 #endif
 
+    Xbyak::Reg64 reg_stack_frame_ = rbp;
     Xbyak::Reg64 reg_param = abi_param1;
     Xbyak::Reg64 reg_dst = rdx;
     Xbyak::Reg64 reg_acc = rax;
@@ -134,9 +146,14 @@ private:
     int compute_vreg_prev_dst_shift_ = 0;
 
     const size_t vlen = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
-    constexpr static int reg64_size = sizeof(int64_t);
-    constexpr static int reg_binary_post_op_oc_off = 0;
-    constexpr static int stack_space_needed = 1 * reg64_size;
+    static constexpr int reg64_size_ = sizeof(int64_t);
+    static constexpr int reg_binary_post_op_oc_off_ = 0;
+    static constexpr int reg_binary_post_op_offset_ = 1 * reg64_size_;
+    static constexpr int stack_space_needed_ = 2 * reg64_size_;
+
+    bool any_binary_postop_is_no_bcast_type_ = false;
+    bool any_binary_postop_is_per_oc_bcast_type_ = false;
+    bool any_binary_postop_is_per_oc_sp_bcast_type_ = false;
 
     int vreg_dst_idx(const int iter) const {
         int idx = idx_compute_vreg_start_ + iter * compute_vregs_per_iter_;
@@ -204,14 +221,15 @@ jit_pp_kernel_t<acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
     if (this->do_eltwise_ || this->do_binary_) {
 #define PARAM_OFF(field) offsetof(ker_args_t, field)
         static constexpr bool preserve_gpr = true;
-        static constexpr bool preserve_vmm = true;
+        static constexpr bool preserve_vmm = false;
         static constexpr size_t helper_vmm_idx = 31;
         static constexpr size_t tail_size = 1;
         static constexpr bool use_exact_tail_scalar_bcast = false;
+        const auto dst_md_wrapper = memory_desc_wrapper(*dst_md);
         const binary_injector::rhs_arg_static_params_t rhs_arg_static_params {
                 helper_vmm_idx, eltwise_reserved_gpr_, r14, preserve_gpr,
                 preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
-                memory_desc_wrapper(*dst_md), tail_size, kreg_rem_mask,
+                dst_md_wrapper, tail_size, kreg_rem_mask,
                 use_exact_tail_scalar_bcast};
 
         const binary_injector::static_params_t binary_static_params {
@@ -223,55 +241,112 @@ jit_pp_kernel_t<acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
         postops_injector_ = utils::make_unique<
                 injector::jit_uni_postops_injector_t<avx512_core>>(this,
                 this->post_ops_, binary_static_params, eltwise_static_params);
+
+        using namespace dnnl::impl::cpu::binary_injector_utils;
+        std::tie(any_binary_postop_is_no_bcast_type_,
+                any_binary_postop_is_per_oc_bcast_type_,
+                any_binary_postop_is_per_oc_sp_bcast_type_)
+                = bcast_strategies_present_tup(this->post_ops_.entry_,
+                        dst_md_wrapper, broadcasting_strategy_t::no_broadcast,
+                        broadcasting_strategy_t::per_oc,
+                        broadcasting_strategy_t::per_oc_spatial);
     }
 #undef PARAM_OFF
 }
 
 template <data_type_t acc_type, data_type_t dst_type>
 template <typename T>
-void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_off(
+void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_per_oc_off(
         const T &offset) {
+
     const auto binary_post_op_oc_off_reg = reg_tmp_comp;
-    const auto binary_post_op_oc_off_on_stack
-            = ptr[rsp + reg_binary_post_op_oc_off];
-    mov(binary_post_op_oc_off_reg, binary_post_op_oc_off_on_stack);
+    const auto binary_post_op_current_offset_on_stack
+            = ptr[rsp + reg_binary_post_op_oc_off_];
+
+    mov(binary_post_op_oc_off_reg, binary_post_op_current_offset_on_stack);
     add(binary_post_op_oc_off_reg, offset);
 
+    const size_t max
+            = any_binary_postop_is_per_oc_bcast_type_ ? this->OC_ : this->MB_;
     Xbyak::Label end;
-    cmp(binary_post_op_oc_off_reg, this->OC_);
+    cmp(binary_post_op_oc_off_reg, max);
     jl(end, T_NEAR);
     xor_(binary_post_op_oc_off_reg, binary_post_op_oc_off_reg);
     L(end);
 
-    mov(binary_post_op_oc_off_on_stack, binary_post_op_oc_off_reg);
+    mov(binary_post_op_current_offset_on_stack, binary_post_op_oc_off_reg);
 }
 
 template <data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<acc_type, dst_type>::zero_binary_postops_off() {
-    mov(EVEX_compress_addr(rsp, reg_binary_post_op_oc_off), 0);
+template <typename T>
+void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_per_tensor_off(
+        const T &offset) {
+
+    const auto binary_post_op_offset_reg = reg_tmp_comp;
+    const auto binary_post_op_current_offset_on_stack
+            = ptr[rsp + reg_binary_post_op_offset_];
+    mov(binary_post_op_offset_reg, binary_post_op_current_offset_on_stack);
+    add(binary_post_op_offset_reg, offset);
+    mov(binary_post_op_current_offset_on_stack, binary_post_op_offset_reg);
+}
+
+/*
+ * Advance binary postops offsets with per_tensor_offset passed as plain value
+ * type (const offset value).
+ */
+template <data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_off(
+        const size_t offset) {
+    if (offset) {
+        if (any_binary_postop_is_per_oc_bcast_type_)
+            advance_binary_postops_per_oc_off(offset);
+        if (any_binary_postop_is_no_bcast_type_)
+            advance_binary_postops_per_tensor_off(offset);
+    }
+}
+
+/*
+ * Advance binary postops offsets with per_tensor_offset passed in Reg64.
+ */
+template <data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_off(
+        const Xbyak::Reg64 reg_offset) {
+    if (any_binary_postop_is_per_oc_bcast_type_)
+        advance_binary_postops_per_oc_off(reg_offset);
+    if (any_binary_postop_is_no_bcast_type_)
+        advance_binary_postops_per_tensor_off(reg_offset);
 }
 
 template <data_type_t acc_type, data_type_t dst_type>
 void jit_pp_kernel_t<acc_type, dst_type>::apply_postops(
-        const bool apply_mask, const int vmm_idx) {
-#define PARAM_OFF(x) offsetof(ker_args_t, x)
+        const bool apply_mask, const int vmm_idx, const size_t offset) {
     if (this->do_eltwise_ || this->do_binary_) {
         if (this->do_binary_) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-            const auto oc_off_oprnd = reg_tmp_comp;
-            rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                    vmm_idx, oc_off_oprnd);
-            rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
-                    vmm_idx, oc_off_oprnd);
+            if (any_binary_postop_is_per_oc_bcast_type_
+                    || any_binary_postop_is_per_oc_sp_bcast_type_) {
+                const auto oc_off_oprnd = reg_tmp_comp;
+                mov(oc_off_oprnd, ptr[rsp + reg_binary_post_op_oc_off_]);
+                rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
+                        vmm_idx, oc_off_oprnd);
+                if (any_binary_postop_is_per_oc_bcast_type_)
+                    rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                            vmm_idx, static_cast<int>(offset));
+            }
+
             if (apply_mask) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
 
-            mov(oc_off_oprnd, ptr[rsp + reg_binary_post_op_oc_off]);
-
+            if (any_binary_postop_is_no_bcast_type_) {
+                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                        vmm_idx, static_cast<int>(offset));
+                rhs_arg_params.vmm_idx_to_out_elem_off_addr.emplace(vmm_idx,
+                        ptr[reg_stack_frame_ - stack_space_needed_
+                                + reg_binary_post_op_offset_]);
+            }
             postops_injector_->compute_vector(vmm_idx, rhs_arg_params);
         } else
             postops_injector_->compute_vector(vmm_idx);
     }
-#undef PARAM_OFF
 }
 
 template <data_type_t acc_type, data_type_t dst_type>
@@ -291,7 +366,6 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
         }
 
         if (this->do_binary_) {
-            if (offset) advance_binary_postops_off(vlen);
             if (apply_mask) kmovq(opmask_binary, kreg_rem_mask);
         }
 
@@ -361,7 +435,7 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
             vfmadd231ps(vreg_dst_, vreg_prev_dst_, vreg_sum_scale);
         }
 
-        apply_postops(apply_mask, dst_idx);
+        apply_postops(apply_mask, dst_idx, offset);
 
         if (this->do_dst_zero_points_)
             vaddps(vreg_dst_, vreg_dst_, vreg_dst_zero_points);
@@ -399,7 +473,7 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
         if (this->do_scale_ && this->scale_idx_mult_ == 1)
             add(reg_scales, offset * sizeof(float));
         if (this->do_bias()) add(reg_bias, offset * this->bias_data_type_size_);
-        if (this->do_binary_) advance_binary_postops_off(vlen);
+        if (this->do_binary_) { advance_binary_postops_off(offset); }
     };
 
     // Advance all pointers by a value stored in a register
@@ -429,7 +503,7 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
             lea(reg_bias, ptr[reg_bias + reg_oc * this->bias_data_type_size_]);
         if (this->do_scale_ && this->scale_idx_mult_ == 1)
             lea(reg_scales, ptr[reg_scales + reg_oc * sizeof(float)]);
-        if (this->do_binary_) zero_binary_postops_off();
+
         neg(reg_oc);
     };
 
@@ -443,6 +517,7 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
         {
             compute(0, 0, false);
             advance_ptrs_imm(vlen);
+
             sub(reg_tmp, vlen);
             cmp(reg_tmp, vlen);
             jge(l_loop, T_NEAR);
@@ -545,10 +620,15 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
 
             if (OC_tail) {
                 for (size_t offset = 0; offset < OC_tail; offset += vlen) {
-                    bool use_mask = (offset + vlen) > OC_tail;
+                    const bool use_mask = (offset + vlen) > OC_tail;
                     compute(offset, offset / vlen, use_mask);
                 }
                 advance_ptrs_imm(OC_tail);
+            }
+
+            if (any_binary_postop_is_per_oc_sp_bcast_type_) {
+                static constexpr size_t offset_oc_spatial = 1;
+                advance_binary_postops_per_oc_off(offset_oc_spatial);
             }
 
             rewind_ptrs();
@@ -735,9 +815,20 @@ void jit_pp_kernel_t<acc_type, dst_type>::generate() {
     mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
     mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
     if (this->do_binary_) {
-        // zero initialize binary post_ops offset accumulator (store on stack)
-        sub(rsp, stack_space_needed);
-        mov(ptr[rsp + reg_binary_post_op_oc_off], reg_oc_offset);
+        mov(reg_stack_frame_, rsp);
+        sub(rsp, stack_space_needed_);
+        if (any_binary_postop_is_per_oc_bcast_type_)
+            // zero initialize binary post_ops oc offset accumulator
+            mov(ptr[rsp + reg_binary_post_op_oc_off_], reg_oc_offset);
+        else if (any_binary_postop_is_per_oc_sp_bcast_type_) {
+            mov(reg_tmp_comp, ptr[reg_param + PARAM_OFF(dst_row_idx)]);
+            mov(ptr[rsp + reg_binary_post_op_oc_off_], reg_tmp_comp);
+        }
+        if (any_binary_postop_is_no_bcast_type_) {
+            // initialize binary post_ops no bcast offset accumulator
+            mov(reg_tmp_comp, ptr[reg_param + PARAM_OFF(dst_logical_off)]);
+            mov(ptr[rsp + reg_binary_post_op_offset_], reg_tmp_comp);
+        }
     }
     if (this->do_scale_ && this->scale_idx_mult_ == 0)
         vbroadcastss(vreg_scale, dword[reg_scales]);
@@ -776,7 +867,7 @@ void jit_pp_kernel_t<acc_type, dst_type>::generate() {
         compute_oc_channel_blk();
     }
 
-    if (this->do_binary_) add(rsp, stack_space_needed);
+    if (this->do_binary_) add(rsp, stack_space_needed_);
     postamble();
 
     if (this->do_eltwise_) postops_injector_->prepare_table();
@@ -785,9 +876,10 @@ void jit_pp_kernel_t<acc_type, dst_type>::generate() {
 template <data_type_t acc_type, data_type_t dst_type>
 void jit_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         const acc_data_t *acc, const char *bias, const float *scales,
-        size_t start, size_t end, size_t runtime_oc, dim_t dst_mb_stride,
-        const float *dst_zero_points, const void *post_ops_binary_rhs_arg_vec,
-        const void *dst_orig, const exec_ctx_t & /* ctx */,
+        size_t start, size_t dst_logical_off, size_t dst_row_idx, size_t end,
+        size_t runtime_oc, dim_t dst_mb_stride, const float *dst_zero_points,
+        const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
+        const exec_ctx_t & /* ctx */,
         const memory_desc_t & /* dst_md */) const {
 
     if (end <= start) return;
@@ -815,6 +907,8 @@ void jit_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
     args.oc = OC;
     args.len = end - start;
     args.oc_offset = oc_offset;
+    args.dst_logical_off = dst_logical_off;
+    args.dst_row_idx = dst_row_idx;
     args.dst_mb_stride = dst_mb_stride;
 
     args.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;

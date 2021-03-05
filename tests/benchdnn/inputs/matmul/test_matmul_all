@@ -36,7 +36,7 @@
 
 --runtime_mb=0,1 --runtime_m=1 --runtime_n=1 --runtime_k=0,1
 --attr-oscale=common:2.25
---attr-post-ops='sum;relu;add:u8'
+--attr-post-ops='sum;relu;add:u8','add:f32:per_tensor'
 --batch=shapes_3d
 
 # f32 Run-time
