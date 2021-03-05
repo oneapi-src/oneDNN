@@ -135,15 +135,11 @@ status_t jit_prelu_bwd_t::init(engine_t *engine) {
 }
 
 status_t jit_prelu_bwd_t::execute(const exec_ctx_t &ctx) const {
-    status_t status = status::success;
     const byte *const src = CTX_IN_MEM(const byte *, DNNL_ARG_SRC);
     const byte *const weights = CTX_IN_MEM(const byte *, DNNL_ARG_WEIGHTS);
     const byte *const dst_diff = CTX_IN_MEM(const byte *, DNNL_ARG_DIFF_DST);
-    byte *const weights_diff
-            = CTX_OUT_CLEAN_MEM(const byte *, DNNL_ARG_DIFF_WEIGHTS, status);
-    CHECK(status);
-    byte *const src_diff = CTX_OUT_CLEAN_MEM(byte *, DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
+    byte *const weights_diff = CTX_OUT_MEM(const byte *, DNNL_ARG_DIFF_WEIGHTS);
+    byte *const src_diff = CTX_OUT_MEM(byte *, DNNL_ARG_DIFF_SRC);
     const memory_desc_wrapper src_d {pd()->src_md(0)};
     const auto src_dt_size = types::data_type_size(src_d.data_type());
     const auto wei_dt_size

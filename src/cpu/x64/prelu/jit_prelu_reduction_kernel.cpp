@@ -28,13 +28,20 @@ static dim_t get_C(const cpu_prelu_bwd_pd_t *pd) {
     return src_diff_d.ndims() >= 2 ? src_diff_d.dims()[1] : 1;
 }
 
+static dim_t get_tail_size(const cpu_prelu_bwd_pd_t *pd, const size_t simd_w) {
+    const auto inner_blocks
+            = pd->diff_weights_md(0)->format_desc.blocking.inner_blks[0];
+    if (inner_blocks == 0) return get_C(pd) % simd_w;
+    return inner_blocks;
+}
+
 jit_prelu_reduction_kernel_t::jit_prelu_reduction_kernel_t(
         const cpu_prelu_bwd_pd_t *pd, int simd_w)
     : simd_w_(simd_w)
     , scratchpad_c_block_offset_(
               utils::rnd_up(get_C(pd), alignment) * sizeof(float))
     , data_type_(pd->diff_weights_md(0)->data_type)
-    , tail_size_(get_C(pd) % simd_w_) {}
+    , tail_size_(get_tail_size(pd, simd_w)) {}
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)
 
