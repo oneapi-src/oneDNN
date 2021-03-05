@@ -43,6 +43,22 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     endif()
 endif()
 
+# Default fp-model in icx may be precise or fast=1 depending on the version.
+# Also, make sure more precise division is used.
+if(CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
+    file(GLOB FILES_REQUIRED_FP_PRECISE
+        ${CMAKE_CURRENT_SOURCE_DIR}/*normalization*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/*reorder*.cpp
+        )
+    if(WIN32)
+        set_source_files_properties(${FILES_REQUIRED_FP_PRECISE}
+            PROPERTIES COMPILE_FLAGS "/fp:precise")
+    else()
+        set_source_files_properties(${FILES_REQUIRED_FP_PRECISE}
+            PROPERTIES COMPILE_FLAGS "-fp-model=precise -fno-reciprocal-math")
+    endif()
+endif()
+
 # remove optimizations of files that don't need them for faster build times.
 file(GLOB FILES_WITHOUT_OPT
     ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*/*_kern_autogen.cpp)
