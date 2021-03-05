@@ -28,7 +28,7 @@
 #if OW_BLOCK == 4
 #define BLOCK 4
 #define ACC_DATA_BLOCK int4
-#define SRC_DATA_BLOCK_T MMAD_DATA4_T
+#define SRC_DATA_BLOCK_T SRC_MMAD_DATA4_T
 #define READ_BLOCK intel_sub_group_block_read4
 #define WRITE_LOCAL block_write4
 
@@ -40,7 +40,7 @@ DECLARE_MMAD(
 #else
 #define BLOCK 8
 #define ACC_DATA_BLOCK int8
-#define SRC_DATA_BLOCK_T MMAD_DATA8_T
+#define SRC_DATA_BLOCK_T SRC_MMAD_DATA8_T
 #define READ_BLOCK intel_sub_group_block_read8
 #define WRITE_LOCAL block_write8
 

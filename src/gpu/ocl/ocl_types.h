@@ -431,26 +431,30 @@
 #define AS_VECT_FLOAT_T as_float8
 #endif
 
+#define AS_MMAD_DATA_T CONCAT2(as_, MMAD_DATA_T)
+#define AS_MMAD_DATA4_T CONCAT2(as_, MMAD_DATA4_T)
+#define AS_MMAD_DATA8_T CONCAT2(as_, MMAD_DATA8_T)
+
 #ifdef SRC_DATA_T
 #define SRC_DATA2_T CONCAT2(SRC_DATA_T, 2)
 #define SRC_DATA4_T CONCAT2(SRC_DATA_T, 4)
 #define SRC_DATA8_T CONCAT2(SRC_DATA_T, 8)
 #define SRC_DATA16_T CONCAT2(SRC_DATA_T, 16)
 #ifdef SRC_DT_U8
-#define MMAD_DATA_T uint
-#define MMAD_DATA4_T uint4
-#define MMAD_DATA8_T uint8
+#define SRC_MMAD_DATA_T uint
+#define SRC_MMAD_DATA4_T uint4
+#define SRC_MMAD_DATA8_T uint8
 #elif SRC_DT_S8
-#define MMAD_DATA_T int
-#define MMAD_DATA4_T int4
-#define MMAD_DATA8_T int8
+#define SRC_MMAD_DATA_T int
+#define SRC_MMAD_DATA4_T int4
+#define SRC_MMAD_DATA8_T int8
 #endif
 #define AS_SRC_DATA2_T CONCAT2(as_, SRC_DATA2_T)
 #define AS_SRC_DATA4_T CONCAT2(as_, SRC_DATA4_T)
 #define AS_SRC_DATA16_T CONCAT2(as_, SRC_DATA16_T)
-#define AS_MMAD_DATA_T CONCAT2(as_, MMAD_DATA_T)
-#define AS_MMAD_DATA4_T CONCAT2(as_, MMAD_DATA4_T)
-#define AS_MMAD_DATA8_T CONCAT2(as_, MMAD_DATA8_T)
+#define AS_SRC_MMAD_DATA_T CONCAT2(as_, SRC_MMAD_DATA_T)
+#define AS_SRC_MMAD_DATA4_T CONCAT2(as_, SRC_MMAD_DATA4_T)
+#define AS_SRC_MMAD_DATA8_T CONCAT2(as_, SRC_MMAD_DATA8_T)
 #if SRC_DT_BF16
 #define SRC_TO_REF(x) cvt_bf16_to_f32(x)
 #define SRC_TO_REF8(x) cvt_bf16_to_f32(x)

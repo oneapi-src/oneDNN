@@ -45,10 +45,10 @@
         || ((PW == 0 && PH == 0 && PW == 0) \
                 && (SW == 1 && SH == 1 && SD == 1))
 #define BLOCK_READ_SRC_4x32(data, idx, sp_off) \
-    data = AS_MMAD_DATA4_T( \
+    data = AS_SRC_MMAD_DATA4_T( \
             intel_sub_group_block_read4((__global uint *)&src[idx]));
 #define BLOCK_READ_SRC_8x32(data, idx, sp_off) \
-    data = AS_MMAD_DATA8_T( \
+    data = AS_SRC_MMAD_DATA8_T( \
             intel_sub_group_block_read8((__global uint *)&src[idx]));
 #else
 #define BLOCK_READ_SRC_4x32(data, idx, sp_off) \
@@ -57,7 +57,7 @@
             if (HAS_PADDING) { \
                 PAD_BLOCK_READ(data[_i], src, sp, _i + sp_off); \
             } else { \
-                data[_i] = AS_MMAD_DATA_T(intel_sub_group_block_read( \
+                data[_i] = AS_SRC_MMAD_DATA_T(intel_sub_group_block_read( \
                         (__global uint *)&src[idx + _i * SW * IC_BLOCK])); \
             } \
         } \
@@ -68,7 +68,7 @@
             if (HAS_PADDING) { \
                 PAD_BLOCK_READ(data[_i], src, sp, _i + sp_off); \
             } else { \
-                data[_i] = AS_MMAD_DATA_T(intel_sub_group_block_read( \
+                data[_i] = AS_SRC_MMAD_DATA_T(intel_sub_group_block_read( \
                         (__global uint *)&src[idx + _i * SW * IC_BLOCK])); \
             } \
         } \
@@ -78,7 +78,7 @@
 #if SP_BLOCK == 4
 #define BLOCK0 4
 #define ACC_DATA_BLOCK int4
-#define SRC_DATA_BLOCK_T MMAD_DATA4_T
+#define SRC_DATA_BLOCK_T SRC_MMAD_DATA4_T
 #define BLOCK_READ_SRC BLOCK_READ_SRC_4x32
 
 DECLARE_MMAD(
@@ -89,7 +89,7 @@ DECLARE_MMAD(
 #else
 #define BLOCK0 8
 #define ACC_DATA_BLOCK int8
-#define SRC_DATA_BLOCK_T MMAD_DATA8_T
+#define SRC_DATA_BLOCK_T SRC_MMAD_DATA8_T
 #define BLOCK_READ_SRC BLOCK_READ_SRC_8x32
 
 DECLARE_MMAD(
@@ -102,7 +102,7 @@ DECLARE_MMAD(
 #if SP_BLOCK == 12
 #define BLOCK1 4
 #define ACC_DATA_BLOCK1 int4
-#define SRC_DATA_BLOCK_T1 MMAD_DATA4_T
+#define SRC_DATA_BLOCK_T1 SRC_MMAD_DATA4_T
 #define DST_DATA_BLOCK_T1 uint4
 #define BLOCK_READ_SRC1 BLOCK_READ_SRC_4x32
 
@@ -114,7 +114,7 @@ DECLARE_MMAD(mmad_tail1, IC_NBLOCKS_TAIL, 4, SRC_DATA_BLOCK_T1, int8,
 #else
 #define BLOCK1 8
 #define ACC_DATA_BLOCK1 int8
-#define SRC_DATA_BLOCK_T1 MMAD_DATA8_T
+#define SRC_DATA_BLOCK_T1 SRC_MMAD_DATA8_T
 #define DST_DATA_BLOCK_T1 uint8
 #define BLOCK_READ_SRC1 BLOCK_READ_SRC_8x32
 DECLARE_MMAD(mmad_tail1, IC_NBLOCKS_TAIL, 8, SRC_DATA_BLOCK_T1, int8,
@@ -174,7 +174,7 @@ DECLARE_MMAD(mmad_tail1, IC_NBLOCKS_TAIL, 8, SRC_DATA_BLOCK_T1, int8,
                         || id >= ID)); \
         int off = id * IH * IW + ih * IW + iw; \
         data = pad ? 0 \
-                   : AS_MMAD_DATA_T(intel_sub_group_block_read( \
+                   : AS_SRC_MMAD_DATA_T(intel_sub_group_block_read( \
                            (global uint *)&src[off * SRC_SP_STRIDE])); \
     } while (0);
 
@@ -300,7 +300,7 @@ gen12lp_1x1_conv_fwd_x8s8x(const __global SRC_DATA_T *src,
                     if (HAS_PADDING) {
                         PAD_BLOCK_READ(S0[_i], src, sp, _i);
                     } else {
-                        S0[_i] = AS_MMAD_DATA_T(intel_sub_group_block_read(
+                        S0[_i] = AS_SRC_MMAD_DATA_T(intel_sub_group_block_read(
                                 (__global uint *)&src[_i * SW * IC_BLOCK]));
                     }
                 }
@@ -310,8 +310,9 @@ gen12lp_1x1_conv_fwd_x8s8x(const __global SRC_DATA_T *src,
                     if (HAS_PADDING) {
                         PAD_BLOCK_READ(S1[_i - 8], src, sp, _i)
                     } else {
-                        S1[_i - 8] = AS_MMAD_DATA_T(intel_sub_group_block_read(
-                                (__global uint *)&src[_i * SW * IC_BLOCK]));
+                        S1[_i - 8] = AS_SRC_MMAD_DATA_T(
+                                intel_sub_group_block_read((__global uint
+                                                *)&src[_i * SW * IC_BLOCK]));
                     }
                 }
 #endif
