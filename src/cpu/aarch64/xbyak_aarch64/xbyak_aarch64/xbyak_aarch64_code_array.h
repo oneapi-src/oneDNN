@@ -1,6 +1,6 @@
 #pragma once
 /*******************************************************************************
- * Copyright 2019-2020 FUJITSU LIMITED
+ * Copyright 2019-2021 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,22 +21,27 @@
 static const size_t CSIZE = sizeof(uint32_t);
 
 inline void *AlignedMalloc(size_t size, size_t alignment) {
+#ifdef _MSC_VER
+  return _aligned_malloc(size, alignment);
+#else
   void *p;
-  int ret = posix_memalign(&p, alignment, size * CSIZE);
+  int ret = posix_memalign(&p, alignment, size);
   return (ret == 0) ? p : 0;
+#endif
 }
 
-inline void AlignedFree(void *p) { free(p); }
-
-template <class To, class From> inline const To CastTo(From p) throw() {
-  return (const To)(size_t)(p);
+inline void AlignedFree(void *p) {
+#ifdef _MSC_VER
+  _aligned_free(p);
+#else
+  free(p);
+#endif
 }
+
+template <class To, class From> inline const To CastTo(From p) throw() { return (const To)(size_t)(p); }
 
 struct Allocator {
-  virtual uint32_t *alloc(size_t size) {
-    return reinterpret_cast<uint32_t *>(
-        AlignedMalloc(size, inner::ALIGN_PAGE_SIZE));
-  }
+  virtual uint32_t *alloc(size_t size) { return reinterpret_cast<uint32_t *>(AlignedMalloc(size, inner::getPageSize())); }
   virtual void free(uint32_t *p) { AlignedFree(p); }
   virtual ~Allocator() {}
   /* override to return false if you call protect() manually */
@@ -50,16 +55,19 @@ class MmapAllocator : Allocator {
 
 public:
   uint32_t *alloc(size_t size) {
-    const size_t alignedSizeM1 = inner::ALIGN_PAGE_SIZE - 1;
+    const size_t alignedSizeM1 = inner::getPageSize() - 1;
     size = (size + alignedSizeM1) & ~alignedSizeM1;
 #ifdef MAP_ANONYMOUS
-    const int mode = MAP_PRIVATE | MAP_ANONYMOUS;
+    int mode = MAP_PRIVATE | MAP_ANONYMOUS;
 #elif defined(MAP_ANON)
-    const int mode = MAP_PRIVATE | MAP_ANON;
+    int mode = MAP_PRIVATE | MAP_ANON;
 #else
 #error "not supported"
 #endif
-    void *p = mmap(NULL, size * CSIZE, PROT_READ | PROT_WRITE, mode, -1, 0);
+#ifdef XBYAK_USE_MAP_JIT
+    mode |= MAP_JIT;
+#endif
+    void *p = mmap(NULL, size, PROT_READ | PROT_WRITE, mode, -1, 0);
     if (p == MAP_FAILED)
       throw Error(ERR_CANT_ALLOC);
     assert(p);
@@ -100,11 +108,8 @@ class CodeArray {
     size_t codeOffset; // position to write
     size_t jmpAddr;    // value to write
     EncFunc encFunc;   // encoding function
-    AddrInfo(size_t _codeOffset, size_t _jmpAddr, EncFunc encFunc)
-        : codeOffset(_codeOffset), jmpAddr(_jmpAddr), encFunc(encFunc) {}
-    uint32_t getVal() const {
-      return encFunc((int64_t)(jmpAddr - codeOffset) * CSIZE);
-    }
+    AddrInfo(size_t _codeOffset, size_t _jmpAddr, EncFunc encFunc) : codeOffset(_codeOffset), jmpAddr(_jmpAddr), encFunc(encFunc) {}
+    uint32_t getVal() const { return encFunc((int64_t)(jmpAddr - codeOffset) * CSIZE); }
   };
 
   typedef std::list<AddrInfo> AddrInfoList;
@@ -118,18 +123,18 @@ class CodeArray {
   Allocator *alloc_;
 
 protected:
-  size_t maxSize_; // max size of code size
+  friend class LabelManager;
+  size_t maxSize_; // max size of code size (per uint32_t)
   uint32_t *top_;
   size_t size_; // code size
   bool isCalledCalcJmpAddress_;
 
   bool useProtect() const { return alloc_->useProtect(); }
   /*
-  allocate new memory and copy old data to the new area
-*/
+    allocate new memory and copy old data to the new area
+  */
   void growMemory() {
-    const size_t newSize =
-        (std::max<size_t>)(DEFAULT_MAX_CODE_SIZE, maxSize_ * 2);
+    const size_t newSize = (std::max<size_t>)(DEFAULT_MAX_CODE_SIZE, getMaxSize() * 2);
     uint32_t *newTop = alloc_->alloc(newSize);
     if (newTop == 0)
       throw Error(ERR_CANT_ALLOC);
@@ -137,17 +142,15 @@ protected:
       newTop[i] = top_[i];
     alloc_->free(top_);
     top_ = newTop;
-    maxSize_ = newSize;
+    maxSize_ = newSize / CSIZE;
   }
   /*
-  calc jmp address for AutoGrow mode
-*/
+    calc jmp address for AutoGrow mode
+  */
   void calcJmpAddress() {
     if (isCalledCalcJmpAddress_)
       return;
-    for (AddrInfoList::const_iterator i = addrInfoList_.begin(),
-                                      ie = addrInfoList_.end();
-         i != ie; ++i) {
+    for (AddrInfoList::const_iterator i = addrInfoList_.begin(), ie = addrInfoList_.end(); i != ie; ++i) {
       uint32_t disp = i->getVal();
       rewrite(i->codeOffset, disp);
     }
@@ -160,21 +163,12 @@ public:
     PROTECT_RWE = 1, // read/write/exec
     PROTECT_RE = 2   // read/exec
   };
-  explicit CodeArray(size_t maxSize, void *userPtr = 0,
-                     Allocator *allocator = 0)
-      : type_(userPtr == AutoGrow
-                  ? AUTO_GROW
-                  : (userPtr == 0 || userPtr == DontSetProtectRWE) ? ALLOC_BUF
-                                                                   : USER_BUF),
-        alloc_(allocator ? allocator : (Allocator *)&defaultAllocator_),
-        maxSize_(maxSize),
-        top_(type_ == USER_BUF ? reinterpret_cast<uint32_t *>(userPtr)
-                               : alloc_->alloc((std::max<size_t>)(maxSize, 1))),
-        size_(0), isCalledCalcJmpAddress_(false) {
+  explicit CodeArray(size_t maxSize, void *userPtr = 0, Allocator *allocator = 0)
+      : type_(userPtr == AutoGrow ? AUTO_GROW : (userPtr == 0 || userPtr == DontSetProtectRWE) ? ALLOC_BUF : USER_BUF), alloc_(allocator ? allocator : (Allocator *)&defaultAllocator_), maxSize_(maxSize / CSIZE),
+        top_(type_ == USER_BUF ? reinterpret_cast<uint32_t *>(userPtr) : alloc_->alloc((std::max<size_t>)(maxSize, CSIZE))), size_(0), isCalledCalcJmpAddress_(false) {
     if (maxSize_ > 0 && top_ == 0)
       throw Error(ERR_CANT_ALLOC);
-    if ((type_ == ALLOC_BUF && userPtr != DontSetProtectRWE && useProtect()) &&
-        !setProtectMode(PROTECT_RWE, false)) {
+    if ((type_ == ALLOC_BUF && userPtr != DontSetProtectRWE && useProtect()) && !setProtectMode(PROTECT_RWE, false)) {
       alloc_->free(top_);
       throw Error(ERR_CANT_PROTECT);
     }
@@ -187,19 +181,15 @@ public:
     }
   }
   bool setProtectMode(ProtectMode mode, bool throwException = true) {
-    bool isOK = protect(top_, maxSize_, mode);
+    bool isOK = protect(top_, getMaxSize(), mode);
     if (isOK)
       return true;
     if (throwException)
       throw Error(ERR_CANT_PROTECT);
     return false;
   }
-  bool setProtectModeRE(bool throwException = true) {
-    return setProtectMode(PROTECT_RE, throwException);
-  }
-  bool setProtectModeRW(bool throwException = true) {
-    return setProtectMode(PROTECT_RW, throwException);
-  }
+  bool setProtectModeRE(bool throwException = true) { return setProtectMode(PROTECT_RE, throwException); }
+  bool setProtectModeRW(bool throwException = true) { return setProtectMode(PROTECT_RW, throwException); }
   void resetSize() {
     size_ = 0;
     addrInfoList_.clear();
@@ -212,7 +202,8 @@ public:
     size_ = 0;
   }
 
-  void dw(uint32_t code) {
+  // write 4 byte data
+  void dd(uint32_t code) {
     if (size_ >= maxSize_) {
       if (type_ == AUTO_GROW) {
         growMemory();
@@ -223,25 +214,21 @@ public:
     top_[size_++] = code;
   }
   const uint8_t *getCode() const { return reinterpret_cast<uint8_t *>(top_); }
-  template <class F> const F getCode() const {
-    return reinterpret_cast<F>(top_);
-  }
-  const uint32_t *getCurr() const { return &top_[size_]; }
-  template <class F> const F getCurr() const {
-    return reinterpret_cast<F>(&top_[size_]);
-  }
-  size_t getSize() const { return size_; }
+  template <class F> const F getCode() const { return reinterpret_cast<F>(top_); }
+  const uint8_t *getCurr() const { return reinterpret_cast<uint8_t *>(&top_[size_]); }
+  template <class F> const F getCurr() const { return reinterpret_cast<F>(&top_[size_]); }
+  // return byte size
+  size_t getSize() const { return size_ * CSIZE; }
+  size_t getMaxSize() const { return maxSize_ * CSIZE; }
+  // set byte size
   void setSize(size_t size) {
-    if (size > maxSize_)
+    if (size > getMaxSize())
       throw Error(ERR_OFFSET_IS_TOO_BIG);
-    size_ = size;
+    size_ = size / CSIZE;
   }
   void dump() const {
-    const uint8_t *p = getCode();
-    size_t bufSize = getSize();
-    size_t remain = bufSize;
-    for (size_t i = 0; i < remain; ++i) {
-      printf("%08X\n", p[i]);
+    for (size_t i = 0; i < size_; ++i) {
+      printf("%08X\n", top_[i]);
     }
   }
   /*
@@ -253,9 +240,7 @@ public:
     uint32_t *const data = top_ + offset;
     *data = disp;
   }
-  void save(size_t offset, uint32_t val, const EncFunc &encFunc) {
-    addrInfoList_.push_back(AddrInfo(offset, val, encFunc));
-  }
+  void save(size_t offset, size_t jmpAddr, const EncFunc &encFunc) { addrInfoList_.push_back(AddrInfo(offset, jmpAddr, encFunc)); }
   bool isAutoGrow() const { return type_ == AUTO_GROW; }
   bool isCalledCalcJmpAddress() const { return isCalledCalcJmpAddress_; }
   /**
@@ -266,10 +251,17 @@ public:
      @return true(success), false(failure)
   */
   static inline bool protect(const void *addr, size_t size, int protectMode) {
+#if defined(_WIN32)
+    const DWORD c_rw = PAGE_READWRITE;
+    const DWORD c_rwe = PAGE_EXECUTE_READWRITE;
+    const DWORD c_re = PAGE_EXECUTE_READ;
+    DWORD mode;
+#else
     const int c_rw = PROT_READ | PROT_WRITE;
     const int c_rwe = PROT_READ | PROT_WRITE | PROT_EXEC;
     const int c_re = PROT_READ | PROT_EXEC;
     int mode;
+#endif
 
     switch (protectMode) {
     case PROTECT_RW:
@@ -284,13 +276,15 @@ public:
     default:
       return false;
     }
-#if defined(__GNUC__)
-    size_t pageSize = sysconf(_SC_PAGESIZE);
+#if defined(__GNUC__) || defined(__APPLE__)
+    size_t pageSize = inner::getPageSize();
     size_t iaddr = reinterpret_cast<size_t>(addr);
     size_t roundAddr = iaddr & ~(pageSize - static_cast<size_t>(1));
 
-    return mprotect(reinterpret_cast<void *>(roundAddr),
-                    size + (iaddr - roundAddr), mode) == 0;
+    return mprotect(reinterpret_cast<void *>(roundAddr), size + (iaddr - roundAddr), mode) == 0;
+#elif defined(_WIN32)
+    DWORD oldProtect;
+    return VirtualProtect(const_cast<void *>(addr), size, mode, &oldProtect) != 0;
 #else
     return true;
 #endif
@@ -301,10 +295,5 @@ public:
      @param alignedSize [in] power of two
      @return aligned addr by alingedSize
   */
-  static inline uint32_t *getAlignedAddress(uint32_t *addr,
-                                            size_t alignedSize = 16) {
-    return reinterpret_cast<uint32_t *>(
-        (reinterpret_cast<size_t>(addr) + alignedSize - 1) &
-        ~(alignedSize - static_cast<size_t>(1)));
-  }
+  static inline uint32_t *getAlignedAddress(uint32_t *addr, size_t alignedSize = 16) { return reinterpret_cast<uint32_t *>((reinterpret_cast<size_t>(addr) + alignedSize - 1) & ~(alignedSize - static_cast<size_t>(1))); }
 };
