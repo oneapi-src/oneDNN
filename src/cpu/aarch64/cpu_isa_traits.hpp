@@ -134,10 +134,7 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     if ((cpu_isa_mask & cpu_isa) != cpu_isa) return false;
 
     switch (cpu_isa) {
-        case asimd:
-            /* Advanced SIMD and floating-point instructions are
-         mondatory for AArch64. */
-            return true;
+        case asimd: return cpu().has(Cpu::tADVSIMD);
         case sve_128:
             return cpu().has(Cpu::tSVE) && cpu().getSveLen() == SVE_128;
         case sve_256:
