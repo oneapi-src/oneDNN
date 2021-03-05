@@ -268,7 +268,7 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
             ? scratchpad.template get<wei_data_t>(key_brgemm_primitive_buffer_b)
             : nullptr;
 
-    int oc_chunks = jbgp.nb_oc / jbgp.nb_oc_blocking;
+    const int oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
 
     const auto get_weights_ptr = [&](int icb, int ocb) {
         int fwd_ic_block = jbgp.simd_w;
@@ -333,12 +333,13 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
 
         bool kernel_init = (occ == 0);
 
-        bool is_os_tail = (jbgp.mb - n < jbgp.os_block);
-        bool is_ic_tail = (jbgp.ic - ic < jbgp.ic_block);
-        bool is_oc_tail = (jbgp.oc - oc < jbgp.oc_block * jbgp.nb_oc_blocking);
+        const bool is_os_tail = (jbgp.mb - n < jbgp.os_block);
+        const bool is_ic_tail = (jbgp.ic - ic < jbgp.ic_block);
+        const bool is_last_oc_chunk = occ == oc_chunks - 1;
+        const bool is_oc_tail = is_last_oc_chunk && jbgp.K_tail > 0;
 
-        auto nb_oc_b = is_oc_tail ? (jbgp.oc - oc) / jbgp.oc_block
-                                  : jbgp.nb_oc_blocking;
+        const int nb_oc_b = nstl::min(
+                (jbgp.oc - oc) / jbgp.oc_block, jbgp.nb_oc_blocking);
 
         auto brg_kernel = brg_kernels_[pd()->get_brg_kernel_idx(kernel_init,
                                                is_os_tail, is_ic_tail, false)]
@@ -365,7 +366,7 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
                             jbgp.oc_block);
             }
 
-            if (jbgp.use_buffer && occ == oc_chunks - 1 && !is_oc_tail) {
+            if (jbgp.use_buffer && is_last_oc_chunk && !is_oc_tail) {
                 auto ptr_D = diff_src + diff_src_d.blk_off(n, ic);
                 brgemm_kernel_execute_postops(brg_kernel, nb_oc_b, addr_batch,
                         (void *)c_buffer, (void *)ptr_D, nullptr, nullptr);
@@ -395,7 +396,7 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
                                            is_os_tail, is_ic_tail, true)]
                               .get();
 
-            if (jbgp.use_buffer && occ == oc_chunks - 1) {
+            if (jbgp.use_buffer) {
                 auto ptr_D = diff_src + diff_src_d.blk_off(n, ic);
                 brgemm_kernel_execute_postops(brg_kernel_oc_tail, 1, addr_batch,
                         (void *)c_buffer, (void *)ptr_D, nullptr, nullptr);
@@ -410,51 +411,46 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
         }
     };
 
-    int os_chunks = jbgp.nb_os / jbgp.nb_os_blocking;
-    int work_amount = jbgp.nb_ic * os_chunks;
-    if (jbgp.ip_bwd_d_global_b_transpose) {
-        if (jbgp.use_buffer_b) {
-            parallel(0, [&](const int ithr, const int nthr) {
-                int start {0}, end {0};
-                int max_ch_block = nstl::max(jbgp.ic_block, jbgp.oc_block);
-                int ic_chunk_sz = max_ch_block / jbgp.ic_block;
-                int oc_chunk_sz = max_ch_block / jbgp.oc_block;
-                int nc_ic = utils::div_up(jbgp.nb_ic, ic_chunk_sz);
-                int nc_oc = utils::div_up(jbgp.nb_oc, oc_chunk_sz);
-                int transp_work_amount = nc_ic * nc_oc;
-                balance211(transp_work_amount, nthr, ithr, start, end);
-                int icc, occ;
-                nd_iterator_init(start, icc, nc_ic, occ, nc_oc);
-                while (start < end) {
-                    int icb_start = icc * ic_chunk_sz;
-                    int icb_end
-                            = nstl::min((icc + 1) * ic_chunk_sz, jbgp.nb_ic);
-                    int ocb_start = occ * oc_chunk_sz;
-                    int ocb_end
-                            = nstl::min((occ + 1) * oc_chunk_sz, jbgp.nb_oc);
-                    for_(int icb = icb_start; icb < icb_end; icb++)
-                    for (int ocb = ocb_start; ocb < ocb_end; ocb++) {
-                        int ic = icb * jbgp.ic_block;
-                        int oc = ocb * jbgp.oc_block;
-                        bool is_ic_tail = (jbgp.ic - ic < jbgp.ic_block);
-                        bool is_oc_tail = (jbgp.oc - oc < jbgp.oc_block);
-                        const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
-                        wei_data_t *b_buffer = b_buffer_global
-                                + (dim_t)icb * jbgp.nb_oc * size_B
-                                + (dim_t)ocb * size_B;
+    const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
+    const int work_amount = jbgp.nb_ic * os_chunks;
+    if (jbgp.ip_bwd_d_global_b_transpose && jbgp.use_buffer_b) {
+        parallel(0, [&](const int ithr, const int nthr) {
+            int start {0}, end {0};
+            int max_ch_block = nstl::max(jbgp.ic_block, jbgp.oc_block);
+            int ic_chunk_sz = max_ch_block / jbgp.ic_block;
+            int oc_chunk_sz = max_ch_block / jbgp.oc_block;
+            int nc_ic = utils::div_up(jbgp.nb_ic, ic_chunk_sz);
+            int nc_oc = utils::div_up(jbgp.nb_oc, oc_chunk_sz);
+            int transp_work_amount = nc_ic * nc_oc;
+            balance211(transp_work_amount, nthr, ithr, start, end);
+            int icc, occ;
+            nd_iterator_init(start, icc, nc_ic, occ, nc_oc);
+            while (start < end) {
+                int icb_start = icc * ic_chunk_sz;
+                int icb_end = nstl::min((icc + 1) * ic_chunk_sz, jbgp.nb_ic);
+                int ocb_start = occ * oc_chunk_sz;
+                int ocb_end = nstl::min((occ + 1) * oc_chunk_sz, jbgp.nb_oc);
+                for_(int icb = icb_start; icb < icb_end; icb++)
+                for (int ocb = ocb_start; ocb < ocb_end; ocb++) {
+                    int ic = icb * jbgp.ic_block;
+                    int oc = ocb * jbgp.oc_block;
+                    bool is_ic_tail = (jbgp.ic - ic < jbgp.ic_block);
+                    bool is_oc_tail = (jbgp.oc - oc < jbgp.oc_block);
+                    const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
+                    wei_data_t *b_buffer = b_buffer_global
+                            + (dim_t)icb * jbgp.nb_oc * size_B
+                            + (dim_t)ocb * size_B;
 
-                        transform_b_chunk(b_buffer, get_weights_ptr(icb, ocb),
-                                1,
-                                is_ic_tail ? jbgp.ic % jbgp.ic_block
-                                           : jbgp.ic_block,
-                                is_oc_tail ? jbgp.oc % jbgp.oc_block
-                                           : jbgp.oc_block);
-                    }
-                    ++start;
-                    nd_iterator_step(icc, nc_ic, occ, nc_oc);
+                    transform_b_chunk(b_buffer, get_weights_ptr(icb, ocb), 1,
+                            is_ic_tail ? jbgp.ic % jbgp.ic_block
+                                       : jbgp.ic_block,
+                            is_oc_tail ? jbgp.oc % jbgp.oc_block
+                                       : jbgp.oc_block);
                 }
-            });
-        }
+                ++start;
+                nd_iterator_step(icc, nc_ic, occ, nc_oc);
+            }
+        });
     }
 
     parallel(0, [&](const int ithr, const int nthr) {
@@ -467,7 +463,9 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
 
         nd_iterator_init(start, oss, os_chunks, icb, jbgp.nb_ic);
         while (start < end) {
-            const int nb_os_blocking = jbgp.nb_os_blocking;
+            const int nb_os_blocking
+                    = nstl::min(jbgp.nb_os - oss * jbgp.nb_os_blocking,
+                            jbgp.nb_os_blocking);
             const int loop_iteration = nb_os_blocking * oc_chunks;
 
             for (int iter = 0; iter < loop_iteration; ++iter) {
