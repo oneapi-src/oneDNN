@@ -131,11 +131,7 @@ using tf32 = conv_any_fmt_test_params_t;
     }
 
 #if DNNL_X64
-// starting from avx512_core the default format is FLT
 CPU_INSTANTIATE_TEST_SUITE_P(TestConvolutionAlexnetAnyFmtForward,
-        conv_any_fmt_test_float,
-        impl::cpu::x64::mayiuse(impl::cpu::x64::avx512_core)
-                ? ::testing::Values(ALEXNET_SUITE(FLT))
-                : ::testing::Values(ALEXNET_SUITE(BLK)));
+        conv_any_fmt_test_float, ::testing::Values(ALEXNET_SUITE(BLK)));
 #endif
 } // namespace dnnl
