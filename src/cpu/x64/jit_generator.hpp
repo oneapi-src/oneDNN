@@ -1090,6 +1090,13 @@ public:
         vmovmskps(x1, x2);
     }
 
+    void uni_vmovd(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
+        if (is_valid_isa(avx))
+            vmovd(addr, x);
+        else
+            movd(addr, x);
+    }
+
     void uni_vmovq(const Xbyak::Xmm &x, const Xbyak::Reg64 &r) {
         if (is_valid_isa(avx))
             vmovq(x, r);
