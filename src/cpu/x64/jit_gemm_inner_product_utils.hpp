@@ -31,7 +31,7 @@ cpu::inner_product_utils::pp_kernel_t<acc_type, dst_type> *jit_pp_kernel_create(
         data_type_t bias_dt, const memory_desc_t *dst_md, bool skip_sum);
 
 constexpr cpu_isa_t jit_pp_kernel_supported_isa() {
-    return avx512_core;
+    return sse41;
 }
 
 } // namespace inner_product_utils

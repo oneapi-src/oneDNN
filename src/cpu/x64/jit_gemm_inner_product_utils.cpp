@@ -20,6 +20,7 @@
 #include "common/math_utils.hpp"
 #include "cpu/simple_q10n.hpp"
 
+#include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
@@ -35,7 +36,7 @@ namespace inner_product_utils {
 using namespace dnnl::impl::cpu::inner_product_utils;
 using namespace Xbyak;
 
-template <data_type_t acc_type, data_type_t dst_type>
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
 struct jit_pp_kernel_t : public pp_kernel_t<acc_type, dst_type>,
                          public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(inner_product_utils::jit_pp_kernel_t);
@@ -57,8 +58,30 @@ struct jit_pp_kernel_t : public pp_kernel_t<acc_type, dst_type>,
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
 private:
-    void apply_postops(
-            const bool apply_mask, const int vmm_idx, const size_t offset);
+    using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
+            isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
+
+    enum arg_t { dst, acc, bias, stack, scale };
+
+    void apply_postops(const bool apply_mask, const int vmm_idx,
+            const size_t offset, bool runtime_tail_mask);
+    void prepare_mask(const size_t tail);
+    void load_no_tail(const Vmm &v, Xbyak::Address op, const data_type_t dt);
+    void load_tail(const Vmm &v, const arg_t arg_num, const size_t off,
+            const data_type_t dt, const size_t tail);
+    void load_and_cvt(const Vmm &v, const arg_t arg_num, const size_t off,
+            const size_t tail, bool do_cvt = true);
+    // convert and store instances for each case of Vmm
+    void cvt_and_store(const Xbyak::Zmm &v, const arg_t arg_num,
+            const size_t off, const size_t tail);
+    void cvt_and_store(const Xbyak::Ymm &v, const arg_t arg_num,
+            const size_t off, const size_t tail);
+    void cvt_and_store(const Xbyak::Xmm &v, const arg_t arg_num,
+            const size_t off, const size_t tail);
+    void runtime_tail_load_cvt(const Vmm &v, const arg_t arg_num,
+            const size_t off, bool cvt = true);
+    void runtime_tail_cvt_store(
+            const Vmm &v, const arg_t arg_num, const size_t off);
     void generate() override;
     void compute_oc_channel_blk();
     void compute_mb_blk(); // vectorize across minibatch
@@ -90,9 +113,10 @@ private:
         const void *dst_orig = nullptr;
     };
 
-    enum { default_OC_loop_unroll_ = 4 };
-
-    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
+    const bool is_avx512_ = utils::one_of(isa, avx512_core, avx512_core_bf16);
+    static constexpr cpu_isa_t inject_isa_
+            = isa == avx512_core_bf16 ? avx512_core : isa;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<inject_isa_>>
             postops_injector_;
 
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
@@ -113,10 +137,12 @@ private:
     const Xbyak::Reg64 &reg_oc = r13;
     const Xbyak::Reg64 &reg_len = r8;
     const Xbyak::Reg64 &reg_tmp = rcx; // intentional for shifting purposes
+    const Xbyak::Reg64 &reg_tail = reg_tmp;
     const Xbyak::Reg64 &reg_oc_offset = r9;
     const Xbyak::Reg64 &reg_rem_mask = r10;
     const Xbyak::Opmask &kreg_rem_mask = k1;
     const Xbyak::Opmask &opmask_binary = k3;
+    const Vmm vmm_rem_mask = Vmm(0);
     // register used for temp computation, needs not to be preserved
     const Xbyak::Reg64 &reg_tmp_comp = r15;
 
@@ -125,7 +151,7 @@ private:
     const Xbyak::Reg64 &reg_acc_mb_stride = r14;
 
     // Will be assigned in constructor
-    Xbyak::Zmm vreg_zero, vreg_saturation_ubound, vreg_scale, vreg_sum_scale,
+    Vmm vreg_zero, vreg_saturation_ubound, vreg_scale, vreg_sum_scale,
             vreg_dst_zero_points;
 
     const Xbyak::Reg64 &eltwise_reserved_gpr_ = r11;
@@ -137,15 +163,15 @@ private:
     Xbyak::Reg64 bf16_emu_reserv_4 = reg_tmp_comp;
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(31);
 
-    cpu_isa_t isa_ = isa_any;
+    const int default_OC_loop_unroll_ = is_avx512_ ? 4 : 3;
     int max_OC_loop_unroll_ = 13;
-    int idx_compute_vreg_start_ = 0;
-    int idx_compute_vreg_max_ = 31;
+    int idx_compute_vreg_start_ = is_avx512_ ? 0 : 1;
+    int idx_compute_vreg_max_ = is_avx512_ ? 31 : 15;
     int compute_vregs_per_iter_ = 1;
     int compute_vreg_bias_shift_ = 0;
     int compute_vreg_prev_dst_shift_ = 0;
 
-    const size_t vlen = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
+    const size_t vlen = cpu_isa_traits<isa>::vlen / sizeof(float);
     static constexpr int reg64_size_ = sizeof(int64_t);
     static constexpr int reg_binary_post_op_oc_off_ = 0;
     static constexpr int reg_binary_post_op_offset_ = 1 * reg64_size_;
@@ -161,39 +187,87 @@ private:
         return idx;
     }
 
-    Xbyak::Zmm vreg_dst(int iter) { return Xbyak::Zmm(vreg_dst_idx(iter)); }
+    Vmm vreg_dst(int iter) { return Vmm(vreg_dst_idx(iter)); }
 
-    Xbyak::Zmm vreg_prev_dst(int iter) {
+    Vmm vreg_prev_dst(int iter) {
         int idx = idx_compute_vreg_start_ + iter * compute_vregs_per_iter_
                 + compute_vreg_prev_dst_shift_;
         assert(idx <= idx_compute_vreg_max_);
-        return Xbyak::Zmm(idx);
+        return Vmm(idx);
     }
 
-    Xbyak::Zmm vreg_bias(int iter) {
+    Vmm vreg_bias(int iter) {
         int idx = idx_compute_vreg_start_ + iter * compute_vregs_per_iter_
                 + compute_vreg_bias_shift_;
         assert(idx <= idx_compute_vreg_max_);
-        return Xbyak::Zmm(idx);
+        return Vmm(idx);
+    }
+
+    Xbyak::Address dst_ptr(const size_t offt) { return ptr[reg_dst + offt]; }
+
+    Xbyak::Address acc_ptr(const size_t offt) { return ptr[reg_acc + offt]; }
+
+    Xbyak::Address bias_ptr(const size_t offt) { return ptr[reg_bias + offt]; }
+
+    Xbyak::Address stack_ptr(const size_t offt) { return ptr[rsp + offt]; }
+
+    Xbyak::Address scale_ptr(const size_t offt) {
+        return ptr[reg_scales + offt];
+    }
+
+    Xbyak::Address get_address(const arg_t arg_num, const size_t off) {
+        switch (arg_num) {
+            case dst: return dst_ptr(off);
+            case acc: return acc_ptr(off);
+            case bias: return bias_ptr(off);
+            case stack: return stack_ptr(off);
+            case scale: return scale_ptr(off);
+            default: assert(!"unsupported arg_num"); break;
+        }
+        return Xbyak::Address(0);
+    }
+
+    Xbyak::Reg64 get_reg_address(const arg_t arg_num) {
+        switch (arg_num) {
+            case dst: return reg_dst;
+            case acc: return reg_acc;
+            case bias: return reg_bias;
+            case stack: return rsp;
+            case scale: return reg_scales;
+            default: assert(!"unsupported arg_num"); break;
+        }
+        return rsp;
+    }
+
+    data_type_t get_data_type(const arg_t arg_num) {
+        switch (arg_num) {
+            case dst: return dst_type;
+            case acc: return acc_type;
+            case bias: return this->bias_data_type_;
+            // default for stack or scale operation
+            default: return data_type::f32;
+        }
+        return data_type::undef;
     }
 };
 
-template <data_type_t acc_type, data_type_t dst_type>
-jit_pp_kernel_t<acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+jit_pp_kernel_t<isa, acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
         dim_t dst_mb_stride, const primitive_attr_t *attr, data_type_t bias_dt,
         const memory_desc_t *dst_md, bool skip_sum)
     : pp_kernel_t<acc_type, dst_type>(
             OC, MB, dst_mb_stride, attr, bias_dt, skip_sum) {
-    assert(mayiuse(avx512_core));
+    assert(IMPLICATION(dst_type == data_type::bf16, mayiuse(avx512_core)));
+    assert(isa != avx512_common);
 
-    if (this->do_scale_) vreg_scale = Zmm(idx_compute_vreg_start_++);
+    if (this->do_scale_) vreg_scale = Vmm(idx_compute_vreg_start_++);
 
-    if (dst_type == data_type::u8) vreg_zero = Zmm(idx_compute_vreg_start_++);
+    if (dst_type == data_type::u8) vreg_zero = Vmm(idx_compute_vreg_start_++);
     if (utils::one_of(dst_type, data_type::u8, data_type::s8, data_type::s32))
-        vreg_saturation_ubound = Zmm(idx_compute_vreg_start_++);
+        vreg_saturation_ubound = Vmm(idx_compute_vreg_start_++);
 
     if (this->do_sum_) {
-        vreg_sum_scale = Zmm(idx_compute_vreg_start_++);
+        vreg_sum_scale = Vmm(idx_compute_vreg_start_++);
         compute_vreg_prev_dst_shift_ = compute_vregs_per_iter_++;
     }
 
@@ -201,13 +275,10 @@ jit_pp_kernel_t<acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
 
     if (!attr->zero_points_.has_default_values(DNNL_ARG_DST)) {
         this->do_dst_zero_points_ = true;
-        vreg_dst_zero_points = Zmm(idx_compute_vreg_start_++);
+        vreg_dst_zero_points = Vmm(idx_compute_vreg_start_++);
     }
 
-    isa_ = mayiuse(avx512_core_bf16) ? avx512_core_bf16
-                                     : bf16_emulation_t::get_isa();
-
-    if (dst_type == data_type::bf16 && isa_ != avx512_core_bf16) {
+    if (dst_type == data_type::bf16 && isa != avx512_core_bf16) {
         idx_compute_vreg_max_ = 27;
         bf16_emu_.reset(new bf16_emulation_t(this, bf16_emu_reserv_1,
                 bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
@@ -217,21 +288,32 @@ jit_pp_kernel_t<acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
     int max_unroll = (idx_compute_vreg_max_ - idx_compute_vreg_start_ + 1)
             / compute_vregs_per_iter_;
     max_OC_loop_unroll_ = nstl::min(max_OC_loop_unroll_, max_unroll);
-
     if (this->do_eltwise_ || this->do_binary_) {
 #define PARAM_OFF(field) offsetof(ker_args_t, field)
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
-        static constexpr size_t helper_vmm_idx = 31;
-        static constexpr size_t tail_size = 1;
+        static const size_t helper_vmm_idx = is_avx512_ ? 31 : 15;
         static constexpr bool use_exact_tail_scalar_bcast = false;
         const auto dst_md_wrapper = memory_desc_wrapper(*dst_md);
+
+        size_t OC_loop, OC_tail;
+        if (OC < max_OC_loop_unroll_ * vlen) {
+            // Fully unroll small loops
+            OC_loop = 0;
+            OC_tail = OC;
+        } else {
+            OC_loop = vlen * default_OC_loop_unroll_;
+            OC_tail = OC % OC_loop;
+        }
+        size_t tail_size = OC_tail % vlen;
+        // enable tail processing for runtime load even if there is no tail
+        // for the OC
+        tail_size = !!tail_size ? tail_size : 1;
         const binary_injector::rhs_arg_static_params_t rhs_arg_static_params {
                 helper_vmm_idx, eltwise_reserved_gpr_, r14, preserve_gpr,
                 preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
-                dst_md_wrapper, tail_size, kreg_rem_mask,
+                dst_md_wrapper, tail_size, opmask_binary, reg_tmp,
                 use_exact_tail_scalar_bcast};
-
         const binary_injector::static_params_t binary_static_params {
                 reg_binary_inj_param_, rhs_arg_static_params};
         static constexpr bool save_state = true;
@@ -239,7 +321,7 @@ jit_pp_kernel_t<acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
                 save_state, reg_tmp_comp, eltwise_reserved_opmask_};
 
         postops_injector_ = utils::make_unique<
-                injector::jit_uni_postops_injector_t<avx512_core>>(this,
+                injector::jit_uni_postops_injector_t<inject_isa_>>(this,
                 this->post_ops_, binary_static_params, eltwise_static_params);
 
         using namespace dnnl::impl::cpu::binary_injector_utils;
@@ -254,10 +336,10 @@ jit_pp_kernel_t<acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
 #undef PARAM_OFF
 }
 
-template <data_type_t acc_type, data_type_t dst_type>
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
 template <typename T>
-void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_per_oc_off(
-        const T &offset) {
+void jit_pp_kernel_t<isa, acc_type,
+        dst_type>::advance_binary_postops_per_oc_off(const T &offset) {
 
     const auto binary_post_op_oc_off_reg = reg_tmp_comp;
     const auto binary_post_op_current_offset_on_stack
@@ -277,10 +359,10 @@ void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_per_oc_off(
     mov(binary_post_op_current_offset_on_stack, binary_post_op_oc_off_reg);
 }
 
-template <data_type_t acc_type, data_type_t dst_type>
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
 template <typename T>
-void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_per_tensor_off(
-        const T &offset) {
+void jit_pp_kernel_t<isa, acc_type,
+        dst_type>::advance_binary_postops_per_tensor_off(const T &offset) {
 
     const auto binary_post_op_offset_reg = reg_tmp_comp;
     const auto binary_post_op_current_offset_on_stack
@@ -294,8 +376,8 @@ void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_per_tensor_off(
  * Advance binary postops offsets with per_tensor_offset passed as plain value
  * type (const offset value).
  */
-template <data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_off(
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::advance_binary_postops_off(
         const size_t offset) {
     if (offset) {
         if (any_binary_postop_is_per_oc_bcast_type_)
@@ -308,8 +390,8 @@ void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_off(
 /*
  * Advance binary postops offsets with per_tensor_offset passed in Reg64.
  */
-template <data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_off(
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::advance_binary_postops_off(
         const Xbyak::Reg64 reg_offset) {
     if (any_binary_postop_is_per_oc_bcast_type_)
         advance_binary_postops_per_oc_off(reg_offset);
@@ -317,9 +399,10 @@ void jit_pp_kernel_t<acc_type, dst_type>::advance_binary_postops_off(
         advance_binary_postops_per_tensor_off(reg_offset);
 }
 
-template <data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<acc_type, dst_type>::apply_postops(
-        const bool apply_mask, const int vmm_idx, const size_t offset) {
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::apply_postops(
+        const bool apply_mask, const int vmm_idx, const size_t offset,
+        const bool runtime_tail_mask) {
     if (this->do_eltwise_ || this->do_binary_) {
         if (this->do_binary_) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
@@ -335,6 +418,9 @@ void jit_pp_kernel_t<acc_type, dst_type>::apply_postops(
             }
 
             if (apply_mask) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
+            rhs_arg_params.tail_load_mode = runtime_tail_mask
+                    ? binary_injector::tail_lode_mode_t::DYNAMIC
+                    : binary_injector::tail_lode_mode_t::DEFAULT;
 
             if (any_binary_postop_is_no_bcast_type_) {
                 rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
@@ -349,121 +435,338 @@ void jit_pp_kernel_t<acc_type, dst_type>::apply_postops(
     }
 }
 
-template <data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
-    // Load accumulated value, convert to float, apply bias (if any), scaling,
-    // and eltwise (if any); then convert to destination type and store
-    auto compute = [&](size_t offset, int idx, bool apply_mask) {
-        auto acc_addr = ptr[reg_acc + offset * sizeof(acc_data_t)];
-        if (dst_type == data_type::bf16 && isa_ != avx512_core_bf16)
-            bf16_emu_->init_vcvtneps2bf16();
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::prepare_mask(const size_t tail) {
+    assert(tail > 0 && tail <= vlen - 1);
+    if (is_avx512_) {
+        const size_t tail_mask = (1 << tail) - 1;
+        mov(reg_tmp, tail_mask);
+        kmovq(kreg_rem_mask, reg_tmp);
+    } else if (isa == avx2) {
+        static const uint32_t mask_f32[14]
+                = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
+                        0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0, 0};
 
-        if (this->do_scale_ && this->scale_idx_mult_ == 1) {
-            auto scale_addr = ptr[reg_scales + offset * sizeof(float)];
-            auto vreg_scale_msk_ = vreg_scale;
-            if (apply_mask) vreg_scale_msk_ = vreg_scale_msk_ | kreg_rem_mask;
-            vmovups(vreg_scale_msk_, scale_addr);
-        }
+        mov(reg_tmp, reinterpret_cast<size_t>(&mask_f32[7 - tail]));
+        vmovups(vmm_rem_mask, ptr[reg_tmp]);
+    }
+}
 
-        if (this->do_binary_) {
-            if (apply_mask) kmovq(opmask_binary, kreg_rem_mask);
-        }
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::load_no_tail(
+        const Vmm &v, Xbyak::Address op, const data_type_t dt) {
+    using namespace data_type;
+    switch (dt) {
+        case s8: uni_vpmovsxbd(v, op); break;
+        case u8: uni_vpmovzxbd(v, op); break;
+        case s32:
+        case f32: uni_vmovups(v, op); break;
+        case bf16:
+            vpmovzxwd(v, op);
+            vpslld(v, v, 0x10);
+            break;
+        default: assert(!"unimplemented");
+    }
+}
 
-        const int dst_idx = vreg_dst_idx(idx);
-        auto vreg_dst_ = Zmm(dst_idx);
-        auto vreg_dst_msk_ = apply_mask ? vreg_dst_ | kreg_rem_mask : vreg_dst_;
-
-        switch (acc_type) {
-            case data_type::s32: vcvtdq2ps(vreg_dst_msk_, acc_addr); break;
-            case data_type::f32: vmovups(vreg_dst_msk_, acc_addr); break;
-        }
-
-        if (this->do_bias()) {
-            auto bias_addr
-                    = ptr[reg_bias + offset * this->bias_data_type_size_];
-            auto vreg_bias_ = vreg_bias(idx);
-            auto vreg_bias_msk_
-                    = apply_mask ? vreg_bias_ | kreg_rem_mask : vreg_bias_;
-
-            switch (this->bias_data_type_) {
-                case data_type::s8: vpmovsxbd(vreg_bias_msk_, bias_addr); break;
-                case data_type::u8: vpmovzxbd(vreg_bias_msk_, bias_addr); break;
-                case data_type::s32:
-                case data_type::f32: vmovups(vreg_bias_msk_, bias_addr); break;
-                case data_type::bf16:
-                    vpmovzxwd(vreg_bias_msk_, bias_addr);
-                    vpslld(vreg_bias_, vreg_bias_, 0x10);
-                    break;
-                default: assert(!"unimplemented");
-            }
-            if (utils::one_of(this->bias_data_type_, data_type::u8,
-                        data_type::s8, data_type::s32))
-                vcvtdq2ps(vreg_bias_, vreg_bias_);
-            vaddps(vreg_dst_, vreg_dst_, vreg_bias_);
-        }
-
-        if (this->do_scale_) vmulps(vreg_dst_, vreg_dst_, vreg_scale);
-
-        auto dst_addr = ptr[reg_dst + offset * sizeof(dst_data_t)];
-        if (this->do_sum_) {
-            auto vreg_prev_dst_ = vreg_prev_dst(idx);
-            auto vreg_prev_dst_msk_ = apply_mask
-                    ? vreg_prev_dst_ | kreg_rem_mask
-                    : vreg_prev_dst_;
-
-            switch (dst_type) {
-                case data_type::f32:
-                case data_type::s32:
-                    vmovups(vreg_prev_dst_msk_, dst_addr);
-                    break;
-                case data_type::s8:
-                    vpmovsxbd(vreg_prev_dst_msk_, dst_addr);
-                    break;
-                case data_type::u8:
-                    vpmovzxbd(vreg_prev_dst_msk_, dst_addr);
-                    break;
-                case data_type::bf16:
-                    vpmovzxwd(vreg_prev_dst_msk_, dst_addr);
-                    vpslld(vreg_prev_dst_, vreg_prev_dst_, 0x10);
-                    break;
-                default: assert(!"unsupported data type");
-            }
-            if (utils::one_of(
-                        dst_type, data_type::u8, data_type::s8, data_type::s32))
-                vcvtdq2ps(vreg_prev_dst_, vreg_prev_dst_);
-
-            vfmadd231ps(vreg_dst_, vreg_prev_dst_, vreg_sum_scale);
-        }
-
-        apply_postops(apply_mask, dst_idx, offset);
-
-        if (this->do_dst_zero_points_)
-            vaddps(vreg_dst_, vreg_dst_, vreg_dst_zero_points);
-
-        if (utils::one_of(
-                    dst_type, data_type::u8, data_type::s8, data_type::s32)) {
-            saturate_f32(
-                    vreg_dst_, vreg_zero, vreg_saturation_ubound, dst_type);
-            vcvtps2dq(vreg_dst_, vreg_dst_);
-        } else if (dst_type == data_type::bf16) {
-            if (isa_ == avx512_core_bf16)
-                vcvtneps2bf16(Ymm(vreg_dst_.getIdx()), vreg_dst_);
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::load_tail(const Vmm &v,
+        const arg_t arg_num, const size_t off, const data_type_t dt,
+        const size_t tail) {
+    using namespace data_type;
+    if (is_avx512_) {
+        auto v_dst = tail ? v | kreg_rem_mask : v;
+        load_no_tail(v_dst, get_address(arg_num, off), dt);
+    } else {
+        if (utils::one_of(dt, s8, u8)) {
+            const Xbyak::Xmm x = Xbyak::Xmm(v.getIdx());
+            for (size_t i = 0; i < tail; i++)
+                uni_vpinsrb(x, x, get_address(arg_num, i + off), i);
+            if (dt == s8)
+                uni_vpmovsxbd(v, v);
             else
-                bf16_emu_->vcvtneps2bf16(Ymm(vreg_dst_.getIdx()), vreg_dst_);
+                uni_vpmovzxbd(v, v);
+        } else {
+            const bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
+            if (is_ymm) {
+                vmaskmovps(v, vmm_rem_mask, get_address(arg_num, off));
+            } else {
+                const size_t dt_size = types::data_type_size(f32);
+                for (size_t i = 0; i < tail; i++)
+                    uni_vpinsrd(
+                            v, v, get_address(arg_num, i * dt_size + off), i);
+            }
         }
+    }
+}
 
-        switch (dst_type) {
-            case data_type::s8: vpmovsdb(dst_addr, vreg_dst_msk_); break;
-            case data_type::u8: vpmovusdb(dst_addr, vreg_dst_msk_); break;
-            case data_type::f32:
-            case data_type::s32: vmovups(dst_addr, vreg_dst_msk_); break;
-            case data_type::bf16:
-                vmovdqu16(dst_addr,
-                        apply_mask ? Ymm(vreg_dst_.getIdx()) | kreg_rem_mask
-                                   : Ymm(vreg_dst_.getIdx()));
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::load_and_cvt(const Vmm &v,
+        const arg_t arg_num, const size_t off, const size_t tail, bool do_cvt) {
+    using namespace data_type;
+    const data_type_t dt = get_data_type(arg_num);
+    if (tail)
+        load_tail(v, arg_num, off, dt, tail);
+    else
+        load_no_tail(v, get_address(arg_num, off), dt);
+
+    if (do_cvt && utils::one_of(dt, u8, s8, s32)) uni_vcvtdq2ps(v, v);
+}
+
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::cvt_and_store(
+        const Xbyak::Zmm &v, const arg_t arg_num, const size_t off,
+        const size_t tail) {
+    using namespace data_type;
+    const data_type_t dt = get_data_type(arg_num);
+    if (!utils::one_of(dt, f32, bf16)) {
+        Vmm vreg = Vmm(v.getIdx()); // in case of use Ymm for bf16
+        saturate_f32(vreg, vreg_zero, vreg_saturation_ubound, dt);
+        vcvtps2dq(v, v);
+    } else if (dt == bf16) {
+        if (isa == avx512_core_bf16)
+            vcvtneps2bf16(Ymm(v.getIdx()), v);
+        else
+            bf16_emu_->vcvtneps2bf16(Ymm(v.getIdx()), v);
+    }
+
+    auto v_src = tail ? v | kreg_rem_mask : v;
+    const Xbyak::Address dst = get_address(arg_num, off);
+    switch (dt) {
+        case s8: vpmovsdb(dst, v_src); break;
+        case u8: vpmovusdb(dst, v_src); break;
+        case f32:
+        case s32: uni_vmovups(dst, v_src); break;
+        case bf16:
+            vmovdqu16(dst,
+                    tail ? Ymm(v.getIdx()) | kreg_rem_mask : Ymm(v.getIdx()));
+            break;
+        default: assert(!"unimplemented");
+    }
+}
+
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::cvt_and_store(
+        const Xbyak::Ymm &v, const arg_t arg_num, const size_t off,
+        const size_t tail) {
+    using namespace data_type;
+    const data_type_t dt = get_data_type(arg_num);
+    const Xbyak::Address dst = get_address(arg_num, off);
+    const Xbyak::Xmm x = Xbyak::Xmm(v.getIdx());
+    if (dt == bf16) {
+        // use Zmm implementation for bf16 with Ymm
+        cvt_and_store(Xbyak::Zmm(v.getIdx()), arg_num, off, tail);
+        return;
+    } else if (utils::one_of(dt, s8, u8, s32)) {
+        saturate_f32(v, vreg_zero, vreg_saturation_ubound, dt);
+        vcvtps2dq(v, v);
+
+        if (dt != s32) {
+            // v = { 8x32 }
+            vpackssdw(v, v, vreg_zero);
+            // v = { 4x16, 0, 4x16, 0 }
+            vpermq(v, v, 0x58);
+            // v =  { 8x16, 0 }
+            if (dt == s8)
+                vpacksswb(v, v, vreg_zero);
+            else
+                vpackuswb(v, v, vreg_zero);
+        }
+    }
+
+    if (tail) {
+        switch (dt) {
+            case s8:
+            case u8:
+                for (size_t i = 0; i < tail; i++)
+                    vpextrb(get_address(arg_num, off + i), x, i);
                 break;
+            case f32:
+            case s32: vmaskmovps(dst, vmm_rem_mask, v); break;
             default: assert(!"unimplemented");
         }
+    } else {
+        switch (dt) {
+            case s8:
+            case u8: vmovq(dst, x); break;
+            case f32:
+            case s32: vmovups(dst, v); break;
+            default: assert(!"unimplemented");
+        }
+    }
+}
+
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::cvt_and_store(
+        const Xbyak::Xmm &v, const arg_t arg_num, const size_t off,
+        const size_t tail) {
+    using namespace data_type;
+    const data_type_t dt = get_data_type(arg_num);
+    const Xbyak::Address dst = get_address(arg_num, off);
+    if (utils::one_of(dt, s8, u8, s32)) {
+        saturate_f32(v, vreg_zero, vreg_saturation_ubound, dt);
+        uni_vcvtps2dq(v, v);
+
+        if (dt != s32) {
+            // v = { 8x32 }
+            uni_vpackssdw(v, v, vreg_zero);
+            // v = { 4x16, 0}
+            if (dt == s8)
+                uni_vpacksswb(v, v, vreg_zero);
+            else
+                uni_vpackuswb(v, v, vreg_zero);
+        }
+    }
+
+    if (tail) {
+        switch (dt) {
+            case s8:
+            case u8:
+                for (size_t i = 0; i < tail; i++)
+                    uni_vpextrb(get_address(arg_num, off + i), v, i);
+                break;
+            case f32:
+            case s32: {
+                const size_t dt_size = types::data_type_size(f32);
+                for (size_t i = 0; i < tail; i++)
+                    uni_vpextrd(get_address(arg_num, off + i * dt_size), v, i);
+            } break;
+            default: assert(!"unimplemented");
+        }
+    } else {
+        switch (dt) {
+            case s8:
+            case u8: uni_vmovd(dst, v); break;
+            case f32:
+            case s32: uni_vmovups(dst, v); break;
+            default: assert(!"unimplemented");
+        }
+    }
+}
+
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::runtime_tail_load_cvt(
+        const Vmm &v, const arg_t arg_num, const size_t off, bool cvt) {
+    assert(!is_avx512_);
+    constexpr int simd_w_xmm = 4;
+    constexpr int simd_w_ymm = 8;
+    const data_type_t dt = get_data_type(arg_num);
+    const bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
+    const int simd_w = is_ymm ? simd_w_ymm : simd_w_xmm;
+    Xbyak::Label l_case[simd_w_ymm];
+    Xbyak::Xmm x = Xbyak::Xmm(v.getIdx());
+    Xbyak::Ymm y = Xbyak::Ymm(v.getIdx());
+    // switch case for tail load
+    for (int i = simd_w - 1; i >= 0; i--) {
+        cmp(reg_tail, i);
+        je(l_case[i], T_NEAR);
+    }
+
+    for (int i = simd_w - 1; i >= 0; i--) {
+        if (is_ymm)
+            load_data(dt, y, get_reg_address(arg_num), off, i + 1);
+        else
+            load_data(dt, x, get_reg_address(arg_num), off, i + 1);
+        jmp(l_case[0], T_NEAR);
+        L(l_case[i]);
+    }
+
+    if (cvt && utils::one_of(dt, data_type::u8, data_type::s8, data_type::s32))
+        uni_vcvtdq2ps(v, v);
+}
+
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::runtime_tail_cvt_store(
+        const Vmm &v, const arg_t arg_num, const size_t off) {
+    assert(!is_avx512_);
+    constexpr int simd_w_xmm = 4;
+    constexpr int simd_w_ymm = 8;
+    const data_type_t dt = get_data_type(arg_num);
+    const bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
+    const int simd_w = is_ymm ? simd_w_ymm : simd_w_xmm;
+    Xbyak::Label l_case[simd_w_ymm];
+    Xbyak::Xmm x = Xbyak::Xmm(v.getIdx());
+    Xbyak::Ymm y = Xbyak::Ymm(v.getIdx());
+    if (utils::one_of(dt, data_type::u8, data_type::s8, data_type::s32)) {
+        saturate_f32(v, vreg_zero, vreg_saturation_ubound, dt);
+        uni_vcvtps2dq(v, v);
+    }
+
+    for (int i = simd_w - 1; i >= 0; i--) {
+        cmp(reg_tail, i);
+        je(l_case[i], T_NEAR);
+    }
+
+    for (int i = simd_w - 1; i >= 0; i--) {
+        if (is_ymm)
+            store_data(dt, y, get_reg_address(arg_num), off, i + 1);
+        else
+            store_data(dt, x, get_reg_address(arg_num), off, i + 1);
+        jmp(l_case[0], T_NEAR);
+        L(l_case[i]);
+    }
+}
+
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
+    // Load accumulated value, convert to float, apply bias (if any), scaling,
+    // and eltwise (if any); then convert to destination type and store
+
+    auto compute = [&](size_t offset, int idx, bool runtime_tail_mask,
+                           int tail = 0) {
+        const bool is_needed_runtime_tail_process
+                = runtime_tail_mask && tail && !is_avx512_;
+
+        enum data_op_t { LOAD, STORE };
+        auto data_copy
+                = [&](const Vmm &v, const arg_t arg_num, const size_t off,
+                          data_op_t data_op, const bool do_cvt = true) {
+                      if (data_op == LOAD) {
+                          if (is_needed_runtime_tail_process)
+                              runtime_tail_load_cvt(v, arg_num, off, do_cvt);
+                          else
+                              load_and_cvt(v, arg_num, off, tail, do_cvt);
+                      } else {
+                          if (is_needed_runtime_tail_process)
+                              runtime_tail_cvt_store(v, arg_num, off);
+                          else
+                              cvt_and_store(v, arg_num, off, tail);
+                      }
+                  };
+
+        if (this->do_scale_ && this->scale_idx_mult_ == 1)
+            data_copy(vreg_scale, arg_t::scale, offset * sizeof(float), LOAD,
+                    false);
+
+        if (this->do_binary_ && tail && is_avx512_)
+            kmovq(opmask_binary, kreg_rem_mask);
+
+        const int dst_idx = vreg_dst_idx(idx);
+        auto vreg_dst_ = Vmm(dst_idx);
+        data_copy(vreg_dst_, arg_t::acc, offset * sizeof(acc_data_t), LOAD);
+
+        if (this->do_bias()) {
+            auto vreg_bias_ = vreg_bias(idx);
+            data_copy(vreg_bias_, arg_t::bias,
+                    offset * this->bias_data_type_size_, LOAD);
+            uni_vaddps(vreg_dst_, vreg_dst_, vreg_bias_);
+        }
+
+        if (this->do_scale_) uni_vmulps(vreg_dst_, vreg_dst_, vreg_scale);
+
+        if (this->do_sum_) {
+            auto vreg_prev_dst_ = vreg_prev_dst(idx);
+            data_copy(vreg_prev_dst_, arg_t::dst, offset * sizeof(dst_data_t),
+                    LOAD);
+            uni_vfmadd231ps(vreg_dst_, vreg_prev_dst_, vreg_sum_scale);
+        }
+
+        apply_postops(!!tail, dst_idx, offset, is_needed_runtime_tail_process);
+
+        if (this->do_dst_zero_points_)
+            uni_vaddps(vreg_dst_, vreg_dst_, vreg_dst_zero_points);
+
+        data_copy(vreg_dst_, arg_t::dst, offset * sizeof(dst_data_t), STORE);
     };
 
     // Advance all pointers by an immediate
@@ -511,11 +814,11 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
     auto process_runtime_oc = [&]() {
         Label l_loop, l_loop_tail, l_loop_end;
         cmp(reg_tmp, vlen);
-        jle(l_loop_tail, T_NEAR); // Skips for reg_tmp == 16 too (?)
+        jl(l_loop_tail, T_NEAR);
 
         L(l_loop);
         {
-            compute(0, 0, false);
+            compute(0, 0, true);
             advance_ptrs_imm(vlen);
 
             sub(reg_tmp, vlen);
@@ -524,13 +827,17 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
         }
 
         L(l_loop_tail);
-        mov(reg_rem_mask, 1);
-        shl(reg_rem_mask, cl); // cl == reg_tmp because reg_tmp <= vlen here
-        sub(reg_rem_mask, 1);
-        jz(l_loop_end, T_NEAR);
+        if (is_avx512_) {
+            mov(reg_rem_mask, 1);
+            shl(reg_rem_mask, cl); // cl == reg_tmp because reg_tmp <= vlen here
+            sub(reg_rem_mask, 1);
+        }
+        cmp(reg_tmp, 0);
+        je(l_loop_end, T_NEAR);
 
-        kmovq(kreg_rem_mask, reg_rem_mask);
-        compute(0, 0, true);
+        if (is_avx512_) kmovq(kreg_rem_mask, reg_rem_mask);
+        // tail size does not matter for runtime load
+        compute(0, 0, true, true);
         advance_ptrs_reg(reg_tmp);
 
         L(l_loop_end);
@@ -547,6 +854,9 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
     //      +--------------------------------+----------------------+
     // |    |       Epilogue loop            |      not accessed    :
     // v    +--------------------------------+......................+
+
+    if (dst_type == data_type::bf16 && isa != avx512_core_bf16)
+        bf16_emu_->init_vcvtneps2bf16();
 
     // Prologue loop
     Label l_prologue_end;
@@ -598,12 +908,8 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
 
             assert(!!OC_loop || !!OC_tail);
 
-            if (OC_tail % vlen) {
-                int vlen_tail = OC_tail % vlen;
-                unsigned tail_mask = (1 << vlen_tail) - 1;
-                mov(reg_tmp, tail_mask);
-                kmovq(kreg_rem_mask, reg_tmp);
-            }
+            const int vlen_tail = OC_tail % vlen;
+            if (vlen_tail) prepare_mask(vlen_tail);
 
             if (OC_loop) {
                 mov(reg_tmp, utils::rnd_dn(this->OC_, OC_loop));
@@ -621,7 +927,8 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
             if (OC_tail) {
                 for (size_t offset = 0; offset < OC_tail; offset += vlen) {
                     const bool use_mask = (offset + vlen) > OC_tail;
-                    compute(offset, offset / vlen, use_mask);
+                    compute(offset, offset / vlen, false,
+                            use_mask ? vlen_tail : 0);
                 }
                 advance_ptrs_imm(OC_tail);
             }
@@ -651,51 +958,21 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
     L(l_epilogue_end);
 }
 
-template <data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<acc_type, dst_type>::compute_mb_blk() {
-    auto compute = [&](size_t mb_step, bool apply_mask) {
-        auto zmm_bias = vreg_bias(0);
-        auto zmm_bias_msk = apply_mask ? zmm_bias | kreg_rem_mask : zmm_bias;
-        auto zmm_dst = vreg_dst(0);
-        auto zmm_dst_msk = apply_mask ? zmm_dst | kreg_rem_mask : zmm_dst;
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_mb_blk() {
+    auto compute = [&](int tail, bool runtime_tail = false) {
+        auto vmm_bias = vreg_bias(0);
+        auto vmm_dst = vreg_dst(0);
+        assert(utils::one_of(acc_type, data_type::s32, data_type::f32));
+        if (runtime_tail) {
+            runtime_tail_load_cvt(vmm_dst, arg_t::acc, 0);
+            uni_vaddps(vmm_dst, vmm_dst, vmm_bias);
+            runtime_tail_cvt_store(vmm_dst, arg_t::dst, 0);
 
-        switch (acc_type) {
-            case data_type::s32: vcvtdq2ps(zmm_dst_msk, ptr[reg_acc]); break;
-            case data_type::f32: vmovups(zmm_dst_msk, ptr[reg_acc]); break;
-            default: assert(!"unimplemented");
-        }
-
-        vaddps(zmm_dst, zmm_dst, zmm_bias_msk);
-
-        switch (dst_type) {
-            case data_type::f32: break;
-            case data_type::u8:
-            case data_type::s8:
-            case data_type::s32:
-                saturate_f32(
-                        zmm_dst, vreg_zero, vreg_saturation_ubound, dst_type);
-                vcvtps2dq(zmm_dst, zmm_dst);
-                break;
-            case data_type::bf16:
-                if (isa_ == avx512_core_bf16)
-                    vcvtneps2bf16(Ymm(zmm_dst.getIdx()), zmm_dst);
-                else
-                    bf16_emu_->vcvtneps2bf16(Ymm(zmm_dst.getIdx()), zmm_dst);
-                break;
-            default: assert(!"unimplemented");
-        }
-
-        switch (dst_type) {
-            case data_type::s8: vpmovsdb(ptr[reg_dst], zmm_dst_msk); break;
-            case data_type::u8: vpmovusdb(ptr[reg_dst], zmm_dst_msk); break;
-            case data_type::f32:
-            case data_type::s32: vmovups(ptr[reg_dst], zmm_dst_msk); break;
-            case data_type::bf16:
-                vmovdqu16(ptr[reg_dst],
-                        apply_mask ? Ymm(zmm_dst.getIdx()) | kreg_rem_mask
-                                   : Ymm(zmm_dst.getIdx()));
-                break;
-            default: assert(!"unimplemented");
+        } else {
+            load_and_cvt(vmm_dst, arg_t::acc, 0, tail);
+            uni_vaddps(vmm_dst, vmm_dst, vmm_bias);
+            cvt_and_store(vmm_dst, arg_t::dst, 0, tail);
         }
     };
 
@@ -707,59 +984,48 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_mb_blk() {
     size_t mb_step = vlen / this->OC_;
     size_t mb_tail = this->MB_ % mb_step;
     size_t mb_oc_blk = mb_step * this->OC_;
+    size_t tail_size = mb_oc_blk % vlen;
+    auto vmm_bias = vreg_bias(0);
 
-    auto zmm_bias = vreg_bias(0);
-
-    if (dst_type == data_type::bf16 && isa_ != avx512_core_bf16)
+    if (dst_type == data_type::bf16 && isa != avx512_core_bf16)
         bf16_emu_->init_vcvtneps2bf16();
 
     if (expl_broadcast) {
         // when OC == 1 bias can be loaded directly into simd
         switch (this->bias_data_type_) {
-            case data_type::s32: vpbroadcastd(zmm_bias, ptr[reg_bias]); break;
-            case data_type::f32: vbroadcastss(zmm_bias, ptr[reg_bias]); break;
+            case data_type::s32:
+                uni_vpbroadcastd(vmm_bias, ptr[reg_bias]);
+                break;
+            case data_type::f32:
+                uni_vbroadcastss(vmm_bias, ptr[reg_bias]);
+                break;
             // TODO: enable broadcast for other data types
             default: assert(!"unimplemented");
         }
     } else {
         // prepare bias data for simd computation
-        mov(reg_tmp, (1 << this->OC_) - 1);
-        kmovq(kreg_rem_mask, reg_tmp);
-        auto zmm_bias_msk = zmm_bias | kreg_rem_mask;
-
-        switch (this->bias_data_type_) {
-            case data_type::s8: vpmovsxbd(zmm_bias_msk, ptr[reg_bias]); break;
-            case data_type::u8: vpmovzxbd(zmm_bias_msk, ptr[reg_bias]); break;
-            case data_type::s32:
-            case data_type::f32: vmovups(zmm_bias_msk, ptr[reg_bias]); break;
-            case data_type::bf16:
-                vpmovzxwd(zmm_bias_msk, ptr[reg_bias]);
-                vpslld(zmm_bias_msk, zmm_bias_msk, 0x10);
-                break;
-            default: assert(!"unimplemented");
-        }
+        prepare_mask(this->OC_); // this->OC will never be larger than vlen / 2
+        load_and_cvt(vmm_bias, arg_t::bias, 0, this->OC_, false);
 
         // write repeated MB*OC entries into stack
         sub(rsp, mb_oc_blk * sizeof(uint32_t));
-        for (size_t i = 0; i < mb_step; ++i) {
-            vmovups(ptr[rsp + i * this->OC_ * sizeof(uint32_t)], zmm_bias_msk);
-        }
+        for (size_t i = 0; i < mb_step; ++i)
+            cvt_and_store(vmm_bias, arg_t::stack,
+                    i * this->OC_ * sizeof(uint32_t), this->OC_);
 
         // load into simd
-        mov(reg_tmp, (1 << mb_oc_blk) - 1);
-        kmovq(kreg_rem_mask, reg_tmp);
-        vmovups(zmm_bias | kreg_rem_mask, ptr[rsp]);
+        if (tail_size) prepare_mask(tail_size);
+        load_and_cvt(vmm_bias, arg_t::stack, 0, tail_size, false);
     }
     if (utils::one_of(this->bias_data_type_, data_type::u8, data_type::s8,
                 data_type::s32))
-        vcvtdq2ps(zmm_bias, zmm_bias);
-
+        uni_vcvtdq2ps(vmm_bias, vmm_bias);
     L(mb_main_loop);
     {
         cmp(reg_len, mb_oc_blk);
         jl(end_main_loop, T_NEAR);
 
-        compute(mb_step, !expl_broadcast);
+        compute(!expl_broadcast ? tail_size : 0);
         add(reg_dst, mb_oc_blk * sizeof(dst_data_t));
         add(reg_acc, mb_oc_blk * sizeof(acc_data_t));
         sub(reg_len, mb_oc_blk);
@@ -768,27 +1034,41 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_mb_blk() {
     L(end_main_loop);
 
     if (mb_tail > 0) {
-        Label mb_tail_loop, end_tail_loop;
-
-        mov(reg_tmp, (1 << (mb_tail * this->OC_)) - 1);
-        kmovq(kreg_rem_mask, reg_tmp);
-
+        Label mb_tail_loop, runtime_tail, end_runtime_tail;
+        tail_size = (mb_tail * this->OC_);
+        if (tail_size) prepare_mask(tail_size);
         L(mb_tail_loop);
         {
-            cmp(reg_len, 0);
-            jle(end_tail_loop, T_NEAR);
-            compute(mb_tail, true);
-            sub(reg_len, mb_tail * this->OC_);
+            cmp(reg_len, tail_size);
+            jl(runtime_tail, T_NEAR);
+            compute(tail_size);
+            add(reg_dst, tail_size * sizeof(dst_data_t));
+            add(reg_acc, tail_size * sizeof(acc_data_t));
+            sub(reg_len, tail_size);
             jmp(mb_tail_loop, T_NEAR);
         }
-        L(end_tail_loop);
+        // Load tail in runtime if len < mb_tail * oc
+        L(runtime_tail);
+        {
+            cmp(reg_len, 0);
+            jle(end_runtime_tail, T_NEAR);
+            mov(reg_tail, reg_len); // save tail
+            if (is_avx512_) {
+                mov(reg_rem_mask, 1);
+                shl(reg_rem_mask, cl); // cl == last 8 bits of reg_tail
+                sub(reg_rem_mask, 1);
+                kmovq(kreg_rem_mask, reg_rem_mask);
+            }
+            compute(tail_size, !is_avx512_);
+        }
+        L(end_runtime_tail);
     }
 
     if (!expl_broadcast) add(rsp, mb_oc_blk * sizeof(uint32_t));
 }
 
-template <data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<acc_type, dst_type>::generate() {
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::generate() {
     preamble();
 
 #ifdef _WIN32
@@ -806,7 +1086,7 @@ void jit_pp_kernel_t<acc_type, dst_type>::generate() {
     if (this->do_dst_zero_points_) {
         // use reg_oc as a temporary one (alas, reg_tmp = reg_param on Windows)
         mov(reg_oc, ptr[reg_param + PARAM_OFF(dst_zero_points)]);
-        vbroadcastss(vreg_dst_zero_points, ptr[reg_oc]);
+        uni_vbroadcastss(vreg_dst_zero_points, ptr[reg_oc]);
     }
     if (this->runtime_oc())
         mov(reg_oc, ptr[reg_param + PARAM_OFF(oc)]);
@@ -831,7 +1111,7 @@ void jit_pp_kernel_t<acc_type, dst_type>::generate() {
         }
     }
     if (this->do_scale_ && this->scale_idx_mult_ == 0)
-        vbroadcastss(vreg_scale, dword[reg_scales]);
+        uni_vbroadcastss(vreg_scale, dword[reg_scales]);
     if (!this->has_trivial_mb_stride()) {
         mov(reg_dst_mb_stride, ptr[reg_param + PARAM_OFF(dst_mb_stride)]);
         sub(reg_dst_mb_stride, reg_oc);
@@ -846,8 +1126,8 @@ void jit_pp_kernel_t<acc_type, dst_type>::generate() {
     if (this->do_sum_) {
         mov(reg_tmp, float2int(this->sum_scale_));
         auto xreg_sum_scale = Xmm(vreg_sum_scale.getIdx());
-        vmovq(xreg_sum_scale, reg_tmp);
-        vbroadcastss(vreg_sum_scale, xreg_sum_scale);
+        uni_vmovq(xreg_sum_scale, reg_tmp);
+        uni_vbroadcastss(vreg_sum_scale, xreg_sum_scale);
     }
 
     init_saturate_f32(vreg_zero, vreg_saturation_ubound, reg_tmp_comp,
@@ -858,7 +1138,6 @@ void jit_pp_kernel_t<acc_type, dst_type>::generate() {
             && (this->OC_ <= vlen / 2) && (this->MB_ >= vlen);
     bool supported_postops = this->do_scale_ || this->do_eltwise_
             || this->do_binary_ || this->do_sum_ || this->do_dst_zero_points_;
-
     if (this->do_bias() && !supported_postops && dim_restrict
             && this->has_trivial_mb_stride()) {
         this->mb_blk_kernel_ = true;
@@ -873,8 +1152,8 @@ void jit_pp_kernel_t<acc_type, dst_type>::generate() {
     if (this->do_eltwise_) postops_injector_->prepare_table();
 }
 
-template <data_type_t acc_type, data_type_t dst_type>
-void jit_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::operator()(dst_data_t *dst,
         const acc_data_t *acc, const char *bias, const float *scales,
         size_t start, size_t dst_logical_off, size_t dst_row_idx, size_t end,
         size_t runtime_oc, dim_t dst_mb_stride, const float *dst_zero_points,
@@ -920,9 +1199,21 @@ template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type> *jit_pp_kernel_create(size_t OC, size_t MB,
         dim_t dst_mb_stride, const primitive_attr_t *attr, data_type_t bias_dt,
         const memory_desc_t *dst_md, bool skip_sum) {
-    if (!mayiuse(jit_pp_kernel_supported_isa())) return nullptr;
-    return new jit_pp_kernel_t<acc_type, dst_type>(
-            OC, MB, dst_mb_stride, attr, bias_dt, dst_md, skip_sum);
+    if (mayiuse(avx512_core_bf16)) {
+        return new jit_pp_kernel_t<avx512_core_bf16, acc_type, dst_type>(
+                OC, MB, dst_mb_stride, attr, bias_dt, dst_md, skip_sum);
+    } else if (mayiuse(avx512_core)) {
+        return new jit_pp_kernel_t<avx512_core, acc_type, dst_type>(
+                OC, MB, dst_mb_stride, attr, bias_dt, dst_md, skip_sum);
+    } else if (mayiuse(avx2)) {
+        return new jit_pp_kernel_t<avx2, acc_type, dst_type>(
+                OC, MB, dst_mb_stride, attr, bias_dt, dst_md, skip_sum);
+    } else if (mayiuse(sse41)) {
+        return new jit_pp_kernel_t<sse41, acc_type, dst_type>(
+                OC, MB, dst_mb_stride, attr, bias_dt, dst_md, skip_sum);
+    } else {
+        return nullptr;
+    }
 }
 
 #define INST(acc_type, dst_type) \

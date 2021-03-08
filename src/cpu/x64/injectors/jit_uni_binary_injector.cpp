@@ -1101,9 +1101,10 @@ jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail_dynamically(
     Xbyak::Xmm x = Xbyak::Xmm(tmp_vmm.getIdx());
     Xbyak::Ymm y = Xbyak::Ymm(tmp_vmm.getIdx());
 
+    host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
     for (int i = simd_w - 1; i >= 0; i--) {
         host_->cmp(reg_tail_size, i);
-        host_->je(l_case[i]);
+        host_->je(l_case[i], host_->T_NEAR);
     }
 
     for (int i = simd_w - 1; i >= 0; i--) {
@@ -1111,7 +1112,7 @@ jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail_dynamically(
             host_->load_data(data_type, y, reg_addr, 0, i + 1);
         else
             host_->load_data(data_type, x, reg_addr, 0, i + 1);
-        host_->jmp(l_case[0]);
+        host_->jmp(l_case[0], host_->T_NEAR);
         host_->L(l_case[i]);
     }
 }
