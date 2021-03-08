@@ -114,7 +114,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_fp_math_mode(
         dnnl_primitive_attr_t attr, dnnl_fp_math_mode_t mode);
 
 dnnl_status_t DNNL_API dnnl_primitive_attr_get_fp_math_mode(
-        dnnl_primitive_attr_t attr, dnnl_fp_math_mode_t mode);
+        dnnl_primitive_attr_t attr, dnnl_fp_math_mode_t *mode);
 ```
 
 The math mode attribute will have the following values:
