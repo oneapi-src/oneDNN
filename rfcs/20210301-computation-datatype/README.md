@@ -92,12 +92,25 @@ data-type. The second option has the benefit of allowing to
 down-convert ahead of time and reduce the execution time (e.g. weights
 down-conversion can be computed ahead of time during inference).
 
-Proposal: expose the data-type we down-convert to only when the user
-data layout is `any`. When the user does not pass `any`, we cannot
-assume that they properly handle a potential reorder whereas when they
-pass `any`, we can assume that a memory_descriptor comparison happens
-(using `dnnl_memory_desc_equal` or `memory::desc::operator==`) and
-proper reorder logic is implemented.
+Proposal: When queried for a `memory_desc`, a primitive is allowed to
+return a `memory_desc` with the data-type it down-converts to for
+computation only when the corresponding user provided `memory_desc`
+has data layout `any`. The rationale is that when the user does not
+pass `any`, we cannot assume that they properly handle a potential
+reorder for that given tensor. However, when they pass `any`, we can
+assume that a memory_descriptor comparison happens (using
+`dnnl_memory_desc_equal` or `memory::desc::operator==`) and proper
+reorder logic is implemented.
+
+Note: This is not mandated for a primitive implementation to expose
+the data-type they down-convert to when queried. There are some
+scenario where this is beneficial to not expose it actually. For
+example, we might want to return plain layouts for activation when
+user passes `any` in order to reduce potential reorder overhead. In
+those same cases, we would likely preserve the user datatype in the
+queried `memory_desc` and handle down-conversion internally (not
+through reorder).
+
 
 # 3. API changes proposal
 
@@ -176,3 +189,25 @@ dnnl_status_t DNNL_API dnnl_set_default_fp_math_mode(dnnl_fp_math_mode_t mode);
 
 Because some users create primitives in parallel, this setting should
 be thread local.
+
+## 3.3 Verbose support
+
+There are two kind of information a user might need/want:
+1. The value of the attribute passed when not default. This describes
+  exactly what was passed to the API and aligns with the other
+  attributes.
+2. The computation data-type of a primitive when down-conversion
+  happens. Since the `fp_math_mode` is a hint, users might want to
+  know about when down-conversion effectively happens, vs when it
+  could happen.
+
+Supporting both of these seems to be orthogonal usages though: option
+1 is useful for creating reproducers, option 2 might be useful for
+performance profiling.
+
+Here the proposal is to stick with option 1 through verbose for
+now. If a need arise for option 2, we can still extend the verbose
+with the primitive computation type.  Regarding the string we would
+print, as usual, we have to pick a shortname (e.g. `fpm:strict` for
+`dnnl_fp_math_mode_strict`, ...).
+
