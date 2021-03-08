@@ -540,7 +540,7 @@ void jit_avx512_core_amx_copy_to_wbuffer_t::generate() {
     const uint8_t nr = is_bf16 ? 2 : 4; // 2r or 4r
     for (uint8_t o = 0; o < no; ++o) {
         for (uint8_t r = 0; r < nr; r++) {
-            const uint8_t index = o + r * UINT8_C(no);
+            const uint8_t index = o + r * no;
             if (is_bf16)
                 dw(index);
             else
