@@ -4,7 +4,7 @@
 
 --dir=FWD_D,BWD_D
 --dt=f32,bf16,f16
---tag=abx,axb,aBx8b,aBx16b
+--tag=abx,axb
 --alg=SOFTMAX,LOGSOFTMAX
 --axis=0,1
 --batch=shapes_ci
