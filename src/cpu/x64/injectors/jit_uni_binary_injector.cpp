@@ -1090,31 +1090,22 @@ typename std::enable_if<!std::is_same<T, Xbyak::Zmm>::value>::type
 jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail_dynamically(
         const dnnl_data_type_t &data_type, const T &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
-    constexpr int simd_w_xmm = 4;
-    constexpr int simd_w_ymm = 8;
     const bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
-    const int simd_w = is_ymm ? simd_w_ymm : simd_w_xmm;
-
-    Xbyak::Label l_case[simd_w_ymm];
     const Xbyak::Reg64 &reg_addr = rhs_arg_static_params_.rhs_addr_reg;
+    const Xbyak::Reg64 &reg_tmp = rhs_arg_static_params_.rhs_helper_reg;
     const Xbyak::Reg64 &reg_tail_size = rhs_arg_static_params_.reg_tail_size;
-    Xbyak::Xmm x = Xbyak::Xmm(tmp_vmm.getIdx());
-    Xbyak::Ymm y = Xbyak::Ymm(tmp_vmm.getIdx());
+    const Xbyak::Xmm x = Xbyak::Xmm(tmp_vmm.getIdx());
+    const Xbyak::Ymm y = Xbyak::Ymm(tmp_vmm.getIdx());
+
+    auto runtime_tail_load = [&](int load_size) {
+        if (is_ymm)
+            host_->load_data(data_type, y, reg_addr, 0, load_size);
+        else
+            host_->load_data(data_type, x, reg_addr, 0, load_size);
+    };
 
     host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
-    for (int i = simd_w - 1; i >= 0; i--) {
-        host_->cmp(reg_tail_size, i);
-        host_->je(l_case[i], host_->T_NEAR);
-    }
-
-    for (int i = simd_w - 1; i >= 0; i--) {
-        if (is_ymm)
-            host_->load_data(data_type, y, reg_addr, 0, i + 1);
-        else
-            host_->load_data(data_type, x, reg_addr, 0, i + 1);
-        host_->jmp(l_case[0], host_->T_NEAR);
-        host_->L(l_case[i]);
-    }
+    host_->runtime_tail_process<Vmm>(reg_tail_size, reg_tmp, runtime_tail_load);
 }
 
 template <cpu_isa_t isa, typename Vmm>

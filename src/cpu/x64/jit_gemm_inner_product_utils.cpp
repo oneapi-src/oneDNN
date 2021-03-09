@@ -653,28 +653,20 @@ template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
 void jit_pp_kernel_t<isa, acc_type, dst_type>::runtime_tail_load_cvt(
         const Vmm &v, const arg_t arg_num, const size_t off, bool cvt) {
     assert(!is_avx512_);
-    constexpr int simd_w_xmm = 4;
-    constexpr int simd_w_ymm = 8;
     const data_type_t dt = get_data_type(arg_num);
     const bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
-    const int simd_w = is_ymm ? simd_w_ymm : simd_w_xmm;
-    Xbyak::Label l_case[simd_w_ymm];
-    Xbyak::Xmm x = Xbyak::Xmm(v.getIdx());
-    Xbyak::Ymm y = Xbyak::Ymm(v.getIdx());
-    // switch case for tail load
-    for (int i = simd_w - 1; i >= 0; i--) {
-        cmp(reg_tail, i);
-        je(l_case[i], T_NEAR);
-    }
+    const Xbyak::Xmm x = Xbyak::Xmm(v.getIdx());
+    const Xbyak::Ymm y = Xbyak::Ymm(v.getIdx());
+    const Xbyak::Reg64 &reg_addr = get_reg_address(arg_num);
 
-    for (int i = simd_w - 1; i >= 0; i--) {
+    auto runtime_tail_load = [&](int load_size) {
         if (is_ymm)
-            load_data(dt, y, get_reg_address(arg_num), off, i + 1);
+            load_data(dt, y, reg_addr, off, load_size);
         else
-            load_data(dt, x, get_reg_address(arg_num), off, i + 1);
-        jmp(l_case[0], T_NEAR);
-        L(l_case[i]);
-    }
+            load_data(dt, x, reg_addr, off, load_size);
+    };
+
+    runtime_tail_process<Vmm>(reg_tail, reg_rem_mask, runtime_tail_load);
 
     if (cvt && utils::one_of(dt, data_type::u8, data_type::s8, data_type::s32))
         uni_vcvtdq2ps(v, v);
@@ -684,32 +676,25 @@ template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
 void jit_pp_kernel_t<isa, acc_type, dst_type>::runtime_tail_cvt_store(
         const Vmm &v, const arg_t arg_num, const size_t off) {
     assert(!is_avx512_);
-    constexpr int simd_w_xmm = 4;
-    constexpr int simd_w_ymm = 8;
     const data_type_t dt = get_data_type(arg_num);
     const bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
-    const int simd_w = is_ymm ? simd_w_ymm : simd_w_xmm;
-    Xbyak::Label l_case[simd_w_ymm];
-    Xbyak::Xmm x = Xbyak::Xmm(v.getIdx());
-    Xbyak::Ymm y = Xbyak::Ymm(v.getIdx());
+    const Xbyak::Xmm x = Xbyak::Xmm(v.getIdx());
+    const Xbyak::Ymm y = Xbyak::Ymm(v.getIdx());
+    const Xbyak::Reg64 &reg_addr = get_reg_address(arg_num);
+
     if (utils::one_of(dt, data_type::u8, data_type::s8, data_type::s32)) {
         saturate_f32(v, vreg_zero, vreg_saturation_ubound, dt);
         uni_vcvtps2dq(v, v);
     }
 
-    for (int i = simd_w - 1; i >= 0; i--) {
-        cmp(reg_tail, i);
-        je(l_case[i], T_NEAR);
-    }
-
-    for (int i = simd_w - 1; i >= 0; i--) {
+    auto runtime_tail_store = [&](int store_size) {
         if (is_ymm)
-            store_data(dt, y, get_reg_address(arg_num), off, i + 1);
+            store_data(dt, y, reg_addr, off, store_size);
         else
-            store_data(dt, x, get_reg_address(arg_num), off, i + 1);
-        jmp(l_case[0], T_NEAR);
-        L(l_case[i]);
-    }
+            store_data(dt, x, reg_addr, off, store_size);
+    };
+
+    runtime_tail_process<Vmm>(reg_tail, reg_rem_mask, runtime_tail_store);
 }
 
 template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>

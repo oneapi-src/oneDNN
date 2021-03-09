@@ -1793,6 +1793,46 @@ public:
         }
     }
 
+    /* A utility function to process f32 tail (load, store or other) depending
+     * on tail size, stored in Reg64. Tail size must be value from 0 to 3/7
+     * (Xmm/Ymm). Tail process functions require integer as argument to specify
+     * behavior for each tail size.
+     * 
+     * Only supported for Xmm and Ymm.
+     */
+    template <typename Vmm>
+    void runtime_tail_process(const Xbyak::Reg64 &reg_tail,
+            const Xbyak::Reg64 &reg_tmp,
+            const std::function<void(int)> &tail_process) {
+        constexpr int simd_w_ymm = 8;
+        constexpr int f32_bits = sizeof(float) * 8;
+        const auto simd_w = Vmm().getBit() / f32_bits;
+        assert(simd_w != Xbyak::Zmm().getBit() / f32_bits);
+
+        Xbyak::Label label_tbl, label_tbl_end;
+        Xbyak::Label l_case[simd_w_ymm];
+
+        mov(reg_tmp, label_tbl);
+        const Xbyak::Address label_address
+                = ptr[reg_tmp + reg_tail * sizeof(void *)];
+        jmp(label_address);
+
+        // create jump table
+        L(label_tbl);
+        for (size_t i = 0; i < simd_w; i++)
+            putL(l_case[i]);
+
+        // cases for each tail size - from 0 to 3/7
+        L(l_case[0]);
+        jmp(label_tbl_end, T_NEAR);
+        for (size_t i = 1; i < simd_w; i++) {
+            L(l_case[i]);
+            tail_process(i);
+            jmp(label_tbl_end, T_NEAR);
+        }
+        L(label_tbl_end);
+    }
+
     DNNL_DISALLOW_COPY_AND_ASSIGN(jit_generator);
 
 public:
