@@ -462,9 +462,12 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
 
 status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
+    const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
 
     constexpr int amx_bf16_row = 32;
-    jbgp.ic_block = jbgp.simd_w;
+    const bool big_ic_blk_ok
+            = is_f32 && jbgp.ic % (4 * jbgp.simd_w) == 0 && jbgp.mb <= 128;
+    jbgp.ic_block = big_ic_blk_ok ? 4 * jbgp.simd_w : jbgp.simd_w;
     if (jbgp.oc >= 64)
         jbgp.oc_block = 64;
     else if (jbgp.oc >= 32)

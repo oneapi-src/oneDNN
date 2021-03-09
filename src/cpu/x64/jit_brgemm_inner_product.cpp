@@ -676,8 +676,8 @@ struct brgemm_inner_product_bwd_weights_t<isa>::thread_info_t {
         ithr_oc_c = ithr / nthr_ic_c % nthr_oc_c;
         ithr_os_c = ithr / nthr_ic_c / nthr_oc_c;
 
-        int oc_chunks = jbgp.nb_oc / jbgp.nb_oc_blocking;
-        int ic_chunks = jbgp.nb_ic / jbgp.nb_ic_blocking;
+        int oc_chunks = utils::div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
+        int ic_chunks = utils::div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
         int os_chunks = utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking);
 
         /* reduction dimension */
@@ -773,6 +773,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
 
     const auto get_wei_acc_ptr = [&](int ocb, int icb) {
         const int reduction_buf_start_idx = jbgp.wei_dt == f32;
+        const int icb_scale = jbgp.ic_block / jbgp.simd_w;
         if (jbgp.use_buffer && jbgp.nthr_mb == 1) {
             if (!is_amx) {
                 UNUSED(icb);
@@ -791,11 +792,13 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                     + acc_dt_size * (ti->ithr_os_c - reduction_buf_start_idx)
                     * red_buf_elems
                     + acc_dt_size
-                    * get_wei_offset(diff_weights_d, ocb, icb, true);
+                    * get_wei_offset(
+                            diff_weights_d, ocb, icb * icb_scale, true);
         } else {
             return (char *)diff_weights
                     + acc_dt_size
-                    * get_wei_offset(diff_weights_d, ocb, icb, false);
+                    * get_wei_offset(
+                            diff_weights_d, ocb, icb * icb_scale, false);
         }
     };
 
@@ -1017,8 +1020,12 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
 
     for_(int occ = ti->oc_c_start; occ < ti->oc_c_end; occ++)
     for_(int icc = ti->ic_c_start; icc < ti->ic_c_end; icc++)
-    for_(int ocb = 0; ocb < jbgp.nb_oc_blocking; ocb++)
-    for_(int icb = 0; icb < jbgp.nb_ic_blocking; icb++)
+    for_(int ocb = 0; ocb < nstl::min(jbgp.nb_oc_blocking,
+                              jbgp.nb_oc - occ * jbgp.nb_oc_blocking);
+            ocb++)
+    for_(int icb = 0; icb < nstl::min(jbgp.nb_ic_blocking,
+                              jbgp.nb_ic - icc * jbgp.nb_ic_blocking);
+            icb++)
     for (int osc = ti->os_c_start; osc < ti->os_c_end; osc++) {
         ker(osc, icc * jbgp.nb_ic_blocking + icb,
                 occ * jbgp.nb_oc_blocking + ocb);
@@ -1059,6 +1066,7 @@ void brgemm_inner_product_bwd_weights_t<
         isa>::reduce_and_convert_diff_weights_and_bias(const thread_info_t *ti)
         const {
     const auto &jbgp = pd()->jbgp_;
+    const int icb_scale = jbgp.ic_block / jbgp.simd_w;
 
     static constexpr bool is_amx = (isa == avx512_core_bf16_amx_bf16);
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
@@ -1107,11 +1115,13 @@ void brgemm_inner_product_bwd_weights_t<
                             (float *)(wei_reduced
                                     + acc_dt_size
                                             * get_wei_offset(diff_weights_d,
-                                                    ocb, icb, is_bf16_out)),
+                                                    ocb, icb * icb_scale,
+                                                    is_bf16_out)),
                             (float *)(wei_to_reduce
                                     + acc_dt_size
                                             * get_wei_offset(diff_weights_d,
-                                                    ocb, icb, true)),
+                                                    ocb, icb * icb_scale,
+                                                    true)),
                             acc_size);
 
                     if (!is_amx && is_bf16_out
@@ -1121,10 +1131,12 @@ void brgemm_inner_product_bwd_weights_t<
 
                         ctx.src = (void *)(wei_reduced
                                 + acc_dt_size
-                                        * diff_weights_d.blk_off(ocb, icb));
+                                        * diff_weights_d.blk_off(
+                                                ocb, icb * icb_scale));
                         ctx.tr_src = (void *)(out_wei_ptr
                                 + types::data_type_size(jbgp.wei_dt)
-                                        * diff_weights_d.blk_off(ocb, icb));
+                                        * diff_weights_d.blk_off(
+                                                ocb, icb * icb_scale));
 
                         ctx.current_gemm_batch = 1;
                         ctx.current_col_size = jbgp.oc_block;
