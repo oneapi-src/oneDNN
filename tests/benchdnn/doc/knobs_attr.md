@@ -82,8 +82,8 @@ delimiters used inside post-ops content. Refer to examples below.
 `SUM` post operation kind appends operation result to the output. It supports
 optional arguments `SCALE` parsed as a real number, which scales the operation
 result before appending, and `DATA_TYPE` argument which defines sum data type
-parameter. No data type limitations are applied. Only single `SUM` operation
-can be applied to the output tensor.
+parameter. If invalid or `undef` `DATA_TYPE` is specified, an error will be
+returned. Only single `SUM` operation can be applied to the output tensor.
 
 `ELTWISE` post operation kind applies one of supported element-wise algorithms
 to the operation result and then stores it. It supports optional arguments

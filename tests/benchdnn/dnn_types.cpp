@@ -427,6 +427,8 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
             e.sum.dt = str2dt(get_substr(subs, subs_pos).c_str());
+            // sum dt, if specified, should be defined
+            if (e.sum.dt == dnnl_data_type_undef) return FAIL;
         } else if (e.is_convolution_kind()) {
             e.convolution.dst_dt = str2dt(get_substr(subs, subs_pos).c_str());
             if (subs_pos == std::string::npos) continue;
