@@ -102,7 +102,7 @@ inline void write_ic_block4(__global SRC_DATA_T *src, int off, uchar4 value) {
     src[3 * 8 + local_id] = value.s3;
     return;
 #else
-    intel_sub_group_block_write_uc4((__global uint *)src, value);
+    intel_sub_group_block_write_uc4((__global uchar *)src, value);
     return;
 #endif
 }
@@ -213,7 +213,7 @@ conv_bwd_data_x8s8x8(const __global SRC_DATA_T *src, const __global char *wei,
                         + (OC_BLOCK * MB_BLOCK * (OW * OH * od + OW * oh));
 #endif
                 barrier(CLK_LOCAL_MEM_FENCE);
-#if !HAS_PAD_W && SW == 1 && KW == 1 && !IS_NHWC
+#if !HAS_PAD_W && SW == 1 && KW == 1 && !IS_NHWC && IW % IW_BLOCK == 0
                 // Copy block to SLM
                 int ow_min = (iw - (KW - 1) * (1 + DW));
                 int ow_max = (iw + IW_BLOCK - 1);
