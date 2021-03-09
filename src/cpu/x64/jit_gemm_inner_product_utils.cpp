@@ -837,15 +837,15 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
         }
 
         L(l_loop_tail);
+        cmp(reg_tmp, 0);
+        je(l_loop_end, T_NEAR);
+
         if (is_avx512_) {
             mov(reg_rem_mask, 1);
             shl(reg_rem_mask, cl); // cl == reg_tmp because reg_tmp <= vlen here
             sub(reg_rem_mask, 1);
+            kmovq(kreg_rem_mask, reg_rem_mask);
         }
-        cmp(reg_tmp, 0);
-        je(l_loop_end, T_NEAR);
-
-        if (is_avx512_) kmovq(kreg_rem_mask, reg_rem_mask);
         // tail size does not matter for runtime load
         compute(0, 0, true, true);
         advance_ptrs_reg(reg_tmp);
