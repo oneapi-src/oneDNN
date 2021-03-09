@@ -59,6 +59,9 @@ private:
     opmask_t kF0F0 = k6;
     opmask_t kTail = k7;
 
+    reg64_t reg_src_base = rax;
+    reg64_t reg_tr_src_base = rbx;
+
     reg64_t reg_src = r8;
     reg64_t reg_tr_src = r9;
     reg64_t reg_loop_K = r10;
@@ -214,19 +217,21 @@ void jit_brgemm_trans_M_K_f32_t::transpose_16x16(int nrows, int ncolumns) {
 
 void jit_brgemm_trans_M_K_f32_t::generate() {
     preamble();
-    assert(transpose_size == conf_->ic_block);
+    assert(conf_->ic_block % transpose_size == 0);
     int os_block = conf_->os_block;
     int last_os_block_tail = conf_->K_tail % transpose_size;
     int ic_tail = conf_->ic % transpose_size;
     src_stride = conf_->ic * typesize;
     tr_src_stride = conf_->LDA * typesize;
+    dim_t m_src_shift = transpose_size * typesize;
+    dim_t m_tr_src_shift = tr_src_stride * transpose_size;
+
     dim_t batch_src_shift = src_stride * os_block;
     dim_t batch_tr_src_shift = tr_src_stride * conf_->M;
 
-    mov(reg_src, ptr[param1 + GET_OFF(src)]);
-    mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
+    mov(reg_src_base, ptr[param1 + GET_OFF(src)]);
+    mov(reg_tr_src_base, ptr[param1 + GET_OFF(tr_src)]);
     mov(reg_loop_batch, ptr[param1 + GET_OFF(current_gemm_batch)]);
-    mov(reg_loop_M, ptr[param1 + GET_OFF(current_M)]);
     mov(reg_loop_K, ptr[param1 + GET_OFF(current_K)]);
 
     auto kmovw = [=](Opmask k, unsigned w) {
@@ -241,36 +246,49 @@ void jit_brgemm_trans_M_K_f32_t::generate() {
     kmovw(k0F0F, 0x0f0f); // 0000111100001111
     kmovw(kF0F0, 0xf0f0); // 1111000011110000
 
-    auto compute_batch = [=](bool is_os_tail, bool is_ic_tail) {
+    auto compute_M = [=](bool is_os_tail) {
+        auto nrows = is_os_tail ? last_os_block_tail : transpose_size;
+        mov(reg_loop_M, ptr[param1 + GET_OFF(current_M)]);
+        mov(reg_src, reg_src_base);
+        mov(reg_tr_src, reg_tr_src_base);
+        Label M_loop, M_tail_or_done, M_done;
+        if (ic_tail > 0) {
+            cmp(reg_loop_M, transpose_size);
+            jl(M_tail_or_done, T_NEAR);
+        }
+
+        L(M_loop);
+        transpose_16x16(nrows, transpose_size);
+        if (conf_->ic_block > transpose_size) {
+            add(reg_src, m_src_shift);
+            add(reg_tr_src, m_tr_src_shift);
+            sub(reg_loop_M, transpose_size);
+            cmp(reg_loop_M, transpose_size);
+            jge(M_loop, T_NEAR);
+        } else {
+            jmp(M_done, T_NEAR);
+        }
+
+        L(M_tail_or_done);
+        if (ic_tail > 0) {
+            cmp(reg_loop_M, 0);
+            jle(M_done, T_NEAR);
+
+            transpose_16x16(nrows, ic_tail);
+        }
+        L(M_done);
+    };
+
+    auto compute_batch = [=](bool is_os_tail) {
         Label batch_loop;
         L(batch_loop);
 
-        transpose_16x16(is_os_tail ? last_os_block_tail : transpose_size,
-                is_ic_tail ? ic_tail : transpose_size);
-        add(reg_src, batch_src_shift);
-        add(reg_tr_src, batch_tr_src_shift);
+        compute_M(is_os_tail);
+        add(reg_src_base, batch_src_shift);
+        add(reg_tr_src_base, batch_tr_src_shift);
 
         sub(reg_loop_batch, 1);
         jnz(batch_loop, T_NEAR);
-    };
-
-    auto compute = [=](bool is_os_tail) {
-        Label M_tail;
-        if (ic_tail > 0) {
-            cmp(reg_loop_M, transpose_size);
-            jl(M_tail, T_NEAR);
-        }
-
-        compute_batch(is_os_tail, false);
-
-        if (ic_tail > 0) {
-            Label M_done;
-            jmp(M_done, T_NEAR);
-
-            L(M_tail);
-            compute_batch(is_os_tail, true);
-            L(M_done);
-        }
     };
 
     Label K_tail;
@@ -279,14 +297,14 @@ void jit_brgemm_trans_M_K_f32_t::generate() {
         jl(K_tail, T_NEAR);
     }
 
-    compute(false);
+    compute_batch(false);
 
     if (last_os_block_tail > 0) {
         Label K_done;
         jmp(K_done, T_NEAR);
 
         L(K_tail);
-        compute(true);
+        compute_batch(true);
         L(K_done);
     }
 
