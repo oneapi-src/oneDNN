@@ -102,17 +102,26 @@ static dim_t weights_offset(
     return offset(mem, wei_dims);
 }
 
+static void zero_memory(const memory_desc_wrapper &mem_d, byte *mem_ptr) {
+    const dim_t mem_size = mem_d.size();
+    parallel(0, [&](std::size_t ithr, std::size_t nthr) {
+        dim_t start {0}, end {0};
+        balance211(mem_size, nthr, ithr, start, end);
+        std::memset(mem_ptr + start, 0, end - start);
+    });
+}
+
 status_t ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     if (pd()->has_zero_dim_memory()) return status::success;
 
-    status_t status = status::success;
     const auto src = CTX_IN_MEM(const byte *, DNNL_ARG_SRC);
     const auto weights = CTX_IN_MEM(const byte *, DNNL_ARG_WEIGHTS);
-    auto dst = CTX_OUT_CLEAN_MEM(byte *, DNNL_ARG_DST, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(byte *, DNNL_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->src_md(0));
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
+
+    if (!data_d.is_dense()) zero_memory(data_d, dst);
 
     const int mask = utils::get_dims_mask(
             data_d.dims(), weights_d.dims(), data_d.ndims());
@@ -229,6 +238,9 @@ void ref_prelu_bwd_t::calculate_scalar(const byte *src, const byte *weights,
 
     std::vector<float> buf_nthr_partial_results(dnnl_get_max_threads());
 
+    if (!data_d.is_dense()) zero_memory(data_d, diff_src);
+    if (!weights_d.is_dense()) zero_memory(weights_d, diff_weights);
+
     parallel(0, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
 
@@ -288,6 +300,9 @@ void ref_prelu_bwd_t::calculate_no_broadcast(const byte *src,
     const int mask = utils::get_dims_mask(
             data_d.dims(), weights_d.dims(), data_d.ndims());
 
+    if (!data_d.is_dense()) zero_memory(data_d, diff_src);
+    if (!weights_d.is_dense()) zero_memory(weights_d, diff_weights);
+
     parallel(0, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
 
@@ -333,6 +348,9 @@ void ref_prelu_bwd_t::calculate_shared_axes(const byte *src,
     const dim_t work_amount = weights_d.nelems();
     const int mask = utils::get_dims_mask(
             data_d.dims(), weights_d.dims(), data_d.ndims());
+
+    if (!data_d.is_dense()) zero_memory(data_d, diff_src);
+    if (!weights_d.is_dense()) zero_memory(weights_d, diff_weights);
 
     parallel(0, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
@@ -395,15 +413,11 @@ status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     auto scratchpad_buf = scratchpad.template get<float>(
             memory_tracking::names::key_prelu_reduction);
 
-    status_t status = status::success;
     const auto src = CTX_IN_MEM(const byte *, DNNL_ARG_SRC);
     const auto weights = CTX_IN_MEM(const byte *, DNNL_ARG_WEIGHTS);
-    auto diff_weights
-            = CTX_OUT_CLEAN_MEM(const byte *, DNNL_ARG_DIFF_WEIGHTS, status);
-    CHECK(status);
+    auto diff_weights = CTX_OUT_MEM(byte *, DNNL_ARG_DIFF_WEIGHTS);
     const auto diff_dst = CTX_IN_MEM(const byte *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_CLEAN_MEM(byte *, DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
+    auto diff_src = CTX_OUT_MEM(byte *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper data_d(pd()->src_md(0));
