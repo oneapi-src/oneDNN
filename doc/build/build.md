@@ -62,3 +62,15 @@ If the library is built for the host system, you can run unit tests and examples
 cd build
 ctest -V
 ~~~
+
+## Install the Library
+
+To install the built library, you need to have the write privilege of the target
+directory with sudo or specifying the target directory via
+`-DCMAKE_INSTALL_PREFIX` in the cmake command line.
+
+~~~sh
+cd build
+make install
+~~~
+

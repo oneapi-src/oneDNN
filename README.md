@@ -87,6 +87,14 @@ cd build
 ctest -V
 ```
 
+To install the built library, you need to have the write privilege of the target
+directory with sudo or specifying the target directory via
+`-DCMAKE_INSTALL_PREFIX` in the cmake command line.
+
+```bash
+make install
+```
+
 ## Support
 
 Please submit your questions, feature requests, and bug reports on the
