@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -409,12 +409,11 @@ gen9_conv_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
                                     + 8 * IC_BLOCK)));
                     DATA_T blockA[IW_BLOCK] = {0};
 #if KW == 1 && !HAS_PAD_W && SW == 1
-                    for (int i = 0; i < IW_BLOCK; i += 8) {
-                        int iw_bound = min(8, IW_BLOCK - i);
-                        int ow = iw + i;
-                        unrolled_read(iw_bound, &blockA[i],
-                                &(diff_dst1)[ow * OC_BLOCK]);
-                    }
+                    int iw_bound = min(IW_BLOCK, IW - iw);
+                    int ow = iw;
+                    unrolled_read(
+                            iw_bound, &blockA[0], &(diff_dst1)[ow * OC_BLOCK]);
+
                     __attribute__((
                             opencl_unroll_hint(IW_BLOCK))) // attr:no-format
                     for (int i = 0; i < IW_BLOCK; i++) {
