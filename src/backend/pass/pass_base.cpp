@@ -36,7 +36,7 @@ void transformation_pass::run(graph &agraph) {
             = get_attr<FCreateOptPattern>("FCreateOptPattern")[0];
     pattern optimized_pattern;
     optfunc(&optimized_pattern);
-    node_t *ostarter = optimized_pattern.get_starter_node();
+    op_t *ostarter = optimized_pattern.get_starter_op();
 
     // we can have many patterns
     std::vector<FCreatePattern> pfuncs
@@ -46,17 +46,17 @@ void transformation_pass::run(graph &agraph) {
     for (auto &pfunc : pfuncs) {
         pattern original_pattern;
         pfunc(&original_pattern);
-        node_t *pstarter = original_pattern.get_starter_node();
+        op_t *pstarter = original_pattern.get_starter_op();
         // for each pattern. match it
-        std::vector<std::vector<node_t *>> fusion_nodes;
-        pu.match(agraph, pstarter, fusion_nodes);
-        if (!fusion_nodes.empty()) {
+        std::vector<std::vector<op_t *>> fusion_ops;
+        pu.match(agraph, pstarter, fusion_ops);
+        if (!fusion_ops.empty()) {
             // temporary solution here for showing which pattern matched
             char *val = std::getenv("DNNL_GRAPH_DUMP");
             if (val != nullptr && std::strcmp(val, "1") == 0) {
                 std::cout << "hit pass " << get_pass_name() << "\n";
             }
-            pu.rewrite(agraph, pstarter, ostarter, fusion_nodes);
+            pu.rewrite(agraph, pstarter, ostarter, fusion_ops);
         }
     }
 }

@@ -47,10 +47,10 @@ class dnnl_executable : public executable {
 
     dnnl_executable(kernel_base::ptr &kernel) : kernel_(kernel) {}
 
-    // Workaround, because current dnnl operator's execute need node.
-    // So, we store the node ptr and use it in execute
-    dnnl_executable(kernel_base::ptr &kernel, const impl::node_t *node)
-        : kernel_(kernel), node_(node) {}
+    // Workaround, because current dnnl operator's execute need op.
+    // So, we store the op ptr and use it in execute
+    dnnl_executable(kernel_base::ptr &kernel, const impl::op_t *op)
+        : kernel_(kernel), op_(op) {}
 
 public:
     virtual impl::status_t execute(const impl::stream_t *g_stream,
@@ -62,7 +62,7 @@ public:
 
 private:
     kernel_base::ptr kernel_;
-    const impl::node_t *node_;
+    const impl::op_t *op_;
 };
 
 class dnnl_backend : public backend {

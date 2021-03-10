@@ -56,7 +56,7 @@ TEST(operator_compile, convolution_compile_fp32) {
 
     impl::engine_t &engine = get_engine();
 
-    impl::node_t conv_node(impl::op_kind::Convolution);
+    impl::op_t conv_node(impl::op_kind::Convolution);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -92,7 +92,7 @@ TEST(operator_compile, convolution_backward_data_compile_fp32) {
 
     impl::engine_t &eng = get_engine();
 
-    impl::node_t conv_node(impl::op_kind::ConvolutionBackpropData);
+    impl::op_t conv_node(impl::op_kind::ConvolutionBackpropData);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -129,7 +129,7 @@ TEST(operator_compile, convolution_backward_weights_compile_fp32) {
 
     impl::engine_t &eng = get_engine();
 
-    impl::node_t conv_node(impl::op_kind::conv_bwd_f_biasadd_bwd);
+    impl::op_t conv_node(impl::op_kind::conv_bwd_f_biasadd_bwd);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -276,7 +276,7 @@ public:
         auto params = ::testing::TestWithParam<
                 dnnl_graph_test_batchnorm_params>::GetParam();
 
-        impl::node_t batchnorm_node(params.op_kind);
+        impl::op_t batchnorm_node(params.op_kind);
         batchnorm_node.set_attr("epsilon", params.epsilon);
         batchnorm_node.set_attr("data_format", params.data_format);
         batchnorm_node.set_attr("backend", params.backend_name);
@@ -403,7 +403,7 @@ INSTANTIATE_TEST_SUITE_P(TestBatchnormCompile, test_batchnorm_compile,
 TEST(operator_compile, bn_compile_bwd_fp32) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
-    impl::node_t bn_node(impl::op_kind::BatchNormTrainingBackprop);
+    impl::op_t bn_node(impl::op_kind::BatchNormTrainingBackprop);
     bn_node.set_attr<float>("epsilon", 0.0);
     bn_node.set_attr<std::string>("backend", "dnnl");
     bn_node.set_attr<std::string>("data_format", "NCX");
@@ -506,7 +506,7 @@ TEST(operator_kernel, relu) {
     test::vector<float> dst(src.size(), 0.0);
 
     impl::partition_t apartition;
-    impl::node_t relu_node(impl::op_kind::ReLU);
+    impl::op_t relu_node(impl::op_kind::ReLU);
     relu_node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -543,7 +543,7 @@ TEST(operator_kernel, relu_backward) {
     test::vector<float> diff_src(src.size(), 0.0);
 
     impl::partition_t apartition;
-    impl::node_t relu_node(impl::op_kind::ReLUBackprop);
+    impl::op_t relu_node(impl::op_kind::ReLUBackprop);
     relu_node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -580,7 +580,7 @@ TEST(operator_kernel, gelu) {
             -0.15426877f, 0.f, 0.3457312f, 0.84134465f, 1.399789f, 1.9544998f};
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::node_t gelu_node(impl::op_kind::GELU);
+    impl::op_t gelu_node(impl::op_kind::GELU);
     gelu_node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -614,7 +614,7 @@ TEST(operator_kernel, gelu_backward) {
             0.3975146f, 2.0f, 4.3374756f, 6.4998928f, 7.8922843f, 8.6818544f};
     test::vector<float> diff_src(src.size(), 0.0);
 
-    impl::node_t gelu_node(impl::op_kind::GELUBackprop);
+    impl::op_t gelu_node(impl::op_kind::GELUBackprop);
     gelu_node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -652,7 +652,7 @@ TEST(operator_kernel, add) {
     test::vector<float> dst(src0.size(), 0.0);
 
     impl::partition_t apartition;
-    impl::node_t add_node(impl::op_kind::Add);
+    impl::op_t add_node(impl::op_kind::Add);
     add_node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -712,7 +712,7 @@ TEST(operator_kernel, different_format_add) {
     test::vector<float> dst(src0.size(), 0.0);
 
     impl::partition_t apartition;
-    impl::node_t add_node(impl::op_kind::Add);
+    impl::op_t add_node(impl::op_kind::Add);
     add_node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -753,7 +753,7 @@ TEST(operator_kernel, broadcast_add) {
     test::vector<float> dst(src0.size(), 0.0);
 
     impl::partition_t apartition;
-    impl::node_t broadcast_add_node(impl::op_kind::Add);
+    impl::op_t broadcast_add_node(impl::op_kind::Add);
     broadcast_add_node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -798,7 +798,7 @@ TEST(operator_kernel, reversed_different_format_broadcast_add) {
     test::vector<float> dst(src1.size(), 0.0);
 
     impl::partition_t apartition;
-    impl::node_t broadcast_add_node(impl::op_kind::Add);
+    impl::op_t broadcast_add_node(impl::op_kind::Add);
     broadcast_add_node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -852,7 +852,7 @@ TEST(operator_kernel, bias_add) {
     std::vector<std::string> data_formats {"NCX", "NXC"};
 
     for (size_t i = 0; i < data_formats.size(); i++) {
-        impl::node_t bias_add_node(impl::op_kind::BiasAdd);
+        impl::op_t bias_add_node(impl::op_kind::BiasAdd);
         bias_add_node.set_attr<std::string>("backend", "dnnl");
         bias_add_node.set_attr<std::string>("data_format", data_formats[i]);
 
@@ -899,7 +899,7 @@ TEST(operator_kernel, mul) {
     test::vector<float> dst(src0.size(), 0.0);
 
     impl::partition_t apartition;
-    impl::node_t mul_node(impl::op_kind::Multiply);
+    impl::op_t mul_node(impl::op_kind::Multiply);
     mul_node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -937,7 +937,7 @@ TEST(operator_kernel, min) {
     test::vector<float> ref_dst {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::node_t max_node(impl::op_kind::Minimum);
+    impl::op_t max_node(impl::op_kind::Minimum);
     max_node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -975,7 +975,7 @@ TEST(operator_kernel, max) {
     test::vector<float> ref_dst {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
     test::vector<float> dst(src0.size(), 0.0);
 
-    impl::node_t min_node(impl::op_kind::Maximum);
+    impl::op_t min_node(impl::op_kind::Maximum);
     min_node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -1006,7 +1006,7 @@ TEST(operator_kernel, max) {
 }
 
 TEST(operator_kernel, matmul_compile_fwd_fp32) {
-    impl::node_t matmul_node(impl::op_kind::MatMul);
+    impl::op_t matmul_node(impl::op_kind::MatMul);
     matmul_node.set_attr<std::string>("backend", "dnnl");
     matmul_node.set_attr<bool>("transpose_b", true);
     impl::engine_t &engine = get_engine();
@@ -1045,7 +1045,7 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
 }
 
 TEST(operator_kernel, matmul_compile_fwd_f16f16f16) {
-    impl::node_t matmul_node(impl::op_kind::MatMul);
+    impl::op_t matmul_node(impl::op_kind::MatMul);
     matmul_node.set_attr<std::string>("backend", "dnnl");
 
     impl::engine_t &engine = get_engine();
@@ -1084,7 +1084,7 @@ TEST(operator_kernel, matmul_compile_fwd_f16f16f16) {
 }
 
 TEST(operator_kernel, matmul_compile_fwd_bf16bf16bf16) {
-    impl::node_t matmul_node(impl::op_kind::MatMul);
+    impl::op_t matmul_node(impl::op_kind::MatMul);
     matmul_node.set_attr<std::string>("backend", "dnnl");
 
     impl::engine_t &engine = get_engine();
@@ -1132,7 +1132,7 @@ static size_t product(std::vector<int64_t> &in) {
 }
 
 TEST(operator_kernel, matmul_ndx2d) {
-    impl::node_t matmul_node(impl::op_kind::MatMul);
+    impl::op_t matmul_node(impl::op_kind::MatMul);
     matmul_node.set_attr<std::string>("backend", "dnnl");
     impl::engine_t &engine = get_engine();
     auto &op_factory = get_dnnl_kernel_registry();
@@ -1211,7 +1211,7 @@ TEST(operator_kernel, matmul_ndx2d) {
 }
 
 TEST(operator_kernel, matmul_3dx3d) {
-    impl::node_t matmul_node(impl::op_kind::MatMul);
+    impl::op_t matmul_node(impl::op_kind::MatMul);
     matmul_node.set_attr<std::string>("backend", "dnnl");
     impl::engine_t &engine = get_engine();
 
@@ -1249,7 +1249,7 @@ TEST(operator_kernel, matmul_3dx3d) {
 }
 
 TEST(operator_kernel, matmul_relu_fusion) {
-    impl::node_t matmul_relu_node(impl::op_kind::matmul_relu);
+    impl::op_t matmul_relu_node(impl::op_kind::matmul_relu);
     matmul_relu_node.set_attr<std::string>("backend", "dnnl");
 
     impl::engine_t &engine = get_engine();
@@ -1290,7 +1290,7 @@ TEST(operator_kernel, matmul_relu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_fusion) {
-    impl::node_t matmul_node(impl::op_kind::matmul_bias);
+    impl::op_t matmul_node(impl::op_kind::matmul_bias);
     matmul_node.set_attr<std::string>("backend", "dnnl");
 
     impl::engine_t &engine = get_engine();
@@ -1335,7 +1335,7 @@ TEST(operator_kernel, matmul_bias_fusion) {
 }
 
 TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
-    impl::node_t matmul_node(impl::op_kind::matmul_add);
+    impl::op_t matmul_node(impl::op_kind::matmul_add);
     matmul_node.set_attr<std::string>("backend", "dnnl");
 
     test::vector<float> src_data {-2.0, -1.5, 3.0, 0.5};
@@ -1379,7 +1379,7 @@ TEST(operator_kernel, matmul_sum_fusion_broadcast_1d) {
 }
 
 TEST(operator_kernel, matmul_sum_fusion) {
-    impl::node_t matmul_node(impl::op_kind::matmul_add);
+    impl::op_t matmul_node(impl::op_kind::matmul_add);
     matmul_node.set_attr<std::string>("backend", "dnnl");
 
     test::vector<float> src_data {-2.0, -1.5, 3.0, 0.5};
@@ -1423,7 +1423,7 @@ TEST(operator_kernel, matmul_sum_fusion) {
 }
 
 TEST(operator_kernel, matmul_sum_gelu_fusion) {
-    impl::node_t matmul_node(impl::op_kind::matmul_add_gelu);
+    impl::op_t matmul_node(impl::op_kind::matmul_add_gelu);
     matmul_node.set_attr<std::string>("backend", "dnnl");
 
     impl::engine_t &engine = get_engine();
@@ -1468,7 +1468,7 @@ TEST(operator_kernel, matmul_sum_gelu_fusion) {
 }
 
 TEST(operator_kernel, matmul_sum_relu_fusion) {
-    impl::node_t matmul_node(impl::op_kind::matmul_add_relu);
+    impl::op_t matmul_node(impl::op_kind::matmul_add_relu);
     matmul_node.set_attr<std::string>("backend", "dnnl");
 
     impl::engine_t &engine = get_engine();
@@ -1513,7 +1513,7 @@ TEST(operator_kernel, matmul_sum_relu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_relu_fusion) {
-    impl::node_t matmul_node(impl::op_kind::matmul_bias_relu);
+    impl::op_t matmul_node(impl::op_kind::matmul_bias_relu);
     matmul_node.set_attr<std::string>("backend", "dnnl");
 
     impl::engine_t &engine = get_engine();
@@ -1557,7 +1557,7 @@ TEST(operator_kernel, matmul_bias_relu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_relu6_fusion) {
-    impl::node_t matmul_node(impl::op_kind::matmul_bias_relu6);
+    impl::op_t matmul_node(impl::op_kind::matmul_bias_relu6);
     matmul_node.set_attr<std::string>("backend", "dnnl");
     matmul_node.set_attr<float>("min", 0.0);
     matmul_node.set_attr<float>("max", 6.0);
@@ -1603,7 +1603,7 @@ TEST(operator_kernel, matmul_bias_relu6_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_hardtanh_fusion) {
-    impl::node_t matmul_node(impl::op_kind::matmul_bias_hardtanh);
+    impl::op_t matmul_node(impl::op_kind::matmul_bias_hardtanh);
     matmul_node.set_attr<std::string>("backend", "dnnl");
     matmul_node.set_attr<float>("min", -3.0);
     matmul_node.set_attr<float>("max", 3.0);
@@ -1649,7 +1649,7 @@ TEST(operator_kernel, matmul_bias_hardtanh_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_elu_fusion) {
-    impl::node_t matmul_node(impl::op_kind::matmul_bias_elu);
+    impl::op_t matmul_node(impl::op_kind::matmul_bias_elu);
     matmul_node.set_attr<std::string>("backend", "dnnl");
     matmul_node.set_attr<float>("alpha", 1.f);
 
@@ -1694,7 +1694,7 @@ TEST(operator_kernel, matmul_bias_elu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_sigmoid_fusion) {
-    impl::node_t matmul_node(impl::op_kind::matmul_bias_sigmoid);
+    impl::op_t matmul_node(impl::op_kind::matmul_bias_sigmoid);
     matmul_node.set_attr<std::string>("backend", "dnnl");
 
     impl::engine_t &engine = get_engine();
@@ -1738,7 +1738,7 @@ TEST(operator_kernel, matmul_bias_sigmoid_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_add_fusion) {
-    impl::node_t matmul_node(impl::op_kind::matmul_bias_add);
+    impl::op_t matmul_node(impl::op_kind::matmul_bias_add);
     matmul_node.set_attr<std::string>("backend", "dnnl");
 
     impl::engine_t &engine = get_engine();
@@ -1786,7 +1786,7 @@ TEST(operator_kernel, matmul_bias_add_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_add_relu_fusion) {
-    impl::node_t matmul_node(impl::op_kind::matmul_bias_add_relu);
+    impl::op_t matmul_node(impl::op_kind::matmul_bias_add_relu);
     matmul_node.set_attr<std::string>("backend", "dnnl");
 
     impl::engine_t &engine = get_engine();
@@ -1834,7 +1834,7 @@ TEST(operator_kernel, matmul_bias_add_relu_fusion) {
 }
 
 TEST(operator_kernel, matmul_bias_bn) {
-    impl::node_t matmul_node(impl::op_kind::matmul_bias_bn);
+    impl::op_t matmul_node(impl::op_kind::matmul_bias_bn);
     matmul_node.set_attr<std::string>("backend", "dnnl");
     matmul_node.set_attr<float>("epsilon", 0.f);
     matmul_node.set_attr<bool>("transpose_b", true);
@@ -1906,7 +1906,7 @@ TEST(operator_kernel, max_pool) {
     test::vector<float> ref_dst {-0.5, 2.0, 3.0, 4.0};
     test::vector<float> dst(ref_dst.size(), 0.0);
 
-    impl::node_t max_pool_node(impl::op_kind::MaxPool);
+    impl::op_t max_pool_node(impl::op_kind::MaxPool);
     max_pool_node.set_attr<dims>("strides", {2, 2});
     max_pool_node.set_attr<dims>("kernel", {2, 2});
     max_pool_node.set_attr<dims>("pads_begin", {0, 0});
@@ -1955,7 +1955,7 @@ TEST(operator_kernel, avg_pool_exclude_pad) {
             -2.0, 0.25, 0.5, 0.75, 0.5, 0.75, 3.0, -1.5, 4.0};
     test::vector<float> dst(ref_dst.size(), 0.0);
 
-    impl::node_t avg_pool_node(impl::op_kind::AvgPool);
+    impl::op_t avg_pool_node(impl::op_kind::AvgPool);
     avg_pool_node.set_attr<dims>("strides", {2, 2});
     avg_pool_node.set_attr<dims>("kernel", {2, 2});
     avg_pool_node.set_attr<dims>("pads_begin", {1, 1});
@@ -2003,7 +2003,7 @@ TEST(operator_kernel, avg_pool_include_pad) {
             -0.5, 0.125, 0.125, 0.375, 0.5, 0.375, 0.75, -0.75, 1.0};
     test::vector<float> dst(ref_dst.size(), 0.0);
 
-    impl::node_t avg_pool_node(impl::op_kind::AvgPool);
+    impl::op_t avg_pool_node(impl::op_kind::AvgPool);
     avg_pool_node.set_attr<dims>("strides", {2, 2});
     avg_pool_node.set_attr<dims>("kernel", {2, 2});
     avg_pool_node.set_attr<dims>("pads_begin", {1, 1});
@@ -2051,7 +2051,7 @@ TEST(operator_compile, Convolution_NCX_OIX) {
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::node_t conv_node(impl::op_kind::Convolution);
+    impl::op_t conv_node(impl::op_kind::Convolution);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2100,7 +2100,7 @@ TEST(operator_compile, Convolution_NCX_XIO) {
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::node_t conv_node(impl::op_kind::Convolution);
+    impl::op_t conv_node(impl::op_kind::Convolution);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2150,7 +2150,7 @@ TEST(operator_compile, Convolution_NXC_XIO) {
             1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
     test::vector<float> ref_dst {0.5};
     test::vector<float> dst {0.0};
-    impl::node_t conv_node(impl::op_kind::Convolution);
+    impl::op_t conv_node(impl::op_kind::Convolution);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2199,7 +2199,7 @@ TEST(operator_compile, Convolution_NXC_OIX) {
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::node_t conv_node(impl::op_kind::Convolution);
+    impl::op_t conv_node(impl::op_kind::Convolution);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2249,7 +2249,7 @@ TEST(operator_compile, ConvolutionF16F16F16) {
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::node_t conv_node(impl::op_kind::Convolution);
+    impl::op_t conv_node(impl::op_kind::Convolution);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2300,7 +2300,7 @@ TEST(operator_compile, ConvolutionBF16BF16BF16) {
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::node_t conv_node(impl::op_kind::Convolution);
+    impl::op_t conv_node(impl::op_kind::Convolution);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2350,7 +2350,7 @@ TEST(operator_compile, ConvolutionBF16BF16F32) {
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::node_t conv_node(impl::op_kind::Convolution);
+    impl::op_t conv_node(impl::op_kind::Convolution);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2392,7 +2392,7 @@ TEST(operator_kernel, group_convolution) {
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
 
-    impl::node_t conv_node(impl::op_kind::Convolution);
+    impl::op_t conv_node(impl::op_kind::Convolution);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2454,7 +2454,7 @@ TEST(operator_kernel, ConvolutionBackpropData) {
     test::vector<float> diff_dst {0.0, 1.0, 2.0, 3.0};
     test::vector<float> diff_src(src.size(), 0.0);
 
-    impl::node_t conv_node(impl::op_kind::ConvolutionBackpropData);
+    impl::op_t conv_node(impl::op_kind::ConvolutionBackpropData);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2506,7 +2506,7 @@ TEST(operator_kernel, conv_bwd_weight_bias) {
     test::vector<float> diff_weights(ref_diff_weights.size(), 0.0);
     test::vector<float> diff_bias(ref_diff_bias.size(), 0.0);
 
-    impl::node_t conv_node(impl::op_kind::conv_bwd_f_biasadd_bwd);
+    impl::op_t conv_node(impl::op_kind::conv_bwd_f_biasadd_bwd);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2557,7 +2557,7 @@ TEST(operator_compile, conv_relu_unfused) {
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
 
-    impl::node_t conv_node(impl::op_kind::Convolution);
+    impl::op_t conv_node(impl::op_kind::Convolution);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2567,7 +2567,7 @@ TEST(operator_compile, conv_relu_unfused) {
     conv_node.set_attr<std::string>("data_format", "NCX");
     conv_node.set_attr<std::string>("filter_format", "OIX");
 
-    impl::node_t relu_node(impl::op_kind::ReLU);
+    impl::op_t relu_node(impl::op_kind::ReLU);
     relu_node.set_attr<std::string>("backend", "dnnl");
 
     // prepare logical tensor
@@ -2631,7 +2631,7 @@ TEST(operator_compile, convolution_bn_fp32) {
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
 
-    impl::node_t conv_node(impl::op_kind::Convolution);
+    impl::op_t conv_node(impl::op_kind::Convolution);
     conv_node.set_attr<dims>("strides", dims {1, 1});
     conv_node.set_attr<dims>("dilations", dims {1, 1});
     conv_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2641,7 +2641,7 @@ TEST(operator_compile, convolution_bn_fp32) {
     conv_node.set_attr<std::string>("data_format", "NCX");
     conv_node.set_attr<std::string>("filter_format", "OIX");
 
-    impl::node_t bn_node(impl::op_kind::BatchNormInference);
+    impl::op_t bn_node(impl::op_kind::BatchNormInference);
     bn_node.set_attr<std::string>("backend", "dnnl");
     bn_node.set_attr<std::string>("data_format", "NCX");
     bn_node.set_attr("epsilon", 1e-6f);
@@ -2727,7 +2727,7 @@ TEST(operator_compile, convolution_bn_fp32) {
             {bn_src_ts, bn_gamma_ts, bn_beta_ts, bn_scale_ts, bn_shift_ts},
             {bn_dst_ts});
 
-    impl::node_t convbn_node(impl::op_kind::conv_bn);
+    impl::op_t convbn_node(impl::op_kind::conv_bn);
     convbn_node.set_attr<dims>("strides", dims {1, 1});
     convbn_node.set_attr<dims>("dilations", dims {1, 1});
     convbn_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2773,7 +2773,7 @@ TEST(operator_kernel, conv_add) {
     test::vector<float> post_src {1.0, 2.0, 3.0, 4.0};
     test::vector<float> ref_dst {0.0, 4.5, 8.0, 5.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::node_t conv_add_node(impl::op_kind::conv_add);
+    impl::op_t conv_add_node(impl::op_kind::conv_add);
     conv_add_node.set_attr<dims>("strides", dims {1, 1});
     conv_add_node.set_attr<dims>("dilations", dims {1, 1});
     conv_add_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2827,7 +2827,7 @@ TEST(operator_kernel, conv_add_relu) {
     test::vector<float> post_src {-1.0, -2.0, -3.0, -4.0};
     test::vector<float> ref_dst {0.0, 0.5, 2.0, 0.0};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::node_t conv_add_relu_node(impl::op_kind::conv_add_relu);
+    impl::op_t conv_add_relu_node(impl::op_kind::conv_add_relu);
     conv_add_relu_node.set_attr<dims>("strides", dims {1, 1});
     conv_add_relu_node.set_attr<dims>("dilations", dims {1, 1});
     conv_add_relu_node.set_attr<dims>("pads_begin", dims {0, 0});
@@ -2877,7 +2877,7 @@ TEST(operator_kernel, abs) {
     test::vector<float> ref_dst {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::node_t node(impl::op_kind::Abs);
+    impl::op_t node(impl::op_kind::Abs);
     node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -2915,7 +2915,7 @@ TEST(operator_kernel, elu) {
     test::vector<float> ref_dst;
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::node_t node(impl::op_kind::Elu);
+    impl::op_t node(impl::op_kind::Elu);
     node.set_attr<std::string>("backend", "dnnl");
     node.set_attr<float>("alpha", 1.f);
     auto &op_factory = get_dnnl_kernel_registry();
@@ -2963,7 +2963,7 @@ TEST(operator_kernel, exp) {
     test::vector<float> ref_dst;
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::node_t node(impl::op_kind::Exp);
+    impl::op_t node(impl::op_kind::Exp);
     node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -3006,7 +3006,7 @@ TEST(operator_kernel, hardtanh) {
     test::vector<float> ref_dst {-1.0, -1.0, -1.0, -0.5, 0.0, 2.0};
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::node_t node(impl::op_kind::HardTanh);
+    impl::op_t node(impl::op_kind::HardTanh);
     node.set_attr<std::string>("backend", "dnnl");
     node.set_attr<float>("max", 2.f);
     node.set_attr<float>("min", -1.f);
@@ -3045,7 +3045,7 @@ TEST(operator_kernel, sqrt) {
     test::vector<float> ref_dst;
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::node_t node(impl::op_kind::Sqrt);
+    impl::op_t node(impl::op_kind::Sqrt);
     node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -3088,7 +3088,7 @@ TEST(operator_kernel, square) {
     test::vector<float> ref_dst;
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::node_t node(impl::op_kind::Square);
+    impl::op_t node(impl::op_kind::Square);
     node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -3131,7 +3131,7 @@ TEST(operator_kernel, pow) {
     test::vector<float> ref_dst;
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::node_t node(impl::op_kind::Pow);
+    impl::op_t node(impl::op_kind::Pow);
     node.set_attr<std::string>("backend", "dnnl");
     node.set_attr<float>("alpha", 1.f);
     node.set_attr<float>("beta", 3.f);
@@ -3175,7 +3175,7 @@ TEST(operator_kernel, log) {
     test::vector<float> ref_dst;
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::node_t node(impl::op_kind::Log);
+    impl::op_t node(impl::op_kind::Log);
     node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -3218,7 +3218,7 @@ TEST(operator_kernel, tanh) {
     test::vector<float> ref_dst;
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::node_t node(impl::op_kind::Tanh);
+    impl::op_t node(impl::op_kind::Tanh);
     node.set_attr<std::string>("backend", "dnnl");
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -3267,7 +3267,7 @@ TEST(operator_compile, conv_bias_abs) {
     test::vector<float> ref_dst {2.0, 1.5, 4.0, 0.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    impl::node_t node(impl::op_kind::conv_bias_abs);
+    impl::op_t node(impl::op_kind::conv_bias_abs);
 
     node.set_attr<dims>("strides", {1, 1});
     node.set_attr<dims>("dilations", {1, 1});
@@ -3320,7 +3320,7 @@ TEST(operator_compile, conv_bias_elu) {
     test::vector<float> ref_dst {-2.0, 1.5, 4.0, 0.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     ref_dst[0] = static_cast<float>(exp(-2) - 1);
-    impl::node_t node(impl::op_kind::conv_bias_elu);
+    impl::op_t node(impl::op_kind::conv_bias_elu);
 
     node.set_attr<dims>("strides", {1, 1});
     node.set_attr<dims>("dilations", {1, 1});
@@ -3373,7 +3373,7 @@ TEST(operator_compile, conv_bias_hardtanh) {
     test::vector<float> bias {-1.0};
     test::vector<float> ref_dst {0.0, 1.5, 3.0, 0.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::node_t node(impl::op_kind::conv_bias_hardtanh);
+    impl::op_t node(impl::op_kind::conv_bias_hardtanh);
 
     node.set_attr<dims>("strides", {1, 1});
     node.set_attr<dims>("dilations", {1, 1});
@@ -3427,7 +3427,7 @@ TEST(operator_compile, conv_bias_relu6) {
     test::vector<float> bias {2.0};
     test::vector<float> ref_dst {1.0, 4.5, 6.0, 3.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::node_t node(impl::op_kind::conv_bias_relu6);
+    impl::op_t node(impl::op_kind::conv_bias_relu6);
 
     node.set_attr<dims>("strides", {1, 1});
     node.set_attr<dims>("dilations", {1, 1});
@@ -3484,7 +3484,7 @@ TEST(operator_compile, conv_bias_sigmoid) {
     for (auto &rdst : ref_dst) {
         rdst = static_cast<float>(1 / (exp(-rdst) + 1));
     }
-    impl::node_t node(impl::op_kind::conv_bias_sigmoid);
+    impl::op_t node(impl::op_kind::conv_bias_sigmoid);
 
     node.set_attr<dims>("strides", {1, 1});
     node.set_attr<dims>("dilations", {1, 1});
@@ -3539,7 +3539,7 @@ TEST(operator_compile, conv_bias_sqrt) {
     for (auto &rdst : ref_dst) {
         rdst = static_cast<float>(sqrt(rdst));
     }
-    impl::node_t node(impl::op_kind::conv_bias_sqrt);
+    impl::op_t node(impl::op_kind::conv_bias_sqrt);
 
     node.set_attr<dims>("strides", {1, 1});
     node.set_attr<dims>("dilations", {1, 1});
@@ -3592,7 +3592,7 @@ TEST(operator_compile, conv_bias_square) {
     test::vector<float> ref_dst {4.0, 2.25, 16.0, 0.25};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    impl::node_t node(impl::op_kind::conv_bias_square);
+    impl::op_t node(impl::op_kind::conv_bias_square);
 
     node.set_attr<dims>("strides", {1, 1});
     node.set_attr<dims>("dilations", {1, 1});
@@ -3648,7 +3648,7 @@ TEST(operator_compile, conv_bias_tanh) {
         rdst = static_cast<float>(
                 (exp(rdst) - exp(-rdst)) / (exp(rdst) + exp(-rdst)));
     }
-    impl::node_t node(impl::op_kind::conv_bias_tanh);
+    impl::op_t node(impl::op_kind::conv_bias_tanh);
 
     node.set_attr<dims>("strides", {1, 1});
     node.set_attr<dims>("dilations", {1, 1});
@@ -3702,7 +3702,7 @@ TEST(operator_compile, conv_bias_add_elu) {
     test::vector<float> ref_dst {-4.0, 2.5, 3.0, 0.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     ref_dst[0] = static_cast<float>(exp(-4) - 1);
-    impl::node_t node(impl::op_kind::conv_bias_add_elu);
+    impl::op_t node(impl::op_kind::conv_bias_add_elu);
 
     node.set_attr<dims>("strides", {1, 1});
     node.set_attr<dims>("dilations", {1, 1});
@@ -3762,7 +3762,7 @@ TEST(operator_compile, conv_bias_add_relu6) {
     test::vector<float> ref_dst {0.0, 6.f, 6.f, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    impl::node_t node(impl::op_kind::conv_bias_add_relu6);
+    impl::op_t node(impl::op_kind::conv_bias_add_relu6);
 
     node.set_attr<dims>("strides", {1, 1});
     node.set_attr<dims>("dilations", {1, 1});
@@ -3825,7 +3825,7 @@ TEST(operator_compile, conv_add_elu) {
         rdst = rdst > 0 ? rdst : static_cast<float>((exp(rdst) - 1));
     }
 
-    impl::node_t node(impl::op_kind::conv_add_elu);
+    impl::op_t node(impl::op_kind::conv_add_elu);
 
     node.set_attr<dims>("strides", {1, 1});
     node.set_attr<dims>("dilations", {1, 1});
@@ -3879,7 +3879,7 @@ TEST(operator_compile, conv_add_relu6) {
     test::vector<float> ref_dst {0.0, 3.5, 4.f, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    impl::node_t node(impl::op_kind::conv_add_relu6);
+    impl::op_t node(impl::op_kind::conv_add_relu6);
 
     node.set_attr<dims>("strides", {1, 1});
     node.set_attr<dims>("dilations", {1, 1});
@@ -3923,7 +3923,7 @@ TEST(operator_compile, conv_add_relu6) {
 }
 
 TEST(operator_kernel, softmax) {
-    impl::node_t softmax_node(impl::op_kind::SoftMax);
+    impl::op_t softmax_node(impl::op_kind::SoftMax);
     impl::engine_t &eng = get_engine();
 
     softmax_node.set_attr<int64_t>("axis", 0);
@@ -3960,7 +3960,7 @@ TEST(operator_kernel, softmax) {
 }
 
 TEST(operator_kernel, softmax_with_last_dim) {
-    impl::node_t softmax_node(impl::op_kind::SoftMax);
+    impl::op_t softmax_node(impl::op_kind::SoftMax);
     impl::engine_t &eng = get_engine();
 
     softmax_node.set_attr<int64_t>("axis", -1);
@@ -3997,7 +3997,7 @@ TEST(operator_kernel, softmax_with_last_dim) {
 }
 
 TEST(operator_kernel, softmax_backward) {
-    impl::node_t softmax_node(impl::op_kind::SoftMaxBackprop);
+    impl::op_t softmax_node(impl::op_kind::SoftMaxBackprop);
     impl::engine_t &eng = get_engine();
 
     softmax_node.set_attr<std::string>("backend", "dnnl");
@@ -4050,7 +4050,7 @@ TEST(operator_kernel, avg_pool_backward_exclude_pad) {
     test::vector<float> diff_dst {
             -1.0, 3.0, 10.0, 4.0, 16.0, 8.0, 12.0, -5.0, -3.0};
 
-    impl::node_t avg_pool_bwd_node(impl::op_kind::AvgPoolBackprop);
+    impl::op_t avg_pool_bwd_node(impl::op_kind::AvgPoolBackprop);
     avg_pool_bwd_node.set_attr<dims>("strides", {2, 2});
     avg_pool_bwd_node.set_attr<dims>("kernel", {2, 2});
     avg_pool_bwd_node.set_attr<dims>("pads_begin", {1, 1});
@@ -4100,7 +4100,7 @@ TEST(operator_kernel, avg_pool_backward_include_pad) {
     test::vector<float> diff_dst {
             -1.0, 3.0, 10.0, 4.0, 16.0, 8.0, 12.0, -5.0, -3.0};
 
-    impl::node_t avg_pool_bwd_node(impl::op_kind::AvgPoolBackprop);
+    impl::op_t avg_pool_bwd_node(impl::op_kind::AvgPoolBackprop);
     avg_pool_bwd_node.set_attr<dims>("strides", {2, 2});
     avg_pool_bwd_node.set_attr<dims>("kernel", {2, 2});
     avg_pool_bwd_node.set_attr<dims>("pads_begin", {1, 1});
@@ -4155,7 +4155,7 @@ TEST(operator_kernel, max_pool_backward_with_incides) {
     test::vector<uint8_t> indices {2, 0, 1, 3};
 #endif
 
-    impl::node_t max_pool_bwd_node(impl::op_kind::MaxPoolBackprop);
+    impl::op_t max_pool_bwd_node(impl::op_kind::MaxPoolBackprop);
 
     max_pool_bwd_node.set_attr<dims>("strides", dims {2, 2});
     max_pool_bwd_node.set_attr<dims>("kernel", dims {2, 2});
@@ -4213,7 +4213,7 @@ TEST(operator_kernel, max_pool_backward_without_incides) {
 
     test::vector<float> diff_dst {4.0, 16.0, 8.0, 12.0};
 
-    impl::node_t max_pool_bwd_node(impl::op_kind::MaxPoolBackprop);
+    impl::op_t max_pool_bwd_node(impl::op_kind::MaxPoolBackprop);
 
     max_pool_bwd_node.set_attr<dims>("strides", dims {2, 2});
     max_pool_bwd_node.set_attr<dims>("kernel", dims {2, 2});
@@ -4264,7 +4264,7 @@ TEST(operator_kernel, layernorm_training) {
     test::vector<float> mean(ref_mean.size(), 0.0);
     test::vector<float> var(ref_var.size(), 0.0);
 
-    impl::node_t node(impl::op_kind::LayerNorm);
+    impl::op_t node(impl::op_kind::LayerNorm);
     node.set_attr<std::string>("backend", "dnnl");
     node.set_attr<float>("epsilon", 0);
 
@@ -4323,7 +4323,7 @@ TEST(operator_kernel, layernorm_inference) {
     test::vector<float> ref_dst {-1.0, 3.0, -1.0, 3.0, 1.0, -1.0, -1.0, 3.0};
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::node_t node(impl::op_kind::LayerNorm);
+    impl::op_t node(impl::op_kind::LayerNorm);
     node.set_attr<std::string>("backend", "dnnl");
     node.set_attr<float>("epsilon", 0);
     node.set_attr<bool>("keep_stats", false); //inference
@@ -4367,7 +4367,7 @@ TEST(operator_kernel, layernorm_inference_without_scale_shift) {
     test::vector<float> ref_dst {-1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0};
     test::vector<float> dst(src.size(), 0.0);
 
-    impl::node_t node(impl::op_kind::LayerNorm);
+    impl::op_t node(impl::op_kind::LayerNorm);
     node.set_attr<std::string>("backend", "dnnl");
     node.set_attr<float>("epsilon", 0);
     node.set_attr<bool>("keep_stats", false); //inference
@@ -4406,7 +4406,7 @@ TEST(operator_kernel, convert_data) {
     test::vector<int32_t> ref_dst {1, 2, 3, 4, 5, 6};
     test::vector<int32_t> dst(src.size(), 0);
 
-    impl::node_t convert_node(impl::op_kind::convert);
+    impl::op_t convert_node(impl::op_kind::convert);
     convert_node.set_attr<std::string>("backend", "dnnl");
 
     // prepare input/output logical tensor

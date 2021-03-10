@@ -150,12 +150,12 @@ public:
         }
     }
 
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
-        kind_ = anode->get_op_kind();
+        kind_ = op->get_kind();
         with_bias_ = matmul_op_set::with_bias(kind_);
         with_sum_ = matmul_op_set::fuse_sum(kind_);
         with_eltwise_ = matmul_op_set::fuse_eltwise(kind_);
@@ -173,16 +173,16 @@ public:
 
         // set attrs of eltwise
         if (with_eltwise_) {
-            if (anode->has_attr("alpha")) {
-                alpha_ = anode->get_attr<float>("alpha");
-            } else if (anode->has_attr("min")) {
-                alpha_ = anode->get_attr<float>("min");
+            if (op->has_attr("alpha")) {
+                alpha_ = op->get_attr<float>("alpha");
+            } else if (op->has_attr("min")) {
+                alpha_ = op->get_attr<float>("min");
             }
 
-            if (anode->has_attr("beta")) {
-                beta_ = anode->get_attr<float>("beta");
-            } else if (anode->has_attr("max")) {
-                beta_ = anode->get_attr<float>("max");
+            if (op->has_attr("beta")) {
+                beta_ = op->get_attr<float>("beta");
+            } else if (op->has_attr("max")) {
+                beta_ = op->get_attr<float>("max");
             }
         }
         // the bn inputs offset (if exist)
@@ -195,10 +195,10 @@ public:
         dims old_weights_dims = weight.get_dims();
 
         //change dims and strides if tensor need to transpose
-        if (anode->has_attr("transpose_a"))
-            transpose_a_ = anode->get_attr<bool>("transpose_a");
-        if (anode->has_attr("transpose_b"))
-            transpose_b_ = anode->get_attr<bool>("transpose_b");
+        if (op->has_attr("transpose_a"))
+            transpose_a_ = op->get_attr<bool>("transpose_a");
+        if (op->has_attr("transpose_b"))
+            transpose_b_ = op->get_attr<bool>("transpose_b");
 
         if (transpose_a_ && src.get_ndims() > 1) {
             int ndims = src.get_ndims();
@@ -269,7 +269,7 @@ public:
         ori_weight_desc_ = weight;
         ori_bias_desc_ = bias;
 
-        if (with_bn_) epsilon_ = anode->get_attr<float>("epsilon");
+        if (with_bn_) epsilon_ = op->get_attr<float>("epsilon");
 
         // append post_ops to attrs
         if (with_sum_) {
@@ -325,11 +325,11 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(anode);
+        UNUSED(op);
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 

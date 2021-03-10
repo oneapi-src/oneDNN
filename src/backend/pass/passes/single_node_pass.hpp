@@ -30,12 +30,12 @@ namespace pass {
             .set_priority(p) \
             .set_attr<FCreatePattern>("FCreatePattern", \
                     [](pattern *apattern) -> void { \
-                        apattern->create_node(op_kind::op); \
+                        apattern->create_op(op_kind::op); \
                     }) \
             .set_attr<FCreateOptPattern>("FCreateOptPattern", \
                     [](pattern *optimized_pattern) -> void { \
-                        node_t *anode \
-                                = optimized_pattern->create_node(op_kind::op); \
+                        op_t *anode \
+                                = optimized_pattern->create_op(op_kind::op); \
                         anode->set_attr<std::string>("backend", #backend); \
                     });
 

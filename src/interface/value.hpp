@@ -24,7 +24,7 @@
 #include <vector>
 
 #include "c_types_map.hpp"
-#include "op.hpp"
+#include "logical_tensor.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -98,6 +98,12 @@ public:
         }
     }
 
+    bool find_consumer(const op_kind_t &kind, size_t &offset);
+
+    void swap_consumer(const size_t offset1, const size_t offset2) {
+        std::swap(consumers_[offset1], consumers_[offset2]);
+    }
+
     void remove_consumer(op_t &op, size_t offset) {
         const consumer_t c {op, offset};
         auto pos = std::find(consumers_.begin(), consumers_.end(), c);
@@ -111,92 +117,6 @@ private:
     logical_tensor_t val_;
 
     op_t *producer_ {nullptr};
-    size_t offset_ {std::numeric_limits<size_t>::max()};
-    std::vector<consumer_t> consumers_;
-    bool internal_ {false};
-};
-
-class value_v2_t {
-public:
-    // A value connected to an op
-    value_v2_t(op_v2_t &producer, size_t offset, const logical_tensor_t &lt,
-            bool internal = false)
-        : val_(lt)
-        , producer_(&producer)
-        , offset_(offset)
-        , internal_(internal) {}
-
-    // A value not associated with an op
-    value_v2_t(const logical_tensor_t &lt, bool internal = false)
-        : val_(lt), internal_(internal) {}
-
-    logical_tensor_t get_logical_tensor() const { return val_; }
-
-    op_v2_t &get_producer() const { return *producer_; }
-    void set_producer(op_v2_t &producer) { producer_ = &producer; }
-    void reset_producer() { producer_ = nullptr; }
-    bool has_producer() const { return producer_ != nullptr; }
-
-    size_t get_offset() const { return offset_; }
-    void set_offset(size_t offset) { offset_ = offset; }
-
-    bool is_internal() const { return internal_; }
-
-    bool operator==(const value_v2_t &rhs) const {
-        bool equal = logical_tensor_wrapper(this->val_)
-                == logical_tensor_wrapper(rhs.val_);
-
-        return equal && (this->producer_ == rhs.producer_)
-                && (this->offset_ == rhs.offset_)
-                && (this->consumers_ == rhs.consumers_)
-                && (this->internal_ == rhs.internal_);
-    }
-
-    bool operator!=(const value_v2_t &rhs) const { return !operator==(rhs); }
-
-    // member class: A user of a value
-    class consumer_t {
-    public:
-        consumer_t(op_v2_t &op, size_t offset) : op_(&op), offset_(offset) {}
-
-        consumer_t(const consumer_t &c) = default;
-
-        bool operator==(const consumer_t &c) const {
-            return op_ == c.op_ && offset_ == c.offset_;
-        };
-
-        op_v2_t &get_op() const { return *op_; }
-
-        size_t get_offset() const { return offset_; }
-
-    private:
-        op_v2_t *op_ {nullptr};
-        size_t offset_;
-    };
-
-    const std::vector<consumer_t> get_consumers() const { return consumers_; }
-
-    void add_consumer(op_v2_t &op, size_t offset) {
-        const consumer_t c {op, offset};
-        if (std::find(consumers_.begin(), consumers_.end(), c)
-                == consumers_.end()) {
-            consumers_.push_back(c);
-        }
-    }
-
-    void remove_consumer(op_v2_t &op, size_t offset) {
-        const consumer_t c {op, offset};
-        auto pos = std::find(consumers_.begin(), consumers_.end(), c);
-        if (pos != consumers_.end()) {
-            // Not all ops have been added through build_graph
-            consumers_.erase(pos);
-        }
-    }
-
-private:
-    logical_tensor_t val_;
-
-    op_v2_t *producer_ {nullptr};
     size_t offset_ {std::numeric_limits<size_t>::max()};
     std::vector<consumer_t> consumers_;
     bool internal_ {false};

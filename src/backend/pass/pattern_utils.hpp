@@ -26,13 +26,12 @@
 #include <unordered_set>
 
 #include "interface/graph.hpp"
-#include "interface/ir.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
-// FRequirement: A function to check if graph node can meet
-// the requirement of pattern node
+// FRequirement: A function to check if graph op can meet
+// the requirement of pattern op
 // Should be defined when register passes
 using FRequirement = pass::FRequirement;
 
@@ -53,17 +52,21 @@ struct op_set {
     }
 };
 
-//check if the input order of the "binary" node in pattern need to be swapped
+//check if the input order of the "binary" op in pattern need to be swapped
 template <typename getinput>
-bool should_swap_inputs(
-        node_t *graph_node, node_t *pattern_node, getinput get_input) {
-    const auto get_op_kind_ = [&](node_t *node_, size_t idx) {
-        return get_input(node_, idx)->get_op_kind();
+bool should_swap_inputs(op_t *graph_op, op_t *pattern_op, getinput get_input) {
+    const auto get_op_kind_ = [&](op_t *op_, size_t idx) {
+        value_t *invalue = get_input(op_, idx);
+        if (invalue->has_producer()) {
+            return invalue->get_producer().get_kind();
+        } else {
+            return op_kind::any;
+        }
     };
-    const auto pin_0 = get_op_kind_(pattern_node, 0);
-    const auto pin_1 = get_op_kind_(pattern_node, 1);
-    const auto gin_0 = get_op_kind_(graph_node, 0);
-    const auto gin_1 = get_op_kind_(graph_node, 1);
+    const auto pin_0 = get_op_kind_(pattern_op, 0);
+    const auto pin_1 = get_op_kind_(pattern_op, 1);
+    const auto gin_0 = get_op_kind_(graph_op, 0);
+    const auto gin_1 = get_op_kind_(graph_op, 1);
 
     if (pin_0 == op_kind::any) { // if pin_0 accepts any
         // check if the corresponding inputs of pattern and graph match,
@@ -89,30 +92,30 @@ bool should_swap_inputs(
 
 //handles special cases in binary ops - allows any order of op inputs
 template <typename indegree, typename getinput>
-void special_case_handle(node_t *graph_node, node_t *pattern_node,
-        indegree in_degree, getinput get_input) {
-    const auto pin_deg = in_degree(pattern_node);
-    const auto gin_deg = in_degree(graph_node);
+void special_case_handle(op_t *graph_op, op_t *pattern_op, indegree in_degree,
+        getinput get_input) {
+    const auto pin_deg = in_degree(pattern_op);
+    const auto gin_deg = in_degree(graph_op);
     const auto expected_deg = 2;
 
-    if (op_set::is_binary(pattern_node->get_op_kind())
-            && expected_deg == pin_deg && pin_deg == gin_deg) {
-        if (should_swap_inputs(graph_node, pattern_node, get_input)) {
-            pattern_node->swap_input_value(0, 1);
+    if (op_set::is_binary(pattern_op->get_kind()) && expected_deg == pin_deg
+            && pin_deg == gin_deg) {
+        if (should_swap_inputs(graph_op, pattern_op, get_input)) {
+            pattern_op->swap_input_values(0, 1);
         }
     }
 }
 
 /*!
 * \brief Function to do comparison between a graph
-         and a pattern. It will search from a graph node,
-         and compare its inputs / outputs with the nodes in
-         the pattern, until all the nodes in the pattern are
+         and a pattern. It will search from a graph op,
+         and compare its inputs / outputs with the ops in
+         the pattern, until all the ops in the pattern are
          exhausted.
-* \param graph_node the node in the graph to compare from
-* \param pattern_node the node in the pattern to compare from
-* \param candidate_fusion the vector stores the matched nodes
-* \param selected the set stores the nodes have been selected
+* \param graph_op the op in the graph to compare from
+* \param pattern_op the op in the pattern to compare from
+* \param candidate_fusion the vector stores the matched ops
+* \param selected the set stores the ops have been selected
 * \param hash_func the hash function
 * \param out_degree the output degree
 * \param get_output the function to get a specific output
@@ -122,109 +125,120 @@ void special_case_handle(node_t *graph_node, node_t *pattern_node,
 */
 template <typename hashtype, typename hashfunc, typename outdegree,
         typename getoutput, typename indegree, typename getinput>
-bool per_node_comp_(node_t *graph_node, node_t *pattern_node,
-        std::vector<node_t *> &candidate_fusion,
-        std::unordered_set<node_t *> &selected, hashfunc hash_func,
+bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
+        std::vector<op_t *> &candidate_fusion,
+        std::unordered_set<op_t *> &selected, hashfunc hash_func,
         outdegree out_degree, getoutput get_output, indegree in_degree,
         getinput get_input) {
-    std::deque<std::pair<node_t *, std::pair<uint32_t, uint32_t>>>
-            pattern_queue;
-    std::deque<node_t *> node_queue;
-    //if a node have been visited
+    using consumer_t = value_t::consumer_t;
+    std::deque<std::pair<op_t *, std::pair<uint32_t, uint32_t>>> pattern_queue;
+    std::deque<op_t *> op_queue;
+    //if a op have been visited
     std::unordered_set<hashtype> visited;
-    bool graph_is_pattern = graph_node == pattern_node;
-    std::set<std::string> expected {"FRequirement"};
-
-    hashtype pattern_starter_hash = hash_func(pattern_node);
-    pattern_queue.push_back(std::make_pair(
-            pattern_node, std::make_pair(0, 0))); //node, output_idx, input_idx
+    std::set<std::string> excepted {"num_inputs"};
+    bool pattern_is_graph = graph_op == pattern_op;
+    hashtype pattern_starter_hash = hash_func(pattern_op);
+    pattern_queue.push_back(std::make_pair(pattern_op,
+            std::make_pair(
+                    0, 0))); //op, matched_input_value, matched_output_value
     visited.insert(pattern_starter_hash);
-    node_queue.push_back(graph_node);
+    op_queue.push_back(graph_op);
 
     while (!pattern_queue.empty()) {
-        std::pair<node_t *, std::pair<uint32_t, uint32_t>> &pfront
+        std::pair<op_t *, std::pair<uint32_t, uint32_t>> &pfront
                 = pattern_queue.front();
-        node_t *nfront = node_queue.front();
-
-        // check if graph node is an unvisited node and can meet the
-        // requirement of pattern node
-        if (pfront.first->get_op_kind() != op_kind::any
+        op_t *nfront = op_queue.front();
+        // check if graph op is an unvisited op and can meet the
+        // requirement of pattern op
+        if (pfront.first->get_kind() != op_kind::any
                 && (selected.count(nfront) != 0 || nfront->has_attr("backend")
-                        || nfront->get_op_kind() != pfront.first->get_op_kind()
+                        || nfront->get_kind() != pfront.first->get_kind()
                         || !pfront.first->has_same_attr_values(
-                                *nfront, expected))) {
+                                *nfront, excepted))) {
             return false;
         }
-        if (!graph_is_pattern && pfront.first->has_attr("FRequirement")) {
-            auto req = pfront.first->get_attr<FRequirement>("FRequirement");
-            if (!req(nfront)) return false;
+
+        if (!pattern_is_graph && pfront.first->has_attr("num_inputs")
+                && pfront.first->get_attr<int64_t>("num_inputs")
+                        != in_degree(nfront)) {
+            return false;
         }
 
-        // handle the case that "Add" node's input tensor's order
+        // handle the case that "Add" op's input tensor's order
         // is different from it in graph
         special_case_handle(nfront, pfront.first, in_degree, get_input);
 
-        if (pfront.first->get_op_kind() == op_kind::any) {
-            node_queue.pop_front();
+        if (pfront.first->get_kind() == op_kind::any) {
+            op_queue.pop_front();
             pattern_queue.pop_front();
         } else if (pfront.second.first == out_degree(pfront.first)
                 && pfront.second.second == in_degree(pfront.first)) {
             candidate_fusion.emplace_back(nfront);
-            node_queue.pop_front();
+            op_queue.pop_front();
             pattern_queue.pop_front();
         } else if (pfront.second.first != out_degree(pfront.first)) {
             if (out_degree(pfront.first) != out_degree(nfront)) {
                 return false;
             }
-            node_t *poutput = get_output(pfront.first, pfront.second.first);
-            // output nodes have no order, so need to match pattern to get the
-            // corresponding node
+            value_t *poutput = get_output(pfront.first, pfront.second.first);
+            value_t *noutput = get_output(nfront, pfront.second.first);
+            std::vector<consumer_t> pconsumers = poutput->get_consumers();
+            std::vector<consumer_t> nconsumers = noutput->get_consumers();
+            if (pconsumers.size() != nconsumers.size()) { return false; }
+            // output ops have no order, so need to match pattern to get the
+            // corresponding op
             size_t corresponding_offset;
-            bool flag = nfront->find_output_node(
-                    poutput, &corresponding_offset, pfront.second.first);
-            if (!flag) { return false; }
-            nfront->swap_output_node(pfront.second.first, corresponding_offset);
-            node_t *noutput = get_output(nfront, pfront.second.first++);
-
-            hashtype poutput_hash = hash_func(poutput);
-            if (visited.count(poutput_hash) == 0) {
-                pattern_queue.push_back(
-                        std::make_pair(poutput, std::make_pair(0, 0)));
-                node_queue.push_back(noutput);
-                visited.insert(poutput_hash);
+            for (size_t i = 0; i < pconsumers.size(); i++) {
+                bool flag = noutput->find_consumer(
+                        pconsumers[i].get_op().get_kind(),
+                        corresponding_offset);
+                if (!flag) { return false; }
+                noutput->swap_consumer(i, corresponding_offset);
+            }
+            pfront.second.first++;
+            nconsumers = noutput->get_consumers();
+            for (size_t i = 0; i < nconsumers.size(); i++) {
+                op_t &pout = pconsumers[i].get_op();
+                op_t &nout = nconsumers[i].get_op();
+                hashtype poutput_hash = hash_func(&pout);
+                if (visited.count(poutput_hash) == 0) {
+                    pattern_queue.push_back(
+                            std::make_pair(&pout, std::make_pair(0, 0)));
+                    op_queue.push_back(&nout);
+                    visited.insert(poutput_hash);
+                }
             }
         } else { // pfront.second.second != in_degree(pfront.first)
-            if (in_degree(nfront) > in_degree(pfront.first)) return false;
-
+            if (in_degree(nfront) < in_degree(pfront.first)) { return false; }
             // two cases for any as input:
             // 1. any matches to a tensor
             //    e.g. conv   tensor
             //            \   /
             //             add
-            // 2. any matches to an arbitrary node
-            //    e.g. conv   any_node
+            // 2. any matches to an arbitrary op
+            //    e.g. conv   any_op
             //             \  /
             //              add
             //
-            node_t *pinput = get_input(pfront.first, pfront.second.second);
-            if (in_degree(nfront) == in_degree(pfront.first) // case #2
-                    || (pinput->get_op_kind() != op_kind::any // maybe case #1
-                            && pfront.second.second < in_degree(nfront))) {
-                node_t *ninput = get_input(nfront, pfront.second.second++);
-                hashtype pinput_hash = hash_func(pinput);
+
+            value_t *pvalue = get_input(pfront.first, pfront.second.second);
+            op_t *pinput = &pvalue->get_producer();
+            value_t *nvalue = get_input(nfront, pfront.second.second++);
+            op_t *ninput = &nvalue->get_producer();
+            hashtype pinput_hash = hash_func(pinput);
+            if (nvalue->has_producer()) { // maybe case #2
                 if (visited.count(pinput_hash) == 0) {
                     pattern_queue.push_front(
                             std::make_pair(pinput, std::make_pair(0, 0)));
-                    node_queue.push_front(ninput);
+                    op_queue.push_front(ninput);
                     visited.insert(pinput_hash);
                 }
-            } else if (pinput->get_op_kind() == op_kind::any) {
+            } else if (pinput->get_kind() == op_kind::any) {
                 // case #1
                 hashtype pinput_hash = hash_func(pinput);
                 if (visited.count(pinput_hash) == 0) {
                     visited.insert(pinput_hash);
                 }
-                pfront.second.second++;
             } else {
                 return false;
             }
@@ -233,42 +247,41 @@ bool per_node_comp_(node_t *graph_node, node_t *pattern_node,
     return true;
 }
 
-// function to do per node comparison
-inline bool per_node_comp(node_t *graph_node, node_t *pattern_node,
-        std::vector<node_t *> &candidate_fusion,
-        std::unordered_set<node_t *> &selected) {
-    return per_node_comp_<size_t>(
-            graph_node, pattern_node, candidate_fusion, selected,
-            [](node_t *n) -> size_t { // hashfunc
-                return n->id();
+// function to do per op comparison
+inline bool per_op_comp(op_t *graph_op, op_t *pattern_op,
+        std::vector<op_t *> &candidate_fusion,
+        std::unordered_set<op_t *> &selected) {
+    return per_op_comp_<op_t *>(
+            graph_op, pattern_op, candidate_fusion, selected,
+            [](op_t *n) -> op_t * { // hashfunc
+                return n;
             },
-            [](node_t *n) -> size_t { // outdegree
+            [](op_t *n) -> size_t { // outdegree
                 return n->num_outputs();
             },
-            [](node_t *n, size_t index) -> node_t * { // getoutput
-                return n->get_output_node(index);
+            [](op_t *n, size_t index) -> value_t * { // getoutput
+                return (n->get_output_value(index).get());
             },
-            [](node_t *n) -> size_t { // indegree
+            [](op_t *n) -> size_t { // indegree
                 return n->num_inputs();
             },
-            [](node_t *n, size_t index) -> node_t * { // getinput
-                return n->get_input_node(index);
+            [](op_t *n, size_t index) -> value_t * { // getinput
+                return n->get_input_value(index).get();
             });
 }
 
 class pattern_utils {
 public:
     inline void match(dnnl::graph::impl::graph_t &backend_graph,
-            node_t *op_pattern,
-            std::vector<std::vector<node_t *>> &fusion_nodes);
+            op_t *op_pattern, std::vector<std::vector<op_t *>> &fusion_ops);
     inline void rewrite(dnnl::graph::impl::graph_t &backend_graph,
-            node_t *origin_pattern, node_t *optimized_pattern,
-            std::vector<std::vector<node_t *>> &fusion_nodes);
+            op_t *origin_pattern, op_t *optimized_pattern,
+            std::vector<std::vector<op_t *>> &fusion_ops);
     // function to convert pattern to a vector based on search order
-    std::vector<node_t *> pattern2vector(node_t *op_pattern) {
-        std::unordered_set<node_t *> selected;
-        std::vector<node_t *> pattern_vector;
-        per_node_comp(op_pattern, op_pattern, pattern_vector, selected);
+    std::vector<op_t *> pattern2vector(op_t *op_pattern) {
+        std::unordered_set<op_t *> selected;
+        std::vector<op_t *> pattern_vector;
+        per_op_comp(op_pattern, op_pattern, pattern_vector, selected);
         return pattern_vector;
     }
     pattern_utils() = default;
@@ -279,96 +292,69 @@ public:
 
 // function to do pattern matching
 inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
-        node_t *op_pattern, std::vector<std::vector<node_t *>> &fusion_nodes) {
-    std::unordered_set<node_t *> selected;
+        op_t *op_pattern, std::vector<std::vector<op_t *>> &fusion_ops) {
+    std::unordered_set<op_t *> selected;
     // dfs_visit graph, do pattern matching
-    dfs_visit(backend_graph.get_outputs(), [&](node_t *cur_node) {
-        std::vector<node_t *> candidate_fusion;
-        if (!per_node_comp(cur_node, op_pattern, candidate_fusion, selected)) {
+    topo_order_visit(backend_graph.get_output_ops(), [&](op_t *cur_op) {
+        std::vector<op_t *> candidate_fusion;
+        if (!per_op_comp(cur_op, op_pattern, candidate_fusion, selected)) {
             return;
         }
-        fusion_nodes.emplace_back(candidate_fusion);
-        for (auto &anode : candidate_fusion) {
-            selected.insert(anode);
+        fusion_ops.emplace_back(candidate_fusion);
+        for (auto &aop : candidate_fusion) {
+            selected.insert(aop);
         }
     });
 }
 
 // function to do graph rewriting
 inline void pattern_utils::rewrite(dnnl::graph::impl::graph_t &backend_graph,
-        node_t *origin_pattern, node_t *optimized_pattern,
-        std::vector<std::vector<node_t *>> &fusion_nodes) {
-    std::vector<node_t *> pattern_vec = pattern2vector(origin_pattern);
-    std::unordered_set<node_t *> visited;
-    std::unordered_set<size_t> visited_tensor;
-    for (auto &nodes : fusion_nodes) {
+        op_t *origin_pattern, op_t *optimized_pattern,
+        std::vector<std::vector<op_t *>> &fusion_ops) {
+    std::vector<op_t *> pattern_vec = pattern2vector(origin_pattern);
+    std::unordered_set<op_t *> visited;
+    std::unordered_set<value_t *> visited_value;
+
+    for (auto &ops : fusion_ops) {
         visited.clear();
-        visited_tensor.clear();
-        node_t *fused_node
-                = backend_graph.create_node(optimized_pattern->get_op_kind());
-        fused_node->merge_attrs_map(optimized_pattern->get_attrs_map());
-        for (size_t i = 0; i < nodes.size(); ++i) {
-            node_t *cur_node = nodes[i];
-            visited.insert(cur_node);
-            fused_node->merge_attrs_map(cur_node->get_attrs_map());
-            fused_node->add_op_ids(cur_node->get_op_ids());
-            const node_t *pattern_node = pattern_vec[i];
-
-            // if cur_node has input node which isn't in pattern,
-            // update value's connection. if cur_node has input node
+        visited_value.clear();
+        op_t *fused_op = backend_graph.create_op(
+                optimized_pattern->get_kind(), "fused_op");
+        //need discuss: how to add into graph
+        fused_op->merge_attributes(optimized_pattern->get_attributes());
+        for (size_t i = 0; i < ops.size(); ++i) {
+            op_t *cur_op = ops[i];
+            visited.insert(cur_op);
+            fused_op->merge_attributes(cur_op->get_attributes());
+            fused_op->add_op_ids(cur_op->get_id());
+            const op_t *pattern_op = pattern_vec[i];
+            // if cur_op has input op which isn't in pattern,
+            // update value's connection. if cur_op has input op
             // which is in pattern, add its output_tensor into visited
-            for (size_t j = 0; j < cur_node->num_inputs(); ++j) {
-                auto in_node = cur_node->get_input_node(j);
-
-                std::vector<size_t> in_offsets;
-                cur_node->get_input_offsets(in_node, in_offsets);
-                //if in_node isn't in pattern,
-                //set it as a input node of fused_node
-                if (!visited.count(in_node)) {
-                    in_node->remove_output(cur_node);
-                    in_node->add_output(fused_node);
-                    for (auto &offset : in_offsets) {
-                        fused_node->set_input(
-                                fused_node->num_inputs(), in_node, offset);
-                    }
-                } else { //else, add it's output tensors into visited
-                    for (size_t k = 0; k < in_node->num_outputs_tensor(); ++k) {
-                        visited_tensor.insert(in_node->get_output_tensor(k).id);
-                    }
+            for (size_t j = 0; j < cur_op->num_inputs(); ++j) {
+                auto in_value = cur_op->get_input_value(j);
+                //if in_op isn't in pattern,
+                //set it as a input op of fused_op
+                if (!in_value->has_producer()
+                        || !visited.count(&in_value->get_producer())) {
+                    in_value->remove_consumer(*cur_op, j);
+                    in_value->add_consumer(*fused_op, fused_op->num_inputs());
+                    fused_op->add_input(in_value);
                 }
             }
-
-            //add cur_node's input_tensors which isn't visited into fused_node
-            for (size_t k = 0; k < cur_node->num_inputs_tensor(); ++k) {
-                auto in_tensor = cur_node->get_input_tensor(k);
-                if (!visited_tensor.count(in_tensor.id)) {
-                    fused_node->add_input_tensors(in_tensor, cur_node, k);
-                }
-            }
-
-            if (pattern_node->num_outputs() == 0) {
-                // it's a end node of pattern, need to update
-                // node connection of it's output nodes
-                for (size_t k = 0; k < cur_node->num_outputs(); ++k) {
-                    auto out_node = cur_node->get_output_node(k);
-                    std::vector<size_t> offsets;
-                    out_node->find_input_nodes(cur_node, offsets);
-                    for (auto &offset : offsets) {
-                        auto input_offset = out_node->get_input_offset(offset);
-                        out_node->set_input(offset, fused_node, input_offset);
-                        fused_node->add_output(out_node);
-                    }
-                }
-
-                for (size_t k = 0; k < cur_node->num_outputs_tensor(); ++k) {
-                    auto out_tensor = cur_node->get_output_tensor(k);
-                    fused_node->add_output_tensors(out_tensor, cur_node, k);
+            if (pattern_op->num_outputs() == 0) {
+                // it's a end op of pattern, need to update
+                // op connection of it's output ops
+                for (size_t k = 0; k < cur_op->num_outputs(); ++k) {
+                    auto out_value = cur_op->get_output_value(k);
+                    out_value->set_producer(*fused_op);
+                    fused_op->add_output(out_value);
                 }
             }
         }
 
-        for (size_t i = 0; i < nodes.size(); ++i) {
-            backend_graph.delete_node(nodes[i]);
+        for (size_t i = 0; i < ops.size(); ++i) {
+            backend_graph.delete_op(ops[i]);
         }
     }
 }

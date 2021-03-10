@@ -34,13 +34,13 @@ status_t DNNL_GRAPH_API dnnl_graph_op_destroy(op_t *op) {
 
 status_t DNNL_GRAPH_API dnnl_graph_op_add_input(
         op_t *op, const logical_tensor_t *input) {
-    op->add_input(input);
+    op->add_input(*input);
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_add_output(
         op_t *op, const logical_tensor_t *output) {
-    op->add_output(output);
+    op->add_output(*output);
     return status::success;
 }
 
@@ -123,12 +123,12 @@ status_t DNNL_GRAPH_API dnnl_graph_op_get_attr(const op_t *op, const char *name,
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_get_id(const op_t *op, size_t *id) {
-    *id = op->id();
+    *id = op->get_id();
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_get_kind(
         const op_t *op, op_kind_t *kind) {
-    *kind = op->kind();
+    *kind = op->get_kind();
     return status::success;
 }

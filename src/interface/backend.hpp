@@ -29,6 +29,7 @@
 #include "interface/engine.hpp"
 #include "interface/partition.hpp"
 #include "interface/stream.hpp"
+#include "interface/tensor.hpp"
 
 #define BACKEND_ID_LENGTH 4
 #define MAX_BACKEND_NUMS (1 << BACKEND_ID_LENGTH)
@@ -42,11 +43,11 @@ struct kernel_base {
 
     virtual ~kernel_base() {}
 
-    virtual status_t compile_impl(const node_t *anode, const engine_t *aengine,
+    virtual status_t compile_impl(const op_t *op, const engine_t *aengine,
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs)
             = 0;
-    virtual status_t execute_impl(const node_t *anode, const stream_t *astream,
+    virtual status_t execute_impl(const op_t *op, const stream_t *astream,
             const std::vector<tensor_t> &inputs,
             const std::vector<tensor_t> &outputs)
             = 0;
@@ -59,18 +60,18 @@ struct kernel_base {
         return status::success;
     };
 
-    status_t compile(const node_t *anode, const engine_t *aengine,
+    status_t compile(const op_t *op, const engine_t *aengine,
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs) {
-        auto ret = compile_impl(anode, aengine, inputs, outputs);
+        auto ret = compile_impl(op, aengine, inputs, outputs);
         if (ret != status::success) return ret;
         return prepare_inplace_pairs_impl(aengine, inputs, outputs);
     }
 
-    status_t execute(const node_t *anode, const stream_t *astream,
+    status_t execute(const op_t *op, const stream_t *astream,
             const std::vector<tensor_t> &inputs,
             const std::vector<tensor_t> &outputs) {
-        return execute_impl(anode, astream, inputs, outputs);
+        return execute_impl(op, astream, inputs, outputs);
     }
 
     std::vector<inplace_pair_t> inplace_pairs_;
@@ -107,10 +108,10 @@ public:
     }
 
     /*! 
-     * \brief create an kernel instance for a node
+     * \brief create an kernel instance for an op
      */
-    kernel_base::ptr create_kernel(const node_t &anode) {
-        auto op_kind = anode.get_op_kind();
+    kernel_base::ptr create_kernel(const op_t &op) {
+        auto op_kind = op.get_kind();
         std::lock_guard<std::mutex> lock(kernel_creator_f_map_.m_);
 
         auto pos = kernel_creator_f_map_.data_.find(op_kind);

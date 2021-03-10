@@ -253,16 +253,16 @@ int logical_tensor2str(char *str, size_t str_len,
 int partition2fmt_str(
         char *str, size_t str_len, const impl::partition_t &partition) {
     if (str == nullptr || str_len <= 1u) return -1;
-    const auto &node = partition.node();
+    const auto &op = partition.get_fused_op();
 
     int written = 0;
-    if (node->has_attr("data_format")) {
-        const auto data_format = node->get_attr<std::string>("data_format");
+    if (op->has_attr("data_format")) {
+        const auto data_format = op->get_attr<std::string>("data_format");
         DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written, "data:%s",
                 data_format.c_str());
     }
-    if (node->has_attr("filter_format")) {
-        const auto filter_format = node->get_attr<std::string>("filter_format");
+    if (op->has_attr("filter_format")) {
+        const auto filter_format = op->get_attr<std::string>("filter_format");
         DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written, " filter:%s",
                 filter_format.c_str());
     }
@@ -353,8 +353,8 @@ void init_info_partition(const graph::impl::engine_t *engine,
     }
 
     verbose_templ(buffer, engine, partition.id(),
-            partition.node()->get_name().c_str(), fmt_str, dat_str,
-            partition.node()->get_attr<std::string>("backend").c_str());
+            partition.get_fused_op()->get_name().c_str(), fmt_str, dat_str,
+            partition.get_fused_op()->get_attr<std::string>("backend").c_str());
 #endif
 }
 

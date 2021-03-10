@@ -18,6 +18,7 @@
 
 #include "interface/c_types_map.hpp"
 #include "interface/logical_tensor.hpp"
+#include "interface/op.hpp"
 #include "interface/value.hpp"
 
 #include "utils.hpp"

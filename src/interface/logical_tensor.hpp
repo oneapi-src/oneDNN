@@ -31,6 +31,11 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 
+inline logical_tensor_t zero_logical_tensor() {
+    auto zero = logical_tensor_t();
+    return zero;
+}
+
 struct logical_tensor_wrapper {
     const logical_tensor_t *lt;
 

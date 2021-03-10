@@ -43,13 +43,13 @@ private:
     dnnl::stream p_stream_;
 
 public:
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
 
-        auto op_kind = anode->get_op_kind();
+        auto op_kind = op->get_kind();
         bool with_relu = op_kind == op_kind::matmul_relu ? true : false;
 
         p_engine_ = make_dnnl_engine(*g_engine);
@@ -115,11 +115,11 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(anode);
+        UNUSED(op);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
 

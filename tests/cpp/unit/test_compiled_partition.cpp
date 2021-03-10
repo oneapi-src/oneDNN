@@ -16,8 +16,8 @@
 
 #include <gtest/gtest.h>
 
-#include "interface/ir.hpp"
 #include "interface/partition.hpp"
+#include "interface/tensor.hpp"
 
 #include "unit_test_common.hpp"
 #include "utils.hpp"
@@ -27,7 +27,7 @@ namespace utils = dnnl::graph::tests::unit::utils;
 TEST(compiled_partition, relu) {
     impl::engine_t &eng = get_engine();
 
-    impl::node_t relu_node(impl::op_kind::ReLU);
+    impl::op_t relu_node(impl::op_kind::ReLU);
     relu_node.set_attr<std::string>("backend", "dnnl");
 
     const impl::logical_tensor_t lt_in = utils::logical_tensor_init(
@@ -36,8 +36,8 @@ TEST(compiled_partition, relu) {
             = utils::logical_tensor_init(/* tid= */ 2, {1, 1, 3, 3},
                     impl::data_type::f32, impl::layout_type::any);
 
-    relu_node.add_input_tensors({lt_in});
-    relu_node.add_output_tensors({lt_out});
+    relu_node.add_input(lt_in);
+    relu_node.add_output(lt_out);
 
     impl::partition_t p;
     p.init(&relu_node, eng.kind());
@@ -95,7 +95,7 @@ TEST(compiled_partition, relu) {
 TEST(compiled_partition, search_required_inputs_outputs) {
     impl::engine_t &eng = get_engine();
 
-    impl::node_t relu_node(impl::op_kind::ReLU);
+    impl::op_t relu_node(impl::op_kind::ReLU);
     relu_node.set_attr<std::string>("backend", "dnnl");
 
     impl::logical_tensor_t lt_in = utils::logical_tensor_init(
@@ -103,8 +103,8 @@ TEST(compiled_partition, search_required_inputs_outputs) {
     impl::logical_tensor_t lt_out = utils::logical_tensor_init(/* tid= */ 2,
             {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
 
-    relu_node.add_input_tensors({lt_in});
-    relu_node.add_output_tensors({lt_out});
+    relu_node.add_input(lt_in);
+    relu_node.add_output(lt_out);
 
     impl::partition_t p;
     p.init(&relu_node, eng.kind());
@@ -209,7 +209,7 @@ TEST(compiled_partition, search_required_inputs_outputs) {
 TEST(compiled_partition, allow_repeated_inputs) {
     impl::engine_t &eng = get_engine();
 
-    impl::node_t n(impl::op_kind::Multiply);
+    impl::op_t n(impl::op_kind::Multiply);
     n.set_attr<std::string>("backend", "dnnl");
 
     impl::logical_tensor_t lt_in1 = utils::logical_tensor_init(
@@ -218,8 +218,9 @@ TEST(compiled_partition, allow_repeated_inputs) {
             {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
 
     // repeated inputs
-    n.add_input_tensors({lt_in1, lt_in1});
-    n.add_output_tensors({lt_out});
+    n.add_input(lt_in1);
+    n.add_input(lt_in1);
+    n.add_output(lt_out);
 
     impl::partition_t p;
     p.init(&n, eng.kind());
@@ -269,7 +270,7 @@ TEST(compiled_partition, allow_repeated_inputs) {
 TEST(compiled_partition, not_allow_repeated_inputs) {
     impl::engine_t &eng = get_engine();
 
-    impl::node_t n(impl::op_kind::MatMul);
+    impl::op_t n(impl::op_kind::MatMul);
     n.set_attr<std::string>("backend", "dnnl");
 
     impl::logical_tensor_t lt_in1 = utils::logical_tensor_init(
@@ -278,8 +279,9 @@ TEST(compiled_partition, not_allow_repeated_inputs) {
             {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
 
     // repeated inputs
-    n.add_input_tensors({lt_in1, lt_in1});
-    n.add_output_tensors({lt_out});
+    n.add_input(lt_in1);
+    n.add_input(lt_in1);
+    n.add_output(lt_out);
 
     impl::partition_t p;
     p.init(&n, eng.kind());

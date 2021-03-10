@@ -181,13 +181,13 @@ void op_schema::set_default_attribute(op_t *l_op) const {
 }
 
 bool op_schema::verify(op_t *l_op) const {
-    size_t actual_num_inputs = l_op->inputs().size();
+    size_t actual_num_inputs = l_op->num_inputs();
     auto expected_num_inputs = get_num_inputs();
     bool param_num_verify_result = verify_param_num(
             actual_num_inputs, expected_num_inputs, inputs_option);
     if (!param_num_verify_result) { return false; }
 
-    size_t actual_num_outputs = l_op->outputs().size();
+    size_t actual_num_outputs = l_op->num_outputs();
     auto expected_num_outputs = get_num_outputs();
     param_num_verify_result = verify_param_num(
             actual_num_outputs, expected_num_outputs, outputs_option);
@@ -204,7 +204,7 @@ bool op_schema::verify(op_t *l_op) const {
     return true;
 }
 
-status_t op_schema::shape_infer(node_t *n,
+status_t op_schema::shape_infer(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) const {
     shape_infer_fn fn = get_shape_inference_function();

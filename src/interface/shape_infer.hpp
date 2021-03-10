@@ -24,7 +24,6 @@
 #include <utility>
 #include <vector>
 
-#include "ir.hpp"
 #include "logical_tensor.hpp"
 
 namespace dnnl {
@@ -160,7 +159,7 @@ static std::vector<int64_t> compute_dense_strides(
 }
 
 static int64_t get_n_channels(
-        const node_t *const n, const std::vector<int64_t> &input_dims) {
+        const op_t *const n, const std::vector<int64_t> &input_dims) {
     const std::string data_f_attr_name = "data_format";
     const std::string default_data_f = "NXC";
     const std::string data_f = [n, &data_f_attr_name, &default_data_f]() {
@@ -278,8 +277,8 @@ static void set_infered_shape_and_strides(
 
 // check if output shape is already known
 // if shape is unknown, infer output shape (change output lt)
-// otherwise infer pad (change node attrs)
-status_t infer_conv_output_shape(node_t *n,
+// otherwise infer pad (change op attrs)
+status_t infer_conv_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto in0 = logical_tensor_wrapper(inputs[0]);
@@ -321,9 +320,9 @@ status_t infer_conv_output_shape(node_t *n,
         infer_auto_pad(weight_spatial_dims, auto_pad, strides,
                 infered_pads_begin, infered_pads_end, dilations);
         if (!out0.is_shape_unknown()) {
-            // if shape is known, infer pad (change node attrs)
-            n->set_attr<std::vector<int64_t>>("pads_begin", infered_pads_begin);
-            n->set_attr<std::vector<int64_t>>("pads_end", infered_pads_end);
+            // if shape is known, infer pad (change op attrs)
+            n->set_attr("pads_begin", infered_pads_begin);
+            n->set_attr("pads_end", infered_pads_end);
             return status::success;
         }
     }
@@ -351,7 +350,7 @@ status_t infer_conv_output_shape(node_t *n,
     return status::success;
 }
 
-status_t infer_conv_bprop_data_output_shape(node_t *n,
+status_t infer_conv_bprop_data_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto in0 = logical_tensor_wrapper(inputs[0]);
@@ -398,9 +397,9 @@ status_t infer_conv_bprop_data_output_shape(node_t *n,
         infer_auto_pad(weight_spatial_dims, auto_pad, strides,
                 infered_pads_begin, infered_pads_end, dilations);
         if (!out0.is_shape_unknown()) {
-            // if shape is known, infer pad (change node attrs)
-            n->set_attr<std::vector<int64_t>>("pads_begin", infered_pads_begin);
-            n->set_attr<std::vector<int64_t>>("pads_end", infered_pads_end);
+            // if shape is known, infer pad (change op attrs)
+            n->set_attr("pads_begin", infered_pads_begin);
+            n->set_attr("pads_end", infered_pads_end);
             return status::success;
         }
     }
@@ -432,7 +431,7 @@ status_t infer_conv_bprop_data_output_shape(node_t *n,
     return status::success;
 }
 
-status_t infer_conv_bprop_filters_output_shape(node_t *n,
+status_t infer_conv_bprop_filters_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto in0 = logical_tensor_wrapper(inputs[0]);
@@ -476,9 +475,9 @@ status_t infer_conv_bprop_filters_output_shape(node_t *n,
             return status::unsupported;
         }
         if (!out0.is_shape_unknown()) {
-            // if shape is known, infer pad (change node attrs)
-            n->set_attr<std::vector<int64_t>>("pads_begin", infered_pads_begin);
-            n->set_attr<std::vector<int64_t>>("pads_end", infered_pads_end);
+            // if shape is known, infer pad (change op attrs)
+            n->set_attr("pads_begin", infered_pads_begin);
+            n->set_attr("pads_end", infered_pads_end);
             return status::success;
         }
     }
@@ -514,8 +513,8 @@ status_t infer_conv_bprop_filters_output_shape(node_t *n,
 
 // check if output shape is already known
 // if shape is unknown, infer output shape (change output lt)
-// otherwise infer pad (change node attrs)
-status_t infer_pool_output_shape(node_t *n,
+// otherwise infer pad (change op attrs)
+status_t infer_pool_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto in0 = logical_tensor_wrapper(inputs[0]);
@@ -568,7 +567,7 @@ status_t infer_pool_output_shape(node_t *n,
         output_spatial_dims.push_back(out_value);
     }
 
-    // if shape is known, infer pad (change node attrs)
+    // if shape is known, infer pad (change op attrs)
     if (!out0.is_shape_unknown()) {
         if (rounding_type == "ceil") {
             for (size_t i = 0; i < src_spatial_dims.size(); ++i) {
@@ -579,8 +578,8 @@ status_t infer_pool_output_shape(node_t *n,
                 infered_pads_end[i] = cur_pads_end;
             }
         }
-        n->set_attr<std::vector<int64_t>>("pads_begin", infered_pads_begin);
-        n->set_attr<std::vector<int64_t>>("pads_end", infered_pads_end);
+        n->set_attr("pads_begin", infered_pads_begin);
+        n->set_attr("pads_end", infered_pads_end);
         return status::success;
     }
 
@@ -596,7 +595,7 @@ status_t infer_pool_output_shape(node_t *n,
     return status::success;
 }
 
-status_t infer_matmul_output_shape(node_t *n,
+status_t infer_matmul_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto in0 = logical_tensor_wrapper(inputs[0]);
@@ -692,7 +691,7 @@ status_t infer_matmul_output_shape(node_t *n,
     return status::success;
 }
 
-status_t infer_identity_output_shape(node_t *n,
+status_t infer_identity_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto out0 = logical_tensor_wrapper(outputs[0]);
@@ -713,7 +712,7 @@ status_t infer_identity_output_shape(node_t *n,
     return status::success;
 }
 
-status_t identity_output_shape_on_pos(node_t *n,
+status_t identity_output_shape_on_pos(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs,
         std::vector<uint32_t> &positions) {
@@ -726,7 +725,7 @@ status_t identity_output_shape_on_pos(node_t *n,
     return status::success;
 }
 
-status_t infer_bias_backprop_output_shape(node_t *n,
+status_t infer_bias_backprop_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto out = logical_tensor_wrapper(outputs[0]);
@@ -746,7 +745,7 @@ status_t infer_bias_backprop_output_shape(node_t *n,
     return status::success;
 }
 
-status_t infer_bias_add_output_shape(node_t *n,
+status_t infer_bias_add_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto out = logical_tensor_wrapper(outputs[0]);
@@ -774,7 +773,7 @@ status_t infer_bias_add_output_shape(node_t *n,
     return infer_identity_output_shape(n, inputs, outputs);
 }
 
-status_t infer_norm_output_shape(node_t *n,
+status_t infer_norm_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto status = infer_identity_output_shape(n, inputs, outputs);
@@ -814,7 +813,7 @@ status_t infer_norm_output_shape(node_t *n,
     return status::success;
 }
 
-status_t infer_norm_bprop_output_shape(node_t *n,
+status_t infer_norm_bprop_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     std::vector<uint32_t> identity_shapes_pos = {0};
@@ -827,7 +826,7 @@ status_t infer_norm_bprop_output_shape(node_t *n,
             n, inputs, outputs, identity_shapes_pos);
 }
 
-status_t infer_elemwise_arithmetic_output_shape(node_t *n,
+status_t infer_elemwise_arithmetic_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto in0 = logical_tensor_wrapper(inputs[0]);
@@ -871,7 +870,7 @@ status_t infer_elemwise_arithmetic_output_shape(node_t *n,
     return status::success;
 }
 
-status_t infer_bn_fwd_train_output_shape(node_t *n,
+status_t infer_bn_fwd_train_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     using cvec_int64 = const std::vector<int64_t>;
@@ -895,7 +894,7 @@ status_t infer_bn_fwd_train_output_shape(node_t *n,
     return status::success;
 }
 
-status_t infer_bn_bwd_output_shape(node_t *n,
+status_t infer_bn_bwd_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     using cvec_int64 = const std::vector<int64_t>;
@@ -922,7 +921,7 @@ status_t infer_bn_bwd_output_shape(node_t *n,
     return status::success;
 }
 
-status_t infer_concat_output_shape(node_t *n,
+status_t infer_concat_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto out0 = logical_tensor_wrapper(outputs[0]);
@@ -967,7 +966,7 @@ status_t infer_concat_output_shape(node_t *n,
     return status::success;
 }
 
-status_t infer_unsupported_output_shape(node_t *n,
+status_t infer_unsupported_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     UNUSED(n);
@@ -977,7 +976,7 @@ status_t infer_unsupported_output_shape(node_t *n,
     return status::success;
 }
 
-status_t infer_exponent_output_shape(node_t *n,
+status_t infer_exponent_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     UNUSED(n);
@@ -989,7 +988,7 @@ status_t infer_exponent_output_shape(node_t *n,
     return status::success;
 }
 
-status_t infer_reduce_sum_output_shape(node_t *n,
+status_t infer_reduce_sum_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     UNUSED(n);

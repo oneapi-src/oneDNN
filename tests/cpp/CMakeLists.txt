@@ -89,7 +89,7 @@ add_library(${LIB_NAME}_unit_test_objlib OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_compiled_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_dnnl_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_engine.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ir.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_layout_id.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_logger.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_logical_tensor.cpp
@@ -101,6 +101,7 @@ add_library(${LIB_NAME}_unit_test_objlib OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_value.cpp
     )
+
 set_target_properties(${LIB_NAME}_unit_test_objlib PROPERTIES CXX_VISIBILITY_PRESET "hidden")
 set_target_properties(${LIB_NAME}_unit_test_objlib PROPERTIES VISIBILITY_INLINES_HIDDEN 1)
 # Set path to exported and non exported headers

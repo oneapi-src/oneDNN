@@ -27,10 +27,10 @@
 
 #include "utils.hpp"
 
-TEST(op_v2_test, create) {
+TEST(op_test, create) {
     using namespace dnnl::graph::impl;
 
-    op_v2_t matmul {0, op_kind::MatMul, std::string("matmul")};
+    op_t matmul {0, op_kind::MatMul, std::string("matmul")};
     ASSERT_EQ(matmul.get_id(), 0);
     ASSERT_EQ(matmul.get_kind(), op_kind::MatMul);
     ASSERT_EQ(matmul.get_name(), std::string("matmul"));
@@ -39,31 +39,31 @@ TEST(op_v2_test, create) {
     ASSERT_EQ(matmul.get_schema()->get_name(), std::string("MatMul"));
 }
 
-TEST(op_v2_test, create_internal) {
+TEST(op_test, create_internal) {
     using namespace dnnl::graph::impl;
 
-    op_v2_t matmul {0, op_kind::MatMul, std::string("matmul"), true};
+    op_t matmul {0, op_kind::MatMul, std::string("matmul"), true};
     ASSERT_EQ(matmul.get_id(), 0);
     ASSERT_EQ(matmul.get_kind(), op_kind::MatMul);
     ASSERT_EQ(matmul.get_name(), std::string("matmul"));
     ASSERT_TRUE(matmul.is_internal());
 }
 
-TEST(op_v2_test, create_simple) {
+TEST(op_test, create_without_id) {
     using namespace dnnl::graph::impl;
 
-    op_v2_t matmul {op_kind::MatMul, std::string("matmul")};
+    op_t matmul {op_kind::MatMul, std::string("matmul")};
     ASSERT_EQ(matmul.get_id(), std::numeric_limits<size_t>::max());
     ASSERT_EQ(matmul.get_kind(), op_kind::MatMul);
     ASSERT_EQ(matmul.get_name(), std::string("matmul"));
     ASSERT_TRUE(matmul.is_internal());
 }
 
-TEST(op_v2_test, add_input) {
+TEST(op_test, add_input) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::tests::unit::utils;
 
-    op_v2_t matmul {0, op_kind::MatMul, std::string("matmul")};
+    op_t matmul {0, op_kind::MatMul, std::string("matmul")};
     ASSERT_EQ(matmul.num_inputs(), 0);
     ASSERT_EQ(matmul.num_outputs(), 0);
 
@@ -76,11 +76,11 @@ TEST(op_v2_test, add_input) {
     ASSERT_EQ(matmul.num_outputs(), 0);
 }
 
-TEST(op_v2_test, get_input) {
+TEST(op_test, get_input) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::tests::unit::utils;
 
-    op_v2_t matmul {0, op_kind::MatMul, std::string("matmul")};
+    op_t matmul {0, op_kind::MatMul, std::string("matmul")};
     logical_tensor_t lt0 = logical_tensor_init(1, {2, 3}, data_type::f32);
     logical_tensor_t lt1 = logical_tensor_init(2, {3, 4}, data_type::f32);
     matmul.add_input(lt0);
@@ -95,11 +95,11 @@ TEST(op_v2_test, get_input) {
             logical_tensor_wrapper(lt1));
 }
 
-TEST(op_v2_test, get_input_values) {
+TEST(op_test, get_input_values) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::tests::unit::utils;
 
-    op_v2_t matmul {0, op_kind::MatMul, std::string("matmul")};
+    op_t matmul {0, op_kind::MatMul, std::string("matmul")};
     logical_tensor_t lt0 = logical_tensor_init(1, {2, 3}, data_type::f32);
     logical_tensor_t lt1 = logical_tensor_init(2, {3, 4}, data_type::f32);
     matmul.add_input(lt0);
@@ -113,15 +113,15 @@ TEST(op_v2_test, get_input_values) {
             logical_tensor_wrapper(lt1));
 }
 
-TEST(op_v2_test, set_input_op) {
+TEST(op_test, set_input_op) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::tests::unit::utils;
 
-    op_v2_t relu {0, op_kind::ReLU, std::string("relu")};
+    op_t relu {0, op_kind::ReLU, std::string("relu")};
     logical_tensor_t lt0 = logical_tensor_init(1, {2, 3}, data_type::f32);
     relu.add_output(lt0);
 
-    op_v2_t matmul {2, op_kind::MatMul, std::string("matmul")};
+    op_t matmul {2, op_kind::MatMul, std::string("matmul")};
     logical_tensor_t lt1 = logical_tensor_init(3, {3, 4}, data_type::f32);
     matmul.add_input(lt0);
     matmul.add_input(lt1);
@@ -137,11 +137,11 @@ TEST(op_v2_test, set_input_op) {
     ASSERT_EQ(relu.num_output_consumers(0), 1);
 }
 
-TEST(op_v2_test, add_output) {
+TEST(op_test, add_output) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::tests::unit::utils;
 
-    op_v2_t matmul {0, op_kind::MatMul, std::string("matmul")};
+    op_t matmul {0, op_kind::MatMul, std::string("matmul")};
     ASSERT_EQ(matmul.num_inputs(), 0);
     ASSERT_EQ(matmul.num_outputs(), 0);
 
@@ -152,11 +152,11 @@ TEST(op_v2_test, add_output) {
     ASSERT_EQ(matmul.num_outputs(), 1);
 }
 
-TEST(op_v2_test, get_output) {
+TEST(op_test, get_output) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::tests::unit::utils;
 
-    op_v2_t matmul {0, op_kind::MatMul, std::string("matmul")};
+    op_t matmul {0, op_kind::MatMul, std::string("matmul")};
     logical_tensor_t lt = logical_tensor_init(1, {2, 3}, data_type::f32);
     matmul.add_output(lt);
 
@@ -165,11 +165,11 @@ TEST(op_v2_test, get_output) {
             logical_tensor_wrapper(lt));
 }
 
-TEST(op_v2_test, get_output_values) {
+TEST(op_test, get_output_values) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::tests::unit::utils;
 
-    op_v2_t matmul {0, op_kind::MatMul, std::string("matmul")};
+    op_t matmul {0, op_kind::MatMul, std::string("matmul")};
     logical_tensor_t lt = logical_tensor_init(1, {2, 3}, data_type::f32);
     matmul.add_output(lt);
 
@@ -179,10 +179,10 @@ TEST(op_v2_test, get_output_values) {
             logical_tensor_wrapper(lt));
 }
 
-TEST(op_v2_test, set_attribute_b) {
+TEST(op_test, set_attribute_b) {
     using namespace dnnl::graph::impl;
 
-    op_v2_t matmul {0, op_kind::MatMul, std::string("matmul")};
+    op_t matmul {0, op_kind::MatMul, std::string("matmul")};
     matmul.set_attr<bool>("transpose_a", true);
     matmul.set_attr<bool>("transpose_b", false);
 
@@ -194,10 +194,10 @@ TEST(op_v2_test, set_attribute_b) {
     ASSERT_FALSE(matmul.get_attr<bool>("transpose_b"));
 }
 
-TEST(op_v2_test, set_attribute_f_s) {
+TEST(op_test, set_attribute_f_s) {
     using namespace dnnl::graph::impl;
 
-    op_v2_t bn {0, op_kind::BatchNormInference, std::string("batch_norm")};
+    op_t bn {0, op_kind::BatchNormInference, std::string("batch_norm")};
     bn.set_attr<float>("epsilon", 0.5);
     ASSERT_EQ(bn.get_attr<float>("epsilon"), 0.5);
 
@@ -205,10 +205,10 @@ TEST(op_v2_test, set_attribute_f_s) {
     ASSERT_EQ(bn.get_attr<std::string>("data_format"), std::string("NCX"));
 }
 
-TEST(op_v2_test, set_attribute_is) {
+TEST(op_test, set_attribute_is) {
     using namespace dnnl::graph::impl;
 
-    op_v2_t conv {0, op_kind::Convolution, std::string("convolution")};
+    op_t conv {0, op_kind::Convolution, std::string("convolution")};
     conv.set_attr<int64_t>("groups", 2);
     ASSERT_EQ(conv.get_attr<int64_t>("groups"), 2);
 
@@ -219,15 +219,15 @@ TEST(op_v2_test, set_attribute_is) {
     ASSERT_EQ(ret[1], 1);
 }
 
-TEST(op_v2_test, merge_attributes) {
+TEST(op_test, merge_attributes) {
     using namespace dnnl::graph::impl;
 
-    op_v2_t conv {0, op_kind::Convolution, std::string("convolution")};
+    op_t conv {0, op_kind::Convolution, std::string("convolution")};
     conv.set_attr<int64_t>("groups", 2);
     conv.set_attr<std::string>("data_format", "NCX");
 
-    std::unordered_map<std::string, op_v2_t::attribute_value_t> other {};
-    op_v2_t::attribute_value_t fmt {std::string("OIX")};
+    std::unordered_map<std::string, op_t::attribute_value_t> other {};
+    op_t::attribute_value_t fmt {std::string("OIX")};
     other.insert({"filter_format", fmt});
     std::vector<int64_t> pad {2, 2};
     other.insert({"pads_begein", {pad}});
@@ -236,14 +236,14 @@ TEST(op_v2_test, merge_attributes) {
     ASSERT_EQ(conv.num_attributes(), 4);
 }
 
-TEST(op_v2_test, same_attributes) {
+TEST(op_test, same_attributes) {
     using namespace dnnl::graph::impl;
 
-    op_v2_t conv {0, op_kind::Convolution, std::string("convolution")};
+    op_t conv {0, op_kind::Convolution, std::string("convolution")};
     conv.set_attr<std::vector<int64_t>>("pads_begin", {2, 2});
     conv.set_attr<std::string>("data_format", "NCX");
 
-    op_v2_t pool {1, op_kind::MaxPool, std::string("max_pool")};
+    op_t pool {1, op_kind::MaxPool, std::string("max_pool")};
     pool.set_attr<std::vector<int64_t>>("pads_begin", {2, 2});
     pool.set_attr<std::string>("data_format", "NCX");
 
@@ -251,16 +251,16 @@ TEST(op_v2_test, same_attributes) {
     ASSERT_TRUE(conv.is_same_attr_value(pool, "data_format"));
     ASSERT_TRUE(conv.has_same_attr_values(pool));
 
-    op_v2_t bn {2, op_kind::BatchNormInference, std::string("batch_norm")};
+    op_t bn {2, op_kind::BatchNormInference, std::string("batch_norm")};
     bn.set_attr<std::string>("data_format", "NCX");
     ASSERT_TRUE(conv.is_same_attr_value(bn, "data_format"));
     ASSERT_FALSE(conv.has_same_attr_values(bn));
 }
 
-TEST(op_v2_test, assigned_partition) {
+TEST(op_test, assigned_partition) {
     using namespace dnnl::graph::impl;
 
-    op_v2_t conv {0, op_kind::Convolution, std::string("convolution")};
+    op_t conv {0, op_kind::Convolution, std::string("convolution")};
 
     ASSERT_FALSE(conv.is_assigned_to_partition());
 
@@ -269,14 +269,14 @@ TEST(op_v2_test, assigned_partition) {
     ASSERT_EQ(conv.get_partition(), &part);
 }
 
-TEST(op_v2_test, fused_op) {
+TEST(op_test, fused_op) {
     using namespace dnnl::graph::impl;
-    op_v2_t conv {0, op_kind::Convolution, std::string("convolution")};
-    op_v2_t relu {1, op_kind::ReLU, std::string("relu")};
+    op_t conv {0, op_kind::Convolution, std::string("convolution")};
+    op_t relu {1, op_kind::ReLU, std::string("relu")};
     ASSERT_FALSE(conv.is_fused());
     ASSERT_FALSE(relu.is_fused());
 
-    op_v2_t conv_relu {2, op_kind::conv_relu, std::string("conv_relu"), true};
+    op_t conv_relu {2, op_kind::conv_relu, std::string("conv_relu"), true};
     conv_relu.add_op_ids({0, 1});
     ASSERT_TRUE(conv_relu.is_fused());
 

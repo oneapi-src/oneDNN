@@ -24,25 +24,26 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
+#include "c_types_map.hpp"
 #include "common.hpp"
 #include "engine.hpp"
-#include "ir.hpp"
+#include "id.hpp"
+#include "op.hpp"
 #include "op_schema.hpp"
 #include "utils/compatible.hpp"
 
-struct dnnl_graph_graph : public dnnl_graph_id,
-                          public dnnl::graph::impl::attributes {
-    using node_ptr = std::unique_ptr<dnnl::graph::impl::node_t>;
+struct dnnl_graph_graph : public dnnl_graph_id {
+    using op_t = dnnl::graph::impl::op_t;
+    using op_ptr = std::shared_ptr<op_t>;
 
 private:
-    /*! \brief nodes in this graph */
-    std::vector<node_ptr> nodes_;
-
     /*! \brief added ops*/
-    std::vector<dnnl::graph::impl::op_t> ops_;
+    std::vector<op_ptr> ops_ {};
 
     /*! \brief The engine kind on which the operator will be evaluated */
     dnnl::graph::impl::engine_kind_t engine_kind_;
+
+    bool is_built_ {false};
 
 public:
     dnnl_graph_graph(dnnl::graph::impl::engine_kind_t kind
@@ -54,110 +55,75 @@ public:
 
     ~dnnl_graph_graph() = default;
 
+    dnnl::graph::impl::engine_kind_t get_engine_kind() const {
+        return engine_kind_;
+    }
+
     /*!
      * \brief Check whether an operator can be added
      * \param l_n An operator in frameworks' graph.
      * \return Whether the operator is supported
      */
-    dnnl::graph::impl::status_t add_op(dnnl::graph::impl::op_t *l_n) {
+    dnnl::graph::impl::status_t add_op(const op_t *l_n) {
+        if (!l_n) return dnnl::graph::impl::status::invalid_op;
+
         if (std::none_of(ops_.begin(), ops_.end(),
-                    [&l_n](const std::vector<
-                            dnnl::graph::impl::op_t>::value_type &op) {
-                        return op.id() == l_n->id();
+                    [&l_n](const std::vector<op_ptr>::value_type &op) {
+                        return op->get_id() == l_n->get_id();
                     })) {
             const dnnl::graph::impl::op_schema *opm
                     = dnnl::graph::impl::op_schema_registry::get_op_schema(
-                            l_n->kind());
-            dnnl::graph::impl::op_t tmp_ln = *l_n;
+                            l_n->get_kind());
+            op_t tmp_ln = *l_n;
             if (opm != nullptr) {
                 opm->set_default_attribute(&tmp_ln);
                 if (!opm->verify(&tmp_ln)) {
                     return dnnl::graph::impl::status::invalid_op;
                 }
             }
-            ops_.emplace_back(tmp_ln);
+            ops_.push_back(std::make_shared<op_t>(tmp_ln));
+            auto back_op = ops_.back().get();
+            for (size_t i = 0; i < back_op->num_outputs(); i++)
+                back_op->get_output_value(i)->set_producer(*back_op);
         }
         return dnnl::graph::impl::status::success;
     }
 
-    /*!
-     * \brief Create and add a node to this graph.
-     * \param aop_kind The operator used to create the node
-     * \return node* created node
-     */
-    dnnl::graph::impl::node_t *create_node(
-            dnnl::graph::impl::op_kind_t aop_kind) {
-        nodes_.push_back(dnnl::graph::impl::utils::make_unique<
-                dnnl::graph::impl::node_t>(aop_kind));
-        return nodes_.back().get();
+    op_t *create_op(dnnl_graph_op_kind_t kind, std::string name = "") {
+        ops_.push_back(std::make_shared<op_t>(kind, std::move(name)));
+        return ops_.back().get();
+    }
+
+    void delete_op(op_t *op) {
+        if (!op) return;
+
+        auto pos = std::find_if(ops_.begin(), ops_.end(),
+                [op](const op_ptr &n) -> bool { return *n == *op; });
+        if (pos != ops_.end()) ops_.erase(pos);
     }
 
     /*!
-     * \brief Create and add a node to this graph.
-     * \param lop The op used to create the node
-     * \return node* created node
+     * \brief Get all the ops of this graph, inlcuding original ops and fused.
+     * \return vector of ops pointers
      */
-    dnnl::graph::impl::node_t *create_node(const dnnl::graph::impl::op_t &lop) {
-        for (const node_ptr &n : nodes_) {
-            // there must be only one op id
-            // while building graph
-            if (n->get_op_ids().front() == lop.id()) {
-                n->parse_op_attr(&lop);
-                return n.get();
+    const std::vector<op_ptr> &get_ops() const { return ops_; }
+
+    /*! \brief how many ops in the graph */
+    size_t num_ops() const { return ops_.size(); }
+
+    /*!
+     * \brief Get the output ops of this graph.
+     * \return vector of output op pointers
+     */
+    std::vector<op_t *> get_output_ops() {
+        std::vector<op_t *> outputs;
+        for (const op_ptr &n : ops_) {
+            size_t num_consumers = 0;
+            for (size_t i = 0; i < n->num_outputs(); i++) {
+                num_consumers += n->num_output_consumers(i);
             }
-        }
-        node_ptr anode = dnnl::graph::impl::utils::make_unique<
-                dnnl::graph::impl::node_t>(lop.id(), lop.kind());
-        anode->parse_op_attr(&lop);
-        anode->add_op_ids(lop.id());
-        anode->add_input_tensors(lop.inputs());
-        anode->add_output_tensors(lop.outputs());
-        const auto &it = nodes_.insert(nodes_.end(), std::move(anode));
-        return it->get();
-    }
 
-    /*!
-     * \brief Delete a node of this graph.
-     * \param anode The node to be deleted
-     * \return void
-     */
-    void delete_node(dnnl::graph::impl::node_t *anode) {
-        std::vector<node_ptr>::iterator pos = std::find_if(nodes_.begin(),
-                nodes_.end(), [anode](const node_ptr &n) -> bool {
-                    return n.get() == anode;
-                });
-        if (pos != nodes_.end()) nodes_.erase(pos);
-    }
-
-    /*!
-     * \brief Get all the nodes of this graph.
-     * \return vector of nodes pointers
-     */
-    const std::vector<node_ptr> &get_nodes() const { return nodes_; }
-
-    /*! \brief get num_inputs of this node */
-    size_t num_nodes() const { return nodes_.size(); }
-
-    /*!
-     * \brief Get the input nodes of this graph.
-     * \return vector of input nodes pointers
-     */
-    std::vector<dnnl::graph::impl::node_t *> get_inputs() {
-        std::vector<dnnl::graph::impl::node_t *> inputs;
-        for (const node_ptr &n : nodes_) {
-            if (n->num_inputs() == 0) { inputs.push_back(n.get()); }
-        }
-        return inputs;
-    }
-
-    /*!
-     * \brief Get the output nodes of this graph.
-     * \return vector of output nodes pointers
-     */
-    std::vector<dnnl::graph::impl::node_t *> get_outputs() {
-        std::vector<dnnl::graph::impl::node_t *> outputs;
-        for (const node_ptr &n : nodes_) {
-            if (n->num_outputs() == 0) { outputs.push_back(n.get()); }
+            if (num_consumers == 0) { outputs.push_back(n.get()); }
         }
         return outputs;
     }
@@ -175,8 +141,8 @@ public:
      * \return partition numbers
      */
     size_t get_num_partitions() const {
-        return static_cast<size_t>(std::count_if(begin(nodes_), end(nodes_),
-                [](const node_ptr &n) { return n->has_attr("backend"); }));
+        return static_cast<size_t>(std::count_if(begin(ops_), end(ops_),
+                [](const op_ptr &n) { return n->has_attr("backend"); }));
     };
 
     /*!

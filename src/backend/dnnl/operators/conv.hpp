@@ -198,20 +198,20 @@ private:
     bool enable_cache_data_ = (val != nullptr && std::strcmp(val, "1") == 0);
 
 public:
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
-        const op_kind_t conv_kind = anode->get_op_kind();
+        const op_kind_t conv_kind = op->get_kind();
         // prepare the operator attributes
-        strides_ = anode->get_attr<dims>("strides");
-        dilates_ = anode->get_attr<dims>("dilations");
-        pads_begin_ = anode->get_attr<dims>("pads_begin");
-        pads_end_ = anode->get_attr<dims>("pads_end");
-        groups_ = anode->get_attr<int64_t>("groups");
-        data_format_ = anode->get_attr<std::string>("data_format");
-        filter_format_ = anode->get_attr<std::string>("filter_format");
+        strides_ = op->get_attr<dims>("strides");
+        dilates_ = op->get_attr<dims>("dilations");
+        pads_begin_ = op->get_attr<dims>("pads_begin");
+        pads_end_ = op->get_attr<dims>("pads_end");
+        groups_ = op->get_attr<int64_t>("groups");
+        data_format_ = op->get_attr<std::string>("data_format");
+        filter_format_ = op->get_attr<std::string>("filter_format");
         impl::logical_tensor_t src_lt = inputs.at(conv::kSrc);
         impl::logical_tensor_t weight_lt = inputs.at(conv::kWeight);
         impl::logical_tensor_t dst_lt = outputs.at(conv::kDst);
@@ -251,16 +251,16 @@ public:
                 || (with_bn_ && with_sum_ && inputs.size() == 8);
 
         // set attrs of eltwise
-        if (anode->has_attr("alpha")) {
-            alpha_ = anode->get_attr<float>("alpha");
-        } else if (anode->has_attr("min")) {
-            alpha_ = anode->get_attr<float>("min");
+        if (op->has_attr("alpha")) {
+            alpha_ = op->get_attr<float>("alpha");
+        } else if (op->has_attr("min")) {
+            alpha_ = op->get_attr<float>("min");
         }
 
-        if (anode->has_attr("beta")) {
-            beta_ = anode->get_attr<float>("beta");
-        } else if (anode->has_attr("max")) {
-            beta_ = anode->get_attr<float>("max");
+        if (op->has_attr("beta")) {
+            beta_ = op->get_attr<float>("beta");
+        } else if (op->has_attr("max")) {
+            beta_ = op->get_attr<float>("max");
         }
 
         // the bn inputs offset (if exist)
@@ -278,7 +278,7 @@ public:
                             : desc {});
         const desc dst {dst_lt};
 
-        if (with_bn_) epsilon_ = anode->get_attr<float>("epsilon");
+        if (with_bn_) epsilon_ = op->get_attr<float>("epsilon");
 
         // append post_ops to attrs
         if (with_sum_) {
@@ -337,11 +337,11 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(anode);
+        UNUSED(op);
         auto &src_lt = const_cast<impl::logical_tensor_t &>(
                 inputs.at(conv::kSrc).get_logical_tensor());
         auto &weight_lt = const_cast<impl::logical_tensor_t &>(
@@ -689,15 +689,14 @@ private:
     dnnl::stream p_stream_;
 
 public:
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
         // update shape
-        std::string data_format = anode->get_attr<std::string>("data_format");
-        std::string filter_format
-                = anode->get_attr<std::string>("filter_format");
+        std::string data_format = op->get_attr<std::string>("data_format");
+        std::string filter_format = op->get_attr<std::string>("filter_format");
         impl::logical_tensor_t diff_src_lt
                 = outputs.at(conv_bwd_data::kDiffsrc);
         impl::logical_tensor_t weight_lt = inputs.at(conv::kWeight);
@@ -725,15 +724,15 @@ public:
         const desc diff_src_desc {diff_src_lt};
 
         // cache operator attributes
-        strides_ = anode->get_attr<dims>("strides");
-        dilates_ = anode->get_attr<dims>("dilations");
+        strides_ = op->get_attr<dims>("strides");
+        dilates_ = op->get_attr<dims>("dilations");
 
         // make dilation aligned with oneDNN
         dilates_ = get_compatible_dilates(dilates_);
 
-        pads_begin_ = anode->get_attr<dims>("pads_begin");
-        pads_end_ = anode->get_attr<dims>("pads_end");
-        groups_ = anode->get_attr<int64_t>("groups");
+        pads_begin_ = op->get_attr<dims>("pads_begin");
+        pads_end_ = op->get_attr<dims>("pads_end");
+        groups_ = op->get_attr<int64_t>("groups");
 
         p_engine_ = make_dnnl_engine(*g_engine);
 
@@ -764,7 +763,7 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
@@ -778,14 +777,14 @@ public:
         auto &diff_src_lt = const_cast<impl::logical_tensor_t &>(
                 outputs.at(conv_bwd_data::kDiffsrc).get_logical_tensor());
         // "NXC"
-        if (anode->get_attr<std::string>("data_format") == "NXC") {
+        if (op->get_attr<std::string>("data_format") == "NXC") {
             diff_dst_lt = impl::logical_tensor_wrapper(diff_dst_lt)
                                   .reorder_data_dims_strides();
             diff_src_lt = impl::logical_tensor_wrapper(diff_src_lt)
                                   .reorder_data_dims_strides();
         }
         // "XIO"
-        if (anode->get_attr<std::string>("filter_format") == "XIO") {
+        if (op->get_attr<std::string>("filter_format") == "XIO") {
             weight_lt = impl::logical_tensor_wrapper(weight_lt)
                                 .reorder_data_dims_strides();
         }
@@ -848,17 +847,16 @@ private:
     dnnl::stream p_stream_;
 
 public:
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
-        const op_kind_t conv_kind = anode->get_op_kind();
+        const op_kind_t conv_kind = op->get_kind();
 
         // update shape
-        std::string data_format = anode->get_attr<std::string>("data_format");
-        std::string filter_format
-                = anode->get_attr<std::string>("filter_format");
+        std::string data_format = op->get_attr<std::string>("data_format");
+        std::string filter_format = op->get_attr<std::string>("filter_format");
 
         impl::logical_tensor_t src_lt = inputs.at(conv_bwd_filter::kSrc);
         impl::logical_tensor_t diff_weight_lt
@@ -895,15 +893,15 @@ public:
         }
 
         // cache operator attributes
-        strides_ = anode->get_attr<dims>("strides");
-        dilates_ = anode->get_attr<dims>("dilations");
+        strides_ = op->get_attr<dims>("strides");
+        dilates_ = op->get_attr<dims>("dilations");
 
         // make dilates compatible with oneDNN
         dilates_ = get_compatible_dilates(dilates_);
 
-        pads_begin_ = anode->get_attr<dims>("pads_begin");
-        pads_end_ = anode->get_attr<dims>("pads_end");
-        groups_ = anode->get_attr<int64_t>("groups");
+        pads_begin_ = op->get_attr<dims>("pads_begin");
+        pads_end_ = op->get_attr<dims>("pads_end");
+        groups_ = op->get_attr<int64_t>("groups");
 
         p_engine_ = make_dnnl_engine(*g_engine);
 
@@ -962,7 +960,7 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
@@ -981,14 +979,14 @@ public:
                                          : impl::tensor_t {};
 
         // "NXC"
-        if (anode->get_attr<std::string>("data_format") == "NXC") {
+        if (op->get_attr<std::string>("data_format") == "NXC") {
             diff_dst_lt = impl::logical_tensor_wrapper(diff_dst_lt)
                                   .reorder_data_dims_strides();
             src_lt = impl::logical_tensor_wrapper(src_lt)
                              .reorder_data_dims_strides();
         }
         // "XIO"
-        if (anode->get_attr<std::string>("filter_format") == "XIO") {
+        if (op->get_attr<std::string>("filter_format") == "XIO") {
             diff_weights_lt = impl::logical_tensor_wrapper(diff_weights_lt)
                                       .reorder_data_dims_strides();
         }

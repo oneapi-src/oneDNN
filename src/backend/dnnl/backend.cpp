@@ -36,7 +36,7 @@ bool dnnl_layout_id_manager::is_mem_desc_equal(
 impl::status_t dnnl_executable::execute(const impl::stream_t *g_stream,
         const std::vector<impl::tensor_t> &inputs,
         const std::vector<impl::tensor_t> &outputs) {
-    return kernel_->execute(node_, g_stream, inputs, outputs);
+    return kernel_->execute(op_, g_stream, inputs, outputs);
 }
 
 const std::vector<impl::inplace_pair_t> &
@@ -170,16 +170,16 @@ executable::ptr dnnl_backend::compile_impl(const impl::partition_t *p,
         const impl::engine_t *g_engine,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs) {
-    const impl::node_t *work_node = p->node();
-    if (!work_node) return {};
+    const impl::op_t *work_op = p->get_fused_op();
+    if (!work_op) return {};
 
-    impl::kernel_base::ptr kernel = kernel_registry_.create_kernel(*work_node);
+    impl::kernel_base::ptr kernel = kernel_registry_.create_kernel(*work_op);
     if (!kernel) return {};
 
-    auto ret = kernel->compile(work_node, g_engine, inputs, outputs);
+    auto ret = kernel->compile(work_op, g_engine, inputs, outputs);
     if (ret != impl::status::success) return {};
 
-    return executable::ptr(new dnnl_executable(kernel, work_node));
+    return executable::ptr(new dnnl_executable(kernel, work_op));
 }
 
 bool dnnl_backend::to_public_impl(const impl::tensor_t &input,

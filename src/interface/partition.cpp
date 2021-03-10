@@ -41,7 +41,7 @@ const std::set<op_kind_t> s_whitelist {op_kind::Multiply, op_kind::Add};
 
 //RCONT is for const or non-const logical_tensor_t
 template <typename RCONT>
-status_t get_ordered_inputs_outputs(const node_t *work_node,
+status_t get_ordered_inputs_outputs(const op_t *work_op,
         const std::vector<logical_tensor_t> &expected,
         const std::vector<RCONT *> &origin,
         std::vector<logical_tensor_t *> &ordered) {
@@ -49,7 +49,7 @@ status_t get_ordered_inputs_outputs(const node_t *work_node,
     // find required and ordered input and output logical tensors from the
     // out-of-order inputs / outputs
     if (origin.size() < expected.size()
-            && s_whitelist.count(work_node->get_op_kind()) == 0) {
+            && s_whitelist.count(work_op->get_kind()) == 0) {
         return status::miss_ins_outs;
     }
     ordered.reserve(expected.size());
@@ -64,14 +64,14 @@ status_t get_ordered_inputs_outputs(const node_t *work_node,
     return status::success;
 }
 
-status_t get_ordered_inputs_outputs(const node_t *work_node,
+status_t get_ordered_inputs_outputs(const op_t *work_op,
         const std::vector<logical_tensor_t> &expected,
         const std::vector<tensor_t> &origin, std::vector<tensor_t> &ordered) {
     // to support abitrary re-connection in FWK graph, we need to
     // find required and ordered input and output tensors from the
     // out-of-order inputs / outputs
     if (origin.size() < expected.size()
-            && s_whitelist.count(work_node->get_op_kind()) == 0) {
+            && s_whitelist.count(work_op->get_kind()) == 0) {
         return status::miss_ins_outs;
     }
     ordered.reserve(expected.size());
@@ -105,15 +105,15 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_op_num(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_get_ops(
-        partition_t *partition, size_t num, size_t *node) {
+        partition_t *partition, size_t num, size_t *ops) {
     auto ids = partition->get_ops();
-    if (ids.size() != num || node == nullptr) {
+    if (ids.size() != num || ops == nullptr) {
         return status::invalid_argument;
     }
 
     int idx = 0;
     for (auto it = ids.begin(); it != ids.end(); ++it, ++idx) {
-        node[idx] = *it;
+        ops[idx] = *it;
     }
 
     return status::success;
@@ -316,13 +316,13 @@ void dnnl_graph_partition::init(op_kind_t op_kind,
         const engine_kind_t engine_kind, const logical_tensor_t &input,
         const logical_tensor_t &output) {
     engine_kind_ = engine_kind;
-    node_ = utils::make_unique<node_t>(op_kind);
+    op_ = utils::make_unique<op_t>(op_kind, op_t::kind2str(op_kind));
     logical_tensor_wrapper ltw {&output};
     assert(ltw.is_opaque());
     auto backend_name
             = backend_manager::get_backend(static_cast<size_t>(ltw.layout_id()))
                       ->get_name();
-    node_->set_attr<std::string>("backend", backend_name);
+    op_->set_attr("backend", backend_name);
     inputs_.push_back(input);
     outputs_.push_back(output);
 }
@@ -337,19 +337,18 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *compiled_partition,
     // creating from filter(). all the information generated
     // at compilation stage should be stored in the corresponding
     // compiled_partition
-    // in shape_infer, node's attrs may be changed
-    node_t *work_node = compiled_partition->src_partition_.node_.get();
+    // in shape_infer, op's attrs may be changed
+    op_t *work_op = compiled_partition->src_partition_.op_.get();
 
     // to support abitrary re-connection in FWK graph, we need to
     // find required input and output logical tensors from the compile
     // function's parameters
     status_t ret;
     std::vector<logical_tensor_t *> required_inputs, required_outputs;
-    ret = get_ordered_inputs_outputs(
-            work_node, inputs_, inputs, required_inputs);
+    ret = get_ordered_inputs_outputs(work_op, inputs_, inputs, required_inputs);
     if (status::success != ret) return ret;
     ret = get_ordered_inputs_outputs(
-            work_node, outputs_, outputs, required_outputs);
+            work_op, outputs_, outputs, required_outputs);
     if (status::success != ret) return ret;
 
     // In the phase of compilation, all the output shape should be known.
@@ -361,11 +360,10 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *compiled_partition,
     if (pos != required_outputs.end()) { return status::invalid_argument; }
 
     const op_schema *cur_op_schema
-            = op_schema_registry::get_op_schema(work_node->get_op_kind());
+            = op_schema_registry::get_op_schema(work_op->get_kind());
     if (cur_op_schema) { // if cur_op_schema is not nullptr
-        // infer attributes of the node, i.e. auto_pad
-        cur_op_schema->shape_infer(
-                work_node, required_inputs, required_outputs);
+        // infer attributes of the op, i.e. auto_pad
+        cur_op_schema->shape_infer(work_op, required_inputs, required_outputs);
     }
 
     // store the filled logical tensor value to compiled partition
@@ -379,7 +377,7 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *compiled_partition,
     }
     compiled_partition->engine_ = *aengine;
 
-    std::string backend_name = work_node->get_attr<std::string>("backend");
+    std::string backend_name = work_op->get_attr<std::string>("backend");
     compiled_partition->executable_
             = backend_manager::get_backend(backend_name)
                       ->compile(&(compiled_partition->src_partition_), aengine,
@@ -395,10 +393,10 @@ status_t dnnl_graph_partition::infer_shape(
     std::vector<logical_tensor_t *> required_inputs, required_outputs;
     status_t ret;
     ret = get_ordered_inputs_outputs(
-            node_.get(), inputs_, inputs, required_inputs);
+            op_.get(), inputs_, inputs, required_inputs);
     if (status::success != ret) return ret;
     ret = get_ordered_inputs_outputs(
-            node_.get(), outputs_, outputs, required_outputs);
+            op_.get(), outputs_, outputs, required_outputs);
     if (status::success != ret) return ret;
 
     // check if shape is already known, if so, no need to do shape inference
@@ -410,14 +408,14 @@ status_t dnnl_graph_partition::infer_shape(
     if (pos == required_outputs.end()) { return status::success; }
 
     const op_schema *cur_op_schema
-            = op_schema_registry::get_op_schema(node_->get_op_kind());
+            = op_schema_registry::get_op_schema(op_->get_kind());
     if (cur_op_schema) { // if cur_op_schema is not nullptr
-        // shape_infer will change node attrs, so in order to keep the node_
-        // in partition unchanged, create a temp_node to hold these changes
-        node_t temp_node = node_t(node_->get_op_kind());
-        temp_node.merge_attrs_map(node_->get_attrs_map());
+        // shape_infer will change op attrs, so in order to keep the op
+        // in partition unchanged, create a temp op to hold these changes
+        op_t temp_op = op_t(*op_);
+        temp_op.merge_attributes(op_->get_attributes());
         ret = cur_op_schema->shape_infer(
-                &temp_node, required_inputs, required_outputs);
+                &temp_op, required_inputs, required_outputs);
         return ret;
     } else {
         return status::invalid_op;
@@ -442,10 +440,10 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
 
     status_t ret;
     ret = get_ordered_inputs_outputs(
-            src_partition_.node_.get(), inputs_, inputs, required_inputs);
+            src_partition_.op_.get(), inputs_, inputs, required_inputs);
     if (status::success != ret) return ret;
     ret = get_ordered_inputs_outputs(
-            src_partition_.node_.get(), outputs_, outputs, required_outputs);
+            src_partition_.op_.get(), outputs_, outputs, required_outputs);
     if (status::success != ret) return ret;
 
     if (utils::get_verbose()) {
@@ -475,10 +473,10 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
     std::vector<tensor_t> required_inputs, required_outputs;
     status_t ret;
     ret = get_ordered_inputs_outputs(
-            src_partition_.node_.get(), inputs_, inputs, required_inputs);
+            src_partition_.op_.get(), inputs_, inputs, required_inputs);
     if (status::success != ret) return ret;
     ret = get_ordered_inputs_outputs(
-            src_partition_.node_.get(), outputs_, outputs, required_outputs);
+            src_partition_.op_.get(), outputs_, outputs, required_outputs);
     if (status::success != ret) return ret;
 
     // TODO(Wei, Zixuan): Here we just pass down the pointer of cl::sycl::event

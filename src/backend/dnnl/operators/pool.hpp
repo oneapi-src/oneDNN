@@ -88,16 +88,16 @@ public:
         }
     }
 
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
-        dims strides = anode->get_attr<dims>("strides");
-        dims kernel = anode->get_attr<dims>("kernel");
-        dims pads_begin = anode->get_attr<dims>("pads_begin");
-        dims pads_end = anode->get_attr<dims>("pads_end");
-        std::string data_format = anode->get_attr<std::string>("data_format");
+        dims strides = op->get_attr<dims>("strides");
+        dims kernel = op->get_attr<dims>("kernel");
+        dims pads_begin = op->get_attr<dims>("pads_begin");
+        dims pads_end = op->get_attr<dims>("pads_end");
+        std::string data_format = op->get_attr<std::string>("data_format");
         // "NXC" format will be converted to "NCX" format
         impl::logical_tensor_t src_lt = inputs.at(pool::kSrc);
         impl::logical_tensor_t dst_lt = outputs.at(pool::kDst);
@@ -113,17 +113,17 @@ public:
         const desc src {src_lt};
         const desc dst {dst_lt};
 
-        op_kind_t kind = anode->get_op_kind();
+        op_kind_t kind = op->get_kind();
         dims dilations;
         if (kind == op_kind::MaxPool) {
             algo_ = algorithm::pooling_max;
-            dilations = anode->get_attr<dims>("dilations");
+            dilations = op->get_attr<dims>("dilations");
             // default dilations are all 1s but in primitive, they're 0s.
             std::for_each(dilations.begin(), dilations.end(),
                     [](dim_t &v) { v -= 1; });
         } else if (kind == op_kind::AvgPool) {
             dilations = dims(strides.size(), 0);
-            bool exclude_pad = anode->get_attr<bool>("exclude_pad");
+            bool exclude_pad = op->get_attr<bool>("exclude_pad");
             algo_ = exclude_pad ? algorithm::pooling_avg_exclude_padding
                                 : algorithm::pooling_avg_include_padding;
         } else {
@@ -151,11 +151,11 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        std::string data_format = anode->get_attr<std::string>("data_format");
+        std::string data_format = op->get_attr<std::string>("data_format");
         auto &src_lt = const_cast<impl::logical_tensor_t &>(
                 inputs.at(pool::kSrc).get_logical_tensor());
         auto &dst_lt = const_cast<impl::logical_tensor_t &>(
@@ -232,7 +232,7 @@ public:
         }
     }
 
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
@@ -245,22 +245,22 @@ public:
                         &outputs.at(pool_bwd::kDiff_src));
         const desc diff_src {*diff_src_lt};
 
-        dims strides = anode->get_attr<dims>("strides");
-        dims kernel = anode->get_attr<dims>("kernel");
-        dims pads_begin = anode->get_attr<dims>("pads_begin");
-        dims pads_end = anode->get_attr<dims>("pads_end");
+        dims strides = op->get_attr<dims>("strides");
+        dims kernel = op->get_attr<dims>("kernel");
+        dims pads_begin = op->get_attr<dims>("pads_begin");
+        dims pads_end = op->get_attr<dims>("pads_end");
 
-        kind_ = anode->get_op_kind();
+        kind_ = op->get_kind();
         algorithm algo = algorithm::undef;
         dims dilations {};
         if (kind_ == op_kind::AvgPoolBackprop) {
-            bool exclude_pad = anode->get_attr<bool>("exclude_pad");
+            bool exclude_pad = op->get_attr<bool>("exclude_pad");
             algo = exclude_pad ? algorithm::pooling_avg_exclude_padding
                                : algorithm::pooling_avg_include_padding;
             dilations = dims(strides.size(), 0);
         } else if (kind_ == op_kind::MaxPoolBackprop) {
             algo = algorithm::pooling_max;
-            dilations = anode->get_attr<dims>("dilations");
+            dilations = op->get_attr<dims>("dilations");
             // default dilations are all 1s but in primitive, they're 0s.
             std::for_each(dilations.begin(), dilations.end(),
                     [](dim_t &v) { v -= 1; });
@@ -283,7 +283,7 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
@@ -293,7 +293,7 @@ public:
         tensor src {inputs.at(pool_bwd::kSrc), p_engine_, alc};
         tensor diff_dst {};
         tensor indices {};
-        if (anode->get_op_kind() == op_kind::MaxPoolBackprop
+        if (op->get_kind() == op_kind::MaxPoolBackprop
                 && inputs.size() > pool_bwd_with_indices::kDiff_dst) {
             diff_dst = tensor {inputs.at(pool_bwd_with_indices::kDiff_dst),
                     p_engine_, alc};

@@ -14,28 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "oneapi/dnnl/dnnl_graph.h"
-
-#include "c_types_map.hpp"
+#include "value.hpp"
 #include "op_v2.hpp"
-
-#include "op_schema.hpp"
 
 using namespace dnnl::graph::impl;
 
-/// constructor
-dnnl_graph_op::dnnl_graph_op(
-        size_t id, op_kind_t kind, std::string name, bool internal)
-    : id_ {id}
-    , kind_ {kind}
-    , name_ {std::move(name)}
-    , schema_ {op_schema_registry::get_op_schema(kind)}
-    , internal_ {internal} {
-    if (name_.empty()) { name_ = kind2str(kind_) + "_" + std::to_string(id_); }
-}
-
-bool dnnl_graph_op::verify() const {
-    // always return true if there is no corresponding op schema
-    // return nullptr == schema_ || schema_->verify(this);
-    return nullptr == schema_;
+bool value_t::find_consumer(const op_kind_t &kind, size_t &offset) {
+    for (size_t i = 0; i < consumers_.size(); i++) {
+        const impl::op_t &op1 = consumers_[i].get_op();
+        if (op1.get_kind() == kind) {
+            offset = i;
+            return true;
+        }
+    }
+    return false;
 }

@@ -63,7 +63,7 @@ public:
         }
     }
 
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
@@ -74,7 +74,7 @@ public:
                 = const_cast<logical_tensor_t *>(&outputs.at(softmax::kDst));
 
         p_engine_ = make_dnnl_engine(*g_engine);
-        axis_ = anode->get_attr<int64_t>("axis");
+        axis_ = op->get_attr<int64_t>("axis");
         if (axis_ < 0) { axis_ += src.get_ndims(); }
         BACKEND_DNNL_ENFORCE(
                 axis_ >= 0 && axis_ < src.get_ndims(), "Invalid softmax axis.");
@@ -86,11 +86,11 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(anode);
+        UNUSED(op);
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
@@ -131,7 +131,7 @@ public:
         }
     }
 
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
@@ -143,7 +143,7 @@ public:
         impl::logical_tensor_t *diff_src_lt = const_cast<logical_tensor_t *>(
                 &outputs.at(softmax_bwd::kDiff_src));
 
-        axis_ = anode->get_attr<int64_t>("axis");
+        axis_ = op->get_attr<int64_t>("axis");
         if (axis_ < 0) { axis_ += dst.get_ndims(); }
         BACKEND_DNNL_ENFORCE(
                 axis_ >= 0 && axis_ < dst.get_ndims(), "Invalid softmax axis.");
@@ -160,11 +160,11 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(anode);
+        UNUSED(op);
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 

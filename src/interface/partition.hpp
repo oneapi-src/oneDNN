@@ -28,7 +28,6 @@
 #include "c_types_map.hpp"
 #include "engine.hpp"
 #include "id.hpp"
-#include "ir.hpp"
 #include "logical_tensor.hpp"
 #include "op.hpp"
 #include "utils.hpp"
@@ -60,8 +59,6 @@ class executable;
 } // namespace dnnl
 
 namespace impl = dnnl::graph::impl;
-using node_attrs = impl::attributes;
-
 struct dnnl_graph_partition : public dnnl_graph_id {
 public:
     friend struct dnnl_graph_compiled_partition;
@@ -74,13 +71,12 @@ public:
         : dnnl_graph_id(other)
         , engine_kind_(other.engine_kind_)
         , ids_(other.ids_)
-        , node_(impl::utils::make_unique<impl::node_t>(
-                  other.node_->get_op_kind()))
+        , op_(impl::utils::make_unique<impl::op_t>(*(other.op_)))
         , inputs_(other.inputs_)
         , outputs_(other.outputs_)
         , inputs_map_(other.inputs_map_)
         , outputs_map_(other.outputs_map_) {
-        node_->merge_attrs_map(other.node_->get_attrs_map());
+        op_->merge_attributes(other.op_->get_attributes());
     }
 
     // disable assign
@@ -88,36 +84,35 @@ public:
 
     ~dnnl_graph_partition() = default;
 
-    bool is_initialized() { return node_ ? true : false; }
+    bool is_initialized() { return op_ ? true : false; }
 
-    void init(
-            const impl::node_t *anode, const impl::engine_kind_t engine_kind) {
+    void init(const impl::op_t *op, const impl::engine_kind_t engine_kind) {
         engine_kind_ = engine_kind;
-        node_ = impl::utils::make_unique<impl::node_t>(anode->get_op_kind());
-        node_->merge_attrs_map(anode->get_attrs_map());
-        add_op(anode->get_op_ids());
-        add_tensors(anode);
-        add_tensors_map(anode);
+        op_ = impl::utils::make_unique<impl::op_t>(*op);
+        op_->merge_attributes(op->get_attributes());
+        add_op(op->get_op_ids());
+        add_tensors(op);
+        add_tensors_map(op);
     }
 
     void init(impl::op_kind_t op_kind, const impl::engine_kind_t engine_kind,
             const impl::logical_tensor_t &input,
             const impl::logical_tensor_t &output);
 
-    void add_tensors(const impl::node_t *anode) {
-        for (size_t i = 0; i < anode->num_inputs_tensor(); ++i) {
-            inputs_.push_back(anode->get_input_tensor(i));
+    void add_tensors(const impl::op_t *op) {
+        for (size_t i = 0; i < op->num_inputs(); ++i) {
+            inputs_.push_back(op->get_input_value(i)->get_logical_tensor());
         }
-        for (size_t i = 0; i < anode->num_outputs_tensor(); ++i) {
-            outputs_.push_back(anode->get_output_tensor(i));
+        for (size_t i = 0; i < op->num_outputs(); ++i) {
+            outputs_.push_back(op->get_output_value(i)->get_logical_tensor());
         }
     }
 
-    void add_tensors_map(const impl::node_t *anode) {
-        for (auto kv : anode->get_input_tensor_map()) {
+    void add_tensors_map(const impl::op_t *op) {
+        for (auto kv : op->get_input_tensor_map()) {
             inputs_map_[kv.second] = kv.first;
         }
-        for (auto kv : anode->get_output_tensor_map()) {
+        for (auto kv : op->get_output_tensor_map()) {
             outputs_map_[kv.second] = kv.first;
         }
     }
@@ -132,7 +127,7 @@ public:
 
     const std::unordered_set<size_t> &get_ops() const { return ids_; }
 
-    const impl::node_t *node() const { return node_.get(); };
+    const impl::op_t *get_fused_op() const { return op_.get(); };
 
     size_t get_inputs_num() const { return inputs_.size(); }
 
@@ -205,10 +200,10 @@ public:
         };
 
         os << "[ Partition ID: " << p.id() << '\n';
-        os << " [ node: (";
-        if (p.node_) {
-            os << "ID: " << p.node_->id()
-               << ", kind: " << impl::op_t::kind2str(p.node_->get_op_kind());
+        os << " [ Op: (";
+        if (p.op_) {
+            os << "ID: " << p.op_->get_id()
+               << ", kind: " << impl::op_t::kind2str(p.op_->get_kind());
         }
         os << ") \n";
 
@@ -246,8 +241,8 @@ private:
     // All the IDs of corresponding op_t objects
     std::unordered_set<size_t> ids_ {};
 
-    // Fused node. Currently, only one node here
-    std::unique_ptr<impl::node_t> node_ {nullptr};
+    // Fused op. Currently, only one op here
+    std::unique_ptr<impl::op_t> op_ {nullptr};
 
     // All the input logical tensors of a partition
     std::vector<impl::logical_tensor_t> inputs_ {};

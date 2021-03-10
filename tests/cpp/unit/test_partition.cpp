@@ -16,10 +16,10 @@
 
 #include <gtest/gtest.h>
 
-#include "interface/ir.hpp"
+#include "interface/op.hpp"
 #include "interface/partition.hpp"
 
-TEST(partition_test, create_simple) {
+TEST(partition_test, create_empty) {
     dnnl::graph::impl::partition_t p;
     ASSERT_EQ(p.num_ops(), 0);
 }
@@ -46,34 +46,37 @@ TEST(partition_test, get_ops) {
 
 TEST(partition_test, init) {
     // (todo)xinyu: improve engine test
-    dnnl::graph::impl::engine_t eng {};
-    dnnl::graph::impl::partition_t p;
-    dnnl::graph::impl::node_t n(dnnl::graph::impl::op_kind::Convolution);
-    n.set_attr<int>("groups", 0);
+    using namespace dnnl::graph::impl;
+
+    engine_t eng {};
+    partition_t p;
+    op_t n {op_kind::Convolution, "convolution"};
+    n.set_attr<int64_t>("groups", 0);
     p.init(&n, eng.kind());
     ASSERT_TRUE(p.is_initialized());
-    ASSERT_EQ(p.node()->get_op_kind(), dnnl::graph::impl::op_kind::Convolution);
-    ASSERT_TRUE(p.node()->has_attr("groups"));
-    ASSERT_EQ(p.node()->get_attr<int>("groups"), 0);
+    ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Convolution);
+    ASSERT_TRUE(p.get_fused_op()->has_attr("groups"));
+    ASSERT_EQ(p.get_fused_op()->get_attr<int64_t>("groups"), 0);
 }
 
 TEST(partition_test, copy) {
-    dnnl::graph::impl::engine_t eng {};
-    dnnl::graph::impl::partition_t p;
-    dnnl::graph::impl::node_t n(dnnl::graph::impl::op_kind::Convolution);
-    n.set_attr<int>("groups", 0);
+    using namespace dnnl::graph::impl;
+
+    engine_t eng {};
+    partition_t p;
+    op_t n {op_kind::Convolution, "convolution"};
+    n.set_attr<int64_t>("groups", 0);
     p.init(&n, eng.kind());
     ASSERT_TRUE(p.is_initialized());
-    ASSERT_EQ(p.node()->get_op_kind(), dnnl::graph::impl::op_kind::Convolution);
-    ASSERT_TRUE(p.node()->has_attr("groups"));
-    ASSERT_EQ(p.node()->get_attr<int>("groups"), 0);
+    ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Convolution);
+    ASSERT_TRUE(p.get_fused_op()->has_attr("groups"));
+    ASSERT_EQ(p.get_fused_op()->get_attr<int64_t>("groups"), 0);
 
     // copy the partition
-    dnnl::graph::impl::partition_t p_copy(p);
-    dnnl::graph::impl::node_t *p_node
-            = const_cast<dnnl::graph::impl::node_t *>(p_copy.node());
-    p_node->set_attr<int>("groups", 1);
-    ASSERT_EQ(p_copy.node()->get_attr<int>("groups"), 1);
-    ASSERT_NE(p_copy.node()->get_attr<int>("groups"),
-            p.node()->get_attr<int>("groups"));
+    partition_t p_copy(p);
+    op_t *p_node = const_cast<op_t *>(p_copy.get_fused_op());
+    p_node->set_attr<int64_t>("groups", 1);
+    ASSERT_EQ(p_copy.get_fused_op()->get_attr<int64_t>("groups"), 1);
+    ASSERT_NE(p_copy.get_fused_op()->get_attr<int64_t>("groups"),
+            p.get_fused_op()->get_attr<int64_t>("groups"));
 }

@@ -83,18 +83,18 @@ public:
             allocator::free(expected_dst_buf_, p_engine_, g_alloc_);
     }
 
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using ltw = impl::logical_tensor_wrapper;
         using desc = dnnl::memory::desc;
 
-        if (anode->has_attr("auto_broadcast")) {
-            auto_broadcast_ = anode->get_attr<std::string>("auto_broadcast");
+        if (op->has_attr("auto_broadcast")) {
+            auto_broadcast_ = op->get_attr<std::string>("auto_broadcast");
         }
 
-        switch (anode->get_op_kind()) {
+        switch (op->get_kind()) {
             case op_kind::Add: alg_kind_ = algorithm::binary_add; break;
             case op_kind::Multiply: alg_kind_ = algorithm::binary_mul; break;
             case op_kind::Maximum: alg_kind_ = algorithm::binary_max; break;
@@ -138,11 +138,11 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(anode);
+        UNUSED(op);
 
         memory src0 = make_dnnl_memory(inputs.at(idx_src0_), p_engine_);
         memory src1 = make_dnnl_memory(inputs.at(idx_src1_), p_engine_);
@@ -216,13 +216,13 @@ public:
             allocator::free(expected_dst_buf_, p_engine_, g_alloc_);
     }
 
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = dnnl::memory::desc;
 
-        data_format_ = anode->get_attr<std::string>("data_format");
+        data_format_ = op->get_attr<std::string>("data_format");
 
         desc src = make_dnnl_memory_desc(inputs.at(idx_src_));
         desc bias = make_dnnl_memory_desc(inputs.at(idx_bias_));
@@ -250,11 +250,11 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(anode);
+        UNUSED(op);
 
         memory src = make_dnnl_memory(inputs.at(idx_src_), p_engine_);
         memory bias = make_dnnl_memory(inputs.at(idx_bias_), p_engine_);

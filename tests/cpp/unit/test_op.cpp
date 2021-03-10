@@ -71,23 +71,26 @@ TEST(op_test, create_simple) {
 
     // Validate internal representation
     auto backend_op = bridge_op.get();
-    ASSERT_EQ(backend_op->kind(), kAdd);
-    ASSERT_STREQ(backend_op->debug().c_str(), "kAdd");
+    ASSERT_EQ(backend_op->get_kind(), kAdd);
+    ASSERT_STREQ(backend_op->get_name().c_str(), "kAdd");
 
-    auto compare2 =
-            [&](const std::vector<dnnl::graph::impl::logical_tensor_t> &actual,
-                    const std::vector<param> &expected) {
-                ASSERT_EQ(actual.size(), expected.size());
-                for (size_t i = 0; i < expected.size(); i++) {
-                    ASSERT_EQ(actual[i].ndims, expected[i].ndims);
-                    for (size_t j = 0; j < actual[i].ndims; j++) {
-                        ASSERT_EQ(actual[i].dims[j], proto_dims[j]);
-                    }
-                }
-            };
+    auto compare2
+            = [&](const std::vector<std::shared_ptr<dnnl::graph::impl::value_t>>
+                              &actual,
+                      const std::vector<param> &expected) {
+                  ASSERT_EQ(actual.size(), expected.size());
+                  for (size_t i = 0; i < expected.size(); i++) {
+                      const dnnl::graph::impl::logical_tensor_t lt
+                              = actual[i]->get_logical_tensor();
+                      ASSERT_EQ(lt.ndims, expected[i].ndims);
+                      for (size_t j = 0; j < lt.ndims; j++) {
+                          ASSERT_EQ(lt.dims[j], proto_dims[j]);
+                      }
+                  }
+              };
 
-    compare2(backend_op->inputs(), proto_inputs);
-    compare2(backend_op->outputs(), proto_outputs);
+    compare2(backend_op->get_input_values(), proto_inputs);
+    compare2(backend_op->get_output_values(), proto_outputs);
 }
 
 /**
@@ -103,8 +106,9 @@ TEST(op_test, input_dims_n1) {
     bridge_op.add_input(input);
 
     auto backend_op = bridge_op.get();
-    ASSERT_FALSE(backend_op->inputs().empty());
-    ASSERT_EQ(backend_op->inputs().front().ndims, -1);
+    auto inputs = backend_op->get_input_values();
+    ASSERT_FALSE(inputs.empty());
+    ASSERT_EQ(inputs.front()->get_logical_tensor().ndims, -1);
 }
 
 /**
@@ -120,8 +124,9 @@ TEST(op_test, input_dims_0) {
     bridge_op.add_input(input);
 
     auto backend_op = bridge_op.get();
-    ASSERT_FALSE(backend_op->inputs().empty());
-    ASSERT_NE(backend_op->inputs().front().ndims, -1);
+    auto inputs = backend_op->get_input_values();
+    ASSERT_FALSE(inputs.empty());
+    ASSERT_NE(inputs.front()->get_logical_tensor().ndims, -1);
 }
 
 TEST(op_test, add_inputs_outputs) {
@@ -139,8 +144,11 @@ TEST(op_test, add_inputs_outputs) {
     add_op.add_output(lt_2);
 
     auto backend_op = add_op.get();
-    ASSERT_EQ(backend_op->inputs().back().data_type, dnnl_graph_f32);
-    ASSERT_EQ(backend_op->inputs().size(), 1);
-    ASSERT_EQ(backend_op->inputs().back().id, 0);
-    ASSERT_EQ(backend_op->outputs().back().id, 1);
+    auto inputs = backend_op->get_input_values();
+    ASSERT_EQ(inputs.back()->get_logical_tensor().data_type, dnnl_graph_f32);
+    ASSERT_EQ(inputs.size(), 1);
+    ASSERT_EQ(inputs.back()->get_logical_tensor().id, 0);
+
+    auto outputs = backend_op->get_output_values();
+    ASSERT_EQ(outputs.back()->get_logical_tensor().id, 1);
 }

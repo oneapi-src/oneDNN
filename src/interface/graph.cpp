@@ -27,11 +27,11 @@ using namespace dnnl::graph::impl;
 
 namespace {
 std::vector<size_t> get_ids(
-        const std::vector<dnnl::graph::impl::logical_tensor_t> &tensors) {
+        const std::vector<std::shared_ptr<value_t>> &values) {
     std::vector<size_t> ids;
-    ids.reserve(tensors.size());
-    for (const auto &t : tensors) {
-        ids.push_back(t.id);
+    ids.reserve(values.size());
+    for (const auto &t : values) {
+        ids.push_back(t->get_logical_tensor().id);
     }
     return ids;
 }
@@ -39,15 +39,16 @@ std::vector<size_t> get_ids(
 bool logical_tensor_sanity_check(
         std::unordered_map<size_t, dnnl::graph::impl::logical_tensor_t>
                 &id_to_lts,
-        const std::vector<dnnl::graph::impl::logical_tensor_t> &lts) {
-    for (const auto &t : lts) {
-        auto id_search = id_to_lts.find(t.id);
+        const std::vector<std::shared_ptr<value_t>> &values) {
+    for (const auto &v : values) {
+        auto lt = v->get_logical_tensor();
+        auto id_search = id_to_lts.find(lt.id);
         if (id_search == id_to_lts.end()) {
-            id_to_lts[t.id] = t;
+            id_to_lts[lt.id] = lt;
         } else {
             // compare two tensors with the same id;
             if (dnnl::graph::impl::logical_tensor_wrapper(id_search->second)
-                    != dnnl::graph::impl::logical_tensor_wrapper(t)) {
+                    != dnnl::graph::impl::logical_tensor_wrapper(lt)) {
                 return false;
             }
         }
@@ -59,6 +60,9 @@ bool logical_tensor_sanity_check(
 status_t dnnl_graph_graph::run_pass(partition_policy_t policy) {
     // test pass registration
     UNUSED(policy);
+
+    // we cannot run passes on a un-built graph.
+    if (!is_built_) return status::invalid_graph;
 
     auto pm = pass::pass_manager();
     auto &passes = pm.get_passes();
@@ -85,7 +89,7 @@ status_t dnnl_graph_graph::run_pass(partition_policy_t policy) {
 
 void dnnl_graph_graph::get_partitions(std::vector<partition_t *> &partitions) {
     size_t count = 0;
-    dfs_visit(this->get_outputs(), [&](node_t *n) {
+    topo_order_visit(this->get_output_ops(), [&](op_t *n) {
         if (n->has_attr("backend")) {
             partitions[count]->init(n, engine_kind_);
             count++;
@@ -94,51 +98,54 @@ void dnnl_graph_graph::get_partitions(std::vector<partition_t *> &partitions) {
 }
 
 status_t dnnl_graph_graph::build_graph() {
-    // map of {backend_node: vector of input tensor_ids}
-    std::unordered_map<node_t *, std::vector<size_t>> node_to_tensor_id;
-    // map of {tensor_id, (producer_node, producer_offset)}
-    std::unordered_map<size_t, std::pair<node_t *, size_t>>
+    // if the graph is already built, return directly.
+    // TODO(xxx): actually we may need to a verification here.
+    if (is_built_) return status::success;
+
+    // map of {backend op: vector of input tensor_ids}
+    std::unordered_map<graph_t::op_t *, std::vector<size_t>> op_to_tensor_id;
+    // map of {tensor_id, (producer_op, producer_offset)}
+    std::unordered_map<size_t, std::pair<graph_t::op_t *, size_t>>
             tensor_id_to_producer;
     // map of {tensor_id: tensor}
     std::unordered_map<size_t, logical_tensor_t> id_to_tensor;
 
-    for (const op_t &l_n : ops_) {
-        if (!logical_tensor_sanity_check(id_to_tensor, l_n.inputs())
-                || !logical_tensor_sanity_check(id_to_tensor, l_n.outputs())) {
+    for (const auto &op : ops_) {
+        auto in_values = op->get_input_values();
+        auto out_values = op->get_output_values();
+        if (!logical_tensor_sanity_check(id_to_tensor, in_values)
+                || !logical_tensor_sanity_check(id_to_tensor, out_values)) {
             return status::invalid_graph;
         }
-        // create backend node for each op
-        dnnl::graph::impl::node_t *lbk_n = create_node(l_n);
+
         // save the input tensor ids of current op
-        node_to_tensor_id[lbk_n] = get_ids(l_n.inputs());
+        op_to_tensor_id[op.get()] = get_ids(in_values);
         // save the outputs of current op
-        const std::vector<logical_tensor_t> &l_n_outputs = l_n.outputs();
-        for (size_t i = 0; i < l_n_outputs.size(); ++i) {
-            const logical_tensor_t &out = l_n_outputs[i];
-            tensor_id_to_producer[out.id] = std::make_pair(lbk_n, i);
+        for (size_t i = 0; i < out_values.size(); ++i) {
+            const logical_tensor_t out = out_values[i]->get_logical_tensor();
+            tensor_id_to_producer[out.id] = std::make_pair(op.get(), i);
         }
     }
 
-    // set connections between backend nodes
-    for (const node_ptr &anode : nodes_) {
-        // find the input tensor ids of current node
-        const std::vector<size_t> &input_tensor_ids
-                = node_to_tensor_id[anode.get()];
+    for (const op_ptr &op : ops_) {
+        // find the input tensor ids of current op
+        const std::vector<size_t> &input_tensor_ids = op_to_tensor_id[op.get()];
 
         for (size_t i = 0; i < input_tensor_ids.size(); ++i) {
             // find the producer of the input tensor
             auto id_search = tensor_id_to_producer.find(input_tensor_ids[i]);
             // if the producer of the input tensor does not exist in the graph,
-            // the input tensor is not produced by another node,
+            // the input tensor is not produced by another op,
             // it's the input of the whole graph
             if (id_search != tensor_id_to_producer.end()) {
-                std::pair<node_t *, size_t> producer = id_search->second;
-                // set input of current node
-                anode->set_input(
-                        anode->num_inputs(), producer.first, producer.second);
+                std::pair<op_t *, size_t> producer = id_search->second;
+                // set input of current op
+                op->connect_input(i, *(producer.first), producer.second);
             }
         }
     }
+
+    is_built_ = true;
     return status::success;
 }
 
@@ -147,12 +154,14 @@ void dnnl_graph_graph::visualize(const std::string &filename) {
     static size_t i = 0;
     out.open(std::to_string(i++).append(filename));
     out << "digraph G {\n";
-    dfs_visit(this->get_outputs(), [&](node_t *node) {
-        auto current_node_name = node->get_name();
-        for (size_t i = 0; i < node->num_inputs(); ++i) {
-            auto input_node = node->get_input_node(i);
-            auto input_node_name = input_node->get_name();
-            out << input_node_name << " -> " << current_node_name << ";\n";
+    topo_order_visit(this->get_output_ops(), [&](op_t *op) {
+        auto current_op_name = op->get_name();
+        for (size_t i = 0; i < op->num_inputs(); ++i) {
+            op_t *input_op = op->get_input_op(i);
+            if (input_op) {
+                const std::string &input_op_name = input_op->get_name();
+                out << input_op_name << " -> " << current_op_name << ";\n";
+            }
         }
     });
     out << "}\n";
@@ -172,7 +181,6 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_destroy(graph_t *graph) {
 
 status_t DNNL_GRAPH_API dnnl_graph_add_op(graph_t *graph, op_t *op) {
     if (graph == nullptr || op == nullptr) { return status::invalid_argument; }
-
     return graph->add_op(op);
 }
 

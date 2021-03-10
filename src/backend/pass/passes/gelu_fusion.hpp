@@ -36,74 +36,68 @@ namespace pass {
  *        The process includes follow steps:
  *          1. look for fusion pattern on the graph
  *          2. If found, verify if this transformation is safe / correct
- *          3. replace the pattern with a fused node, update the graph
+ *          3. replace the pattern with a fused op, update the graph
  */
 
 DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, gelu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    node_t *any_1 = apattern->create_node(op_kind::any);
-                    node_t *pow = apattern->create_node(op_kind::Pow);
-                    node_t *any_2 = apattern->create_node(op_kind::any);
-                    node_t *multiply_1
-                            = apattern->create_node(op_kind::Multiply);
-                    node_t *any_3 = apattern->create_node(op_kind::any);
-                    node_t *add_1 = apattern->create_node(op_kind::Add);
-                    node_t *any_4 = apattern->create_node(op_kind::any);
-                    node_t *multiply_2
-                            = apattern->create_node(op_kind::Multiply);
-                    node_t *tanh = apattern->create_node(op_kind::Tanh);
-                    node_t *any_5 = apattern->create_node(op_kind::any);
-                    node_t *add_2 = apattern->create_node(op_kind::Add);
-                    node_t *any_6 = apattern->create_node(op_kind::any);
-                    node_t *multiply_3
-                            = apattern->create_node(op_kind::Multiply);
-                    node_t *any_7 = apattern->create_node(op_kind::any);
-                    node_t *multiply_4
-                            = apattern->create_node(op_kind::Multiply);
-                    pow->set_input(0, any_1, 0);
-                    multiply_1->set_input(0, pow, 0);
-                    multiply_1->set_input(1, any_2, 0);
-                    add_1->set_input(0, multiply_1, 0);
-                    add_1->set_input(1, any_3, 0);
-                    multiply_2->set_input(0, add_1, 0);
-                    multiply_2->set_input(1, any_4, 0);
-                    tanh->set_input(0, multiply_2, 0);
-                    add_2->set_input(0, tanh, 0);
-                    add_2->set_input(1, any_5, 0);
-                    multiply_3->set_input(0, add_2, 0);
-                    multiply_3->set_input(1, any_6, 0);
-                    multiply_4->set_input(0, multiply_3, 0);
-                    multiply_4->set_input(1, any_7, 0);
+                    op_t *any_1 = apattern->create_op(op_kind::any);
+                    op_t *pow = apattern->create_op(op_kind::Pow);
+                    op_t *any_2 = apattern->create_op(op_kind::any);
+                    op_t *multiply_1 = apattern->create_op(op_kind::Multiply);
+                    op_t *any_3 = apattern->create_op(op_kind::any);
+                    op_t *add_1 = apattern->create_op(op_kind::Add);
+                    op_t *any_4 = apattern->create_op(op_kind::any);
+                    op_t *multiply_2 = apattern->create_op(op_kind::Multiply);
+                    op_t *tanh = apattern->create_op(op_kind::Tanh);
+                    op_t *any_5 = apattern->create_op(op_kind::any);
+                    op_t *add_2 = apattern->create_op(op_kind::Add);
+                    op_t *any_6 = apattern->create_op(op_kind::any);
+                    op_t *multiply_3 = apattern->create_op(op_kind::Multiply);
+                    op_t *any_7 = apattern->create_op(op_kind::any);
+                    op_t *multiply_4 = apattern->create_op(op_kind::Multiply);
+                    pow->fill_and_connect_input(0, *any_1, 0);
+                    multiply_1->fill_and_connect_input(0, *pow, 0);
+                    multiply_1->fill_and_connect_input(1, *any_2, 0);
+                    add_1->fill_and_connect_input(0, *multiply_1, 0);
+                    add_1->fill_and_connect_input(1, *any_3, 0);
+                    multiply_2->fill_and_connect_input(0, *add_1, 0);
+                    multiply_2->fill_and_connect_input(1, *any_4, 0);
+                    tanh->fill_and_connect_input(0, *multiply_2, 0);
+                    add_2->fill_and_connect_input(0, *tanh, 0);
+                    add_2->fill_and_connect_input(1, *any_5, 0);
+                    multiply_3->fill_and_connect_input(0, *add_2, 0);
+                    multiply_3->fill_and_connect_input(1, *any_6, 0);
+                    multiply_4->fill_and_connect_input(0, *multiply_3, 0);
+                    multiply_4->fill_and_connect_input(1, *any_7, 0);
                 })
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
-                    node_t *any_1 = apattern->create_node(op_kind::any);
-                    node_t *div = apattern->create_node(op_kind::Divide);
-                    node_t *erf = apattern->create_node(op_kind::Erf);
-                    node_t *any_2 = apattern->create_node(op_kind::any);
-                    node_t *add = apattern->create_node(op_kind::Add);
-                    node_t *any_3 = apattern->create_node(op_kind::any);
-                    node_t *multiply_1
-                            = apattern->create_node(op_kind::Multiply);
-                    node_t *any_4 = apattern->create_node(op_kind::any);
-                    node_t *multiply_2
-                            = apattern->create_node(op_kind::Multiply);
-                    div->set_input(0, any_1, 0);
-                    erf->set_input(0, div, 0);
-                    add->set_input(0, erf, 0);
-                    add->set_input(1, any_2, 0);
-                    multiply_1->set_input(0, add, 0);
-                    multiply_1->set_input(1, any_3, 0);
-                    multiply_2->set_input(0, multiply_1, 0);
-                    multiply_2->set_input(1, any_4, 0);
+                    op_t *any_1 = apattern->create_op(op_kind::any);
+                    op_t *div = apattern->create_op(op_kind::Divide);
+                    op_t *erf = apattern->create_op(op_kind::Erf);
+                    op_t *any_2 = apattern->create_op(op_kind::any);
+                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *any_3 = apattern->create_op(op_kind::any);
+                    op_t *multiply_1 = apattern->create_op(op_kind::Multiply);
+                    op_t *any_4 = apattern->create_op(op_kind::any);
+                    op_t *multiply_2 = apattern->create_op(op_kind::Multiply);
+                    div->fill_and_connect_input(0, *any_1, 0);
+                    erf->fill_and_connect_input(0, *div, 0);
+                    add->fill_and_connect_input(0, *erf, 0);
+                    add->fill_and_connect_input(1, *any_2, 0);
+                    multiply_1->fill_and_connect_input(0, *add, 0);
+                    multiply_1->fill_and_connect_input(1, *any_3, 0);
+                    multiply_2->fill_and_connect_input(0, *multiply_1, 0);
+                    multiply_2->fill_and_connect_input(1, *any_4, 0);
                 })
 
         .set_attr<FCreateOptPattern>(
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    node_t *fused_node
-                            = optimized_pattern->create_node(op_kind::GELU);
-                    fused_node->set_attr<std::string>("backend", "dnnl");
+                    op_t *fused_op
+                            = optimized_pattern->create_op(op_kind::GELU);
+                    fused_op->set_attr("backend", std::string("dnnl"));
                 });
 
 } // namespace pass

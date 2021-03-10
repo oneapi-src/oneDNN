@@ -62,7 +62,7 @@ public:
         }
     }
 
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
@@ -71,19 +71,19 @@ public:
         const desc src {inputs.at(eltwise::kSrc)};
         p_engine_ = make_dnnl_engine(*g_engine);
         // set alpha and beta
-        if (anode->has_attr("alpha")) {
-            alpha_ = anode->get_attr<float>("alpha");
-        } else if (anode->has_attr("min")) {
-            alpha_ = anode->get_attr<float>("min");
+        if (op->has_attr("alpha")) {
+            alpha_ = op->get_attr<float>("alpha");
+        } else if (op->has_attr("min")) {
+            alpha_ = op->get_attr<float>("min");
         }
 
-        if (anode->has_attr("beta")) {
-            beta_ = anode->get_attr<float>("beta");
-        } else if (anode->has_attr("max")) {
-            beta_ = anode->get_attr<float>("max");
+        if (op->has_attr("beta")) {
+            beta_ = op->get_attr<float>("beta");
+        } else if (op->has_attr("max")) {
+            beta_ = op->get_attr<float>("max");
         }
 
-        auto kind = anode->get_op_kind();
+        auto kind = op->get_kind();
         switch (kind) {
             case op_kind::Abs: algo_ = algorithm::eltwise_abs; break;
             case op_kind::Elu: algo_ = algorithm::eltwise_elu; break;
@@ -110,11 +110,11 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(anode);
+        UNUSED(op);
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
@@ -138,7 +138,7 @@ private:
     dnnl::stream p_stream_;
 
 public:
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
@@ -146,7 +146,7 @@ public:
         // prepare the input's and output's desc
         const desc src {inputs.at(eltwise::kSrc + 1)};
 
-        op_kind_t kind = anode->get_op_kind();
+        op_kind_t kind = op->get_kind();
         p_engine_ = make_dnnl_engine(*g_engine);
 
         pd_ = get_config(src, kind, p_engine_, 0.f, 0.f);
@@ -159,11 +159,11 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(anode);
+        UNUSED(op);
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 

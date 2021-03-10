@@ -89,7 +89,7 @@ public:
         super(pd_).execute(p_stream_, ln_args);
     }
 
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
@@ -98,14 +98,13 @@ public:
         const desc src {inputs.at(layernorm::kSrc)};
         const desc dst {outputs.at(layernorm::kDst)};
 
-        if (anode->has_attr("epsilon"))
-            epsilon_ = anode->get_attr<float>("epsilon");
-        if (anode->has_attr("begin_norm_axis"))
-            begin_norm_axis_ = anode->get_attr<int64_t>("begin_norm_axis");
-        if (anode->has_attr("keep_stats"))
-            keep_stats_ = anode->get_attr<bool>("keep_stats");
-        if (anode->has_attr("use_affine"))
-            use_affine_ = anode->get_attr<bool>("use_affine");
+        if (op->has_attr("epsilon")) epsilon_ = op->get_attr<float>("epsilon");
+        if (op->has_attr("begin_norm_axis"))
+            begin_norm_axis_ = op->get_attr<int64_t>("begin_norm_axis");
+        if (op->has_attr("keep_stats"))
+            keep_stats_ = op->get_attr<bool>("keep_stats");
+        if (op->has_attr("use_affine"))
+            use_affine_ = op->get_attr<bool>("use_affine");
 
         p_engine_ = make_dnnl_engine(*g_engine);
         normalization_flag flags = normalization_flag::none;
@@ -148,11 +147,11 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(anode);
+        UNUSED(op);
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 

@@ -86,11 +86,11 @@ private:
     bool disable_cache_data_ {true};
 
 public:
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        std::string data_format = anode->get_attr<std::string>("data_format");
+        std::string data_format = op->get_attr<std::string>("data_format");
         // "NXC" format will be converted to "NCX" format
         impl::logical_tensor_t src_lt = inputs.at(batch_normalization::kSrc);
 
@@ -106,11 +106,11 @@ public:
         desc src {src_lt};
         const bool use_stats = inputs.size() > batch_normalization::kMean;
 
-        epsilon_ = anode->get_attr<float>("epsilon");
+        epsilon_ = op->get_attr<float>("epsilon");
 
         auto flags = normalization_flag::use_scale_shift;
         if (use_stats) flags |= normalization_flag::use_global_stats;
-        if (anode->get_op_kind() == op_kind::bn_relu)
+        if (op->get_kind() == op_kind::bn_relu)
             flags |= normalization_flag::fuse_norm_relu;
 
         // workaround: use src once issue intel/mkl-dnn#588 is
@@ -129,12 +129,12 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
-        std::string data_format = anode->get_attr<std::string>("data_format");
+        std::string data_format = op->get_attr<std::string>("data_format");
         auto &src_lt = const_cast<impl::logical_tensor_t &>(
                 inputs.at(batch_normalization::kSrc).get_logical_tensor());
         auto &dst_lt = const_cast<impl::logical_tensor_t &>(
@@ -270,14 +270,14 @@ private:
     dnnl::stream p_stream_;
 
 public:
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
-        epsilon_ = anode->get_attr<float>("epsilon");
-        mom_ = anode->get_attr<float>("momentum");
-        std::string data_format = anode->get_attr<std::string>("data_format");
+        epsilon_ = op->get_attr<float>("epsilon");
+        mom_ = op->get_attr<float>("momentum");
+        std::string data_format = op->get_attr<std::string>("data_format");
 
         impl::logical_tensor_t src_lt = inputs.at(batch_normalization::kSrc);
         // "NXC"
@@ -315,14 +315,14 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        std::string data_format = anode->get_attr<std::string>("data_format");
+        std::string data_format = op->get_attr<std::string>("data_format");
         auto &src_lt = const_cast<impl::logical_tensor_t &>(
                 inputs.at(batch_normalization::kSrc).get_logical_tensor());
         auto &dst_lt = const_cast<impl::logical_tensor_t &>(
@@ -436,13 +436,13 @@ private:
     dnnl::stream p_stream_;
 
 public:
-    impl::status_t compile_impl(const impl::node_t *anode,
+    impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) {
         using desc = tensor::desc;
-        epsilon_ = anode->get_attr<float>("epsilon");
-        std::string data_format = anode->get_attr<std::string>("data_format");
+        epsilon_ = op->get_attr<float>("epsilon");
+        std::string data_format = op->get_attr<std::string>("data_format");
 
         impl::logical_tensor_t src_lt = inputs.at(batch_normalization::kSrc);
         impl::logical_tensor_t diff_src_lt
@@ -480,14 +480,14 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::node_t *anode,
+    impl::status_t execute_impl(const impl::op_t *op,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) {
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        std::string data_format = anode->get_attr<std::string>("data_format");
+        std::string data_format = op->get_attr<std::string>("data_format");
         auto &src_lt = const_cast<impl::logical_tensor_t &>(
                 inputs.at(batch_normalization_bwd::kSrc).get_logical_tensor());
         auto &diff_dst_lt = const_cast<impl::logical_tensor_t &>(

@@ -28,7 +28,6 @@
 
 #include "attribute_value.hpp"
 #include "c_types_map.hpp"
-#include "ir.hpp"
 #include "op.hpp"
 
 namespace dnnl {
@@ -36,7 +35,7 @@ namespace graph {
 namespace impl {
 
 using opset_version = size_t;
-using shape_infer_fn = std::function<status_t(node_t *,
+using shape_infer_fn = std::function<status_t(op_t *,
         std::vector<logical_tensor_t *> &, std::vector<logical_tensor_t *> &)>;
 
 class op_schema {
@@ -175,7 +174,7 @@ public:
     bool verify(op_t *l_op) const;
 
     /*! @brief Infer shape with the op schema. */
-    status_t shape_infer(node_t *n, std::vector<logical_tensor_t *> &inputs,
+    status_t shape_infer(op_t *n, std::vector<logical_tensor_t *> &inputs,
             std::vector<logical_tensor_t *> &outputs) const;
 
     /*! @brief Set inputs param option: fixed, optional and variadic. */

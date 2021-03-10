@@ -29,7 +29,6 @@
 
 #include "backend/pass/pass_backend.hpp"
 #include "interface/graph.hpp"
-#include "interface/ir.hpp"
 #include "utils/json.hpp"
 
 namespace dnnl {
@@ -56,40 +55,38 @@ using FCreatePattern = std::function<void(pattern *apattern)>;
 // One pass can only have one FCreateOptPattern function.
 using FCreateOptPattern = std::function<void(pattern *opt_pattern)>;
 
-// FRequirement: a function to check if a graph node can meet the
-// requirement of a pattern node
-// One pattern node can have several FRequirement function.
-using FRequirement = std::function<bool(node_t *graph_node)>;
+// FRequirement: a function to check if a graph op can meet the
+// requirement of a pattern op
+// One pattern op can have several FRequirement function.
+using FRequirement = std::function<bool(op_t *graph_op)>;
 
 class pattern {
 private:
-    /*! \brief nodes in this pattern */
-    std::vector<std::shared_ptr<node_t>> nodes_;
+    /*! \brief ops in this pattern */
+    std::vector<std::shared_ptr<op_t>> ops_;
 
 public:
     /*!
-     * \brief Create and add a node to this pattern.
-     * \param aop_kind The operator used to create the node
-     * \return node* created node
+     * \brief Create and add a op to this pattern.
+     * \param aop_kind The operator used to create the op
+     * \return op* created op
      */
-    node_t *create_node(op_kind_t aop_kind) {
-        nodes_.push_back(std::make_shared<node_t>(aop_kind));
-        return nodes_.back().get();
+    op_t *create_op(op_kind_t aop_kind) {
+        ops_.push_back(std::make_shared<op_t>(aop_kind));
+        return ops_.back().get();
     }
 
     /*!
-     * \brief Get the starter node of this pattern.
-     *        Any node in the vector of nodes_ can be the starter
-     *        Any node except "any" in the vector of nodes_ can be the starter
-     *        By default we use the first node in the vector
-     * \return node* starter node
+     * \brief Get the starter op of this pattern.
+     *        Any op in the vector of ops_ can be the starter
+     *        Any op except "any" in the vector of ops_ can be the starter
+     *        By default we use the first op in the vector
+     * \return op* starter op
      */
-    node_t *get_starter_node() {
-        auto it = std::find_if(nodes_.begin(), nodes_.end(),
-                [&](std::vector<std::shared_ptr<node_t>>::value_type &node)
-                        -> bool {
-                    return node->get_op_kind() != op_kind::any;
-                });
+    op_t *get_starter_op() {
+        auto it = std::find_if(ops_.begin(), ops_.end(),
+                [&](std::vector<std::shared_ptr<op_t>>::value_type &op)
+                        -> bool { return op->get_kind() != op_kind::any; });
         return it->get();
     }
 };
@@ -213,7 +210,7 @@ public:
 
 /*!
  * \brief transformation_pass generates an optimized graph
- *        when the pass is hit, it can be node replacements,
+ *        when the pass is hit, it can be op replacements,
  *        dead branch elimination, etc.
  */
 class transformation_pass : public pass_base {

@@ -19,10 +19,13 @@
 
 #include <limits>
 #include <memory>
+#include <set>
+#include <stack>
 #include <string>
 #include <utility>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "attribute_value.hpp"
 #include "c_types_map.hpp"
@@ -62,83 +65,56 @@ class op_schema;
  * 
  *****************************************************************************/
 
-struct dnnl_graph_op_v2 {
+struct dnnl_graph_op {
 public:
     using op_kind_t = dnnl::graph::impl::op_kind_t;
     using logical_tensor_t = dnnl::graph::impl::logical_tensor_t;
     using attribute_kind_t = dnnl::graph::impl::attribute_kind_t;
     using status_t = dnnl::graph::impl::status_t;
     using attribute_value_t = dnnl::graph::impl::attribute_value;
-    using value_t = dnnl::graph::impl::value_v2_t;
+    using value_t = dnnl::graph::impl::value_t;
     using pair_t = std::pair<size_t, size_t>; // <op_id, input/output offset>
 
     const static size_t DEFAULT_ID = std::numeric_limits<size_t>::max();
 
     // create dnnl_graph_op with explicit id, kind, and string
-    dnnl_graph_op_v2(
+    dnnl_graph_op(
             size_t id, op_kind_t kind, std::string name, bool internal = false);
 
     // create dnnl_graph_op with default id, only for internal use.
-    dnnl_graph_op_v2(op_kind_t kind, std::string name)
-        : dnnl_graph_op_v2(DEFAULT_ID, kind, std::move(name), true) {}
+    dnnl_graph_op(op_kind_t kind, std::string name)
+        : dnnl_graph_op(DEFAULT_ID, kind, std::move(name), true) {}
+
+    // convenient function to make tests happy
+    dnnl_graph_op(op_kind_t kind)
+        : dnnl_graph_op(DEFAULT_ID, kind, kind2str(kind), true) {}
 
     // TODO(xxx): why? any problem with copy constructor?
-    ~dnnl_graph_op_v2() {
+    ~dnnl_graph_op() {
         for (size_t i = 0; i < inputs_.size(); ++i) {
             inputs_[i]->remove_consumer(*this, i);
         }
 
-        for (auto v : outputs_) {
+        for (auto &v : outputs_) {
             if (&v->get_producer() == this) { v->reset_producer(); }
         }
     }
 
     // which op produced this input?
-    dnnl_graph_op_v2 *get_input_op(size_t index) {
+    dnnl_graph_op *get_input_op(size_t index) {
         return &(inputs_[index]->get_producer());
     }
 
-    // get the producer ops of all inputs, we don't remove duplicates.
-    const std::vector<dnnl_graph_op_v2 *> get_input_ops() const {
-        std::vector<dnnl_graph_op_v2 *> input_ops;
-        for (auto &input : inputs_) {
-            input_ops.push_back(&(input->get_producer()));
-        }
-
-        return input_ops;
+    // TODO(xxx): we need to improve by checking more information
+    bool operator==(const dnnl_graph_op &other) const {
+        return this->get_id() == other.get_id()
+                && this->get_kind() == other.get_kind()
+                && this->get_name() == other.get_name()
+                && this->is_internal() == other.is_internal();
     }
 
-    // get the consumer ops of all outputs, we don't remove duplicates.
-    const std::vector<dnnl_graph_op_v2 *> get_output_ops() const {
-        std::vector<dnnl_graph_op_v2 *> output_ops;
-        for (auto &output : outputs_) {
-            auto consumers = output->get_consumers();
-            for (auto &consumer : consumers) {
-                output_ops.push_back(&(consumer.get_op()));
-            }
-        }
-
-        return output_ops;
-    }
-
-    // which output of the producer op is this input?
-    size_t get_input_offset(size_t index) {
-        return inputs_[index]->get_offset();
-    }
-
-    // get the underlying logical tensor of an input
-    logical_tensor_t get_input_tensor(size_t index) const {
-        return inputs_[index]->get_logical_tensor();
-    }
-
-    // get the underlying logical tensor of an output
-    logical_tensor_t get_output_tensor(size_t index) const {
-        return outputs_[index]->get_logical_tensor();
-    }
-
-    // TODO(xxx): directly check the pointer. when do we need this?
-    bool operator==(const dnnl_graph_op_v2 &other) const {
-        return this == &other;
+    bool operator!=(const dnnl_graph_op &other) const {
+        return !operator==(other);
     }
 
     // some getters
@@ -177,7 +153,15 @@ public:
         return inputs_;
     }
 
-    void connect_input(size_t index, dnnl_graph_op_v2 &op, size_t offset) {
+    void fill_and_connect_input(
+            size_t index, dnnl_graph_op &op, size_t offset) {
+        while (op.num_outputs() <= offset) {
+            op.add_output(dnnl::graph::impl::zero_logical_tensor());
+        }
+        connect_input(index, op.get_output_value(offset));
+    }
+
+    void connect_input(size_t index, dnnl_graph_op &op, size_t offset) {
         connect_input(index, op.get_output_value(offset));
     }
 
@@ -240,7 +224,7 @@ public:
     }
 
     template <typename Attr>
-    dnnl_graph_op_v2 &set_attr(const std::string &name, Attr &&a) {
+    dnnl_graph_op &set_attr(const std::string &name, const Attr &a) {
         auto it = attributes_.find(name);
         if (it != end(attributes_)) {
             it->second = {a};
@@ -250,7 +234,7 @@ public:
         return *this;
     }
 
-    dnnl_graph_op_v2 &set_attr(
+    dnnl_graph_op &set_attr(
             const std::string &name, const attribute_value_t &a) {
         auto it = attributes_.find(name);
         if (it != end(attributes_)) {
@@ -296,13 +280,8 @@ public:
         attributes_.insert(attrs.begin(), attrs.end());
     }
 
-    template <typename value_type>
-    bool check_type(const dnnl::graph::impl::utils::any &a) const {
-        return a.type() == typeid(value_type);
-    }
-
     bool is_same_attr_value(
-            const dnnl_graph_op_v2 &op_b, const std::string &attr_name) const {
+            const dnnl_graph_op &op_b, const std::string &attr_name) const {
         const auto &attr_a = get_attributes();
         const auto &attr_b = op_b.get_attributes();
         auto it_a = attr_a.find(attr_name);
@@ -311,10 +290,13 @@ public:
         return it_b == attr_b.end() ? false : (it_a->second == it_b->second);
     }
 
-    bool has_same_attr_values(const dnnl_graph_op_v2 &op_b) const {
+    bool has_same_attr_values(const dnnl_graph_op &op_b,
+            std::set<std::string> excepted = {}) const {
         return std::all_of(attributes_.begin(), attributes_.end(),
                 [&](const std::pair<std::string, attribute_value_t> &attr) {
-                    return is_same_attr_value(op_b, attr.first);
+                    return excepted.count(attr.first)
+                            ? true
+                            : is_same_attr_value(op_b, attr.first);
                 });
     }
 
@@ -364,7 +346,7 @@ public:
 
     // Add an input logical tensor to the fused op. The logical tensor is from
     // one of original ops.
-    void add_fused_input(dnnl_graph_op_v2 *op, size_t in_offset) {
+    void add_fused_input(dnnl_graph_op *op, size_t in_offset) {
         auto map = op->get_input_tensor_map();
         assertm(map.find(in_offset) != map.end(), "fail to find the key");
         input_tensor_map_[inputs_.size()] = map[in_offset];
@@ -374,7 +356,7 @@ public:
 
     // Add an output logical tensor to the fused op. The logical tensor is from
     // one of original ops.
-    void add_fused_output(dnnl_graph_op_v2 *op, size_t out_offset) {
+    void add_fused_output(dnnl_graph_op *op, size_t out_offset) {
         auto map = op->get_output_tensor_map();
         assertm(map.find(out_offset) != map.end(), "fail to find the key");
         output_tensor_map_[outputs_.size()] = map[out_offset];
@@ -406,5 +388,47 @@ private:
     // Map from the fused op output index -> (original op id, op output offset)
     std::unordered_map<size_t, pair_t> output_tensor_map_;
 };
+
+namespace dnnl {
+namespace graph {
+namespace impl {
+template <typename OPS, typename FUN>
+void topo_order_visit(const OPS &root_ops, const FUN &f) {
+    std::stack<op_t *> todo;
+    std::unordered_set<op_t *> visited;
+    for (auto &op : root_ops) {
+        todo.push(op);
+    }
+
+    while (!todo.empty()) {
+        op_t *top = todo.top();
+        if (visited.find(top) != visited.end()) {
+            todo.pop();
+            continue;
+        }
+        bool ready = true;
+        auto &inputs = top->get_input_values();
+        // Need to iterate backwards because some examples are broken and depend
+        // on the partition order
+        for (auto it = inputs.rbegin(); it != inputs.rend(); ++it) {
+            if ((*it)->has_producer()) {
+                op_t &producer = (*it)->get_producer();
+                if (visited.find(&producer) == visited.end()) {
+                    // Need to visit first
+                    todo.push(&producer);
+                    ready = false;
+                }
+            }
+        }
+        if (ready) {
+            todo.pop();
+            f(top);
+            visited.insert(top);
+        }
+    }
+}
+} // namespace impl
+} // namespace graph
+} // namespace dnnl
 
 #endif

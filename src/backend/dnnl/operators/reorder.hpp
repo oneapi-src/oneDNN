@@ -40,11 +40,10 @@ private:
     dnnl::stream p_stream_;
 
 public:
-    impl::status_t compile_impl(const node_t *anode,
-            const impl::engine_t *g_engine,
+    impl::status_t compile_impl(const op_t *op, const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        UNUSED(anode);
+        UNUSED(op);
         using desc = tensor::desc;
 
         const desc src {inputs.at(reorder_input::kSrc)};
@@ -57,11 +56,10 @@ public:
         return status::success;
     }
 
-    impl::status_t execute_impl(const node_t *anode,
-            const impl::stream_t *g_stream,
+    impl::status_t execute_impl(const op_t *op, const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(anode);
+        UNUSED(op);
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
         tensor src_ts {inputs.at(reorder_input::kSrc), p_engine_, alc};
