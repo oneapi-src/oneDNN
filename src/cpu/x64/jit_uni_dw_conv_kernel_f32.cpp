@@ -489,8 +489,8 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::compute_loop(
 
         if ((jcp.oc / jcp.ch_block) >= jcp.nb_ch_blocking) {
             if (ch_block_tail) {
-                cmp(aux_reg_ch_blocks, (jcp.nb_ch_blocking - 1) * jcp.ch_block);
-                jle(ch_tail_label, T_NEAR);
+                cmp(aux_reg_ch_blocks, ch_step);
+                jl(ch_tail_label, T_NEAR);
             }
 
             L(ch_loop_label);
