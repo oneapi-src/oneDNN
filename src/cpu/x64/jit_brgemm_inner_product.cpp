@@ -60,6 +60,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
     const float *oscales = pd()->attr()->output_scales_.scales_;
 
     const auto &jbgp = pd()->jbgp_;
+    const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const size_t bia_dt_size
             = jbgp.with_bias ? types::data_type_size(jbgp.bia_dt) : 0;
 
@@ -217,14 +218,38 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
         while (start < end) {
             int ocb_s = occ * jbgp.nb_oc_blocking;
             int ocb_e = nstl::min(ocb_s + jbgp.nb_oc_blocking, jbgp.nb_oc);
+            int ocb_work = ocb_e - ocb_s;
+
             int osb_s = osc * jbgp.nb_os_blocking;
             int osb_e = nstl::min(osb_s + jbgp.nb_os_blocking, jbgp.nb_os);
-            for_(int osb = osb_s; osb < osb_e; osb++)
-            for_(int ocb = ocb_s; ocb < ocb_e; ocb++)
-            for (int icc = 0; icc < ic_chunks; icc++) {
-                const int n = osb * jbgp.os_block;
-                ker(ithr, n, ocb, icc);
+            int osb_work = osb_e - osb_s;
+
+            // Each thread runs the below loops:
+            int loop_start = 0, loop_end = ic_chunks * osb_work * ocb_work;
+            int icc = 0, osb = 0, ocb = 0;
+
+            // If buffer is required then loop over ic_chunks has to be
+            // the innermost one.
+            const bool ocb_inner_most = is_f32 && !jbgp.use_buffer;
+            if (ocb_inner_most)
+                nd_iterator_init(
+                        0, icc, ic_chunks, osb, osb_work, ocb, ocb_work);
+            else
+                nd_iterator_init(
+                        0, osb, osb_work, ocb, ocb_work, icc, ic_chunks);
+
+            while (loop_start < loop_end) {
+                const int n = (osb + osb_s) * jbgp.os_block;
+                ker(ithr, n, ocb + ocb_s, icc);
+                ++loop_start;
+                if (ocb_inner_most)
+                    nd_iterator_step(
+                            icc, ic_chunks, osb, osb_work, ocb, ocb_work);
+                else
+                    nd_iterator_step(
+                            osb, osb_work, ocb, ocb_work, icc, ic_chunks);
             }
+
             ++start;
             nd_iterator_step(osc, os_chunks, occ, oc_chunks);
         }
