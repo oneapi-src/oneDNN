@@ -43,8 +43,8 @@ static bool is_impl_optimal(conv_conf_t &conf, const convolution_desc_t &cd,
     int oh_blocks = conf.wino_oh / conf.oh_block;
     float oh_util = (float)conf.oh / conf.wino_oh;
     int oc_blocks = conf.ocb;
-    float oc_util = (float)conf.oc / conf.wino_oc;
-    float ic_util = (float)conf.ic / conf.wino_ic;
+    float oc_util = (float)conf.oc_without_padding / conf.wino_oc;
+    float ic_util = (float)conf.ic_without_padding / conf.wino_ic;
 
     int blocks = ow_blocks * oh_blocks * oc_blocks;
     float utilization = ow_util * oh_util * oc_util * ic_util;
