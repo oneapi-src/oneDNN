@@ -37,6 +37,17 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
     const int mb = GWS_GET_MB();
     const int oc = GWS_GET_OC();
 
+    if (mb >= SRC_D0 || oc >= SRC_D1) {
+        for (int od = 0; od < OD; ++od)
+            for (int oh = 0; oh < OH; ++oh)
+                for (int ow = 0; ow < OW; ++ow) {
+                    const uint dst_off = DST_OFF(mb, oc, od, oh, ow);
+                    dst[dst_off] = TO_DST(0.f);
+                    ws[dst_off] = 0;
+                }
+        return;
+    }
+
     for (int od = 0; od < OD; ++od)
         for (int oh = 0; oh < OH; ++oh)
             for (int ow = 0; ow < OW; ++ow) {
