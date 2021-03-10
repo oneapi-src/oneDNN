@@ -238,11 +238,13 @@ private:
 
         SAFE(initialize_memory_create(handle_info), CRIT);
 
-        if (handle_info.is_allocate()) {
+        size_t sz = dnnl_memory_desc_get_size(&md_);
+        // Do not fill a memory if its size is zero. Moreover, memset expects
+        // defined pointer, nullptr is not allowed.
+        if (sz != 0 && handle_info.is_allocate()) {
             // Fill memory with a magic number (NAN for fp data types) to catch
             // possible uninitialized access.
             map();
-            size_t sz = dnnl_memory_desc_get_size(&md_);
             memset(mapped_ptr_, dnnl_mem_default_value, sz);
             unmap();
         }
