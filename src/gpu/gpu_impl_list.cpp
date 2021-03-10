@@ -18,6 +18,7 @@
 
 #include "gpu/jit/gemm/gen_gemm.hpp"
 #include "gpu/ocl/convolution_inner_product.hpp"
+#include "gpu/ocl/gemm/gemm_with_post_ops.hpp"
 #include "gpu/ocl/gemm/gen12lp_gemm.hpp"
 #include "gpu/ocl/gemm/gen9_gemm.hpp"
 #include "gpu/ocl/gemm/gen9_gemm_x8x8s32.hpp"
@@ -123,6 +124,7 @@ const pd_create_f gpu_impl_list[] = {
         INSTANCE(ocl::ref_softmax_bwd_t),
 
         // GEMM (internal)
+        INSTANCE(ocl::gemm_with_post_ops_t),
         INSTANCE(jit::gen_gemm_t),
         INSTANCE(ocl::gen12lp_gemm_t),
         INSTANCE(ocl::gen9_gemm_x8x8s32_t),

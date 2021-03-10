@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,10 +45,10 @@ struct gemm_exec_args_t {
 
 struct gemm_exec_ctx_t {
     gemm_exec_ctx_t(stream_t *stream, const gemm_exec_args_t &args,
-            gemm_desc_t *gemm_desc = nullptr)
+            const gemm_desc_t *gemm_desc = nullptr)
         : stream_(stream), args_(args), gemm_desc_(gemm_desc) {}
     gemm_exec_ctx_t(const exec_ctx_t &other, const gemm_exec_args_t &args,
-            gemm_desc_t *gemm_desc = nullptr)
+            const gemm_desc_t *gemm_desc = nullptr)
         : stream_(other.stream())
         , args_(args)
         , gemm_desc_(gemm_desc)
@@ -81,7 +81,7 @@ struct gemm_exec_ctx_t {
 private:
     stream_t *stream_;
     gemm_exec_args_t args_;
-    gemm_desc_t *gemm_desc_ = nullptr;
+    const gemm_desc_t *gemm_desc_ = nullptr;
     const resource_mapper_t *resource_mapper_ = nullptr;
     const memory_tracking::grantor_t *scratchpad_grantor_ = nullptr;
 };
