@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,6 +63,26 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
 #endif
     const int ws_stride = dst_stride;
     const int ws_chunks_per_c_block = dst_chunks_per_c_block;
+
+    if (mb >= SRC_D0) {
+        VECT_DATA_T dst_zero = DATA_ZERO;
+        VECT_INT_T ws_zero = 0;
+        for (int ow = 0; ow < OW; ++ow) {
+            int off = DST_OFF(mb, c, od, oh, ow);
+            write_vect_c_block(0, &dst[off], c, dst_stride,
+                    dst_chunks_per_c_block, dst_zero);
+            write_vect_c_block(1, &dst[off], c, dst_stride,
+                    dst_chunks_per_c_block, dst_zero);
+#if ALG_MAX && IS_TRAINING
+            write_vect_c_block_int(
+                    0, &ws[off], c, ws_stride, ws_chunks_per_c_block, ws_zero);
+            write_vect_c_block_int(
+                    1, &ws[off], c, ws_stride, ws_chunks_per_c_block, ws_zero);
+#endif // ALG_MAX && IS_TRAINING
+        }
+
+        return;
+    }
 
     for (int ow = 0; ow < OW; ++ow) {
         const int id = od * SD - PD;
@@ -396,9 +416,19 @@ inline void write_c_block(__global DATA_T *ptr, int c, DATA_T value) {
 #if C_WO_PADDING % SUB_GROUP_SIZE != 0
     int local_id = get_sub_group_local_id();
     int tail = C_WO_PADDING - c;
-    if (local_id < tail) ptr[local_id] = value;
+
+    if (local_id < tail)
+        ptr[local_id] = value;
+    else if (local_id < C_W_PADDING - c) {
+        ptr[local_id] = DATA_ZERO;
+    } else
+        return;
 #else
-    if (c >= C_WO_PADDING) { return; }
+    if (c >= C_WO_PADDING) {
+        BLOCK_WRITE((__global BLOCK_DATA_T *)ptr,
+                AS_BLOCK_DATA_T(CONVERT_DATA_T(DATA_ZERO)));
+        return;
+    }
     BLOCK_WRITE((__global BLOCK_DATA_T *)ptr, AS_BLOCK_DATA_T(value));
 #endif
 }
@@ -435,9 +465,17 @@ inline void write_c_block_int(__global int *ptr, int c, int value) {
 #if C_WO_PADDING % SUB_GROUP_SIZE != 0
     int local_id = get_sub_group_local_id();
     int tail = C_WO_PADDING - c;
-    if (local_id < tail) ptr[local_id] = value;
+    if (local_id < tail)
+        ptr[local_id] = value;
+    else if (local_id < C_W_PADDING - c) {
+        ptr[local_id] = 0;
+    } else
+        return;
 #else
-    if (c >= C_WO_PADDING) { return; }
+    if (c >= C_WO_PADDING) {
+        intel_sub_group_block_write((__global uint *)ptr, 0);
+        return;
+    }
     intel_sub_group_block_write((__global uint *)ptr, as_uint(value));
 #endif
 }

@@ -37,8 +37,8 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(
             conf.is_backward ? src_mdw.md_ : dst_mdw.md_);
-    conf.dispatch.define_dim("MB", 0, conf.mb);
-    conf.dispatch.define_dim("OC", 1, conf.c);
+    conf.dispatch.define_dim("MB", 0, conf.mb_padded);
+    conf.dispatch.define_dim("OC", 1, conf.c_padded);
     conf.dispatch.generate();
 
     conf.attr_info = attr_info_t::create(pd->attr());
@@ -53,7 +53,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("SUB_GROUP_SIZE", 1);
     kernel_ctx.define_int("NDIMS", conf.ndims);
-    kernel_ctx.define_int("MB", conf.mb);
     kernel_ctx.define_int("OC_WO_PADDING", conf.c);
     kernel_ctx.define_int("ID", conf.id);
     kernel_ctx.define_int("IH", conf.ih);
@@ -106,14 +105,9 @@ status_t ref_pooling_fwd_t::pd_t::init_kernel_ctx(
 }
 
 status_t ref_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
-
-    status_t status = status::success;
-
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
-    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
-    CHECK(status);
-    auto &ws = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_WORKSPACE, status);
-    CHECK(status);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &ws = CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE);
 
     const auto &conf = pd()->conf;
 
@@ -125,9 +119,7 @@ status_t ref_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
-    status = parallel_for(ctx, nd_range, kernel_, arg_list);
-
-    return status;
+    return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
 
 status_t ref_pooling_bwd_t::pd_t::init_conf(engine_t *engine) {
@@ -140,11 +132,7 @@ status_t ref_pooling_bwd_t::pd_t::init_kernel_ctx(
 }
 
 status_t ref_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
-
-    status_t status = status::success;
-
-    auto &diff_src = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
     auto &ws = CTX_IN_STORAGE(DNNL_ARG_WORKSPACE);
 
@@ -155,9 +143,7 @@ status_t ref_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
-    status = parallel_for(ctx, nd_range, kernel_, arg_list);
-
-    return status;
+    return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
 
 } // namespace ocl

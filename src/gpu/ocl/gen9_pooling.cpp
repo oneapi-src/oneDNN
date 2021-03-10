@@ -68,10 +68,10 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     conf.sub_group_size = 16;
     conf.use_mb_c_block = false;
     conf.use_only_c_block = false;
-    int c_padded = utils::rnd_up(conf.c, conf.sub_group_size);
+    int c_padded = utils::rnd_up(conf.c_padded, conf.sub_group_size);
 
     if (c_block_size >= 16 && n_block_size >= 16) {
-        c_padded = utils::rnd_up(conf.c, c_block_size);
+        c_padded = utils::rnd_up(conf.c_padded, c_block_size);
         conf.use_mb_c_block = true;
         conf.vect_dt_n = 8;
         conf.nvect = 1;
@@ -99,7 +99,7 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     conf.dispatch = compute_engine->create_dispatch(
             conf.is_backward ? src_mdw.md_ : dst_mdw.md_);
 
-    conf.dispatch.define_dim("MB", 0, conf.mb, conf.chunks_per_mb_block);
+    conf.dispatch.define_dim("MB", 0, conf.mb_padded, conf.chunks_per_mb_block);
     conf.dispatch.define_dim("C", 1, c_padded, conf.chunks_per_c_block);
 
     int ndims = conf.ndims;
@@ -124,6 +124,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("MB", conf.mb);
+    kernel_ctx.define_int("C_W_PADDING", conf.c_padded);
     kernel_ctx.define_int("C_WO_PADDING", conf.c);
     kernel_ctx.define_int("ID", conf.id);
     kernel_ctx.define_int("IH", conf.ih);
@@ -184,10 +185,8 @@ status_t gen9_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     status_t status = status::success;
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
-    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
-    CHECK(status);
-    auto &ws = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_WORKSPACE, status);
-    CHECK(status);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &ws = CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -215,7 +214,7 @@ status_t gen9_pooling_bwd_t::pd_t::init_kernel_ctx(
 status_t gen9_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
     status_t status = status::success;
-    auto &diff_src = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC, status);
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
     CHECK(status);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
     auto &ws = CTX_IN_STORAGE(DNNL_ARG_WORKSPACE);
