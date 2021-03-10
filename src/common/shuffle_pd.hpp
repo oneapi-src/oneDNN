@@ -111,6 +111,13 @@ struct shuffle_pd_t : public primitive_desc_t {
 
     const memory_desc_t *data_md() const { return &data_md_; }
 
+    std::vector<memory_desc_t> hint_mds(bool is_hint) const override {
+        assert(IMPLICATION(is_hint, is_fwd()));
+        if (!is_hint && is_fwd()) return {};
+        if (is_hint && is_fwd()) return {*dst_md(0)};
+        return hint_mds_;
+    }
+
 protected:
     shuffle_desc_t desc_;
     const shuffle_pd_t *hint_fwd_pd_;
@@ -121,7 +128,9 @@ protected:
         : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc) {}
+        , data_md_(desc_.data_desc) {
+        if (hint_fwd_pd_) hint_mds_.push_back(*hint_fwd_pd_->dst_md(0));
+    }
 
     bool set_default_formats_common() {
         if (data_md_.format_kind != format_kind::any) return true;
@@ -129,13 +138,16 @@ protected:
 
         status_t status = status::success;
         if (hint_fwd_pd_)
-            status = memory_desc_init_by_md_and_dt(
-                    data_md_, *hint_fwd_pd_->src_md(0), data_md_.data_type);
+            status = memory_desc_init_by_md_and_dt(data_md_,
+                    hint_mds(false /* is_hint */)[0], data_md_.data_type);
         else
             status = memory_desc_init_by_strides(data_md_, nullptr);
 
         return status == status::success;
     }
+
+private:
+    std::vector<memory_desc_t> hint_mds_;
 };
 
 } // namespace impl

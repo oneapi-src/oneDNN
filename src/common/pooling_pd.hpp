@@ -239,6 +239,11 @@ struct pooling_fwd_pd_t : public pooling_pd_t {
         return 1 + (!types::is_zero_md(workspace_md()));
     }
 
+    std::vector<memory_desc_t> hint_mds(bool is_hint) const override {
+        if (!is_hint) return {};
+        return {*dst_md(0)};
+    }
+
 protected:
     memory_desc_t src_md_;
     memory_desc_t dst_md_;
@@ -299,6 +304,12 @@ struct pooling_bwd_pd_t : public pooling_pd_t {
     }
     int n_outputs() const override { return 1; }
 
+    std::vector<memory_desc_t> hint_mds(bool is_hint) const override {
+        assert(!is_hint);
+        MAYBE_UNUSED(is_hint);
+        return hint_mds_;
+    }
+
 protected:
     memory_desc_t diff_src_md_;
     memory_desc_t diff_dst_md_;
@@ -307,14 +318,18 @@ protected:
             const primitive_attr_t *attr, const pooling_fwd_pd_t *hint_fwd_pd)
         : pooling_pd_t(adesc, attr, hint_fwd_pd)
         , diff_src_md_(desc_.diff_src_desc)
-        , diff_dst_md_(desc_.diff_dst_desc) {}
+        , diff_dst_md_(desc_.diff_dst_desc) {
+        if (hint_fwd_pd_)
+            hint_mds_ = hint_fwd_pd_->hint_mds(true /* is_hint */);
+    }
 
     virtual status_t set_default_params() {
         if (diff_dst_md()->format_kind == format_kind::any) {
             status_t status = status::success;
             if (hint_fwd_pd_)
                 status = memory_desc_init_by_md_and_dt(diff_dst_md_,
-                        *hint_fwd_pd_->dst_md(0), diff_dst_md_.data_type);
+                        hint_mds(false /* is_hint */)[0],
+                        diff_dst_md_.data_type);
             else
                 status = memory_desc_init_by_strides(diff_dst_md_, nullptr);
             if (status != status::success) return status;
@@ -329,6 +344,9 @@ protected:
         return memory_desc_init_by_blocking_desc(
                 diff_src_md_, diff_dst_md_.format_desc.blocking);
     }
+
+private:
+    std::vector<memory_desc_t> hint_mds_;
 };
 
 } // namespace impl

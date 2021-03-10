@@ -48,7 +48,7 @@ struct key_t {
     mutable const primitive_attr_t *attr_;
     std::type_index impl_id_;
     int impl_nthr_;
-    std::vector<memory_desc_t> mds;
+    std::vector<memory_desc_t> hint_mds_;
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     engine_id_t engine_id_;
 #else
@@ -58,8 +58,6 @@ struct key_t {
 #endif
 
 private:
-    void init_mds(const primitive_desc_t *pd);
-
     template <typename desc_t>
     static const desc_t &cast_to_desc(const void *p) {
         return *(reinterpret_cast<const desc_t *>(p));
@@ -185,7 +183,8 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
         }
             // clang-format on
 #undef CASE
-        seed = get_array_hash(seed, key.mds.data(), (int)key.mds.size());
+        seed = get_array_hash(
+                seed, key.hint_mds_.data(), (int)key.hint_mds_.size());
 
         return seed;
     }

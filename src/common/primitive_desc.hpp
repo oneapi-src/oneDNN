@@ -192,6 +192,35 @@ struct primitive_desc_t : public c_compatible {
         return n_inputs;
     }
 
+    // The `hint_mds(bool is_hint)` returns a vector of memory descriptors
+    // that might affect the equality of primitive descriptors for backward pass.
+    //
+    // This function is used for creating a key to fetch primitive or primitive
+    // descriptor from cache.
+    //
+    // 1. When creating a primitive descriptor for backward pass there may be
+    //    a forward primitive descriptor hint that can be used to obtain the
+    //    memory descriptors. In this case the `is_hint` argument must be `true`.
+    // 2. When creating a primitive this function is called for a primitive
+    //    descriptor that can be either forward or backward. In this case
+    //    the `is_hint` argument must be `false`.
+    //       - For forward it will return an empty vector.
+    //       - For backward it will return a vector of memory descriptors if
+    //         the implementation depends on a forward primitive descriptor.
+    //
+    // The current cases are:
+    // - pooling
+    // - shuffle
+    //
+    // Later the list of primitives can be extended. For instance, currently
+    // there is no convolution on the list because nthrs + op_desc
+    // (even with format=`any`) + attributes fully define a particular
+    // implementation.
+    virtual std::vector<memory_desc_t> hint_mds(bool is_hint) const {
+        UNUSED(is_hint);
+        return {};
+    }
+
     virtual status_t create_primitive(
             std::pair<std::shared_ptr<primitive_t>, bool> &primitive,
             engine_t *engine) const = 0;
