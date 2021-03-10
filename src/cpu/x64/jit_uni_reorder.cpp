@@ -1161,8 +1161,8 @@ struct jit_single_blk_kernel_t : public jit_generator {
         // all 0, all 1
         vxorps(ymm_tmp, ymm_tmp, ymm_tmp);
         vpcmpeqd(ymm_mask, ymm_mask, ymm_mask);
-        // blend in
-        auto in_mask = -1 << mask;
+        // shift by mask to have tail nelems in ymm_mask
+        const uint8_t in_mask = 0xFF << mask;
         vpblendd(ymm_mask, ymm_mask, ymm_tmp, in_mask);
     }
 
