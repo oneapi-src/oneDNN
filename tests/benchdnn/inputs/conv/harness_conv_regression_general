@@ -249,3 +249,10 @@ ic16ih9oc17oh9kh1ph0n"oc_tail_with_multiple_eltwise_postops:conv1"
 ic16ih9oc17oh9kh3ph1n"oc_tail_with_multiple_eltwise_postops:conv2"
 --cfg=bf16bf16bf16 --stag=aBx16b --dtag=aBx16b # special case for bf16 amx conv
 ic16ih9oc17oh9kh3ph1n"oc_tail_with_multiple_eltwise_postops:conv3"
+
+# depthwise channel tail processing
+--reset
+--skip-impl="ref:gemm"
+--dir=FWD_D
+--stag=axb --dtag=axb
+g113mb1ic113ih1oc113oh1kh3ph1n"depthwise_channel_tail_nxc_format"

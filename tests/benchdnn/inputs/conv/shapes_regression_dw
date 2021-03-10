@@ -42,3 +42,6 @@ g128mb1ic128ih56oc128kh4sh1ph1
 g128mb1ic128ih56oc128kh4sh2ph0
 g128mb1ic128ih56oh29oc128kh4sh2ph1
 g128mb1ic128ih56oh32oc128kh4sh2ph0
+
+# Known failing cases
+g113mb1ic113ih1oc113oh1kh3ph1n"depthwise_channel_tail_nxc_format"
