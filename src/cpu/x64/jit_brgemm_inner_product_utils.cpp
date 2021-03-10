@@ -120,6 +120,7 @@ status_t init_ip_conf_fwd(
         jit_brgemm_primitive_conf_t &jbgp, const primitive_attr_t &attr) {
     const bool is_amx_int8 = jbgp.isa == avx512_core_bf16_amx_int8;
     const bool is_int8 = one_of(jbgp.src_dt, u8, s8) && jbgp.wei_dt == s8;
+    const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const auto &p = attr.post_ops_;
     jbgp.with_sum = p.find(primitive_kind::sum) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
@@ -152,7 +153,25 @@ status_t init_ip_conf_fwd(
     jbgp.os = jbgp.mb;
 
     // Configure matrix sizes
-    const int max_M = 64, min_M = is_amx_int8 ? 16 : 6;
+    static const int min_M = is_amx_int8 ? 16 : 6;
+    int max_M = 64;
+    // Work done by each thread is given by:
+    //     (nb_oc / nb_oc_blocking) * (nb_os / nb_os_blocking)
+    // As a first approximation we take nb_oc_blocking = nb_os_blocking = 1
+    // Furthermore, we recall that
+    //     nb_oc = oc / oc_block
+    //     nb_os = os / os_block
+    //
+    // For f32 data type our objective is to determine the optimal value
+    // of os_block such that the work amount per thread ~ 2
+    if (is_f32) {
+        const bool small_work_amt_per_thread
+                = div_up(jbgp.os, max_M) * jbgp.nb_oc < 1.8f * jbgp.nthr;
+        if (small_work_amt_per_thread)
+            max_M = saturate(
+                    16, max_M, div_up(jbgp.os * jbgp.nb_oc, 2 * jbgp.nthr));
+    }
+
     jbgp.os_block = 1;
     for (int m_ = max_M; m_ >= min_M; m_--) {
         if (jbgp.os % m_ == 0) {
@@ -198,6 +217,17 @@ status_t init_ip_conf_fwd(
 
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
     jbgp.nb_os_blocking = 1;
+    // Work done by each thread is given by:
+    //     (nb_oc / nb_oc_blocking) * (nb_os / nb_os_blocking)
+    // For f32 data type we want to increase the nb_os_blocking such that
+    //   * 1 <= nb_os_blocking <= 8 AND nb_os_blocking <= nb_os
+    //   * Work amount per thread ~ 2
+    //   * NOTE: here nb_oc_blocking = 1 as os is large
+    if (jbgp.os > 256 && is_f32)
+        jbgp.nb_os_blocking = saturate(1, nstl::min(8, jbgp.nb_os),
+                nstl::min(nstl::max(jbgp.oc / jbgp.os / 2, 1),
+                        div_up(jbgp.nb_os * jbgp.nb_oc, 2 * jbgp.nthr)));
+
     jbgp.M = jbgp.os_block;
     jbgp.M_tail = jbgp.os % jbgp.os_block;
 
