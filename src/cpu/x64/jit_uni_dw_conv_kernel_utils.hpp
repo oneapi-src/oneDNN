@@ -243,7 +243,6 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
             jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one});
     if (!post_ops_ok_) return status::unimplemented;
 
-    const bool is_f32 = src_d.data_type() == data_type::f32;
     const bool ok_to_pad_channels = true && !is_data_layout_nxc
             && jcp.oc == jcp.ngroups && jcp.ic == jcp.ngroups
             && one_of(isa, avx512_common, avx512_core, avx2);
@@ -254,8 +253,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     }
 
     const bool args_ok = true && jcp.oc == jcp.ngroups && jcp.ic == jcp.ngroups
-            && IMPLICATION(
-                    !(is_data_layout_nxc && is_f32), jcp.ngroups % simd_w == 0)
+            && IMPLICATION(!is_data_layout_nxc, jcp.ngroups % simd_w == 0)
             && jcp.wei_tag == wei_tag && data_tag != format_tag::undef
             && jcp.ic <= src_d.padded_dims()[1]
             && jcp.oc <= dst_d.padded_dims()[1]

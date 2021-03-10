@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,6 +66,8 @@ private:
     reg64_t reg_iw_offset = reg_input; //Hack: clear reg_input early in kernel
     reg64_t reg_tail = rax;
     mask_t k_oc_tail_mask = Xbyak::Opmask(2);
+    mask_t ktail_mask = k_oc_tail_mask;
+    mask_t k_ch_tail_mask_extended = Xbyak::Opmask(3);
 
     Xbyak::Zmm zmm_ker_reg = Xbyak::Zmm(0);
     Xbyak::Zmm zmm_src_reg = Xbyak::Zmm(1);
@@ -106,13 +108,13 @@ private:
                 format_tag::nwc);
     }
 
-    inline void load_src(int ur_ch_blocks, int ur_w);
+    inline void load_src(int ur_ch_blocks, int ur_w, bool last_ch_block_flag);
     inline void compute_loop(int ur_w, int ur_ch_blocks, int pad_l, int pad_r);
     inline void loop_ow(int ur_ch_blocks);
-    inline void apply_filter_unrolled(
-            int ur_ch_blocks, int ur_w, int pad_l, int pad_r);
+    inline void apply_filter_unrolled(int ur_ch_blocks, int ur_w, int pad_l,
+            int pad_r, bool last_ch_block_flag);
     inline void apply_postops(int ur_ch_blocks, int ur_w);
-    inline void store_dst(int ur_ch_blocks, int ur_w);
+    inline void store_dst(int ur_ch_blocks, int ur_w, bool last_ch_block_flag);
 
     std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
             postops_injector_;

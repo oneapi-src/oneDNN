@@ -72,7 +72,8 @@ Xbyak::Zmm jit_avx512_dw_conv_fwd_kernel_bf16::get_acc_reg(int idx) {
     return Xbyak::Zmm(get_acc_reg_idx(idx));
 }
 
-void jit_avx512_dw_conv_fwd_kernel_bf16::load_src(int ur_ch_blocks, int ur_w) {
+void jit_avx512_dw_conv_fwd_kernel_bf16::load_src(
+        int ur_ch_blocks, int ur_w, bool last_ch_block_flag) {
 
     const auto dst_layout_nxc = is_dst_layout_nxc();
     const auto ch_blk = jcp.ch_block;
@@ -80,24 +81,31 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::load_src(int ur_ch_blocks, int ur_w) {
     const auto ow_stride = dst_layout_nxc ? jcp.ngroups : ch_blk;
 
     for (int ch = 0; ch < ur_ch_blocks; ch++) {
+        const bool mask_flag = last_ch_block_flag && ch == ur_ch_blocks - 1;
         for (int ow = 0; ow < ur_w; ow++) {
             Zmm zmm_acc = get_acc_reg(ch * ur_w + ow);
+            const Zmm zmm_acc_msk
+                    = mask_flag ? zmm_acc | ktail_mask | T_z : zmm_acc;
 
             if (this->jcp.with_bias) {
                 int b_off = ch * ch_blk;
-                uni_vmovups(zmm_acc, vmmword[reg_bias + b_off * sizeof(float)]);
+                uni_vmovups(
+                        zmm_acc_msk, vmmword[reg_bias + b_off * sizeof(float)]);
             } else {
                 uni_vpxor(zmm_acc, zmm_acc, zmm_acc);
             }
             if (this->jcp.with_sum) {
                 int o_off = ch * ocb_stride + ow * ow_stride;
                 if (jcp.dst_dt == data_type::bf16) {
-                    vpmovzxwd(zmm_prev_dst,
+                    const Zmm zmm_prev_dst_msk = mask_flag
+                            ? zmm_prev_dst | ktail_mask | T_z
+                            : zmm_prev_dst;
+                    vpmovzxwd(zmm_prev_dst_msk,
                             vmmword[reg_output + o_off * jcp.typesize_out]);
                     vpslld(zmm_prev_dst, zmm_prev_dst, 16);
                     vaddps(zmm_acc, zmm_prev_dst);
                 } else {
-                    uni_vaddps(zmm_acc, zmm_acc,
+                    uni_vaddps(zmm_acc_msk, zmm_acc_msk,
                             vmmword[reg_output + o_off * jcp.typesize_out]);
                 }
             }
@@ -105,8 +113,8 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::load_src(int ur_ch_blocks, int ur_w) {
     }
 }
 
-void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter_unrolled(
-        int ur_ch_blocks, int ur_w, int pad_l, int pad_r) {
+void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter_unrolled(int ur_ch_blocks,
+        int ur_w, int pad_l, int pad_r, bool last_ch_block_flag) {
     int ch_blk = jcp.ch_block;
     int dilate_h = jcp.dilate_h + 1;
     int dilate_w = jcp.dilate_w + 1;
@@ -133,20 +141,26 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter_unrolled(
             add(aux_reg_input, reg_iw_offset);
         }
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
+            const bool mask_flag = last_ch_block_flag && ch == ur_ch_blocks - 1;
             for (int kw = 0; kw < jcp.kw; kw++) {
                 int ker_off = ch * jcp.kh * jcp.kw * ch_blk + kw * ch_blk;
-
-                vpmovzxwd(zmm_ker_reg,
+                const Zmm zmm_ker_reg_msk = mask_flag
+                        ? zmm_ker_reg | ktail_mask | T_z
+                        : zmm_ker_reg;
+                vpmovzxwd(zmm_ker_reg_msk,
                         ptr[aux_reg_kernel + ker_off * jcp.typesize_in]);
                 int ow_start = get_ow_start(kw, pad_l);
                 int ow_end = get_ow_end(ur_w, kw, pad_r);
                 for (int ow = ow_start; ow < ow_end; ow++) {
+                    const Zmm zmm_src_reg_msk = mask_flag
+                            ? zmm_src_reg | ktail_mask | T_z
+                            : zmm_src_reg;
                     Zmm zmm_acc = get_acc_reg(ch * ur_w + ow);
                     int inp_off = ch * icb_stride
                             + (ow * stride_w - pad_l) * iw_stride
                             + kw * dilate_w * iw_stride;
                     /* zero-extend bf16 to packed 32-bit int */
-                    vpmovzxwd(zmm_src_reg,
+                    vpmovzxwd(zmm_src_reg_msk,
                             ptr[aux_reg_input + inp_off * jcp.typesize_in]);
                     if (isa_has_bf16(jcp.isa))
                         vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_src_reg);
@@ -254,7 +268,8 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
     }
 }
 
-void jit_avx512_dw_conv_fwd_kernel_bf16::store_dst(int ur_ch_blocks, int ur_w) {
+void jit_avx512_dw_conv_fwd_kernel_bf16::store_dst(
+        int ur_ch_blocks, int ur_w, bool last_ch_block_flag) {
 
     const auto dst_layout_nxc = is_dst_layout_nxc();
     const auto ch_blk = jcp.ch_block;
@@ -277,7 +292,10 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::store_dst(int ur_ch_blocks, int ur_w) {
                 auto zmm_dst = get_acc_reg(ch * ur_w + j);
                 vcvtne2ps2bf16(
                         zmm_dst, get_acc_reg((ch + 1) * ur_w + j), zmm_dst);
-                vmovups(addr, zmm_dst);
+                bool mask_flag = last_ch_block_flag && ch + 2 == ur_ch_blocks;
+                Zmm zmm_dst_msk = mask_flag ? zmm_dst | k_ch_tail_mask_extended
+                                            : zmm_dst;
+                vmovdqu16(addr, zmm_dst_msk);
             }
             /* Perform tail write for odd ch sizes */
             if (ch < ur_ch_blocks) {
@@ -288,22 +306,28 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::store_dst(int ur_ch_blocks, int ur_w) {
                 auto zmm_dst = get_acc_reg(ch * ur_w + j);
                 auto ymm_dst = Ymm(zmm_dst.getIdx());
                 vcvtneps2bf16(ymm_dst, zmm_dst);
-                vmovups(addr, ymm_dst);
+                Ymm ymm_dst_msk
+                        = last_ch_block_flag ? ymm_dst | ktail_mask : ymm_dst;
+                vmovdqu16(addr, ymm_dst_msk);
             }
         }
     } else {
         // also used for case when dst_layout_nxc && dst.dt == f32
         if (jcp.dst_dt == data_type::f32) {
             for (int ch = 0; ch < ur_ch_blocks; ch++) {
+                bool mask_flag = last_ch_block_flag && ch == ur_ch_blocks - 1;
                 for (int ow = 0; ow < ur_w; ow++) {
                     int o_off = ch * ocb_stride + ow * ow_stride;
                     Zmm zmm_dst = get_acc_reg(ch * ur_w + ow);
-                    uni_vmovups(vmmword[reg_output + o_off * jcp.typesize_out],
-                            zmm_dst);
+                    Zmm zmm_dst_msk
+                            = mask_flag ? zmm_dst | ktail_mask : zmm_dst;
+                    vmovups(vmmword[reg_output + o_off * jcp.typesize_out],
+                            zmm_dst_msk);
                 }
             }
         } else if (jcp.dst_dt == data_type::bf16) {
-            if (isa_has_bf16(jcp.isa)) {
+            if (isa_has_bf16(jcp.isa)) { // !dst_layout_nxc()
+                assert(jcp.ngroups % jcp.ch_block == 0);
                 for (int ch = 0; ch < ur_ch_blocks; ch++) {
                     int n_2bf2ps = (ur_w / 2) * 2;
                     int j = 0;
@@ -331,6 +355,8 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::store_dst(int ur_ch_blocks, int ur_w) {
                 }
             } else {
                 for (int ch = 0; ch < ur_ch_blocks; ch++) {
+                    bool mask_flag
+                            = last_ch_block_flag && ch == ur_ch_blocks - 1;
                     for (int ow = 0; ow < ur_w; ow++) {
                         int o_off = ch * ocb_stride + ow * ow_stride;
                         Zmm zmm_dst = get_acc_reg(ch * ur_w + ow);
@@ -339,8 +365,10 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::store_dst(int ur_ch_blocks, int ur_w) {
                         auto ymm_dst = Ymm(zmm_dst.getIdx());
                         bf16_emu_->vcvtneps2bf16(ymm_dst, zmm_dst);
 
-                        uni_vmovups(ptr[reg_output + o_off * jcp.typesize_out],
-                                ymm_dst);
+                        Ymm ymm_dst_msk
+                                = mask_flag ? ymm_dst | ktail_mask : ymm_dst;
+                        vmovdqu16(ptr[reg_output + o_off * jcp.typesize_out],
+                                ymm_dst_msk);
                     }
                 }
             }
@@ -352,7 +380,6 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::store_dst(int ur_ch_blocks, int ur_w) {
 void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
         int ur_w, int ur_ch_blocks, int pad_l, int pad_r) {
 
-    const bool ch_loop = ur_ch_blocks > jcp.nb_ch_blocking;
     // ch_loop currently happen only when data layout is nxc. The strides are
     // calculated for this layout only.
     const size_t wei_ch_stride = (size_t)jcp.nb_ch_blocking * jcp.kh * jcp.kw
@@ -364,7 +391,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
     const size_t bias_stride
             = (size_t)jcp.nb_ch_blocking * jcp.ch_block * sizeof(float);
 
-    auto compute = [&](int ur_ch_blocks) {
+    auto compute = [&](int ur_ch_blocks, bool last_ch_block_flag = false) {
         if (jcp.is_fused_conv) {
             mov(aux_reg_input_buffer_ptr, reg_input_buffer_ptr);
         } else {
@@ -372,15 +399,20 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
         }
 
         mov(aux_reg_kernel, reg_kernel);
-        load_src(ur_ch_blocks, ur_w);
-        apply_filter_unrolled(ur_ch_blocks, ur_w, pad_l, pad_r);
+        load_src(ur_ch_blocks, ur_w, last_ch_block_flag);
+        apply_filter_unrolled(
+                ur_ch_blocks, ur_w, pad_l, pad_r, last_ch_block_flag);
         apply_postops(ur_ch_blocks, ur_w);
-        store_dst(ur_ch_blocks, ur_w);
+        store_dst(ur_ch_blocks, ur_w, last_ch_block_flag);
     };
 
+    const bool masked_ch_block_tail = jcp.oc % jcp.ch_block != 0;
+    const bool ch_loop = ur_ch_blocks > jcp.nb_ch_blocking;
     if (ch_loop) {
         Label ch_loop_label, ch_tail_label, skip_ch_tail_label;
-        const int ch_tail = jcp.nb_ch % jcp.nb_ch_blocking;
+        const int nb_ch = jcp.oc / jcp.ch_block;
+        const int nb_ch_blocking_tail
+                = jcp.nb_ch - utils::rnd_dn(nb_ch, jcp.nb_ch_blocking);
         const int ch_step = jcp.nb_ch_blocking * jcp.ch_block;
 
         mov(aux_reg_ch_blocks, reg_ch_blocks);
@@ -389,38 +421,39 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
         push(reg_output);
         if (jcp.with_bias) push(reg_bias);
 
-        if (ch_tail) {
-            cmp(aux_reg_ch_blocks, ch_step);
-            jl(ch_tail_label, T_NEAR);
-        }
+        if (nb_ch >= jcp.nb_ch_blocking) {
+            if (nb_ch_blocking_tail) {
+                cmp(aux_reg_ch_blocks, ch_step);
+                jl(ch_tail_label, T_NEAR);
+            }
 
-        L(ch_loop_label);
-        {
-            compute(jcp.nb_ch_blocking);
-            add(reg_kernel, wei_ch_stride);
-            add(reg_input, inp_ch_stride);
-            add(reg_output, out_ch_stride);
-            if (jcp.with_bias) add(reg_bias, bias_stride);
-            sub(aux_reg_ch_blocks, ch_step);
-            cmp(aux_reg_ch_blocks, ch_step);
-            jge(ch_loop_label, T_NEAR);
+            L(ch_loop_label);
+            {
+                compute(jcp.nb_ch_blocking);
+                add(reg_kernel, wei_ch_stride);
+                add(reg_input, inp_ch_stride);
+                add(reg_output, out_ch_stride);
+                if (jcp.with_bias) add(reg_bias, bias_stride);
+                sub(aux_reg_ch_blocks, ch_step);
+                cmp(aux_reg_ch_blocks, ch_step);
+                jge(ch_loop_label, T_NEAR);
+            }
         }
-
-        if (ch_tail) {
+        if (nb_ch_blocking_tail) {
+            // ch work range [1, jcp.nb_ch_blocking * ch_block)
             L(ch_tail_label);
             cmp(aux_reg_ch_blocks, 0);
             jle(skip_ch_tail_label, T_NEAR);
-            compute(ch_tail);
+            compute(nb_ch_blocking_tail, masked_ch_block_tail);
             L(skip_ch_tail_label);
         }
-
         if (jcp.with_bias) pop(reg_bias);
         pop(reg_output);
         pop(reg_input);
         pop(reg_kernel);
 
     } else {
-        compute(ur_ch_blocks);
+        compute(ur_ch_blocks, masked_ch_block_tail);
     }
 }
 
@@ -496,6 +529,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::loop_ow(int ur_ch_blocks) {
 void jit_avx512_dw_conv_fwd_kernel_bf16::generate() {
     this->preamble();
 
+    assert(mayiuse(avx512_core));
     if (jcp.is_fused_conv) {
         mov(reg_input_buffer_ptr, ptr[this->param1 + GET_OFF(src)]);
         /* In case of fused depthwise convolution, `param.src` is not a pointer
@@ -528,17 +562,33 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::generate() {
     const int ch_blocks_tail = jcp.nb_ch % jcp.nb_ch_blocking;
     const auto oc_tail = jcp.oc_without_padding % jcp.ch_block;
     if (oc_tail != 0) {
+        // Note: is_src_layout_nxc() == true, otherwise channels are padded
         // Prepare masks for tailing
         const int oc_tail_shift
                 = jcp.ch_block - jcp.oc_without_padding % jcp.ch_block;
-        static constexpr auto zmm_full_mask = ((1 << 16) - 1);
+        static constexpr auto zmm_16b_mask = ((1 << 16) - 1);
+
+        // To account for special store optimization, where two oc_blocks are
+        // combined with one single write, extend the mask for 32 bits
+        // (i.e. 32 bfloat16 elements)
+        const bool need_extended_mask = jcp.dst_dt == data_type::bf16
+                && isa_has_bf16(jcp.isa) && jcp.nb_ch_blocking > 1;
+        if (need_extended_mask)
+            kxnord(k_ch_tail_mask_extended, k_ch_tail_mask_extended,
+                    k_ch_tail_mask_extended);
+
         Label done;
         mov(reg_tail, ptr[param1 + GET_OFF(load_work)]);
         cmp(reg_tail, jcp.nb_ch_blocking * jcp.ch_block);
         je(done, T_NEAR);
         Reg32 reg_tail_32 = reg_tail.cvt32();
-        mov(reg_tail_32, zmm_full_mask >> oc_tail_shift);
+        mov(reg_tail_32, zmm_16b_mask >> oc_tail_shift);
         kmovw(k_oc_tail_mask, reg_tail_32);
+        if (need_extended_mask) {
+            auto zmm_32b_mask = (1 << (oc_tail + jcp.ch_block)) - 1;
+            mov(reg_tail_32, zmm_32b_mask);
+            kmovd(k_ch_tail_mask_extended, reg_tail_32);
+        }
         L(done);
     }
 
