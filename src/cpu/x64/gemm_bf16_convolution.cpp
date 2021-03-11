@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -616,9 +616,9 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
         if (this->pd()->is_postprocess_required() && ic + ic_block >= jcp.ic) {
             size_t acc_str = LDC;
             size_t dst_str = M;
-            (*pp_ker_)(dst_local, acc, bias + groups * jcp.oc + oc, sum_scale,
-                    dst_str, acc_str, m, oc_block,
-                    post_ops_binary_rhs_arg_vec.data(), dst,
+            float *bias_ptr = bias ? bias + groups * jcp.oc + oc : nullptr;
+            (*pp_ker_)(dst_local, acc, bias_ptr, sum_scale, dst_str, acc_str, m,
+                    oc_block, post_ops_binary_rhs_arg_vec.data(), dst,
                     groups * jcp.oc + oc);
         }
     };

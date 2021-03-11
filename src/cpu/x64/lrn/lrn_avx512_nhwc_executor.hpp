@@ -64,8 +64,8 @@ public:
 
             args.src = &src[offset];
             args.dst = &dst[offset];
-            args.ws0 = &ws[ws_offset0];
-            args.ws1 = &ws[ws_offset1];
+            args.ws0 = ws ? &ws[ws_offset0] : nullptr;
+            args.ws1 = ws ? &ws[ws_offset1] : nullptr;
 
             (*ker)(&args);
         });

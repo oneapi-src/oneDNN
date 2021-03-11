@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1853,10 +1853,10 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                     + ik_overlap * input_step];
             auto dst = &ti->diff_dst[diff_dst_d.blk_off(img, oc_off_idx)
                     + od_s * output_step];
-
+            auto diff_bia_ptr = diff_bia ? diff_bia + _oc * 16 : nullptr;
             jit_conv_3d_ker_bwd_w_pipeline(jit_ker, p, src, dst,
                     diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
-                    diff_bia + _oc * 16, (img == img_first), od_s, od_e,
+                    diff_bia_ptr, (img == img_first), od_s, od_e,
                     jcp.kd - kd_front_pad - kd_back_pad, kd_pad_off,
                     ic_to_compute, oc_to_compute);
 

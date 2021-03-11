@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1217,8 +1217,9 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_2d(
             }
 
             p.filt = diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
-            p.bias = diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
-                    + oc_b * jcp.oc_block;
+            p.bias = diff_bias ? diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
+                            + oc_b * jcp.oc_block
+                               : nullptr;
             p.channel = (start == ti->img_start) && (ohb_s == oh_s);
             p.reduce_work = ic_to_compute;
             p.load_work = oc_to_compute;
@@ -1464,8 +1465,9 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
             }
 
             p.filt = diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
-            p.bias = diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
-                    + oc_b * jcp.oc_block;
+            p.bias = diff_bias ? diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
+                            + oc_b * jcp.oc_block
+                               : nullptr;
             p.channel = (start == ti->img_start) && (odb_s == od_s);
             p.reduce_work = ic_to_compute;
             p.load_work = oc_to_compute;
@@ -1757,8 +1759,9 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
             }
 
             p.filt = diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
-            p.bias = diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
-                    + oc_b * jcp.oc_block;
+            p.bias = diff_bias ? diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
+                            + oc_b * jcp.oc_block
+                               : nullptr;
             p.channel = (img == ti->img_start);
             p.flags = 0 | (ic_b == 0 ? FLAG_IC_FIRST : 0);
             p.reduce_work = ic_to_compute;

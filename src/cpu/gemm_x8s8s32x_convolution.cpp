@@ -221,7 +221,8 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
         const src_data_t *__restrict src
                 = src_base + n * src_mb_stride + g * src_g_stride;
         const wei_data_t *__restrict wei = wei_base + g * wei_g_stride;
-        const int32_t *__restrict wei_comp = _wei_comp + g * jcp.oc;
+        const int32_t *__restrict wei_comp
+                = _wei_comp ? _wei_comp + g * jcp.oc : nullptr;
         const int h_step = nstl::min(jcp.oh_block, jcp.oh - oh);
         const int w_step = nstl::min(jcp.ow_block, jcp.ow - ow);
         if (jcp.im2col_sz && is_problem_3d)

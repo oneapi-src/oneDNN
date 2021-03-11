@@ -138,16 +138,18 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::execute_forward(
             const std::size_t offset = dat_tag == nhwc
                     ? n * HW * C + c * VECTOR_LENGTH
                     : n * HW * C + c * HW * VECTOR_LENGTH;
-            jit_args_fwd_t args {&src[offset], &dst[offset], &ws[offset],
-                    &ws[offset + N * C * HW]};
+            auto ws0_ptr = ws ? &ws[offset] : nullptr;
+            auto ws1_ptr = ws ? &ws[offset + N * C * HW] : nullptr;
+            jit_args_fwd_t args {&src[offset], &dst[offset], ws0_ptr, ws1_ptr};
             (*ker)(&args);
         });
     } else if (dat_tag == nchw && ls == 5 && ak == lrn_across_channels) {
         parallel_nd(N, (HW + VECTOR_LENGTH - 1) / VECTOR_LENGTH,
                 [&](int n, int hw8) {
                     const auto offset = n * HW * C + hw8 * VECTOR_LENGTH;
+                    auto ws0_ptr = ws ? &ws[offset] : nullptr;
                     jit_args_fwd_t args {
-                            &src[offset], &dst[offset], &ws[offset], nullptr};
+                            &src[offset], &dst[offset], ws0_ptr, nullptr};
 
                     if ((hw8 + 1) * VECTOR_LENGTH > HW)
                         (*ker_last)(&args);
