@@ -438,7 +438,10 @@ int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
             dnnl_dim_t fib = full_inner_blks[dim_idx];
             dnnl_dim_t padded_dim = (md->dims[dim_idx] + fib - 1) / fib * fib;
             md->padded_dims[dim_idx] = padded_dim;
-            stride *= (padded_dim / fib);
+            if (padded_dim == DNNL_RUNTIME_DIM_VAL)
+                stride = DNNL_RUNTIME_DIM_VAL;
+            else
+                stride *= (padded_dim / fib);
         } else {
             full_inner_blks[dim_idx] *= block;
             blk.inner_blks[blk.inner_nblks] = block;
