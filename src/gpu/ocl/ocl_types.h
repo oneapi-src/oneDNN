@@ -683,24 +683,24 @@
 #elif DST_DT_F16
 
 #define BLOCK_READ_DST(ptr) \
-    AS_DST_DATA_T(intel_sub_group_block_read_us((__global uint *)ptr))
+    AS_DST_DATA_T(intel_sub_group_block_read_us((__global ushort *)ptr))
 #define BLOCK_WRITE_DST(ptr, v) \
-    intel_sub_group_block_write_us((__global uint *)ptr, as_uint(v))
+    intel_sub_group_block_write_us((__global ushort *)ptr, as_ushort(v))
 
 #define BLOCK_READ_DST2(ptr) \
-    AS_DST_DATA2_T(intel_sub_group_block_read_us2((__global uint *)ptr))
+    AS_DST_DATA2_T(intel_sub_group_block_read_us2((__global ushort *)ptr))
 #define BLOCK_WRITE_DST2(ptr, v) \
-    intel_sub_group_block_write_us2((__global uint *)ptr, as_uint2(v))
+    intel_sub_group_block_write_us2((__global ushort *)ptr, as_short2(v))
 
 #define BLOCK_READ_DST4(ptr) \
-    AS_DST_DATA4_T(intel_sub_group_block_read_us4((__global uint *)ptr))
+    AS_DST_DATA4_T(intel_sub_group_block_read_us4((__global ushort *)ptr))
 #define BLOCK_WRITE_DST4(ptr, v) \
-    intel_sub_group_block_write_us4((__global uint *)ptr, as_uint4(v))
+    intel_sub_group_block_write_us4((__global ushort *)ptr, as_ushort4(v))
 
 #define BLOCK_READ_DST8(ptr) \
-    AS_DST_DATA8_T(intel_sub_group_block_read_us8((__global uint *)ptr))
+    AS_DST_DATA8_T(intel_sub_group_block_read_us8((__global ushort *)ptr))
 #define BLOCK_WRITE_DST8(ptr, v) \
-    intel_sub_group_block_write_us8((__global uint *)ptr, as_uint8(v))
+    intel_sub_group_block_write_us8((__global ushort *)ptr, as_ushort8(v))
 
 #define BLOCK_READ_DST16(ptr) \
     (DST_DATA16_T)( \
