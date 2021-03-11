@@ -109,6 +109,12 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
             const memory_desc_wrapper src1_d(src_md(1));
             const memory_desc_wrapper dst_d(dst_md());
 
+            // check density first to avoid same non-dense src0 and src1 to pass
+            // the next check
+            bool ok = src0_d.is_dense(true) && src1_d.is_dense(true)
+                    && dst_d.is_dense(true);
+            if (!ok) return false;
+
             const auto ndims = src0_d.ndims();
             const dim_t C = ndims >= 2 ? src0_d.dims()[1] : 1;
             const bool has_oc_tail = C != src0_d.padded_dims()[1];
