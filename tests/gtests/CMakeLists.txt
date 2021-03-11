@@ -199,6 +199,7 @@ endforeach()
 
 add_subdirectory(api)
 add_subdirectory(internals)
+add_subdirectory(regression)
 
 if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)
