@@ -111,6 +111,35 @@ those same cases, we would likely preserve the user datatype in the
 queried `memory_desc` and handle down-conversion internally (not
 through reorder).
 
+Example: here is an example of what would be the behavior for
+convolution:
+```c++
+auto conv_desc = convolution_forward::desc(prop_kind::forward,
+    algorithm::convolution_direct, src_md, weights_md, dst_md,
+    strides, padding_l, padding_r);
+auto conv_pd
+    = convolution_forward::primitive_desc(conv_desc, engine);
+auto impl_src_md = conv_pd.src_desc();
+auto impl_weights_md = conv_pd.weights_desc();
+auto impl_dst_md = conv_pd.dst_desc();
+```
+
+In that snippet, `src_md`, `weights_md` and `dst_md` are the memory
+descriptors passed by the user to create the convolution primitive.
+And `impl_src_md`, `impl_weights_md` and `impl_dst_md` are the
+corresponding memory descriptors returned by the primitive
+implementation when queried.
+
+The table below summarizes what the primitive is allowed to return
+when queried. To simplify, we use `id` for `implementation defined`.
+| `<user_md>` | `<user_md>` tag | `<user_md>.data_type()` | `<impl_md>` tag | `<impl_md>.data_type()` ( downconvert disabled) | `<impl_md>.data_type()` ( downconvert enabled) |
+|-------------|-----------------|-------------------------|-----------------|-------------------------------------------------|------------------------------------------------|
+| src_md      | any             | f32                     | id              | f32                                             | id                                             |
+|             | nhwc            | f32                     | nhwc            | f32                                             | f32                                            |
+| weights     | any             | f32                     | id              | f32                                             | id                                             |
+|             | oihw            | f32                     | oihw            | f32                                             | f32                                            |
+| dst         | any             | f32                     | id              | f32                                             | id                                             |
+|             | nhwc            | f32                     | nhwc            | f32                                             | f32                                            |
 
 # 3. API changes proposal
 
