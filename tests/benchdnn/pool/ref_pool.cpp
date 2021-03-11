@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,7 +63,11 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         float res = 0.f;
         if (prb->alg == MAX) {
             res = max_value;
-            if (!(prb->dir & FLAG_INF)) ws.set_elem(dst_off, ws_off);
+            if (!(prb->dir & FLAG_INF)) {
+                // Move value from int to uint8_t depending on ws data type
+                ws_off = maybe_saturate(ws.dt(), ws_off);
+                ws.set_elem(dst_off, ws_off);
+            }
         } else if (prb->alg == AVG_NP || prb->alg == AVG_P) {
             res = avg_value / get_num_summands(prb, od, oh, ow);
         }
