@@ -32,11 +32,9 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     if (attr()->post_ops_.len() == 0) return status::unimplemented;
 
     auto attributes_with_po = attr()->clone();
-    attributes_with_po->set_scratchpad_mode(scratchpad_mode::user);
 
     auto attributes_without_po = attr()->clone();
     attributes_without_po->post_ops_.entry_.clear();
-    attributes_without_po->set_scratchpad_mode(scratchpad_mode::user);
 
     const auto gemm_desc = desc();
 

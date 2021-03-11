@@ -69,12 +69,9 @@ status_t simple_layer_normalization_fwd_t<data_type>::pd_t::init(
     CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
 
     if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
-        primitive_attr_t r_attr;
-        r_attr.set_scratchpad_mode(scratchpad_mode::user);
-
         CHECK(reorder_primitive_desc_create(reorder_pd_, engine,
                 stats_are_src() ? stat_md() : &reordered_stat_md_,
-                stats_are_src() ? &reordered_stat_md_ : stat_md(), &r_attr));
+                stats_are_src() ? &reordered_stat_md_ : stat_md()));
     }
 
     init_scratchpad();
@@ -139,11 +136,8 @@ status_t simple_layer_normalization_bwd_t<data_type>::pd_t::init(
     CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
 
     if (reordered_stat_md_ != *stat_md()) {
-        primitive_attr_t r_attr;
-        r_attr.set_scratchpad_mode(scratchpad_mode::user);
-
         CHECK(reorder_primitive_desc_create(
-                reorder_pd_, engine, stat_md(), &reordered_stat_md_, &r_attr));
+                reorder_pd_, engine, stat_md(), &reordered_stat_md_));
     }
 
     init_scratchpad();

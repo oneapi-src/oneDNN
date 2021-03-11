@@ -53,19 +53,17 @@ struct ref_concat_t : public primitive_t {
                 if (status != status::success) return status::unimplemented;
             }
 
-            primitive_attr_t r_attr;
-            r_attr.set_scratchpad_mode(scratchpad_mode::user);
             reorder_pds_.resize(n_ + use_tent_dst());
             for (int i = 0; i < n_; ++i) {
-                CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
-                        src_md(i), src_image_md(i), &r_attr));
+                CHECK(reorder_primitive_desc_create(
+                        reorder_pds_[i], engine, src_md(i), src_image_md(i)));
             }
 
             if (use_tent_dst()) {
                 assert(tent_dst_md_.format_kind != format_kind::undef);
                 assert(dst_md_.format_kind != format_kind::undef);
-                CHECK(reorder_primitive_desc_create(reorder_pds_[n_], engine,
-                        &tent_dst_md_, &dst_md_, &r_attr));
+                CHECK(reorder_primitive_desc_create(
+                        reorder_pds_[n_], engine, &tent_dst_md_, &dst_md_));
             }
             init_scratchpad();
             return status;

@@ -59,7 +59,6 @@ status_t cross_engine_reorder_t::pd_t::init(
 
     primitive_attr_t r_attr(*attr());
     if (!r_attr.is_initialized()) return status::out_of_memory;
-    r_attr.set_scratchpad_mode(scratchpad_mode::user);
 
     CHECK(reorder_primitive_desc_create(
             reorder_pd_, reorder_engine, src_md(), dst_md(), &r_attr));

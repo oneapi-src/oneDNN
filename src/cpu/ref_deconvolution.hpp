@@ -112,7 +112,6 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             // impl available and apply post-ops and/or bias update later in
             // this impl via simple loop.
             primitive_attr_t conv_attr;
-            conv_attr.set_scratchpad_mode(scratchpad_mode::user);
 
             convolution_desc_t cd;
             // When no attributes were requested, try to find a bwd_d conv impl
@@ -323,7 +322,6 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
             if (status != status::success) return status;
             primitive_attr_t conv_attr(*attr());
             if (!conv_attr.is_initialized()) return status::out_of_memory;
-            conv_attr.set_scratchpad_mode(scratchpad_mode::user);
 
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
@@ -417,7 +415,6 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             if (status != status::success) return status;
             primitive_attr_t conv_attr(*attr());
             if (!conv_attr.is_initialized()) return status::out_of_memory;
-            conv_attr.set_scratchpad_mode(scratchpad_mode::user);
 
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);

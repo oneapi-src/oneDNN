@@ -80,7 +80,6 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
 
     primitive_attr_t conv_attr(*attr());
     if (!conv_attr.is_initialized()) return status::out_of_memory;
-    conv_attr.set_scratchpad_mode(scratchpad_mode::user);
 
     dnnl_primitive_desc_iterator it(
             engine, (op_desc_t *)&cd, &conv_attr, nullptr);
@@ -103,14 +102,12 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
         conf.reorder_dst = true;
         primitive_attr_t r_attr(default_attr());
         if (!r_attr.is_initialized()) return status::out_of_memory;
-        r_attr.set_scratchpad_mode(scratchpad_mode::user);
         CHECK(reorder_primitive_desc_create(
                 rpd_dst_, engine, &dst_conv, &ip_dst_md, &r_attr));
 
         if (conf.attr_info.with_sum) {
             primitive_attr_t r_attr(default_attr());
             if (!r_attr.is_initialized()) return status::out_of_memory;
-            r_attr.set_scratchpad_mode(scratchpad_mode::user);
             CHECK(reorder_primitive_desc_create(
                     rpd_postop_, engine, &ip_dst_md, &dst_conv, &r_attr));
         }

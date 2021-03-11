@@ -49,7 +49,6 @@ struct ref_sum_t : public gpu_primitive_t {
             reorder_pds_.resize(n_ + need_output_reorder());
             for (int i = 0; i < n_; ++i) {
                 primitive_attr_t r_attr;
-                r_attr.set_scratchpad_mode(scratchpad_mode::user);
                 r_attr.output_scales_.set(scales_[i]);
                 if (i != 0) r_attr.post_ops_.append_sum(1.0);
 
@@ -58,11 +57,8 @@ struct ref_sum_t : public gpu_primitive_t {
             }
 
             if (need_output_reorder()) {
-                primitive_attr_t r_attr;
-                r_attr.set_scratchpad_mode(scratchpad_mode::user);
-
-                CHECK(reorder_primitive_desc_create(reorder_pds_[n_], engine,
-                        dst_acc_md(), dst_md(), &r_attr));
+                CHECK(reorder_primitive_desc_create(
+                        reorder_pds_[n_], engine, dst_acc_md(), dst_md()));
             }
 
             init_scratchpad();

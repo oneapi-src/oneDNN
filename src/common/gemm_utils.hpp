@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -116,7 +116,6 @@ static inline status_t create_gemm_pd(
     gemm_desc.acc_type = acc_dt;
 
     primitive_attr_t gemm_attr = *attr;
-    gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
 
     dnnl_primitive_desc_iterator it(
             engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);

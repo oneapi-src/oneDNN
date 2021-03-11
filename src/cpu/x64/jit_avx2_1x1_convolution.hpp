@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -164,7 +164,6 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
             primitive_attr_t attr_1x1(*attr());
             if (!attr_1x1.is_initialized()) return status::out_of_memory;
             jit_conv_conf_t *jcp_dw = nullptr;
-            attr_1x1.set_scratchpad_mode(scratchpad_mode::user);
 
             const auto &src_md = dst_md_;
             const memory_desc_wrapper src_d(src_md);

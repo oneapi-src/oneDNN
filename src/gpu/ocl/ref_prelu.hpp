@@ -125,7 +125,6 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
                     diff_weights_md(0), 0, 0);
             primitive_attr_t reduction_attr(*attr());
             if (!reduction_attr.is_initialized()) return status::out_of_memory;
-            reduction_attr.set_scratchpad_mode(scratchpad_mode::user);
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&rdesc, &reduction_attr, nullptr);
             if (!it.is_initialized()) return status::invalid_arguments;

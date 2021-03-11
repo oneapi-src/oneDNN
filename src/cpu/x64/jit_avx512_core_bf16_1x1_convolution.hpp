@@ -177,7 +177,6 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             jit_conv_conf_t *jcp_dw = nullptr;
             primitive_attr_t attr_1x1(*attr());
             if (!attr_1x1.is_initialized()) return status::out_of_memory;
-            attr_1x1.set_scratchpad_mode(scratchpad_mode::user);
 
             const auto &src_md = dst_md_;
             const memory_desc_wrapper src_d(src_md);

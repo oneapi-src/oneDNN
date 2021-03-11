@@ -173,7 +173,6 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             using namespace data_type;
             primitive_attr_t root_attr(*attr());
             if (!root_attr.is_initialized()) return status::out_of_memory;
-            root_attr.set_scratchpad_mode(scratchpad_mode::user);
             auto po_op_iter
                     = attr()->post_ops_.find(primitive_kind::convolution);
             if (po_op_iter == -1) return status::unimplemented;
@@ -182,8 +181,6 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             // erase post-ops after fusion as they will be handled separately
             auto &e = attr_1x1.post_ops_.entry_;
             e.erase(e.begin() + po_op_iter, e.end());
-
-            attr_1x1.set_scratchpad_mode(scratchpad_mode::user);
 
             dnnl_primitive_desc_iterator it(
                     engine, op_desc(), &attr_1x1, nullptr);

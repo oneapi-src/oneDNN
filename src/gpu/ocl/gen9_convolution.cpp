@@ -1025,7 +1025,6 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
 
             primitive_attr_t r_attr(default_attr());
             if (!r_attr.is_initialized()) return status::out_of_memory;
-            r_attr.set_scratchpad_mode(scratchpad_mode::user);
 
             CHECK(reorder_primitive_desc_create(rpd_wei_, engine, &temp_wei_md,
                     diff_weights_md(), &r_attr));
@@ -1037,7 +1036,6 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
             temp_bias_md.data_type = data_type::f32;
             primitive_attr_t r_attr(default_attr());
             if (!r_attr.is_initialized()) return status::out_of_memory;
-            r_attr.set_scratchpad_mode(scratchpad_mode::user);
 
             CHECK(reorder_primitive_desc_create(rpd_bia_, engine, &temp_bias_md,
                     diff_weights_md(1), &r_attr));
