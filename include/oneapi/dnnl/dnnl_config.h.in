@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -90,6 +90,9 @@
 #define DNNL_ENABLE_CONCURRENT_EXEC
 #endif
 #endif
+
+// When defined, primitive cache stores runtime objects.
+#cmakedefine DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
 
 // When defined, DPCPP is supported.
 #cmakedefine DNNL_WITH_SYCL

@@ -40,6 +40,9 @@ option(DNNL_ENABLE_CONCURRENT_EXEC
 option(DNNL_ENABLE_PRIMITIVE_CACHE "enables primitive cache." ON)
     # enabled by default
 
+option(DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE "If DNNL_ENABLE_PRIMITIVE_CACHE
+    is ON enables using runtime objects in the primitive cache" OFF)
+
 option(DNNL_ENABLE_MAX_CPU_ISA
     "enables control of CPU ISA detected by oneDNN via DNNL_MAX_CPU_ISA
     environment variable and dnnl_set_max_cpu_isa() function" ON)
