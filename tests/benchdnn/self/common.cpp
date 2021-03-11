@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -242,7 +242,7 @@ static int check_tags() {
     dnnl_memory_desc_t md_from_tag;
     dnnl_memory_desc_t md_from_str;
 
-    dnnl_dims_t dims = {29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73};
+    dnnl_dims_t dims = {7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47};
     for (int tag_ = dnnl_format_tag_undef; tag_ != dnnl_format_tag_last;
             tag_++) {
         dnnl_format_tag_t format_tag = (dnnl_format_tag_t)tag_;
