@@ -26,14 +26,27 @@
 
 namespace dnnl {
 
+namespace {
+bool is_sycl_engine(dnnl_engine_kind_t eng_kind) {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+    if (eng_kind == dnnl_cpu) return true;
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+    if (eng_kind == dnnl_gpu) return true;
+#endif
+    return false;
+}
+} // namespace
+
 class memory_map_test_c_t
     : public ::testing::TestWithParam<dnnl_engine_kind_t> {
 protected:
     void SetUp() override {
-        auto engine_kind = GetParam();
-        if (dnnl_engine_get_count(engine_kind) == 0) return;
+        eng_kind = GetParam();
+        if (dnnl_engine_get_count(eng_kind) == 0) return;
 
-        DNNL_CHECK(dnnl_engine_create(&engine, engine_kind, 0));
+        DNNL_CHECK(dnnl_engine_create(&engine, eng_kind, 0));
         DNNL_CHECK(
                 dnnl_stream_create(&stream, engine, dnnl_stream_default_flags));
     }
@@ -43,6 +56,7 @@ protected:
         if (stream) { DNNL_CHECK(dnnl_stream_destroy(stream)); }
     }
 
+    dnnl_engine_kind_t eng_kind;
     dnnl_engine_t engine = nullptr;
     dnnl_stream_t stream = nullptr;
 };
@@ -52,6 +66,7 @@ class memory_map_test_cpp_t
 
 TEST_P(memory_map_test_c_t, MapNullMemory) {
     SKIP_IF(!engine, "Engine kind is not supported.");
+    SKIP_IF(is_sycl_engine(eng_kind), "Do not test C API with SYCL.");
 
     int ndims = 4;
     dnnl_dims_t dims = {2, 3, 4, 5};
@@ -72,6 +87,7 @@ TEST_P(memory_map_test_c_t, MapNullMemory) {
 
 HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_c_t, Map) {
     SKIP_IF(!engine, "Engine kind is not supported.");
+    SKIP_IF(is_sycl_engine(eng_kind), "Do not test C API with SYCL.");
 
     const int ndims = 1;
     const dnnl_dim_t N = 15;
