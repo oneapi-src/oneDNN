@@ -50,8 +50,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
 
     auto check_attr_oscale = [&]() -> bool {
         const auto &oscale = attr()->output_scales_;
-        return IMPLICATION(oscale.mask_ != 0,
-                oscale.mask_ == (1 << 1) && batched() == false);
+        return IMPLICATION(
+                oscale.mask_ != 0, oscale.mask_ == (1 << (dst_md_.ndims - 1)));
     };
 
     auto check_attr_zero_points = [&]() -> bool {

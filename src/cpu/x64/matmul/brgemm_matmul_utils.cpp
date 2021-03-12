@@ -81,10 +81,10 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     if (bgmmc.with_scales) {
         const auto &oscales = attr.output_scales_;
-        bgmmc.is_oscale_per_n = oscales.mask_ == 1 << 1;
+        bgmmc.is_oscale_per_n = oscales.mask_ == 1 << (bgmmc.ndims - 1);
 
         // only common and per-oc-channel scales are supported
-        const bool oscales_ok = one_of(oscales.mask_, 0, 1 << 1);
+        const bool oscales_ok = oscales.mask_ == 0 || bgmmc.is_oscale_per_n;
         if (!oscales_ok) return status::unimplemented;
     }
 

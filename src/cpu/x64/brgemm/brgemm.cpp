@@ -387,7 +387,18 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
 
     if (brg->is_int8) {
         const auto &oscales = brg->attr->output_scales_;
-        brg->is_oc_scale = oscales.mask_ == 1 << 1;
+        // Note. the current version supports only two different output scale
+        // types:
+        //     1) common (mask_ = 0)
+        //     2) per_n_dim_scale - broadcast across n dimension;
+        //        for convolution and inner product promitives it corresponds
+        //        to "per_oc" mask_ = 1 << 1; for matmul - to
+        //        mask_ = (1 << (ndims - 1))), where ndims is number of
+        //        dimensions for original matmul problem
+        // So if oscales.mask_ != 0 (not common) it's assumed here that scale
+        // type is per_n_dim_scale and driver which calls brgemm kernel checked
+        // that mask has correct value for this case
+        brg->is_oc_scale = oscales.mask_ != 0;
         brg->with_scales = true;
     }
 
