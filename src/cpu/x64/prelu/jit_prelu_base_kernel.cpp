@@ -100,10 +100,7 @@ size_t jit_prelu_base_kernel_t::calc_tail_size(
     else if (bcast_ == prelu::bcast::per_oc_n_c_spatial && ndims >= 3)
         nelems = utils::array_product(tensor_md.dims() + 2, ndims - 2);
 
-    if (inner_blks == 0) {
-        const auto tail = nelems % simd_w_;
-        return tail;
-    }
+    if (inner_blks == 0) return nelems % simd_w_;
 
     return inner_blks;
 }

@@ -261,11 +261,11 @@ template <typename Vmm>
 void jit_prelu_io_helper_t<Vmm>::prepare_tail_mask() {
     if (!tail_size_ || isa_ == sse41) return;
 
-    static const uint32_t mask_f32[14]
+    static const uint32_t mask_f32[15]
             = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
-                    0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0, 0};
+                    0xffffffff, 0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0, 0};
 
-    host_->mov(reg_tmp_, reinterpret_cast<size_t>(&mask_f32[7 - tail_size_]));
+    host_->mov(reg_tmp_, reinterpret_cast<size_t>(&mask_f32[8 - tail_size_]));
     host_->vmovups(tail_vmm_mask_, host_->ptr[reg_tmp_]);
 }
 

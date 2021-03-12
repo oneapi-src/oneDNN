@@ -73,6 +73,7 @@ protected:
     const size_t tail_size_ = 0;
     const Xbyak::Reg64 &reg_weights_diff_ = r11;
     size_t number_reserved_vmms_ = 0;
+    size_t zero_pad_size_;
 };
 
 template <typename Vmm>
