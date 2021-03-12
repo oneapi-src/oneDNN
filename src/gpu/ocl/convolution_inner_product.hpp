@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "common/type_helpers.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
@@ -33,7 +34,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct convolution_inner_product_fwd_t : public primitive_t {
+struct convolution_inner_product_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_inner_product_fwd_pd_t {
         using gpu_inner_product_fwd_pd_t::gpu_inner_product_fwd_pd_t;
 
@@ -116,32 +117,24 @@ struct convolution_inner_product_fwd_t : public primitive_t {
         status_t init_scratchpad();
     };
 
-    convolution_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    convolution_inner_product_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         CHECK(pd()->cpd_->create_primitive(conv_, engine));
-        if (pd()->conf.reorder_dst) {
-            if (pd()->rpd_postop_)
-                CHECK(pd()->rpd_postop_->create_primitive(
-                        postop_reorder_, engine));
+        if (pd()->rpd_postop_)
+            CHECK(pd()->rpd_postop_->create_primitive(postop_reorder_, engine));
+        if (pd()->rpd_dst_)
             CHECK(pd()->rpd_dst_->create_primitive(dst_reorder_, engine));
-        }
-        return status::success;
-    }
-
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        CHECK(conv_->create_resource(engine, mapper));
-        if (pd()->conf.reorder_dst) {
-            if (postop_reorder_)
-                CHECK(postop_reorder_->create_resource(engine, mapper));
-            CHECK(dst_reorder_->create_resource(engine, mapper));
-        }
         return status::success;
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
+    }
+
+protected:
+    primitive_list_t nested_primitives() const override {
+        return {conv_.get(), postop_reorder_.get(), dst_reorder_.get()};
     }
 
 private:
