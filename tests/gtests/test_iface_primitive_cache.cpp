@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -101,7 +101,20 @@ TEST(primitive_cache_test, TestCacheHit) {
     set_primitive_cache_capacity(2);
     fill_primitive_cache(1);
     fill_primitive_cache(1);
+
+#ifndef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     ASSERT_EQ(get_primitive_cache_size(), 1);
+    return;
+#endif
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (get_test_engine_kind() == engine::kind::cpu) {
+        // Regular CPU engines are always considered equal.
+        ASSERT_EQ(get_primitive_cache_size(), 1);
+        return;
+    }
+#endif
+    ASSERT_EQ(get_primitive_cache_size(), 2);
 }
 #endif
 
