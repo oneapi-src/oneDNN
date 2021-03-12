@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,6 +54,8 @@ public:
     status_t realize(kernel_t *kernel, const engine_t *engine,
             program_list_t *programs) const;
 
+    void clear();
+
 private:
     std::shared_ptr<kernel_impl_t> impl_;
 };
@@ -71,6 +73,8 @@ public:
 
     virtual status_t realize(kernel_t *kernel, const engine_t *engine,
             program_list_t *programs) const = 0;
+
+    virtual void clear() = 0;
 };
 
 inline kernel_t::id_t kernel_t::id() const {
@@ -83,6 +87,10 @@ inline status_t kernel_t::parallel_for(stream_t &stream,
 inline status_t kernel_t::realize(kernel_t *kernel, const engine_t *engine,
         program_list_t *programs) const {
     return impl_->realize(kernel, engine, programs);
+}
+
+inline void kernel_t::clear() {
+    impl_->clear();
 }
 
 } // namespace compute

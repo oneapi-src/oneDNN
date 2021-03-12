@@ -48,6 +48,7 @@ struct primitive_t : public c_compatible {
 
     status_t init(engine_t *engine, bool use_global_scratchpad) {
         CHECK(init(engine));
+        CHECK(init_cached_resource(engine));
         use_global_scratchpad_ = use_global_scratchpad;
         return status::success;
     }
@@ -58,6 +59,23 @@ struct primitive_t : public c_compatible {
 
     virtual status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const {
+        return status::success;
+    }
+
+    // Although this function is marked as `const` it changes primitive_t state.
+    // The only place where this function should be used is in:
+    // `init(engine_t *engine, bool use_global_scratchpad)` during primitive_t
+    // creation in `create_primitive_common`.
+    // The rationale behind marking it as `const` is to simplify enabling the
+    // primitive cache mode for storing compiled GPU kernels instead of
+    // binaries - DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE=ON and to preserve the
+    // current primitive cache implementation.
+    //
+    // The main idea is to create a resource inside the primitive_t only once
+    // and cache it as part of primitive_t.
+    // TODO: The ultimate goal is to switch completely to caching compiled
+    // GPU kernels therefore the code will be thrown out once it's done.
+    virtual status_t init_cached_resource(engine_t *engine) const {
         return status::success;
     }
 

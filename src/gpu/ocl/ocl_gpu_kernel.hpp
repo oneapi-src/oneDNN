@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,6 +69,12 @@ public:
         return arg_types_;
     }
 
+    void clear() override {
+        assert(state_ == state_t::binary);
+        binary_->clear();
+        binary_name_.clear();
+        arg_types_.clear();
+    }
     enum class state_t { binary, kernel };
 
 protected:

@@ -85,10 +85,12 @@ public:
 
             status_t status
                     = zero_pad_pd->create_primitive(zero_pad_primitive_, this);
+#ifndef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
             if (status == status::success) {
                 status = zero_pad_primitive_->create_resource(
                         this, zero_pad_resources_);
             }
+#endif
             if (status != status::success) { zero_pad_primitive_.reset(); }
         });
 

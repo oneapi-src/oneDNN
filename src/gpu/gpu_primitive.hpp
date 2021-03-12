@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,10 +23,17 @@
 #include "gpu/gemm/gpu_gemm_exec_types.hpp"
 #include "gpu/gpu_resource.hpp"
 
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+#define CTX_GPU_RES_STORAGE(arg) \
+    (*(cached_mapper() \
+                    ->template get<gpu_resource_t>(this) \
+                    ->get_memory_storage(arg)))
+#else
 #define CTX_GPU_RES_STORAGE(arg) \
     (*(ctx.get_resource_mapper() \
                     ->get<gpu_resource_t>(this) \
                     ->get_memory_storage(arg)))
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -35,27 +42,34 @@ namespace gpu {
 struct gpu_primitive_t : public primitive_t {
     using primitive_t::primitive_t;
 
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    const resource_mapper_t *cached_mapper() const { return &cached_mapper_; }
+
+    status_t init_cached_resource(engine_t *engine) const override {
+        CHECK(fill_mapper(engine, cached_mapper_));
+        // When caching kernels, each primitve from the hierarchy has its
+        // own mapper and is responsible for filling it.
+        for (const auto &np : nested_primitives()) {
+            if (np) CHECK(np->init_cached_resource(engine));
+        }
+        // Clear kernels with binary state to decrease memory consumption.
+        for (auto &rk : registered_kernels_) {
+            if (rk) rk.clear();
+        }
+        return status::success;
+    }
+#else
     status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<gpu_resource_t>();
-        if (!r) return status::out_of_memory;
-        compute::program_list_t programs(engine);
-        for (const auto &rk : registered_kernels_) {
-            if (!rk) continue;
-            compute::kernel_t realized_kernel;
-            CHECK(rk.realize(&realized_kernel, engine, &programs));
-            r->add_kernel(rk.id(), realized_kernel);
-        }
-        CHECK(init_res_storage(engine, r.get()));
-        mapper.add(this, std::move(r));
-
-        for (auto const &np : nested_primitives()) {
-            // some nested primitives are created on demand
+        CHECK(fill_mapper(engine, mapper));
+        // When caching binaries there is a single common mapper that is
+        // filled for the whole hierarchy of primitives.
+        for (const auto &np : nested_primitives()) {
             if (np) CHECK(np->create_resource(engine, mapper));
         }
         return status::success;
     }
+#endif
 
     status_t create_kernel(engine_t *engine, compute::kernel_t *kernel,
             jit::jit_generator_base &jitter) {
@@ -101,15 +115,25 @@ protected:
     status_t parallel_for(const gemm_exec_ctx_t &ctx,
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
             const compute::kernel_arg_list_t &arg_list) const {
-        return parallel_for(ctx.get_resource_mapper(), ctx.stream(), range,
-                kernel, arg_list);
+        const resource_mapper_t *rm = nullptr;
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+        rm = cached_mapper();
+#else
+        rm = ctx.get_resource_mapper();
+#endif
+        return parallel_for(rm, ctx.stream(), range, kernel, arg_list);
     }
 
     status_t parallel_for(const exec_ctx_t &ctx,
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
             const compute::kernel_arg_list_t &arg_list) const {
-        return parallel_for(ctx.get_resource_mapper(), ctx.stream(), range,
-                kernel, arg_list);
+        const resource_mapper_t *rm = nullptr;
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+        rm = cached_mapper();
+#else
+        rm = ctx.get_resource_mapper();
+#endif
+        return parallel_for(rm, ctx.stream(), range, kernel, arg_list);
     }
 
     void register_kernels(const std::vector<compute::kernel_t> &kernels) {
@@ -119,6 +143,22 @@ protected:
     }
 
 private:
+    status_t fill_mapper(engine_t *engine, resource_mapper_t &mapper) const {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<gpu_resource_t>();
+        if (!r) return status::out_of_memory;
+        compute::program_list_t programs(engine);
+        for (const auto &rk : registered_kernels_) {
+            if (!rk) continue;
+            compute::kernel_t realized_kernel;
+            CHECK(rk.realize(&realized_kernel, engine, &programs));
+            r->add_kernel(rk.id(), realized_kernel);
+        }
+        CHECK(init_res_storage(engine, r.get()));
+        mapper.add(this, std::move(r));
+        return status::success;
+    }
+
     status_t parallel_for(const resource_mapper_t *resource_mapper,
             stream_t *stream, const compute::nd_range_t &range,
             const compute::kernel_t &kernel,
@@ -133,7 +173,13 @@ private:
         return status::success;
     }
 
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    // Make these mutable to allow modifying them from `init_cached_resource`.
+    mutable resource_mapper_t cached_mapper_;
+    mutable std::vector<compute::kernel_t> registered_kernels_;
+#else
     std::vector<compute::kernel_t> registered_kernels_;
+#endif
 };
 
 } // namespace gpu
