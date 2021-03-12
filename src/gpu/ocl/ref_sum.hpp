@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -119,7 +119,6 @@ struct ref_sum_t : public gpu_primitive_t {
         reorders_.resize(n);
         for (size_t i = 0; i < n; ++i) {
             pd()->reorder_pds_[i]->create_primitive(reorders_[i], engine);
-            reorders_[i]->init(engine);
         }
         return status::success;
     }
