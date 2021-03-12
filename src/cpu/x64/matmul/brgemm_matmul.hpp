@@ -92,11 +92,27 @@ struct brgemm_matmul_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     void execute_body(const exec_ctx_t &ctx) const;
+    // Auxiliary functions for getting offsets with pre-calculated memory
+    // strides for each tensor to get general sulution for all possible
+    // dimension without significant overhead
+    dim_t get_A_off(int b, int m, int k) const {
+        return A_strides_[2] * b + A_strides_[1] * m + A_strides_[0] * k;
+    }
+    dim_t get_B_off(int b, int k, int n) const {
+        return B_strides_[2] * b + B_strides_[1] * k + B_strides_[0] * n;
+    }
+    dim_t get_D_off(int b, int m, int n) const {
+        return D_strides_[2] * b + D_strides_[1] * m + D_strides_[0] * n;
+    }
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_matmul];
     char brg_kernel_palettes_[max_num_brg_kernels_matmul][64];
     std::unique_ptr<jit_brgemm_matmul_copy_B_t> copy_B_kernel_;
     std::unique_ptr<jit_brgemm_matmul_copy_A_t> copy_A_kernel_;
+    // Pre-calculated memory strides for each tensor
+    dim_t A_strides_[3] = {0};
+    dim_t B_strides_[3] = {0};
+    dim_t D_strides_[3] = {0};
 };
 
 } // namespace matmul

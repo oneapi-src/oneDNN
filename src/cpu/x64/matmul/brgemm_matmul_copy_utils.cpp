@@ -873,7 +873,9 @@ void jit_brgemm_matmul_copy_B_transposed_int8_t::generate() {
 status_t create_brgemm_matmul_copy_B(
         std::unique_ptr<jit_brgemm_matmul_copy_B_t> &copy_ker,
         const brgemm_matmul_conf_t *conf) {
-    const bool is_B_transposed = one_of(conf->wei_tag, ba, acb);
+    const bool is_B_transposed
+            = one_of(conf->wei_tag, ba, acb, abdc, abced, abcdfe, abcdegf,
+                    abcdefhg, abcdefgih, abcdefghji, abcdefghikj, abcdefghijlk);
     if (is_B_transposed)
         CHECK(safe_ptr_assign(copy_ker,
                 new jit_brgemm_matmul_copy_B_transposed_int8_t(conf)));

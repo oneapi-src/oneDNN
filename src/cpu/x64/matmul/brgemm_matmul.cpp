@@ -39,11 +39,6 @@ using namespace nstl;
 
 using namespace data_type;
 
-#define get_blk_off(d, dt, b, idx1, idx0) \
-    (types::data_type_size((dt)) \
-            * ((bgmmc.ndims == 3) ? (d).blk_off(b, idx1, idx0) \
-                                  : (d).blk_off(idx1, idx0)))
-
 template <cpu_isa_t isa>
 status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
 
@@ -143,6 +138,18 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
     if (bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only)
         CHECK(create_brgemm_matmul_copy_A(copy_A_kernel_, &bgmmc));
 
+    // initialize all required memory strides for tensors
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper wei_d(pd()->weights_md(0));
+    for (int d = 0; d < nstl::min(bgmmc.ndims, 3); d++) {
+        dims_t idx = {0};
+        idx[bgmmc.ndims - 1 - d] = 1;
+        A_strides_[d] = types::data_type_size(bgmmc.src_dt) * src_d.off_v(idx);
+        B_strides_[d] = types::data_type_size(bgmmc.wei_dt) * wei_d.off_v(idx);
+        D_strides_[d] = types::data_type_size(bgmmc.dst_dt) * dst_d.off_v(idx);
+    }
+
     return status::success;
 }
 
@@ -154,8 +161,6 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
     memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
-    const memory_desc_wrapper src_d(pd()->src_md());
-    const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
@@ -258,7 +263,7 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                 kernel_init, is_M_tail, is_N_tail, false);
         auto brg_kernel = brg_kernels_[brg_ker_idx].get();
         auto ptr_bias = bgmmc.with_bias ? bias + bia_dt_size * n : nullptr;
-        auto ptr_D = dst + get_blk_off(dst_d, bgmmc.dst_dt, b_idx, m, n);
+        auto ptr_D = dst + get_D_off(b_idx, m, n);
         auto ptr_C = (bgmmc.use_buffer) ? c_buffer : ptr_D;
 
         dim_t buffer_comp_idx
@@ -275,12 +280,11 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             if (is_tile_reconf_required)
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
             for (int b = 0; b < gemm_batch; b++) {
-                auto src_off = get_blk_off(
-                        src_d, bgmmc.src_dt, b_idx, m, k + b * bgmmc.K_blk);
+                auto src_off = get_A_off(b_idx, m, k + b * bgmmc.K_blk);
                 addr_batch[b].ptr.A = (bgmmc.use_buffer_a)
                         ? a_buffer + b * a_buffer_sz
                         : src + src_off;
-                auto wei_off = get_blk_off(weights_d, bgmmc.wei_dt, b_idx,
+                auto wei_off = get_B_off(b_idx,
                         (k + b * bgmmc.K_blk) / bgmmc.wei_k_blk,
                         n / bgmmc.wei_n_blk);
                 addr_batch[b].ptr.B = (bgmmc.use_buffer_b)
@@ -313,14 +317,13 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                 amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
         }
         if (is_K_tail) {
-            auto src_off = get_blk_off(src_d, bgmmc.src_dt, b_idx, m,
-                    k + gemm_batch * bgmmc.K_blk);
+            auto src_off = get_A_off(b_idx, m, k + gemm_batch * bgmmc.K_blk);
             const int a_buf_gemm_batch
                     = bgmmc.use_buffer_a_tail_only ? 0 : gemm_batch;
             addr_batch[0].ptr.A = use_buffer_a
                     ? a_buffer + a_buf_gemm_batch * a_buffer_sz
                     : src + src_off;
-            auto wei_off = get_blk_off(weights_d, bgmmc.wei_dt, b_idx,
+            auto wei_off = get_B_off(b_idx,
                     (k + gemm_batch * bgmmc.K_blk) / bgmmc.wei_k_blk,
                     n / bgmmc.wei_n_blk);
             addr_batch[0].ptr.B = (bgmmc.use_buffer_b)
@@ -406,8 +409,7 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                             : nullptr;
                     int gb = 0;
                     for (; gb < gemm_batch; gb++) {
-                        auto wei_off = get_blk_off(weights_d, bgmmc.wei_dt, b,
-                                k + gb * bgmmc.K_blk, n);
+                        auto wei_off = get_B_off(b, k + gb * bgmmc.K_blk, n);
                         ctx.src = (void *)(weights + wei_off);
                         ctx.tr_src = (void *)(b_buffer + gb * b_buffer_sz);
                         ctx.compensation_ptr = (void *)compensation_local;
@@ -420,8 +422,7 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                     }
 
                     if (is_K_tail) {
-                        auto wei_off = get_blk_off(weights_d, bgmmc.wei_dt, b,
-                                k + gb * bgmmc.K_blk, n);
+                        auto wei_off = get_B_off(b, k + gb * bgmmc.K_blk, n);
                         ctx.src = (void *)(weights + wei_off);
                         ctx.tr_src = (void *)(b_buffer + gb * b_buffer_sz);
                         ctx.compensation_ptr = (void *)compensation_local;
@@ -456,8 +457,8 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                                         * (mb % bgmmc.M_chunk_size);
 
                         for (int gb = 0; gb < gemm_batch_iters; gb++) {
-                            auto src_off = get_blk_off(src_d, bgmmc.src_dt, b,
-                                    m, k + gb * bgmmc.K_blk);
+                            auto src_off
+                                    = get_A_off(b, m, k + gb * bgmmc.K_blk);
                             ctx.src = (void *)(src + src_off);
                             ctx.tr_src = (void *)(a_buffer + gb * a_buffer_sz);
                             ctx.current_K_blk = nstl::min(bgmmc.K_blk, bgmmc.K);
@@ -466,8 +467,8 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                         }
                         if (is_K_tail) {
                             auto K_tail = bgmmc.K % bgmmc.K_blk;
-                            auto src_off = get_blk_off(src_d, bgmmc.src_dt, b,
-                                    m, k + gemm_batch * bgmmc.K_blk);
+                            auto src_off = get_A_off(
+                                    b, m, k + gemm_batch * bgmmc.K_blk);
                             ctx.src = (void *)(src + src_off);
                             ctx.tr_src = (void *)(a_buffer
                                     + gemm_batch_iters * a_buffer_sz);

@@ -68,6 +68,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.with_bias = mmd.bias_desc.format_kind != format_kind::undef;
     bgmmc.bia_dt = bgmmc.with_bias ? mmd.bias_desc.data_type : data_type::undef;
     bgmmc.signed_input = isa == avx512_core_vnni && bgmmc.src_dt == s8;
+    bgmmc.ndims = dst_d.ndims();
 
     const bool is_int8 = one_of(bgmmc.src_dt, u8, s8) && bgmmc.wei_dt == s8
             && one_of(bgmmc.dst_dt, u8, s8, s32, f32);
@@ -100,11 +101,14 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
                 !one_of(isa, avx512_core_vnni, avx512_core_bf16_amx_int8)))
         return status::unimplemented;
     matmul_helper_t helper(src_d, weights_d, dst_d);
-    bgmmc.ndims = dst_d.ndims();
-
-    if (bgmmc.ndims > 3) return status::unimplemented;
 
     bgmmc.batch_ndims = bgmmc.ndims - 2;
+    for (int d = 0; d < (int)bgmmc.batch_ndims; d++) {
+        // Do not support broadcast across any batch dimension
+        if (!everyone_is(src_d.dims()[d], weights_d.dims()[d], dst_d.dims()[d]))
+            return status::unimplemented;
+    }
+
     bgmmc.M = helper.M();
     bgmmc.N = helper.N();
     bgmmc.K = helper.K();
@@ -115,7 +119,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     const int k_blk_gran = is_amx ? 64 : 4;
 
     auto set_or_check_tags = [&]() -> status_t {
-        format_tag_t desired_src_tag = pick(bgmmc.ndims - 2, ab, abc);
+        format_tag_t desired_src_tag = pick(bgmmc.batch_ndims, ab, abc, abcd,
+                abcde, abcdef, abcdefg, abcdefgh, abcdefghi, abcdefghij,
+                abcdefghijk, abcdefghijkl);
         format_tag_t desired_dst_tag = desired_src_tag;
 
         if (src_d.format_kind() == format_kind::any) {
@@ -139,7 +145,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             CHECK(memory_desc_init_by_tag(weights_md, desired_wei_tag));
             bgmmc.wei_tag = desired_wei_tag;
         } else {
-            format_tag_t transposed_wei_tag = pick(bgmmc.ndims - 2, ba, acb);
+            format_tag_t transposed_wei_tag = pick(bgmmc.batch_ndims, ba, acb,
+                    abdc, abced, abcdfe, abcdegf, abcdefhg, abcdefgih,
+                    abcdefghji, abcdefghikj, abcdefghijlk);
             bgmmc.wei_tag = memory_desc_matches_one_of_tag(
                     weights_md, desired_wei_tag, transposed_wei_tag);
         }
