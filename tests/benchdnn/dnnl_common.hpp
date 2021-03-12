@@ -309,6 +309,28 @@ benchdnn_dnnl_wrapper_t<T> make_benchdnn_dnnl_wrapper(T t) {
     return benchdnn_dnnl_wrapper_t<T>(t);
 }
 
+struct engine_t {
+    engine_t(dnnl_engine_kind_t engine_kind);
+    engine_t(dnnl_engine_t engine);
+    ~engine_t();
+    operator dnnl_engine_t() const { return engine_; }
+
+private:
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(engine_t);
+    dnnl_engine_t engine_;
+    bool is_owner_;
+};
+
+struct stream_t {
+    stream_t(dnnl_engine_t engine);
+    ~stream_t();
+    operator dnnl_stream_t() const { return stream_; }
+
+private:
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
+    dnnl_stream_t stream_;
+};
+
 // Engine used to run oneDNN primitives for testing.
 inline const engine_t &get_test_engine() {
     static const engine_t instance(engine_tgt_kind);

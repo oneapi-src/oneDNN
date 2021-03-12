@@ -469,28 +469,6 @@ private:
     dw_t dw_entry; // only single dw fusion is supported
 };
 
-struct engine_t {
-    engine_t(dnnl_engine_kind_t engine_kind);
-    engine_t(dnnl_engine_t engine);
-    ~engine_t();
-    operator dnnl_engine_t() const { return engine_; }
-
-private:
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(engine_t);
-    dnnl_engine_t engine_;
-    bool is_owner_;
-};
-
-struct stream_t {
-    stream_t(dnnl_engine_t engine);
-    ~stream_t();
-    operator dnnl_stream_t() const { return stream_; }
-
-private:
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
-    dnnl_stream_t stream_;
-};
-
 std::ostream &dump_global_params(std::ostream &s);
 
 // Validates a tag/meta-tag.

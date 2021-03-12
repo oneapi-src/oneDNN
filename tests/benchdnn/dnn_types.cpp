@@ -1275,30 +1275,4 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
     }
 }
 
-engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {
-    size_t idx = engine_kind == dnnl_cpu ? 0 : engine_index;
-    DNN_SAFE_V(dnnl_engine_create(&engine_, engine_kind, idx));
-}
-
-engine_t::engine_t(dnnl_engine_t engine) : engine_(engine), is_owner_(false) {}
-
-engine_t::~engine_t() {
-    if (is_owner_) DNN_SAFE_V(dnnl_engine_destroy(engine_));
-}
-
-stream_t::stream_t(dnnl_engine_t engine) {
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    if (is_cpu(engine)) {
-        SAFE_V(dnnl_threadpool_interop_stream_create(
-                &stream_, engine, dnnl::testing::get_threadpool()));
-        return;
-    }
-#endif
-    DNN_SAFE_V(dnnl_stream_create(&stream_, engine, dnnl_stream_default_flags));
-}
-
-stream_t::~stream_t() {
-    DNN_SAFE_V(dnnl_stream_destroy(stream_));
-}
-
 #undef BENCHDNN_DNNL_ARG_UNDEF
