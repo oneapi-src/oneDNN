@@ -795,53 +795,34 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::store_dsrc(
 template <cpu_isa_t isa>
 inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::loop_body(
         int ur_ch_blocks) {
-    Label unrolled_w_label;
-    Label tail_w_label;
-    Label exit_label;
+    const size_t ch_step = sizeof(float) * jcp.ch_block;
 
-    L(unrolled_w_label);
-    {
-        int ur_w = jcp.ur_w;
+    auto unroll_width_loop = [&](int unroll_w) {
+        Label unroll_w_label, skip_compute_label;
+        L(unroll_w_label);
+        {
+            cmp(reg_ur_str_w, unroll_w);
+            jl(skip_compute_label, T_NEAR);
 
-        cmp(reg_ur_str_w, ur_w);
-        jl(tail_w_label, T_NEAR);
+            mov(aux_reg_ddst, reg_ddst);
+            mov(aux_reg_kernel, reg_kernel);
 
-        mov(aux_reg_ddst, reg_ddst);
-        mov(aux_reg_kernel, reg_kernel);
+            load_ddst(ur_ch_blocks, unroll_w);
+            apply_filter(ur_ch_blocks, unroll_w);
+            store_dsrc(ur_ch_blocks, unroll_w);
 
-        load_ddst(ur_ch_blocks, ur_w);
-        apply_filter(ur_ch_blocks, ur_w);
-        store_dsrc(ur_ch_blocks, ur_w);
+            add(reg_dsrc, unroll_w * jcp.stride_w * ch_step);
+            add(reg_ddst, unroll_w * ch_step);
 
-        add(reg_dsrc, sizeof(float) * ur_w * jcp.ch_block * jcp.stride_w);
-        add(reg_ddst, sizeof(float) * ur_w * jcp.ch_block);
+            sub(reg_ur_str_w, unroll_w);
+            jmp(unroll_w_label);
+        }
+        L(skip_compute_label);
+    };
 
-        sub(reg_ur_str_w, ur_w);
-        jmp(unrolled_w_label);
-    }
+    unroll_width_loop(jcp.ur_w);
 
-    L(tail_w_label);
-    {
-        int ur_w = 1;
-
-        cmp(reg_ur_str_w, ur_w);
-        jl(exit_label, T_NEAR);
-
-        mov(aux_reg_ddst, reg_ddst);
-        mov(aux_reg_kernel, reg_kernel);
-
-        load_ddst(ur_ch_blocks, ur_w);
-        apply_filter(ur_ch_blocks, ur_w);
-        store_dsrc(ur_ch_blocks, ur_w);
-
-        add(reg_dsrc, sizeof(float) * ur_w * jcp.ch_block * jcp.stride_w);
-        add(reg_ddst, sizeof(float) * ur_w * jcp.ch_block);
-
-        sub(reg_ur_str_w, ur_w);
-        jmp(tail_w_label);
-    }
-
-    L(exit_label);
+    unroll_width_loop(1);
 }
 
 template <cpu_isa_t isa>
@@ -856,26 +837,20 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
     mov(reg_ch_blocks, ptr[this->param1 + GET_OFF(ch_blocks)]);
     mov(reg_ur_str_w, ptr[this->param1 + GET_OFF(ur_str_w)]);
 
-    Label ch_blocks_tail_label;
-    Label exit_label;
+    auto ch_blocks_loop = [&](int ch_blocks) {
+        Label skip_loop_label;
+        cmp(reg_ch_blocks, ch_blocks);
+        jl(skip_loop_label, T_NEAR);
+        loop_body(ch_blocks);
+        L(skip_loop_label);
+    };
+
+    ch_blocks_loop(jcp.nb_ch_blocking); // channel main loop
 
     int ch_blocks_tail = jcp.nb_ch % jcp.nb_ch_blocking;
-
-    cmp(reg_ch_blocks, jcp.nb_ch_blocking);
-    jne(ch_blocks_tail ? ch_blocks_tail_label : exit_label, T_NEAR);
-
-    loop_body(jcp.nb_ch_blocking); // channel main loop
-
     if (ch_blocks_tail) {
-        L(ch_blocks_tail_label);
-
-        cmp(reg_ch_blocks, ch_blocks_tail);
-        jne(exit_label, T_NEAR);
-
-        loop_body(ch_blocks_tail); // channel tail loop
+        ch_blocks_loop(ch_blocks_tail); // channel main loop
     }
-
-    L(exit_label);
 
     this->postamble();
 }
