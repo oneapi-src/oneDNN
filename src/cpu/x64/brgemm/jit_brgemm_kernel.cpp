@@ -42,23 +42,19 @@ struct jit_brgemm_kernel_base_t : public jit_generator {
         : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_common)
         , brg(abrg)
         , postops_injector_(nullptr)
-        , is_ldb_loop(false)
-        , with_binary_per_oc_bcast_(brg.with_binary
-                  && binary_injector::any_binary_postop_rhs_per_oc_broadcast(
-                          brg.attr->post_ops_,
-                          memory_desc_wrapper(brg.dst_md))) {
+        , is_ldb_loop(false) {
 
         if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
 
             static constexpr bool preserve_gpr = true;
             static constexpr bool preserve_vmm = true;
             static constexpr bool use_exact_tail_scalar_bcast = false;
+            const auto dst_md_wrapper = memory_desc_wrapper(brg.dst_md);
 
             const binary_injector::rhs_arg_static_params_t rhs_sp {
                     static_cast<size_t>(Xbyak::Zmm(1).getIdx()), this->rdx,
                     this->r10, preserve_gpr, preserve_vmm,
-                    GET_OFF(post_ops_binary_rhs_arg_vec),
-                    memory_desc_wrapper(brg.dst_md),
+                    GET_OFF(post_ops_binary_rhs_arg_vec), dst_md_wrapper,
                     static_cast<size_t>(brg.ldb_tail), ld_tail_mask,
                     use_exact_tail_scalar_bcast};
             const binary_injector::static_params_t bsp {this->param1, rhs_sp};
@@ -66,6 +62,12 @@ struct jit_brgemm_kernel_base_t : public jit_generator {
             postops_injector_ = utils::make_unique<
                     injector::jit_uni_postops_injector_t<avx512_common>>(
                     this, brg.attr->post_ops_, bsp);
+
+            using namespace dnnl::impl::cpu::binary_injector_utils;
+            std::tie(with_binary_per_oc_bcast_, with_binary_per_oc_sp_bcast_)
+                    = bcast_strategies_present_tup(brg.attr->post_ops_.entry_,
+                            dst_md_wrapper, broadcasting_strategy_t::per_oc,
+                            broadcasting_strategy_t::per_oc_spatial);
         }
     }
 
@@ -153,7 +155,8 @@ private:
     constexpr static int stack_space_needed_ = 120;
 
     bool is_ldb_loop;
-    const bool with_binary_per_oc_bcast_;
+    bool with_binary_per_oc_bcast_ = false;
+    bool with_binary_per_oc_sp_bcast_ = false;
 
     Xbyak::Opmask ld_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
@@ -400,6 +403,11 @@ void jit_brgemm_kernel_base_t::read_params() {
     if (with_binary_per_oc_bcast_) {
         mov(reg_binary_postops_oc_l, ptr[param1 + GET_OFF(oc_logical_off)]);
         mov(ptr[rsp + reg_binary_postops_oc_l_offs_], reg_binary_postops_oc_l);
+    } else if (with_binary_per_oc_sp_bcast_) {
+        mov(reg_binary_postops_oc_l,
+                ptr[param1 + GET_OFF(dst_row_logical_off)]);
+        mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
+                reg_binary_postops_oc_l);
     }
 
     mov(reg_do_post_ops, ptr[param1 + GET_OFF(do_post_ops)]);
@@ -480,7 +488,7 @@ void jit_brgemm_kernel_base_t::apply_post_ops(
     if (brg.with_binary) {
         mov(param1, ptr[rsp + abi_param1_offs_ + guard_space]);
 
-        if (with_binary_per_oc_bcast_) {
+        if (with_binary_per_oc_bcast_ || with_binary_per_oc_sp_bcast_) {
             mov(reg_aux_binary_postops_oc_l,
                     ptr[rsp + reg_aux_binary_postops_oc_l_offs_ + guard_space]);
 
@@ -490,8 +498,12 @@ void jit_brgemm_kernel_base_t::apply_post_ops(
 
                 rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
                         zmm_idx, reg_aux_binary_postops_oc_l);
-                rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                        zmm_idx, oc_logical_offset(ld));
+                if (with_binary_per_oc_bcast_)
+                    rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                            zmm_idx, oc_logical_offset(ld));
+                else if (with_binary_per_oc_sp_bcast_)
+                    rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                            zmm_idx, bd);
                 if (is_ld_tail) rhs_arg_params.vmm_tail_idx_.emplace(zmm_idx);
             }
         }
@@ -501,7 +513,9 @@ void jit_brgemm_kernel_base_t::apply_post_ops(
         const bool p_sum_scale_reg_set = *p_sum_scale != 1.f;
 
         const injector_utils::conditional_register_preserve_guard_t
-                register_guard(with_binary_per_oc_bcast_ && p_sum_scale_reg_set,
+                register_guard((with_binary_per_oc_bcast_
+                                       || with_binary_per_oc_sp_bcast_)
+                                && p_sum_scale_reg_set,
                         this, {reg_ptr_sum_scale});
 
         if (p_sum_scale_reg_set) mov(reg_ptr_sum_scale, (size_t)p_sum_scale);

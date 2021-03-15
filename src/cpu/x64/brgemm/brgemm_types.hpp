@@ -185,6 +185,7 @@ struct brgemm_kernel_params_t {
      */
     const void *post_ops_binary_rhs_arg_vec;
     size_t oc_logical_off;
+    size_t dst_row_logical_off;
 };
 
 struct jit_brgemm_kernel_base_t;
@@ -215,16 +216,19 @@ private:
 struct brgemm_post_ops_data_t {
     brgemm_post_ops_data_t() = default;
     brgemm_post_ops_data_t(const void *bias, const float *scales,
-            const void *binary_post_ops_rhs, size_t oc_logical_off)
+            const void *binary_post_ops_rhs, size_t oc_logical_off,
+            const size_t dst_row_logical_off = 0)
         : bias(bias)
         , scales(scales)
         , binary_post_ops_rhs(binary_post_ops_rhs)
-        , oc_logical_off(oc_logical_off) {}
+        , oc_logical_off(oc_logical_off)
+        , dst_row_logical_off(dst_row_logical_off) {}
 
     const void *bias = nullptr;
     const float *scales = nullptr;
     const void *binary_post_ops_rhs = nullptr;
     size_t oc_logical_off = 0;
+    size_t dst_row_logical_off = 0;
 };
 
 } // namespace x64

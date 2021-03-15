@@ -163,7 +163,6 @@ struct post_ops_ok_args_t {
     const bool sum_requires_scale_one = false;
     const bcast_set_t enabled_bcast_strategy
             = {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
-                    broadcasting_strategy_t::per_oc_spatial,
                     broadcasting_strategy_t::no_broadcast};
 };
 

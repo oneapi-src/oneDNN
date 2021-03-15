@@ -85,6 +85,8 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.BS = bs;
     brgemm_p.post_ops_binary_rhs_arg_vec = post_ops_data.binary_post_ops_rhs;
     brgemm_p.oc_logical_off = post_ops_data.oc_logical_off;
+    brgemm_p.dst_row_logical_off = post_ops_data.dst_row_logical_off;
+
     (*brg_kernel)(&brgemm_p);
 }
 
@@ -106,6 +108,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.BS = bs;
     brgemm_p.post_ops_binary_rhs_arg_vec = post_ops_data.binary_post_ops_rhs;
     brgemm_p.oc_logical_off = post_ops_data.oc_logical_off;
+    brgemm_p.dst_row_logical_off = post_ops_data.dst_row_logical_off;
 
     (*brg_kernel)(&brgemm_p);
 }

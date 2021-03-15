@@ -299,11 +299,13 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                                    const_cast<int *>(&compensation[comp_idx]))
                                               : nullptr);
 
+                const size_t dst_row_logical_off
+                        = b_idx * m_blk_idx * bgmmc.M_chunk_size;
                 const brgemm_post_ops_data_t post_ops_data {
                         static_cast<const void *>(ptr_bias),
                         &oscales[bgmmc.is_oscale_per_n * n],
                         post_ops_binary_rhs_arg_vec.data(),
-                        static_cast<size_t>(n)};
+                        static_cast<size_t>(n), dst_row_logical_off};
 
                 brgemm_kernel_execute_postops(brg_kernel, gemm_batch,
                         addr_batch, (void *)ptr_C, (void *)ptr_D, post_ops_data,
@@ -345,11 +347,13 @@ void brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                                    const_cast<int *>(&compensation[comp_idx]))
                                               : nullptr);
 
+                const size_t dst_row_logical_off
+                        = b_idx * m_blk_idx * bgmmc.M_chunk_size;
                 const brgemm_post_ops_data_t post_ops_data {
                         static_cast<const void *>(ptr_bias),
                         &oscales[bgmmc.is_oscale_per_n * n],
                         post_ops_binary_rhs_arg_vec.data(),
-                        static_cast<size_t>(n)};
+                        static_cast<size_t>(n), dst_row_logical_off};
 
                 brgemm_kernel_execute_postops(brg_kernel_k_tail, 1, addr_batch,
                         (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);

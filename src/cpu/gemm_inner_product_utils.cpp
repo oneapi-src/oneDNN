@@ -188,8 +188,14 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
         using namespace x64::injector;
         static constexpr bool sum_at_pos_0_only = true;
         static constexpr bool sum_requires_scale_one = false;
+        static const bcast_set_t enabled_bcast_strategy
+                = {broadcasting_strategy_t::scalar,
+                        broadcasting_strategy_t::per_oc,
+                        broadcasting_strategy_t::per_oc_spatial,
+                        broadcasting_strategy_t::no_broadcast};
         return injector::post_ops_ok({isa_supported, {binary, eltwise, sum},
-                post_ops, dst_d, sum_at_pos_0_only, sum_requires_scale_one});
+                post_ops, dst_d, sum_at_pos_0_only, sum_requires_scale_one,
+                enabled_bcast_strategy});
     }
 #endif
     for (size_t i = 0; i < post_ops.entry_.size(); i++) {
