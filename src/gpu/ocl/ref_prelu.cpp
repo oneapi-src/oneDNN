@@ -55,16 +55,21 @@ static status_t init_conf_common(
     }
 
     const auto &ndims = dst_mdw.ndims();
-    const auto &dims = conf.is_forward ? dst_mdw.padded_dims() : dst_mdw.dims();
 
     const auto *compute_engine
             = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(src_mdw.md_);
 
     for (int i = 0; i < MAX_NDIMS; ++i) {
-        if (i < ndims)
-            conf.dispatch.define_dim(utils::format("D%d", i), i, dims[i]);
-        else
+        if (i < ndims) {
+            const dnnl_dim_t diff_wei_dim = conf.is_forward
+                    ? 1
+                    : static_cast<dnnl_dim_t>(
+                            conf.diff_wei_md_info.padded_dims[i]);
+            dnnl_dim_t dim2dispatch
+                    = nstl::max(dst_mdw.padded_dims()[i], diff_wei_dim);
+            conf.dispatch.define_dim(utils::format("D%d", i), i, dim2dispatch);
+        } else
             conf.dispatch.define_dim(utils::format("D%d", i), 1);
     }
     conf.dispatch.generate(false);
@@ -144,15 +149,12 @@ void ref_prelu_bwd_t::pd_t::init_scratchpad() {
 }
 
 status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
-
-    status_t status = status::success;
-
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
-    auto &diff_src = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC, status);
-    auto &diff_weights = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_WEIGHTS, status);
-    CHECK(status);
+
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
+    auto &diff_weights = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS);
 
     const auto &conf = pd()->conf;
 
@@ -179,7 +181,7 @@ status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
-    status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     if (conf.reduce_diff_weights) {
         exec_args_t reduction_args;
