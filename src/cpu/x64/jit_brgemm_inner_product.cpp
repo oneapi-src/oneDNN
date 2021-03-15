@@ -206,6 +206,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
     });
 }
 
+template struct brgemm_inner_product_fwd_t<avx512_core>;
 template struct brgemm_inner_product_fwd_t<avx512_core_bf16>;
 template struct brgemm_inner_product_fwd_t<avx512_core_vnni>;
 template struct brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>;
@@ -451,6 +452,7 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
     });
 }
 
+template struct brgemm_inner_product_bwd_data_t<avx512_core, f32>;
 template struct brgemm_inner_product_bwd_data_t<avx512_core_bf16, bf16>;
 template struct brgemm_inner_product_bwd_data_t<avx512_core_bf16, f32, bf16,
         bf16>;
@@ -919,6 +921,7 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
     }
 }
 
+template struct brgemm_inner_product_bwd_weights_t<avx512_core, f32>;
 template struct brgemm_inner_product_bwd_weights_t<avx512_core_bf16, bf16>;
 template struct brgemm_inner_product_bwd_weights_t<avx512_core_bf16, bf16, f32,
         bf16>;

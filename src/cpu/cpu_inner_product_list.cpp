@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,6 +38,9 @@ using namespace dnnl::impl::data_type;
 // clang-format off
 const pd_create_f impl_list[] = {
         /* f32 */
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core, f32>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core, f32>)
         CPU_INSTANCE(gemm_inner_product_fwd_t<f32>)
         CPU_INSTANCE(gemm_inner_product_bwd_data_t<f32>)
         CPU_INSTANCE(gemm_inner_product_bwd_weights_t<f32>)
