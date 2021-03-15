@@ -31,6 +31,7 @@ namespace gpu {
 namespace ocl {
 
 struct ref_sum_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_sum_pd_t {
         using gpu_sum_pd_t::gpu_sum_pd_t;
         pd_t(const pd_t &rhs) : gpu_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
@@ -111,8 +112,6 @@ struct ref_sum_t : public gpu_primitive_t {
             }
         }
     };
-
-    ref_sum_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();

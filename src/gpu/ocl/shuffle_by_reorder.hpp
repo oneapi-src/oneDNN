@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ namespace ocl {
 // smaller dimensions, then reorders the tensor to swap those two.
 // Reorder kernel is used more often so is expected to be better optimized.
 struct shuffle_by_reorder_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_shuffle_pd_t {
         using gpu_shuffle_pd_t::gpu_shuffle_pd_t;
 
@@ -116,8 +117,6 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
 
         reorder_pd_t *reorder_pd_;
     };
-
-    shuffle_by_reorder_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         return pd()->reorder_pd_->create_primitive(reorder_, engine);

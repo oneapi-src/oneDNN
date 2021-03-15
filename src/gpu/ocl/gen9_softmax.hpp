@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ namespace gpu {
 namespace ocl {
 
 struct gen9_softmax_fwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_softmax_fwd_pd_t {
         pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
                 const softmax_fwd_pd_t *hint_fwd_pd)
@@ -88,8 +89,6 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         size_t block[3] = {};
         size_t group_size = 0;
     };
-
-    gen9_softmax_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())

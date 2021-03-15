@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ namespace gpu {
 namespace ocl {
 
 struct ref_concat_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_concat_pd_t {
         pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
                 int concat_dim, const memory_desc_t *src_mds)
@@ -127,8 +128,6 @@ struct ref_concat_t : public gpu_primitive_t {
             }
         }
     };
-
-    ref_concat_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();

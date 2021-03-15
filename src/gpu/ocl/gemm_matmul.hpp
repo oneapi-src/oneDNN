@@ -30,6 +30,7 @@ namespace gpu {
 namespace ocl {
 
 struct gemm_matmul_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_matmul_pd_t {
         pd_t(const matmul_desc_t *adesc, const primitive_attr_t *attr,
                 const matmul_pd_t *hint_pd)
@@ -111,8 +112,6 @@ struct gemm_matmul_t : public gpu_primitive_t {
                     gemm_pd_->scratchpad_registry());
         }
     };
-
-    gemm_matmul_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);

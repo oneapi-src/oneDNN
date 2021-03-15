@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ namespace gpu {
 namespace ocl {
 
 struct simple_concat_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_concat_pd_t {
         using gpu_concat_pd_t::gpu_concat_pd_t;
 
@@ -48,8 +49,6 @@ struct simple_concat_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         concat_conf_t conf;
     };
-
-    simple_concat_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ namespace gpu {
 namespace ocl {
 
 struct ref_prelu_fwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_prelu_fwd_pd_t {
         using gpu_prelu_fwd_pd_t::gpu_prelu_fwd_pd_t;
 
@@ -53,8 +54,6 @@ struct ref_prelu_fwd_t : public gpu_primitive_t {
 
         prelu_conf_t conf;
     };
-
-    ref_prelu_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
@@ -80,6 +79,7 @@ private:
 };
 
 struct ref_prelu_bwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_prelu_bwd_pd_t {
         using gpu_prelu_bwd_pd_t::gpu_prelu_bwd_pd_t;
 
@@ -141,8 +141,6 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
         prelu_conf_t conf;
         std::unique_ptr<primitive_desc_t> reduction_pd_;
     };
-
-    ref_prelu_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;

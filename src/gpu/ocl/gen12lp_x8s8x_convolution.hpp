@@ -32,6 +32,7 @@ namespace gpu {
 namespace ocl {
 
 struct gen12lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
@@ -153,8 +154,6 @@ struct gen12lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
         return status::success;
     }
 
-    gen12lp_x8s8x_convolution_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
-
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
@@ -192,6 +191,7 @@ private:
 };
 
 struct gen12lp_x8s8x_convolution_bwd_data_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_convolution_bwd_data_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
@@ -251,9 +251,6 @@ struct gen12lp_x8s8x_convolution_bwd_data_t : public gpu_primitive_t {
 
         return status::success;
     }
-
-    gen12lp_x8s8x_convolution_bwd_data_t(const pd_t *apd)
-        : gpu_primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);

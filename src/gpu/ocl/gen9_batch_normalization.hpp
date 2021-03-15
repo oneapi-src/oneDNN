@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ namespace gpu {
 namespace ocl {
 
 struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_batch_normalization_fwd_pd_t {
         pd_t(const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -78,8 +79,6 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         offsets_t off;
     };
 
-    gen9_batch_normalization_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
-
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
@@ -123,6 +122,7 @@ private:
 };
 
 struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_batch_normalization_bwd_pd_t {
         pd_t(const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -165,8 +165,6 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
         bnorm_conf_t conf;
         offsets_t off;
     };
-
-    gen9_batch_normalization_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;

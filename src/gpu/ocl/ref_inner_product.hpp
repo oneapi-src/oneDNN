@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ namespace gpu {
 namespace ocl {
 
 struct ref_inner_product_fwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_inner_product_fwd_pd_t {
         pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
@@ -100,8 +101,6 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
         offsets_t off;
     };
 
-    ref_inner_product_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
-
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -124,6 +123,7 @@ private:
 };
 
 struct ref_inner_product_bwd_data_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_inner_product_bwd_data_pd_t {
         pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
@@ -160,8 +160,6 @@ struct ref_inner_product_bwd_data_t : public gpu_primitive_t {
         offsets_t off;
     };
 
-    ref_inner_product_bwd_data_t(const pd_t *apd) : gpu_primitive_t(apd) {}
-
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -185,6 +183,7 @@ private:
 };
 
 struct ref_inner_product_bwd_weights_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_inner_product_bwd_weights_pd_t {
         pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
@@ -216,8 +215,6 @@ struct ref_inner_product_bwd_weights_t : public gpu_primitive_t {
         inner_product_conf_t conf;
         offsets_t off;
     };
-
-    ref_inner_product_bwd_weights_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;

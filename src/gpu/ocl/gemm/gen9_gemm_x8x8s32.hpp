@@ -36,6 +36,7 @@ namespace gpu {
 namespace ocl {
 
 struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
+    using gpu_gemm_t::gpu_gemm_t;
     enum class type { no_copy };
 
     struct pd_t : public gpu_gemm_pd_t {
@@ -150,8 +151,6 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
 
         return status::invalid_arguments;
     }
-
-    gen9_gemm_x8x8s32_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
     status_t init_nocopy(engine_t *engine) {
         const char *kernel_name = nullptr;

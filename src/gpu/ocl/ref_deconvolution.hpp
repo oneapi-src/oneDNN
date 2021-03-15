@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,6 +86,7 @@ static status_t conv_descr_create(
 }
 
 struct ref_deconvolution_fwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_deconvolution_fwd_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
@@ -171,8 +172,6 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         }
     };
 
-    ref_deconvolution_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
-
     status_t init(engine_t *engine) override {
         status_t conv_status
                 = pd()->conv_pd_->create_primitive(conv_p_, engine);
@@ -215,6 +214,7 @@ private:
 };
 
 struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_deconvolution_bwd_data_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
@@ -284,8 +284,6 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
         }
     };
 
-    ref_deconvolution_bwd_data_t(const pd_t *apd) : gpu_primitive_t(apd) {}
-
     status_t init(engine_t *engine) override {
         status_t conv_status
                 = pd()->conv_pd_->create_primitive(conv_p_, engine);
@@ -320,6 +318,7 @@ private:
 };
 
 struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_deconvolution_bwd_weights_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
@@ -390,8 +389,6 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
                     conv_pd_->scratchpad_registry());
         }
     };
-
-    ref_deconvolution_bwd_weights_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         // Creating convolution primitve

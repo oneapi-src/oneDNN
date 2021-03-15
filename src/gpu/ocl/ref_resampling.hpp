@@ -35,6 +35,7 @@ namespace gpu {
 namespace ocl {
 
 struct ref_resampling_fwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_resampling_fwd_pd_t {
         pd_t(const resampling_desc_t *adesc, const primitive_attr_t *attr,
                 const resampling_fwd_pd_t *hint_fwd_pd)
@@ -70,8 +71,6 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch;
         attr_info_t attr_info;
     };
-
-    ref_resampling_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         using namespace alg_kind;
@@ -140,6 +139,7 @@ private:
 };
 
 struct ref_resampling_bwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_resampling_bwd_pd_t {
         pd_t(const resampling_desc_t *adesc, const primitive_attr_t *attr,
                 const resampling_fwd_pd_t *hint_fwd_pd)
@@ -172,8 +172,6 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
         }
         compute::dispatch_t dispatch;
     };
-
-    ref_resampling_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         using namespace alg_kind;

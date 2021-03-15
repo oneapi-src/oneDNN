@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,6 +60,7 @@ enum gemm_kind_t {
 
 template <prop_kind_t aprop>
 struct _ref_rnn_common_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
 
     using class_name = _ref_rnn_common_t<aprop>;
 
@@ -191,57 +192,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                             : nullptr);
         }
     }; // struct pd_t : public base_pd_t
-
-    _ref_rnn_common_t(const pd_t *apd) : gpu_primitive_t(apd) {
-        using namespace rnn_utils;
-        auto assign_funcs = [](gemm_t &g, weights_assign_t &p) {
-            g = &class_name::gemm_primitive;
-            p = &class_name::assign_weights;
-        };
-
-        assign_funcs(gemm_iter_func, weights_iter_assign_func);
-        assign_funcs(gemm_layer_func, weights_layer_assign_func);
-
-        switch (pd()->cell_kind()) {
-            case dnnl_vanilla_lstm:
-                cell_func = &class_name::cell_execution;
-                elemwise_func = pd()->src_type == data_type::u8
-                                && pd()->weights_type == data_type::s8
-                        ? &class_name::lstm_elemwise_u8s8
-                        : &class_name::lstm_elemwise;
-                break;
-            case dnnl_vanilla_rnn:
-                cell_func = &class_name::cell_execution;
-                elemwise_func = &class_name::rnn_elemwise;
-                break;
-            case dnnl_vanilla_gru:
-                cell_func = &class_name::cell_execution_gru;
-                elemwise_func = &class_name::gru_elemwise;
-                break;
-            case dnnl_lbr_gru:
-                cell_func = &class_name::cell_execution_gru_lbr;
-                elemwise_func = &class_name::gru_lbr_elemwise;
-                break;
-            default: break;
-        }
-
-        grid_computation = &class_name::linear_execution;
-
-        size_t scratchpad_size, workspace_size;
-        rnn_utils::set_offsets(pd()->rnn_conf, ws_gates_offset_,
-                ws_states_offset_, ws_c_states_offset_, ws_diff_states_offset_,
-                ws_grid_comp_offset_, scratch_cell_offset_, ws_dhG1_offset_,
-                ws_bias_offset_, scratch_gates_offset_, scratchpad_size,
-                workspace_size);
-        int max_nparts = (pd()->cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
-        int wei_offsets_iter_sz = pd()->L() * pd()->D() * max_nparts;
-        int wei_offsets_layer_sz = pd()->L() * pd()->D();
-
-        wei_layer_offset_ptr
-                = (size_t *)malloc(sizeof(size_t) * wei_offsets_layer_sz, 64);
-        wei_iter_offset_ptr
-                = (size_t *)malloc(sizeof(size_t) * wei_offsets_iter_sz, 64);
-    }
 
     status_t init(engine_t *engine) override;
 

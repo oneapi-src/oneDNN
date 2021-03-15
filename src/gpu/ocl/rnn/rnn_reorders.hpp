@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ namespace gpu {
 namespace ocl {
 
 struct rnn_weights_reorder_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public reorder_pd_t {
         using reorder_pd_t::reorder_pd_t;
 
@@ -91,8 +92,6 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
             }
         }
     };
-
-    rnn_weights_reorder_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;

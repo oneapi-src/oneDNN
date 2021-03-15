@@ -33,6 +33,7 @@ namespace gpu {
 namespace ocl {
 
 struct simple_reorder_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_reorder_pd_t {
         using gpu_reorder_pd_t::gpu_reorder_pd_t;
 
@@ -100,8 +101,6 @@ struct simple_reorder_t : public gpu_primitive_t {
 
         reorder_conf_t conf;
     };
-
-    simple_reorder_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;

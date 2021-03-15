@@ -26,6 +26,7 @@ namespace gpu {
 namespace ocl {
 
 struct gemm_with_post_ops_t : public gpu_gemm_t {
+    using gpu_gemm_t::gpu_gemm_t;
     struct pd_t : public gpu_gemm_pd_t {
 
         DECLARE_COMMON_PD_T("ocl:gemm:with_po", gemm_with_post_ops_t);
@@ -53,8 +54,6 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
         std::unique_ptr<primitive_desc_t> post_op_worker_pd_;
         bool use_scratchpad_with_post_op_worker = false;
     };
-
-    gemm_with_post_ops_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto ret_status = pd()->gemm_pd_->create_primitive(gemm_prim_, engine);

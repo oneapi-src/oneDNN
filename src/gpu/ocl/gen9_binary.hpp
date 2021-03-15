@@ -33,6 +33,7 @@ namespace gpu {
 namespace ocl {
 
 struct gen9_binary_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_binary_pd_t {
         using gpu_binary_pd_t::gpu_binary_pd_t;
 
@@ -94,8 +95,6 @@ struct gen9_binary_t : public gpu_primitive_t {
 
         binary_conf_t conf;
     };
-
-    gen9_binary_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;

@@ -48,6 +48,7 @@ union plan_element_t {
 };
 
 struct gen9_gemm_t : public gpu_gemm_t {
+    using gpu_gemm_t::gpu_gemm_t;
 
     enum class type {
         copy_based,
@@ -379,8 +380,6 @@ struct gen9_gemm_t : public gpu_gemm_t {
         bool disable_superkernel = false;
 #endif
     };
-
-    gen9_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
     status_t init(engine_t *engine) override {
         switch (pd()->gemm_type_) {

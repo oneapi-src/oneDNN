@@ -35,6 +35,7 @@ namespace gpu {
 namespace ocl {
 
 struct convolution_inner_product_fwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_inner_product_fwd_pd_t {
         using gpu_inner_product_fwd_pd_t::gpu_inner_product_fwd_pd_t;
 
@@ -116,8 +117,6 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
     private:
         status_t init_scratchpad();
     };
-
-    convolution_inner_product_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         CHECK(pd()->cpd_->create_primitive(conv_, engine));

@@ -29,6 +29,7 @@ namespace gpu {
 namespace ocl {
 
 struct ref_gemm_t : public gpu_gemm_t {
+    using gpu_gemm_t::gpu_gemm_t;
     struct pd_t : public gpu_gemm_pd_t {
         using gpu_gemm_pd_t::gpu_gemm_pd_t;
 
@@ -111,8 +112,6 @@ struct ref_gemm_t : public gpu_gemm_t {
 
         attr_info_t attr_info = {};
     };
-
-    ref_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;

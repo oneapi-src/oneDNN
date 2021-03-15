@@ -35,6 +35,7 @@ namespace gpu {
 namespace ocl {
 
 struct ref_matmul_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_matmul_pd_t {
         using gpu_matmul_pd_t::gpu_matmul_pd_t;
 
@@ -148,8 +149,6 @@ struct ref_matmul_t : public gpu_primitive_t {
         memory_desc_t c0_md_ = memory_desc_t();
         memory_desc_t scales_md_ = memory_desc_t();
     };
-
-    ref_matmul_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;

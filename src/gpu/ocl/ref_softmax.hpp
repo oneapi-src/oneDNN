@@ -34,6 +34,7 @@ namespace gpu {
 namespace ocl {
 
 struct ref_softmax_fwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_softmax_fwd_pd_t {
         pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
                 const softmax_fwd_pd_t *hint_fwd_pd)
@@ -105,8 +106,6 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
         size_t group_size = 0;
     };
 
-    ref_softmax_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
-
     status_t init(engine_t *engine) override {
         if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
             return status::success;
@@ -150,6 +149,7 @@ protected:
 };
 
 struct ref_softmax_bwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_softmax_bwd_pd_t {
         pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
                 const softmax_fwd_pd_t *hint_fwd_pd)
@@ -188,8 +188,6 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
         size_t gws[3] = {};
         size_t block[3] = {};
     };
-
-    ref_softmax_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         if (memory_desc_wrapper(pd()->desc()->diff_desc).has_zero_dim())

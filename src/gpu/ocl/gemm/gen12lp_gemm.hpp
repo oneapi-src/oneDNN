@@ -34,6 +34,7 @@ namespace gpu {
 namespace ocl {
 
 struct gen12lp_gemm_t : public gpu_gemm_t {
+    using gpu_gemm_t::gpu_gemm_t;
     enum class type { no_copy };
 
     struct pd_t : public gpu_gemm_pd_t {
@@ -246,8 +247,6 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
 
         return status::success;
     }
-
-    gen12lp_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
     status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
