@@ -791,7 +791,9 @@ void jit_brgemm_matmul_copy_B_transposed_int8_t::generate() {
     kmovw(k0F0F, 0x0f0f); // 0000111100001111
     kmovw(kF0F0, 0xf0f0); // 1111000011110000
 
-    assert((conf_->N_blk * conf_->N_chunk_size) % n_blk_step == 0);
+    const dim_t N_chunk_elems = conf_->N_blk * conf_->N_chunk_size;
+    assert(N_chunk_elems % n_blk_step == 0 || N_chunk_elems == conf_->N);
+    UNUSED(N_chunk_elems);
     const int N_chunk_tail = conf_->N % n_blk_step;
 
     auto compute_K_loop = [=](bool is_N_tail, int curr_K_tail) {
