@@ -147,6 +147,25 @@ __kernel void gen9_initial_reduce(
     const int n_start = n_chunk_idx * INITIAL_N_CHUNK_SIZE;
     const int n_end = min(n_start + INITIAL_N_CHUNK_SIZE, INITIAL_N);
 
+#if SKIP_FINAL_PHASE
+    // zero pad dst memory
+    for (int n_idx = n_start; n_idx < n_start + INITIAL_N_CHUNK_SIZE; n_idx++) {
+        for (int c_idx = c; c_idx < c + INITIAL_C_CHUNKS * SUB_GROUP_SIZE;
+                c_idx++) {
+            if (n_idx >= DST_N && n_idx < DST_N_PADDED
+                    || c_idx >= DST_C && c_idx < DST_C_PADDED) {
+                for (int hwd_idx = hwd_start;
+                        hwd_idx < hwd_start + INITIAL_HWD_CHUNK_SIZE;
+                        hwd_idx++) {
+                    const int dst_off = FINAL_DST_OFFSET(n_idx, c_idx, hwd_idx);
+                    dst[dst_off] = TO_DST(0.0f);
+                }
+            }
+        }
+    }
+#endif
+    if (c >= INITIAL_C || n_start >= INITIAL_N) { return; }
+
     VECT_FLOAT_T vector_acc = INIT_ACC;
     for (int n = n_start; n < n_end; n++) {
         for (int hwd_id = 0; hwd_id < aligned_hwd_chunk; hwd_id += VECT_DT_N) {
@@ -232,18 +251,29 @@ __kernel void gen9_final_reduce(__global float *src, __global DST_DATA_T *dst) {
     const int hwd_start = GWS_GET_FINAL_HWD() * FINAL_HWD_CHUNK_SIZE;
 
     float acc = INIT_ACC;
-    const int n_end = min(FINAL_N_DIM, n_start + FINAL_N_CHUNK_SIZE);
-    const int c_end = min(FINAL_C_DIM, c_start + FINAL_C_CHUNK_SIZE);
+    const int max_n = max(DST_N_PADDED, FINAL_N_DIM);
+    const int max_c = max(DST_C_PADDED, FINAL_C_DIM);
+    const int n_end = min(max_n, n_start + FINAL_N_CHUNK_SIZE);
+    const int c_end = min(max_c, c_start + FINAL_C_CHUNK_SIZE);
     const int hwd_end = min(FINAL_HWD_DIM, hwd_start + FINAL_HWD_CHUNK_SIZE);
     for (int n = n_start; n < n_end; n++) {
         for (int c = c_start; c < c_end; c++) {
             for (int hwd = hwd_start; hwd < hwd_end; hwd++) {
-                const int off = FINAL_SRC_OFFSET(n, c, hwd);
-                const float data = src[off];
-                acc = ACCUMULATE_AGAIN(acc, data);
+                // zero pad dst memory
+                if (n >= DST_N || c >= DST_C) {
+                    const int dst_off = FINAL_DST_OFFSET(n, c, hwd);
+                    dst[dst_off] = TO_DST(0.0f);
+                }
+                if (n < FINAL_N_DIM && c < FINAL_C_DIM) {
+                    const int off = FINAL_SRC_OFFSET(n, c, hwd);
+                    const float data = src[off];
+                    acc = ACCUMULATE_AGAIN(acc, data);
+                }
             }
         }
     }
-    const int off = FINAL_DST_OFFSET(n_start, c_start, hwd_start);
-    dst[off] = TO_DST(FINALIZE(acc));
+    if (n_start < DST_N && c_start < DST_C) {
+        const int off = FINAL_DST_OFFSET(n_start, c_start, hwd_start);
+        dst[off] = TO_DST(FINALIZE(acc));
+    }
 }
