@@ -282,6 +282,8 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
     nthr_ = nthr_mb_ = nthr_oc_b_ = nthr_ic_b_ = 1;
     nb_os_blocking_ = j.nb_os_blocking;
 
+    const bool is_amx_bf16 = j.isa == avx512_core_bf16_amx_bf16;
+
     const int max_threads = j.nthr;
     const int nthr = max_threads;
     int ic_chunks = j.nb_ic / j.nb_ic_blocking;
@@ -374,6 +376,15 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
         const int nthr_oc_b_max = nstl::min(nthr_par, oc_chunks);
         for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
             int nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, ic_chunks);
+            if (is_amx_bf16) {
+                if (j.nb_ic_blocking != 2
+                        && utils::div_up(
+                                   utils::div_up(j.nb_ic, j.nb_ic_blocking),
+                                   nthr_ic_b)
+                                        % 2
+                                != 0)
+                    continue;
+            }
 
             float mem_cost = calc_mem_cost(
                     nb_os_blocking, nthr_mb, nthr_oc_b, nthr_ic_b);
@@ -391,14 +402,16 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
 }
 
 status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
+    const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
+
+    constexpr int amx_bf16_row = 32;
     jbgp.ic_block = jbgp.simd_w;
-    if (jbgp.oc >= 4 * jbgp.simd_w) {
-        jbgp.oc_block = 4 * jbgp.simd_w;
-    } else if (jbgp.oc >= 2 * jbgp.simd_w) {
-        jbgp.oc_block = 2 * jbgp.simd_w;
-    } else {
-        jbgp.oc_block = jbgp.simd_w;
-    }
+    if (jbgp.oc >= 64)
+        jbgp.oc_block = 64;
+    else if (jbgp.oc >= 32)
+        jbgp.oc_block = 32;
+    else
+        jbgp.oc_block = 16;
 
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
     jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
@@ -406,7 +419,7 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.nb_ic_blocking = jbgp.nb_ic % 2 ? 1 : 2;
 
     jbgp.os = jbgp.mb;
-    jbgp.os_block = 16;
+    jbgp.os_block = (is_amx_bf16) ? amx_bf16_row : 16;
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
 
     // Configure matrix sizes
@@ -606,7 +619,9 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     }
     if (jbgp.use_buffer) {
         size_t nelements = (size_t)jbgp.nthr * jbgp.LDC * jbgp.M;
-        if (jbgp.prop_kind == dnnl_backward_weights && jbgp.nthr_mb > 1) {
+        if (jbgp.prop_kind == dnnl_backward_weights
+                && (jbgp.nthr_mb > 1
+                        || jbgp.isa == avx512_core_bf16_amx_bf16)) {
             int n_reduction_buffers = jbgp.nthr_mb - (jbgp.wei_dt == f32);
             nelements = (size_t)n_reduction_buffers * jbgp.nb_ic * jbgp.ic_block
                     * jbgp.nb_oc * jbgp.oc_block;
