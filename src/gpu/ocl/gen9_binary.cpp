@@ -68,6 +68,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.is_dense = dst_d.is_dense();
     conf.same_src_dt = (src0_d.data_type() == src1_d.data_type());
     conf.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
+    conf.plain_to_ABcd4a4b = false;
 
     for (int i = 0; i < MAX_NDIMS; ++i) {
         conf.bcast_dims[i] = i < ndims ? broadcast_dims()[i] : 1;
@@ -90,33 +91,61 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.is_ncX_layout = dst_tag;
 
     if (!conf.is_ncX_layout) {
-        auto format_fits = [](const memory_desc_t &md) {
-            if (md.format_kind != dnnl_blocked) { return false; }
-            auto blocking = md.format_desc.blocking;
-            return blocking.inner_nblks == 1 && blocking.inner_idxs[0] == 1
-                    && blocking.inner_blks[0] == 16 && md.dims[1] % 16 == 0;
-        };
-        if (!(format_fits(*src_md(0)) && format_fits(*dst_md())
-                    && (format_fits(*src_md(1))
-                            || perf_workaround(src_md(1))))) {
-            return status::unimplemented;
-        }
-        // Setting the MB as the innermost dim for optimized performance
-        // Hence starting i = 1, ignoring MB
-        conf.dispatch.define_dim_with_nesting_level(
-                "D0", ndims, dst_d.dims()[0], 1);
-        for (int i = 1; i < MAX_NDIMS; ++i) {
-            int dim = i < ndims ? dst_d.dims()[i] : 1;
-            if (i == 1) {
-                conf.dispatch.define_dim(utils::format("D%d", i),
-                        nstl::min(i, ndims - 1), dim, 1);
-                conf.dispatch.vectorize_dim("D1", 16);
-            } else if (i == ndims - 1) {
-                conf.dispatch.define_dim(utils::format("D%d", i),
-                        nstl::min(i, ndims - 1), dim, conf.nvect);
-            } else {
-                conf.dispatch.define_dim(utils::format("D%d", i),
-                        nstl::min(i, ndims - 1), dim, 1);
+        format_tag_t src_tag = src0_d.matches_one_of_tag(abcd, acdb);
+        const auto &padded_dims = dst_d.padded_dims();
+        if (src1_d.matches_tag(src_tag) && dst_d.matches_one_of_tag(ABcd4a4b)
+                && src0_d.is_dense() && dst_d.is_dense(true)
+                && padded_dims[3] % 16 == 0 && dst_d.data_type() != dnnl_f32) {
+            dim_t blocks[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
+            auto &blk = dst_d.blocking_desc();
+            int b_block = blk.inner_blks[blk.inner_nblks - 1];
+            int sub_group_size = (b_block == 2 ? 8 : 16);
+            blocks[0] = 4;
+            blocks[1] = b_block;
+            int vect_dim = 3;
+            conf.nvect = 8;
+            for (int i = 0; i < MAX_NDIMS; ++i) {
+                auto dim_str = utils::format("D%d", i);
+                if (i < dst_d.ndims()) {
+                    conf.dispatch.define_dim(
+                            dim_str, i, padded_dims[i], blocks[i]);
+                } else {
+                    conf.dispatch.define_dim(dim_str, 1);
+                }
+            }
+
+            auto dim_str = utils::format("D%d", vect_dim);
+            conf.dispatch.vectorize_dim(dim_str, sub_group_size);
+            conf.plain_to_ABcd4a4b = true;
+        } else {
+            auto format_fits = [](const memory_desc_t &md) {
+                if (md.format_kind != dnnl_blocked) { return false; }
+                auto blocking = md.format_desc.blocking;
+                return blocking.inner_nblks == 1 && blocking.inner_idxs[0] == 1
+                        && blocking.inner_blks[0] == 16 && md.dims[1] % 16 == 0;
+            };
+            if (!(format_fits(*src_md(0)) && format_fits(*dst_md())
+                        && (format_fits(*src_md(1))
+                                || perf_workaround(src_md(1))))) {
+                return status::unimplemented;
+            }
+            // Setting the MB as the innermost dim for optimized performance
+            // Hence starting i = 1, ignoring MB
+            conf.dispatch.define_dim_with_nesting_level(
+                    "D0", ndims, dst_d.dims()[0], 1);
+            for (int i = 1; i < MAX_NDIMS; ++i) {
+                int dim = i < ndims ? dst_d.dims()[i] : 1;
+                if (i == 1) {
+                    conf.dispatch.define_dim(utils::format("D%d", i),
+                            nstl::min(i, ndims - 1), dim, 1);
+                    conf.dispatch.vectorize_dim("D1", 16);
+                } else if (i == ndims - 1) {
+                    conf.dispatch.define_dim(utils::format("D%d", i),
+                            nstl::min(i, ndims - 1), dim, conf.nvect);
+                } else {
+                    conf.dispatch.define_dim(utils::format("D%d", i),
+                            nstl::min(i, ndims - 1), dim, 1);
+                }
             }
         }
     } else {
@@ -149,6 +178,7 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("SUB_GROUP_SIZE", 16);
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("IS_NCX_LAYOUT", conf.is_ncX_layout);
+    kernel_ctx.define_int("PLAIN_TO_ABCD4AXB", conf.plain_to_ABcd4a4b);
     kernel_ctx.define_int("IS_MUL", conf.is_mul);
     kernel_ctx.define_int("IS_ADD", conf.is_add);
     kernel_ctx.define_int("IS_MAX", conf.is_max);

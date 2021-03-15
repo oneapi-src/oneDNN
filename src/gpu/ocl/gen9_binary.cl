@@ -275,7 +275,7 @@
 #endif
 
 #if !IS_NCX_LAYOUT
-
+#if !PLAIN_TO_ABCD4AXB
 KERNEL_ATTR
 __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
@@ -404,6 +404,135 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     DST_BLOCK_WRITE8(&dst[0], TO_DST8(d));
 #endif
 }
+
+#else // !PLAIN_TO_ABCD4AXB
+KERNEL_ATTR
+__kernel void gen9_binary(__global SRC0_DATA_T *src0,
+        __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
+        float src0_scale, float src1_scale) {
+
+    src0 += SRC0_OFFSET0;
+    src1 += SRC1_OFFSET0;
+    dst += DST_OFFSET0;
+
+    int sglid = get_sub_group_local_id();
+
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+    const int d2 = GWS_GET_D2();
+    const int d3 = GWS_GET_D3();
+    const int d4 = GWS_GET_D3();
+    const int d5 = GWS_GET_D3();
+
+    const int d0_block = GWS_GET_D0_BLOCK();
+    const int d1_block = GWS_GET_D1_BLOCK();
+    const int d01_block = d0_block * d1_block;
+
+    SRC0_DATA_T tmp_buf0[d01_block] = {0};
+    SRC1_DATA_T tmp_buf1[d01_block] = {0};
+    DST_DATA_T res_buf[d01_block] = {0};
+
+    const int d0_inner_block = min(d0_block, SRC0_D0);
+    const int d1_inner_block = min(d1_block, SRC0_D1);
+    for (int d0_inner = 0; d0_inner < d0_inner_block; d0_inner++) {
+        for (int d1_inner = 0; d1_inner < d1_inner_block; d1_inner++) {
+            if (SRC0_D0 % d0_inner_block != 0 && d0 + d0_inner >= SRC0_D0)
+                continue;
+            if (SRC0_D1 % d1_inner_block != 0 && d1 + d1_inner >= SRC0_D1)
+                continue;
+            int src0_off;
+            int src1_off;
+            if (SRC0_S3_0 == 1) {
+                // abcd layout.
+                src0_off = SRC0_OFF(d0 + d0_inner, d1 + d1_inner, d2, d3, 0, 0);
+                tmp_buf0[d0_inner * d1_block + d1_inner]
+                        = SRC0_BLOCK_READ(&src0[src0_off]);
+                src1_off = SRC1_OFF((d0 + d0_inner) * (!BCAST_DIM0),
+                        (d1 + d1_inner) * (!BCAST_DIM1), d2 * (!BCAST_DIM2),
+                        d3 * (!BCAST_DIM3), 0, 0);
+            } else {
+                // acdb layout.
+                src0_off = SRC0_OFF(
+                        d0 + d0_inner, d1 + d1_inner, d2, d3 + sglid, 0, 0);
+                tmp_buf0[d0_inner * d1_block + d1_inner] = src0[src0_off];
+                src1_off = SRC1_OFF((d0 + d0_inner) * (!BCAST_DIM0),
+                        (d1 + d1_inner) * (!BCAST_DIM1), d2 * (!BCAST_DIM2),
+                        (d3 + sglid) * (!BCAST_DIM3), 0, 0);
+            }
+#if BCAST_AT_INNERMOST_DIM == 1
+            tmp_buf1[d0_inner * d1_block + d1_inner] = src1[src1_off];
+#else
+            tmp_buf1[d0_inner * d1_block + d1_inner]
+                    = SRC1_BLOCK_READ(&src1[src1_off]);
+#endif //BCAST_AT_INNERMOST_DIM
+        }
+    }
+
+    int i = 0;
+    for (int d0_i = 0; d0_i < d0_block; d0_i++) {
+        for (int d1_i = 0; d1_i < d1_block; d1_i++) {
+
+            float tmp_src0 = CONVERT_FLOAT_T(tmp_buf0[i]);
+            float tmp_src1 = CONVERT_FLOAT_T(tmp_buf1[i]);
+            float res;
+            float dst_data;
+
+#if WITH_SRC0_SCALE
+            tmp_src0 = tmp_src0 * src0_scale;
+#endif
+#if WITH_SRC1_SCALE
+            tmp_src1 = tmp_src1 * src1_scale;
+#endif
+
+#if IS_ADD
+            res = tmp_src0 + tmp_src1;
+#elif IS_MUL
+            res = tmp_src0 * tmp_src1;
+#elif IS_MAX
+            res = max(tmp_src0, tmp_src1);
+#elif IS_MIN
+            res = min(tmp_src0, tmp_src1);
+#elif IS_DIV
+            res = tmp_src0 / tmp_src1;
+#elif IS_SUB
+            res = tmp_src0 - tmp_src1;
+#elif IS_GE
+            res = tmp_src0 >= tmp_src1;
+#elif IS_GT
+            res = tmp_src0 > tmp_src1;
+#elif IS_LE
+            res = tmp_src0 <= tmp_src1;
+#elif IS_LT
+            res = tmp_src0 < tmp_src1;
+#elif IS_EQ
+            res = tmp_src0 == tmp_src1;
+#elif IS_NE
+            res = tmp_src0 != tmp_src1;
+#endif
+
+            APPLY_POST_OPS_SERIAL(res, float, dst_data, float, d0 + d0_i, 1,
+                    d1 + d1_i, 1, d2, 1, d3 + sglid, 1, d4, 1, d5, 1);
+
+            res_buf[i] = TO_DST(res);
+            ++i;
+        }
+    }
+
+    DST_DATA_T res_all[d01_block][SUB_GROUP_SIZE];
+    for (int i = 0; i < d01_block; i++)
+        for (int j = 0; j < SUB_GROUP_SIZE; j++)
+            res_all[i][j] = intel_sub_group_shuffle(res_buf[i], j);
+    for (int d = 0; d < SUB_GROUP_SIZE; d += 8) {
+        DST_DATA8_T res_tmp;
+        for (int i = 0; i < 8; i++)
+            res_tmp[i] = res_all[sglid][d + i];
+        int dst_off = DST_OFF(d0, d1, d2, d3 + d, 0, 0);
+
+        DST_BLOCK_WRITE8(&dst[dst_off], res_tmp);
+    }
+}
+
+#endif // !PLAIN_TO_ABCD4AXB
 
 #else // #if !IS_NCX_LAYOUT
 
