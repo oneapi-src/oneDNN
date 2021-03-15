@@ -218,10 +218,12 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
 
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
                     && !has_zero_dim_memory() && mayiuse(isa)
-                    && (diff_dst_dt == data_type::bf16
-                            && wei_dt == data_type::bf16
-                            && utils::one_of(diff_src_dt, data_type::bf16,
-                                    data_type::f32))
+                    && ((diff_dst_dt == data_type::bf16
+                                && wei_dt == data_type::bf16
+                                && utils::one_of(diff_src_dt, data_type::bf16,
+                                        data_type::f32))
+                            || utils::everyone_is(data_type::f32, diff_dst_dt,
+                                    wei_dt, diff_src_dt))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
@@ -340,10 +342,12 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
 
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
                     && !has_zero_dim_memory() && mayiuse(isa)
-                    && (src_dt == data_type::bf16
-                            && diff_dst_type == data_type::bf16
-                            && utils::one_of(diff_wei_type, data_type::bf16,
-                                    data_type::f32))
+                    && ((src_dt == data_type::bf16
+                                && diff_dst_type == data_type::bf16
+                                && utils::one_of(diff_wei_type, data_type::bf16,
+                                        data_type::f32))
+                            || utils::everyone_is(data_type::f32, src_dt,
+                                    diff_dst_type, diff_wei_type))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;

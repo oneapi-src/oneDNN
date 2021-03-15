@@ -532,6 +532,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
                             && jbgp.src_dt == f32,
                     everyone_is(bf16, jbgp.src_dt, jbgp.dst_dt)
                             && jbgp.wei_dt == f32);
+    const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
 
     if (!IMPLICATION(is_int8,
                 one_of(isa, avx512_core_vnni, avx512_core_bf16_amx_int8)))
@@ -539,11 +540,14 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     if (!IMPLICATION(is_bf16,
                 one_of(isa, avx512_core_bf16, avx512_core_bf16_amx_bf16)))
         return status::unimplemented;
+    if (!IMPLICATION(is_f32, isa == avx512_core)) return status::unimplemented;
 
     if (is_int8) {
         jbgp.acc_dt = s32;
         jbgp.with_scales = true;
     } else if (is_bf16) {
+        jbgp.acc_dt = f32;
+    } else if (is_f32) {
         jbgp.acc_dt = f32;
     } else
         return status::unimplemented;
