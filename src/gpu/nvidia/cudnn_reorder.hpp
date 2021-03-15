@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -105,8 +105,6 @@ struct cudnn_reorder_t : public primitive_t {
         }
         std::shared_ptr<cudnn_reorder_generic_t> reorder_;
     };
-
-    cudnn_reorder_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override;
 

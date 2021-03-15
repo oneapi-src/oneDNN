@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,6 +33,7 @@ namespace gpu {
 namespace nvidia {
 
 struct cudnn_matmul_t : public primitive_t {
+    using primitive_t::primitive_t;
     struct pd_t : public matmul_pd_t {
         using matmul_pd_t::matmul_pd_t;
 
@@ -86,8 +87,6 @@ struct cudnn_matmul_t : public primitive_t {
             }
         }
     };
-
-    cudnn_matmul_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         matmul_impl_.reset(new cudnn_matmul_impl_t());

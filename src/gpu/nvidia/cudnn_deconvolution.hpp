@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -110,6 +110,7 @@ static status_t conv_descr_create(
 } // namespace
 
 struct cudnn_deconvolution_fwd_t : public primitive_t {
+    using primitive_t::primitive_t;
     struct pd_t : public deconvolution_fwd_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
@@ -215,8 +216,6 @@ struct cudnn_deconvolution_fwd_t : public primitive_t {
         format_tag_t dst_tag_;
     };
 
-    cudnn_deconvolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-
     ~cudnn_deconvolution_fwd_t() {}
 
     virtual status_t init(engine_t *engine) {
@@ -247,6 +246,7 @@ private:
 };
 
 struct cudnn_deconvolution_bwd_data_t : public primitive_t {
+    using primitive_t::primitive_t;
     struct pd_t : public deconvolution_bwd_data_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
@@ -317,8 +317,6 @@ struct cudnn_deconvolution_bwd_data_t : public primitive_t {
         std::unique_ptr<primitive_desc_t> conv_pd_;
     };
 
-    cudnn_deconvolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
-
     ~cudnn_deconvolution_bwd_data_t() {}
 
     virtual status_t init(engine_t *engine) {
@@ -349,6 +347,7 @@ private:
 };
 
 struct cudnn_deconvolution_bwd_weights_t : public primitive_t {
+    using primitive_t::primitive_t;
     struct pd_t : public deconvolution_bwd_weights_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
@@ -424,8 +423,6 @@ struct cudnn_deconvolution_bwd_weights_t : public primitive_t {
 
         std::unique_ptr<primitive_desc_t> conv_pd_;
     };
-
-    cudnn_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~cudnn_deconvolution_bwd_weights_t() {}
 

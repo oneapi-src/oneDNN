@@ -35,6 +35,7 @@ namespace gpu {
 namespace nvidia {
 
 struct cudnn_binary_t : public primitive_t {
+    using primitive_t::primitive_t;
 
     struct pd_t : public binary_pd_t {
         using binary_pd_t::binary_pd_t;
@@ -104,8 +105,6 @@ struct cudnn_binary_t : public primitive_t {
         }
         std::shared_ptr<cudnn_binary_impl_base_t> binary_impl_;
     };
-
-    cudnn_binary_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override;
 

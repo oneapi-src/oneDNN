@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,6 +59,7 @@ struct cudnn_batch_normalization_common_t {
 };
 
 struct cudnn_batch_normalization_fwd_t : public primitive_t {
+    using primitive_t::primitive_t;
     struct pd_t : public batch_normalization_fwd_pd_t {
         pd_t(const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -120,8 +121,6 @@ struct cudnn_batch_normalization_fwd_t : public primitive_t {
         std::shared_ptr<bnorm_exec_base_t> executor_;
     };
 
-    cudnn_batch_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
@@ -129,6 +128,7 @@ private:
 };
 
 struct cudnn_batch_normalization_bwd_t : public primitive_t {
+    using primitive_t::primitive_t;
 
     struct pd_t : public batch_normalization_bwd_pd_t {
         pd_t(const batch_normalization_desc_t *adesc,
@@ -181,8 +181,6 @@ struct cudnn_batch_normalization_bwd_t : public primitive_t {
         std::shared_ptr<cudnn_batch_normalization_impl_base_t> bnorm_impl_;
         std::shared_ptr<bnorm_exec_base_t> executor_;
     };
-
-    cudnn_batch_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override;
 

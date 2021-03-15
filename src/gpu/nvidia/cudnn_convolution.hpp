@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,6 +34,7 @@ namespace gpu {
 namespace nvidia {
 
 struct cudnn_convolution_fwd_t : public primitive_t {
+    using primitive_t::primitive_t;
 
     struct pd_t : public cudnn_convolution_fwd_pd_t {
         using cudnn_convolution_fwd_pd_t::cudnn_convolution_fwd_pd_t;
@@ -150,8 +151,6 @@ struct cudnn_convolution_fwd_t : public primitive_t {
         }
     };
 
-    cudnn_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-
     status_t init_temp_dst(engine_t *engine) {
         auto sycl_engine = utils::downcast<sycl_cuda_engine_t *>(engine);
         memory_storage_t *scratch_ptr = nullptr;
@@ -194,6 +193,7 @@ private:
 };
 
 struct cudnn_convolution_bwd_data_t : public primitive_t {
+    using primitive_t::primitive_t;
 
     struct pd_t : public cudnn_convolution_bwd_data_pd_t {
         using cudnn_convolution_bwd_data_pd_t::cudnn_convolution_bwd_data_pd_t;
@@ -244,7 +244,6 @@ struct cudnn_convolution_bwd_data_t : public primitive_t {
         bool support_bias() const override { return true; }
     };
 
-    cudnn_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
     ~cudnn_convolution_bwd_data_t() {}
     status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->check_for_zero_dims()) { return status::success; }
@@ -259,6 +258,7 @@ private:
 };
 
 struct cudnn_convolution_bwd_weights_t : public primitive_t {
+    using primitive_t::primitive_t;
 
     struct pd_t : public cudnn_convolution_bwd_weights_pd_t {
         using cudnn_convolution_bwd_weights_pd_t::
@@ -310,7 +310,6 @@ struct cudnn_convolution_bwd_weights_t : public primitive_t {
         bool with_scratchpad() const { return impl_->with_scratchpad(); }
     };
 
-    cudnn_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
     ~cudnn_convolution_bwd_weights_t() {}
     status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->check_for_zero_dims()) { return execute_zero_dims(ctx); }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -64,8 +64,6 @@ struct cudnn_softmax_fwd_t : public primitive_t {
         std::shared_ptr<cudnn_softmax_impl_base_t> softmax_impl_;
     };
 
-    cudnn_softmax_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
@@ -99,8 +97,6 @@ struct cudnn_softmax_bwd_t : public primitive_t {
 
         std::shared_ptr<cudnn_softmax_impl_base_t> softmax_impl_;
     };
-
-    cudnn_softmax_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override;
 

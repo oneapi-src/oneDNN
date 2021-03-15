@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -67,6 +67,7 @@ struct cudnn_pooling_common_t {
 };
 
 struct cudnn_pooling_fwd_t : public primitive_t {
+    using primitive_t::primitive_t;
     struct pd_t : public pooling_fwd_pd_t, public cudnn_pooling_common_t {
         using pooling_fwd_pd_t::pooling_fwd_pd_t;
 
@@ -129,8 +130,6 @@ struct cudnn_pooling_fwd_t : public primitive_t {
         std::shared_ptr<cudnn_pooling_impl_base_t> pooling_impl_;
     };
 
-    cudnn_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
@@ -138,6 +137,7 @@ private:
 };
 
 struct cudnn_pooling_bwd_t : public primitive_t {
+    using primitive_t::primitive_t;
     struct pd_t : public pooling_bwd_pd_t, public cudnn_pooling_common_t {
         using pooling_bwd_pd_t::pooling_bwd_pd_t;
 
@@ -183,8 +183,6 @@ struct cudnn_pooling_bwd_t : public primitive_t {
 
         std::shared_ptr<cudnn_pooling_impl_base_t> pooling_impl_;
     };
-
-    cudnn_pooling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
