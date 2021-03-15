@@ -75,6 +75,28 @@
 #define D2_OFF 0
 #endif
 
+#define _DST_OFF_MODULO_DIM(x0, x1, x2, x3, x4, x5) \
+    ({ \
+        int ret_val; \
+        if (NDIMS == 1) \
+            ret_val = _DST_OFF(x0 % DST_D0, 0, 0, 0, 0, 0); \
+        else if (NDIMS == 2) \
+            ret_val = _DST_OFF(x0 % DST_D0, x1 % DST_D1, 0, 0, 0, 0); \
+        else if (NDIMS == 3) \
+            ret_val = _DST_OFF( \
+                    x0 % DST_D0, x1 % DST_D1, 0, 0, 0, x5 % DST_D2); \
+        else if (NDIMS == 4) \
+            ret_val = _DST_OFF( \
+                    x0 % DST_D0, x1 % DST_D1, 0, 0, x4 % DST_D2, x5 % DST_D3); \
+        else if (NDIMS == 5) \
+            ret_val = _DST_OFF(x0 % DST_D0, x1 % DST_D1, 0, x3 % DST_D2, \
+                    x4 % DST_D3, x5 % DST_D4); \
+        else \
+            ret_val = _DST_OFF(x0 % DST_D0, x1 % DST_D1, x2 % DST_D2, \
+                    x3 % DST_D3, x4 % DST_D4, x5 % DST_D5); \
+        ret_val; \
+    })
+
 __kernel void ref_reduce(
         __global SRC_DATA_T *src, __global DST_DATA_T *dst POST_OP_ARGS) {
     const int d0 = GWS_GET_D0();
@@ -98,12 +120,17 @@ __kernel void ref_reduce(
     }
 
     acc = FINALIZE(acc);
-    const int dst_off = _DST_OFF(d0, d1, d2, d3, d4, d5);
+
+    const int dst_off = _DST_OFF_MODULO_DIM(d0, d1, d2, d3, d4, d5);
+    const int dst_off_pd = _DST_OFF(d0, d1, d2, d3, d4, d5);
+
     float dst_val;
 #if WITH_SUM
     dst_val = DST_TO_REF(dst[dst_off]);
 #endif
     APPLY_POST_OPS_SERIAL(acc, float, dst_val, float, d0, 1, d1, 1, d2, 1, d3,
             1, d4, 1, d5, 1);
-    dst[dst_off] = TO_DST(acc);
+
+    if (dst_off_pd != dst_off) acc = 0.f;
+    dst[dst_off_pd] = TO_DST(acc);
 }

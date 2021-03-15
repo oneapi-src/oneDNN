@@ -57,9 +57,8 @@ status_t ref_reduction_t::pd_t::init_conf(engine_t *engine) {
         if (is_reduction_dim) {
             conf.reduce_dims[d] = src_dims[d];
             conf.div *= conf.reduce_dims[d];
-        } else {
-            conf.dst_dims[d] = src_dims[d];
         }
+        conf.dst_dims[d] = dst_mdw.md_->padded_dims[d];
     }
 
     conf.dispatch.define_dim("D0", 0, conf.dst_dims[0]);
@@ -155,10 +154,8 @@ status_t ref_reduction_t::pd_t::init_kernel_ctx(
 }
 
 status_t ref_reduction_t::execute_ref(const exec_ctx_t &ctx) const {
-    status_t status = status::success;
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
-    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
-    CHECK(status);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     const auto &conf = pd()->conf;
 
