@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,6 +76,7 @@ protected:
 
         // Register map
         Reg64 loop_cnt(r11); // loop counter
+        const Reg64 n_step_reg(r12);
 
         // Here we do no unrolling, loop overhead should not be that dramatic
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
@@ -92,15 +93,17 @@ protected:
         auto addr_scratch_gates_reg = abi_param2;
         auto addr_bias_reg = abi_param3;
         auto addr_states_t_l_reg = abi_param4;
+        const auto base_args = get_stack_params_address();
 #ifdef _WIN32
         auto addr_states_t_l_copy_reg = r10;
         // Here we cannot use rbp to have initial stack pointer so we
         // use rsp and offset it with the size of pushed registers in
         // preamble
-        auto base_args = get_stack_params_address();
         mov(addr_states_t_l_copy_reg, ptr[base_args]);
+        mov(n_step_reg, ptr[base_args + 40]);
 #else
         auto addr_states_t_l_copy_reg = abi_param5;
+        mov(n_step_reg, ptr[base_args + 24]);
 #endif
 
         auto sg_addr
@@ -112,11 +115,15 @@ protected:
         init_regs(weights_scales, vlen);
         injector_->load_table_addr();
 
-        mov(loop_cnt, rnn_.dhc * scratch_dt_size);
+        if (rnn_.is_brgemm)
+            mov(loop_cnt, n_step_reg);
+        else
+            mov(loop_cnt, rnn_.dhc * scratch_dt_size);
+
         cmp(loop_cnt, vlen);
         jl(vector_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
 
-        L(vector_loop_start_label);
+        L_aligned(vector_loop_start_label, 64);
         {
             // load G
             uni_vmovups(G, sg_addr);

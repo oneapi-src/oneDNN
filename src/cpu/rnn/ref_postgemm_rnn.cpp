@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,28 +76,37 @@ void rnn_fwd_postgemm_template(T func1, const float *scales, float alpha,
         const rnn_utils::rnn_conf_t &rnn,
         rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_,
         scratch_data_t *scratch_gates_, src_data_t *dst_layer_,
-        src_data_t *dst_iter_, const src_data_t *src_iter_, float *bias_) {
+        src_data_t *dst_iter_, const src_data_t *src_iter_, float *bias_,
+        int block_step) {
 
     ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     bias_aoc_t bias(rnn, bias_);
 
-    auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
-    auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
+    const auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
+    const auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
     ws_states_layer_aoc<src_data_t> dst_layer(rnn, dst_layer_, dst_layer_ld);
     ws_states_iter_aoc<src_data_t> dst_iter(rnn, dst_iter_, dst_iter_ld);
 
     if (scales != nullptr) alpha = scales[0];
 
-    parallel_nd(rnn.mb, [&](int i) {
-        for (int j = 0; j < rnn.dhc; j++) {
+    const int n_elem = block_step / sizeof(scratch_data_t);
+
+    const auto postgemm_call = [&](int i) {
+        for (int j = 0; j < n_elem; j++) {
             const float h
                     = func1(scratch_gates(i, 0, j) + bias(0, j), alpha, 0);
             if (dst_layer_ != nullptr) dst_layer(i, j) = h;
             if (dst_iter_ != nullptr) dst_iter(i, j) = h;
             if (rnn.is_training) ws_gates(i, 0, j) = h;
         }
-    });
+    };
+
+    if (rnn.is_brgemm) {
+        for (int i = 0; i < rnn.m_block; i++)
+            postgemm_call(i);
+    } else
+        parallel_nd(rnn.mb, postgemm_call);
 }
 
 template <>
@@ -113,11 +122,11 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::rnn_postgemm) {
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         rnn_fwd_postgemm_template(act_f, nullptr, alpha, rnn, cell_position,
                 ws_gates_, scratch_gates_, dst_layer_, dst_iter_, src_iter_,
-                bias_);
+                bias_, block_step);
     else
         rnn_fwd_postgemm_template(linear_f, scales, alpha, rnn, cell_position,
                 ws_gates_, scratch_gates_, dst_layer_, dst_iter_, src_iter_,
-                bias_);
+                bias_, block_step);
 }
 
 template <>
@@ -133,11 +142,11 @@ rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::rnn_postgemm) {
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         rnn_fwd_postgemm_template(act_f, nullptr, alpha, rnn, cell_position,
                 ws_gates_, scratch_gates_, dst_layer_, dst_iter_, src_iter_,
-                bias_);
+                bias_, block_step);
     else
         rnn_fwd_postgemm_template(linear_f, scales, alpha, rnn, cell_position,
                 ws_gates_, scratch_gates_, dst_layer_, dst_iter_, src_iter_,
-                bias_);
+                bias_, block_step);
 }
 
 template <>
