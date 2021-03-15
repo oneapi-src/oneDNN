@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
-#include "cpu/x64/jit_transpose_src_utils.hpp"
+#include "cpu/x64/jit_transpose_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -1356,6 +1356,158 @@ void jit_transpose4x16_src::generate() {
 
     postamble();
 }
+
+#undef GET_OFF
+
+#define GET_OFF(field) offsetof(jit_conv_call_s, field)
+
+void jit_diff_wei_trans_to_vnni_t::generate() {
+    /* Reorder part of F32 weights tensor
+       from [2I][kd][kh][kw][16i][16o] to VNNI format [kd][kh][kw][16i][16o][2i]
+       and downconvert it to Bfloat16. */
+    const int typesize_out = 2;
+    const int typesize_acc = 4;
+    const int simd_w = 16;
+
+    using reg64_t = const Xbyak::Reg64;
+    const reg64_t &reg_output = r15;
+    const reg64_t &org_reg_output = r14;
+    const reg64_t &reg_input = r13;
+    const reg64_t &reg_input_1 = r12;
+    const reg64_t &org_reg_input_1 = r11;
+    const reg64_t &reg_input_2 = r10;
+    const reg64_t &reg_prm_table = r9;
+    const reg64_t &reg_last_ic_block = rax;
+    const reg64_t &reg_kd = rsi;
+    const reg64_t &reg_kh = abi_not_param1;
+    const reg64_t &reg_tmp = rdx;
+
+    const Xbyak::Zmm &zmm_idx = Xbyak::Zmm(31);
+    auto get_zmm_src_0 = [&](int ic) { return Xbyak::Zmm(ic); };
+    auto get_zmm_src_1 = [&](int ic) { return Xbyak::Zmm(4 + ic); };
+    auto get_zmm_bf16 = [&](int ic) { return Xbyak::Zmm(8 + ic); };
+
+    Xbyak::Label prm_table, zero_buffer;
+    Xbyak::Label kd_loop_label, kh_loop_label;
+
+    preamble();
+
+    mov(reg_last_ic_block, ptr[abi_param1 + GET_OFF(last_ic_block)]);
+    mov(org_reg_input_1, ptr[abi_param1 + GET_OFF(src)]);
+    mov(org_reg_output, ptr[abi_param1 + GET_OFF(dst)]);
+
+    mov(reg_prm_table, prm_table);
+    vmovups(zmm_idx, ptr[reg_prm_table]);
+
+    xor_(reg_kd, reg_kd);
+    L(kd_loop_label);
+    {
+        mov(reg_output, org_reg_output);
+        mov(reg_input_1, org_reg_input_1);
+        xor_(reg_kh, reg_kh);
+        L(kh_loop_label);
+        {
+            for (int kw = 0; kw < kw_; kw++) {
+                Xbyak::Label last_ic_label, done_ic_label;
+
+                dim_t out_offset
+                        = (dim_t)typesize_out * kw * ic_block_ * oc_block_ * 2;
+                dim_t inp_1_offset
+                        = (dim_t)typesize_acc * kw * ic_block_ * oc_block_;
+                dim_t inp_2_offset = (dim_t)typesize_acc
+                        * (kd_ * kh_ * kw_ * ic_block_ * oc_block_
+                                + kw * ic_block_ * oc_block_);
+
+                cmp(reg_last_ic_block, 0);
+                jne(last_ic_label, T_NEAR);
+
+                mov(reg_input_2, reg_input_1);
+                safe_add(reg_input_2, inp_2_offset, reg_tmp);
+                jmp(done_ic_label, T_NEAR);
+
+                L(last_ic_label);
+                mov(reg_input_2, zero_buffer);
+
+                L(done_ic_label);
+
+                for (int ocb = 0; ocb < oc_block_; ocb += simd_w) {
+                    int ic_count = 0;
+                    for (int bc = 0; bc < 2; bc++) {
+                        if (!bc) {
+                            mov(reg_input, reg_input_1);
+                            safe_add(reg_input, inp_1_offset, reg_tmp);
+                        } else
+                            mov(reg_input, reg_input_2);
+
+                        for (int ic = 0; ic < ic_block_ / 2; ic++) {
+                            auto zmm_src_0 = get_zmm_src_0(ic);
+                            auto zmm_src_1 = get_zmm_src_1(ic);
+                            auto zmm_bf16 = get_zmm_bf16(ic);
+
+                            vmovups(zmm_src_0,
+                                    ptr[reg_input
+                                            + typesize_acc
+                                                    * ((2 * ic + 0) * oc_block_
+                                                            + ocb)]);
+                            vmovups(zmm_src_1,
+                                    ptr[reg_input
+                                            + typesize_acc
+                                                    * ((2 * ic + 1) * oc_block_
+                                                            + ocb)]);
+
+                            vcvtne2ps2bf16(zmm_bf16, zmm_src_1, zmm_src_0);
+                            vpermw(zmm_bf16, zmm_idx, zmm_bf16);
+
+                            vmovups(ptr[reg_output + out_offset
+                                            + typesize_out
+                                                    * (ic_count * oc_block_ * 2
+                                                            + ocb * 2)],
+                                    zmm_bf16);
+                            ic_count++;
+                        }
+                    }
+                }
+            }
+            safe_add(reg_output,
+                    (dim_t)typesize_out * kw_ * 2 * ic_block_ * oc_block_,
+                    reg_tmp);
+            safe_add(reg_input_1,
+                    (dim_t)typesize_acc * kw_ * ic_block_ * oc_block_, reg_tmp);
+
+            add(reg_kh, 1);
+            cmp(reg_kh, kh_);
+            jl(kh_loop_label, T_NEAR);
+        }
+        safe_add(org_reg_output,
+                (dim_t)typesize_out * kh_ * kw_ * 2 * ic_block_ * oc_block_,
+                reg_tmp);
+        safe_add(org_reg_input_1,
+                (dim_t)typesize_acc * kh_ * kw_ * ic_block_ * oc_block_,
+                reg_tmp);
+
+        add(reg_kd, 1);
+        cmp(reg_kd, kd_);
+        jl(kd_loop_label, T_NEAR);
+    }
+
+    postamble();
+
+    align(64);
+    L(prm_table);
+    const uint16_t prm_array[32]
+            = {0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23, 8, 24, 9,
+                    25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31};
+    for (size_t i = 0; i < 32; ++i)
+        dw(prm_array[i]);
+
+    align(64);
+    L(zero_buffer);
+    const uint16_t zero = 0;
+    for (int i = 0; i < typesize_acc * oc_block_ * ic_block_; ++i)
+        db(zero);
+}
+
+#undef GET_OFF
 
 jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf) {
     if (conf->ver == ver_4fma && !conf->is_1stconv)

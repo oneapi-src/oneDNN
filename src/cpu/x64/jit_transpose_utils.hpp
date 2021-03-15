@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_JIT_TRANSPOSE_SRC_UTILS_HPP
-#define CPU_X64_JIT_TRANSPOSE_SRC_UTILS_HPP
+#ifndef CPU_X64_JIT_TRANSPOSE_UTILS_HPP
+#define CPU_X64_JIT_TRANSPOSE_UTILS_HPP
 
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
@@ -124,6 +124,29 @@ private:
 
     void transpose_block(int ur, int nrows);
     void transpose(int nrows);
+    void generate() override;
+};
+
+struct jit_diff_wei_trans_to_vnni_t : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_diff_wei_trans_to_vnni_t)
+
+    jit_diff_wei_trans_to_vnni_t(const int &kd, const int &kh, const int &kw,
+            const int &ic_block, const int &oc_block)
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_bf16)
+        , kd_(kd)
+        , kh_(kh)
+        , kw_(kw)
+        , ic_block_(ic_block)
+        , oc_block_(oc_block) {}
+
+    ~jit_diff_wei_trans_to_vnni_t() {}
+
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+    const int kd_, kh_, kw_;
+    const int ic_block_, oc_block_;
+
+private:
     void generate() override;
 };
 

@@ -28,7 +28,7 @@
 #include "cpu/x64/cpu_reducer.hpp"
 
 #include "cpu/x64/jit_avx512_core_bf16_conv_kernel.hpp"
-#include "cpu/x64/jit_transpose_src_utils.hpp"
+#include "cpu/x64/jit_transpose_utils.hpp"
 
 namespace dnnl {
 namespace impl {
