@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ protected:
     void copy_n(int unroll_n, Xbyak::Label &epilogue);
     void copy_ns(int unroll_n, Xbyak::Label &epilogue);
 
-    void generate() override;
+    void generate() override ATTRIBUTE_OPTIMIZE;
 
 private:
     static const int offset_a_ = 0, offset_b_ = 0;

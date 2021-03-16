@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ protected:
     void outerloop(int unroll_y, Xbyak::Label *&cur_outerloop_label,
             Xbyak::Label *&outerloop_end_label);
 
-    void generate() override;
+    void generate() override ATTRIBUTE_OPTIMIZE;
 
 private:
     static const int UNROLL_M_ = 64;

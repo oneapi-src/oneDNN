@@ -68,7 +68,7 @@ struct xbyak_gemm_t : public jit_generator {
         , beta(beta)
         , hasBias(hasBias) {}
 
-    void generate() override {
+    void generate() override ATTRIBUTE_OPTIMIZE {
         using namespace Xbyak;
 
         enum {
