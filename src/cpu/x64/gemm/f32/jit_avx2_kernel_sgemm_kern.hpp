@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
     void prefetchA_beforeFMA(int um, int un, int k_idx, int n_idx, int m_idx);
     void prefetchC_afterBload(int um, int un, int k_idx, int n_idx);
     void prefetchC_beforeKloop(int um);
-    void generate() override;
+    void generate() override ATTRIBUTE_OPTIMIZE;
 
     template <typename T_reg, typename T_desta, typename T_srca>
     void loadA_betweenFMAs(int um, int un, int k_idx, int n_idx, int m_idx,

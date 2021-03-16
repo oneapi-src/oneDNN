@@ -61,7 +61,7 @@ protected:
             Xbyak::Label *&cur_outerloop_label,
             Xbyak::Label *&outerloop_end_label);
 
-    void generate() override;
+    void generate() override ATTRIBUTE_OPTIMIZE;
 
 private:
     static const int max_um_vecs_ = 16;
