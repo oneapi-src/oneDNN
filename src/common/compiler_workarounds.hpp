@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,6 +41,22 @@
 #define CLANG_WA_02_SAFE_TO_USE_OMP_SIMD 0
 #else
 #define CLANG_WA_02_SAFE_TO_USE_OMP_SIMD 1
+#endif
+
+// Workaround 03: GCC
+//
+// For very large functions with too much control flow (i.e. if, switch, goto
+// statements), GCC 7 may struggle to perform optimizations based on tree
+// dominator (i.e. -ftree-dominator-opts, which is enabled with O1), thereby
+// producing an internal compiler error (ICE). Specifically, it seems that the
+// jump threading optimization is the culprit, which cannot be disabled on its
+// own. There is no reliable way to reproduce the ICE, therefore it is not clear
+// which __GCC_MINOR__ version fixes issue.
+#if (defined __GNUC__) && (__GNUC__ == 7) && (!defined(__INTEL_COMPILER)) \
+        && (!defined(__clang__major__))
+#define GCC_WA_NO_TREE_DOMINATOR_OPTS 1
+#else
+#define GCC_WA_NO_TREE_DOMINATOR_OPTS 0
 #endif
 
 #endif // COMPILER_WORKAROUNDS_HPP
