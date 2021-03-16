@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,9 +53,38 @@ struct gemm_x8s8s32x_matmul_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         if (pd()->params().has_pp_kernel_) {
-            pp_kernel_.reset(pp_kernel_t::create(pd()->N(), pd()->M(),
-                    pd()->ldc(), &pd()->params().pp_attr_,
-                    pd()->desc()->bias_desc.data_type, pd()->dst_md(), false));
+            const bool has_runtime_dims
+                    = memory_desc_wrapper(pd()->dst_md()).has_runtime_dims();
+            const int nthr = dnnl_get_max_threads();
+            const dim_t batch = pd()->batch();
+            const dim_t M = pd()->M();
+            const dim_t N = pd()->N();
+
+            // mb, oc values are calculated based on work-sharing using
+            // balance211 in execute()
+            dim_t mb = DNNL_RUNTIME_DIM_VAL;
+            if (!has_runtime_dims && ((batch * M) % nthr == 0)) {
+                const dim_t m_per_thr = nstl::max<dim_t>(1, (batch * M) / nthr);
+                if (m_per_thr >= M && m_per_thr % M == 0) {
+                    mb = M;
+                } else if (m_per_thr < M && M % m_per_thr == 0) {
+                    mb = m_per_thr;
+                }
+            }
+
+            dim_t oc = DNNL_RUNTIME_DIM_VAL;
+            if (!has_runtime_dims && ((batch * M * N) % nthr == 0)) {
+                const dim_t w_per_thr
+                        = nstl::max<dim_t>(1, (batch * M * N) / nthr);
+                if (w_per_thr >= N && w_per_thr % N == 0) {
+                    oc = N;
+                } else if (w_per_thr < N && N % w_per_thr == 0) {
+                    oc = w_per_thr;
+                }
+            }
+            pp_kernel_.reset(pp_kernel_t::create(oc, mb, pd()->ldc(),
+                    &pd()->params().pp_attr_, pd()->desc()->bias_desc.data_type,
+                    pd()->dst_md(), false));
             return pp_kernel_->create_kernel();
         }
         return status::success;

@@ -1,3 +1,8 @@
 --reset
 --cfg=s8s8s8
 97x2053:2053x997n"test_scratchpad_allocation_for_non_batched_case"
+
+# batch size smaller than num_threads
+--stag=abc --wtag=abc --cfg=u8s8s32 --bia_dt=f32 --bia_mask=4
+2x20x30:2x30x4
+2x20x30:1x30x4

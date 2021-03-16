@@ -39,6 +39,12 @@
 --attr-post-ops='sum;relu;add:u8','add:f32:per_tensor'
 --batch=shapes_3d
 
+# batch size smaller than num_threads
+--reset
+--stag=abc --wtag=abc --bia_dt=f32 --bia_mask=4
+2x20x30:2x30x4
+2x20x30:1x30x4
+
 # f32 Run-time
 --batch=harness_matmul_runtime_f32
 
