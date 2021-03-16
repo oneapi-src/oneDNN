@@ -20,6 +20,7 @@
 #include <limits.h>
 
 #include "common/bit_cast.hpp"
+#include "common/compiler_workarounds.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
@@ -35,6 +36,12 @@
 
 #if defined(_WIN32)
 #define OFFSET_SHADOWSPACE 0x28
+#endif
+
+#if GCC_WA_NO_TREE_DOMINATOR_OPTS
+#define ATTRIBUTE_OPTIMIZE __attribute__((optimize("no-tree-dominator-opts")))
+#else
+#define ATTRIBUTE_OPTIMIZE
 #endif
 
 #define DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_name) \
