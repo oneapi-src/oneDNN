@@ -88,7 +88,7 @@ protected:
             const pd_t *pd, engine_t *engine, bool use_global_scratchpad) {
 
         auto &global_primitive_cache = primitive_cache();
-        primitive_hashing::key_t key(pd, engine, dnnl_get_max_threads());
+        primitive_hashing::key_t key(pd, engine);
 
         std::promise<primitive_cache_t::cache_value_t> p_promise;
         // Try to get the shared future from the cache, if it's missing then

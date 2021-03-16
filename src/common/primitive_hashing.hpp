@@ -36,7 +36,7 @@ struct primitive_desc_t;
 namespace primitive_hashing {
 
 struct key_t {
-    key_t(const primitive_desc_t *pd, const engine_t *engine, int impl_nthr);
+    key_t(const primitive_desc_t *pd, const engine_t *engine);
 
     bool operator==(const key_t &other) const;
     const std::thread::id &thread_id() const { return thread_id_; }

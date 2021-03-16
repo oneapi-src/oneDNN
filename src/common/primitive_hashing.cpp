@@ -21,6 +21,7 @@
 #include "pooling_pd.hpp"
 #include "shuffle_pd.hpp"
 
+#include "dnnl_thread.hpp"
 #include "engine.hpp"
 #include "primitive_hashing.hpp"
 
@@ -28,12 +29,12 @@ namespace dnnl {
 namespace impl {
 namespace primitive_hashing {
 
-key_t::key_t(const primitive_desc_t *pd, const engine_t *engine, int impl_nthr)
+key_t::key_t(const primitive_desc_t *pd, const engine_t *engine)
     : primitive_kind_(pd->kind())
     , op_desc_(pd->op_desc())
     , attr_(pd->attr())
     , impl_id_(pd->impl_id())
-    , impl_nthr_(impl_nthr)
+    , impl_nthr_(dnnl_get_max_threads())
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     , engine_id_(engine->engine_id())
 #else

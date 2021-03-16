@@ -17,6 +17,7 @@
 #include <math.h>
 
 #include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
 
 #include "cpu/simple_q10n.hpp"

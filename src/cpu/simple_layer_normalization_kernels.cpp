@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "common/compiler_workarounds.hpp"
+#include "common/dnnl_thread.hpp"
 
 #include "cpu/platform.hpp"
 
