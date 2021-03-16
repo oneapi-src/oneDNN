@@ -60,3 +60,9 @@
 --dtag=acbde,bacde,cabde,abced,abdce
 --wtag=abcde,acbde
 3x5x7x11x13:1x1x1x13x13
+
+# batch size smaller than num_threads
+--reset
+--stag=abc --wtag=abc --cfg=bf16bf16bf16 --bia_dt=f32 --bia_mask=4
+2x20x30:2x30x4
+2x20x30:1x30x4
