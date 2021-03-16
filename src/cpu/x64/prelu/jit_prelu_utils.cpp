@@ -526,7 +526,7 @@ jit_prelu_io_multi_dt_helper_t<Vmm>::at(const data_type_t dt) const {
 
 template <typename Vmm>
 void jit_prelu_io_multi_dt_helper_t<Vmm>::prepare_tail_mask() {
-    return storage_.cbegin()->second->prepare_tail_mask();
+    storage_.cbegin()->second->prepare_tail_mask();
 }
 
 template <typename Vmm>
