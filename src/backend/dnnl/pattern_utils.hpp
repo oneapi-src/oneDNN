@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef BACKEND_PASS_PATTERN_UTILS_HPP
-#define BACKEND_PASS_PATTERN_UTILS_HPP
+#ifndef BACKEND_DNNL_PATTERN_UTILS_HPP
+#define BACKEND_DNNL_PATTERN_UTILS_HPP
 
 #include <deque>
 #include <iostream>
@@ -26,14 +26,20 @@
 #include <unordered_set>
 
 #include "interface/graph.hpp"
+#include "interface/partition.hpp"
+
+#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/dnnl_partition_impl.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
-// FRequirement: A function to check if graph op can meet
-// the requirement of pattern op
+namespace dnnl_impl {
+
+// FRequirement: A function to check if graph node can meet
+// the requirement of pattern node
 // Should be defined when register passes
-using FRequirement = pass::FRequirement;
+using FRequirement = impl::pass::FRequirement;
 
 /**
  * Operators set for checking number of op inputs
@@ -148,10 +154,12 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
         std::pair<op_t *, std::pair<uint32_t, uint32_t>> &pfront
                 = pattern_queue.front();
         op_t *nfront = op_queue.front();
-        // check if graph op is an unvisited op and can meet the
-        // requirement of pattern op
+
+        // check if graph node is an unvisited node and can meet the
+        // requirement of pattern node
         if (pfront.first->get_kind() != op_kind::any
-                && (selected.count(nfront) != 0 || nfront->has_attr("backend")
+                && (selected.count(nfront) != 0
+                        || nfront->get_partition() != nullptr
                         || nfront->get_kind() != pfront.first->get_kind()
                         || !pfront.first->has_same_attr_values(
                                 *nfront, excepted))) {
@@ -277,6 +285,9 @@ public:
     inline void rewrite(dnnl::graph::impl::graph_t &backend_graph,
             op_t *origin_pattern, op_t *optimized_pattern,
             std::vector<std::vector<op_t *>> &fusion_ops);
+    inline void fuse(dnnl::graph::impl::graph_t &backend_graph,
+            op_t *origin_pattern, op_t *optimized_pattern,
+            std::vector<std::vector<op_t *>> &fusion_ops);
     // function to convert pattern to a vector based on search order
     std::vector<op_t *> pattern2vector(op_t *op_pattern) {
         std::unordered_set<op_t *> selected;
@@ -358,6 +369,83 @@ inline void pattern_utils::rewrite(dnnl::graph::impl::graph_t &backend_graph,
         }
     }
 }
+
+// function to do fusion but not rewrite the graph
+inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
+        op_t *origin_pattern, op_t *opt_pattern,
+        std::vector<std::vector<op_t *>> &fusion_ops) {
+    std::vector<op_t *> pattern_vec = pattern2vector(origin_pattern);
+    std::unordered_set<op_t *> fusion_ops_set;
+    for (auto &ops : fusion_ops) {
+        fusion_ops_set.clear();
+
+        std::shared_ptr<op_t> fused_op(new op_t(opt_pattern->get_kind()));
+        fused_op->merge_attributes(opt_pattern->get_attributes());
+
+        for (size_t i = 0; i < ops.size(); ++i) {
+            fusion_ops_set.insert(ops[i]);
+        }
+
+        for (size_t i = 0; i < ops.size(); ++i) {
+            op_t *cur_op = ops[i];
+            const op_t *pattern_node = pattern_vec[i];
+
+            // merge the attrs and op ids
+            fused_op->merge_attributes(cur_op->get_attributes());
+            fused_op->add_op_ids(cur_op->get_op_ids());
+
+            // merge the input tensor
+            // FIXME(qun) Here is a potential bug: We assume that the input
+            // tensors which have producer will be in prior to the input
+            // tensors which have no producer, but this assumption is not
+            // always true. However, Above buggy pattern will not be matched
+            // by pattern matcher now, because of another bug in our current
+            // pattern matcher. We will fix all these bugs in new pattern
+            // matcher
+            for (size_t j = 0; j < cur_op->num_inputs(); ++j) {
+                auto in_value = cur_op->get_input_value(j);
+                // if in_value has no producer or its producer isn't in pattern,
+                // add this input value to fused op
+                if (!in_value->has_producer()
+                        || !fusion_ops_set.count(&in_value->get_producer())) {
+                    auto copied_in_value = std::make_shared<value_t>(
+                            in_value->get_logical_tensor(), /*internal*/ true);
+                    fused_op->add_input(copied_in_value);
+                }
+            }
+
+            // merge the output tensor
+            if (pattern_node->num_outputs() == 0) {
+                // it's a end node of pattern
+                for (size_t k = 0; k < cur_op->num_outputs(); ++k) {
+                    auto out_value = cur_op->get_output_value(k);
+                    auto copied_out_value = std::make_shared<value_t>(
+                            out_value->get_logical_tensor(), /*internal*/ true);
+                    fused_op->add_output(copied_out_value);
+                }
+            }
+        }
+
+        auto pimpl = std::make_shared<dnnl_partition_impl_t>(
+                backend_graph.get_engine_kind());
+
+        // use the fused node to initialize the partition_impl, and merge the
+        // informations to it.
+        pimpl->init(fused_op.get());
+
+        // transfer the ownership of fusion node from graph to partition
+        // note: the fusion node will not be removed from the graph
+        for (size_t i = 0; i < ops.size(); ++i) {
+            pimpl->add_op(ops[i]->shared_from_this());
+            // claim the op belong to the partition
+            ops[i]->set_partition(pimpl.get());
+        }
+
+        backend_graph.add_partition(pimpl);
+    }
+}
+
+} // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

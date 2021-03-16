@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef BACKEND_PASS_PASSES_MATMUL_FUSION_HPP
-#define BACKEND_PASS_PASSES_MATMUL_FUSION_HPP
+#ifndef BACKEND_DNNL_PASSES_MATMUL_FUSION_HPP
+#define BACKEND_DNNL_PASSES_MATMUL_FUSION_HPP
 
 #include <iostream>
 #include <memory>
@@ -24,12 +24,17 @@
 #include <vector>
 #include <unordered_set>
 
-#include "backend/pass/pass_base.hpp"
+#include "backend/dnnl/transformation_pass.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
+namespace dnnl_impl {
 namespace pass {
+
+using pattern = impl::pass::pattern;
+using FCreatePattern = impl::pass::FCreatePattern;
+using FCreateOptPattern = impl::pass::FCreateOptPattern;
 
 /*!
  * \brief This provides matmul-related fusion, i.e.
@@ -39,8 +44,9 @@ namespace pass {
  *          2. If found, verify if this transformation is safe / correct
  *          3. replace the pattern with a fused op, update the graph
  */
+DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(matmul_fusion)
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_relu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_relu_fusion)
         .set_priority(8.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -55,7 +61,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_relu_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_elu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_elu_fusion)
         .set_priority(8.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -70,7 +76,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_elu_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sigmoid_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sigmoid_fusion)
         .set_priority(8.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -85,7 +91,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sigmoid_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_hardtanh_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_hardtanh_fusion)
         .set_priority(8.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -100,7 +106,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_hardtanh_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_gelu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_gelu_fusion)
         .set_priority(8.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -115,7 +121,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_gelu_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_fusion)
         .set_priority(8.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -130,7 +136,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sigmoid_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sigmoid_fusion)
         .set_priority(9.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -147,7 +153,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sigmoid_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_swish_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_swish_fusion)
         .set_priority(9.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -167,7 +173,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_swish_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_elu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_elu_fusion)
         .set_priority(9.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -184,7 +190,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_elu_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_relu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_relu_fusion)
         .set_priority(9.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -201,7 +207,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_relu_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_relu6_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_relu6_fusion)
         .set_priority(9.1f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -220,7 +226,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_relu6_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_hardtanh_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_hardtanh_fusion)
         .set_priority(9.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -237,7 +243,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_hardtanh_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sum_relu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sum_relu_fusion)
         .set_priority(10.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -258,7 +264,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sum_relu_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sum_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sum_fusion)
         .set_priority(9.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -277,7 +283,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sum_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_bn_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_bn_fusion)
         .set_priority(9.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -294,7 +300,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_bn_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_fusion)
         .set_priority(8.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -311,7 +317,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_gelu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_gelu_fusion)
         .set_priority(10.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -330,7 +336,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_gelu_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_relu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_relu_fusion)
         .set_priority(10.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -349,7 +355,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_relu_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_sigmoid_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_sigmoid_fusion)
         .set_priority(10.0f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -368,7 +374,10 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_sigmoid_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_PASSES_DEF_END
+
 } // namespace pass
+} // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

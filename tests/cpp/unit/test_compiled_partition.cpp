@@ -19,6 +19,8 @@
 #include "interface/partition.hpp"
 #include "interface/tensor.hpp"
 
+#include "backend/dnnl/dnnl_partition_impl.hpp"
+
 #include "unit_test_common.hpp"
 #include "utils.hpp"
 
@@ -28,7 +30,6 @@ TEST(compiled_partition, relu) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t relu_node(impl::op_kind::ReLU);
-    relu_node.set_attr<std::string>("backend", "dnnl");
 
     const impl::logical_tensor_t lt_in = utils::logical_tensor_init(
             /* tid= */ 1, {1, 1, 3, 3}, impl::data_type::f32);
@@ -39,8 +40,12 @@ TEST(compiled_partition, relu) {
     relu_node.add_input(lt_in);
     relu_node.add_output(lt_out);
 
+    auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
+            eng.kind());
+    pimpl->init(&relu_node);
+
     impl::partition_t p;
-    p.init(&relu_node, eng.kind());
+    p.init(pimpl);
 
     impl::compiled_partition_t cp(p);
     ASSERT_EQ(p.id(), cp.src_partition().id());
@@ -96,7 +101,6 @@ TEST(compiled_partition, search_required_inputs_outputs) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t relu_node(impl::op_kind::ReLU);
-    relu_node.set_attr<std::string>("backend", "dnnl");
 
     impl::logical_tensor_t lt_in = utils::logical_tensor_init(
             /* tid= */ 1, {1, 1, 3, 3}, impl::data_type::f32);
@@ -106,8 +110,12 @@ TEST(compiled_partition, search_required_inputs_outputs) {
     relu_node.add_input(lt_in);
     relu_node.add_output(lt_out);
 
+    auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
+            eng.kind());
+    pimpl->init(&relu_node);
+
     impl::partition_t p;
-    p.init(&relu_node, eng.kind());
+    p.init(pimpl);
 
     impl::compiled_partition_t cp(p);
     ASSERT_EQ(p.id(), cp.src_partition().id());
@@ -194,23 +202,12 @@ TEST(compiled_partition, search_required_inputs_outputs) {
     for (size_t i = 0; i < ele_num_in; i++) {
         ASSERT_FLOAT_EQ(ref_out[i], data_out[i]);
     }
-
-    // if in/outputs tensor's order is not same as compile
-    // function's in/outputs logical tensor, we can also execute
-    std::vector<impl::tensor_t> t_inputs_wrong {
-            t_in_additional1, t_in_additional2, t_in};
-    std::vector<impl::tensor_t> t_outputs_wrong {
-            t_out_additional1, t_out, t_out_additional2};
-
-    EXPECT_SUCCESS(cp.execute(&strm, t_inputs_wrong, t_outputs_wrong));
-    strm.wait();
 }
 
 TEST(compiled_partition, allow_repeated_inputs) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t n(impl::op_kind::Multiply);
-    n.set_attr<std::string>("backend", "dnnl");
 
     impl::logical_tensor_t lt_in1 = utils::logical_tensor_init(
             /* tid= */ 1, {1, 1, 3, 3}, impl::data_type::f32);
@@ -222,8 +219,12 @@ TEST(compiled_partition, allow_repeated_inputs) {
     n.add_input(lt_in1);
     n.add_output(lt_out);
 
+    auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
+            eng.kind());
+    pimpl->init(&n);
+
     impl::partition_t p;
-    p.init(&n, eng.kind());
+    p.init(pimpl);
 
     impl::compiled_partition_t cp(p);
 
@@ -271,7 +272,6 @@ TEST(compiled_partition, not_allow_repeated_inputs) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t n(impl::op_kind::MatMul);
-    n.set_attr<std::string>("backend", "dnnl");
 
     impl::logical_tensor_t lt_in1 = utils::logical_tensor_init(
             /* tid= */ 1, {1, 1, 3, 3}, impl::data_type::f32);
@@ -283,8 +283,12 @@ TEST(compiled_partition, not_allow_repeated_inputs) {
     n.add_input(lt_in1);
     n.add_output(lt_out);
 
+    auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
+            eng.kind());
+    pimpl->init(&n);
+
     impl::partition_t p;
-    p.init(&n, eng.kind());
+    p.init(pimpl);
 
     impl::compiled_partition_t cp(p);
 

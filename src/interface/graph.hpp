@@ -21,6 +21,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
@@ -30,6 +31,8 @@
 #include "id.hpp"
 #include "op.hpp"
 #include "op_schema.hpp"
+#include "partition.hpp"
+#include "partition_impl.hpp"
 #include "utils/compatible.hpp"
 
 struct dnnl_graph_graph : public dnnl_graph_id {
@@ -43,6 +46,9 @@ private:
     /*! \brief The engine kind on which the operator will be evaluated */
     dnnl::graph::impl::engine_kind_t engine_kind_;
 
+    std::vector<std::shared_ptr<dnnl::graph::impl::partition_impl_t>>
+            partition_impls_;
+
     bool is_built_ {false};
 
 public:
@@ -50,7 +56,13 @@ public:
             = dnnl::graph::impl::engine_kind::cpu)
         : engine_kind_(kind) {};
 
-    dnnl_graph_graph(const dnnl_graph_graph &other) = delete;
+    // deep copy (except that the partition_impls_ is shallow copy)
+    dnnl_graph_graph(const dnnl_graph_graph &other)
+        : dnnl_graph_id(other)
+        , ops_(deep_copy(other.ops_))
+        , engine_kind_(other.engine_kind_)
+        , partition_impls_(other.partition_impls_) {};
+
     dnnl_graph_graph &operator=(const dnnl_graph_graph &other) = delete;
 
     ~dnnl_graph_graph() = default;
@@ -128,28 +140,27 @@ public:
         return outputs;
     }
 
-    /*!
-     * \brief execute graph pass
-     * \param policy Partition policy
-     * \return result
-     */
-    dnnl::graph::impl::status_t run_pass(
-            dnnl::graph::impl::partition_policy_t policy);
+    void add_partition(
+            const std::shared_ptr<dnnl::graph::impl::partition_impl_t> &pimpl) {
+        partition_impls_.push_back(pimpl);
+    }
+
+    std::vector<std::shared_ptr<dnnl::graph::impl::partition_impl_t>> &
+    get_partitions() {
+        return partition_impls_;
+    }
 
     /*!
      * \brief Get partition numbers
      * \return partition numbers
      */
-    size_t get_num_partitions() const {
-        return static_cast<size_t>(std::count_if(begin(ops_), end(ops_),
-                [](const op_ptr &n) { return n->has_attr("backend"); }));
-    };
+    size_t get_num_partitions() const { return partition_impls_.size(); }
 
     /*!
      * \brief get list of partitions
      * \param list of partitions
      */
-    void get_partitions(
+    void get_ordered_partitions(
             std::vector<dnnl::graph::impl::partition_t *> &partitions);
 
     /*!
@@ -158,6 +169,8 @@ public:
     dnnl::graph::impl::status_t build_graph();
 
     void visualize(const std::string &filename);
+
+    static std::vector<op_ptr> deep_copy(const std::vector<op_ptr> &nodes);
 };
 
 #endif

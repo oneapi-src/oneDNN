@@ -40,6 +40,7 @@ namespace graph {
 namespace impl {
 /// forward declaration
 class op_schema;
+class partition_impl_t;
 } // namespace impl
 } // namespace graph
 } // namespace dnnl
@@ -65,7 +66,7 @@ class op_schema;
  * 
  *****************************************************************************/
 
-struct dnnl_graph_op {
+struct dnnl_graph_op : public std::enable_shared_from_this<dnnl_graph_op> {
 public:
     using op_kind_t = dnnl::graph::impl::op_kind_t;
     using logical_tensor_t = dnnl::graph::impl::logical_tensor_t;
@@ -317,11 +318,13 @@ public:
     // partition handling
     bool is_assigned_to_partition() const { return partition_ != nullptr; }
 
-    void set_partition(dnnl::graph::impl::partition_t *part) {
+    void set_partition(dnnl::graph::impl::partition_impl_t *part) {
         partition_ = part;
     }
 
-    dnnl::graph::impl::partition_t *get_partition() const { return partition_; }
+    dnnl::graph::impl::partition_impl_t *get_partition() const {
+        return partition_;
+    }
 
     ///////////////////////////////////////////////////////////////////////////
     // As a fused op
@@ -376,7 +379,7 @@ private:
     std::unordered_map<std::string, attribute_value_t> attributes_;
 
     const dnnl::graph::impl::op_schema *schema_;
-    dnnl::graph::impl::partition_t *partition_ {nullptr};
+    dnnl::graph::impl::partition_impl_t *partition_ {nullptr};
     bool internal_ {false};
 
     // fused op: we still need to represent a fused op

@@ -16,9 +16,13 @@
 
 #include <utility>
 
-#include "backend.hpp"
+#include "utils/compatible.hpp"
+
+#include "dnnl_backend.hpp"
 #include "operators.hpp"
+#include "passes.hpp"
 #include "tensor.hpp"
+#include "transformation_pass.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -33,19 +37,23 @@ bool dnnl_layout_id_manager::is_mem_desc_equal(
     return md1 == md2;
 }
 
-impl::status_t dnnl_executable::execute(const impl::stream_t *g_stream,
-        const std::vector<impl::tensor_t> &inputs,
-        const std::vector<impl::tensor_t> &outputs) {
-    return kernel_->execute(op_, g_stream, inputs, outputs);
+dnnl_backend::dnnl_backend(const std::string &name, float priority)
+    : backend(std::move(name), priority) {
+    bool ret = register_passes() && register_kernels();
+    if (!ret) { throw std::runtime_error(name + " initialize failed"); }
 }
 
-const std::vector<impl::inplace_pair_t> &
-dnnl_executable::get_inplace_pairs() const {
-    return kernel_->inplace_pairs_;
+bool dnnl_backend::register_passes() {
+    DNNL_BACKEND_REGISTER_PASSES_CALL(bn_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(conv_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(gelu_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(matmul_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(single_node_pass, pass_registry_);
+
+    return true;
 }
 
-dnnl_backend::dnnl_backend(std::string name, size_t id)
-    : backend(std::move(name), id), layout_id_manager_(this) {
+bool dnnl_backend::register_kernels() {
     // Register DNNL kernel
 #define DNNL_REGISTER_KERNEL(op_kind_, kernel_class_) \
     static auto _flag_##op_kind_##_ \
@@ -158,55 +166,35 @@ dnnl_backend::dnnl_backend(std::string name, size_t id)
     DNNL_REGISTER_KERNEL(convert, reorder)
 
 #undef DNNL_REGISTER_KERNEL
-}
 
-size_t dnnl_backend::get_mem_size_impl(const impl::logical_tensor_t &lt) {
-    using desc = tensor::desc;
-    const desc td(lt);
-    return td.get_size();
-}
-
-executable::ptr dnnl_backend::compile_impl(const impl::partition_t *p,
-        const impl::engine_t *g_engine,
-        const std::vector<impl::logical_tensor_t> &inputs,
-        const std::vector<impl::logical_tensor_t> &outputs) {
-    const impl::op_t *work_op = p->get_fused_op();
-    if (!work_op) return {};
-
-    impl::kernel_base::ptr kernel = kernel_registry_.create_kernel(*work_op);
-    if (!kernel) return {};
-
-    auto ret = kernel->compile(work_op, g_engine, inputs, outputs);
-    if (ret != impl::status::success) return {};
-
-    return executable::ptr(new dnnl_executable(kernel, work_op));
-}
-
-bool dnnl_backend::to_public_impl(const impl::tensor_t &input,
-        impl::tensor_t &output, impl::engine_t &g_engine,
-        impl::stream_t &g_stream) {
-    using ltw = impl::logical_tensor_wrapper;
-
-    if (!input.get_data_handle()) return false;
-
-    // only accept strided output
-    if (!ltw(output.get_logical_tensor()).is_strided()) return false;
-
-    const dnnl::engine p_engine = make_dnnl_engine(g_engine);
-    const dnnl::stream p_stream = make_dnnl_stream(p_engine, g_stream);
-    impl::allocator_t *alc = g_engine.get_allocator();
-
-    dnnl_impl::tensor src {input, p_engine, alc};
-    dnnl_impl::tensor dst {output, p_engine, alc};
-    src.reorder_to(p_stream, dst);
     return true;
 }
 
-bool dnnl_backend::is_similar_impl(
-        const impl::logical_tensor_t &lhs, const impl::logical_tensor_t &rhs) {
-    tensor::desc desc1 {lhs};
-    tensor::desc desc2 {rhs};
-    return desc1 == desc2;
+size_t dnnl_backend::get_mem_size(const impl::logical_tensor_t &lt) const {
+    auto md = make_dnnl_memory_desc(lt);
+    return md.get_size();
+}
+
+bool dnnl_backend::compare_logical_tensor(const impl::logical_tensor_t &lhs,
+        const impl::logical_tensor_t &rhs) const {
+    auto md1 = make_dnnl_memory_desc(lhs);
+    auto md2 = make_dnnl_memory_desc(rhs);
+    return md1 == md2;
+}
+
+std::shared_ptr<partition_impl_t> dnnl_backend::create_conversion(
+        const impl::engine_kind_t engine_kind,
+        const impl::logical_tensor_t &input,
+        const impl::logical_tensor_t &output) {
+    logical_tensor_wrapper ltw {&output};
+    assert(ltw.is_opaque());
+
+    auto pimpl = std::make_shared<dnnl_partition_impl_t>(engine_kind);
+    pimpl->fused_op_ = impl::utils::make_unique<op_t>(op_kind::convert);
+    pimpl->inputs_.push_back(input);
+    pimpl->outputs_.push_back(output);
+
+    return pimpl;
 }
 
 impl::utils::optional<size_t> dnnl_backend::set_mem_desc(
@@ -219,7 +207,7 @@ impl::utils::optional<impl::utils::any> dnnl_backend::get_mem_desc(
     return layout_id_manager_.get_mem_desc(layout_id);
 }
 
-DNNL_GRAPH_REGISTER_BACKEND(dnnl, dnnl_backend);
+DNNL_GRAPH_REGISTER_BACKEND(dnnl_backend::get_singleton())
 
 } // namespace dnnl_impl
 } // namespace impl

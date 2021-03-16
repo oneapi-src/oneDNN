@@ -14,14 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <vector>
+
 #include "gtest/gtest.h"
 
-#include <algorithm>
-#include "backend/pass/pass_base.hpp"
-#include "backend/pass/pass_manager.hpp"
 #include "interface/graph.hpp"
 #include "interface/partition.hpp"
+#include "interface/pass_base.hpp"
+#include "interface/pass_manager.hpp"
+
+#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/dnnl_partition_impl.hpp"
 
 #include "utils.hpp"
 
@@ -29,11 +33,14 @@ using namespace dnnl::graph::impl;
 using namespace dnnl::graph::impl::op_kind;
 using namespace dnnl::graph::tests::unit::utils;
 
-using node_ptr = std::unique_ptr<dnnl::graph::impl::op_t>;
+using op_ptr = std::shared_ptr<dnnl::graph::impl::op_t>;
 
 namespace {
 dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
-    auto pm = dnnl::graph::impl::pass::pass_manager();
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager(
+            backend_ptr.get_pass_registry());
     auto &passes = pm.get_passes();
     auto find = std::find_if(passes.begin(), passes.end(),
             [&pass_name](const dnnl::graph::impl::pass::pass_base_ptr &p)
@@ -67,6 +74,14 @@ void set_conv_common_attr(op_t &conv, std::vector<int64_t> strides = {1, 1},
     conv.set_attr("filter_format", filter_format);
     conv.set_attr("groups", groups);
     conv.set_attr("auto_pad", auto_pad);
+}
+
+impl::op_t *get_fused_op(
+        const std::shared_ptr<dnnl::graph::impl::partition_impl_t> &part) {
+    return dynamic_cast<
+            const dnnl::graph::impl::dnnl_impl::dnnl_partition_impl_t *>(
+            part.get())
+            ->get_fused_op();
 }
 } // namespace
 
@@ -111,11 +126,10 @@ TEST(pass_test, conv_bn_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bn_fusion");
     apass->run(agraph);
-
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bn);
-    ASSERT_EQ(agraph.get_ops()[0]->num_inputs(), 6);
-    ASSERT_EQ(agraph.get_ops()[0]->num_outputs(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(), conv_bn);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 6);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
 }
 
 TEST(pass_test, conv_bn_fusion_fail) {
@@ -144,8 +158,9 @@ TEST(pass_test, conv_bn_fusion_fail) {
 
     pass::pass_base_ptr apass = get_pass("conv_bn_fusion");
     apass->run(agraph);
-    // conv with bias cannot be fused via conv_bn_fusion pass
-    ASSERT_EQ(agraph.num_ops(), 2);
+    // conv with bias cannot be fused via conv_bn_fusion pass,
+    // so num partitions is zero
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
 TEST(pass_test, conv_bn_fusion_fail_case2) {
@@ -181,7 +196,7 @@ TEST(pass_test, conv_bn_fusion_fail_case2) {
 
     pass::pass_base_ptr apass = get_pass("conv_bn_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 3);
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
 TEST(pass_test, conv_relu_fusion) {
@@ -203,8 +218,8 @@ TEST(pass_test, conv_relu_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_relu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_relu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(), conv_relu);
 }
 
 TEST(pass_test, conv_relu_fusion_fail) {
@@ -227,7 +242,7 @@ TEST(pass_test, conv_relu_fusion_fail) {
 
     pass::pass_base_ptr apass = get_pass("conv_relu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
 TEST(pass_test, conv_relu_fusion_fail_case2) {
@@ -254,7 +269,7 @@ TEST(pass_test, conv_relu_fusion_fail_case2) {
 
     pass::pass_base_ptr apass = get_pass("conv_relu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 3);
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
 TEST(pass_test, conv_bias_fusion) {
@@ -278,7 +293,7 @@ TEST(pass_test, conv_bias_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 }
 
 TEST(pass_test, conv_bias_fusion_fail) {
@@ -303,8 +318,9 @@ TEST(pass_test, conv_bias_fusion_fail) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_fusion");
     apass->run(agraph);
-    // conv with bias cannot be fused via conv_bias_fusion pass
-    ASSERT_EQ(agraph.num_ops(), 2);
+    // conv with bias cannot be fused via conv_bias_fusion pass,
+    // so only one partition
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 }
 
 TEST(pass_test, conv_sum_fusion) {
@@ -328,7 +344,7 @@ TEST(pass_test, conv_sum_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 }
 
 TEST(pass_test, conv_sum_fusion_fail) {
@@ -353,7 +369,7 @@ TEST(pass_test, conv_sum_fusion_fail) {
 
     pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
 TEST(pass_test, conv_bias_bn_fusion) {
@@ -386,8 +402,9 @@ TEST(pass_test, conv_bias_bn_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_bn_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_bn);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(
+            get_fused_op(agraph.get_partitions()[0])->get_kind(), conv_bias_bn);
 }
 
 TEST(pass_test, conv_bias_bn_fusion_case2) {
@@ -416,8 +433,9 @@ TEST(pass_test, conv_bias_bn_fusion_case2) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_bn_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_bn);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(
+            get_fused_op(agraph.get_partitions()[0])->get_kind(), conv_bias_bn);
 }
 
 TEST(pass_test, conv_bias_relu_fusion) {
@@ -445,8 +463,9 @@ TEST(pass_test, conv_bias_relu_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_relu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_relu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_relu);
 }
 
 TEST(pass_test, conv_bias_relu_fusion_case2) {
@@ -470,8 +489,9 @@ TEST(pass_test, conv_bias_relu_fusion_case2) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_relu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_relu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_relu);
 }
 
 TEST(pass_test, conv_bias_relu6_fusion) {
@@ -501,8 +521,9 @@ TEST(pass_test, conv_bias_relu6_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_relu6_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_relu6);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_relu6);
 }
 
 TEST(pass_test, conv_bias_relu6_fusion_fail) {
@@ -532,10 +553,7 @@ TEST(pass_test, conv_bias_relu6_fusion_fail) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_relu6_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 3);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), Convolution);
-    ASSERT_EQ(agraph.get_ops()[1]->get_kind(), BiasAdd);
-    ASSERT_EQ(agraph.get_ops()[2]->get_kind(), HardTanh);
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
 TEST(pass_test, conv_bias_elu_fusion) {
@@ -560,8 +578,9 @@ TEST(pass_test, conv_bias_elu_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_elu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_elu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_elu);
 }
 
 TEST(pass_test, conv_bias_sigmoid_fusion) {
@@ -585,8 +604,9 @@ TEST(pass_test, conv_bias_sigmoid_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_sigmoid_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_sigmoid);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_sigmoid);
 }
 
 TEST(pass_test, conv_bias_swish_fusion) {
@@ -616,8 +636,9 @@ TEST(pass_test, conv_bias_swish_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_swish_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_swish);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_swish);
 }
 
 TEST(pass_test, conv_bias_hardtanh_fusion) {
@@ -647,8 +668,9 @@ TEST(pass_test, conv_bias_hardtanh_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_hardtanh_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_hardtanh);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_hardtanh);
 }
 
 TEST(pass_test, conv_bias_square_fusion) {
@@ -676,8 +698,9 @@ TEST(pass_test, conv_bias_square_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_square_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_square);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_square);
 }
 
 TEST(pass_test, conv_bias_tanh_fusion) {
@@ -705,8 +728,9 @@ TEST(pass_test, conv_bias_tanh_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_tanh_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_tanh);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_tanh);
 }
 
 TEST(pass_test, conv_bias_abs_fusion) {
@@ -734,8 +758,9 @@ TEST(pass_test, conv_bias_abs_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_abs_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_abs);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_abs);
 }
 
 TEST(pass_test, conv_bias_sqrt_fusion) {
@@ -763,8 +788,9 @@ TEST(pass_test, conv_bias_sqrt_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_sqrt_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_sqrt);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_sqrt);
 }
 
 TEST(pass_test, conv_bias_sum_fusion) {
@@ -793,8 +819,9 @@ TEST(pass_test, conv_bias_sum_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_sum_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_add);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_add);
 }
 
 TEST(pass_test, conv_bias_sum_fusion_case2) {
@@ -819,8 +846,9 @@ TEST(pass_test, conv_bias_sum_fusion_case2) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_sum_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_add);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_add);
 }
 
 TEST(pass_test, conv_bias_sum_relu_fusion) {
@@ -853,8 +881,9 @@ TEST(pass_test, conv_bias_sum_relu_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_sum_relu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_add_relu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_add_relu);
 }
 
 TEST(pass_test, conv_bias_sum_elu_fusion) {
@@ -888,8 +917,9 @@ TEST(pass_test, conv_bias_sum_elu_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_sum_elu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_add_elu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_add_elu);
 }
 
 TEST(pass_test, conv_bias_sum_relu6_fusion) {
@@ -924,8 +954,9 @@ TEST(pass_test, conv_bias_sum_relu6_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_sum_relu6_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_add_relu6);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_add_relu6);
 }
 
 TEST(pass_test, bn_relu_fusion) {
@@ -938,9 +969,9 @@ TEST(pass_test, bn_relu_fusion) {
     pass::pass_base_ptr apass = get_pass("bn_relu_fusion");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = agraph.get_ops()[0];
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fused_node->get_kind(), bn_relu);
 }
 
@@ -954,9 +985,9 @@ TEST(pass_test, bn_bwd_relu_bwd_fusion) {
     pass::pass_base_ptr apass = get_pass("bn_bwd_relu_bwd_fusion");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = agraph.get_ops()[0];
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fused_node->get_kind(), bn_bwd_relu_bwd);
 }
 
@@ -985,8 +1016,9 @@ TEST(pass_test, conv_sum_relu_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_sum_relu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_add_relu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_add_relu);
 }
 
 TEST(pass_test, conv_sum_elu_fusion) {
@@ -1015,8 +1047,9 @@ TEST(pass_test, conv_sum_elu_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_sum_elu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_add_elu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(
+            get_fused_op(agraph.get_partitions()[0])->get_kind(), conv_add_elu);
 }
 
 TEST(pass_test, conv_sum_relu6_fusion) {
@@ -1046,8 +1079,9 @@ TEST(pass_test, conv_sum_relu6_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_sum_relu6_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_add_relu6);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_add_relu6);
 }
 
 TEST(pass_test, conv_bias_sum_sum) {
@@ -1100,9 +1134,11 @@ TEST(pass_test, conv_bias_sum_sum) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_sum_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 2);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_add);
-    ASSERT_EQ(agraph.get_ops()[1]->get_kind(), conv_bias_add);
+    ASSERT_EQ(agraph.get_num_partitions(), 2);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_add);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[1])->get_kind(),
+            conv_bias_add);
 }
 
 TEST(pass_test, conv_bn_sum_fusion) {
@@ -1135,8 +1171,9 @@ TEST(pass_test, conv_bn_sum_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bn_sum_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bn_add);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(
+            get_fused_op(agraph.get_partitions()[0])->get_kind(), conv_bn_add);
 }
 
 TEST(pass_test, conv_bn_sum_fusion_case2) {
@@ -1173,8 +1210,9 @@ TEST(pass_test, conv_bn_sum_fusion_case2) {
 
     pass::pass_base_ptr apass = get_pass("conv_bn_sum_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 2);
-    ASSERT_EQ(agraph.get_ops()[1]->get_kind(), conv_bn_add);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(
+            get_fused_op(agraph.get_partitions()[0])->get_kind(), conv_bn_add);
 }
 
 TEST(pass_test, conv_bn_sum_fusion_fail) {
@@ -1208,7 +1246,7 @@ TEST(pass_test, conv_bn_sum_fusion_fail) {
 
     pass::pass_base_ptr apass = get_pass("conv_bn_sum_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 3);
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
 TEST(pass_test, conv_bias_bn_sum_fusion) {
@@ -1242,8 +1280,9 @@ TEST(pass_test, conv_bias_bn_sum_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_bn_sum_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_bn_add);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_bn_add);
 }
 
 TEST(pass_test, conv_bn_relu_fusion) {
@@ -1275,8 +1314,9 @@ TEST(pass_test, conv_bn_relu_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bn_relu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bn_relu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(
+            get_fused_op(agraph.get_partitions()[0])->get_kind(), conv_bn_relu);
 }
 
 TEST(pass_test, conv_bias_bn_relu_fusion) {
@@ -1313,8 +1353,9 @@ TEST(pass_test, conv_bias_bn_relu_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_bn_relu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_bn_relu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_bn_relu);
 }
 
 TEST(pass_test, conv_bias_bn_relu_fusion_case2) {
@@ -1347,8 +1388,9 @@ TEST(pass_test, conv_bias_bn_relu_fusion_case2) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_bn_relu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_bn_relu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_bn_relu);
 }
 
 TEST(pass_test, conv_bn_sum_relu_fusion) {
@@ -1385,8 +1427,9 @@ TEST(pass_test, conv_bn_sum_relu_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bn_sum_relu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bn_add_relu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bn_add_relu);
 }
 
 TEST(pass_test, conv_bias_bn_sum_relu_fusion) {
@@ -1424,8 +1467,9 @@ TEST(pass_test, conv_bias_bn_sum_relu_fusion) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_bn_sum_relu_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), conv_bias_bn_add_relu);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            conv_bias_bn_add_relu);
 }
 
 TEST(pass_test, matmul_relu_fusion) {
@@ -1441,9 +1485,9 @@ TEST(pass_test, matmul_relu_fusion) {
             = get_pass("matmul_relu_fusion");
     matmul_relu_fusion_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = agraph.get_ops()[0];
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fused_node->get_kind(), matmul_relu);
 }
 
@@ -1459,9 +1503,9 @@ TEST(pass_test, matmul_elu_fusion) {
     pass::pass_base_ptr matmul_elu_fusion_pass = get_pass("matmul_elu_fusion");
     matmul_elu_fusion_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = agraph.get_ops()[0];
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fused_node->get_kind(), matmul_elu);
 }
 
@@ -1478,9 +1522,9 @@ TEST(pass_test, matmul_sigmoid_fusion) {
             = get_pass("matmul_sigmoid_fusion");
     matmul_sigmoid_fusion_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = agraph.get_ops()[0];
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fused_node->get_kind(), matmul_sigmoid);
 }
 
@@ -1497,9 +1541,9 @@ TEST(pass_test, matmul_hardtanh_fusion) {
             = get_pass("matmul_hardtanh_fusion");
     matmul_hardtanh_fusion_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = agraph.get_ops()[0];
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fused_node->get_kind(), matmul_hardtanh);
 }
 
@@ -1516,9 +1560,9 @@ TEST(pass_test, matmul_gelu_fusion) {
             = get_pass("matmul_gelu_fusion");
     matmul_gelu_fusion_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = agraph.get_ops()[0];
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fused_node->get_kind(), matmul_gelu);
 }
 
@@ -1537,15 +1581,10 @@ TEST(pass_test, matmul_sum_fusion) {
     pass::pass_base_ptr matmul_sum_fusion_pass = get_pass("matmul_sum_fusion");
     matmul_sum_fusion_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode1 = agraph.get_ops()[0];
-    auto fnode2 = agraph.get_ops()[1];
-    if (fnode1->get_kind() != matmul_add) {
-        ASSERT_EQ(fnode2->get_kind(), matmul_add);
-    } else {
-        ASSERT_EQ(fnode1->get_kind(), matmul_add);
-    }
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_node->get_kind(), matmul_add);
 }
 
 TEST(pass_test, matmul_sum_fusion_opposite_order) {
@@ -1563,15 +1602,10 @@ TEST(pass_test, matmul_sum_fusion_opposite_order) {
     pass::pass_base_ptr matmul_sum_fusion_pass = get_pass("matmul_sum_fusion");
     matmul_sum_fusion_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode1 = agraph.get_ops()[0];
-    auto fnode2 = agraph.get_ops()[1];
-    if (fnode1->get_kind() != matmul_add) {
-        ASSERT_EQ(fnode2->get_kind(), matmul_add);
-    } else {
-        ASSERT_EQ(fnode1->get_kind(), matmul_add);
-    }
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_node->get_kind(), matmul_add);
 }
 
 TEST(pass_test, matmul_sum_gelu_fusion) {
@@ -1593,15 +1627,10 @@ TEST(pass_test, matmul_sum_gelu_fusion) {
             = get_pass("matmul_sum_gelu_fusion");
     matmul_sum_gelu_fusion_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode1 = agraph.get_ops()[0];
-    auto fnode2 = agraph.get_ops()[1];
-    if (fnode1->get_kind() != matmul_add_gelu) {
-        ASSERT_EQ(fnode2->get_kind(), matmul_add_gelu);
-    } else {
-        ASSERT_EQ(fnode1->get_kind(), matmul_add_gelu);
-    }
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_node->get_kind(), matmul_add_gelu);
 }
 
 TEST(pass_test, matmul_sum_relu_fusion) {
@@ -1623,15 +1652,10 @@ TEST(pass_test, matmul_sum_relu_fusion) {
             = get_pass("matmul_sum_relu_fusion");
     matmul_sum_relu_fusion_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode1 = agraph.get_ops()[0];
-    auto fnode2 = agraph.get_ops()[1];
-    if (fnode1->get_kind() != matmul_add_relu) {
-        ASSERT_EQ(fnode2->get_kind(), matmul_add_relu);
-    } else {
-        ASSERT_EQ(fnode1->get_kind(), matmul_add_relu);
-    }
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_node->get_kind(), matmul_add_relu);
 }
 
 TEST(pass_test, conv_bwd_f_biasadd_bwd_fusion) {
@@ -1646,9 +1670,9 @@ TEST(pass_test, conv_bwd_f_biasadd_bwd_fusion) {
     pass::pass_base_ptr apass = get_pass("conv_bwd_f_biasadd_bwd_fusion");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = agraph.get_ops()[0];
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fused_node->get_kind(), conv_bwd_f_biasadd_bwd);
 }
 
@@ -1665,7 +1689,7 @@ TEST(pass_test, relu_matmul) {
             = get_pass("matmul_relu_fusion");
     matmul_relu_fusion_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 
 TEST(pass_test, matmul_bias_fusion) {
@@ -1680,9 +1704,9 @@ TEST(pass_test, matmul_bias_fusion) {
     pass::pass_base_ptr apass = get_pass("matmul_bias_fusion");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = agraph.get_ops()[0];
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fused_node->get_kind(), matmul_bias);
 }
 
@@ -1701,9 +1725,9 @@ TEST(pass_test, matmul_bias_sigmoid_fusion) {
             = get_pass("matmul_bias_sigmoid_fusion");
     matmul_bias_sigmoid_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode = agraph.get_ops()[0];
+    auto fnode = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fnode->get_kind(), matmul_bias_sigmoid);
 }
 
@@ -1722,9 +1746,9 @@ TEST(pass_test, matmul_bias_elu_fusion) {
             = get_pass("matmul_bias_elu_fusion");
     matmul_bias_elu_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = agraph.get_ops()[0];
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fused_node->get_kind(), matmul_bias_elu);
 }
 
@@ -1743,9 +1767,9 @@ TEST(pass_test, matmul_bias_relu_fusion) {
             = get_pass("matmul_bias_relu_fusion");
     matmul_bias_relu_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode = agraph.get_ops()[0];
+    auto fnode = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fnode->get_kind(), matmul_bias_relu);
 }
 
@@ -1764,9 +1788,9 @@ TEST(pass_test, matmul_bias_hardtanh_fusion) {
             = get_pass("matmul_bias_hardtanh_fusion");
     matmul_bias_hardtanh_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode = agraph.get_ops()[0];
+    auto fnode = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fnode->get_kind(), matmul_bias_hardtanh);
 }
 
@@ -1787,15 +1811,10 @@ TEST(pass_test, matmul_bias_sum_fusion) {
             = get_pass("matmul_bias_sum_fusion");
     matmul_bias_sum_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode1 = agraph.get_ops()[0];
-    auto fnode2 = agraph.get_ops()[1];
-    if (fnode1->get_kind() != matmul_bias_add) {
-        ASSERT_EQ(fnode2->get_kind(), matmul_bias_add);
-    } else {
-        ASSERT_EQ(fnode1->get_kind(), matmul_bias_add);
-    }
+    auto fnode = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fnode->get_kind(), matmul_bias_add);
 }
 
 TEST(pass_test, matmul_bias_sum_relu_fusion) {
@@ -1817,15 +1836,10 @@ TEST(pass_test, matmul_bias_sum_relu_fusion) {
             = get_pass("matmul_bias_sum_relu_fusion");
     matmul_bias_sum_relu_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode1 = agraph.get_ops()[0];
-    auto fnode2 = agraph.get_ops()[1];
-    if (fnode1->get_kind() != matmul_bias_add_relu) {
-        ASSERT_EQ(fnode2->get_kind(), matmul_bias_add_relu);
-    } else {
-        ASSERT_EQ(fnode1->get_kind(), matmul_bias_add_relu);
-    }
+    auto fnode = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fnode->get_kind(), matmul_bias_add_relu);
 }
 
 TEST(pass_test, matmul_bias_swish_fusion) {
@@ -1846,10 +1860,10 @@ TEST(pass_test, matmul_bias_swish_fusion) {
             = get_pass("matmul_bias_swish_fusion");
     matmul_bias_swish_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode1 = agraph.get_ops()[0];
-    ASSERT_EQ(fnode1->get_kind(), matmul_bias_swish);
+    auto fnode = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fnode->get_kind(), matmul_bias_swish);
 }
 
 TEST(pass_test, matmul_bias_bn_fusion) {
@@ -1866,9 +1880,9 @@ TEST(pass_test, matmul_bias_bn_fusion) {
     pass::pass_base_ptr matmul_bias_bn_pass = get_pass("matmul_bias_bn_fusion");
     matmul_bias_bn_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode = agraph.get_ops()[0];
+    auto fnode = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fnode->get_kind(), matmul_bias_bn);
 }
 
@@ -1888,9 +1902,9 @@ TEST(pass_test, matmul_bias_relu6_fusion) {
     pass::pass_base_ptr apass = get_pass("matmul_bias_relu6_fusion");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = agraph.get_ops()[0];
+    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(fused_node->get_kind(), matmul_bias_relu6);
 }
 
@@ -1915,7 +1929,7 @@ TEST(pass_test, layernorm_fusion) {
     pass::pass_base_ptr apass = get_pass("layernorm_fusion");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 2);
 
     auto fnode1 = agraph.get_ops()[0];
     auto fnode2 = agraph.get_ops()[1];
@@ -1952,7 +1966,7 @@ TEST(pass_test, gelu_erf_based_fusion) {
     pass::pass_base_ptr apass = get_pass("gelu_fusion");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 5);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 }
 
 TEST(pass_test, gelu_erf_based_tensor_input_fusion) {
@@ -2010,7 +2024,7 @@ TEST(pass_test, gelu_erf_based_tensor_input_fusion) {
     pass::pass_base_ptr apass = get_pass("gelu_fusion");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 }
 
 struct ut_gelu_params {
@@ -2062,7 +2076,7 @@ TEST_P(gelu_test, gelu_tanh_based_fusion) {
     pass::pass_base_ptr gelu_pass = get_pass("gelu_fusion");
     gelu_pass->run(agraph);
 
-    ASSERT_EQ(agraph.num_ops(), 8);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
 }
 
 // Parameters below correspond to the indices of the node inputs for Add ops.
@@ -2076,7 +2090,10 @@ TEST(pass_test, single_node_replacement) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
 
-    pass::pass_manager pm;
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager(
+            backend_ptr.get_pass_registry());
     std::vector<op_kind_t> single_node_set = {BatchNormInference, Add, ReLU,
             MatMul, AvgPool, MaxPool, AvgPoolBackprop,
             BatchNormTrainingBackprop, ConvolutionBackpropData,
@@ -2088,10 +2105,11 @@ TEST(pass_test, single_node_replacement) {
         ASSERT_EQ(node->get_kind(), akind);
         pm.run_passes(agraph, "no_config");
 
-        auto replaced_node = agraph.get_ops()[0];
+        auto orig_node = agraph.get_ops()[0];
+        ASSERT_NE(orig_node->get_partition(), nullptr);
+
+        auto replaced_node = get_fused_op(agraph.get_partitions()[0]);
         ASSERT_EQ(replaced_node->get_kind(), akind);
-        ASSERT_EQ(replaced_node->has_attr("backend"), true);
-        ASSERT_EQ(replaced_node->get_attr<std::string>("backend"), "dnnl");
     }
 }
 
@@ -2111,11 +2129,12 @@ TEST(pass_test, conv_single_node_replacement) {
 
     pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    auto replaced_node = agraph.get_ops()[0];
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    auto &orig_node = agraph.get_ops()[0];
+    ASSERT_NE(orig_node->get_partition(), nullptr);
+
+    auto replaced_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(replaced_node->get_kind(), Convolution);
-    ASSERT_EQ(replaced_node->has_attr("backend"), true);
-    ASSERT_EQ(replaced_node->get_attr<std::string>("backend"), "dnnl");
 }
 
 TEST(pass_test, conv_single_node_replacement_case2) {
@@ -2135,11 +2154,13 @@ TEST(pass_test, conv_single_node_replacement_case2) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    auto replaced_node = agraph.get_ops()[0];
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto &orig_node = agraph.get_ops()[0];
+    ASSERT_NE(orig_node->get_partition(), nullptr);
+
+    auto replaced_node = get_fused_op(agraph.get_partitions()[0]);
     ASSERT_EQ(replaced_node->get_kind(), conv_bias);
-    ASSERT_EQ(replaced_node->has_attr("backend"), true);
-    ASSERT_EQ(replaced_node->get_attr<std::string>("backend"), "dnnl");
 }
 
 TEST(pass_test, save_load_json) {
@@ -2180,10 +2201,14 @@ TEST(pass_test, save_load_json) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 5);
 
-    pass::pass_manager pm;
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager(
+            backend_ptr.get_pass_registry());
+
     pm.print_passes("passes.json");
     pm.run_passes(agraph, "passes.json");
-    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.num_ops(), 5);
     ASSERT_EQ(agraph.get_num_partitions(), 2);
 }
 
@@ -2223,12 +2248,12 @@ TEST(pass_test, two_conv_with_shared_weight) {
     ASSERT_EQ(agraph.num_ops(), 4);
     pass::pass_base_ptr conv_relu_fusion_pass = get_pass("conv_relu_fusion");
     conv_relu_fusion_pass->run(agraph);
-    ASSERT_EQ(agraph.num_ops(), 2);
     ASSERT_EQ(agraph.get_num_partitions(), 2);
-    for (auto &node : agraph.get_ops()) {
-        ASSERT_EQ(node->get_kind(), conv_relu);
-        ASSERT_EQ(node->num_inputs(), 2);
-        ASSERT_EQ(node->num_outputs(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 2);
+    for (auto &part : agraph.get_partitions()) {
+        ASSERT_EQ(get_fused_op(part)->get_kind(), conv_relu);
+        ASSERT_EQ(part->get_inputs().size(), 2);
+        ASSERT_EQ(part->get_outputs().size(), 1);
     }
 }
 
@@ -2263,8 +2288,9 @@ TEST(pass_test, multi_values_between_two_nodes) {
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 2);
-    ASSERT_EQ(agraph.get_ops()[0]->get_kind(), Convolution);
-    ASSERT_EQ(agraph.get_ops()[0]->num_outputs(), 1);
-    ASSERT_EQ(agraph.get_ops()[1]->get_kind(), Add);
-    ASSERT_EQ(agraph.get_ops()[1]->num_inputs(), 2);
+    ASSERT_EQ(
+            get_fused_op(agraph.get_partitions()[0])->get_kind(), Convolution);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[1])->get_kind(), Add);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs().size(), 2);
 }

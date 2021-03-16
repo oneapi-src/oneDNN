@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef BACKEND_PASS_PASSES_BN_FUSION_HPP
-#define BACKEND_PASS_PASSES_BN_FUSION_HPP
+#ifndef BACKEND_DNNL_PASSES_BN_FUSION_HPP
+#define BACKEND_DNNL_PASSES_BN_FUSION_HPP
 
 #include <iostream>
 #include <memory>
@@ -24,12 +24,17 @@
 #include <vector>
 #include <unordered_set>
 
-#include "backend/pass/pass_base.hpp"
+#include "backend/dnnl/transformation_pass.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
+namespace dnnl_impl {
 namespace pass {
+
+using pattern = impl::pass::pattern;
+using FCreatePattern = impl::pass::FCreatePattern;
+using FCreateOptPattern = impl::pass::FCreateOptPattern;
 
 /*!
  * \brief This provides batchnorm-related fusion, i.e.
@@ -40,7 +45,9 @@ namespace pass {
  *          3. replace the pattern with a fused op, update the graph
  */
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, bn_relu_fusion)
+DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(bn_fusion)
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, bn_relu_fusion)
         .set_priority(8.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -55,7 +62,7 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, bn_relu_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, bn_bwd_relu_bwd_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, bn_bwd_relu_bwd_fusion)
         .set_priority(8.8f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
@@ -71,7 +78,10 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, bn_bwd_relu_bwd_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_PASSES_DEF_END
+
 } // namespace pass
+} // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

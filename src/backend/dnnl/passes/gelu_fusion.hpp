@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef BACKEND_PASS_PASSES_GELU_FUSION_HPP
-#define BACKEND_PASS_PASSES_GELU_FUSION_HPP
+#ifndef BACKEND_DNNL_PASSES_GELU_FUSION_HPP
+#define BACKEND_DNNL_PASSES_GELU_FUSION_HPP
 
 #include <iostream>
 #include <memory>
@@ -24,12 +24,17 @@
 #include <vector>
 #include <unordered_set>
 
-#include "backend/pass/pass_base.hpp"
+#include "backend/dnnl/transformation_pass.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
+namespace dnnl_impl {
 namespace pass {
+
+using pattern = impl::pass::pattern;
+using FCreatePattern = impl::pass::FCreatePattern;
+using FCreateOptPattern = impl::pass::FCreateOptPattern;
 
 /*!
  * \brief This provides GELU fusion.
@@ -38,8 +43,9 @@ namespace pass {
  *          2. If found, verify if this transformation is safe / correct
  *          3. replace the pattern with a fused op, update the graph
  */
+DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(gelu_fusion)
 
-DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, gelu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, gelu_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *any_1 = apattern->create_op(op_kind::any);
@@ -100,7 +106,10 @@ DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(dnnl, gelu_fusion)
                     fused_op->set_attr("backend", std::string("dnnl"));
                 });
 
+DNNL_BACKEND_REGISTER_PASSES_DEF_END
+
 } // namespace pass
+} // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

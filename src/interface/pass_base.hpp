@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef BACKEND_PASS_PASS_BASE_HPP
-#define BACKEND_PASS_PASS_BASE_HPP
+#ifndef INTERFACE_PASS_BASE_HPP
+#define INTERFACE_PASS_BASE_HPP
 
 #include <functional>
 #include <list>
@@ -27,7 +27,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "backend/pass/pass_backend.hpp"
 #include "interface/graph.hpp"
 #include "utils/json.hpp"
 
@@ -98,7 +97,11 @@ public:
  */
 class pass_base {
 public:
-    pass_base(pass_type ptype, std::string pbackend, std::string pname);
+    pass_base(pass_type ptype, std::string pbackend, std::string pname)
+        : type_(ptype)
+        , backend_(std::move(pbackend))
+        , name_(std::move(pname)) {}
+
     pass_base() {};
 
     // the criteria of pass execution
@@ -136,8 +139,6 @@ public:
     std::string get_pass_backend() { return backend_; }
 
     std::string get_pass_name() { return name_; }
-
-    int get_pass_index() { return index_; }
 
     // set pass priority, passes with high priority
     // will be executed before passes with low priority
@@ -192,96 +193,10 @@ private:
     pass_type type_;
     std::string backend_;
     std::string name_;
-    int index_;
     float priority_ {5.0f};
     bool enable_ = true;
 };
 
-/*!
- * \brief analysis_pass provides analysis on a given graph,
- *        e.g. data type deduction, memory planning.
- */
-class analysis_pass : public pass_base {
-public:
-    explicit analysis_pass(std::string pbackend, std::string pname)
-        : pass_base(
-                pass_type::kAnalysis, std::move(pbackend), std::move(pname)) {}
-};
-
-/*!
- * \brief transformation_pass generates an optimized graph
- *        when the pass is hit, it can be op replacements,
- *        dead branch elimination, etc.
- */
-class transformation_pass : public pass_base {
-public:
-    explicit transformation_pass(std::string pbackend, std::string pname)
-        : pass_base(pass_type::kTransformation, std::move(pbackend),
-                std::move(pname)) {}
-
-    static pass_base_ptr create(std::string pbackend, std::string pname) {
-        return std::make_shared<transformation_pass>(
-                std::move(pbackend), std::move(pname));
-    }
-
-    // the criteria of pass execution
-    void run(graph &agraph) override;
-};
-
-/*!
- * \brief pass_registry is a registry class that
- *        is responsible for registering pass
- */
-class pass_registry {
-    using pass_create_fn = pass_base_ptr (*)(std::string, std::string);
-
-public:
-    // pass counter
-    std::atomic<int> pass_counter {0};
-
-    // get a static pass_backend_registry instance
-    static pass_registry *get() {
-        static pass_registry reg_inst;
-        return &reg_inst;
-    }
-
-    // register a pass
-    pass_base &register_pass(const std::string &backend_name,
-            const std::string &pass_name, pass_create_fn fn);
-    // get registered passes
-    const std::list<pass_base_ptr> &get_passes() const { return passes_; }
-
-    // sort passes based on their priorities, passes with high priority
-    // will be executed before passes with low priority
-    void sort_passes();
-
-    pass_base_ptr &get_pass_ptr(const std::string &pass_name) {
-        auto it = passes_map_.find(pass_name);
-        assert(it != passes_map_.end() && "pass not exists!");
-        return it->second;
-    }
-
-    pass_registry() = default;
-    pass_registry(const pass_registry &) = delete;
-    pass_registry(pass_registry &&) = delete;
-    pass_registry &operator=(const pass_registry &) = delete;
-    pass_registry &operator=(pass_registry &&) = delete;
-
-private:
-    std::list<pass_base_ptr> passes_;
-    std::unordered_map<std::string, pass_base_ptr> passes_map_;
-};
-
-#define DECLARE_PASS_EX(bname, pname, counter) \
-    static auto _registered_pass_##pname##_##bname##_##counter##_
-
-#define DECLARE_PASS(bname, pname, counter) \
-    DECLARE_PASS_EX(bname, pname, counter)
-
-#define DNNL_GRAPH_REGISTER_TRANSFORMATION_PASS(backend_name, pass_class_name) \
-    DECLARE_PASS(backend_name, pass_class_name, __COUNTER__) \
-            = pass_registry::get()->register_pass(#backend_name, \
-                    #pass_class_name, &transformation_pass::create)
 } // namespace pass
 } // namespace impl
 } // namespace graph

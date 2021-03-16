@@ -20,8 +20,8 @@
 
 #include "interface/backend.hpp"
 
-#include "backend.hpp"
 #include "common.hpp"
+#include "dnnl_backend.hpp"
 #include "tensor.hpp"
 #include "utils.hpp"
 
@@ -140,10 +140,8 @@ dnnl::memory::desc make_dnnl_memory_desc(const impl::logical_tensor_t &lt) {
     } else if (ltw.is_strided()) {
         return dnnl::memory::desc {dims, dtype, ltw.vstrides()};
     } else {
-        auto backend = backend_manager::get_backend("dnnl");
-        const impl::utils::optional<impl::utils::any> &td
-                = std::dynamic_pointer_cast<dnnl_backend>(backend)
-                          ->get_mem_desc(static_cast<size_t>(ltw.layout_id()));
+        const auto &td = dnnl_backend::get_singleton().get_mem_desc(
+                static_cast<size_t>(ltw.layout_id()));
         return static_cast<dnnl::memory::desc>(
                 impl::utils::any_cast<tensor::desc>(td.value()));
     }

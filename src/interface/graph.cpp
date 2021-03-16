@@ -18,8 +18,10 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
-#include "backend/pass/pass_manager.hpp"
+#include "backend.hpp"
+#include "c_types_map.hpp"
 #include "graph.hpp"
 #include "partition.hpp"
 
@@ -57,41 +59,104 @@ bool logical_tensor_sanity_check(
 }
 } // namespace
 
-status_t dnnl_graph_graph::run_pass(partition_policy_t policy) {
-    // test pass registration
-    UNUSED(policy);
+// function to do graph rewriting
+static void rewrite(dnnl::graph::impl::graph_t &agraph,
+        std::vector<std::vector<op_t *>> &fusion_ops) {
+    std::unordered_set<op_t *> visited;
+    std::unordered_set<op_t *> fusion_ops_set;
 
-    // we cannot run passes on a un-built graph.
-    if (!is_built_) return status::invalid_graph;
+    for (auto &ops : fusion_ops) {
+        visited.clear();
+        fusion_ops_set.clear();
 
-    auto pm = pass::pass_manager();
-    auto &passes = pm.get_passes();
-
-    char *val = std::getenv("DNNL_GRAPH_DUMP");
-    if (val != nullptr && std::strcmp(val, "1") == 0) {
-        std::cout << "number of registered passes: " << passes.size() << "\n";
-        for (auto &pass : passes) {
-            std::cout << "pass_name: " << pass->get_pass_name() << "\n";
+        for (size_t i = 0; i < ops.size(); ++i) {
+            fusion_ops_set.insert(ops[i]);
         }
-        std::cout << "visualize un-fused graph to a dot file" << std::endl;
-        visualize("_backend.dot");
+
+        op_t *fused_op = agraph.create_op(op_kind::Wildcard);
+        fused_op->set_partition(ops[0]->get_partition());
+
+        for (size_t i = 0; i < ops.size(); ++i) {
+            op_t *cur_op = ops[i];
+            visited.insert(cur_op);
+            fused_op->merge_attributes(cur_op->get_attributes());
+            fused_op->add_op_ids(cur_op->get_op_ids());
+
+            // if cur_node has input node which isn't in pattern,
+            // update value's connection. if cur_node has input node
+            // which is in pattern, add its output_tensor into visited
+            for (size_t j = 0; j < cur_op->num_inputs(); ++j) {
+                auto in_value = cur_op->get_input_value(j);
+                //if in_op isn't in pattern,
+                //set it as a input op of fused_op
+                if (!in_value->has_producer()
+                        || !visited.count(&in_value->get_producer())) {
+                    in_value->remove_consumer(*cur_op, j);
+                    in_value->add_consumer(*fused_op, fused_op->num_inputs());
+                    fused_op->add_input(in_value);
+                }
+            }
+
+            for (size_t k = 0; k < cur_op->num_outputs(); ++k) {
+                auto out_value = cur_op->get_output_value(k);
+                auto out_cons = out_value->get_consumers();
+
+                bool cons_all_in_pattern = true;
+                for (auto &con : out_cons) {
+                    if (!fusion_ops_set.count(&(con.get_op()))) {
+                        cons_all_in_pattern = false;
+                        break;
+                    }
+                }
+
+                if (out_cons.empty() || !cons_all_in_pattern) {
+                    // it's a end node of pattern, need to update
+                    // node connection of it's output nodes
+                    out_value->set_producer(*fused_op);
+                    fused_op->add_output(out_value);
+                }
+            }
+        }
+
+        for (size_t i = 0; i < ops.size(); ++i) {
+            agraph.delete_op(ops[i]);
+        }
     }
-
-    pm.run_passes(*this, "fake_config.json");
-
-    if (val != nullptr && std::strcmp(val, "1") == 0) {
-        std::cout << "visualize fused graph to a dot file" << std::endl;
-        visualize("_backend_opt.dot");
-    }
-
-    return status::success;
 }
 
-void dnnl_graph_graph::get_partitions(std::vector<partition_t *> &partitions) {
+void dnnl_graph_graph::get_ordered_partitions(
+        std::vector<partition_t *> &partitions) {
+    dnnl_graph_graph copied_graph(*this); // deep copy
+
+    // Cluster nodes that belong to same partition
+    std::vector<std::vector<op_t *>> fusion_nodes;
+    topo_order_visit(copied_graph.get_output_ops(), [&](op_t *n) {
+        partition_impl_t *part = n->get_partition();
+        if (!part) return;
+        auto pos = std::find_if(fusion_nodes.begin(), fusion_nodes.end(),
+                [&](std::vector<op_t *> &tmp) -> bool {
+                    return tmp[0]->get_partition() == part;
+                });
+        if (pos != fusion_nodes.end()) {
+            pos->emplace_back(n);
+        } else {
+            std::vector<op_t *> tmp {n};
+            fusion_nodes.emplace_back(tmp);
+        }
+    });
+
+    // Fuse nodes that belong to same partition
+    rewrite(copied_graph, fusion_nodes);
+
+    // Get partitions out according to the order of fused node
+    // TODO(qun) Here is a workaround. Dfs order of unfused nodes
+    // and fused nodes is not exactly same, which will break the
+    // tests and examples
     size_t count = 0;
-    topo_order_visit(this->get_output_ops(), [&](op_t *n) {
-        if (n->has_attr("backend")) {
-            partitions[count]->init(n, engine_kind_);
+    topo_order_visit(copied_graph.get_output_ops(), [&](op_t *n) {
+        partition_impl_t *part = n->get_partition();
+        if (part) {
+            partitions[count]->init(part->shared_from_this());
             count++;
         }
     });
@@ -168,6 +233,68 @@ void dnnl_graph_graph::visualize(const std::string &filename) {
     out.close();
 }
 
+// Deep copy a graph
+std::vector<dnnl_graph_graph::op_ptr> dnnl_graph_graph::deep_copy(
+        const std::vector<dnnl_graph_graph::op_ptr> &ops) {
+    using op_t = dnnl::graph::impl::op_t;
+    using op_ptr = dnnl_graph_graph::op_ptr;
+    using value_ptr = std::shared_ptr<value_t>;
+
+    std::vector<op_ptr> copied_ops;
+
+    // Create org_node to new_node map
+    std::unordered_map<op_ptr, op_ptr> op_map;
+    for (const op_ptr &cur_op : ops) {
+        // copy the node
+        op_ptr copied_op = std::make_shared<op_t>(
+                cur_op->get_id(), cur_op->get_kind(), cur_op->get_name());
+        copied_op->merge_attributes(cur_op->get_attributes());
+        copied_op->set_partition(cur_op->get_partition());
+
+        op_map[cur_op] = copied_op;
+        copied_ops.emplace_back(copied_op);
+    }
+
+    // Connect the new nodes according to org nodes
+    std::unordered_map<value_ptr, value_ptr> value_map;
+    for (const op_ptr &cur_op : ops) {
+        op_ptr copied_op = op_map[cur_op];
+
+        for (size_t i = 0; i < cur_op->num_outputs(); i++) {
+            auto value = cur_op->get_output_value(i);
+
+            value_ptr copied_value;
+            if (value_map.count(value) == 0) {
+                copied_value = std::make_shared<value_t>(
+                        value->get_logical_tensor(), value->is_internal());
+                value_map[value] = copied_value;
+            } else {
+                copied_value = value_map[value];
+            }
+
+            copied_op->add_output(copied_value);
+        }
+
+        for (size_t i = 0; i < cur_op->num_inputs(); i++) {
+            auto value = cur_op->get_input_value(i);
+
+            value_ptr copied_value;
+            if (value_map.count(value) == 0) {
+                copied_value = std::make_shared<value_t>(
+                        value->get_logical_tensor(), value->is_internal());
+                value_map[value] = copied_value;
+            } else {
+                copied_value = value_map[value];
+            }
+
+            copied_op->add_input(copied_value);
+            copied_value->add_consumer(*copied_op, i);
+        }
+    }
+
+    return copied_ops;
+}
+
 status_t DNNL_GRAPH_API dnnl_graph_graph_create(
         graph_t **created_graph, engine_kind_t engine_kind) {
     *created_graph = new graph_t(engine_kind);
@@ -189,7 +316,35 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_filter(
     if (graph == nullptr) { return status::invalid_graph; }
     auto status = graph->build_graph();
     if (status != status::success) return status::invalid_graph;
-    status = graph->run_pass(policy);
+
+    char *val = std::getenv("DNNL_GRAPH_DUMP");
+    if (val != nullptr && std::strcmp(val, "1") == 0) {
+        std::cout << "visualize un-fused graph to a dot file" << std::endl;
+        graph->visualize("_backend.dot");
+    }
+
+    // Get partition_impl by calling each backends
+    std::vector<const backend *> &backends
+            = backend_registry::get_singleton().get_registered_backends();
+    for (auto cbkd : backends) {
+        backend *bkd = const_cast<backend *>(cbkd);
+        status = bkd->get_partitions(*graph, policy);
+        if (status != status::success) return status::invalid_graph;
+    }
+
+    // Check the partition_impl
+    auto &partition_vec = graph->get_partitions();
+    for (auto &p : partition_vec) {
+        if (p->get_assigned_backend() == nullptr) {
+            return status::invalid_graph;
+        }
+    }
+
+    if (val != nullptr && std::strcmp(val, "1") == 0) {
+        std::cout << "visualize fused graph to a dot file" << std::endl;
+        graph->visualize("_backend_opt.dot");
+    }
+
     if (status != status::success) {
         return status::invalid_graph;
     } else {
@@ -208,6 +363,6 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
         graph_t *graph, uint64_t num, partition_t **partition) {
     if (graph == nullptr) { return status::invalid_graph; }
     std::vector<partition_t *> partitions {partition, partition + num};
-    graph->get_partitions(partitions);
+    graph->get_ordered_partitions(partitions);
     return status::success;
 }

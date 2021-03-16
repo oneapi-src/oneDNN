@@ -35,9 +35,17 @@ size_t logical_tensor_wrapper::size() const {
 
         return max_size * data_type_size();
     } else if (is_opaque()) {
-        return backend_manager::get_backend(
-                static_cast<size_t>(lt->layout.layout_id))
-                ->get_mem_size(*lt);
+        size_t layout_id = static_cast<size_t>(lt->layout.layout_id);
+        auto backend = backend_registry::get_singleton().get_registered_backend(
+                layout_id);
+
+        // Before pass a logical tensor to specific backend, we should remove
+        // the encoded backend id from the layout id. Because each backend is
+        // invisble about backend id for simplifing the backend integration
+        logical_tensor_t new_lt = *lt;
+        new_lt.layout.layout_id = static_cast<int64_t>(
+                backend_registry::extract_layout_id(layout_id));
+        return backend->get_mem_size(new_lt);
     } else {
         return (size_t)-1;
     }
@@ -91,8 +99,20 @@ bool logical_tensor_wrapper::is_equal(const logical_tensor_t &lhs,
         size_t layout_id = lhs.layout_type == layout_type::opaque
                 ? static_cast<size_t>(lhs.layout.layout_id)
                 : static_cast<size_t>(rhs.layout.layout_id);
-        auto backend = backend_manager::get_backend(layout_id);
-        return backend->is_similar(lhs, rhs);
+        auto backend = backend_registry::get_singleton().get_registered_backend(
+                layout_id);
+
+        // Before pass a logical tensor to specific backend, we should remove
+        // the encoded backend id from the layout id. Because each backend is
+        // invisble about backend id for simplifing the backend integration
+        logical_tensor_t new_lt
+                = lhs.layout_type == layout_type::opaque ? lhs : rhs;
+        new_lt.layout.layout_id = static_cast<int64_t>(
+                backend_registry::extract_layout_id(layout_id));
+
+        return lhs.layout_type == layout_type::opaque
+                ? backend->compare_logical_tensor(new_lt, rhs)
+                : backend->compare_logical_tensor(lhs, new_lt);
     }
 
     return false;

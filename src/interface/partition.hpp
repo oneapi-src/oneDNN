@@ -17,6 +17,7 @@
 #ifndef INTERFACE_PARTITION_HPP
 #define INTERFACE_PARTITION_HPP
 
+#include <cstring>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -32,33 +33,22 @@
 #include "op.hpp"
 #include "utils.hpp"
 
+#include "interface/partition_impl.hpp"
 #include "interface/stream.hpp"
+
 #include "utils/compatible.hpp"
 #include "utils/verbose.hpp"
 
-namespace std {
-template <>
-struct hash<std::pair<size_t, size_t>> {
-    size_t operator()(const std::pair<size_t, size_t> &v) const {
-        size_t seed = 0;
-        seed ^= std::hash<size_t> {}(v.first) + 0x9e3779b9 + (seed << 6)
-                + (seed >> 2);
-        seed ^= std::hash<size_t> {}(v.second) + 0x9e3779b9 + (seed << 6)
-                + (seed >> 2);
-        return seed;
-    }
-};
-} // namespace std
+namespace impl = dnnl::graph::impl;
 
 namespace dnnl {
 namespace graph {
 namespace impl {
-class executable;
+class backend;
 } // namespace impl
 } // namespace graph
 } // namespace dnnl
 
-namespace impl = dnnl::graph::impl;
 struct dnnl_graph_partition : public dnnl_graph_id {
 public:
     friend struct dnnl_graph_compiled_partition;
@@ -66,102 +56,57 @@ public:
 
     dnnl_graph_partition() = default;
 
-    // enable copy
+    // deep copy
     dnnl_graph_partition(const dnnl_graph_partition &other)
-        : dnnl_graph_id(other)
-        , engine_kind_(other.engine_kind_)
-        , ids_(other.ids_)
-        , op_(impl::utils::make_unique<impl::op_t>(*(other.op_)))
-        , inputs_(other.inputs_)
-        , outputs_(other.outputs_)
-        , inputs_map_(other.inputs_map_)
-        , outputs_map_(other.outputs_map_) {
-        op_->merge_attributes(other.op_->get_attributes());
-    }
+        : dnnl_graph_id(other), pimpl_(other.pimpl_->clone()) {}
 
     // disable assign
     dnnl_graph_partition &operator=(const dnnl_graph_partition &other) = delete;
 
     ~dnnl_graph_partition() = default;
 
-    bool is_initialized() { return op_ ? true : false; }
-
-    void init(const impl::op_t *op, const impl::engine_kind_t engine_kind) {
-        engine_kind_ = engine_kind;
-        op_ = impl::utils::make_unique<impl::op_t>(*op);
-        op_->merge_attributes(op->get_attributes());
-        add_op(op->get_op_ids());
-        add_tensors(op);
-        add_tensors_map(op);
+    void init(const std::shared_ptr<impl::partition_impl_t> &pimpl) {
+        pimpl_ = pimpl;
     }
 
-    void init(impl::op_kind_t op_kind, const impl::engine_kind_t engine_kind,
-            const impl::logical_tensor_t &input,
-            const impl::logical_tensor_t &output);
-
-    void add_tensors(const impl::op_t *op) {
-        for (size_t i = 0; i < op->num_inputs(); ++i) {
-            inputs_.push_back(op->get_input_value(i)->get_logical_tensor());
-        }
-        for (size_t i = 0; i < op->num_outputs(); ++i) {
-            outputs_.push_back(op->get_output_value(i)->get_logical_tensor());
-        }
+    bool is_initialized() {
+        return (pimpl_ != nullptr) && pimpl_->is_initialized();
     }
 
-    void add_tensors_map(const impl::op_t *op) {
-        for (auto kv : op->get_input_tensor_map()) {
-            inputs_map_[kv.second] = kv.first;
-        }
-        for (auto kv : op->get_output_tensor_map()) {
-            outputs_map_[kv.second] = kv.first;
-        }
+    const impl::partition_impl_t *get_pimpl() const { return pimpl_.get(); }
+
+    const impl::backend *get_assigned_backend() const {
+        return pimpl_->get_assigned_backend();
     }
 
-    void add_op(size_t id) { ids_.insert(id); }
+    impl::engine_kind_t get_engine_kind() { return pimpl_->get_engine_kind(); }
 
-    void add_op(const std::vector<size_t> &ids) {
-        ids_.insert(ids.begin(), ids.end());
+    const std::vector<std::shared_ptr<impl::op_t>> &get_ops() const {
+        return pimpl_->get_ops();
     }
 
-    size_t num_ops() const { return ids_.size(); }
+    size_t num_ops() const { return pimpl_->get_ops().size(); }
 
-    const std::unordered_set<size_t> &get_ops() const { return ids_; }
-
-    const impl::op_t *get_fused_op() const { return op_.get(); };
-
-    size_t get_inputs_num() const { return inputs_.size(); }
-
-    size_t get_outputs_num() const { return outputs_.size(); }
+    std::unordered_set<size_t> get_op_ids() const {
+        std::unordered_set<size_t> ids;
+        auto ops = pimpl_->get_ops();
+        for (auto &op : ops) {
+            ids.insert(op->get_id());
+        }
+        return ids;
+    }
 
     const std::vector<impl::logical_tensor_t> &get_inputs() const {
-        return inputs_;
+        return pimpl_->get_inputs();
     }
 
     const std::vector<impl::logical_tensor_t> &get_outputs() const {
-        return outputs_;
+        return pimpl_->get_outputs();
     }
 
-    impl::logical_tensor_t *find_input(size_t id, size_t offset) {
-        auto p = std::make_pair(id, offset);
+    size_t get_inputs_num() const { return pimpl_->get_inputs().size(); }
 
-        auto v = inputs_map_.find(p);
-        if (v != inputs_map_.end()) {
-            return &(inputs_.at(v->second));
-        } else {
-            return nullptr;
-        }
-    }
-
-    impl::logical_tensor_t *find_output(size_t id, size_t offset) {
-        auto p = std::make_pair(id, offset);
-
-        auto v = outputs_map_.find(p);
-        if (v != outputs_map_.end()) {
-            return &(outputs_.at(v->second));
-        } else {
-            return nullptr;
-        }
-    }
+    size_t get_outputs_num() const { return pimpl_->get_outputs().size(); }
 
     impl::status_t compile(impl::compiled_partition_t *compiled_partition,
             std::vector<const impl::logical_tensor_t *> &inputs,
@@ -172,89 +117,14 @@ public:
             std::vector<const impl::logical_tensor_t *> &inputs,
             std::vector<impl::logical_tensor_t *> &outputs);
 
-    friend std::string to_string(const dnnl_graph_partition &p) {
-        std::ostringstream os;
-
-        const auto type_to_string = [](impl::data_type_t t) {
-            switch (t) {
-                case dnnl_graph_data_type_undef: return "undef";
-                case dnnl_graph_f16: return "f16";
-                case dnnl_graph_bf16: return "f16";
-                case dnnl_graph_f32: return "f32";
-                case dnnl_graph_s32: return "s32";
-                case dnnl_graph_s8: return "s8";
-                case dnnl_graph_u8: return "u8";
-            }
-        };
-
-        const auto dims_to_string = [&](const std::vector<int64_t> &dims) {
-            std::ostringstream oss;
-            oss << "(";
-            const char *delimer = "";
-            for (const auto &d : dims) {
-                oss << delimer << d;
-                delimer = "x";
-            }
-            oss << ")";
-            return oss.str();
-        };
-
-        os << "[ Partition ID: " << p.id() << '\n';
-        os << " [ Op: (";
-        if (p.op_) {
-            os << "ID: " << p.op_->get_id()
-               << ", kind: " << impl::op_t::kind2str(p.op_->get_kind());
-        }
-        os << ") \n";
-
-        os << "  [ inputs: ";
-        const char *delimer = "";
-        for (const auto &i : p.inputs_) {
-            const impl::logical_tensor_wrapper v(i);
-            os << delimer << "(ID: " << v.id() << "("
-               << type_to_string(v.data_type()) << ":"
-               << dims_to_string(v.vdims());
-            delimer = ")), ";
-        }
-        os << " ]\n";
-
-        os << "  [ outputs: ";
-        delimer = "";
-        for (const auto &o : p.outputs_) {
-            const impl::logical_tensor_wrapper v(o);
-            os << delimer << "(ID: " << v.id() << "("
-               << type_to_string(v.data_type()) << ":"
-               << dims_to_string(v.vdims());
-            delimer = ")), ";
-        }
-        os << " ]\n";
-        os << " ]\n";
-        os << "]";
-
-        return os.str();
+    std::string to_string() const {
+        std::string id_str = "[ Partition ID: " + std::to_string(id()) + "\n";
+        std::string impl_str = pimpl_->to_string();
+        return id_str + impl_str;
     }
 
 private:
-    // Engine kind
-    impl::engine_kind_t engine_kind_;
-
-    // All the IDs of corresponding op_t objects
-    std::unordered_set<size_t> ids_ {};
-
-    // Fused op. Currently, only one op here
-    std::unique_ptr<impl::op_t> op_ {nullptr};
-
-    // All the input logical tensors of a partition
-    std::vector<impl::logical_tensor_t> inputs_ {};
-
-    // All the output logical tensors of a partition
-    std::vector<impl::logical_tensor_t> outputs_ {};
-
-    // Map from (op id, op input offset) -> partition input index
-    std::unordered_map<std::pair<size_t, size_t>, size_t> inputs_map_ {};
-
-    // Map from (op id, op output offset) -> partition output index
-    std::unordered_map<std::pair<size_t, size_t>, size_t> outputs_map_ {};
+    std::shared_ptr<impl::partition_impl_t> pimpl_;
 };
 
 ///
@@ -275,7 +145,19 @@ public:
 
     const impl::partition_t &src_partition() { return src_partition_; }
 
-    const std::vector<impl::inplace_pair_t> &get_inplace_pairs() const;
+    void init(const std::shared_ptr<impl::compiled_partition_impl_t> &pimpl) {
+        pimpl_ = pimpl;
+    }
+
+    bool is_initialized() { return pimpl_ != nullptr; }
+
+    const impl::compiled_partition_impl_t *get_pimpl() const {
+        return pimpl_.get();
+    }
+
+    const std::vector<impl::inplace_pair_t> &get_inplace_pairs() const {
+        return pimpl_->get_inplace_pairs();
+    }
 
     impl::status_t execute(const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
@@ -289,10 +171,35 @@ public:
 #endif
 
     impl::status_t query_logical_tensor(
-            size_t tid, impl::logical_tensor_t *lt) const;
+            size_t tid, impl::logical_tensor_t *lt) const {
+        if (!pimpl_) {
+            std::memset(lt, 0, sizeof(impl::logical_tensor_t));
+            return impl::status::success;
+        }
+        return pimpl_->query_logical_tensor(tid, lt);
+    }
+
+    const impl::engine_t &get_engine() const { return pimpl_->get_engine(); }
+
+    std::vector<impl::logical_tensor_t> &get_mutable_inputs() {
+        return pimpl_->get_mutable_inputs();
+    }
+
+    std::vector<impl::logical_tensor_t> &get_mutable_outputs() {
+        return pimpl_->get_mutable_outputs();
+    }
+
+    const std::vector<impl::logical_tensor_t> &get_inputs() const {
+        return pimpl_->get_inputs();
+    }
+
+    const std::vector<impl::logical_tensor_t> &get_outputs() const {
+        return pimpl_->get_outputs();
+    }
 
     const char *info() const {
-        if (!info_.is_initialized()) info_.init(&engine_, this);
+        auto &eng = pimpl_->get_engine();
+        if (!info_.is_initialized()) info_.init(&eng, this);
         return info_.c_str();
     }
 
@@ -301,25 +208,9 @@ public:
             char *buffer);
 
 private:
+    std::shared_ptr<impl::compiled_partition_impl_t> pimpl_;
+
     const impl::partition_t src_partition_;
-
-    // Executable pointer to run kernel
-    std::shared_ptr<impl::executable> executable_;
-
-    // All the input logical tensors of a partition.
-    // compared with the inputs_ in partition, these
-    // inputs may have richer info, such as shape
-    // note: now we don't have to do this, but if we
-    // store value instead of ptr (pinzhen's proposal),
-    // we may need the above design
-    std::vector<impl::logical_tensor_t> inputs_ {};
-
-    // All the output logical tensors of a partition
-    // ditto
-    std::vector<impl::logical_tensor_t> outputs_ {};
-
-    // This engine must be valid
-    impl::engine_t engine_;
 
     // Partition information
     mutable impl::utils::partition_info_t info_;

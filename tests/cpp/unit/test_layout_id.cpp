@@ -17,10 +17,12 @@
 #include <iostream>
 #include <memory>
 
-#include "backend/dnnl/backend.hpp"
-#include "backend/dnnl/tensor.hpp"
-#include "interface/backend.hpp"
 #include "gtest/gtest.h"
+
+#include "interface/backend.hpp"
+
+#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/tensor.hpp"
 
 namespace impl = dnnl::graph::impl;
 namespace dnnl_impl = dnnl::graph::impl::dnnl_impl;
@@ -31,9 +33,8 @@ TEST(layout_id_test, opaque_md_layout_id_mapping) {
     using format_tag = dnnl_impl::tensor::desc::format_tag;
 
     dnnl_impl::dnnl_layout_id_manager &mgr
-            = std::dynamic_pointer_cast<dnnl_impl::dnnl_backend>(
-                    impl::backend_manager::get_backend("dnnl"))
-                      ->get_layout_id_manager();
+            = impl::dnnl_impl::dnnl_backend::get_singleton()
+                      .get_layout_id_manager();
 
     // opaque md should be cached and generate a layout id, and the later
     // layout id should be greater than the former one

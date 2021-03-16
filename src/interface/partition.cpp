@@ -34,60 +34,6 @@
 
 using namespace dnnl::graph::impl;
 
-namespace {
-
-// FIXME(qun) Workaround: op in this list can have repeated inputs
-const std::set<op_kind_t> s_whitelist {op_kind::Multiply, op_kind::Add};
-
-//RCONT is for const or non-const logical_tensor_t
-template <typename RCONT>
-status_t get_ordered_inputs_outputs(const op_t *work_op,
-        const std::vector<logical_tensor_t> &expected,
-        const std::vector<RCONT *> &origin,
-        std::vector<logical_tensor_t *> &ordered) {
-    // to support abitrary re-connection in FWK graph, we need to
-    // find required and ordered input and output logical tensors from the
-    // out-of-order inputs / outputs
-    if (origin.size() < expected.size()
-            && s_whitelist.count(work_op->get_kind()) == 0) {
-        return status::miss_ins_outs;
-    }
-    ordered.reserve(expected.size());
-    for (auto &&val : expected) {
-        auto pos = std::find_if(origin.begin(), origin.end(),
-                [&val](RCONT *in) -> bool { return in->id == val.id; });
-        if (pos != origin.end()) {
-            ordered.emplace_back(const_cast<logical_tensor_t *>(*pos));
-        }
-    }
-    if (ordered.size() != expected.size()) return status::miss_ins_outs;
-    return status::success;
-}
-
-status_t get_ordered_inputs_outputs(const op_t *work_op,
-        const std::vector<logical_tensor_t> &expected,
-        const std::vector<tensor_t> &origin, std::vector<tensor_t> &ordered) {
-    // to support abitrary re-connection in FWK graph, we need to
-    // find required and ordered input and output tensors from the
-    // out-of-order inputs / outputs
-    if (origin.size() < expected.size()
-            && s_whitelist.count(work_op->get_kind()) == 0) {
-        return status::miss_ins_outs;
-    }
-    ordered.reserve(expected.size());
-    for (auto &&val : expected) {
-        auto pos = std::find_if(origin.begin(), origin.end(),
-                [&val](const tensor_t &in) -> bool {
-                    return in.get_logical_tensor().id == val.id;
-                });
-        if (pos != origin.end()) { ordered.emplace_back(*pos); }
-    }
-    if (ordered.size() != expected.size()) return status::miss_ins_outs;
-    return status::success;
-}
-
-} // namespace
-
 status_t DNNL_GRAPH_API dnnl_graph_partition_create(partition_t **partition) {
     *partition = new partition_t();
     return status::success;
@@ -106,7 +52,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_op_num(
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_get_ops(
         partition_t *partition, size_t num, size_t *ops) {
-    auto ids = partition->get_ops();
+    auto ids = partition->get_op_ids();
     if (ids.size() != num || ops == nullptr) {
         return status::invalid_argument;
     }
@@ -210,7 +156,15 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_outputs(
 status_t DNNL_GRAPH_API dnnl_graph_conversion_init(partition_t *conversion,
         const logical_tensor_t *input, const logical_tensor_t *output,
         engine_kind_t engine_kind) {
-    conversion->init(op_kind::convert, engine_kind, *input, *output);
+    logical_tensor_wrapper ltw {output};
+    assert(ltw.is_opaque());
+    auto backend_ptr = const_cast<backend *>(
+            backend_registry::get_singleton().get_registered_backend(
+                    static_cast<size_t>(ltw.layout_id())));
+
+    auto cvs_impl
+            = backend_ptr->create_conversion(engine_kind, *input, *output);
+    conversion->init(cvs_impl);
     return status::success;
 }
 
@@ -312,148 +266,144 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_get_inplace_pairs(
     return status::success;
 }
 
-void dnnl_graph_partition::init(op_kind_t op_kind,
-        const engine_kind_t engine_kind, const logical_tensor_t &input,
-        const logical_tensor_t &output) {
-    engine_kind_ = engine_kind;
-    op_ = utils::make_unique<op_t>(op_kind, op_t::kind2str(op_kind));
-    logical_tensor_wrapper ltw {&output};
-    assert(ltw.is_opaque());
-    auto backend_name
-            = backend_manager::get_backend(static_cast<size_t>(ltw.layout_id()))
-                      ->get_name();
-    op_->set_attr("backend", backend_name);
-    inputs_.push_back(input);
-    outputs_.push_back(output);
-}
-
-status_t dnnl_graph_partition::compile(compiled_partition_t *compiled_partition,
-        std::vector<const logical_tensor_t *> &inputs,
-        std::vector<const logical_tensor_t *> &outputs,
-        const engine_t *aengine) {
-    if (!aengine || aengine->kind() != engine_kind_)
-        return status::invalid_argument;
-    // we shouldn't modify partition after
-    // creating from filter(). all the information generated
-    // at compilation stage should be stored in the corresponding
-    // compiled_partition
-    // in shape_infer, op's attrs may be changed
-    op_t *work_op = compiled_partition->src_partition_.op_.get();
-
-    // to support abitrary re-connection in FWK graph, we need to
-    // find required input and output logical tensors from the compile
-    // function's parameters
-    status_t ret;
-    std::vector<logical_tensor_t *> required_inputs, required_outputs;
-    ret = get_ordered_inputs_outputs(work_op, inputs_, inputs, required_inputs);
-    if (status::success != ret) return ret;
-    ret = get_ordered_inputs_outputs(
-            work_op, outputs_, outputs, required_outputs);
-    if (status::success != ret) return ret;
-
-    // In the phase of compilation, all the output shape should be known.
-    auto pos = std::find_if(required_outputs.begin(), required_outputs.end(),
+impl::status_t dnnl_graph_partition::infer_shape(
+        std::vector<const impl::logical_tensor_t *> &inputs,
+        std::vector<impl::logical_tensor_t *> &outputs) {
+    // check if shape is already known, if so, no need to do shape inference
+    auto pos = std::find_if(outputs.begin(), outputs.end(),
             [&](const std::vector<logical_tensor_t *>::value_type &out)
                     -> bool {
                 return logical_tensor_wrapper(out).is_shape_unknown();
             });
-    if (pos != required_outputs.end()) { return status::invalid_argument; }
+    if (pos == outputs.end()) { return status::success; }
 
-    const op_schema *cur_op_schema
-            = op_schema_registry::get_op_schema(work_op->get_kind());
-    if (cur_op_schema) { // if cur_op_schema is not nullptr
-        // infer attributes of the op, i.e. auto_pad
-        cur_op_schema->shape_infer(work_op, required_inputs, required_outputs);
-    }
+    return pimpl_->infer_shape(inputs, outputs);
+}
 
-    // store the filled logical tensor value to compiled partition
-    compiled_partition->inputs_.reserve(required_inputs.size());
-    for (auto r_in : required_inputs) {
-        compiled_partition->inputs_.emplace_back(*r_in);
+static status_t pre_process(std::vector<logical_tensor_t> &dst,
+        std::vector<const logical_tensor_t *> &src, const backend *abackend) {
+    using ltw = logical_tensor_wrapper;
+    dst.reserve(src.size());
+    for (size_t i = 0; i < src.size(); i++) {
+        dst.emplace_back(*src[i]);
+        if (ltw(src[i]).is_opaque()) {
+            size_t layout_id = static_cast<size_t>(src[i]->layout.layout_id);
+            auto pair = backend_registry::decode_layout_id(layout_id);
+            if (pair.second != abackend->get_id()) {
+                // given opaque layout id must be generated by this
+                // backend
+                return status::invalid_argument;
+            }
+            dst[i].layout.layout_id = static_cast<int64_t>(pair.first);
+        }
     }
-    compiled_partition->outputs_.reserve(required_outputs.size());
-    for (auto r_out : required_outputs) {
-        compiled_partition->outputs_.emplace_back(*r_out);
-    }
-    compiled_partition->engine_ = *aengine;
-
-    std::string backend_name = work_op->get_attr<std::string>("backend");
-    compiled_partition->executable_
-            = backend_manager::get_backend(backend_name)
-                      ->compile(&(compiled_partition->src_partition_), aengine,
-                              compiled_partition->inputs_,
-                              compiled_partition->outputs_);
-    if (!compiled_partition->executable_) return status::compile_fail;
     return status::success;
 }
 
-status_t dnnl_graph_partition::infer_shape(
-        std::vector<const logical_tensor_t *> &inputs,
-        std::vector<logical_tensor_t *> &outputs) {
-    std::vector<logical_tensor_t *> required_inputs, required_outputs;
-    status_t ret;
-    ret = get_ordered_inputs_outputs(
-            op_.get(), inputs_, inputs, required_inputs);
-    if (status::success != ret) return ret;
-    ret = get_ordered_inputs_outputs(
-            op_.get(), outputs_, outputs, required_outputs);
-    if (status::success != ret) return ret;
+static status_t post_process(std::vector<logical_tensor_t> &dst,
+        std::vector<logical_tensor_t> &src, const backend *abackend) {
+    using ltw = logical_tensor_wrapper;
+    UNUSED(src);
 
-    // check if shape is already known, if so, no need to do shape inference
-    auto pos = std::find_if(required_outputs.begin(), required_outputs.end(),
-            [&](const std::vector<logical_tensor_t *>::value_type &out)
-                    -> bool {
-                return logical_tensor_wrapper(out).is_shape_unknown();
-            });
-    if (pos == required_outputs.end()) { return status::success; }
-
-    const op_schema *cur_op_schema
-            = op_schema_registry::get_op_schema(op_->get_kind());
-    if (cur_op_schema) { // if cur_op_schema is not nullptr
-        // shape_infer will change op attrs, so in order to keep the op
-        // in partition unchanged, create a temp op to hold these changes
-        op_t temp_op = op_t(*op_);
-        temp_op.merge_attributes(op_->get_attributes());
-        ret = cur_op_schema->shape_infer(
-                &temp_op, required_inputs, required_outputs);
-        return ret;
-    } else {
-        return status::invalid_op;
+    for (size_t i = 0; i < dst.size(); i++) {
+        if (ltw(dst[i]).is_opaque()) {
+            size_t layout_id = static_cast<size_t>(dst[i].layout.layout_id);
+            dst[i].layout.layout_id
+                    = static_cast<int64_t>(backend_registry::encode_layout_id(
+                            layout_id, abackend->get_id()));
+        }
     }
+    return status::success;
 }
 
-const std::vector<inplace_pair_t> &
-dnnl_graph_compiled_partition::get_inplace_pairs() const {
-    return executable_->get_inplace_pairs();
+static status_t pre_process(std::vector<tensor_t> &dst,
+        const std::vector<tensor_t> &src, const backend *abackend) {
+    using ltw = logical_tensor_wrapper;
+    dst.reserve(src.size());
+    for (size_t i = 0; i < src.size(); i++) {
+        dst.emplace_back(src[i]);
+        auto &src_lt = src[i].get_logical_tensor();
+        if (ltw(src_lt).is_opaque()) {
+            size_t layout_id = static_cast<size_t>(src_lt.layout.layout_id);
+            auto pair = backend_registry::decode_layout_id(layout_id);
+            if (pair.second != abackend->get_id()) {
+                return status::invalid_argument;
+            }
+            auto &dst_lt = const_cast<logical_tensor_t &>(
+                    dst[i].get_logical_tensor());
+
+            dst_lt.layout.layout_id = static_cast<int64_t>(pair.first);
+        }
+    }
+    return status::success;
+}
+
+status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
+        std::vector<const impl::logical_tensor_t *> &inputs,
+        std::vector<const impl::logical_tensor_t *> &outputs,
+        const engine_t *aengine) {
+    status_t ret;
+
+    if (!aengine || aengine->kind() != pimpl_->get_engine_kind())
+        return status::invalid_argument;
+
+    const backend *backend = pimpl_->get_assigned_backend();
+    if (!backend) return status::compile_fail;
+
+    // Pre-process the given logical tensor. The pre-process includes
+    // 1. decode backend id from the layout id and remove it
+    std::vector<logical_tensor_t> tmp_inputs, tmp_outputs;
+    ret = pre_process(tmp_inputs, inputs, backend);
+    if (status::success != ret) return ret;
+
+    ret = pre_process(tmp_outputs, outputs, backend);
+    if (status::success != ret) return ret;
+
+    // The impl's compile will generate the compiled_partition_impl and
+    // modify the given inputs outputs logical tensor
+    ret = pimpl_->compile(cp, tmp_inputs, tmp_outputs, aengine);
+    if (status::success != ret) return ret;
+
+    // Post-process the modified logical tensor and store them
+    // to compiled_partition_impl. The post-process includes
+    // 1. encode backend id to generated layout id
+    ret = post_process(cp->get_mutable_inputs(), tmp_inputs, backend);
+    if (status::success != ret) return ret;
+
+    ret = post_process(cp->get_mutable_outputs(), tmp_outputs, backend);
+    if (status::success != ret) return ret;
+
+    if (ret != status::success || !cp->is_initialized())
+        return status::compile_fail;
+    return status::success;
 }
 
 status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs) const {
-    if (!astream || !astream->get_engine()->match(engine_))
+    if (!astream || !astream->get_engine()->match(pimpl_->get_engine()))
         return status::invalid_argument;
 
-    // to support abitrary re-connection in FWK graph, we need to
-    // find required input and output logical tensors from the compile
-    // function's parameters
-    std::vector<tensor_t> required_inputs, required_outputs;
-
     status_t ret;
-    ret = get_ordered_inputs_outputs(
-            src_partition_.op_.get(), inputs_, inputs, required_inputs);
-    if (status::success != ret) return ret;
-    ret = get_ordered_inputs_outputs(
-            src_partition_.op_.get(), outputs_, outputs, required_outputs);
-    if (status::success != ret) return ret;
+
+    const backend *backend = src_partition_.get_assigned_backend();
+    if (!backend) return status::compile_fail;
+
+    // Pre-process the given tensor. The pre-process includes
+    // FIXME(xx) reduce overhead?
+    // 1. decode backend id from the layout id and remove it
+    std::vector<tensor_t> processed_inputs, processed_outputs;
+    pre_process(processed_inputs, inputs, backend);
+    pre_process(processed_outputs, outputs, backend);
 
     if (utils::get_verbose()) {
         double ms = utils::get_msec();
-        ret = executable_->execute(astream, required_inputs, required_outputs);
+        ret = pimpl_->execute(astream, processed_inputs, processed_outputs);
         ms = utils::get_msec() - ms;
         printf("dnnl_graph_verbose,exec,%s,%g\n", this->info(), ms);
         fflush(stdout);
     } else {
-        ret = executable_->execute(astream, required_inputs, required_outputs);
+        ret = pimpl_->execute(astream, processed_inputs, processed_outputs);
     }
 
     return ret;
@@ -464,63 +414,32 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs,
         const cl::sycl::event *sycl_event) const {
-    if (!astream || !astream->get_engine()->match(engine_))
+    if (!astream || !astream->get_engine()->match(pimpl_->get_engine()))
         return status::invalid_argument;
 
-    // to support abitrary re-connection in FWK graph, we need to
-    // find required input and output logical tensors from the compile
-    // function's parameters
-    std::vector<tensor_t> required_inputs, required_outputs;
     status_t ret;
-    ret = get_ordered_inputs_outputs(
-            src_partition_.op_.get(), inputs_, inputs, required_inputs);
-    if (status::success != ret) return ret;
-    ret = get_ordered_inputs_outputs(
-            src_partition_.op_.get(), outputs_, outputs, required_outputs);
-    if (status::success != ret) return ret;
 
-    // TODO(Wei, Zixuan): Here we just pass down the pointer of cl::sycl::event
-    // from API interface. The pointer points a concrete object created by the
-    // users. In backend operators, the event object returned by primitive
-    // execution can be assigned to the users' object.
-    UNUSED(sycl_event);
+    const backend *backend = src_partition_.get_assigned_backend();
+    if (!backend) return status::compile_fail;
+
+    // Pre-process the given tensor. The pre-process includes
+    // 1. decode backend id from the layout id and remove it
+    std::vector<tensor_t> processed_inputs, processed_outputs;
+    pre_process(processed_inputs, inputs, backend);
+    pre_process(processed_outputs, outputs, backend);
 
     if (utils::get_verbose()) {
         double ms = utils::get_msec();
-        ret = executable_->execute(astream, required_inputs, required_outputs);
+        ret = pimpl_->execute_sycl(
+                astream, processed_inputs, processed_outputs, sycl_event);
         ms = utils::get_msec() - ms;
         printf("dnnl_graph_verbose,exec,%s,%g\n", this->info(), ms);
         fflush(stdout);
     } else {
-        ret = executable_->execute(astream, required_inputs, required_outputs);
+        ret = pimpl_->execute_sycl(
+                astream, processed_inputs, processed_outputs, sycl_event);
     }
 
     return ret;
 }
 #endif // DNNL_GRAPH_WITH_SYCL
-
-status_t dnnl_graph_compiled_partition::query_logical_tensor(
-        size_t tid, logical_tensor_t *lt) const {
-    auto pos_in = std::find_if(inputs_.begin(), inputs_.end(),
-            [&](const logical_tensor_t &in_) -> bool { return in_.id == tid; });
-    if (pos_in != inputs_.end()) {
-        *lt = *pos_in;
-        return status::success;
-    }
-
-    auto pos_out = std::find_if(outputs_.begin(), outputs_.end(),
-            [&](const logical_tensor_t &out_) -> bool {
-                return out_.id == tid;
-            });
-    if (pos_out != outputs_.end()) {
-        *lt = *pos_out;
-        return status::success;
-    }
-
-    // if we didn't found the logical tensor in compiled partition's inputs_
-    // and outputs_, this means the logical tensor is not required by this
-    // compiled partition. this will be a common situation if FWK give abitrary
-    // connection, and shouldn't be regard as an error
-    std::memset(lt, 0, sizeof(logical_tensor_t));
-    return status::success;
-}

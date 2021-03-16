@@ -24,6 +24,7 @@
 #include "debug.hpp"
 #include "verbose.hpp"
 
+#include "interface/backend.hpp"
 #include "interface/c_types_map.hpp"
 #include "interface/partition.hpp"
 #include "interface/utils.hpp"
@@ -253,9 +254,13 @@ int logical_tensor2str(char *str, size_t str_len,
 int partition2fmt_str(
         char *str, size_t str_len, const impl::partition_t &partition) {
     if (str == nullptr || str_len <= 1u) return -1;
-    const auto &op = partition.get_fused_op();
+    // FIXME(qun) Disable for now. Need some re-design after new
+    // backend API is ready
+    // const auto &op = partition.node();
+    UNUSED(partition);
 
     int written = 0;
+    /*
     if (op->has_attr("data_format")) {
         const auto data_format = op->get_attr<std::string>("data_format");
         DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written, "data:%s",
@@ -266,6 +271,7 @@ int partition2fmt_str(
         DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written, " filter:%s",
                 filter_format.c_str());
     }
+    */
 
     return written;
 }
@@ -316,7 +322,7 @@ void init_info_partition(const graph::impl::engine_t *engine,
     const auto &partition = compiled_partition->src_partition_;
     FMT2STR(fmt_str, DNNL_GRAPH_VERBOSE_FMT_LEN, fmt_written, partition);
     {
-        const auto &inputs = compiled_partition->inputs_;
+        const auto &inputs = compiled_partition->get_inputs();
         const size_t inputs_size = inputs.size();
         for (size_t i = 0; i < inputs_size; ++i) {
             DPRINT(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written, "%s",
@@ -334,7 +340,7 @@ void init_info_partition(const graph::impl::engine_t *engine,
     }
 
     {
-        const auto &outputs = compiled_partition->outputs_;
+        const auto &outputs = compiled_partition->get_outputs();
         const size_t outputs_size = outputs.size();
         for (size_t i = 0; i < outputs_size; ++i) {
             DPRINT(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written, "%s",
@@ -353,8 +359,8 @@ void init_info_partition(const graph::impl::engine_t *engine,
     }
 
     verbose_templ(buffer, engine, partition.id(),
-            partition.get_fused_op()->get_name().c_str(), fmt_str, dat_str,
-            partition.get_fused_op()->get_attr<std::string>("backend").c_str());
+            partition.get_ops()[0]->get_name().c_str(), fmt_str, dat_str,
+            partition.get_assigned_backend()->get_name().c_str());
 #endif
 }
 

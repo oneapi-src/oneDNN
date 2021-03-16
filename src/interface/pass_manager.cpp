@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "backend/pass/pass_manager.hpp"
+#include "pass_manager.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -22,6 +22,30 @@ namespace impl {
 
 using namespace utils;
 namespace pass {
+// register a pass
+pass_base &pass_registry::register_pass(const std::string &backend_name,
+        const std::string &pass_name, pass_create_fn fn) {
+    // create new pass
+    auto find = std::find_if(passes_.begin(), passes_.end(),
+            [&pass_name](std::list<pass_base_ptr>::value_type &p) -> bool {
+                return p->get_pass_name() == pass_name;
+            });
+    if (find != passes_.end()) {
+        return **find;
+    } else {
+        auto new_pass_ptr = fn(backend_name, pass_name);
+        passes_.push_back(new_pass_ptr);
+        passes_map_[pass_name] = new_pass_ptr;
+        return *new_pass_ptr;
+    }
+}
+
+void pass_registry::sort_passes() {
+    passes_.sort([](const pass_base_ptr &first, const pass_base_ptr &second) {
+        return first->get_priority() > second->get_priority();
+    });
+}
+
 void pass_manager::print_passes(const std::string &pass_config_json) {
     std::ofstream of(pass_config_json);
     assert(of && "can't open file");
@@ -36,7 +60,9 @@ void pass_manager::print_passes(std::ostream *os) {
     write.end_object();
 }
 
-void pass_manager::run_passes(graph &agraph, std::istream *fs) {
+void pass_manager::run_passes(
+        graph &agraph, std::istream *fs, impl::partition_policy_t policy) {
+    UNUSED(policy);
     if (*fs) {
         std::list<pass_base_ptr> new_passes;
         json::json_reader read(fs);
@@ -67,10 +93,10 @@ void pass_manager::run_passes(graph &agraph, std::istream *fs) {
         }
     }
 }
-void pass_manager::run_passes(
-        graph &agraph, const std::string &pass_config_json) {
+void pass_manager::run_passes(graph &agraph,
+        const std::string &pass_config_json, impl::partition_policy_t policy) {
     std::ifstream fs(pass_config_json.c_str());
-    run_passes(agraph, &fs);
+    run_passes(agraph, &fs, policy);
 }
 
 } // namespace pass

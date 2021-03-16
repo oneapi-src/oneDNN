@@ -24,6 +24,7 @@
 #include "interface/op_schema.hpp"
 #include "interface/op_v2.hpp"
 #include "interface/partition.hpp"
+#include "interface/partition_impl.hpp"
 
 #include "utils.hpp"
 
@@ -264,9 +265,9 @@ TEST(op_test, assigned_partition) {
 
     ASSERT_FALSE(conv.is_assigned_to_partition());
 
-    partition_t part {}; // use an empty partition for test purpose
-    conv.set_partition(&part);
-    ASSERT_EQ(conv.get_partition(), &part);
+    partition_impl_t *part {nullptr}; // use an empty partition for test purpose
+    conv.set_partition(part);
+    ASSERT_EQ(conv.get_partition(), part);
 }
 
 TEST(op_test, fused_op) {

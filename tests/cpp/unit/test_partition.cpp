@@ -14,45 +14,56 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <memory>
+
 #include <gtest/gtest.h>
 
 #include "interface/op.hpp"
 #include "interface/partition.hpp"
 
-TEST(partition_test, create_empty) {
-    dnnl::graph::impl::partition_t p;
-    ASSERT_EQ(p.num_ops(), 0);
+#include "backend/dnnl/dnnl_partition_impl.hpp"
+
+using namespace dnnl::graph::impl;
+
+TEST(partition_test, create_simple) {
+    dnnl_impl::dnnl_partition_impl_t p(engine_kind::cpu);
+    ASSERT_EQ(p.get_ops().size(), 0);
 }
 
 TEST(partition_test, add_ops) {
-    dnnl::graph::impl::partition_t p;
+    dnnl_impl::dnnl_partition_impl_t p(engine_kind::cpu);
     size_t id = 100;
-    p.add_op(id);
-    ASSERT_EQ(p.num_ops(), 1);
+    std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));
+    p.add_op(n);
+    ASSERT_EQ(p.get_ops().size(), 1);
 
     std::vector<size_t> ids {101, 102};
-    p.add_op(ids);
-    ASSERT_EQ(p.num_ops(), 3);
+    std::vector<std::shared_ptr<op_t>> nodes;
+    for (auto id : ids) {
+        nodes.emplace_back(new op_t(id, op_kind::Wildcard, "Wildcard"));
+    }
+
+    p.add_op(nodes);
+    ASSERT_EQ(p.get_ops().size(), 3);
 }
 
 TEST(partition_test, get_ops) {
-    dnnl::graph::impl::partition_t p;
+    dnnl_impl::dnnl_partition_impl_t p(engine_kind::cpu);
     size_t id = 100;
-    p.add_op(id);
+    std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));
+    p.add_op(n);
     auto ops = p.get_ops();
     ASSERT_EQ(ops.size(), 1);
-    ASSERT_EQ(ops.count(id), 1);
+    ASSERT_EQ(ops[0]->get_id(), 100);
 }
 
 TEST(partition_test, init) {
     // (todo)xinyu: improve engine test
-    using namespace dnnl::graph::impl;
-
     engine_t eng {};
-    partition_t p;
-    op_t n {op_kind::Convolution, "convolution"};
+    dnnl_impl::dnnl_partition_impl_t p(eng.kind());
+    op_t n(op_kind::Convolution);
     n.set_attr<int64_t>("groups", 0);
-    p.init(&n, eng.kind());
+    p.init(&n);
     ASSERT_TRUE(p.is_initialized());
     ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Convolution);
     ASSERT_TRUE(p.get_fused_op()->has_attr("groups"));
@@ -60,20 +71,18 @@ TEST(partition_test, init) {
 }
 
 TEST(partition_test, copy) {
-    using namespace dnnl::graph::impl;
-
     engine_t eng {};
-    partition_t p;
-    op_t n {op_kind::Convolution, "convolution"};
+    dnnl_impl::dnnl_partition_impl_t p(eng.kind());
+    op_t n(op_kind::Convolution);
     n.set_attr<int64_t>("groups", 0);
-    p.init(&n, eng.kind());
+    p.init(&n);
     ASSERT_TRUE(p.is_initialized());
     ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Convolution);
     ASSERT_TRUE(p.get_fused_op()->has_attr("groups"));
     ASSERT_EQ(p.get_fused_op()->get_attr<int64_t>("groups"), 0);
 
     // copy the partition
-    partition_t p_copy(p);
+    dnnl_impl::dnnl_partition_impl_t p_copy(p);
     op_t *p_node = const_cast<op_t *>(p_copy.get_fused_op());
     p_node->set_attr<int64_t>("groups", 1);
     ASSERT_EQ(p_copy.get_fused_op()->get_attr<int64_t>("groups"), 1);

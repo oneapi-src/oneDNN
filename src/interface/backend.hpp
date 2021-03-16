@@ -17,6 +17,7 @@
 #ifndef INTERFACE_BACKEND_HPP
 #define INTERFACE_BACKEND_HPP
 
+#include <algorithm>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -38,197 +39,37 @@
 namespace dnnl {
 namespace graph {
 namespace impl {
-struct kernel_base {
-    using ptr = std::shared_ptr<kernel_base>;
-
-    virtual ~kernel_base() {}
-
-    virtual status_t compile_impl(const op_t *op, const engine_t *aengine,
-            const std::vector<logical_tensor_t> &inputs,
-            const std::vector<logical_tensor_t> &outputs)
-            = 0;
-    virtual status_t execute_impl(const op_t *op, const stream_t *astream,
-            const std::vector<tensor_t> &inputs,
-            const std::vector<tensor_t> &outputs)
-            = 0;
-    virtual status_t prepare_inplace_pairs_impl(const engine_t *aengine,
-            const std::vector<logical_tensor_t> &inputs,
-            const std::vector<logical_tensor_t> &outputs) {
-        UNUSED(aengine);
-        UNUSED(inputs);
-        UNUSED(outputs);
-        return status::success;
-    };
-
-    status_t compile(const op_t *op, const engine_t *aengine,
-            const std::vector<logical_tensor_t> &inputs,
-            const std::vector<logical_tensor_t> &outputs) {
-        auto ret = compile_impl(op, aengine, inputs, outputs);
-        if (ret != status::success) return ret;
-        return prepare_inplace_pairs_impl(aengine, inputs, outputs);
-    }
-
-    status_t execute(const op_t *op, const stream_t *astream,
-            const std::vector<tensor_t> &inputs,
-            const std::vector<tensor_t> &outputs) {
-        return execute_impl(op, astream, inputs, outputs);
-    }
-
-    std::vector<inplace_pair_t> inplace_pairs_;
-};
-
-// gcc4.8.5 can 't support enum class as key
-struct enum_hash {
-    template <typename T>
-    size_t operator()(const T &t) const {
-        return static_cast<size_t>(t);
-    }
-};
-
-class kernel_registry {
-public:
-    using kernel_creator_f = kernel_base::ptr (*)();
-    using ptr = std::shared_ptr<kernel_registry>;
-
-    kernel_registry() = default;
-    virtual ~kernel_registry() {}
-
-    template <typename kernel_type>
-    static kernel_base::ptr create_kernel() {
-        return std::make_shared<kernel_type>();
-    }
-
-    /*! 
-     * \brief register a backend kernel's creator for a op_kind
-     */
-    bool register_kernel(op_kind_t op_kind, kernel_creator_f fn) {
-        std::lock_guard<std::mutex> lock(kernel_creator_f_map_.m_);
-        kernel_creator_f_map_.data_.insert({op_kind, fn});
-        return true;
-    }
-
-    /*! 
-     * \brief create an kernel instance for an op
-     */
-    kernel_base::ptr create_kernel(const op_t &op) {
-        auto op_kind = op.get_kind();
-        std::lock_guard<std::mutex> lock(kernel_creator_f_map_.m_);
-
-        auto pos = kernel_creator_f_map_.data_.find(op_kind);
-        if (pos == kernel_creator_f_map_.data_.end()) return {};
-
-        auto create_fn = pos->second;
-        return create_fn();
-    }
-
-    /*! 
-     * \brief get registered kernel number
-     */
-    size_t get_register_kernels_num() const {
-        std::lock_guard<std::mutex> lock(kernel_creator_f_map_.m_);
-        return kernel_creator_f_map_.data_.size();
-    }
-
-private:
-    // Disable assignment and copy
-    kernel_registry(const kernel_registry &) = delete;
-    kernel_registry(kernel_registry &&) = delete;
-    kernel_registry &operator=(const kernel_registry &) = delete;
-    kernel_registry &operator=(kernel_registry &&) = delete;
-
-    mutable struct {
-        std::unordered_map<op_kind_t, kernel_creator_f, enum_hash> data_;
-        mutable std::mutex m_;
-    } kernel_creator_f_map_;
-};
-
-class executable {
-public:
-    using ptr = std::shared_ptr<executable>;
-    executable() = default;
-    virtual ~executable() {};
-
-    virtual status_t execute(const stream_t *astream,
-            const std::vector<tensor_t> &inputs,
-            const std::vector<tensor_t> &outputs)
-            = 0;
-
-    virtual const std::vector<inplace_pair_t> &get_inplace_pairs() const = 0;
-};
-
-namespace {
-std::pair<size_t, size_t> decode_layout_id(size_t layout_id) {
-    size_t backend_id = layout_id & (size_t)((1 << BACKEND_ID_LENGTH) - 1);
-    size_t layout_idx = layout_id >> BACKEND_ID_LENGTH;
-    return {layout_idx, backend_id};
-}
-
-size_t encode_layout_id(size_t layout_idx, size_t backend_id) {
-    size_t layout_id = (layout_idx << BACKEND_ID_LENGTH)
-            | (backend_id & (size_t)((1 << BACKEND_ID_LENGTH) - 1));
-    return layout_id;
-}
-} // namespace
-
 class backend {
 public:
-    using ptr = std::shared_ptr<backend>;
-
-    backend(std::string name, size_t id) : name_(name), id_(id) {}
+    backend(const std::string &name, float priority)
+        : name_(std::move(name)), priority_(priority), id_(get_counter()) {}
 
     virtual ~backend() {}
 
-    std::string get_name() const { return name_; };
+    const std::string &get_name() const { return name_; };
     size_t get_id() const { return id_; }
+    float get_priority() const { return priority_; }
 
-    virtual size_t get_mem_size(const logical_tensor_t &lt) {
-        if (!is_interpretable(lt)) return 0;
-        return get_mem_size_impl(lt);
-    };
+    /// Return the physical memory size of the buffer described by the passed
+    /// logical tensor
+    /// @param lt The logical tensor to get memory size. If it's layout_type
+    ///     is opaque, then it's layout id must be generated by this backend.
+    ///     This should be guaranteed by frontend
+    /// @return The memory size
+    virtual size_t get_mem_size(const logical_tensor_t &lt) const = 0;
 
-    virtual executable::ptr compile(const partition_t *p,
-            const engine_t *aengine,
-            const std::vector<logical_tensor_t> &inputs,
-            const std::vector<logical_tensor_t> &outputs) {
-        return compile_impl(p, aengine, inputs, outputs);
-    }
-
-    // convert a tensor in private layout to public layout
-    virtual bool to_public(const tensor_t &input, tensor_t &output,
-            engine_t &aengine, stream_t &astream) {
-        if (!is_interpretable(input)) return false;
-        return to_public_impl(input, output, aengine, astream);
-    }
-
-    // check wheather two logical tensor is similar (similar means two
-    // logical tensors can be converted to same backend md)
-    virtual bool is_similar(
-            const logical_tensor_t &lhs, const logical_tensor_t &rhs) {
-        if (!(is_interpretable(lhs) && is_interpretable(rhs))) return false;
-        return is_similar_impl(lhs, rhs);
-    }
-
-private:
-    virtual size_t get_mem_size_impl(const logical_tensor_t &lt) = 0;
-
-    virtual executable::ptr compile_impl(const partition_t *p,
-            const engine_t *aengine,
-            const std::vector<logical_tensor_t> &inputs,
-            const std::vector<logical_tensor_t> &outputs)
-            = 0;
-
-    virtual bool to_public_impl(const tensor_t &input, tensor_t &output,
-            engine_t &aengine, stream_t &astream)
-            = 0;
-
-    // This is a default impl. The default impl regards two logical tensors
-    // are similar if they are equal bit by bit except their ids
-    // User-defined backend can override this method to provide
-    // specific check
-    virtual bool is_similar_impl(
-            const logical_tensor_t &lhs, const logical_tensor_t &rhs) {
-        bool equal = true;
-        equal = equal && (lhs.ndims == rhs.ndims)
+    /// Check wheather two logical tensor is similar (similar means two
+    /// logical tensors can be converted to same backend md)
+    /// @param lhs
+    /// @param rhs
+    /// @return true or false
+    /// @note This is a default implementation. It regards two logical
+    ///     tensors as similar if they are equal bit by bit except their
+    ///     ids. Each backend can override this method to provide specific
+    ///     check.
+    virtual bool compare_logical_tensor(
+            const logical_tensor_t &lhs, const logical_tensor_t &rhs) const {
+        bool equal = (lhs.ndims == rhs.ndims)
                 && (lhs.data_type == rhs.data_type)
                 && (lhs.layout_type == rhs.layout_type);
 
@@ -252,206 +93,136 @@ private:
         }
     }
 
-    // a logical tensor is interpretable if it's strided or its layout id
-    // is generated by this backend
-    virtual bool is_interpretable(const logical_tensor_t &lt) {
-        auto ltw = logical_tensor_wrapper(lt);
-        return ltw.is_strided()
-                || (ltw.is_opaque()
-                        && (decode_layout_id(
-                                    static_cast<size_t>(ltw.layout_id()))
-                                        .second
-                                == id_));
-    }
+    /// Run pass on the given graph and generate backend specific
+    /// partition_impl objects, which will be stored on the graph
+    /// temporarily
+    /// @param agraph The graph to be partitioned
+    /// @param policy The partition policy
+    /// @return The status code
+    virtual status_t get_partitions(graph_t &agraph,
+            partition_policy_t policy = partition_policy::fusion)
+            = 0;
 
-    // a tensor tensor is interpretable if it's logical tesnor is interpretable
-    virtual bool is_interpretable(const tensor_t &in) {
-        return is_interpretable(in.get_logical_tensor());
+    /// Create a specific partition_impl_t instace, which can be
+    /// used to convert a tensor from one layout to another layout
+    /// @param engine_kind The kind of engine that the conversion will
+    ///     perform on
+    /// @param input The logical tensor used to indicate input layout
+    /// @param output The logical tensor used to indicate output layout
+    /// @return The smart pointer of created partition_impl_t instance
+    /// @note This is a legacy API, which is used to support the
+    ///     conversion API in frontend. Will be removed when the constant
+    ///     semantics design is ready
+    virtual std::shared_ptr<partition_impl_t> create_conversion(
+            const impl::engine_kind_t engine_kind,
+            const impl::logical_tensor_t &input,
+            const impl::logical_tensor_t &output)
+            = 0;
+
+    /// Register the pointer of created backend instance to oneDNN Graph
+    static backend *register_backend(const backend *abackend);
+
+private:
+    static size_t get_counter() {
+        static std::atomic<size_t> counter {RESERVED_BACKEND_ID + 1};
+        size_t ret = counter;
+        counter++;
+        return ret;
     }
 
     std::string name_;
+    float priority_;
     size_t id_;
 };
 
-class layout_id_manager {
+class backend_registry {
 public:
-    using ptr = std::shared_ptr<layout_id_manager>;
+    static backend_registry &get_singleton() {
+        static backend_registry inst;
+        return inst;
+    }
 
-    layout_id_manager(backend *owner_backend)
-        : owning_backend_(owner_backend) {};
-    virtual ~layout_id_manager() {}
+    // Will be used in backend class's @register_backend method
+    backend *register_backend(const backend *abackend) {
+        auto has_colliding_name = [&](const backend *backend) {
+            return backend->get_name().compare(abackend->get_name()) == 0;
+        };
+        auto backend_already_registered = [&]() {
+            return std::find_if(sorted_backends_.begin(),
+                           sorted_backends_.end(), has_colliding_name)
+                    != sorted_backends_.end();
+        };
 
-    /*! \brief Set a backend memory descriptor to manager and get a 
-    * corresponding layout id
-    * \param mem_desc The backend's memory descriptor, it can
-    * be both plain or opaque
-    * \return a cache index, will be used as layout id
-    * \note This function should be invoked in every where we want to
-    * convert a md to layout id
-    */
-    virtual utils::optional<size_t> set_mem_desc(const utils::any &mem_desc) {
-        std::lock_guard<std::mutex> lock(mem_descs_.m_);
+        auto compare_priority = [](const backend *l, const backend *r) {
+            return l->get_priority() > r->get_priority();
+        };
 
-        auto pos = std::find_if(mem_descs_.data_.begin(),
-                mem_descs_.data_.end(), [&](const utils::any &m) -> bool {
-                    return is_mem_desc_equal(m, mem_desc);
-                });
-
-        size_t layout_idx;
-        if (pos != mem_descs_.data_.end()) {
-            layout_idx = static_cast<size_t>(
-                    std::distance(mem_descs_.data_.begin(), pos));
-        } else {
-            mem_descs_.data_.emplace_back(mem_desc);
-            layout_idx = static_cast<size_t>(mem_descs_.data_.size() - 1);
+        if (backend_already_registered()) {
+            throw std::runtime_error(
+                    "backend name not unique: " + abackend->get_name());
         }
 
-        return encode_layout_id(layout_idx, owning_backend_->get_id());
+        std::lock_guard<std::mutex> lock(m_);
+
+        backends_[abackend->get_id()] = abackend;
+        sorted_backends_.emplace_back(abackend);
+        std::sort(sorted_backends_.begin(), sorted_backends_.end(),
+                compare_priority);
+        return const_cast<backend *>(abackend);
     }
 
-    /*! \brief Get a backend memory descriptor from manager by using a 
-    * layout id
-    * \param layout_id The layout id, which is generated and managed 
-    * by backends
-    * \return When the input is a valid cache index, the return value
-    * is a cached memory descriptor; otherwise, the return value will
-    * be a utils::nullopt
-    */
-    virtual utils::optional<utils::any> get_mem_desc(
-            const size_t &layout_id) const {
-        // get out the backend_id and real idx from layout id
-        auto decoded_layout_id = decode_layout_id(layout_id);
-        size_t layout_idx = decoded_layout_id.first;
-        size_t backend_id = decoded_layout_id.second;
-
-        if (backend_id != owning_backend_->get_id()) return utils::nullopt;
-
-        std::lock_guard<std::mutex> lock(mem_descs_.m_);
-
-        if (layout_idx >= mem_descs_.data_.size()) return utils::nullopt;
-
-        return mem_descs_.data_[layout_idx];
+    // The returned backends is sorted. The highest priority backend will
+    // be at the front of vector
+    std::vector<const backend *> &get_registered_backends() {
+        std::lock_guard<std::mutex> lock(m_);
+        return sorted_backends_;
     }
+
+    // In order to use get_mem_size() API, we need to dispatch to specific
+    // backend according to the backend specific layout id.
+    // In this function, we will first decode the layout id to a backend id
+    // and a native layout id. Then we will use the backend id to get the
+    // backend from the backend registry
+    const backend *get_registered_backend(size_t layout_id) {
+        size_t backend_id = extract_backend_id(layout_id);
+        std::lock_guard<std::mutex> lock(m_);
+        return backends_[backend_id];
+    }
+
+    static std::pair<size_t, size_t> decode_layout_id(size_t layout_id);
+
+    static size_t encode_layout_id(size_t layout_idx, size_t backend_id);
+
+    static size_t extract_layout_id(size_t layout_id);
+
+    static size_t extract_backend_id(size_t layout_id);
 
 private:
-    /*! \brief compare two backend mem desc 
-    * \param mem_desc1 
-    * \param mem_desc2 
-    * \return bool
-    */
-    virtual bool is_mem_desc_equal(
-            const utils::any &mem_desc1, const utils::any &mem_desc2) const = 0;
-
-    backend *owning_backend_;
-
-    mutable struct {
-        std::vector<utils::any> data_;
-        mutable std::mutex m_;
-    } mem_descs_;
-};
-
-class backend_manager {
-    using backend_creator_f = backend::ptr (*)(std::string, size_t);
-
-public:
-    template <typename backend_class>
-    static backend::ptr create_backend(std::string name, size_t backend_id) {
-        return std::shared_ptr<backend_class>(
-                new backend_class(name, backend_id));
-    }
-
-    static bool register_backend(std::string name, backend_creator_f fn) {
-        return backend_manager::get()->register_backend_impl(name, fn);
-    }
-
-    static backend::ptr get_backend(std::string name) {
-        return backend_manager::get()->get_backend_impl(name);
-    }
-
-    static backend::ptr get_backend(size_t layout_id) {
-        return backend_manager::get()->get_backend_impl(layout_id);
-    }
-
-private:
-    backend_manager() = default;
-    backend_manager(const backend_manager &) = delete;
-    backend_manager(backend_manager &&) = delete;
-    backend_manager &operator=(const backend_manager &) = delete;
-    backend_manager &operator=(backend_manager &&) = delete;
-
-    static backend_manager *get() {
-        static backend_manager inst;
-        return &inst;
-    }
-
-    bool register_backend_impl(std::string name, backend_creator_f fn) {
-        std::lock_guard<std::mutex> lock(m_);
-        auto pos = backend_creators_.find(name);
-        if (pos != backend_creators_.end()) return true; // have registered
-
-        backend_creators_.insert({name, fn});
-        return true;
-    }
-
-    backend::ptr get_backend_impl(std::string name) {
-        std::lock_guard<std::mutex> lock(m_);
-
-        // return created backend according to name
-        auto backend_pos = names_to_backends_.find(name);
-        if (backend_pos != names_to_backends_.end()) return backend_pos->second;
-
-        // If there is no created backend according to this name,
-        // create and store it
-        auto creator_pos = backend_creators_.find(name);
-        if (creator_pos != backend_creators_.end()) {
-            if (backend_counter_ >= MAX_BACKEND_NUMS) {
-                assertm(false,
-                        "created backends number is greater than  "
-                        "MAX_BACKEND_NUMS");
-            }
-
-            backend::ptr backend
-                    = (creator_pos->second)(name, backend_counter_);
-            names_to_backends_.insert({name, backend});
-            ids_to_names_.insert({backend_counter_, name});
-            backend_counter_++;
-
-            return backend;
-        }
-
-        assertm(false, "backend name is not registered");
-        return {};
-    }
-
-    backend::ptr get_backend_impl(size_t layout_id) {
-        size_t backend_id = decode_layout_id(layout_id).second;
-
-        std::lock_guard<std::mutex> lock(m_);
-
-        // find the backend name according to backend_id
-        auto backend_id_pos = ids_to_names_.find(backend_id);
-        if (backend_id_pos == ids_to_names_.end()) return {};
-
-        // return created backend according to name
-        std::string name = backend_id_pos->second;
-        auto backend_pos = names_to_backends_.find(name);
-        if (backend_pos == names_to_backends_.end()) return {};
-
-        return backend_pos->second;
-    }
+    backend_registry() = default;
+    backend_registry(const backend_registry &) = delete;
+    backend_registry(backend_registry &&) = delete;
+    backend_registry &operator=(const backend_registry &) = delete;
+    backend_registry &operator=(backend_registry &&) = delete;
 
     std::mutex m_;
-    size_t backend_counter_ {RESERVED_BACKEND_ID + 1};
-    std::unordered_map<std::string, backend_creator_f> backend_creators_;
-    std::unordered_map<std::string, backend::ptr> names_to_backends_;
-    std::unordered_map<size_t, std::string> ids_to_names_;
+
+    // sorted backends by priority
+    std::vector<const backend *> sorted_backends_;
+
+    // the map from backend id to backend shared pointer
+    std::unordered_map<size_t, const backend *> backends_;
 };
 
-// This macro is used to register a backend creator to backend manager
-// The backend creator is a static template function
-#define DNNL_GRAPH_REGISTER_BACKEND(name_, backend_class_) \
-    static auto _flag_##name_##_ = backend_manager::register_backend( \
-            #name_, &backend_manager::create_backend<backend_class_>)
+#define DNNL_GRAPH_STR_CONCAT_(__x, __y) __x##__y
+#define DNNL_GRAPH_STR_CONCAT(__x, __y) DNNL_GRAPH_STR_CONCAT_(__x, __y)
+
+#define DNNL_GRAPH_BACKEND_REG_VAR_DEF static impl::backend *dnnl_graph_backend_
+
+// This macro is used to register a backend instance to backend registry
+#define DNNL_GRAPH_REGISTER_BACKEND(backend_ins_) \
+    DNNL_GRAPH_STR_CONCAT(DNNL_GRAPH_BACKEND_REG_VAR_DEF, __COUNTER__) \
+            = impl::backend::register_backend( \
+                    static_cast<impl::backend *>(&backend_ins_));
 
 } // namespace impl
 } // namespace graph

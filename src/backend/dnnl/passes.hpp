@@ -13,13 +13,13 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef BACKEND_PASS_PASSES_PASSES_HPP
-#define BACKEND_PASS_PASSES_PASSES_HPP
+#ifndef BACKEND_DNNL_PASSES_HPP
+#define BACKEND_DNNL_PASSES_HPP
 
-#include "backend/pass/passes/bn_fusion.hpp"
-#include "backend/pass/passes/conv_fusion.hpp"
-#include "backend/pass/passes/gelu_fusion.hpp"
-#include "backend/pass/passes/matmul_fusion.hpp"
-#include "backend/pass/passes/single_node_pass.hpp"
+#include "passes/bn_fusion.hpp"
+#include "passes/conv_fusion.hpp"
+#include "passes/gelu_fusion.hpp"
+#include "passes/matmul_fusion.hpp"
+#include "passes/single_node_pass.hpp"
 
 #endif

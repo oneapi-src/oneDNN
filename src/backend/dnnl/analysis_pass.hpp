@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,30 +14,35 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <limits>
+#ifndef BACKEND_DNNL_ANALYSIS_PASS_HPP
+#define BACKEND_DNNL_ANALYSIS_PASS_HPP
 
-#include "interface/backend.hpp"
+#include <string>
+#include <utility>
 
-#include "common.hpp"
-#include "dnnl_backend.hpp"
-#include "tensor.hpp"
+#include "interface/pass_base.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
+namespace pass {
 
-void fill_layout_info(impl::logical_tensor_t *lt, const tensor::desc &td) {
-    const impl::logical_tensor_wrapper ltw(lt);
-    if (ltw.is_any()) { // we only reset any format
-        impl::utils::optional<size_t> layout_id
-                = dnnl_backend::get_singleton().set_mem_desc(td);
-        lt->layout.layout_id = static_cast<int64_t>(layout_id.value());
-        lt->layout_type = impl::layout_type::opaque;
-    }
-}
+/*!
+ * \brief analysis_pass provides analysis on a given graph,
+ *        e.g. data type deduction, memory planning.
+ */
+class analysis_pass : public impl::pass::pass_base {
+public:
+    explicit analysis_pass(std::string pbackend, std::string pname)
+        : impl::pass::pass_base(impl::pass::pass_type::kAnalysis,
+                std::move(pbackend), std::move(pname)) {}
+};
 
+} // namespace pass
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
 } // namespace dnnl
+
+#endif
