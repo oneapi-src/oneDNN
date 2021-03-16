@@ -601,6 +601,9 @@ enum class COffset {
     Pre, // C offset before all other updates (bias).
 };
 
+// Batch mode.
+enum class BatchMode { None, Strided, Nonstrided };
+
 // GEMM kernel problem description.
 struct GEMMProblem : public CommonProblem {
     Type Ta, Tb, Tc, Ts; // Types for A/B/C/scalars in registers.
@@ -613,10 +616,10 @@ struct GEMMProblem : public CommonProblem {
     bool backward = false; // If true, k loop is backwards.
     bool checkBeta0 = true; // If true, check for beta = 0 and handle specially.
     LoopType fusedLoop = LoopM; // Direction of fusing if threads fused.
-    bool batchedS = false; // Strided batch kernel.
-    bool batchedN = false; // Non-strided batch kernel.
     ABOffset abOffset = ABOffset::None; // A/B offset mode.
     COffset cOffset = COffset::None; // C offset mode.
+    BatchMode batch = BatchMode::None; // Batch mode.
+    int batchDims = 0; // # of batch dimensions (strided batch only).
     alg_kind_t postOp = alg_kind::undef; // Fused eltwise post-op to apply
     bool postOpFwd = true; // Eltwise parameters
     float eltwiseAlpha, eltwiseBeta;
@@ -765,11 +768,13 @@ struct GEMMState : public CommonState {
         ngen::Subregister diagA, diagB, diagC; // q
         uint8_t surfaceA, surfaceB; // BTS indices
         uint8_t surfaceC[2], surfaceCO; // BTS indices
-        ngen::Subregister strideA, strideB,
-                strideC; // ud, used for strided batch.
+        ngen::Subregister strideA[2], strideB[2],
+                strideC[2]; // ud, used for strided batch.
+        ngen::Subregister batchSize1, recipBatchSize1; // ud, 2D strided batch
         ngen::Subregister offsetBatch; // ud, used for non-strided batch.
     } inputs;
     Type Tacc; // Current type in accumulator registers.
+    ngen::Subregister batchID[2]; // ud
     ngen::Subregister effA, effB, effC[2],
             effCO; // Offsets to base of A/B/C/CO chunks for loading/storing.
     ngen::Subregister effAi, effBi;
@@ -926,7 +931,7 @@ struct CopyState : public CommonState {
     ngen::Subregister ldd_dl; // d
     ngen::Subregister Z; // d
     ngen::FlagRegister flagAP, flagTri, flagDiag;
-    ngen::FlagRegister flagReflect[2];
+    ngen::FlagRegister flagReflect;
     std::vector<RegisterBlock> S_layout, D_layout;
     std::vector<RegisterBlock> Ds_layout;
     ngen::Subregister remainderX, remainderY; // ud
@@ -1192,6 +1197,11 @@ protected:
     template <typename DT = void>
     void alignUp(const ngen::Subregister &dst, const ngen::Subregister &src,
             uint16_t align, const CommonStrategy &strategy, CommonState &state);
+    template <typename DT = void>
+    void divDown(const ngen::Subregister &dst, const ngen::Subregister &src0,
+            const ngen::Subregister &src1, const ngen::Subregister &src1Recip,
+            const ngen::FlagRegister &flag, const CommonStrategy &strategy,
+            CommonState &state);
 
     void simtDoWhileLoop(
             const ngen::InstructionModifier &mod, ngen::Label &dest);
@@ -1633,6 +1643,10 @@ protected:
     void gemmInitState(GEMMProblem &problem, GEMMStrategy &strategy,
             GEMMState &state, bool inSK = false);
     void gemmTypeCheck(Type Ta, Type Tb, Type Tc);
+    void gemmGetBatchIDs(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
+    void gemmReleaseBatchIDs(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
 
     void gemmSuperkernelInitState(GEMMProblem &problem,
             GEMMSuperkernelStrategy &strategy, GEMMSuperkernelState &state);

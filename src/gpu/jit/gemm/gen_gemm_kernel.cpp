@@ -316,10 +316,19 @@ status_t gen_gemm_kernel_t::init_interface() {
         interface_.newArgument("offset_CO", DataType::d);
     }
     interface_.newArgument("flags", DataType::ud);
-    if (problem_.batchedS) {
+    if (problem_.batch == BatchMode::Strided) {
+        if (problem_.batchDims > 1) {
+            interface_.newArgument("stride_A1", DataType::d);
+            interface_.newArgument("stride_B1", DataType::d);
+            interface_.newArgument("stride_C1", DataType::d);
+        }
         interface_.newArgument("stride_A", DataType::d);
         interface_.newArgument("stride_B", DataType::d);
         interface_.newArgument("stride_C", DataType::d);
+        if (problem_.batchDims > 1) {
+            interface_.newArgument("batch_size1", DataType::ud);
+            interface_.newArgument("recip_batch_size1", DataType::ud);
+        }
     }
 
     interface_.externalName(kernel_name());

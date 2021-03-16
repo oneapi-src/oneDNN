@@ -18,6 +18,7 @@
 #include "common/c_types_map.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/float16.hpp"
+#include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel_common.hpp"
 
@@ -32,11 +33,18 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         const memory_storage_t &co, int64_t offset_a, int64_t offset_b,
         int64_t offset_c, int32_t offset_co, int32_t lda, int32_t ldb,
         int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha, float beta,
-        int16_t ao, int16_t bo, int32_t cmask, bool last_k_block, int32_t batch,
-        int32_t stride_a, int32_t stride_b, int32_t stride_c) const {
+        int16_t ao, int16_t bo, int32_t cmask, bool last_k_block) const {
 
     bool with_offset = (pd()->desc()->c_type() == data_type::s32);
     uint32_t flags = 0;
+
+    auto stride_a0 = int32_t(pd()->desc()->stride_a(0));
+    auto stride_b0 = int32_t(pd()->desc()->stride_b(0));
+    auto stride_c0 = int32_t(pd()->desc()->stride_c(0));
+
+    auto stride_a1 = int32_t(pd()->desc()->stride_a(1));
+    auto stride_b1 = int32_t(pd()->desc()->stride_b(1));
+    auto stride_c1 = int32_t(pd()->desc()->stride_c(1));
 
     if (!last_k_block) flags |= FlagNonfinalKBlock;
     if (cmask & 1) flags |= FlagCOColumn;
@@ -68,17 +76,29 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         arg_list.set(argn++, offset_co);
     }
     arg_list.set(argn++, flags);
-    if (batch > 1) {
-        arg_list.set(argn++, stride_a);
-        arg_list.set(argn++, stride_b);
-        arg_list.set(argn++, stride_c);
+
+    if (pd()->batch_dims() >= 1) {
+        arg_list.set(argn++, stride_a0);
+        arg_list.set(argn++, stride_b0);
+        arg_list.set(argn++, stride_c0);
+    }
+
+    if (pd()->batch_dims() >= 2) {
+        auto batchSize1 = uint32_t(pd()->desc()->c_desc.dims[1]);
+        uint32_t recipBatchSize1 = utils::div_up(
+                uint64_t(0x100000000) << math::ilog2q(batchSize1), batchSize1);
+        arg_list.set(argn++, stride_a1);
+        arg_list.set(argn++, stride_b1);
+        arg_list.set(argn++, stride_c1);
+        arg_list.set(argn++, batchSize1);
+        arg_list.set(argn++, recipBatchSize1);
     }
 
     size_t gws[3] = {0, 0, 1};
 
     gws[0] = utils::div_up(m, nocopy_info_.unroll[0]);
     gws[1] = utils::div_up(n, nocopy_info_.unroll[1]);
-    gws[2] = batch;
+    gws[2] = pd()->desc()->batch();
 
     size_t lws[3] = {size_t(nocopy_info_.wg[0]), size_t(nocopy_info_.wg[1]), 1};
 
@@ -114,7 +134,6 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto m = pd()->desc()->m();
     auto n = pd()->desc()->n();
     auto k = pd()->desc()->k();
-    auto batch = pd()->desc()->batch();
 
     bool transa = (pd()->desc()->transa() == dnnl_trans);
     bool transb = (pd()->desc()->transb() == dnnl_trans);
@@ -122,10 +141,6 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto lda = pd()->desc()->lda();
     auto ldb = pd()->desc()->ldb();
     auto ldc = pd()->desc()->ldc();
-
-    auto stride_a = pd()->desc()->stride_a();
-    auto stride_b = pd()->desc()->stride_b();
-    auto stride_c = pd()->desc()->stride_c();
 
     auto alpha = pd()->alpha();
     auto beta = pd()->beta();
@@ -207,7 +222,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                 status = launch_nocopy(ctx, compute_stream, a, b, c, *co,
                         off_a_src, off_b_src, off_c, off_co, lda, ldb, ldc,
                         size_m, size_n, size_k, alpha, eff_beta, ao, bo, cmask,
-                        last_k_block, batch, stride_a, stride_b, stride_c);
+                        last_k_block);
 
                 if (status) return status;
             }

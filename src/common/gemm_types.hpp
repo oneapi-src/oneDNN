@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -71,8 +71,11 @@ struct dnnl_gemm_desc_t {
     dnnl_dim_t batch() const {
         // if ndims < 3, it should return 1
         int64_t batch = 1;
-        for (int i = 0; i < c_desc.ndims - 2; ++i)
+        for (int i = 0; i < c_desc.ndims - 2; ++i) {
+            if (c_desc.dims[i] == DNNL_RUNTIME_DIM_VAL)
+                return DNNL_RUNTIME_DIM_VAL;
             batch *= c_desc.dims[i];
+        }
         return batch;
     }
 
@@ -84,16 +87,22 @@ struct dnnl_gemm_desc_t {
     dnnl_dim_t k() const { return a_desc.dims[a_desc.ndims - 1]; }
 
     /** Stride between 2 matrices A in a batch. */
-    dnnl_dim_t stride_a() const {
-        return b_desc.format_desc.blocking.strides[0];
+    dnnl_dim_t stride_a(int dim = 0) const {
+        return (dim >= b_desc.ndims - 2 || b_desc.dims[dim] == 1)
+                ? 0
+                : b_desc.format_desc.blocking.strides[dim];
     };
     /** Stride between 2 matrices B in a batch. */
-    dnnl_dim_t stride_b() const {
-        return a_desc.format_desc.blocking.strides[0];
+    dnnl_dim_t stride_b(int dim = 0) const {
+        return (dim >= a_desc.ndims - 2 || a_desc.dims[dim] == 1)
+                ? 0
+                : a_desc.format_desc.blocking.strides[dim];
     };
     /** Stride between 2 matrices C in a batch. */
-    dnnl_dim_t stride_c() const {
-        return c_desc.format_desc.blocking.strides[0];
+    dnnl_dim_t stride_c(int dim = 0) const {
+        return (dim >= c_desc.ndims - 2)
+                ? 0
+                : c_desc.format_desc.blocking.strides[dim];
     };
 
     // This assumes that one of the dimensions has strides 1

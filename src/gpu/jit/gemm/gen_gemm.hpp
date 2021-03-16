@@ -90,9 +90,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                         && d->acc_type == d->c_type();
             }
 
-            ok = ok && !has_blocks() && d->c_desc.ndims <= 3
-                    && IMPLICATION(d->is_batched(),
-                            d->a_desc.dims[0] == d->b_desc.dims[0])
+            ok = ok && !has_blocks() && batch_dims() <= 2
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
                             d->k(), d->lda(), d->ldb(), d->ldc(), d->batch())
                     && IMPLICATION(with_bias(),
@@ -171,6 +169,10 @@ struct gen_gemm_t : public gpu_gemm_t {
             return with_bias() ? to_cmask[(desc()->bias_mask() >> 1) & 3] : -1;
         }
 
+        int batch_dims() const {
+            return nstl::max(desc()->c_desc.ndims - 2, 0);
+        }
+
         const attr_info_t *attr_info() const { return &attr_info_; }
 
         size_t dyn_offset_a = 0;
@@ -191,7 +193,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         int unroll_m, unroll_n;
         auto batch = pd()->desc()->batch();
-        bool batched = (batch > 1);
+        int batch_dims = pd()->batch_dims();
         bool transa = (pd()->desc()->transa() == dnnl_trans);
         bool transb = (pd()->desc()->transb() == dnnl_trans);
         auto a_type = pd()->desc()->a_type();
@@ -208,7 +210,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         kernel_t kernel;
 
-        auto status = kernel.init(pd()->arch_, batched, transa, transb,
+        auto status = kernel.init(pd()->arch_, batch_dims, transa, transb,
                 pd()->with_c_offset(), pd()->with_bias(), eltwise_alg,
                 eltwise_alpha, eltwise_beta, eltwise_scale, a_type, b_type,
                 c_type, unroll_m, unroll_n);
@@ -231,8 +233,7 @@ private:
             int64_t offset_c, int32_t offset_co, int32_t lda, int32_t ldb,
             int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha,
             float beta, int16_t ao, int16_t bo, int32_t cmask,
-            bool last_k_block, int32_t batch, int32_t stride_a,
-            int32_t stride_b, int32_t stride_c) const;
+            bool last_k_block) const;
 
     compute::kernel_t nocopy_kernel_;
     CommonDriverInfo nocopy_info_;

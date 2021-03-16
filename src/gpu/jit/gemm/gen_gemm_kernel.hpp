@@ -83,7 +83,7 @@ private:
 };
 
 struct gen_gemm_nocopy_kernel_t : public gen_gemm_kernel_t {
-    status_t init(compute::gpu_arch_t arch, bool batch, bool trans_a,
+    status_t init(compute::gpu_arch_t arch, int batch_dims, bool trans_a,
             bool trans_b, bool c_offset, bool bias, alg_kind_t eltwise_alg,
             float eltwise_alpha, float eltwise_beta, float eltwise_scale,
             data_type_t a_type, data_type_t b_type, data_type_t c_type,
@@ -99,13 +99,16 @@ struct gen_gemm_nocopy_kernel_t : public gen_gemm_kernel_t {
         problem_.A.crosspack = problem_.B.crosspack = problem_.C.crosspack = 1;
         problem_.A.packSize = problem_.B.packSize = problem_.C.packSize = 0;
         problem_.A.padded = problem_.B.padded = problem_.C.padded = false;
-        problem_.A.alignment = uint8_t(types::data_type_size(a_type));
-        problem_.B.alignment = uint8_t(types::data_type_size(b_type));
-        problem_.C.alignment = uint8_t(types::data_type_size(c_type));
+        problem_.A.setAlignment(int(types::data_type_size(a_type)));
+        problem_.B.setAlignment(int(types::data_type_size(b_type)));
+        problem_.C.setAlignment(int(types::data_type_size(c_type)));
         problem_.A.base = ngen::AddressBase::createA64(true);
         problem_.B.base = ngen::AddressBase::createA64(true);
         problem_.C.base = ngen::AddressBase::createA64(true);
-        problem_.batchedS = batch;
+        if (batch_dims > 0) {
+            problem_.batch = BatchMode::Strided;
+            problem_.batchDims = batch_dims;
+        }
         if (c_type == data_type::s32) {
             problem_.abOffset = ABOffset::Calc;
             problem_.Ts = Type::f32;
