@@ -30,8 +30,13 @@
 #include "oneapi/dnnl/dnnl_sycl.hpp"
 #endif
 
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include "oneapi/dnnl/dnnl_threadpool.h"
+#endif
+
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
+#include "tests/test_thread.hpp"
 
 #include "cpu/platform.hpp"
 

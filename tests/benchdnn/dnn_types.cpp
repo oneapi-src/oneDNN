@@ -22,13 +22,10 @@
 #include <string.h>
 #include <string>
 
+#include <algorithm>
 #include <sstream>
 
 #include "oneapi/dnnl/dnnl.h"
-
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "oneapi/dnnl/dnnl_threadpool.h"
-#endif
 
 #include "common.hpp"
 #include "dnn_types.hpp"
@@ -36,7 +33,6 @@
 #include "dnnl_debug.hpp"
 #include "dnnl_memory.hpp"
 #include "src/common/math_utils.hpp"
-#include "tests/test_thread.hpp"
 
 #define BENCHDNN_DNNL_ARG_UNDEF 0
 
