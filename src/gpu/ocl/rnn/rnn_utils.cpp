@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,6 +57,8 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &dst_layer_d) {
+
+    rnn = utils::zero<decltype(rnn)>();
     rnn.is_fwd = utils::one_of(rd.prop_kind, prop_kind::forward_training,
             prop_kind::forward_inference);
     rnn.is_training = utils::one_of(
@@ -353,6 +355,7 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
     scratch_cell_offset = current_offset;
     current_offset += rnn.scratch_cell_size;
 
+    ws_bias_offset = 0;
     if (rnn.copy_bias) {
         current_offset = utils::rnd_up(current_offset, page_size);
         ws_bias_offset = current_offset;
