@@ -62,6 +62,7 @@ private:
             isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
 
     enum arg_t { dst, acc, bias, stack, scale };
+    enum data_op_t { load, store };
 
     void apply_postops(const bool apply_mask, const int vmm_idx,
             const size_t offset, bool runtime_tail_mask);
@@ -82,6 +83,10 @@ private:
             const size_t off, bool cvt = true);
     void runtime_tail_cvt_store(
             const Vmm &v, const arg_t arg_num, const size_t off);
+    void data_copy(const Vmm &v, const arg_t arg_num, const size_t off,
+            data_op_t data_op, const size_t tail,
+            const bool is_needed_runtime_tail_process,
+            const bool do_cvt = true);
     void generate() override;
     void compute_oc_channel_blk();
     void compute_mb_blk(); // vectorize across minibatch
@@ -708,6 +713,24 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::runtime_tail_cvt_store(
 }
 
 template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
+void jit_pp_kernel_t<isa, acc_type, dst_type>::data_copy(const Vmm &v,
+        const arg_t arg_num, const size_t off, data_op_t data_op,
+        const size_t tail, const bool is_needed_runtime_tail_process,
+        const bool do_cvt) {
+    if (data_op == data_op_t::load) {
+        if (is_needed_runtime_tail_process)
+            runtime_tail_load_cvt(v, arg_num, off, do_cvt);
+        else
+            load_and_cvt(v, arg_num, off, tail, do_cvt);
+    } else {
+        if (is_needed_runtime_tail_process)
+            runtime_tail_cvt_store(v, arg_num, off);
+        else
+            cvt_and_store(v, arg_num, off, tail);
+    }
+}
+
+template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
 void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
     // Load accumulated value, convert to float, apply bias (if any), scaling,
     // and eltwise (if any); then convert to destination type and store
@@ -717,25 +740,9 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
         const bool is_needed_runtime_tail_process
                 = runtime_tail_mask && tail && !is_avx512_;
 
-        enum data_op_t { LOAD, STORE };
-        auto data_copy
-                = [&](const Vmm &v, const arg_t arg_num, const size_t off,
-                          data_op_t data_op, const bool do_cvt = true) {
-                      if (data_op == LOAD) {
-                          if (is_needed_runtime_tail_process)
-                              runtime_tail_load_cvt(v, arg_num, off, do_cvt);
-                          else
-                              load_and_cvt(v, arg_num, off, tail, do_cvt);
-                      } else {
-                          if (is_needed_runtime_tail_process)
-                              runtime_tail_cvt_store(v, arg_num, off);
-                          else
-                              cvt_and_store(v, arg_num, off, tail);
-                      }
-                  };
-
         if (this->do_scale_ && this->scale_idx_mult_ == 1)
-            data_copy(vreg_scale, arg_t::scale, offset * sizeof(float), LOAD,
+            data_copy(vreg_scale, arg_t::scale, offset * sizeof(float),
+                    data_op_t::load, tail, is_needed_runtime_tail_process,
                     false);
 
         if (this->do_binary_ && tail && is_avx512_)
@@ -743,12 +750,14 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
 
         const int dst_idx = vreg_dst_idx(idx);
         auto vreg_dst_ = Vmm(dst_idx);
-        data_copy(vreg_dst_, arg_t::acc, offset * sizeof(acc_data_t), LOAD);
+        data_copy(vreg_dst_, arg_t::acc, offset * sizeof(acc_data_t),
+                data_op_t::load, tail, is_needed_runtime_tail_process);
 
         if (this->do_bias()) {
             auto vreg_bias_ = vreg_bias(idx);
             data_copy(vreg_bias_, arg_t::bias,
-                    offset * this->bias_data_type_size_, LOAD);
+                    offset * this->bias_data_type_size_, data_op_t::load, tail,
+                    is_needed_runtime_tail_process);
             uni_vaddps(vreg_dst_, vreg_dst_, vreg_bias_);
         }
 
@@ -757,7 +766,7 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
         if (this->do_sum_) {
             auto vreg_prev_dst_ = vreg_prev_dst(idx);
             data_copy(vreg_prev_dst_, arg_t::dst, offset * sizeof(dst_data_t),
-                    LOAD);
+                    data_op_t::load, tail, is_needed_runtime_tail_process);
             uni_vfmadd231ps(vreg_dst_, vreg_prev_dst_, vreg_sum_scale);
         }
 
@@ -766,7 +775,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
         if (this->do_dst_zero_points_)
             uni_vaddps(vreg_dst_, vreg_dst_, vreg_dst_zero_points);
 
-        data_copy(vreg_dst_, arg_t::dst, offset * sizeof(dst_data_t), STORE);
+        data_copy(vreg_dst_, arg_t::dst, offset * sizeof(dst_data_t),
+                data_op_t::store, tail, is_needed_runtime_tail_process);
     };
 
     // Advance all pointers by an immediate
@@ -964,16 +974,9 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_mb_blk() {
         auto vmm_bias = vreg_bias(0);
         auto vmm_dst = vreg_dst(0);
         assert(utils::one_of(acc_type, data_type::s32, data_type::f32));
-        if (runtime_tail) {
-            runtime_tail_load_cvt(vmm_dst, arg_t::acc, 0);
-            uni_vaddps(vmm_dst, vmm_dst, vmm_bias);
-            runtime_tail_cvt_store(vmm_dst, arg_t::dst, 0);
-
-        } else {
-            load_and_cvt(vmm_dst, arg_t::acc, 0, tail);
-            uni_vaddps(vmm_dst, vmm_dst, vmm_bias);
-            cvt_and_store(vmm_dst, arg_t::dst, 0, tail);
-        }
+        data_copy(vmm_dst, arg_t::acc, 0, data_op_t::load, tail, runtime_tail);
+        uni_vaddps(vmm_dst, vmm_dst, vmm_bias);
+        data_copy(vmm_dst, arg_t::dst, 0, data_op_t::store, tail, runtime_tail);
     };
 
     Label mb_main_loop, end_main_loop;
