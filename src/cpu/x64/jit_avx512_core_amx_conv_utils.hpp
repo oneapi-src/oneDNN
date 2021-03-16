@@ -68,7 +68,7 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
 
     // Initialize the tile configuration in memory, so that each thread can
     // load this configuration from memory via `amx_tile_configure(tcfg)`.
-    kernel->tile_configure(tcfg);
+    if (tcfg) kernel->tile_configure(tcfg);
     const bool is_1d = jcp.ndims == 3;
 
     parallel(0, [&](const int ithr, const int nthr) {
