@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "value.hpp"
-#include "op_v2.hpp"
+#include "op.hpp"
 
 using namespace dnnl::graph::impl;
 

@@ -18,8 +18,26 @@
 
 #include "c_types_map.hpp"
 #include "op.hpp"
+#include "op_schema.hpp"
 
 using namespace dnnl::graph::impl;
+
+/// constructor
+dnnl_graph_op::dnnl_graph_op(
+        size_t id, op_kind_t kind, std::string name, bool internal)
+    : id_ {id}
+    , kind_ {kind}
+    , name_ {std::move(name)}
+    , schema_ {op_schema_registry::get_op_schema(kind)}
+    , internal_ {internal} {
+    if (name_.empty()) { name_ = kind2str(kind_) + "_" + std::to_string(id_); }
+}
+
+bool dnnl_graph_op::verify() const {
+    // always return true if there is no corresponding op schema
+    // return nullptr == schema_ || schema_->verify(this);
+    return nullptr == schema_;
+}
 
 status_t DNNL_GRAPH_API dnnl_graph_op_create(op_t **created_op, uint64_t id,
         op_kind_t kind, const char *const debug_string) {
