@@ -889,6 +889,7 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
             use_buffer = use_buffer || (maybe_use_buffer && iwp != iw);
 
         ur = estimate_brgemm_ur(ow_block);
+        if (ur == 0) continue;
         update_blocks();
 
         eff = est_eff();
@@ -923,7 +924,7 @@ void brg_blocking_t::calc_blocks() {
     const auto max_ow_block_thr = utils::saturate(1, ow,
             (int)div_up(mb * ngroups * nb_oc * os, thr_eff_threshold * nthr));
 
-    ow_block = -1;
+    ow_block = os_block = sp_block = -1;
     brg_blocking_t best_brgb = *this;
     for (const auto &kd_block : kd_blocks) {
         for (const auto &kh_block : kh_blocks) {
@@ -1248,6 +1249,7 @@ void brg_blocking_t::calc_blocks_1x1() {
         start_sp_block = utils::saturate(
                 1, ow, nstl::min(max_ow_block_thr, max_ow_block_L2));
     }
+    os_block = ow_block = sp_block = -1;
     brg_blocking_t best_brgb = *this;
 
     auto prev_spb = 0;
@@ -1255,12 +1257,10 @@ void brg_blocking_t::calc_blocks_1x1() {
         const auto spb = div_up(sp, ns);
         if (spb == prev_spb || spb > start_sp_block) continue;
         prev_spb = spb;
-        if (is_os_block)
-            os_block = spb;
-        else
-            ow_block = spb;
+        os_block = ow_block = sp_block = spb;
         select_ic_block();
         ur = estimate_brgemm_ur(spb);
+        if (ur == 0) continue;
         update_blocks();
 
         use_buffer = (dst_dt != acc_dt || with_sum)
