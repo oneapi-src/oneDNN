@@ -1506,8 +1506,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         try_exec_type_res = try_exec_type();
         const auto iw_block = (jcp.ow_block - 1) * jcp.stride_w + 1;
         // transform kernel doesn't work well with big padding
+        // and with ic not divided by ic_block
         // TODO: remove this restriction
-        if (iw_block < jcp.l_pad || iw_block < jcp.r_pad)
+        if (iw_block < jcp.l_pad || iw_block < jcp.r_pad
+                || (jcp.ic % jcp.ic_block != 0))
             try_exec_type_res = false;
     }
     if (try_exec_type_res == false) {
