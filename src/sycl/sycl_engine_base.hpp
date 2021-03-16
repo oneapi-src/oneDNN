@@ -44,7 +44,8 @@ public:
             const cl::sycl::context &ctx, size_t index)
         : gpu::compute::compute_engine_t(kind, runtime_kind::sycl, index)
         , device_(dev)
-        , context_(ctx) {}
+        , context_(ctx)
+        , backend_(backend_t::unknown) {}
 
     status_t init() override {
         backend_ = get_sycl_backend(device_);
