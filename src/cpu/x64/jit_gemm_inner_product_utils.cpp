@@ -61,8 +61,8 @@ private:
     using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
             isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
 
-    enum arg_t { dst, acc, bias, stack, scale };
-    enum data_op_t { load, store };
+    enum class arg_t { dst, acc, bias, stack, scale };
+    enum class data_op_t { load, store };
 
     void apply_postops(const bool apply_mask, const int vmm_idx,
             const size_t offset, bool runtime_tail_mask);
@@ -222,11 +222,11 @@ private:
 
     Xbyak::Address get_address(const arg_t arg_num, const size_t off) {
         switch (arg_num) {
-            case dst: return dst_ptr(off);
-            case acc: return acc_ptr(off);
-            case bias: return bias_ptr(off);
-            case stack: return stack_ptr(off);
-            case scale: return scale_ptr(off);
+            case arg_t::dst: return dst_ptr(off);
+            case arg_t::acc: return acc_ptr(off);
+            case arg_t::bias: return bias_ptr(off);
+            case arg_t::stack: return stack_ptr(off);
+            case arg_t::scale: return scale_ptr(off);
             default: assert(!"unsupported arg_num"); break;
         }
         return Xbyak::Address(0);
@@ -234,11 +234,11 @@ private:
 
     Xbyak::Reg64 get_reg_address(const arg_t arg_num) {
         switch (arg_num) {
-            case dst: return reg_dst;
-            case acc: return reg_acc;
-            case bias: return reg_bias;
-            case stack: return rsp;
-            case scale: return reg_scales;
+            case arg_t::dst: return reg_dst;
+            case arg_t::acc: return reg_acc;
+            case arg_t::bias: return reg_bias;
+            case arg_t::stack: return rsp;
+            case arg_t::scale: return reg_scales;
             default: assert(!"unsupported arg_num"); break;
         }
         return rsp;
@@ -246,9 +246,9 @@ private:
 
     data_type_t get_data_type(const arg_t arg_num) {
         switch (arg_num) {
-            case dst: return dst_type;
-            case acc: return acc_type;
-            case bias: return this->bias_data_type_;
+            case arg_t::dst: return dst_type;
+            case arg_t::acc: return acc_type;
+            case arg_t::bias: return this->bias_data_type_;
             // default for stack or scale operation
             default: return data_type::f32;
         }
