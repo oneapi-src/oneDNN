@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
+
 #include "gpu/ocl/simple_reorder.hpp"
 
 #include "common/utils.hpp"
