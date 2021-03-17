@@ -29,8 +29,10 @@ op_schema::op_schema() : name_("unknown"), version_(0) {}
 op_schema::op_schema(std::string op_name, opset_version version)
     : name_(std::move(op_name)), version_(version) {}
 
-op_schema &op_schema::set_name(const std::string &name) {
-    name_ = name;
+// the rvalue reference design is based on the fact that these
+// functions are only called internally with rvalue intputs.
+op_schema &op_schema::set_name(std::string &&name) {
+    name_ = std::move(name);
     return *this;
 }
 
@@ -38,8 +40,8 @@ const std::string &op_schema::get_name() const {
     return name_;
 }
 
-op_schema &op_schema::set_doc(const std::string &doc) {
-    doc_ = doc;
+op_schema &op_schema::set_doc(std::string &&doc) {
+    doc_ = std::move(doc);
     return *this;
 }
 
@@ -56,7 +58,7 @@ opset_version op_schema::get_since_version() const {
     return version_;
 }
 
-op_schema &op_schema::set_num_inputs(std::set<size_t> input_num) {
+op_schema &op_schema::set_num_inputs(std::set<size_t> &&input_num) {
     num_inputs_ = std::move(input_num);
     return *this;
 }
@@ -70,7 +72,7 @@ std::set<size_t> op_schema::get_num_inputs() const {
     return num_inputs_;
 }
 
-op_schema &op_schema::set_num_outputs(std::set<size_t> output_num) {
+op_schema &op_schema::set_num_outputs(std::set<size_t> &&output_num) {
     num_outputs_ = std::move(output_num);
     return *this;
 }
@@ -84,45 +86,64 @@ std::set<size_t> op_schema::get_num_outputs() const {
     return num_outputs_;
 }
 
-op_schema &op_schema::set_input(size_t in_offset, std::string in_name,
-        const std::string &in_description) {
-    validate_input_(in_offset);
-    inputs_.emplace_back(formal_parameter(std::move(in_name), in_description));
+op_schema &op_schema::set_input(size_t in_offset, std::string &&in_name,
+        std::string &&in_description, data_type_t dtype) {
+    verify_input_(in_offset);
+    inputs_.emplace_back(
+            op_parameter(std::move(in_name), std::move(in_description), dtype));
 
     return *this;
 }
 
-const std::vector<op_schema::formal_parameter> &op_schema::get_inputs() const {
+op_schema &op_schema::set_input(size_t in_offset, std::string &&in_name,
+        std::string &&in_description, std::set<data_type_t> &&dtypes) {
+    verify_input_(in_offset);
+    inputs_.emplace_back(op_parameter(
+            std::move(in_name), std::move(in_description), std::move(dtypes)));
+
+    return *this;
+}
+
+const std::vector<op_schema::op_parameter> &op_schema::get_inputs() const {
     return inputs_;
 }
 
-op_schema &op_schema::set_output(size_t out_offset, std::string out_name,
-        const std::string &out_description) {
-    validate_output_(out_offset);
-    outputs_.emplace_back(
-            formal_parameter(std::move(out_name), out_description));
+op_schema &op_schema::set_output(size_t out_offset, std::string &&out_name,
+        std::string &&out_description, data_type_t dtype) {
+    verify_output_(out_offset);
+    outputs_.emplace_back(op_parameter(
+            std::move(out_name), std::move(out_description), dtype));
 
     return *this;
 }
 
-const std::vector<op_schema::formal_parameter> &op_schema::get_outputs() const {
+op_schema &op_schema::set_output(size_t out_offset, std::string &&out_name,
+        std::string &&out_description, std::set<data_type_t> &&dtype) {
+    verify_output_(out_offset);
+    outputs_.emplace_back(op_parameter(
+            std::move(out_name), std::move(out_description), std::move(dtype)));
+
+    return *this;
+}
+
+const std::vector<op_schema::op_parameter> &op_schema::get_outputs() const {
     return outputs_;
 }
 
-op_schema &op_schema::set_attr(const std::string &name,
-        const std::string &description, bool required) {
+op_schema &op_schema::set_attr(
+        const std::string &name, std::string &&description, bool required) {
     assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
-    attributes_[name] = attribute(name, description, required);
+    attributes_[name] = attribute(name, std::move(description), required);
     return *this;
 }
 
 op_schema &op_schema::set_attr(const std::string &name,
-        const std::string &description, bool required, const char *value) {
+        std::string &&description, bool required, const char *value) {
     assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
-    attributes_[name]
-            = attribute(name, description, required, {std::string(value)});
+    attributes_[name] = attribute(
+            name, std::move(description), required, {std::string(value)});
     return *this;
 }
 
@@ -141,7 +162,7 @@ shape_infer_fn op_schema::get_shape_inference_function() const {
 }
 
 bool op_schema::verify_param_num(size_t actual_num,
-        std::set<size_t> expected_num, param_num_option option) const {
+        const std::set<size_t> &expected_num, param_num_option option) const {
     switch (option) {
         case param_num_option::fixed: {
             // fixed option only has one valid number
@@ -166,15 +187,35 @@ bool op_schema::verify_param_num(size_t actual_num,
     return true;
 }
 
+bool op_schema::verify_param_dtype(
+        const std::vector<std::shared_ptr<value_t>> &actual_values,
+        const std::vector<op_schema::op_parameter> &expected_params,
+        param_num_option option) const {
+    size_t offset = 0;
+    for (auto &v : actual_values) {
+        const logical_tensor_t &lt = v->get_logical_tensor();
+        const std::set<data_type_t> &expected_dtypes
+                = expected_params[offset].allowed_dtypes_;
+        if (expected_dtypes.find(lt.data_type) == expected_dtypes.end()) {
+            return false;
+        }
+        if (option != param_num_option::variadic) { offset += 1; }
+    }
+
+    return true;
+}
+
 void op_schema::set_default_attribute(op_t *l_op) const {
-    auto actual_attrs = l_op->get_attributes();
-    auto expected_attrs = this->get_attrs();
+    const std::unordered_map<std::string, attribute_value> &actual_attrs
+            = l_op->get_attributes();
+    const std::unordered_map<std::string, op_schema::attribute> &expected_attrs
+            = this->get_attrs();
     for (auto iter = expected_attrs.begin(); iter != expected_attrs.end();
             ++iter) {
         // if default attribute not set in op, set it to default value
         if (!iter->second.required_ && actual_attrs.count(iter->first) == 0) {
-            auto value = iter->second.attr_;
-            const auto &name = iter->first;
+            attribute_value value = iter->second.attr_;
+            const std::string &name = iter->first;
             l_op->set_attr(name, value);
         }
     }
@@ -182,19 +223,27 @@ void op_schema::set_default_attribute(op_t *l_op) const {
 
 bool op_schema::verify(op_t *l_op) const {
     size_t actual_num_inputs = l_op->num_inputs();
-    auto expected_num_inputs = get_num_inputs();
+    std::set<size_t> expected_num_inputs = get_num_inputs();
     bool param_num_verify_result = verify_param_num(
             actual_num_inputs, expected_num_inputs, inputs_option);
     if (!param_num_verify_result) { return false; }
+    bool param_dtype_verify_result = verify_param_dtype(
+            l_op->get_input_values(), inputs_, inputs_option);
+    if (!param_dtype_verify_result) { return false; }
 
     size_t actual_num_outputs = l_op->num_outputs();
-    auto expected_num_outputs = get_num_outputs();
+    std::set<size_t> expected_num_outputs = get_num_outputs();
     param_num_verify_result = verify_param_num(
             actual_num_outputs, expected_num_outputs, outputs_option);
     if (!param_num_verify_result) { return false; }
+    param_dtype_verify_result = verify_param_dtype(
+            l_op->get_output_values(), outputs_, outputs_option);
+    if (!param_dtype_verify_result) { return false; }
 
-    const auto &actual_attrs = l_op->get_attributes();
-    auto expected_attrs = get_attrs();
+    const std::unordered_map<std::string, attribute_value> &actual_attrs
+            = l_op->get_attributes();
+    const std::unordered_map<std::string, op_schema::attribute> &expected_attrs
+            = get_attrs();
     for (auto iter = expected_attrs.begin(); iter != expected_attrs.end();
             ++iter) {
         if (iter->second.required_ && actual_attrs.count(iter->first) == 0) {
@@ -224,7 +273,7 @@ size_t op_schema::get_max_valid_param_num(
     return max_valid_num;
 }
 
-void op_schema::validate_input_(size_t in_offset) {
+void op_schema::verify_input_(size_t in_offset) {
     assertm(inputs_offset.find(in_offset) == inputs_offset.end(),
             "provided `in_offset` has already been set");
 
@@ -236,7 +285,7 @@ void op_schema::validate_input_(size_t in_offset) {
     UNUSED(max_valid_num);
 }
 
-void op_schema::validate_output_(size_t out_offset) {
+void op_schema::verify_output_(size_t out_offset) {
     assertm(outputs_offset.find(out_offset) == outputs_offset.end(),
             "provided `out_offset` has already been set");
 
@@ -268,11 +317,12 @@ op_schema::param_num_option op_schema::get_outputs_option() const {
 }
 
 op_schema_registry::op_schema_registry_once::op_schema_registry_once(
-        op_schema &schema) {
-    auto &op_map = get_map_without_ensuring_registration();
+        op_schema &&schema) {
+    op_name_version_schema_map &op_map
+            = get_map_without_ensuring_registration();
 
-    auto &op_name = schema.get_name();
-    auto op_version = schema.get_since_version();
+    const std::string &op_name = schema.get_name();
+    opset_version op_version = schema.get_since_version();
 
     op_map[op_name].insert(std::pair<opset_version, op_schema &&>(
             op_version, std::move(schema)));
@@ -285,7 +335,8 @@ op_schema_registry::get_map_without_ensuring_registration() {
 }
 
 op_name_version_schema_map &op_schema_registry::get_map() {
-    auto &op_map = get_map_without_ensuring_registration();
+    op_name_version_schema_map &op_map
+            = get_map_without_ensuring_registration();
     class register_opset_t {
     public:
         register_opset_t() { register_opset_schema(); }
@@ -307,7 +358,7 @@ const op_schema *op_schema_registry::get_op_schema(op_kind_t kind) {
 
 void register_schema(op_schema &&schema) {
     op_schema_registry::op_schema_registry_once DNNL_GRAPH_UNUSED registration(
-            schema);
+            std::move(schema));
 }
 
 } // namespace impl

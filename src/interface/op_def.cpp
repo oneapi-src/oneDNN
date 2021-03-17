@@ -175,9 +175,12 @@ DNNL_GRAPH_OP_SCHEMA(BiasAdd, 1,
         op_schema()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "data tensor")
-                .set_input(1, "bias", "1D tensor")
-                .set_output(0, "output", "sum of input and bias")
+                .set_input(0, "input", "data tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "bias", "1D tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "sum of input and bias",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
@@ -236,10 +239,14 @@ DNNL_GRAPH_OP_SCHEMA(Convolution, 1,
                 .set_inputs_option(op_schema::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "filter", "filter tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "filter", "filter tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(2, "bias", "bias tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -735,8 +742,10 @@ DNNL_GRAPH_OP_SCHEMA(ReLU, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(ReLUBackprop, 1,
@@ -914,8 +923,14 @@ DNNL_GRAPH_OP_SCHEMA(Wildcard, 1,
                 .set_outputs_option(op_schema::param_num_option::variadic)
                 .set_num_outputs(std::set<size_t>(
                         {0, std::numeric_limits<size_t>::max()}))
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::f16, data_type::bf16,
+                                data_type::s8, data_type::u8, data_type::s32,
+                                data_type::undef})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::f16, data_type::bf16,
+                                data_type::s8, data_type::u8, data_type::s32,
+                                data_type::undef})
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
 // fusion ops
@@ -923,10 +938,14 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bias, 1,
         op_schema()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "weight", "weight tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "weight", "weight tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(2, "bias", "bias tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -945,11 +964,16 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bias_add, 1,
         op_schema()
                 .set_num_inputs(4)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "weight", "weight tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_input(3, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "weight", "weight tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(2, "bias", "bias tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(3, "other", "the second input tensor of add",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1287,9 +1311,12 @@ DNNL_GRAPH_OP_SCHEMA(Conv_relu, 1,
         op_schema()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "weight", "weight tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "weight", "weight tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 

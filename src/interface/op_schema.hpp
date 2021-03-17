@@ -19,6 +19,7 @@
 
 #include <functional>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -43,24 +44,35 @@ public:
     op_schema();
     op_schema(std::string op_name, opset_version version);
 
-    /*! @brief formal parameter representation, including input/output name,
+    /*! @brief op parameter representation, including input/output name,
      *  and description.
      */
-    class formal_parameter {
+    class op_parameter {
     public:
-        formal_parameter() = default;
+        op_parameter() = default;
 
-        explicit formal_parameter(
-                std::string name, const std::string &description)
+        explicit op_parameter(std::string &&name, std::string &&description,
+                data_type_t dtype)
             : name_(std::move(name))
-            , description_(description)
+            , description_(std::move(description))
+            , allowed_dtypes_({dtype})
             , is_initialized(true) {}
 
-        // Formal parameter name.
+        explicit op_parameter(std::string &&name, std::string &&description,
+                std::set<data_type_t> &&dtype)
+            : name_(std::move(name))
+            , description_(std::move(description))
+            , allowed_dtypes_(std::move(dtype))
+            , is_initialized(true) {}
+
+        // op parameter name.
         std::string name_;
 
-        // Formal parameter description.
+        // op parameter description.
         std::string description_;
+
+        // op parameter allowed data types.
+        std::set<data_type_t> allowed_dtypes_;
 
         // Flag marking whether this parameter has already been initialized
         bool is_initialized = false;
@@ -70,15 +82,16 @@ public:
     public:
         attribute() = default;
 
-        attribute(std::string name, std::string description, bool required,
-                attribute_value value)
-            : name_(std::move(name))
+        attribute(const std::string &name, std::string &&description,
+                bool required, attribute_value value)
+            : name_(name)
             , description_(std::move(description))
             , required_(required)
             , attr_(value) {}
 
-        attribute(std::string name, std::string description, bool required)
-            : attribute(name, description, required, {}) {}
+        attribute(const std::string &name, std::string &&description,
+                bool required)
+            : attribute(name, std::move(description), required, {}) {}
 
         std::string name_;
         std::string description_;
@@ -91,13 +104,13 @@ public:
     const std::string &get_name() const;
 
     /*! @brief Set the name of this op schema. */
-    op_schema &set_name(const std::string &name);
+    op_schema &set_name(std::string &&name);
 
     /*! @brief Returns the docstring of this op schema. */
     const std::string &get_doc() const;
 
     /*! @brief Set the docstring of this op schema. */
-    op_schema &set_doc(const std::string &doc);
+    op_schema &set_doc(std::string &&doc);
 
     /*! @brief Returns the since version of this op schema. */
     opset_version get_since_version() const;
@@ -113,7 +126,7 @@ public:
     /*! @brief Set num of inputs of the op schema for optional and variadic
      * inputs.
      */
-    op_schema &set_num_inputs(std::set<size_t> input_num);
+    op_schema &set_num_inputs(std::set<size_t> &&input_num);
 
     /*! @brief Get num of inputs of the op schema. */
     std::set<size_t> get_num_inputs() const;
@@ -124,35 +137,42 @@ public:
     /*! @brief Set num of outputs of the op schema for optional and variadic
      * outputs.
      */
-    op_schema &set_num_outputs(std::set<size_t> output_num);
+    op_schema &set_num_outputs(std::set<size_t> &&output_num);
 
     /*! @brief Get num of outputs of the op schema. */
     std::set<size_t> get_num_outputs() const;
 
     /*! @brief Set a particular input of the op schema. */
-    op_schema &set_input(size_t in_offset, std::string in_name,
-            const std::string &in_description);
+    op_schema &set_input(size_t in_offset, std::string &&in_name,
+            std::string &&in_description, data_type_t dtype = data_type::f32);
+
+    op_schema &set_input(size_t in_offset, std::string &&in_name,
+            std::string &&in_description, std::set<data_type_t> &&dtype);
 
     /*! @brief Set a particular output of the op schema. */
-    op_schema &set_output(size_t out_offset, std::string out_name,
-            const std::string &out_description);
+    op_schema &set_output(size_t out_offset, std::string &&out_name,
+            std::string &&out_description, data_type_t dtype = data_type::f32);
+
+    op_schema &set_output(size_t out_offset, std::string &&out_name,
+            std::string &&out_description, std::set<data_type_t> &&dtype);
 
     /*! @brief Set a particular attribute of the op schema. */
-    op_schema &set_attr(const std::string &name, const std::string &description,
+    op_schema &set_attr(const std::string &name, std::string &&description,
             bool required = true);
 
     /*! @brief Set a particular attribute of the op schema. */
     template <typename T>
-    op_schema &set_attr(const std::string &name, const std::string &description,
+    op_schema &set_attr(const std::string &name, std::string &&description,
             bool required, T value) {
         assertm(attributes_.count(name) == 0,
                 "provided attribute has already been set");
-        attributes_[name] = attribute(name, description, required, {value});
+        attributes_[name]
+                = attribute(name, std::move(description), required, {value});
         return *this;
     }
 
     /*! @brief Set a particular attribute of the op schema. */
-    op_schema &set_attr(const std::string &name, const std::string &description,
+    op_schema &set_attr(const std::string &name, std::string &&description,
             bool required, const char *value);
 
     /*! @brief Set shape inference function of the op schema. */
@@ -162,10 +182,10 @@ public:
     shape_infer_fn get_shape_inference_function() const;
 
     /*! @brief Get inputs of the op schema. */
-    const std::vector<formal_parameter> &get_inputs() const;
+    const std::vector<op_parameter> &get_inputs() const;
 
     /*! @brief Get outputs of the op schema. */
-    const std::vector<formal_parameter> &get_outputs() const;
+    const std::vector<op_parameter> &get_outputs() const;
 
     /*! @brief Get attributes of the op schema. */
     const std::unordered_map<std::string, attribute> &get_attrs() const;
@@ -191,9 +211,14 @@ public:
     void set_default_attribute(op_t *l_op) const;
 
 private:
-    void validate_input_(size_t in_offset);
-    void validate_output_(size_t out_offset);
-    bool verify_param_num(size_t actual_num, std::set<size_t> expected_num,
+    void verify_input_(size_t in_offset);
+    void verify_output_(size_t out_offset);
+    bool verify_param_num(size_t actual_num,
+            const std::set<size_t> &expected_num,
+            param_num_option option) const;
+    bool verify_param_dtype(
+            const std::vector<std::shared_ptr<value_t>> &actual_values,
+            const std::vector<op_parameter> &expected_params,
             param_num_option option) const;
     size_t get_max_valid_param_num(
             const std::set<size_t> &param_num, param_num_option option) const;
@@ -207,8 +232,8 @@ private:
     std::set<size_t> outputs_offset;
     param_num_option inputs_option = param_num_option::fixed;
     param_num_option outputs_option = param_num_option::fixed;
-    std::vector<formal_parameter> inputs_;
-    std::vector<formal_parameter> outputs_;
+    std::vector<op_parameter> inputs_;
+    std::vector<op_parameter> outputs_;
     std::unordered_map<std::string, attribute> attributes_;
     shape_infer_fn tensor_inference_function_;
 };
@@ -220,7 +245,7 @@ class op_schema_registry {
 public:
     class op_schema_registry_once {
     public:
-        op_schema_registry_once(op_schema &schema);
+        op_schema_registry_once(op_schema &&schema);
     };
 
     /*! @brief Get the latest schema for an op. */

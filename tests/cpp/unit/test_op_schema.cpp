@@ -3668,3 +3668,18 @@ TEST(op_schema_test, test_tanhbackprop_default_attributes) {
     tmp_op.get_attr<bool>("use_dst", &bval);
     EXPECT_TRUE(bval);
 }
+
+TEST(op_schema_test, test_type_constraints) {
+    const op_schema *matmul_op_schema
+            = op_schema_registry::get_op_schema(op_kind::MatMul);
+    op_t matmul_op {0, kMatMul, std::string("matmul")};
+    logical_tensor_t lt_data_a = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t lt_data_b = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t lt_out = logical_tensor_init(2, data_type::s8);
+
+    matmul_op.add_input(lt_data_a);
+    matmul_op.add_input(lt_data_b);
+    matmul_op.add_output(lt_out);
+    // MatMul op doesn't support s8 output
+    EXPECT_FALSE(matmul_op_schema->verify(&matmul_op));
+}
