@@ -211,7 +211,6 @@ struct offsets_t {
     int src_off[4][MAX_NDIMS];
     int wei_off[4][MAX_NDIMS];
     int dst_off[4][MAX_NDIMS];
-    int bias_off[4][MAX_NDIMS];
 };
 
 struct rnn_offsets_t {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -133,7 +133,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
     def_offsets(off.wei_off, kernel_ctx, "WEI", conf.ndims + conf.with_groups);
-    def_offsets(off.bias_off, kernel_ctx, "BIA", 1);
     def_offsets(off.dst_off, kernel_ctx, "DST", conf.ndims);
 
     def_dispatch(kernel_ctx, conf.dispatch);
