@@ -39,6 +39,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             pd->is_fwd() ? pd->src_md() : pd->diff_src_md());
     const int ndims = data_mdw.ndims();
 
+    conf = utils::zero<decltype(conf)>();
     conf.data_type = data_mdw.data_type();
 
     conf.ndims = ndims;
