@@ -86,6 +86,9 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.post_ops_binary_rhs_arg_vec = post_ops_data.binary_post_ops_rhs;
     brgemm_p.oc_logical_off = post_ops_data.oc_logical_off;
     brgemm_p.dst_row_logical_off = post_ops_data.dst_row_logical_off;
+    brgemm_p.a_zp_compensations = post_ops_data.a_zp_compensations;
+    brgemm_p.b_zp_compensations = post_ops_data.b_zp_compensations;
+    brgemm_p.c_zp_values = post_ops_data.c_zp_values;
 
     (*brg_kernel)(&brgemm_p);
 }
@@ -404,6 +407,23 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
         brg->is_oc_scale = oscales.mask_ != 0;
         brg->with_scales = true;
     }
+
+    auto init_zp_type
+            = [&](brgemm_broadcast_t &zp_type, int mem_arg) -> status_t {
+        auto zero_points = attr->zero_points_;
+
+        // common zero point type is supported for now
+        if (!zero_points.common(mem_arg)) return status::unimplemented;
+
+        zp_type = zero_points.has_default_values(mem_arg)
+                ? brgemm_broadcast_t::none
+                : brgemm_broadcast_t::per_tensor;
+        return status::success;
+    };
+
+    init_zp_type(brg->zp_type_a, DNNL_ARG_SRC);
+    init_zp_type(brg->zp_type_b, DNNL_ARG_WEIGHTS);
+    init_zp_type(brg->zp_type_c, DNNL_ARG_DST);
 
     return status::success;
 }

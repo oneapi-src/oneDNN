@@ -40,6 +40,14 @@ typedef enum {
     brgemm_row_major = 2,
 } brgemm_layout_t;
 
+typedef enum {
+    none = 0,
+    per_tensor = 1,
+    per_m = 2,
+    per_n = 3,
+    per_k = 4,
+} brgemm_broadcast_t;
+
 struct brgemm_strides_t {
     // Stride between A matrices
     dim_t stride_a;
@@ -154,6 +162,9 @@ struct brgemm_t {
     bool with_binary = false;
     bool with_scales = false;
     bool req_s8s8_compensation = false;
+    brgemm_broadcast_t zp_type_a = brgemm_broadcast_t::none;
+    brgemm_broadcast_t zp_type_b = brgemm_broadcast_t::none;
+    brgemm_broadcast_t zp_type_c = brgemm_broadcast_t::none;
 
     int is_oc_scale = 0;
 
@@ -186,6 +197,10 @@ struct brgemm_kernel_params_t {
     const void *post_ops_binary_rhs_arg_vec;
     size_t oc_logical_off;
     size_t dst_row_logical_off;
+
+    const void *a_zp_compensations = nullptr;
+    const void *b_zp_compensations = nullptr;
+    const void *c_zp_values = nullptr;
 };
 
 struct jit_brgemm_kernel_base_t;
@@ -207,28 +222,42 @@ private:
 /// @param scales Vector of scales (vector length is N)
 /// @param binary_post_ops_rhs - Ptr to table of pointers to tensors used as rhs
 ///     in binary post-operation { void* binary_op_tensor1, ...,
-//      void* binary_op_tensor_n}
+///      void* binary_op_tensor_n}
 /// @param oc_logical_off - Used in binary postops in per_oc bcast strategy.
 ///     Offset to start oc processed by given thread in elements.
-/// @param scratch Scratchpad needed for AMX version, can be nullptr for
-///     avx512 version
+/// @param dst_row_logical_off - Used in binary postops in per_oc bcast
+///     strategy. Offset to start oc processed by given thread in elements.
+/// @param a_zp_compensations - Pre-computed compensations for A matrix zero
+///     point values.
+/// @param b_zp_compensations - Pre-computed compensations for B matrix zero
+///     point values.
+/// @param b_zp_compensations - C matrix zero point values.
 ///
 struct brgemm_post_ops_data_t {
     brgemm_post_ops_data_t() = default;
     brgemm_post_ops_data_t(const void *bias, const float *scales,
             const void *binary_post_ops_rhs, size_t oc_logical_off,
-            const size_t dst_row_logical_off = 0)
+            const size_t dst_row_logical_off = 0,
+            const void *a_zp_compensations = nullptr,
+            const void *b_zp_compensations = nullptr,
+            const void *c_zp_values = nullptr)
         : bias(bias)
         , scales(scales)
         , binary_post_ops_rhs(binary_post_ops_rhs)
         , oc_logical_off(oc_logical_off)
-        , dst_row_logical_off(dst_row_logical_off) {}
+        , dst_row_logical_off(dst_row_logical_off)
+        , a_zp_compensations(a_zp_compensations)
+        , b_zp_compensations(b_zp_compensations)
+        , c_zp_values(c_zp_values) {}
 
     const void *bias = nullptr;
     const float *scales = nullptr;
     const void *binary_post_ops_rhs = nullptr;
     size_t oc_logical_off = 0;
     size_t dst_row_logical_off = 0;
+    const void *a_zp_compensations = nullptr;
+    const void *b_zp_compensations = nullptr;
+    const void *c_zp_values = nullptr;
 };
 
 } // namespace x64

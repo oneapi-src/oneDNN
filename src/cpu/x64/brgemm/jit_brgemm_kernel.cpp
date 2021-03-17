@@ -122,6 +122,12 @@ private:
     const reg64_t reg_aux_bias = reg_rdb_loop;
     const reg64_t reg_binary_postops_oc_l = reg_rdb_loop;
     const reg64_t reg_aux_binary_postops_oc_l = reg_rdb_loop;
+    const reg64_t reg_zp_comp_a = reg_rdb_loop;
+    const reg64_t reg_aux_zp_comp_a = reg_rdb_loop;
+    const reg64_t reg_zp_comp_b = reg_rdb_loop;
+    const reg64_t reg_aux_zp_comp_b = reg_rdb_loop;
+    const reg64_t reg_zp_c_values = reg_rdb_loop;
+    const reg64_t reg_aux_zp_c_values = reg_rdb_loop;
 
     const reg64_t reg_aux_scales = reg_aux_B;
     const reg64_t reg_do_post_ops = reg_rdb_loop;
@@ -152,7 +158,13 @@ private:
     constexpr static int abi_param1_offs_ = 96;
     constexpr static int reg_binary_postops_oc_l_offs_ = 104;
     constexpr static int reg_aux_binary_postops_oc_l_offs_ = 112;
-    constexpr static int stack_space_needed_ = 120;
+    constexpr static int reg_zp_comp_a_offs_ = 120;
+    constexpr static int reg_aux_zp_comp_a_offs_ = 128;
+    constexpr static int reg_zp_comp_b_offs_ = 136;
+    constexpr static int reg_aux_zp_comp_b_offs_ = 144;
+    constexpr static int reg_zp_c_values_offs_ = 152;
+    constexpr static int reg_aux_zp_c_values_offs_ = 160;
+    constexpr static int stack_space_needed_ = 168;
 
     bool is_ldb_loop;
     bool with_binary_per_oc_bcast_ = false;
@@ -248,6 +260,10 @@ private:
 
     int compensations_offset(int ld, bool is_tail = false) const noexcept;
     int scales_offset(int ld, bool is_tail = false) const noexcept;
+    int zp_comp_a_offset(int ld, bool is_tail = false) const noexcept;
+    int zp_comp_b_offset(int bd) const noexcept;
+    int bdb_zp_comp_b_offset(int bd_block2) const noexcept;
+    int zp_c_values_offset(int ld, bool is_tail = false) const noexcept;
 
     bool n_bcast_1_load = false;
     bool vpad_exist = false;
@@ -325,6 +341,32 @@ int jit_brgemm_kernel_base_t::scales_offset(int ld, bool is_tail) const
     return (is_tail) ? brg.is_oc_scale * sizeof(float) * brg.ldb_tail
                      : brg.is_oc_scale * sizeof(float) * ld * brg.ld_block;
 }
+
+int jit_brgemm_kernel_base_t::zp_comp_a_offset(int ld, bool is_tail) const
+        noexcept {
+    return (is_tail) ? sizeof(int32_t) * brg.ldb_tail
+                     : sizeof(int32_t) * ld * brg.ld_block;
+}
+
+int jit_brgemm_kernel_base_t::zp_comp_b_offset(int bd) const noexcept {
+    return sizeof(int32_t) * bd;
+}
+
+int jit_brgemm_kernel_base_t::bdb_zp_comp_b_offset(int bd_block2) const
+        noexcept {
+    return zp_comp_b_offset(bd_block2 * brg.bd_block);
+}
+
+int jit_brgemm_kernel_base_t::zp_c_values_offset(int ld, bool is_tail) const
+        noexcept {
+    if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
+        return (is_tail) ? sizeof(int32_t) * brg.ldb_tail
+                         : sizeof(int32_t) * ld * brg.ld_block;
+    }
+
+    return 0;
+}
+
 Xbyak::Zmm jit_brgemm_kernel_base_t::zmm_mask(const Xbyak::Zmm zmm_in,
         bool mask_flag, bool store, Xbyak::Opmask ktail_mask) const {
     return mask_flag ? (store ? zmm_in | ktail_mask : zmm_in | ktail_mask | T_z)
@@ -408,6 +450,21 @@ void jit_brgemm_kernel_base_t::read_params() {
                 ptr[param1 + GET_OFF(dst_row_logical_off)]);
         mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
                 reg_binary_postops_oc_l);
+    }
+
+    if (brg.zp_type_a != brgemm_broadcast_t::none) {
+        mov(reg_zp_comp_a, ptr[param1 + GET_OFF(a_zp_compensations)]);
+        mov(ptr[rsp + reg_zp_comp_a_offs_], reg_zp_comp_a);
+    }
+
+    if (brg.zp_type_b != brgemm_broadcast_t::none) {
+        mov(reg_zp_comp_b, ptr[param1 + GET_OFF(b_zp_compensations)]);
+        mov(ptr[rsp + reg_zp_comp_b_offs_], reg_zp_comp_b);
+    }
+
+    if (brg.zp_type_c != brgemm_broadcast_t::none) {
+        mov(reg_zp_c_values, ptr[param1 + GET_OFF(c_zp_values)]);
+        mov(ptr[rsp + reg_zp_c_values_offs_], reg_zp_c_values);
     }
 
     mov(reg_do_post_ops, ptr[param1 + GET_OFF(do_post_ops)]);
@@ -570,6 +627,37 @@ void jit_brgemm_kernel_base_t::store_accumulators_apply_post_ops(
         }
     }
 
+    if (brg.zp_type_a != brgemm_broadcast_t::none) {
+        mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
+        for (int ld = 0; ld < ld_block2; ld++) {
+            auto zmm_zp_comp_a = zmm_tmp_1();
+            int zp_comp_a_off = zp_comp_a_offset(ld);
+            auto zp_comp_a_addr
+                    = EVEX_compress_addr(reg_aux_zp_comp_a, zp_comp_a_off);
+            cvt2ps(data_type::s32, zmm_zp_comp_a, zp_comp_a_addr, true, false,
+                    k_mask);
+
+            for (int bd = 0; bd < bd_block; bd++) {
+                auto zmm = accm(ld_block2, bd, ld);
+                vaddps(zmm, zmm, zmm_zp_comp_a);
+            }
+        }
+    }
+
+    if (brg.zp_type_b != brgemm_broadcast_t::none) {
+        mov(reg_aux_zp_comp_b, ptr[rsp + reg_aux_zp_comp_b_offs_]);
+        for (int bd = 0; bd < bd_block; bd++) {
+            auto zmm_zp_comp_b = zmm_tmp_1();
+            int zp_comp_b_off = zp_comp_b_offset(bd);
+            vcvtdq2ps(zmm_zp_comp_b,
+                    EVEX_compress_addr(reg_aux_zp_comp_b, zp_comp_b_off, true));
+            for (int ld = 0; ld < ld_block2; ld++) {
+                auto zmm = accm(ld_block2, bd, ld);
+                vaddps(zmm, zmm, zmm_zp_comp_b);
+            }
+        }
+    }
+
     if (brg.req_s8s8_compensation) {
         mov(reg_aux_compensation, ptr[rsp + reg_aux_comp_offs_]);
         for (int ld = 0; ld < ld_block2; ld++) {
@@ -597,6 +685,28 @@ void jit_brgemm_kernel_base_t::store_accumulators_apply_post_ops(
     }
 
     if (postops_injector_) apply_post_ops(bd_block, ld_block2, is_ld_tail);
+
+    if (brg.zp_type_c != brgemm_broadcast_t::none) {
+        mov(reg_aux_zp_c_values, ptr[rsp + reg_aux_zp_c_values_offs_]);
+        auto zmm_zp_c = zmm_tmp_1();
+        if (brg.zp_type_c == brgemm_broadcast_t::per_tensor) {
+            vcvtdq2ps(
+                    zmm_zp_c, EVEX_compress_addr(reg_aux_zp_c_values, 0, true));
+        }
+        for (int ld = 0; ld < ld_block2; ld++) {
+            if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
+                int zp_c_off = zp_c_values_offset(ld);
+                auto zp_c_addr
+                        = EVEX_compress_addr(reg_aux_zp_c_values, zp_c_off);
+                cvt2ps(data_type::s32, zmm_zp_c, zp_c_addr, true, false,
+                        k_mask);
+            }
+            for (int bd = 0; bd < bd_block; bd++) {
+                auto zmm = accm(ld_block2, bd, ld);
+                vaddps(zmm, zmm, zmm_zp_c);
+            }
+        }
+    }
 
     const bool dt_requires_saturation
             = one_of(brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
@@ -674,9 +784,11 @@ void jit_brgemm_kernel_base_t::store_accumulators_without_post_ops(
 
 void jit_brgemm_kernel_base_t::store_accumulators(
         int bd_block2, bool is_bdb_tail, int ld_block2, bool is_ld_tail) {
+    const bool has_zero_points = !everyone_is(brgemm_broadcast_t::none,
+            brg.zp_type_a, brg.zp_type_b, brg.zp_type_c);
     const bool are_post_ops_applicable = one_of(true, brg.with_eltwise,
             brg.with_binary, brg.with_scales, brg.with_bias, brg.with_sum,
-            brg.dt_d != brg.dt_c, brg.req_s8s8_compensation);
+            brg.dt_d != brg.dt_c, brg.req_s8s8_compensation, has_zero_points);
     const bool need_to_apply_alpha_beta = brg.beta != 0.f || brg.alpha != 1.f;
 
     if (brg.is_amx) {
@@ -730,6 +842,24 @@ void jit_brgemm_kernel_base_t::store_accumulators(
                                     mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
                                             reg_aux_binary_postops_oc_l);
                                 }
+
+                                if (brg.zp_type_a != brgemm_broadcast_t::none) {
+                                    mov(reg_aux_zp_comp_a,
+                                            ptr[rsp + reg_aux_zp_comp_a_offs_]);
+                                    add(reg_aux_zp_comp_a, zp_comp_a_offset(1));
+                                    mov(ptr[rsp + reg_aux_zp_comp_a_offs_],
+                                            reg_aux_zp_comp_a);
+                                }
+
+                                if (brg.zp_type_c
+                                        == brgemm_broadcast_t::per_n) {
+                                    mov(reg_aux_zp_c_values,
+                                            ptr[rsp + reg_aux_zp_c_values_offs_]);
+                                    add(reg_aux_zp_c_values,
+                                            zp_c_values_offset(1));
+                                    mov(ptr[rsp + reg_aux_zp_c_values_offs_],
+                                            reg_aux_zp_c_values);
+                                }
                             }
                             mov(reg_buf, ptr[rsp + reg_buf_offs_]);
                             add(reg_aux_D, ldb_D_offset(1));
@@ -749,8 +879,8 @@ void jit_brgemm_kernel_base_t::store_accumulators(
                     sub(reg_aux_D, ldb_D_offset(ld_block2));
                     add(reg_aux_D, bdb_D_offset(1));
 
+                    bool post_processed = false;
                     if (ld_block2 > 1) {
-                        bool post_processed = false;
                         if (brg.with_bias) {
                             post_processed = true;
                             mov(reg_aux_bias, ptr[rsp + reg_aux_bias_offs_]);
@@ -774,13 +904,53 @@ void jit_brgemm_kernel_base_t::store_accumulators(
                             mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
                                     reg_aux_binary_postops_oc_l);
                         }
-                        if (post_processed)
-                            mov(reg_buf, ptr[rsp + reg_buf_offs_]);
+
+                        if (brg.zp_type_a != brgemm_broadcast_t::none) {
+                            post_processed = true;
+                            mov(reg_aux_zp_comp_a,
+                                    ptr[rsp + reg_aux_zp_comp_a_offs_]);
+                            sub(reg_aux_zp_comp_a,
+                                    zp_comp_a_offset(ld_block2 - 1));
+                            mov(ptr[rsp + reg_aux_zp_comp_a_offs_],
+                                    reg_aux_zp_comp_a);
+                        }
+
+                        if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
+                            post_processed = true;
+                            mov(reg_aux_zp_c_values,
+                                    ptr[rsp + reg_aux_zp_c_values_offs_]);
+                            sub(reg_aux_zp_c_values,
+                                    zp_c_values_offset(ld_block2 - 1));
+                            mov(ptr[rsp + reg_aux_zp_c_values_offs_],
+                                    reg_aux_zp_c_values);
+                        }
                     }
+                    if (bdb < bd_block2 - 1
+                            && brg.zp_type_b != brgemm_broadcast_t::none) {
+                        post_processed = true;
+                        mov(reg_aux_zp_comp_b,
+                                ptr[rsp + reg_aux_zp_comp_b_offs_]);
+                        add(reg_aux_zp_comp_b, bdb_zp_comp_b_offset(1));
+                        mov(ptr[rsp + reg_aux_zp_comp_b_offs_],
+                                reg_aux_zp_comp_b);
+                    }
+                    if (post_processed) mov(reg_buf, ptr[rsp + reg_buf_offs_]);
                 }
             }
             sub(reg_aux_C, bdb_C_offset(bd_block2));
-            if (apply_post_ops) sub(reg_aux_D, bdb_D_offset(bd_block2));
+            if (apply_post_ops) {
+                sub(reg_aux_D, bdb_D_offset(bd_block2));
+
+                bool post_processed = false;
+                if (bd_block2 > 1
+                        && brg.zp_type_b != brgemm_broadcast_t::none) {
+                    post_processed = true;
+                    mov(reg_aux_zp_comp_b, ptr[rsp + reg_aux_zp_comp_b_offs_]);
+                    sub(reg_aux_zp_comp_b, bdb_zp_comp_b_offset(bd_block2 - 1));
+                    mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_aux_zp_comp_b);
+                }
+                if (post_processed) mov(reg_buf, ptr[rsp + reg_buf_offs_]);
+            }
         };
 
         Label label_done;
@@ -1119,6 +1289,20 @@ void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
             mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
                     reg_aux_binary_postops_oc_l);
         }
+        if (brg.zp_type_a != brgemm_broadcast_t::none) {
+            mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
+            add(reg_aux_zp_comp_a,
+                    (is_tail) ? zp_comp_a_offset(1, true)
+                              : zp_comp_a_offset(ld_block2));
+            mov(ptr[rsp + reg_aux_zp_comp_a_offs_], reg_aux_zp_comp_a);
+        }
+        if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
+            mov(reg_aux_zp_c_values, ptr[rsp + reg_aux_zp_c_values_offs_]);
+            add(reg_aux_zp_c_values,
+                    (is_tail) ? zp_c_values_offset(1, true)
+                              : zp_c_values_offset(ld_block2));
+            mov(ptr[rsp + reg_aux_zp_c_values_offs_], reg_aux_zp_c_values);
+        }
     };
 
     Label ldb_loop_label;
@@ -1146,6 +1330,20 @@ void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
             mov(ptr[rsp + reg_aux_binary_postops_oc_l_offs_],
                     reg_binary_postops_oc_l);
         }
+
+        if (brg.zp_type_a != brgemm_broadcast_t::none) {
+            mov(reg_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
+            mov(ptr[rsp + reg_aux_zp_comp_a_offs_], reg_zp_comp_a);
+        }
+
+        if (brg.zp_type_c != brgemm_broadcast_t::none) {
+            mov(reg_zp_c_values, ptr[rsp + reg_zp_c_values_offs_]);
+            mov(ptr[rsp + reg_aux_zp_c_values_offs_], reg_zp_c_values);
+        }
+    }
+    if (brg.zp_type_b != brgemm_broadcast_t::none) {
+        mov(reg_zp_comp_b, ptr[rsp + reg_zp_comp_b_offs_]);
+        mov(ptr[rsp + reg_aux_zp_comp_b_offs_], reg_zp_comp_b);
     }
 
     auto ld_loop_body = [=](int vpad) {
@@ -1330,6 +1528,11 @@ void jit_brgemm_kernel_base_t::bdb_loop() {
                   add(reg_C, bdb_C_offset(bd_block2));
                   add(reg_D, bdb_D_offset(bd_block2));
                   add(reg_a_offset, bdb_A_offset(bd_block2));
+                  if (brg.zp_type_b != brgemm_broadcast_t::none) {
+                      mov(reg_zp_comp_b, ptr[rsp + reg_zp_comp_b_offs_]);
+                      add(reg_zp_comp_b, bdb_zp_comp_b_offset(bd_block2));
+                      mov(ptr[rsp + reg_zp_comp_b_offs_], reg_zp_comp_b);
+                  }
               };
 
     int rows_for_rd_tail, bd_blocks_for_rd_tail;
