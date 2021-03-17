@@ -191,7 +191,7 @@ public:
     const std::unordered_map<std::string, attribute> &get_attrs() const;
 
     /*! @brief Verify the op schema. */
-    bool verify(op_t *l_op) const;
+    bool verify(const op_t *l_op) const;
 
     /*! @brief Infer shape with the op schema. */
     status_t shape_infer(op_t *n, std::vector<logical_tensor_t *> &inputs,

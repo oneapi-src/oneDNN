@@ -221,7 +221,7 @@ void op_schema::set_default_attribute(op_t *l_op) const {
     }
 }
 
-bool op_schema::verify(op_t *l_op) const {
+bool op_schema::verify(const op_t *l_op) const {
     size_t actual_num_inputs = l_op->num_inputs();
     std::set<size_t> expected_num_inputs = get_num_inputs();
     bool param_num_verify_result = verify_param_num(

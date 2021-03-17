@@ -35,8 +35,7 @@ dnnl_graph_op::dnnl_graph_op(
 
 bool dnnl_graph_op::verify() const {
     // always return true if there is no corresponding op schema
-    // return nullptr == schema_ || schema_->verify(this);
-    return nullptr == schema_;
+    return nullptr == schema_ || schema_->verify(this);
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_create(op_t **created_op, uint64_t id,
