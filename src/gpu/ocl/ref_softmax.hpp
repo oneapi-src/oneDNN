@@ -175,7 +175,7 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
 
             for (int i = 0, j = 0; i < desc()->data_desc.ndims; ++i) {
                 if (i != desc()->softmax_axis) {
-                    auto dim = desc()->data_desc.padded_dims[i];
+                    auto dim = diff_src_md()->padded_dims[i];
                     gws[j % 3] *= dim;
                     if (j < 3) block[j % 3] = dim;
                     j++;
@@ -204,9 +204,9 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("LOGSOFTMAX",
                 desc->primitive_kind == primitive_kind::logsoftmax ? 1 : 0);
 
-        const memory_desc_wrapper dst_mdw(pd()->dst_md());
-        def_memory_desc_info(
-                kernel_ctx, memory_desc_info_t::create(dst_mdw), "DST");
+        const memory_desc_wrapper diff_src_mdw(pd()->diff_src_md());
+        def_memory_desc_info(kernel_ctx,
+                memory_desc_info_t::create(diff_src_mdw), "DIFF_SRC");
 
         set_offsets(kernel_ctx, *pd()->diff_src_md(), "DATA");
 
