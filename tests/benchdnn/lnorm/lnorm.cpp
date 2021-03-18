@@ -28,7 +28,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "norm.hpp"
 
 #include "bnorm/bnorm.hpp"
 #include "lnorm/lnorm.hpp"
@@ -287,7 +286,6 @@ static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
 
     res->total += nelems;
 
-    diff_norm_t diff_norm;
     for_(int64_t n = 0; n < N; n++)
     for (int64_t c = 0; c < C; c++) {
         int64_t i = n * C + c;
@@ -296,8 +294,6 @@ static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
         const float fp = kind == DATA
                 ? round_to_nearest_representable(prb->dt, fp0)
                 : fp0;
-        diff_norm.update(fp, dt);
-
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
         bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= eps;
@@ -328,8 +324,8 @@ static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
 
         res->errors += !ok;
 
-        bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30);
+        bool dump = (!ok && (res->errors < 10 || verbose >= 10))
+                || (verbose >= 99);
         if (dump) {
             std::stringstream ss;
             if (kind == SS) {
@@ -350,25 +346,6 @@ static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
                     (long)i, prb->dir & FLAG_BWD ? "D_" : "", skind,
                     ind_str.c_str(), fp, dt, diff, rel_diff);
         }
-    }
-
-    diff_norm.done();
-
-    if (res->errors || verbose >= 5) {
-        const int vl = res->errors ? 0 : 2;
-        BENCHDNN_PRINT(vl,
-                "@@@ [%s%s] diff: l0(``%g``) "
-                "l1:(%g,%g,%g,``%g``) "
-                "l2:(%g,%g,%g,``%g``) "
-                "l8:(%g,%g,%g,``%g``)\n",
-                prb->dir & FLAG_BWD ? "D_" : "", skind,
-                diff_norm.rel_diff(norm_t::L0), diff_norm.a_[norm_t::L1],
-                diff_norm.b_[norm_t::L1], diff_norm.diff_[norm_t::L1],
-                diff_norm.rel_diff(norm_t::L1), diff_norm.a_[norm_t::L2],
-                diff_norm.b_[norm_t::L2], diff_norm.diff_[norm_t::L2],
-                diff_norm.rel_diff(norm_t::L2), diff_norm.a_[norm_t::L8],
-                diff_norm.b_[norm_t::L8], diff_norm.diff_[norm_t::L8],
-                diff_norm.rel_diff(norm_t::L8));
     }
 
     if (res->errors) res->state = FAILED;
