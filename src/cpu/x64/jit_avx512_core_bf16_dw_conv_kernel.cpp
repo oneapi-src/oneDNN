@@ -626,7 +626,7 @@ inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::load_ddst(
 }
 
 inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::apply_filter(
-        int ur_ch_blocks, int ur_str_w) {
+        int ur_ch_blocks, int ur_str_w, bool last_ch_block_flag) {
     int kw = jcp.kw;
     int kh = jcp.kh;
     int ow = jcp.ow;
@@ -635,6 +635,10 @@ inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::apply_filter(
     int ch_blk = jcp.ch_block;
     int stride_h = jcp.stride_h;
     int stride_w = jcp.stride_w;
+
+    const bool ddst_layout_nxc = is_ddst_layout_nxc();
+    const size_t ch_block_step = ch_blk * (ddst_layout_nxc ? 1 : oh * ow);
+    const size_t sp_step = ddst_layout_nxc ? jcp.ngroups : ch_blk;
 
     Label iter_exit_label;
 
@@ -656,25 +660,35 @@ inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::apply_filter(
         L(kw_label);
         {
             for (int ch = 0; ch < ur_ch_blocks; ch++) {
+                const bool mask_flag
+                        = last_ch_block_flag && ch == ur_ch_blocks - 1;
                 int ker_off = ch * kh * kw * ch_blk;
-                vpmovzxwd(zmm_ker_reg,
+                Zmm mm_zmm_ker // mm: maybe masked
+                        = mask_flag ? zmm_ker_reg | k_ch_tail_mask | T_z
+                                    : zmm_ker_reg;
+                vpmovzxwd(mm_zmm_ker,
                         ptr[aux1_reg_kernel + ker_off * jcp.typesize_in]);
 
                 for (int w = 0; w < ur_str_w; w++) {
+                    size_t sp_offset = w * sp_step;
+                    size_t ch_offset = ch * ch_block_step;
+                    size_t ddst_off = sp_offset + ch_offset;
                     Zmm zmm_acc = get_acc_reg(ch * ur_str_w + w);
-                    int ddst_off = (ch * oh * ow + w) * ch_blk;
-                    vpmovzxwd(zmm_dst_reg,
+                    Zmm mm_zmm_dst // mm: maybe masked
+                            = mask_flag ? zmm_dst_reg | k_ch_tail_mask | T_z
+                                        : zmm_dst_reg;
+                    vpmovzxwd(mm_zmm_dst,
                             ptr[aux1_reg_ddst + ddst_off * jcp.typesize_in]);
 
                     if (isa_has_bf16(jcp.isa))
-                        vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_dst_reg);
+                        vdpbf16ps(zmm_acc, mm_zmm_ker, mm_zmm_dst);
                     else
-                        bf16_emu_->vdpbf16ps(zmm_acc, zmm_dst_reg, zmm_ker_reg);
+                        bf16_emu_->vdpbf16ps(zmm_acc, mm_zmm_dst, mm_zmm_ker);
                 }
             }
 
             add(aux1_reg_kernel, ch_blk * stride_w * jcp.typesize_in);
-            sub(aux1_reg_ddst, ch_blk * jcp.typesize_in);
+            sub(aux1_reg_ddst, sp_step * jcp.typesize_in);
 
             sub(iter_kw, stride_w);
             cmp(iter_kw, 0);
@@ -682,7 +696,7 @@ inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::apply_filter(
         }
 
         add(aux_reg_kernel, kw * ch_blk * stride_h * jcp.typesize_in);
-        sub(aux_reg_ddst, ow * ch_blk * jcp.typesize_in);
+        sub(aux_reg_ddst, ow * sp_step * jcp.typesize_in);
 
         sub(iter_kh, stride_h);
         cmp(iter_kh, 0);
@@ -693,30 +707,43 @@ inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::apply_filter(
 }
 
 inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::store_dsrc(
-        int ur_ch_blocks, int ur_str_w) {
+        int ur_ch_blocks, int ur_str_w, bool last_ch_block_flag) {
     int ch_blk = jcp.ch_block;
     int iw = jcp.iw;
     int ih = jcp.ih;
     int stride_w = jcp.stride_w;
 
+    const auto dsrc_layout_nxc = is_dsrc_layout_nxc();
+    const size_t ch_block_step = ch_blk * (dsrc_layout_nxc ? 1 : ih * iw);
+    const size_t sp_step = dsrc_layout_nxc ? jcp.ngroups : ch_blk;
+
     if (jcp.dsrc_dt == data_type::bf16 && !isa_has_bf16(jcp.isa))
         bf16_emu_->init_vcvtneps2bf16();
 
     for (int ch = 0; ch < ur_ch_blocks; ch++) {
+        const bool mask_flag = last_ch_block_flag && ch == ur_ch_blocks - 1;
         for (int w = 0; w < ur_str_w; w++) {
-            int dsrc_off = (ch * ih * iw + w * stride_w) * ch_blk;
+            size_t sp_offset = w * stride_w * sp_step;
+            size_t ch_offset = ch * ch_block_step;
+            int dsrc_off = sp_offset + ch_offset;
             auto zmm_dsrc = get_acc_reg(ch * ur_str_w + w);
+            Zmm mm_zmm_dsrc // mm: maybe masked
+                    = mask_flag ? zmm_dsrc | k_ch_tail_mask : zmm_dsrc;
 
             if (jcp.dsrc_dt == data_type::f32) {
-                uni_vmovups(
-                        ptr[reg_dsrc + dsrc_off * jcp.typesize_out], zmm_dsrc);
+                uni_vmovups(ptr[reg_dsrc + dsrc_off * jcp.typesize_out],
+                        mm_zmm_dsrc);
             } else if (jcp.dsrc_dt == data_type::bf16) {
                 auto ymm_dsrc = Ymm(zmm_dsrc.getIdx());
+                Ymm mm_ymm_dsrc // mm: maybe masked
+                        = mask_flag ? ymm_dsrc | k_ch_tail_mask : ymm_dsrc;
+
                 if (isa_has_bf16(jcp.isa))
-                    vcvtneps2bf16(ymm_dsrc, zmm_dsrc);
+                    vcvtneps2bf16(mm_ymm_dsrc, mm_zmm_dsrc);
                 else
-                    bf16_emu_->vcvtneps2bf16(ymm_dsrc, zmm_dsrc);
-                vmovups(ptr[reg_dsrc + dsrc_off * jcp.typesize_out], ymm_dsrc);
+                    bf16_emu_->vcvtneps2bf16(mm_ymm_dsrc, mm_zmm_dsrc);
+                vmovdqu16(ptr[reg_dsrc + dsrc_off * jcp.typesize_out],
+                        mm_ymm_dsrc);
             }
         }
     }
@@ -726,58 +753,107 @@ inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::store_dsrc(
      * registers, changes are needed in both JIT-kernel and Driver code. */
 }
 
-inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::loop_body(
+inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::ch_loop_body(
+        int ur_ch_blocks, int unroll_w) {
+
+    auto call_compute_body
+            = [&](int ur_ch_blocks, int unroll_w, bool is_last_ch = false) {
+                  mov(aux_reg_ddst, reg_ddst);
+                  mov(aux_reg_kernel, reg_kernel);
+
+                  load_ddst(ur_ch_blocks, unroll_w);
+                  apply_filter(ur_ch_blocks, unroll_w, is_last_ch);
+                  store_dsrc(ur_ch_blocks, unroll_w, is_last_ch);
+              };
+
+    const bool write_ch_loop = ur_ch_blocks > jcp.nb_ch_blocking;
+    if (write_ch_loop) {
+        assert(is_ddst_layout_nxc() && is_dsrc_layout_nxc());
+
+        Label ch_loop_label, ch_tail_label, skip_ch_tail_label;
+        const int nb_oc = jcp.oc / jcp.ch_block;
+        const int ch_block_tail
+                = jcp.nb_ch - (utils::rnd_dn(nb_oc, jcp.nb_ch_blocking));
+        const int ch_step = jcp.nb_ch_blocking * jcp.ch_block;
+
+        const size_t wei_ch_stride
+                = (size_t)jcp.nb_ch_blocking * jcp.kh * jcp.kw * jcp.ch_block;
+        const size_t data_ch_stride = (size_t)jcp.nb_ch_blocking * jcp.ch_block;
+
+        mov(aux_reg_ch_blocks, reg_ch_blocks);
+        push(reg_dsrc);
+        push(reg_ddst);
+        push(reg_kernel);
+
+        if (nb_oc >= jcp.nb_ch_blocking) {
+            if (ch_block_tail) {
+                cmp(aux_reg_ch_blocks, jcp.nb_ch_blocking * jcp.ch_block);
+                jl(ch_tail_label, T_NEAR);
+            }
+
+            L(ch_loop_label);
+            {
+                call_compute_body(jcp.nb_ch_blocking, unroll_w);
+
+                add(reg_kernel, wei_ch_stride * jcp.typesize_in);
+                add(reg_dsrc, data_ch_stride * jcp.typesize_out);
+                add(reg_ddst, data_ch_stride * jcp.typesize_in);
+
+                sub(aux_reg_ch_blocks, ch_step);
+                cmp(aux_reg_ch_blocks, ch_step);
+                jge(ch_loop_label, T_NEAR);
+            }
+        }
+
+        if (ch_block_tail) {
+            // ch work range [1, jcp.nb_ch_blocking * ch_block)
+            L(ch_tail_label);
+            cmp(aux_reg_ch_blocks, 0);
+            jle(skip_ch_tail_label, T_NEAR);
+            call_compute_body(ch_block_tail, unroll_w, jcp.ch_tail);
+            L(skip_ch_tail_label);
+        }
+
+        pop(reg_kernel);
+        pop(reg_ddst);
+        pop(reg_dsrc);
+
+    } else {
+        call_compute_body(ur_ch_blocks, unroll_w, jcp.ch_tail);
+    }
+}
+
+inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::unroll_width_body(
         int ur_ch_blocks) {
-    Label unrolled_w_label;
-    Label tail_w_label;
-    Label exit_label;
 
-    L(unrolled_w_label);
-    {
-        int ur_w = jcp.ur_w;
+    auto unroll_width_loop = [&](int unroll_w) {
+        Label unroll_w_label, skip_compute_label;
+        L(unroll_w_label);
+        {
+            const size_t ch_step = unroll_w
+                    * (is_ddst_layout_nxc() ? jcp.ngroups : jcp.ch_block);
+            cmp(reg_ur_str_w, unroll_w);
+            jl(skip_compute_label, T_NEAR);
 
-        cmp(reg_ur_str_w, ur_w);
-        jl(tail_w_label, T_NEAR);
+            ch_loop_body(ur_ch_blocks, unroll_w);
 
-        mov(aux_reg_ddst, reg_ddst);
-        mov(aux_reg_kernel, reg_kernel);
+            add(reg_dsrc, jcp.typesize_out * jcp.stride_w * ch_step);
+            add(reg_ddst, jcp.typesize_in * ch_step);
 
-        load_ddst(ur_ch_blocks, ur_w);
-        apply_filter(ur_ch_blocks, ur_w);
-        store_dsrc(ur_ch_blocks, ur_w);
+            sub(reg_ur_str_w, unroll_w);
+            jmp(unroll_w_label);
+        }
+        L(skip_compute_label);
+    };
 
-        add(reg_dsrc, jcp.typesize_out * ur_w * jcp.ch_block * jcp.stride_w);
-        add(reg_ddst, jcp.typesize_in * ur_w * jcp.ch_block);
+    unroll_width_loop(jcp.ur_w);
 
-        sub(reg_ur_str_w, ur_w);
-        jmp(unrolled_w_label);
-    }
-
-    L(tail_w_label);
-    {
-        int ur_w = 1;
-
-        cmp(reg_ur_str_w, ur_w);
-        jl(exit_label, T_NEAR);
-
-        mov(aux_reg_ddst, reg_ddst);
-        mov(aux_reg_kernel, reg_kernel);
-
-        load_ddst(ur_ch_blocks, ur_w);
-        apply_filter(ur_ch_blocks, ur_w);
-        store_dsrc(ur_ch_blocks, ur_w);
-
-        add(reg_dsrc, jcp.typesize_out * ur_w * jcp.ch_block * jcp.stride_w);
-        add(reg_ddst, jcp.typesize_in * ur_w * jcp.ch_block);
-
-        sub(reg_ur_str_w, ur_w);
-        jmp(tail_w_label);
-    }
-
-    L(exit_label);
+    unroll_width_loop(1);
 }
 
 void jit_avx512_dw_conv_bwd_data_kernel_bf16::generate() {
+    assert(is_dsrc_layout_nxc() == is_ddst_layout_nxc());
+
     preamble();
     mov(reg_dsrc, ptr[this->param1 + GET_OFF(src)]);
     mov(reg_ddst, ptr[this->param1 + GET_OFF(dst)]);
@@ -787,26 +863,36 @@ void jit_avx512_dw_conv_bwd_data_kernel_bf16::generate() {
     mov(reg_ch_blocks, ptr[this->param1 + GET_OFF(ch_blocks)]);
     mov(reg_ur_str_w, ptr[this->param1 + GET_OFF(ur_str_w)]);
 
-    Label ch_blocks_tail_label;
-    Label exit_label;
+    if (is_dsrc_layout_nxc()) {
+        if (jcp.ch_tail) {
+            Label masking_done;
+            const size_t channel_step = jcp.nb_ch_blocking * jcp.ch_block;
+            kxnorw(k_ch_tail_mask, k_ch_tail_mask,
+                    k_ch_tail_mask); // dummy mask all 1's
+            cmp(reg_ch_blocks, channel_step);
+            je(masking_done, T_NEAR);
+            // Prepare masks for tail
+            Reg32 reg_tmp_32 = reg_tmp.cvt32();
+            mov(reg_tmp_32, (1 << jcp.ch_tail) - 1);
+            kmovw(k_ch_tail_mask, reg_tmp_32);
+            L(masking_done);
+        }
 
-    int ch_blocks_tail = jcp.nb_ch % jcp.nb_ch_blocking;
+        unroll_width_body(jcp.nb_ch);
+    } else {
+        auto ch_blocks_loop = [&](int ch_blocks) {
+            Label skip_loop_label;
+            cmp(reg_ch_blocks, ch_blocks * jcp.ch_block);
+            jl(skip_loop_label, T_NEAR);
+            unroll_width_body(ch_blocks);
+            L(skip_loop_label);
+        };
 
-    cmp(reg_ch_blocks, jcp.nb_ch_blocking);
-    jne(ch_blocks_tail ? ch_blocks_tail_label : exit_label, T_NEAR);
+        ch_blocks_loop(jcp.nb_ch_blocking);
 
-    loop_body(jcp.nb_ch_blocking); // channel main loop
-
-    if (ch_blocks_tail) {
-        L(ch_blocks_tail_label);
-
-        cmp(reg_ch_blocks, ch_blocks_tail);
-        jne(exit_label, T_NEAR);
-
-        loop_body(ch_blocks_tail); // channel tail loop
+        int ch_blocks_tail = jcp.nb_ch % jcp.nb_ch_blocking;
+        if (ch_blocks_tail) { ch_blocks_loop(ch_blocks_tail); }
     }
-
-    L(exit_label);
     postamble();
 }
 

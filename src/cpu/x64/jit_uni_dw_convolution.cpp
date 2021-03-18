@@ -184,7 +184,6 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
                                  int stride_off_h, int ch, int n,
                                  int work_remaining) {
         auto par_conv = jit_conv_call_s();
-        const bool is_bf16 = diff_dst_d.data_type() == data_type::bf16;
         const bool is_dsrc_layout_nxc
                 = utils::one_of(jcp.src_tag, format_tag::nwc, format_tag::nhwc);
         const bool is_ddst_layout_nxc
@@ -218,9 +217,7 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
         const size_t load_work
                 = utils::this_block_size(static_cast<size_t>(ch * jcp.ch_block),
                         static_cast<size_t>(jcp.oc), ch_work);
-        par_conv.ch_blocks = is_bf16
-                ? nstl::min(ch + nb_ch_blocking, jcp.nb_ch) - ch
-                : load_work;
+        par_conv.ch_blocks = load_work;
 
         return par_conv;
     };

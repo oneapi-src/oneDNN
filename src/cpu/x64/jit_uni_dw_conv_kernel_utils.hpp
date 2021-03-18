@@ -331,7 +331,6 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
 
     jcp.dsrc_dt = cd.diff_src_desc.data_type;
     const bool is_bf16 = diff_dst_d.data_type() == data_type::bf16;
-    const bool is_f32 = diff_dst_d.data_type() == data_type::f32;
     jcp.isa = (is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16 : isa;
 
     if (!mayiuse(isa) || (is_bf16 && !mayiuse(avx512_core)))
@@ -429,8 +428,7 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
     }
 
     bool args_ok = true && jcp.oc == jcp.ngroups && jcp.ic == jcp.ngroups
-            && IMPLICATION(
-                    !(is_data_layout_nxc && is_f32), jcp.ngroups % simd_w == 0)
+            && IMPLICATION(!is_data_layout_nxc, jcp.ngroups % simd_w == 0)
             && jcp.dilate_h == 0 && jcp.dilate_w == 0
             && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
             && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1

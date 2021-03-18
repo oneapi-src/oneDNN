@@ -170,6 +170,10 @@ private:
     reg64_t reg_kh = r13;
     reg64_t reg_kw = r14;
 
+    reg64_t aux_reg_ch_blocks = r15;
+    reg64_t reg_tmp = r15;
+    Xbyak::Opmask k_ch_tail_mask = Xbyak::Opmask(1);
+
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(26);
     Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(27);
     Xbyak::Zmm bf16_emu_reserv_3 = Xbyak::Zmm(28);
@@ -179,12 +183,21 @@ private:
 
     bf16_emulation_t *bf16_emu_;
 
-    inline void loop_body(int ur_ch_blocks);
+    inline void ch_loop_body(int ur_ch_blocks, int unroll_w);
+    inline void unroll_width_body(int ur_ch_blocks);
     inline void load_ddst(int ur_ch_blocks, int ur_str_w);
-    inline void apply_filter(int ur_ch_blocks, int ur_str_w);
-    inline void store_dsrc(int ur_ch_blocks, int ur_str_w);
+    inline void apply_filter(int ur_ch_blocks, int ur_str_w, bool is_last_ch);
+    inline void store_dsrc(int ur_ch_blocks, int ur_str_w, bool is_last_ch);
 
     void generate() override;
+    inline bool is_dsrc_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+    inline bool is_ddst_layout_nxc() {
+        return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
 };
 
 struct jit_avx512_dw_conv_bwd_weights_kernel_bf16 : public jit_generator {
