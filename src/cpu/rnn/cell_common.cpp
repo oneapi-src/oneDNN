@@ -19,6 +19,7 @@
  */
 
 #include "common/bfloat16.hpp"
+#include "common/dnnl_thread.hpp"
 
 #include "cpu/rnn/ref_rnn.hpp"
 #include "cpu/simple_q10n.hpp"
