@@ -31,12 +31,14 @@ namespace cpu {
 template <impl::data_type_t data_type>
 status_t ref_softmax_fwd_t<data_type>::execute_forward_dense(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
+    const memory_desc_wrapper data_d(pd()->dst_md());
     const auto ou_stride = pd()->outer_stride();
+    const auto is_inplace = (src == dst);
+    const auto zero_pad = !data_d.is_dense() && !is_inplace;
+    const auto tail_size = data_d.padded_dims()[1] - data_d.dims()[1];
 
     parallel_nd(outer_size_, [&](int ou) {
         const data_t *src_data = src + ou * ou_stride;
@@ -124,6 +126,11 @@ status_t ref_softmax_fwd_t<data_type>::execute_forward_dense(
                 dst_data[c] = dst_data[c] - space_denom;
             }
         }
+        if (zero_pad) {
+            PRAGMA_OMP_SIMD()
+            for (int i = 0; i < tail_size; i++)
+                dst_data[channels_ + i] = 0;
+        }
     });
     return status::success;
 }
@@ -132,12 +139,25 @@ template <impl::data_type_t data_type>
 status_t ref_softmax_fwd_t<data_type>::execute_forward_generic(
         const exec_ctx_t &ctx) const {
 
-    status_t status = status::success;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->src_md());
+
+    const auto is_inplace = (src == dst);
+    const auto zero_pad = !data_d.is_dense() && !is_inplace;
+    const auto nelem = data_d.nelems(true);
+    dim_t nelem_per_n, spat_size, block_size, tail_size, off_full_blocks,
+            last_block_elem;
+    if (zero_pad && nelem) {
+        nelem_per_n = data_d.nelems(true) / data_d.dims()[0];
+        spat_size = nelem_per_n / data_d.padded_dims()[1];
+        block_size = data_d.blocking_desc().inner_blks[0];
+        tail_size = data_d.padded_dims()[1] - data_d.dims()[1];
+        off_full_blocks
+                = (data_d.dims()[1] / block_size) * spat_size * block_size;
+        last_block_elem = block_size - tail_size - 1;
+    }
 
     parallel_nd(outer_size_, [&](int ou) {
         float space_max_val = 0, space_denom_val = 0;
@@ -185,6 +205,18 @@ status_t ref_softmax_fwd_t<data_type>::execute_forward_generic(
                 } else if (pd()->is_logsoftmax()) {
                     dst[off] = dst[off] - space_denom[in];
                 }
+
+                if (zero_pad) {
+                    const dim_t offset_per_n = off % nelem_per_n;
+                    if (off_full_blocks > offset_per_n) continue;
+
+                    const dim_t offset_per_block = offset_per_n % block_size;
+                    if (offset_per_block == last_block_elem) {
+                        PRAGMA_OMP_SIMD()
+                        for (int i = 1; i < tail_size + 1; i++)
+                            dst[off + i] = 0;
+                    }
+                }
             }
         }
     });
@@ -198,11 +230,9 @@ template struct ref_softmax_fwd_t<data_type::f32>;
 template <impl::data_type_t data_type>
 status_t ref_softmax_bwd_t<data_type>::execute_backward_dense(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
     auto dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DST);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     const auto ou_stride = pd()->outer_stride();
 
@@ -227,14 +257,27 @@ status_t ref_softmax_bwd_t<data_type>::execute_backward_dense(
 template <impl::data_type_t data_type>
 status_t ref_softmax_bwd_t<data_type>::execute_backward_generic(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
     auto dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DST);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper diff_d(pd()->diff_src_md());
     const memory_desc_wrapper data_d(pd()->dst_md());
+
+    const auto is_inplace = (diff_dst == diff_src);
+    const auto zero_pad = !diff_d.is_dense() && !is_inplace;
+    const auto nelem = diff_d.nelems(true);
+    dim_t nelem_per_n, spat_size, block_size, tail_size, off_full_blocks,
+            last_block_elem;
+    if (zero_pad && nelem) {
+        nelem_per_n = nelem / diff_d.dims()[0];
+        spat_size = nelem_per_n / data_d.padded_dims()[1];
+        block_size = diff_d.blocking_desc().inner_blks[0];
+        tail_size = diff_d.padded_dims()[1] - diff_d.dims()[1];
+        off_full_blocks
+                = (diff_d.dims()[1] / block_size) * spat_size * block_size;
+        last_block_elem = block_size - tail_size - 1;
+    }
 
     parallel_nd(outer_size_, inner_size_, [&](int ou, int in) {
         dim_t ou_in_offset = ou * channels_ * inner_size_ + in;
@@ -257,6 +300,18 @@ status_t ref_softmax_bwd_t<data_type>::execute_backward_generic(
             } else if (pd()->is_logsoftmax()) {
                 diff_src[off_diff]
                         = diff_dst[off_diff] - expf(dst[off_data]) * sbr;
+            }
+
+            if (zero_pad) {
+                const dim_t offset_per_n = off_diff % nelem_per_n;
+                if (off_full_blocks > offset_per_n) continue;
+
+                const dim_t offset_per_block = offset_per_n % block_size;
+                if (offset_per_block == last_block_elem) {
+                    PRAGMA_OMP_SIMD()
+                    for (int i = 1; i < tail_size + 1; i++)
+                        diff_src[off_diff + i] = 0;
+                }
             }
         }
     });
