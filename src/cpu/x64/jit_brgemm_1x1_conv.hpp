@@ -83,7 +83,19 @@ protected:
     status_t init(engine_t *engine) override;
 
 private:
-    void exec_ker(const exec_ctx_t &ctx, int ithr,
+    //  brgemm convolution execution context
+    struct brgemm_exec_ctx_t {
+        brgemm_exec_ctx_t(const exec_ctx_t &ctx)
+            : src(CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC))
+            , weights(CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS))
+            , bias(CTX_IN_MEM(const char *, DNNL_ARG_BIAS))
+            , dst(CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST)) {}
+        const src_data_t *const __restrict src;
+        const wei_data_t *const __restrict weights;
+        const char *const __restrict bias;
+        dst_data_t *const __restrict dst;
+    };
+    void exec_ker(const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
             brgemm_batch_element_t *const __restrict brg_batch,
             char *const c_buffer, int g, int n, int ocb, int od, int oh, int ow,
             int icc) const;

@@ -196,17 +196,15 @@ status_t brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::init(
 template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
         data_type_t dst_type>
 void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::exec_ker(
-        const exec_ctx_t &ctx, int ithr,
+        const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
         brgemm_batch_element_t *const __restrict brg_batch,
         char *const c_buffer, int g, int n, int ocb, int od, int oh, int ow,
         int icc) const {
 
-    const src_data_t *const __restrict src
-            = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    const wei_data_t *const __restrict weights
-            = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
-    const char *const __restrict bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-    dst_data_t *const __restrict dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const src_data_t *const __restrict src = brgemm_ctx.src;
+    const wei_data_t *const __restrict weights = brgemm_ctx.weights;
+    const char *const __restrict bias = brgemm_ctx.bias;
+    dst_data_t *const __restrict dst = brgemm_ctx.dst;
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
 
@@ -297,6 +295,8 @@ template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
 void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type,
         dst_type>::execute_forward_all(const exec_ctx_t &ctx) const {
 
+    brgemm_exec_ctx_t brgemm_ctx(ctx);
+
     const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
 
     const auto &jcp = pd()->jcp_;
@@ -336,8 +336,8 @@ void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type,
                 const int oh = (os % (OH * OW)) / OW; \
                 const int ow = os % OW; \
                 for (int icc = 0; icc < ic_chunks; icc++) \
-                    exec_ker(ctx, ithr, brg_batch, c_buffer, g, n, ocb, od, \
-                            oh, ow, icc); \
+                    exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, g, n, ocb, \
+                            od, oh, ow, icc); \
             } \
             nd_iterator_step(__VA_ARGS__); \
         } \
