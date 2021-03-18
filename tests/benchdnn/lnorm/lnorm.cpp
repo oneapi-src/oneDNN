@@ -298,30 +298,6 @@ static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
         bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= eps;
 
-        /* When the error is larger than eps, It could be
-         * due to catastrophic cancellation in final result
-         * which is computed as `Y = a * X + b`.
-         * When `a * X`  is close to `b` and `sign(a * X) = - sign(b)`.
-         * Then large error in `a * X` could result in a final
-         * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
-         * which has no meaningful digits left in mantissa.*/
-        if (!ok && (prb->dir & FLAG_FWD) && kind == DATA && ss) {
-            const float beta = ((float *)*ss)[prb->c + c];
-            /* Using an empirically derived threshold,
-             * check if cancellation error
-             * in `|Y| = |a*X - (-b)|` is huge.*/
-            bool maybe_cancellation_error
-                    = (fabsf(fp - beta) / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1))
-                    > 1.0f;
-            if (maybe_cancellation_error) {
-                /* Check for error in `a * X` */
-                float diff_aX = fabsf((fp - beta) - (dt - beta));
-                float rel_diff_aX = diff_aX
-                        / (fabsf(fp - beta) > FLT_MIN ? fabsf(fp - beta) : 1);
-                ok = rel_diff_aX <= eps;
-            }
-        }
-
         res->errors += !ok;
 
         bool dump = (!ok && (res->errors < 10 || verbose >= 10))
