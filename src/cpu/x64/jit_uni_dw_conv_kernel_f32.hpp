@@ -157,12 +157,29 @@ private:
     reg64_t reg_kh = r13;
     reg64_t reg_kw = r14;
 
-    inline void loop_body(int ur_ch_blocks);
+    reg64_t aux_reg_ch_blocks = r15;
+    reg64_t reg_tmp = r15;
+    Xbyak::Opmask k_ch_tail_mask = Xbyak::Opmask(1);
+
+    void load_vmm(Vmm &vmm, const Xbyak::Address &addr, bool tail);
+    void store_vmm(Vmm &vmm, const Xbyak::Address &addr, bool tail);
+
+    inline void ch_loop_body(int ur_ch_blocks, int unroll_w);
+    inline void unroll_width_body(int ur_ch_blocks);
     inline void load_ddst(int ur_ch_blocks, int ur_str_w);
-    inline void apply_filter(int ur_ch_blocks, int ur_str_w);
-    inline void store_dsrc(int ur_ch_blocks, int ur_str_w);
+    inline void apply_filter(int ur_ch_blocks, int ur_str_w, bool is_last_ch);
+    inline void store_dsrc(int ur_ch_blocks, int ur_str_w, bool is_last_ch);
 
     void generate() override;
+
+    inline bool is_dsrc_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+    inline bool is_ddst_layout_nxc() {
+        return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
 };
 
 template <cpu_isa_t isa>

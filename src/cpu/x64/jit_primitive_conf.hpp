@@ -135,7 +135,7 @@ struct jit_conv_conf_t {
     int nb_ic_L2;
     int h_blocking;
     int nb_oc_L2;
-    int ic_tail, oc_tail;
+    int ic_tail, oc_tail, ch_tail;
     int ur_h, ur_w;
     int ur_w_tail, ur_w_blocks;
     int ur_ic, ur_kw;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -120,14 +120,13 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, diff_dst_type,
                             data_type::undef, diff_dst_type, data_type::f32)
-                    && attr()->has_default_values() && !has_zero_dim_memory()
-                    && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory();
 
             if (!ok) return status::unimplemented;
 
             status_t status = jit_uni_dw_conv_bwd_data_kernel<isa,
-                    diff_dst_type>::init_conf(jcp_, *desc(), *diff_src_md(),
-                    *weights_md(), *diff_dst_md());
+                    diff_dst_type>::init_conf(jcp_, *desc(), diff_src_md_,
+                    weights_md_, diff_dst_md_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -138,20 +137,6 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_t {
         }
 
         jit_conv_conf_t jcp_;
-
-    protected:
-        bool set_default_formats() {
-            using namespace format_tag;
-
-            auto dat_tag = utils::one_of(isa, avx512_common, avx512_core)
-                    ? nChw16c
-                    : nChw8c;
-            auto wei_tag = utils::one_of(isa, avx512_common, avx512_core)
-                    ? Goihw16g
-                    : Goihw8g;
-
-            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
     };
 
     jit_uni_dw_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}

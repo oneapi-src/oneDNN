@@ -181,8 +181,15 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
 
     auto kernel_params = [&](int ur_str_w, int iw, int oh, int ih,
                                  int i_t_overflow, int i_b_overflow,
-                                 int stride_off_h, int ch, int ch_num, int n) {
+                                 int stride_off_h, int ch, int n,
+                                 int work_remaining) {
         auto par_conv = jit_conv_call_s();
+        const bool is_bf16 = diff_dst_d.data_type() == data_type::bf16;
+        const bool is_dsrc_layout_nxc
+                = utils::one_of(jcp.src_tag, format_tag::nwc, format_tag::nhwc);
+        const bool is_ddst_layout_nxc
+                = utils::one_of(jcp.dst_tag, format_tag::nwc, format_tag::nhwc);
+        const int nb_ch_blocking = jcp.nb_ch_blocking;
 
         const int i_l_overflow = nstl::max(0, (jcp.kw - 1 - iw - jcp.l_pad));
         const int i_r_overflow
@@ -192,8 +199,10 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
         int stride_off_w = ow % jcp.stride_w;
         ow /= jcp.stride_w;
 
-        par_conv.src = &diff_src[diff_src_d.blk_off(n, ch, ih, iw)];
-        par_conv.dst = &diff_dst[diff_dst_d.blk_off(n, ch, oh, ow)];
+        const int ic_offset = is_dsrc_layout_nxc ? ch * jcp.ch_block : ch;
+        par_conv.src = &diff_src[diff_src_d.blk_off(n, ic_offset, ih, iw)];
+        const int oc_offset = is_ddst_layout_nxc ? ch * jcp.ch_block : ch;
+        par_conv.dst = &diff_dst[diff_dst_d.blk_off(n, oc_offset, oh, ow)];
         par_conv.filt = &weights[weights_d.blk_off(ch, 0, 0,
                 i_b_overflow + stride_off_h, i_r_overflow + stride_off_w)];
 
@@ -204,7 +213,14 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
 
         par_conv.ur_str_w = ur_str_w;
 
-        par_conv.ch_blocks = nstl::min(ch + ch_num, jcp.nb_ch) - ch;
+        const size_t ch_work = (is_ddst_layout_nxc ? work_remaining : 1)
+                * nb_ch_blocking * jcp.ch_block;
+        const size_t load_work
+                = utils::this_block_size(static_cast<size_t>(ch * jcp.ch_block),
+                        static_cast<size_t>(jcp.oc), ch_work);
+        par_conv.ch_blocks = is_bf16
+                ? nstl::min(ch + nb_ch_blocking, jcp.nb_ch) - ch
+                : load_work;
 
         return par_conv;
     };
@@ -212,53 +228,79 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
     const int aux_w
             = nstl::min(jcp.iw, jcp.iw - jcp.kw + jcp.r_pad + jcp.stride_w);
     const int chb_work = utils::div_up(jcp.nb_ch, jcp.nb_ch_blocking);
-    parallel_nd(jcp.mb, chb_work, jcp.ih, [&](int n, int chb, int ih) {
-        int ch = chb * jcp.nb_ch_blocking;
-        int ch_num = jcp.nb_ch_blocking;
+    const int work_amount = jcp.mb * chb_work * jcp.ih;
+    const auto nthr = jcp.nthr;
 
-        const int i_t_overflow
-                = nstl::max(0, (int)(jcp.kh - 1 - ih - jcp.t_pad));
-        const int i_b_overflow = nstl::max(
-                0, (int)(jcp.kh - 1 - (jcp.ih - 1 - ih) - jcp.b_pad));
+    parallel(nthr, [&](const int ithr, const int nthr) {
+        int start {0}, end {0};
+        balance211(work_amount, nthr, ithr, start, end);
+        int n {0}, chb {0}, ih {0};
+        if (jcp.loop_order == loop_ngcw)
+            utils::nd_iterator_init(
+                    start, n, jcp.mb, chb, chb_work, ih, jcp.ih);
+        else if (jcp.loop_order == loop_nhwcg)
+            utils::nd_iterator_init(
+                    start, n, jcp.mb, ih, jcp.ih, chb, chb_work);
+        else
+            assert(!"unsupported loop order");
 
-        int oh = ih + jcp.t_pad - i_b_overflow;
-        int stride_off_h = oh % jcp.stride_h;
-        oh /= jcp.stride_h;
+        auto iwork = start;
+        while (iwork < end) {
+            int ch = chb * jcp.nb_ch_blocking;
 
-        for (int i_str_w = 0; i_str_w < jcp.stride_w; i_str_w++) {
-            // left border
-            int iw = i_str_w;
-            int l_border = nstl::min(jcp.kw - 1 - jcp.l_pad, jcp.iw);
-            int ur_str_w = 1;
-            for (; iw < l_border; iw += jcp.stride_w) {
-                jit_conv_call_s par_conv
-                        = kernel_params(ur_str_w, iw, oh, ih, i_t_overflow,
-                                i_b_overflow, stride_off_h, ch, ch_num, n);
+            const int work_rem = end - iwork;
+            const int i_t_overflow
+                    = nstl::max(0, (int)(jcp.kh - 1 - ih - jcp.t_pad));
+            const int i_b_overflow = nstl::max(
+                    0, (int)(jcp.kh - 1 - (jcp.ih - 1 - ih) - jcp.b_pad));
 
-                (*kernel_)(&par_conv);
+            int oh = ih + jcp.t_pad - i_b_overflow;
+            int stride_off_h = oh % jcp.stride_h;
+            oh /= jcp.stride_h;
+
+            for (int i_str_w = 0; i_str_w < jcp.stride_w; i_str_w++) {
+                // left border
+                int iw = i_str_w;
+                int l_border = nstl::min(jcp.kw - 1 - jcp.l_pad, jcp.iw);
+                int ur_str_w = 1;
+                for (; iw < l_border; iw += jcp.stride_w) {
+                    jit_conv_call_s par_conv = kernel_params(ur_str_w, iw, oh,
+                            ih, i_t_overflow, i_b_overflow, stride_off_h, ch, n,
+                            work_rem);
+
+                    (*kernel_)(&par_conv);
+                }
+
+                // main loop
+                ur_str_w = (aux_w - iw) / jcp.stride_w;
+                if (ur_str_w > 0) {
+                    jit_conv_call_s par_conv = kernel_params(ur_str_w, iw, oh,
+                            ih, i_t_overflow, i_b_overflow, stride_off_h, ch, n,
+                            work_rem);
+
+                    (*kernel_)(&par_conv);
+
+                    iw += ur_str_w * jcp.stride_w;
+                }
+
+                // right border
+                ur_str_w = 1;
+                for (; iw < jcp.iw; iw += jcp.stride_w) {
+                    jit_conv_call_s par_conv = kernel_params(ur_str_w, iw, oh,
+                            ih, i_t_overflow, i_b_overflow, stride_off_h, ch, n,
+                            work_rem);
+
+                    (*kernel_)(&par_conv);
+                }
             }
-
-            // main loop
-            ur_str_w = (aux_w - iw) / jcp.stride_w;
-            if (ur_str_w > 0) {
-                jit_conv_call_s par_conv
-                        = kernel_params(ur_str_w, iw, oh, ih, i_t_overflow,
-                                i_b_overflow, stride_off_h, ch, ch_num, n);
-
-                (*kernel_)(&par_conv);
-
-                iw += ur_str_w * jcp.stride_w;
-            }
-
-            // right border
-            ur_str_w = 1;
-            for (; iw < jcp.iw; iw += jcp.stride_w) {
-                jit_conv_call_s par_conv
-                        = kernel_params(ur_str_w, iw, oh, ih, i_t_overflow,
-                                i_b_overflow, stride_off_h, ch, ch_num, n);
-
-                (*kernel_)(&par_conv);
-            }
+            if (jcp.loop_order == loop_ngcw) {
+                ++iwork;
+                utils::nd_iterator_step(n, jcp.mb, chb, chb_work, ih, jcp.ih);
+            } else if (jcp.loop_order == loop_nhwcg) {
+                utils::nd_iterator_jump(
+                        iwork, end, n, jcp.mb, ih, jcp.ih, chb, chb_work);
+            } else
+                assert(!"unsupported loop order");
         }
     });
 }
