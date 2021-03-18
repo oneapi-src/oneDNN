@@ -288,70 +288,67 @@ static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
     res->total += nelems;
 
     diff_norm_t diff_norm;
-    for (int64_t n = 0; n < N; n++) {
-        for (int64_t c = 0; c < C; c++) {
-            int64_t i = n * C + c;
-            const float dt = dt_mem.get_elem(i);
-            const float fp0 = fp_mem.get_elem(i);
-            const float fp = kind == DATA
-                    ? round_to_nearest_representable(prb->dt, fp0)
-                    : fp0;
-            diff_norm.update(fp, dt);
+    for_(int64_t n = 0; n < N; n++)
+    for (int64_t c = 0; c < C; c++) {
+        int64_t i = n * C + c;
+        const float dt = dt_mem.get_elem(i);
+        const float fp0 = fp_mem.get_elem(i);
+        const float fp = kind == DATA
+                ? round_to_nearest_representable(prb->dt, fp0)
+                : fp0;
+        diff_norm.update(fp, dt);
 
-            const float diff = fabsf(fp - dt);
-            const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-            bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= eps;
+        const float diff = fabsf(fp - dt);
+        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
+        bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= eps;
 
-            /* When the error is larger than eps, It could be
+        /* When the error is larger than eps, It could be
          * due to catastrophic cancellation in final result
          * which is computed as `Y = a * X + b`.
          * When `a * X`  is close to `b` and `sign(a * X) = - sign(b)`.
          * Then large error in `a * X` could result in a final
          * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
          * which has no meaningful digits left in mantissa.*/
-            if (!ok && (prb->dir & FLAG_FWD) && kind == DATA && ss) {
-                const float beta = ((float *)*ss)[prb->c + c];
-                /* Using an empirically derived threshold,
+        if (!ok && (prb->dir & FLAG_FWD) && kind == DATA && ss) {
+            const float beta = ((float *)*ss)[prb->c + c];
+            /* Using an empirically derived threshold,
              * check if cancellation error
              * in `|Y| = |a*X - (-b)|` is huge.*/
-                bool maybe_cancellation_error
-                        = (fabsf(fp - beta)
-                                  / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1))
-                        > 1.0f;
-                if (maybe_cancellation_error) {
-                    /* Check for error in `a * X` */
-                    float diff_aX = fabsf((fp - beta) - (dt - beta));
-                    float rel_diff_aX = diff_aX
-                            / (fabsf(fp - beta) > FLT_MIN ? fabsf(fp - beta)
-                                                          : 1);
-                    ok = rel_diff_aX <= eps;
+            bool maybe_cancellation_error
+                    = (fabsf(fp - beta) / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1))
+                    > 1.0f;
+            if (maybe_cancellation_error) {
+                /* Check for error in `a * X` */
+                float diff_aX = fabsf((fp - beta) - (dt - beta));
+                float rel_diff_aX = diff_aX
+                        / (fabsf(fp - beta) > FLT_MIN ? fabsf(fp - beta) : 1);
+                ok = rel_diff_aX <= eps;
+            }
+        }
+
+        res->errors += !ok;
+
+        bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
+                || (verbose >= 50 && i < 30);
+        if (dump) {
+            std::stringstream ss;
+            if (kind == SS) {
+                ss << i / prb->c << "," << i % prb->c;
+            } else {
+                int64_t size = kind == DATA ? N * C : N;
+                size_t ndims = kind == DATA ? prb->ndims : prb->ndims - 1;
+                const char *separator = "";
+                for (size_t j = 0; j < ndims; j++) {
+                    size /= prb->dims[j];
+                    ss << separator << (i / size) % prb->dims[j];
+                    separator = ",";
                 }
             }
-
-            res->errors += !ok;
-
-            bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
-                    || (verbose >= 50 && i < 30);
-            if (dump) {
-                std::stringstream ss;
-                if (kind == SS) {
-                    ss << i / prb->c << "," << i % prb->c;
-                } else {
-                    int64_t size = kind == DATA ? N * C : N;
-                    size_t ndims = kind == DATA ? prb->ndims : prb->ndims - 1;
-                    const char *separator = "";
-                    for (size_t j = 0; j < ndims; j++) {
-                        size /= prb->dims[j];
-                        ss << separator << (i / size) % prb->dims[j];
-                        separator = ",";
-                    }
-                }
-                std::string ind_str = ss.str();
-                BENCHDNN_PRINT(0,
-                        "[%4ld][%s%s][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                        (long)i, prb->dir & FLAG_BWD ? "D_" : "", skind,
-                        ind_str.c_str(), fp, dt, diff, rel_diff);
-            }
+            std::string ind_str = ss.str();
+            BENCHDNN_PRINT(0,
+                    "[%4ld][%s%s][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, prb->dir & FLAG_BWD ? "D_" : "", skind,
+                    ind_str.c_str(), fp, dt, diff, rel_diff);
         }
     }
 
