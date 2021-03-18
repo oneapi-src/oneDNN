@@ -217,8 +217,7 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         bool dump = (!ok
                             && ((!dont_complain && res->errors < 10)
                                     || verbose >= 10))
-                || (final_compare
-                        && ((verbose >= 50 && i < 30) || (verbose >= 99)));
+                || (final_compare && (verbose >= 99));
 
         if (dump) {
             int64_t mb_or_g = 0, g_or_oc = 0, c = 0, d = 0, h = 0, w = 0;
