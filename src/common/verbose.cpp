@@ -139,10 +139,10 @@ void pd_info_t::init(
 
 /* init_info section */
 namespace {
-#define DNNL_VERBOSE_DAT_LEN 256
-#define DNNL_VERBOSE_ATTR_LEN 384
-#define DNNL_VERBOSE_AUX_LEN 384
-#define DNNL_VERBOSE_PRB_LEN 384
+#define DNNL_VERBOSE_DAT_LEN 2048
+#define DNNL_VERBOSE_ATTR_LEN 768
+#define DNNL_VERBOSE_AUX_LEN 256
+#define DNNL_VERBOSE_PRB_LEN 1024
 
 #define DECL_DAT_AUX_PRB_STRS() \
     int dat_written = 0, aux_written = 0, prb_written = 0, attr_written = 0; \

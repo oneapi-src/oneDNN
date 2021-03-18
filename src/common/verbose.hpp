@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ bool get_verbose_timestamp();
 double get_msec();
 
 #if !defined(DISABLE_VERBOSE)
-#define DNNL_VERBOSE_BUF_LEN 1024
+#define DNNL_VERBOSE_BUF_LEN 4096
 #else
 #define DNNL_VERBOSE_BUF_LEN 1
 #endif
