@@ -19,7 +19,13 @@
 #define CONCAt2(a, b) a##b
 #define CONCAT2(a, b) CONCAt2(a, b)
 
+#if IS_FWD
 #define DD(i) CONCAt2(DST_D, i)
+#elif IS_BWD
+#define DD(i) CONCAt2(DIFF_SRC_D, i)
+#else
+#error unsupported data parameter
+#endif
 
 #define OFF(dim, idx) \
     (dim % CONCAT2(DATA_B, idx)) * CONCAT2(DATA_SB, idx) \
