@@ -498,8 +498,10 @@ status_t brgemm_convolution_fwd_t<isa, src_type, wei_type, dst_type>::execute(
         const exec_ctx_t &ctx) const {
     const auto &jcp = pd()->jcp_;
 
-    const src_data_t *const __restrict src
-            = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    brgemm_exec_ctx_t brgemm_ctx(ctx, pd());
+
+    const src_data_t *const __restrict src = brgemm_ctx.src;
+
     const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
     brgemm_batch_element_t *const __restrict brg_batch_global
             = (jcp.brg_type == brgemm_strd && jcp.exec_type != exec_vpad)
@@ -559,16 +561,16 @@ status_t brgemm_convolution_fwd_t<isa, src_type, wei_type, dst_type>::execute(
             for (int oh = oh_begin; oh < oh_end; oh++) { \
                 for (int icc = 0; icc < ic_chunks; icc++) { \
                     if (jcp.exec_type == exec_base) { \
-                        ker_base(ctx, ithr, brg_batch, c_buffer, g, n, ocb, \
-                                od, oh, owb, icc); \
+                        ker_base(brgemm_ctx, ithr, brg_batch, c_buffer, g, n, \
+                                ocb, od, oh, owb, icc); \
                     } else if (jcp.exec_type == exec_trans) { \
                         maybe_conv_inp(ithr, src, inp_buffer, inp_buffer_mask, \
                                 g, n, icc, odb, ohb, owb); \
-                        ker_trans(ctx, ithr, brg_batch, c_buffer, inp_buffer, \
-                                g, n, ocb, od, oh, owb, icc); \
+                        ker_trans(brgemm_ctx, ithr, brg_batch, c_buffer, \
+                                inp_buffer, g, n, ocb, od, oh, owb, icc); \
                     } else if (jcp.exec_type == exec_vpad) { \
-                        ker_vpad(ctx, ithr, brg_batch, c_buffer, g, n, ocb, \
-                                od, oh, owb, icc); \
+                        ker_vpad(brgemm_ctx, ithr, brg_batch, c_buffer, g, n, \
+                                ocb, od, oh, owb, icc); \
                     } else \
                         assert(0); \
                 } \
@@ -762,17 +764,12 @@ void brgemm_convolution_fwd_t<isa, src_type, wei_type,
 }
 
 #define BRGEMM_CONV_KER_HEADER \
-    const src_data_t *const __restrict src \
-            = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC); \
-    const wei_data_t *const __restrict weights \
-            = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS); \
-    const char *const __restrict bias \
-            = CTX_IN_MEM(const char *, DNNL_ARG_BIAS); \
-    dst_data_t *const __restrict dst \
-            = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST); \
-    const auto post_ops_binary_rhs_arg_vec \
-            = binary_injector::prepare_binary_args( \
-                    pd()->attr()->post_ops_, ctx); \
+    const src_data_t *const __restrict src = brgemm_ctx.src; \
+    const wei_data_t *const __restrict weights = brgemm_ctx.weights; \
+    const char *const __restrict bias = brgemm_ctx.bias; \
+    dst_data_t *const __restrict dst = brgemm_ctx.dst; \
+    const std::vector<const void *> &post_ops_binary_rhs_arg_vec \
+            = brgemm_ctx.post_ops_binary_rhs_arg_vec; \
     const int oc = ocb * jcp.oc_block; \
     const int g_oc = g * jcp.oc + oc; \
     const int icb = icc * jcp.nb_ic_blocking; \
@@ -806,7 +803,7 @@ void brgemm_convolution_fwd_t<isa, src_type, wei_type,
 template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
         data_type_t dst_type>
 void brgemm_convolution_fwd_t<isa, src_type, wei_type, dst_type>::ker_base(
-        const exec_ctx_t &ctx, int ithr,
+        const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
         brgemm_batch_element_t *const __restrict brg_batch,
         char *const c_buffer, int g, int n, int ocb, int od, int oh, int owb,
         int icc) const {
@@ -972,7 +969,7 @@ void brgemm_convolution_fwd_t<isa, src_type, wei_type, dst_type>::ker_base(
 template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
         data_type_t dst_type>
 void brgemm_convolution_fwd_t<isa, src_type, wei_type, dst_type>::ker_trans(
-        const exec_ctx_t &ctx, int ithr,
+        const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
         brgemm_batch_element_t *const __restrict brg_batch,
         char *const c_buffer, src_data_t *inp_buffer, int g, int n, int ocb,
         int od, int oh, int owb, int icc) const {
@@ -1087,7 +1084,7 @@ void brgemm_convolution_fwd_t<isa, src_type, wei_type, dst_type>::ker_trans(
 template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
         data_type_t dst_type>
 void brgemm_convolution_fwd_t<isa, src_type, wei_type, dst_type>::ker_vpad(
-        const exec_ctx_t &ctx, int ithr,
+        const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
         brgemm_batch_element_t *const __restrict brg_batch,
         char *const c_buffer, int g, int n, int ocb, int od, int oh, int owb,
         int icc) const {
