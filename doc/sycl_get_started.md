@@ -107,7 +107,7 @@ g.add_op(conv0_bias_add);
 g.add_op(conv1_bias_add);
 ~~~
 
-Then by calling [`get_partitions()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1256),
+Then by calling [`get_partitions()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1274),
 users can get several partitions. In this example, there should be two
 partitions: `conv0+relu0` and `conv1+relu1`.
 
@@ -197,7 +197,7 @@ auto relu1_dst_data = (float *)malloc_shared(static_cast<size_t>(product(dst1_di
 ~~~
 
 Before the execution, users also need to bind the logical tensor and memory
-buffer to [dnnl::graph::tensor](../include/oneapi/dnnl/dnnl_graph.hpp#L538).
+buffer to [dnnl::graph::tensor](../include/oneapi/dnnl/dnnl_graph.hpp#L542).
 
 ~~~cpp
 tensor conv0_src(conv0_src_desc_plain, conv0_src_data);

@@ -73,6 +73,8 @@ public:
         return (pimpl_ != nullptr) && pimpl_->is_initialized();
     }
 
+    bool is_supported() const;
+
     const impl::partition_impl_t *get_pimpl() const { return pimpl_.get(); }
 
     const impl::backend *get_assigned_backend() const {

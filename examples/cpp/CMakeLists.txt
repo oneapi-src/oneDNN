@@ -26,7 +26,7 @@ append(CMAKE_C_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
 # Register example
 function(register_example name srcs)
     add_executable(${name} ${srcs})
-    target_include_directories(${name}  
+    target_include_directories(${name}
         PRIVATE
         ${PROJECT_SOURCE_DIR}/examples/cpp/include
         ${PROJECT_SOURCE_DIR}/include

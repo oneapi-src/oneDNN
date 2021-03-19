@@ -2191,7 +2191,7 @@ TEST(op_schema_test, End) {
     op_t end_op {0, op_kind::End, "end"};
     logical_tensor_t lt_in_0 = logical_tensor_init(0, data_type::f32);
 
-    end_op.add_input(&lt_in_0);
+    end_op.add_input(lt_in_0);
     EXPECT_TRUE(op_schema->verify(&end_op));
 }
 

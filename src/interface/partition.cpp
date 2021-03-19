@@ -121,7 +121,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_outputs_num(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_get_inputs(
-        const partition_t *partition, uint64_t num, size_t *inputs) {
+        const partition_t *partition, uint64_t num, logical_tensor_t *inputs) {
     if (utils::any_null(partition, inputs)
             || partition->get_inputs_num() != num) {
         return status::invalid_argument;
@@ -129,14 +129,14 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_inputs(
 
     auto &in = partition->get_inputs();
     for (size_t i = 0; i < num; ++i) {
-        inputs[i] = in[i].id;
+        inputs[i] = in[i];
     }
 
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_get_outputs(
-        const partition_t *partition, uint64_t num, size_t *outputs) {
+        const partition_t *partition, uint64_t num, logical_tensor_t *outputs) {
     if (utils::any_null(partition, outputs)
             || partition->get_outputs_num() != num) {
         return status::invalid_argument;
@@ -144,7 +144,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_outputs(
 
     auto &out = partition->get_outputs();
     for (size_t i = 0; i < num; ++i) {
-        outputs[i] = out[i].id;
+        outputs[i] = out[i];
     }
 
     return status::success;
@@ -343,6 +343,11 @@ static status_t pre_process(std::vector<tensor_t> &dst,
         }
     }
     return status::success;
+}
+
+bool dnnl_graph_partition::is_supported() const {
+    return (pimpl_ != nullptr)
+            && (pimpl_->get_assigned_backend()->get_name() != "fake_backend");
 }
 
 status_t dnnl_graph_partition::compile(compiled_partition_t *cp,

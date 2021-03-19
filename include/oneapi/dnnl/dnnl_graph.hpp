@@ -330,6 +330,10 @@ public:
         opaque = dnnl_graph_layout_type_opaque,
     };
 
+    /// default constructor
+    /// construct an empty object
+    logical_tensor() = default;
+
     /// Constructs a logical tensor object
     explicit logical_tensor(const dnnl_graph_logical_tensor_t &c_data)
         : data(c_data) {}
@@ -781,8 +785,8 @@ public:
 
     /// Returns the supporting status of the partition
     ///
-    /// @returns @c true if this partition is supported by oneDNN graph backend
-    ///     @c if this partition isn't supported by oneDNN graph backend
+    /// @returns @c true if this partition is supported by oneDNN Graph backend
+    ///     @c false if this partition isn't supported by oneDNN Graph backend
     bool is_supported() const {
         uint8_t supported {0};
         error::check_succeed(
@@ -791,35 +795,45 @@ public:
         return static_cast<bool>(supported);
     }
 
-    /// Returns ids of input logical tensors of the partition
+    /// Returns a list of input logical tensors from the partition
     ///
-    /// @returns A list of ids
-    std::vector<size_t> get_inputs() const {
+    /// @returns A list of input logical tensors
+    std::vector<logical_tensor> get_inputs() const {
         uint64_t num;
         error::check_succeed(dnnl_graph_partition_get_inputs_num(get(), &num),
                 "could not get number of inputs of the partition");
+        if (num == 0) return {};
 
-        std::vector<size_t> inputs(num);
+        std::vector<dnnl_graph_logical_tensor_t> c_inputs(num);
         error::check_succeed(
-                dnnl_graph_partition_get_inputs(get(), num, inputs.data()),
-                "could not get ids of inputs of the partition");
+                dnnl_graph_partition_get_inputs(get(), num, c_inputs.data()),
+                "could not get input logical tensors of the partition");
 
+        std::vector<logical_tensor> inputs;
+        inputs.reserve(num);
+        for (auto &c_lt : c_inputs)
+            inputs.emplace_back(c_lt);
         return inputs;
     }
 
-    /// Returns ids of output logical tensors of the partition
+    /// Returns a list of output logical tensors from the partition
     ///
-    /// @returns A list of ids
-    std::vector<size_t> get_outputs() const {
+    /// @returns A list of output logical tensor
+    std::vector<logical_tensor> get_outputs() const {
         uint64_t num;
         error::check_succeed(dnnl_graph_partition_get_outputs_num(get(), &num),
                 "cannot get number of outputs of the partition");
+        if (num == 0) return {};
 
-        std::vector<size_t> outputs(num);
+        std::vector<dnnl_graph_logical_tensor_t> c_outputs(num);
         error::check_succeed(
-                dnnl_graph_partition_get_outputs(get(), num, outputs.data()),
-                "could not get ids of outputs of the partition");
+                dnnl_graph_partition_get_outputs(get(), num, c_outputs.data()),
+                "could not get output logical tensors of the partition");
 
+        std::vector<logical_tensor> outputs;
+        outputs.reserve(num);
+        for (auto &c_lt : c_outputs)
+            outputs.emplace_back(c_lt);
         return outputs;
     }
 

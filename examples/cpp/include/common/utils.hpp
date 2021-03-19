@@ -92,7 +92,7 @@ struct logical_id_manager {
         }
     }
 
-    void freeze() { frozen_ = false; }
+    void freeze() { frozen_ = true; }
 
 private:
     logical_id_manager() : frozen_(false) {};

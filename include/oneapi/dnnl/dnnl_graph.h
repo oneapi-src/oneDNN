@@ -413,15 +413,16 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_infer_shape(
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_inputs_num(
         const dnnl_graph_partition_t *partition, uint64_t *num);
 
-/// Returns a list of ids of input logical tensors of the partition.
+/// Returns a list of input logical tensors from the partition.
 ///
 /// @param partition The target partition.
 /// @param num The number of input logical tensors.
-/// @param inputs The list of ids of input logical tensors.
+/// @param inputs The list of input logical tensors.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_inputs(
-        const dnnl_graph_partition_t *partition, uint64_t num, size_t *inputs);
+        const dnnl_graph_partition_t *partition, uint64_t num,
+        dnnl_graph_logical_tensor_t *inputs);
 
 /// Returns the number of output logical tensors of the partition.
 ///
@@ -432,15 +433,16 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_inputs(
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_outputs_num(
         const dnnl_graph_partition_t *partition, uint64_t *num);
 
-/// Returns a list of ids of output logical tensors of the partition.
+/// Returns a list of output logical tensors from the partition.
 ///
 /// @param partition The target partition.
 /// @param num The number of output logical tensors.
-/// @param outputs The list of ids of output logical tensors.
+/// @param outputs The list of output logical tensors.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_outputs(
-        const dnnl_graph_partition_t *partition, uint64_t num, size_t *outputs);
+        const dnnl_graph_partition_t *partition, uint64_t num,
+        dnnl_graph_logical_tensor_t *outputs);
 
 /// Returns the supporting status of the partition
 ///
