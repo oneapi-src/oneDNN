@@ -229,7 +229,7 @@ public:
             const std::vector<dnnl::graph::logical_tensor> &input_lts,
             const std::vector<dnnl::graph::logical_tensor> &output_lts,
             const std::vector<std::pair<size_t, size_t>> &inplace_options) {
-        for (auto &&p : inplace_options) {
+        for (const auto &p : inplace_options) {
             size_t input_id = p.first;
             size_t output_id = p.second;
             auto input_lt_iter

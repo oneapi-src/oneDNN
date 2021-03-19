@@ -161,7 +161,7 @@ TEST(api_partition, get_inputs_outputs_ids) {
     ASSERT_TRUE(partitions[0].is_supported());
 }
 
-TEST(DISABLED_api_partition, unsupported_partitions) {
+TEST(api_partition, unsupported_partitions) {
     using namespace dnnl::graph;
     engine::kind engine_kind = static_cast<engine::kind>(api_test_engine_kind);
     engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);

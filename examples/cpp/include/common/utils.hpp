@@ -110,7 +110,7 @@ void deallocate(void *ptr) {
 //  val -> fixed value for initialization
 template <typename T>
 void fill_buffer(void *src, size_t total_size, int val) {
-    int num_elem = static_cast<int>(total_size / sizeof(T));
+    size_t num_elem = static_cast<size_t>(total_size / sizeof(T));
     T *src_casted = static_cast<T *>(src);
     // can be implemented through OpenMP
     for (size_t i = 0; i < num_elem; ++i)

@@ -22,6 +22,7 @@
 #include "interface/partition.hpp"
 
 #include "backend/dnnl/dnnl_partition_impl.hpp"
+#include "backend/fake/fake_partition_impl.hpp"
 
 using namespace dnnl::graph::impl;
 
@@ -65,6 +66,7 @@ TEST(partition_test, init) {
     n.set_attr<int64_t>("groups", 0);
     p.init(&n);
     ASSERT_TRUE(p.is_initialized());
+    ASSERT_TRUE(p.get_assigned_backend()->get_name() != "fake_backend");
     ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Convolution);
     ASSERT_TRUE(p.get_fused_op()->has_attr("groups"));
     ASSERT_EQ(p.get_fused_op()->get_attr<int64_t>("groups"), 0);
@@ -77,6 +79,7 @@ TEST(partition_test, copy) {
     n.set_attr<int64_t>("groups", 0);
     p.init(&n);
     ASSERT_TRUE(p.is_initialized());
+    ASSERT_TRUE(p.get_assigned_backend()->get_name() != "fake_backend");
     ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Convolution);
     ASSERT_TRUE(p.get_fused_op()->has_attr("groups"));
     ASSERT_EQ(p.get_fused_op()->get_attr<int64_t>("groups"), 0);
@@ -88,4 +91,14 @@ TEST(partition_test, copy) {
     ASSERT_EQ(p_copy.get_fused_op()->get_attr<int64_t>("groups"), 1);
     ASSERT_NE(p_copy.get_fused_op()->get_attr<int64_t>("groups"),
             p.get_fused_op()->get_attr<int64_t>("groups"));
+}
+
+TEST(partition_test, fake_partition) {
+    fake_impl::fake_partition_impl_t p(engine_kind::cpu);
+    size_t id = 100;
+    std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));
+    p.init(n.get());
+    ASSERT_TRUE(p.is_initialized());
+    ASSERT_TRUE(p.get_assigned_backend()->get_name() == "fake_backend");
+    ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Wildcard);
 }

@@ -27,6 +27,9 @@
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 
+#include "backend/fake/fake_backend.hpp"
+#include "backend/fake/fake_partition_impl.hpp"
+
 #include "utils.hpp"
 
 using namespace dnnl::graph::impl;
@@ -2086,14 +2089,12 @@ INSTANTIATE_TEST_SUITE_P(gelu_test_instance, gelu_test,
                 ut_gelu_params {0, 1, 1, 0}, ut_gelu_params {1, 0, 0, 1},
                 ut_gelu_params {1, 0, 1, 0}));
 
-TEST(DISABLED_pass_test, single_node_replacement) {
+TEST(pass_test, single_node_replacement) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
 
-    auto &backend_ptr
-            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = dnnl::graph::impl::pass::pass_manager(
-            backend_ptr.get_pass_registry());
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
     std::vector<op_kind_t> single_node_set_supported = {BatchNormInference, Add,
             ReLU, MatMul, AvgPool, MaxPool, AvgPoolBackprop,
             BatchNormTrainingBackprop, ConvolutionBackpropData,
@@ -2109,11 +2110,16 @@ TEST(DISABLED_pass_test, single_node_replacement) {
 
         auto orig_node = agraph.get_ops()[0];
         ASSERT_NE(orig_node->get_partition(), nullptr);
+        ASSERT_EQ(
+                orig_node->get_partition()->get_assigned_backend()->get_name(),
+                std::string("dnnl_backend"));
 
         auto replaced_node = get_fused_op(agraph.get_partitions()[0]);
         ASSERT_EQ(replaced_node->get_kind(), akind);
     }
 
+    auto &fake_backend_ptr = fake_impl::fake_backend::get_singleton();
+    auto fake_pm = pass::pass_manager(fake_backend_ptr.get_pass_registry());
     std::vector<op_kind_t> single_node_set_unsupported = {
             /* not enabling ops = */ Concat, Divide, EluBackprop,
             LayerNormBackprop, Reshape, Round, Sigmoid, SigmoidBackprop,
@@ -2126,12 +2132,19 @@ TEST(DISABLED_pass_test, single_node_replacement) {
         graph_t agraph;
         op_t *node = agraph.create_op(akind);
         ASSERT_EQ(node->get_kind(), akind);
-        pm.run_passes(agraph, "no_config");
+        fake_pm.run_passes(agraph, "no_config");
 
-        auto replaced_node = agraph.get_ops()[0];
+        auto orig_node = agraph.get_ops()[0];
+        ASSERT_NE(orig_node->get_partition(), nullptr);
+        ASSERT_EQ(
+                orig_node->get_partition()->get_assigned_backend()->get_name(),
+                std::string("fake_backend"));
+
+        ASSERT_EQ(agraph.get_partitions().size(), 1);
+        auto replaced_node = static_cast<fake_impl::fake_partition_impl_t *>(
+                agraph.get_partitions()[0].get())
+                                     ->get_fused_op();
         ASSERT_EQ(replaced_node->get_kind(), akind);
-        ASSERT_EQ(replaced_node->has_attr("backend"), true);
-        ASSERT_EQ(replaced_node->get_attr<std::string>("backend"), "none");
     }
 }
 

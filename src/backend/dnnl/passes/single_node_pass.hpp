@@ -46,10 +46,14 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_node_pass)
                         anode->set_attr<std::string>("backend", #backend); \
                     });
 
+// register passes with dnnl backend support
+DNNL_BACKEND_SINGLE_NODE_TRANSFORM(abs_pass, dnnl, Abs, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(avg_pool_pass, dnnl, AvgPool, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(avg_pool_bw_pass, dnnl, AvgPoolBackprop, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(bn_pass, dnnl, BatchNormInference, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(ln_pass, dnnl, LayerNorm, 8.f)
+DNNL_BACKEND_SINGLE_NODE_TRANSFORM(
+        bn_fw_train_pass, dnnl, BatchNormForwardTraining, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(
         bn_bw_pass, dnnl, BatchNormTrainingBackprop, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(conv_pass, dnnl, Convolution, 8.f)
@@ -64,8 +68,18 @@ DNNL_BACKEND_SINGLE_NODE_TRANSFORM(relu_pass, dnnl, ReLU, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(relu_bw_pass, dnnl, ReLUBackprop, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(gelu_pass, dnnl, GELU, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(gelu_bw_pass, dnnl, GELUBackprop, 8.f)
+DNNL_BACKEND_SINGLE_NODE_TRANSFORM(elu_pass, dnnl, Elu, 8.f)
+DNNL_BACKEND_SINGLE_NODE_TRANSFORM(exp_pass, dnnl, Exp, 8.f)
+DNNL_BACKEND_SINGLE_NODE_TRANSFORM(hardtanh_pass, dnnl, HardTanh, 8.f)
+DNNL_BACKEND_SINGLE_NODE_TRANSFORM(log_pass, dnnl, Log, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(sum_pass, dnnl, Add, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(mul_pass, dnnl, Multiply, 8.f)
+DNNL_BACKEND_SINGLE_NODE_TRANSFORM(max_pass, dnnl, Maximum, 8.f)
+DNNL_BACKEND_SINGLE_NODE_TRANSFORM(min_pass, dnnl, Minimum, 8.f)
+DNNL_BACKEND_SINGLE_NODE_TRANSFORM(pow_pass, dnnl, Pow, 8.f)
+DNNL_BACKEND_SINGLE_NODE_TRANSFORM(sqrt_pass, dnnl, Sqrt, 8.f)
+DNNL_BACKEND_SINGLE_NODE_TRANSFORM(square_pass, dnnl, Square, 8.f)
+DNNL_BACKEND_SINGLE_NODE_TRANSFORM(tanh_pass, dnnl, Tanh, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(log_softmax_pass, dnnl, LogSoftmax, 8.f)
 DNNL_BACKEND_SINGLE_NODE_TRANSFORM(
         log_softmax_bw_pass, dnnl, LogSoftmaxBackprop, 8.f)

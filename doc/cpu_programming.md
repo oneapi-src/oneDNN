@@ -113,8 +113,8 @@ op wildcard {3, op::kind::Wildcard, {}, {add_input_2_lt}, "wildcard_0"};
 ~~~
 
 Users are also able to specify the output(s) of the graph through `End` op.
-Below code is used to specify the output of `Convolution` and `ReLU` op are also
-the outputs of the whole graph.
+Below code is used to specify the outputs of `Convolution` and `ReLU` ops, which
+are also the outputs of the whole graph.
 
 ~~~cpp
 op end_0 {4, op::kind::End, {conv_dst_lt}, {}, "end_0"};
