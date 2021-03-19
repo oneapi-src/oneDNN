@@ -74,6 +74,19 @@ int off_nCdhw32c(
     return off;
 }
 
+int off_NCdhw32n16c(
+        int n, int c, int d, int h, int w, int C, int D, int H, int W) {
+    int off = 0;
+    off += (n / 32) * (C / 16) * D * H * W * 32 * 16;
+    off += (c / 16) * D * H * W * 32 * 16;
+    off += d * H * W * 32 * 16;
+    off += h * W * 32 * 16;
+    off += w * 32 * 16;
+    off += (n % 32) * 16;
+    off += (c % 16);
+    return off;
+}
+
 int off_NCdhw32n32c(
         int n, int c, int d, int h, int w, int C, int D, int H, int W) {
     int c_32_block = OC % 32 ? (32 + OC - (OC % 32)) : OC;
@@ -132,28 +145,26 @@ int off_gIOdhw16i16o(int g, int o, int i, int d, int h, int w, int O, int I,
 int src_off(int n, int c, int d, int h, int w) {
 #if SRC_NCHW
     return off_ncdhw(n, c, d, h, w, G * IC, ID, IH, IW);
-#endif
-#if SRC_NHWC
+#elif SRC_NHWC
     return off_ndhwc(n, c, d, h, w, G * IC, ID, IH, IW);
-#endif
-#if SRC_W16C
+#elif SRC_W16C
     return off_nCdhw16c(n, c, d, h, w, G * IC, ID, IH, IW);
-#endif
-#if SRC_16N16C
+#elif SRC_16N16C
     return off_NCdhw16n16c(n, c, d, h, w, G * IC, ID, IH, IW);
+#else
+#error "Unknown layout"
 #endif
-    return 0;
 }
 
 int wei_off(int g, int o, int i, int d, int h, int w) {
 #if WEI_I16O
     return off_gOdhwi16o(g, o, i, d, h, w, OC, IC, KD, KH, KW);
-#endif
-#if WEI_16I16O
+#elif WEI_16I16O
     return off_gOIdhw16i16o(g, o, i, d, h, w, OC, IC, KD, KH, KW);
-#endif
-#if WEI_16I16O_FLIPPED
+#elif WEI_16I16O_FLIPPED
     return off_gIOdhw16i16o(g, o, i, d, h, w, OC, IC, KD, KH, KW);
+#else
+#error "Unknown layout"
 #endif
     return 0;
 }
@@ -161,23 +172,21 @@ int wei_off(int g, int o, int i, int d, int h, int w) {
 int dst_off(int n, int c, int d, int h, int w) {
 #if DST_NCHW
     return off_ncdhw(n, c, d, h, w, G * OC_WO_PADDING, OD, OH, OW);
-#endif
-#if DST_NHWC
+#elif DST_NHWC
     return off_ndhwc(n, c, d, h, w, G * OC, OD, OH, OW);
-#endif
-#if DST_W16C
+#elif DST_W16C
     return off_nCdhw16c(n, c, d, h, w, G * OC, OD, OH, OW);
-#endif
-#if DST_16N16C
+#elif DST_16N16C
     return off_NCdhw16n16c(n, c, d, h, w, G * OC, OD, OH, OW);
-#endif
-#if DST_W32C
+#elif DST_W32C
     return off_nCdhw32c(n, c, d, h, w, G * OC, OD, OH, OW);
-#endif
-#if DST_32N32C
+#elif DST_32N16C
+    return off_NCdhw32n16c(n, c, d, h, w, G * OC, OD, OH, OW);
+#elif DST_32N32C
     return off_NCdhw32n32c(n, c, d, h, w, G * OC, OD, OH, OW);
+#else
+#error "Unknown layout"
 #endif
-    return 0;
 }
 
 #endif // GPU_OCL_OFFSETS_H
