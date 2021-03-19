@@ -31,7 +31,7 @@ DNNL_GRAPH_OP_SCHEMA(Add, 1,
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, "numpy")
+                        false, attribute_kind::s, "numpy")
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
@@ -41,19 +41,24 @@ DNNL_GRAPH_OP_SCHEMA(AvgPool, 1,
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("strides", "the distance to slide the filter", true)
-                .set_attr("pads_begin", "top and left padding", true)
-                .set_attr("pads_end", "bottom and right padding", true)
-                .set_attr("exclude_pad", "a type of pooling strategy", true)
-                .set_attr("kernel", "size of each filter", true)
+                .set_attr("strides", "the distance to slide the filter", true,
+                        attribute_kind::is)
+                .set_attr("pads_begin", "top and left padding", true,
+                        attribute_kind::is)
+                .set_attr("pads_end", "bottom and right padding", true,
+                        attribute_kind::is)
+                .set_attr("exclude_pad", "a type of pooling strategy", true,
+                        attribute_kind::is)
+                .set_attr("kernel", "size of each filter", true,
+                        attribute_kind::is)
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, "NXC")
+                        false, attribute_kind::s, "NXC")
                 .set_attr("rounding_type", "a type of rounding to be applied",
-                        false, "floor")
+                        false, attribute_kind::s, "floor")
                 .set_attr("auto_pad", "how the padding is calculated", false,
-                        "None")
+                        attribute_kind::s, "None")
                 .set_shape_inference_function(infer_pool_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(AvgPoolBackprop, 1,
@@ -66,17 +71,22 @@ DNNL_GRAPH_OP_SCHEMA(AvgPoolBackprop, 1,
                         "pool")
                 .set_output(0, "input_delta",
                         "the the gradient tensor w.r.t. the input of avg pool")
-                .set_attr("strides", "the distance to slide the filter", true)
-                .set_attr("pads_begin", "top and left padding", true)
-                .set_attr("pads_end", "bottom and right padding", true)
-                .set_attr("exclude_pad", "a type of pooling strategy", true)
-                .set_attr("kernel", "size of each filter", true)
+                .set_attr("strides", "the distance to slide the filter", true,
+                        attribute_kind::is)
+                .set_attr("pads_begin", "top and left padding", true,
+                        attribute_kind::is)
+                .set_attr("pads_end", "bottom and right padding", true,
+                        attribute_kind::is)
+                .set_attr("exclude_pad", "a type of pooling strategy", true,
+                        attribute_kind::b)
+                .set_attr("kernel", "size of each filter", true,
+                        attribute_kind::is)
                 .set_attr("auto_pad", "how the padding is calculated", false,
-                        "None")
+                        attribute_kind::s, "None")
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, "NXC")
+                        false, attribute_kind::s, "NXC")
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(BatchNormInference, 1,
@@ -93,11 +103,11 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormInference, 1,
                 .set_attr("epsilon",
                         "the number to be added to the variance to avoid "
                         "division by zero",
-                        true)
+                        true, attribute_kind::f)
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, "NXC")
+                        false, attribute_kind::s, "NXC")
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(BatchNormForwardTraining, 1,
@@ -120,15 +130,15 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormForwardTraining, 1,
                 .set_attr("epsilon",
                         "the number to be added to the variance to avoid "
                         "division by zero",
-                        true)
+                        true, attribute_kind::f)
                 .set_attr("momentum",
                         "used for the computation of running_mean and "
                         "running_var",
-                        false)
+                        false, attribute_kind::f)
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, "NXC")
+                        false, attribute_kind::s, "NXC")
                 .set_shape_inference_function(infer_bn_fwd_train_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackprop, 1,
@@ -160,15 +170,15 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackprop, 1,
                 .set_attr("epsilon",
                         " the number to be added to the variance to avoid "
                         "division by zero",
-                        true)
+                        true, attribute_kind::f)
                 .set_attr("is_training",
                         "used to indicate whether the operation is for "
                         "training",
-                        false, true)
+                        false, attribute_kind::b, true)
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, "NXC")
+                        false, attribute_kind::s, "NXC")
                 .set_shape_inference_function(infer_bn_bwd_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(BiasAdd, 1,
@@ -184,7 +194,7 @@ DNNL_GRAPH_OP_SCHEMA(BiasAdd, 1,
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, "NXC")
+                        false, attribute_kind::s, "NXC")
                 .set_shape_inference_function(infer_bias_add_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(BiasAddBackprop, 1,
@@ -196,7 +206,7 @@ DNNL_GRAPH_OP_SCHEMA(BiasAddBackprop, 1,
                 .set_output(0, "bias_delta", "gradient tensor w.r.t. bias")
                 .set_attr("data_format",
                         "the data format of input, the options are NCX and NXC",
-                        false, "NXC")
+                        false, attribute_kind::s, "NXC")
                 .set_shape_inference_function(infer_bias_backprop_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Clamp, 1,
@@ -205,8 +215,10 @@ DNNL_GRAPH_OP_SCHEMA(Clamp, 1,
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("min", "lower bound of values in the output", true)
-                .set_attr("max", "upper bound of values in the output", true)
+                .set_attr("min", "lower bound of values in the output", true,
+                        attribute_kind::f)
+                .set_attr("max", "upper bound of values in the output", true,
+                        attribute_kind::f)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(ClampBackprop, 1,
@@ -218,8 +230,10 @@ DNNL_GRAPH_OP_SCHEMA(ClampBackprop, 1,
                 .set_input(1, "input_forward", "input of forward")
                 .set_output(0, "input_delta",
                         "the gradient tensor w.r.t. the input of Clamp.")
-                .set_attr("min", "lower bound of values in the output", true)
-                .set_attr("max", "upper bound of values in the output", true)
+                .set_attr("min", "lower bound of values in the output", true,
+                        attribute_kind::f)
+                .set_attr("max", "upper bound of values in the output", true,
+                        attribute_kind::f)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Concat, 1,
@@ -231,7 +245,8 @@ DNNL_GRAPH_OP_SCHEMA(Concat, 1,
                 .set_input(0, "a", "first input tensor")
                 .set_output(0, "output", "output tensor")
                 .set_attr("axis",
-                        "specifies which dimension to concatenate along", true)
+                        "specifies which dimension to concatenate along", true,
+                        attribute_kind::i)
                 .set_shape_inference_function(infer_concat_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Convolution, 1,
@@ -264,7 +279,8 @@ DNNL_GRAPH_OP_SCHEMA(ConvolutionBackpropData, 1,
                 .set_attr("output_padding",
                         "additional amount of paddings to be added to each "
                         "spatial axis in the output tensor",
-                        false, std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
+                        false, attribute_kind::is,
+                        std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
                 .set_shape_inference_function(
                         infer_conv_bprop_data_output_shape)
                 .SET_CONV_COMMON_ATTRS)
@@ -295,7 +311,7 @@ DNNL_GRAPH_OP_SCHEMA(Divide, 1,
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, "numpy")
+                        false, attribute_kind::s, "numpy")
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
@@ -305,7 +321,8 @@ DNNL_GRAPH_OP_SCHEMA(Elu, 1,
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("alpha", "scale for the negative factor", true)
+                .set_attr("alpha", "scale for the negative factor", true,
+                        attribute_kind::f)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(EluBackprop, 1,
@@ -317,7 +334,8 @@ DNNL_GRAPH_OP_SCHEMA(EluBackprop, 1,
                         1, "output_delta", "gradient tensor w.r.t. the output")
                 .set_output(0, "input_delta",
                         "gradient tensor w.r.t. the input of Elu")
-                .set_attr("alpha", "scale for the negative factor", true)
+                .set_attr("alpha", "scale for the negative factor", true,
+                        attribute_kind::f)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Erf, 1,
@@ -361,8 +379,10 @@ DNNL_GRAPH_OP_SCHEMA(HardTanh, 1,
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("min", "lower bound of values in the output", true)
-                .set_attr("max", "upper bound of values in the output", true)
+                .set_attr("min", "lower bound of values in the output", true,
+                        attribute_kind::f)
+                .set_attr("max", "upper bound of values in the output", true,
+                        attribute_kind::f)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(HardTanhBackprop, 1,
@@ -373,8 +393,10 @@ DNNL_GRAPH_OP_SCHEMA(HardTanhBackprop, 1,
                         0, "output_delta", "gradient tensor w.r.t. the output")
                 .set_output(0, "input_delta",
                         "gradient tensor w.r.t. the input of HardTanh")
-                .set_attr("min", "lower bound of values in the output", true)
-                .set_attr("max", "upper bound of values in the output", true)
+                .set_attr("min", "lower bound of values in the output", true,
+                        attribute_kind::f)
+                .set_attr("max", "upper bound of values in the output", true,
+                        attribute_kind::f)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Index, 1,
@@ -403,31 +425,34 @@ DNNL_GRAPH_OP_SCHEMA(Interpolate, 4,
                         "interpolation is applied")
                 .set_output(0, "output",
                         "a tensor with selected data from input tensor")
-                .set_attr("mode", "specifies type of interpolation", true)
+                .set_attr("mode", "specifies type of interpolation", true,
+                        attribute_kind::s)
                 .set_attr("shape_calculation_mode",
                         "specifies which input, sizes or scales, is used to "
                         "calculate an output shape",
-                        true)
+                        true, attribute_kind::s)
                 .set_attr("coordinate_transformation_mode",
                         "specifies how to transform the coordinate in the "
                         "resized tensor to the coordinate in the original "
                         "tensor",
-                        false, "half_pixel")
+                        false, attribute_kind::s, "half_pixel")
                 .set_attr("nearest_mode",
                         "specifies round mode when mode == nearest and is used "
                         "only when mode == nearest.",
-                        false, "round_prefer_floor")
+                        false, attribute_kind::s, "round_prefer_floor")
                 .set_attr("antialias",
                         "antialias is a flag that specifies whether to perform "
                         "anti-aliasing.",
-                        false, false)
+                        false, attribute_kind::b, false)
                 .set_attr("pads_begin", "top and left padding", false,
+                        attribute_kind::is,
                         std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
                 .set_attr("pads_end", "bottom and right padding", false,
+                        attribute_kind::is,
                         std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
                 .set_attr("cube_coeff",
                         "specifies the parameter a for cubic interpolation",
-                        false, float(-0.75))
+                        false, attribute_kind::f, -0.75f)
                 //todo(jihui):need to set real infer function
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
@@ -449,31 +474,34 @@ DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 4,
                         "interpolation is applied")
                 .set_output(0, "output",
                         "a tensor with selected data from input tensor")
-                .set_attr("mode", "specifies type of interpolation", true)
+                .set_attr("mode", "specifies type of interpolation", true,
+                        attribute_kind::s)
                 .set_attr("shape_calculation_mode",
                         "specifies which input, sizes or scales, is used to "
                         "calculate an output shape",
-                        true)
+                        true, attribute_kind::s)
                 .set_attr("coordinate_transformation_mode",
                         "specifies how to transform the coordinate in the "
                         "resized tensor to the coordinate in the original "
                         "tensor",
-                        false, "half_pixel")
+                        false, attribute_kind::s, "half_pixel")
                 .set_attr("nearest_mode",
                         "specifies round mode when mode == nearest and is used "
                         "only when mode == nearest.",
-                        false, "round_prefer_floor")
+                        false, attribute_kind::s, "round_prefer_floor")
                 .set_attr("antialias",
                         "antialias is a flag that specifies whether to perform "
                         "anti-aliasing.",
-                        false, false)
+                        false, attribute_kind::b, false)
                 .set_attr("pads_begin", "top and left padding", false,
+                        attribute_kind::is,
                         std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
                 .set_attr("pads_end", "bottom and right padding", false,
+                        attribute_kind::is,
                         std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
                 .set_attr("cube_coeff",
                         "specifies the parameter a for cubic interpolation",
-                        false, float(-0.75))
+                        false, attribute_kind::f, -0.75f)
                 //todo(jihui):need to set real infer function
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
@@ -495,17 +523,17 @@ DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
                         "(optional) the std calculated along the given axis")
                 .set_attr("keep_stats",
                         "used to indicate whether to output mean and variance",
-                        false, true)
+                        false, attribute_kind::b, true)
                 .set_attr("begin_norm_axis",
                         "used to indicate which axis to perform layer "
                         "normalization",
-                        false, int64_t(-1))
+                        false, attribute_kind::i, int64_t(-1))
                 .set_attr("use_affine",
                         "when set to True, this module has learnable "
                         "per-element affine parameters",
-                        false, true)
+                        false, attribute_kind::b, true)
                 .set_attr("epsilon", "constant to improve numerical stability",
-                        false, float(1e-5))
+                        false, attribute_kind::f, 1e-5f)
                 .set_shape_inference_function(infer_norm_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(LayerNormBackprop, 1,
@@ -536,16 +564,16 @@ DNNL_GRAPH_OP_SCHEMA(LayerNormBackprop, 1,
                 .set_attr("begin_norm_axis",
                         "used to indicate which axis to perform layer "
                         "normalization",
-                        false, int64_t(-1))
+                        false, attribute_kind::i, int64_t(-1))
                 .set_attr("use_affine",
                         "when set to True, this module has learnable "
                         "per-element affine parameters",
-                        false, true)
+                        false, attribute_kind::b, true)
                 .set_attr("epsilon", "constant to improve numerical stability",
-                        false, float(1e-5))
+                        false, attribute_kind::f, 1e-5f)
                 .set_attr("use_stats",
                         "indicate whether to use input mean and variance",
-                        false, true)
+                        false, attribute_kind::b, true)
                 .set_shape_inference_function(infer_norm_bprop_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Log, 1,
@@ -564,7 +592,7 @@ DNNL_GRAPH_OP_SCHEMA(LogSoftmax, 1,
                 .set_output(0, "output", "output tensor")
                 .set_attr("axis",
                         "the axis of which the LogSoftmax is calculated", false,
-                        int64_t(-1))
+                        attribute_kind::i, int64_t(-1))
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(LogSoftmaxBackprop, 1,
@@ -578,7 +606,7 @@ DNNL_GRAPH_OP_SCHEMA(LogSoftmaxBackprop, 1,
                         "the gradient tensor w.r.t. the input of LogSoftmax")
                 .set_attr("axis",
                         "the axis of which the LogSoftmax is calculated", false,
-                        int64_t(-1))
+                        attribute_kind::i, int64_t(-1))
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(MatMul, 1,
@@ -601,7 +629,7 @@ DNNL_GRAPH_OP_SCHEMA(Maximum, 1,
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, "numpy")
+                        false, attribute_kind::s, "numpy")
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
@@ -611,22 +639,27 @@ DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("strides", "the distance to slide the filter", true)
-                .set_attr("pads_begin", "top and left padding", true)
-                .set_attr("pads_end", "bottom and right padding", true)
-                .set_attr("kernel", "size of each filter", true)
+                .set_attr("strides", "the distance to slide the filter", true,
+                        attribute_kind::is)
+                .set_attr("pads_begin", "top and left padding", true,
+                        attribute_kind::is)
+                .set_attr("pads_end", "bottom and right padding", true,
+                        attribute_kind::is)
+                .set_attr("kernel", "size of each filter", true,
+                        attribute_kind::is)
                 .set_attr("dilations",
                         "the distance in width and height between elements "
                         "in the filter",
-                        false, std::vector<int64_t>(1, DNNL_GRAPH_MAX_NDIMS))
+                        false, attribute_kind::is,
+                        std::vector<int64_t>(1, DNNL_GRAPH_MAX_NDIMS))
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, "NXC")
+                        false, attribute_kind::s, "NXC")
                 .set_attr("rounding_type", "a type of rounding to be applied",
-                        false, "floor")
+                        false, attribute_kind::s, "floor")
                 .set_attr("auto_pad", "how the padding is calculated", false,
-                        "None")
+                        attribute_kind::s, "None")
                 .set_shape_inference_function(infer_pool_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
@@ -641,20 +674,25 @@ DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
                         "the gradient tensor with respect to output")
                 .set_output(0, "input_delta",
                         "the gradient tensor with respect to input")
-                .set_attr("strides", "the distance to slide the filter", true)
-                .set_attr("pads_begin", "top and left padding", true)
-                .set_attr("pads_end", "bottom and right padding", true)
-                .set_attr("kernel", "size of each filter", true)
+                .set_attr("strides", "the distance to slide the filter", true,
+                        attribute_kind::is)
+                .set_attr("pads_begin", "top and left padding", true,
+                        attribute_kind::is)
+                .set_attr("pads_end", "bottom and right padding", true,
+                        attribute_kind::is)
+                .set_attr("kernel", "size of each filter", true,
+                        attribute_kind::is)
                 .set_attr("auto_pad", "how the padding is calculated", false,
-                        "None")
+                        attribute_kind::s, "None")
                 .set_attr("dilations",
                         "the distance in width and height between elements "
                         "in the filter",
-                        false, std::vector<int64_t>(1, DNNL_GRAPH_MAX_NDIMS))
+                        false, attribute_kind::is,
+                        std::vector<int64_t>(1, DNNL_GRAPH_MAX_NDIMS))
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, "NXC")
+                        false, attribute_kind::s, "NXC")
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
@@ -667,7 +705,7 @@ DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, "numpy")
+                        false, attribute_kind::s, "numpy")
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
@@ -681,7 +719,7 @@ DNNL_GRAPH_OP_SCHEMA(Multiply, 1,
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, "numpy")
+                        false, attribute_kind::s, "numpy")
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
@@ -695,7 +733,7 @@ DNNL_GRAPH_OP_SCHEMA(Pow, 1,
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, "numpy")
+                        false, attribute_kind::s, "numpy")
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
@@ -735,7 +773,7 @@ DNNL_GRAPH_OP_SCHEMA(ReduceSum, 1,
                 .set_output(0, "output", "output tensor")
                 .set_attr("keep_dims",
                         "if true, holds axes that are used for reduction.",
-                        false, false)
+                        false, attribute_kind::b, false)
                 .set_shape_inference_function(infer_reduce_sum_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(ReLU, 1,
@@ -799,7 +837,7 @@ DNNL_GRAPH_OP_SCHEMA(SigmoidBackprop, 1,
                         "gradient tensor w.r.t. the input of Sigmoid")
                 .set_attr("use_dst",
                         "if true, use dst to calculate gradient, else, use src",
-                        false, true)
+                        false, attribute_kind::b, true)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SoftMax, 1,
@@ -809,7 +847,7 @@ DNNL_GRAPH_OP_SCHEMA(SoftMax, 1,
                 .set_input(0, "input", "input tensor")
                 .set_output(0, "output", "output tensor")
                 .set_attr("axis", "the axis of which the SoftMax is calculated",
-                        false, (int64_t)1)
+                        false, attribute_kind::i, (int64_t)1)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SoftMaxBackprop, 1,
@@ -822,7 +860,7 @@ DNNL_GRAPH_OP_SCHEMA(SoftMaxBackprop, 1,
                 .set_output(0, "input_delta",
                         "the gradient tensor w.r.t. the input of SoftMax")
                 .set_attr("axis", "the axis of which the SoftMax is calculated",
-                        false, (int64_t)1)
+                        false, attribute_kind::i, (int64_t)1)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SoftPlus, 1,
@@ -832,7 +870,7 @@ DNNL_GRAPH_OP_SCHEMA(SoftPlus, 1,
                 .set_input(0, "input", "input tensor")
                 .set_output(0, "output", "output tensor")
                 .set_attr("beta", "value for the Softplus formulation", false,
-                        int64_t(1))
+                        attribute_kind::i, int64_t(1))
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SoftPlusBackprop, 1,
@@ -845,7 +883,7 @@ DNNL_GRAPH_OP_SCHEMA(SoftPlusBackprop, 1,
                 .set_output(0, "input_delta",
                         "the gradient tensor w.r.t. the input of SoftPlus")
                 .set_attr("beta", "value for the SoftPlus formulation", false,
-                        int64_t(1))
+                        attribute_kind::i, int64_t(1))
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Sqrt, 1,
@@ -870,7 +908,7 @@ DNNL_GRAPH_OP_SCHEMA(SqrtBackprop, 1,
                 .set_attr("use_dst",
                         "if true, use dst to calculate gradient; else use "
                         "src.",
-                        false, true)
+                        false, attribute_kind::b, true)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Square, 1,
@@ -900,7 +938,7 @@ DNNL_GRAPH_OP_SCHEMA(TanhBackprop, 1,
                         "the gradient tensor w.r.t. the input of Tanh")
                 .set_attr("use_dst",
                         "if true, use dst to calculate gradient; else use src",
-                        false, true)
+                        false, attribute_kind::b, true)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Transpose, 1,
@@ -986,7 +1024,8 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bias_add_elu, 1,
                 .set_input(2, "bias", "bias tensor")
                 .set_input(3, "other", "the second input tensor of add")
                 .set_output(0, "output", "output tensor")
-                .set_attr("alpha", "scale for the negative factor", true)
+                .set_attr("alpha", "scale for the negative factor", true,
+                        attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1013,10 +1052,10 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bias_add_relu6, 1,
                 .set_output(0, "output", "output tensor")
                 .set_attr("min",
                         "lower bound of values in the output, should be 0",
-                        true)
+                        true, attribute_kind::f)
                 .set_attr("max",
                         "upper bound of values in the output, should be 6",
-                        true)
+                        true, attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1039,7 +1078,8 @@ DNNL_GRAPH_OP_SCHEMA(Conv_add_elu, 1,
                 .set_input(1, "weight", "weight tensor")
                 .set_input(2, "other", "the second input tensor of add")
                 .set_output(0, "output", "output tensor")
-                .set_attr("alpha", "scale for the negative factor", true)
+                .set_attr("alpha", "scale for the negative factor", true,
+                        attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1064,10 +1104,10 @@ DNNL_GRAPH_OP_SCHEMA(Conv_add_relu6, 1,
                 .set_output(0, "output", "output tensor")
                 .set_attr("min",
                         "lower bound of values in the output, should be 0",
-                        true)
+                        true, attribute_kind::f)
                 .set_attr("max",
                         "upper bound of values in the output, should be 6",
-                        true)
+                        true, attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1080,7 +1120,8 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bias_elu, 1,
                 .set_input(2, "bias", "bias tensor")
                 .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_conv_output_shape)
-                .set_attr("alpha", "scale for the negative factor", true)
+                .set_attr("alpha", "scale for the negative factor", true,
+                        attribute_kind::f)
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(Conv_bias_hardtanh, 1,
@@ -1091,8 +1132,10 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bias_hardtanh, 1,
                 .set_input(1, "weight", "weight tensor")
                 .set_input(2, "bias", "bias tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("min", "lower bound of values in the output", true)
-                .set_attr("max", "upper bound of values in the output", true)
+                .set_attr("min", "lower bound of values in the output", true,
+                        attribute_kind::f)
+                .set_attr("max", "upper bound of values in the output", true,
+                        attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1117,10 +1160,10 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bias_relu6, 1,
                 .set_output(0, "output", "output tensor")
                 .set_attr("min",
                         "lower bound of values in the output, should be 0",
-                        true)
+                        true, attribute_kind::f)
                 .set_attr("max",
                         "upper bound of values in the output, should be 6",
-                        true)
+                        true, attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1183,7 +1226,7 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bn, 1,
                 .set_attr("epsilon",
                         " the number to be added to the variance to avoid "
                         "division by zero",
-                        true)
+                        true, attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1203,7 +1246,7 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bias_bn, 1,
                 .set_attr("epsilon",
                         " the number to be added to the variance to avoid "
                         "division by zero",
-                        true)
+                        true, attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1223,7 +1266,7 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bn_add, 1,
                 .set_attr("epsilon",
                         " the number to be added to the variance to avoid "
                         "division by zero",
-                        true)
+                        true, attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1242,7 +1285,7 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bn_relu, 1,
                 .set_attr("epsilon",
                         " the number to be added to the variance to avoid "
                         "division by zero",
-                        true)
+                        true, attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1262,7 +1305,7 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bias_bn_relu, 1,
                 .set_attr("epsilon",
                         " the number to be added to the variance to avoid "
                         "division by zero",
-                        true)
+                        true, attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1282,7 +1325,7 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bn_add_relu, 1,
                 .set_attr("epsilon",
                         " the number to be added to the variance to avoid "
                         "division by zero",
-                        true)
+                        true, attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1303,7 +1346,7 @@ DNNL_GRAPH_OP_SCHEMA(Conv_bias_bn_add_relu, 1,
                 .set_attr("epsilon",
                         " the number to be added to the variance to avoid "
                         "division by zero",
-                        true)
+                        true, attribute_kind::f)
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -1334,11 +1377,11 @@ DNNL_GRAPH_OP_SCHEMA(BatchNorm_relu, 1,
                 .set_attr("epsilon",
                         "the number to be added to the variance to avoid "
                         "division by zero",
-                        true)
+                        true, attribute_kind::f)
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, "NXC")
+                        false, attribute_kind::s, "NXC")
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(MatMul_bias, 1,
@@ -1425,7 +1468,7 @@ DNNL_GRAPH_OP_SCHEMA(MatMul_bias_bn, 1,
                 .set_attr("epsilon",
                         " the number to be added to the variance to avoid "
                         "division by zero",
-                        true)
+                        true, attribute_kind::f)
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
 
@@ -1437,7 +1480,8 @@ DNNL_GRAPH_OP_SCHEMA(MatMul_bias_elu, 1,
                 .set_input(1, "b", "second input tensor")
                 .set_input(2, "bias", "bias tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("alpha", "scale for the negative factor", true)
+                .set_attr("alpha", "scale for the negative factor", true,
+                        attribute_kind::f)
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
 
@@ -1449,8 +1493,10 @@ DNNL_GRAPH_OP_SCHEMA(MatMul_bias_hardtanh, 1,
                 .set_input(1, "b", "second input tensor")
                 .set_input(2, "bias", "bias tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("min", "lower bound of values in the output", true)
-                .set_attr("max", "upper bound of values in the output", true)
+                .set_attr("min", "lower bound of values in the output", true,
+                        attribute_kind::f)
+                .set_attr("max", "upper bound of values in the output", true,
+                        attribute_kind::f)
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
 
@@ -1475,10 +1521,10 @@ DNNL_GRAPH_OP_SCHEMA(MatMul_bias_relu6, 1,
                 .set_output(0, "output", "output tensor")
                 .set_attr("min",
                         "lower bound of values in the output, should be 0",
-                        true)
+                        true, attribute_kind::f)
                 .set_attr("max",
                         "upper bound of values in the output, should be 6",
-                        true)
+                        true, attribute_kind::f)
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
 

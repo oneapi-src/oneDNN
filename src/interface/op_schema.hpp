@@ -82,20 +82,50 @@ public:
     public:
         attribute() = default;
 
+        // constructor for optional attributes which need to have default value
         attribute(const std::string &name, std::string &&description,
-                bool required, attribute_value value)
+                bool required, attribute_kind_t attr_kind,
+                attribute_value value)
+            : name_(name)
+            , description_(std::move(description))
+            , required_(false)
+            , has_default_value_(true)
+            , attr_kind_(attr_kind)
+            , attr_(value) {
+            assertm(!required,
+                    "this attribute should be an optional attribute "
+                    "since default value is provided");
+            UNUSED(required);
+        }
+
+        // constructor for required attributes or special optional attributes
+        // that have no default value.
+        attribute(const std::string &name, std::string &&description,
+                bool required, attribute_kind_t attr_kind)
             : name_(name)
             , description_(std::move(description))
             , required_(required)
-            , attr_(value) {}
+            , has_default_value_(false)
+            , attr_kind_(attr_kind) {}
 
-        attribute(const std::string &name, std::string &&description,
-                bool required)
-            : attribute(name, std::move(description), required, {}) {}
-
+        // op attribute name.
         std::string name_;
+
+        // op attribute description.
         std::string description_;
+
+        // whether the attribute is required or not.
         bool required_;
+
+        // some special optional attribute may not have default value.
+        // i.e. momentum in BatchNormForwardTraining is an optional attribute,
+        // but it should not have default value.
+        bool has_default_value_;
+
+        // attribute data type.
+        attribute_kind_t attr_kind_;
+
+        // default value for the attribute
         attribute_value attr_;
     };
 
@@ -158,22 +188,22 @@ public:
 
     /*! @brief Set a particular attribute of the op schema. */
     op_schema &set_attr(const std::string &name, std::string &&description,
-            bool required = true);
+            bool required, attribute_kind_t attr_kind);
 
     /*! @brief Set a particular attribute of the op schema. */
     template <typename T>
     op_schema &set_attr(const std::string &name, std::string &&description,
-            bool required, T value) {
+            bool required, attribute_kind_t attr_kind, T value) {
         assertm(attributes_.count(name) == 0,
                 "provided attribute has already been set");
-        attributes_[name]
-                = attribute(name, std::move(description), required, {value});
+        attributes_[name] = attribute(
+                name, std::move(description), required, attr_kind, {value});
         return *this;
     }
 
     /*! @brief Set a particular attribute of the op schema. */
     op_schema &set_attr(const std::string &name, std::string &&description,
-            bool required, const char *value);
+            bool required, attribute_kind_t attr_kind, const char *value);
 
     /*! @brief Set shape inference function of the op schema. */
     op_schema &set_shape_inference_function(shape_infer_fn fn);
@@ -220,6 +250,11 @@ private:
             const std::vector<std::shared_ptr<value_t>> &actual_values,
             const std::vector<op_parameter> &expected_params,
             param_num_option option) const;
+    bool verify_attributes(
+            const std::unordered_map<std::string, attribute_value>
+                    &actual_attrs,
+            const std::unordered_map<std::string, attribute> &expected_attrs)
+            const;
     size_t get_max_valid_param_num(
             const std::set<size_t> &param_num, param_num_option option) const;
 
@@ -284,33 +319,36 @@ op_schema get_op_schema();
     set_attr("transpose_a", \
             "transposes dimensions ROW_INDEX_DIM and COL_INDEX_DIM " \
             "of the first input", \
-            false, false) \
+            false, attribute_kind::b, false) \
             .set_attr("transpose_b", \
                     "transposes dimensions ROW_INDEX_DIM and COL_INDEX_DIM " \
                     "of the second input", \
-                    false, false)
+                    false, attribute_kind::b, false)
 
 #define SET_CONV_COMMON_ATTRS \
-    set_attr("strides", "the distance to slide the filter", true) \
-            .set_attr("pads_begin", "top and left padding", true) \
-            .set_attr("pads_end", "bottom and right padding", true) \
+    set_attr("strides", "the distance to slide the filter", true, \
+            attribute_kind::is) \
+            .set_attr("pads_begin", "top and left padding", true, \
+                    attribute_kind::is) \
+            .set_attr("pads_end", "bottom and right padding", true, \
+                    attribute_kind::is) \
             .set_attr("dilations", \
                     "the distance in width and height between elements " \
                     "in the filter", \
-                    true) \
+                    true, attribute_kind::is) \
             .set_attr("auto_pad", "how the padding is calculated", false, \
-                    "None") \
+                    attribute_kind::s, "None") \
             .set_attr("groups", \
                     "the number of groups input / output channels are " \
                     "divided into", \
-                    false, (int64_t)1) \
+                    false, attribute_kind::i, (int64_t)1) \
             .set_attr("data_format", \
                     "the data format of input / output, the options are " \
                     "NCX and NXC", \
-                    false, "NXC") \
+                    false, attribute_kind::s, "NXC") \
             .set_attr("filter_format", \
                     "the format of weight, the options are OIX, XIO", false, \
-                    "XIO")
+                    attribute_kind::s, "XIO")
 
 } // namespace impl
 } // namespace graph

@@ -366,8 +366,10 @@ void verify_two_ins_identity_shape_infer(const op_kind_t op_kind_) {
 
 TEST(op_schema_test, duplicated_attribute) {
     EXPECT_DEATH(op_schema()
-                         .set_attr("kernel", "size of each filter", true)
-                         .set_attr("kernel", "size of each filter", true),
+                         .set_attr("kernel", "size of each filter", true,
+                                 attribute_kind::b)
+                         .set_attr("kernel", "size of each filter", true,
+                                 attribute_kind::b),
             "provided attribute has already been set");
 }
 
@@ -665,6 +667,9 @@ TEST(op_schema_test, verify_function) {
     conv_op.set_attr("filter_format", filter_format);
 
     EXPECT_TRUE(conv_op_schema->verify(&conv_op));
+
+    conv_op.set_attr("auto_pad", false);
+    EXPECT_FALSE(conv_op_schema->verify(&conv_op));
 
     std::string auto_pad = "VALID";
     conv_op.set_attr("auto_pad", auto_pad);

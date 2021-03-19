@@ -130,20 +130,22 @@ const std::vector<op_schema::op_parameter> &op_schema::get_outputs() const {
     return outputs_;
 }
 
-op_schema &op_schema::set_attr(
-        const std::string &name, std::string &&description, bool required) {
+op_schema &op_schema::set_attr(const std::string &name,
+        std::string &&description, bool required, attribute_kind_t attr_kind) {
     assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
-    attributes_[name] = attribute(name, std::move(description), required);
+    attributes_[name]
+            = attribute(name, std::move(description), required, attr_kind);
     return *this;
 }
 
 op_schema &op_schema::set_attr(const std::string &name,
-        std::string &&description, bool required, const char *value) {
+        std::string &&description, bool required, attribute_kind_t attr_kind,
+        const char *value) {
     assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
-    attributes_[name] = attribute(
-            name, std::move(description), required, {std::string(value)});
+    attributes_[name] = attribute(name, std::move(description), required,
+            attr_kind, {std::string(value)});
     return *this;
 }
 
@@ -205,6 +207,29 @@ bool op_schema::verify_param_dtype(
     return true;
 }
 
+bool op_schema::verify_attributes(
+        const std::unordered_map<std::string, attribute_value> &actual_attrs,
+        const std::unordered_map<std::string, attribute> &expected_attrs)
+        const {
+    // check if required attributes are not provided
+    for (const auto &elem : expected_attrs) {
+        if (elem.second.required_ && actual_attrs.count(elem.first) == 0) {
+            return false;
+        }
+    }
+    // check if the data types of actual attributes meet requirements
+    for (const auto &elem : actual_attrs) {
+        const std::string &attr_name = elem.first;
+        if (expected_attrs.count(attr_name) != 0
+                && elem.second.get_kind()
+                        != expected_attrs.at(attr_name).attr_kind_) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void op_schema::set_default_attribute(op_t *l_op) const {
     const std::unordered_map<std::string, attribute_value> &actual_attrs
             = l_op->get_attributes();
@@ -213,7 +238,8 @@ void op_schema::set_default_attribute(op_t *l_op) const {
     for (auto iter = expected_attrs.begin(); iter != expected_attrs.end();
             ++iter) {
         // if default attribute not set in op, set it to default value
-        if (!iter->second.required_ && actual_attrs.count(iter->first) == 0) {
+        if (iter->second.has_default_value_
+                && actual_attrs.count(iter->first) == 0) {
             attribute_value value = iter->second.attr_;
             const std::string &name = iter->first;
             l_op->set_attr(name, value);
@@ -240,17 +266,9 @@ bool op_schema::verify(const op_t *l_op) const {
             l_op->get_output_values(), outputs_, outputs_option);
     if (!param_dtype_verify_result) { return false; }
 
-    const std::unordered_map<std::string, attribute_value> &actual_attrs
-            = l_op->get_attributes();
-    const std::unordered_map<std::string, op_schema::attribute> &expected_attrs
-            = get_attrs();
-    for (auto iter = expected_attrs.begin(); iter != expected_attrs.end();
-            ++iter) {
-        if (iter->second.required_ && actual_attrs.count(iter->first) == 0) {
-            return false;
-        }
-    }
-    return true;
+    bool attr_verify_result
+            = verify_attributes(l_op->get_attributes(), attributes_);
+    return attr_verify_result;
 }
 
 status_t op_schema::shape_infer(op_t *n,
