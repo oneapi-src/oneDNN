@@ -1097,15 +1097,27 @@ static void init_info_resampling(const engine_t *e, pd_t *s, char *buffer) {
         auto md = !s->is_fwd() ? s->diff_src_md() : s->src_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " ");
-        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
     }
     { // dst
         auto md = !s->is_fwd() ? s->diff_dst_md() : s->dst_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, " ");
-        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+    }
+
+    if (s->ndims() == 5) {
+        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
+                "mb" DFMT "_ic" DFMT "_id" DFMT "od" DFMT "_ih" DFMT "oh" DFMT
+                "_iw" DFMT "ow" DFMT,
+                s->MB(), s->C(), s->ID(), s->OD(), s->IH(), s->OH(), s->IW(),
+                s->OW());
+    } else if (s->ndims() == 4) {
+        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
+                "mb" DFMT "_ic" DFMT "_ih" DFMT "oh" DFMT "_iw" DFMT "ow" DFMT,
+                s->MB(), s->C(), s->IH(), s->OH(), s->IW(), s->OW());
+    } else {
+        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
+                "mb" DFMT "_ic" DFMT "_iw" DFMT "ow" DFMT, s->MB(), s->C(),
+                s->IW(), s->OW());
     }
 
     attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
