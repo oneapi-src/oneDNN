@@ -290,72 +290,89 @@ using pk_t = attr_t::post_ops_t::kind_t;
 
 struct po_table_entry_t {
     pk_t kind;
-    const char *kind_name;
+    std::vector<std::string> kind_names;
     dnnl_alg_kind_t dnnl_kind;
 };
 
 static po_table_entry_t kind_table[] = {
         // sum
-        {pk_t::SUM, "sum", dnnl_alg_kind_undef},
+        {pk_t::SUM, {"sum"}, dnnl_alg_kind_undef},
         // depthwise convolution
-        {pk_t::DW_K3S1P1, "dw_k3s1p1", dnnl_convolution_auto},
-        {pk_t::DW_K3S2P1, "dw_k3s2p1", dnnl_convolution_auto},
+        {pk_t::DW_K3S1P1, {"dw_k3s1p1"}, dnnl_convolution_auto},
+        {pk_t::DW_K3S2P1, {"dw_k3s2p1"}, dnnl_convolution_auto},
         // eltwise
-        {pk_t::ELTWISE_START, "eltwise_undef", dnnl_alg_kind_undef},
-        {pk_t::ABS, "abs", dnnl_eltwise_abs},
-        {pk_t::BRELU, "bounded_relu", dnnl_eltwise_bounded_relu},
-        {pk_t::BRELU, "brelu", dnnl_eltwise_bounded_relu},
-        {pk_t::CLIP, "clip", dnnl_eltwise_clip},
-        {pk_t::CLIP_V2, "clip_v2", dnnl_eltwise_clip_v2},
-        {pk_t::CLIP_V2_DST, "clip_v2_dst",
+        {pk_t::ELTWISE_START, {"eltwise_undef"}, dnnl_alg_kind_undef},
+        {pk_t::ABS, {"abs", "eltwise_abs"}, dnnl_eltwise_abs},
+        {pk_t::BRELU, {"bounded_relu", "eltwise_bounded_relu", "brelu"},
+                dnnl_eltwise_bounded_relu},
+        {pk_t::CLIP, {"clip", "eltwise_clip"}, dnnl_eltwise_clip},
+        {pk_t::CLIP_V2, {"clip_v2", "eltwise_clip_v2"}, dnnl_eltwise_clip_v2},
+        {pk_t::CLIP_V2_DST, {"clip_v2_dst", "eltwise_clip_v2_use_dst_for_bwd"},
                 dnnl_eltwise_clip_v2_use_dst_for_bwd},
-        {pk_t::ELU, "elu", dnnl_eltwise_elu},
-        {pk_t::ELU_DST, "elu_dst", dnnl_eltwise_elu_use_dst_for_bwd},
-        {pk_t::EXP, "exp", dnnl_eltwise_exp},
-        {pk_t::EXP_DST, "exp_dst", dnnl_eltwise_exp_use_dst_for_bwd},
-        {pk_t::GELU_ERF, "gelu_erf", dnnl_eltwise_gelu_erf},
-        {pk_t::GELU_TANH, "gelu_tanh", dnnl_eltwise_gelu_tanh},
-        {pk_t::HARDSWISH, "hardswish", dnnl_eltwise_hardswish},
-        {pk_t::LINEAR, "linear", dnnl_eltwise_linear},
-        {pk_t::LOG, "log", dnnl_eltwise_log},
-        {pk_t::LOGISTIC, "logistic", dnnl_eltwise_logistic},
-        {pk_t::LOGISTIC_DST, "logistic_dst",
+        {pk_t::ELU, {"elu", "eltwise_elu"}, dnnl_eltwise_elu},
+        {pk_t::ELU_DST, {"elu_dst", "eltwise_elu_use_dst_for_bwd"},
+                dnnl_eltwise_elu_use_dst_for_bwd},
+        {pk_t::EXP, {"exp", "eltwise_exp"}, dnnl_eltwise_exp},
+        {pk_t::EXP_DST, {"exp_dst", "eltwise_exp_use_dst_for_bwd"},
+                dnnl_eltwise_exp_use_dst_for_bwd},
+        {pk_t::GELU_ERF, {"gelu_erf", "eltwise_gelu_erf"},
+                dnnl_eltwise_gelu_erf},
+        {pk_t::GELU_TANH, {"gelu_tanh", "eltwise_gelu_tanh"},
+                dnnl_eltwise_gelu_tanh},
+        {pk_t::HARDSWISH, {"hardswish", "eltwise_hardswish"},
+                dnnl_eltwise_hardswish},
+        {pk_t::LINEAR, {"linear", "eltwise_linear"}, dnnl_eltwise_linear},
+        {pk_t::LOG, {"log", "eltwise_log"}, dnnl_eltwise_log},
+        {pk_t::LOGISTIC, {"logistic", "eltwise_logistic"},
+                dnnl_eltwise_logistic},
+        {pk_t::LOGISTIC_DST,
+                {"logistic_dst", "eltwise_logistic_use_dst_for_bwd"},
                 dnnl_eltwise_logistic_use_dst_for_bwd},
-        {pk_t::LOGSIGMOID, "logsigmoid", dnnl_eltwise_logsigmoid},
-        {pk_t::MISH, "mish", dnnl_eltwise_mish},
-        {pk_t::POW, "pow", dnnl_eltwise_pow},
-        {pk_t::RELU, "relu", dnnl_eltwise_relu},
-        {pk_t::RELU_DST, "relu_dst", dnnl_eltwise_relu_use_dst_for_bwd},
-        {pk_t::ROUND, "round", dnnl_eltwise_round},
-        {pk_t::SQRT, "sqrt", dnnl_eltwise_sqrt},
-        {pk_t::SQRT_DST, "sqrt_dst", dnnl_eltwise_sqrt_use_dst_for_bwd},
-        {pk_t::SQUARE, "square", dnnl_eltwise_square},
-        {pk_t::SRELU, "soft_relu", dnnl_eltwise_soft_relu},
-        {pk_t::SRELU, "srelu", dnnl_eltwise_soft_relu},
-        {pk_t::SWISH, "swish", dnnl_eltwise_swish},
-        {pk_t::TANH, "tanh", dnnl_eltwise_tanh},
-        {pk_t::TANH_DST, "tanh_dst", dnnl_eltwise_tanh_use_dst_for_bwd},
-        {pk_t::ELTWISE_END, "eltwise_undef", dnnl_alg_kind_undef},
+        {pk_t::LOGSIGMOID, {"logsigmoid", "eltwise_logsigmoid"},
+                dnnl_eltwise_logsigmoid},
+        {pk_t::MISH, {"mish", "eltwise_mish"}, dnnl_eltwise_mish},
+        {pk_t::POW, {"pow", "eltwise_pow"}, dnnl_eltwise_pow},
+        {pk_t::RELU, {"relu", "eltwise_relu"}, dnnl_eltwise_relu},
+        {pk_t::RELU_DST, {"relu_dst", "eltwise_relu_use_dst_for_bwd"},
+                dnnl_eltwise_relu_use_dst_for_bwd},
+        {pk_t::ROUND, {"round", "eltwise_round"}, dnnl_eltwise_round},
+        {pk_t::SQRT, {"sqrt", "eltwise_sqrt"}, dnnl_eltwise_sqrt},
+        {pk_t::SQRT_DST, {"sqrt_dst", "eltwise_sqrt_use_dst_for_bwd"},
+                dnnl_eltwise_sqrt_use_dst_for_bwd},
+        {pk_t::SQUARE, {"square", "eltwise_square"}, dnnl_eltwise_square},
+        {pk_t::SRELU, {"soft_relu", "eltwise_soft_relu", "srelu"},
+                dnnl_eltwise_soft_relu},
+        {pk_t::SWISH, {"swish", "eltwise_swish"}, dnnl_eltwise_swish},
+        {pk_t::TANH, {"tanh", "eltwise_tanh"}, dnnl_eltwise_tanh},
+        {pk_t::TANH_DST, {"tanh_dst", "eltwise_tanh_use_dst_for_bwd"},
+                dnnl_eltwise_tanh_use_dst_for_bwd},
+        {pk_t::ELTWISE_END, {"eltwise_undef"}, dnnl_alg_kind_undef},
         // binary
-        {pk_t::BINARY_START, "binary_undef", dnnl_alg_kind_undef},
-        {pk_t::ADD, "add", dnnl_binary_add},
-        {pk_t::DIV, "div", dnnl_binary_div}, {pk_t::EQ, "eq", dnnl_binary_eq},
-        {pk_t::GE, "ge", dnnl_binary_ge}, {pk_t::GT, "gt", dnnl_binary_gt},
-        {pk_t::LE, "le", dnnl_binary_le}, {pk_t::LT, "lt", dnnl_binary_lt},
-        {pk_t::MAX, "max", dnnl_binary_max},
-        {pk_t::MIN, "min", dnnl_binary_min},
-        {pk_t::MUL, "mul", dnnl_binary_mul}, {pk_t::NE, "ne", dnnl_binary_ne},
-        {pk_t::SUB, "sub", dnnl_binary_sub},
-        {pk_t::BINARY_END, "binary_undef", dnnl_alg_kind_undef},
+        {pk_t::BINARY_START, {"binary_undef"}, dnnl_alg_kind_undef},
+        {pk_t::ADD, {"add", "binary_add"}, dnnl_binary_add},
+        {pk_t::DIV, {"div", "binary_div"}, dnnl_binary_div},
+        {pk_t::EQ, {"eq", "binary_eq"}, dnnl_binary_eq},
+        {pk_t::GE, {"ge", "binary_ge"}, dnnl_binary_ge},
+        {pk_t::GT, {"gt", "binary_gt"}, dnnl_binary_gt},
+        {pk_t::LE, {"le", "binary_le"}, dnnl_binary_le},
+        {pk_t::LT, {"lt", "binary_lt"}, dnnl_binary_lt},
+        {pk_t::MAX, {"max", "binary_max"}, dnnl_binary_max},
+        {pk_t::MIN, {"min", "binary_min"}, dnnl_binary_min},
+        {pk_t::MUL, {"mul", "binary_mul"}, dnnl_binary_mul},
+        {pk_t::NE, {"ne", "binary_ne"}, dnnl_binary_ne},
+        {pk_t::SUB, {"sub", "binary_sub"}, dnnl_binary_sub},
+        {pk_t::BINARY_END, {"binary_undef"}, dnnl_alg_kind_undef},
         // guard entry
-        {pk_t::KIND_TOTAL, "kind_undef", dnnl_alg_kind_undef}};
+        {pk_t::KIND_TOTAL, {"kind_undef"}, dnnl_alg_kind_undef}};
 
 pk_t attr_t::post_ops_t::str2kind(const std::string &str) {
     std::string s(str);
     // s.compare is lexicographical, case matters
     std::transform(s.begin(), s.end(), s.begin(), ::tolower);
     for (const auto &e : kind_table) {
-        if (s.compare(e.kind_name) == 0) return e.kind;
+        for (const auto &name : e.kind_names) {
+            if (s.compare(name) == 0) return e.kind;
+        }
     }
     assert(!"unknown attr_t::post_ops_t::kind_t kind");
     const auto table_size = sizeof(kind_table) / sizeof(*kind_table);
@@ -364,11 +381,11 @@ pk_t attr_t::post_ops_t::str2kind(const std::string &str) {
 
 const char *attr_t::post_ops_t::kind2str(pk_t kind) {
     for (const auto &e : kind_table) {
-        if (e.kind == kind) return e.kind_name;
+        if (e.kind == kind) return e.kind_names[0].c_str();
     }
     assert(!"unknown attr::post_ops::kind");
     const auto table_size = sizeof(kind_table) / sizeof(*kind_table);
-    return kind_table[table_size - 1].kind_name;
+    return kind_table[table_size - 1].kind_names[0].c_str();
 }
 
 dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(pk_t kind) {
