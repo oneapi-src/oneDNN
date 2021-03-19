@@ -566,9 +566,11 @@ static void init_info_eltwise(const engine_t *e, pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
     { // data
-        auto md = s->src_md();
+        auto md = s->use_dst() ? s->dst_md() : s->src_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+
+        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
     }
     { // diff data
         auto md = s->diff_src_md();
@@ -583,8 +585,6 @@ static void init_info_eltwise(const engine_t *e, pd_t *s, char *buffer) {
     DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written,
             "alg:%s alpha:%g beta:%g", dnnl_alg_kind2str(s->desc()->alg_kind),
             s->desc()->alpha, s->desc()->beta);
-
-    dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->src_md());
 
     verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
             dat_str, attr_str, aux_str, prb_str);
