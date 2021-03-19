@@ -894,7 +894,10 @@ static void init_info_prelu(const engine_t *e, pd_t *s, char *buffer) {
 
     attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
 
-    dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->src_md(0));
+    DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, s->src_md(0));
+    DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
+    DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
+            s->is_fwd() ? s->weights_md(0) : s->diff_weights_md(0));
 
     verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
             dat_str, attr_str, aux_str, prb_str);
