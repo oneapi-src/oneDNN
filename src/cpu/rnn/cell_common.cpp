@@ -106,16 +106,16 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
     auto dst_postgemm = rnn.is_lstm_projection ? proj_ht_ : dst_layer_;
 
-    dim_t layer_desc_idx = rnn.layer_brgemm_desc(cell_position);
-    dim_t iter_desc_idx = rnn.iter_brgemm_desc(cell_position);
+    const dim_t layer_desc_idx = rnn.layer_brgemm_desc(cell_position);
+    const dim_t iter_desc_idx = rnn.iter_brgemm_desc(cell_position);
 
-    auto LDAl = rnn.src_layer_ld(cell_position);
-    auto LDAi = rnn.src_iter_ld(cell_position);
-    auto LDAic = rnn.src_iter_c_ld(cell_position);
+    const auto LDAl = rnn.src_layer_ld(cell_position);
+    const auto LDAi = rnn.src_iter_ld(cell_position);
+    const auto LDAic = rnn.src_iter_c_ld(cell_position);
 
-    auto LDDl = rnn.dst_layer_ld(cell_position);
-    auto LDDi = rnn.dst_iter_ld(cell_position);
-    auto LDDic = rnn.dst_iter_c_ld(cell_position);
+    const auto LDDl = rnn.dst_layer_ld(cell_position);
+    const auto LDDi = rnn.dst_iter_ld(cell_position);
+    const auto LDDic = rnn.dst_iter_c_ld(cell_position);
 
     auto Al = src_layer_;
     auto Ai = src_iter_;
@@ -140,15 +140,15 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     const int Bl_k_tail_offset = rnn.KB1_blocks * rnn.k1_block * rnn.n_block;
     const int Bi_k_tail_offset = rnn.KB2_blocks * rnn.k2_block * rnn.n_block;
 
-    int Nblocking = (rnn.unfused_post_gemm) ? rnn.N_blocks * rnn.n_gates
-                                            : rnn.N_blocks;
-    int n_gates = (rnn.unfused_post_gemm) ? 1 : rnn.n_gates;
+    const int Nblocking = (rnn.unfused_post_gemm) ? rnn.N_blocks * rnn.n_gates
+                                                  : rnn.N_blocks;
+    const int n_gates = (rnn.unfused_post_gemm) ? 1 : rnn.n_gates;
 
-    int max_nthr = rnn.nthr;
-    int work_amount = Nblocking * rnn.M_blocks;
+    const int max_nthr = rnn.nthr;
+    const int work_amount = Nblocking * rnn.M_blocks;
 
-    int mask = pd_->attr()->rnn_weights_qparams_.mask_;
-    int pmask = rnn.is_lstm_projection
+    const int mask = pd_->attr()->rnn_weights_qparams_.mask_;
+    const int pmask = rnn.is_lstm_projection
             ? pd_->attr()->rnn_weights_projection_qparams_.mask_
             : 0;
 
@@ -178,12 +178,13 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         int nb_i = 0, mb = 0;
         nd_iterator_init(start, nb_i, Nblocking, mb, rnn.M_blocks);
         while (start < end) {
-            int m = mb * rnn.m_block;
+            const int m = mb * rnn.m_block;
 
-            int nb = (rnn.unfused_post_gemm) ? nb_i / rnn.n_gates : nb_i;
-            int n = nb * rnn.n_block;
+            const int nb = (rnn.unfused_post_gemm) ? nb_i / rnn.n_gates : nb_i;
+            const int n = nb * rnn.n_block;
 
-            int g_unfused = (rnn.unfused_post_gemm) ? nb_i % rnn.n_gates : 0;
+            const int g_unfused
+                    = (rnn.unfused_post_gemm) ? nb_i % rnn.n_gates : 0;
 
             auto Al_m = Al + m * LDAl;
             auto Ai_m = Ai + m * LDAi;
@@ -199,7 +200,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             const float *weights_peephole_n = weights_peephole_ + n;
             auto weights_scales_n = weights_scales + ((mask) ? n : 0);
 
-            bool do_n_tail = (n + rnn.n_block) > rnn.N;
+            const bool do_n_tail = (n + rnn.n_block) > rnn.N;
             int block_step = 0;
             brgemm_kernel_t *brgemm_kernel_layer_b0;
             brgemm_kernel_t *brgemm_kernel_iter;
@@ -230,7 +231,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
                 if (do_n_tail) amx_tile_configure(this->pallete_buff_n_tail_);
                 for (int g = 0; g < n_gates; g++) {
-                    int lg = g + g_unfused;
+                    const int lg = g + g_unfused;
                     auto Bl_g = Bl_n + lg * Bl_g_offset;
                     auto Bi_g = Bi_n + lg * Bi_g_offset;
                     auto C_g = C_n + lg * rnn.N;
