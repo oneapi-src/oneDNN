@@ -480,6 +480,7 @@ private:
     char brg_kernel_palettes_[max_num_brg_kernels_ip][64];
     dim_t get_wei_offset(const memory_desc_wrapper &diff_weights_d, int ocb,
             int icb, bool is_internal = false) const;
+    void store_in_vnni_format(const thread_info_t *ti) const;
 };
 
 } // namespace x64

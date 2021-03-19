@@ -932,6 +932,35 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
 }
 
 template <cpu_isa_t isa>
+void brgemm_inner_product_bwd_weights_t<isa>::store_in_vnni_format(
+        const thread_info_t *ti) const {
+    const auto &jbgp = pd()->jbgp_;
+
+    const size_t acc_dt_size = types::data_type_size(jbgp.acc_dt);
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
+
+    int oc_c_start = jbgp.nb_oc_blocking * ti->oc_c_start;
+    int ic_c_start = jbgp.nb_ic_blocking * ti->ic_c_start;
+    int oc_c_end = jbgp.nb_oc_blocking * ti->oc_c_end;
+    int ic_c_end = jbgp.nb_ic_blocking * ti->ic_c_end;
+
+    for_(int ocb = oc_c_start; ocb < oc_c_end; ocb++)
+    for (int icb = ic_c_start; icb < ic_c_end; icb += 2) {
+        jit_conv_call_s p = jit_conv_call_s();
+        char *output = ti->diff_weights
+                + types::data_type_size(jbgp.wei_dt)
+                        * get_wei_offset(diff_weights_d, ocb, (icb / 2), false);
+        char *input = ti->buffer_c
+                + acc_dt_size * get_wei_offset(diff_weights_d, ocb, icb, true);
+
+        p.src = (void *)input;
+        p.dst = (void *)output;
+        p.last_ic_block = ((icb + 1) >= jbgp.nb_ic) ? 1 : 0;
+        (*diff_wei_trans_kernel_)(&p);
+    }
+}
+
+template <cpu_isa_t isa>
 void brgemm_inner_product_bwd_weights_t<
         isa>::reduce_and_convert_diff_weights_and_bias(const thread_info_t *ti)
         const {
@@ -952,30 +981,6 @@ void brgemm_inner_product_bwd_weights_t<
     int reduce_buf_idx_start = is_bf16_out;
     int reduce_buf_idx_end = reduce_buffers - !is_bf16_out;
 
-    auto store_in_vnni_format = [&]() {
-        int oc_c_start = jbgp.nb_oc_blocking * ti->oc_c_start;
-        int ic_c_start = jbgp.nb_ic_blocking * ti->ic_c_start;
-        int oc_c_end = jbgp.nb_oc_blocking * ti->oc_c_end;
-        int ic_c_end = jbgp.nb_ic_blocking * ti->ic_c_end;
-
-        for_(int ocb = oc_c_start; ocb < oc_c_end; ocb++)
-        for (int icb = ic_c_start; icb < ic_c_end; icb += 2) {
-            jit_conv_call_s p = jit_conv_call_s();
-            char *output = ti->diff_weights
-                    + types::data_type_size(jbgp.wei_dt)
-                            * get_wei_offset(
-                                    diff_weights_d, ocb, (icb / 2), false);
-            char *input = ti->buffer_c
-                    + acc_dt_size
-                            * get_wei_offset(diff_weights_d, ocb, icb, true);
-
-            p.src = (void *)input;
-            p.dst = (void *)output;
-            p.last_ic_block = ((icb + 1) >= jbgp.nb_ic) ? 1 : 0;
-            (*diff_wei_trans_kernel_)(&p);
-        }
-    };
-
     if (dnnl_thr_syncable() && jbgp.nthr > 1)
         simple_barrier::barrier(ti->barrier_ctx, jbgp.nthr);
 
@@ -984,7 +989,8 @@ void brgemm_inner_product_bwd_weights_t<
     if (!(is_bf16_out && is_amx) && start == end) return;
 
     if (reduce_buffers == 1) {
-        if (is_bf16_out && is_amx) store_in_vnni_format();
+        if (is_bf16_out && is_amx && dnnl_thr_syncable())
+            store_in_vnni_format(ti);
         return;
     } else {
         if (start != end) {
@@ -1036,10 +1042,9 @@ void brgemm_inner_product_bwd_weights_t<
                 }
             }
         }
-        if (is_amx && is_bf16_out) {
-            if (dnnl_thr_syncable() && jbgp.nthr > 1)
-                simple_barrier::barrier(ti->barrier_ctx, jbgp.nthr);
-            store_in_vnni_format();
+        if (is_amx && is_bf16_out && dnnl_thr_syncable() && jbgp.nthr > 1) {
+            simple_barrier::barrier(ti->barrier_ctx, jbgp.nthr);
+            store_in_vnni_format(ti);
         }
     }
     if (start != end && jbgp.with_bias && ti->ithr_ic_c == 0
@@ -1093,6 +1098,10 @@ void brgemm_inner_product_bwd_weights_t<isa>::execute_backward_weights(
         parallel(jbgp.nthr, [&](const int ithr, const int nthr) {
             thread_info_t thread_info(this, ctx, ithr);
             reduce_and_convert_diff_weights_and_bias(&thread_info);
+        });
+        parallel(jbgp.nthr, [&](const int ithr, const int nthr) {
+            thread_info_t thread_info(this, ctx, ithr);
+            store_in_vnni_format(&thread_info);
         });
     }
 }
