@@ -63,7 +63,7 @@ class partition_impl_t;
  *      - merge attributes from the source ops.
  *      - contain the ids of source ops.
  *      - fused op/node -> partition.
- * 
+ *
  *****************************************************************************/
 
 struct dnnl_graph_op : public std::enable_shared_from_this<dnnl_graph_op> {
@@ -395,8 +395,8 @@ private:
 namespace dnnl {
 namespace graph {
 namespace impl {
-template <typename OPS, typename FUN>
-void topo_order_visit(const OPS &root_ops, const FUN &f) {
+template <typename FUN>
+void topo_order_visit(const std::vector<op_t *> &root_ops, const FUN &f) {
     std::stack<op_t *> todo;
     std::unordered_set<op_t *> visited;
     for (auto &op : root_ops) {
