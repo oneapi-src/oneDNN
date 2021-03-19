@@ -421,13 +421,11 @@ static void init_info_concat(const engine_t *e, pd_t *s, char *buffer) {
                 DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
         }
     }
+
     { // dst
         auto md = s->dst_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "dst_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, " ");
-        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
     }
 
     attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
