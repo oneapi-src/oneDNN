@@ -23,11 +23,6 @@ file(GLOB HEADERS_ROOT
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.hpp
     )
 
-file(GLOB HEADERS_LLGA
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/llga/*.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/llga/*.hpp
-    )
-
 file(GLOB HEADERS_ONEAPI
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/*.hpp
@@ -149,14 +144,6 @@ install(TARGETS ${LIB_NAME} ${LIB_NAME}_static
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     )
-
-foreach(header ${HEADERS_ROOT})
-    install(FILES ${header} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/")
-endforeach()
-
-foreach(header ${HEADERS_LLGA})
-    install(FILES ${header} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/llga/")
-endforeach()
 
 foreach(header ${HEADERS_ONEAPI})
     install(FILES ${header} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/oneapi/dnnl/")

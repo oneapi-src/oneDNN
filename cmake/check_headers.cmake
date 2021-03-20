@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020 Intel Corporation
+# Copyright 2020-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,13 +35,6 @@ function(check_headers)
         ${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/dnnl_graph.h
         ${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/dnnl_graph_types.h
         ${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/dnnl_graph.hpp
-        # Legacy headers for backward compatibility
-        ${PROJECT_SOURCE_DIR}/include/llga/llga.h
-        ${PROJECT_SOURCE_DIR}/include/llga/llga_types.h
-        ${PROJECT_SOURCE_DIR}/include/llga/llga.hpp
-        ${PROJECT_SOURCE_DIR}/include/llga.h
-        ${PROJECT_SOURCE_DIR}/include/llga_types.h
-        ${PROJECT_SOURCE_DIR}/include/llga.hpp
         )
 
     set(CMAKE_REQUIRED_INCLUDES "${PROJECT_SOURCE_DIR}/include/")

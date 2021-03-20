@@ -1329,11 +1329,6 @@ namespace dnnl = ::dnnl;
 #endif
 } // namespace oneapi
 
-/// For llga compatibility
-namespace llga {
-namespace api = ::dnnl::graph;
-} // namespace llga
-
 /// @} dnnl_graph_api
 
 #endif
