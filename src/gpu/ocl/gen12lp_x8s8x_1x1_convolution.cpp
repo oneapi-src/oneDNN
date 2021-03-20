@@ -61,6 +61,9 @@ status_t gen12lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_conf(
             = conf.stride_d == 1 && conf.stride_h == 1 && conf.stride_w == 1;
     const bool is_padded = conf.l_pad > 0 || conf.t_pad > 0 || conf.f_pad > 0;
 
+    // TODO: fix r-padded shapes issue in 1x1 kernel
+    if (conf.r_pad > 0) return status::unimplemented;
+
     if (is_stride1 || is_padded) {
         // reshape to nCx32c
         ow = ow * oh * od;
