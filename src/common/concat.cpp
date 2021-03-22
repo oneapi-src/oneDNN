@@ -29,10 +29,14 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::status;
 
-status_t dnnl_concat_primitive_desc_create(
-        primitive_desc_iface_t **concat_pd_iface, const memory_desc_t *dst_md,
-        int n, int concat_dim, const memory_desc_t *src_mds,
-        const primitive_attr_t *attr, engine_t *engine) {
+namespace dnnl {
+namespace impl {
+
+status_t concat_primitive_desc_create(primitive_desc_iface_t **concat_pd_iface,
+        const memory_desc_t *dst_md, int n, int concat_dim,
+        const memory_desc_t *src_mds, const primitive_attr_t *attr,
+        engine_t *engine) {
+
     bool args_ok = !any_null(concat_pd_iface, src_mds) && n > 0;
     if (!args_ok) return invalid_arguments;
 
@@ -85,4 +89,15 @@ status_t dnnl_concat_primitive_desc_create(
         }
     }
     return unimplemented;
+}
+
+} // namespace impl
+} // namespace dnnl
+
+status_t dnnl_concat_primitive_desc_create(
+        primitive_desc_iface_t **concat_pd_iface, const memory_desc_t *dst_md,
+        int n, int concat_dim, const memory_desc_t *src_mds,
+        const primitive_attr_t *attr, engine_t *engine) {
+    return concat_primitive_desc_create(
+            concat_pd_iface, dst_md, n, concat_dim, src_mds, attr, engine);
 }

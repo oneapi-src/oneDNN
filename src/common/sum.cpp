@@ -31,10 +31,14 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::status;
 
-status_t dnnl_sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
+namespace dnnl {
+namespace impl {
+
+status_t sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
         const memory_desc_t *dst_md, int n, const float *scales,
         const memory_desc_t *src_mds, const primitive_attr_t *attr,
         engine_t *engine) {
+
     bool args_ok = !any_null(sum_pd_iface, src_mds, scales) && n > 0;
     if (!args_ok) return invalid_arguments;
 
@@ -79,4 +83,15 @@ status_t dnnl_sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
         }
     }
     return unimplemented;
+}
+
+} // namespace impl
+} // namespace dnnl
+
+status_t dnnl_sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
+        const memory_desc_t *dst_md, int n, const float *scales,
+        const memory_desc_t *src_mds, const primitive_attr_t *attr,
+        engine_t *engine) {
+    return sum_primitive_desc_create(
+            sum_pd_iface, dst_md, n, scales, src_mds, attr, engine);
 }
