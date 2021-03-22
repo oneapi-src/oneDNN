@@ -473,9 +473,9 @@ public:
     ///
     /// @returns Layout id
     int64_t get_layout_id() const {
-        // TODO(lvtao): exceptions on API level should be more unified
         if (get_layout_type() != layout_type::opaque) {
-            throw std::runtime_error {"Error: layout type is not opaque."};
+            error::check_succeed(dnnl_graph_result_error_invalid_argument,
+                    "layout type should be opaque");
         }
 
         return data.layout.layout_id;
@@ -485,9 +485,9 @@ public:
     ///
     /// @returns A copy of strides vector
     dims_t get_strides() const {
-        // TODO(lvtao): exceptions on API level should be more unified
         if (get_layout_type() != layout_type::strided) {
-            throw std::runtime_error {"Error: layout type is not strided."};
+            error::check_succeed(dnnl_graph_result_error_invalid_argument,
+                    "layout type should be strided");
         }
 
         return {data.layout.strides, data.layout.strides + data.ndims};
