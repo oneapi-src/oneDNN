@@ -43,31 +43,24 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     const auto impl_list
             = engine->get_implementation_list((op_desc_t *)gemm_desc);
 
-    dnnl::impl::primitive_desc_t *gemm_candidate_pd = nullptr;
+    int current_impl_idx
+            = impl_list_item_t::find<ocl::gemm_with_post_ops_t::pd_t>(
+                    impl_list);
 
-    status_t pd_create_res = status_t::dnnl_unimplemented;
-    unsigned list_idx = 0;
-    do {
-        if (impl_list[list_idx].create_pd_func_
-                != &primitive_desc_t::create<ocl::gemm_with_post_ops_t::pd_t>) {
-            pd_create_res = impl_list[list_idx](&gemm_candidate_pd,
-                    (op_desc_t *)gemm_desc, attributes_with_po, engine,
-                    nullptr);
+    dnnl_primitive_desc_iterator it_gemm_with_po(engine,
+            (op_desc_t *)&gemm_desc, attributes_with_po, nullptr,
+            current_impl_idx /* skip implementation */);
+    if (!it_gemm_with_po.is_initialized()) return status::invalid_arguments;
+    gemm_pd_.reset((++it_gemm_with_po).fetch_once());
+    // exit if gemm kernel support post ops
+    if (gemm_pd_) return status::unimplemented;
 
-            // exit if gemm kernel support post ops
-            if (pd_create_res == status_t::dnnl_success) {
-                delete gemm_candidate_pd;
-                return status::unimplemented;
-            }
-
-            pd_create_res = impl_list[list_idx](&gemm_candidate_pd,
-                    (op_desc_t *)gemm_desc, attributes_without_po, engine,
-                    nullptr);
-        }
-    } while (pd_create_res != status_t::dnnl_success && impl_list[++list_idx]);
-
-    CHECK(pd_create_res);
-    gemm_pd_.reset(gemm_candidate_pd);
+    dnnl_primitive_desc_iterator it_gemm_without_po(engine,
+            (op_desc_t *)&gemm_desc, attributes_without_po, nullptr,
+            current_impl_idx /* skip implementation */);
+    if (!it_gemm_without_po.is_initialized()) return status::invalid_arguments;
+    gemm_pd_.reset((++it_gemm_without_po).fetch_once());
+    if (!gemm_pd_) return status::unimplemented;
 
     desc_.c_desc = *gemm_pd_->dst_md();
 
