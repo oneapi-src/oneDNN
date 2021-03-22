@@ -30,14 +30,15 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
     dnnl_primitive_desc_iterator(dnnl::impl::engine_t *engine,
             const dnnl::impl::op_desc_t *op_desc,
             const dnnl::impl::primitive_attr_t *attr,
-            const dnnl::impl::primitive_desc_t *hint_fwd_pd)
+            const dnnl::impl::primitive_desc_t *hint_fwd_pd, int skip_idx = -1)
         : idx_(-1)
         , engine_(engine)
         , op_desc_(op_desc)
         , attr_(attr ? *attr : dnnl::impl::primitive_attr_t())
         , hint_fwd_pd_(hint_fwd_pd)
         , impl_list_(engine_->get_implementation_list(op_desc_))
-        , last_idx_(0) {
+        , last_idx_(0)
+        , skip_idx_(skip_idx) {
         while (impl_list_[last_idx_])
             ++last_idx_;
         is_initialized_ = is_initialized_ && attr_.is_initialized();
@@ -59,6 +60,7 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
     dnnl::impl::primitive_desc_iterator_t &operator++() {
         pd_.reset();
         while (++idx_ != last_idx_) {
+            if (idx_ == skip_idx_) continue;
             dnnl::impl::primitive_desc_t *candidate_pd = nullptr;
             auto s = impl_list_[idx_](
                     &candidate_pd, op_desc_, &attr_, engine_, hint_fwd_pd_);
@@ -99,6 +101,7 @@ protected:
     const dnnl::impl::primitive_desc_t *hint_fwd_pd_;
     const dnnl::impl::impl_list_item_t *impl_list_;
     int last_idx_;
+    int skip_idx_;
 
 private:
     dnnl_primitive_desc_iterator(dnnl::impl::engine_t *engine, int last_idx)
@@ -107,7 +110,8 @@ private:
         , op_desc_(nullptr)
         , hint_fwd_pd_(nullptr)
         , impl_list_(nullptr)
-        , last_idx_(last_idx) {}
+        , last_idx_(last_idx)
+        , skip_idx_(-1) {}
 
     dnnl_primitive_desc_iterator(dnnl_primitive_desc_iterator &&other)
         : idx_(other.idx_)
@@ -116,7 +120,8 @@ private:
         , op_desc_(other.op_desc_)
         , attr_(other.attr_)
         , hint_fwd_pd_(other.hint_fwd_pd_)
-        , impl_list_(other.impl_list_) {}
+        , impl_list_(other.impl_list_)
+        , skip_idx_(other.skip_idx_) {}
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive_desc_iterator);
 };
