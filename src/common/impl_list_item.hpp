@@ -90,6 +90,7 @@ struct impl_list_item_t {
         return -1;
     }
 
+private:
     status_t operator()(primitive_desc_t **pd, const op_desc_t *adesc,
             const primitive_attr_t *attr, engine_t *engine,
             const primitive_desc_t *hint_fwd) const {
@@ -131,6 +132,16 @@ struct impl_list_item_t {
     create_pd_func_t create_pd_func_ = nullptr;
     create_concat_pd_func_t create_concat_pd_func_ = nullptr;
     create_sum_pd_func_t create_sum_pd_func_ = nullptr;
+
+    // List of functions/classes that have permissions to create primitive
+    // descriptors.
+    friend struct ::dnnl_primitive_desc_iterator;
+    friend status_t concat_primitive_desc_create(primitive_desc_iface_t **,
+            const memory_desc_t *, int, int, const memory_desc_t *,
+            const primitive_attr_t *, engine_t *);
+    friend status_t sum_primitive_desc_create(primitive_desc_iface_t **,
+            const memory_desc_t *, int, const float *, const memory_desc_t *,
+            const primitive_attr_t *, engine_t *);
 };
 
 } // namespace impl

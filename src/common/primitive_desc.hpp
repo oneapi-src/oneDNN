@@ -210,6 +210,28 @@ struct primitive_desc_t : public c_compatible {
 
     virtual const char *name() const = 0;
 
+protected:
+    primitive_attr_t attr_;
+    primitive_kind_t kind_;
+
+    memory_desc_t scratchpad_md_;
+
+    mutable pd_info_t info_;
+
+    memory_tracking::registry_t scratchpad_registry_;
+
+protected:
+    /** compares ws between fwd_pd and this (make sense to use for bwd_pd)
+     * Expectation: this already set workspace, and this workspace should
+     *              exactly match the one from fwd_pd */
+    bool compare_ws(const primitive_desc_t *fwd_pd) const {
+        if (!workspace_md()) return true; // the impl lives fine w/o workspace
+        return fwd_pd && fwd_pd->workspace_md()
+                && *fwd_pd->workspace_md() == *workspace_md();
+    }
+
+    primitive_desc_t &operator=(const primitive_desc_t &other) = delete;
+
     /* static magic */
 
     template <typename pd_t>
@@ -246,27 +268,7 @@ struct primitive_desc_t : public c_compatible {
         return success;
     }
 
-protected:
-    primitive_attr_t attr_;
-    primitive_kind_t kind_;
-
-    memory_desc_t scratchpad_md_;
-
-    mutable pd_info_t info_;
-
-    memory_tracking::registry_t scratchpad_registry_;
-
-protected:
-    /** compares ws between fwd_pd and this (make sense to use for bwd_pd)
-     * Expectation: this already set workspace, and this workspace should
-     *              exactly match the one from fwd_pd */
-    bool compare_ws(const primitive_desc_t *fwd_pd) const {
-        if (!workspace_md()) return true; // the impl lives fine w/o workspace
-        return fwd_pd && fwd_pd->workspace_md()
-                && *fwd_pd->workspace_md() == *workspace_md();
-    }
-
-    primitive_desc_t &operator=(const primitive_desc_t &other) = delete;
+    friend struct dnnl::impl::impl_list_item_t;
 };
 
 } // namespace impl
