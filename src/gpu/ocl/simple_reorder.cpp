@@ -166,6 +166,11 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
             = !conf.has_padding && !conf.scale_quant && !type_s8_u8;
     if (!conf.scale_quant) {
         if (matches_one_NxN_layout(src_mdw, dst_mdw, 16)) {
+            // W/A for compiler bug: avoid using intel_sub_group_shuffle with
+            // SIMD16 on gen12lp
+            if (dev_info->gpu_arch() == compute::gpu_arch_t::gen12lp) {
+                return reorder_kernel_t::transpose8x8;
+            }
             return reorder_kernel_t::transpose16x16;
         }
         if (matches_one_NxN_layout(src_mdw, dst_mdw, 8)) {
