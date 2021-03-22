@@ -493,6 +493,21 @@ private:
     dim_t get_wei_offset(const memory_desc_wrapper &diff_weights_d, int ocb,
             int icb, bool is_internal = false) const;
     void store_in_vnni_format(const thread_info_t *ti) const;
+
+    inline bool is_bf16_out() const {
+        const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
+        return diff_weights_d.data_type() == data_type::bf16;
+    }
+
+    inline bool store_amx_vnni_weights() const {
+        constexpr bool is_amx = (isa == avx512_core_bf16_amx_bf16);
+        return is_amx && is_bf16_out();
+    }
+
+    inline bool store_cpx_vnni_weights() const {
+        constexpr bool is_amx = (isa == avx512_core_bf16_amx_bf16);
+        return !is_amx && is_bf16_out();
+    }
 };
 
 } // namespace x64

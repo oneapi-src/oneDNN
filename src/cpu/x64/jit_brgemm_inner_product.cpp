@@ -1067,11 +1067,8 @@ void brgemm_inner_product_bwd_weights_t<
         const {
     const auto &jbgp = pd()->jbgp_;
     const int icb_scale = jbgp.ic_block / jbgp.simd_w;
-
-    static constexpr bool is_amx = (isa == avx512_core_bf16_amx_bf16);
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
 
-    const bool is_bf16_out = diff_weights_d.data_type() == data_type::bf16;
     const int icb_work = ti->ic_c_work * jbgp.nb_ic_blocking;
     const int ocb_work = ti->oc_c_work * jbgp.nb_oc_blocking;
     const int work = ocb_work * icb_work;
@@ -1080,24 +1077,24 @@ void brgemm_inner_product_bwd_weights_t<
 
     int os_chunks = utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking);
     int reduce_buffers = nstl::min(ti->nthr_os_c, os_chunks);
-    int reduce_buf_idx_start = is_bf16_out;
-    int reduce_buf_idx_end = reduce_buffers - !is_bf16_out;
+    int reduce_buf_idx_start = is_bf16_out();
+    int reduce_buf_idx_end = reduce_buffers - !is_bf16_out();
 
     if (dnnl_thr_syncable() && jbgp.nthr > 1)
         simple_barrier::barrier(ti->barrier_ctx, jbgp.nthr);
 
     int start = 0, end = 0;
     balance211(work, ti->nthr_os_c, ti->ithr_os_c, start, end);
-    if (!(is_bf16_out && is_amx) && start == end) return;
+    if (!store_amx_vnni_weights() && start == end) return;
 
     if (reduce_buffers == 1) {
-        if (is_bf16_out && is_amx && dnnl_thr_syncable())
+        if (store_amx_vnni_weights() && dnnl_thr_syncable())
             store_in_vnni_format(ti);
         return;
     } else {
         if (start != end) {
             int icb_l = 0, ocb_l = 0;
-            char *wei_reduced = is_bf16_out ? ti->buffer_c : ti->diff_weights;
+            char *wei_reduced = is_bf16_out() ? ti->buffer_c : ti->diff_weights;
             const size_t red_buf_elems = (size_t)jbgp.nb_ic * jbgp.ic_block
                     * jbgp.nb_oc * jbgp.oc_block;
             const int acc_size = jbgp.ic_block * jbgp.oc_block;
@@ -1116,7 +1113,7 @@ void brgemm_inner_product_bwd_weights_t<
                                     + acc_dt_size
                                             * get_wei_offset(diff_weights_d,
                                                     ocb, icb * icb_scale,
-                                                    is_bf16_out)),
+                                                    is_bf16_out())),
                             (float *)(wei_to_reduce
                                     + acc_dt_size
                                             * get_wei_offset(diff_weights_d,
@@ -1124,7 +1121,7 @@ void brgemm_inner_product_bwd_weights_t<
                                                     true)),
                             acc_size);
 
-                    if (!is_amx && is_bf16_out
+                    if (store_cpx_vnni_weights()
                             && ir + 1 == reduce_buf_idx_end) {
                         char *out_wei_ptr = (char *)ti->diff_weights;
                         auto ctx = jit_brgemm_trans_to_vnni_t::ctx_t();
@@ -1148,7 +1145,7 @@ void brgemm_inner_product_bwd_weights_t<
                 }
             }
         }
-        if (is_amx && is_bf16_out && dnnl_thr_syncable() && jbgp.nthr > 1) {
+        if (store_amx_vnni_weights() && dnnl_thr_syncable() && jbgp.nthr > 1) {
             simple_barrier::barrier(ti->barrier_ctx, jbgp.nthr);
             store_in_vnni_format(ti);
         }
