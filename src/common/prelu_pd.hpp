@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,9 +31,6 @@ struct prelu_fwd_pd_t;
 struct prelu_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::prelu;
 
-    prelu_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
-            const prelu_fwd_pd_t *hint_fwd_pd);
-
     const prelu_desc_t *desc() const;
     const op_desc_t *op_desc() const override;
 
@@ -60,15 +57,15 @@ protected:
     memory_desc_t data_md_;
     memory_desc_t weights_md_;
 
+    prelu_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
+            const prelu_fwd_pd_t *hint_fwd_pd);
+
 private:
     const memory_desc_t &data_desc() const;
 };
 
 struct prelu_fwd_pd_t : public prelu_pd_t {
     typedef prelu_fwd_pd_t hint_class;
-
-    prelu_fwd_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
-            const prelu_fwd_pd_t *hint_fwd_pd);
 
     arg_usage_t arg_usage(int arg) const override;
 
@@ -78,14 +75,14 @@ struct prelu_fwd_pd_t : public prelu_pd_t {
     int n_outputs() const override;
 
 protected:
+    prelu_fwd_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
+            const prelu_fwd_pd_t *hint_fwd_pd);
+
     bool set_default_formats();
 };
 
 struct prelu_bwd_pd_t : public prelu_pd_t {
     typedef prelu_fwd_pd_t hint_class;
-
-    prelu_bwd_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
-            const prelu_fwd_pd_t *hint_fwd_pd);
 
     arg_usage_t arg_usage(int arg) const override;
     const memory_desc_t *arg_md(int arg) const override;
@@ -98,6 +95,9 @@ struct prelu_bwd_pd_t : public prelu_pd_t {
 protected:
     memory_desc_t diff_data_md_;
     memory_desc_t diff_weights_md_;
+
+    prelu_bwd_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
+            const prelu_fwd_pd_t *hint_fwd_pd);
 
     bool set_default_formats();
 };

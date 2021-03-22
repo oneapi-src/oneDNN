@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,10 +32,6 @@ struct gemm_pd_t : public primitive_desc_t {
 
     typedef gemm_pd_t base_class;
     typedef gemm_pd_t hint_class;
-
-    gemm_pd_t(const gemm_desc_t *adesc, const primitive_attr_t *attr,
-            const hint_class *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind), desc_(*adesc) {}
 
     const gemm_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -81,6 +77,10 @@ protected:
     // overheads. This means we lose the users memory descs when we
     // resolve the 'any' tags.
     gemm_desc_t desc_;
+
+    gemm_pd_t(const gemm_desc_t *adesc, const primitive_attr_t *attr,
+            const hint_class *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind), desc_(*adesc) {}
 
     // By default, we just resolve 'any' with blocked layout and trivial strides
     bool set_default_formats() {

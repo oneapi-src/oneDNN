@@ -326,7 +326,11 @@ protected:
                 primitive, this, engine, use_global_scratchpad); \
     } \
     const char *name() const override { return impl_name; } \
-    std::type_index impl_id() const override { return typeid(pd_t); }
+    std::type_index impl_id() const override { return typeid(pd_t); } \
+    template <typename pd_t> \
+    friend status_t primitive_desc_t::create(primitive_desc_t **pd, \
+            const op_desc_t *adesc, const primitive_attr_t *attr, \
+            engine_t *engine, const primitive_desc_t *hint_fwd);
 
 #define DECLARE_COMMON_PD_T_USE_GLOBAL_SCRATCHPAD(impl_name, impl_type) \
     DECLARE_COMMON_PD_t(impl_name, impl_type, true)

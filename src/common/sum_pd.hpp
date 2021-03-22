@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,25 +30,6 @@ namespace dnnl {
 namespace impl {
 
 struct sum_pd_t : public primitive_desc_t {
-    sum_pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
-            const float *scales, const memory_desc_t *src_mds)
-        : primitive_desc_t(attr, primitive_kind::sum), n_(n), dst_md_(*dst_md) {
-        scales_.reserve(n_);
-        for (int i = 0; i < n_; ++i)
-            scales_.push_back(scales[i]);
-        src_mds_.reserve(n_);
-        for (int i = 0; i < n_; ++i)
-            src_mds_.push_back(src_mds[i]);
-
-        // Fill a desc that is intended for internal use only
-        desc_ = sum_desc_t();
-        desc_.primitive_kind = primitive_kind::sum;
-        desc_.dst_md = dst_md_;
-        desc_.n = n_;
-        desc_.scales = scales_;
-        desc_.src_mds = src_mds_;
-    }
-
     const sum_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
@@ -98,6 +79,25 @@ protected:
     memory_desc_t dst_md_, dst_acc_md_;
     std::vector<memory_desc_t> src_mds_;
     sum_desc_t desc_;
+
+    sum_pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
+            const float *scales, const memory_desc_t *src_mds)
+        : primitive_desc_t(attr, primitive_kind::sum), n_(n), dst_md_(*dst_md) {
+        scales_.reserve(n_);
+        for (int i = 0; i < n_; ++i)
+            scales_.push_back(scales[i]);
+        src_mds_.reserve(n_);
+        for (int i = 0; i < n_; ++i)
+            src_mds_.push_back(src_mds[i]);
+
+        // Fill a desc that is intended for internal use only
+        desc_ = sum_desc_t();
+        desc_.primitive_kind = primitive_kind::sum;
+        desc_.dst_md = dst_md_;
+        desc_.n = n_;
+        desc_.scales = scales_;
+        desc_.src_mds = src_mds_;
+    }
 
     // backends could redefine the accumulation tensor if required
     virtual void define_dst_acc_md() {

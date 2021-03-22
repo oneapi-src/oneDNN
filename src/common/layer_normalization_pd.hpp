@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,16 +30,6 @@ struct layer_normalization_fwd_pd_t;
 
 struct layer_normalization_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::layer_normalization;
-
-    layer_normalization_pd_t(const layer_normalization_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const layer_normalization_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
-        , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc)
-        , stat_md_(desc_.stat_desc)
-        , scaleshift_md_(desc_.data_scaleshift_desc) {}
 
     const layer_normalization_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -97,6 +87,16 @@ protected:
     memory_desc_t stat_md_;
     memory_desc_t scaleshift_md_;
 
+    layer_normalization_pd_t(const layer_normalization_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const layer_normalization_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*adesc)
+        , hint_fwd_pd_(hint_fwd_pd)
+        , data_md_(desc_.data_desc)
+        , stat_md_(desc_.stat_desc)
+        , scaleshift_md_(desc_.data_scaleshift_desc) {}
+
     bool set_default_stat_md_format(const memory_desc_t &data_md) {
         if (stat_md_.format_kind != format_kind::any) return true;
 
@@ -127,11 +127,6 @@ private:
 struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
     typedef layer_normalization_fwd_pd_t base_class;
     typedef layer_normalization_fwd_pd_t hint_class;
-
-    layer_normalization_fwd_pd_t(const layer_normalization_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const layer_normalization_fwd_pd_t *hint_fwd_pd)
-        : layer_normalization_pd_t(adesc, attr, hint_fwd_pd) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
@@ -186,6 +181,11 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
     }
 
 protected:
+    layer_normalization_fwd_pd_t(const layer_normalization_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const layer_normalization_fwd_pd_t *hint_fwd_pd)
+        : layer_normalization_pd_t(adesc, attr, hint_fwd_pd) {}
+
     bool set_default_formats_common() {
         return set_default_stat_md_format(data_md_);
     }
@@ -199,13 +199,6 @@ protected:
 struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
     typedef layer_normalization_bwd_pd_t base_class;
     typedef layer_normalization_fwd_pd_t hint_class;
-
-    layer_normalization_bwd_pd_t(const layer_normalization_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const layer_normalization_fwd_pd_t *hint_fwd_pd)
-        : layer_normalization_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_data_md_(desc_.diff_data_desc)
-        , diff_scaleshift_md_(desc_.diff_data_scaleshift_desc) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE,
@@ -264,6 +257,13 @@ struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
 protected:
     memory_desc_t diff_data_md_;
     memory_desc_t diff_scaleshift_md_;
+
+    layer_normalization_bwd_pd_t(const layer_normalization_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const layer_normalization_fwd_pd_t *hint_fwd_pd)
+        : layer_normalization_pd_t(adesc, attr, hint_fwd_pd)
+        , diff_data_md_(desc_.diff_data_desc)
+        , diff_scaleshift_md_(desc_.diff_data_scaleshift_desc) {}
 
     bool set_default_formats_common() {
         return IMPLICATION(diff_data_md_.format_kind == format_kind::any,

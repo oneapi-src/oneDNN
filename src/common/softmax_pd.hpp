@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,13 +29,6 @@ struct softmax_fwd_pd_t;
 
 struct softmax_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::softmax;
-
-    softmax_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
-            const softmax_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
-        , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc) {}
 
     const softmax_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -105,6 +98,13 @@ protected:
 
     memory_desc_t data_md_;
 
+    softmax_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
+            const softmax_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*adesc)
+        , hint_fwd_pd_(hint_fwd_pd)
+        , data_md_(desc_.data_desc) {}
+
 private:
     const memory_desc_t &data_desc() const { return desc_.data_desc; }
 };
@@ -112,10 +112,6 @@ private:
 struct softmax_fwd_pd_t : public softmax_pd_t {
     typedef softmax_fwd_pd_t base_class;
     typedef softmax_fwd_pd_t hint_class;
-
-    softmax_fwd_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
-            const softmax_fwd_pd_t *hint_fwd_pd)
-        : softmax_pd_t(adesc, attr, hint_fwd_pd) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
@@ -147,16 +143,16 @@ struct softmax_fwd_pd_t : public softmax_pd_t {
     int n_outputs() const override {
         return 1 + (!types::is_zero_md(workspace_md()));
     }
+
+protected:
+    softmax_fwd_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
+            const softmax_fwd_pd_t *hint_fwd_pd)
+        : softmax_pd_t(adesc, attr, hint_fwd_pd) {}
 };
 
 struct softmax_bwd_pd_t : public softmax_pd_t {
     typedef softmax_bwd_pd_t base_class;
     typedef softmax_fwd_pd_t hint_class;
-
-    softmax_bwd_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
-            const softmax_fwd_pd_t *hint_fwd_pd)
-        : softmax_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_data_md_(desc_.diff_desc) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_DST, DNNL_ARG_DIFF_DST))
@@ -196,6 +192,11 @@ struct softmax_bwd_pd_t : public softmax_pd_t {
 
 protected:
     memory_desc_t diff_data_md_;
+
+    softmax_bwd_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
+            const softmax_fwd_pd_t *hint_fwd_pd)
+        : softmax_pd_t(adesc, attr, hint_fwd_pd)
+        , diff_data_md_(desc_.diff_desc) {}
 
     bool set_default_formats_common() {
         if (diff_data_md_.format_kind != format_kind::any) return true;

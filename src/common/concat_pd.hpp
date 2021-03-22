@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,25 +29,6 @@ namespace dnnl {
 namespace impl {
 
 struct concat_pd_t : public primitive_desc_t {
-    concat_pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md,
-            int n, int concat_dim, const memory_desc_t *src_mds)
-        : primitive_desc_t(attr, primitive_kind::concat)
-        , n_(n)
-        , concat_dim_(concat_dim)
-        , dst_md_(*dst_md) {
-        src_mds_.reserve(n_);
-        for (int i = 0; i < n_; ++i)
-            src_mds_.push_back(src_mds[i]);
-
-        // Fill a desc that is intended for internal use only
-        desc_ = concat_desc_t();
-        desc_.primitive_kind = primitive_kind::concat;
-        desc_.dst_md = dst_md_;
-        desc_.n = n_;
-        desc_.concat_dimension = concat_dim_;
-        desc_.src_mds = src_mds_;
-    }
-
     const concat_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
@@ -98,6 +79,25 @@ protected:
 
 protected:
     concat_desc_t desc_;
+
+    concat_pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md,
+            int n, int concat_dim, const memory_desc_t *src_mds)
+        : primitive_desc_t(attr, primitive_kind::concat)
+        , n_(n)
+        , concat_dim_(concat_dim)
+        , dst_md_(*dst_md) {
+        src_mds_.reserve(n_);
+        for (int i = 0; i < n_; ++i)
+            src_mds_.push_back(src_mds[i]);
+
+        // Fill a desc that is intended for internal use only
+        desc_ = concat_desc_t();
+        desc_.primitive_kind = primitive_kind::concat;
+        desc_.dst_md = dst_md_;
+        desc_.n = n_;
+        desc_.concat_dimension = concat_dim_;
+        desc_.src_mds = src_mds_;
+    }
 
     /* inits src_image_mds_ and dst_md_ in simple cases. It is possible to
      * override dst_md_ by using force_dst_md.

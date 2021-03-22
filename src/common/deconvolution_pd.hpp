@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,13 +31,6 @@ struct deconvolution_fwd_pd_t;
 
 struct deconvolution_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::deconvolution;
-
-    deconvolution_pd_t(const deconvolution_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const deconvolution_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
-        , hint_fwd_pd_(hint_fwd_pd) {}
 
     const deconvolution_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -163,20 +156,18 @@ struct deconvolution_pd_t : public primitive_desc_t {
 protected:
     deconvolution_desc_t desc_;
     const deconvolution_fwd_pd_t *hint_fwd_pd_;
+
+    deconvolution_pd_t(const deconvolution_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const deconvolution_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*adesc)
+        , hint_fwd_pd_(hint_fwd_pd) {}
 };
 
 struct deconvolution_fwd_pd_t : public deconvolution_pd_t {
     typedef deconvolution_fwd_pd_t base_class;
     typedef deconvolution_fwd_pd_t hint_class;
-
-    deconvolution_fwd_pd_t(const deconvolution_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const deconvolution_fwd_pd_t *hint_fwd_pd)
-        : deconvolution_pd_t(adesc, attr, hint_fwd_pd)
-        , src_md_(desc_.src_desc)
-        , weights_md_(desc_.weights_desc)
-        , bias_md_(desc_.bias_desc)
-        , dst_md_(desc_.dst_desc) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS))
@@ -221,19 +212,20 @@ protected:
     memory_desc_t weights_md_;
     memory_desc_t bias_md_;
     memory_desc_t dst_md_;
+
+    deconvolution_fwd_pd_t(const deconvolution_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const deconvolution_fwd_pd_t *hint_fwd_pd)
+        : deconvolution_pd_t(adesc, attr, hint_fwd_pd)
+        , src_md_(desc_.src_desc)
+        , weights_md_(desc_.weights_desc)
+        , bias_md_(desc_.bias_desc)
+        , dst_md_(desc_.dst_desc) {}
 };
 
 struct deconvolution_bwd_data_pd_t : public deconvolution_pd_t {
     typedef deconvolution_bwd_data_pd_t base_class;
     typedef deconvolution_fwd_pd_t hint_class;
-
-    deconvolution_bwd_data_pd_t(const deconvolution_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const deconvolution_fwd_pd_t *hint_fwd_pd)
-        : deconvolution_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_src_md_(desc_.diff_src_desc)
-        , weights_md_(desc_.weights_desc)
-        , diff_dst_md_(desc_.diff_dst_desc) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_WEIGHTS, DNNL_ARG_DIFF_DST))
@@ -271,20 +263,19 @@ protected:
     memory_desc_t diff_src_md_;
     memory_desc_t weights_md_;
     memory_desc_t diff_dst_md_;
+
+    deconvolution_bwd_data_pd_t(const deconvolution_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const deconvolution_fwd_pd_t *hint_fwd_pd)
+        : deconvolution_pd_t(adesc, attr, hint_fwd_pd)
+        , diff_src_md_(desc_.diff_src_desc)
+        , weights_md_(desc_.weights_desc)
+        , diff_dst_md_(desc_.diff_dst_desc) {}
 };
 
 struct deconvolution_bwd_weights_pd_t : public deconvolution_pd_t {
     typedef deconvolution_bwd_weights_pd_t base_class;
     typedef deconvolution_fwd_pd_t hint_class;
-
-    deconvolution_bwd_weights_pd_t(const deconvolution_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const deconvolution_fwd_pd_t *hint_fwd_pd)
-        : deconvolution_pd_t(adesc, attr, hint_fwd_pd)
-        , src_md_(desc_.src_desc)
-        , diff_weights_md_(desc_.diff_weights_desc)
-        , diff_bias_md_(desc_.diff_bias_desc)
-        , diff_dst_md_(desc_.diff_dst_desc) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_DIFF_DST))
@@ -328,6 +319,15 @@ protected:
     memory_desc_t diff_weights_md_;
     memory_desc_t diff_bias_md_;
     memory_desc_t diff_dst_md_;
+
+    deconvolution_bwd_weights_pd_t(const deconvolution_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const deconvolution_fwd_pd_t *hint_fwd_pd)
+        : deconvolution_pd_t(adesc, attr, hint_fwd_pd)
+        , src_md_(desc_.src_desc)
+        , diff_weights_md_(desc_.diff_weights_desc)
+        , diff_bias_md_(desc_.diff_bias_desc)
+        , diff_dst_md_(desc_.diff_dst_desc) {}
 };
 
 } // namespace impl

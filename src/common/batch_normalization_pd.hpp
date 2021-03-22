@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,17 +30,6 @@ struct batch_normalization_fwd_pd_t;
 
 struct batch_normalization_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::batch_normalization;
-
-    batch_normalization_pd_t(const batch_normalization_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const batch_normalization_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
-        , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc)
-        , stat_md_(desc_.stat_desc)
-        , scaleshift_md_(desc_.data_scaleshift_desc)
-        , ws_md_() {}
 
     const batch_normalization_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -104,6 +93,17 @@ protected:
 
     memory_desc_t ws_md_;
 
+    batch_normalization_pd_t(const batch_normalization_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const batch_normalization_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*adesc)
+        , hint_fwd_pd_(hint_fwd_pd)
+        , data_md_(desc_.data_desc)
+        , stat_md_(desc_.stat_desc)
+        , scaleshift_md_(desc_.data_scaleshift_desc)
+        , ws_md_() {}
+
     virtual void init_default_ws(size_t bits_per_element) {
         const auto data_mdw = memory_desc_wrapper(data_md_);
 
@@ -122,11 +122,6 @@ private:
 struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
     typedef batch_normalization_fwd_pd_t base_class;
     typedef batch_normalization_fwd_pd_t hint_class;
-
-    batch_normalization_fwd_pd_t(const batch_normalization_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const batch_normalization_fwd_pd_t *hint_fwd_pd)
-        : batch_normalization_pd_t(adesc, attr, hint_fwd_pd) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
@@ -193,6 +188,11 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
     }
 
 protected:
+    batch_normalization_fwd_pd_t(const batch_normalization_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const batch_normalization_fwd_pd_t *hint_fwd_pd)
+        : batch_normalization_pd_t(adesc, attr, hint_fwd_pd) {}
+
     bool check_scale_shift_data_type() const {
         return IMPLICATION(
                 use_scaleshift(), weights_md()->data_type == data_type::f32);
@@ -202,13 +202,6 @@ protected:
 struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
     typedef batch_normalization_bwd_pd_t base_class;
     typedef batch_normalization_fwd_pd_t hint_class;
-
-    batch_normalization_bwd_pd_t(const batch_normalization_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const batch_normalization_fwd_pd_t *hint_fwd_pd)
-        : batch_normalization_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_data_md_(desc_.diff_data_desc)
-        , diff_scaleshift_md_(desc_.diff_data_scaleshift_desc) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE,
@@ -275,6 +268,13 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
 protected:
     memory_desc_t diff_data_md_;
     memory_desc_t diff_scaleshift_md_;
+
+    batch_normalization_bwd_pd_t(const batch_normalization_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const batch_normalization_fwd_pd_t *hint_fwd_pd)
+        : batch_normalization_pd_t(adesc, attr, hint_fwd_pd)
+        , diff_data_md_(desc_.diff_data_desc)
+        , diff_scaleshift_md_(desc_.diff_data_scaleshift_desc) {}
 
     bool set_default_formats_common() {
         if (diff_data_md_.format_kind != format_kind::any) return true;

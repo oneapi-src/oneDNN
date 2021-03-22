@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,24 +31,6 @@ struct rnn_fwd_pd_t;
 
 struct rnn_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::rnn;
-
-    rnn_pd_t(const rnn_desc_t *adesc, const primitive_attr_t *attr,
-            const rnn_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
-        , hint_fwd_pd_(hint_fwd_pd)
-        , src_layer_md_(desc_.src_layer_desc)
-        , src_iter_md_(desc_.src_iter_desc)
-        , src_iter_c_md_(desc_.src_iter_c_desc)
-        , weights_layer_md_(desc_.weights_layer_desc)
-        , weights_iter_md_(desc_.weights_iter_desc)
-        , weights_peephole_md_(desc_.weights_peephole_desc)
-        , weights_projection_md_(desc_.weights_projection_desc)
-        , bias_md_(desc_.bias_desc)
-        , dst_layer_md_(desc_.dst_layer_desc)
-        , dst_iter_md_(desc_.dst_iter_desc)
-        , dst_iter_c_md_(desc_.dst_iter_c_desc)
-        , ws_md_() {}
 
     const rnn_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -189,15 +171,29 @@ protected:
     memory_desc_t dst_iter_c_md_;
 
     memory_desc_t ws_md_;
+
+    rnn_pd_t(const rnn_desc_t *adesc, const primitive_attr_t *attr,
+            const rnn_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*adesc)
+        , hint_fwd_pd_(hint_fwd_pd)
+        , src_layer_md_(desc_.src_layer_desc)
+        , src_iter_md_(desc_.src_iter_desc)
+        , src_iter_c_md_(desc_.src_iter_c_desc)
+        , weights_layer_md_(desc_.weights_layer_desc)
+        , weights_iter_md_(desc_.weights_iter_desc)
+        , weights_peephole_md_(desc_.weights_peephole_desc)
+        , weights_projection_md_(desc_.weights_projection_desc)
+        , bias_md_(desc_.bias_desc)
+        , dst_layer_md_(desc_.dst_layer_desc)
+        , dst_iter_md_(desc_.dst_iter_desc)
+        , dst_iter_c_md_(desc_.dst_iter_c_desc)
+        , ws_md_() {}
 };
 
 struct rnn_fwd_pd_t : public rnn_pd_t {
     typedef rnn_fwd_pd_t base_class;
     typedef rnn_fwd_pd_t hint_class;
-
-    rnn_fwd_pd_t(const rnn_desc_t *adesc, const primitive_attr_t *attr,
-            const rnn_fwd_pd_t *hint_fwd_pd)
-        : rnn_pd_t(adesc, attr, hint_fwd_pd) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC_LAYER) return arg_usage_t::input;
@@ -262,26 +258,16 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
     int n_outputs() const override {
         return 1 + with_dst_iter() + with_dst_iter_c() + is_training();
     }
+
+protected:
+    rnn_fwd_pd_t(const rnn_desc_t *adesc, const primitive_attr_t *attr,
+            const rnn_fwd_pd_t *hint_fwd_pd)
+        : rnn_pd_t(adesc, attr, hint_fwd_pd) {}
 };
 
 struct rnn_bwd_pd_t : public rnn_pd_t {
     typedef rnn_bwd_pd_t base_class;
     typedef rnn_fwd_pd_t hint_class;
-
-    rnn_bwd_pd_t(const rnn_desc_t *adesc, const primitive_attr_t *attr,
-            const rnn_fwd_pd_t *hint_fwd_pd)
-        : rnn_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_src_layer_md_(desc_.diff_src_layer_desc)
-        , diff_src_iter_md_(desc_.diff_src_iter_desc)
-        , diff_src_iter_c_md_(desc_.diff_src_iter_c_desc)
-        , diff_weights_layer_md_(desc_.diff_weights_layer_desc)
-        , diff_weights_iter_md_(desc_.diff_weights_iter_desc)
-        , diff_weights_peephole_md_(desc_.diff_weights_peephole_desc)
-        , diff_weights_projection_md_(desc_.diff_weights_projection_desc)
-        , diff_bias_md_(desc_.diff_bias_desc)
-        , diff_dst_layer_md_(desc_.diff_dst_layer_desc)
-        , diff_dst_iter_md_(desc_.diff_dst_iter_desc)
-        , diff_dst_iter_c_md_(desc_.diff_dst_iter_c_desc) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC_LAYER, DNNL_ARG_DST_LAYER,
@@ -431,6 +417,21 @@ protected:
     memory_desc_t diff_dst_layer_md_;
     memory_desc_t diff_dst_iter_md_;
     memory_desc_t diff_dst_iter_c_md_;
+
+    rnn_bwd_pd_t(const rnn_desc_t *adesc, const primitive_attr_t *attr,
+            const rnn_fwd_pd_t *hint_fwd_pd)
+        : rnn_pd_t(adesc, attr, hint_fwd_pd)
+        , diff_src_layer_md_(desc_.diff_src_layer_desc)
+        , diff_src_iter_md_(desc_.diff_src_iter_desc)
+        , diff_src_iter_c_md_(desc_.diff_src_iter_c_desc)
+        , diff_weights_layer_md_(desc_.diff_weights_layer_desc)
+        , diff_weights_iter_md_(desc_.diff_weights_iter_desc)
+        , diff_weights_peephole_md_(desc_.diff_weights_peephole_desc)
+        , diff_weights_projection_md_(desc_.diff_weights_projection_desc)
+        , diff_bias_md_(desc_.diff_bias_desc)
+        , diff_dst_layer_md_(desc_.diff_dst_layer_desc)
+        , diff_dst_iter_md_(desc_.diff_dst_iter_desc)
+        , diff_dst_iter_c_md_(desc_.diff_dst_iter_c_desc) {}
 };
 
 } // namespace impl

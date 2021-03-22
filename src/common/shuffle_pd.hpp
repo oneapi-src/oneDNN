@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,13 +30,6 @@ struct shuffle_pd_t : public primitive_desc_t {
 
     typedef shuffle_pd_t base_class;
     typedef shuffle_pd_t hint_class;
-
-    shuffle_pd_t(const shuffle_desc_t *adesc, const primitive_attr_t *attr,
-            const shuffle_pd_t *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
-        , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc) {}
 
     const shuffle_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -122,6 +115,13 @@ protected:
     shuffle_desc_t desc_;
     const shuffle_pd_t *hint_fwd_pd_;
     memory_desc_t data_md_;
+
+    shuffle_pd_t(const shuffle_desc_t *adesc, const primitive_attr_t *attr,
+            const shuffle_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*adesc)
+        , hint_fwd_pd_(hint_fwd_pd)
+        , data_md_(desc_.data_desc) {}
 
     bool set_default_formats_common() {
         if (data_md_.format_kind != format_kind::any) return true;

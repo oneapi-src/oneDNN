@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,15 +33,6 @@ struct matmul_pd_t : public primitive_desc_t {
 
     typedef matmul_pd_t base_class;
     typedef matmul_pd_t hint_class;
-
-    matmul_pd_t(const matmul_desc_t *adesc, const primitive_attr_t *attr,
-            const matmul_pd_t *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
-        , src_md_(desc_.src_desc)
-        , weights_md_(desc_.weights_desc)
-        , bias_md_(desc_.bias_desc)
-        , dst_md_(desc_.dst_desc) {}
 
     const matmul_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -143,6 +134,15 @@ protected:
     memory_desc_t weights_md_;
     memory_desc_t bias_md_;
     memory_desc_t dst_md_;
+
+    matmul_pd_t(const matmul_desc_t *adesc, const primitive_attr_t *attr,
+            const matmul_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*adesc)
+        , src_md_(desc_.src_desc)
+        , weights_md_(desc_.weights_desc)
+        , bias_md_(desc_.bias_desc)
+        , dst_md_(desc_.dst_desc) {}
 
     // temporary solution to deal with format `any`
     bool set_default_formats() {
