@@ -62,19 +62,23 @@ struct jit_uni_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
                     &(dd->weights_desc), &(dd->bias_desc), &(dd->dst_desc),
                     dd->strides, dd->dilates, dd->padding[0], dd->padding[1]);
 
-            if (status == status::success) {
-                primitive_desc_t *_conv_pd = nullptr;
-                primitive_attr_t conv_attr(*attr());
-                if (!conv_attr.is_initialized()) return status::out_of_memory;
-                conv_attr.set_scratchpad_mode(scratchpad_mode::user);
-                status = primitive_desc_t::create<conv_pd_t>(&_conv_pd,
-                        (op_desc_t *)&cd, &conv_attr, engine, nullptr);
-                conv_pd_.reset(_conv_pd);
+            if (status != status::success) return status;
+
+            primitive_attr_t conv_attr(*attr());
+            if (!conv_attr.is_initialized()) return status::out_of_memory;
+            conv_attr.set_scratchpad_mode(scratchpad_mode::user);
+            dnnl_primitive_desc_iterator it(
+                    engine, (op_desc_t *)&cd, &conv_attr, nullptr);
+            if (!it.is_initialized()) return status::out_of_memory;
+
+            while (++it != it.end()) {
+                conv_pd_.reset(it.fetch_once());
+                // XXX: find another way to create required implementation.
+                if (dynamic_cast<conv_pd_t *>(conv_pd_.get()))
+                    return set_default_params();
             }
 
-            if (status == status::success) status = set_default_params();
-
-            return status;
+            return status::unimplemented;
         };
 
         status_t init(engine_t *engine) {
