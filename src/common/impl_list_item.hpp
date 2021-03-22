@@ -77,6 +77,19 @@ struct impl_list_item_t {
                 create_concat_pd_func_, create_sum_pd_func_);
     }
 
+    // Currently, this only supports iterator friendly primitives. Can be
+    // extended to sum, concat and reorder if needed.
+    template <typename pd_t>
+    static int find(const impl_list_item_t *list) {
+        int idx = 0;
+        for (const impl_list_item_t *cur = list; *cur; cur++) {
+            if (cur->create_pd_func_ == &primitive_desc_t::create<pd_t>)
+                return idx;
+            idx++;
+        }
+        return -1;
+    }
+
     status_t operator()(primitive_desc_t **pd, const op_desc_t *adesc,
             const primitive_attr_t *attr, engine_t *engine,
             const primitive_desc_t *hint_fwd) const {
