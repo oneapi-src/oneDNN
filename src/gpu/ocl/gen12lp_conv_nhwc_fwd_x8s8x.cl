@@ -229,7 +229,7 @@ conv_nhwc_fwd_x8s8x(const __global SRC_DATA_T *src, const __global char *wei,
     }
 #if SLM_NCHUNK < OW_NCHUNK
     if (empty) {
-        for (int i = 0; i < SW * OW_BLOCK + (KW - 1) * (1 + DW) - PW; i++) {
+        for (int i = -PW; i < SW * OW_BLOCK + (KW - 1) * (1 + DW) - PW; i++) {
             block_write(S_part + i * 8, 0);
         }
     }
