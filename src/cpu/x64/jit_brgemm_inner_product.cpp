@@ -1202,10 +1202,12 @@ void brgemm_inner_product_bwd_weights_t<isa>::execute_backward_weights(
             thread_info_t thread_info(this, ctx, ithr);
             reduce_and_convert_diff_weights_and_bias(&thread_info);
         });
-        parallel(jbgp.nthr, [&](const int ithr, const int nthr) {
-            thread_info_t thread_info(this, ctx, ithr);
-            store_in_vnni_format(&thread_info);
-        });
+        if (store_amx_vnni_weights()) {
+            parallel(jbgp.nthr, [&](const int ithr, const int nthr) {
+                thread_info_t thread_info(this, ctx, ithr);
+                store_in_vnni_format(&thread_info);
+            });
+        }
     }
 }
 
