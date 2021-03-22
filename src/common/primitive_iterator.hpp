@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,13 +21,12 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
+#include "impl_list_item.hpp"
 #include "primitive_attr.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 
 struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
-    using pd_create_f = dnnl::impl::engine_t::primitive_desc_create_f;
-
     dnnl_primitive_desc_iterator(dnnl::impl::engine_t *engine,
             const dnnl::impl::op_desc_t *op_desc,
             const dnnl::impl::primitive_attr_t *attr,
@@ -39,7 +38,7 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
         , hint_fwd_pd_(hint_fwd_pd)
         , impl_list_(engine_->get_implementation_list(op_desc_))
         , last_idx_(0) {
-        while (impl_list_[last_idx_] != nullptr)
+        while (impl_list_[last_idx_])
             ++last_idx_;
         is_initialized_ = is_initialized_ && attr_.is_initialized();
     }
@@ -98,7 +97,7 @@ protected:
     const dnnl::impl::op_desc_t *op_desc_;
     const dnnl::impl::primitive_attr_t attr_;
     const dnnl::impl::primitive_desc_t *hint_fwd_pd_;
-    const pd_create_f *impl_list_;
+    const dnnl::impl::impl_list_item_t *impl_list_;
     int last_idx_;
 
 private:

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,14 +28,12 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-namespace {
 struct sum_bf16_params_t {
     dim_t ws_cvt_elements_per_thread_;
     dim_t ws_acc_elements_per_thread_;
     dim_t ws_elements_per_thread_;
     dim_t acc_loop_step_;
 };
-} // namespace
 
 template <data_type_t src_data_type, data_type_t dst_data_type = src_data_type>
 struct simple_sum_t : public primitive_t {

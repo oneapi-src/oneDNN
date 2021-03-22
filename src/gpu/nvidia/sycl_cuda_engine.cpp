@@ -17,6 +17,7 @@
 
 #include <CL/sycl/backend/cuda.hpp>
 
+#include "common/impl_list_item.hpp"
 #include "common/utils.hpp"
 
 #include "sycl/sycl_utils.hpp"
@@ -180,9 +181,11 @@ void sycl_cuda_engine_t::activate_stream_cudnn(stream_t *stream) {
 
 namespace {
 using namespace dnnl::impl::data_type;
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+#define INSTANCE(...) \
+    impl_list_item_t( \
+            impl_list_item_t::type_deduction_helper_t<__VA_ARGS__::pd_t>())
 // clang-format off
-const dnnl::impl::engine_t::primitive_desc_create_f sycl_cuda_impl_list[] = {
+const dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
         // Elementwise
         INSTANCE(cudnn_eltwise_fwd_t),
         INSTANCE(cudnn_eltwise_bwd_t),
@@ -235,8 +238,8 @@ const dnnl::impl::engine_t::primitive_desc_create_f sycl_cuda_impl_list[] = {
 // clang-format on
 #undef INSTANCE
 } // namespace
-const dnnl::impl::engine_t::primitive_desc_create_f *
-sycl_cuda_engine_t::get_implementation_list(const op_desc_t *) const {
+const dnnl::impl::impl_list_item_t *sycl_cuda_engine_t::get_implementation_list(
+        const op_desc_t *) const {
     return sycl_cuda_impl_list;
 }
 

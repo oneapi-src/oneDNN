@@ -31,13 +31,11 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using pd_create_f = engine_t::primitive_desc_create_f;
-
 namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-const pd_create_f impl_list[] = {
+const impl_list_item_t impl_list[] = {
         CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<avx512_common>)
         CPU_INSTANCE_X64(jit_uni_softmax_bwd_t<avx512_common>)
         CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<avx2>)
@@ -54,12 +52,13 @@ const pd_create_f impl_list[] = {
 // clang-format on
 } // namespace
 
-const pd_create_f *get_softmax_impl_list(const softmax_desc_t *desc) {
+const impl_list_item_t *get_softmax_impl_list(const softmax_desc_t *desc) {
     UNUSED(desc);
     return impl_list;
 }
 
-const pd_create_f *get_logsoftmax_impl_list(const logsoftmax_desc_t *desc) {
+const impl_list_item_t *get_logsoftmax_impl_list(
+        const logsoftmax_desc_t *desc) {
     return get_softmax_impl_list(desc);
 }
 

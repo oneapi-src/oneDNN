@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
+#include "common/impl_list_item.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_sum_pd.hpp"
 #include "gpu/ocl/gen9_sum.hpp"
@@ -26,11 +27,11 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 
-using spd_create_f = engine_t::sum_primitive_desc_create_f;
-
 namespace {
-#define INSTANCE(...) __VA_ARGS__::pd_t::create
-const spd_create_f sum_impl_list[] = {
+#define INSTANCE(...) \
+    impl_list_item_t(impl_list_item_t::sum_type_deduction_helper_t< \
+            __VA_ARGS__::pd_t>())
+const impl_list_item_t sum_impl_list[] = {
         INSTANCE(ocl::gen9_sum_t),
         INSTANCE(ocl::simple_sum_t<data_type::f32>),
         INSTANCE(ocl::ref_sum_t),
@@ -39,7 +40,7 @@ const spd_create_f sum_impl_list[] = {
 #undef INSTANCE
 } // namespace
 
-const spd_create_f *gpu_impl_list_t::get_sum_implementation_list() {
+const impl_list_item_t *gpu_impl_list_t::get_sum_implementation_list() {
     return sum_impl_list;
 }
 

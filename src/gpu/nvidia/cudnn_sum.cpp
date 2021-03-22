@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,13 +25,13 @@ namespace nvidia {
 
 namespace {
 
-using spd_create_f = dnnl::impl::engine_t::sum_primitive_desc_create_f;
-
-const spd_create_f cuda_sum_impl_list[]
-        = {cudnn_ref_sum_t::pd_t::create, nullptr};
+const impl_list_item_t cuda_sum_impl_list[] = {
+        impl_list_item_t::sum_type_deduction_helper_t<cudnn_ref_sum_t::pd_t>(),
+        nullptr};
 } // namespace
 
-const spd_create_f *cuda_gpu_engine_impl_list_t::get_sum_implementation_list() {
+const impl_list_item_t *
+cuda_gpu_engine_impl_list_t::get_sum_implementation_list() {
     return cuda_sum_impl_list;
 }
 

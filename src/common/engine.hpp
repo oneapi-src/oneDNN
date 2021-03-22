@@ -99,23 +99,6 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
             dnnl::impl::engine_t *dst_engine,
             const dnnl::impl::memory_desc_t *dst_md);
 
-    typedef dnnl::impl::status_t (*concat_primitive_desc_create_f)(
-            dnnl::impl::concat_pd_t **, dnnl::impl::engine_t *engine,
-            const dnnl::impl::primitive_attr_t *attr,
-            const dnnl::impl::memory_desc_t *dst_md, int n, int concat_dim,
-            const dnnl::impl::memory_desc_t *src_mds);
-
-    typedef dnnl::impl::status_t (*sum_primitive_desc_create_f)(
-            dnnl::impl::sum_pd_t **, dnnl::impl::engine_t *engine,
-            const dnnl::impl::primitive_attr_t *attr,
-            const dnnl::impl::memory_desc_t *dst_md, int n, const float *scales,
-            const dnnl::impl::memory_desc_t *src_mds);
-
-    typedef dnnl::impl::status_t (*primitive_desc_create_f)(
-            dnnl::impl::primitive_desc_t **, const dnnl::impl::op_desc_t *,
-            const dnnl::impl::primitive_attr_t *attr, dnnl::impl::engine_t *,
-            const dnnl::impl::primitive_desc_t *);
-
     /* implementation section */
 
     /** return the list of reorder implementations. engine guarantees to return
@@ -126,17 +109,18 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
     /** return the list of concat implementations. engine guarantees to return
      * a NULL-terminated list */
-    virtual const concat_primitive_desc_create_f *
+    virtual const dnnl::impl::impl_list_item_t *
     get_concat_implementation_list() const = 0;
 
     /** return the list of sum implementations. engine guarantees to return
      * a NULL-terminated list */
-    virtual const sum_primitive_desc_create_f *
+    virtual const dnnl::impl::impl_list_item_t *
     get_sum_implementation_list() const = 0;
 
     /** return the list of implementations for a given descriptor.
      * engine guarantees to return a NULL-terminated list */
-    virtual const primitive_desc_create_f *get_implementation_list(
+
+    virtual const dnnl::impl::impl_list_item_t *get_implementation_list(
             const dnnl::impl::op_desc_t *desc) const = 0;
 
 protected:

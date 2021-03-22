@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #define GPU_GPU_IMPL_LIST_HPP
 
 #include "common/engine.hpp"
+#include "common/impl_list_item.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -25,14 +26,12 @@ namespace gpu {
 
 class gpu_impl_list_t {
 public:
-    static const engine_t::concat_primitive_desc_create_f *
-    get_concat_implementation_list();
+    static const impl_list_item_t *get_concat_implementation_list();
     static const engine_t::reorder_primitive_desc_create_f *
     get_reorder_implementation_list(
             const memory_desc_t *src_md, const memory_desc_t *dst_md);
-    static const engine_t::sum_primitive_desc_create_f *
-    get_sum_implementation_list();
-    static const engine_t::primitive_desc_create_f *get_implementation_list();
+    static const impl_list_item_t *get_sum_implementation_list();
+    static const impl_list_item_t *get_implementation_list();
 };
 
 } // namespace gpu

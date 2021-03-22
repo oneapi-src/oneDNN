@@ -58,17 +58,15 @@ public:
                 src_md, dst_md);
     }
 
-    const concat_primitive_desc_create_f *
-    get_concat_implementation_list() const override {
+    const impl_list_item_t *get_concat_implementation_list() const override {
         return gpu::gpu_impl_list_t::get_concat_implementation_list();
     }
 
-    const sum_primitive_desc_create_f *
-    get_sum_implementation_list() const override {
+    const impl_list_item_t *get_sum_implementation_list() const override {
         return gpu::gpu_impl_list_t::get_sum_implementation_list();
     }
 
-    const primitive_desc_create_f *get_implementation_list(
+    const impl_list_item_t *get_implementation_list(
             const op_desc_t *) const override {
         return gpu::gpu_impl_list_t::get_implementation_list();
     }

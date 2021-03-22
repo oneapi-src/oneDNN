@@ -48,7 +48,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     status_t pd_create_res = status_t::dnnl_unimplemented;
     unsigned list_idx = 0;
     do {
-        if (impl_list[list_idx]
+        if (impl_list[list_idx].create_pd_func_
                 != &primitive_desc_t::create<ocl::gemm_with_post_ops_t::pd_t>) {
             pd_create_res = impl_list[list_idx](&gemm_candidate_pd,
                     (op_desc_t *)gemm_desc, attributes_with_po, engine,
@@ -64,8 +64,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
                     (op_desc_t *)gemm_desc, attributes_without_po, engine,
                     nullptr);
         }
-    } while (pd_create_res != status_t::dnnl_success
-            && impl_list[++list_idx] != nullptr);
+    } while (pd_create_res != status_t::dnnl_success && impl_list[++list_idx]);
 
     CHECK(pd_create_res);
     gemm_pd_.reset(gemm_candidate_pd);

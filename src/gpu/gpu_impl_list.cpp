@@ -59,12 +59,13 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 
-using pd_create_f = dnnl::impl::engine_t::primitive_desc_create_f;
-
 namespace {
 
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
-const pd_create_f gpu_impl_list[] = {
+#define INSTANCE(...) \
+    impl_list_item_t( \
+            impl_list_item_t::type_deduction_helper_t<__VA_ARGS__::pd_t>())
+
+const impl_list_item_t gpu_impl_list[] = {
         // Elementwise
         INSTANCE(ocl::gen9_eltwise_fwd_t),
         INSTANCE(ocl::gen9_eltwise_bwd_t),
@@ -167,7 +168,7 @@ const pd_create_f gpu_impl_list[] = {
 #undef INSTANCE
 } // namespace
 
-const pd_create_f *gpu_impl_list_t::get_implementation_list() {
+const impl_list_item_t *gpu_impl_list_t::get_implementation_list() {
     return gpu_impl_list;
 }
 

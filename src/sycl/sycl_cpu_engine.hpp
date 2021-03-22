@@ -17,6 +17,7 @@
 #ifndef SYCL_CPU_ENGINE_HPP
 #define SYCL_CPU_ENGINE_HPP
 
+#include "common/impl_list_item.hpp"
 #include "cpu/cpu_engine.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "sycl/sycl_engine_base.hpp"
@@ -57,17 +58,15 @@ public:
                 src_md, dst_md);
     }
 
-    const concat_primitive_desc_create_f *
-    get_concat_implementation_list() const override {
+    const impl_list_item_t *get_concat_implementation_list() const override {
         return cpu::cpu_engine_impl_list_t::get_concat_implementation_list();
     }
 
-    const sum_primitive_desc_create_f *
-    get_sum_implementation_list() const override {
+    const impl_list_item_t *get_sum_implementation_list() const override {
         return cpu::cpu_engine_impl_list_t::get_sum_implementation_list();
     }
 
-    const primitive_desc_create_f *get_implementation_list(
+    const impl_list_item_t *get_implementation_list(
             const op_desc_t *desc) const override {
         return cpu::cpu_engine_impl_list_t::get_implementation_list(desc);
     }

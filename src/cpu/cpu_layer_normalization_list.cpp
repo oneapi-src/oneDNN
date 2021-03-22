@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,13 +23,11 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using pd_create_f = engine_t::primitive_desc_create_f;
-
 namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-const pd_create_f impl_list[] = {
+const impl_list_item_t impl_list[] = {
         CPU_INSTANCE(simple_layer_normalization_fwd_t<f32>)
         CPU_INSTANCE(simple_layer_normalization_bwd_t<f32>)
         CPU_INSTANCE(simple_layer_normalization_fwd_t<bf16>)
@@ -44,7 +42,7 @@ const pd_create_f impl_list[] = {
 // clang-format on
 } // namespace
 
-const pd_create_f *get_layer_normalization_impl_list(
+const impl_list_item_t *get_layer_normalization_impl_list(
         const layer_normalization_desc_t *desc) {
     UNUSED(desc);
     return impl_list;

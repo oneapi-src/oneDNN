@@ -38,13 +38,11 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using pd_create_f = engine_t::primitive_desc_create_f;
-
 namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-const pd_create_f impl_list[] = {
+const impl_list_item_t impl_list[] = {
         /* fp */
         CPU_INSTANCE_X64(jit_uni_batch_normalization_fwd_t<avx512_common>)
         CPU_INSTANCE_X64(jit_uni_batch_normalization_bwd_t<avx512_common>)
@@ -86,7 +84,7 @@ const pd_create_f impl_list[] = {
 // clang-format on
 } // namespace
 
-const pd_create_f *get_batch_normalization_impl_list(
+const impl_list_item_t *get_batch_normalization_impl_list(
         const batch_normalization_desc_t *desc) {
     UNUSED(desc);
     return impl_list;

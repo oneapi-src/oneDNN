@@ -25,10 +25,13 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/engine_id.hpp"
+#include "common/impl_list_item.hpp"
 
 #include "cpu/platform.hpp"
 
-#define CPU_INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>,
+#define CPU_INSTANCE(...) \
+    impl_list_item_t( \
+            impl_list_item_t::type_deduction_helper_t<__VA_ARGS__::pd_t>()),
 #define CPU_INSTANCE_X64(...) DNNL_X64_ONLY(CPU_INSTANCE(__VA_ARGS__))
 #define CPU_INSTANCE_AARCH64(...) DNNL_AARCH64_ONLY(CPU_INSTANCE(__VA_ARGS__))
 #define CPU_INSTANCE_AARCH64_ACL(...) \
@@ -39,8 +42,7 @@ namespace impl {
 namespace cpu {
 
 #define DECLARE_IMPL_LIST(kind) \
-    const engine_t::primitive_desc_create_f *get_##kind##_impl_list( \
-            const kind##_desc_t *desc);
+    const impl_list_item_t *get_##kind##_impl_list(const kind##_desc_t *desc);
 
 DECLARE_IMPL_LIST(batch_normalization);
 DECLARE_IMPL_LIST(binary);
@@ -64,16 +66,15 @@ DECLARE_IMPL_LIST(softmax);
 
 class cpu_engine_impl_list_t {
 public:
-    static const engine_t::concat_primitive_desc_create_f *
-    get_concat_implementation_list();
+    static const impl_list_item_t *get_concat_implementation_list();
     static const engine_t::reorder_primitive_desc_create_f *
     get_reorder_implementation_list(
             const memory_desc_t *src_md, const memory_desc_t *dst_md);
-    static const engine_t::sum_primitive_desc_create_f *
-    get_sum_implementation_list();
-    static const engine_t::primitive_desc_create_f *get_implementation_list(
+    static const impl_list_item_t *get_sum_implementation_list();
+
+    static const impl_list_item_t *get_implementation_list(
             const op_desc_t *desc) {
-        static const engine_t::primitive_desc_create_f empty_list[] = {nullptr};
+        static const impl_list_item_t empty_list[] = {nullptr};
 
 // clang-format off
 #define CASE(kind) \
@@ -121,8 +122,7 @@ public:
             dnnl::threadpool_interop::threadpool_iface *threadpool) override;
 #endif
 
-    const concat_primitive_desc_create_f *
-    get_concat_implementation_list() const override {
+    const impl_list_item_t *get_concat_implementation_list() const override {
         return cpu_engine_impl_list_t::get_concat_implementation_list();
     }
 
@@ -132,11 +132,10 @@ public:
         return cpu_engine_impl_list_t::get_reorder_implementation_list(
                 src_md, dst_md);
     }
-    const sum_primitive_desc_create_f *
-    get_sum_implementation_list() const override {
+    const impl_list_item_t *get_sum_implementation_list() const override {
         return cpu_engine_impl_list_t::get_sum_implementation_list();
     }
-    const primitive_desc_create_f *get_implementation_list(
+    const impl_list_item_t *get_implementation_list(
             const op_desc_t *desc) const override {
         return cpu_engine_impl_list_t::get_implementation_list(desc);
     }

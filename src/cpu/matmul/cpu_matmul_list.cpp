@@ -31,14 +31,12 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using pd_create_f = engine_t::primitive_desc_create_f;
-
 namespace {
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::cpu::matmul;
 
 // clang-format off
-const pd_create_f impl_list[] = {
+const impl_list_item_t impl_list[] = {
         CPU_INSTANCE(gemm_f32_matmul_t)
         CPU_INSTANCE(gemm_bf16_matmul_t<f32>)
         CPU_INSTANCE(gemm_bf16_matmul_t<bf16>)
@@ -68,7 +66,7 @@ const pd_create_f impl_list[] = {
 // clang-format on
 } // namespace
 
-const pd_create_f *get_matmul_impl_list(const matmul_desc_t *desc) {
+const impl_list_item_t *get_matmul_impl_list(const matmul_desc_t *desc) {
     UNUSED(desc);
     return impl_list;
 }

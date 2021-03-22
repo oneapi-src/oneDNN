@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common/impl_list_item.hpp"
+
 #include "gpu/gpu_impl_list.hpp"
 
 #include "gpu/ocl/ref_concat.hpp"
@@ -23,11 +25,11 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 
-using cpd_create_f = dnnl::impl::engine_t::concat_primitive_desc_create_f;
-
 namespace {
-#define INSTANCE(...) __VA_ARGS__::pd_t::create
-const cpd_create_f concat_impl_list[] = {
+#define INSTANCE(...) \
+    impl_list_item_t(impl_list_item_t::concat_type_deduction_helper_t< \
+            __VA_ARGS__::pd_t>())
+const impl_list_item_t concat_impl_list[] = {
         INSTANCE(ocl::simple_concat_t),
         INSTANCE(ocl::ref_concat_t),
         nullptr,
@@ -35,7 +37,7 @@ const cpd_create_f concat_impl_list[] = {
 #undef INSTANCE
 } // namespace
 
-const cpd_create_f *gpu_impl_list_t::get_concat_implementation_list() {
+const impl_list_item_t *gpu_impl_list_t::get_concat_implementation_list() {
     return concat_impl_list;
 }
 

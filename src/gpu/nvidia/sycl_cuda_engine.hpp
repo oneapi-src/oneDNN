@@ -39,10 +39,8 @@ public:
     static const dnnl::impl::engine_t::reorder_primitive_desc_create_f *
     get_reorder_implementation_list(
             const memory_desc_t *src_md, const memory_desc_t *dst_md);
-    static const dnnl::impl::engine_t::concat_primitive_desc_create_f *
-    get_concat_implementation_list();
-    static const dnnl::impl::engine_t::sum_primitive_desc_create_f *
-    get_sum_implementation_list();
+    static const dnnl::impl::impl_list_item_t *get_concat_implementation_list();
+    static const dnnl::impl::impl_list_item_t *get_sum_implementation_list();
 };
 
 class sycl_cuda_engine_t : public dnnl::impl::sycl::sycl_engine_base_t {
@@ -64,12 +62,12 @@ public:
                 src_md, dst_md);
     }
 
-    const dnnl::impl::engine_t::concat_primitive_desc_create_f *
+    const dnnl::impl::impl_list_item_t *
     get_concat_implementation_list() const override {
         return cuda_gpu_engine_impl_list_t::get_concat_implementation_list();
     }
 
-    const dnnl::impl::engine_t::sum_primitive_desc_create_f *
+    const dnnl::impl::impl_list_item_t *
     get_sum_implementation_list() const override {
         return cuda_gpu_engine_impl_list_t::get_sum_implementation_list();
     }
@@ -77,7 +75,7 @@ public:
     void activate_stream_cudnn(stream_t *stream);
     void activate_stream_cublas(stream_t *stream);
 
-    const primitive_desc_create_f *get_implementation_list(
+    const impl_list_item_t *get_implementation_list(
             const op_desc_t *) const override;
     CUcontext get_underlying_context() const;
     cudnnHandle_t *get_cudnn_handle();

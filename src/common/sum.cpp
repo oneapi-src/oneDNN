@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
+#include "impl_list_item.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"

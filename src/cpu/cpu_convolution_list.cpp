@@ -72,8 +72,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using pd_create_f = engine_t::primitive_desc_create_f;
-
 namespace {
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::prop_kind;
@@ -97,7 +95,7 @@ private:
 };
 
 // clang-format off
-const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
+const std::map<conv_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
     // FWD fp
     {{forward, f32, f32, f32}, {
         CPU_INSTANCE_X64(ip_convolution_fwd_t)
@@ -401,8 +399,9 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
 // clang-format on
 } // namespace
 
-const pd_create_f *get_convolution_impl_list(const convolution_desc_t *desc) {
-    static const pd_create_f empty_list[] = {nullptr};
+const impl_list_item_t *get_convolution_impl_list(
+        const convolution_desc_t *desc) {
+    static const impl_list_item_t empty_list[] = {nullptr};
 
     prop_kind_t prop_kind = utils::one_of(desc->prop_kind, forward_training,
                                     forward_inference)

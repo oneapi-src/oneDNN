@@ -28,13 +28,11 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using pd_create_f = engine_t::primitive_desc_create_f;
-
 namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-const pd_create_f impl_list[] = {
+const impl_list_item_t impl_list[] = {
         CPU_INSTANCE_X64(jit_uni_shuffle_t<avx512_common>)
         CPU_INSTANCE_X64(jit_uni_shuffle_t<avx>)
         CPU_INSTANCE_X64(jit_uni_shuffle_t<sse41>)
@@ -45,7 +43,7 @@ const pd_create_f impl_list[] = {
 // clang-format on
 } // namespace
 
-const pd_create_f *get_shuffle_impl_list(const shuffle_desc_t *desc) {
+const impl_list_item_t *get_shuffle_impl_list(const shuffle_desc_t *desc) {
     UNUSED(desc);
     return impl_list;
 }
