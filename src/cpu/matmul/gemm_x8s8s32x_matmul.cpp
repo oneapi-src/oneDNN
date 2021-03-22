@@ -326,7 +326,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
                                     + static_cast<ptrdiff_t>(i_work % N)
                                             * bia_dt_size,
                             scales, 0, dst_logical_off, dst_row_idx,
-                            gemm_M * gemm_N, static_cast<size_t>(gemm_N), ldc,
+                            gemm_M * gemm_N, static_cast<size_t>(N), ldc,
                             &dst_zero_point_f32,
                             post_ops_binary_rhs_arg_vec.data(), dst, ctx,
                             *pd()->dst_md());
