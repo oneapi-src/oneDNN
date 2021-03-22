@@ -272,7 +272,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                                     + static_cast<ptrdiff_t>(i_work % N)
                                             * bia_dt_size,
                             pp_scales, 0, gemm_M * gemm_N,
-                            static_cast<size_t>(gemm_N), ldc, nullptr,
+                            static_cast<size_t>(N), ldc, nullptr,
                             post_ops_binary_rhs_arg_vec.data(), dst, ctx,
                             *pd()->dst_md());
                 }
