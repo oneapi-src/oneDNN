@@ -47,13 +47,13 @@ normalization.
 
 * **1**: ``input`` - input tensor. **Required.**
 * **2**: ``output_delta`` - the gradient with respect to output. **Required.**
-* **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor with the
+* **3**: ``gamma`` - gamma scaling for normalized value. A 1D tensor with the
   same span as input's channel axis. **Optional.**
-* **3**: ``beta`` - beta added to the scaled normalized value. A 1D tensor with
+* **4**: ``beta`` - beta added to the scaled normalized value. A 1D tensor with
   the same span as input's channel axis. **Optional.**
-* **4**: ``mean`` - if is_training is true, pass batch mean, otherwise running
+* **5**: ``mean`` - if is_training is true, pass batch mean, otherwise running
   mean. **Required.**
-* **5**: ``variance`` - if is_training is true, pass batch variance, otherwise
+* **6**: ``variance`` - if is_training is true, pass batch variance, otherwise
   running variance. **Required.**
 
 **Outputs**

@@ -47,6 +47,7 @@ subset of the operation set.
    pooling/MaxPool_1.rst
    pooling/MaxPoolBackprop_1.rst
    arithmetic/Maximum_1.rst
+   arithmetic/Mean_1.rst
    arithmetic/Minimum_1.rst
    arithmetic/Multiply_1.rst
    arithmetic/Pow_1.rst
@@ -57,6 +58,7 @@ subset of the operation set.
    activation/ReLUBackprop_1.rst
    shape/Reshape_1.rst
    arithmetic/Round_1.rst
+   arithmetic/Rsqrt_1.rst
    activation/Sigmoid_1.rst
    activation/SigmoidBackprop_1.rst
    activation/SoftMax_1.rst
@@ -66,6 +68,8 @@ subset of the operation set.
    arithmetic/Sqrt_1.rst
    arithmetic/SqrtBackprop_1.rst
    arithmetic/Square_1.rst
+   arithmetic/SquaredDifference_1.rst
+   arithmetic/Subtract_1.rst
    activation/Tanh_1.rst
    activation/TanhBackprop_1.rst
    movement/Transpose_1.rst
