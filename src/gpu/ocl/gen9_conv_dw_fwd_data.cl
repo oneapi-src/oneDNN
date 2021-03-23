@@ -22,8 +22,8 @@
 #endif
 
 #ifdef DST_DT_S8
-#define DST_MB_BLOCK MB_BLOCK * 2
-#define DST_OC_BLOCK OC_BLOCK * 2
+#define DST_MB_BLOCK (MB_BLOCK * 2)
+#define DST_OC_BLOCK (OC_BLOCK * 2)
 #endif
 
 #define APPLY_POST_OPS_COMMON(nelems, accumulator, dest_data, mb_shift) \
@@ -198,10 +198,11 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
 #ifdef DST_DT_S8 //32n32c dst
     const int G_32block = G % 32 ? (32 + G - (G % 32)) : G;
-    dst += (mb * 2) * G_32block * OD * OH * OW
-            + (g / 32 * 32) * OD * OH * OW * DST_MB_BLOCK
+    dst += (mb / DST_MB_BLOCK) * G_32block * OD * OH * OW * DST_MB_BLOCK
+            + (mb % DST_MB_BLOCK) * DST_OC_BLOCK
+            + (g / DST_OC_BLOCK) * OD * OH * OW * DST_MB_BLOCK * DST_OC_BLOCK
             + (od * OH * OW + oh * OW + ow) * DST_MB_BLOCK * DST_OC_BLOCK
-            + (g % 32);
+            + (g % DST_OC_BLOCK);
 #else
     dst += mb * G * OD * OH * OW + g * OD * OH * OW * MB_BLOCK
             + (od * OH * OW + oh * OW + ow) * MB_BLOCK * OC_BLOCK;
@@ -281,9 +282,9 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
 #ifdef DST_DT_S8
     for (int i = 0; i < 8; ++i) {
-        BLOCK_WRITE_DST((__global DST_DATA_T *)&dst[i * DST_MB_BLOCK],
+        BLOCK_WRITE_DST((__global DST_DATA_T *)&dst[i * DST_OC_BLOCK],
                 CONVERT_DST_DATA_T(S00[i]));
-        BLOCK_WRITE_DST((__global DST_DATA_T *)&dst[(i + 8) * DST_MB_BLOCK],
+        BLOCK_WRITE_DST((__global DST_DATA_T *)&dst[(i + 8) * DST_OC_BLOCK],
                 CONVERT_DST_DATA_T(S01[i]));
     }
 #else
