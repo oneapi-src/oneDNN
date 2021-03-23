@@ -310,17 +310,20 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     }
 
 #elif ALT_OFFSETS
-    // This implementation's uses two main features:
+    // This implementation uses two main features:
     // 1. Extremely simple offset calculations. It works on 2D-4D tensors with
     // plain format. Coordinates of up to 3 dimensions are passed unmodified
     // through get_global_id(). 4th dimension, if there is one, is passed as
     // block size.
-    // 2. Uses work group size at least 8 even if number of work items is not
-    // divisible by group size. This is allowed since OpenCL2.0.
+    // 2. Uses work group size at least 8. If that would mean using nonuniform
+    // work groups, number of work items will be padded to keep them uniform.
     const int d0 = get_global_id(0);
     const int d1 = get_global_id(1);
     const int d2 = get_global_id(2);
-
+#ifdef LIMIT_MAX_D0
+    // padding for uniform work groups, don't write there
+    if (d0 >= LIMIT_MAX_D0) { return; }
+#endif
     const int src_base = S0 * d0 + S1 * d1 + S2 * d2;
     const int dst_base = D0 * d0 + D1 * d1 + D2 * d2;
 
