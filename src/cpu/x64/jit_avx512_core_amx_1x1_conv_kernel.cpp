@@ -182,15 +182,20 @@ Zmm jit_avx512_core_amx_1x1_fwd_kernel_t::zmm_mask(
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::cvt2ps(data_type_t type_in,
         const Zmm &zmm_in, const Operand &op, bool mask_flag = false) {
+    using namespace dnnl::impl::data_type;
     const Zmm zmm = zmm_mask(zmm_in, mask_flag);
     switch (type_in) {
-        case data_type::f32:
-        case data_type::s32: vmovups(zmm, op); break;
-        case data_type::s8: vpmovsxbd(zmm, op); break;
-        case data_type::u8: vpmovzxbd(zmm, op); break;
+        case bf16:
+            vpmovzxwd(zmm, op);
+            vpslld(zmm_in, zmm_in, 16);
+            break;
+        case f32:
+        case s32: vmovups(zmm, op); break;
+        case s8: vpmovsxbd(zmm, op); break;
+        case u8: vpmovzxbd(zmm, op); break;
         default: assert(!"unsupported data type");
     }
-    if (type_in != data_type::f32) vcvtdq2ps(zmm_in, zmm_in);
+    if (utils::one_of(type_in, s32, s8, u8)) vcvtdq2ps(zmm_in, zmm_in);
 }
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_sum(const Zmm &zmm_out,
@@ -232,6 +237,134 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_postops(const Zmm &zmm_out,
         }
 
         postops_injector_->compute_vector(vmm_idx, rhs_arg_params);
+    }
+}
+
+bool jit_avx512_core_amx_1x1_fwd_kernel_t::is_fast_postops(
+        const jit_conv_conf_t &jcp) {
+    const auto &p = jcp.post_ops;
+    auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
+    auto is_sum = [&](int idx) {
+        const bool require_scale_one = jcp.src_dt == data_type::bf16;
+        return p.entry_[idx].is_sum(require_scale_one);
+    };
+    switch (p.len()) {
+        case 0: return true;
+        case 1: return is_relu(0) || is_sum(0);
+        case 2: return is_sum(0) && is_relu(1);
+        default: return false;
+    }
+    return false;
+}
+
+void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vectors_int8(
+        int ocb, int osb) {
+    const bool mask_flag
+            = last_oc_block_flag_ && ocb == (jcp.nb_oc_blocking - 1);
+    const auto &p = attr_.post_ops_;
+    const int sum_idx = p.find(primitive_kind::sum);
+    const float *p_sum_scale = nullptr;
+    if (sum_idx != -1) {
+        const auto &p_entry = p.entry_[sum_idx];
+        p_sum_scale = &p_entry.sum.scale;
+    }
+    if (p_sum_scale && *p_sum_scale != 1.f)
+        mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
+
+    if (jcp.src_zero_point) {
+        const int zp_offset = sizeof(int32_t) * ocb * jcp.oc_block;
+        const Zmm zmm_zp_m = zmm_mask(zmm_zp, mask_flag);
+        vpmulld(zmm_zp_m, zmm_src_zp,
+                EVEX_compress_addr(reg_zp_compensation, zp_offset));
+        for (int j = 0; j < jcp.tile_width; j++) {
+            const Zmm zmm_r = zmm_out(j);
+            vpaddd(zmm_r, zmm_r, zmm_zp_m);
+        }
+    }
+
+    for (int j = 0; j < jcp.tile_width; j++) {
+        const Zmm zmm_r = zmm_out(j);
+        vcvtdq2ps(zmm_r, zmm_r);
+    }
+
+    if (jcp.with_bias) {
+        mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
+        int bias_offset = jcp.typesize_bia * ocb * jcp.oc_block;
+        auto bias_addr = EVEX_compress_addr(reg_bias, bias_offset);
+        cvt2ps(jcp.bia_dt, zmm_bias, bias_addr, mask_flag);
+        for (int j = 0; j < jcp.tile_width; j++) {
+            const Zmm zmm_r = zmm_out(j);
+            vaddps(zmm_r, zmm_r, zmm_bias);
+        }
+    }
+
+    mov(reg_ptr_scales, ptr[param1 + GET_OFF(scales)]);
+    for (int j = 0; j < jcp.tile_width; j++) {
+        const int scale_offset
+                = jcp.is_oc_scale * (sizeof(float) * ocb * jcp.oc_block);
+        const Zmm zmm_r = zmm_out(j);
+        const Zmm zmm_r_msk = zmm_mask(zmm_r, mask_flag);
+        vmulps(zmm_r_msk, zmm_r,
+                EVEX_compress_addr(reg_ptr_scales, scale_offset));
+    }
+
+    if (jcp.with_sum && p_sum_scale != nullptr) {
+        const auto p_sum_scale_val = *p_sum_scale;
+        for (int j = 0; j < jcp.tile_width; j++) {
+            int h = ((osb * jcp.tile_width + j) / jcp.ow);
+            int w = ((osb * jcp.tile_width + j) % jcp.ow);
+
+            const auto off = out_row_offset(h, w, ocb);
+            const auto addr = EVEX_compress_addr(out_ptr, off);
+
+            const Zmm zmm_r = zmm_out(j);
+            cvt2ps(jcp.dst_dt, zmm_prev_dst, addr, mask_flag);
+            if (p_sum_scale_val == 1.f)
+                vaddps(zmm_r, zmm_prev_dst);
+            else
+                vfmadd231ps(zmm_r, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
+        }
+    }
+    if (jcp.with_eltwise) {
+        vxorps(zmm_zero, zmm_zero, zmm_zero);
+        for (int j = 0; j < jcp.tile_width; j++) {
+            const Zmm zmm_r = zmm_out(j);
+            vmaxps(zmm_r, zmm_r, zmm_zero);
+        }
+    }
+
+    if (jcp.dst_zero_point) {
+        for (int j = 0; j < jcp.tile_width; j++) {
+            const Zmm zmm_r = zmm_out(j);
+            vaddps(zmm_r, zmm_r, zmm_dst_zp);
+        }
+    }
+
+    // Properly saturate the accumulators for integer datatypes
+    if (one_of(jcp.dst_dt, u8, s8, s32)) {
+        init_saturate_f32(
+                zmm_zero, zmm_saturation, aux_reg_saturation, f32, jcp.dst_dt);
+        for (int j = 0; j < jcp.tile_width; j++) {
+            const Zmm zmm_r = zmm_out(j);
+            saturate_f32(zmm_r, zmm_zero, zmm_saturation, jcp.dst_dt);
+            vcvtps2dq(zmm_r, zmm_r);
+        }
+    }
+
+    for (int j = 0; j < jcp.tile_width; j++) {
+        const int h = ((osb * jcp.tile_width + j) / jcp.ow);
+        const int w = ((osb * jcp.tile_width + j) % jcp.ow);
+        const auto off = out_row_offset(h, w, ocb);
+        const auto addr = EVEX_compress_addr(out_ptr, off);
+
+        const Zmm zmm_out_store = zmm_mask(zmm_out(j), mask_flag, true);
+        switch (jcp.dst_dt) {
+            case data_type::f32:
+            case data_type::s32: vmovups(addr, zmm_out_store); break;
+            case data_type::s8: vpmovsdb(addr, zmm_out_store); break;
+            case data_type::u8: vpmovusdb(addr, zmm_out_store); break;
+            default: assert(!"unknown dst_dt");
+        }
     }
 }
 
@@ -300,6 +433,57 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_int8(
     }
 }
 
+void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vectors_bf16(
+        int ocb, int osb) {
+    const bool mask_flag
+            = last_oc_block_flag_ && ocb == (jcp.nb_oc_blocking - 1);
+
+    if (jcp.with_bias) {
+        mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
+        const int bias_offset = jcp.typesize_bia * ocb * jcp.oc_block;
+        const auto bias_addr = EVEX_compress_addr(reg_bias, bias_offset);
+        cvt2ps(jcp.bia_dt, zmm_bias, bias_addr, mask_flag);
+        for (int j = 0; j < jcp.tile_width; j++) {
+            const Zmm zmm_r = zmm_out(j);
+            vaddps(zmm_r, zmm_r, zmm_bias);
+        }
+    }
+
+    if (jcp.with_sum) {
+        for (int j = 0; j < jcp.tile_width; j++) {
+            int h = ((osb * jcp.tile_width + j) / jcp.ow);
+            int w = ((osb * jcp.tile_width + j) % jcp.ow);
+            const auto off = out_row_offset(h, w, ocb);
+            const auto addr = EVEX_compress_addr(out_ptr, off);
+            const Zmm zmm_r = zmm_out(j);
+            cvt2ps(jcp.dst_dt, zmm_prev_dst, addr, mask_flag);
+            vaddps(zmm_r, zmm_prev_dst);
+        }
+    }
+    if (jcp.with_eltwise) {
+        vxorps(zmm_zero, zmm_zero, zmm_zero);
+        for (int j = 0; j < jcp.tile_width; j++) {
+            const Zmm zmm_r = zmm_out(j);
+            vmaxps(zmm_r, zmm_r, zmm_zero);
+        }
+    }
+
+    for (int j = 0; j < jcp.tile_width; j++) {
+        const int h = ((osb * jcp.tile_width + j) / jcp.ow);
+        const int w = ((osb * jcp.tile_width + j) % jcp.ow);
+        const auto off = out_row_offset(h, w, ocb);
+        const auto addr = EVEX_compress_addr(out_ptr, off);
+        const Zmm zmm_r = zmm_out(j);
+        if (jcp.dst_dt == data_type::bf16) {
+            Ymm ymm_r = Ymm(zmm_r.getIdx());
+            vcvtneps2bf16(ymm_r, zmm_r);
+            vmovdqu16(addr, ymm_mask(ymm_r, mask_flag, true));
+        } else {
+            vmovups(addr, zmm_mask(zmm_r, mask_flag, true));
+        }
+    }
+}
+
 void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_bf16(
         const Zmm &zmm_out, int ocb, int h, int w) {
     const auto off = out_row_offset(h, w, ocb);
@@ -346,6 +530,17 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_bf16(
     }
 }
 
+// Store all rows of a tile
+void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vectors(
+        int ocb, int osb) {
+    if (is_bf16()) {
+        store_output_vectors_bf16(ocb, osb);
+    } else {
+        store_output_vectors_int8(ocb, osb);
+    }
+}
+
+// Store single row
 void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector(
         const Zmm &zmm_out, int ocb, int h, int w) {
     if (is_bf16()) {
@@ -385,8 +580,9 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output(
                     + wsp_offset];
             const Zmm zmm_r = zmm_out(j);
             vmovups(zmm_r, addr);
-            store_output_vector(zmm_r, ocb, oh_, ow_);
+            if (!jcp.is_fast_postops) store_output_vector(zmm_r, ocb, oh_, ow_);
         }
+        if (do_store && jcp.is_fast_postops) store_output_vectors(ocb, osb);
     };
 
     auto store_output_block = [=](int os_b = 1) {
@@ -830,6 +1026,7 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.with_binary = binary_ind != -1;
 
     jcp.post_ops = p;
+    jcp.is_fast_postops = is_fast_postops(jcp);
 
     using namespace injector;
     const bool sum_at_pos_0_only = (jcp.src_dt == data_type::bf16);

@@ -145,10 +145,14 @@ private:
     void apply_postops(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
             const Xbyak::Address &addr, const bool mask_flag, const size_t off,
             const int ocb);
+    static bool is_fast_postops(const jit_conv_conf_t &jcp);
+    void store_output_vectors_int8(int ocb, int osb);
     void store_output_vector_int8(
             const Xbyak::Zmm &zmm_out, int ocb, int h, int w);
+    void store_output_vectors_bf16(int ocb, int osb);
     void store_output_vector_bf16(
             const Xbyak::Zmm &zmm_out, int ocb, int h, int w);
+    void store_output_vectors(int ocb, int osb);
     void store_output_vector(const Xbyak::Zmm &zmm_out, int ocb, int h, int w);
     void store_output(bool do_store, bool is_tail);
     void icb_loop(bool do_store);

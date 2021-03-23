@@ -114,6 +114,7 @@ struct jit_conv_conf_t {
 
     post_ops_t::entry_t::eltwise_t eltwise;
     post_ops_t post_ops;
+    bool is_fast_postops; // maybe skip injector for sum and/or relu
 
     int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
 
