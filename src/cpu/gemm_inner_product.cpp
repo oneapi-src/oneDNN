@@ -67,7 +67,7 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
             (*pp_kernel_)(dst, dst, (char *)bias, scales, start, start,
                     dst_start_row_idx, end, 0,
                     pd()->OC() * pd()->OD() * pd()->OH() * pd()->OW(), nullptr,
-                    post_ops_binary_rhs_arg_vec.data(), dst, ctx,
+                    post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
                     *pd()->dst_md());
         });
     }

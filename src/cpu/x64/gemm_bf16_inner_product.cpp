@@ -78,7 +78,7 @@ status_t gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
             static constexpr size_t dst_start_row_idx = 0;
             (*pp_kernel_)(dst, acc, bias, scales, start, dst_logical_off,
                     dst_start_row_idx, end, 0, 0, nullptr,
-                    post_ops_binary_rhs_arg_vec.data(), dst, ctx,
+                    post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
                     *pd()->dst_md());
         });
     }

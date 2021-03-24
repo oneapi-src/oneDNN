@@ -275,6 +275,9 @@ static bool rhs_arg_params_differ(size_t vmm_idx1, size_t vmm_idx2,
     const auto &oc_off_addr = rhs_arg_params.vmm_idx_to_oc_elem_off_addr;
     const auto &oc_off_val = rhs_arg_params.vmm_idx_to_oc_elem_off_val;
     const auto &oc_off_oprnd = rhs_arg_params.vmm_idx_to_oc_off_oprnd;
+    const auto &sp_off_addr = rhs_arg_params.vmm_idx_to_sp_elem_off_addr;
+    const auto &sp_off_val = rhs_arg_params.vmm_idx_to_sp_elem_off_val;
+    const auto &sp_off_oprnd = rhs_arg_params.vmm_idx_to_sp_off_oprnd;
 
     if (rhs_broadcasting_strategy == broadcasting_strategy_t::scalar) {
         return false;
@@ -289,6 +292,11 @@ static bool rhs_arg_params_differ(size_t vmm_idx1, size_t vmm_idx2,
         return params_differ(oc_off_addr, vmm_idx1, vmm_idx2)
                 || params_differ(oc_off_val, vmm_idx1, vmm_idx2)
                 || params_differ(oc_off_oprnd, vmm_idx1, vmm_idx2);
+    } else if (rhs_broadcasting_strategy
+            == broadcasting_strategy_t::channel_broadcast) {
+        return params_differ(sp_off_addr, vmm_idx1, vmm_idx2)
+                || params_differ(sp_off_val, vmm_idx1, vmm_idx2)
+                || params_differ(sp_off_oprnd, vmm_idx1, vmm_idx2);
     }
     return true;
 }
@@ -513,6 +521,17 @@ Xbyak::Address jit_uni_binary_injector_t<isa, Vmm>::prepare_rhs_arg_addr(
                             == broadcasting_strategy_t::per_oc_spatial
                     ? host_->ptr_b[rhs_addr_reg]
                     : host_->ptr[rhs_addr_reg];
+        }
+        case broadcasting_strategy_t::channel_broadcast: {
+            append_offset_from_operand(rhs_arg_params.vmm_idx_to_sp_off_oprnd,
+                    vmm_idx, rhs_addr_reg, rhs_helper_reg, rhs_arg_elem_size);
+            append_offset_under_mem_addr(
+                    rhs_arg_params.vmm_idx_to_sp_elem_off_addr, vmm_idx,
+                    rhs_addr_reg, rhs_helper_reg, rhs_arg_elem_size);
+            append_value_offset(rhs_arg_params.vmm_idx_to_sp_elem_off_val,
+                    vmm_idx, rhs_addr_reg, rhs_arg_elem_size);
+
+            return host_->ptr[rhs_addr_reg];
         }
         default: assert(false && "Broadcasting type not supported");
     }

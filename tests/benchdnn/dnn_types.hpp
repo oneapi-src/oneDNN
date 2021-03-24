@@ -101,6 +101,7 @@ struct attr_t {
         PER_DIM_0, // ... dims[0] point.
         PER_DIM_1, // ... dims[1] point.
         PER_DIM_01, // ... unique combination of dims[0] and dims[1] points.
+        PER_DIM_023, // ... combination of dims[0], dims[2], dims[3] points.
         PER_TENSOR, // ... point in the tensor.
         POLICY_TOTAL // guard
     };

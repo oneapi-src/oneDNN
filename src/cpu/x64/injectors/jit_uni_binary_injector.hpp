@@ -202,6 +202,12 @@ enum class tail_lode_mode_t { STATIC, DYNAMIC, DEFAULT };
  * passed as raw value intended to use in per_oc broadcast strategies.
  * @param vmm_idx_to_oc_off_oprnd - vmm mapped to output channel offset in elements inside
  * operand intended to use in per_oc broadcast strategies.
+ * @param vmm_idx_to_sp_elem_off_addr - vmm mapped to proper output spatial offset in
+ * elements stored under memory address intended to use in channel_broadcast strategies.
+ * @param vmm_idx_to_sp_elem_off_val - vmm mapped to proper output spatial offset in
+ * elements passed as raw value intended to use in channel_broadcast strategies.
+ * @param vmm_idx_to_sp_off_oprnd - vmm mapped to proper output spatial offset in 
+ * elements inside operand intended to use in channel_broadcast strategies.
  * @param vmm_tail_idx - vmm indices that contains data don't fill the whole vector (tail).
  * @param is_dynamic_tail_load - determines whether to load with tail in
  * runtime (based on the value from reg_tail_size or opmask) or based on given
@@ -216,6 +222,11 @@ struct rhs_arg_dynamic_params_t {
     std::map<int, Xbyak::Address> vmm_idx_to_oc_elem_off_addr;
     std::map<int, int> vmm_idx_to_oc_elem_off_val;
     std::map<int, Xbyak::Operand> vmm_idx_to_oc_off_oprnd;
+
+    std::map<int, Xbyak::Address> vmm_idx_to_sp_elem_off_addr;
+    std::map<int, int> vmm_idx_to_sp_elem_off_val;
+    std::map<int, Xbyak::Operand> vmm_idx_to_sp_off_oprnd;
+
     std::unordered_set<int> vmm_tail_idx_;
     tail_lode_mode_t tail_load_mode = tail_lode_mode_t::DEFAULT;
 };

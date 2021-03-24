@@ -52,7 +52,8 @@ struct ref_pp_kernel_t : public pp_kernel_t<acc_type, dst_type> {
             size_t dst_row_idx, size_t end, size_t runtime_oc,
             dim_t dst_mb_stride, const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
-            const exec_ctx_t &ctx, const memory_desc_t &dst_md) const override;
+            size_t spatial_addr_off, const exec_ctx_t &ctx,
+            const memory_desc_t &dst_md) const override;
 
 private:
     std::unique_ptr<ref_post_ops_t> ref_post_ops_;
@@ -64,8 +65,8 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         size_t start, size_t dst_row_idx, size_t dst_logical_off, size_t end,
         size_t runtime_oc, dim_t dst_mb_stride, const float *dst_zero_points,
         const void * /* post_ops_binary_rhs_arg_vec */,
-        const void * /* dst_orig */, const exec_ctx_t &ctx,
-        const memory_desc_t &dst_md) const {
+        const void * /* dst_orig */, size_t /* spatial_addr_off */,
+        const exec_ctx_t &ctx, const memory_desc_t &dst_md) const {
     using math::get_bias;
 
     if (end <= start) return;
@@ -192,10 +193,19 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
                 = {broadcasting_strategy_t::scalar,
                         broadcasting_strategy_t::per_oc,
                         broadcasting_strategy_t::per_oc_spatial,
+                        broadcasting_strategy_t::channel_broadcast,
                         broadcasting_strategy_t::no_broadcast};
-        return injector::post_ops_ok({isa_supported, {binary, eltwise, sum},
-                post_ops, dst_d, sum_at_pos_0_only, sum_requires_scale_one,
-                enabled_bcast_strategy});
+        const bool is_binary_po_channel_bcast
+                = binary_injector_utils::bcast_strategy_present(
+                        binary_injector_utils::extract_bcast_strategies(
+                                post_ops.entry_, *dst_d),
+                        broadcasting_strategy_t::channel_broadcast);
+        const bool supported_channel_bcast = IMPLICATION(
+                is_binary_po_channel_bcast, (*dst_d).ndims() == 4);
+        return supported_channel_bcast
+                && injector::post_ops_ok({isa_supported, {binary, eltwise, sum},
+                        post_ops, dst_d, sum_at_pos_0_only,
+                        sum_requires_scale_one, enabled_bcast_strategy});
     }
 #endif
     for (size_t i = 0; i < post_ops.entry_.size(); i++) {
