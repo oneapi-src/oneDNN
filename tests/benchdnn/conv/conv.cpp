@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2017-2021 Intel Corporation
+* Copyright 2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -363,12 +364,31 @@ int fill_src(
 int fill_wei(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
     const bool wino_s8 = prb->alg == WINO && prb->cfg[WEI].dt == dnnl_s8;
-    const bool s8_s8
-            = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dnnl_s8;
     const bool is_def_zp = prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
+
+    dnnl_data_type_t dt_check = dnnl_s8;
+#if DNNL_AARCH64
+    /* Note for x64:
+    Both data types of src and weight are s8, oneDNN addds 128 to one of the s8
+    input to make it of type u8 instead, as explained in
+    https://oneapi-src.github.io/oneDNN/dev_guide_int8_computations.html or
+    doc/advanced/int8_computations.md
+    It is because `VPDPBUSD` instruction uses the combination of s8 and u8 as
+    input.
+
+    Note for AArch64:
+    Because dot product instructions of AArch64 "SDOT" receives s8 input
+    for both src and weight, the addition (and its counterpart of subtraction)
+    is not required for AArch64.
+    */
+    if (res->impl_name.find("jit", 0) == 0) dt_check = dnnl_u8;
+#endif
+
+    const bool wei_x8x8
+            = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dt_check;
     const bool check_reorder = (bench_mode & CORR) && diff_data_type && !wino_s8
-            && !s8_s8 && is_def_zp;
+            && !wei_x8x8 && is_def_zp;
 
     dnn_mem_t extra_mem;
     if (check_reorder) {
@@ -398,7 +418,7 @@ int fill_wei(
         SAFE(mem_fp.reorder(mem_dt), WARN);
         SAFE(compare_wei(prb, mem_fp, mem_00, res), WARN);
     }
-    if ((s8_s8 || !is_def_zp) && is_cpu()) {
+    if ((wei_x8x8 || !is_def_zp) && is_cpu()) {
         // Check that s8 -> s8_comp exists in the library since users may have
         // already quantized data.
         dnn_mem_t mem_fp_s8(mem_fp.md_, dnnl_s8, get_test_engine());
