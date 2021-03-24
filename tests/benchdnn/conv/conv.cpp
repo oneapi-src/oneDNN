@@ -866,9 +866,14 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode & CORR && is_gpu() && fast_ref_gpu &&
             // TODO: temporary disable cpu as ref for testcases with binary post-ops
             prb->attr.post_ops.binary_index() == -1) {
+        // Create a new copy of prb to avoid potentially corrupting the test by
+        // modifying prb in place. DIRECT algorithm is used to prevent fallback
+        // to the slow benchdnn reference implementation.
+        prb_t prb_cpu {*prb, prb->dir, prb->cfg, prb->stag, prb->wtag,
+                prb->dtag, DIRECT, prb->attr, prb->mb, prb->is_deconv};
         dnnl_primitive_desc_t cpd_ref_ {};
-        SAFE(init_pd_custom(get_cpu_engine(), prb, cpd_ref_, nullptr, fp, fp,
-                     fp, fp, fp, src_tag, wei_tag, tag::x, src_tag),
+        SAFE(init_pd_custom(get_cpu_engine(), &prb_cpu, cpd_ref_, nullptr, fp,
+                     fp, fp, fp, fp, src_tag, wei_tag, tag::x, src_tag),
                 WARN);
         auto cpd_ref = make_benchdnn_dnnl_wrapper(cpd_ref_);
 
