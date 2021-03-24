@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020 Intel Corporation
+# Copyright 2020-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,3 +44,27 @@ mark_as_advanced(
     CMAKE_C_FLAGS_RELWITHASSERT
     CMAKE_EXE_LINKER_FLAGS_RELWITHASSERT
     CMAKE_SHARED_LINKER_FLAGS_RELWITHASSERT)
+
+
+# Release build with linking to the Debug Runtime
+string(REGEX REPLACE "/MD" "/MDd /debug:none"
+    _CMAKE_CXX_FLAGS_RELWITHMDD "${CMAKE_CXX_FLAGS_RELEASE}")
+string(REGEX REPLACE "/MD" "/MDd /debug:none"
+    _CMAKE_CXX_EXE_LINKER_RELWITHMDD "${CMAKE_CXX_EXE_LINKER_RELEASE}")
+string(REGEX REPLACE "/MD" "/MDd /debug:none"
+    _CMAKE_CXX_SHARED_LINKER_RELWITHMDD "${CMAKE_CXX_SHARED_LINKER_RELEASE}")
+
+set(CMAKE_C_FLAGS_RELWITHMDD "${CMAKE_C_FLAGS_RELEASE}" CACHE STRING
+     "Flags used by the C compiler during RelWithMdd build")
+set(CMAKE_CXX_FLAGS_RELWITHMDD "${_CMAKE_CXX_FLAGS_RELWITHMDD}"
+     CACHE STRING "Flags used by the C++ compiler during RelWithMdd build.")
+set(CMAKE_EXE_LINKER_FLAGS_RELWITHMDD "${_CMAKE_EXE_LINKER_FLAGS_RELWITHMDD}"
+     CACHE STRING "Flags used for linking binaries during RelWithMdd builds.")
+set(CMAKE_SHARED_LINKER_FLAGS_RELWITHMDD "${_CMAKE_SHARED_LINKER_FLAGS_RELWITHMDD}"
+     CACHE STRING "Flags used by the shared libraries linker during RelWithMdd builds.")
+
+mark_as_advanced(
+    CMAKE_CXX_FLAGS_RELWITHMDD
+    CMAKE_C_FLAGS_RELWITHMDD
+    CMAKE_EXE_LINKER_FLAGS_RELWITHMDD
+    CMAKE_SHARED_LINKER_FLAGS_RELWITHMDD)
