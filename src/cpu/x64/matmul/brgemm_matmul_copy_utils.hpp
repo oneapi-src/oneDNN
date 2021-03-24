@@ -30,6 +30,8 @@ struct jit_brgemm_matmul_copy_B_t {
         const void *src;
         const void *tr_src;
         const void *compensation_ptr;
+        const void *zp_a_compensation_ptr;
+        const void *zp_a_neg_value_ptr;
 
         dim_t current_K_start;
         dim_t current_K_iters;
