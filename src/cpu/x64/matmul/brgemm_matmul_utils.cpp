@@ -107,10 +107,6 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.wei_zp_type = get_zp_type(attr, DNNL_ARG_WEIGHTS);
     bgmmc.dst_zp_type = get_zp_type(attr, DNNL_ARG_DST);
 
-    if (!everyone_is(brgemm_broadcast_t::none, bgmmc.src_zp_type,
-                bgmmc.wei_zp_type, bgmmc.dst_zp_type))
-        return status::unimplemented;
-
     if (IMPLICATION(is_int8,
                 !one_of(isa, avx512_core_vnni, avx512_core_bf16_amx_int8)))
         return status::unimplemented;
@@ -244,7 +240,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     };
 
     const auto L2_treshold = 3 * platform::get_per_core_cache_size(2) / 4;
-    const bool is_copy_a_required = bgmmc.K % k_gran != 0;
+    const bool is_copy_a_required = bgmmc.K % k_gran != 0
+            || bgmmc.wei_zp_type != brgemm_broadcast_t::none;
     bgmmc.use_buffer_a = is_copy_a_required;
     // Supported computation with copy only part of A related to K_tail if
     // is_copy_a_required == true, but the current performance measurements
@@ -327,6 +324,21 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         size_t nelements = (size_t)bgmmc.nthr * bgmmc.LDC * bgmmc.M_blk
                 * bgmmc.M_chunk_size * bgmmc.N_chunk_size;
         scratchpad.book(key_brgemm_primitive_buffer, nelements,
+                types::data_type_size(bgmmc.acc_dt));
+    }
+
+    if (bgmmc.src_zp_type != brgemm_broadcast_t::none) {
+        size_t nelements_comp
+                = (size_t)bgmmc.nthr * bgmmc.wei_n_blk * bgmmc.N_chunk_size;
+        scratchpad.book(key_brgemm_primitive_zp_comp_a, nelements_comp,
+                types::data_type_size(bgmmc.acc_dt));
+    }
+
+    if (bgmmc.wei_zp_type != brgemm_broadcast_t::none) {
+        const int s32_elems_in_cacheline = 16;
+        size_t nelements_comp = (size_t)bgmmc.nthr * bgmmc.M_blk
+                * bgmmc.M_chunk_size * (1 + s32_elems_in_cacheline);
+        scratchpad.book(key_brgemm_primitive_zp_comp_b, nelements_comp,
                 types::data_type_size(bgmmc.acc_dt));
     }
 

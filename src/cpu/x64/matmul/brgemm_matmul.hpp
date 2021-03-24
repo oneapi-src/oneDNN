@@ -85,13 +85,13 @@ struct brgemm_matmul_t : public primitive_t {
     static constexpr data_type_t acc_type = data_type::s32;
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_body(ctx);
+        return execute_body(ctx);
         return status::success;
     }
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    void execute_body(const exec_ctx_t &ctx) const;
+    status_t execute_body(const exec_ctx_t &ctx) const;
     // Auxiliary functions for getting offsets with pre-calculated memory
     // strides for each tensor to get general sulution for all possible
     // dimension without significant overhead
