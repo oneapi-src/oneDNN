@@ -1010,10 +1010,13 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
 
     this->postamble();
 }
+#undef GET_OFF
 
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx512_common>;
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx2>;
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<sse41>;
+
+#define GET_OFF(field) offsetof(jit_dw_conv_call_s, field)
 
 template <cpu_isa_t isa>
 inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::zero_filter() {
@@ -1180,20 +1183,18 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::store_bias() {
 }
 
 template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_loop(
-        const int block_size) {
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_loop() {
     Label oh_label;
     Label ow_blk_label;
 
-    const int unroll_w = nstl::min(block_size, jcp.ow);
+    const int unroll_w = nstl::min(max_unroll_w_, jcp.ow);
     const int unroll_w_trips = jcp.ow / unroll_w;
-    const int tail_w = jcp.ow > block_size ? jcp.ow % block_size : 0;
+    const int tail_w = jcp.ow > max_unroll_w_ ? jcp.ow % max_unroll_w_ : 0;
 
     const int ch_offset = jcp.ch_block;
 
-    mov(reg_oh, ptr[this->param1 + offsetof(jit_dw_conv_call_s, oh_index)]);
-    mov(reg_oh_worksize,
-            ptr[this->param1 + offsetof(jit_dw_conv_call_s, oh_count)]);
+    mov(reg_oh, ptr[this->param1 + GET_OFF(oh_index)]);
+    mov(reg_oh_worksize, ptr[this->param1 + GET_OFF(oh_count)]);
 
     mov(reg_tmp_output, reg_output_baddr);
     L(oh_label);
@@ -1202,7 +1203,6 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_loop(
         mov(reg_iter_ow_blk, unroll_w_trips);
         L(ow_blk_label);
         {
-
             compute_bias_step_unroll(unroll_w);
             add(reg_tmp_output, unroll_w * ch_offset * sizeof(float));
 
@@ -1223,14 +1223,34 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_loop(
 }
 
 template <cpu_isa_t isa>
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias() {
+
+    Label skip_load_bias;
+    mov(reg_bias_baddr, ptr[this->param1 + GET_OFF(bias)]);
+
+    zero_bias();
+
+    mov(reg_exec_flags, ptr[this->param1 + GET_OFF(exec_flags)]);
+    and_(reg_exec_flags, FLAG_ZERO_BIAS);
+    test(reg_exec_flags, reg_exec_flags);
+    jne(skip_load_bias);
+
+    load_bias();
+
+    L(skip_load_bias);
+    compute_bias_loop();
+
+    store_bias();
+}
+
+template <cpu_isa_t isa>
 inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_zero_filter() {
 
     const int ch_offset = jcp.ch_block;
 
     Label kh_loop_label, skip_zeroing_label;
 
-    mov(reg_exec_flags,
-            ptr[this->param1 + offsetof(jit_dw_conv_call_s, exec_flags)]);
+    mov(reg_exec_flags, ptr[this->param1 + GET_OFF(exec_flags)]);
     and_(reg_exec_flags, FLAG_ZERO_FILTER);
     test(reg_exec_flags, reg_exec_flags);
     je(skip_zeroing_label);
@@ -1309,11 +1329,9 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_h_loop(
 
     Label tpad_loop_label, h_loop_label, skip_tpad_label, skip_bpad_label;
 
-    mov(reg_oh, ptr[this->param1 + offsetof(jit_dw_conv_call_s, oh_index)]);
-    mov(reg_oh_worksize,
-            ptr[this->param1 + offsetof(jit_dw_conv_call_s, oh_count)]);
-    mov(reg_kh_count,
-            ptr[this->param1 + offsetof(jit_dw_conv_call_s, kh_count)]);
+    mov(reg_oh, ptr[this->param1 + GET_OFF(oh_index)]);
+    mov(reg_oh_worksize, ptr[this->param1 + GET_OFF(oh_count)]);
+    mov(reg_kh_count, ptr[this->param1 + GET_OFF(kh_count)]);
 
     mov(reg_tmp_output, reg_output_baddr);
     mov(reg_tmp_input, reg_input_baddr);
@@ -1367,37 +1385,21 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_h_loop(
 }
 
 template <cpu_isa_t isa>
-inline void
-jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
+void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::calculate_w_unrolling(
+        int &unroll_trips, int &unroll_w, int &unroll_w_tail) {
 
-    const int ch_offset = jcp.ch_block;
-    int ow = jcp.ow;
-    int pad_offset = 0;
-    int l_pad = jcp.l_pad;
-    int r_pad = jcp.r_pad;
-
-    /* Is this strictly defined by:
-     * -code-size (?)
-     * -address size (?) */
-    const int max_unroll_w = 30;
-    const int block_size = 15;
-
-    int unroll_w_tail = 0;
-    int unroll_w = 0;
-    int unroll_w_trips = 0;
-    const bool do_unroll_w = jcp.ow > max_unroll_w;
-
+    const bool do_unroll_w = jcp.ow > max_unroll_w_;
     if (do_unroll_w) {
-        unroll_w = nstl::min(block_size, jcp.ow);
-        unroll_w_trips = ow / unroll_w;
+        unroll_w = nstl::min(block_size_, jcp.ow);
+        unroll_trips = jcp.ow / unroll_w;
         /* calculate tail */
-        unroll_w_tail = ow % unroll_w;
+        unroll_w_tail = jcp.ow % unroll_w;
         /* Perform some rebalancing if tail too small*/
-        if ((unroll_w_tail == 0 && r_pad != 0)
-                || (r_pad > 0 && r_pad >= unroll_w_tail)) {
-            if (unroll_w_trips > 1) {
+        if ((unroll_w_tail == 0 && jcp.r_pad != 0)
+                || (jcp.r_pad > 0 && jcp.r_pad >= unroll_w_tail)) {
+            if (unroll_trips > 1) {
                 unroll_w_tail += unroll_w;
-                unroll_w_trips--;
+                unroll_trips--;
             } else {
                 /* Idealy, this case shouldn't happen */
                 unroll_w_tail += (unroll_w - unroll_w / 2);
@@ -1407,59 +1409,52 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
     } else {
         unroll_w_tail = jcp.ow;
     }
-    if (jcp.with_bias) {
-        Label skip_load_bias;
-        mov(reg_bias_baddr,
-                ptr[this->param1 + offsetof(jit_dw_conv_call_s, bias)]);
+}
 
-        zero_bias();
+template <cpu_isa_t isa>
+inline void
+jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
 
-        mov(reg_exec_flags,
-                ptr[this->param1 + offsetof(jit_dw_conv_call_s, exec_flags)]);
-        and_(reg_exec_flags, FLAG_ZERO_BIAS);
-        test(reg_exec_flags, reg_exec_flags);
-        jne(skip_load_bias);
+    Label ow_blk_label; // for computing 'ow middle' block
+    int pad_offset = 0;
+    int l_pad = jcp.l_pad;
 
-        load_bias();
+    int unroll_w_tail = 0;
+    int unroll_w = 0;
+    int unroll_trips = 0;
+    calculate_w_unrolling(unroll_trips, unroll_w, unroll_w_tail);
 
-        L(skip_load_bias);
-        compute_bias_loop(block_size);
+    const size_t data_offset = unroll_w * jcp.ch_block * sizeof(float);
 
-        store_bias();
-    }
+    if (jcp.with_bias) compute_bias();
 
     /* Pass filter address, then offset for h_padding. */
     compute_zero_filter();
-    mov(reg_kh_offset,
-            ptr[this->param1 + offsetof(jit_dw_conv_call_s, filter_pad_off)]);
+    mov(reg_kh_offset, ptr[this->param1 + GET_OFF(filter_pad_off)]);
     add(reg_filter_baddr, reg_kh_offset);
 
     /* compute left padded block */
+    const bool do_unroll_w = jcp.ow > max_unroll_w_;
     if (l_pad && do_unroll_w) {
         compute_h_loop(unroll_w, l_pad, 0, 0);
-        add(reg_output_baddr, unroll_w * ch_offset * sizeof(float));
-        add(reg_input_baddr,
-                unroll_w * jcp.stride_w * ch_offset * sizeof(float));
-        unroll_w_trips--;
+        add(reg_output_baddr, data_offset);
+        add(reg_input_baddr, data_offset * jcp.stride_w);
+        unroll_trips--;
         pad_offset = l_pad;
         l_pad = 0;
     }
 
-    /* compute middle block */
-    Label ow_blk_label;
-
     /* Insert loop for 'ow' block when middle block needs to execute more
      * than once */
-    bool do_ow_blk_loop = unroll_w_trips > 1;
+    bool do_ow_blk_loop = unroll_trips > 1;
     if (do_ow_blk_loop) {
-        mov(reg_iter_ow_blk, unroll_w_trips);
+        mov(reg_iter_ow_blk, unroll_trips);
         L(ow_blk_label);
     }
-    if (unroll_w_trips > 0) {
+    if (unroll_trips > 0) {
         compute_h_loop(unroll_w, l_pad, pad_offset, 0);
-        add(reg_output_baddr, unroll_w * ch_offset * sizeof(float));
-        add(reg_input_baddr,
-                unroll_w * jcp.stride_w * ch_offset * sizeof(float));
+        add(reg_output_baddr, data_offset);
+        add(reg_input_baddr, data_offset * jcp.stride_w);
     }
     if (do_ow_blk_loop) {
         dec(reg_iter_ow_blk);
@@ -1478,17 +1473,15 @@ template <cpu_isa_t isa>
 void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::generate() {
     preamble();
 
-    mov(reg_input_baddr,
-            ptr[this->param1 + offsetof(jit_dw_conv_call_s, input)]);
-    mov(reg_output_baddr,
-            ptr[this->param1 + offsetof(jit_dw_conv_call_s, output)]);
-    mov(reg_filter_baddr,
-            ptr[this->param1 + offsetof(jit_dw_conv_call_s, filter)]);
+    mov(reg_input_baddr, ptr[this->param1 + GET_OFF(input)]);
+    mov(reg_output_baddr, ptr[this->param1 + GET_OFF(output)]);
+    mov(reg_filter_baddr, ptr[this->param1 + GET_OFF(filter)]);
 
     compute_ow_block_unroll();
 
     this->postamble();
 }
+#undef GET_OFF
 
 template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_common>;
 template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx2>;

@@ -205,6 +205,12 @@ private:
     const int simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
     const int reg_repeats = (isa == sse41) ? 2 : 1;
 
+    /* Is this strictly defined by:
+     * -code-size (?)
+     * -address size (?) */
+    const int max_unroll_w_ = 30;
+    const int block_size_ = 15;
+
     const Xbyak::AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
@@ -260,9 +266,12 @@ private:
     inline void load_bias();
     inline void zero_bias();
     inline void compute_bias_step_unroll(const int unroll_w);
-    inline void compute_bias_loop(const int block_size);
+    inline void compute_bias_loop();
     inline void store_filter();
     inline void store_bias();
+    void compute_bias();
+    void calculate_w_unrolling(
+            int &unroll_trips, int &unroll_w, int &unroll_w_tail);
 
     void generate() override;
 };
