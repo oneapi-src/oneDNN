@@ -92,3 +92,11 @@ mb16ic16ih224oc64oh112kh7sh2ph3n
 --dir=FWD_B --stag=any 
 --batch=set_gpu
 --batch=shapes_basic_gpu
+
+# dw gen9 fwd conv
+--reset
+--cfg=f16,f16f16s8
+--mb=48,64
+--dir=FWD_B
+--attr-post-ops="'add:f32:per_oc;linear:42.5;clip:0:255'"
+--batch=shapes_mobilenet_dw
