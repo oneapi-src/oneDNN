@@ -48,6 +48,12 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
                     broadcasting_strategy_t::scalar}));
 }
 
+brgemm_broadcast_t get_zp_type(const primitive_attr_t &attr, int arg) {
+    return attr.zero_points_.has_default_values(arg)
+            ? brgemm_broadcast_t::none
+            : brgemm_broadcast_t::per_tensor;
+}
+
 status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         const matmul_desc_t &mmd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
@@ -96,6 +102,14 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.with_binary = binary_ind != -1;
 
     if (!post_ops_ok(bgmmc, attr, dst_d)) return status::unimplemented;
+
+    bgmmc.src_zp_type = get_zp_type(attr, DNNL_ARG_SRC);
+    bgmmc.wei_zp_type = get_zp_type(attr, DNNL_ARG_WEIGHTS);
+    bgmmc.dst_zp_type = get_zp_type(attr, DNNL_ARG_DST);
+
+    if (!everyone_is(brgemm_broadcast_t::none, bgmmc.src_zp_type,
+                bgmmc.wei_zp_type, bgmmc.dst_zp_type))
+        return status::unimplemented;
 
     if (IMPLICATION(is_int8,
                 !one_of(isa, avx512_core_vnni, avx512_core_bf16_amx_int8)))
