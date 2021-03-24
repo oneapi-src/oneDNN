@@ -50,7 +50,12 @@ struct jit_brgemm_matmul_copy_A_t {
     struct ctx_t {
         const void *src;
         const void *tr_src;
+        const void *zp_b_compensation_buffer_ptr;
+        const void *zp_a_compensation_result_ptr;
+        const void *zp_b_neg_value_ptr;
+        const void *zp_ab_comp_ptr;
 
+        dim_t current_K_start;
         dim_t current_K_blk;
         dim_t current_M_blk;
     };
