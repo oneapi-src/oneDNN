@@ -100,13 +100,35 @@ inline std::vector<cl::sycl::device> get_sycl_devices(
 inline status_t get_sycl_device_index(
         size_t *index, const cl::sycl::device &dev) {
     auto dev_type = dev.get_info<cl::sycl::info::device::device_type>();
-    auto devices = get_sycl_devices(dev_type, get_sycl_backend(dev));
+    auto backend = get_sycl_backend(dev);
+    auto devices = get_sycl_devices(dev_type, backend);
 
-    auto it = std::find_if(devices.begin(), devices.end(),
-            [&](const cl::sycl::device &d) { return are_equal(d, dev); });
-    if (it == devices.end()) return status::invalid_arguments;
-    *index = it - devices.begin();
-    return status::success;
+    auto is_subdevice = [&backend](const cl::sycl::device &d) {
+        // TODO: remove this work around once Level-Zero is fixed
+        if (backend == backend_t::level0) return false;
+        return d.get_info<cl::sycl::info::device::partition_type_property>()
+                != cl::sycl::info::partition_property::no_partition;
+    };
+
+    // Search the top level device
+    auto parent_device = dev;
+    while (is_subdevice(parent_device)) {
+        parent_device
+                = parent_device
+                          .get_info<cl::sycl::info::device::parent_device>();
+    }
+
+    // Find the top level device in the list
+    auto it = std::find(devices.begin(), devices.end(), parent_device);
+    if (it != devices.end()) {
+        *index = it - devices.begin();
+        return status::success;
+    } else {
+        *index = SIZE_MAX;
+        // TODO: remove this work around once Level-Zero is fixed
+        if (backend == backend_t::level0) return status::success;
+        return status::invalid_arguments;
+    }
 }
 
 class sycl_engine_factory_t : public engine_factory_t {
