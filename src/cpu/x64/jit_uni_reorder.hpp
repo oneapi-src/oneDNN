@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -112,7 +112,82 @@ protected:
 
 /* TODO: add trans_t class */
 
+struct jit_single_blk_kernel_t;
+
 } // namespace tr
+
+struct jit_uni_reorder_t : public primitive_t {
+    using primitive_t::primitive_t;
+    struct pd_t : public cpu_reorder_pd_t {
+        using cpu_reorder_pd_t::cpu_reorder_pd_t;
+
+        DECLARE_COMMON_PD_T("jit:uni", jit_uni_reorder_t);
+
+        static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
+                const primitive_attr_t *attr, engine_t *src_engine,
+                const memory_desc_t *src_md, engine_t *dst_engine,
+                const memory_desc_t *dst_md);
+
+        tr::prb_t prb_;
+        tr::kernel_t::desc_t ker_desc_;
+        int nthr_;
+    };
+
+    status_t init(engine_t *engine) override;
+    status_t execute(const exec_ctx_t &ctx) const override;
+
+    enum { ndims_driver_max = 4 };
+
+private:
+    void omp_driver_0d(
+            int off, const char *in, char *out, const float *scale) const;
+    void omp_driver_1d(int ithr, int nthr, int off, const char *in, char *out,
+            const float *scale) const;
+    void omp_driver_2d(int ithr, int nthr, int off, const char *in, char *out,
+            const float *scale) const;
+    void omp_driver_3d(int ithr, int nthr, int off, const char *in, char *out,
+            const float *scale) const;
+    void omp_driver_4d(int ithr, int nthr, int off, const char *in, char *out,
+            const float *scale) const;
+
+    void omp_driver(const char *in, char *out, const float *scale) const;
+
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::unique_ptr<tr::kernel_t> kernel_;
+};
+
+struct jit_blk_reorder_t : public primitive_t {
+    using primitive_t::primitive_t;
+    struct pd_t : public cpu_reorder_pd_t {
+        using cpu_reorder_pd_t::cpu_reorder_pd_t;
+        DECLARE_COMMON_PD_T("jit:blk", jit_blk_reorder_t);
+
+        static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
+                const primitive_attr_t *attr, engine_t *src_engine,
+                const memory_desc_t *src_md, engine_t *dst_engine,
+                const memory_desc_t *dst_md);
+
+        tr::prb_t prb_;
+
+    private:
+        // Swap last two nodes, put block 4, 8, 16 nodes to first
+        static void prb_tile_normalize(tr::prb_t &p);
+    };
+
+    status_t init(engine_t *engine) override;
+    status_t execute(const exec_ctx_t &ctx) const override;
+
+    jit_blk_reorder_t(const pd_t *apd);
+    ~jit_blk_reorder_t();
+
+private:
+    size_t n(int d) const;
+    ptrdiff_t is(int d) const;
+    ptrdiff_t os(int d) const;
+
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::unique_ptr<tr::jit_single_blk_kernel_t> kernel_;
+};
 
 /* for cpu reorder list */
 status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd, engine_t *engine,
