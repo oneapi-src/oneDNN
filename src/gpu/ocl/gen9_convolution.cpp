@@ -1240,20 +1240,16 @@ status_t gen9_convolution_bwd_weights_t::execute_backward_weights(
     };
 
     if (conf.reorder_wei) {
-
         CHECK(safe_ptr_assign(wspace_wei,
                 new memory_t(ctx.stream()->engine(), &temp_wei_md,
-                        memory_flags_t::use_runtime_ptr,
-                        wspace_ptr_wei->data_handle())));
+                        std::move(wspace_ptr_wei))));
         CHECK(exec_reorder(wspace_wei.get(), ctx.output(DNNL_ARG_DIFF_WEIGHTS),
                 wei_reorder_, 0));
     }
     if (conf.reorder_bias) {
-
         CHECK(safe_ptr_assign(wspace_bia,
                 new memory_t(ctx.stream()->engine(), &temp_bia_md,
-                        memory_flags_t::use_runtime_ptr,
-                        wspace_ptr_bia->data_handle())));
+                        std::move(wspace_ptr_bia))));
         CHECK(exec_reorder(wspace_bia.get(), ctx.output(DNNL_ARG_DIFF_BIAS),
                 bia_reorder_, 1));
     }

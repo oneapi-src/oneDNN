@@ -174,10 +174,9 @@ status_t convolution_inner_product_fwd_t::execute_forward(
     if (conf.reorder_dst) {
         auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                 memory_tracking::names::key_iprod_dst_reorder);
-        auto wspace_ptr = scratchpad->data_handle();
         CHECK(safe_ptr_assign(wspace_dst,
                 new memory_t(ctx.stream()->engine(), pd()->cpd_->dst_md(),
-                        memory_flags_t::use_runtime_ptr, wspace_ptr)));
+                        std::move(scratchpad))));
     }
 
     if (pd()->conf.attr_info.with_sum && conf.reorder_dst) {
