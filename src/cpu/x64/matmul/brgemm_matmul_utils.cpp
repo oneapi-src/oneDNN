@@ -108,6 +108,12 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     if (bgmmc.ndims > 3) return status::unimplemented;
 
     bgmmc.batch_ndims = bgmmc.ndims - 2;
+    for (int d = 0; d < (int)bgmmc.batch_ndims; d++) {
+        // Do not support broadcast across any batch dimension
+        if (!everyone_is(src_d.dims()[d], weights_d.dims()[d], dst_d.dims()[d]))
+            return status::unimplemented;
+    }
+
     bgmmc.M = helper.M();
     bgmmc.N = helper.N();
     bgmmc.K = helper.K();
