@@ -47,15 +47,23 @@ bool binary_args_broadcast_supported(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set);
 
-bool binary_args_tail_supported(
-        const post_ops_t &post_ops, const memory_desc_wrapper &dst_d, int vlen);
+bool binary_args_tail_supported(const post_ops_t &post_ops,
+        const memory_desc_wrapper &dst_d, int vlen,
+        const bcast_set_t &supported_strategy_set);
 
 bool any_binary_postop_rhs_per_oc_broadcast(
         const post_ops_t &post_ops, const memory_desc_wrapper &dst_d);
+bool any_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
+        const memory_desc_wrapper &dst_d,
+        const bcast_set_t &supported_strategy_set);
 
 bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d,
-        const std::function<bool(const memory_desc_wrapper &)> predicate);
+        const std::function<bool(const memory_desc_wrapper &)> &predicate);
+bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
+        const memory_desc_wrapper &dst_d,
+        const bcast_set_t &supported_strategy_set,
+        const std::function<bool(const memory_desc_wrapper &)> &predicate);
 
 /*
  * Represents params related to all binary post-ops right-hand side arguments

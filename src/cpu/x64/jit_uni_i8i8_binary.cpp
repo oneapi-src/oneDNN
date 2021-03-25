@@ -68,12 +68,15 @@ bool jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::post_ops_ok(
             return false;
     }
 
+    const auto &supported_bcast_strategies
+            = get_supported_po_bcast_strategies();
     const int vlen = mayiuse(avx512_common)
             ? cpu_isa_traits<avx512_common>::vlen
             : cpu_isa_traits<avx2>::vlen;
     const int blksize = vlen / sizeof(float);
     const bool postops_per_oc_broadcast_exists
-            = binary_injector::any_binary_postop_rhs_per_oc_broadcast(p, dst_d);
+            = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
+                    p, dst_d, supported_bcast_strategies);
 
     const bool blocked_format = !dst_d.is_plain() && dst_d.is_blocking_desc();
 
@@ -93,11 +96,11 @@ bool jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::post_ops_ok(
     const bool blocked_tail = p.len() && blocked_format && oc % blksize;
 
     return binary_injector::binary_args_broadcast_supported(
-                   p, dst_d, get_supported_po_bcast_strategies())
+                   p, dst_d, supported_bcast_strategies)
             && !blocked_tail
             && IMPLICATION(postops_per_oc_broadcast_exists,
                     binary_injector::all_binary_postop_rhs_per_oc_broadcast(p,
-                            dst_d,
+                            dst_d, supported_bcast_strategies,
                             [&dst_d](const memory_desc_wrapper &rhs_arg_md) {
                                 return IMPLICATION(!mayiuse(avx2),
                                         dst_d.consistent_with(rhs_arg_md)
@@ -245,7 +248,8 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
 
         const bool postops_per_oc_broadcast_exists
                 = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
-                        pd_->attr()->post_ops_, src0_d);
+                        pd_->attr()->post_ops_, src0_d,
+                        get_supported_po_bcast_strategies());
 
         if (bcast_type == bcast_t::none && !postops_per_oc_broadcast_exists)
             nelems = src0_d.nelems(true);
@@ -877,7 +881,7 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
 
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
-                    post_ops, src0_d);
+                    post_ops, src0_d, get_supported_po_bcast_strategies());
     const auto &bcast_dims = pd()->broadcast_dims();
     const auto bcast_type = pd()->is_tensor_op()
             ? bcast_t::none
