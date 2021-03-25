@@ -4948,6 +4948,10 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
     jcp.ohp = jcp.oh;
     jcp.owp = jcp.ow;
 
+    jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
+    if (jcp.is_depthwise)
+        return status::unimplemented; // TODO: add support of DW convolution
+
     const int dat_format_tag = ndims - 3;
     format_tag_t dat_tag_nspc = utils::pick(dat_format_tag, format_tag::nwc,
             format_tag::nhwc, format_tag::ndhwc);
