@@ -153,11 +153,11 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             : 0;
 
     auto brgemm_kernel_iter_n_tail = (rnn.need_gemm_layer(cell_position))
-            ? brgemm_kernel_iter_N_tail_b1_[iter_desc_idx].get()
-            : brgemm_kernel_iter_N_tail_b0_[iter_desc_idx].get();
+            ? rnn_brgemm_.kernel_iter_N_tail_b1_[iter_desc_idx].get()
+            : rnn_brgemm_.kernel_iter_N_tail_b0_[iter_desc_idx].get();
     auto brgemm_kernel_iter_main = (rnn.need_gemm_layer(cell_position))
-            ? brgemm_kernel_iter_b1_[iter_desc_idx].get()
-            : brgemm_kernel_iter_b0_[iter_desc_idx].get();
+            ? rnn_brgemm_.kernel_iter_b1_[iter_desc_idx].get()
+            : rnn_brgemm_.kernel_iter_b0_[iter_desc_idx].get();
 
     parallel(max_nthr, [&](const int ithr, const int nthr) {
         gemm_acc_t *amx_buffer = nullptr;
@@ -172,7 +172,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
         if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
             amx_buffer = amx_scratchpad + rnn.m_block * rnn.n_block * ithr;
-            amx_tile_configure(this->pallete_buff_);
+            amx_tile_configure(rnn_brgemm_.pallete_buff_);
         }
 
         int nb_i = 0, mb = 0;
@@ -210,26 +210,31 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             if (do_n_tail) {
                 block_step = rnn.n_tail * sizeof(scratch_t);
                 brgemm_kernel_layer_b0
-                        = brgemm_kernel_layer_N_tail_b0_[layer_desc_idx].get();
+                        = rnn_brgemm_.kernel_layer_N_tail_b0_[layer_desc_idx]
+                                  .get();
                 brgemm_kernel_iter = brgemm_kernel_iter_n_tail;
                 brgemm_kernel_layer_tail
-                        = brgemm_kernel_layer_NK1_tail_b1_[layer_desc_idx]
+                        = rnn_brgemm_.kernel_layer_NK1_tail_b1_[layer_desc_idx]
                                   .get();
                 brgemm_kernel_iter_tail
-                        = brgemm_kernel_iter_NK2_tail_b1_[iter_desc_idx].get();
+                        = rnn_brgemm_.kernel_iter_NK2_tail_b1_[iter_desc_idx]
+                                  .get();
 
             } else {
                 block_step = rnn.n_block * sizeof(scratch_t);
                 brgemm_kernel_layer_b0
-                        = brgemm_kernel_layer_b0_[layer_desc_idx].get();
+                        = rnn_brgemm_.kernel_layer_b0_[layer_desc_idx].get();
                 brgemm_kernel_iter = brgemm_kernel_iter_main;
                 brgemm_kernel_layer_tail
-                        = brgemm_kernel_layer_K1_tail_b1_[layer_desc_idx].get();
+                        = rnn_brgemm_.kernel_layer_K1_tail_b1_[layer_desc_idx]
+                                  .get();
                 brgemm_kernel_iter_tail
-                        = brgemm_kernel_iter_K2_tail_b1_[iter_desc_idx].get();
+                        = rnn_brgemm_.kernel_iter_K2_tail_b1_[iter_desc_idx]
+                                  .get();
             }
             if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
-                if (do_n_tail) amx_tile_configure(this->pallete_buff_n_tail_);
+                if (do_n_tail)
+                    amx_tile_configure(rnn_brgemm_.pallete_buff_n_tail_);
                 for (int g = 0; g < n_gates; g++) {
                     const int lg = g + g_unfused;
                     auto Bl_g = Bl_n + lg * Bl_g_offset;
@@ -256,13 +261,13 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 if (rnn.k1_tail || rnn.k2_tail) {
                     const char *tail_cfg_k1, *tail_cfg_k2, *tail_recfg;
                     if (do_n_tail) {
-                        tail_cfg_k1 = this->pallete_buff_nk1_tail_;
-                        tail_cfg_k2 = this->pallete_buff_nk2_tail_;
-                        tail_recfg = this->pallete_buff_n_tail_;
+                        tail_cfg_k1 = rnn_brgemm_.pallete_buff_nk1_tail_;
+                        tail_cfg_k2 = rnn_brgemm_.pallete_buff_nk2_tail_;
+                        tail_recfg = rnn_brgemm_.pallete_buff_n_tail_;
                     } else {
-                        tail_cfg_k1 = this->pallete_buff_k1_tail_;
-                        tail_cfg_k2 = this->pallete_buff_k2_tail_;
-                        tail_recfg = this->pallete_buff_;
+                        tail_cfg_k1 = rnn_brgemm_.pallete_buff_k1_tail_;
+                        tail_cfg_k2 = rnn_brgemm_.pallete_buff_k2_tail_;
+                        tail_recfg = rnn_brgemm_.pallete_buff_;
                     }
                     if (rnn.k1_tail && rnn.need_gemm_layer(cell_position)) {
                         amx_tile_configure(tail_cfg_k1);
@@ -390,7 +395,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 addr_batch = addr_batch_global + ithr * max_K_Block;
 
                 amx_buffer = amx_scratchpad + rnn.m_block * rnn.n_block * ithr;
-                amx_tile_configure(this->pallete_buff_proj_);
+                amx_tile_configure(rnn_brgemm_.pallete_buff_proj_);
             } else {
                 addr_batch = addr_batch_global + ithr;
             }
@@ -415,12 +420,14 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 auto Wp_comp_n = Wp_comp + n;
 
                 brgemm_kernel_t *brgemm_kernel_proj_b0 = (do_n_tail)
-                        ? brgemm_kernel_proj_N_tail_b0_[proj_desc_idx].get()
-                        : brgemm_kernel_proj_b0_[proj_desc_idx].get();
+                        ? rnn_brgemm_.kernel_proj_N_tail_b0_[proj_desc_idx]
+                                  .get()
+                        : rnn_brgemm_.kernel_proj_b0_[proj_desc_idx].get();
 
                 if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
                     if (do_n_tail)
-                        amx_tile_configure(this->pallete_buff_nproj_tail_);
+                        amx_tile_configure(
+                                rnn_brgemm_.pallete_buff_nproj_tail_);
                     for (int k = 0; k < rnn.KBproj_blocks; k++) {
                         addr_batch[k].ptr.A = Ap_m + k * rnn.kproj_block;
                         addr_batch[k].ptr.B = Bp_n + k * Bp_kb_offset;
@@ -432,19 +439,23 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         brgemm_kernel_t *brgemm_kernel_proj_tail;
                         const char *tail_cfg_kproj, *tail_recfg;
                         if (do_n_tail) {
-                            tail_cfg_kproj = this->pallete_buff_nkproj_tail_;
-                            tail_recfg = this->pallete_buff_nproj_tail_;
+                            tail_cfg_kproj
+                                    = rnn_brgemm_.pallete_buff_nkproj_tail_;
+                            tail_recfg = rnn_brgemm_.pallete_buff_nproj_tail_;
                             brgemm_kernel_proj_tail
-                                    = brgemm_kernel_proj_NK_tail_b1_
-                                              [proj_desc_idx]
-                                                      .get();
+                                    = rnn_brgemm_
+                                              .kernel_proj_NK_tail_b1_
+                                                      [proj_desc_idx]
+                                              .get();
                         } else {
-                            tail_cfg_kproj = this->pallete_buff_kproj_tail_;
-                            tail_recfg = this->pallete_buff_proj_;
+                            tail_cfg_kproj
+                                    = rnn_brgemm_.pallete_buff_kproj_tail_;
+                            tail_recfg = rnn_brgemm_.pallete_buff_proj_;
                             brgemm_kernel_proj_tail
-                                    = brgemm_kernel_proj_K_tail_b1_
-                                              [proj_desc_idx]
-                                                      .get();
+                                    = rnn_brgemm_
+                                              .kernel_proj_K_tail_b1_
+                                                      [proj_desc_idx]
+                                              .get();
                         }
                         amx_tile_configure(tail_cfg_kproj);
                         addr_batch[0].ptr.A

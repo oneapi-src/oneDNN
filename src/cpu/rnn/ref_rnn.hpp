@@ -31,11 +31,10 @@
 
 #include "cpu/rnn/cpu_rnn_pd.hpp"
 #include "cpu/rnn/postgemm_dispatcher.hpp"
-#include "cpu/rnn/rnn_utils.hpp"
 #if DNNL_X64
-#include "cpu/x64/brgemm/brgemm.hpp"
+#include "cpu/x64/rnn/rnn_brgemm_utils.hpp"
 #endif
-
+#include "cpu/rnn/rnn_utils.hpp"
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -205,335 +204,6 @@ struct _ref_rnn_common_t : public primitive_t {
                     this->arg_md(DNNL_ARG_DIFF_WEIGHTS_PROJECTION));
             return status::success;
         }
-#if DNNL_X64
-        std::tuple<dim_t, dim_t, x64::cpu_isa_t> brgemm_calc_k_block_with_isa(
-                dim_t padding, dim_t As, dim_t Bs, dim_t Cs,
-                dim_t l2_cache_size) const {
-            const bool is_amx_int8 = rnn_.is_int8()
-                    && x64::mayiuse(x64::avx512_core_bf16_amx_int8);
-            const bool is_amx_bf16 = rnn_.is_bf16()
-                    && x64::mayiuse(x64::avx512_core_bf16_amx_bf16);
-            const auto cell_kind = this->desc()->cell_kind;
-
-            dim_t k1_block = rnn_.K1;
-            dim_t k2_block = rnn_.K2;
-            auto isa = x64::isa_any;
-
-            if (is_amx_int8 || is_amx_bf16) {
-                const auto result = brgemm_calc_k_block_amx();
-                const auto k1_block_amx = result.first;
-                const auto k2_block_amx = result.second;
-                const auto k1_block_tail = rnn_.K1 % k1_block_amx;
-                const auto k2_block_tail = rnn_.K2 % k2_block_amx;
-                const bool amx_block_invalid = k1_block_tail % padding
-                        || k2_block_tail % padding || k1_block_amx % padding
-                        || k2_block_amx % padding;
-
-                if (amx_block_invalid) {
-                    isa = is_amx_int8 ? x64::avx512_core_vnni
-                                      : x64::avx512_core_bf16;
-                } else {
-                    k1_block = k1_block_amx;
-                    k2_block = k2_block_amx;
-                    isa = is_amx_int8 ? x64::avx512_core_bf16_amx_int8
-                                      : x64::avx512_core_bf16_amx_bf16;
-                }
-            }
-
-            if (cell_kind == alg_kind::vanilla_rnn)
-                std::tie(k1_block, k2_block) = brgemm_calc_k_block_vanilla_rnn(
-                        As, Bs, Cs, l2_cache_size);
-
-            return std::make_tuple(k1_block, k2_block, isa);
-        }
-
-        std::pair<dim_t, dim_t> brgemm_calc_k_block_amx() const {
-            const bool is_amx_int8 = rnn_.is_int8()
-                    && x64::mayiuse(x64::avx512_core_bf16_amx_int8);
-            const dim_t max_row_width = is_amx_int8 ? 64 : 32;
-
-            dim_t k1_block = nstl::min(rnn_.K1, max_row_width);
-            dim_t k2_block = nstl::min(rnn_.K2, max_row_width);
-
-            if (k1_block <= rnn_.K1 || k2_block <= rnn_.K2) {
-                const dim_t t_k_block = nstl::min(k1_block, k2_block);
-                k2_block = k1_block = t_k_block;
-            }
-
-            return std::make_pair(k1_block, k2_block);
-        }
-
-        std::pair<dim_t, dim_t> brgemm_calc_k_block_vanilla_rnn(
-                dim_t As, dim_t Bs, dim_t Cs, dim_t l2_cache_size) const {
-
-            //Heuristics experimentally selected.
-            const bool should_adjust_by_l2 = static_cast<float>(As + Bs + Cs)
-                    >= 0.25 * static_cast<float>(l2_cache_size);
-            dim_t k1_block = rnn_.K1;
-            dim_t k2_block = rnn_.K2;
-
-            if (should_adjust_by_l2) {
-                int block_size = (l2_cache_size * 0.25f)
-                        / ((rnn_.M + rnn_.n_block) * sizeof(src_layer_t));
-
-                if (rnn_.is_bf16()) {
-                    // due to weights format ldgOI32o2i block_size should be even
-                    block_size -= (block_size % 2);
-                    block_size = nstl::max(block_size, 0);
-                }
-                if (block_size) {
-                    k1_block = nstl::min(
-                            rnn_.K1, static_cast<dim_t>(block_size));
-                    k2_block = nstl::min(
-                            rnn_.K2, static_cast<dim_t>(block_size));
-                }
-            }
-
-            return std::make_pair(k1_block, k2_block);
-        }
-
-        dim_t brgemm_calc_m_block(float work_by_N, dim_t As, dim_t Bs, dim_t Cs,
-                dim_t l2_cache_size) const {
-            if (this->desc()->cell_kind == alg_kind::vanilla_rnn)
-                return brgemm_calc_m_block_vanilla_rnn(
-                        work_by_N, As, Bs, Cs, l2_cache_size);
-            else
-                return brgemm_calc_m_block_lstm(
-                        work_by_N, As, Cs, l2_cache_size);
-        }
-
-        dim_t brgemm_calc_m_block_vanilla_rnn(float work_by_N, dim_t As,
-                dim_t Bs, dim_t Cs, dim_t l2_cache_size) const {
-
-            //Heuristics experimentally selected.
-            const float decimal_n_factor = work_by_N - std::floor(work_by_N);
-            static constexpr float thread_balance_threashold = 0.9;
-
-            dim_t m_block = rnn_.M;
-
-            if (work_by_N < 1.0)
-                return adjust_m_block_lstm();
-            else if (decimal_n_factor < thread_balance_threashold
-                    && decimal_n_factor != 0.0f) {
-
-                const dim_t m_block_start = rnn_.M / 2;
-                const dim_t m_block_end = 4;
-
-                float max_decimal_mn = 0.0;
-                dim_t best_candidate = 0.0;
-                bool found_best_solution = false;
-
-                for (dim_t m_block_it = m_block_start;
-                        m_block_it >= m_block_end; m_block_it--) {
-                    if (rnn_.M % m_block_it == 0) {
-                        const auto m_blocks = rnn_.M / m_block_it;
-                        const auto work_by_MN
-                                = static_cast<float>(m_blocks * rnn_.N_blocks)
-                                / rnn_.nthr;
-
-                        const float work_by_MN_decimal
-                                = work_by_MN - std::floor(work_by_MN);
-
-                        static constexpr float tolerance = 0.01;
-                        if (work_by_MN_decimal > (max_decimal_mn + tolerance)) {
-                            best_candidate = m_block_it;
-                            max_decimal_mn = work_by_MN_decimal;
-                        }
-
-                        if (work_by_MN_decimal >= thread_balance_threashold
-                                || work_by_MN_decimal == 0.0f) {
-                            m_block = m_block_it;
-                            found_best_solution = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (!found_best_solution) {
-                    if ((decimal_n_factor < max_decimal_mn)
-                            || (static_cast<float>(As) > (0.5f
-                                        * static_cast<float>(l2_cache_size)))) {
-                        m_block = best_candidate;
-                    }
-                }
-            }
-
-            return m_block;
-        }
-
-        dim_t brgemm_calc_m_block_lstm(float work_by_N, dim_t As, dim_t Cs,
-                dim_t l2_cache_size) const {
-            const bool adj_by_l2 = rnn_.is_f32()
-                    ? true
-                    : (static_cast<float>(As + Cs)
-                            < 0.6 * static_cast<float>(l2_cache_size));
-
-            if (work_by_N > 2.0 || (work_by_N > 1.0 && adj_by_l2))
-                return rnn_.M;
-            else
-                return adjust_m_block_lstm();
-        }
-
-        dim_t adjust_m_block_lstm() const {
-
-            const dim_t max_m_blocks
-                    = ((rnn_.is_int8_amx() || rnn_.is_bf16_amx()) ? 1 : 4)
-                    * utils::div_up(rnn_.nthr, rnn_.N_blocks);
-            const dim_t max_m_value
-                    = (rnn_.is_int8_amx() || rnn_.is_bf16_amx()) ? 64 : 24;
-            const dim_t max_M = nstl::min(
-                    max_m_value, nstl::max((dim_t)1, rnn_.M / max_m_blocks));
-            const dim_t min_M = 4;
-
-            dim_t m_block = 1;
-            for (dim_t m = max_M; m >= min_M; m--)
-                if (rnn_.M % m == 0) {
-                    m_block = m;
-                    break;
-                }
-            if (m_block == 1) m_block = rnn_.M;
-
-            return m_block;
-        }
-#endif
-
-        status_t configure_brgemm() {
-#if DNNL_X64
-            rnn_.M = rnn_.mb;
-            rnn_.N = rnn_.dhc;
-            rnn_.K1 = rnn_.slc;
-            rnn_.K2 = rnn_.sic;
-
-            rnn_.nthr = dnnl_get_max_threads();
-            rnn_.n_block = 32;
-            rnn_.N_blocks = utils::div_up(rnn_.N, rnn_.n_block);
-            rnn_.n_tail = rnn_.N % rnn_.n_block;
-            const float work_by_N = static_cast<float>(rnn_.N_blocks)
-                    / static_cast<float>(rnn_.nthr);
-
-            const dim_t l2_cache_size = platform::get_per_core_cache_size(2);
-            const dim_t As = sizeof(src_layer_t) * rnn_.M
-                    * (nstl::max(rnn_.K1, rnn_.K2));
-            const dim_t Bs = sizeof(src_layer_t) * (nstl::max(rnn_.K1, rnn_.K2))
-                    * rnn_.n_block;
-            const dim_t Cs = sizeof(scratch_t) * (rnn_.n_gates + 1)
-                    * (rnn_.M * rnn_.n_block);
-
-            const dim_t padding
-                    = (rnn_.is_int8()) ? 4 : (rnn_.is_bf16()) ? 2 : 1;
-            rnn_.K1padded = utils::rnd_up(rnn_.K1, padding);
-            rnn_.K2padded = utils::rnd_up(rnn_.K2, padding);
-
-            std::tie(rnn_.k1_block, rnn_.k2_block, rnn_.brgemm_isa)
-                    = brgemm_calc_k_block_with_isa(
-                            padding, As, Bs, Cs, l2_cache_size);
-            rnn_.KB1_blocks = rnn_.K1 / rnn_.k1_block;
-            rnn_.KB2_blocks = rnn_.K2 / rnn_.k2_block;
-            rnn_.k1_tail = rnn_.K1 % rnn_.k1_block;
-            rnn_.k2_tail = rnn_.K2 % rnn_.k2_block;
-            rnn_.m_block
-                    = brgemm_calc_m_block(work_by_N, As, Bs, Cs, l2_cache_size);
-            rnn_.M_blocks = rnn_.M / rnn_.m_block;
-            rnn_.unfused_post_gemm
-                    = this->desc()->cell_kind == alg_kind::vanilla_lstm
-                    ? (rnn_.M_blocks == 1)
-                    : false;
-
-            rnn_.LDA1[0] = rnn_.src_layer_ld_;
-            rnn_.LDA1[1] = rnn_.dst_iter_ld_;
-            rnn_.LDA1[2] = rnn_.ws_states_layer_ld;
-
-            rnn_.LDA2[0] = rnn_.src_iter_ld_;
-            rnn_.LDA2[1] = rnn_.dst_layer_ld_;
-            rnn_.LDA2[2] = rnn_.ws_states_iter_ld;
-
-            rnn_.LDB1 = rnn_.n_block;
-            rnn_.LDB2 = rnn_.n_block;
-            rnn_.LDC = rnn_.scratch_gates_ld;
-
-            auto get_dim = [&](dim_t block, dim_t tail) {
-                return (block == 0) ? tail : block;
-            };
-            dim_t n_block = nstl::min(rnn_.N, rnn_.n_block);
-            dim_t n_tail = nstl::min(rnn_.N, rnn_.nproj_tail);
-            if (rnn_.LDA1[0] < rnn_.k1_block && rnn_.LDA1[1] < rnn_.k1_block
-                    && rnn_.LDA1[2] < rnn_.k1_block)
-                return status::unimplemented;
-            if (rnn_.LDA2[0] < rnn_.k2_block && rnn_.LDA2[1] < rnn_.k2_block
-                    && rnn_.LDA2[2] < rnn_.k2_block)
-                return status::unimplemented;
-            if (rnn_.LDB1 < get_dim(n_block, n_tail)
-                    && rnn_.LDB2 < get_dim(n_block, n_tail))
-                return status::unimplemented;
-            if (rnn_.LDC < get_dim(n_block, n_tail))
-                return status::unimplemented;
-
-            rnn_.KBproj_blocks = 0;
-            rnn_.kproj_tail = 0;
-            rnn_.kproj_block = 0;
-
-            if (rnn_.is_lstm_projection) {
-                rnn_.Nproj = rnn_.dic;
-                rnn_.Nproj_blocks = utils::div_up(rnn_.Nproj, rnn_.n_block);
-                rnn_.nproj_tail = rnn_.Nproj % rnn_.n_block;
-
-                rnn_.Kproj = rnn_.dhc;
-                rnn_.Kprojpadded = utils::rnd_up(rnn_.Kproj, padding);
-                if (rnn_.is_int8_amx() || rnn_.is_bf16_amx()) {
-                    const dim_t max_row_width = rnn_.is_int8_amx() ? 64 : 32;
-                    rnn_.kproj_block
-                            = nstl::min(rnn_.Kproj, (dim_t)max_row_width);
-
-                    rnn_.KBproj_blocks = rnn_.Kproj / rnn_.kproj_block;
-                    rnn_.kproj_tail = rnn_.Kproj % rnn_.kproj_block;
-
-                    if ((rnn_.kproj_tail % padding)
-                            || (rnn_.kproj_block % padding)) {
-                        rnn_.kproj_block = rnn_.Kproj;
-                        rnn_.kproj_tail = 0;
-                        rnn_.brgemm_isa = rnn_.is_int8()
-                                ? x64::avx512_core_vnni
-                                : x64::avx512_core_bf16;
-                    } else {
-                        rnn_.brgemm_isa = rnn_.is_int8()
-                                ? x64::avx512_core_bf16_amx_int8
-                                : x64::avx512_core_bf16_amx_bf16;
-                    }
-                } else {
-                    rnn_.kproj_block = rnn_.Kproj;
-                    rnn_.KBproj_blocks = rnn_.Kproj / rnn_.kproj_block;
-                }
-                rnn_.LDAproj = rnn_.proj_ht_ld;
-                rnn_.LDBproj = rnn_.n_block;
-                if (rnn_.dt_conf != rnn_utils::all_f32) {
-                    rnn_.LDCproj[0] = rnn_.scratch_gates_ld;
-                } else {
-                    rnn_.LDCproj[0] = rnn_.scratch_ht_ld;
-                    rnn_.LDCproj[1] = rnn_.dst_layer_ld_;
-                    rnn_.LDCproj[2] = rnn_.dst_iter_ld_;
-                    rnn_.LDCproj[3] = rnn_.ws_states_layer_ld;
-                }
-
-                dim_t n_block = nstl::min(rnn_.Nproj, rnn_.n_block);
-                dim_t n_tail = nstl::min(rnn_.Nproj, rnn_.nproj_tail);
-                bool check_LDC = false;
-                if (rnn_.dt_conf != rnn_utils::all_f32) {
-                    check_LDC = rnn_.LDCproj[0] < get_dim(n_block, n_tail);
-                } else {
-                    check_LDC = rnn_.LDCproj[0] < get_dim(n_block, n_tail)
-                            && rnn_.LDCproj[1] < get_dim(n_block, n_tail)
-                            && rnn_.LDCproj[2] < get_dim(n_block, n_tail)
-                            && rnn_.LDCproj[3] < get_dim(n_block, n_tail);
-                }
-                if (rnn_.LDAproj < rnn_.kproj_block
-                        || rnn_.LDBproj < get_dim(n_block, n_tail) || check_LDC)
-                    return status::unimplemented;
-            }
-            return status::success;
-#else
-            return status::unimplemented;
-#endif
-        }
 
         status_t init_brgemm(engine_t *engine) {
             using namespace prop_kind;
@@ -597,7 +267,9 @@ struct _ref_rnn_common_t : public primitive_t {
                     this->diff_weights_md(0), this->diff_weights_md(1),
                     this->arg_md(DNNL_ARG_DIFF_WEIGHTS_PROJECTION));
 
-            CHECK(configure_brgemm());
+            CHECK(x64::rnn_brgemm_utils::rnn_brgemm_t::configure_brgemm(rnn_,
+                    this->desc()->cell_kind, sizeof(src_layer_t),
+                    sizeof(scratch_t)));
 
             // Set weights descriptors to desired format
             memory_desc_t new_weights_layer_md = *this->weights_md(0);
@@ -712,19 +384,9 @@ struct _ref_rnn_common_t : public primitive_t {
             scratchpad.template book<scratch_t>(
                     key_rnn_cell, rnn_.scratch_cell_size);
 #if DNNL_X64
-            if (rnn_.is_brgemm) {
-                if (rnn_.is_int8_amx() || rnn_.is_bf16_amx()) {
-                    size_t n_elements = rnn_.m_block * rnn_.n_block;
-                    scratchpad.template book<gemm_acc_t>(
-                            key_brgemm_primitive_buffer,
-                            rnn_.nthr * n_elements);
-                }
-
-                const int max_K_Block = nstl::max(rnn_.KB1_blocks + 1,
-                        nstl::max(rnn_.KBproj_blocks + 1, rnn_.KB2_blocks + 1));
-                scratchpad.template book<x64::brgemm_batch_element_t>(
-                        key_brgemm_primitive_batch, max_K_Block * rnn_.nthr);
-            }
+            if (rnn_.is_brgemm)
+                x64::rnn_brgemm_utils::rnn_brgemm_t::init_scratchpad(rnn_,
+                        scratchpad, sizeof(gemm_acc_t), alignof(gemm_acc_t));
 #endif
         }
     };
@@ -740,16 +402,17 @@ struct _ref_rnn_common_t : public primitive_t {
         bias_preparation_func = &class_name::bias_prepare;
         bias_finalization_func = &class_name::bias_finalize;
 
-        auto set_gemm_funcs = [](bool packed_gemm, gemm_t &g,
-                                      weights_assign_t &a, bool is_brgemm) {
-            if (packed_gemm) {
-                g = &class_name::packed_gemm;
-                a = &class_name::assign_packed_weights;
-            } else {
-                g = (!is_brgemm) ? &class_name::gemm : nullptr;
-                a = &class_name::assign_weights;
-            }
-        };
+        const auto set_gemm_funcs
+                = [](bool packed_gemm, gemm_t &g, weights_assign_t &a,
+                          bool is_brgemm) {
+                      if (packed_gemm) {
+                          g = &class_name::packed_gemm;
+                          a = &class_name::assign_packed_weights;
+                      } else {
+                          g = (!is_brgemm) ? &class_name::gemm : nullptr;
+                          a = &class_name::assign_weights;
+                      }
+                  };
         set_gemm_funcs(pd()->rnn_.use_iter_packed_gemm, gemm_iter_func,
                 weights_iter_assign_func, pd()->rnn_.is_brgemm);
 
@@ -792,159 +455,9 @@ struct _ref_rnn_common_t : public primitive_t {
                 scratch_ht_offset_, scratch_diff_ht_offset_,
                 scratch_cell_offset_, scratchpad_size, workspace_size);
 #if DNNL_X64
-        auto rnn = pd()->rnn_;
-
-        auto init_brgemm
-                = [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
-                          std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
-                          dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
-                          float beta, dim_t max_bs) {
-                      bool transA = false;
-                      bool transB = false;
-                      x64::brgemm_layout_t layout = x64::brgemm_row_major;
-                      CHECK(brgemm_desc_init(desc, isa, x64::brgemm_addr,
-                              src_type, weights_type, transA, transB, layout,
-                              1.0, beta, LDA, LDB, LDC, M, N, K));
-
-                      if (!rnn.is_int8_amx() && !rnn.is_bf16_amx()) {
-                          x64::brgemm_attr_t brgattr;
-                          brgattr.max_bs = max_bs;
-                          brgattr.max_top_vpad = 0;
-                          brgattr.max_bottom_vpad = 0;
-                          CHECK(brgemm_desc_set_attr(desc, brgattr));
-                      }
-
-                      x64::brgemm_kernel_t *_t_ptr;
-                      CHECK(brgemm_kernel_create(&_t_ptr, *desc));
-                      CHECK(safe_ptr_assign<x64::brgemm_kernel_t>(ker, _t_ptr));
-                      return status::success;
-                  };
-
-        if (pd()->rnn_.is_brgemm) {
-            int brgemm_n = nstl::min(rnn.N, rnn.n_block);
-            int brgemm_n_tail = nstl::min(rnn.N, rnn.n_tail);
-            for (int i = 0; i < 3; i++) {
-                init_brgemm(&brgemm_desc_layer_b0_[i], rnn.brgemm_isa,
-                        brgemm_kernel_layer_b0_[i], rnn.m_block, brgemm_n,
-                        rnn.k1_block, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0,
-                        rnn.KB1_blocks);
-                init_brgemm(&brgemm_desc_iter_b0_[i], rnn.brgemm_isa,
-                        brgemm_kernel_iter_b0_[i], rnn.m_block, brgemm_n,
-                        rnn.k2_block, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 0.0,
-                        rnn.KB2_blocks);
-                init_brgemm(&brgemm_desc_iter_b1_[i], rnn.brgemm_isa,
-                        brgemm_kernel_iter_b1_[i], rnn.m_block, brgemm_n,
-                        rnn.k2_block, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 1.0,
-                        rnn.KB2_blocks);
-                if (rnn.n_tail) {
-                    init_brgemm(&brgemm_desc_layer_N_tail_b0_[i],
-                            rnn.brgemm_isa, brgemm_kernel_layer_N_tail_b0_[i],
-                            rnn.m_block, brgemm_n_tail, rnn.k1_block,
-                            rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0,
-                            rnn.KB1_blocks);
-                    init_brgemm(&brgemm_desc_iter_N_tail_b0_[i], rnn.brgemm_isa,
-                            brgemm_kernel_iter_N_tail_b0_[i], rnn.m_block,
-                            brgemm_n_tail, rnn.k2_block, rnn.LDA2[i], rnn.LDB2,
-                            rnn.LDC, 0.0, rnn.KB2_blocks);
-                    init_brgemm(&brgemm_desc_iter_N_tail_b1_[i], rnn.brgemm_isa,
-                            brgemm_kernel_iter_N_tail_b1_[i], rnn.m_block,
-                            brgemm_n_tail, rnn.k2_block, rnn.LDA2[i], rnn.LDB2,
-                            rnn.LDC, 1.0, rnn.KB2_blocks);
-                }
-                if (rnn.k1_tail)
-                    init_brgemm(&brgemm_desc_layer_K1_tail_b1_[i],
-                            rnn.brgemm_isa, brgemm_kernel_layer_K1_tail_b1_[i],
-                            rnn.m_block, brgemm_n, rnn.k1_tail, rnn.LDA1[i],
-                            rnn.LDB1, rnn.LDC, 1.0, 1);
-                if (rnn.k2_tail)
-                    init_brgemm(&brgemm_desc_iter_K2_tail_b1_[i],
-                            rnn.brgemm_isa, brgemm_kernel_iter_K2_tail_b1_[i],
-                            rnn.m_block, brgemm_n, rnn.k2_tail, rnn.LDA2[i],
-                            rnn.LDB2, rnn.LDC, 1.0, 1);
-                if (rnn.k1_tail && rnn.n_tail)
-                    init_brgemm(&brgemm_desc_layer_NK1_tail_b1_[i],
-                            rnn.brgemm_isa, brgemm_kernel_layer_NK1_tail_b1_[i],
-                            rnn.m_block, brgemm_n_tail, rnn.k1_tail,
-                            rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0, 1);
-                if (rnn.k2_tail && rnn.n_tail)
-                    init_brgemm(&brgemm_desc_iter_NK2_tail_b1_[i],
-                            rnn.brgemm_isa, brgemm_kernel_iter_NK2_tail_b1_[i],
-                            rnn.m_block, brgemm_n_tail, rnn.k2_tail,
-                            rnn.LDA2[i], rnn.LDB2, rnn.LDC, 1.0, 1);
-            }
-            if (rnn.is_lstm_projection) {
-                dim_t brgemm_np = nstl::min(rnn.Nproj, rnn.n_block);
-                dim_t brgemm_np_tail = nstl::min(rnn.Nproj, rnn.nproj_tail);
-                int n_kernel = (rnn.dt_conf == rnn_utils::all_f32) ? 4 : 1;
-                for (int i = 0; i < n_kernel; i++) {
-                    init_brgemm(&brgemm_desc_proj_b0_[i], rnn.brgemm_isa,
-                            brgemm_kernel_proj_b0_[i], rnn.m_block, brgemm_np,
-                            rnn.kproj_block, rnn.LDAproj, rnn.LDBproj,
-                            rnn.LDCproj[i], 0.0, rnn.KBproj_blocks);
-                    if (rnn.nproj_tail) {
-                        init_brgemm(&brgemm_desc_proj_N_tail_b0_[i],
-                                rnn.brgemm_isa,
-                                brgemm_kernel_proj_N_tail_b0_[i], rnn.m_block,
-                                brgemm_np_tail, rnn.kproj_block, rnn.LDAproj,
-                                rnn.LDBproj, rnn.LDCproj[i], 0.0,
-                                rnn.KBproj_blocks);
-                        init_brgemm(&brgemm_desc_proj_N_tail_b1_[i],
-                                rnn.brgemm_isa,
-                                brgemm_kernel_proj_N_tail_b1_[i], rnn.m_block,
-                                brgemm_np_tail, rnn.kproj_block, rnn.LDAproj,
-                                rnn.LDBproj, rnn.LDCproj[i], 1.0,
-                                rnn.KBproj_blocks);
-                    }
-                    if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
-                        if (rnn.kproj_tail)
-                            init_brgemm(&brgemm_desc_proj_K_tail_b1_[i],
-                                    rnn.brgemm_isa,
-                                    brgemm_kernel_proj_K_tail_b1_[i],
-                                    rnn.m_block, brgemm_np, rnn.kproj_tail,
-                                    rnn.LDAproj, rnn.LDBproj, rnn.LDCproj[i],
-                                    1.0, 1);
-                        if (rnn.kproj_tail && rnn.nproj_tail)
-                            init_brgemm(&brgemm_desc_proj_NK_tail_b1_[i],
-                                    rnn.brgemm_isa,
-                                    brgemm_kernel_proj_NK_tail_b1_[i],
-                                    rnn.m_block, brgemm_np_tail, rnn.kproj_tail,
-                                    rnn.LDAproj, rnn.LDBproj, rnn.LDCproj[i],
-                                    1.0, 1);
-                    }
-                }
-            }
-            if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
-                brgemm_init_tiles(brgemm_desc_layer_b0_[0], pallete_buff_);
-                if (rnn.n_tail)
-                    brgemm_init_tiles(brgemm_desc_layer_N_tail_b0_[0],
-                            pallete_buff_n_tail_);
-                if (rnn.k1_tail)
-                    brgemm_init_tiles(brgemm_desc_layer_K1_tail_b1_[0],
-                            pallete_buff_k1_tail_);
-                if (rnn.k2_tail)
-                    brgemm_init_tiles(brgemm_desc_iter_K2_tail_b1_[0],
-                            pallete_buff_k2_tail_);
-                if (rnn.k1_tail && rnn.n_tail)
-                    brgemm_init_tiles(brgemm_desc_layer_NK1_tail_b1_[0],
-                            pallete_buff_nk1_tail_);
-                if (rnn.k2_tail && rnn.n_tail)
-                    brgemm_init_tiles(brgemm_desc_iter_NK2_tail_b1_[0],
-                            pallete_buff_nk2_tail_);
-                if (rnn.is_lstm_projection) {
-                    brgemm_init_tiles(
-                            brgemm_desc_proj_b0_[0], pallete_buff_proj_);
-                    if (rnn.nproj_tail)
-                        brgemm_init_tiles(brgemm_desc_proj_N_tail_b0_[0],
-                                pallete_buff_nproj_tail_);
-                    if (rnn.kproj_tail)
-                        brgemm_init_tiles(brgemm_desc_proj_K_tail_b1_[0],
-                                pallete_buff_kproj_tail_);
-                    if (rnn.kproj_tail && rnn.nproj_tail)
-                        brgemm_init_tiles(brgemm_desc_proj_NK_tail_b1_[0],
-                                pallete_buff_nkproj_tail_);
-                }
-            }
-        }
+        const auto rnn = pd()->rnn_;
+        if (pd()->rnn_.is_brgemm)
+            rnn_brgemm_.init_kernels(rnn, src_type, weights_type);
 #endif
         return status::success;
     }
@@ -958,53 +471,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
 private:
 #if DNNL_X64
-    x64::brgemm_t brgemm_desc_layer_b0_[3];
-
-    x64::brgemm_t brgemm_desc_iter_b0_[3];
-    x64::brgemm_t brgemm_desc_iter_b1_[3];
-    x64::brgemm_t brgemm_desc_layer_N_tail_b0_[3];
-    x64::brgemm_t brgemm_desc_iter_N_tail_b0_[3];
-    x64::brgemm_t brgemm_desc_iter_N_tail_b1_[3];
-
-    x64::brgemm_t brgemm_desc_layer_K1_tail_b1_[3];
-    x64::brgemm_t brgemm_desc_layer_NK1_tail_b1_[3];
-    x64::brgemm_t brgemm_desc_iter_K2_tail_b1_[3];
-    x64::brgemm_t brgemm_desc_iter_NK2_tail_b1_[3];
-
-    x64::brgemm_t brgemm_desc_proj_b0_[4];
-    x64::brgemm_t brgemm_desc_proj_N_tail_b0_[4];
-    x64::brgemm_t brgemm_desc_proj_N_tail_b1_[4];
-    x64::brgemm_t brgemm_desc_proj_K_tail_b1_[4];
-    x64::brgemm_t brgemm_desc_proj_NK_tail_b1_[4];
-
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_layer_b0_[3];
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_iter_b0_[3];
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_iter_b1_[3];
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_layer_N_tail_b0_[3];
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_iter_N_tail_b0_[3];
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_iter_N_tail_b1_[3];
-
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_layer_K1_tail_b1_[3];
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_layer_NK1_tail_b1_[3];
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_iter_K2_tail_b1_[3];
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_iter_NK2_tail_b1_[3];
-
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_proj_b0_[4];
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_proj_N_tail_b0_[4];
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_proj_N_tail_b1_[4];
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_proj_K_tail_b1_[4];
-    std::unique_ptr<x64::brgemm_kernel_t> brgemm_kernel_proj_NK_tail_b1_[4];
-
-    char pallete_buff_[64];
-    char pallete_buff_n_tail_[64];
-    char pallete_buff_k1_tail_[64];
-    char pallete_buff_k2_tail_[64];
-    char pallete_buff_nk1_tail_[64];
-    char pallete_buff_nk2_tail_[64];
-    char pallete_buff_proj_[64];
-    char pallete_buff_nproj_tail_[64];
-    char pallete_buff_kproj_tail_[64];
-    char pallete_buff_nkproj_tail_[64];
+    x64::rnn_brgemm_utils::rnn_brgemm_t rnn_brgemm_;
 #endif
     void execute_(const exec_ctx_t &ctx) const;
     rnn_grid_execution_sig(linear_execution);
