@@ -499,9 +499,6 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
 
-    jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
-    jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
-
     jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
 
     const int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
@@ -512,6 +509,9 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
     jcp.b_pad = nstl::max(0,
             calculate_end_padding(
                     jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh));
+
+    jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
+    jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
 
     auto dat_tag = one_of(isa, avx512_common, avx512_core) ? nChw16c : nChw8c;
     auto wei_tag = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
