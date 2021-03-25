@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,13 +41,57 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
             rhs_arg_md, dst_d, all_bcast_strategies);
 }
 
+namespace {
+
+bool is_per_oc_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
+        const memory_desc_t &rhs_arg_md) {
+    const bool broadcast_per_oc = !mask.test(1);
+
+    if (!broadcast_per_oc) return false;
+
+    const auto ndims = rhs_arg_md.ndims;
+
+    if (ndims > 0 && rhs_arg_md.dims[0] != 1) return false;
+
+    for (int dim = 2; dim < ndims; dim++) {
+        if (rhs_arg_md.dims[dim] != 1) return false;
+    }
+    return true;
+}
+
+bool bcast_strategy_enabled(const bcast_set_t &supported_strategy_set,
+        const broadcasting_strategy_t &bcast) {
+    return supported_strategy_set.find(bcast) != supported_strategy_set.cend();
+}
+
+broadcasting_strategy_t get_per_oc_bcast(
+        const bcast_set_t &supported_strategy_set,
+        const memory_desc_wrapper &dst_d) {
+
+    const auto ndims = dst_d.ndims();
+    const bool use_per_oc_spatial_strategy = bcast_strategy_enabled(
+            supported_strategy_set, broadcasting_strategy_t::per_oc_spatial);
+
+    if (use_per_oc_spatial_strategy && dst_d.is_blocking_desc()) {
+        const auto &strides = dst_d.blocking_desc().strides;
+
+        //per_oc_spatial basically used in nchw data format
+        return (dst_d.is_plain() && strides[1] != 1 && strides[0] >= strides[1]
+                       && IMPLICATION(ndims >= 3, strides[1] >= strides[2]))
+                ? broadcasting_strategy_t::per_oc_spatial
+                : broadcasting_strategy_t::per_oc;
+    }
+
+    return broadcasting_strategy_t::per_oc;
+}
+} // namespace
+
 broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
         const memory_desc_t &rhs_arg_md, const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set) {
 
     const auto is_enabled = [&](const broadcasting_strategy_t &bcast) {
-        return supported_strategy_set.find(bcast)
-                != supported_strategy_set.cend();
+        return bcast_strategy_enabled(supported_strategy_set, bcast);
     };
 
     const int ndims = rhs_arg_md.ndims;
@@ -69,37 +113,20 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
             mask.set(d);
     }
 
-    broadcasting_strategy_t bcast = broadcasting_strategy_t::shared_axes;
+    broadcasting_strategy_t bcast = broadcasting_strategy_t::unsupported;
 
-    const auto &mb_rhs = rhs_arg_md.dims[0];
-    const bool broadcast_per_mb = !mask.test(0);
-    const bool broadcast_per_oc = !mask.test(1);
-
-    if (all_ones)
+    if (all_ones && is_enabled(broadcasting_strategy_t::scalar))
         bcast = broadcasting_strategy_t::scalar;
-    else if (mask.none())
+    else if (mask.none() && is_enabled(broadcasting_strategy_t::no_broadcast))
         bcast = broadcasting_strategy_t::no_broadcast;
-    else if (broadcast_per_oc && !(broadcast_per_mb && mb_rhs != 1)) {
-        const bool use_per_oc_spatial_strategy
-                = is_enabled(broadcasting_strategy_t::per_oc_spatial);
+    else if (is_per_oc_bcast(mask, rhs_arg_md)
+            && (is_enabled(broadcasting_strategy_t::per_oc)
+                    || is_enabled(broadcasting_strategy_t::per_oc_spatial))) {
+        bcast = get_per_oc_bcast(supported_strategy_set, dst_d);
+    } else if (is_enabled(broadcasting_strategy_t::shared_axes))
+        bcast = broadcasting_strategy_t::shared_axes;
 
-        if (use_per_oc_spatial_strategy && dst_d.is_blocking_desc()) {
-            const auto &strides = dst_d.blocking_desc().strides;
-
-            //per_oc_spatial basically used in nchw data format
-            bcast = dst_d.is_plain() && strides[1] != 1
-                            && strides[0] >= strides[1]
-                            && IMPLICATION(ndims >= 3, strides[1] >= strides[2])
-                    ? broadcasting_strategy_t::per_oc_spatial
-                    : broadcasting_strategy_t::per_oc;
-        } else {
-            bcast = broadcasting_strategy_t::per_oc;
-        }
-    }
-
-    if (is_enabled(bcast)) return bcast;
-
-    return broadcasting_strategy_t::unsupported;
+    return bcast;
 }
 
 } // namespace impl
