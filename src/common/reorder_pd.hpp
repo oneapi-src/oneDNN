@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -95,22 +95,6 @@ private:
 };
 
 struct reorder_pd_t : public primitive_desc_t {
-    reorder_pd_t(const primitive_attr_t *attr, engine_kind_t src_engine_kind,
-            const memory_desc_t *src_md, engine_kind_t dst_engine_kind,
-            const memory_desc_t *dst_md)
-        : primitive_desc_t(attr, primitive_kind::reorder)
-        , src_md_(*src_md)
-        , dst_md_(*dst_md) {
-
-        // Fill a desc that is intended for internal use only
-        desc_ = reorder_desc_t();
-        desc_.primitive_kind = primitive_kind::reorder;
-        desc_.src_md = src_md_;
-        desc_.dst_md = dst_md_;
-        desc_.src_engine_kind = src_engine_kind;
-        desc_.dst_engine_kind = dst_engine_kind;
-    }
-
     const reorder_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
@@ -152,6 +136,22 @@ protected:
     reorder_desc_t desc_;
     memory_desc_t src_md_;
     memory_desc_t dst_md_;
+
+    reorder_pd_t(const primitive_attr_t *attr, engine_kind_t src_engine_kind,
+            const memory_desc_t *src_md, engine_kind_t dst_engine_kind,
+            const memory_desc_t *dst_md)
+        : primitive_desc_t(attr, primitive_kind::reorder)
+        , src_md_(*src_md)
+        , dst_md_(*dst_md) {
+
+        // Fill a desc that is intended for internal use only
+        desc_ = reorder_desc_t();
+        desc_.primitive_kind = primitive_kind::reorder;
+        desc_.src_md = src_md_;
+        desc_.dst_md = dst_md_;
+        desc_.src_engine_kind = src_engine_kind;
+        desc_.dst_engine_kind = dst_engine_kind;
+    }
 };
 
 } // namespace impl
