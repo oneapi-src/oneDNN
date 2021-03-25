@@ -443,6 +443,7 @@ const format_tag_t ABc40a32b = dnnl_ABc40a32b;
 const format_tag_t ABcd40a32b = dnnl_ABcd40a32b;
 const format_tag_t ABc32a16b = dnnl_ABc32a16b;
 const format_tag_t ABcd32a16b = dnnl_ABcd32a16b;
+const format_tag_t ABcde32a16b = dnnl_ABcde32a16b;
 const format_tag_t ABc40a16b = dnnl_ABc40a16b;
 const format_tag_t ABcd40a16b = dnnl_ABcd40a16b;
 const format_tag_t ABc32a32b = dnnl_ABc32a32b;
