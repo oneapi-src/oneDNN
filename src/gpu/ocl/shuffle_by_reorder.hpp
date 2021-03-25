@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
+#include "common/reorder.hpp"
 #include "common/reorder_pd.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_primitive.hpp"
@@ -40,6 +41,10 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_shuffle_pd_t {
         using gpu_shuffle_pd_t::gpu_shuffle_pd_t;
+
+        pd_t(const pd_t &other)
+            : gpu_shuffle_pd_t(other)
+            , reorder_pd_(other.reorder_pd_->clone()) {}
 
         DECLARE_COMMON_PD_T("ocl:reorder:any", shuffle_by_reorder_t);
 
@@ -96,26 +101,12 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
             CHECK(dnnl_memory_desc_init_by_strides(
                     &fake_dst, 4, d, md_src->data_type, strides_dst));
 
-            reorder_pd_ = nullptr;
-
-            auto r_impls = engine->get_reorder_implementation_list(
-                    &fake_src, &fake_dst);
-            for (auto r = r_impls; *r; ++r) {
-                primitive_attr_t r_attr;
-                r_attr.set_scratchpad_mode(scratchpad_mode::user);
-                reorder_pd_t *r_pd = nullptr;
-                if ((*r)(&r_pd, engine, &r_attr, engine, &fake_src, engine,
-                            &fake_dst)
-                        == status::success) {
-                    reorder_pd_ = r_pd;
-                    break;
-                }
-            }
-            if (reorder_pd_ == nullptr) { return status::unimplemented; }
+            CHECK(reorder_primitive_desc_create(
+                    reorder_pd_, engine, &fake_src, &fake_dst));
             return status::success;
         }
 
-        reorder_pd_t *reorder_pd_;
+        std::unique_ptr<primitive_desc_t> reorder_pd_;
     };
 
     status_t init(engine_t *engine) override {

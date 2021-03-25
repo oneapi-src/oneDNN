@@ -20,6 +20,7 @@
 #include "common/engine.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
+#include "common/reorder.hpp"
 #include "common/reorder_pd.hpp"
 
 #include "cpu/cpu_sum_pd.hpp"
@@ -42,43 +43,22 @@ struct ref_sum_t : public primitive_t {
 
             if (has_zero_dim_memory()) return status::success;
 
+            reorder_pds_.resize(n_ + need_output_reorder());
             for (int i = 0; i < n_; ++i) {
-                auto r_impls = engine->get_reorder_implementation_list(
-                        src_md(i), dst_acc_md());
-                for (auto r = r_impls; *r; ++r) {
-                    primitive_attr_t attr;
-                    attr.set_scratchpad_mode(scratchpad_mode::user);
-                    attr.output_scales_.set(scales_[i]);
-                    if (i != 0) attr.post_ops_.append_sum(1.0);
-
-                    reorder_pd_t *r_pd = nullptr;
-                    if ((*r)(&r_pd, engine, &attr, engine, src_md(i), engine,
-                                dst_acc_md())
-                            == status::success) {
-                        reorder_pds_.emplace_back(r_pd);
-                        break;
-                    }
-                }
+                primitive_attr_t r_attr;
+                r_attr.set_scratchpad_mode(scratchpad_mode::user);
+                r_attr.output_scales_.set(scales_[i]);
+                if (i != 0) r_attr.post_ops_.append_sum(1.0);
+                CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
+                        src_md(i), dst_acc_md(), &r_attr));
             }
 
             if (need_output_reorder()) {
-                auto r_impls = engine->get_reorder_implementation_list(
-                        dst_acc_md(), dst_md());
-                for (auto r = r_impls; *r; ++r) {
-                    primitive_attr_t r_attr;
-                    r_attr.set_scratchpad_mode(scratchpad_mode::user);
-                    reorder_pd_t *r_pd = nullptr;
-                    if ((*r)(&r_pd, engine, &r_attr, engine, dst_acc_md(),
-                                engine, dst_md())
-                            == status::success) {
-                        reorder_pds_.emplace_back(r_pd);
-                        break;
-                    }
-                }
+                primitive_attr_t r_attr;
+                r_attr.set_scratchpad_mode(scratchpad_mode::user);
+                CHECK(reorder_primitive_desc_create(reorder_pds_[n_], engine,
+                        dst_acc_md(), dst_md(), &r_attr));
             }
-
-            ok = reorder_pds_.size() == (size_t)n_ + need_output_reorder();
-            if (!ok) return status::unimplemented;
 
             init_scratchpad();
             return status::success;

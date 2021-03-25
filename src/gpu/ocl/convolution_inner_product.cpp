@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #include "gpu/ocl/convolution_inner_product.hpp"
 
 #include "common/c_types_map.hpp"
-#include "common/primitive_iterator.hpp"
+#include "common/reorder.hpp"
 
 using namespace dnnl::impl::memory_tracking;
 
@@ -101,36 +101,18 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
     if (dst_conv != ip_dst_md
             && dst_conv.format_desc.blocking.inner_nblks > 0) {
         conf.reorder_dst = true;
-        auto r_impls = engine->get_reorder_implementation_list(
-                &dst_conv, &ip_dst_md);
         primitive_attr_t r_attr(default_attr());
         if (!r_attr.is_initialized()) return status::out_of_memory;
         r_attr.set_scratchpad_mode(scratchpad_mode::user);
-        for (auto r = r_impls; *r; ++r) {
-            reorder_pd_t *r_pd = nullptr;
-            if ((*r)(&r_pd, engine, &r_attr, engine, &dst_conv, engine,
-                        &ip_dst_md)
-                    == status::success) {
-                rpd_dst_.reset((primitive_desc_t *)r_pd);
-                break;
-            }
-        }
+        CHECK(reorder_primitive_desc_create(
+                rpd_dst_, engine, &dst_conv, &ip_dst_md, &r_attr));
 
         if (conf.attr_info.with_sum) {
-            auto r_impls = engine->get_reorder_implementation_list(
-                    &ip_dst_md, &dst_conv);
             primitive_attr_t r_attr(default_attr());
             if (!r_attr.is_initialized()) return status::out_of_memory;
             r_attr.set_scratchpad_mode(scratchpad_mode::user);
-            for (auto r = r_impls; *r; ++r) {
-                reorder_pd_t *r_pd = nullptr;
-                if ((*r)(&r_pd, engine, &r_attr, engine, &ip_dst_md, engine,
-                            &dst_conv)
-                        == status::success) {
-                    rpd_postop_.reset((primitive_desc_t *)r_pd);
-                    break;
-                }
-            }
+            CHECK(reorder_primitive_desc_create(
+                    rpd_postop_, engine, &ip_dst_md, &dst_conv, &r_attr));
         }
     }
 

@@ -19,6 +19,7 @@
 
 #include "common/primitive.hpp"
 #include "common/primitive_iterator.hpp"
+#include "common/reorder.hpp"
 #include "common/stream.hpp"
 
 #include "cpu/cpu_convolution_pd.hpp"
@@ -143,20 +144,10 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
 
             if (*from_md != *to_md) {
                 //TODO: Find a test-case for this
-                reorder_pd_t *r_pd = nullptr;
-                auto r_impls = engine->get_reorder_implementation_list(
-                        from_md, to_md);
-                for (auto r = r_impls; *r; ++r) {
-                    primitive_attr_t attr;
-                    attr.set_scratchpad_mode(scratchpad_mode::user);
-                    if ((*r)(&r_pd, engine, &attr, engine, from_md, engine,
-                                to_md)
-                            == status::success) {
-                        op_pds_.emplace_back((primitive_desc_t *)r_pd);
-                        break;
-                    }
-                }
-                if (!r_pd) return status::unimplemented;
+                std::unique_ptr<primitive_desc_t> pd;
+                CHECK(reorder_primitive_desc_create(
+                        pd, engine, from_md, to_md));
+                op_pds_.emplace_back(std::move(pd));
 
                 arg_cache_t arg_cache;
                 arg_cache.append_inout_arg(

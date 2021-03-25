@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
+#include "common/reorder.hpp"
 #include "common/type_helpers.hpp"
 
 #include "cpu/cpu_batch_normalization_utils.hpp"
@@ -46,22 +47,6 @@ status_t fill_compatible_stats_md(
             stat_md, src_md.format_desc.blocking);
 }
 
-status_t create_reorder_pd(engine_t *engine, const memory_desc_t *from_md,
-        const memory_desc_t *to_md,
-        std::unique_ptr<primitive_desc_t> &reorder_pd) {
-    auto r_impls = engine->get_reorder_implementation_list(from_md, to_md);
-    for (auto r = r_impls; *r; ++r) {
-        primitive_attr_t r_attr;
-        r_attr.set_scratchpad_mode(scratchpad_mode::user);
-        reorder_pd_t *r_pd = nullptr;
-        if ((*r)(&r_pd, engine, &r_attr, engine, from_md, engine, to_md)
-                == status::success) {
-            reorder_pd.reset(r_pd);
-            break;
-        }
-    }
-    return status::success;
-}
 } // namespace
 
 template <data_type_t data_type>
@@ -84,10 +69,12 @@ status_t simple_layer_normalization_fwd_t<data_type>::pd_t::init(
     CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
 
     if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
-        CHECK(create_reorder_pd(engine,
+        primitive_attr_t r_attr;
+        r_attr.set_scratchpad_mode(scratchpad_mode::user);
+
+        CHECK(reorder_primitive_desc_create(reorder_pd_, engine,
                 stats_are_src() ? stat_md() : &reordered_stat_md_,
-                stats_are_src() ? &reordered_stat_md_ : stat_md(),
-                reorder_pd_));
+                stats_are_src() ? &reordered_stat_md_ : stat_md(), &r_attr));
     }
 
     init_scratchpad();
@@ -152,8 +139,11 @@ status_t simple_layer_normalization_bwd_t<data_type>::pd_t::init(
     CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
 
     if (reordered_stat_md_ != *stat_md()) {
-        CHECK(create_reorder_pd(
-                engine, stat_md(), &reordered_stat_md_, reorder_pd_));
+        primitive_attr_t r_attr;
+        r_attr.set_scratchpad_mode(scratchpad_mode::user);
+
+        CHECK(reorder_primitive_desc_create(
+                reorder_pd_, engine, stat_md(), &reordered_stat_md_, &r_attr));
     }
 
     init_scratchpad();

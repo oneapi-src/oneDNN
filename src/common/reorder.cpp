@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
+#include "impl_list_item.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -28,8 +29,11 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::status;
 
-static engine_t *get_reorder_engine(
-        engine_t *src_engine, engine_t *dst_engine) {
+namespace dnnl {
+namespace impl {
+
+namespace {
+engine_t *get_reorder_engine(engine_t *src_engine, engine_t *dst_engine) {
     auto s_ek = src_engine->kind();
     auto d_ek = dst_engine->kind();
     auto s_rk = src_engine->runtime_kind();
@@ -47,17 +51,17 @@ static engine_t *get_reorder_engine(
     assert(d_ek == engine_kind::gpu);
     return src_engine;
 }
+} // namespace
 
-status_t dnnl_reorder_primitive_desc_create(
-        primitive_desc_iface_t **reorder_pd_iface, const memory_desc_t *src_md,
-        engine_t *src_engine, const memory_desc_t *dst_md, engine_t *dst_engine,
+status_t reorder_primitive_desc_create(std::unique_ptr<primitive_desc_t> &pd,
+        engine_t *engine, const memory_desc_t *src_md, engine_t *src_engine,
+        const memory_desc_t *dst_md, engine_t *dst_engine,
         const primitive_attr_t *attr) {
-    if (any_null(reorder_pd_iface, src_engine, src_md, dst_engine, dst_md))
-        return invalid_arguments;
+    pd.reset();
 
     auto s_ek = src_engine->kind();
     auto d_ek = dst_engine->kind();
-    if (!IMPLICATION(s_ek != d_ek, one_of(engine_kind::cpu, s_ek, d_ek)))
+    if (!IMPLICATION(s_ek != d_ek, utils::one_of(engine_kind::cpu, s_ek, d_ek)))
         return invalid_arguments;
 
     auto s_mdw = memory_desc_wrapper(*src_md);
@@ -67,19 +71,44 @@ status_t dnnl_reorder_primitive_desc_create(
 
     if (attr == nullptr) attr = &default_attr();
 
-    auto e = get_reorder_engine(src_engine, dst_engine);
-    for (auto r = e->get_reorder_implementation_list(src_md, dst_md); *r; ++r) {
+    for (auto r = engine->get_reorder_implementation_list(src_md, dst_md); *r;
+            ++r) {
         reorder_pd_t *reorder_pd = nullptr;
-        if ((*r)(&reorder_pd, e, attr, src_engine, src_md, dst_engine, dst_md)
+        if ((*r)(&reorder_pd, engine, attr, src_engine, src_md, dst_engine,
+                    dst_md)
                 == success) {
-            auto status = safe_ptr_assign(*reorder_pd_iface,
-                    new reorder_primitive_desc_iface_t(
-                            reorder_pd, e, src_engine, dst_engine));
-            if (status != status::success) delete reorder_pd;
-            return status;
+            pd.reset(reorder_pd);
+            return success;
         }
     }
     return unimplemented;
+}
+
+status_t reorder_primitive_desc_create(std::unique_ptr<primitive_desc_t> &pd,
+        engine_t *engine, const memory_desc_t *src_md,
+        const memory_desc_t *dst_md, const primitive_attr_t *attr) {
+    return reorder_primitive_desc_create(
+            pd, engine, src_md, engine, dst_md, engine, attr);
+}
+
+} // namespace impl
+} // namespace dnnl
+
+status_t dnnl_reorder_primitive_desc_create(
+        primitive_desc_iface_t **reorder_pd_iface, const memory_desc_t *src_md,
+        engine_t *src_engine, const memory_desc_t *dst_md, engine_t *dst_engine,
+        const primitive_attr_t *attr) {
+    if (any_null(reorder_pd_iface, src_engine, src_md, dst_engine, dst_md))
+        return invalid_arguments;
+
+    std::unique_ptr<primitive_desc_t> pd;
+    auto e = get_reorder_engine(src_engine, dst_engine);
+    CHECK(reorder_primitive_desc_create(
+            pd, e, src_md, src_engine, dst_md, dst_engine, attr));
+
+    return safe_ptr_assign(*reorder_pd_iface,
+            new reorder_primitive_desc_iface_t(
+                    pd.release(), e, src_engine, dst_engine));
 }
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

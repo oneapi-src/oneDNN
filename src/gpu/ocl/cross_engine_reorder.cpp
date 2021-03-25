@@ -16,6 +16,7 @@
 
 #include "gpu/ocl/cross_engine_reorder.hpp"
 
+#include "common/reorder.hpp"
 #include "common/utils.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -56,22 +57,12 @@ status_t cross_engine_reorder_t::pd_t::init(
     engine_t *reorder_engine
             = src_engine->kind() == engine_kind::gpu ? src_engine : dst_engine;
 
-    auto r_impls = reorder_engine->get_reorder_implementation_list(
-            src_md(), dst_md());
     primitive_attr_t r_attr(*attr());
     if (!r_attr.is_initialized()) return status::out_of_memory;
     r_attr.set_scratchpad_mode(scratchpad_mode::user);
-    for (auto r = r_impls; *r; ++r) {
-        reorder_pd_t *r_pd = nullptr;
-        if ((*r)(&r_pd, reorder_engine, &r_attr, reorder_engine, src_md(),
-                    reorder_engine, dst_md())
-                == status::success) {
-            reorder_pd_.reset(r_pd);
-            break;
-        }
-    }
 
-    if (!reorder_pd_) return status::unimplemented;
+    CHECK(reorder_primitive_desc_create(
+            reorder_pd_, reorder_engine, src_md(), dst_md(), &r_attr));
     init_scratchpad();
 
     return status::success;

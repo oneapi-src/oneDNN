@@ -18,6 +18,7 @@
 #define GPU_OCL_REF_SUM_HPP
 
 #include "common/primitive.hpp"
+#include "common/reorder.hpp"
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
 #include "gpu/gpu_primitive.hpp"
@@ -45,44 +46,24 @@ struct ref_sum_t : public gpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             if (has_zero_dim_memory()) return status::success;
-
+            reorder_pds_.resize(n_ + need_output_reorder());
             for (int i = 0; i < n_; ++i) {
-                auto r_impls = engine->get_reorder_implementation_list(
-                        src_md(i), dst_acc_md());
-                for (auto r = r_impls; *r; ++r) {
-                    primitive_attr_t r_attr;
-                    r_attr.set_scratchpad_mode(scratchpad_mode::user);
-                    r_attr.output_scales_.set(scales_[i]);
-                    if (i != 0) r_attr.post_ops_.append_sum(1.0);
+                primitive_attr_t r_attr;
+                r_attr.set_scratchpad_mode(scratchpad_mode::user);
+                r_attr.output_scales_.set(scales_[i]);
+                if (i != 0) r_attr.post_ops_.append_sum(1.0);
 
-                    reorder_pd_t *r_pd;
-                    if ((*r)(&r_pd, engine, &r_attr, engine, src_md(i), engine,
-                                dst_acc_md())
-                            == status::success) {
-                        reorder_pds_.emplace_back(r_pd);
-                        break;
-                    }
-                }
+                CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
+                        src_md(i), dst_acc_md(), &r_attr));
             }
 
             if (need_output_reorder()) {
-                auto r_impls = engine->get_reorder_implementation_list(
-                        dst_acc_md(), dst_md());
-                for (auto r = r_impls; *r; ++r) {
-                    primitive_attr_t r_attr;
-                    r_attr.set_scratchpad_mode(scratchpad_mode::user);
-                    reorder_pd_t *r_pd = nullptr;
-                    if ((*r)(&r_pd, engine, &r_attr, engine, dst_acc_md(),
-                                engine, dst_md())
-                            == status::success) {
-                        reorder_pds_.emplace_back(r_pd);
-                        break;
-                    }
-                }
-            }
+                primitive_attr_t r_attr;
+                r_attr.set_scratchpad_mode(scratchpad_mode::user);
 
-            ok = reorder_pds_.size() == (size_t)n_ + need_output_reorder();
-            if (!ok) return status::unimplemented;
+                CHECK(reorder_primitive_desc_create(reorder_pds_[n_], engine,
+                        dst_acc_md(), dst_md(), &r_attr));
+            }
 
             init_scratchpad();
             return status::success;

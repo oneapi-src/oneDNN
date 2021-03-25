@@ -20,6 +20,7 @@
 #include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
+#include "common/reorder.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 
@@ -1021,42 +1022,25 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
             conf.reorder_wei = true;
             auto temp_wei_md = *diff_weights_md();
             temp_wei_md.data_type = data_type::f32;
-            auto r_impls = engine->get_reorder_implementation_list(
-                    &temp_wei_md, diff_weights_md());
+
             primitive_attr_t r_attr(default_attr());
             if (!r_attr.is_initialized()) return status::out_of_memory;
             r_attr.set_scratchpad_mode(scratchpad_mode::user);
-            for (auto r = r_impls; *r; ++r) {
-                reorder_pd_t *r_pd = nullptr;
-                if ((*r)(&r_pd, engine, &r_attr, engine, &temp_wei_md, engine,
-                            diff_weights_md())
-                        == status::success) {
-                    rpd_wei_.reset((primitive_desc_t *)r_pd);
-                    break;
-                }
-            }
-            if (!rpd_wei_) return status::unimplemented;
+
+            CHECK(reorder_primitive_desc_create(rpd_wei_, engine, &temp_wei_md,
+                    diff_weights_md(), &r_attr));
         }
 
         if (conf.with_bias && data_type::bf16 == conf.bias_data_type) {
             conf.reorder_bias = true;
             auto temp_bias_md = *diff_weights_md(1);
             temp_bias_md.data_type = data_type::f32;
-            auto r_impls = engine->get_reorder_implementation_list(
-                    &temp_bias_md, diff_weights_md(1));
             primitive_attr_t r_attr(default_attr());
             if (!r_attr.is_initialized()) return status::out_of_memory;
             r_attr.set_scratchpad_mode(scratchpad_mode::user);
-            for (auto r = r_impls; *r; ++r) {
-                reorder_pd_t *r_pd = nullptr;
-                if ((*r)(&r_pd, engine, &r_attr, engine, &temp_bias_md, engine,
-                            diff_weights_md(1))
-                        == status::success) {
-                    rpd_bia_.reset((primitive_desc_t *)r_pd);
-                    break;
-                }
-            }
-            if (!rpd_bia_) return status::unimplemented;
+
+            CHECK(reorder_primitive_desc_create(rpd_bia_, engine, &temp_bias_md,
+                    diff_weights_md(1), &r_attr));
         }
     }
 

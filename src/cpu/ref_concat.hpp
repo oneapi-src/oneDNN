@@ -19,6 +19,7 @@
 
 #include "common/engine.hpp"
 #include "common/primitive.hpp"
+#include "common/reorder.hpp"
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
 
@@ -52,41 +53,19 @@ struct ref_concat_t : public primitive_t {
                 if (status != status::success) return status::unimplemented;
             }
 
+            primitive_attr_t r_attr;
+            r_attr.set_scratchpad_mode(scratchpad_mode::user);
+            reorder_pds_.resize(n_ + use_tent_dst());
             for (int i = 0; i < n_; ++i) {
-                auto r_impls = engine->get_reorder_implementation_list(
-                        src_md(i), src_image_md(i));
-                for (auto r = r_impls; *r; ++r) {
-                    primitive_attr_t r_attr; /* alpha == 1. */
-                    r_attr.set_scratchpad_mode(scratchpad_mode::user);
-                    reorder_pd_t *r_pd = nullptr;
-
-                    if ((*r)(&r_pd, engine, &r_attr, engine, src_md(i), engine,
-                                src_image_md(i))
-                            == status::success) {
-                        reorder_pds_.emplace_back(r_pd);
-                        break;
-                    }
-                }
+                CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
+                        src_md(i), src_image_md(i), &r_attr));
             }
-            if (reorder_pds_.size() != (size_t)n_) return status::unimplemented;
 
             if (use_tent_dst()) {
                 assert(tent_dst_md_.format_kind != format_kind::undef);
                 assert(dst_md_.format_kind != format_kind::undef);
-
-                auto r_impls = engine->get_reorder_implementation_list(
-                        &tent_dst_md_, &dst_md_);
-                for (auto r = r_impls; *r; ++r) {
-                    primitive_attr_t r_attr;
-                    r_attr.set_scratchpad_mode(scratchpad_mode::user);
-                    reorder_pd_t *r_pd = nullptr;
-                    if ((*r)(&r_pd, engine, &r_attr, engine, &tent_dst_md_,
-                                engine, &dst_md_)
-                            == status::success) {
-                        reorder_pds_.emplace_back(r_pd);
-                        break;
-                    }
-                }
+                CHECK(reorder_primitive_desc_create(reorder_pds_[n_], engine,
+                        &tent_dst_md_, &dst_md_, &r_attr));
             }
             init_scratchpad();
             return status;
