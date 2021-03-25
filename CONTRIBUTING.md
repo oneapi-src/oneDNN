@@ -24,10 +24,8 @@ list.
   detailed explanation of expected use cases and performance benefits.
 
 * Ensure that the changes are consistent with the
-  [code contribution guidelines](CONTRIBUTING.md#code-contribution-guidelines).
-
-* Check that the changes are consistent with the
-  [coding style](CONTRIBUTING.md#coding-style).
+  [code contribution guidelines](CONTRIBUTING.md#code-contribution-guidelines)
+  and [coding standards](CONTRIBUTING.md#coding-standards).
 
 * Check that [unit tests](CONTRIBUTING.md#unit-tests) pass.
 
@@ -76,29 +74,26 @@ The code must be:
   architectures, compilers, and run-times. The new code should be compliant
   with the [System Requirements](README.md#system-requirements).
 
-## Coding style
+## Coding Standards
 
-The general principle is to follow the style of existing / surrounding code.
+Contributions to oneDNN must follow the [Coding Standards](CODING_STANDARDS.md)
+in order to simplify development and review processes. The general principle is
+to follow the style of existing/surrounding code.
 
-Particularly:
-* Use 4-space indentation.
-* Limit line length to 80 columns.
-* Do put spaces after `if`, `for`, `switch`; otherwise, do not put spaces
-  around braces, parenthesis, square or angle brackets.
-* Do put spaces around binary arithmetic operators.
-* Avoid trailing and double spaces (unless used for indentation).
-* Do not indent namespaces, `private:`, `public:`, `protected:` and case
-  labels.
-* Keep opening brace on the same line as the statement or function.
+The Coding Standards are subject to change and contributions to the Coding
+Standards are welcome.
 
-If in doubt, use the `clang-format`:
-```sh
-clang-format -style=file -i foo.cpp
-```
-This will format code using the `_clang_format` file found in the oneDNN
-top level directory.
-
-Coding style is secondary to the general code design.
+If you wish to propose changes to the Coding Standards (including `clang-tidy`
+checks and `clang-format` options), please submit the proposal via an [RFC pull
+request](CONTRIBUTING.md#RFC-pull-requests). The proposal should contain the
+following information:
+* *Motivation*: Why should the proposed standard be introduced and applied?
+* *Enforcement*: Can the proposed standard be applied via an automated process
+  or other practical means?
+* *Example*: What does the code base look like with the proposed standard
+  applied?
+  * For instance, in case of a `clang-tidy` check, please open a separate PR
+    with the check applied to the code base alongside the RFC PR.
 
 ## Unit tests
 
