@@ -115,6 +115,46 @@ protected:
 
 } // namespace tr
 
+struct jit_uni_reorder_t : public primitive_t {
+    using primitive_t::primitive_t;
+    struct pd_t : public cpu_reorder_pd_t {
+        using cpu_reorder_pd_t::cpu_reorder_pd_t;
+
+        DECLARE_COMMON_PD_T("jit:uni", jit_uni_reorder_t);
+
+        static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
+                const primitive_attr_t *attr, engine_t *src_engine,
+                const memory_desc_t *src_md, engine_t *dst_engine,
+                const memory_desc_t *dst_md);
+
+        tr::prb_t prb_;
+        tr::kernel_t::desc_t ker_desc_;
+        int nthr_;
+    };
+
+    status_t init(engine_t *engine) override;
+    status_t execute(const exec_ctx_t &ctx) const override;
+
+    enum { ndims_driver_max = 4 };
+
+private:
+    void omp_driver_0d(
+            int off, const char *in, char *out, const float *scale) const;
+    void omp_driver_1d(int ithr, int nthr, int off, const char *in, char *out,
+            const float *scale) const;
+    void omp_driver_2d(int ithr, int nthr, int off, const char *in, char *out,
+            const float *scale) const;
+    void omp_driver_3d(int ithr, int nthr, int off, const char *in, char *out,
+            const float *scale) const;
+    void omp_driver_4d(int ithr, int nthr, int off, const char *in, char *out,
+            const float *scale) const;
+
+    void omp_driver(const char *in, char *out, const float *scale) const;
+
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::unique_ptr<tr::kernel_t> kernel_;
+};
+
 /* for cpu reorder list */
 status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd, engine_t *engine,
         const primitive_attr_t *attr, engine_t *src_engine,
