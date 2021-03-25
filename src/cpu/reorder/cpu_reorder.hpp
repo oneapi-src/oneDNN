@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 
 #include "cpu/reorder/simple_reorder.hpp"
 
+#include "common/impl_list_item.hpp"
 #include "common/memory.hpp"
 #include "common/type_helpers.hpp"
 
@@ -40,8 +41,6 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
-
-using rpd_create_f = dnnl::impl::engine_t::reorder_primitive_desc_create_f;
 
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::format_tag;
@@ -63,7 +62,8 @@ private:
     }
 };
 
-using impl_list_map_t = std::map<reorder_impl_key_t, std::vector<rpd_create_f>>;
+using impl_list_map_t
+        = std::map<reorder_impl_key_t, std::vector<impl_list_item_t>>;
 
 /* regular reorders */
 extern const impl_list_map_t regular_f32_bf16_impl_list_map;
@@ -84,7 +84,8 @@ extern const impl_list_map_t comp_bf16_s8_impl_list_map;
 extern const impl_list_map_t comp_s8_s8_impl_list_map;
 
 #define REG_SR(idt, ifmt, odt, ofmt, ...) \
-    simple_reorder_t<idt, ifmt, odt, ofmt, __VA_ARGS__>::pd_t::create
+    impl_list_item_t(impl_list_item_t::reorder_type_deduction_helper_t< \
+            simple_reorder_t<idt, ifmt, odt, ofmt, __VA_ARGS__>::pd_t>())
 
 #define REG_SR_BIDIR(idt, ifmt, odt, ofmt) \
     REG_SR(idt, ifmt, odt, ofmt, fmt_order::keep), \
@@ -112,6 +113,10 @@ extern const impl_list_map_t comp_s8_s8_impl_list_map;
 #else
 #define REG_FAST_DIRECT_COPY_COMMA(sdt, ddt)
 #endif
+
+#define CPU_REORDER_INSTANCE(...) \
+    impl_list_item_t(impl_list_item_t::reorder_type_deduction_helper_t< \
+            __VA_ARGS__::pd_t>())
 
 } // namespace cpu
 } // namespace impl

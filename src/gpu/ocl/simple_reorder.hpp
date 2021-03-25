@@ -39,8 +39,6 @@ struct simple_reorder_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:simple:any", simple_reorder_t);
 
-        DECLARE_GPU_REORDER_CREATE();
-
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
             const auto &post_ops = attr()->post_ops_;
@@ -100,6 +98,9 @@ struct simple_reorder_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         reorder_conf_t conf;
+
+    private:
+        DECLARE_GPU_REORDER_CREATE();
     };
 
     status_t init(engine_t *engine) override {

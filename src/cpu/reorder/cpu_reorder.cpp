@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 * Copyright 2020 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,7 +43,7 @@ std::map<reorder_impl_key_t, const void *> comp_s8s8_impl_list_map {
         {{s8, s8, 0}, &comp_s8_s8_impl_list_map},
 };
 
-const rpd_create_f *cpu_engine_impl_list_t::get_reorder_implementation_list(
+const impl_list_item_t *cpu_engine_impl_list_t::get_reorder_implementation_list(
         const memory_desc_t *src_md, const memory_desc_t *dst_md) {
     reorder_impl_key_t dt_pair {src_md->data_type, dst_md->data_type, 0};
     const bool do_comp_s8s8 = dst_md->extra.flags
@@ -52,7 +52,7 @@ const rpd_create_f *cpu_engine_impl_list_t::get_reorder_implementation_list(
     auto &map = do_comp_s8s8 ? comp_s8s8_impl_list_map : regular_impl_list_map;
     const impl_list_map_t *p_impl_list = (const impl_list_map_t *)map[dt_pair];
 
-    static const rpd_create_f empty_list[] = {nullptr};
+    static const impl_list_item_t empty_list[] = {nullptr};
     if (!p_impl_list) {
         dt_pair.dst_dt = data_type::undef;
         p_impl_list = (const impl_list_map_t *)map[dt_pair];

@@ -51,7 +51,7 @@ public:
         return sycl_engine_base_t::create_stream(stream, flags);
     }
 
-    const reorder_primitive_desc_create_f *get_reorder_implementation_list(
+    const impl_list_item_t *get_reorder_implementation_list(
             const memory_desc_t *src_md,
             const memory_desc_t *dst_md) const override {
         return gpu::gpu_impl_list_t::get_reorder_implementation_list(

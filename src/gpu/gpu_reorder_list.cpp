@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,19 +24,26 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 
-using rpd_create_f = engine_t::reorder_primitive_desc_create_f;
-
 namespace {
 
 using namespace dnnl::impl::data_type;
 
-const rpd_create_f reorder_impl_list[]
-        = {ocl::rnn_weights_reorder_t::pd_t::create,
-                ocl::cross_engine_reorder_t::pd_t::create,
-                ocl::simple_reorder_t::pd_t::create, nullptr};
+#define INSTANCE(...) \
+    impl_list_item_t( \
+            impl_list_item_t::reorder_type_deduction_helper_t<__VA_ARGS__>())
+
+// clang-format off
+const impl_list_item_t reorder_impl_list[] = {
+        INSTANCE(ocl::rnn_weights_reorder_t::pd_t),
+        INSTANCE(ocl::cross_engine_reorder_t::pd_t),
+        INSTANCE(ocl::simple_reorder_t::pd_t),
+        nullptr,
+};
+// clang-format on
+
 } // namespace
 
-const rpd_create_f *gpu_impl_list_t::get_reorder_implementation_list(
+const impl_list_item_t *gpu_impl_list_t::get_reorder_implementation_list(
         const memory_desc_t *, const memory_desc_t *) {
     return reorder_impl_list;
 }

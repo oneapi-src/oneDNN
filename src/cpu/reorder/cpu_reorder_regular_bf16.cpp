@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,13 +21,13 @@ namespace impl {
 namespace cpu {
 
 // clang-format off
-
 const impl_list_map_t regular_bf16_impl_list_map {
     // bf16 ->
     {{bf16, data_type::undef, 0}, {
-        rnn_weights_reorder_t<bf16, bf16>::pd_t::create,
+        CPU_REORDER_INSTANCE(rnn_weights_reorder_t<bf16, bf16>),
 
-        DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t),)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t),)
 
         REG_SR_BIDIR(bf16, any, f32, nChw16c),
         REG_SR_BIDIR(bf16, any, f32, nCdhw16c),

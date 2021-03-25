@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,8 +14,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
 #include "common/engine.hpp"
+#include "common/impl_list_item.hpp"
 #include "gpu/nvidia/cudnn_reorder.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
 #include "gpu/ocl/cross_engine_reorder.hpp"
@@ -27,14 +27,21 @@ namespace nvidia {
 
 namespace {
 
-using rpd_create_f = dnnl::impl::engine_t::reorder_primitive_desc_create_f;
+#define INSTANCE(...) \
+    impl_list_item_t( \
+            impl_list_item_t::reorder_type_deduction_helper_t<__VA_ARGS__>())
 
-const rpd_create_f cuda_reorder_impl_list[]
-        = {gpu::ocl::cross_engine_reorder_t::pd_t::create,
-                cudnn_reorder_t::pd_t::create, nullptr};
+// clang-format off
+const impl_list_item_t cuda_reorder_impl_list[] = {
+        INSTANCE(gpu::ocl::cross_engine_reorder_t::pd_t),
+        INSTANCE(cudnn_reorder_t::pd_t),
+        nullptr,
+};
+// clang-format on
+
 } // namespace
 
-const rpd_create_f *
+const impl_list_item_t *
 cuda_gpu_engine_impl_list_t::get_reorder_implementation_list(
         const memory_desc_t *, const memory_desc_t *) {
     return cuda_reorder_impl_list;

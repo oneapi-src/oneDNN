@@ -25,7 +25,7 @@ namespace dnnl {
 namespace impl {
 
 struct impl_list_item_t {
-    impl_list_item_t() = delete;
+    impl_list_item_t() = default;
     impl_list_item_t(const impl_list_item_t &other) = default;
     impl_list_item_t(impl_list_item_t &&other) = default;
     impl_list_item_t &operator=(const impl_list_item_t &other) = default;
@@ -52,6 +52,10 @@ struct impl_list_item_t {
     };
 
     template <typename pd_t>
+    struct reorder_type_deduction_helper_t
+        : public type_deduction_helper_t<pd_t> {};
+
+    template <typename pd_t>
     impl_list_item_t(type_deduction_helper_t<pd_t> helper) {
         using deduced_pd_t =
                 typename std::remove_pointer<decltype(helper.pd)>::type;
@@ -72,9 +76,17 @@ struct impl_list_item_t {
         create_sum_pd_func_ = deduced_pd_t::create;
     }
 
+    template <typename pd_t>
+    impl_list_item_t(reorder_type_deduction_helper_t<pd_t> helper) {
+        using deduced_pd_t =
+                typename std::remove_pointer<decltype(helper.pd)>::type;
+        create_reorder_pd_func_ = deduced_pd_t::create;
+    }
+
     explicit operator bool() const {
         return !utils::everyone_is(nullptr, create_pd_func_,
-                create_concat_pd_func_, create_sum_pd_func_);
+                create_concat_pd_func_, create_sum_pd_func_,
+                create_reorder_pd_func_);
     }
 
     // Currently, this only supports iterator friendly primitives. Can be
@@ -117,6 +129,15 @@ private:
                 sum_pd, engine, attr, dst_md, n, scales, src_mds);
     }
 
+    status_t operator()(reorder_pd_t **reorder_pd, engine_t *engine,
+            const primitive_attr_t *attr, engine_t *src_engine,
+            const memory_desc_t *src_md, engine_t *dst_engine,
+            const memory_desc_t *dst_md) const {
+        if (!create_reorder_pd_func_) return status::runtime_error;
+        return create_reorder_pd_func_(reorder_pd, engine, attr, src_engine,
+                src_md, dst_engine, dst_md);
+    }
+
     using create_pd_func_t = status_t (*)(primitive_desc_t **,
             const op_desc_t *, const primitive_attr_t *, engine_t *,
             const primitive_desc_t *);
@@ -129,9 +150,14 @@ private:
             const primitive_attr_t *, const memory_desc_t *, int, const float *,
             const memory_desc_t *);
 
+    using create_reorder_pd_func_t = status_t (*)(reorder_pd_t **, engine_t *,
+            const primitive_attr_t *, engine_t *, const memory_desc_t *,
+            engine_t *, const memory_desc_t *);
+
     create_pd_func_t create_pd_func_ = nullptr;
     create_concat_pd_func_t create_concat_pd_func_ = nullptr;
     create_sum_pd_func_t create_sum_pd_func_ = nullptr;
+    create_reorder_pd_func_t create_reorder_pd_func_ = nullptr;
 
     // List of functions/classes that have permissions to create primitive
     // descriptors.
@@ -142,6 +168,10 @@ private:
     friend status_t sum_primitive_desc_create(primitive_desc_iface_t **,
             const memory_desc_t *, int, const float *, const memory_desc_t *,
             const primitive_attr_t *, engine_t *);
+    friend status_t reorder_primitive_desc_create(
+            std::unique_ptr<primitive_desc_t> &, engine_t *,
+            const memory_desc_t *, engine_t *, const memory_desc_t *,
+            engine_t *, const primitive_attr_t *);
 };
 
 } // namespace impl

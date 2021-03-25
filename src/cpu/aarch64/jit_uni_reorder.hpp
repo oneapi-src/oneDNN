@@ -122,14 +122,17 @@ struct jit_uni_reorder_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("jit:uni", jit_uni_reorder_t);
 
+        tr::prb_t prb_;
+        tr::kernel_t::desc_t ker_desc_;
+        int nthr_;
+
+    private:
         static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
                 const memory_desc_t *dst_md);
 
-        tr::prb_t prb_;
-        tr::kernel_t::desc_t ker_desc_;
-        int nthr_;
+        friend dnnl::impl::impl_list_item_t;
     };
 
     status_t init(engine_t *engine) override;
@@ -154,12 +157,6 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::unique_ptr<tr::kernel_t> kernel_;
 };
-
-/* for cpu reorder list */
-status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd, engine_t *engine,
-        const primitive_attr_t *attr, engine_t *src_engine,
-        const memory_desc_t *src_md, engine_t *dst_engine,
-        const memory_desc_t *dst_md);
 
 } // namespace aarch64
 } // namespace cpu

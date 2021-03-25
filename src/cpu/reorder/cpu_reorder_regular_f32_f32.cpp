@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,8 +27,10 @@ const impl_list_map_t regular_f32_f32_impl_list_map {
     {{f32, f32, 0}, {
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
-        DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
-        DNNL_AARCH64_ONLY(aarch64::jit_uni_reorder_create,)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t),)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t),)
+
+        DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t),)
 
         REG_SR(f32, any, f32, any, fmt_order::any, spec::reference),
 
@@ -37,8 +39,10 @@ const impl_list_map_t regular_f32_f32_impl_list_map {
     {{f32, f32, 3}, {
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
-        DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
-        DNNL_AARCH64_ONLY(aarch64::jit_uni_reorder_create,)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t),)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t),)
+
+        DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t),)
 
         REG_SR_BIDIR(f32, any, f32, nCw16c),
         REG_SR_BIDIR(f32, any, f32, nCw8c),
@@ -61,13 +65,16 @@ const impl_list_map_t regular_f32_f32_impl_list_map {
         nullptr,
     }},
     {{f32, f32, 4}, {
-        DNNL_X64_ONLY(x64::wino_reorder_t<f32, f32>::pd_t::create,)
-        rnn_weights_reorder_t<f32, f32>::pd_t::create,
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::wino_reorder_t<f32, f32>),)
+
+        CPU_REORDER_INSTANCE(rnn_weights_reorder_t<f32, f32>),
 
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
-        DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
-        DNNL_AARCH64_ONLY(aarch64::jit_uni_reorder_create,)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t),)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t),)
+
+        DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t),)
 
         REG_SR_BIDIR(f32, any, f32, nChw16c),
         REG_SR_BIDIR(f32, any, f32, nChw8c),
@@ -107,13 +114,15 @@ const impl_list_map_t regular_f32_f32_impl_list_map {
         nullptr,
     }},
     {{f32, f32, 5}, {
-        DNNL_X64_ONLY(x64::wino_reorder_t<f32, f32>::pd_t::create,)
-        rnn_weights_reorder_t<f32, f32>::pd_t::create,
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::wino_reorder_t<f32, f32>),)
+        CPU_REORDER_INSTANCE(rnn_weights_reorder_t<f32, f32>),
 
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
-        DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
-        DNNL_AARCH64_ONLY(aarch64::jit_uni_reorder_create,)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t),)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t),)
+
+        DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t),)
 
         REG_SR_BIDIR(f32, any, f32, nCdhw16c),
         REG_SR_BIDIR(f32, any, f32, nCdhw8c),
@@ -158,8 +167,10 @@ const impl_list_map_t regular_f32_f32_impl_list_map {
     {{f32, f32, 6}, {
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
-        DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
-        DNNL_AARCH64_ONLY(aarch64::jit_uni_reorder_create,)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t),)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t),)
+
+        DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t),)
 
         REG_SR_BIDIR(f32, any, f32, gOIdhw4i4o),
         REG_SR_BIDIR(f32, any, f32, gOIdhw4o4i),

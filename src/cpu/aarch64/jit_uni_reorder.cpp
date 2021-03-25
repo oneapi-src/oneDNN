@@ -1622,15 +1622,6 @@ status_t jit_uni_reorder_t::execute(const exec_ctx_t &ctx) const {
     return status::success;
 }
 
-status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd, engine_t *engine,
-        const primitive_attr_t *attr, engine_t *src_engine,
-        const memory_desc_t *src_md, engine_t *dst_engine,
-        const memory_desc_t *dst_md) {
-    auto ret = jit_uni_reorder_t::pd_t::create(
-            reorder_pd, engine, attr, src_engine, src_md, dst_engine, dst_md);
-    return ret;
-}
-
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl

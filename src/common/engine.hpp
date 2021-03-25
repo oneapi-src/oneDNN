@@ -88,23 +88,13 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
         stream = nullptr;
         return dnnl::impl::status::success;
     }
-    /** implementation section (typedefs) */
-
-    // TODO: remove engine?
-    typedef dnnl::impl::status_t (*reorder_primitive_desc_create_f)(
-            dnnl::impl::reorder_pd_t **, dnnl::impl::engine_t *engine,
-            const dnnl::impl::primitive_attr_t *attr,
-            dnnl::impl::engine_t *src_engine,
-            const dnnl::impl::memory_desc_t *src_md,
-            dnnl::impl::engine_t *dst_engine,
-            const dnnl::impl::memory_desc_t *dst_md);
 
     /* implementation section */
 
     /** return the list of reorder implementations. engine guarantees to return
      * a NULL-terminated list */
-    virtual const reorder_primitive_desc_create_f *
-    get_reorder_implementation_list(const dnnl::impl::memory_desc_t *src_md,
+    virtual const dnnl::impl::impl_list_item_t *get_reorder_implementation_list(
+            const dnnl::impl::memory_desc_t *src_md,
             const dnnl::impl::memory_desc_t *dst_md) const = 0;
 
     /** return the list of concat implementations. engine guarantees to return

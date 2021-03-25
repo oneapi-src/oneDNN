@@ -36,6 +36,23 @@ struct wino_reorder_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("wino_reorder", wino_reorder_t);
 
+        status_t init(
+                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+            status_t status
+                    = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
+            if (status != status::success) return status;
+
+            bool ok = attr()->has_default_values(
+                    primitive_attr_t::skip_mask_t::oscale
+                    | primitive_attr_t::skip_mask_t::post_ops);
+            if (!ok) return status::unimplemented;
+
+            init_scratchpad();
+
+            return status::success;
+        }
+
+    private:
         static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
@@ -64,23 +81,6 @@ struct wino_reorder_t : public primitive_t {
             return safe_ptr_assign(*reorder_pd, _pd);
         }
 
-        status_t init(
-                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
-            status_t status
-                    = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
-            if (status != status::success) return status;
-
-            bool ok = attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::oscale
-                    | primitive_attr_t::skip_mask_t::post_ops);
-            if (!ok) return status::unimplemented;
-
-            init_scratchpad();
-
-            return status::success;
-        }
-
-    private:
         void init_scratchpad() {
             const auto &wino_desc = memory_desc_wrapper(dst_md()).wino_desc();
             const int nb_oc = wino_desc.oc / wino_desc.oc_block;
@@ -99,6 +99,7 @@ struct wino_reorder_t : public primitive_t {
             scratchpad.template book<out_data_t>(
                     key_reorder_wino_plain, plain_size);
         }
+        friend dnnl::impl::impl_list_item_t;
     };
 
     wino_reorder_t(const pd_t *apd) : primitive_t(apd) {}

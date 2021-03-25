@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ struct gpu_reorder_pd_t : public reorder_pd_t {
         } \
         _pd->init_scratchpad_md(); \
         return safe_ptr_assign(*reorder_pd, _pd); \
-    }
+    } \
+    friend dnnl::impl::impl_list_item_t;
 
 #endif

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common/impl_list_item.hpp"
 #include "cpu/reorder/cpu_reorder.hpp"
 
 namespace dnnl {
@@ -25,8 +26,8 @@ namespace cpu {
 const impl_list_map_t regular_s8_impl_list_map {
     // s8 ->
     {{s8, data_type::undef, 0}, {
-        rnn_weights_reorder_s8_t<s8>::pd_t::create,
-        rnn_brgemm_weights_reorder_s8_t<s8, s8>::pd_t::create,
+        CPU_REORDER_INSTANCE(rnn_weights_reorder_s8_t<s8>),
+        CPU_REORDER_INSTANCE(rnn_brgemm_weights_reorder_s8_t<s8, s8>),
 
         REG_FAST_DIRECT_COPY_COMMA(s8, f32)
         REG_FAST_DIRECT_COPY_COMMA(s8, s32)
@@ -34,8 +35,10 @@ const impl_list_map_t regular_s8_impl_list_map {
         REG_FAST_DIRECT_COPY_COMMA(s8, s8)
         REG_FAST_DIRECT_COPY_COMMA(s8, u8)
 
-        DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
-        DNNL_AARCH64_ONLY(aarch64::jit_uni_reorder_create,)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t),)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t),)
+
+        DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t),)
 
         REG_SR_BIDIR(s8, any, f32, nChw16c),
         REG_SR_BIDIR(s8, any, s32, nChw16c),

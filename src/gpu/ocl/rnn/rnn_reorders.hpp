@@ -40,8 +40,6 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("cross_engine::rnn", rnn_weights_reorder_t);
 
-        DECLARE_GPU_REORDER_CREATE();
-
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
             if (!(dst_md()->extra.flags
@@ -82,6 +80,8 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
         rnn_reorder_conf_t conf;
 
     private:
+        DECLARE_GPU_REORDER_CREATE();
+
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
 

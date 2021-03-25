@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,8 +27,10 @@ const impl_list_map_t regular_f32_s32_impl_list_map {
     {{f32, s32, 0}, {
         REG_FAST_DIRECT_COPY_COMMA(f32, s32)
 
-        DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
-        DNNL_AARCH64_ONLY(aarch64::jit_uni_reorder_create,)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t),)
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t),)
+
+        DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t),)
 
         REG_SR_BIDIR(f32, any, s32, nChw16c),
 

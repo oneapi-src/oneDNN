@@ -52,8 +52,6 @@ struct cross_engine_reorder_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:cross_engine::any", cross_engine_reorder_t);
 
-        DECLARE_GPU_REORDER_CREATE();
-
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine);
 
@@ -63,6 +61,7 @@ struct cross_engine_reorder_t : public gpu_primitive_t {
 
     private:
         void init_scratchpad();
+        DECLARE_GPU_REORDER_CREATE();
     };
 
     status_t init(engine_t *engine) override {

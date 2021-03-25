@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -190,6 +190,7 @@ struct rnn_data_reorder_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("rnn_data_reorder", rnn_data_reorder_t);
 
+    private:
         static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
@@ -226,6 +227,7 @@ struct rnn_data_reorder_t : public primitive_t {
             _pd->init_scratchpad_md();
             return safe_ptr_assign(*reorder_pd, _pd);
         }
+        friend dnnl::impl::impl_list_item_t;
     };
 
     rnn_data_reorder_t(const pd_t *apd) : primitive_t(apd) {}
@@ -317,6 +319,21 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("rnn_weights_reorder_s8", rnn_weights_reorder_s8_t);
 
+        status_t init(
+                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+            status_t status
+                    = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
+            if (status != status::success) return status;
+
+            init_scratchpad();
+
+            return status::success;
+        }
+
+        format_tag_t itag_ = format_tag::undef;
+        size_t thr_scratch_comp_sz_ = 0;
+
+    private:
         static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
@@ -375,21 +392,6 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
 #undef PD_CHECK_ARG
         }
 
-        status_t init(
-                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
-            status_t status
-                    = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
-            if (status != status::success) return status;
-
-            init_scratchpad();
-
-            return status::success;
-        }
-
-        format_tag_t itag_ = format_tag::undef;
-        size_t thr_scratch_comp_sz_ = 0;
-
-    private:
         void init_scratchpad() {
             using namespace format_tag;
 
@@ -414,6 +416,8 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
             scratchpad.template book<int32_t>(
                     key_reorder_rnn_weights_reduction, reduction_size);
         }
+
+        friend dnnl::impl::impl_list_item_t;
     };
 
     rnn_weights_reorder_s8_t(const pd_t *apd) : primitive_t(apd) {}
@@ -528,6 +532,20 @@ struct rnn_weights_reorder_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("rnn_weights_reorder", rnn_weights_reorder_t);
 
+        format_tag_t itag_;
+
+        status_t init(
+                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+            status_t status
+                    = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
+            if (status != status::success) return status;
+
+            init_scratchpad();
+
+            return status::success;
+        }
+
+    private:
         static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
@@ -563,20 +581,6 @@ struct rnn_weights_reorder_t : public primitive_t {
             return safe_ptr_assign(*reorder_pd, _pd);
         }
 
-        format_tag_t itag_;
-
-        status_t init(
-                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
-            status_t status
-                    = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
-            if (status != status::success) return status;
-
-            init_scratchpad();
-
-            return status::success;
-        }
-
-    private:
         void init_scratchpad() {
             using namespace format_tag;
             using namespace rnn_packed_format;
@@ -602,6 +606,7 @@ struct rnn_weights_reorder_t : public primitive_t {
             scratchpad.template book<out_data_t>(
                     key_reorder_rnn_weights_bf16_cvt, dt_cross_case ? sz : 0);
         }
+        friend dnnl::impl::impl_list_item_t;
     };
 
     rnn_weights_reorder_t(const pd_t *apd) : primitive_t(apd) {}
@@ -716,6 +721,22 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
         DECLARE_COMMON_PD_T("rnn_brgemm_weights_reorder_s8_t",
                 rnn_brgemm_weights_reorder_s8_t);
 
+        format_tag_t itag_;
+
+        size_t thr_scratch_comp_sz_ = 0;
+
+        status_t init(
+                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+            status_t status
+                    = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
+            if (status != status::success) return status;
+
+            init_scratchpad();
+
+            return status::success;
+        }
+
+    private:
         static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
@@ -781,22 +802,6 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
 
-        format_tag_t itag_;
-
-        size_t thr_scratch_comp_sz_ = 0;
-
-        status_t init(
-                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
-            status_t status
-                    = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
-            if (status != status::success) return status;
-
-            init_scratchpad();
-
-            return status::success;
-        }
-
-    private:
         void init_scratchpad() {
             using namespace format_tag;
 
@@ -821,6 +826,7 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
             scratchpad.template book<int32_t>(
                     key_reorder_rnn_weights_reduction, reduction_size);
         }
+        friend dnnl::impl::impl_list_item_t;
     };
 
     rnn_brgemm_weights_reorder_s8_t(const pd_t *apd) : primitive_t(apd) {}

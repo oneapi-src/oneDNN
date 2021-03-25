@@ -27,8 +27,7 @@ namespace gpu {
 class gpu_impl_list_t {
 public:
     static const impl_list_item_t *get_concat_implementation_list();
-    static const engine_t::reorder_primitive_desc_create_f *
-    get_reorder_implementation_list(
+    static const impl_list_item_t *get_reorder_implementation_list(
             const memory_desc_t *src_md, const memory_desc_t *dst_md);
     static const impl_list_item_t *get_sum_implementation_list();
     static const impl_list_item_t *get_implementation_list();

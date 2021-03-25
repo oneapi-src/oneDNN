@@ -36,8 +36,7 @@ namespace nvidia {
 
 class cuda_gpu_engine_impl_list_t {
 public:
-    static const dnnl::impl::engine_t::reorder_primitive_desc_create_f *
-    get_reorder_implementation_list(
+    static const impl_list_item_t *get_reorder_implementation_list(
             const memory_desc_t *src_md, const memory_desc_t *dst_md);
     static const dnnl::impl::impl_list_item_t *get_concat_implementation_list();
     static const dnnl::impl::impl_list_item_t *get_sum_implementation_list();
@@ -55,8 +54,8 @@ public:
     status_t create_stream(stream_t **stream, unsigned flags) override;
     status_t create_stream(stream_t **stream, cl::sycl::queue &queue);
 
-    const dnnl::impl::engine_t::reorder_primitive_desc_create_f *
-    get_reorder_implementation_list(const memory_desc_t *src_md,
+    const dnnl::impl::impl_list_item_t *get_reorder_implementation_list(
+            const memory_desc_t *src_md,
             const memory_desc_t *dst_md) const override {
         return cuda_gpu_engine_impl_list_t::get_reorder_implementation_list(
                 src_md, dst_md);

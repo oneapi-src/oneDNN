@@ -1778,6 +1778,7 @@ struct simple_reorder_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("simple:any", simple_reorder_t);
 
+    private:
         static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
@@ -1811,6 +1812,7 @@ struct simple_reorder_t : public primitive_t {
             _pd->init_scratchpad_md();
             return safe_ptr_assign(*reorder_pd, _pd);
         }
+        friend dnnl::impl::impl_list_item_t;
     };
 
     simple_reorder_t(const pd_t *apd) : primitive_t(apd) {}
