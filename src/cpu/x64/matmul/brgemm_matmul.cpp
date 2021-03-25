@@ -137,303 +137,24 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
     if (bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only)
         CHECK(create_brgemm_matmul_copy_A(copy_A_kernel_, &bgmmc));
 
-    const memory_desc_wrapper src_d(pd()->src_md());
-    const memory_desc_wrapper dst_d(pd()->dst_md());
-    const memory_desc_wrapper wei_d(pd()->weights_md(0));
-
-    // Initialize all required memory strides for tensors
-    const int dmax = nstl::min(bgmmc.ndims, 3);
-    dims_t idx = {0};
-    for (int d = 0; d < dmax; d++) {
-        idx[bgmmc.ndims - 1 - d] = 1;
-        A_strides_[d] = IMPLICATION(bgmmc.is_A_broadcast, d != dmax - 1)
-                ? (types::data_type_size(bgmmc.src_dt) * src_d.off_v(idx))
-                : 0;
-        B_strides_[d] = IMPLICATION(bgmmc.is_B_broadcast, d != dmax - 1)
-                ? (types::data_type_size(bgmmc.wei_dt) * wei_d.off_v(idx))
-                : 0;
-        D_strides_[d] = types::data_type_size(bgmmc.dst_dt) * dst_d.off_v(idx);
-        idx[bgmmc.ndims - 1 - d] = 0;
-    }
-
     return status::success;
 }
 
 template <cpu_isa_t isa>
 status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
-    auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
-    const int s32_elems_in_cacheline = 16;
-
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(wei_zero_point, DNNL_ARG_WEIGHTS);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
 
-    memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
-    const memory_desc_wrapper weights_d(pd()->weights_md(0));
-
-    const float *oscales = pd()->attr()->output_scales_.scales_;
-
-    const auto post_ops_binary_rhs_arg_vec
-            = binary_injector::prepare_binary_args(
-                    pd()->attr()->post_ops_, ctx);
+    brg_matmul_exec_ctx_t brgmm_ctx(
+            ctx, pd(), src_zero_point, wei_zero_point, dst_zero_point);
 
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
-    const size_t bia_dt_size
-            = bgmmc.with_bias ? types::data_type_size(bgmmc.bia_dt) : 0;
-
-    auto addr_batch_global = scratchpad.template get<brgemm_batch_element_t>(
-            key_brgemm_primitive_batch);
-    auto c_buffer_global = (bgmmc.use_buffer)
-            ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
-            : nullptr;
-
-    const size_t b_buffer_sz = types::data_type_size(bgmmc.wei_dt) * bgmmc.LDB
-            * rnd_up(bgmmc.K_blk, bgmmc.wei_k_blk);
-    const size_t b_buffer_per_thr = b_buffer_sz * bgmmc.brgemm_batch_size;
-    auto b_buffer_global = (bgmmc.use_buffer_b)
-            ? scratchpad.template get<char>(key_brgemm_primitive_buffer_b)
-            : nullptr;
-
-    const size_t a_buffer_sz = types::data_type_size(bgmmc.src_dt) * bgmmc.M_blk
-            * (bgmmc.use_buffer_a_tail_only ? bgmmc.wei_k_blk : bgmmc.LDA);
-    const size_t a_buffer_K_chunk_sz = a_buffer_sz
-            * (bgmmc.use_buffer_a_tail_only ? 1 : bgmmc.brgemm_batch_size);
-    const size_t a_buffer_per_thr = a_buffer_K_chunk_sz * bgmmc.M_chunk_size;
     const bool use_buffer_a
             = bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only;
-    auto a_buffer_global = (use_buffer_a)
-            ? scratchpad.template get<char>(key_brgemm_primitive_buffer_a)
-            : nullptr;
 
     constexpr bool is_amx = isa == avx512_core_bf16_amx_int8;
-    auto wsp_tile_base = is_amx
-            ? ctx.get_scratchpad_grantor().template get<char>(
-                    key_conv_amx_tile_buffer)
-            : nullptr;
-    const int base_brg_ker_idx
-            = pd()->get_brg_kernel_idx(true, false, false, false);
-
-    int K_chunks = div_up(bgmmc.K, bgmmc.K_blk * bgmmc.brgemm_batch_size);
-
-    const bool has_zp_a = bgmmc.src_zp_type != brgemm_broadcast_t::none;
-    const bool has_zp_b = bgmmc.wei_zp_type != brgemm_broadcast_t::none;
-    const bool has_zp_c = bgmmc.dst_zp_type != brgemm_broadcast_t::none;
-    const bool are_post_ops_applicable = one_of(true, bgmmc.with_sum,
-            bgmmc.with_bias, bgmmc.with_scales, bgmmc.with_eltwise,
-            bgmmc.with_binary, bgmmc.acc_dt != bgmmc.dst_dt, bgmmc.signed_input,
-            has_zp_a, has_zp_b, has_zp_c);
-
-    size_t offset = types::data_type_size(bgmmc.wei_dt)
-            * (weights_d.size() - weights_d.additional_buffer_size());
-    auto compensation = (bgmmc.signed_input)
-            ? ((bgmmc.use_buffer_b) ? scratchpad.template get<int32_t>(
-                       key_brgemm_primitive_buffer_comp)
-                                    : reinterpret_cast<const int32_t *>(
-                                            &weights[offset]))
-            : nullptr;
-
-    auto zp_comp_a_global = has_zp_a
-            ? scratchpad.template get<int32_t>(key_brgemm_primitive_zp_comp_a)
-            : nullptr;
-    auto zp_comp_b_global = has_zp_b
-            ? scratchpad.template get<int32_t>(key_brgemm_primitive_zp_comp_b)
-            : nullptr;
-
-    int32_t *zp_a_neg_val_ptr = nullptr;
-    int32_t neg_src_zero_point = 0;
-    MAYBE_UNUSED(neg_src_zero_point);
-    if (has_zp_a) {
-        neg_src_zero_point = -src_zero_point;
-        zp_a_neg_val_ptr = &neg_src_zero_point;
-    }
-
-    int32_t *zp_b_neg_val_ptr = nullptr;
-    int32_t neg_wei_zero_point = 0;
-    MAYBE_UNUSED(neg_wei_zero_point);
-    if (has_zp_b) {
-        neg_wei_zero_point = -wei_zero_point;
-        zp_b_neg_val_ptr = &neg_wei_zero_point;
-    }
-
-    int32_t *zp_ab_comp_ptr = nullptr;
-    int32_t zp_ab_comp_value = 0;
-    MAYBE_UNUSED(zp_ab_comp_value);
-    if (has_zp_b && has_zp_a) {
-        zp_ab_comp_value = -bgmmc.K * src_zero_point;
-        zp_ab_comp_ptr = &zp_ab_comp_value;
-    }
-
-    auto zp_c_val_ptr = has_zp_c ? &dst_zero_point : nullptr;
-
-    const auto ker = [&](const int ithr, int b_idx, int m_blk_idx,
-                             int n_blk_idx, int k_blk_idx) {
-        auto addr_batch
-                = addr_batch_global + ithr * 16 * bgmmc.brgemm_batch_size;
-
-        const size_t c_buffer_sz
-                = types::data_type_size(bgmmc.acc_dt) * bgmmc.LDC * bgmmc.M_blk;
-        const size_t c_buffer_per_thr
-                = c_buffer_sz * bgmmc.M_chunk_size * bgmmc.N_chunk_size;
-        const int m_blk_local = m_blk_idx % bgmmc.M_chunk_size;
-        const int n_blk_local = n_blk_idx % bgmmc.N_chunk_size;
-        const int c_buf_idx = bgmmc.N_chunk_size * m_blk_local + n_blk_local;
-        const size_t c_buffer_shift_within_ithr = c_buffer_sz * c_buf_idx;
-        const size_t c_buffer_shift
-                = ithr * c_buffer_per_thr + c_buffer_shift_within_ithr;
-        auto c_buffer = (bgmmc.use_buffer) ? c_buffer_global + c_buffer_shift
-                                           : nullptr;
-
-        auto b_buffer = (bgmmc.use_buffer_b)
-                ? b_buffer_global + ithr * b_buffer_per_thr
-                : nullptr;
-
-        auto a_buffer = use_buffer_a ? a_buffer_global + ithr * a_buffer_per_thr
-                        + a_buffer_K_chunk_sz * m_blk_local
-                                     : nullptr;
-
-        char *wsp_tile = is_amx ? wsp_tile_base + ithr * 1024 : nullptr;
-        int m = m_blk_idx * bgmmc.M_blk;
-        int n = n_blk_idx * bgmmc.N_blk;
-        int k = k_blk_idx * bgmmc.K_blk * bgmmc.brgemm_batch_size;
-
-        bool kernel_init = (k == 0);
-
-        bool is_M_tail = (bgmmc.M - m < bgmmc.M_blk);
-        bool is_N_tail = (bgmmc.N - n < bgmmc.N_blk);
-        const bool is_last_K_chunk = k_blk_idx == K_chunks - 1;
-        const bool is_K_tail = is_last_K_chunk && bgmmc.K_tail > 0;
-        const int gemm_batch = is_last_K_chunk
-                ? (nstl::max(bgmmc.K, bgmmc.K_blk) - k) / bgmmc.K_blk
-                : bgmmc.brgemm_batch_size;
-        int brg_ker_idx = pd()->get_brg_kernel_idx(
-                kernel_init, is_M_tail, is_N_tail, false);
-        auto brg_kernel = brg_kernels_[brg_ker_idx].get();
-        auto ptr_bias = bgmmc.with_bias ? bias + bia_dt_size * n : nullptr;
-        auto ptr_D = dst + get_D_off(b_idx, m, n);
-        auto ptr_C = (bgmmc.use_buffer) ? c_buffer : ptr_D;
-
-        dim_t buffer_comp_idx
-                = bgmmc.wei_n_blk * (ithr * bgmmc.N_chunk_size + n_blk_local);
-        dim_t weights_comp_idx
-                = (b_idx * div_up(bgmmc.N, bgmmc.wei_n_blk) + n_blk_idx)
-                * bgmmc.wei_n_blk;
-        dim_t comp_idx
-                = bgmmc.use_buffer_b ? buffer_comp_idx : weights_comp_idx;
-
-        const dim_t zp_a_comp_idx = buffer_comp_idx;
-        auto zp_comp_a = has_zp_a ? &zp_comp_a_global[zp_a_comp_idx] : nullptr;
-
-        const dim_t zp_b_comp_idx = bgmmc.M_blk
-                * (ithr * bgmmc.M_chunk_size * (1 + s32_elems_in_cacheline)
-                        + m_blk_local);
-
-        auto zp_comp_b = has_zp_b ? &zp_comp_b_global[zp_b_comp_idx] : nullptr;
-
-        if (gemm_batch > 0 && brg_kernel != nullptr) {
-            const bool is_tile_reconf_required = is_amx && is_M_tail;
-            if (is_tile_reconf_required)
-                amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
-            for (int b = 0; b < gemm_batch; b++) {
-                auto src_off = get_A_off(b_idx, m, k + b * bgmmc.K_blk);
-                addr_batch[b].ptr.A = (bgmmc.use_buffer_a)
-                        ? a_buffer + b * a_buffer_sz
-                        : src + src_off;
-                auto wei_off = get_B_off(b_idx,
-                        (k + b * bgmmc.K_blk) / bgmmc.wei_k_blk,
-                        n / bgmmc.wei_n_blk);
-                addr_batch[b].ptr.B = (bgmmc.use_buffer_b)
-                        ? b_buffer + b * b_buffer_sz
-                        : weights + wei_off;
-            }
-
-            if (are_post_ops_applicable && is_last_K_chunk && !is_K_tail) {
-                void *scratch = is_amx
-                        ? static_cast<void *>(wsp_tile)
-                        : (bgmmc.signed_input ? static_cast<void *>(
-                                   const_cast<int *>(&compensation[comp_idx]))
-                                              : nullptr);
-
-                const size_t dst_row_logical_off
-                        = b_idx * m_blk_idx * bgmmc.M_chunk_size;
-                const brgemm_post_ops_data_t post_ops_data {
-                        static_cast<const void *>(ptr_bias),
-                        &oscales[bgmmc.is_oscale_per_n * n],
-                        post_ops_binary_rhs_arg_vec.data(),
-                        static_cast<size_t>(n), dst_row_logical_off,
-                        static_cast<const void *>(zp_comp_a),
-                        static_cast<const void *>(zp_comp_b),
-                        static_cast<const void *>(zp_c_val_ptr)};
-
-                brgemm_kernel_execute_postops(brg_kernel, gemm_batch,
-                        addr_batch, (void *)ptr_C, (void *)ptr_D, post_ops_data,
-                        scratch);
-            } else {
-                brgemm_kernel_execute(brg_kernel, gemm_batch, addr_batch,
-                        (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
-            }
-
-            if (is_tile_reconf_required)
-                amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
-        }
-        if (is_K_tail) {
-            auto src_off = get_A_off(b_idx, m, k + gemm_batch * bgmmc.K_blk);
-            const int a_buf_gemm_batch
-                    = bgmmc.use_buffer_a_tail_only ? 0 : gemm_batch;
-            addr_batch[0].ptr.A = use_buffer_a
-                    ? a_buffer + a_buf_gemm_batch * a_buffer_sz
-                    : src + src_off;
-            auto wei_off = get_B_off(b_idx,
-                    (k + gemm_batch * bgmmc.K_blk) / bgmmc.wei_k_blk,
-                    n / bgmmc.wei_n_blk);
-            addr_batch[0].ptr.B = (bgmmc.use_buffer_b)
-                    ? b_buffer + gemm_batch * b_buffer_sz
-                    : weights + wei_off;
-
-            auto use_init_ker = (kernel_init && gemm_batch == 0);
-            int brg_ker_idx = pd()->get_brg_kernel_idx(
-                    use_init_ker, is_M_tail, is_N_tail, true);
-            auto brg_kernel_k_tail = brg_kernels_[brg_ker_idx].get();
-            const bool is_tile_reconf_required
-                    = is_amx && bgmmc.K_tail != bgmmc.K_blk;
-            if (is_tile_reconf_required)
-                amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
-            if (are_post_ops_applicable && k_blk_idx == K_chunks - 1) {
-                void *scratch = is_amx
-                        ? static_cast<void *>(wsp_tile)
-                        : (bgmmc.signed_input ? static_cast<void *>(
-                                   const_cast<int *>(&compensation[comp_idx]))
-                                              : nullptr);
-
-                const size_t dst_row_logical_off
-                        = b_idx * m_blk_idx * bgmmc.M_chunk_size;
-                const brgemm_post_ops_data_t post_ops_data {
-                        static_cast<const void *>(ptr_bias),
-                        &oscales[bgmmc.is_oscale_per_n * n],
-                        post_ops_binary_rhs_arg_vec.data(),
-                        static_cast<size_t>(n), dst_row_logical_off,
-                        static_cast<const void *>(zp_comp_a),
-                        static_cast<const void *>(zp_comp_b),
-                        static_cast<const void *>(zp_c_val_ptr)};
-
-                brgemm_kernel_execute_postops(brg_kernel_k_tail, 1, addr_batch,
-                        (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);
-            } else {
-                brgemm_kernel_execute(brg_kernel_k_tail, 1, addr_batch,
-                        (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
-            }
-            if (is_tile_reconf_required)
-                amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
-        }
-    };
-
-    int num_M_blocks = div_up(bgmmc.M, bgmmc.M_blk);
-    int num_N_blocks = div_up(bgmmc.N, bgmmc.N_blk);
-    int M_chunks = div_up(bgmmc.M, bgmmc.M_blk * bgmmc.M_chunk_size);
-    int N_chunks = div_up(bgmmc.N, bgmmc.N_blk * bgmmc.N_chunk_size);
-    int work_amount = bgmmc.batch * M_chunks * N_chunks;
+    int work_amount = bgmmc.batch * bgmmc.M_chunks * bgmmc.N_chunks;
 
     // If work_amount == 1 we limit num threads to 1 as parallel(1, ...) does
     // not create parallel section at all. We do not limit number of threads
@@ -443,162 +164,509 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
         int start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
 
-        if (is_amx)
-            amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
+        if (is_amx) {
+            const auto base_ker_idx = brgmm_ctx.get_base_brgemm_kernel_idx();
+            amx_tile_configure(&brg_kernel_palettes_[base_ker_idx][0]);
+        }
 
         int b {0}, mc {0}, nc {0};
-        nd_iterator_init(start, b, bgmmc.batch, mc, M_chunks, nc, N_chunks);
+        nd_iterator_init(
+                start, b, bgmmc.batch, mc, bgmmc.M_chunks, nc, bgmmc.N_chunks);
         while (start < end) {
             auto m_start = mc * bgmmc.M_chunk_size;
-            auto m_end = nstl::min((mc + 1) * bgmmc.M_chunk_size, num_M_blocks);
+            auto m_end = nstl::min(
+                    (mc + 1) * bgmmc.M_chunk_size, bgmmc.num_M_blocks);
             auto n_start = nc * bgmmc.N_chunk_size;
-            auto n_end = nstl::min((nc + 1) * bgmmc.N_chunk_size, num_N_blocks);
-            for_(int kc = 0; kc < K_chunks; kc++)
+            auto n_end = nstl::min(
+                    (nc + 1) * bgmmc.N_chunk_size, bgmmc.num_N_blocks);
+            for_(int kc = 0; kc < bgmmc.K_chunks; kc++)
             for (int nb = n_start; nb < n_end; nb++) {
-                if (bgmmc.use_buffer_b) {
-                    int n = nb * bgmmc.N_blk;
-                    int k = kc * bgmmc.K_blk * bgmmc.brgemm_batch_size;
-                    bool is_N_tail = (bgmmc.N - n < bgmmc.N_blk);
-                    auto N_blk = is_N_tail ? bgmmc.N_tail : bgmmc.N_blk;
-                    const bool is_last_K_chunk = kc == K_chunks - 1;
-                    const bool is_K_tail = is_last_K_chunk && bgmmc.K_tail > 0;
-                    const int gemm_batch = is_last_K_chunk
-                            ? (nstl::max(bgmmc.K, bgmmc.K_blk) - k)
-                                    / bgmmc.K_blk
-                            : bgmmc.brgemm_batch_size;
-                    auto ctx = jit_brgemm_matmul_copy_B_t::ctx_t();
-                    auto b_buffer = b_buffer_global + ithr * b_buffer_per_thr;
-                    dim_t buffer_comp_idx = (ithr * bgmmc.N_chunk_size
-                                                    + nb % bgmmc.N_chunk_size)
-                            * bgmmc.wei_n_blk;
-                    auto compensation_local = bgmmc.signed_input
-                            ? &compensation[buffer_comp_idx]
-                            : nullptr;
-                    auto zp_comp_a = has_zp_a
-                            ? &zp_comp_a_global[buffer_comp_idx]
-                            : nullptr;
-
-                    int gb = 0;
-                    for (; gb < gemm_batch; gb++) {
-                        auto wei_off = get_B_off(b, k + gb * bgmmc.K_blk, n);
-                        ctx.src = (void *)(weights + wei_off);
-                        ctx.tr_src = (void *)(b_buffer + gb * b_buffer_sz);
-                        ctx.compensation_ptr = (void *)compensation_local;
-                        ctx.current_K_start
-                                = (kc * bgmmc.brgemm_batch_size + gb)
-                                * bgmmc.K_blk;
-                        ctx.current_K_iters = nstl::min(bgmmc.K_blk, bgmmc.K);
-                        ctx.zp_a_compensation_ptr = (void *)zp_comp_a;
-                        ctx.zp_a_neg_value_ptr = (void *)zp_a_neg_val_ptr;
-
-                        ctx.current_N_blk = N_blk;
-                        (*copy_B_kernel_)(&ctx);
-                    }
-
-                    if (is_K_tail) {
-                        auto wei_off = get_B_off(b, k + gb * bgmmc.K_blk, n);
-                        ctx.src = (void *)(weights + wei_off);
-                        ctx.tr_src = (void *)(b_buffer + gb * b_buffer_sz);
-                        ctx.compensation_ptr = (void *)compensation_local;
-                        ctx.current_K_start
-                                = (kc * bgmmc.brgemm_batch_size + gb)
-                                * bgmmc.K_blk;
-                        ctx.current_K_iters = bgmmc.K % bgmmc.K_blk;
-                        ctx.current_N_blk = N_blk;
-                        ctx.zp_a_compensation_ptr = (void *)zp_comp_a;
-                        ctx.zp_a_neg_value_ptr = (void *)zp_a_neg_val_ptr;
-                        (*copy_B_kernel_)(&ctx);
-                    }
-                }
+                if (bgmmc.use_buffer_b)
+                    copy_B_chunk_in_buffer(brgmm_ctx, ithr, b, nb, kc);
                 for (int mb = m_start; mb < m_end; mb++) {
-                    if (use_buffer_a && nb == n_start) {
-                        auto ctx = jit_brgemm_matmul_copy_A_t::ctx_t();
-                        int m = mb * bgmmc.M_blk;
-                        bool is_M_tail = (bgmmc.M - m < bgmmc.M_blk);
-                        auto M_blk = is_M_tail ? bgmmc.M_tail : bgmmc.M_blk;
-                        int k = kc * bgmmc.K_blk * bgmmc.brgemm_batch_size;
-                        const bool is_last_K_chunk = kc == K_chunks - 1;
-                        const bool is_K_tail
-                                = is_last_K_chunk && bgmmc.K_tail > 0;
-                        const int gemm_batch = is_last_K_chunk
-                                ? (nstl::max(bgmmc.K, bgmmc.K_blk) - k)
-                                        / bgmmc.K_blk
-                                : bgmmc.brgemm_batch_size;
-                        const int gemm_batch_iters
-                                = bgmmc.use_buffer_a_tail_only ? 0 : gemm_batch;
-
-                        const int mb_local = mb % bgmmc.M_chunk_size;
-                        auto a_buffer = a_buffer_global
-                                + ithr * a_buffer_per_thr
-                                + a_buffer_K_chunk_sz * mb_local;
-                        const dim_t zp_b_comp_base_idx = ithr
-                                * bgmmc.M_chunk_size
-                                * (1 + s32_elems_in_cacheline) * bgmmc.M_blk;
-                        const dim_t zp_b_comp_res_idx
-                                = zp_b_comp_base_idx + mb_local * bgmmc.M_blk;
-                        const dim_t zp_b_comp_buf_idx = zp_b_comp_base_idx
-                                + bgmmc.M_blk
-                                        * (bgmmc.M_chunk_size
-                                                + mb_local
-                                                        * s32_elems_in_cacheline);
-                        auto zp_comp_b_buf = has_zp_b
-                                ? &zp_comp_b_global[zp_b_comp_buf_idx]
-                                : nullptr;
-                        auto zp_comp_b_res = has_zp_b
-                                ? &zp_comp_b_global[zp_b_comp_res_idx]
-                                : nullptr;
-
-                        for (int gb = 0; gb < gemm_batch_iters; gb++) {
-                            auto src_off
-                                    = get_A_off(b, m, k + gb * bgmmc.K_blk);
-                            ctx.src = (void *)(src + src_off);
-                            ctx.tr_src = (void *)(a_buffer + gb * a_buffer_sz);
-                            ctx.current_K_blk = nstl::min(bgmmc.K_blk, bgmmc.K);
-                            ctx.current_M_blk = M_blk;
-                            ctx.current_K_start
-                                    = (kc * bgmmc.brgemm_batch_size + gb)
-                                    * bgmmc.K_blk;
-                            ctx.zp_b_compensation_buffer_ptr
-                                    = (void *)zp_comp_b_buf;
-                            ctx.zp_a_compensation_result_ptr
-                                    = (void *)zp_comp_b_res;
-                            ctx.zp_b_neg_value_ptr = (void *)zp_b_neg_val_ptr;
-                            ctx.zp_ab_comp_ptr = (void *)zp_ab_comp_ptr;
-
-                            (*copy_A_kernel_)(&ctx);
-                        }
-                        if (is_K_tail) {
-                            auto K_tail = bgmmc.K % bgmmc.K_blk;
-                            auto src_off = get_A_off(
-                                    b, m, k + gemm_batch * bgmmc.K_blk);
-                            ctx.src = (void *)(src + src_off);
-                            ctx.tr_src = (void *)(a_buffer
-                                    + gemm_batch_iters * a_buffer_sz);
-                            ctx.current_K_blk = K_tail;
-                            ctx.current_M_blk = M_blk;
-                            ctx.current_K_start = (kc * bgmmc.brgemm_batch_size
-                                                          + gemm_batch)
-                                    * bgmmc.K_blk;
-                            ctx.zp_b_compensation_buffer_ptr
-                                    = (void *)zp_comp_b_buf;
-                            ctx.zp_a_compensation_result_ptr
-                                    = (void *)zp_comp_b_res;
-                            ctx.zp_b_neg_value_ptr = (void *)zp_b_neg_val_ptr;
-                            ctx.zp_ab_comp_ptr = (void *)zp_ab_comp_ptr;
-
-                            (*copy_A_kernel_)(&ctx);
-                        }
-                    }
-                    ker(ithr, b, mb, nb, kc);
+                    if (use_buffer_a && nb == n_start)
+                        copy_A_chunk_in_buffer(brgmm_ctx, ithr, b, mb, kc);
+                    compute_kernel(brgmm_ctx, ithr, b, mb, nb, kc);
                 }
             }
             ++start;
-            nd_iterator_step(b, bgmmc.batch, mc, M_chunks, nc, N_chunks);
+            nd_iterator_step(
+                    b, bgmmc.batch, mc, bgmmc.M_chunks, nc, bgmmc.N_chunks);
         }
     });
 
     return status::success;
 }
+
+template <cpu_isa_t isa>
+void brgemm_matmul_t<isa>::compute_kernel(
+        const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr, int b_idx,
+        int m_blk_idx, int n_blk_idx, int k_chunk_idx) const {
+    constexpr bool is_amx = isa == avx512_core_bf16_amx_int8;
+    const auto &bgmmc = pd()->get_brgemm_matmul_conf();
+    const auto addr_batch = brgmm_ctx.get_batch_elem_ptr(ithr);
+    const int base_brg_ker_idx = brgmm_ctx.get_base_brgemm_kernel_idx();
+
+    const auto wsp_tile = brgmm_ctx.get_tile_workspace(ithr);
+    const int m = m_blk_idx * bgmmc.M_blk;
+    const int n = n_blk_idx * bgmmc.N_blk;
+    const int k_blk_idx = k_chunk_idx * bgmmc.brgemm_batch_size;
+
+    const bool kernel_init = (k_chunk_idx == 0);
+    const bool is_M_tail = (bgmmc.M - m < bgmmc.M_blk);
+    const bool is_N_tail = (bgmmc.N - n < bgmmc.N_blk);
+    const bool is_last_K_chunk = brgmm_ctx.is_last_K_chunk(k_chunk_idx);
+    const bool is_K_tail = is_last_K_chunk && bgmmc.K_tail > 0;
+
+    const int gemm_batch = brgmm_ctx.get_brgemm_batch_size(k_chunk_idx);
+    const int brg_ker_idx = pd()->get_brg_kernel_idx(
+            kernel_init, is_M_tail, is_N_tail, false);
+    const auto brg_kernel = brg_kernels_[brg_ker_idx].get();
+    const auto ptr_bias = brgmm_ctx.get_bias_ptr(n);
+    auto ptr_D = brgmm_ctx.get_data_C_ptr(b_idx, m, n);
+    auto ptr_C = (bgmmc.use_buffer_c)
+            ? brgmm_ctx.get_buf_C_ptr(ithr, m_blk_idx, n_blk_idx)
+            : ptr_D;
+
+    const auto zp_comp_a = brgmm_ctx.get_zp_a_compensation_ptr(ithr, n_blk_idx);
+    const auto zp_comp_b
+            = brgmm_ctx.get_zp_b_compensation_result_ptr(ithr, m_blk_idx);
+    const auto zp_c_val_ptr = brgmm_ctx.get_zp_c_val_ptr();
+    const auto &post_ops_binary_rhs_arg_vec
+            = brgmm_ctx.get_post_ops_binary_rhs_arg_vec();
+
+    if (gemm_batch > 0 && brg_kernel != nullptr) {
+        const bool is_tile_reconf_required = is_amx && is_M_tail;
+        if (is_tile_reconf_required)
+            amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
+
+        brgmm_ctx.init_brgemm_batch_elements_values(
+                ithr, 0, gemm_batch, b_idx, m_blk_idx, k_blk_idx, n_blk_idx);
+
+        if (bgmmc.post_ops_applicable && is_last_K_chunk && !is_K_tail) {
+            void *scratch = is_amx
+                    ? static_cast<void *>(wsp_tile)
+                    : static_cast<void *>(brgmm_ctx.get_s8s8_comp_ptr(
+                            ithr, b_idx, n_blk_idx));
+
+            const size_t dst_row_logical_off
+                    = b_idx * m_blk_idx * bgmmc.M_chunk_size;
+            const brgemm_post_ops_data_t post_ops_data {
+                    static_cast<const void *>(ptr_bias),
+                    brgmm_ctx.get_oscales_ptr(n),
+                    post_ops_binary_rhs_arg_vec.data(), static_cast<size_t>(n),
+                    dst_row_logical_off, static_cast<const void *>(zp_comp_a),
+                    static_cast<const void *>(zp_comp_b),
+                    static_cast<const void *>(zp_c_val_ptr)};
+
+            brgemm_kernel_execute_postops(brg_kernel, gemm_batch, addr_batch,
+                    (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);
+        } else {
+            brgemm_kernel_execute(brg_kernel, gemm_batch, addr_batch,
+                    (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
+        }
+
+        if (is_tile_reconf_required)
+            amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
+    }
+    if (is_K_tail) {
+        brgmm_ctx.init_brgemm_batch_elements_values(
+                ithr, gemm_batch, 1, b_idx, m_blk_idx, k_blk_idx, n_blk_idx);
+
+        const bool use_init_ker = (kernel_init && gemm_batch == 0);
+        const int brg_ker_idx = pd()->get_brg_kernel_idx(
+                use_init_ker, is_M_tail, is_N_tail, true);
+        const auto brg_kernel_k_tail = brg_kernels_[brg_ker_idx].get();
+        const bool is_tile_reconf_required
+                = is_amx && bgmmc.K_tail != bgmmc.K_blk;
+        if (is_tile_reconf_required)
+            amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
+        if (bgmmc.post_ops_applicable) {
+            void *scratch = is_amx
+                    ? static_cast<void *>(wsp_tile)
+                    : static_cast<void *>(brgmm_ctx.get_s8s8_comp_ptr(
+                            ithr, b_idx, n_blk_idx));
+
+            const size_t dst_row_logical_off
+                    = b_idx * m_blk_idx * bgmmc.M_chunk_size;
+            const brgemm_post_ops_data_t post_ops_data {
+                    static_cast<const void *>(ptr_bias),
+                    brgmm_ctx.get_oscales_ptr(n),
+                    post_ops_binary_rhs_arg_vec.data(), static_cast<size_t>(n),
+                    dst_row_logical_off, static_cast<const void *>(zp_comp_a),
+                    static_cast<const void *>(zp_comp_b),
+                    static_cast<const void *>(zp_c_val_ptr)};
+
+            brgemm_kernel_execute_postops(brg_kernel_k_tail, 1, addr_batch,
+                    (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);
+        } else {
+            brgemm_kernel_execute(brg_kernel_k_tail, 1, addr_batch,
+                    (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
+        }
+        if (is_tile_reconf_required)
+            amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
+    }
+}
+
+template <cpu_isa_t isa>
+void brgemm_matmul_t<isa>::copy_A_chunk_in_buffer(
+        const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr, int b_idx,
+        int m_blk_idx, int k_chunk_idx) const {
+    const auto &bgmmc = pd()->get_brgemm_matmul_conf();
+
+    auto ctx = jit_brgemm_matmul_copy_A_t::ctx_t();
+    const int k_start = k_chunk_idx * bgmmc.K_chunk_elems;
+    const bool is_K_tail
+            = brgmm_ctx.is_last_K_chunk(k_chunk_idx) && bgmmc.K_tail > 0;
+    const int gemm_batch = brgmm_ctx.get_brgemm_batch_size(k_chunk_idx);
+    const int gemm_batch_iters = bgmmc.use_buffer_a_tail_only ? 0 : gemm_batch;
+
+    const int m = m_blk_idx * bgmmc.M_blk;
+    const bool is_M_tail = (bgmmc.M - m < bgmmc.M_blk);
+    ctx.current_M_blk = is_M_tail ? bgmmc.M_tail : bgmmc.M_blk;
+    ctx.zp_b_compensation_buffer_ptr
+            = (void *)brgmm_ctx.get_zp_b_compensation_buffer_ptr(
+                    ithr, m_blk_idx);
+    ctx.zp_a_compensation_result_ptr
+            = (void *)brgmm_ctx.get_zp_b_compensation_result_ptr(
+                    ithr, m_blk_idx);
+    ctx.zp_b_neg_value_ptr = (void *)brgmm_ctx.get_zp_b_neg_val_ptr();
+    ctx.zp_ab_comp_ptr = (void *)brgmm_ctx.get_zp_ab_mixed_comp_ptr();
+
+    for (int gb = 0; gb < gemm_batch_iters; gb++) {
+        const int k = k_start + gb * bgmmc.K_blk;
+        ctx.src = (void *)brgmm_ctx.get_data_A_ptr(b_idx, m, k);
+        ctx.tr_src = (void *)brgmm_ctx.get_buf_A_ptr(ithr, m_blk_idx, gb);
+        ctx.current_K_blk = nstl::min(bgmmc.K_blk, bgmmc.K);
+        ctx.current_K_start = k;
+
+        (*copy_A_kernel_)(&ctx);
+    }
+    if (is_K_tail) {
+        const auto K_tail = bgmmc.K % bgmmc.K_blk;
+        const int k = k_start + gemm_batch * bgmmc.K_blk;
+        ctx.src = (void *)brgmm_ctx.get_data_A_ptr(b_idx, m, k);
+        ctx.tr_src = (void *)brgmm_ctx.get_buf_A_ptr(
+                ithr, m_blk_idx, gemm_batch_iters);
+        ctx.current_K_blk = K_tail;
+        ctx.current_K_start = k;
+
+        (*copy_A_kernel_)(&ctx);
+    }
+}
+
+template <cpu_isa_t isa>
+void brgemm_matmul_t<isa>::copy_B_chunk_in_buffer(
+        const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr, int b_idx,
+        int n_blk_idx, int k_chunk_idx) const {
+    const auto &bgmmc = pd()->get_brgemm_matmul_conf();
+
+    const int k_start = k_chunk_idx * bgmmc.K_chunk_elems;
+    const bool is_K_tail
+            = brgmm_ctx.is_last_K_chunk(k_chunk_idx) && bgmmc.K_tail > 0;
+    const int gemm_batch = brgmm_ctx.get_brgemm_batch_size(k_chunk_idx);
+    auto ctx = jit_brgemm_matmul_copy_B_t::ctx_t();
+
+    const int n = n_blk_idx * bgmmc.N_blk;
+    const bool is_N_tail = (bgmmc.N - n < bgmmc.N_blk);
+    ctx.current_N_blk = is_N_tail ? bgmmc.N_tail : bgmmc.N_blk;
+    ctx.zp_a_compensation_ptr
+            = (void *)brgmm_ctx.get_zp_a_compensation_ptr(ithr, n_blk_idx);
+    ctx.zp_a_neg_value_ptr = (void *)brgmm_ctx.get_zp_a_neg_val_ptr();
+
+    int gb = 0;
+    for (; gb < gemm_batch; gb++) {
+        const int k = k_start + gb * bgmmc.K_blk;
+        ctx.src = (void *)brgmm_ctx.get_data_B_ptr(b_idx, k, n);
+        ctx.tr_src = (void *)brgmm_ctx.get_buf_B_ptr(ithr, gb, n_blk_idx);
+        ctx.compensation_ptr
+                = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
+        ctx.current_K_start = k;
+        ctx.current_K_iters = nstl::min(bgmmc.K_blk, bgmmc.K);
+
+        (*copy_B_kernel_)(&ctx);
+    }
+
+    if (is_K_tail) {
+        const int k = k_start + gb * bgmmc.K_blk;
+        ctx.src = (void *)brgmm_ctx.get_data_B_ptr(b_idx, k, n);
+        ctx.tr_src = (void *)brgmm_ctx.get_buf_B_ptr(ithr, gb, n_blk_idx);
+        ctx.compensation_ptr
+                = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
+        ctx.current_K_start = k;
+        ctx.current_K_iters = bgmmc.K % bgmmc.K_blk;
+
+        (*copy_B_kernel_)(&ctx);
+    }
+}
+
+template <cpu_isa_t isa>
+struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
+    brg_matmul_exec_ctx_t(const exec_ctx_t &ctx, const pd_t *pd, int32_t src_zp,
+            int32_t wei_zp, int32_t dst_zp)
+        : bgmmc_(pd->get_brgemm_matmul_conf()) {
+        data_A_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+        data_B_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
+        data_C_ptr_ = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+
+        bias_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+        oscales_ptr_ = pd->attr()->output_scales_.scales_;
+        memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
+        const auto &bgmmc = pd->get_brgemm_matmul_conf();
+
+        batch_element_ptr_ = scratchpad.template get<brgemm_batch_element_t>(
+                key_brgemm_primitive_batch);
+
+        const bool use_buffer_a
+                = bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only;
+        buf_A_ptr_ = (use_buffer_a)
+                ? scratchpad.template get<char>(key_brgemm_primitive_buffer_a)
+                : nullptr;
+
+        buf_B_ptr_ = (bgmmc.use_buffer_b)
+                ? scratchpad.template get<char>(key_brgemm_primitive_buffer_b)
+                : nullptr;
+
+        buf_C_ptr_ = (bgmmc.use_buffer_c)
+                ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
+                : nullptr;
+
+        is_amx_ = isa == avx512_core_bf16_amx_int8;
+        wsp_tile_ptr_ = is_amx_
+                ? ctx.get_scratchpad_grantor().template get<char>(
+                        key_conv_amx_tile_buffer)
+                : nullptr;
+
+        const memory_desc_wrapper weights_d(pd->weights_md(0));
+        const dim_t comp_offset = bgmmc_.b_dt_sz
+                * (weights_d.size() - weights_d.additional_buffer_size());
+        s8s8_compensation_ptr_ = (bgmmc.s8s8_compensation_required)
+                ? ((bgmmc.use_buffer_b)
+                                ? scratchpad.template get<int32_t>(
+                                        key_brgemm_primitive_buffer_comp)
+                                : const_cast<int32_t *>(
+                                        reinterpret_cast<const int32_t *>(
+                                                &data_B_ptr_[comp_offset])))
+                : nullptr;
+
+        zero_point_a_compensations_ptr_ = bgmmc.has_zero_point_a
+                ? scratchpad.template get<int32_t>(
+                        key_brgemm_primitive_zp_comp_a)
+                : nullptr;
+        zero_point_b_compensations_ptr_ = bgmmc.has_zero_point_b
+                ? scratchpad.template get<int32_t>(
+                        key_brgemm_primitive_zp_comp_b)
+                : nullptr;
+
+        zero_point_a_negative_val_ = -src_zp;
+        zero_point_b_negative_val_ = -wei_zp;
+        zero_point_mixed_ab_compensation_component_
+                = bgmmc.K * zero_point_a_negative_val_;
+
+        zero_point_c_val_ = dst_zp;
+
+        post_ops_binary_rhs_arg_vec_ = binary_injector::prepare_binary_args(
+                pd->attr()->post_ops_, ctx);
+        base_brg_ker_idx_ = pd->get_brg_kernel_idx(true, false, false, false);
+    }
+
+    const char *get_data_A_ptr(int b, int m, int k) const {
+        return data_A_ptr_ + get_data_A_off(b, m, k);
+    }
+
+    const char *get_data_B_ptr(int b, int k, int n) const {
+        return data_B_ptr_ + get_data_B_off(b, k, n);
+    }
+
+    char *get_data_C_ptr(int b, int m, int n) const {
+        return data_C_ptr_ + get_data_C_off(b, m, n);
+    }
+
+    brgemm_batch_element_t *get_batch_elem_ptr(int ithr) const {
+        return batch_element_ptr_
+                + ithr * bgmmc_.brgemm_batch_element_per_thr_sz;
+    }
+
+    void init_brgemm_batch_elements_values(int ithr, int brg_batch_start,
+            int brg_batch_iters, int b_idx, int m_blk_idx, int k_blk_idx,
+            int n_blk_idx) const {
+        auto addr_batch = get_batch_elem_ptr(ithr);
+
+        const int m = m_blk_idx * bgmmc_.M_blk;
+        const int n = n_blk_idx * bgmmc_.N_blk;
+
+        for (int b_iter = 0; b_iter < brg_batch_iters; b_iter++) {
+            const int brg_batch_idx = brg_batch_start + b_iter;
+            const int k = (k_blk_idx + brg_batch_idx) * bgmmc_.K_blk;
+            addr_batch[b_iter].ptr.A = bgmmc_.use_buffer_a
+                    ? get_buf_A_ptr(ithr, m_blk_idx, brg_batch_idx)
+                    : get_data_A_ptr(b_idx, m, k);
+            addr_batch[b_iter].ptr.B = (bgmmc_.use_buffer_b)
+                    ? get_buf_B_ptr(ithr, brg_batch_idx, n_blk_idx)
+                    : get_data_B_ptr(b_idx, k, n);
+        }
+    }
+
+    char *get_buf_A_ptr(int ithr, int m_blk_idx, int k_blk_idx) const {
+        if (!bgmmc_.use_buffer_a && !bgmmc_.use_buffer_a_tail_only)
+            return nullptr;
+
+        const int k_blk_local = bgmmc_.use_buffer_a_tail_only ? 0 : k_blk_idx;
+        const int m_blk_local = m_blk_idx % bgmmc_.M_chunk_size;
+        return buf_A_ptr_ + ithr * bgmmc_.buffer_a_per_thread_sz
+                + m_blk_local * bgmmc_.buffer_a_chunk_shift_along_m
+                + k_blk_local * bgmmc_.buffer_a_chunk_sz;
+    }
+
+    char *get_buf_B_ptr(int ithr, int k_blk_idx, int n_blk_idx) const {
+        UNUSED(n_blk_idx);
+        if (!bgmmc_.use_buffer_b) return nullptr;
+
+        return buf_B_ptr_ + ithr * bgmmc_.buffer_b_per_thread_sz
+                + k_blk_idx * bgmmc_.buffer_b_chunk_sz;
+    }
+
+    char *get_buf_C_ptr(int ithr, int m_blk_idx, int n_blk_idx) const {
+        if (!bgmmc_.use_buffer_c) return nullptr;
+
+        const int m_blk_local = m_blk_idx % bgmmc_.M_chunk_size;
+        const int n_blk_local = n_blk_idx % bgmmc_.N_chunk_size;
+        const int buf_idx = bgmmc_.N_chunk_size * m_blk_local + n_blk_local;
+
+        return buf_C_ptr_ + ithr * bgmmc_.buffer_c_per_thread_sz
+                + buf_idx * bgmmc_.buffer_c_chunk_sz;
+    }
+
+    const char *get_bias_ptr(int n) const {
+        if (!bgmmc_.with_bias) return nullptr;
+
+        return bias_ptr_ + n * bgmmc_.bias_dt_sz;
+    }
+
+    int32_t *get_s8s8_comp_ptr(int ithr, int b, int n_blk_idx) const {
+        if (!bgmmc_.s8s8_compensation_required) return nullptr;
+
+        const int n_blk_local = bgmmc_.use_buffer_b
+                ? n_blk_idx % bgmmc_.N_chunk_size
+                : n_blk_idx;
+        return s8s8_compensation_ptr_ + ithr * bgmmc_.s8s8_comp_ithr_str
+                + b * bgmmc_.s8s8_comp_b_str
+                + n_blk_local * bgmmc_.s8s8_comp_n_str;
+    }
+
+    const float *get_oscales_ptr(int n) const {
+        return oscales_ptr_ + bgmmc_.is_oscale_per_n * n;
+    }
+
+    const int32_t *get_zp_a_neg_val_ptr() const {
+        return &zero_point_a_negative_val_;
+    }
+
+    const int32_t *get_zp_b_neg_val_ptr() const {
+        return &zero_point_b_negative_val_;
+    }
+
+    const int32_t *get_zp_ab_mixed_comp_ptr() const {
+        return &zero_point_mixed_ab_compensation_component_;
+    }
+
+    const int32_t *get_zp_c_val_ptr() const { return &zero_point_c_val_; }
+
+    int32_t *get_zp_a_compensation_ptr(int ithr, int n_blk_idx) const {
+        if (!bgmmc_.has_zero_point_a) return nullptr;
+
+        const int n_blk_local = n_blk_idx % bgmmc_.N_chunk_size;
+        return zero_point_a_compensations_ptr_
+                + ithr * bgmmc_.zp_a_comp_elems_per_thr
+                + n_blk_local * bgmmc_.zp_a_comp_shift_n;
+    }
+
+    int32_t *get_zp_b_compensation_result_ptr(int ithr, int m_blk_idx) const {
+        if (!bgmmc_.has_zero_point_b) return nullptr;
+
+        const int m_blk_local = m_blk_idx % bgmmc_.M_chunk_size;
+        return zero_point_b_compensations_ptr_
+                + ithr * bgmmc_.zp_b_comp_elems_per_thr
+                + m_blk_local * bgmmc_.zp_b_comp_result_shift_m;
+    }
+
+    int32_t *get_zp_b_compensation_buffer_ptr(int ithr, int m_blk_idx) const {
+        if (!bgmmc_.has_zero_point_b) return nullptr;
+
+        const int m_blk_local = m_blk_idx % bgmmc_.M_chunk_size;
+        return get_zp_b_compensation_result_ptr(ithr, 0)
+                + bgmmc_.zp_b_comp_buffer_start
+                + m_blk_local * bgmmc_.zp_b_comp_buffer_shift_m;
+    }
+
+    char *get_tile_workspace(int ithr) const {
+        return is_amx_ ? wsp_tile_ptr_ + ithr * bgmmc_.wsp_tile_per_thr_bytes
+                       : nullptr;
+    }
+
+    const std::vector<const void *> &get_post_ops_binary_rhs_arg_vec() const {
+        return post_ops_binary_rhs_arg_vec_;
+    }
+
+    int get_base_brgemm_kernel_idx() const { return base_brg_ker_idx_; }
+
+    bool is_last_K_chunk(int k_chunk_idx) const {
+        return k_chunk_idx == bgmmc_.K_chunks - 1;
+    }
+
+    int get_brgemm_batch_size(int k_chunk_idx) const {
+        const int last_brgemm_batch_size
+                = (nstl::max(bgmmc_.K, bgmmc_.K_blk)
+                          - k_chunk_idx * bgmmc_.K_chunk_elems)
+                / bgmmc_.K_blk;
+        return is_last_K_chunk(k_chunk_idx) ? last_brgemm_batch_size
+                                            : bgmmc_.brgemm_batch_size;
+    }
+
+private:
+    bool is_amx_;
+    const brgemm_matmul_conf_t &bgmmc_;
+    const char *data_A_ptr_;
+    const char *data_B_ptr_;
+    char *data_C_ptr_;
+    brgemm_batch_element_t *batch_element_ptr_;
+
+    char *buf_A_ptr_;
+    char *buf_B_ptr_;
+    char *buf_C_ptr_;
+
+    char *wsp_tile_ptr_;
+    const char *bias_ptr_;
+    const float *oscales_ptr_;
+    int32_t *s8s8_compensation_ptr_;
+
+    int32_t *zero_point_a_compensations_ptr_;
+    int32_t *zero_point_b_compensations_ptr_;
+
+    int32_t zero_point_a_negative_val_;
+    int32_t zero_point_b_negative_val_;
+    int32_t zero_point_mixed_ab_compensation_component_;
+    int32_t zero_point_c_val_;
+    std::vector<const void *> post_ops_binary_rhs_arg_vec_;
+
+    int base_brg_ker_idx_;
+
+    // Auxiliary functions for getting offsets with pre-calculated memory
+    // strides for each tensor to get general sulution for all possible
+    // dimension without significant overhead
+    dim_t get_data_A_off(int b, int m, int k) const {
+        return bgmmc_.A_strides[2] * b + bgmmc_.A_strides[1] * m
+                + bgmmc_.A_strides[0] * k;
+    }
+    dim_t get_data_B_off(int b, int k, int n) const {
+        return bgmmc_.B_strides[2] * b + bgmmc_.B_strides[1] * k
+                + bgmmc_.B_strides[0] * n;
+    }
+    dim_t get_data_C_off(int b, int m, int n) const {
+        return bgmmc_.C_strides[2] * b + bgmmc_.C_strides[1] * m
+                + bgmmc_.C_strides[0] * n;
+    }
+};
 
 template struct brgemm_matmul_t<avx512_core_bf16_amx_int8>;
 

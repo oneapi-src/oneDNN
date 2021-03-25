@@ -159,7 +159,7 @@ void jit_brgemm_matmul_copy_A_int8_t::copy_K_loop(
 
             maybe_compute_compensation(k_idx, get_zmm_copy(k));
         }
-        if (allow_input_shift_for_s8s8 && conf_->signed_input) {
+        if (allow_input_shift_for_s8s8 && conf_->s8s8_compensation_required) {
             for (int k = k_start; k < k_end; k++)
                 vpaddb(get_zmm_copy(k), get_zmm_copy(k), zmm_comp_add);
         }
@@ -189,7 +189,7 @@ void jit_brgemm_matmul_copy_A_int8_t::copy_K_loop(
 
         maybe_compute_compensation(0, get_zmm_copy(0));
 
-        if (allow_input_shift_for_s8s8 && conf_->signed_input)
+        if (allow_input_shift_for_s8s8 && conf_->s8s8_compensation_required)
             vpaddb(get_zmm_copy(0), get_zmm_copy(0), zmm_comp_add);
 
         vmovdqu8(EVEX_compress_addr(reg_tr_src, num_k_iters * k_step),
@@ -290,14 +290,14 @@ void jit_brgemm_matmul_copy_A_int8_t::generate() {
     const dim_t LDA = conf_->use_buffer_a_tail_only ? (dim_t)conf_->wei_k_blk
                                                     : conf_->LDA;
     tr_src_stride = LDA * typesize;
-    do_compute_compensation = conf_->wei_zp_type != brgemm_broadcast_t::none;
+    do_compute_compensation = conf_->has_zero_point_b;
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
     mov(reg_K_blk, ptr[param1 + GET_OFF(current_K_blk)]);
     mov(reg_M_blk, ptr[param1 + GET_OFF(current_M_blk)]);
 
-    if (allow_input_shift_for_s8s8 && conf_->signed_input) {
+    if (allow_input_shift_for_s8s8 && conf_->s8s8_compensation_required) {
         mov(imm_addr64, 128);
         vpbroadcastb(zmm_comp_add, imm_addr64.cvt8());
     }
@@ -624,8 +624,8 @@ void jit_brgemm_matmul_copy_B_int8_t::generate() {
     src_stride = conf_->N * typesize;
     tr_src_stride = conf_->LDB * k_blk_step * typesize;
     is_amx = conf_->isa == avx512_core_bf16_amx_int8;
-    do_compute_compensation = conf_->signed_input
-            || conf_->src_zp_type != brgemm_broadcast_t::none;
+    do_compute_compensation
+            = conf_->s8s8_compensation_required || conf_->has_zero_point_a;
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
@@ -744,8 +744,8 @@ void jit_brgemm_matmul_copy_B_int8_t::generate() {
     L(done);
 
     if (do_compute_compensation) {
-        const bool req_s8s8_comp = conf_->signed_input;
-        const bool req_zp_comp = conf_->src_zp_type != brgemm_broadcast_t::none;
+        const bool req_s8s8_comp = conf_->s8s8_compensation_required;
+        const bool req_zp_comp = conf_->has_zero_point_a;
         assert(IMPLICATION(req_zp_comp,
                 conf_->src_zp_type == brgemm_broadcast_t::per_tensor));
 
@@ -1106,13 +1106,13 @@ void jit_brgemm_matmul_copy_B_transposed_int8_t::compute_N_loop(
 
 void jit_brgemm_matmul_copy_B_transposed_int8_t::generate() {
     // TODO: support compensation calculation
-    if (conf_->signed_input) return;
+    if (conf_->s8s8_compensation_required) return;
 
     preamble();
 
     src_stride = conf_->K * typesize;
     tr_src_stride = conf_->LDB * vnni_granularity * typesize;
-    do_compute_compensation = conf_->src_zp_type != brgemm_broadcast_t::none;
+    do_compute_compensation = conf_->has_zero_point_a;
 
     mov(reg_src_base, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src_base, ptr[param1 + GET_OFF(tr_src)]);
@@ -1131,7 +1131,7 @@ void jit_brgemm_matmul_copy_B_transposed_int8_t::generate() {
     kmovw(k0F0F, 0x0f0f); // 0000111100001111
     kmovw(kF0F0, 0xf0f0); // 1111000011110000
 
-    const dim_t N_chunk_elems = conf_->N_blk * conf_->N_chunk_size;
+    const dim_t N_chunk_elems = conf_->N_chunk_elems;
     assert(N_chunk_elems % n_blk_step == 0 || N_chunk_elems == conf_->N);
     UNUSED(N_chunk_elems);
 

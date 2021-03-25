@@ -54,6 +54,10 @@ brgemm_broadcast_t get_zp_type(const primitive_attr_t &attr, int arg) {
             : brgemm_broadcast_t::per_tensor;
 }
 
+void init_aux_values(brgemm_matmul_conf_t &bgmmc,
+        const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
+        const memory_desc_wrapper &dst_d);
+
 status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         const matmul_desc_t &mmd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
@@ -73,7 +77,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     bgmmc.with_bias = mmd.bias_desc.format_kind != format_kind::undef;
     bgmmc.bia_dt = bgmmc.with_bias ? mmd.bias_desc.data_type : data_type::undef;
-    bgmmc.signed_input = isa == avx512_core_vnni && bgmmc.src_dt == s8;
+    bgmmc.s8s8_compensation_required
+            = isa == avx512_core_vnni && bgmmc.src_dt == s8;
     bgmmc.ndims = dst_d.ndims();
 
     const bool is_int8 = one_of(bgmmc.src_dt, u8, s8) && bgmmc.wei_dt == s8
@@ -225,7 +230,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         size_t C_chunk_sz = types::data_type_size(bgmmc.dst_dt) * bgmmc.M_blk
                 * bgmmc.M_chunk_size * bgmmc.N_blk * bgmmc.N_chunk_size;
         size_t C_buf_sz = 0;
-        if (bgmmc.use_buffer)
+        if (bgmmc.use_buffer_c)
             C_buf_sz = types::data_type_size(bgmmc.acc_dt) * bgmmc.M_blk
                     * bgmmc.M_chunk_size * bgmmc.N_blk * bgmmc.N_chunk_size;
         return A_chunk_sz + A_buf_sz + B_chunk_sz + B_buf_sz + C_chunk_sz
@@ -258,7 +263,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     // Try to improve blocking wrt L2 size
     // TODO: improve blocking algorithm
     while (attempts > 0) {
-        bgmmc.use_buffer
+        bgmmc.use_buffer_c
                 = bgmmc.acc_dt != bgmmc.dst_dt && bgmmc.K > bgmmc.K_blk;
         bgmmc.LDA = get_actual_LDA();
 
@@ -314,69 +319,132 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     bgmmc.LDB = bgmmc.wei_n_blk;
     bgmmc.LDD = bgmmc.N;
-    bgmmc.LDC = bgmmc.use_buffer ? bgmmc.N_blk : bgmmc.LDD;
+    bgmmc.LDC = bgmmc.use_buffer_c ? bgmmc.N_blk : bgmmc.LDD;
+
+    init_aux_values(bgmmc, src_d, weights_d, dst_d);
 
     return status::success;
 }
 
+void init_aux_values(brgemm_matmul_conf_t &bgmmc,
+        const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
+        const memory_desc_wrapper &dst_d) {
+    bgmmc.wsp_tile_per_thr_bytes = 1024;
+    bgmmc.a_dt_sz = types::data_type_size(bgmmc.src_dt);
+    bgmmc.b_dt_sz = types::data_type_size(bgmmc.wei_dt);
+    bgmmc.c_dt_sz = types::data_type_size(bgmmc.dst_dt);
+    bgmmc.acc_dt_sz = types::data_type_size(bgmmc.acc_dt);
+
+    bgmmc.M_chunk_elems = bgmmc.M_blk * bgmmc.M_chunk_size;
+    bgmmc.N_chunk_elems = bgmmc.N_blk * bgmmc.N_chunk_size;
+    bgmmc.K_chunk_elems = bgmmc.K_blk * bgmmc.brgemm_batch_size;
+    bgmmc.M_chunks = div_up(bgmmc.M, bgmmc.M_chunk_elems);
+    bgmmc.N_chunks = div_up(bgmmc.N, bgmmc.N_chunk_elems);
+    bgmmc.K_chunks = div_up(bgmmc.K, bgmmc.K_chunk_elems);
+    bgmmc.num_M_blocks = div_up(bgmmc.M, bgmmc.M_blk);
+    bgmmc.num_N_blocks = div_up(bgmmc.N, bgmmc.N_blk);
+
+    if (bgmmc.with_bias) bgmmc.bias_dt_sz = types::data_type_size(bgmmc.bia_dt);
+
+    bgmmc.buffer_c_chunk_sz = bgmmc.acc_dt_sz * bgmmc.LDC * bgmmc.M_blk;
+    bgmmc.buffer_c_per_thread_sz
+            = bgmmc.buffer_c_chunk_sz * bgmmc.M_chunk_size * bgmmc.N_chunk_size;
+
+    bgmmc.buffer_a_chunk_sz = bgmmc.a_dt_sz * bgmmc.M_blk
+            * (bgmmc.use_buffer_a_tail_only ? bgmmc.wei_k_blk : bgmmc.LDA);
+    bgmmc.buffer_a_chunk_shift_along_m = bgmmc.buffer_a_chunk_sz
+            * (bgmmc.use_buffer_a_tail_only ? 1 : bgmmc.brgemm_batch_size);
+    bgmmc.buffer_a_per_thread_sz
+            = bgmmc.buffer_a_chunk_shift_along_m * bgmmc.M_chunk_size;
+
+    bgmmc.buffer_b_chunk_sz
+            = bgmmc.b_dt_sz * bgmmc.LDB * rnd_up(bgmmc.K_blk, bgmmc.wei_k_blk);
+    bgmmc.buffer_b_per_thread_sz
+            = bgmmc.buffer_b_chunk_sz * bgmmc.brgemm_batch_size;
+
+    bgmmc.s8s8_comp_ithr_str
+            = bgmmc.use_buffer_b ? bgmmc.wei_n_blk * bgmmc.N_chunk_size : 0;
+    bgmmc.s8s8_comp_b_str = bgmmc.use_buffer_b
+            ? 0
+            : div_up(bgmmc.N, bgmmc.wei_n_blk) * bgmmc.wei_n_blk;
+    bgmmc.s8s8_comp_n_str = bgmmc.wei_n_blk;
+
+    const int dmax = nstl::min(bgmmc.ndims, 3);
+    for (int d = 0; d < dmax; d++) {
+        dims_t idx = {0};
+        idx[bgmmc.ndims - 1 - d] = 1;
+        bgmmc.A_strides[d] = IMPLICATION(bgmmc.is_A_broadcast, d != dmax - 1)
+                ? bgmmc.a_dt_sz * src_d.off_v(idx)
+                : 0;
+        bgmmc.B_strides[d] = IMPLICATION(bgmmc.is_B_broadcast, d != dmax - 1)
+                ? bgmmc.b_dt_sz * wei_d.off_v(idx)
+                : 0;
+        bgmmc.C_strides[d] = bgmmc.c_dt_sz * dst_d.off_v(idx);
+    }
+
+    bgmmc.has_zero_point_a = bgmmc.src_zp_type != brgemm_broadcast_t::none;
+    bgmmc.has_zero_point_b = bgmmc.wei_zp_type != brgemm_broadcast_t::none;
+    bgmmc.has_zero_point_c = bgmmc.dst_zp_type != brgemm_broadcast_t::none;
+    bgmmc.post_ops_applicable = one_of(true, bgmmc.with_sum, bgmmc.with_bias,
+            bgmmc.with_scales, bgmmc.with_eltwise, bgmmc.with_binary,
+            bgmmc.acc_dt != bgmmc.dst_dt, bgmmc.s8s8_compensation_required,
+            bgmmc.has_zero_point_a, bgmmc.has_zero_point_b,
+            bgmmc.has_zero_point_c);
+
+    bgmmc.zp_a_comp_shift_n = bgmmc.wei_n_blk;
+    bgmmc.zp_a_comp_elems_per_thr
+            = bgmmc.N_chunk_size * bgmmc.zp_a_comp_shift_n;
+
+    const int s32_elems_in_cacheline = 16;
+    bgmmc.zp_b_comp_result_shift_m = bgmmc.M_blk;
+    bgmmc.zp_b_comp_buffer_start
+            = bgmmc.M_chunk_size * bgmmc.zp_b_comp_result_shift_m;
+    bgmmc.zp_b_comp_buffer_shift_m = s32_elems_in_cacheline * bgmmc.M_blk;
+    bgmmc.zp_b_comp_elems_per_thr = bgmmc.M_chunk_size
+            * (bgmmc.zp_b_comp_result_shift_m + bgmmc.zp_b_comp_buffer_shift_m);
+
+    bgmmc.brgemm_batch_element_per_thr_sz = 16 * bgmmc.brgemm_batch_size;
+}
+
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const brgemm_matmul_conf_t &bgmmc) {
-    size_t sc_size = sizeof(brgemm_batch_element_t);
-    size_t n_elems = bgmmc.nthr * 16 * bgmmc.brgemm_batch_size;
-    if (bgmmc.brg_type == brgemm_addr) {
-        scratchpad.book(key_brgemm_primitive_batch, n_elems, sc_size, 64);
-    }
-    if (bgmmc.use_buffer) {
-        size_t nelements = (size_t)bgmmc.nthr * bgmmc.LDC * bgmmc.M_blk
-                * bgmmc.M_chunk_size * bgmmc.N_chunk_size;
-        scratchpad.book(key_brgemm_primitive_buffer, nelements,
-                types::data_type_size(bgmmc.acc_dt));
-    }
+    const size_t default_data_align = sizeof(char);
+    if (bgmmc.brg_type == brgemm_addr)
+        scratchpad.book(key_brgemm_primitive_batch,
+                bgmmc.nthr * bgmmc.brgemm_batch_element_per_thr_sz,
+                sizeof(brgemm_batch_element_t), 64);
 
-    if (bgmmc.src_zp_type != brgemm_broadcast_t::none) {
-        size_t nelements_comp
-                = (size_t)bgmmc.nthr * bgmmc.wei_n_blk * bgmmc.N_chunk_size;
-        scratchpad.book(key_brgemm_primitive_zp_comp_a, nelements_comp,
-                types::data_type_size(bgmmc.acc_dt));
-    }
-
-    if (bgmmc.wei_zp_type != brgemm_broadcast_t::none) {
-        const int s32_elems_in_cacheline = 16;
-        size_t nelements_comp = (size_t)bgmmc.nthr * bgmmc.M_blk
-                * bgmmc.M_chunk_size * (1 + s32_elems_in_cacheline);
-        scratchpad.book(key_brgemm_primitive_zp_comp_b, nelements_comp,
-                types::data_type_size(bgmmc.acc_dt));
-    }
+    if (bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only)
+        scratchpad.book(key_brgemm_primitive_buffer_a,
+                bgmmc.nthr * bgmmc.buffer_a_per_thread_sz, default_data_align);
 
     if (bgmmc.use_buffer_b) {
-        size_t nelements = (size_t)bgmmc.nthr * bgmmc.LDB
-                * rnd_up(bgmmc.K_blk, bgmmc.wei_k_blk)
-                * bgmmc.brgemm_batch_size;
-        scratchpad.book(key_brgemm_primitive_buffer_b, nelements,
-                types::data_type_size(bgmmc.wei_dt));
-        if (bgmmc.signed_input) {
-            size_t nelements_comp
-                    = (size_t)bgmmc.nthr * bgmmc.wei_n_blk * bgmmc.N_chunk_size;
-            scratchpad.book(key_brgemm_primitive_buffer_comp, nelements_comp,
-                    types::data_type_size(bgmmc.acc_dt));
-        }
+        scratchpad.book(key_brgemm_primitive_buffer_b,
+                bgmmc.nthr * bgmmc.buffer_b_per_thread_sz, default_data_align);
+
+        if (bgmmc.s8s8_compensation_required)
+            scratchpad.book(key_brgemm_primitive_buffer_comp,
+                    bgmmc.nthr * bgmmc.s8s8_comp_ithr_str,
+                    types::data_type_size(f32));
     }
 
-    if (bgmmc.use_buffer_a) {
-        size_t nelements = (size_t)bgmmc.nthr * bgmmc.LDA
-                * bgmmc.brgemm_batch_size * bgmmc.M_blk * bgmmc.M_chunk_size;
-        scratchpad.book(key_brgemm_primitive_buffer_a, nelements,
-                types::data_type_size(bgmmc.src_dt));
-    } else if (bgmmc.use_buffer_a_tail_only) {
-        size_t nelements = (size_t)bgmmc.nthr * bgmmc.wei_k_blk * bgmmc.M_blk
-                * bgmmc.M_chunk_size;
-        scratchpad.book(key_brgemm_primitive_buffer_a, nelements,
-                types::data_type_size(bgmmc.src_dt));
-    }
+    if (bgmmc.use_buffer_c)
+        scratchpad.book(key_brgemm_primitive_buffer,
+                bgmmc.nthr * bgmmc.buffer_c_per_thread_sz, default_data_align);
+
+    if (bgmmc.has_zero_point_a)
+        scratchpad.book(key_brgemm_primitive_zp_comp_a,
+                bgmmc.nthr * bgmmc.zp_a_comp_elems_per_thr,
+                types::data_type_size(s32));
+
+    if (bgmmc.has_zero_point_b)
+        scratchpad.book(key_brgemm_primitive_zp_comp_b,
+                bgmmc.nthr * bgmmc.zp_b_comp_elems_per_thr,
+                types::data_type_size(s32));
 
     if (bgmmc.isa == avx512_core_bf16_amx_int8)
-        scratchpad.book(
-                key_conv_amx_tile_buffer, bgmmc.nthr * 1024, sizeof(char));
+        scratchpad.book(key_conv_amx_tile_buffer,
+                bgmmc.nthr * bgmmc.wsp_tile_per_thr_bytes, default_data_align);
 }
 
 } // namespace matmul

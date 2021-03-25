@@ -41,21 +41,21 @@ struct brgemm_matmul_conf_t {
     cpu_isa_t isa;
 
     format_tag_t src_tag, wei_tag, dst_tag, bia_tag;
-    bool use_buffer;
     bool with_bias;
     bool with_sum;
     bool with_eltwise;
     bool with_binary;
     bool with_scales;
-    bool signed_input;
+    bool s8s8_compensation_required;
     bool is_oscale_per_n;
     brgemm_broadcast_t src_zp_type;
     brgemm_broadcast_t wei_zp_type;
     brgemm_broadcast_t dst_zp_type;
 
-    bool use_buffer_b;
     bool use_buffer_a;
     bool use_buffer_a_tail_only;
+    bool use_buffer_b;
+    bool use_buffer_c;
 
     bool is_A_broadcast;
     bool is_B_broadcast;
@@ -66,6 +66,48 @@ struct brgemm_matmul_conf_t {
     data_type_t acc_dt;
     data_type_t bia_dt;
     int nthr;
+
+    // Auxiliary values for init_config() and execute()
+    dim_t a_dt_sz, b_dt_sz, c_dt_sz, acc_dt_sz, bias_dt_sz;
+
+    int M_chunks;
+    int N_chunks;
+    int K_chunks;
+    int num_M_blocks;
+    int num_N_blocks;
+    dim_t M_chunk_elems;
+    dim_t N_chunk_elems;
+    dim_t K_chunk_elems;
+
+    // Pre-calculated memory strides for each tensor
+    dim_t A_strides[3];
+    dim_t B_strides[3];
+    dim_t C_strides[3];
+    dim_t buffer_c_chunk_sz;
+    dim_t buffer_c_per_thread_sz;
+
+    dim_t buffer_a_chunk_sz;
+    dim_t buffer_a_chunk_shift_along_m;
+    dim_t buffer_a_per_thread_sz;
+
+    dim_t buffer_b_chunk_sz;
+    dim_t buffer_b_per_thread_sz;
+    dim_t s8s8_comp_ithr_str;
+    dim_t s8s8_comp_b_str;
+    dim_t s8s8_comp_n_str;
+    bool has_zero_point_a, has_zero_point_b, has_zero_point_c;
+    bool post_ops_applicable;
+
+    dim_t zp_a_comp_shift_n;
+    dim_t zp_a_comp_elems_per_thr;
+
+    dim_t zp_b_comp_result_shift_m;
+    dim_t zp_b_comp_buffer_start;
+    dim_t zp_b_comp_buffer_shift_m;
+    dim_t zp_b_comp_elems_per_thr;
+
+    int wsp_tile_per_thr_bytes;
+    int brgemm_batch_element_per_thr_sz;
 };
 
 status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
