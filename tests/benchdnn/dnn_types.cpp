@@ -137,16 +137,17 @@ const char *data_kind2str(data_kind_t kind) {
     return "incorrect data kind";
 }
 
-static const std::map<int, const char *> supported_args {
-        {DNNL_ARG_SRC, "src"},
-        {DNNL_ARG_SRC_1, "src1"},
-        {DNNL_ARG_WEIGHTS, "wei"},
-        {DNNL_ARG_DST, "dst"},
+static const std::map<int, std::vector<const char *>> supported_args {
+        {DNNL_ARG_SRC, {"src", "src0"}},
+        {DNNL_ARG_SRC_1, {"src1"}},
+        {DNNL_ARG_WEIGHTS, {"wei"}},
+        {DNNL_ARG_DST, {"dst"}},
 };
 
 static int str2arg(const std::string &str) {
     for (const auto &arg : supported_args)
-        if (str.compare(arg.second) == 0) return arg.first;
+        for (const auto &s : arg.second)
+            if (str.compare(s) == 0) return arg.first;
     return BENCHDNN_DNNL_ARG_UNDEF;
 }
 
@@ -367,11 +368,11 @@ static po_table_entry_t kind_table[] = {
 
 pk_t attr_t::post_ops_t::str2kind(const std::string &str) {
     std::string s(str);
-    // s.compare is lexicographical, case matters
+    // string::operator== is lexicographical, case matters
     std::transform(s.begin(), s.end(), s.begin(), ::tolower);
     for (const auto &e : kind_table) {
         for (const auto &name : e.kind_names) {
-            if (s.compare(name) == 0) return e.kind;
+            if (s == name) return e.kind;
         }
     }
     assert(!"unknown attr_t::post_ops_t::kind_t kind");
@@ -607,8 +608,8 @@ std::ostream &operator<<(
         if (!first) s << '_';
         first = false;
 
-        s << supported_args.at(point.first) << ":" << point.second.policy << ":"
-          << point.second.value;
+        s << supported_args.at(point.first)[0] << ":" << point.second.policy
+          << ":" << point.second.value;
         if (point.second.runtime) s << '*';
     }
 
@@ -622,7 +623,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales) {
             if (!first) s << '_';
             first = false;
 
-            s << supported_args.at(v.first) << ":" << v.second;
+            s << supported_args.at(v.first)[0] << ":" << v.second;
         }
     }
     return s;
