@@ -297,7 +297,7 @@ void simple_reorder_t::pd_t::alt_gen() {
     if (sdim[last] <= 8) { work_group_size = 8; }
     const size_t lws[3] = {work_group_size, 1, 1};
     // Don't use nonuniform work groups, round up number work items if needed.
-    int mod = gws[0] % lws[0];
+    size_t mod = gws[0] % lws[0];
     if (mod != 0) { gws[0] += lws[0] - mod; }
     conf.dispatch.generate_override(gws, lws);
 }
