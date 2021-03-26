@@ -240,7 +240,9 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
             const auto &val = map_entry.second;
             if (val.has_default_values()) continue;
 
-            DPRINT(str, len, written, "%ssrc:%d", delim, val.mask_);
+            size_t arg_idx = map_entry.first - DNNL_ARG_SRC_0;
+            DPRINT(str, len, written, "%ssrc%zu:%d", delim, arg_idx, val.mask_);
+
             if (val.mask_ == 0)
                 DPRINT(str, len, written, ":%g", val.scales_[0]);
             delim = "_";
