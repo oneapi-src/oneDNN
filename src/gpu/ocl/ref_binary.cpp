@@ -103,7 +103,7 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
             } else {
                 conf.dispatch.define_dim(utils::format("D%d", i),
                         nstl::min(i, ndims - 1),
-                        i < ndims ? dst_d.dims()[i] : 1);
+                        i < ndims ? dst_d.padded_dims()[i] : 1);
             }
         }
     }
@@ -161,7 +161,7 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
 
     auto &src0 = CTX_IN_STORAGE(DNNL_ARG_SRC_0);
     auto &src1 = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
-    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
     CHECK(status);
 
     const auto &conf = pd()->conf;

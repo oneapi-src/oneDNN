@@ -115,10 +115,16 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 #endif
 
     // SRC1_D1 = IC for SRC1, using the dispatch ap
-    int block_size
-            = dims0[1] + d1_block > SRC1_D1 && min(d1_block, SRC0_D1) <= SRC1_D1
-            ? (SRC1_D1 % d1_block)
-            : d1_block;
+    int block_size = d1_block;
+
+    if (dims0[0] >= DST_D0) {
+        for (int ic = 0; ic < block_size; ++ic) {
+            dst[dst_off] = DATA_ZERO;
+            dst_off++;
+        }
+
+        return;
+    }
 
     for (int ic = 0; ic < block_size; ++ic) {
         // using tmp vars to handle float calculations for bf16 datatypes
@@ -170,6 +176,8 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
                     1, dims0_po[5], 1);
 
             dst[dst_off] = TO_DST(d);
+        } else {
+            dst[dst_off] = DATA_ZERO;
         }
 
 #if USE_UNROLL_16B || SRC0_UNROLL_16B
