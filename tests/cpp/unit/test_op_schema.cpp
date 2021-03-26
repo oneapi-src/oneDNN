@@ -3710,3 +3710,47 @@ TEST(op_schema_test, test_type_constraints) {
     // MatMul op doesn't support s8 output
     EXPECT_FALSE(matmul_op_schema->verify(&matmul_op));
 }
+
+TEST(op_schema_test, test_quant) {
+    const op_schema *quant_op_schema
+            = op_schema_registry::get_op_schema(op_kind::Quantize);
+    op_t quant_op {0, kQuantize, std::string("quantize")};
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t lt_out = logical_tensor_init(1, data_type::s8);
+
+    quant_op.add_input(lt_data);
+    quant_op.add_output(lt_out);
+    quant_op.set_attr("zps", std::vector<int64_t> {1});
+    quant_op.set_attr("scales", std::vector<float> {0.1});
+    EXPECT_TRUE(quant_op_schema->verify(&quant_op));
+}
+
+TEST(op_schema_test, test_quant_fail_case) {
+    const op_schema *quant_op_schema
+            = op_schema_registry::get_op_schema(op_kind::Quantize);
+    op_t quant_op {0, kQuantize, std::string("quantize")};
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t lt_out = logical_tensor_init(1, data_type::s8);
+
+    quant_op.add_input(lt_data);
+    quant_op.add_output(lt_out);
+    quant_op.set_attr("scales", std::vector<int64_t> {1});
+    quant_op.set_attr("zps", std::vector<float> {0.1});
+
+    //Quantize op does not support float zps and int64 scales
+    EXPECT_FALSE(quant_op_schema->verify(&quant_op));
+}
+
+TEST(op_schema_test, test_dequant) {
+    const op_schema *dequant_op_schema
+            = op_schema_registry::get_op_schema(op_kind::Dequantize);
+    op_t dequant_op {0, kDequantize, std::string("dequantize")};
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t lt_out = logical_tensor_init(1, data_type::f32);
+
+    dequant_op.add_input(lt_data);
+    dequant_op.add_output(lt_out);
+    dequant_op.set_attr("zps", std::vector<int64_t> {1});
+    dequant_op.set_attr("scales", std::vector<float> {0.1});
+    EXPECT_TRUE(dequant_op_schema->verify(&dequant_op));
+}

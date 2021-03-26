@@ -995,6 +995,8 @@ public:
         InterpolateBackprop = kInterpolateBackprop,
         PowBackpropExponent = kPowBackpropExponent,
         End = kEnd,
+        Quantize = kQuantize,
+        Dequantize = kDequantize,
         LastSymbol = kLastSymbol,
     };
 

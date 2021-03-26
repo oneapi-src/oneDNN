@@ -89,6 +89,8 @@ TEST(api_op, create_all_ops) {
             op::kind::InterpolateBackprop,
             op::kind::PowBackpropExponent,
             op::kind::End,
+            op::kind::Quantize,
+            op::kind::Dequantize,
     };
 
     const auto num_ops = all_kind_enums.size();

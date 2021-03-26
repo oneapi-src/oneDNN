@@ -34,6 +34,7 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(BatchNormTrainingBackprop, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(BiasAdd, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(BiasAddBackprop, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Clamp, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Dequantize, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ClampBackprop, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Concat, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Convolution, 1);
@@ -66,6 +67,7 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Multiply, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Pow, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(PowBackprop, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(PowBackpropExponent, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Quantize, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ReduceSum, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ReLU, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ReLUBackprop, 1);
@@ -157,6 +159,7 @@ public:
                         ConvolutionBackpropData, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         ConvolutionBackpropFilters, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Dequantize, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Divide, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Elu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(EluBackprop, 1)>());
@@ -185,6 +188,7 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(PowBackprop, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         PowBackpropExponent, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Quantize, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ReduceSum, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ReLU, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ReLUBackprop, 1)>());

@@ -1612,6 +1612,45 @@ DNNL_GRAPH_OP_SCHEMA(MatMul_gelu, 1,
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(Quantize, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "input", " fp32 tensor to be quantized",
+                        data_type::f32)
+                .set_output(0, "output", "quantized tensor",
+                        {data_type::s8, data_type::u8})
+                .set_attr("qtype", "specifies which quantization type is used",
+                        false, attribute_kind::s, "per_tensor")
+                .set_attr("axis",
+                        "specifies dimension on which apply per-channel "
+                        "quantization",
+                        false, attribute_kind::i, int64_t(1))
+                .set_attr("scales", "apply in quantization formula", true,
+                        attribute_kind::fs)
+                .set_attr("zps", "offset value that maps to float zero", true,
+                        attribute_kind::is)
+                .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(Dequantize, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "input", "quantized tensor to be dequantized",
+                        {data_type::s8, data_type::u8})
+                .set_output(0, "output", "dequantized tensor", data_type::f32)
+                .set_attr("qtype",
+                        "specifies which dequantization type is used", false,
+                        attribute_kind::s, "per_tensor")
+                .set_attr("axis",
+                        "specifies dimension on which apply per-channel "
+                        "dequantization",
+                        false, attribute_kind::i, int64_t(1))
+                .set_attr("scales", "apply in quantization formula", true,
+                        attribute_kind::fs)
+                .set_attr("zps", "offset value that maps to float zero", true,
+                        attribute_kind::is)
+                .set_shape_inference_function(infer_identity_output_shape))
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

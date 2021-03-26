@@ -86,7 +86,9 @@
     _(Index) \
     _(InterpolateBackprop) \
     _(PowBackpropExponent) \
-    _(End)
+    _(End) \
+    _(Quantize) \
+    _(Dequantize)
 
 #endif
 

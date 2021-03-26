@@ -132,6 +132,8 @@ const op_kind_t Index = kIndex;
 const op_kind_t InterpolateBackprop = kInterpolateBackprop;
 const op_kind_t PowBackpropExponent = kPowBackpropExponent;
 const op_kind_t End = kEnd;
+const op_kind_t Quantize = kQuantize;
+const op_kind_t Dequantize = kDequantize;
 const op_kind_t LastSymbol = kLastSymbol;
 
 #define REGISTER_SYMBOL(s) #s,
