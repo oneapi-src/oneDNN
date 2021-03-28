@@ -34,11 +34,39 @@
 #include "oneapi/dnnl/dnnl_threadpool.h"
 #endif
 
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
+#include "src/common/primitive_cache.hpp"
+#endif
+
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "tests/test_thread.hpp"
 
 #include "cpu/platform.hpp"
+
+int check_pd_cache(dnnl_primitive_desc_t pd) {
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
+    if (!dnnl::impl::is_pd_in_cache(pd)) {
+        BENCHDNN_PRINT(0, "error: %s\n",
+                "primitive descriptor is expected to be fetched from "
+                "the primitive cache");
+        return FAIL;
+    }
+#endif
+    return OK;
+}
+
+int check_primitive_cache(dnnl_primitive_t p) {
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
+    if (!dnnl::impl::is_primitive_in_cache(p)) {
+        BENCHDNN_PRINT(0, "error: %s\n",
+                "primitive is expected to be fetched from the primitive "
+                "cache");
+        return FAIL;
+    }
+#endif
+    return OK;
+}
 
 float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
     switch (dt) {

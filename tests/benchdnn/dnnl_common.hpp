@@ -28,6 +28,9 @@
 #include "src/common/float16.hpp"
 #include "src/common/nstl.hpp"
 
+int check_pd_cache(dnnl_primitive_desc_t pd);
+int check_primitive_cache(dnnl_primitive_t p);
+
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_debug.hpp"
@@ -390,12 +393,17 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     SAFE(init_pd_func(get_test_engine(), prb, pd, res, dir, hint), WARN);
     auto pd2 = make_benchdnn_dnnl_wrapper(pd);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    int check_pd_cache_status = check_pd_cache(pd2);
 
     // Collect memory footprint for a given primitive descriptor.
     SAFE(get_memory_footprint(pd, res), WARN);
 
     // This primitive is expected to come from the cache.
     DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
+    int check_primitive_cache_status = check_primitive_cache(prim_);
+
+    SAFE(check_pd_cache_status | check_primitive_cache_status, WARN);
+
     user_prim.reset(prim_);
 
     return OK;
