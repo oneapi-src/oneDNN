@@ -30,6 +30,7 @@ struct dnnl_reorder_desc_t {
     const dnnl_memory_desc_t *dst_md;
     dnnl_engine_kind_t src_engine_kind;
     dnnl_engine_kind_t dst_engine_kind;
+    bool is_cross_engine;
 };
 
 struct dnnl_concat_desc_t {

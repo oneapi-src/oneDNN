@@ -42,10 +42,7 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
     struct pd_t : public gpu_shuffle_pd_t {
         using gpu_shuffle_pd_t::gpu_shuffle_pd_t;
 
-        pd_t(const pd_t &other)
-            : gpu_shuffle_pd_t(other)
-            , reorder_pd_(other.reorder_pd_->clone()) {}
-
+        pd_t(const pd_t &other) = default;
         DECLARE_COMMON_PD_T("ocl:reorder:any", shuffle_by_reorder_t);
 
         status_t init(engine_t *engine) {
@@ -106,7 +103,7 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
             return status::success;
         }
 
-        std::unique_ptr<primitive_desc_t> reorder_pd_;
+        std::shared_ptr<primitive_desc_t> reorder_pd_;
     };
 
     status_t init(engine_t *engine) override {

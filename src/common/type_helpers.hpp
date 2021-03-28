@@ -499,7 +499,8 @@ inline bool operator==(const reorder_desc_t &lhs, const reorder_desc_t &rhs) {
             && DEREF_AND_COMPARE_DESC_MEMBERS(src_md)
             && DEREF_AND_COMPARE_DESC_MEMBERS(dst_md)
             && COMPARE_DESC_MEMBERS(src_engine_kind)
-            && COMPARE_DESC_MEMBERS(dst_engine_kind);
+            && COMPARE_DESC_MEMBERS(dst_engine_kind)
+            && COMPARE_DESC_MEMBERS(is_cross_engine);
     return ret;
 }
 

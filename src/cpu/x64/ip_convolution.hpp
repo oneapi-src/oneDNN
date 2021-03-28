@@ -87,7 +87,7 @@ struct ip_convolution_fwd_t : public primitive_t {
             if (!it.is_initialized()) return status::out_of_memory;
 
             while (++it != it.end()) {
-                ip_pd_.reset(it.fetch_once());
+                ip_pd_ = *it;
                 const bool ok = ip_pd_->weights_md()->extra.flags == 0;
                 if (ok) return status::success;
             }
@@ -150,7 +150,7 @@ struct ip_convolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        std::unique_ptr<primitive_desc_t> ip_pd_;
+        std::shared_ptr<primitive_desc_t> ip_pd_;
 
     private:
         std::string name_ = "ip:";

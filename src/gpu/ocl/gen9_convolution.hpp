@@ -219,11 +219,7 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : gpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        pd_t(const pd_t &rhs)
-            : gpu_convolution_bwd_weights_pd_t(rhs), conf(rhs.conf) {
-            if (rhs.rpd_wei_) rpd_wei_.reset(rhs.rpd_wei_->clone());
-            if (rhs.rpd_bia_) rpd_bia_.reset(rhs.rpd_bia_->clone());
-        }
+        pd_t(const pd_t &rhs) = default;
 
         DECLARE_COMMON_PD_T("ocl:ncsp:any", gen9_convolution_bwd_weights_t);
 
@@ -267,8 +263,8 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
-        std::unique_ptr<primitive_desc_t> rpd_wei_;
-        std::unique_ptr<primitive_desc_t> rpd_bia_;
+        std::shared_ptr<primitive_desc_t> rpd_wei_;
+        std::shared_ptr<primitive_desc_t> rpd_bia_;
 
     private:
         status_t init_scratchpad();

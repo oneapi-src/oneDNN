@@ -31,13 +31,6 @@ namespace dnnl {
 namespace impl {
 
 struct reorder_primitive_desc_iface_t : public dnnl_primitive_desc {
-    reorder_primitive_desc_iface_t(primitive_desc_t *pd, engine_t *engine,
-            engine_t *src_engine, engine_t *dst_engine)
-        : dnnl_primitive_desc(pd, engine)
-        , src_engine_(src_engine)
-        , dst_engine_(dst_engine)
-        , scratchpad_engine_(nullptr) {}
-
     reorder_primitive_desc_iface_t(const std::shared_ptr<primitive_desc_t> &pd,
             engine_t *engine, engine_t *src_engine, engine_t *dst_engine)
         : dnnl_primitive_desc(pd, engine)
@@ -144,26 +137,27 @@ protected:
         , src_md_(*src_md)
         , dst_md_(*dst_md) {
 
-        init_desc(src_engine_kind, dst_engine_kind);
+        init_desc(src_engine_kind, dst_engine_kind, false);
     }
 
     reorder_pd_t(const reorder_pd_t &other) : primitive_desc_t(other) {
         src_md_ = other.src_md_;
         dst_md_ = other.dst_md_;
 
-        init_desc(other.desc_.src_engine_kind, other.desc_.dst_engine_kind);
+        init_desc(other.desc_.src_engine_kind, other.desc_.dst_engine_kind,
+                other.desc_.is_cross_engine);
     }
 
-
-private:
-    void init_desc(
-            engine_kind_t src_engine_kind, engine_kind_t dst_engine_kind) {
+protected:
+    void init_desc(engine_kind_t src_engine_kind, engine_kind_t dst_engine_kind,
+            bool is_cross_engine) {
         desc_ = reorder_desc_t();
         desc_.primitive_kind = primitive_kind::reorder;
         desc_.src_md = &src_md_;
         desc_.dst_md = &dst_md_;
         desc_.src_engine_kind = src_engine_kind;
         desc_.dst_engine_kind = dst_engine_kind;
+        desc_.is_cross_engine = is_cross_engine;
     }
 };
 

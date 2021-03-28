@@ -42,11 +42,7 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
                 const layer_normalization_fwd_pd_t *hint_fwd_pd)
             : cpu_layer_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        pd_t(const pd_t &other) : cpu_layer_normalization_fwd_pd_t(other) {
-            copy_from(other);
-            reordered_stat_md_ = other.reordered_stat_md_;
-        }
-
+        pd_t(const pd_t &other) = default;
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T("simple_layer_normalization:any",
@@ -56,7 +52,7 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
 
         bool use_tmp_stats() const { return reorder_pd_ || stats_are_tmp(); }
 
-        std::unique_ptr<primitive_desc_t> reorder_pd_;
+        std::shared_ptr<primitive_desc_t> reorder_pd_;
         memory_desc_t reordered_stat_md_;
 
     private:
@@ -72,12 +68,6 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
             if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
                 scratchpad.book(key_nested, reorder_pd_->scratchpad_registry());
             }
-        }
-
-        void copy_from(const pd_t &other) {
-            reordered_stat_md_ = other.reordered_stat_md_;
-            reorder_pd_.reset(
-                    other.reorder_pd_ ? other.reorder_pd_->clone() : nullptr);
         }
     };
 
@@ -157,10 +147,7 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
                 const layer_normalization_fwd_pd_t *hint_fwd_pd)
             : cpu_layer_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        pd_t(const pd_t &other) : cpu_layer_normalization_bwd_pd_t(other) {
-            copy_from(other);
-        }
-
+        pd_t(const pd_t &other) = default;
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T("simple_layer_normalization:any",
@@ -170,7 +157,7 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
 
         bool use_tmp_stats() const { return reorder_pd_.get(); }
 
-        std::unique_ptr<primitive_desc_t> reorder_pd_;
+        std::shared_ptr<primitive_desc_t> reorder_pd_;
         memory_desc_t reordered_stat_md_;
 
     private:
@@ -192,12 +179,6 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
             }
             scratchpad.template book<float>(
                     key_lnorm_inv_sqrtvar, across_axis());
-        }
-
-        void copy_from(const pd_t &other) {
-            reordered_stat_md_ = other.reordered_stat_md_;
-            reorder_pd_.reset(
-                    other.reorder_pd_ ? other.reorder_pd_->clone() : nullptr);
         }
     };
 

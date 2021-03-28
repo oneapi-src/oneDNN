@@ -71,7 +71,7 @@ struct jit_uni_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
             if (!it.is_initialized()) return status::out_of_memory;
 
             while (++it != it.end()) {
-                conv_pd_.reset(it.fetch_once());
+                conv_pd_ = *it;
                 // XXX: find another way to create required implementation.
                 if (dynamic_cast<conv_pd_t *>(conv_pd_.get()))
                     return set_default_params();
@@ -121,7 +121,7 @@ struct jit_uni_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
                 src_type, dst_type>::pd_t;
         friend jit_uni_x8s8s32x_1x1_deconvolution_fwd_t;
 
-        std::unique_ptr<primitive_desc_t> conv_pd_;
+        std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
         void init_scratchpad() {

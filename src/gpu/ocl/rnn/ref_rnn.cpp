@@ -589,7 +589,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     // Below, we have to transpose the a and b descriptor to describe
     // the GEMM as a row major problem.
     auto create_gemm_pd
-            = [&](std::unique_ptr<primitive_desc_t> &gemm_pd, int m, int n,
+            = [&](std::shared_ptr<primitive_desc_t> &gemm_pd, int m, int n,
                       int k, int lda, int ldb, int ldc, data_type_t a_dt,
                       data_type_t b_dt, data_type_t c_dt, bool is_B_trans,
                       float beta) -> status_t {
@@ -611,8 +611,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         dnnl_primitive_desc_iterator it(
                 engine, (op_desc_t *)&gemm_desc, &attr, nullptr);
         if (!it.is_initialized()) return status::out_of_memory;
-        ++it;
-        gemm_pd.reset(it.fetch_once());
+
+        gemm_pd = *(++it);
         if (!gemm_pd) return status::unimplemented;
         return status::success;
     };

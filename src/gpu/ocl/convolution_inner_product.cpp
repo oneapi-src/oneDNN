@@ -84,8 +84,7 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
     dnnl_primitive_desc_iterator it(
             engine, (op_desc_t *)&cd, &conv_attr, nullptr);
     if (!it.is_initialized()) return status::out_of_memory;
-    ++it;
-    cpd_.reset(it.fetch_once());
+    cpd_ = *(++it);
     if (!cpd_) return status::unimplemented;
 
     auto src_conv = *cpd_->src_md();

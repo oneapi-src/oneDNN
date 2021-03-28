@@ -26,13 +26,15 @@ namespace dnnl {
 namespace impl {
 namespace primitive_hashing {
 
-key_t::key_t(const primitive_desc_t *pd, const engine_t *engine)
-    : primitive_kind_(pd->kind())
-    , op_desc_(pd->op_desc())
-    , attr_(pd->attr())
-    , impl_id_(pd->impl_id())
+key_t::key_t(const engine_t *engine, const op_desc_t *op_desc,
+        const primitive_attr_t *attr, int pd_iterator_offset,
+        const std::vector<memory_desc_t> &hint_mds)
+    : primitive_kind_(get_pkind(op_desc->kind))
+    , op_desc_(op_desc)
+    , attr_(attr)
+    , pd_iterator_offset_(pd_iterator_offset)
     , impl_nthr_(dnnl_get_max_threads())
-    , hint_mds_(pd->hint_mds(false /* is_hint */))
+    , hint_mds_(hint_mds)
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     , engine_id_(engine->engine_id())
 #else
@@ -41,6 +43,20 @@ key_t::key_t(const primitive_desc_t *pd, const engine_t *engine)
     , device_id_(engine->device_id())
 #endif
     , thread_id_(std::this_thread::get_id()) {
+}
+
+key_t::key_t(const primitive_desc_t *pd, const engine_t *engine)
+    : key_t(engine, pd->op_desc(), pd->attr(), pd->pd_iterator_offset(),
+            pd->hint_mds(false /* is_hint */)) {}
+
+primitive_kind_t key_t::get_pkind(primitive_kind_t pkind) {
+    switch (pkind) {
+        case primitive_kind::pooling:
+        case primitive_kind::pooling_v2: return primitive_kind::pooling_v2;
+        case primitive_kind::softmax:
+        case primitive_kind::logsoftmax: return primitive_kind::softmax;
+        default: return pkind;
+    }
 }
 
 bool key_t::operator==(const key_t &rhs) const {
@@ -57,7 +73,7 @@ bool key_t::operator==(const key_t &rhs) const {
         && device_id_ == rhs.device_id_
 #endif
         && hint_mds_.size() == rhs.hint_mds_.size()
-        && impl_id_ == rhs.impl_id_
+        && pd_iterator_offset_ == rhs.pd_iterator_offset_
         && impl_nthr_ == rhs.impl_nthr_
         && (*attr_) == (*rhs.attr_);
 
@@ -520,6 +536,7 @@ size_t get_desc_hash(const reorder_desc_t &desc) {
     // Kinds of source and destination engines
     seed = hash_combine(seed, static_cast<size_t>(desc.src_engine_kind));
     seed = hash_combine(seed, static_cast<size_t>(desc.dst_engine_kind));
+    seed = hash_combine(seed, desc.is_cross_engine);
     // Combined hash for reorder desc
     return seed;
 }

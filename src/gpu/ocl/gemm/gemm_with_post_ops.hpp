@@ -35,12 +35,7 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
                 const hint_class *hint_fwd_pd)
             : gpu_gemm_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        pd_t(const pd_t &other)
-            : gpu_gemm_pd_t(other)
-            , gemm_pd_(other.gemm_pd_->clone())
-            , post_op_worker_pd_(other.post_op_worker_pd_->clone())
-            , use_scratchpad_with_post_op_worker(
-                      other.use_scratchpad_with_post_op_worker) {}
+        pd_t(const pd_t &other) = default;
 
         status_t init(engine_t *engine);
 
@@ -50,8 +45,8 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
             return use_scratchpad_with_post_op_worker;
         }
 
-        std::unique_ptr<primitive_desc_t> gemm_pd_;
-        std::unique_ptr<primitive_desc_t> post_op_worker_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_pd_;
+        std::shared_ptr<primitive_desc_t> post_op_worker_pd_;
         bool use_scratchpad_with_post_op_worker = false;
     };
 

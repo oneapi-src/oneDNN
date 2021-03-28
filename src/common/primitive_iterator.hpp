@@ -23,7 +23,9 @@
 #include "engine.hpp"
 #include "impl_list_item.hpp"
 #include "primitive_attr.hpp"
+#include "primitive_cache.hpp"
 #include "primitive_desc.hpp"
+#include "primitive_hashing.hpp"
 #include "type_helpers.hpp"
 
 struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
@@ -38,7 +40,8 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
         , hint_fwd_pd_(hint_fwd_pd)
         , impl_list_(engine_->get_implementation_list(op_desc_))
         , last_idx_(0)
-        , skip_idx_(skip_idx) {
+        , skip_idx_(skip_idx)
+        , offset_(-1) {
         while (impl_list_[last_idx_])
             ++last_idx_;
         is_initialized_ = is_initialized_ && attr_.is_initialized();
@@ -58,12 +61,22 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
     }
 
     dnnl::impl::primitive_desc_iterator_t &operator++() {
+        offset_++;
         pd_.reset();
+
+        std::vector<dnnl::impl::memory_desc_t> hint_mds;
+        if (hint_fwd_pd_) hint_mds = hint_fwd_pd_->hint_mds(true /* is_hint */);
+        dnnl::impl::primitive_hashing::key_t key(
+                engine_, op_desc_, &attr_, offset_, hint_mds);
+
+        pd_ = dnnl::impl::primitive_cache().get_pd(key);
+        if (pd_) { return *this; }
+
         while (++idx_ != last_idx_) {
             if (idx_ == skip_idx_) continue;
             dnnl::impl::primitive_desc_t *candidate_pd = nullptr;
-            auto s = impl_list_[idx_](
-                    &candidate_pd, op_desc_, &attr_, engine_, hint_fwd_pd_);
+            auto s = impl_list_[idx_](&candidate_pd, op_desc_, &attr_, engine_,
+                    hint_fwd_pd_, offset_);
             if (s == dnnl::impl::status::success) {
                 pd_.reset(candidate_pd);
                 break;
@@ -72,20 +85,9 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
         return *this;
     }
 
-    dnnl::impl::primitive_desc_t *operator*() const {
+    std::shared_ptr<dnnl::impl::primitive_desc_t> operator*() const {
         if (*this == end() || pd_ == nullptr) return nullptr;
-        return pd_->clone();
-    }
-
-    // Unlike `operator*()`, fetch_once() returns the current primitive
-    // descriptor and invalidates the underlying primitive descriptor (but
-    // saves the current position in the implementation list). Hence, the
-    // subsequent calls to `operator*()` and / or `fetch_once()` will return
-    // nullptr, until the iterator moves to the next implementation.
-    dnnl::impl::primitive_desc_t *fetch_once() {
-        if (*this == end() || pd_ == nullptr) return nullptr;
-        dnnl::impl::primitive_desc_t *return_pd = pd_.release();
-        return return_pd;
+        return pd_;
     }
 
     const dnnl::impl::primitive_attr_t &attr() const { return attr_; }
@@ -95,13 +97,14 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
 protected:
     int idx_;
     dnnl::impl::engine_t *engine_;
-    std::unique_ptr<dnnl::impl::primitive_desc_t> pd_;
+    std::shared_ptr<dnnl::impl::primitive_desc_t> pd_;
     const dnnl::impl::op_desc_t *op_desc_;
     const dnnl::impl::primitive_attr_t attr_;
     const dnnl::impl::primitive_desc_t *hint_fwd_pd_;
     const dnnl::impl::impl_list_item_t *impl_list_;
     int last_idx_;
     int skip_idx_;
+    int offset_;
 
 private:
     dnnl_primitive_desc_iterator(dnnl::impl::engine_t *engine, int last_idx)
@@ -111,7 +114,8 @@ private:
         , hint_fwd_pd_(nullptr)
         , impl_list_(nullptr)
         , last_idx_(last_idx)
-        , skip_idx_(-1) {}
+        , skip_idx_(-1)
+        , offset_(-1) {}
 
     dnnl_primitive_desc_iterator(dnnl_primitive_desc_iterator &&other)
         : idx_(other.idx_)
@@ -121,7 +125,8 @@ private:
         , attr_(other.attr_)
         , hint_fwd_pd_(other.hint_fwd_pd_)
         , impl_list_(other.impl_list_)
-        , skip_idx_(other.skip_idx_) {}
+        , skip_idx_(other.skip_idx_)
+        , offset_(other.offset_) {}
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive_desc_iterator);
 };

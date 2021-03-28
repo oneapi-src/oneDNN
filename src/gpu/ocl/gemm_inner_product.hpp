@@ -88,7 +88,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
         }
 
         attr_info_t attr_info_ = {};
-        std::unique_ptr<primitive_desc_t> gemm_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_pd_;
 
     private:
         void init_scratchpad() {
@@ -168,7 +168,7 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
             return status::success;
         }
 
-        std::unique_ptr<primitive_desc_t> gemm_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_pd_;
 
     private:
         void init_scratchpad() {
@@ -260,7 +260,7 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
             return wmd.format_desc.blocking.strides[0] == 1;
         }
 
-        std::unique_ptr<primitive_desc_t> gemm_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_pd_;
 
     private:
         void init_scratchpad() {

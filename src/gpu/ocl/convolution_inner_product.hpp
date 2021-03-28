@@ -39,13 +39,7 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_inner_product_fwd_pd_t {
         using gpu_inner_product_fwd_pd_t::gpu_inner_product_fwd_pd_t;
 
-        pd_t(const pd_t &rhs)
-            : gpu_inner_product_fwd_pd_t(rhs)
-            , conf(rhs.conf)
-            , cpd_(rhs.cpd_->clone()) {
-            if (rhs.rpd_dst_) rpd_dst_.reset(rhs.rpd_dst_->clone());
-            if (rhs.rpd_postop_) rpd_postop_.reset(rhs.rpd_postop_->clone());
-        }
+        pd_t(const pd_t &rhs) = default;
 
         DECLARE_COMMON_PD_T("ocl:conv", convolution_inner_product_fwd_t);
 
@@ -110,9 +104,9 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
 
         inner_product_conf_t conf;
 
-        std::unique_ptr<primitive_desc_t> cpd_;
-        std::unique_ptr<primitive_desc_t> rpd_postop_;
-        std::unique_ptr<primitive_desc_t> rpd_dst_;
+        std::shared_ptr<primitive_desc_t> cpd_;
+        std::shared_ptr<primitive_desc_t> rpd_postop_;
+        std::shared_ptr<primitive_desc_t> rpd_dst_;
 
     private:
         status_t init_scratchpad();

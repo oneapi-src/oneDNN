@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,8 +86,7 @@ status_t dnnl_primitive_desc_clone(
         return invalid_arguments;
 
     return safe_ptr_assign(*primitive_desc_iface,
-            new primitive_desc_iface_t(
-                    existing_primitive_desc_iface->impl()->clone(),
+            new primitive_desc_iface_t(existing_primitive_desc_iface->impl(),
                     existing_primitive_desc_iface->engine()));
 }
 
@@ -107,7 +106,7 @@ status_t dnnl_primitive_desc_create(
     if (status != status::success) return status;
 
     primitive_desc_iface_t *pd_iface
-            = new primitive_desc_iface_t(it->fetch_once(), engine);
+            = new primitive_desc_iface_t(*(*it), engine);
     dnnl_primitive_desc_iterator_destroy(it);
     if (pd_iface == nullptr) return out_of_memory;
 

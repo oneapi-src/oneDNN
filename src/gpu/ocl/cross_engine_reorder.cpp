@@ -64,6 +64,9 @@ status_t cross_engine_reorder_t::pd_t::init(
             reorder_pd_, reorder_engine, src_md(), dst_md(), &r_attr));
     init_scratchpad();
 
+    reorder_pd_t::init_desc(
+            src_engine->kind(), dst_engine->kind(), true /* is_cross_engine */);
+
     return status::success;
 }
 

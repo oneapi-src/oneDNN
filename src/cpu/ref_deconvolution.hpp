@@ -126,7 +126,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                 if (!it.is_initialized()) return status::out_of_memory;
 
                 while (++it != it.end()) {
-                    conv_pd_.reset(it.fetch_once());
+                    conv_pd_ = *it;
                     if (with_bias()) {
                         conv_supports_bias_ = utils::downcast<
                                 cpu_convolution_bwd_data_pd_t *>(conv_pd_.get())
@@ -146,7 +146,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             if (!it.is_initialized()) return status::out_of_memory;
 
             while (++it != it.end()) {
-                conv_pd_.reset(it.fetch_once());
+                conv_pd_ = *it;
                 bool ok = conv_pd_->weights_md()->extra.flags == 0;
                 if (ok) return status::success;
             }
@@ -193,7 +193,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        std::unique_ptr<primitive_desc_t> conv_pd_;
+        std::shared_ptr<primitive_desc_t> conv_pd_;
         bool conv_supports_bias_ = false;
         format_tag_t dst_tag_;
 
@@ -327,7 +327,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
             while (++it != it.end()) {
-                conv_pd_.reset(it.fetch_once());
+                conv_pd_ = *it;
                 if (conv_pd_->weights_md()->extra.flags == 0)
                     return status::success;
             }
@@ -366,7 +366,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
             return status::unimplemented;
         }
 
-        std::unique_ptr<primitive_desc_t> conv_pd_;
+        std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
         void init_scratchpad() {
@@ -420,7 +420,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
             while (++it != it.end()) {
-                conv_pd_.reset(it.fetch_once());
+                conv_pd_ = *it;
                 bool bf16_ref_deconv_supports_bias = IMPLICATION(with_bias()
                                 && desc()->src_desc.data_type
                                         == data_type::bf16,
@@ -477,7 +477,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             return status::unimplemented;
         }
 
-        std::unique_ptr<primitive_desc_t> conv_pd_;
+        std::shared_ptr<primitive_desc_t> conv_pd_;
         format_tag_t dst_tag_;
 
     private:

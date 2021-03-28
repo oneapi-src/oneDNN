@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,9 +24,6 @@
 
 using namespace dnnl::impl;
 using namespace dnnl::impl::status;
-
-dnnl_primitive_desc::dnnl_primitive_desc(primitive_desc_t *pd, engine_t *engine)
-    : pd_(pd), engine_(engine) {}
 
 dnnl_primitive_desc::dnnl_primitive_desc(
         const std::shared_ptr<primitive_desc_t> &pd, engine_t *engine)

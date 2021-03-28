@@ -95,7 +95,7 @@ struct gemm_matmul_t : public gpu_primitive_t {
             return status::success;
         }
 
-        std::unique_ptr<primitive_desc_t> gemm_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_pd_;
 
     private:
         status_t set_default_params() {

@@ -20,6 +20,8 @@
 #include "c_types_map.hpp"
 #include "engine.hpp"
 #include "impl_list_item.hpp"
+#include "primitive_cache.hpp"
+#include "primitive_hashing.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -53,7 +55,7 @@ engine_t *get_reorder_engine(engine_t *src_engine, engine_t *dst_engine) {
 }
 } // namespace
 
-status_t reorder_primitive_desc_create(std::unique_ptr<primitive_desc_t> &pd,
+status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
         engine_t *engine, const memory_desc_t *src_md, engine_t *src_engine,
         const memory_desc_t *dst_md, engine_t *dst_engine,
         const primitive_attr_t *attr) {
@@ -71,6 +73,17 @@ status_t reorder_primitive_desc_create(std::unique_ptr<primitive_desc_t> &pd,
 
     if (attr == nullptr) attr = &default_attr();
 
+    bool is_cross_engine = src_engine != dst_engine
+            && utils::one_of(
+                    engine_kind::gpu, src_engine->kind(), dst_engine->kind());
+
+    dnnl_reorder_desc_t desc = {primitive_kind::reorder, src_md, dst_md, s_ek,
+            d_ek, is_cross_engine};
+    primitive_hashing::key_t key(
+            engine, reinterpret_cast<op_desc_t *>(&desc), attr, 0, {});
+    pd = primitive_cache().get_pd(key);
+    if (pd) return success;
+
     for (auto r = engine->get_reorder_implementation_list(src_md, dst_md); *r;
             ++r) {
         reorder_pd_t *reorder_pd = nullptr;
@@ -84,7 +97,7 @@ status_t reorder_primitive_desc_create(std::unique_ptr<primitive_desc_t> &pd,
     return unimplemented;
 }
 
-status_t reorder_primitive_desc_create(std::unique_ptr<primitive_desc_t> &pd,
+status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
         engine_t *engine, const memory_desc_t *src_md,
         const memory_desc_t *dst_md, const primitive_attr_t *attr) {
     return reorder_primitive_desc_create(
@@ -101,14 +114,13 @@ status_t dnnl_reorder_primitive_desc_create(
     if (any_null(reorder_pd_iface, src_engine, src_md, dst_engine, dst_md))
         return invalid_arguments;
 
-    std::unique_ptr<primitive_desc_t> pd;
+    std::shared_ptr<primitive_desc_t> pd;
     auto e = get_reorder_engine(src_engine, dst_engine);
     CHECK(reorder_primitive_desc_create(
             pd, e, src_md, src_engine, dst_md, dst_engine, attr));
 
     return safe_ptr_assign(*reorder_pd_iface,
-            new reorder_primitive_desc_iface_t(
-                    pd.release(), e, src_engine, dst_engine));
+            new reorder_primitive_desc_iface_t(pd, e, src_engine, dst_engine));
 }
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

@@ -89,7 +89,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
         using base_pd_t::base_pd_t;
 
-        pd_t(const pd_t &other) : base_pd_t(other) { copy_from(other); }
+        pd_t(const pd_t &other) = default;
 
         DECLARE_COMMON_PD_T("ref:any", class_name);
 
@@ -104,15 +104,15 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         data_type_t src_type;
         data_type_t weights_type;
 
-        std::unique_ptr<primitive_desc_t> gemm_iter_fwd_pd_;
-        std::unique_ptr<primitive_desc_t> gemm_iter_fwd_2_pd_;
-        std::unique_ptr<primitive_desc_t> gemm_layer_fwd_pd_;
-        std::unique_ptr<primitive_desc_t> gemm_iter_bwd_pd_;
-        std::unique_ptr<primitive_desc_t> gemm_iter_bwd_2_pd_;
-        std::unique_ptr<primitive_desc_t> gemm_layer_bwd_pd_;
-        std::unique_ptr<primitive_desc_t> gemm_diff_wei_layer_pd_;
-        std::unique_ptr<primitive_desc_t> gemm_diff_wei_iter_pd_;
-        std::unique_ptr<primitive_desc_t> gemm_diff_wei_iter_2_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_iter_fwd_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_iter_fwd_2_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_layer_fwd_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_iter_bwd_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_iter_bwd_2_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_layer_bwd_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_diff_wei_layer_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_diff_wei_iter_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_diff_wei_iter_2_pd_;
 
     private:
         void init_scratchpad(size_t scratchpad_sz) {
@@ -154,42 +154,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                     break;
                 default: assert(!"unknown prop_kind");
             }
-        }
-
-        void copy_from(const pd_t &other) {
-            conf = other.conf;
-            off = other.off;
-            rnn_conf = other.rnn_conf;
-            acc_data_t = other.acc_data_t;
-            src_type = other.src_type;
-            weights_type = other.weights_type;
-            gemm_layer_fwd_pd_.reset(other.gemm_layer_fwd_pd_
-                            ? other.gemm_layer_fwd_pd_->clone()
-                            : nullptr);
-            gemm_iter_fwd_pd_.reset(other.gemm_iter_fwd_pd_
-                            ? other.gemm_iter_fwd_pd_->clone()
-                            : nullptr);
-            gemm_iter_fwd_2_pd_.reset(other.gemm_iter_fwd_2_pd_
-                            ? other.gemm_iter_fwd_2_pd_->clone()
-                            : nullptr);
-            gemm_layer_bwd_pd_.reset(other.gemm_layer_bwd_pd_
-                            ? other.gemm_layer_bwd_pd_->clone()
-                            : nullptr);
-            gemm_iter_bwd_pd_.reset(other.gemm_iter_bwd_pd_
-                            ? other.gemm_iter_bwd_pd_->clone()
-                            : nullptr);
-            gemm_iter_bwd_2_pd_.reset(other.gemm_iter_bwd_2_pd_
-                            ? other.gemm_iter_bwd_2_pd_->clone()
-                            : nullptr);
-            gemm_diff_wei_layer_pd_.reset(other.gemm_diff_wei_layer_pd_
-                            ? other.gemm_diff_wei_layer_pd_->clone()
-                            : nullptr);
-            gemm_diff_wei_iter_pd_.reset(other.gemm_diff_wei_iter_pd_
-                            ? other.gemm_diff_wei_iter_pd_->clone()
-                            : nullptr);
-            gemm_diff_wei_iter_2_pd_.reset(other.gemm_diff_wei_iter_2_pd_
-                            ? other.gemm_diff_wei_iter_2_pd_->clone()
-                            : nullptr);
         }
     }; // struct pd_t : public base_pd_t
 

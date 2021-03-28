@@ -73,7 +73,6 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         const char *name() const override {
             return JIT_IMPL_NAME_HELPER("brgconv:", isa, "");
         }
-        std::type_index impl_id() const override { return typeid(pd_t); }
         // ---------------------------------
 
         status_t init(engine_t *engine);

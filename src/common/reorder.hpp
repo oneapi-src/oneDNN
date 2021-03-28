@@ -23,7 +23,7 @@ namespace dnnl {
 namespace impl {
 
 struct primitive_desc_t;
-status_t reorder_primitive_desc_create(std::unique_ptr<primitive_desc_t> &pd,
+status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
         engine_t *engine, const memory_desc_t *src_md,
         const memory_desc_t *dst_md, const primitive_attr_t *attr = nullptr);
 

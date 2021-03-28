@@ -108,8 +108,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
-            ++it;
-            conv_pd_.reset(it.fetch_once());
+            conv_pd_ = *(++it);
             return status::success;
         }
 
@@ -161,7 +160,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
             return status::unimplemented;
         }
 
-        std::unique_ptr<primitive_desc_t> conv_pd_;
+        std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
         void init_scratchpad() {
@@ -236,8 +235,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
-            ++it;
-            conv_pd_.reset(it.fetch_once());
+            conv_pd_ = *(++it);
             return status::success;
         }
 
@@ -272,7 +270,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
             return status::unimplemented;
         }
 
-        std::unique_ptr<primitive_desc_t> conv_pd_;
+        std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
         void init_scratchpad() {
@@ -338,8 +336,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
-            ++it;
-            conv_pd_.reset(it.fetch_once());
+            conv_pd_ = *(++it);
             return status::success;
         }
 
@@ -377,7 +374,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
             return status::unimplemented;
         }
 
-        std::unique_ptr<primitive_desc_t> conv_pd_;
+        std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
         void init_scratchpad() {

@@ -102,7 +102,7 @@ static inline void create_2d_desc(memory_desc_t *md_2d, int d0, int d1,
 }
 
 static inline status_t create_gemm_pd(
-        std::unique_ptr<primitive_desc_t> &gemm_pd_, engine_t *engine,
+        std::shared_ptr<primitive_desc_t> &gemm_pd_, engine_t *engine,
         const memory_desc_t *a_md, const memory_desc_t *b_md,
         const memory_desc_t *c_md, const memory_desc_t *bias_md,
         data_type_t acc_dt, const primitive_attr_t *attr,
@@ -119,8 +119,8 @@ static inline status_t create_gemm_pd(
 
     dnnl_primitive_desc_iterator it(
             engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);
-    ++it;
-    gemm_pd_.reset(it.fetch_once());
+
+    gemm_pd_ = *(++it);
     if (!gemm_pd_) return status::unimplemented;
     if (skip_ref && strstr(gemm_pd_.get()->name(), "ref") != NULL)
         return status::unimplemented;

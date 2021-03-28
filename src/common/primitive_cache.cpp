@@ -140,6 +140,16 @@ lru_primitive_cache_t::value_t lru_primitive_cache_t::get(const key_t &key) {
     return it->second.value_;
 }
 
+std::shared_ptr<primitive_desc_t> lru_primitive_cache_t::get_pd(
+        const key_t &key) {
+    lock_read();
+    auto e = get(key);
+    unlock_read();
+
+    if (e.valid()) return e.get().primitive->pd();
+    return nullptr;
+}
+
 void lru_primitive_cache_t::remove_if_invalidated(const key_t &key) {
     lock_write();
     auto it = cache_mapper_.find(key);

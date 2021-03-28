@@ -33,7 +33,7 @@ struct ref_sum_t : public primitive_t {
     struct pd_t : public cpu_sum_pd_t {
         using cpu_sum_pd_t::cpu_sum_pd_t;
 
-        pd_t(const pd_t &rhs) : cpu_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
+        pd_t(const pd_t &rhs) = default;
 
         DECLARE_SUM_PD_T("ref:any", ref_sum_t);
 
@@ -61,13 +61,7 @@ struct ref_sum_t : public primitive_t {
             return status::success;
         }
 
-        void clone_reorder_pds(const pd_t &rhs) {
-            reorder_pds_.clear();
-            for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i)
-                reorder_pds_.emplace_back(rhs.reorder_pds_[i]->clone());
-        }
-
-        std::vector<std::unique_ptr<primitive_desc_t>> reorder_pds_;
+        std::vector<std::shared_ptr<primitive_desc_t>> reorder_pds_;
 
     private:
         void init_scratchpad() {

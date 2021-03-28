@@ -35,8 +35,8 @@ struct ref_sum_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_sum_pd_t {
         using gpu_sum_pd_t::gpu_sum_pd_t;
-        pd_t(const pd_t &rhs) : gpu_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
 
+        pd_t(const pd_t &rhs) = default;
         ~pd_t() = default;
 
         DECLARE_SUM_PD_T("ref:any", ref_sum_t);
@@ -65,13 +65,7 @@ struct ref_sum_t : public gpu_primitive_t {
             return status::success;
         }
 
-        void clone_reorder_pds(const pd_t &rhs) {
-            reorder_pds_.clear();
-            for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i)
-                reorder_pds_.emplace_back(rhs.reorder_pds_[i]->clone());
-        }
-
-        std::vector<std::unique_ptr<primitive_desc_t>> reorder_pds_;
+        std::vector<std::shared_ptr<primitive_desc_t>> reorder_pds_;
 
     private:
         void init_scratchpad() {

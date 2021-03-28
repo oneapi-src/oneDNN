@@ -21,7 +21,9 @@
 #include "c_types_map.hpp"
 #include "engine.hpp"
 #include "impl_list_item.hpp"
+#include "primitive_cache.hpp"
 #include "primitive_desc.hpp"
+#include "primitive_hashing.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -72,14 +74,24 @@ status_t sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
         dst_md = &dummy_dst_md;
     }
 
+    dnnl_sum_desc_t desc = {primitive_kind::sum, dst_md, n, scales, src_mds};
+    primitive_hashing::key_t key(
+            engine, reinterpret_cast<op_desc_t *>(&desc), attr, 0, {});
+    auto pd = primitive_cache().get_pd(key);
+
+    if (pd) {
+        return safe_ptr_assign(
+                *sum_pd_iface, new primitive_desc_iface_t(pd, engine));
+    }
+
     for (auto s = engine->get_sum_implementation_list(); *s; ++s) {
         sum_pd_t *sum_pd = nullptr;
         if ((*s)(&sum_pd, engine, attr, dst_md, n, scales, src_mds)
                 == success) {
-            auto status = safe_ptr_assign(
-                    *sum_pd_iface, new primitive_desc_iface_t(sum_pd, engine));
-            if (status != status::success) delete sum_pd;
-            return status;
+            pd.reset(sum_pd);
+            CHECK(safe_ptr_assign(
+                    *sum_pd_iface, new primitive_desc_iface_t(pd, engine)));
+            return status::success;
         }
     }
     return unimplemented;

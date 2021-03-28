@@ -135,28 +135,25 @@ struct cudnn_deconvolution_fwd_t : public primitive_t {
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             while (++it != it.end()) {
-                primitive_desc_t *conv_pd = it.fetch_once();
-                conv_supports_bias_
-                        = static_cast<convolution_bwd_data_pd_t *>(conv_pd)
-                                  ->support_bias();
+                conv_pd_ = *it;
+                conv_supports_bias_ = static_cast<convolution_bwd_data_pd_t *>(
+                        conv_pd_.get())
+                                              ->support_bias();
                 bool ref_deconv_supports_bias = true
                         && desc()->accum_data_type == data_type::f32
                         && utils::one_of(desc()->dst_desc.data_type, f32, f16)
                         && IMPLICATION(desc()->src_desc.data_type == f16,
                                 memory_desc_matches_one_of_tag(
-                                        *conv_pd->diff_src_md(),
+                                        *conv_pd_->diff_src_md(),
                                         utils::pick(ndims() - 3, ncw, nchw,
                                                 ncdhw)));
                 bool ok = true
-                        && conv_pd->weights_md()->extra.flags == 0
+                        && conv_pd_->weights_md()->extra.flags == 0
                         /* deconv reference code can process only f32 bias */
                         && IMPLICATION(with_bias(),
                                 conv_supports_bias_
                                         || ref_deconv_supports_bias);
-                if (ok) {
-                    conv_pd_.reset(conv_pd);
-                    return status::success;
-                }
+                if (ok) return status::success;
             }
             conv_pd_.reset();
             return status::unimplemented;
@@ -210,7 +207,7 @@ struct cudnn_deconvolution_fwd_t : public primitive_t {
                     conv_pd_->scratchpad_registry());
         }
 
-        std::unique_ptr<primitive_desc_t> conv_pd_;
+        std::shared_ptr<primitive_desc_t> conv_pd_;
         bool conv_supports_bias_;
         format_tag_t dst_tag_;
     };
@@ -267,8 +264,7 @@ struct cudnn_deconvolution_bwd_data_t : public primitive_t {
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             while (++it != it.end()) {
-                primitive_desc_t *_conv_pd = it.fetch_once();
-                conv_pd_.reset(_conv_pd);
+                conv_pd_ = *it;
                 return status::success;
             }
             return status::unimplemented;
@@ -312,7 +308,7 @@ struct cudnn_deconvolution_bwd_data_t : public primitive_t {
                     conv_pd_->scratchpad_registry());
         }
 
-        std::unique_ptr<primitive_desc_t> conv_pd_;
+        std::shared_ptr<primitive_desc_t> conv_pd_;
     };
 
     ~cudnn_deconvolution_bwd_data_t() {}
@@ -368,8 +364,7 @@ struct cudnn_deconvolution_bwd_weights_t : public primitive_t {
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             while (++it != it.end()) {
-                primitive_desc_t *_conv_pd = it.fetch_once();
-                conv_pd_.reset(_conv_pd);
+                conv_pd_ = *it;
                 if (conv_pd_ == nullptr) return status::out_of_memory;
                 return status::success;
             }
@@ -418,7 +413,7 @@ struct cudnn_deconvolution_bwd_weights_t : public primitive_t {
                     conv_pd_->scratchpad_registry());
         }
 
-        std::unique_ptr<primitive_desc_t> conv_pd_;
+        std::shared_ptr<primitive_desc_t> conv_pd_;
     };
 
     ~cudnn_deconvolution_bwd_weights_t() {}

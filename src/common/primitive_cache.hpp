@@ -50,6 +50,8 @@ struct primitive_cache_t : public c_compatible {
 
     virtual int get_size() const = 0;
 
+    virtual std::shared_ptr<primitive_desc_t> get_pd(const key_t &key) = 0;
+
 protected:
     static utils::rw_mutex_t &rw_mutex() {
         static utils::rw_mutex_t mutex;
@@ -76,6 +78,8 @@ struct lru_primitive_cache_t : public primitive_cache_t {
     void update_entry(const key_t &key, const primitive_desc_t *pd) override;
 
     int get_size() const override;
+
+    std::shared_ptr<primitive_desc_t> get_pd(const key_t &key) override;
 
 private:
     void evict(size_t n);

@@ -36,6 +36,10 @@ struct primitive_desc_t;
 namespace primitive_hashing {
 
 struct key_t {
+    key_t(const engine_t *engine, const op_desc_t *op_desc,
+            const primitive_attr_t *attr, int pd_iterator_offset,
+            const std::vector<memory_desc_t> &hint_mds);
+
     key_t(const primitive_desc_t *pd, const engine_t *engine);
 
     bool operator==(const key_t &other) const;
@@ -46,7 +50,7 @@ struct key_t {
     // and adding a key (extract is available in C++17 only).
     mutable const op_desc_t *op_desc_;
     mutable const primitive_attr_t *attr_;
-    std::type_index impl_id_;
+    int pd_iterator_offset_;
     int impl_nthr_;
     std::vector<memory_desc_t> hint_mds_;
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
@@ -62,6 +66,8 @@ private:
     static const desc_t &cast_to_desc(const void *p) {
         return *(reinterpret_cast<const desc_t *>(p));
     }
+
+    static primitive_kind_t get_pkind(primitive_kind_t pkind);
 
     // Thread ID is not used as part of the key, it's only used to get
     // information about what thread inserted the key and the corresponding
@@ -135,7 +141,7 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
         seed = hash_combine(seed,
                 hash_combine(0, static_cast<size_t>(key.primitive_kind_)));
         seed = hash_combine(seed, get_attr_hash(*key.attr_));
-        seed = hash_combine(seed, hash_combine(0, key.impl_id_));
+        seed = hash_combine(seed, hash_combine(0, key.pd_iterator_offset_));
         seed = hash_combine(seed, hash_combine(0, key.impl_nthr_));
 
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE

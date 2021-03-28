@@ -49,7 +49,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
             (op_desc_t *)&gemm_desc, attributes_with_po, nullptr,
             current_impl_idx /* skip implementation */);
     if (!it_gemm_with_po.is_initialized()) return status::invalid_arguments;
-    gemm_pd_.reset((++it_gemm_with_po).fetch_once());
+    gemm_pd_ = *(++it_gemm_with_po);
     // exit if gemm kernel support post ops
     if (gemm_pd_) return status::unimplemented;
 
@@ -57,7 +57,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
             (op_desc_t *)&gemm_desc, attributes_without_po, nullptr,
             current_impl_idx /* skip implementation */);
     if (!it_gemm_without_po.is_initialized()) return status::invalid_arguments;
-    gemm_pd_.reset((++it_gemm_without_po).fetch_once());
+    gemm_pd_ = *(++it_gemm_without_po);
     if (!gemm_pd_) return status::unimplemented;
 
     desc_.c_desc = *gemm_pd_->dst_md();
@@ -71,8 +71,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     dnnl_primitive_desc_iterator it(
             engine, (op_desc_t *)&po_worker_desc, attributes_with_po, nullptr);
     if (!it.is_initialized()) return status::invalid_arguments;
-    ++it;
-    post_op_worker_pd_.reset(it.fetch_once());
+    post_op_worker_pd_ = *(++it);
     if (post_op_worker_pd_) {
         use_scratchpad_with_post_op_worker
                 = attributes_with_po->post_ops_.find(primitive_kind_t::dnnl_sum)

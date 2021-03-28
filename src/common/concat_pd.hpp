@@ -252,8 +252,7 @@ private:
         if (!new_pd->is_initialized()) return nullptr; \
         return new_pd.release(); \
     } \
-    const char *name() const override { return impl_name; } \
-    std::type_index impl_id() const override { return typeid(pd_t); }
+    const char *name() const override { return impl_name; }
 
 #define DECLARE_CONCAT_PD_T(impl_name, ...) \
     DECLARE_CONCAT_PD_t(impl_name, __VA_ARGS__)

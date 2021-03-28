@@ -105,10 +105,13 @@ struct impl_list_item_t {
 private:
     status_t operator()(primitive_desc_t **pd, const op_desc_t *adesc,
             const primitive_attr_t *attr, engine_t *engine,
-            const primitive_desc_t *hint_fwd) const {
+            const primitive_desc_t *hint_fwd, int pd_iterator_offset) const {
         assert(create_pd_func_);
         if (!create_pd_func_) return status::runtime_error;
-        return create_pd_func_(pd, adesc, attr, engine, hint_fwd);
+        auto status = create_pd_func_(pd, adesc, attr, engine, hint_fwd);
+        if (status == status::success)
+            (*pd)->init_pd_iterator_offset(pd_iterator_offset);
+        return status;
     }
 
     status_t operator()(concat_pd_t **concat_pd, engine_t *engine,
@@ -169,7 +172,7 @@ private:
             const memory_desc_t *, int, const float *, const memory_desc_t *,
             const primitive_attr_t *, engine_t *);
     friend status_t reorder_primitive_desc_create(
-            std::unique_ptr<primitive_desc_t> &, engine_t *,
+            std::shared_ptr<primitive_desc_t> &, engine_t *,
             const memory_desc_t *, engine_t *, const memory_desc_t *,
             engine_t *, const primitive_attr_t *);
 };

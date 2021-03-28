@@ -128,8 +128,7 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&rdesc, &reduction_attr, nullptr);
             if (!it.is_initialized()) return status::invalid_arguments;
-            ++it;
-            reduction_pd_.reset(it.fetch_once());
+            reduction_pd_ = *(++it);
             if (reduction_pd_)
                 return status::success;
             else {
@@ -138,7 +137,7 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
         }
 
         prelu_conf_t conf;
-        std::unique_ptr<primitive_desc_t> reduction_pd_;
+        std::shared_ptr<primitive_desc_t> reduction_pd_;
     };
 
     status_t init(engine_t *engine) override {

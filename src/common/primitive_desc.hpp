@@ -37,7 +37,7 @@ struct primitive_t;
 // Primitive descriptor implementation
 struct primitive_desc_t : public c_compatible {
     primitive_desc_t(const primitive_attr_t *attr, primitive_kind_t kind)
-        : attr_(*attr), kind_(kind) {
+        : attr_(*attr), kind_(kind), pd_iterator_offset_(0) {
         is_initialized_ = is_initialized_ && attr_.is_initialized();
     }
 
@@ -120,11 +120,6 @@ struct primitive_desc_t : public c_compatible {
         dims_t dims = {size};
         dnnl_memory_desc_init_by_tag(
                 &scratchpad_md_, size ? 1 : 0, dims, data_type::u8, dnnl_x);
-    }
-
-    virtual std::type_index impl_id() const {
-        assert(!"primitive_desc_t doesn't have impl_id");
-        return typeid(primitive_desc_t);
     }
 
     /** returns the scratchpad size for the given scratchpad mode. */
@@ -238,9 +233,12 @@ struct primitive_desc_t : public c_compatible {
 
     virtual const char *name() const = 0;
 
+    int pd_iterator_offset() const { return pd_iterator_offset_; }
+
 protected:
     primitive_attr_t attr_;
     primitive_kind_t kind_;
+    int pd_iterator_offset_;
 
     memory_desc_t scratchpad_md_;
 
@@ -249,6 +247,8 @@ protected:
     memory_tracking::registry_t scratchpad_registry_;
 
 protected:
+    void init_pd_iterator_offset(int offset) { pd_iterator_offset_ = offset; }
+
     /** compares ws between fwd_pd and this (make sense to use for bwd_pd)
      * Expectation: this already set workspace, and this workspace should
      *              exactly match the one from fwd_pd */
@@ -310,11 +310,6 @@ protected:
 // to which it belongs
 // 2. engine_t - a dnnl engine
 struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
-    // This ctor is used to create a standalone pd
-    dnnl_primitive_desc(
-            dnnl::impl::primitive_desc_t *pd, dnnl::impl::engine_t *engine);
-
-    // This ctor is used to create pd inside primitive_iface_t
     dnnl_primitive_desc(const std::shared_ptr<dnnl::impl::primitive_desc_t> &pd,
             dnnl::impl::engine_t *engine);
 
@@ -354,7 +349,6 @@ protected:
                 primitive, this, engine, use_global_scratchpad); \
     } \
     const char *name() const override { return impl_name; } \
-    std::type_index impl_id() const override { return typeid(pd_t); } \
     template <typename pd_t> \
     friend status_t primitive_desc_t::create(primitive_desc_t **pd, \
             const op_desc_t *adesc, const primitive_attr_t *attr, \

@@ -38,8 +38,8 @@ struct ref_concat_t : public gpu_primitive_t {
                 int concat_dim, const memory_desc_t *src_mds)
             : gpu_concat_pd_t(attr, dst_md, n, concat_dim, src_mds)
             , tent_dst_md_(types::zero_md()) {}
-        pd_t(const pd_t &rhs) : gpu_concat_pd_t(rhs) { copy(rhs); }
 
+        pd_t(const pd_t &rhs) = default;
         ~pd_t() = default;
 
         DECLARE_CONCAT_PD_T("ref:any", ref_concat_t);
@@ -76,17 +76,10 @@ struct ref_concat_t : public gpu_primitive_t {
         // if dst is forced and cannot be used directly.
         bool use_tent_dst() const { return !types::is_zero_md(&tent_dst_md_); }
 
-        std::vector<std::unique_ptr<primitive_desc_t>> reorder_pds_;
+        std::vector<std::shared_ptr<primitive_desc_t>> reorder_pds_;
         memory_desc_t tent_dst_md_;
 
     private:
-        void copy(const pd_t &rhs) {
-            tent_dst_md_ = rhs.tent_dst_md_;
-            reorder_pds_.clear();
-            for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i)
-                reorder_pds_.emplace_back(rhs.reorder_pds_[i]->clone());
-        }
-
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
 
