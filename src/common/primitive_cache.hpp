@@ -102,7 +102,10 @@ private:
 
 primitive_cache_t &primitive_cache();
 
+// Undocumented API for testing.
 status_t DNNL_API get_primitive_cache_size(int *size);
+bool DNNL_API is_primitive_in_cache(const primitive_iface_t *p_iface);
+bool DNNL_API is_pd_in_cache(const primitive_desc_iface_t *pd_iface);
 
 } // namespace impl
 } // namespace dnnl
