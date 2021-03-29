@@ -14,8 +14,8 @@ where *resampling-knobs* are:
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
  - `--alg={nearest [default], linear}` -- resampling algorithm.
-            `nearest` is dnnl_resampling_nearest;
-            `linear` is dnnl_resampling_linear;
+            `nearest` or `resampling_nearest` is dnnl_resampling_nearest;
+            `linear` or `resampling_nearest` is dnnl_resampling_linear;
             Refer to [resampling primitive](https://oneapi-src.github.io/oneDNN/dev_guide_resampling.html)
             for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
