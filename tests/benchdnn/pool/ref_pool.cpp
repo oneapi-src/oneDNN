@@ -61,14 +61,14 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
 
         const auto dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
         float res = 0.f;
-        if (prb->alg == MAX) {
+        if (prb->alg == max) {
             res = max_value;
             if (!(prb->dir & FLAG_INF)) {
                 // Move value from int to uint8_t depending on ws data type
                 ws_off = maybe_saturate(ws.dt(), ws_off);
                 ws.set_elem(dst_off, ws_off);
             }
-        } else if (prb->alg == AVG_NP || prb->alg == AVG_P) {
+        } else if (prb->alg == avg_np || prb->alg == avg_p) {
             res = avg_value / get_num_summands(prb, od, oh, ow);
         }
 
@@ -101,7 +101,7 @@ void compute_ref_bwd(const prb_t *prb, dnn_mem_t &diff_src,
     auto ker = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
         const auto diff_dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
         float diff_dst_val = diff_dst.get_elem(diff_dst_off);
-        int ws_off = (prb->alg == MAX) ? ws.get_elem(diff_dst_off) : 0;
+        int ws_off = (prb->alg == max) ? ws.get_elem(diff_dst_off) : 0;
 
         const int64_t ID = prb->id, IH = prb->ih, IW = prb->iw;
         const int64_t KD = prb->kd, KH = prb->kh, KW = prb->kw;
@@ -121,10 +121,10 @@ void compute_ref_bwd(const prb_t *prb, dnn_mem_t &diff_src,
 
                     float &S = ((float *)diff_src)[src_off_f(
                             prb, mb, ic, id, ih, iw)];
-                    if (prb->alg == MAX) {
+                    if (prb->alg == max) {
                         if (ws_off == ker_off_f(prb, kd, kh, kw))
                             S += diff_dst_val;
-                    } else if (prb->alg == AVG_NP || prb->alg == AVG_P)
+                    } else if (prb->alg == avg_np || prb->alg == avg_p)
                         S += diff_dst_val / get_num_summands(prb, od, oh, ow);
                 }
             }

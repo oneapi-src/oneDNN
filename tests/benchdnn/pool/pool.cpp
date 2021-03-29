@@ -44,9 +44,9 @@ int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
 
     dnnl::impl::parallel_nd(MB, IC, D, H, W,
             [&](int64_t mb, int64_t ic, int64_t d, int64_t h, int64_t w) {
-                const int64_t factor = prb->alg == MAX ? 1 : ker_size;
+                const int64_t factor = prb->alg == max ? 1 : ker_size;
                 // keep values for avg_exclude_pad positive to prevent cancellation err
-                const int64_t f_min = prb->alg == MAX ? c.f_min / factor : 0;
+                const int64_t f_min = prb->alg == max ? c.f_min / factor : 0;
                 // divide on factor to keep value in the range
                 const int64_t range = c.f_max / factor - f_min + 1;
                 const int64_t gen
@@ -178,7 +178,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             {prb->cfg[SRC].dt, prb->cfg[DST].dt}, prb->dir, res);
     if (res->state == SKIPPED) return;
 
-    if (prb->alg == AVG_NP) {
+    if (prb->alg == avg_np) {
         bool ker_in_pad_d = prb->pd >= prb->kd || prb->pd_r >= prb->kd;
         bool ker_in_pad_h = prb->ph >= prb->kh || prb->ph_r >= prb->kh;
         bool ker_in_pad_w = prb->pw >= prb->kw || prb->pw_r >= prb->kw;
@@ -199,7 +199,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         const int64_t PD = prb->pd, PH = prb->ph, PW = prb->pw;
         const int64_t PD_R = prb->pd_r, PH_R = prb->ph_r, PW_R = prb->pw_r;
         const bool pad_ok
-                = !(prb->alg == AVG_P && (PD < PD_R || PH < PH_R || PW < PW_R));
+                = !(prb->alg == avg_p && (PD < PD_R || PH < PH_R || PW < PW_R));
 
         const int64_t DD = prb->dd, DH = prb->dh, DW = prb->dw;
         const bool dilation_ok = DD == 0 && DH == 0 && DW == 0;

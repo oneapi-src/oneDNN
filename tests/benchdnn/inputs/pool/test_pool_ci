@@ -1,7 +1,7 @@
 --reset
 --mb=2
 
---alg=MAX,AVG_NP,AVG_P
+--alg=max,avg_np,avg_p
 # Training
 --cfg=f32,bf16
 --dir=FWD_D,BWD_D

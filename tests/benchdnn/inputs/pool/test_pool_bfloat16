@@ -3,7 +3,7 @@
 --mb=2
 
 --cfg=bf16
---alg=MAX,AVG_NP,AVG_P
+--alg=max,avg_np,avg_p
 # Training
 --tag=abx,axb,aBx8b,aBx16b
 

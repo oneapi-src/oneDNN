@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,26 +31,29 @@ namespace pool {
 alg_t str2alg(const char *str) {
 #define CASE(_alg) \
     if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
-    CASE(MAX);
-    CASE(AVG_NP);
-    CASE(AVG_P);
+    CASE(max);
+    CASE(pooling_max);
+    CASE(avg_np);
+    CASE(pooling_avg_exclude_padding);
+    CASE(avg_p);
+    CASE(pooling_avg_include_padding);
 #undef CASE
     assert(!"unknown algorithm");
-    return MAX;
+    return undef;
 }
 
 const char *alg2str(alg_t alg) {
-    if (alg == MAX) return "MAX";
-    if (alg == AVG_NP) return "AVG_NP";
-    if (alg == AVG_P) return "AVG_P";
+    if (alg == max) return "max";
+    if (alg == avg_np) return "avg_np";
+    if (alg == avg_p) return "avg_p";
     assert(!"unknown algorithm");
-    return "unknown algorithm";
+    return "undef";
 }
 
 dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
-    if (alg == MAX) return dnnl_pooling_max;
-    if (alg == AVG_NP) return dnnl_pooling_avg_exclude_padding;
-    if (alg == AVG_P) return dnnl_pooling_avg_include_padding;
+    if (alg == max) return dnnl_pooling_max;
+    if (alg == avg_np) return dnnl_pooling_avg_exclude_padding;
+    if (alg == avg_p) return dnnl_pooling_avg_include_padding;
     assert(!"unknown algorithm");
     return dnnl_alg_kind_undef;
 }

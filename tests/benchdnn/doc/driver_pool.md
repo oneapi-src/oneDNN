@@ -12,10 +12,12 @@ where *pool-knobs* are:
  - `--cfg={f32 [default], ...}` -- Refer to ``Configurations`` below.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
- - `--alg={MAX [default], AVG_NP, AVG_P}` -- pooling algorithm.
-            `MAX` is dnnl_pooling_max;
-            `AVG_NP` is dnnl_pooling_avg_exclude_padding;
-            `AVG_P` is dnnl_pooling_avg_include_padding;
+ - `--alg={max [default], avg_np, avg_p}` -- pooling algorithm.
+            `max` or `pooling_max` is dnnl_pooling_max;
+            `avg_np` or `pooling_avg_exclude_padding` is
+                    dnnl_pooling_avg_exclude_padding;
+            `avg_p` or `pooling_avg_include_padding` is
+                    dnnl_pooling_avg_include_padding;
             Refer to [pooling primitive](https://oneapi-src.github.io/oneDNN/dev_guide_pooling.html)
             for details.
  - `--attr-post-ops="STRING"` -- post operation primitive attribute. No post
@@ -62,10 +64,10 @@ The table below shows supported name configurations for this driver:
 
 
 ## Essence of Testing
-MAX algorithm: Fill input data with integers and expect an integer answer.
-AVG_P algorithm: Fill input data with integers, divisible by the kernel size,
+`max` algorithm: Fill input data with integers and expect an integer answer.
+`avg_p` algorithm: Fill input data with integers, divisible by the kernel size,
             and expect an integer answer.
-AVG_NP algorithm: Fill input data with integers, divisible by the kernel size,
+`avg_np` algorithm: Fill input data with integers, divisible by the kernel size,
             but expect a float answer due to boarder points have different
             kernel shapes applied to the same point.
 
@@ -84,7 +86,7 @@ Run a named problem with single precision src/dst, iterating by:
 4) using default minibatch of 96 and 5:
 ``` sh
     ./benchdnn --pool --cfg=f32 --tag=nChw8c,nChw16c \
-               --dir=FWD_D,FWD_I,BWD_D --alg=MAX,AVG_NP,AVG_P --mb=0,5 \
+               --dir=FWD_D,FWD_I,BWD_D --alg=max,avg_np,avg_p --mb=0,5 \
                mb96ic768_ih17oh17_kh3sh1ph1n"googlenet_v3:ave_pool_mixed_4_pool"
 ```
 

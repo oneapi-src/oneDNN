@@ -4,7 +4,7 @@
 
 --cfg=f32,s8
 --dir=FWD_I
---alg=MAX,AVG_NP,AVG_P
+--alg=max,avg_np,avg_p
 --tag=axb,aBx16b
 
 --batch=set_topologies_gpu
@@ -15,7 +15,7 @@
 
 --cfg=f32,s8
 --dir=FWD_I
---alg=MAX,AVG_NP,AVG_P
+--alg=max,avg_np,avg_p
 --tag=axb,ABx16a16b
 
 --batch=set_topologies_gpu
@@ -26,7 +26,7 @@
 
 --cfg=f32
 --dir=FWD_D,BWD_D
---alg=MAX,AVG_NP,AVG_P
+--alg=max,avg_np,avg_p
 --tag=axb,ABx16a16b
 
 --batch=set_topologies_gpu
