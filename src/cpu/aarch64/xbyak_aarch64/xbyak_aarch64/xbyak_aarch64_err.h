@@ -1,6 +1,6 @@
 #pragma once
 /*******************************************************************************
- * Copyright 2019-2020 FUJITSU LIMITED
+ * Copyright 2019-2021 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+#include <exception>
 
 enum {
   ERR_NONE = 0,
@@ -50,59 +51,47 @@ enum {
 
 class Error : public std::exception {
   int err_;
-  std::string msg_;
-  std::string opt_msg_;
+  const char *msg_;
 
 public:
-  explicit Error(int err, const std::string &opt_msg = "")
-      : err_(err), msg_(""), opt_msg_(opt_msg) {
-    if (err_ > 0) {
-      fprintf(stderr, "bad err=%d in Xbyak::Error\n", err_);
-      const std::initializer_list<const char *> &errTbl = getErrTbl();
-      assert((size_t)err_ < errTbl.size());
-      msg_ = "";
-      msg_ += *(errTbl.begin() + err_);
-      msg_ += "\n";
-      msg_ += opt_msg;
-      // exit(1);
+  explicit Error(int err) : err_(err), msg_("") {
+    if (err_ <= 0)
+      return;
+    fprintf(stderr, "bad err=%d in Xbyak::Error\n", err_);
+    static const char *tbl[32] = {"none",
+                                  "code is too big",
+                                  "label is redefined",
+                                  "label is too far",
+                                  "label is not found",
+                                  "bad parameter",
+                                  "can't protect",
+                                  "offset is too big",
+                                  "can't alloc",
+                                  "label is not set by L()",
+                                  "label is already set by L()",
+                                  "internal error",
+                                  "illegal register index (can not encoding register index)",
+                                  "illegal register element index (can not encoding element index)",
+                                  "illegal predicate register type",
+                                  "illegal immediate parameter (range error)",
+                                  "illegal immediate parameter (unavailable value error)",
+                                  "illegal immediate parameter (condition error)",
+                                  "illegal shift-mode paramater",
+                                  "illegal extend-mode parameter",
+                                  "illegal condition parameter",
+                                  "illegal barrier option",
+                                  "illegal const parameter (range error)",
+                                  "illegal const parameter (unavailable error)",
+                                  "illegal const parameter (condition error)",
+                                  "illegal type"};
+    if ((size_t)err_ >= sizeof(tbl) / sizeof(tbl[0])) {
+      msg_ = "bad err num";
+    } else {
+      msg_ = tbl[err_];
     }
   }
   operator int() const { return err_; }
-  const char *what() const throw() { return msg_.c_str(); }
-
-private:
-  static const std::initializer_list<const char *> &getErrTbl() {
-    static const std::initializer_list<const char *> tbl = {
-        "none",
-        "code is too big",
-        "label is redefined",
-        "label is too far",
-        "label is not found",
-        "bad parameter",
-        "can't protect",
-        "offset is too big",
-        "can't alloc",
-        "label is not set by L()",
-        "label is already set by L()",
-        "internal error",
-        "illegal register index (can not encoding register index)",
-        "illegal register element index (can not encoding element "
-        "index)",
-        "illegal predicate register type",
-        "illegal immediate parameter (range error)",
-        "illegal immediate parameter (unavailable value error)",
-        "illegal immediate parameter (condition error)",
-        "illegal shift-mode paramater",
-        "illegal extend-mode parameter",
-        "illegal condition parameter",
-        "illegal type",
-        "illegal barrier option",
-        "illegal const parameter (range error)",
-        "illegal const parameter (unavailable error)",
-        "illegal const parameter (condition error)",
-    };
-    return tbl;
-  };
+  const char *what() const throw() { return msg_; }
 };
 
 inline const char *ConvertErrorToString(const Error &err) { return err.what(); }
