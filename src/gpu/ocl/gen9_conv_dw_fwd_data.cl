@@ -37,7 +37,8 @@
             po_mb_count = 1; \
         } \
         APPLY_POST_OPS_TRY_BURST(accumulator, DATA_T, dest_data, DATA_T, \
-                po_mb, po_mb_count, po_oc, SUB_GROUP_SIZE, get_local_id(0)); \
+                po_mb, po_mb_count, po_oc, SUB_GROUP_SIZE, \
+                get_sub_group_local_id()); \
     }
 
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
