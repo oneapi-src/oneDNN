@@ -34,7 +34,7 @@ namespace pass {
 
 /*!
  * \brief transformation_pass generates an optimized graph
- *        when the pass is hit, it can be node replacements,
+ *        when the pass is hit, it can be op replacements,
  *        dead branch elimination, etc.
  */
 class transformation_pass : public impl::pass::pass_base {

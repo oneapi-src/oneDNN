@@ -170,7 +170,7 @@ public:
 
     void visualize(const std::string &filename);
 
-    static std::vector<op_ptr> deep_copy(const std::vector<op_ptr> &nodes);
+    static std::vector<op_ptr> deep_copy(const std::vector<op_ptr> &ops);
 };
 
 #endif

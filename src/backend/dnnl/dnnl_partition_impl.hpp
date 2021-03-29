@@ -111,13 +111,13 @@ public:
             const std::vector<impl::logical_tensor_t> &outputs,
             const std::map<size_t, size_t> &perm_ins,
             const std::map<size_t, size_t> &perm_outs, kernel_ptr &kernel,
-            const impl::op_t *node)
+            const impl::op_t *op)
         : impl::compiled_partition_impl_t(
                 engine, inputs, outputs, kernel->inplace_pairs_)
         , perm_ins_(perm_ins)
         , perm_outs_(perm_outs)
         , kernel_(kernel)
-        , node_(node) {}
+        , op_(op) {}
 
     virtual impl::status_t execute(const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
@@ -140,8 +140,7 @@ public:
             ordered_outputs.emplace_back(outputs[perm_outs_[i]]);
         }
 
-        return kernel_->execute(
-                node_, g_stream, ordered_inputs, ordered_outputs);
+        return kernel_->execute(op_, g_stream, ordered_inputs, ordered_outputs);
     }
 
 #if DNNL_GRAPH_WITH_SYCL
@@ -168,8 +167,7 @@ public:
             ordered_outputs.emplace_back(outputs[perm_outs_[i]]);
         }
 
-        return kernel_->execute(
-                node_, g_stream, ordered_inputs, ordered_outputs);
+        return kernel_->execute(op_, g_stream, ordered_inputs, ordered_outputs);
     }
 #endif
 
@@ -177,7 +175,7 @@ private:
     std::map<size_t, size_t> perm_ins_;
     std::map<size_t, size_t> perm_outs_;
     kernel_ptr kernel_;
-    const impl::op_t *node_;
+    const impl::op_t *op_;
 };
 
 class dnnl_partition_impl_t : public impl::partition_impl_t {
@@ -201,11 +199,11 @@ public:
 
     ///// The following are used only in backend for constructing object
 
-    void init(const impl::op_t *anode) {
-        fused_op_ = impl::utils::make_unique<impl::op_t>(anode->get_kind());
-        fused_op_->merge_attributes(anode->get_attributes());
-        add_tensors(anode);
-        add_tensors_map(anode);
+    void init(const impl::op_t *aop) {
+        fused_op_ = impl::utils::make_unique<impl::op_t>(aop->get_kind());
+        fused_op_->merge_attributes(aop->get_attributes());
+        add_tensors(aop);
+        add_tensors_map(aop);
     }
 
     void add_op(const std::shared_ptr<op_t> &op) { ops_.emplace_back(op); }
@@ -225,11 +223,11 @@ public:
         }
     }
 
-    void add_tensors_map(const impl::op_t *anode) {
-        for (auto kv : anode->get_input_tensor_map()) {
+    void add_tensors_map(const impl::op_t *aop) {
+        for (auto kv : aop->get_input_tensor_map()) {
             inputs_map_[kv.second] = kv.first;
         }
-        for (auto kv : anode->get_output_tensor_map()) {
+        for (auto kv : aop->get_output_tensor_map()) {
             outputs_map_[kv.second] = kv.first;
         }
     }
@@ -304,7 +302,7 @@ public:
                 });
         if (pos != ordered_outputs.end()) { return status::invalid_argument; }
 
-        // Infer attributes of the node, i.e.
+        // Infer attributes of the op, i.e.
         std::vector<impl::logical_tensor_t *> tmp_inputs, tmp_outputs;
         for (auto &in : ordered_inputs) {
             tmp_inputs.emplace_back(&in);
@@ -354,12 +352,12 @@ public:
                         fused_op_->get_kind());
 
         if (cur_op_schema) {
-            // shape_infer will change node attrs, so in order to keep the node_
-            // in partition unchanged, create a temp_node to hold these changes
-            impl::op_t temp_node = impl::op_t(fused_op_->get_kind());
-            temp_node.merge_attributes(fused_op_->get_attributes());
+            // shape_infer will change op attrs, so in order to keep the op_
+            // in partition unchanged, create a temp_op to hold these changes
+            impl::op_t temp_op = impl::op_t(fused_op_->get_kind());
+            temp_op.merge_attributes(fused_op_->get_attributes());
             return cur_op_schema->shape_infer(
-                    &temp_node, ordered_inputs, ordered_outputs);
+                    &temp_op, ordered_inputs, ordered_outputs);
         } else {
             return impl::status::invalid_op;
         }
@@ -393,7 +391,7 @@ public:
             return oss.str();
         };
 
-        os << " [ node: (";
+        os << " [ op: (";
         if (fused_op_) {
             os << "ID: " << fused_op_->get_id()
                << ", kind: " << impl::op_t::kind2str(fused_op_->get_kind());

@@ -19,7 +19,7 @@
 #include "utils/compatible.hpp"
 
 #include "fake_backend.hpp"
-#include "single_node_pass.hpp"
+#include "single_op_pass.hpp"
 #include "transformation_pass.hpp"
 
 namespace dnnl {
@@ -34,7 +34,7 @@ fake_backend::fake_backend(const std::string &name, float priority)
 }
 
 bool fake_backend::register_passes() {
-    FAKE_BACKEND_REGISTER_PASSES_CALL(single_node_pass, pass_registry_);
+    FAKE_BACKEND_REGISTER_PASSES_CALL(single_op_pass, pass_registry_);
     return true;
 }
 

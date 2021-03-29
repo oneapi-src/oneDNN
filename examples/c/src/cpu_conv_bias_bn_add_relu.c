@@ -53,7 +53,7 @@
 ////////////////////////////////////////////////
 
 // Pre-define unique id for dnnl_graph_op,
-// used to represent node in computinal graph
+// used to represent op in computation graph
 #define CONV0_ID 0
 #define CONV1_ID 1
 #define BIAS_ADD0_ID 2
@@ -64,7 +64,7 @@
 #define RELU0_ID 7
 
 // Predefine unique id for dnnl_graph_logical_tensor,
-// used to represent edge in computinal graph
+// used to represent edge in computation graph
 #define CONV0_SRC_ID 0
 #define CONV0_WEI_ID 1
 #define CONV0_DST_ID 2
@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
     DNNL_GRAPH_CHECK(dnnl_graph_graph_create(&graph, engine_kind));
     {
         /// Here, we create dummy logical tensors, which only have valid ID.
-        /// We use these dummy logical tensor to represent edge in computinal graph.
+        /// We use these dummy logical tensor to represent edge in computation graph.
         /// These dummy logical tensors will be copy into dnnl_graph_op, so we can destroy
         /// them immediately. When we need to use logical tensor later, we can create
         /// them again with more valid information
@@ -348,7 +348,7 @@ int main(int argc, char **argv) {
     /// Step 5: optimize the graph and get partition from it
 
     /// This function run pass to optimize the graph. this will fuse
-    /// some nodes into one node, so the graph will be rewrited
+    /// some ops into one op, so the graph will be rewrited
     printf("Step 5: Filter and get partition--------");
     DNNL_GRAPH_CHECK(
             dnnl_graph_graph_filter(graph, dnnl_graph_partition_policy_fusion));
@@ -363,7 +363,7 @@ int main(int argc, char **argv) {
     }
 
     /// Get partition from the optimized graph. Each partition will be composed
-    /// of a single node (fused or unfused node)
+    /// of a single op (fused or unfused op)
     dnnl_graph_partition_t *partitions[2];
     DNNL_GRAPH_CHECK(dnnl_graph_partition_create(&partitions[0]));
     DNNL_GRAPH_CHECK(dnnl_graph_partition_create(&partitions[1]));

@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
     logical_tensor conv0_weight_desc {id_mgr["conv0_weight"], data_type::f32, conv0_weight_dims, layout_type::strided};
     logical_tensor conv0_dst_desc {id_mgr["conv0_dst"], data_type::f32, conv0_dst_dims, layout_type::strided};
     
-    /// inuput node
+    /// inuput op
     op input0 {id_mgr["input0"], op::kind::Wildcard, {}, {conv0_src_desc}, "input0"};
 
     op conv0 {id_mgr["conv0"], op::kind::Convolution, {conv0_src_desc, conv0_weight_desc}, {conv0_dst_desc}, "conv0"};

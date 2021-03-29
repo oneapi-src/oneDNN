@@ -56,11 +56,11 @@ public:
 
     ///// The following are used only in backend for constructing object
 
-    void init(const impl::op_t *anode) {
-        fused_op_ = impl::utils::make_unique<impl::op_t>(anode->get_kind());
-        fused_op_->merge_attributes(anode->get_attributes());
-        add_tensors(anode);
-        add_tensors_map(anode);
+    void init(const impl::op_t *aop) {
+        fused_op_ = impl::utils::make_unique<impl::op_t>(aop->get_kind());
+        fused_op_->merge_attributes(aop->get_attributes());
+        add_tensors(aop);
+        add_tensors_map(aop);
     }
 
     void add_op(const std::shared_ptr<op_t> &op) { ops_.emplace_back(op); }
@@ -80,11 +80,11 @@ public:
         }
     }
 
-    void add_tensors_map(const impl::op_t *anode) {
-        for (auto kv : anode->get_input_tensor_map()) {
+    void add_tensors_map(const impl::op_t *aop) {
+        for (auto kv : aop->get_input_tensor_map()) {
             inputs_map_[kv.second] = kv.first;
         }
-        for (auto kv : anode->get_output_tensor_map()) {
+        for (auto kv : aop->get_output_tensor_map()) {
             outputs_map_[kv.second] = kv.first;
         }
     }
@@ -171,7 +171,7 @@ public:
             return oss.str();
         };
 
-        os << " [ node: (";
+        os << " [ op: (";
         if (fused_op_) {
             os << "ID: " << fused_op_->get_id()
                << ", kind: " << impl::op_t::kind2str(fused_op_->get_kind());

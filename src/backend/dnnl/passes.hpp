@@ -20,6 +20,6 @@
 #include "passes/conv_fusion.hpp"
 #include "passes/gelu_fusion.hpp"
 #include "passes/matmul_fusion.hpp"
-#include "passes/single_node_pass.hpp"
+#include "passes/single_op_pass.hpp"
 
 #endif

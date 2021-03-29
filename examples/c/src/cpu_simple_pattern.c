@@ -227,14 +227,14 @@ int main(int argc, char **argv) {
     printf("Success!\n");
 
     // Step 4: filter and get partition
-    // Run pass to optimize the added graph. this will fuse some node into
-    // one fused node, so the graph will be rewrited after this process
+    // Run pass to optimize the added graph. this will fuse some op into
+    // one fused op, so the graph will be rewrited after this process
     printf("Step 4: Filter and get partition--------");
     DNNL_GRAPH_CHECK(
             dnnl_graph_graph_filter(graph, dnnl_graph_partition_policy_fusion));
 
     // Get partition from the optimized graph. Each partition will be composed
-    // of a single node (fused or unfused node)
+    // of a single op (fused or unfused op)
     uint64_t partitions_num;
     DNNL_GRAPH_CHECK(
             dnnl_graph_graph_get_partition_num(graph, &partitions_num));
@@ -248,7 +248,7 @@ int main(int argc, char **argv) {
     printf("Partition number: %llu\n", (unsigned long long)partitions_num);
 
     // Step 5: rewrite the example graph
-    // replace the example graph's node with fake node, which will be bind to a
+    // replace the example graph's op with fake op, which will be bind to a
     // partition and run by dnnl graph in execution
     printf("Step 5: Rewrite the example graph-------");
     int64_t unoptimized_graph_op_num = example_graph->op_num_;
@@ -270,7 +270,7 @@ int main(int argc, char **argv) {
 
         // for every op_id in partition, we need to find the corresponding example
         // op, cut off its connection in the example graph and re-connect its inputs
-        // and outputs to the new fake node.
+        // and outputs to the new fake op.
         for (int j = 0; j < ops_num; j++) {
             example_op_t *e_op_erase;
             CHECK_EXAMPLE(find_example_op_by_dnnl_graph_op_id(
@@ -298,7 +298,7 @@ int main(int argc, char **argv) {
             }
         }
 
-        // add the new fake op to example graph, and destroy the fused node
+        // add the new fake op to example graph, and destroy the fused op
         int32_t do_replace = 1;
         for (int64_t j = example_graph->op_num_ - 1; j >= 0; j--) {
             int32_t found = 0;

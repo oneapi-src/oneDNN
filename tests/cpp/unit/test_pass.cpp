@@ -965,33 +965,33 @@ TEST(pass_test, conv_bias_sum_relu6_fusion) {
 TEST(pass_test, bn_relu_fusion) {
     graph_t agraph;
 
-    op_t *node1 = agraph.create_op(BatchNormInference);
-    op_t *node2 = agraph.create_op(ReLU);
-    node2->fill_and_connect_input(0, *node1, 0);
+    op_t *op1 = agraph.create_op(BatchNormInference);
+    op_t *op2 = agraph.create_op(ReLU);
+    op2->fill_and_connect_input(0, *op1, 0);
 
     pass::pass_base_ptr apass = get_pass("bn_relu_fusion");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), bn_relu);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), bn_relu);
 }
 
 TEST(pass_test, bn_bwd_relu_bwd_fusion) {
     graph_t agraph;
 
-    op_t *node1 = agraph.create_op(ReLUBackprop);
-    op_t *node2 = agraph.create_op(BatchNormTrainingBackprop);
-    node2->fill_and_connect_input(0, *node1, 0);
+    op_t *op1 = agraph.create_op(ReLUBackprop);
+    op_t *op2 = agraph.create_op(BatchNormTrainingBackprop);
+    op2->fill_and_connect_input(0, *op1, 0);
 
     pass::pass_base_ptr apass = get_pass("bn_bwd_relu_bwd_fusion");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), bn_bwd_relu_bwd);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), bn_bwd_relu_bwd);
 }
 
 TEST(pass_test, conv_sum_relu_fusion) {
@@ -1480,9 +1480,9 @@ TEST(pass_test, matmul_relu_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *in_node = agraph.create_op(MatMul);
-    op_t *out_node = agraph.create_op(ReLU);
-    out_node->fill_and_connect_input(0, *in_node, 0);
+    op_t *in_op = agraph.create_op(MatMul);
+    op_t *out_op = agraph.create_op(ReLU);
+    out_op->fill_and_connect_input(0, *in_op, 0);
 
     pass::pass_base_ptr matmul_relu_fusion_pass
             = get_pass("matmul_relu_fusion");
@@ -1490,8 +1490,8 @@ TEST(pass_test, matmul_relu_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), matmul_relu);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_relu);
 }
 
 TEST(pass_test, matmul_elu_fusion) {
@@ -1499,17 +1499,17 @@ TEST(pass_test, matmul_elu_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *in_node = agraph.create_op(MatMul);
-    op_t *out_node = agraph.create_op(Elu);
-    out_node->fill_and_connect_input(0, *in_node, 0);
+    op_t *in_op = agraph.create_op(MatMul);
+    op_t *out_op = agraph.create_op(Elu);
+    out_op->fill_and_connect_input(0, *in_op, 0);
 
     pass::pass_base_ptr matmul_elu_fusion_pass = get_pass("matmul_elu_fusion");
     matmul_elu_fusion_pass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), matmul_elu);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_elu);
 }
 
 TEST(pass_test, matmul_sigmoid_fusion) {
@@ -1517,9 +1517,9 @@ TEST(pass_test, matmul_sigmoid_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *in_node = agraph.create_op(MatMul);
-    op_t *out_node = agraph.create_op(Sigmoid);
-    out_node->fill_and_connect_input(0, *in_node, 0);
+    op_t *in_op = agraph.create_op(MatMul);
+    op_t *out_op = agraph.create_op(Sigmoid);
+    out_op->fill_and_connect_input(0, *in_op, 0);
 
     pass::pass_base_ptr matmul_sigmoid_fusion_pass
             = get_pass("matmul_sigmoid_fusion");
@@ -1527,8 +1527,8 @@ TEST(pass_test, matmul_sigmoid_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), matmul_sigmoid);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_sigmoid);
 }
 
 TEST(pass_test, matmul_hardtanh_fusion) {
@@ -1536,9 +1536,9 @@ TEST(pass_test, matmul_hardtanh_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *in_node = agraph.create_op(MatMul);
-    op_t *out_node = agraph.create_op(HardTanh);
-    out_node->fill_and_connect_input(0, *in_node, 0);
+    op_t *in_op = agraph.create_op(MatMul);
+    op_t *out_op = agraph.create_op(HardTanh);
+    out_op->fill_and_connect_input(0, *in_op, 0);
 
     pass::pass_base_ptr matmul_hardtanh_fusion_pass
             = get_pass("matmul_hardtanh_fusion");
@@ -1546,8 +1546,8 @@ TEST(pass_test, matmul_hardtanh_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), matmul_hardtanh);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_hardtanh);
 }
 
 TEST(pass_test, matmul_gelu_fusion) {
@@ -1555,9 +1555,9 @@ TEST(pass_test, matmul_gelu_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *in_node = agraph.create_op(MatMul);
-    op_t *out_node = agraph.create_op(GELU);
-    out_node->fill_and_connect_input(0, *in_node, 0);
+    op_t *in_op = agraph.create_op(MatMul);
+    op_t *out_op = agraph.create_op(GELU);
+    out_op->fill_and_connect_input(0, *in_op, 0);
 
     pass::pass_base_ptr matmul_gelu_fusion_pass
             = get_pass("matmul_gelu_fusion");
@@ -1565,8 +1565,8 @@ TEST(pass_test, matmul_gelu_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), matmul_gelu);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_gelu);
 }
 
 TEST(pass_test, matmul_sum_fusion) {
@@ -1574,20 +1574,20 @@ TEST(pass_test, matmul_sum_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *in_node1 = agraph.create_op(MatMul);
-    op_t *in_node2 = agraph.create_op(Wildcard);
+    op_t *in_op1 = agraph.create_op(MatMul);
+    op_t *in_op2 = agraph.create_op(Wildcard);
 
-    op_t *out_node = agraph.create_op(Add);
-    out_node->fill_and_connect_input(0, *in_node1, 0);
-    out_node->fill_and_connect_input(1, *in_node2, 0);
+    op_t *out_op = agraph.create_op(Add);
+    out_op->fill_and_connect_input(0, *in_op1, 0);
+    out_op->fill_and_connect_input(1, *in_op2, 0);
 
     pass::pass_base_ptr matmul_sum_fusion_pass = get_pass("matmul_sum_fusion");
     matmul_sum_fusion_pass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), matmul_add);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_add);
 }
 
 TEST(pass_test, matmul_sum_fusion_opposite_order) {
@@ -1595,20 +1595,20 @@ TEST(pass_test, matmul_sum_fusion_opposite_order) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *in_node1 = agraph.create_op(MatMul);
-    op_t *in_node2 = agraph.create_op(Wildcard);
+    op_t *in_op1 = agraph.create_op(MatMul);
+    op_t *in_op2 = agraph.create_op(Wildcard);
 
-    op_t *out_node = agraph.create_op(Add);
-    out_node->fill_and_connect_input(1, *in_node1, 0);
-    out_node->fill_and_connect_input(0, *in_node2, 0);
+    op_t *out_op = agraph.create_op(Add);
+    out_op->fill_and_connect_input(1, *in_op1, 0);
+    out_op->fill_and_connect_input(0, *in_op2, 0);
 
     pass::pass_base_ptr matmul_sum_fusion_pass = get_pass("matmul_sum_fusion");
     matmul_sum_fusion_pass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), matmul_add);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_add);
 }
 
 TEST(pass_test, matmul_sum_gelu_fusion) {
@@ -1616,15 +1616,15 @@ TEST(pass_test, matmul_sum_gelu_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *in_node1 = agraph.create_op(MatMul);
-    op_t *in_node2 = agraph.create_op(Wildcard);
+    op_t *in_op1 = agraph.create_op(MatMul);
+    op_t *in_op2 = agraph.create_op(Wildcard);
 
-    op_t *add_node = agraph.create_op(Add);
-    add_node->fill_and_connect_input(0, *in_node1, 0);
-    add_node->fill_and_connect_input(1, *in_node2, 0);
+    op_t *add_op = agraph.create_op(Add);
+    add_op->fill_and_connect_input(0, *in_op1, 0);
+    add_op->fill_and_connect_input(1, *in_op2, 0);
 
-    op_t *gelu_node = agraph.create_op(GELU);
-    gelu_node->fill_and_connect_input(0, *add_node, 0);
+    op_t *gelu_op = agraph.create_op(GELU);
+    gelu_op->fill_and_connect_input(0, *add_op, 0);
 
     pass::pass_base_ptr matmul_sum_gelu_fusion_pass
             = get_pass("matmul_sum_gelu_fusion");
@@ -1632,8 +1632,8 @@ TEST(pass_test, matmul_sum_gelu_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), matmul_add_gelu);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_add_gelu);
 }
 
 TEST(pass_test, matmul_sum_relu_fusion) {
@@ -1641,15 +1641,15 @@ TEST(pass_test, matmul_sum_relu_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *in_node1 = agraph.create_op(MatMul);
-    op_t *in_node2 = agraph.create_op(Wildcard);
+    op_t *in_op1 = agraph.create_op(MatMul);
+    op_t *in_op2 = agraph.create_op(Wildcard);
 
-    op_t *add_node = agraph.create_op(Add);
-    add_node->fill_and_connect_input(0, *in_node1, 0);
-    add_node->fill_and_connect_input(1, *in_node2, 0);
+    op_t *add_op = agraph.create_op(Add);
+    add_op->fill_and_connect_input(0, *in_op1, 0);
+    add_op->fill_and_connect_input(1, *in_op2, 0);
 
-    op_t *relu_node = agraph.create_op(ReLU);
-    relu_node->fill_and_connect_input(0, *add_node, 0);
+    op_t *relu_op = agraph.create_op(ReLU);
+    relu_op->fill_and_connect_input(0, *add_op, 0);
 
     pass::pass_base_ptr matmul_sum_relu_fusion_pass
             = get_pass("matmul_sum_relu_fusion");
@@ -1657,8 +1657,8 @@ TEST(pass_test, matmul_sum_relu_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), matmul_add_relu);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_add_relu);
 }
 
 TEST(pass_test, conv_bwd_f_biasadd_bwd_fusion) {
@@ -1666,17 +1666,17 @@ TEST(pass_test, conv_bwd_f_biasadd_bwd_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(ConvolutionBackpropFilters);
-    op_t *node2 = agraph.create_op(BiasAddBackprop);
-    node2->fill_and_connect_input(0, *node1, 0);
+    op_t *op1 = agraph.create_op(ConvolutionBackpropFilters);
+    op_t *op2 = agraph.create_op(BiasAddBackprop);
+    op2->fill_and_connect_input(0, *op1, 0);
 
     pass::pass_base_ptr apass = get_pass("conv_bwd_f_biasadd_bwd_fusion");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), conv_bwd_f_biasadd_bwd);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), conv_bwd_f_biasadd_bwd);
 }
 
 TEST(pass_test, relu_matmul) {
@@ -1684,9 +1684,9 @@ TEST(pass_test, relu_matmul) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *in_node = agraph.create_op(ReLU);
-    op_t *out_node = agraph.create_op(MatMul);
-    out_node->fill_and_connect_input(0, *in_node, 0);
+    op_t *in_op = agraph.create_op(ReLU);
+    op_t *out_op = agraph.create_op(MatMul);
+    out_op->fill_and_connect_input(0, *in_op, 0);
 
     pass::pass_base_ptr matmul_relu_fusion_pass
             = get_pass("matmul_relu_fusion");
@@ -1700,17 +1700,17 @@ TEST(pass_test, matmul_bias_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *in_node = agraph.create_op(MatMul);
-    op_t *out_node = agraph.create_op(BiasAdd);
-    out_node->fill_and_connect_input(0, *in_node, 0);
+    op_t *in_op = agraph.create_op(MatMul);
+    op_t *out_op = agraph.create_op(BiasAdd);
+    out_op->fill_and_connect_input(0, *in_op, 0);
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_fusion");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), matmul_bias);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias);
 }
 
 TEST(pass_test, matmul_bias_sigmoid_fusion) {
@@ -1718,11 +1718,11 @@ TEST(pass_test, matmul_bias_sigmoid_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(MatMul);
-    op_t *node2 = agraph.create_op(BiasAdd);
-    op_t *node3 = agraph.create_op(Sigmoid);
-    node2->fill_and_connect_input(0, *node1, 0);
-    node3->fill_and_connect_input(0, *node2, 0);
+    op_t *op1 = agraph.create_op(MatMul);
+    op_t *op2 = agraph.create_op(BiasAdd);
+    op_t *op3 = agraph.create_op(Sigmoid);
+    op2->fill_and_connect_input(0, *op1, 0);
+    op3->fill_and_connect_input(0, *op2, 0);
 
     pass::pass_base_ptr matmul_bias_sigmoid_pass
             = get_pass("matmul_bias_sigmoid_fusion");
@@ -1730,8 +1730,8 @@ TEST(pass_test, matmul_bias_sigmoid_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fnode->get_kind(), matmul_bias_sigmoid);
+    auto fop = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fop->get_kind(), matmul_bias_sigmoid);
 }
 
 TEST(pass_test, matmul_bias_elu_fusion) {
@@ -1739,11 +1739,11 @@ TEST(pass_test, matmul_bias_elu_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(MatMul);
-    op_t *node2 = agraph.create_op(BiasAdd);
-    op_t *node3 = agraph.create_op(Elu);
-    node2->fill_and_connect_input(0, *node1, 0);
-    node3->fill_and_connect_input(0, *node2, 0);
+    op_t *op1 = agraph.create_op(MatMul);
+    op_t *op2 = agraph.create_op(BiasAdd);
+    op_t *op3 = agraph.create_op(Elu);
+    op2->fill_and_connect_input(0, *op1, 0);
+    op3->fill_and_connect_input(0, *op2, 0);
 
     pass::pass_base_ptr matmul_bias_elu_pass
             = get_pass("matmul_bias_elu_fusion");
@@ -1751,8 +1751,8 @@ TEST(pass_test, matmul_bias_elu_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), matmul_bias_elu);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias_elu);
 }
 
 TEST(pass_test, matmul_bias_relu_fusion) {
@@ -1760,11 +1760,11 @@ TEST(pass_test, matmul_bias_relu_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(MatMul);
-    op_t *node2 = agraph.create_op(BiasAdd);
-    op_t *node3 = agraph.create_op(ReLU);
-    node2->fill_and_connect_input(0, *node1, 0);
-    node3->fill_and_connect_input(0, *node2, 0);
+    op_t *op1 = agraph.create_op(MatMul);
+    op_t *op2 = agraph.create_op(BiasAdd);
+    op_t *op3 = agraph.create_op(ReLU);
+    op2->fill_and_connect_input(0, *op1, 0);
+    op3->fill_and_connect_input(0, *op2, 0);
 
     pass::pass_base_ptr matmul_bias_relu_pass
             = get_pass("matmul_bias_relu_fusion");
@@ -1772,8 +1772,8 @@ TEST(pass_test, matmul_bias_relu_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fnode->get_kind(), matmul_bias_relu);
+    auto fop = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fop->get_kind(), matmul_bias_relu);
 }
 
 TEST(pass_test, matmul_bias_hardtanh_fusion) {
@@ -1781,11 +1781,11 @@ TEST(pass_test, matmul_bias_hardtanh_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(MatMul);
-    op_t *node2 = agraph.create_op(BiasAdd);
-    op_t *node3 = agraph.create_op(HardTanh);
-    node2->fill_and_connect_input(0, *node1, 0);
-    node3->fill_and_connect_input(0, *node2, 0);
+    op_t *op1 = agraph.create_op(MatMul);
+    op_t *op2 = agraph.create_op(BiasAdd);
+    op_t *op3 = agraph.create_op(HardTanh);
+    op2->fill_and_connect_input(0, *op1, 0);
+    op3->fill_and_connect_input(0, *op2, 0);
 
     pass::pass_base_ptr matmul_bias_hardtanh_pass
             = get_pass("matmul_bias_hardtanh_fusion");
@@ -1793,8 +1793,8 @@ TEST(pass_test, matmul_bias_hardtanh_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fnode->get_kind(), matmul_bias_hardtanh);
+    auto fop = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fop->get_kind(), matmul_bias_hardtanh);
 }
 
 TEST(pass_test, matmul_bias_sum_fusion) {
@@ -1802,13 +1802,13 @@ TEST(pass_test, matmul_bias_sum_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(MatMul);
-    op_t *node2 = agraph.create_op(BiasAdd);
-    op_t *node3 = agraph.create_op(Wildcard);
-    op_t *node4 = agraph.create_op(Add);
-    node2->fill_and_connect_input(0, *node1, 0);
-    node4->fill_and_connect_input(0, *node2, 0);
-    node4->fill_and_connect_input(1, *node3, 0);
+    op_t *op1 = agraph.create_op(MatMul);
+    op_t *op2 = agraph.create_op(BiasAdd);
+    op_t *op3 = agraph.create_op(Wildcard);
+    op_t *op4 = agraph.create_op(Add);
+    op2->fill_and_connect_input(0, *op1, 0);
+    op4->fill_and_connect_input(0, *op2, 0);
+    op4->fill_and_connect_input(1, *op3, 0);
 
     pass::pass_base_ptr matmul_bias_sum_pass
             = get_pass("matmul_bias_sum_fusion");
@@ -1816,8 +1816,8 @@ TEST(pass_test, matmul_bias_sum_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fnode->get_kind(), matmul_bias_add);
+    auto fop = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fop->get_kind(), matmul_bias_add);
 }
 
 TEST(pass_test, matmul_bias_sum_relu_fusion) {
@@ -1825,15 +1825,15 @@ TEST(pass_test, matmul_bias_sum_relu_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(MatMul);
-    op_t *node2 = agraph.create_op(BiasAdd);
-    op_t *node3 = agraph.create_op(Wildcard);
-    op_t *node4 = agraph.create_op(Add);
-    op_t *node5 = agraph.create_op(ReLU);
-    node2->fill_and_connect_input(0, *node1, 0);
-    node4->fill_and_connect_input(0, *node2, 0);
-    node4->fill_and_connect_input(1, *node3, 0);
-    node5->fill_and_connect_input(0, *node4, 0);
+    op_t *op1 = agraph.create_op(MatMul);
+    op_t *op2 = agraph.create_op(BiasAdd);
+    op_t *op3 = agraph.create_op(Wildcard);
+    op_t *op4 = agraph.create_op(Add);
+    op_t *op5 = agraph.create_op(ReLU);
+    op2->fill_and_connect_input(0, *op1, 0);
+    op4->fill_and_connect_input(0, *op2, 0);
+    op4->fill_and_connect_input(1, *op3, 0);
+    op5->fill_and_connect_input(0, *op4, 0);
 
     pass::pass_base_ptr matmul_bias_sum_relu_pass
             = get_pass("matmul_bias_sum_relu_fusion");
@@ -1841,8 +1841,8 @@ TEST(pass_test, matmul_bias_sum_relu_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fnode->get_kind(), matmul_bias_add_relu);
+    auto fop = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fop->get_kind(), matmul_bias_add_relu);
 }
 
 TEST(pass_test, matmul_bias_swish_fusion) {
@@ -1850,14 +1850,14 @@ TEST(pass_test, matmul_bias_swish_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(MatMul);
-    op_t *node2 = agraph.create_op(BiasAdd);
-    op_t *node3 = agraph.create_op(Sigmoid);
-    op_t *node4 = agraph.create_op(Multiply);
-    node2->fill_and_connect_input(0, *node1, 0);
-    node3->fill_and_connect_input(0, *node2, 0);
-    node4->fill_and_connect_input(0, *node3, 0);
-    node4->fill_and_connect_input(1, *node2, 0);
+    op_t *op1 = agraph.create_op(MatMul);
+    op_t *op2 = agraph.create_op(BiasAdd);
+    op_t *op3 = agraph.create_op(Sigmoid);
+    op_t *op4 = agraph.create_op(Multiply);
+    op2->fill_and_connect_input(0, *op1, 0);
+    op3->fill_and_connect_input(0, *op2, 0);
+    op4->fill_and_connect_input(0, *op3, 0);
+    op4->fill_and_connect_input(1, *op2, 0);
 
     pass::pass_base_ptr matmul_bias_swish_pass
             = get_pass("matmul_bias_swish_fusion");
@@ -1865,8 +1865,8 @@ TEST(pass_test, matmul_bias_swish_fusion) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fnode->get_kind(), matmul_bias_swish);
+    auto fop = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fop->get_kind(), matmul_bias_swish);
 }
 
 TEST(pass_test, matmul_bias_bn_fusion) {
@@ -1874,19 +1874,19 @@ TEST(pass_test, matmul_bias_bn_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(MatMul);
-    op_t *node2 = agraph.create_op(BiasAdd);
-    op_t *node3 = agraph.create_op(BatchNormInference);
-    node2->fill_and_connect_input(0, *node1, 0);
-    node3->fill_and_connect_input(0, *node2, 0);
+    op_t *op1 = agraph.create_op(MatMul);
+    op_t *op2 = agraph.create_op(BiasAdd);
+    op_t *op3 = agraph.create_op(BatchNormInference);
+    op2->fill_and_connect_input(0, *op1, 0);
+    op3->fill_and_connect_input(0, *op2, 0);
 
     pass::pass_base_ptr matmul_bias_bn_pass = get_pass("matmul_bias_bn_fusion");
     matmul_bias_bn_pass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fnode = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fnode->get_kind(), matmul_bias_bn);
+    auto fop = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fop->get_kind(), matmul_bias_bn);
 }
 
 TEST(pass_test, matmul_bias_relu6_fusion) {
@@ -1894,21 +1894,21 @@ TEST(pass_test, matmul_bias_relu6_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(MatMul);
-    op_t *node2 = agraph.create_op(BiasAdd);
-    op_t *node3 = agraph.create_op(HardTanh);
-    node3->set_attr<float>("min", 0);
-    node3->set_attr<float>("max", 6);
-    node2->fill_and_connect_input(0, *node1, 0);
-    node3->fill_and_connect_input(0, *node2, 0);
+    op_t *op1 = agraph.create_op(MatMul);
+    op_t *op2 = agraph.create_op(BiasAdd);
+    op_t *op3 = agraph.create_op(HardTanh);
+    op3->set_attr<float>("min", 0);
+    op3->set_attr<float>("max", 6);
+    op2->fill_and_connect_input(0, *op1, 0);
+    op3->fill_and_connect_input(0, *op2, 0);
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_relu6_fusion");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fused_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_node->get_kind(), matmul_bias_relu6);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias_relu6);
 }
 
 /*
@@ -1917,29 +1917,29 @@ TEST(pass_test, layernorm_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(Reshape);
-    op_t *node2 = agraph.create_op(BatchNormForwardTraining);
-    op_t *node3 = agraph.create_op(Reshape);
-    op_t *node4 = agraph.create_op(Multiply);
-    op_t *node5 = agraph.create_op(Wildcard);
-    op_t *node6 = agraph.create_op(Add);
-    node2->fill_and_connect_input(0, node1, 0);
-    node3->fill_and_connect_input(0, node2, 0);
-    node4->fill_and_connect_input(0, node3, 0);
-    node6->fill_and_connect_input(0, node4, 0);
-    node6->fill_and_connect_input(1, node5, 0);
+    op_t *op1 = agraph.create_op(Reshape);
+    op_t *op2 = agraph.create_op(BatchNormForwardTraining);
+    op_t *op3 = agraph.create_op(Reshape);
+    op_t *op4 = agraph.create_op(Multiply);
+    op_t *op5 = agraph.create_op(Wildcard);
+    op_t *op6 = agraph.create_op(Add);
+    op2->fill_and_connect_input(0, op1, 0);
+    op3->fill_and_connect_input(0, op2, 0);
+    op4->fill_and_connect_input(0, op3, 0);
+    op6->fill_and_connect_input(0, op4, 0);
+    op6->fill_and_connect_input(1, op5, 0);
 
     pass::pass_base_ptr apass = get_pass("layernorm_fusion");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 2);
 
-    auto fnode1 = agraph.get_ops()[0];
-    auto fnode2 = agraph.get_ops()[1];
-    if (fnode1->get_kind() != LayerNorm) {
-        ASSERT_EQ(fnode2->get_kind(), LayerNorm);
+    auto fop1 = agraph.get_ops()[0];
+    auto fop2 = agraph.get_ops()[1];
+    if (fop1->get_kind() != LayerNorm) {
+        ASSERT_EQ(fop2->get_kind(), LayerNorm);
     } else {
-        ASSERT_EQ(fnode1->get_kind(), LayerNorm);
+        ASSERT_EQ(fop1->get_kind(), LayerNorm);
     }
 }*/
 
@@ -1948,23 +1948,23 @@ TEST(pass_test, gelu_erf_based_fusion) {
     using namespace dnnl::graph::impl::op_kind;
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(Wildcard);
-    op_t *node2 = agraph.create_op(Divide);
-    op_t *node3 = agraph.create_op(Erf);
-    op_t *node4 = agraph.create_op(Wildcard);
-    op_t *node5 = agraph.create_op(Add);
-    op_t *node6 = agraph.create_op(Wildcard);
-    op_t *node7 = agraph.create_op(Multiply);
-    op_t *node8 = agraph.create_op(Wildcard);
-    op_t *node9 = agraph.create_op(Multiply);
-    node2->fill_and_connect_input(0, *node1, 0);
-    node3->fill_and_connect_input(0, *node2, 0);
-    node5->fill_and_connect_input(0, *node3, 0);
-    node5->fill_and_connect_input(1, *node4, 0);
-    node7->fill_and_connect_input(0, *node5, 0);
-    node7->fill_and_connect_input(1, *node6, 0);
-    node9->fill_and_connect_input(0, *node7, 0);
-    node9->fill_and_connect_input(1, *node8, 0);
+    op_t *op1 = agraph.create_op(Wildcard);
+    op_t *op2 = agraph.create_op(Divide);
+    op_t *op3 = agraph.create_op(Erf);
+    op_t *op4 = agraph.create_op(Wildcard);
+    op_t *op5 = agraph.create_op(Add);
+    op_t *op6 = agraph.create_op(Wildcard);
+    op_t *op7 = agraph.create_op(Multiply);
+    op_t *op8 = agraph.create_op(Wildcard);
+    op_t *op9 = agraph.create_op(Multiply);
+    op2->fill_and_connect_input(0, *op1, 0);
+    op3->fill_and_connect_input(0, *op2, 0);
+    op5->fill_and_connect_input(0, *op3, 0);
+    op5->fill_and_connect_input(1, *op4, 0);
+    op7->fill_and_connect_input(0, *op5, 0);
+    op7->fill_and_connect_input(1, *op6, 0);
+    op9->fill_and_connect_input(0, *op7, 0);
+    op9->fill_and_connect_input(1, *op8, 0);
 
     pass::pass_base_ptr apass = get_pass("gelu_fusion");
     apass->run(agraph);
@@ -2031,10 +2031,10 @@ TEST(pass_test, gelu_erf_based_tensor_input_fusion) {
 }
 
 struct ut_gelu_params {
-    size_t node4_idx;
-    size_t node5_idx;
-    size_t node9_idx;
-    size_t node10_idx;
+    size_t op4_idx;
+    size_t op5_idx;
+    size_t op9_idx;
+    size_t op10_idx;
 };
 
 class gelu_test : public ::testing::TestWithParam<ut_gelu_params> {};
@@ -2046,35 +2046,35 @@ TEST_P(gelu_test, gelu_tanh_based_fusion) {
     const ut_gelu_params &params = GetParam();
 
     graph_t agraph;
-    op_t *node1 = agraph.create_op(Wildcard);
-    op_t *node2 = agraph.create_op(Pow);
-    op_t *node3 = agraph.create_op(Wildcard);
-    op_t *node4 = agraph.create_op(Multiply);
-    op_t *node5 = agraph.create_op(Wildcard);
-    op_t *node6 = agraph.create_op(Add);
-    op_t *node7 = agraph.create_op(Wildcard);
-    op_t *node8 = agraph.create_op(Multiply);
-    op_t *node9 = agraph.create_op(Tanh);
-    op_t *node10 = agraph.create_op(Wildcard);
-    op_t *node11 = agraph.create_op(Add);
-    op_t *node12 = agraph.create_op(Wildcard);
-    op_t *node13 = agraph.create_op(Multiply);
-    op_t *node14 = agraph.create_op(Wildcard);
-    op_t *node15 = agraph.create_op(Multiply);
-    node2->fill_and_connect_input(0, *node1, 0);
-    node4->fill_and_connect_input(0, *node2, 0);
-    node4->fill_and_connect_input(1, *node3, 0);
-    node6->fill_and_connect_input(params.node4_idx, *node4, 0);
-    node6->fill_and_connect_input(params.node5_idx, *node5, 0);
-    node8->fill_and_connect_input(0, *node6, 0);
-    node8->fill_and_connect_input(1, *node7, 0);
-    node9->fill_and_connect_input(0, *node8, 0);
-    node11->fill_and_connect_input(params.node9_idx, *node9, 0);
-    node11->fill_and_connect_input(params.node10_idx, *node10, 0);
-    node13->fill_and_connect_input(0, *node11, 0);
-    node13->fill_and_connect_input(1, *node12, 0);
-    node15->fill_and_connect_input(0, *node13, 0);
-    node15->fill_and_connect_input(1, *node14, 0);
+    op_t *op1 = agraph.create_op(Wildcard);
+    op_t *op2 = agraph.create_op(Pow);
+    op_t *op3 = agraph.create_op(Wildcard);
+    op_t *op4 = agraph.create_op(Multiply);
+    op_t *op5 = agraph.create_op(Wildcard);
+    op_t *op6 = agraph.create_op(Add);
+    op_t *op7 = agraph.create_op(Wildcard);
+    op_t *op8 = agraph.create_op(Multiply);
+    op_t *op9 = agraph.create_op(Tanh);
+    op_t *op10 = agraph.create_op(Wildcard);
+    op_t *op11 = agraph.create_op(Add);
+    op_t *op12 = agraph.create_op(Wildcard);
+    op_t *op13 = agraph.create_op(Multiply);
+    op_t *op14 = agraph.create_op(Wildcard);
+    op_t *op15 = agraph.create_op(Multiply);
+    op2->fill_and_connect_input(0, *op1, 0);
+    op4->fill_and_connect_input(0, *op2, 0);
+    op4->fill_and_connect_input(1, *op3, 0);
+    op6->fill_and_connect_input(params.op4_idx, *op4, 0);
+    op6->fill_and_connect_input(params.op5_idx, *op5, 0);
+    op8->fill_and_connect_input(0, *op6, 0);
+    op8->fill_and_connect_input(1, *op7, 0);
+    op9->fill_and_connect_input(0, *op8, 0);
+    op11->fill_and_connect_input(params.op9_idx, *op9, 0);
+    op11->fill_and_connect_input(params.op10_idx, *op10, 0);
+    op13->fill_and_connect_input(0, *op11, 0);
+    op13->fill_and_connect_input(1, *op12, 0);
+    op15->fill_and_connect_input(0, *op13, 0);
+    op15->fill_and_connect_input(1, *op14, 0);
 
     pass::pass_base_ptr gelu_pass = get_pass("gelu_fusion");
     gelu_pass->run(agraph);
@@ -2082,45 +2082,44 @@ TEST_P(gelu_test, gelu_tanh_based_fusion) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 }
 
-// Parameters below correspond to the indices of the node inputs for Add ops.
+// Parameters below correspond to the indices of the op inputs for Add ops.
 INSTANTIATE_TEST_SUITE_P(gelu_test_instance, gelu_test,
         testing::Values(ut_gelu_params {/*multiply_1*/ 0, /*any_2*/ 1,
                                 /*tanh*/ 0, /*any_4*/ 1},
                 ut_gelu_params {0, 1, 1, 0}, ut_gelu_params {1, 0, 0, 1},
                 ut_gelu_params {1, 0, 1, 0}));
 
-TEST(pass_test, single_node_replacement) {
+TEST(pass_test, single_op_replacement) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
-    std::vector<op_kind_t> single_node_set_supported = {BatchNormInference, Add,
+    std::vector<op_kind_t> single_op_set_supported = {BatchNormInference, Add,
             ReLU, MatMul, AvgPool, MaxPool, AvgPoolBackprop,
             BatchNormTrainingBackprop, ConvolutionBackpropData,
             ConvolutionBackpropFilters, MaxPoolBackprop, ReLUBackprop,
             GELUBackprop, LogSoftmax, LogSoftmaxBackprop, SoftMax, LayerNorm,
             BatchNormForwardTraining, Elu, Exp, HardTanh, Log, Multiply,
             Maximum, Minimum, Pow, Sqrt, Square, Tanh, SoftMaxBackprop};
-    for (auto akind : single_node_set_supported) {
+    for (auto akind : single_op_set_supported) {
         graph_t agraph;
-        op_t *node = agraph.create_op(akind);
-        ASSERT_EQ(node->get_kind(), akind);
+        op_t *op = agraph.create_op(akind);
+        ASSERT_EQ(op->get_kind(), akind);
         pm.run_passes(agraph, "no_config");
 
-        auto orig_node = agraph.get_ops()[0];
-        ASSERT_NE(orig_node->get_partition(), nullptr);
-        ASSERT_EQ(
-                orig_node->get_partition()->get_assigned_backend()->get_name(),
+        auto orig_op = agraph.get_ops()[0];
+        ASSERT_NE(orig_op->get_partition(), nullptr);
+        ASSERT_EQ(orig_op->get_partition()->get_assigned_backend()->get_name(),
                 std::string("dnnl_backend"));
 
-        auto replaced_node = get_fused_op(agraph.get_partitions()[0]);
-        ASSERT_EQ(replaced_node->get_kind(), akind);
+        auto replaced_op = get_fused_op(agraph.get_partitions()[0]);
+        ASSERT_EQ(replaced_op->get_kind(), akind);
     }
 
     auto &fake_backend_ptr = fake_impl::fake_backend::get_singleton();
     auto fake_pm = pass::pass_manager(fake_backend_ptr.get_pass_registry());
-    std::vector<op_kind_t> single_node_set_unsupported = {
+    std::vector<op_kind_t> single_op_set_unsupported = {
             /* not enabling ops = */ Concat, Divide, EluBackprop,
             LayerNormBackprop, Reshape, Round, Sigmoid, SigmoidBackprop,
             SqrtBackprop, TanhBackprop,
@@ -2128,27 +2127,26 @@ TEST(pass_test, single_node_replacement) {
             ClampBackprop, Erf, HardTanhBackprop, PowBackprop, ReduceSum,
             SoftPlus, SoftPlusBackprop, Wildcard, End, Interpolate,
             InterpolateBackprop, Transpose, Index, PowBackpropExponent};
-    for (auto akind : single_node_set_unsupported) {
+    for (auto akind : single_op_set_unsupported) {
         graph_t agraph;
-        op_t *node = agraph.create_op(akind);
-        ASSERT_EQ(node->get_kind(), akind);
+        op_t *op = agraph.create_op(akind);
+        ASSERT_EQ(op->get_kind(), akind);
         fake_pm.run_passes(agraph, "no_config");
 
-        auto orig_node = agraph.get_ops()[0];
-        ASSERT_NE(orig_node->get_partition(), nullptr);
-        ASSERT_EQ(
-                orig_node->get_partition()->get_assigned_backend()->get_name(),
+        auto orig_op = agraph.get_ops()[0];
+        ASSERT_NE(orig_op->get_partition(), nullptr);
+        ASSERT_EQ(orig_op->get_partition()->get_assigned_backend()->get_name(),
                 std::string("fake_backend"));
 
         ASSERT_EQ(agraph.get_partitions().size(), 1);
-        auto replaced_node = static_cast<fake_impl::fake_partition_impl_t *>(
+        auto replaced_op = static_cast<fake_impl::fake_partition_impl_t *>(
                 agraph.get_partitions()[0].get())
-                                     ->get_fused_op();
-        ASSERT_EQ(replaced_node->get_kind(), akind);
+                                   ->get_fused_op();
+        ASSERT_EQ(replaced_op->get_kind(), akind);
     }
 }
 
-TEST(pass_test, conv_single_node_replacement) {
+TEST(pass_test, conv_single_op_replacement) {
     graph_t agraph;
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
@@ -2165,14 +2163,14 @@ TEST(pass_test, conv_single_node_replacement) {
     pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
-    auto &orig_node = agraph.get_ops()[0];
-    ASSERT_NE(orig_node->get_partition(), nullptr);
+    auto &orig_op = agraph.get_ops()[0];
+    ASSERT_NE(orig_op->get_partition(), nullptr);
 
-    auto replaced_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(replaced_node->get_kind(), Convolution);
+    auto replaced_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(replaced_op->get_kind(), Convolution);
 }
 
-TEST(pass_test, conv_single_node_replacement_case2) {
+TEST(pass_test, conv_single_op_replacement_case2) {
     graph_t agraph;
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
@@ -2191,11 +2189,11 @@ TEST(pass_test, conv_single_node_replacement_case2) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto &orig_node = agraph.get_ops()[0];
-    ASSERT_NE(orig_node->get_partition(), nullptr);
+    auto &orig_op = agraph.get_ops()[0];
+    ASSERT_NE(orig_op->get_partition(), nullptr);
 
-    auto replaced_node = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(replaced_node->get_kind(), conv_bias);
+    auto replaced_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(replaced_op->get_kind(), conv_bias);
 }
 
 TEST(pass_test, save_load_json) {
@@ -2292,7 +2290,7 @@ TEST(pass_test, two_conv_with_shared_weight) {
     }
 }
 
-TEST(pass_test, multi_values_between_two_nodes) {
+TEST(pass_test, multi_values_between_two_ops) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::op_kind;
     using namespace dnnl::graph::tests::unit::utils;

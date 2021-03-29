@@ -29,7 +29,7 @@ namespace utils = dnnl::graph::tests::unit::utils;
 TEST(compiled_partition, relu) {
     impl::engine_t &eng = get_engine();
 
-    impl::op_t relu_node(impl::op_kind::ReLU);
+    impl::op_t relu_op(impl::op_kind::ReLU);
 
     const impl::logical_tensor_t lt_in = utils::logical_tensor_init(
             /* tid= */ 1, {1, 1, 3, 3}, impl::data_type::f32);
@@ -37,12 +37,12 @@ TEST(compiled_partition, relu) {
             = utils::logical_tensor_init(/* tid= */ 2, {1, 1, 3, 3},
                     impl::data_type::f32, impl::layout_type::any);
 
-    relu_node.add_input(lt_in);
-    relu_node.add_output(lt_out);
+    relu_op.add_input(lt_in);
+    relu_op.add_output(lt_out);
 
     auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
             eng.kind());
-    pimpl->init(&relu_node);
+    pimpl->init(&relu_op);
 
     impl::partition_t p;
     p.init(pimpl);
@@ -100,19 +100,19 @@ TEST(compiled_partition, relu) {
 TEST(compiled_partition, search_required_inputs_outputs) {
     impl::engine_t &eng = get_engine();
 
-    impl::op_t relu_node(impl::op_kind::ReLU);
+    impl::op_t relu_op(impl::op_kind::ReLU);
 
     impl::logical_tensor_t lt_in = utils::logical_tensor_init(
             /* tid= */ 1, {1, 1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t lt_out = utils::logical_tensor_init(/* tid= */ 2,
             {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
 
-    relu_node.add_input(lt_in);
-    relu_node.add_output(lt_out);
+    relu_op.add_input(lt_in);
+    relu_op.add_output(lt_out);
 
     auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
             eng.kind());
-    pimpl->init(&relu_node);
+    pimpl->init(&relu_op);
 
     impl::partition_t p;
     p.init(pimpl);

@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_FAKE_SINGLE_NODE_PASS_HPP
-#define BACKEND_FAKE_SINGLE_NODE_PASS_HPP
+#ifndef BACKEND_FAKE_SINGLE_OP_PASS_HPP
+#define BACKEND_FAKE_SINGLE_OP_PASS_HPP
 
 #include <string>
 
@@ -30,15 +30,15 @@ using pattern = impl::pass::pattern;
 using FCreatePattern = impl::pass::FCreatePattern;
 using FCreateOptPattern = impl::pass::FCreateOptPattern;
 
-FAKE_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_node_pass)
+FAKE_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
 
-#define FAKE_BACKEND_SINGLE_NODE_TRANSFORM(name, backend, p) \
+#define FAKE_BACKEND_SINGLE_OP_TRANSFORM(name, backend, p) \
     FAKE_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, name).set_priority(p);
 
 // register a wildward matched pass
-FAKE_BACKEND_SINGLE_NODE_TRANSFORM(wildcard_match_pass, fake, 1.f)
+FAKE_BACKEND_SINGLE_OP_TRANSFORM(wildcard_match_pass, fake, 1.f)
 
-#undef FAKE_BACKEND_SINGLE_NODE_TRANSFORM
+#undef FAKE_BACKEND_SINGLE_OP_TRANSFORM
 
 FAKE_BACKEND_REGISTER_PASSES_DEF_END
 

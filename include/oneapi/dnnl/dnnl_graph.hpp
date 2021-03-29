@@ -745,7 +745,7 @@ public:
 
     /// Compile the partition to generate compiled partition based
     /// on the input/output logical tensors. The order of these two lists
-    /// may have already been changed according to the fwk fused node.
+    /// may have already been changed according to the fwk fused op.
     ///
     /// @param inputs A list of input logical tensors
     /// @param outputs A list of output logical tensors
@@ -1255,7 +1255,7 @@ public:
 
     /// Add an op to the graph session to construct DAG for analysis
     ///
-    /// @param op An operator/node that represents the entry of frameworks'
+    /// @param op An operator that represents the entry of frameworks'
     ///    graph
     void add_op(const op &op) {
         error::check_succeed(dnnl_graph_add_op(get(), op.get()),

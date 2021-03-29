@@ -256,7 +256,7 @@ int partition2fmt_str(
     if (str == nullptr || str_len <= 1u) return -1;
     // FIXME(qun) Disable for now. Need some re-design after new
     // backend API is ready
-    // const auto &op = partition.node();
+    // const auto &op = partition.op();
     UNUSED(partition);
 
     int written = 0;

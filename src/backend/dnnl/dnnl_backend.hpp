@@ -121,12 +121,12 @@ struct enum_hash {
 struct kernel_base {
     virtual ~kernel_base() {}
 
-    virtual impl::status_t compile_impl(const impl::op_t *anode,
+    virtual impl::status_t compile_impl(const impl::op_t *aop,
             const impl::engine_t *aengine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs)
             = 0;
-    virtual impl::status_t execute_impl(const impl::op_t *anode,
+    virtual impl::status_t execute_impl(const impl::op_t *aop,
             const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs)
@@ -141,20 +141,18 @@ struct kernel_base {
         return impl::status::success;
     };
 
-    impl::status_t compile(const impl::op_t *anode,
-            const impl::engine_t *aengine,
+    impl::status_t compile(const impl::op_t *aop, const impl::engine_t *aengine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) {
-        auto ret = compile_impl(anode, aengine, inputs, outputs);
+        auto ret = compile_impl(aop, aengine, inputs, outputs);
         if (ret != impl::status::success) return ret;
         return prepare_inplace_pairs_impl(aengine, inputs, outputs);
     }
 
-    impl::status_t execute(const impl::op_t *anode,
-            const impl::stream_t *astream,
+    impl::status_t execute(const impl::op_t *aop, const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) {
-        return execute_impl(anode, astream, inputs, outputs);
+        return execute_impl(aop, astream, inputs, outputs);
     }
 
     std::vector<impl::inplace_pair_t> inplace_pairs_;
@@ -185,10 +183,10 @@ public:
     }
 
     /*! 
-     * \brief create an kernel instance for a node
+     * \brief create an kernel instance for a op
      */
-    kernel_ptr create_kernel(const impl::op_t &anode) {
-        auto op_kind = anode.get_kind();
+    kernel_ptr create_kernel(const impl::op_t &aop) {
+        auto op_kind = aop.get_kind();
         std::lock_guard<std::mutex> lock(kernel_creator_f_map_.m_);
 
         auto pos = kernel_creator_f_map_.data_.find(op_kind);
@@ -242,8 +240,8 @@ public:
         return layout_id_manager_;
     }
 
-    kernel_ptr create_kernel(const impl::op_t &anode) {
-        return kernel_registry_.create_kernel(anode);
+    kernel_ptr create_kernel(const impl::op_t &aop) {
+        return kernel_registry_.create_kernel(aop);
     }
 
     virtual size_t get_mem_size(

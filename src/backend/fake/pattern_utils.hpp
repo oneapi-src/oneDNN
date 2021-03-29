@@ -127,12 +127,12 @@ inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
         auto pimpl = std::make_shared<fake_partition_impl_t>(
                 backend_graph.get_engine_kind());
 
-        // use the fused node to initialize the partition_impl, and merge the
+        // use the fused op to initialize the partition_impl, and merge the
         // informations to it.
         pimpl->init(fused_op.get());
 
-        // transfer the ownership of fusion node from graph to partition
-        // note: the fusion node will not be removed from the graph
+        // transfer the ownership of fusion op from graph to partition
+        // note: the fusion op will not be removed from the graph
         pimpl->add_op(cur_op->shared_from_this());
         // claim the op belong to the partition
         cur_op->set_partition(pimpl.get());

@@ -36,8 +36,8 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-// FRequirement: A function to check if graph node can meet
-// the requirement of pattern node
+// FRequirement: A function to check if graph op can meet
+// the requirement of pattern op
 // Should be defined when register passes
 using FRequirement = impl::pass::FRequirement;
 
@@ -155,8 +155,8 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
                 = pattern_queue.front();
         op_t *nfront = op_queue.front();
 
-        // check if graph node is an unvisited node and can meet the
-        // requirement of pattern node
+        // check if graph op is an unvisited op and can meet the
+        // requirement of pattern op
         if (pfront.first->get_kind() != op_kind::any
                 && (selected.count(nfront) != 0
                         || nfront->get_partition() != nullptr
@@ -388,7 +388,7 @@ inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
 
         for (size_t i = 0; i < ops.size(); ++i) {
             op_t *cur_op = ops[i];
-            const op_t *pattern_node = pattern_vec[i];
+            const op_t *pattern_op = pattern_vec[i];
 
             // merge the attrs and op ids
             fused_op->merge_attributes(cur_op->get_attributes());
@@ -415,8 +415,8 @@ inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
             }
 
             // merge the output tensor
-            if (pattern_node->num_outputs() == 0) {
-                // it's a end node of pattern
+            if (pattern_op->num_outputs() == 0) {
+                // it's a end op of pattern
                 for (size_t k = 0; k < cur_op->num_outputs(); ++k) {
                     auto out_value = cur_op->get_output_value(k);
                     auto copied_out_value = std::make_shared<value_t>(
@@ -429,12 +429,12 @@ inline void pattern_utils::fuse(dnnl::graph::impl::graph_t &backend_graph,
         auto pimpl = std::make_shared<dnnl_partition_impl_t>(
                 backend_graph.get_engine_kind());
 
-        // use the fused node to initialize the partition_impl, and merge the
+        // use the fused op to initialize the partition_impl, and merge the
         // informations to it.
         pimpl->init(fused_op.get());
 
-        // transfer the ownership of fusion node from graph to partition
-        // note: the fusion node will not be removed from the graph
+        // transfer the ownership of fusion op from graph to partition
+        // note: the fusion op will not be removed from the graph
         for (size_t i = 0; i < ops.size(); ++i) {
             pimpl->add_op(ops[i]->shared_from_this());
             // claim the op belong to the partition

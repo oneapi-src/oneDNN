@@ -82,8 +82,8 @@ static void rewrite(dnnl::graph::impl::graph_t &agraph,
             fused_op->merge_attributes(cur_op->get_attributes());
             fused_op->add_op_ids(cur_op->get_op_ids());
 
-            // if cur_node has input node which isn't in pattern,
-            // update value's connection. if cur_node has input node
+            // if cur_op has input op which isn't in pattern,
+            // update value's connection. if cur_op has input op
             // which is in pattern, add its output_tensor into visited
             for (size_t j = 0; j < cur_op->num_inputs(); ++j) {
                 auto in_value = cur_op->get_input_value(j);
@@ -110,8 +110,8 @@ static void rewrite(dnnl::graph::impl::graph_t &agraph,
                 }
 
                 if (out_cons.empty() || !cons_all_in_pattern) {
-                    // it's a end node of pattern, need to update
-                    // node connection of it's output nodes
+                    // it's a end op of pattern, need to update
+                    // op connection of it's output ops
                     out_value->set_producer(*fused_op);
                     fused_op->add_output(out_value);
                 }
@@ -128,29 +128,29 @@ void dnnl_graph_graph::get_ordered_partitions(
         std::vector<partition_t *> &partitions) {
     dnnl_graph_graph copied_graph(*this); // deep copy
 
-    // Cluster nodes that belong to same partition
-    std::vector<std::vector<op_t *>> fusion_nodes;
+    // Cluster ops that belong to same partition
+    std::vector<std::vector<op_t *>> fusion_ops;
     topo_order_visit(copied_graph.get_output_ops(), [&](op_t *n) {
         partition_impl_t *part = n->get_partition();
         if (!part) return;
-        auto pos = std::find_if(fusion_nodes.begin(), fusion_nodes.end(),
+        auto pos = std::find_if(fusion_ops.begin(), fusion_ops.end(),
                 [&](std::vector<op_t *> &tmp) -> bool {
                     return tmp[0]->get_partition() == part;
                 });
-        if (pos != fusion_nodes.end()) {
+        if (pos != fusion_ops.end()) {
             pos->emplace_back(n);
         } else {
             std::vector<op_t *> tmp {n};
-            fusion_nodes.emplace_back(tmp);
+            fusion_ops.emplace_back(tmp);
         }
     });
 
-    // Fuse nodes that belong to same partition
-    rewrite(copied_graph, fusion_nodes);
+    // Fuse ops that belong to same partition
+    rewrite(copied_graph, fusion_ops);
 
-    // Get partitions out according to the order of fused node
-    // TODO(qun) Here is a workaround. Dfs order of unfused nodes
-    // and fused nodes is not exactly same, which will break the
+    // Get partitions out according to the order of fused op
+    // TODO(qun) Here is a workaround. Dfs order of unfused ops
+    // and fused ops is not exactly same, which will break the
     // tests and examples
     size_t count = 0;
     topo_order_visit(copied_graph.get_output_ops(), [&](op_t *n) {
@@ -242,10 +242,10 @@ std::vector<dnnl_graph_graph::op_ptr> dnnl_graph_graph::deep_copy(
 
     std::vector<op_ptr> copied_ops;
 
-    // Create org_node to new_node map
+    // Create org_op to new_op map
     std::unordered_map<op_ptr, op_ptr> op_map;
     for (const op_ptr &cur_op : ops) {
-        // copy the node
+        // copy the op
         op_ptr copied_op = std::make_shared<op_t>(
                 cur_op->get_id(), cur_op->get_kind(), cur_op->get_name());
         copied_op->merge_attributes(cur_op->get_attributes());
@@ -255,7 +255,7 @@ std::vector<dnnl_graph_graph::op_ptr> dnnl_graph_graph::deep_copy(
         copied_ops.emplace_back(copied_op);
     }
 
-    // Connect the new nodes according to org nodes
+    // Connect the new ops according to org ops
     std::unordered_map<value_ptr, value_ptr> value_map;
     for (const op_ptr &cur_op : ops) {
         op_ptr copied_op = op_map[cur_op];

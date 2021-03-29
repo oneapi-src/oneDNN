@@ -53,16 +53,16 @@ class partition_impl_t;
  *      - add input logical tensors.
  *      - add output logical tensors.
  *      - set/get attributes of the op.
- *  2. as a node on the graph
+ *  2. as a op on the graph
  *      - input logical tensor -> value -> one producer.
  *      - output logical tensor -> value -> multiple consumers.
  *      - set/get producers and consumers.
  *      - verify the op is legitimate, with op schema.
- *  3. as an internal (fused) node on the graph
+ *  3. as an internal (fused) op on the graph
  *      - create with id (not provided by users, how to generate?), kind, name string.
  *      - merge attributes from the source ops.
  *      - contain the ids of source ops.
- *      - fused op/node -> partition.
+ *      - fused op -> partition.
  *
  *****************************************************************************/
 

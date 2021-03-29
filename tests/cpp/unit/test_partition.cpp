@@ -39,12 +39,12 @@ TEST(partition_test, add_ops) {
     ASSERT_EQ(p.get_ops().size(), 1);
 
     std::vector<size_t> ids {101, 102};
-    std::vector<std::shared_ptr<op_t>> nodes;
+    std::vector<std::shared_ptr<op_t>> ops;
     for (auto id : ids) {
-        nodes.emplace_back(new op_t(id, op_kind::Wildcard, "Wildcard"));
+        ops.emplace_back(new op_t(id, op_kind::Wildcard, "Wildcard"));
     }
 
-    p.add_op(nodes);
+    p.add_op(ops);
     ASSERT_EQ(p.get_ops().size(), 3);
 }
 
@@ -86,8 +86,8 @@ TEST(partition_test, copy) {
 
     // copy the partition
     dnnl_impl::dnnl_partition_impl_t p_copy(p);
-    op_t *p_node = const_cast<op_t *>(p_copy.get_fused_op());
-    p_node->set_attr<int64_t>("groups", 1);
+    op_t *p_op = const_cast<op_t *>(p_copy.get_fused_op());
+    p_op->set_attr<int64_t>("groups", 1);
     ASSERT_EQ(p_copy.get_fused_op()->get_attr<int64_t>("groups"), 1);
     ASSERT_NE(p_copy.get_fused_op()->get_attr<int64_t>("groups"),
             p.get_fused_op()->get_attr<int64_t>("groups"));
