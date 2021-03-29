@@ -33,11 +33,10 @@ namespace impl {
 // Memory storage is engine-specific and has different implementations for
 // different engines.
 struct memory_storage_t : public c_compatible {
-    memory_storage_t(engine_t *engine)
-        : engine_(engine), parent_storage_(this) {}
-
     memory_storage_t(engine_t *engine, const memory_storage_t *parent_storage)
         : engine_(engine), parent_storage_(parent_storage) {}
+
+    memory_storage_t(engine_t *engine) : memory_storage_t(engine, this) {}
 
     virtual ~memory_storage_t() = default;
 
