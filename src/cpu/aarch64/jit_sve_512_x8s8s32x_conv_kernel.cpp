@@ -238,7 +238,7 @@ void jit_sve_512_x8s8s32x_fwd_kernel::store_output(
     }
 
     // Properly saturate the accumulators for integer datatypes
-    if (one_of(jcp.dst_dt, u8, s8, s32)) {
+    if (one_of(jcp.dst_dt, u8, data_type::s8, s32)) {
         if (jcp.dst_dt == data_type::u8) {
             eor(vmm_zero.d, vmm_zero.d, vmm_zero.d);
         }
@@ -560,7 +560,7 @@ void jit_sve_512_x8s8s32x_fwd_kernel::compute_ker(int ur_w, int pad_l,
                                         (aux_input_offset + r), reg_tmp0_imm);
                                 ldrb(WReg(reg_tmp1_imm.getIdx()),
                                         ptr(reg_tmp0_adr));
-                                ins_(VReg16B(xmm_tmp.getIdx())[r],
+                                ins(VReg16B(xmm_tmp.getIdx())[r],
                                         WReg(reg_tmp1_imm.getIdx()));
                             }
                             dup(vmm_inp(jj, nb_oc_block).s,
@@ -1147,7 +1147,7 @@ void jit_sve_512_x8s8s32x_fwd_kernel::generate() {
         const uint32_t _idx[]
                 = {0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15};
         for (size_t i = 0; i < sizeof(_idx) / sizeof(_idx[0]); ++i)
-            dw(_idx[i]);
+            dd(_idx[i]);
     }
 }
 
@@ -1231,7 +1231,8 @@ status_t jit_sve_512_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (kernel_outside_src) return status::unimplemented;
 
     jcp.signed_input = (src_d.data_type() == data_type::s8) ? true : false;
-    jcp.need_saturation = utils::one_of(dst_d.data_type(), u8, s8, s32);
+    jcp.need_saturation
+            = utils::one_of(dst_d.data_type(), u8, data_type::s8, s32);
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
 
     if (jcp.is_depthwise && is_3d)

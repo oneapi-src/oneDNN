@@ -68,7 +68,7 @@ struct jit_uni_subkernel_int_t : public jit_uni_eltwise_int_kernel {
         // Relu and linear for int types: s32, s8, u8; Only forward direction
         assert(utils::one_of(desc.alg_kind, alg_kind::eltwise_relu,
                 alg_kind::eltwise_linear));
-        assert(utils::one_of(data_type(), s32, s8, u8));
+        assert(utils::one_of(data_type(), s32, data_type::s8, u8));
         assert(isa == sve_512);
     }
 
@@ -412,7 +412,7 @@ status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::execute_forward(
 using namespace data_type;
 
 template struct jit_uni_eltwise_int_fwd_t<sve_512, s32>;
-template struct jit_uni_eltwise_int_fwd_t<sve_512, s8>;
+template struct jit_uni_eltwise_int_fwd_t<sve_512, data_type::s8>;
 template struct jit_uni_eltwise_int_fwd_t<sve_512, u8>;
 
 } // namespace aarch64

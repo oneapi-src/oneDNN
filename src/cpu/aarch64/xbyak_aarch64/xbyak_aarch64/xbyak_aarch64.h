@@ -1,6 +1,6 @@
 #pragma once
 /*******************************************************************************
- * Copyright 2019-2020 FUJITSU LIMITED
+ * Copyright 2019-2021 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,15 @@
  * limitations under the License.
  *******************************************************************************/
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#define NOMINMAX
+#include <windows.h>
+#undef mvn
+#endif
+
 #include <algorithm>
 #include <deque>
 #include <initializer_list>
@@ -25,9 +34,10 @@
 #include <unordered_set>
 #include <vector>
 
+#if defined(__GNUC__) || defined(__APPLE__)
+#ifndef XBYAK_USE_MMAP_ALLOCATOR
 #define XBYAK_USE_MMAP_ALLOCATOR
-#if !defined(__GNUC__)
-#undef XBYAK_USE_MMAP_ALLOCATOR
+#endif
 #endif
 
 #include <cmath>
@@ -45,6 +55,14 @@
 
 #ifndef NDEBUG
 #include <iostream>
+#endif
+
+#if defined(__APPLE__)
+#define XBYAK_USE_MAP_JIT
+#include <sys/sysctl.h>
+#ifndef MAP_JIT
+#define MAP_JIT 0x800
+#endif
 #endif
 
 namespace Xbyak_aarch64 {
