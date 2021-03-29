@@ -57,6 +57,9 @@ struct brgemm_matmul_conf_t {
     bool use_buffer_a;
     bool use_buffer_a_tail_only;
 
+    bool is_A_broadcast;
+    bool is_B_broadcast;
+
     data_type_t src_dt;
     data_type_t dst_dt;
     data_type_t wei_dt;

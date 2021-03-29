@@ -137,16 +137,23 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
     if (bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only)
         CHECK(create_brgemm_matmul_copy_A(copy_A_kernel_, &bgmmc));
 
-    // initialize all required memory strides for tensors
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper wei_d(pd()->weights_md(0));
-    for (int d = 0; d < nstl::min(bgmmc.ndims, 3); d++) {
-        dims_t idx = {0};
+
+    // Initialize all required memory strides for tensors
+    const int dmax = nstl::min(bgmmc.ndims, 3);
+    dims_t idx = {0};
+    for (int d = 0; d < dmax; d++) {
         idx[bgmmc.ndims - 1 - d] = 1;
-        A_strides_[d] = types::data_type_size(bgmmc.src_dt) * src_d.off_v(idx);
-        B_strides_[d] = types::data_type_size(bgmmc.wei_dt) * wei_d.off_v(idx);
+        A_strides_[d] = IMPLICATION(bgmmc.is_A_broadcast, d != dmax - 1)
+                ? (types::data_type_size(bgmmc.src_dt) * src_d.off_v(idx))
+                : 0;
+        B_strides_[d] = IMPLICATION(bgmmc.is_B_broadcast, d != dmax - 1)
+                ? (types::data_type_size(bgmmc.wei_dt) * wei_d.off_v(idx))
+                : 0;
         D_strides_[d] = types::data_type_size(bgmmc.dst_dt) * dst_d.off_v(idx);
+        idx[bgmmc.ndims - 1 - d] = 0;
     }
 
     return status::success;
