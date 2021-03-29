@@ -142,6 +142,10 @@ public:
 protected:
     virtual status_t init_device_info() = 0;
 
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    ~compute_engine_t() override = default;
+#endif
+
     std::shared_ptr<device_info_t> device_info_;
 
 private:

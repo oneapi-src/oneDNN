@@ -54,7 +54,7 @@ status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
         const cl::sycl::device &dev, const cl::sycl::context &ctx,
         size_t index) {
     CHECK(nvidia::check_device(engine_kind));
-    std::unique_ptr<nvidia::sycl_cuda_engine_t> cuda_engine(
+    std::unique_ptr<nvidia::sycl_cuda_engine_t, engine_deleter_t> cuda_engine(
             (new nvidia::sycl_cuda_engine_t(dev, ctx, index)));
     if (!cuda_engine) return status::out_of_memory;
 

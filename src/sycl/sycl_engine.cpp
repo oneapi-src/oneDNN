@@ -74,7 +74,7 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
     if (engine_kind_ == engine_kind::gpu && !dev.is_gpu())
         return status::invalid_arguments;
 
-    std::unique_ptr<sycl_engine_base_t> sycl_engine(
+    std::unique_ptr<sycl_engine_base_t, engine_deleter_t> sycl_engine(
             (engine_kind_ == engine_kind::cpu)
                     ? static_cast<sycl_engine_base_t *>(
                             new sycl_cpu_engine_t(dev, ctx, index))

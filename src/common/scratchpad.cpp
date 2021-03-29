@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ namespace impl {
 namespace {
 
 engine_t *get_cpu_engine() {
-    static std::unique_ptr<engine_t> cpu_engine;
+    static std::unique_ptr<engine_t, engine_deleter_t> cpu_engine;
     static std::once_flag initialized;
     std::call_once(initialized, [&]() {
         engine_t *cpu_engine_ptr;

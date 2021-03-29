@@ -146,6 +146,9 @@ public:
         // Non-sycl CPU engine doesn't have device and context.
         return {};
     }
+
+protected:
+    ~cpu_engine_t() override = default;
 #endif
 };
 

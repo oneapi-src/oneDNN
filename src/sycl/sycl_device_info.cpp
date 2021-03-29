@@ -67,8 +67,10 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
         engine_t *engine;
         CHECK(f.engine_create(&engine, 0));
 
-        std::unique_ptr<gpu::compute::compute_engine_t> compute_engine(
-                utils::downcast<gpu::compute::compute_engine_t *>(engine));
+        std::unique_ptr<gpu::compute::compute_engine_t, engine_deleter_t>
+                compute_engine(
+                        utils::downcast<gpu::compute::compute_engine_t *>(
+                                engine));
 
         auto *dev_info = compute_engine->device_info();
         gpu_arch_ = dev_info->gpu_arch();

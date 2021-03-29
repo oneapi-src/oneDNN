@@ -42,8 +42,14 @@
 struct dnnl_engine : public dnnl::impl::c_compatible {
     dnnl_engine(dnnl::impl::engine_kind_t kind,
             dnnl::impl::runtime_kind_t runtime_kind, size_t index)
-        : kind_(kind), runtime_kind_(runtime_kind), index_(index) {}
-    virtual ~dnnl_engine() = default;
+        : kind_(kind)
+        , runtime_kind_(runtime_kind)
+        , index_(index)
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+        , counter_(1)
+#endif
+    {
+    }
 
     /** get kind of the current engine */
     dnnl::impl::engine_kind_t kind() const { return kind_; }
@@ -113,10 +119,27 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     virtual const dnnl::impl::impl_list_item_t *get_implementation_list(
             const dnnl::impl::op_desc_t *desc) const = 0;
 
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    void retain() { counter_++; }
+
+    void release() {
+        if (--counter_ == 0) { delete this; }
+    }
+#else
+    virtual ~dnnl_engine() = default;
+#endif
+
 protected:
     dnnl::impl::engine_kind_t kind_;
     dnnl::impl::runtime_kind_t runtime_kind_;
     size_t index_;
+
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    virtual ~dnnl_engine() = default;
+
+private:
+    std::atomic<int> counter_;
+#endif
 };
 
 namespace dnnl {
@@ -166,6 +189,16 @@ struct engine_factory_t : public c_compatible {
     virtual size_t count() const = 0;
     virtual status_t engine_create(engine_t **engine, size_t index) const = 0;
     virtual ~engine_factory_t() = default;
+};
+
+struct engine_deleter_t {
+    void operator()(engine_t *e) const {
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+        e->release();
+#else
+        delete e;
+#endif
+    }
 };
 
 } // namespace impl

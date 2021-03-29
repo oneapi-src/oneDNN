@@ -74,7 +74,8 @@ public:
             return status::invalid_arguments;
         }
 
-        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> ocl_engine;
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                ocl_engine;
         auto status = create_ocl_engine(&ocl_engine);
         if (status != status::success) return status;
 
@@ -102,7 +103,8 @@ public:
             return status::invalid_arguments;
         }
 
-        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> ocl_engine;
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                ocl_engine;
         auto status = create_ocl_engine(&ocl_engine);
         if (status != status::success) return status;
 
@@ -152,7 +154,11 @@ public:
         return engine_id_t(new sycl_engine_id_impl_t(
                 device(), context(), kind(), runtime_kind(), index()));
     }
+
+protected:
+    ~sycl_engine_base_t() override = default;
 #endif
+
 protected:
     status_t init_device_info() override;
 
@@ -163,7 +169,8 @@ private:
     backend_t backend_;
 
     status_t create_ocl_engine(
-            std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> *ocl_engine) const {
+            std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                    *ocl_engine) const {
         gpu::ocl::ocl_engine_factory_t f(engine_kind::gpu);
 
         if (backend_ == backend_t::opencl) {
