@@ -6,20 +6,25 @@ Fixes # (github issue)
 
 # Checklist
 
-## Code-change submissions
+## General
 
-- [ ] Do all unit and benchdnn tests (`make test` and `make test_benchdnn_*`) pass locally?
+- [ ] Do all unit and benchdnn tests (`make test` and `make test_benchdnn_*`) pass locally for each commit?
 - [ ] Have you formatted the code using clang-format?
+
+## Performance improvements
+
+- [ ] Have you submitted performance data that demonstrates performance improvements?
 
 ### New features
 
+- [ ] Have you published an RFC for the new feature?
+- [ ] Was the RFC approved?
 - [ ] Have you added relevant tests?
-- [ ] Have you provided motivation for adding a new feature?
 
 ### Bug fixes
 
-- [ ] Have you added relevant regression tests?
 - [ ] Have you included information on how to reproduce the issue (either in a github issue or in this PR)?
+- [ ] Have you added relevant regression tests?
 
 ## [RFC](https://github.com/oneapi-src/oneDNN/tree/rfcs) PR
 
