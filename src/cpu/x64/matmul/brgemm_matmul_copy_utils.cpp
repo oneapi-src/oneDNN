@@ -34,12 +34,15 @@ using namespace Xbyak;
 
 #define GET_OFF(x) offsetof(ctx_t, x)
 
-struct jit_brgemm_matmul_copy_a_int8_t : public jit_brgemm_matmul_copy_a_t,
+struct jit_brgemm_matmul_copy_a_impl_t : public jit_brgemm_matmul_copy_a_t,
                                          public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_a_int8_t)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_a_impl_t)
 
-    jit_brgemm_matmul_copy_a_int8_t(const brgemm_matmul_conf_t *conf)
-        : jit_brgemm_matmul_copy_a_t(conf) {}
+    jit_brgemm_matmul_copy_a_impl_t(const brgemm_matmul_conf_t *conf)
+        : jit_brgemm_matmul_copy_a_t(conf)
+        , typesize(conf_->a_dt_sz)
+        , vnni_granularity(granularity_max / typesize)
+        , k_step(bytes_in_zmm / typesize) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -53,11 +56,15 @@ private:
     using xmm = const Xbyak::Xmm;
 
     enum {
-        typesize = sizeof(int8_t),
+        granularity_max = 4,
         num_comp_acc = 8,
         k_loop_unroll = 16,
-        k_step = 64
+        bytes_in_zmm = 64,
     };
+    const int typesize;
+    const int vnni_granularity;
+    const int k_step;
+
     dim_t src_stride = 0, tr_src_stride = 0;
     bool do_compute_compensation = false;
 
@@ -106,7 +113,7 @@ private:
     void generate() override;
 };
 
-void jit_brgemm_matmul_copy_a_int8_t::reduce_compensation_across_accumulators(
+void jit_brgemm_matmul_copy_a_impl_t::reduce_compensation_across_accumulators(
         int num_accumulators) {
     int num = num_accumulators;
     while (num > 1) {
@@ -119,7 +126,7 @@ void jit_brgemm_matmul_copy_a_int8_t::reduce_compensation_across_accumulators(
     }
 }
 
-void jit_brgemm_matmul_copy_a_int8_t::copy_K_loop(
+void jit_brgemm_matmul_copy_a_impl_t::copy_K_loop(
         bool is_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
     MAYBE_UNUSED(is_K_tail);
     MAYBE_UNUSED(is_first_K_iter);
@@ -154,7 +161,7 @@ void jit_brgemm_matmul_copy_a_int8_t::copy_K_loop(
                 (int)k_loop_unroll, num_k_iters - kb * k_loop_unroll);
         for (int k = k_start; k < k_end; k++) {
             const int k_idx = kb * k_loop_unroll + k;
-            const size_t offset = (size_t)k_idx * k_step;
+            const size_t offset = (size_t)k_idx * k_step * typesize;
             vmovdqu8(get_zmm_copy(k), EVEX_compress_addr(reg_src, offset));
 
             maybe_compute_compensation(k_idx, get_zmm_copy(k));
@@ -165,7 +172,8 @@ void jit_brgemm_matmul_copy_a_int8_t::copy_K_loop(
         }
 
         for (int k = k_start; k < k_end; k++) {
-            const size_t offset = ((size_t)kb * k_loop_unroll + k) * k_step;
+            const size_t offset
+                    = ((size_t)kb * k_loop_unroll + k) * k_step * typesize;
             vmovdqu8(EVEX_compress_addr(reg_tr_src, offset), get_zmm_copy(k));
         }
     }
@@ -175,24 +183,27 @@ void jit_brgemm_matmul_copy_a_int8_t::copy_K_loop(
             mov(regq_tmp, q);
             jit_generator::kmovq(k, regq_tmp);
         };
-        const size_t k_gran = conf_->isa == avx512_core_bf16_amx_int8 ? 4 : 1;
-        const size_t tail_mask_load = size_t(((size_t)1 << k_tail) - 1);
+
+        const size_t tail_mask_load
+                = size_t(((size_t)1 << (typesize * k_tail)) - 1);
         kmovq(kTail_load, tail_mask_load);
-        const size_t k_tail_st = rnd_up(k_tail, k_gran);
+        const int k_tail_st = rnd_up(k_tail, vnni_granularity);
         const size_t tail_mask_store = k_tail_st == k_step
                 ? 0xffffffffffffffff
-                : size_t(((size_t)1 << k_tail_st) - 1);
+                : size_t(((size_t)1 << (typesize * k_tail_st)) - 1);
         kmovq(kTail_store, tail_mask_store);
 
         auto zmm_tail = get_zmm_copy(0) | kTail_load | T_z;
-        vmovdqu8(zmm_tail, EVEX_compress_addr(reg_src, num_k_iters * k_step));
+        vmovdqu8(zmm_tail,
+                EVEX_compress_addr(reg_src, num_k_iters * k_step * typesize));
 
         maybe_compute_compensation(0, get_zmm_copy(0));
 
         if (allow_input_shift_for_s8s8 && conf_->s8s8_compensation_required)
             vpaddb(get_zmm_copy(0), get_zmm_copy(0), zmm_comp_add);
 
-        vmovdqu8(EVEX_compress_addr(reg_tr_src, num_k_iters * k_step),
+        vmovdqu8(
+                EVEX_compress_addr(reg_tr_src, num_k_iters * k_step * typesize),
                 get_zmm_copy(0) | kTail_store);
     }
 
@@ -245,7 +256,7 @@ void jit_brgemm_matmul_copy_a_int8_t::copy_K_loop(
     }
 }
 
-void jit_brgemm_matmul_copy_a_int8_t::copy_M_loop(
+void jit_brgemm_matmul_copy_a_impl_t::copy_M_loop(
         bool is_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
 
     if (do_compute_compensation) {
@@ -284,7 +295,7 @@ void jit_brgemm_matmul_copy_a_int8_t::copy_M_loop(
     jnz(loop_M, T_NEAR);
 }
 
-void jit_brgemm_matmul_copy_a_int8_t::generate() {
+void jit_brgemm_matmul_copy_a_impl_t::generate() {
     preamble();
     src_stride = conf_->K * typesize;
     const dim_t LDA = conf_->use_buffer_a_tail_only ? (dim_t)conf_->wei_k_blk
@@ -831,13 +842,200 @@ void jit_brgemm_matmul_copy_b_int8_t::generate() {
     postamble();
 }
 
-struct jit_brgemm_matmul_copy_b_transposed_int8_t
+struct jit_brgemm_matmul_copy_b_bf16_t : public jit_brgemm_matmul_copy_b_t,
+                                         public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_b_bf16_t)
+
+    jit_brgemm_matmul_copy_b_bf16_t(const brgemm_matmul_conf_t *conf)
+        : jit_brgemm_matmul_copy_b_t(conf) {}
+
+    void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
+    using opmask_t = const Xbyak::Opmask;
+    using zmm = const Xbyak::Zmm;
+    using ymm = const Xbyak::Ymm;
+
+    enum { typesize = sizeof(int16_t), k_blk_step = 2, n_blk_step = 16 };
+    dim_t src_stride = 0, tr_src_stride = 0;
+
+    opmask_t kTail = k7;
+    opmask_t kFFFF = k6;
+
+    reg64_t reg_src = rax;
+    reg64_t reg_tr_src = rbx;
+
+    reg64_t reg_K_iters = r8;
+    reg64_t reg_N_blk = r9;
+    reg64_t reg_K_start = r10;
+    reg32_t regw_tmp = r14d;
+    reg64_t imm_addr64 = r15;
+
+    zmm zmm_permw = zmm30;
+    zmm zmm_zero = zmm31;
+
+    void copy_2x32_vnni(int nrows, int ncolumns);
+    void generate() override;
+};
+
+void jit_brgemm_matmul_copy_b_bf16_t::copy_2x32_vnni(int nrows, int ncolumns) {
+
+    auto kmovd = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovd(k, regw_tmp);
+    };
+
+    const int columns_tail = ncolumns % n_blk_step;
+    const auto tail_mask = (1 << columns_tail) - 1;
+    if (columns_tail < n_blk_step) kmovd(kTail, tail_mask);
+
+    const int blk_sz = k_blk_step;
+    const int max_regs_available = 30;
+    const int max_unroll = max_regs_available / blk_sz;
+    auto get_zmm = [=](int blk, int idx) {
+        assert(idx >= 0 && idx < blk_sz && blk >= 0);
+        auto reg_idx = max_unroll * ((idx + 1) % blk_sz) + blk;
+        assert(reg_idx >= 0 && reg_idx < max_regs_available);
+        return zmm(reg_idx);
+    };
+
+    auto load = [=](int blk, int k, int n, opmask_t current_mask) {
+        auto src_reg = get_zmm(blk, k % k_blk_step);
+        auto src_load = src_reg | current_mask | T_z;
+        vmovdqu16(src_load,
+                EVEX_compress_addr(reg_src, k * src_stride + n * typesize));
+    };
+
+    int iter = 0;
+    for_(int k = 0; k < nrows; k += k_blk_step)
+    for (int n = 0; n < conf_->wei_n_blk; n += n_blk_step) {
+        const int k_blk = k / k_blk_step;
+        const dim_t tr_src_off
+                = k_blk * tr_src_stride + n * k_blk_step * typesize;
+        const auto store_addr = EVEX_compress_addr(reg_tr_src, tr_src_off);
+        if (ncolumns - n <= 0) {
+            vmovups(store_addr, zmm_zero);
+            continue;
+        }
+
+        const opmask_t curr_msk = ncolumns - n < n_blk_step ? kTail : kFFFF;
+        const int blk_idx = iter % max_unroll;
+        load(blk_idx, k, n, curr_msk);
+        const auto src_zmm0 = get_zmm(blk_idx, 0);
+        if (nrows - k >= k_blk_step) {
+            load(blk_idx, k + 1, n, curr_msk);
+            const auto src_zmm1 = get_zmm(blk_idx, 1);
+            const auto src_ymm1 = ymm(src_zmm1.getIdx());
+            vinsertf64x4(src_zmm0, src_zmm0, src_ymm1, 1);
+        }
+
+        vpermw(src_zmm0, zmm_permw, src_zmm0);
+
+        vmovups(store_addr, src_zmm0);
+        iter++;
+    }
+}
+
+void jit_brgemm_matmul_copy_b_bf16_t::generate() {
+    preamble();
+    vpxord(zmm_zero, zmm_zero, zmm_zero);
+    src_stride = conf_->N * typesize;
+    tr_src_stride = conf_->LDB * k_blk_step * typesize;
+
+    alignas(64) static constexpr const int16_t bf16_vnni_permute[32]
+            = {0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23, 8, 24, 9,
+                    25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31};
+
+    mov(reg_src, ptr[param1 + GET_OFF(src)]);
+    mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
+    mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
+    mov(reg_N_blk, ptr[param1 + GET_OFF(current_N_blk)]);
+
+    auto kmovw = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovw(k, regw_tmp);
+    };
+
+    kmovw(kFFFF, 0xffff); // 1111111111111111
+    auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
+        mov(imm_addr64, reinterpret_cast<size_t>(addr));
+        jit_generator::vmovdqa64(z, ptr[imm_addr64]);
+    };
+
+    vmovdqa64(zmm_permw, (const int64_t *)bf16_vnni_permute);
+
+    auto compute_K_loop = [=](bool is_N_tail) {
+        const int k_unroll = 8;
+        int ncolumns = is_N_tail ? conf_->N_tail : conf_->N_blk;
+
+        Label K_loop_unrolled, K_loop_single, K_loop_tail_or_done;
+        cmp(reg_K_iters, k_unroll * k_blk_step);
+        jl(K_loop_single, T_NEAR);
+
+        L(K_loop_unrolled);
+        copy_2x32_vnni(k_unroll * k_blk_step, ncolumns);
+        add(reg_src, k_unroll * k_blk_step * src_stride);
+        add(reg_tr_src, k_unroll * tr_src_stride);
+
+        sub(reg_K_iters, k_unroll * k_blk_step);
+        cmp(reg_K_iters, k_unroll * k_blk_step);
+        jge(K_loop_unrolled, T_NEAR);
+
+        L(K_loop_single);
+        cmp(reg_K_iters, k_blk_step);
+        jl(K_loop_tail_or_done, T_NEAR);
+
+        copy_2x32_vnni(k_blk_step, ncolumns);
+        add(reg_src, k_blk_step * src_stride);
+        add(reg_tr_src, tr_src_stride);
+
+        sub(reg_K_iters, k_blk_step);
+        jmp(K_loop_single, T_NEAR);
+
+        L(K_loop_tail_or_done);
+
+        int k_blk_tail = conf_->K % k_blk_step;
+        if (k_blk_tail > 0) {
+            Label K_loop_done;
+            cmp(reg_K_iters, 0);
+            jle(K_loop_done, T_NEAR);
+
+            copy_2x32_vnni(k_blk_tail, ncolumns);
+            sub(reg_K_iters, k_blk_tail);
+            L(K_loop_done);
+        }
+    };
+
+    Label done;
+    if (conf_->N_tail > 0) {
+        Label not_N_tail;
+        cmp(reg_N_blk, conf_->N_tail);
+        jne(not_N_tail, T_NEAR);
+        compute_K_loop(true);
+        jmp(done, T_NEAR);
+
+        L(not_N_tail);
+    }
+
+    compute_K_loop(false);
+    L(done);
+
+    postamble();
+}
+
+struct jit_brgemm_matmul_copy_b_transposed_t
     : public jit_brgemm_matmul_copy_b_t,
       public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_b_transposed_int8_t)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_b_transposed_t)
 
-    jit_brgemm_matmul_copy_b_transposed_int8_t(const brgemm_matmul_conf_t *conf)
-        : jit_brgemm_matmul_copy_b_t(conf) {}
+    jit_brgemm_matmul_copy_b_transposed_t(const brgemm_matmul_conf_t *conf)
+        : jit_brgemm_matmul_copy_b_t(conf)
+        , typesize(conf_->b_dt_sz)
+        , vnni_granularity(granularity_max / typesize)
+        , k_blk_step(bytes_in_zmm / typesize) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -849,11 +1047,15 @@ private:
     using zmm = const Xbyak::Zmm;
 
     enum {
-        typesize = sizeof(int8_t),
-        vnni_granularity = 4,
+        granularity_max = 4,
         n_blk_step = 16,
-        k_blk_step = 64
+        bytes_in_zmm = 64,
     };
+
+    const int typesize;
+    const int vnni_granularity;
+    const int k_blk_step;
+
     dim_t src_stride = 0, tr_src_stride = 0;
     bool do_compute_compensation = false;
 
@@ -893,7 +1095,7 @@ private:
     void generate() override;
 };
 
-void jit_brgemm_matmul_copy_b_transposed_int8_t::copy_16x64_vnni(
+void jit_brgemm_matmul_copy_b_transposed_t::copy_16x64_vnni(
         int nrows, int ncolumns) {
     assert(nrows >= 0 && nrows <= n_blk_step && ncolumns >= 0
             && ncolumns <= k_blk_step);
@@ -915,8 +1117,9 @@ void jit_brgemm_matmul_copy_b_transposed_int8_t::copy_16x64_vnni(
         jit_generator::kmovq(k, regq_tmp);
     };
 
-    const auto tail_mask = size_t(((size_t)1 << (ncolumns % k_blk_step)) - 1);
-    if (ncolumns % n_blk_step < n_blk_step) kmovq(kTail, tail_mask);
+    const int columns_tail = ncolumns % k_blk_step;
+    const auto tail_mask = size_t(((size_t)1 << (typesize * columns_tail)) - 1);
+    if (columns_tail > 0) kmovq(kTail, tail_mask);
 
     auto load = [=](int i) {
         auto src_reg = src_zmm(i);
@@ -925,7 +1128,7 @@ void jit_brgemm_matmul_copy_b_transposed_int8_t::copy_16x64_vnni(
             return;
         }
 
-        auto src_load = ncolumns < k_blk_step ? src_reg | kTail | T_z : src_reg;
+        auto src_load = columns_tail > 0 ? src_reg | kTail | T_z : src_reg;
         vmovdqu8(src_load, EVEX_compress_addr(reg_src, i * src_stride));
     };
 
@@ -1031,7 +1234,7 @@ void jit_brgemm_matmul_copy_b_transposed_int8_t::copy_16x64_vnni(
     fixup16x16();
 }
 
-void jit_brgemm_matmul_copy_b_transposed_int8_t::compute_K_loop(bool is_N_tail,
+void jit_brgemm_matmul_copy_b_transposed_t::compute_K_loop(bool is_N_tail,
         int curr_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
     MAYBE_UNUSED(is_first_K_iter);
     MAYBE_UNUSED(is_last_K_iter);
@@ -1052,7 +1255,7 @@ void jit_brgemm_matmul_copy_b_transposed_int8_t::compute_K_loop(bool is_N_tail,
 
     L(K_loop);
     copy_16x64_vnni(nrows, k_blk_step);
-    add(reg_src, k_blk_step);
+    add(reg_src, k_blk_step * typesize);
     add(reg_tr_src, k_blk_step / vnni_granularity * tr_src_stride);
 
     sub(reg_K_iters, k_blk_step);
@@ -1073,7 +1276,7 @@ void jit_brgemm_matmul_copy_b_transposed_int8_t::compute_K_loop(bool is_N_tail,
     }
 }
 
-void jit_brgemm_matmul_copy_b_transposed_int8_t::compute_N_loop(
+void jit_brgemm_matmul_copy_b_transposed_t::compute_N_loop(
         int curr_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
     const int N_chunk_tail = conf_->N % n_blk_step;
 
@@ -1086,7 +1289,7 @@ void jit_brgemm_matmul_copy_b_transposed_int8_t::compute_N_loop(
     L(N_loop);
     compute_K_loop(false, curr_K_tail, is_first_K_iter, is_last_K_iter);
     add(reg_src_base, n_blk_step * src_stride);
-    add(reg_tr_src_base, n_blk_step * vnni_granularity);
+    add(reg_tr_src_base, n_blk_step * vnni_granularity * typesize);
     if (do_compute_compensation) add(reg_zp_comp_ptr, 64);
 
     sub(reg_N_iters, n_blk_step);
@@ -1104,7 +1307,7 @@ void jit_brgemm_matmul_copy_b_transposed_int8_t::compute_N_loop(
     }
 }
 
-void jit_brgemm_matmul_copy_b_transposed_int8_t::generate() {
+void jit_brgemm_matmul_copy_b_transposed_t::generate() {
     // TODO: support compensation calculation
     if (conf_->s8s8_compensation_required) return;
 
@@ -1209,19 +1412,28 @@ status_t create_brgemm_matmul_copy_b(
     const bool is_B_transposed
             = one_of(conf->wei_tag, ba, acb, abdc, abced, abcdfe, abcdegf,
                     abcdefhg, abcdefgih, abcdefghji, abcdefghikj, abcdefghijlk);
-    if (is_B_transposed)
-        CHECK(safe_ptr_assign(copy_ker,
-                new jit_brgemm_matmul_copy_b_transposed_int8_t(conf)));
-    else
+    const bool is_bf16
+            = everyone_is(data_type::bf16, conf->src_dt, conf->wei_dt);
+    if (is_B_transposed) {
         CHECK(safe_ptr_assign(
-                copy_ker, new jit_brgemm_matmul_copy_b_int8_t(conf)));
+                copy_ker, new jit_brgemm_matmul_copy_b_transposed_t(conf)));
+    } else {
+        if (is_bf16) {
+            CHECK(safe_ptr_assign(
+                    copy_ker, new jit_brgemm_matmul_copy_b_bf16_t(conf)));
+        } else {
+            CHECK(safe_ptr_assign(
+                    copy_ker, new jit_brgemm_matmul_copy_b_int8_t(conf)));
+        }
+    }
+
     return copy_ker->create_kernel();
 }
 
 status_t create_brgemm_matmul_copy_a(
         std::unique_ptr<jit_brgemm_matmul_copy_a_t> &copy_ker,
         const brgemm_matmul_conf_t *conf) {
-    CHECK(safe_ptr_assign(copy_ker, new jit_brgemm_matmul_copy_a_int8_t(conf)));
+    CHECK(safe_ptr_assign(copy_ker, new jit_brgemm_matmul_copy_a_impl_t(conf)));
     return copy_ker->create_kernel();
 }
 
