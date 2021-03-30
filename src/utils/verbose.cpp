@@ -16,7 +16,9 @@
 
 #include <climits>
 #include <cstring>
+#include <memory>
 #include <stdlib.h>
+#include <vector>
 #include <sys/time.h>
 
 #include "oneapi/dnnl/dnnl_graph.h"
@@ -117,8 +119,8 @@ void partition_info_t::init(
 #else
 
 namespace {
-#define DNNL_GRAPH_VERBOSE_DAT_LEN 512
-#define DNNL_GRAPH_VERBOSE_FMT_LEN 32
+#define DNNL_GRAPH_VERBOSE_DAT_LEN 1024
+#define DNNL_GRAPH_VERBOSE_FMT_LEN 64
 
 #define DECL_DAT_STRS() \
     int dat_written = 0; \
@@ -254,26 +256,59 @@ int logical_tensor2str(char *str, size_t str_len,
 int partition2fmt_str(
         char *str, size_t str_len, const impl::partition_t &partition) {
     if (str == nullptr || str_len <= 1u) return -1;
-    // FIXME(qun) Disable for now. Need some re-design after new
-    // backend API is ready
-    // const auto &op = partition.op();
-    UNUSED(partition);
 
-    int written = 0;
-    /*
-    if (op->has_attr("data_format")) {
-        const auto data_format = op->get_attr<std::string>("data_format");
-        DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written, "data:%s",
-                data_format.c_str());
-    }
-    if (op->has_attr("filter_format")) {
-        const auto filter_format = op->get_attr<std::string>("filter_format");
-        DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written, " filter:%s",
-                filter_format.c_str());
-    }
-    */
+    int written_len = 0;
+    const std::vector<std::shared_ptr<graph::impl::op_t>> &operators
+            = partition.get_ops();
+    const size_t num_operator = operators.size();
+    if (num_operator == 0) return written_len;
 
-    return written;
+    bool data_filled = false;
+    bool filter_filled = false;
+    for (size_t i = 0; i < num_operator; ++i) {
+        const std::shared_ptr<graph::impl::op_t> op = operators[i];
+        if (op->has_attr("data_format")) {
+            // If the first i ops have no data_format, empty string with suffix
+            // `;` should be printed out for each of them.
+            if (!data_filled) {
+                PUTS("data:");
+                for (size_t ii = 0; ii < i; ++ii)
+                    PUTS(";");
+                // Indicates that at least one op in the list have data format
+                // spec.
+                data_filled = true;
+            }
+            const auto data_format = op->get_attr<std::string>("data_format");
+            DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written_len,
+                    (i == num_operator - 1) ? "%s " : "%s;",
+                    data_format.c_str());
+        } else if (data_filled) {
+            // If at least one op have data format, op without format spec
+            // should give `;` except the last one of data which should give
+            // ` `.
+            PUTS((i == num_operator - 1) ? " " : ";");
+        }
+    }
+    for (size_t i = 0; i < num_operator; ++i) {
+        const std::shared_ptr<graph::impl::op_t> op = operators[i];
+        if (op->has_attr("filter_format")) {
+            if (!filter_filled) {
+                PUTS("filter:");
+                for (size_t ii = 0; ii < i; ++ii)
+                    PUTS(";");
+                filter_filled = true;
+            }
+            const auto filter_format
+                    = op->get_attr<std::string>("filter_format");
+            DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written_len,
+                    (i == num_operator - 1) ? "%s" : "%s;",
+                    filter_format.c_str());
+        } else if (filter_filled) {
+            PUTS(";");
+        }
+    }
+
+    return written_len;
 }
 
 void verbose_templ(char *buffer, const impl::engine_t *engine,
@@ -358,9 +393,17 @@ void init_info_partition(const graph::impl::engine_t *engine,
         }
     }
 
+    const std::vector<std::shared_ptr<graph::impl::op_t>> &operators
+            = partition.get_ops();
+    std::ostringstream operator_names;
+    const size_t num_operators = operators.size();
+    for (size_t i = 0; i < num_operators; ++i) {
+        operator_names << operators[i]->get_name()
+                       << ((i == num_operators - 1) ? "" : ";");
+    }
     verbose_templ(buffer, engine, partition.id(),
-            partition.get_ops()[0]->get_name().c_str(), fmt_str, dat_str,
-            partition.get_assigned_backend()->get_name().c_str());
+            operators.empty() ? "N/A" : operator_names.str().c_str(), fmt_str,
+            dat_str, partition.get_assigned_backend()->get_name().c_str());
 #endif
 }
 
