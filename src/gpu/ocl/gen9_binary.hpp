@@ -110,12 +110,9 @@ struct gen9_binary_t : public gpu_primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override {
 
-        status_t status = status::success;
-
         auto &src0 = CTX_IN_STORAGE(DNNL_ARG_SRC_0);
         auto &src1 = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
-        auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
-        CHECK(status);
+        auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
         const auto &conf = pd()->conf;
 
@@ -135,8 +132,7 @@ struct gen9_binary_t : public gpu_primitive_t {
 
         auto nd_range = conf.dispatch.nd_range();
 
-        status = parallel_for(ctx, nd_range, kernel_, arg_list);
-        return status;
+        return parallel_for(ctx, nd_range, kernel_, arg_list);
     }
 
 private:
