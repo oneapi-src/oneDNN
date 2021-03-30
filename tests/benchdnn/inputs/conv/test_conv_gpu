@@ -84,7 +84,12 @@ g2ic2ih1iw2oc4oh1ow2kh1kw1ph0pw0
 g1ic16iw5oc16ow5kw1pw0
 mb3g1ic33iw5oc33ow17kw1pw0
 mb16ic16ih224oc64oh112kh7sh2ph3n
-
+#test user scratchpad
+--reset
+--dir=BWD_W
+--cfg=bf16bf16bf16
+--attr-scratchpad=user
+mb128ic3ih230oc64oh112kh7sh2ph0
 #int8dst
 --reset
 --cfg=f16f16s8,f32f32s8

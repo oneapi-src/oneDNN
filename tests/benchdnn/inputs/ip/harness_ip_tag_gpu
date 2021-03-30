@@ -1,5 +1,5 @@
 --reset
-
+--attr-scratchpad=user
 --cfg=f32
 --dir=FWD_B,FWD_I
 --dtag=abx
