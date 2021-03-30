@@ -31,7 +31,15 @@
 
 namespace conv {
 
-enum alg_t { DIRECT, WINO, AUTO };
+enum alg_t {
+    UNDEF,
+    DIRECT,
+    WINO,
+    AUTO,
+    convolution_direct = DIRECT,
+    convolution_wino = WINO,
+    convolution_auto = AUTO,
+};
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 alg_t alg_kind2alg(dnnl_alg_kind_t alg);
