@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "common/memory_storage.hpp"
+#include "common/engine.hpp"
 #include "common/memory.hpp"
 
 #include <assert.h>
@@ -33,6 +34,23 @@ status_t memory_storage_t::init(unsigned flags, size_t size, void *handle) {
     assert(flags & memory_flags_t::use_runtime_ptr);
     return set_data_handle(handle);
 }
+
+memory_storage_t::memory_storage_t(
+        engine_t *engine, const memory_storage_t *parent_storage)
+    : parent_storage_(parent_storage) {
+    engine_ = engine;
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    if (engine_) engine_->retain();
+#endif
+}
+
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+memory_storage_t::~memory_storage_t() {
+    if (engine_) engine_->release();
+};
+#else
+memory_storage_t::~memory_storage_t() = default;
+#endif
 
 } // namespace impl
 } // namespace dnnl
