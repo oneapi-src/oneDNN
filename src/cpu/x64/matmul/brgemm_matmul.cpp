@@ -41,11 +41,21 @@ using namespace data_type;
 
 template <cpu_isa_t isa>
 status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
+    const auto src_dt = src_md_.data_type;
+    const auto wei_dt = weights_md_.data_type;
+    const auto dst_dt = dst_md_.data_type;
+
+    const bool is_int8 = one_of(src_dt, u8, s8) && wei_dt == s8
+            && one_of(dst_dt, u8, s8, s32, f32);
+    const bool is_bf16
+            = everyone_is(bf16, src_dt, wei_dt) && one_of(dst_dt, bf16, f32);
 
     auto check_bias = [&]() -> bool {
-        return IMPLICATION(with_bias(),
-                utils::one_of(weights_md(1)->data_type, f32, s32, s8, u8)
-                        && is_bias_1xN());
+        const bool is_bia_dt_correct
+                = (is_int8
+                          && one_of(weights_md(1)->data_type, f32, s32, s8, u8))
+                || (is_bf16 && one_of(weights_md(1)->data_type, f32, bf16));
+        return IMPLICATION(with_bias(), is_bia_dt_correct && is_bias_1xN());
     };
 
     auto check_attr_oscale = [&]() -> bool {
@@ -57,7 +67,9 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     auto check_attr_zero_points
             = [&]() -> bool { return attr()->zero_points_.common(); };
 
-    bool ok = true && mayiuse(isa) && !has_runtime_dims_or_strides()
+    const bool problem_dt_correct = is_int8 || is_bf16;
+    bool ok = true && mayiuse(isa) && problem_dt_correct
+            && !has_runtime_dims_or_strides()
             && attr()->has_default_values(primitive_attr_t::skip_mask_t::oscale
                     | primitive_attr_t::skip_mask_t::zero_points
                     | primitive_attr_t::skip_mask_t::post_ops)
@@ -93,7 +105,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         CHECK(brgemm_desc_set_postops(
                 &brg, attr(), &dst_md_, LDD, bgmmc_.bia_dt));
 
-        if (isa == avx512_core_bf16_amx_int8) {
+        if (one_of(isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16)) {
             brgemm_attr_t brgattr;
             brgattr.max_bs = bgmmc_.brgemm_batch_size;
             brgattr.wary_tail_read = false;
@@ -125,7 +137,7 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
         brgemm_kernel_t *ker = nullptr;
         CHECK(brgemm_kernel_create(&ker, pd()->get_brg_desc(idx)));
         CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
-        if (isa == avx512_core_bf16_amx_int8)
+        if (one_of(isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16))
             CHECK(brgemm_init_tiles(
                     pd()->get_brg_desc(idx), &brg_kernel_palettes_[idx][0]));
     }
@@ -153,7 +165,8 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     const bool use_buffer_a
             = bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only;
 
-    constexpr bool is_amx = isa == avx512_core_bf16_amx_int8;
+    constexpr bool is_amx
+            = one_of(isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
     int work_amount = bgmmc.batch * bgmmc.M_chunks * bgmmc.N_chunks;
 
     // If work_amount == 1 we limit num threads to 1 as parallel(1, ...) does
@@ -202,7 +215,8 @@ template <cpu_isa_t isa>
 void brgemm_matmul_t<isa>::compute_kernel(
         const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr, int b_idx,
         int m_blk_idx, int n_blk_idx, int k_chunk_idx) const {
-    constexpr bool is_amx = isa == avx512_core_bf16_amx_int8;
+    constexpr bool is_amx
+            = one_of(isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
     const auto addr_batch = brgmm_ctx.get_batch_elem_ptr(ithr);
     const int base_brg_ker_idx = brgmm_ctx.get_base_brgemm_kernel_idx();
@@ -446,7 +460,8 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
                 : nullptr;
 
-        is_amx_ = isa == avx512_core_bf16_amx_int8;
+        is_amx_ = one_of(
+                isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
         wsp_tile_ptr_ = is_amx_
                 ? ctx.get_scratchpad_grantor().template get<char>(
                         key_conv_amx_tile_buffer)
@@ -684,6 +699,7 @@ private:
 };
 
 template struct brgemm_matmul_t<avx512_core_bf16_amx_int8>;
+template struct brgemm_matmul_t<avx512_core_bf16_amx_bf16>;
 
 } // namespace matmul
 } // namespace x64
