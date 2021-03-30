@@ -2,8 +2,11 @@
 
 ## Operators
 
-Supported operation refers to operation which can be converted to oneDNN Graph OP and thus can be part of oneDNN Graph partition.
-The preview supports the following operations as part of Opset defined in oneDNN Graph Spec.  It supports FP32/FP16/BF16 data type.  For complete OP definition, please refer to [oneDNN Graph Specification](https://spec.oneapi.com/onednn-graph/latest/ops/index.html).
+Supported operation refers to operation which can be converted to oneDNN Graph
+OP and thus can be part of oneDNN Graph partition. The preview supports the
+following operations as part of Opset defined in oneDNN Graph Spec.  It supports
+FP32/FP16/BF16 data type.  For complete OP definition, please refer to
+[oneDNN Graph Specification](https://spec.oneapi.com/onednn-graph/latest/ops/index.html).
 
 - AvgPool
 - AvgPoolBackprop
@@ -65,7 +68,8 @@ The preview supports the following operations as part of Opset defined in oneDNN
 
 ## Fusion Patterns
 
-The preview depends on the oneDNN primitive post-ops feature to support fusion. It supports a subset of the pattern capability as listed below.
+The preview depends on the oneDNN primitive post-ops feature to support fusion.
+It supports a subset of the pattern capability as listed below.
 
 - Convolution + Add
 - Convolution + Add + ReLU

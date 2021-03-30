@@ -13,7 +13,7 @@ git clone https://github.com/oneapi-src/oneDNN.git --branch dev-graph --recursiv
 Ensure that all software dependencies are in place and have at least the
 minimal supported version.
 
-The oneDNN graph build system is based on CMake. Use
+The oneDNN Graph build system is based on CMake. Use
 
 - `CMAKE_BUILD_TYPE` to select between build type (`Release`, `Debug`,
   `RelWithDebInfo`).
@@ -56,7 +56,8 @@ make doc
 
 ## Validate the Build
 
-If the library is built for the host system, you can run unit tests and examples using:
+If the library is built for the host system, you can run unit tests and examples
+using:
 
 ~~~sh
 cd build
