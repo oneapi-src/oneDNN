@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,45 +21,54 @@ namespace reduction {
 alg_t str2alg(const char *str) {
 #define CASE(_alg) \
     if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
-    CASE(MAX);
-    CASE(MIN);
-    CASE(SUM);
-    CASE(MUL);
-    CASE(MEAN);
-    CASE(NORM_LP_MAX);
-    CASE(NORM_LP_SUM);
-    CASE(NORM_LP_POWER_P_MAX);
-    CASE(NORM_LP_POWER_P_SUM);
+    CASE(max);
+    CASE(reduction_max);
+    CASE(min);
+    CASE(reduction_min);
+    CASE(sum);
+    CASE(reduction_sum);
+    CASE(mul);
+    CASE(reduction_mul);
+    CASE(mean);
+    CASE(reduction_mean);
+    CASE(norm_lp_max);
+    CASE(reduction_norm_lp_max);
+    CASE(norm_lp_sum);
+    CASE(reduction_norm_lp_sum);
+    CASE(norm_lp_power_p_max);
+    CASE(reduction_norm_lp_power_p_max);
+    CASE(norm_lp_power_p_sum);
+    CASE(reduction_norm_lp_power_p_sum);
 
 #undef CASE
     assert(!"unknown algorithm");
-    return UNDEF;
+    return undef;
 }
 
 const char *alg2str(alg_t alg) {
-    if (alg == MAX) return "MAX";
-    if (alg == MIN) return "MIN";
-    if (alg == SUM) return "SUM";
-    if (alg == MUL) return "MUL";
-    if (alg == MEAN) return "MEAN";
-    if (alg == NORM_LP_MAX) return "NORM_LP_MAX";
-    if (alg == NORM_LP_SUM) return "NORM_LP_SUM";
-    if (alg == NORM_LP_POWER_P_MAX) return "NORM_LP_POWER_P_MAX";
-    if (alg == NORM_LP_POWER_P_SUM) return "NORM_LP_POWER_P_SUM";
+    if (alg == max) return "max";
+    if (alg == min) return "min";
+    if (alg == sum) return "sum";
+    if (alg == mul) return "mul";
+    if (alg == mean) return "mean";
+    if (alg == norm_lp_max) return "norm_lp_max";
+    if (alg == norm_lp_sum) return "norm_lp_sum";
+    if (alg == norm_lp_power_p_max) return "norm_lp_power_p_max";
+    if (alg == norm_lp_power_p_sum) return "norm_lp_power_p_sum";
     assert(!"unknown algorithm");
-    return "UNDEF";
+    return "undef";
 }
 
 dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
-    if (alg == MAX) return dnnl_reduction_max;
-    if (alg == MIN) return dnnl_reduction_min;
-    if (alg == SUM) return dnnl_reduction_sum;
-    if (alg == MUL) return dnnl_reduction_mul;
-    if (alg == MEAN) return dnnl_reduction_mean;
-    if (alg == NORM_LP_MAX) return dnnl_reduction_norm_lp_max;
-    if (alg == NORM_LP_SUM) return dnnl_reduction_norm_lp_sum;
-    if (alg == NORM_LP_POWER_P_MAX) return dnnl_reduction_norm_lp_power_p_max;
-    if (alg == NORM_LP_POWER_P_SUM) return dnnl_reduction_norm_lp_power_p_sum;
+    if (alg == max) return dnnl_reduction_max;
+    if (alg == min) return dnnl_reduction_min;
+    if (alg == sum) return dnnl_reduction_sum;
+    if (alg == mul) return dnnl_reduction_mul;
+    if (alg == mean) return dnnl_reduction_mean;
+    if (alg == norm_lp_max) return dnnl_reduction_norm_lp_max;
+    if (alg == norm_lp_sum) return dnnl_reduction_norm_lp_sum;
+    if (alg == norm_lp_power_p_max) return dnnl_reduction_norm_lp_power_p_max;
+    if (alg == norm_lp_power_p_sum) return dnnl_reduction_norm_lp_power_p_sum;
     assert(!"unknown algorithm");
     return dnnl_alg_kind_undef;
 }

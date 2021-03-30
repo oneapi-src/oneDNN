@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,47 +28,47 @@ namespace reduction {
 
 void init_acc(float &acc, alg_t alg) {
     switch (alg) {
-        case MAX: acc = std::numeric_limits<float>::lowest(); break;
-        case MIN: acc = std::numeric_limits<float>::max(); break;
-        case SUM: acc = 0.0f; break;
-        case MUL: acc = 1.0f; break;
-        case MEAN:
-        case NORM_LP_MAX:
-        case NORM_LP_SUM:
-        case NORM_LP_POWER_P_MAX:
-        case NORM_LP_POWER_P_SUM: acc = 0.0f; break;
+        case max: acc = std::numeric_limits<float>::lowest(); break;
+        case min: acc = std::numeric_limits<float>::max(); break;
+        case sum: acc = 0.0f; break;
+        case mul: acc = 1.0f; break;
+        case mean:
+        case norm_lp_max:
+        case norm_lp_sum:
+        case norm_lp_power_p_max:
+        case norm_lp_power_p_sum: acc = 0.0f; break;
         default: assert(!"unknown algorithm");
     }
 }
 
 void accumulate(float &dst, const float src, alg_t alg, float p, float eps) {
     switch (alg) {
-        case MAX: dst = MAX2(dst, src); break;
-        case MIN: dst = MIN2(dst, src); break;
-        case MEAN:
-        case SUM: dst += src; break;
-        case MUL: dst *= src; break;
-        case NORM_LP_MAX:
-        case NORM_LP_SUM:
-        case NORM_LP_POWER_P_MAX:
-        case NORM_LP_POWER_P_SUM: dst += pow(fabs(src), p); break;
+        case max: dst = MAX2(dst, src); break;
+        case min: dst = MIN2(dst, src); break;
+        case mean:
+        case sum: dst += src; break;
+        case mul: dst *= src; break;
+        case norm_lp_max:
+        case norm_lp_sum:
+        case norm_lp_power_p_max:
+        case norm_lp_power_p_sum: dst += pow(fabs(src), p); break;
         default: assert(!"unknown algorithm");
     }
 }
 
 void finalize(float &dst, alg_t alg, float p, float eps, dnnl_dim_t n) {
     switch (alg) {
-        case MEAN: dst /= n; break;
-        case NORM_LP_MAX:
+        case mean: dst /= n; break;
+        case norm_lp_max:
             dst = MAX2(dst, eps);
             dst = pow(dst, 1.0f / p);
             break;
-        case NORM_LP_SUM:
+        case norm_lp_sum:
             dst += eps;
             dst = pow(dst, 1.0f / p);
             break;
-        case NORM_LP_POWER_P_MAX: dst = MAX2(dst, eps); break;
-        case NORM_LP_POWER_P_SUM: dst += eps; break;
+        case norm_lp_power_p_max: dst = MAX2(dst, eps); break;
+        case norm_lp_power_p_sum: dst += eps; break;
         default: break;
     }
 }

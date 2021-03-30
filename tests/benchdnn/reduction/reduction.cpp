@@ -80,7 +80,7 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto ddt = prb->ddt;
     if (!nelems) return OK;
 
-    const int range = prb->alg == alg_t::MUL
+    const int range = prb->alg == alg_t::mul
             ? (sdt == dnnl_u8 || sdt == dnnl_s8) ? 1024 : 4
             : 16;
     const int f_min = sdt == dnnl_u8 ? 1 : -range / 2;
@@ -96,9 +96,9 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     // between some kernels and benchdnn reference. Number of elements was
     // selected experimentally.
     int safe_to_reduce_elems = nelems_to_reduce;
-    if (prb->alg == alg_t::NORM_LP_MAX || prb->alg == alg_t::NORM_LP_POWER_P_MAX
-            || prb->alg == alg_t::NORM_LP_POWER_P_SUM
-            || prb->alg == alg_t::NORM_LP_SUM) {
+    if (prb->alg == alg_t::norm_lp_max || prb->alg == alg_t::norm_lp_power_p_max
+            || prb->alg == alg_t::norm_lp_power_p_sum
+            || prb->alg == alg_t::norm_lp_sum) {
         safe_to_reduce_elems = 5e3;
     } else if (ddt == dnnl_f32 || ddt == dnnl_f16 || ddt == dnnl_bf16) {
         // It should work if float is used as an accumulator for f16 and bf16
@@ -115,12 +115,12 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
         msr.discard(1);
         std::uniform_int_distribution<> igen(0, range);
         const float gen = static_cast<float>(igen(msr));
-        const float neutral_value = prb->alg == alg_t::MUL ? 1.0f : 0.0f;
+        const float neutral_value = prb->alg == alg_t::mul ? 1.0f : 0.0f;
         float value = neutral_value;
 
         const float neutral_gen = ((89 * i) + 73) % prob_range;
         if (neutral_gen <= non_neutral_prob * prob_range) {
-            if (prb->alg == alg_t::MUL) {
+            if (prb->alg == alg_t::mul) {
                 if (sdt == dnnl_s8 || sdt == dnnl_u8) {
                     // generate {1, 2}, but probability of 2 is 1/range
                     value = gen == range ? 2.0f : 1.0f;
@@ -134,7 +134,7 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
                         value = 1.0f;
                     }
                 }
-            } else if (prb->alg == alg_t::MEAN && ddt == dnnl_f16) {
+            } else if (prb->alg == alg_t::mean && ddt == dnnl_f16) {
                 // Shift the mean to value different than 0 as results equal
                 // to 0 may be treated as mistrusted.
                 float mean_shift = 0.5;
@@ -158,10 +158,10 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 
     bool is_invalid = false;
     switch (prb->alg) {
-        case alg_t::NORM_LP_MAX:
-        case alg_t::NORM_LP_SUM:
-        case alg_t::NORM_LP_POWER_P_MAX:
-        case alg_t::NORM_LP_POWER_P_SUM:
+        case alg_t::norm_lp_max:
+        case alg_t::norm_lp_sum:
+        case alg_t::norm_lp_power_p_max:
+        case alg_t::norm_lp_power_p_sum:
             is_invalid = is_integral_dt(prb->sdt) || prb->p < 1.f;
             break;
         default: break;
