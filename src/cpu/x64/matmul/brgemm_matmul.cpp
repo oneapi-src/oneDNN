@@ -251,11 +251,18 @@ void brgemm_matmul_t<isa>::compute_kernel(
 
             const size_t dst_row_logical_off
                     = b_idx * m_blk_idx * bgmmc.M_chunk_size;
+            const size_t batch_first_dim_idx = bgmmc.batch_ndims > 1
+                    ? b_idx / bgmmc.batch_without_first_dim
+                    : 0;
+            const size_t first_mb_matrix_addr_off
+                    = batch_first_dim_idx * (bgmmc.M * bgmmc.N)
+                    + (m * bgmmc.N + n);
             const brgemm_post_ops_data_t post_ops_data {
                     static_cast<const void *>(ptr_bias),
                     brgmm_ctx.get_oscales_ptr(n),
                     post_ops_binary_rhs_arg_vec.data(), static_cast<size_t>(n),
-                    dst_row_logical_off, static_cast<const void *>(zp_comp_a),
+                    dst_row_logical_off, first_mb_matrix_addr_off,
+                    static_cast<const void *>(zp_comp_a),
                     static_cast<const void *>(zp_comp_b),
                     static_cast<const void *>(zp_c_val_ptr)};
 
@@ -289,11 +296,18 @@ void brgemm_matmul_t<isa>::compute_kernel(
 
             const size_t dst_row_logical_off
                     = b_idx * m_blk_idx * bgmmc.M_chunk_size;
+            const size_t batch_first_dim_idx = bgmmc.batch_ndims > 1
+                    ? b_idx / bgmmc.batch_without_first_dim
+                    : 0;
+            const size_t first_mb_matrix_addr_off
+                    = batch_first_dim_idx * (bgmmc.M * bgmmc.N)
+                    + (m * bgmmc.N + n);
             const brgemm_post_ops_data_t post_ops_data {
                     static_cast<const void *>(ptr_bias),
                     brgmm_ctx.get_oscales_ptr(n),
                     post_ops_binary_rhs_arg_vec.data(), static_cast<size_t>(n),
-                    dst_row_logical_off, static_cast<const void *>(zp_comp_a),
+                    dst_row_logical_off, first_mb_matrix_addr_off,
+                    static_cast<const void *>(zp_comp_a),
                     static_cast<const void *>(zp_comp_b),
                     static_cast<const void *>(zp_c_val_ptr)};
 
@@ -537,6 +551,22 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 + buf_idx * bgmmc_.buffer_c_chunk_sz;
     }
 
+    // Auxiliary functions for getting offsets with pre-calculated memory
+    // strides for each tensor to get general sulution for all possible
+    // dimension without significant overhead
+    dim_t get_data_A_off(int b, int m, int k) const {
+        return bgmmc_.A_strides[2] * b + bgmmc_.A_strides[1] * m
+                + bgmmc_.A_strides[0] * k;
+    }
+    dim_t get_data_B_off(int b, int k, int n) const {
+        return bgmmc_.B_strides[2] * b + bgmmc_.B_strides[1] * k
+                + bgmmc_.B_strides[0] * n;
+    }
+    dim_t get_data_C_off(int b, int m, int n) const {
+        return bgmmc_.C_strides[2] * b + bgmmc_.C_strides[1] * m
+                + bgmmc_.C_strides[0] * n;
+    }
+
     const char *get_bias_ptr(int n) const {
         if (!bgmmc_.with_bias) return nullptr;
 
@@ -650,22 +680,6 @@ private:
     std::vector<const void *> post_ops_binary_rhs_arg_vec_;
 
     int base_brg_ker_idx_;
-
-    // Auxiliary functions for getting offsets with pre-calculated memory
-    // strides for each tensor to get general sulution for all possible
-    // dimension without significant overhead
-    dim_t get_data_A_off(int b, int m, int k) const {
-        return bgmmc_.A_strides[2] * b + bgmmc_.A_strides[1] * m
-                + bgmmc_.A_strides[0] * k;
-    }
-    dim_t get_data_B_off(int b, int k, int n) const {
-        return bgmmc_.B_strides[2] * b + bgmmc_.B_strides[1] * k
-                + bgmmc_.B_strides[0] * n;
-    }
-    dim_t get_data_C_off(int b, int m, int n) const {
-        return bgmmc_.C_strides[2] * b + bgmmc_.C_strides[1] * m
-                + bgmmc_.C_strides[0] * n;
-    }
 };
 
 template struct brgemm_matmul_t<avx512_core_bf16_amx_int8>;

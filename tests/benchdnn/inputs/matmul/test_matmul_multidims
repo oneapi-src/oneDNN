@@ -3,6 +3,7 @@
 --stag=abcd,abdc
 --wtag=abcd,abdc
 --runtime_dims_masks=0,1:1,8:4
+--attr-post-ops='','add:f32:per_mb_spatial'
 --batch=shapes_multidim
 
 --reset

@@ -21,27 +21,34 @@ mark (`*`) is an optional addition to `SCALE` indicating the scales will be
 passed to a primitive at run-time.
 
 `POLICY` supported values are:
-  - `none`        (the default) means no output scale is applied.
-  - `common`      corresponds to `mask = 0` and means a whole tensor will be
-                  multiplied by a single SCALE value.
-  - `per_oc`      corresponds to `mask = 1 << 1` and means elements of dim1
-                  will be multiplied by scale factors different for each point.
-                  Number of scale factors is equal to dims[1].
-  - `per_dim_0`   corresponds to `mask = 1 << 0` and means elements of dim0
-                  will be multiplied by scale factors different for each point.
-                  Number of scale factors is equal to dims[0].
-  - `per_dim_1`   same as `per_oc`.
-  - `per_dim_01`  corresponds to `mask = (1 << 0) + (1 << 1)` and means
-                  elements of dim0 and dim1 will be multiplied by scale factors
-                  different for a pair of {dim0, dim1} points. Number of scale
-                  factors is equal to dims[0] * dims[1].
-  - `per_dim_023` corresponds to `mask = (-1) - (1 << 1)` and means elements
-                  of dim0, dim2 and dim3 will be multiplied by scale factors
-                  different for {dim0, dim2, dim3} points. Number of scale
-                  factors is equal to dims[0] * dims[2] * dim[3].
-  - `per_tensor`  means each element of original tensor will be multiplied by
-                  a unique number. Number of scale factor is equal to `nelems`.
-                  As of now supported only by binary post-ops.
+  - `none`           (the default) means no output scale is applied.
+  - `common`         corresponds to `mask = 0` and means a whole tensor will be
+                     multiplied by a single SCALE value.
+  - `per_oc`         corresponds to `mask = 1 << 1` and means elements of dim1
+                     will be multiplied by scale factors different for each
+                     point. Number of scale factors is equal to dims[1].
+  - `per_dim_0`      corresponds to `mask = 1 << 0` and means elements of dim0
+                     will be multiplied by scale factors different for each
+                     point. Number of scale factors is equal to dims[0].
+  - `per_dim_1`      same as `per_oc`.
+  - `per_dim_01`     corresponds to `mask = (1 << 0) + (1 << 1)` and means
+                     elements of dim0 and dim1 will be multiplied by scale
+                     factors different for a pair of {dim0, dim1} points.
+                     Number of scale factors is equal to dims[0] * dims[1].
+  - `per_mb_spatial` corresponds to `mask = (1 << 0) + (1 << 2) + (1 << 3)` and
+                     means elements of dim0, dim2 and dim3 will be multiplied
+                     by scale factors different for {dim0, dim2, dim3} points.
+                     Number of scale factors is equal to
+                     dims[0] * dims[2] * dim[3]. Mask is not fixed and can be
+                     different depending on ndims.
+  - `per_spatial`    corresponds to `mask = (1 << 2) + (1 << 3)` and means
+                     elements of dim2 and dim3 will be multiplied by scale
+                     factors different for {dim2, dim3} points. Number of scale
+                     factors is equal to dims[2] * dim[3]. Mask is not fixed
+                     and can be different depending on ndims.
+  - `per_tensor`     means each element of original tensor will be multiplied
+                     by a unique number. Number of scale factor is equal to
+                     `nelems`. As of now supported only by binary post-ops.
 
 `--attr-scales` defines input scales per memory argument primitive attribute.
 `ARG` specifies which memory argument will be modified with input scale.

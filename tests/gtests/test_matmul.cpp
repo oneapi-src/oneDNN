@@ -332,6 +332,59 @@ protected:
     }
 };
 
+struct post_ops_attr_test_t
+    : public ::testing::TestWithParam<
+              std::tuple<memory::dims, memory::dims, memory::format_tag>> {};
+
+HANDLE_EXCEPTIONS_FOR_TEST_P(post_ops_attr_test_t,
+        TestMatmulShouldCallSameImplementationWithPostops) {
+    auto engine_kind = get_test_engine_kind();
+    SKIP_IF(!DNNL_X64 || engine_kind != engine::kind::cpu,
+            "Binary impl_info_str should be same only on x64 CPU");
+    engine e {engine_kind, 0};
+
+    std::vector<memory::data_type> test_dts {
+            memory::data_type::f32, memory::data_type::s8};
+
+    const auto tensor_dims = std::get<0>(GetParam());
+    const auto format_tag = std::get<2>(GetParam());
+
+    auto src_md = memory::desc(tensor_dims, memory::data_type::u8, format_tag);
+    auto weights_md
+            = memory::desc(tensor_dims, memory::data_type::s8, format_tag);
+    auto dst_md = memory::desc(tensor_dims, memory::data_type::f32, format_tag);
+    auto bia_md = memory::desc();
+
+    auto matmul_d = matmul::desc(src_md, weights_md, bia_md, dst_md);
+
+    std::string impl_info_no_postops;
+    auto matmul_pd = matmul::primitive_desc(matmul_d, e);
+    ASSERT_NO_THROW(impl_info_no_postops = matmul_pd.impl_info_str(););
+
+    dnnl::primitive_attr attr;
+    const float scale = 1.f;
+    const float alpha = 1.f;
+    const float beta = 1.f;
+    dnnl::post_ops ops;
+
+    ops.append_sum(1.0);
+
+    ops.append_eltwise(scale, algorithm::eltwise_relu, alpha, beta);
+
+    const auto binary_po_tensor_dims = std::get<1>(GetParam());
+    memory::desc src1_po_md(
+            binary_po_tensor_dims, memory::data_type::f32, format_tag);
+    ops.append_binary(algorithm::binary_add, src1_po_md);
+
+    attr.set_post_ops(ops);
+
+    std::string impl_info_with_postops;
+
+    matmul_pd = matmul::primitive_desc(matmul_d, attr, e);
+    ASSERT_NO_THROW(impl_info_with_postops = matmul_pd.impl_info_str(););
+    ASSERT_EQ(impl_info_no_postops, impl_info_with_postops);
+}
+
 /********************************* TEST CASES *********************************/
 
 using iface = matmul_iface_test_t;
@@ -574,5 +627,13 @@ INSTANTIATE_TEST_SUITE_P(
         Generic_s8s8s32, iface, cases_x8(data_type::s8, data_type::s32));
 INSTANTIATE_TEST_SUITE_P(
         Generic_u8s8u8, iface, cases_x8(data_type::u8, data_type::u8));
+
+INSTANTIATE_TEST_SUITE_P(TensorDims, post_ops_attr_test_t,
+        ::testing::Values(
+                // {{src0, src1, dst same_dim}, { binary post-op dim }}
+                std::make_tuple(memory::dims {3, 2, 16, 16},
+                        memory::dims {3, 1, 16, 16}, tag::abcd),
+                std::make_tuple(memory::dims {9, 9, 64, 64},
+                        memory::dims {9, 1, 64, 64}, tag::abcd)));
 
 } // namespace dnnl

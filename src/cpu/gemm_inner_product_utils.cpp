@@ -52,7 +52,7 @@ struct ref_pp_kernel_t : public pp_kernel_t<acc_type, dst_type> {
             size_t dst_row_idx, size_t end, size_t runtime_oc,
             dim_t dst_mb_stride, const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
-            size_t spatial_addr_off, const exec_ctx_t &ctx,
+            size_t first_mb_matrix_addr_off, const exec_ctx_t &ctx,
             const memory_desc_t &dst_md) const override;
 
 private:
@@ -65,7 +65,7 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         size_t start, size_t dst_row_idx, size_t dst_logical_off, size_t end,
         size_t runtime_oc, dim_t dst_mb_stride, const float *dst_zero_points,
         const void * /* post_ops_binary_rhs_arg_vec */,
-        const void * /* dst_orig */, size_t /* spatial_addr_off */,
+        const void * /* dst_orig */, size_t /* first_mb_matrix_addr_off */,
         const exec_ctx_t &ctx, const memory_desc_t &dst_md) const {
     using math::get_bias;
 
@@ -180,7 +180,8 @@ template struct pp_kernel_t<s32, s8>;
 template struct pp_kernel_t<s32, u8>;
 template struct pp_kernel_t<f32, bf16>;
 
-bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
+bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
+        const bcast_set_t &enabled_bcast_strategy) {
 #if DNNL_X64
     static constexpr auto isa_supported
             = x64::inner_product_utils::jit_pp_kernel_supported_isa();
@@ -189,17 +190,12 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
         using namespace x64::injector;
         static constexpr bool sum_at_pos_0_only = true;
         static constexpr bool sum_requires_scale_one = false;
-        static const bcast_set_t enabled_bcast_strategy
-                = {broadcasting_strategy_t::scalar,
-                        broadcasting_strategy_t::per_oc,
-                        broadcasting_strategy_t::per_oc_spatial,
-                        broadcasting_strategy_t::channel_broadcast,
-                        broadcasting_strategy_t::no_broadcast};
+
         const bool is_binary_po_channel_bcast
                 = binary_injector_utils::bcast_strategy_present(
                         binary_injector_utils::extract_bcast_strategies(
                                 post_ops.entry_, *dst_d),
-                        broadcasting_strategy_t::channel_broadcast);
+                        broadcasting_strategy_t::per_mb_spatial);
         const bool supported_channel_bcast = IMPLICATION(
                 is_binary_po_channel_bcast, (*dst_d).ndims() == 4);
         return supported_channel_bcast
@@ -219,9 +215,10 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
     return true;
 }
 
-bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d) {
+bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d,
+        const bcast_set_t &enabled_bcast_strategy) {
     const auto dst_md = memory_desc_wrapper(dst_d);
-    return post_ops_ok(post_ops, &dst_md);
+    return post_ops_ok(post_ops, &dst_md, enabled_bcast_strategy);
 }
 
 } // namespace inner_product_utils

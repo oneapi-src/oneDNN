@@ -23,6 +23,8 @@
 
 #include "cpu/cpu_inner_product_pd.hpp"
 
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -54,7 +56,7 @@ struct pp_kernel_t {
             size_t runtime_oc, dim_t dst_mb_stride,
             const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
-            size_t spatial_addr_off, const exec_ctx_t &ctx,
+            size_t first_mb_matrix_addr_off, const exec_ctx_t &ctx,
             const memory_desc_t &dst_md) const = 0;
 
     virtual status_t create_kernel() { return status::success; }
@@ -86,8 +88,15 @@ protected:
     bool runtime_mb() const { return MB_ == (size_t)DNNL_RUNTIME_DIM_VAL; }
 };
 
-bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d);
-bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d);
+static const bcast_set_t default_strategies {broadcasting_strategy_t::scalar,
+        broadcasting_strategy_t::per_oc,
+        broadcasting_strategy_t::per_oc_spatial,
+        broadcasting_strategy_t::no_broadcast};
+
+bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
+        const bcast_set_t &enabled_bcast_strategy = default_strategies);
+bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d,
+        const bcast_set_t &enabled_bcast_strategy = default_strategies);
 
 } // namespace inner_product_utils
 } // namespace cpu

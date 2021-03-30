@@ -35,7 +35,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
             broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
             broadcasting_strategy_t::per_oc_spatial,
             broadcasting_strategy_t::shared_axes,
-            broadcasting_strategy_t::channel_broadcast,
+            broadcasting_strategy_t::per_mb_spatial,
             broadcasting_strategy_t::no_broadcast};
 
     return get_rhs_arg_broadcasting_strategy(
@@ -44,8 +44,15 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
 
 namespace {
 
-bool is_channel_bcast(const std::bitset<DNNL_MAX_NDIMS> mask) {
-    return mask.count() == 1 && mask.test(1);
+bool is_channel_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
+        const memory_desc_wrapper &dst_d) {
+    // channel broadcast only for nchw data format
+    const auto ndims = dst_d.ndims();
+    const auto &strides = dst_d.blocking_desc().strides;
+    return dst_d.is_blocking_desc()
+            && (dst_d.is_plain() && strides[1] != 1 && strides[0] >= strides[1]
+                    && IMPLICATION(ndims >= 3, strides[1] >= strides[2]))
+            && mask.count() == 1 && mask.test(1);
 }
 
 bool is_per_oc_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
@@ -120,17 +127,13 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
 
     broadcasting_strategy_t bcast = broadcasting_strategy_t::unsupported;
 
-    const auto &mb_rhs = rhs_arg_md.dims[0];
-    const bool channel_broadcast = mask.count() == 1 && mask.test(1);
-    const bool broadcast_per_mb = !mask.test(0);
-    const bool broadcast_per_oc = !mask.test(1);
-
-    if (all_ones)
+    if (all_ones && is_enabled(broadcasting_strategy_t::scalar))
         bcast = broadcasting_strategy_t::scalar;
     else if (mask.none() && is_enabled(broadcasting_strategy_t::no_broadcast))
         bcast = broadcasting_strategy_t::no_broadcast;
-    else if (is_channel_broadcast(channel_broadcast) && is_enabled(broadcasting_strategy_t::channel_broadcast)) {
-        bcast = broadcasting_strategy_t::channel_broadcast;
+    else if (is_channel_bcast(mask, rhs_arg_md)
+            && is_enabled(broadcasting_strategy_t::per_mb_spatial))
+        bcast = broadcasting_strategy_t::per_mb_spatial;
     else if (is_per_oc_bcast(mask, rhs_arg_md)
             && (is_enabled(broadcasting_strategy_t::per_oc)
                     || is_enabled(broadcasting_strategy_t::per_oc_spatial))) {

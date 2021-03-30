@@ -293,7 +293,7 @@ static bool rhs_arg_params_differ(size_t vmm_idx1, size_t vmm_idx2,
                 || params_differ(oc_off_val, vmm_idx1, vmm_idx2)
                 || params_differ(oc_off_oprnd, vmm_idx1, vmm_idx2);
     } else if (rhs_broadcasting_strategy
-            == broadcasting_strategy_t::channel_broadcast) {
+            == broadcasting_strategy_t::per_mb_spatial) {
         return params_differ(sp_off_addr, vmm_idx1, vmm_idx2)
                 || params_differ(sp_off_val, vmm_idx1, vmm_idx2)
                 || params_differ(sp_off_oprnd, vmm_idx1, vmm_idx2);
@@ -522,7 +522,7 @@ Xbyak::Address jit_uni_binary_injector_t<isa, Vmm>::prepare_rhs_arg_addr(
                     ? host_->ptr_b[rhs_addr_reg]
                     : host_->ptr[rhs_addr_reg];
         }
-        case broadcasting_strategy_t::channel_broadcast: {
+        case broadcasting_strategy_t::per_mb_spatial: {
             append_offset_from_operand(rhs_arg_params.vmm_idx_to_sp_off_oprnd,
                     vmm_idx, rhs_addr_reg, rhs_helper_reg, rhs_arg_elem_size);
             append_offset_under_mem_addr(

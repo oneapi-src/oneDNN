@@ -41,11 +41,22 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
 
     const auto &post_ops = attr.post_ops_;
 
-    return injector::post_ops_ok(post_ops_ok_args_t(avx512_common,
-            {sum, eltwise, binary}, post_ops, &dst_d,
-            false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
-            {broadcasting_strategy_t::per_oc,
-                    broadcasting_strategy_t::scalar}));
+    const bool is_binary_po_channel_bcast
+            = binary_injector_utils::bcast_strategy_present(
+                    binary_injector_utils::extract_bcast_strategies(
+                            post_ops.entry_, dst_d),
+                    broadcasting_strategy_t::per_mb_spatial);
+    const bool supported_channel_bcast
+            = IMPLICATION(is_binary_po_channel_bcast, (dst_d).ndims() == 4);
+
+    return supported_channel_bcast
+            && injector::post_ops_ok(
+                    post_ops_ok_args_t(avx512_common, {sum, eltwise, binary},
+                            post_ops, &dst_d, false /*sum_at_pos_0_only*/,
+                            false /*sum_requires_scale_one*/,
+                            {broadcasting_strategy_t::per_oc,
+                                    broadcasting_strategy_t::scalar,
+                                    broadcasting_strategy_t::per_mb_spatial}));
 }
 
 brgemm_broadcast_t get_zp_type(const primitive_attr_t &attr, int arg) {
@@ -134,6 +145,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.N = helper.N();
     bgmmc.K = helper.K();
     bgmmc.batch = helper.batch();
+    bgmmc.batch_without_first_dim
+            = bgmmc.batch_ndims > 1 ? helper.batch() / dst_d.dims()[0] : 0;
 
     // required granularity for k dimension
     const int k_gran = is_amx ? 4 : 1;

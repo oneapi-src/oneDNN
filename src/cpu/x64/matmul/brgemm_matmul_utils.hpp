@@ -30,7 +30,7 @@ namespace matmul {
 
 struct brgemm_matmul_conf_t {
     int ndims, batch_ndims;
-    dim_t M, N, K, batch;
+    dim_t M, N, K, batch, batch_without_first_dim;
     dim_t M_blk, N_blk, K_blk, M_tail, N_tail, K_tail;
     int M_chunk_size, N_chunk_size;
     dim_t LDA, LDB, LDC, LDD;
