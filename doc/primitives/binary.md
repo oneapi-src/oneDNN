@@ -106,6 +106,9 @@ meaning associated with any of tensors dimensions.
    - For `f32` destination type source 0 and source 1 tensors must have `f32`
      data type.
 
+3. **GPU**
+   - Implicit broadcast for source 0 is not supported.
+
 ## Performance Tips
 
 1. Whenever possible, avoid specifying different memory formats for source
