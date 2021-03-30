@@ -732,9 +732,7 @@ engine_t::engine_t(const engine_t &other) {
 #else
         DNN_SAFE_V(dnnl_engine_create(&engine_, dnnl_cpu, 0));
 #endif
-    }
-
-    if (engine_kind == dnnl_gpu) {
+    } else if (engine_kind == dnnl_gpu) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         cl_device_id dev;
         cl_context ctx;
@@ -748,6 +746,8 @@ engine_t::engine_t(const engine_t &other) {
         DNN_SAFE_V(dnnl_sycl_interop_engine_get_context(other.engine_, &ctx));
         DNN_SAFE_V(dnnl_sycl_interop_engine_create(&engine_, dev, ctx));
 #endif
+    } else {
+        assert(!"unsupported engine kind");
     }
 }
 
