@@ -65,9 +65,10 @@ bool jit_uni_binary_t<src_type>::post_ops_ok(
 
     const int vlen = is_avx512_core ? cpu_isa_traits<avx512_core>::vlen
                                     : cpu_isa_traits<avx2>::vlen;
-
+    const auto supported_strategies = get_supported_bcast_strategies();
     const bool postops_per_oc_broadcast_exists
-            = binary_injector::any_binary_postop_rhs_per_oc_broadcast(p, dst_d);
+            = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
+                    p, dst_d, supported_strategies);
     const int blksize = vlen / sizeof(float);
 
     const bool blocked_format = !dst_d.is_plain() && dst_d.is_blocking_desc();
@@ -91,7 +92,7 @@ bool jit_uni_binary_t<src_type>::post_ops_ok(
                    p, dst_d, get_supported_bcast_strategies())
             && IMPLICATION(postops_per_oc_broadcast_exists,
                     binary_injector::all_binary_postop_rhs_per_oc_broadcast(p,
-                            dst_d,
+                            dst_d, supported_strategies,
                             [&dst_d](const memory_desc_wrapper &rhs_arg_md) {
                                 return IMPLICATION(!mayiuse(avx2),
                                         dst_d.consistent_with(rhs_arg_md)
@@ -217,9 +218,10 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
         const auto &po = pd_->attr()->post_ops_;
         const bool postops_per_oc_broadcast_exists
                 = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
-                        po, src0_d);
+                        po, src0_d, get_supported_bcast_strategies());
         broadcast_src1_value_
                 = op_type_ == op_t::bcast_n_c_spatial || src1_d.nelems() == 1;
+
         use_stride_src1_ = !broadcast_src1_value_
                 && (op_type_ == op_t::tensor
                         || op_type_ == op_t::bcast_n_spatial_c);
@@ -952,8 +954,9 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
 
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
-                    post_ops, src0_d);
+                    post_ops, src0_d, get_supported_bcast_strategies());
     const bool no_broadcast = pd()->is_tensor_op();
+
     const bool with_postops = !post_ops.entry_.empty();
     const auto per_oc_bcast = get_bcast_per_c(src0_d);
     const auto &simd_w = kernel_->simd_w();
