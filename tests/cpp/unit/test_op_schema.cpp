@@ -173,10 +173,14 @@ void verify_shape_infer_for_conv(const op_kind_t op_kind_,
     const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
-    std::vector<int64_t> strides = {2, 2};
-    std::vector<int64_t> pads_begin = {1, 1};
-    std::vector<int64_t> pads_end = {2, 2};
-    std::vector<int64_t> dilations = {1, 1};
+    std::vector<int64_t> strides;
+    std::vector<int64_t> pads_begin;
+    std::vector<int64_t> pads_end;
+    std::vector<int64_t> dilations;
+    strides.assign(in_data.size() - 2, 2);
+    pads_begin.assign(in_data.size() - 2, 1);
+    pads_end.assign(in_data.size() - 2, 2);
+    dilations.assign(in_data.size() - 2, 1);
     std::string auto_pad = "VALID";
 
     set_conv_common_attr(op_, strides, pads_begin, pads_end, dilations,
@@ -206,7 +210,8 @@ void verify_shape_infer_for_conv(const op_kind_t op_kind_,
     op_schema_->shape_infer(&op_, in, out);
     auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
     auto infered_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
-    const std::vector<int64_t> expected_pads = {0, 0};
+    std::vector<int64_t> expected_pads;
+    expected_pads.assign(in_data.size() - 2, 0);
     EXPECT_EQ(infered_pads_begin, expected_pads);
     EXPECT_EQ(infered_pads_end, expected_pads);
 }
@@ -220,10 +225,14 @@ void verify_shape_infer_for_conv(const op_kind_t op_kind_,
     const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
 
-    std::vector<int64_t> strides = {2, 2};
-    std::vector<int64_t> pads_begin = {1, 1};
-    std::vector<int64_t> pads_end = {2, 2};
-    std::vector<int64_t> dilations = {1, 1};
+    std::vector<int64_t> strides;
+    std::vector<int64_t> pads_begin;
+    std::vector<int64_t> pads_end;
+    std::vector<int64_t> dilations;
+    strides.assign(in_data.size() - 2, 2);
+    pads_begin.assign(in_data.size() - 2, 1);
+    pads_end.assign(in_data.size() - 2, 2);
+    dilations.assign(in_data.size() - 2, 1);
     std::string auto_pad = "VALID";
 
     set_conv_common_attr(op_, strides, pads_begin, pads_end, dilations,
@@ -254,7 +263,8 @@ void verify_shape_infer_for_conv(const op_kind_t op_kind_,
     op_schema_->shape_infer(&op_, in, out);
     auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
     auto infered_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
-    const std::vector<int64_t> expected_pads = {0, 0};
+    std::vector<int64_t> expected_pads;
+    expected_pads.assign(in_data.size() - 2, 0);
     EXPECT_EQ(infered_pads_begin, expected_pads);
     EXPECT_EQ(infered_pads_end, expected_pads);
 }
@@ -495,6 +505,49 @@ TEST(op_schema_test, conv_bias_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
+TEST(op_schema_test, conv3d_bias_infer_shape) {
+    const op_schema *a_op_schema
+            = op_schema_registry::get_op_schema(op_kind::conv_bias);
+    EXPECT_TRUE(nullptr != a_op_schema);
+    op_t a_node {op_kind::conv_bias, op_t::kind2str(op_kind::conv_bias)};
+    std::vector<int64_t> strides = {2, 2, 2};
+    std::vector<int64_t> pads_begin = {1, 1, 1};
+    std::vector<int64_t> pads_end = {2, 2, 2};
+    std::vector<int64_t> dilations = {1, 1, 1};
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    int64_t groups = 1;
+
+    set_conv_common_attr(a_node, strides, pads_begin, pads_end, dilations,
+            "None", data_format, filter_format, groups);
+
+    logical_tensor_t lt_data
+            = logical_tensor_init(0, {1, 256, 64, 64, 64}, data_type::f32);
+    logical_tensor_t lt_weight
+            = logical_tensor_init(1, {512, 256, 3, 3, 3}, data_type::f32);
+    logical_tensor_t lt_bias = logical_tensor_init(2, {1}, data_type::f32);
+    logical_tensor_t lt_o
+            = logical_tensor_init(3, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight, &lt_bias};
+    std::vector<logical_tensor_t *> lt_out {&lt_o};
+    a_op_schema->shape_infer(&a_node, lt_in, lt_out);
+    auto unchanged_pads_begin
+            = a_node.get_attr<std::vector<int64_t>>("pads_begin");
+    auto unchanged_pads_end = a_node.get_attr<std::vector<int64_t>>("pads_end");
+    EXPECT_EQ(unchanged_pads_begin, pads_begin);
+    EXPECT_EQ(unchanged_pads_end, pads_end);
+
+    const std::vector<int64_t> infered_out_shape
+            = logical_tensor_wrapper(lt_o).vdims();
+    const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33, 33};
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+    const std::vector<int64_t> infered_out_strides
+            = logical_tensor_wrapper(lt_o).vstrides();
+    const std::vector<int64_t> expected_out_strides
+            = compute_dense_strides(expected_out_shape);
+    EXPECT_EQ(infered_out_strides, expected_out_strides);
+}
+
 TEST(op_schema_test, Conv_bias_add_elu) {
     const op_kind_t conv_kind = op_kind::conv_bias_add_elu;
     const size_t expected_in_size = 4;
@@ -704,6 +757,30 @@ TEST(op_schema_test, conv_ncx_oix_infer_shape) {
     }
 }
 
+TEST(op_schema_test, conv3d_ncx_oix_infer_shape) {
+    const op_kind_t op_kind_ = op_kind::Convolution;
+
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+
+    std::vector<int64_t> groups_vec {1, 2, 4};
+
+    for (auto groups : groups_vec) {
+        // data shape {N, IC, D, H, W}
+        const std::vector<int64_t> &in_data = {1, 32, 224, 224, 224};
+        // weight shape {OC, IC, KD, KH, KW}
+        const std::vector<int64_t> &in_weight = {16, 32 / groups, 3, 3, 3};
+        const std::vector<int64_t> &expected_out_shape = {1, 16, 111, 111, 111};
+
+        verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
+                groups, in_data, in_weight, expected_out_shape);
+
+        const std::vector<int64_t> &in_bias = {16};
+        verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
+                groups, in_data, in_weight, in_bias, expected_out_shape);
+    }
+}
+
 void infer_conv_shape(op_kind_t kind) {
     using namespace dnnl::graph::impl;
     const op_schema *conv_op_schema = op_schema_registry::get_op_schema(kind);
@@ -800,6 +877,30 @@ TEST(op_schema_test, conv_nxc_oix_infer_shape) {
     }
 }
 
+TEST(op_schema_test, conv3d_nxc_oix_infer_shape) {
+    const op_kind_t op_kind_ = op_kind::Convolution;
+
+    std::string data_format = "NXC";
+    std::string filter_format = "OIX";
+
+    std::vector<int64_t> groups_vec {1, 2, 4};
+
+    for (auto groups : groups_vec) {
+        // data shape {N, D, H, W, IC}
+        const std::vector<int64_t> &in_data = {1, 224, 224, 224, 32};
+        // weight shape {OC, IC, KD, KH, KW}
+        const std::vector<int64_t> &in_weight = {16, 32 / groups, 3, 3, 3};
+        const std::vector<int64_t> &expected_out_shape = {1, 111, 111, 111, 16};
+
+        verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
+                groups, in_data, in_weight, expected_out_shape);
+
+        const std::vector<int64_t> &in_bias = {16};
+        verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
+                groups, in_data, in_weight, in_bias, expected_out_shape);
+    }
+}
+
 TEST(op_schema_test, conv_nxc_xio_infer_shape) {
     const op_kind_t op_kind_ = op_kind::Convolution;
 
@@ -824,6 +925,30 @@ TEST(op_schema_test, conv_nxc_xio_infer_shape) {
     }
 }
 
+TEST(op_schema_test, conv3d_nxc_xio_infer_shape) {
+    const op_kind_t op_kind_ = op_kind::Convolution;
+
+    std::string data_format = "NXC";
+    std::string filter_format = "XIO";
+
+    std::vector<int64_t> groups_vec {1, 2, 4};
+
+    for (auto groups : groups_vec) {
+        // data shape {N, D, H, W, IC}
+        const std::vector<int64_t> &in_data = {1, 224, 224, 224, 32};
+        // weight shape {KD, KH, KW, IC, OC}
+        const std::vector<int64_t> &in_weight = {3, 3, 3, 32 / groups, 16};
+        const std::vector<int64_t> &expected_out_shape = {1, 111, 111, 111, 16};
+
+        verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
+                groups, in_data, in_weight, expected_out_shape);
+
+        const std::vector<int64_t> &in_bias = {16};
+        verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
+                groups, in_data, in_weight, in_bias, expected_out_shape);
+    }
+}
+
 TEST(op_schema_test, conv_ncx_xio_infer_shape) {
     const op_kind_t op_kind_ = op_kind::Convolution;
 
@@ -838,6 +963,30 @@ TEST(op_schema_test, conv_ncx_xio_infer_shape) {
         // weight shape {KH, KW, IC, OC}
         const std::vector<int64_t> &in_weight = {3, 3, 32 / groups, 16};
         const std::vector<int64_t> &expected_out_shape = {1, 16, 111, 111};
+
+        verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
+                groups, in_data, in_weight, expected_out_shape);
+
+        const std::vector<int64_t> &in_bias = {16};
+        verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
+                groups, in_data, in_weight, in_bias, expected_out_shape);
+    }
+}
+
+TEST(op_schema_test, conv3d_ncx_xio_infer_shape) {
+    const op_kind_t op_kind_ = op_kind::Convolution;
+
+    std::string data_format = "NCX";
+    std::string filter_format = "XIO";
+
+    std::vector<int64_t> groups_vec {1, 2, 4};
+
+    for (auto groups : groups_vec) {
+        // data shape {N, IC, D, H, W}
+        const std::vector<int64_t> &in_data = {1, 32, 224, 224, 224};
+        // weight shape {KD, KH, KW, IC, OC}
+        const std::vector<int64_t> &in_weight = {3, 3, 3, 32 / groups, 16};
+        const std::vector<int64_t> &expected_out_shape = {1, 16, 111, 111, 111};
 
         verify_shape_infer_for_conv(op_kind_, data_format, filter_format,
                 groups, in_data, in_weight, expected_out_shape);

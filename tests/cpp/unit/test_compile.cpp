@@ -2029,6 +2029,54 @@ TEST(operator_compile, Convolution_NCX_OIX) {
     }
 }
 
+TEST(operator_compile, Convolution3D_NCX_OIX) {
+    using dims = std::vector<int64_t>;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+            2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
+    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+    test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
+    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+    impl::op_t conv_op(impl::op_kind::Convolution);
+    conv_op.set_attr<dims>("strides", dims {1, 1, 1});
+    conv_op.set_attr<dims>("dilations", dims {1, 1, 1});
+    conv_op.set_attr<dims>("pads_begin", dims {0, 0, 0});
+    conv_op.set_attr<dims>("pads_end", dims {0, 0, 0});
+    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<std::string>("data_format", "NCX");
+    conv_op.set_attr<std::string>("filter_format", "OIX");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 1, 2, 2}, impl::data_type::f32);
+
+    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto conv_kernel = op_factory.create_kernel(conv_op);
+
+    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
+    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t weight_ts(weight_lt, weight.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
 TEST(operator_compile, Convolution_NCX_XIO) {
     using dims = impl::dnnl_impl::dims;
 
@@ -2055,6 +2103,54 @@ TEST(operator_compile, Convolution_NCX_XIO) {
             = utils::logical_tensor_init(1, {3, 3, 1, 1}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
+
+    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto conv_kernel = op_factory.create_kernel(conv_op);
+
+    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
+    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t weight_ts(weight_lt, weight.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_compile, Convolution3D_NCX_XIO) {
+    using dims = impl::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+            2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
+    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+    test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
+    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+    impl::op_t conv_op(impl::op_kind::Convolution);
+    conv_op.set_attr<dims>("strides", dims {1, 1, 1});
+    conv_op.set_attr<dims>("dilations", dims {1, 1, 1});
+    conv_op.set_attr<dims>("pads_begin", dims {0, 0, 0});
+    conv_op.set_attr<dims>("pads_end", dims {0, 0, 0});
+    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<std::string>("data_format", "NCX");
+    conv_op.set_attr<std::string>("filter_format", "XIO");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 3, 3, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 1, 2, 2}, impl::data_type::f32);
 
     std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
     std::vector<impl::logical_tensor_t> outputs {dst_lt};
@@ -2126,6 +2222,55 @@ TEST(operator_compile, Convolution_NXC_XIO) {
     }
 }
 
+TEST(operator_compile, Convolution3D_NXC_XIO) {
+    using dims = impl::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    test::vector<float> src {
+            -3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5, -1.0, 0};
+    test::vector<float> weight {
+            1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+    test::vector<float> ref_dst {0.5};
+    test::vector<float> dst {0.0};
+    impl::op_t conv_op(impl::op_kind::Convolution);
+    conv_op.set_attr<dims>("strides", dims {1, 1, 1});
+    conv_op.set_attr<dims>("dilations", dims {1, 1, 1});
+    conv_op.set_attr<dims>("pads_begin", dims {0, 0, 0});
+    conv_op.set_attr<dims>("pads_end", dims {0, 0, 0});
+    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<std::string>("data_format", "NXC");
+    conv_op.set_attr<std::string>("filter_format", "XIO");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 3, 4, 1}, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 3, 4, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 1, 1, 1}, impl::data_type::f32);
+
+    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto conv_kernel = op_factory.create_kernel(conv_op);
+
+    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
+    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t weight_ts(weight_lt, weight.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
 TEST(operator_compile, Convolution_NXC_OIX) {
     using dims = impl::dnnl_impl::dims;
 
@@ -2152,6 +2297,54 @@ TEST(operator_compile, Convolution_NXC_OIX) {
             = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 2, 2, 1}, impl::data_type::f32);
+
+    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto conv_kernel = op_factory.create_kernel(conv_op);
+
+    conv_kernel->compile(&conv_op, &eng, inputs, outputs);
+    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t weight_ts(weight_lt, weight.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    conv_kernel->execute(&conv_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_compile, Convolution3D_NXC_OIX) {
+    using dims = impl::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+            2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
+    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+    test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
+    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+    impl::op_t conv_op(impl::op_kind::Convolution);
+    conv_op.set_attr<dims>("strides", dims {1, 1, 1});
+    conv_op.set_attr<dims>("dilations", dims {1, 1, 1});
+    conv_op.set_attr<dims>("pads_begin", dims {0, 0, 0});
+    conv_op.set_attr<dims>("pads_end", dims {0, 0, 0});
+    conv_op.set_attr<int64_t>("groups", 0);
+    conv_op.set_attr<std::string>("data_format", "NXC");
+    conv_op.set_attr<std::string>("filter_format", "OIX");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4, 1}, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 2, 2, 1}, impl::data_type::f32);
 
     std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt};
     std::vector<impl::logical_tensor_t> outputs {dst_lt};
