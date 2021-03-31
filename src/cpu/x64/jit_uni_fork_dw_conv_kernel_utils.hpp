@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,6 +111,7 @@ status_t jit_uni_fork_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
                                           : one_of(isa, avx512_core, avx512_core) ? nChw16c : nChw8c;
     const auto wei_tag = (ndims == 5) ? one_of(isa, avx512_core, avx512_core) ? Goidhw16g : Goidhw8g
                                       : one_of(isa, avx512_core, avx512_core) ? Goihw16g : Goihw8g;
+    const auto nxc_tag = (ndims == 5) ? ndhwc : nhwc;
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
@@ -118,7 +119,7 @@ status_t jit_uni_fork_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         CHECK(memory_desc_init_by_tag(src_md, blocked_tag));
         jcp.src_tag = blocked_tag;
     } else {
-        jcp.src_tag = src_d.mb_stride_relaxed_match(blocked_tag);
+        jcp.src_tag = src_d.mb_stride_relaxed_match(blocked_tag, nxc_tag);
     }
 
     if (weights_d.format_kind() == format_kind::any) {
@@ -132,7 +133,7 @@ status_t jit_uni_fork_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         CHECK(memory_desc_init_by_tag(dst_md, blocked_tag));
         jcp.dst_tag = blocked_tag;
     } else {
-        jcp.dst_tag = dst_d.mb_stride_relaxed_match(blocked_tag);
+        jcp.dst_tag = dst_d.mb_stride_relaxed_match(blocked_tag, nxc_tag);
     }
 
     if (jcp.with_bias) {
@@ -142,8 +143,11 @@ status_t jit_uni_fork_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
 
     if (jcp.dst_tag != jcp.src_tag) return status::unimplemented;
     const auto data_tag = jcp.src_tag;
+    const bool is_data_layout_nxc = data_tag == nxc_tag;
 
     const bool is_bf16 = src_d.data_type() == data_type::bf16;
+    // 3D bf16 fork DW kernel does not support 3D convolution
+    if (is_bf16 && ndims == 5) return status::unimplemented;
 
     jcp.dst_dt = cd.dst_desc.data_type;
     jcp.isa = (is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16 : isa;
@@ -193,6 +197,12 @@ status_t jit_uni_fork_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     jcp.dilate_h = cd.dilates[ndims - 4];
     jcp.dilate_w = cd.dilates[ndims - 3];
 
+    jcp.loop_order = loop_ngcw;
+
+    if (is_data_layout_nxc) {
+        jcp.loop_order = loop_nhwcg;
+    }
+
     if (!post_ops_ok(jcp, attr))
             return status::unimplemented;
 
@@ -204,6 +214,7 @@ status_t jit_uni_fork_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
     bool ok_to_pad_channels = true
+        && !is_data_layout_nxc
         && jcp.oc == jcp.ngroups
         && jcp.ic == jcp.ngroups
         && one_of(isa, avx512_core, avx512_core, avx2);
@@ -214,7 +225,8 @@ status_t jit_uni_fork_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     }
 
     bool args_ok = true && jcp.oc == jcp.ngroups && jcp.ic == jcp.ngroups
-                   && jcp.ngroups % simd_w == 0 && jcp.wei_tag == wei_tag
+                   && IMPLICATION(!is_data_layout_nxc, jcp.ngroups % simd_w == 0)
+                   && jcp.wei_tag == wei_tag
                    && data_tag != format_tag::undef && jcp.ic <= src_d.padded_dims()[1]
                    && jcp.oc <= dst_d.padded_dims()[1]
                    && jcp.ngroups <= weights_d.padded_dims()[0];
@@ -230,7 +242,7 @@ status_t jit_uni_fork_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
                        : isa == avx512_core ? 6 : isa == avx2 ? 4 : 3;
 
     jcp.ch_block = simd_w;
-    jcp.nb_ch = jcp.oc / jcp.ch_block;
+    jcp.nb_ch = div_up(jcp.oc, jcp.ch_block);
     jcp.nb_ch_blocking
             = one_of(isa, avx512_core, avx512_core) ? 4 : isa == avx2 ? 3 : 2;
     if (jcp.nb_ch < jcp.nb_ch_blocking)

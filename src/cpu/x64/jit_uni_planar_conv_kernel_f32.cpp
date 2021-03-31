@@ -744,7 +744,7 @@ status_t jit_uni_planar_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp
     if (!set_or_check_wei_format())
         return status::unimplemented;
 
-    auto dat_tag = ndims == 5 ? format_tag::ncdhw : format_tag::nhwc;
+    auto dat_tag = ndims == 5 ? format_tag::ncdhw : format_tag::nchw;
     if (src_d.format_kind() == format_kind::any) {
         CHECK(memory_desc_init_by_tag(src_md, dat_tag));
         jcp.src_tag = dat_tag;
