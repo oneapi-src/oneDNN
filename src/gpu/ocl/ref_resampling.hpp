@@ -58,8 +58,8 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             dispatch = compute_engine->create_dispatch(dst_md());
-            dispatch.define_dim("MB", 0, MB());
-            dispatch.define_dim("C", 1, C());
+            dispatch.define_dim("MB", 0, dst_md()->padded_dims[0]);
+            dispatch.define_dim("C", 1, dst_md()->padded_dims[1]);
             dispatch.define_dim("OD", nstl::max(2, dst_md()->ndims - 3), OD());
             dispatch.define_dim("OH", nstl::max(2, dst_md()->ndims - 2), OH());
             dispatch.define_dim("OW", nstl::max(2, dst_md()->ndims - 1), OW());
@@ -158,8 +158,8 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             dispatch = compute_engine->create_dispatch(diff_src_md());
-            dispatch.define_dim("MB", 0, MB());
-            dispatch.define_dim("C", 1, C());
+            dispatch.define_dim("MB", 0, diff_src_md()->padded_dims[0]);
+            dispatch.define_dim("C", 1, diff_src_md()->padded_dims[1]);
             dispatch.define_dim(
                     "ID", nstl::max(2, diff_src_md()->ndims - 3), ID());
             dispatch.define_dim(

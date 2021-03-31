@@ -29,8 +29,15 @@ __kernel void ref_resampling_fwd(
     const float id = (od + .5f) * ID / OD;
     const float ih = (oh + .5f) * IH / OH;
     const float iw = (ow + .5f) * IW / OW;
+
     float result;
     const uint dst_index = DST_OFF(mb, c, od, oh, ow);
+
+    if (mb >= DST_D0 || c >= DST_D1) {
+        dst[dst_index] = TO_DST(0.f);
+        return;
+    }
+
 #if RESAMPLING_ALG_NEAREST
     const uint src_index = SRC_OFF(mb, c, (uint)id, (uint)ih, (uint)iw);
     result = CONVERT_FLOAT_T(src[src_index]);
@@ -112,6 +119,11 @@ __kernel void ref_resampling_bwd(
     const uint ih = GWS_GET_IH();
     const uint iw = GWS_GET_IW();
     const uint src_index = SRC_OFF(mb, c, id, ih, iw);
+
+    if (mb >= DST_D0 || c >= DST_D1) {
+        diff_src[src_index] = TO_DST(0.f);
+        return;
+    }
 #if RESAMPLING_ALG_NEAREST
     uint od_start = CEIL(id * FD - .5f);
     uint oh_start = CEIL(ih * FH - .5f);
