@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020 Intel Corporation
+# Copyright 2020-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -155,7 +155,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 include("cmake/build_oneDNN.cmake")
 
-set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Wall -Wextra -pedantic -Wconversion -Wno-sign-compare -Wunreachable-code")
+set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Wall -Wextra -pedantic -Wconversion -Wno-sign-compare -Wunreachable-code -Wno-unknown-pragmas")
 
 if(DNNL_GRAPH_WITH_SYCL)
     # Inhibit all warning messages from sycl
@@ -193,11 +193,26 @@ endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Wno-gnu-statement-expression -Wno-gnu-statement-expression -Wno-string-conversion -Wno-format")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    # workaround for Intel Compiler that produces error caused
+    # by pragma omp simd collapse(..)
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-diag-disable:13379")
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-diag-disable:15552")
+    # disable `was not vectorized: vectorization seems inefficient` remark
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-diag-disable:15335")
+    # disable: foo has been targeted for automatic cpu dispatch
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-diag-disable:15009")
+    # disable: remark #11074: Inlining inhibited by limit max-size
+    # disable: remark #11074: Inlining inhibited by limit max-total-size
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-diag-disable:11074")
+    # disable: remark #11076: To get full report use -qopt-report=4 -qopt-report-phase ipo
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-diag-disable:11076")
 endif()
 
 include("cmake/check_headers.cmake")
 include("cmake/Doxygen.cmake")
 include("cmake/version.cmake")
+include("cmake/OpenMP.cmake")
 
 enable_testing()
 

@@ -36,6 +36,13 @@ file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/utils/*.[ch]pp
 )
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    set_source_files_properties(${SOURCES}
+        PROPERTIES COMPILE_FLAGS "-prec-sqrt")
+    set_source_files_properties(${SOURCES}
+        PROPERTIES COMPILE_FLAGS "-prec-div")
+endif()
+
 append(CMAKE_CXX_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
 append(CMAKE_C_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
 
@@ -79,29 +86,14 @@ set_target_properties(${LIB_NAME} PROPERTIES
     )
 
 if(UNIX)
-if(APPLE)
-    set(DNNL_GRAPH_STATIC_PRE_LINK "-Wl,-force_load")
-    set(DNNL_GRAPH_STATIC_POST_LINK "")
-else()
-if(DNNL_GRAPH_CPU_RUNTIME STREQUAL "OMP")
-    find_package(OpenMP REQUIRED)
-    if (NOT CMAKE_VERSION VERSION_LESS 3.9)
-        set(OPENMP_FLAG ${OPENMP_FLAG} OpenMP::OpenMP_CXX) # Requires CMake 3.9+
+    if(APPLE)
+        set(DNNL_GRAPH_STATIC_PRE_LINK "-Wl,-force_load")
+        set(DNNL_GRAPH_STATIC_POST_LINK "")
     else()
-        set(OpenMP_C_FOUND true)
-        set(OpenMP_CXX_FOUND true)
-
-        if(OpenMP_CXX_FOUND)
-            set(OPENMP_FLAG ${OPENMP_FLAG} ${OpenMP_CXX_FLAGS})
-            append(CMAKE_C_FLAGS ${OpenMP_C_FLAGS})
-            append(CMAKE_CXX_FLAGS ${OpenMP_CXX_FLAGS})
-        endif()
+        set(DNNL_GRAPH_STATIC_PRE_LINK "-Wl,--whole-archive")
+        set(DNNL_GRAPH_STATIC_POST_LINK "-Wl,--no-whole-archive")
+        set_target_properties(dnnl_graph PROPERTIES SKIP_BUILD_RPATH 1)
     endif()
-endif()
-    set(DNNL_GRAPH_STATIC_PRE_LINK "-Wl,--whole-archive")
-    set(DNNL_GRAPH_STATIC_POST_LINK "-Wl,--no-whole-archive")
-    set_target_properties(dnnl_graph PROPERTIES SKIP_BUILD_RPATH 1)
-endif()
 endif()
 
 target_link_libraries(${LIB_NAME}_static
@@ -109,7 +101,6 @@ target_link_libraries(${LIB_NAME}_static
     ${DNNL_GRAPH_STATIC_PRE_LINK}
     dnnl
     ${DNNL_GRAPH_STATIC_POST_LINK}
-    ${OPENMP_FLAG} # Need to placed after ${DNNL_GRAPH_STATIC_POST_LINK} to avoid duplicate symbols
     ${DNNL_GRAPH_COMMON_LINK_FLAGS}
     )
 
@@ -125,7 +116,6 @@ target_link_libraries(${LIB_NAME}
     dnnl
     dl
     ${DNNL_GRAPH_STATIC_POST_LINK}
-    ${OPENMP_FLAG} # Need to placed after ${DNNL_GRAPH_STATIC_POST_LINK} to avoid duplicate symbols
     ${DNNL_GRAPH_SYCL_LINK_FLAGS}
     ${DNNL_GRAPH_COMMON_LINK_FLAGS}
     )

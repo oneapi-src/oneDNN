@@ -18,14 +18,19 @@ if(NOT DNNL_GRAPH_BUILD_TESTS)
     return()
 endif()
 
+append(CMAKE_CXX_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
+append(CMAKE_C_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
+
 set(gtest_hide_internal_symbols ON CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_SOURCE_DIR}/tests/gtest
     ${CMAKE_BINARY_DIR}/tests/gtest)
 
 enable_testing()
 
-append(CMAKE_CXX_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
-append(CMAKE_C_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    append_if(WIN32 CMAKE_CXX_FLAGS "/fp:precise")
+    append_if(UNIX  CMAKE_CXX_FLAGS "-fp-model precise")
+endif()
 
 if(UNIX)
     if(APPLE)

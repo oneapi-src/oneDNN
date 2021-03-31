@@ -59,9 +59,11 @@ CPU engine was validated on RedHat* Enterprise Linux 7 with
 
 on Ubuntu* 18.04 with
 * GNU Compiler Collection 7.5
+* [Intel C++ Compiler Classic](https://software.intel.com/content/www/us/en/develop/tools/oneapi/hpc-toolkit.html)
 
-on macOS* 10.15 (Catalina) with
-* Apple LLVM version 10.0 (XCode 11.2)
+on macOS* 11.2 (BigSur) with
+* Apple LLVM version 12.0 (XCode 12.0)
+* [Intel C++ Compiler Classic](https://software.intel.com/content/www/us/en/develop/tools/oneapi/hpc-toolkit.html)
 
 GPU engine was validated on Ubuntu* 18.04 with
 * [Intel Graphics Compute Runtime for OpenCL](https://github.com/intel/compute-runtime/releases)

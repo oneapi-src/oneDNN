@@ -26,3 +26,17 @@ function(JOIN VALUES GLUE OUTPUT)
     string (REGEX REPLACE ";" "${GLUE}" _TMP_STR "${VALUES}")
     set (${OUTPUT} "${_TMP_STR}" PARENT_SCOPE)
 endfunction()
+
+# Append to a variable
+#   var = var + value
+macro(append var value)
+    set(${var} "${${var}} ${value}")
+endmacro()
+
+# Conditionally append
+#   if (cond) var = var + value
+macro(append_if condition var value)
+    if (${condition})
+        append(${var} "${value}")
+    endif()
+endmacro()
