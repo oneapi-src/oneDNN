@@ -35,12 +35,12 @@ struct impl_list_item_t {
 
     template <typename pd_t>
     struct type_deduction_helper_t {
-        type_deduction_helper_t() : pd(nullptr) {
+        using type = pd_t;
+        type_deduction_helper_t() {
             static_assert(std::is_base_of<primitive_desc_t, pd_t>::value,
                     "type_deduction_helper_t is expected to be used for "
                     "primitive descriptor classes only.");
         }
-        pd_t *pd;
     };
 
     template <typename pd_t>
@@ -56,30 +56,28 @@ struct impl_list_item_t {
         : public type_deduction_helper_t<pd_t> {};
 
     template <typename pd_t>
-    impl_list_item_t(type_deduction_helper_t<pd_t> helper) {
-        using deduced_pd_t =
-                typename std::remove_pointer<decltype(helper.pd)>::type;
+    impl_list_item_t(type_deduction_helper_t<pd_t>) {
+        using deduced_pd_t = typename type_deduction_helper_t<pd_t>::type;
         create_pd_func_ = &primitive_desc_t::create<deduced_pd_t>;
     }
 
     template <typename pd_t>
-    impl_list_item_t(concat_type_deduction_helper_t<pd_t> helper) {
+    impl_list_item_t(concat_type_deduction_helper_t<pd_t>) {
         using deduced_pd_t =
-                typename std::remove_pointer<decltype(helper.pd)>::type;
+                typename concat_type_deduction_helper_t<pd_t>::type;
         create_concat_pd_func_ = deduced_pd_t::create;
     }
 
     template <typename pd_t>
-    impl_list_item_t(sum_type_deduction_helper_t<pd_t> helper) {
-        using deduced_pd_t =
-                typename std::remove_pointer<decltype(helper.pd)>::type;
+    impl_list_item_t(sum_type_deduction_helper_t<pd_t>) {
+        using deduced_pd_t = typename sum_type_deduction_helper_t<pd_t>::type;
         create_sum_pd_func_ = deduced_pd_t::create;
     }
 
     template <typename pd_t>
-    impl_list_item_t(reorder_type_deduction_helper_t<pd_t> helper) {
+    impl_list_item_t(reorder_type_deduction_helper_t<pd_t>) {
         using deduced_pd_t =
-                typename std::remove_pointer<decltype(helper.pd)>::type;
+                typename reorder_type_deduction_helper_t<pd_t>::type;
         create_reorder_pd_func_ = deduced_pd_t::create;
     }
 
