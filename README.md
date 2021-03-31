@@ -323,8 +323,8 @@ to improve the library:
   primitives or changes to the architecture, submit an
   [RFC pull request](https://github.com/oneapi-src/oneDNN/tree/rfcs).
 * Ensure that the changes are consistent with the
-  [code contribution guidelines](CONTRIBUTING.md#code_contribution_guidelines)
-  and [coding style](CONTRIBUTING.md#coding_style).
+  [code contribution guidelines](CONTRIBUTING.md#code-contribution-guidelines)
+  and [coding standards](CONTRIBUTING.md#coding-standards).
 * Ensure that you can build the product and run all the examples with your
   patch.
 * Submit a [pull request](https://github.com/oneapi-src/oneDNN/pulls).
