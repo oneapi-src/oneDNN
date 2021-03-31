@@ -83,7 +83,11 @@ namespace op_kind {
     X(matmul_add_gelu, MatMul_add_gelu) \
     X(matmul_add_relu, MatMul_add_relu) \
     X(matmul_add_sigmoid, MatMul_add_sigmoid) \
-    X(convert, Convert)
+    X(convert, Convert) \
+    X(int8_conv, INT8_Conv) \
+    X(int8_conv_bias, INT8_Conv_bias) \
+    X(int8_conv_relu, INT8_Conv_relu) \
+    X(int8_conv_bias_relu, INT8_Conv_bias_relu)
 
 enum {
     kAny = 0x1234,

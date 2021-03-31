@@ -133,6 +133,10 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_add, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_add_gelu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_add_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_add_sigmoid, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_bias, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_bias_relu, 1);
 
 class opset_v1 {
 public:
@@ -278,6 +282,11 @@ public:
                         MatMul_add_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         MatMul_add_sigmoid, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_bias, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Conv_bias_relu, 1)>());
     }
 };
 

@@ -84,6 +84,8 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         log_softmax_bw_pass, dnnl, LogSoftmaxBackprop, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(softmax_pass, dnnl, SoftMax, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(softmax_bwd_pass, dnnl, SoftMaxBackprop, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(quant_pass, dnnl, Quantize, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(dequant_pass, dnnl, Dequantize, 8.f)
 
 #undef DNNL_BACKEND_SINGLE_OP_TRANSFORM
 

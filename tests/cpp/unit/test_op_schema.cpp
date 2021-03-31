@@ -462,6 +462,32 @@ TEST(op_schema_test, Conv_bias) {
     }
 }
 
+TEST(op_schema_test, int8_conv) {
+    std::set<op_kind_t> conv_kinds
+            = {op_kind::int8_conv, op_kind::int8_conv_relu};
+    const size_t expected_in_size = 2;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 12;
+    const std::map<std::string, bool> attrs_data = {{"strides", true},
+            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
+            {"auto_pad", false}, {"groups", false}, {"data_format", false},
+            {"filter_format", false}, {"qtype", false}, {"axis", false},
+            {"scales", true}, {"zps", true}};
+
+    for (auto k : conv_kinds) {
+        verify_op_schema(k, expected_in_size, expected_out_size,
+                expected_attr_size, attrs_data);
+    }
+
+    std::set<op_kind_t> conv_bias_kinds
+            = {op_kind::int8_conv_bias, op_kind::int8_conv_bias_relu};
+    const size_t expected_in_size2 = 3;
+    for (auto k : conv_bias_kinds) {
+        verify_op_schema(k, expected_in_size2, expected_out_size,
+                expected_attr_size, attrs_data);
+    }
+}
+
 TEST(op_schema_test, conv_bias_infer_shape) {
     const op_schema *a_op_schema
             = op_schema_registry::get_op_schema(op_kind::conv_bias);
