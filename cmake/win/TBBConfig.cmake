@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2020 Intel Corporation
+# Copyright 2017-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,6 +56,13 @@ else()
     set(_tbb_arch_subdir ${_tbb_x32_subdir})
 endif()
 
+# Workaround: 3.19.0 and 3.19.1 versions don't define MSVC_VERSION.
+# The workaround is to assume that vc14 is used.
+set(_tbb_detect_msvc_version FALSE)
+if (NOT ${CMAKE_VERSION} VERSION_EQUAL "3.19.0" AND NOT ${CMAKE_VERSION} VERSION_EQUAL "3.19.1")
+    set(_tbb_detect_msvc_version TRUE)
+endif()
+
 # Detect the most relevant MSVC subdirectory
 set(_tbb_msvc_1700_subdir vc11)
 set(_tbb_msvc_1800_subdir vc12)
@@ -63,13 +70,16 @@ set(_tbb_msvc_1900_subdir vc14)
 
 # oneDNN changes: if the project is not with MSVC, try to use MSVC 1900
 set(_tbb_msvc_ver 1900)
-if (MSVC)
-    set(_tbb_msvc_ver ${MSVC_VERSION})
-endif()
-if (MSVC_VERSION VERSION_LESS 1700)
-    message(FATAL_ERROR "This Intel TBB package is intended to be used only in the project with MSVC version 1700 (vc11) or higher")
-elseif (MSVC_VERSION VERSION_GREATER 1900)
-    set(_tbb_msvc_ver 1900)
+
+if (_tbb_detect_msvc_version)
+    if (MSVC)
+        set(_tbb_msvc_ver ${MSVC_VERSION})
+    endif()
+    if (MSVC_VERSION VERSION_LESS 1700)
+        message(FATAL_ERROR "This Intel TBB package is intended to be used only in the project with MSVC version 1700 (vc11) or higher")
+    elseif (MSVC_VERSION VERSION_GREATER 1900)
+        set(_tbb_msvc_ver 1900)
+    endif()
 endif()
 set(_tbb_compiler_subdir ${_tbb_msvc_${_tbb_msvc_ver}_subdir})
 unset(_tbb_msvc_1700_subdir)
