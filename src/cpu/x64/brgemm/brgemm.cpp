@@ -394,7 +394,8 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     brg->with_eltwise = eltwise_ind != -1;
 
-    if (brg->is_int8) {
+    brg->with_scales = !attr->output_scales_.has_default_values();
+    if (brg->with_scales) {
         const auto &oscales = brg->attr->output_scales_;
         // Note. the current version supports only two different output scale
         // types:
@@ -408,7 +409,6 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
         // type is per_n_dim_scale and driver which calls brgemm kernel checked
         // that mask has correct value for this case
         brg->is_oc_scale = oscales.mask_ != 0;
-        brg->with_scales = true;
     }
 
     auto init_zp_type
