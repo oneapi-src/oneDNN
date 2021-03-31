@@ -85,7 +85,7 @@ struct jit_sse41_convolution_fwd_t : public primitive_t {
                     && IMPLICATION(curr_dst_tag != dat_tag_nxc,
                             dst_d.format_kind() == format_kind::any)
                     && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
-            const bool flat = IC() == 3 || IC() == 1;;
+            const bool flat = utils::one_of(IC(), 1, 2, 3);
             auto src_tag = is_data_layout_nxc ? dat_tag_nxc
                     : flat                    ? dat_tag_ncx
                                               : dat_tag_nCx8c;

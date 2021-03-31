@@ -75,6 +75,8 @@ private:
     reg64_t reg_d_weights = aux_reg_input_buffer_ptr;
     reg64_t reg_d_bias = iter_kh;
 
+    reg64_t aux_reg_blocks_offset = abi_not_param1;
+
     Vmm vmm_d_weights = Vmm(0);
     Vmm vmm_d_bias = Vmm(1);
 

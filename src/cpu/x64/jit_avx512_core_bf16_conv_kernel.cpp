@@ -91,7 +91,7 @@ inline bool is_1stconv(const jit_conv_conf_t &jcp) {
                     * nstl::max(jcp.typesize_in, jcp.typesize_out) * jcp.id
                     * jcp.ih * jcp.iw
             < INT_MAX;
-    return one_of(jcp.ic, 1, 3) && jcp.ngroups == 1 && no_big_offt;
+    return one_of(jcp.ic, 1, 2, 3) && jcp.ngroups == 1 && no_big_offt;
 }
 } // namespace
 

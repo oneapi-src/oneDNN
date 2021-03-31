@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,8 +76,11 @@ void jit_uni_fork_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward
     int str_h = jcp.stride_h;
     int str_w = jcp.stride_w;
 
+    const auto is_src_layout_nxc = one_of(jcp.src_tag, format_tag::nhwc, format_tag::ndhwc);
+    const auto is_dst_layout_nxc = one_of(jcp.dst_tag, format_tag::nhwc, format_tag::ndhwc);
+
     auto kernel_params = [&](int ur_w_step, int ow, int oh, int od, int ih, int id, int kh, int kd,
-            int kh_padding, int kd_padding, int ch, int ch_num, int n) {
+            int kh_padding, int kd_padding, int ch, int ch_step, int n, int work_rem) {
         auto par_conv = jit_conv_call_s();
 
         const int i_l_overflow = nstl::max(0, (jcp.l_pad - ow * str_w));
@@ -91,8 +94,11 @@ void jit_uni_fork_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward
         const int kw_padding = jcp.kw - div_up(i_l_overflow, dil_w)
             - div_up(i_r_overflow, dil_w);
 
-        size_t src_off = (jcp.ndims == 5) ? src_d.blk_off(n, ch, id, ih, iw) : src_d.blk_off(n, ch, ih, iw);
-        size_t dst_off = (jcp.ndims == 5) ? dst_d.blk_off(n, ch, od, oh, ow) : dst_d.blk_off(n, ch, oh, ow);
+        const auto ic_off_idx = is_src_layout_nxc ? ch * jcp.ch_block : ch;
+        const auto oc_off_idx = is_dst_layout_nxc ? ch * jcp.ch_block : ch;
+
+        size_t src_off = (jcp.ndims == 5) ? src_d.blk_off(n, ic_off_idx, id, ih, iw) : src_d.blk_off(n, ic_off_idx, ih, iw);
+        size_t dst_off = (jcp.ndims == 5) ? dst_d.blk_off(n, oc_off_idx, od, oh, ow) : dst_d.blk_off(n, oc_off_idx, oh, ow);
         size_t wei_off = (jcp.ndims == 5) ? weights_d.blk_off(ch, 0, 0, kd, kh, kw) : weights_d.blk_off(ch, 0, 0, kh, kw);
 
         par_conv.src = &src[src_off];
@@ -107,68 +113,102 @@ void jit_uni_fork_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward
 
         par_conv.ur_w = (size_t)ur_w_step;
 
-        par_conv.ch_blocks = nstl::min(ch + ch_num, jcp.nb_ch) - ch;
+        assert(IMPLICATION(
+                jcp.loop_order == loop_nhwcg, is_src_layout_nxc));
+        // For is_src_layout_nxc maximize jit work along contiguous dim.
+        par_conv.load_work = utils::this_block_size(ch * jcp.ch_block,
+                                                    jcp.oc_without_padding,
+                                                    (is_src_layout_nxc ? work_rem * ch_step : ch_step)
+                                                    * jcp.ch_block);
         par_conv.oc_off = ch * jcp.ch_block * sizeof(float);
 
         return par_conv;
     };
 
-    const int chb_work = utils::div_up(jcp.nb_ch, jcp.nb_ch_blocking);
-    parallel_nd(MB, chb_work, jcp.od, jcp.oh,
-            [&](int n, int chb, int od, int oh) {
-        int ch = chb * jcp.nb_ch_blocking;
-        int ch_num = jcp.nb_ch_blocking;
+    const int ch_step = jcp.nb_ch_blocking;
+    const int chb_work = utils::div_up(jcp.nb_ch, ch_step);
 
-        const int i_front_overflow = nstl::max(0, (int)(jcp.f_pad - od*str_d));
-        const int i_back_overflow = nstl::max(jcp.id,
-            (int)(od*str_d + (jcp.kd - 1)*dil_d - jcp.f_pad + 1)) - jcp.id;
+    const int work_amount = MB * chb_work * jcp.od * jcp.oh;
+    const auto nthr = jcp.nthr;
 
-        const int i_t_overflow = nstl::max(0, (int)(jcp.t_pad - oh*str_h));
-        const int i_b_overflow = nstl::max(jcp.ih,
-            (int)(oh*str_h + (jcp.kh - 1)*dil_h - jcp.t_pad + 1)) - jcp.ih;
+    parallel(nthr, [&](const int ithr, const int nthr) {
+        int start {0}, end {0};
+        balance211(work_amount, nthr, ithr, start, end);
 
-        const int id = nstl::max((int)(od*str_d - jcp.f_pad
-            + div_up(i_front_overflow, dil_d)*dil_d), 0);
-        const int kd = div_up(i_front_overflow, dil_d);
-        const int kd_padding = jcp.kd - div_up(i_front_overflow, dil_d)
-            - div_up(i_back_overflow, dil_d);
+        int n {0}, chb {0}, od {0}, oh {0};
+        if (jcp.loop_order == loop_ngcw)
+            utils::nd_iterator_init(
+                    start, n, MB, chb, chb_work, od, jcp.od, oh, jcp.oh);
+        else if (jcp.loop_order == loop_nhwcg)
+            utils::nd_iterator_init(
+                    start, n, MB, od, jcp.od, oh, jcp.oh, chb, chb_work);
+        else
+            assert(!"unsupported loop order");
 
-        const int ih = nstl::max((int)(oh*str_h - jcp.t_pad
-            + div_up(i_t_overflow, dil_h)*dil_h), 0);
-        const int kh = div_up(i_t_overflow, dil_h);
-        const int kh_padding = jcp.kh - div_up(i_t_overflow, dil_h)
-            - div_up(i_b_overflow, dil_h);
+        auto iwork = start;
+        while (iwork < end) {
+            int ch = chb * ch_step;
 
-        // left border
-        int ow = 0;
-        int l_border = nstl::min(div_up(jcp.l_pad, str_w), jcp.ow);
-        int ur_w_step = 1;
-        for (; ow < l_border; ow++) {
-            jit_conv_call_s par_conv = kernel_params(ur_w_step, ow, oh, od, ih, id,
-                                        kh, kd, kh_padding, kd_padding, ch, ch_num, n);
+            const int i_front_overflow = nstl::max(0, (int) (jcp.f_pad - od * str_d));
+            const int i_back_overflow = nstl::max(jcp.id,
+                                                  (int) (od * str_d + (jcp.kd - 1) * dil_d - jcp.f_pad + 1)) - jcp.id;
 
-            (*kernel_)(&par_conv);
-        }
+            const int i_t_overflow = nstl::max(0, (int) (jcp.t_pad - oh * str_h));
+            const int i_b_overflow = nstl::max(jcp.ih,
+                                               (int) (oh * str_h + (jcp.kh - 1) * dil_h - jcp.t_pad + 1)) - jcp.ih;
 
-        // main loop
-        ur_w_step = (jcp.iw - (jcp.kw - 1)*dil_w + jcp.l_pad - 1)
-            / jcp.stride_w - ow + 1;
-        if (ur_w_step > 0) {
-            jit_conv_call_s par_conv = kernel_params(ur_w_step, ow, oh, od, ih, id,
-                                        kh, kd, kh_padding, kd_padding, ch, ch_num, n);
+            const int id = nstl::max((int) (od * str_d - jcp.f_pad
+                                            + div_up(i_front_overflow, dil_d) * dil_d), 0);
+            const int kd = div_up(i_front_overflow, dil_d);
+            const int kd_padding = jcp.kd - div_up(i_front_overflow, dil_d)
+                                   - div_up(i_back_overflow, dil_d);
 
-            (*kernel_)(&par_conv);
+            const int ih = nstl::max((int) (oh * str_h - jcp.t_pad
+                                            + div_up(i_t_overflow, dil_h) * dil_h), 0);
+            const int kh = div_up(i_t_overflow, dil_h);
+            const int kh_padding = jcp.kh - div_up(i_t_overflow, dil_h)
+                                   - div_up(i_b_overflow, dil_h);
 
-            ow += ur_w_step;
-        }
+            // left border
+            int ow = 0;
+            int l_border = nstl::min(div_up(jcp.l_pad, str_w), jcp.ow);
+            int ur_w_step = 1;
+            for (; ow < l_border; ow++) {
+                jit_conv_call_s par_conv = kernel_params(ur_w_step, ow, oh, od, ih, id,
+                                                         kh, kd, kh_padding, kd_padding, ch, ch_step, n, end - iwork);
 
-        // right border
-        ur_w_step = 1;
-        for (; ow < jcp.ow; ow++) {
-            jit_conv_call_s par_conv = kernel_params(ur_w_step, ow, oh, od, ih, id,
-                                        kh, kd, kh_padding, kd_padding, ch, ch_num, n);
+                (*kernel_)(&par_conv);
+            }
 
-            (*kernel_)(&par_conv);
+            // main loop
+            ur_w_step = (jcp.iw - (jcp.kw - 1) * dil_w + jcp.l_pad - 1)
+                        / jcp.stride_w - ow + 1;
+            if (ur_w_step > 0) {
+                jit_conv_call_s par_conv = kernel_params(ur_w_step, ow, oh, od, ih, id,
+                                                         kh, kd, kh_padding, kd_padding, ch, ch_step, n, end - iwork);
+
+                (*kernel_)(&par_conv);
+
+                ow += ur_w_step;
+            }
+
+            // right border
+            ur_w_step = 1;
+            for (; ow < jcp.ow; ow++) {
+                jit_conv_call_s par_conv = kernel_params(ur_w_step, ow, oh, od, ih, id,
+                                                         kh, kd, kh_padding, kd_padding, ch, ch_step, n, end - iwork);
+
+                (*kernel_)(&par_conv);
+            }
+
+            if (jcp.loop_order == loop_ngcw) {
+                ++iwork;
+                utils::nd_iterator_step(n, MB, chb, chb_work, od, jcp.od, oh, jcp.oh);
+            } else if (jcp.loop_order == loop_nhwcg) {
+                utils::nd_iterator_jump(
+                        iwork, end, n, MB, od, jcp.od, oh, jcp.oh, chb, chb_work);
+            } else
+                assert(!"unsupported loop order");
         }
     });
 

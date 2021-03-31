@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,6 +60,7 @@ struct jit_avx512_fork_dw_conv_fwd_kernel_bf16 : public jit_generator {
 
 private:
     using reg64_t = const Xbyak::Reg64;
+    using mask_t = const Xbyak::Opmask;
     const Xbyak::AddressFrame &vmmword = zword;
 
     const int acc_idx_start = 2;
@@ -71,7 +72,7 @@ private:
     reg64_t aux1_reg_input = r10;
     reg64_t reg_kernel = r11;
     reg64_t aux_reg_kernel = r12;
-    reg64_t aux1_reg_kernel = r13;
+    reg64_t reg_ch_blocks = r13;
     reg64_t reg_output = r14;
     reg64_t reg_bias = r15;
     reg64_t reg_kh = rax;
@@ -79,10 +80,17 @@ private:
     reg64_t iter_kh = rdx;
     reg64_t iter_kw = rsi;
     reg64_t reg_ur_w = rbp;
-    reg64_t reg_ch_blocks = aux1_reg_input;
+    reg64_t reg_tail = abi_not_param1;
+    reg64_t aux1_reg_kernel = reg_ch_blocks;
     reg64_t imm_addr64 = aux1_reg_input;
     reg64_t reg_d_weights = imm_addr64;
     reg64_t reg_d_bias = iter_kh;
+    reg64_t aux_reg_ch_blocks = reg_ur_w;
+    reg64_t aux_reg_blocks_offset = reg_tail;
+
+    mask_t k_oc_tail_mask = Xbyak::Opmask(2);
+    mask_t ktail_mask = k_oc_tail_mask;
+    mask_t k_ch_tail_mask_extended = Xbyak::Opmask(3);
 
     Xbyak::Zmm zmm_ker_reg = Xbyak::Zmm(0);
     Xbyak::Zmm zmm_src_reg = Xbyak::Zmm(1);
@@ -101,11 +109,22 @@ private:
         return Xbyak::Zmm(idx + acc_idx_start);
     }
 
-    inline void load_src(int ur_ch_blocks, int ur_w);
-    inline void apply_filter(int ur_ch_blocks, int ur_w);
-    inline void apply_filter_unrolled(int ur_ch_blocks, int ur_w);
+    inline bool is_src_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                             format_tag::nwc);
+    }
+
+    inline bool is_dst_layout_nxc() {
+        return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
+                             format_tag::nwc);
+    }
+
+    inline void load_src(int ur_ch_blocks, int ur_w, bool last_ch_block_flag);
+    inline void compute_loop(int ur_w, int ur_ch_blocks);
+    inline void apply_filter(int ur_ch_blocks, int ur_w, bool last_ch_block_flag);
+    inline void apply_filter_unrolled(int ur_ch_blocks, int ur_w, bool last_ch_block_flag);
     inline void apply_postprocess(int ur_ch_blocks, int ur_w);
-    inline void store_dst(int ur_ch_blocks, int ur_w);
+    inline void store_dst(int ur_ch_blocks, int ur_w, bool last_ch_block_flag);
     inline void loop_ow(int ur_ch_blocks);
 
     nstl::vector<jit_uni_eltwise_injector_f32<avx512_core>*> eltwise_injectors;

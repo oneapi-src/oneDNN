@@ -275,6 +275,9 @@ template <cpu_isa_t isa>
 void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postops(
         const int ur_ch_blocks, const int ur_w, const bool is_ch_tail) {
     if (this->jcp.with_eltwise || this->jcp.with_binary || this->jcp.with_depthwise || this->jcp.with_quantization) {
+        push(aux_reg_blocks_offset);
+        add(aux_reg_blocks_offset, ptr[this->param1 + GET_OFF(oc_off)]); //add offset of processed blocks
+
         const int repeats = max_repeats();
 
         std::map<size_t, int> vmm_idx_off;
@@ -284,8 +287,8 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postops(
                 });
 
         depthwise_injector::dynamic_params_t ddp {vmm_d_weights.getIdx(), vmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
-                                                  ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
-        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
+                                                  aux_reg_blocks_offset, vmm_idx_off};
+        quantization_injector::dynamic_params_t qdp {aux_reg_blocks_offset, vmm_idx_off};
 
         injector_utils::vmm_index_set_t vmm_idxs;
         if (jcp.with_binary) {
@@ -354,6 +357,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postops(
                     });
             postops_injector_->compute_vector_range(vmm_idxs, binary_injector::rhs_arg_dynamic_params_t(), ddp, qdp);
         }
+        pop(aux_reg_blocks_offset);
     }
 }
 
@@ -477,6 +481,8 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::compute_loop(
     };
 
     mov(aux_reg_ch_blocks, reg_ch_blocks);
+    xor_(aux_reg_blocks_offset, aux_reg_blocks_offset);
+
     if (ch_loop) {
         Label ch_loop_label, ch_tail_label, skip_ch_tail_label;
         const int ch_block_tail = jcp.nb_ch
@@ -502,6 +508,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::compute_loop(
                 add(reg_output, out_ch_stride);
                 if (jcp.with_bias) add(reg_bias, bias_stride);
                 sub(aux_reg_ch_blocks, ch_step);
+                add(aux_reg_blocks_offset, ch_step * sizeof(float)); //add initial offset of processed blocks
                 cmp(aux_reg_ch_blocks, ch_step);
                 jge(ch_loop_label, T_NEAR);
             }
