@@ -96,11 +96,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             && one_of(bgmmc.dst_dt, u8, s8, s32, f32);
     const bool is_amx = isa == avx512_core_bf16_amx_int8;
 
-    if (is_int8) {
-        bgmmc.acc_dt = s32;
-        bgmmc.with_scales = true;
-    }
+    bgmmc.acc_dt = s32;
 
+    bgmmc.with_scales = !attr.output_scales_.has_default_values();
     if (bgmmc.with_scales) {
         const auto &oscales = attr.output_scales_;
         bgmmc.is_oscale_per_n = oscales.mask_ == 1 << (bgmmc.ndims - 1);
@@ -276,8 +274,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     // Try to improve blocking wrt L2 size
     // TODO: improve blocking algorithm
     while (attempts > 0) {
-        bgmmc.use_buffer_c
-                = bgmmc.acc_dt != bgmmc.dst_dt && bgmmc.K > bgmmc.K_blk;
+        bgmmc.use_buffer_c = (bgmmc.acc_dt != bgmmc.dst_dt || bgmmc.with_sum)
+                && bgmmc.K > bgmmc.K_blk * bgmmc.brgemm_batch_size;
         bgmmc.LDA = get_actual_LDA();
 
         int num_M_blk = div_up(bgmmc.M, bgmmc.M_blk);
