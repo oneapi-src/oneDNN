@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,14 +31,14 @@ enum class ctx_kind { null, cpu, gpu };
 
 } // namespace
 
-struct ocl_engine_test_params {
+struct ocl_engine_test_t_params_t {
     dev_kind adev_kind;
     ctx_kind actx_kind;
     dnnl_status_t expected_status;
 };
 
-class ocl_engine_test
-    : public ::testing::TestWithParam<ocl_engine_test_params> {
+class ocl_engine_test_t
+    : public ::testing::TestWithParam<ocl_engine_test_t_params_t> {
 protected:
     void SetUp() override {
         gpu_ocl_dev = find_ocl_device(CL_DEVICE_TYPE_GPU);
@@ -70,7 +70,7 @@ protected:
     cl_device_id cpu_ocl_dev = nullptr;
 };
 
-TEST_P(ocl_engine_test, BasicInteropC) {
+TEST_P(ocl_engine_test_t, BasicInteropC) {
     auto p = GetParam();
     cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu)
             ? gpu_ocl_dev
@@ -119,7 +119,7 @@ TEST_P(ocl_engine_test, BasicInteropC) {
     }
 }
 
-TEST_P(ocl_engine_test, BasicInteropCpp) {
+TEST_P(ocl_engine_test_t, BasicInteropCpp) {
     auto p = GetParam();
     cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu)
             ? gpu_ocl_dev
@@ -169,18 +169,18 @@ TEST_P(ocl_engine_test, BasicInteropCpp) {
             p.expected_status != dnnl_success, p.expected_status);
 }
 
-INSTANTIATE_TEST_SUITE_P(Simple, ocl_engine_test,
-        ::testing::Values(ocl_engine_test_params {
+INSTANTIATE_TEST_SUITE_P(Simple, ocl_engine_test_t,
+        ::testing::Values(ocl_engine_test_t_params_t {
                 dev_kind::gpu, ctx_kind::gpu, dnnl_success}));
 
-INSTANTIATE_TEST_SUITE_P(InvalidArgs, ocl_engine_test,
-        ::testing::Values(ocl_engine_test_params {dev_kind::cpu, ctx_kind::cpu,
-                                  dnnl_invalid_arguments},
-                ocl_engine_test_params {
+INSTANTIATE_TEST_SUITE_P(InvalidArgs, ocl_engine_test_t,
+        ::testing::Values(ocl_engine_test_t_params_t {dev_kind::cpu,
+                                  ctx_kind::cpu, dnnl_invalid_arguments},
+                ocl_engine_test_t_params_t {
                         dev_kind::gpu, ctx_kind::cpu, dnnl_invalid_arguments},
-                ocl_engine_test_params {
+                ocl_engine_test_t_params_t {
                         dev_kind::null, ctx_kind::gpu, dnnl_invalid_arguments},
-                ocl_engine_test_params {dev_kind::gpu, ctx_kind::null,
+                ocl_engine_test_t_params_t {dev_kind::gpu, ctx_kind::null,
                         dnnl_invalid_arguments}));
 
 } // namespace dnnl

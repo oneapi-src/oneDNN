@@ -25,7 +25,7 @@ namespace cpu {
 namespace x64 {
 namespace matmul {
 
-struct jit_brgemm_matmul_copy_B_t {
+struct jit_brgemm_matmul_copy_b_t {
     struct ctx_t {
         const void *src;
         const void *tr_src;
@@ -41,14 +41,14 @@ struct jit_brgemm_matmul_copy_B_t {
     virtual void operator()(ctx_t *ctx) = 0;
     virtual status_t create_kernel() = 0;
 
-    jit_brgemm_matmul_copy_B_t(const brgemm_matmul_conf_t *conf)
+    jit_brgemm_matmul_copy_b_t(const brgemm_matmul_conf_t *conf)
         : conf_(conf) {}
-    virtual ~jit_brgemm_matmul_copy_B_t() {}
+    virtual ~jit_brgemm_matmul_copy_b_t() {}
 
     const brgemm_matmul_conf_t *conf_;
 };
 
-struct jit_brgemm_matmul_copy_A_t {
+struct jit_brgemm_matmul_copy_a_t {
     struct ctx_t {
         const void *src;
         const void *tr_src;
@@ -65,19 +65,19 @@ struct jit_brgemm_matmul_copy_A_t {
     virtual void operator()(ctx_t *ctx) = 0;
     virtual status_t create_kernel() = 0;
 
-    jit_brgemm_matmul_copy_A_t(const brgemm_matmul_conf_t *conf)
+    jit_brgemm_matmul_copy_a_t(const brgemm_matmul_conf_t *conf)
         : conf_(conf) {}
-    virtual ~jit_brgemm_matmul_copy_A_t() {}
+    virtual ~jit_brgemm_matmul_copy_a_t() {}
 
     const brgemm_matmul_conf_t *conf_;
 };
 
-status_t create_brgemm_matmul_copy_B(
-        std::unique_ptr<jit_brgemm_matmul_copy_B_t> &copy_ker,
+status_t create_brgemm_matmul_copy_b(
+        std::unique_ptr<jit_brgemm_matmul_copy_b_t> &copy_ker,
         const brgemm_matmul_conf_t *conf);
 
-status_t create_brgemm_matmul_copy_A(
-        std::unique_ptr<jit_brgemm_matmul_copy_A_t> &copy_ker,
+status_t create_brgemm_matmul_copy_a(
+        std::unique_ptr<jit_brgemm_matmul_copy_a_t> &copy_ker,
         const brgemm_matmul_conf_t *conf);
 
 } // namespace matmul

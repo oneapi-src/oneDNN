@@ -33,11 +33,11 @@ using namespace Xbyak;
 
 #define GET_OFF(x) offsetof(ctx_t, x)
 
-struct jit_brgemm_trans_M_K_f32_t : public jit_brgemm_trans_src_t,
+struct jit_brgemm_trans_m_k_f32_t : public jit_brgemm_trans_src_t,
                                     public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_M_K_f32_t)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_m_k_f32_t)
 
-    jit_brgemm_trans_M_K_f32_t(const jit_brgemm_primitive_conf_t *conf)
+    jit_brgemm_trans_m_k_f32_t(const jit_brgemm_primitive_conf_t *conf)
         : jit_brgemm_trans_src_t(conf) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
@@ -74,7 +74,7 @@ private:
     void generate() override;
 };
 
-void jit_brgemm_trans_M_K_f32_t::transpose_16x16(int nrows, int ncolumns) {
+void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
     assert(nrows >= 0 && nrows <= transpose_size);
     static_assert(transpose_size == 16, "Unsupported transpose size");
     if (!nrows) return;
@@ -215,7 +215,7 @@ void jit_brgemm_trans_M_K_f32_t::transpose_16x16(int nrows, int ncolumns) {
     fixup16x16();
 }
 
-void jit_brgemm_trans_M_K_f32_t::generate() {
+void jit_brgemm_trans_m_k_f32_t::generate() {
     preamble();
     assert(conf_->ic_block % transpose_size == 0);
     int os_block = conf_->os_block;
@@ -311,10 +311,10 @@ void jit_brgemm_trans_M_K_f32_t::generate() {
     postamble();
 }
 
-struct jit_brgemm_trans_M_K_bf16_t : public jit_brgemm_trans_src_t,
+struct jit_brgemm_trans_m_k_bf16_t : public jit_brgemm_trans_src_t,
                                      public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_M_K_bf16_t)
-    jit_brgemm_trans_M_K_bf16_t(const jit_brgemm_primitive_conf_t *conf)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_m_k_bf16_t)
+    jit_brgemm_trans_m_k_bf16_t(const jit_brgemm_primitive_conf_t *conf)
         : jit_brgemm_trans_src_t(conf) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
@@ -370,7 +370,7 @@ private:
     void generate() override;
 };
 
-void jit_brgemm_trans_M_K_bf16_t::transpose(
+void jit_brgemm_trans_m_k_bf16_t::transpose(
         reg64_t dst, reg64_t src, int nrows, int ncolumns) {
     assert(nrows >= 0 && nrows <= transpose_size);
     static_assert(transpose_size == 16, "Unsupported transpose size");
@@ -524,7 +524,7 @@ void jit_brgemm_trans_M_K_bf16_t::transpose(
         store(src_zmm(get_vec_idx(ic)), ic);
 }
 
-void jit_brgemm_trans_M_K_bf16_t::generate() {
+void jit_brgemm_trans_m_k_bf16_t::generate() {
     preamble();
 
     alignas(64) static constexpr const int64_t idx1[8]
@@ -1599,11 +1599,11 @@ status_t create_brgemm_trans_src(
         const jit_brgemm_primitive_conf_t *conf) {
     if (conf->prop_kind == dnnl_backward_weights
             && conf->src_dt == data_type::f32)
-        CHECK(safe_ptr_assign(trans_ker, new jit_brgemm_trans_M_K_f32_t(conf)));
+        CHECK(safe_ptr_assign(trans_ker, new jit_brgemm_trans_m_k_f32_t(conf)));
     else if (conf->prop_kind == dnnl_backward_weights
             && conf->src_dt == data_type::bf16)
         CHECK(safe_ptr_assign(
-                trans_ker, new jit_brgemm_trans_M_K_bf16_t(conf)));
+                trans_ker, new jit_brgemm_trans_m_k_bf16_t(conf)));
     else
         return status::invalid_arguments;
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ static bool are_valid_flags(
     return ok;
 }
 
-class stream_test_c
+class stream_test_c_t
     : public ::testing::TestWithParam<
               std::tuple<dnnl_engine_kind_t, dnnl_stream_flags_t>> {
 protected:
@@ -70,23 +70,23 @@ protected:
     dnnl_stream_t stream = nullptr;
 };
 
-class stream_test_cpp
+class stream_test_cpp_t
     : public ::testing::TestWithParam<
               std::tuple<dnnl_engine_kind_t, dnnl_stream_flags_t>> {};
 
-TEST_P(stream_test_c, Create) {
+TEST_P(stream_test_c_t, Create) {
     SKIP_IF(!engine, "Engines not found or stream flags are incompatible.");
 
     DNNL_CHECK(dnnl_stream_wait(stream));
 }
 
-TEST(stream_test_c, WaitNullStream) {
+TEST(stream_test_c_t, WaitNullStream) {
     dnnl_stream_t stream = nullptr;
     dnnl_status_t status = dnnl_stream_wait(stream);
     ASSERT_EQ(status, dnnl_invalid_arguments);
 }
 
-TEST(stream_test_c, Wait) {
+TEST(stream_test_c_t, Wait) {
     dnnl_engine_t engine;
     DNNL_CHECK(dnnl_engine_create(&engine, dnnl_cpu, 0));
 
@@ -99,7 +99,7 @@ TEST(stream_test_c, Wait) {
     DNNL_CHECK(dnnl_engine_destroy(engine));
 }
 
-TEST_P(stream_test_cpp, Wait) {
+TEST_P(stream_test_cpp_t, Wait) {
     dnnl_engine_kind_t eng_kind_c = dnnl_cpu;
     dnnl_stream_flags_t stream_flags_c = dnnl_stream_in_order;
     std::tie(eng_kind_c, stream_flags_c) = GetParam();
@@ -118,7 +118,7 @@ TEST_P(stream_test_cpp, Wait) {
     s.wait();
 }
 
-TEST(stream_test_c, GetStream) {
+TEST(stream_test_c_t, GetStream) {
     dnnl_engine_t engine;
     DNNL_CHECK(dnnl_engine_create(&engine, dnnl_cpu, 0));
 
@@ -134,7 +134,7 @@ TEST(stream_test_c, GetStream) {
 }
 
 namespace {
-struct PrintToStringParamName {
+struct print_to_string_param_name_t {
     template <class ParamType>
     std::string operator()(
             const ::testing::TestParamInfo<ParamType> &info) const {
@@ -148,9 +148,9 @@ auto all_params = ::testing::Combine(::testing::Values(dnnl_cpu, dnnl_gpu),
 
 } // namespace
 
-INSTANTIATE_TEST_SUITE_P(
-        AllEngineKinds, stream_test_c, all_params, PrintToStringParamName());
-INSTANTIATE_TEST_SUITE_P(
-        AllEngineKinds, stream_test_cpp, all_params, PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(AllEngineKinds, stream_test_c_t, all_params,
+        print_to_string_param_name_t());
+INSTANTIATE_TEST_SUITE_P(AllEngineKinds, stream_test_cpp_t, all_params,
+        print_to_string_param_name_t());
 
 } // namespace dnnl

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 
 namespace dnnl {
 
-class ocl_memory_test_c : public ::testing::Test {
+class ocl_memory_test_c_t : public ::testing::Test {
 protected:
     HANDLE_EXCEPTIONS_FOR_TEST_SETUP() {
         if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) { return; }
@@ -62,7 +62,7 @@ protected:
 
 class ocl_memory_test_cpp_t : public ::testing::Test {};
 
-HANDLE_EXCEPTIONS_FOR_TEST_F(ocl_memory_test_c, BasicInteropC) {
+HANDLE_EXCEPTIONS_FOR_TEST_F(ocl_memory_test_c_t, BasicInteropC) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 

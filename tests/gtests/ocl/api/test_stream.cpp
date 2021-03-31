@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 #include <CL/cl.h>
 
 namespace dnnl {
-class ocl_stream_test_c : public ::testing::Test {
+class ocl_stream_test_c_t : public ::testing::Test {
 protected:
     void SetUp() override {
         if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) { return; }
@@ -43,7 +43,7 @@ protected:
     cl_device_id ocl_dev = nullptr;
 };
 
-class ocl_stream_test_cpp : public ::testing::Test {
+class ocl_stream_test_cpp_t : public ::testing::Test {
 protected:
     void SetUp() override {
         if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) { return; }
@@ -59,7 +59,7 @@ protected:
     cl_device_id ocl_dev = nullptr;
 };
 
-TEST_F(ocl_stream_test_c, CreateC) {
+TEST_F(ocl_stream_test_c_t, CreateC) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 
@@ -82,7 +82,7 @@ TEST_F(ocl_stream_test_c, CreateC) {
     DNNL_CHECK(dnnl_stream_destroy(stream));
 }
 
-TEST_F(ocl_stream_test_cpp, CreateCpp) {
+TEST_F(ocl_stream_test_cpp_t, CreateCpp) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 
@@ -100,7 +100,7 @@ TEST_F(ocl_stream_test_cpp, CreateCpp) {
     ASSERT_EQ(ocl_ctx, ocl_queue_ctx);
 }
 
-TEST_F(ocl_stream_test_c, BasicInteropC) {
+TEST_F(ocl_stream_test_c_t, BasicInteropC) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 
@@ -137,7 +137,7 @@ TEST_F(ocl_stream_test_c, BasicInteropC) {
     TEST_OCL_CHECK(clReleaseCommandQueue(interop_ocl_queue));
 }
 
-TEST_F(ocl_stream_test_cpp, BasicInteropC) {
+TEST_F(ocl_stream_test_cpp_t, BasicInteropC) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 
@@ -174,7 +174,7 @@ TEST_F(ocl_stream_test_cpp, BasicInteropC) {
     TEST_OCL_CHECK(clReleaseCommandQueue(interop_ocl_queue));
 }
 
-TEST_F(ocl_stream_test_c, InteropIncompatibleQueueC) {
+TEST_F(ocl_stream_test_c_t, InteropIncompatibleQueueC) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 
@@ -203,7 +203,7 @@ TEST_F(ocl_stream_test_c, InteropIncompatibleQueueC) {
     TEST_OCL_CHECK(clReleaseCommandQueue(cpu_ocl_queue));
 }
 
-TEST_F(ocl_stream_test_cpp, InteropIncompatibleQueueCpp) {
+TEST_F(ocl_stream_test_cpp_t, InteropIncompatibleQueueCpp) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 

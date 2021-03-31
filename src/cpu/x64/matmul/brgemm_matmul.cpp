@@ -132,10 +132,10 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
 
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
     if (bgmmc.use_buffer_b)
-        CHECK(create_brgemm_matmul_copy_B(copy_B_kernel_, &bgmmc));
+        CHECK(create_brgemm_matmul_copy_b(copy_B_kernel_, &bgmmc));
 
     if (bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only)
-        CHECK(create_brgemm_matmul_copy_A(copy_A_kernel_, &bgmmc));
+        CHECK(create_brgemm_matmul_copy_a(copy_A_kernel_, &bgmmc));
 
     return status::success;
 }
@@ -182,10 +182,10 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             for_(int kc = 0; kc < bgmmc.K_chunks; kc++)
             for (int nb = n_start; nb < n_end; nb++) {
                 if (bgmmc.use_buffer_b)
-                    copy_B_chunk_in_buffer(brgmm_ctx, ithr, b, nb, kc);
+                    copy_b_chunk_in_buffer(brgmm_ctx, ithr, b, nb, kc);
                 for (int mb = m_start; mb < m_end; mb++) {
                     if (use_buffer_a && nb == n_start)
-                        copy_A_chunk_in_buffer(brgmm_ctx, ithr, b, mb, kc);
+                        copy_a_chunk_in_buffer(brgmm_ctx, ithr, b, mb, kc);
                     compute_kernel(brgmm_ctx, ithr, b, mb, nb, kc);
                 }
             }
@@ -309,12 +309,12 @@ void brgemm_matmul_t<isa>::compute_kernel(
 }
 
 template <cpu_isa_t isa>
-void brgemm_matmul_t<isa>::copy_A_chunk_in_buffer(
+void brgemm_matmul_t<isa>::copy_a_chunk_in_buffer(
         const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr, int b_idx,
         int m_blk_idx, int k_chunk_idx) const {
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
 
-    auto ctx = jit_brgemm_matmul_copy_A_t::ctx_t();
+    auto ctx = jit_brgemm_matmul_copy_a_t::ctx_t();
     const int k_start = k_chunk_idx * bgmmc.K_chunk_elems;
     const bool is_K_tail
             = brgmm_ctx.is_last_K_chunk(k_chunk_idx) && bgmmc.K_tail > 0;
@@ -356,7 +356,7 @@ void brgemm_matmul_t<isa>::copy_A_chunk_in_buffer(
 }
 
 template <cpu_isa_t isa>
-void brgemm_matmul_t<isa>::copy_B_chunk_in_buffer(
+void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
         const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr, int b_idx,
         int n_blk_idx, int k_chunk_idx) const {
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
@@ -365,7 +365,7 @@ void brgemm_matmul_t<isa>::copy_B_chunk_in_buffer(
     const bool is_K_tail
             = brgmm_ctx.is_last_K_chunk(k_chunk_idx) && bgmmc.K_tail > 0;
     const int gemm_batch = brgmm_ctx.get_brgemm_batch_size(k_chunk_idx);
-    auto ctx = jit_brgemm_matmul_copy_B_t::ctx_t();
+    auto ctx = jit_brgemm_matmul_copy_b_t::ctx_t();
 
     const int n = n_blk_idx * bgmmc.N_blk;
     const bool is_N_tail = (bgmmc.N - n < bgmmc.N_blk);

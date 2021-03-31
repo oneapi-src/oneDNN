@@ -34,12 +34,12 @@ using namespace Xbyak;
 
 #define GET_OFF(x) offsetof(ctx_t, x)
 
-struct jit_brgemm_matmul_copy_A_int8_t : public jit_brgemm_matmul_copy_A_t,
+struct jit_brgemm_matmul_copy_a_int8_t : public jit_brgemm_matmul_copy_a_t,
                                          public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_A_int8_t)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_a_int8_t)
 
-    jit_brgemm_matmul_copy_A_int8_t(const brgemm_matmul_conf_t *conf)
-        : jit_brgemm_matmul_copy_A_t(conf) {}
+    jit_brgemm_matmul_copy_a_int8_t(const brgemm_matmul_conf_t *conf)
+        : jit_brgemm_matmul_copy_a_t(conf) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -106,7 +106,7 @@ private:
     void generate() override;
 };
 
-void jit_brgemm_matmul_copy_A_int8_t::reduce_compensation_across_accumulators(
+void jit_brgemm_matmul_copy_a_int8_t::reduce_compensation_across_accumulators(
         int num_accumulators) {
     int num = num_accumulators;
     while (num > 1) {
@@ -119,7 +119,7 @@ void jit_brgemm_matmul_copy_A_int8_t::reduce_compensation_across_accumulators(
     }
 }
 
-void jit_brgemm_matmul_copy_A_int8_t::copy_K_loop(
+void jit_brgemm_matmul_copy_a_int8_t::copy_K_loop(
         bool is_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
     MAYBE_UNUSED(is_K_tail);
     MAYBE_UNUSED(is_first_K_iter);
@@ -245,7 +245,7 @@ void jit_brgemm_matmul_copy_A_int8_t::copy_K_loop(
     }
 }
 
-void jit_brgemm_matmul_copy_A_int8_t::copy_M_loop(
+void jit_brgemm_matmul_copy_a_int8_t::copy_M_loop(
         bool is_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
 
     if (do_compute_compensation) {
@@ -284,7 +284,7 @@ void jit_brgemm_matmul_copy_A_int8_t::copy_M_loop(
     jnz(loop_M, T_NEAR);
 }
 
-void jit_brgemm_matmul_copy_A_int8_t::generate() {
+void jit_brgemm_matmul_copy_a_int8_t::generate() {
     preamble();
     src_stride = conf_->K * typesize;
     const dim_t LDA = conf_->use_buffer_a_tail_only ? (dim_t)conf_->wei_k_blk
@@ -358,12 +358,12 @@ void jit_brgemm_matmul_copy_A_int8_t::generate() {
     postamble();
 }
 
-struct jit_brgemm_matmul_copy_B_int8_t : public jit_brgemm_matmul_copy_B_t,
+struct jit_brgemm_matmul_copy_b_int8_t : public jit_brgemm_matmul_copy_b_t,
                                          public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_B_int8_t)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_b_int8_t)
 
-    jit_brgemm_matmul_copy_B_int8_t(const brgemm_matmul_conf_t *conf)
-        : jit_brgemm_matmul_copy_B_t(conf) {}
+    jit_brgemm_matmul_copy_b_int8_t(const brgemm_matmul_conf_t *conf)
+        : jit_brgemm_matmul_copy_b_t(conf) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -410,14 +410,14 @@ private:
     void generate() override;
 };
 
-void jit_brgemm_matmul_copy_B_int8_t::copy_4x64_vnni(int nrows, int ncolumns) {
+void jit_brgemm_matmul_copy_b_int8_t::copy_4x64_vnni(int nrows, int ncolumns) {
     if (is_amx)
         copy_4x64_vnni_amx(nrows, ncolumns);
     else
         copy_4x64_vnni_avx512_core(nrows, ncolumns);
 }
 
-void jit_brgemm_matmul_copy_B_int8_t::copy_4x64_vnni_amx(
+void jit_brgemm_matmul_copy_b_int8_t::copy_4x64_vnni_amx(
         int nrows, int ncolumns) {
     auto kmovq = [=](Opmask k, size_t q) {
         mov(regq_tmp, q);
@@ -513,7 +513,7 @@ void jit_brgemm_matmul_copy_B_int8_t::copy_4x64_vnni_amx(
     }
 }
 
-void jit_brgemm_matmul_copy_B_int8_t::copy_4x64_vnni_avx512_core(
+void jit_brgemm_matmul_copy_b_int8_t::copy_4x64_vnni_avx512_core(
         int nrows, int ncolumns) {
     auto kmovq = [=](Opmask k, size_t q) {
         mov(regq_tmp, q);
@@ -618,7 +618,7 @@ void jit_brgemm_matmul_copy_B_int8_t::copy_4x64_vnni_avx512_core(
     }
 }
 
-void jit_brgemm_matmul_copy_B_int8_t::generate() {
+void jit_brgemm_matmul_copy_b_int8_t::generate() {
     preamble();
     vpxord(zmm_zero, zmm_zero, zmm_zero);
     src_stride = conf_->N * typesize;
@@ -831,13 +831,13 @@ void jit_brgemm_matmul_copy_B_int8_t::generate() {
     postamble();
 }
 
-struct jit_brgemm_matmul_copy_B_transposed_int8_t
-    : public jit_brgemm_matmul_copy_B_t,
+struct jit_brgemm_matmul_copy_b_transposed_int8_t
+    : public jit_brgemm_matmul_copy_b_t,
       public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_B_transposed_int8_t)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_b_transposed_int8_t)
 
-    jit_brgemm_matmul_copy_B_transposed_int8_t(const brgemm_matmul_conf_t *conf)
-        : jit_brgemm_matmul_copy_B_t(conf) {}
+    jit_brgemm_matmul_copy_b_transposed_int8_t(const brgemm_matmul_conf_t *conf)
+        : jit_brgemm_matmul_copy_b_t(conf) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -893,7 +893,7 @@ private:
     void generate() override;
 };
 
-void jit_brgemm_matmul_copy_B_transposed_int8_t::copy_16x64_vnni(
+void jit_brgemm_matmul_copy_b_transposed_int8_t::copy_16x64_vnni(
         int nrows, int ncolumns) {
     assert(nrows >= 0 && nrows <= n_blk_step && ncolumns >= 0
             && ncolumns <= k_blk_step);
@@ -1031,7 +1031,7 @@ void jit_brgemm_matmul_copy_B_transposed_int8_t::copy_16x64_vnni(
     fixup16x16();
 }
 
-void jit_brgemm_matmul_copy_B_transposed_int8_t::compute_K_loop(bool is_N_tail,
+void jit_brgemm_matmul_copy_b_transposed_int8_t::compute_K_loop(bool is_N_tail,
         int curr_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
     MAYBE_UNUSED(is_first_K_iter);
     MAYBE_UNUSED(is_last_K_iter);
@@ -1073,7 +1073,7 @@ void jit_brgemm_matmul_copy_B_transposed_int8_t::compute_K_loop(bool is_N_tail,
     }
 }
 
-void jit_brgemm_matmul_copy_B_transposed_int8_t::compute_N_loop(
+void jit_brgemm_matmul_copy_b_transposed_int8_t::compute_N_loop(
         int curr_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
     const int N_chunk_tail = conf_->N % n_blk_step;
 
@@ -1104,7 +1104,7 @@ void jit_brgemm_matmul_copy_B_transposed_int8_t::compute_N_loop(
     }
 }
 
-void jit_brgemm_matmul_copy_B_transposed_int8_t::generate() {
+void jit_brgemm_matmul_copy_b_transposed_int8_t::generate() {
     // TODO: support compensation calculation
     if (conf_->s8s8_compensation_required) return;
 
@@ -1203,25 +1203,25 @@ void jit_brgemm_matmul_copy_B_transposed_int8_t::generate() {
     postamble();
 }
 
-status_t create_brgemm_matmul_copy_B(
-        std::unique_ptr<jit_brgemm_matmul_copy_B_t> &copy_ker,
+status_t create_brgemm_matmul_copy_b(
+        std::unique_ptr<jit_brgemm_matmul_copy_b_t> &copy_ker,
         const brgemm_matmul_conf_t *conf) {
     const bool is_B_transposed
             = one_of(conf->wei_tag, ba, acb, abdc, abced, abcdfe, abcdegf,
                     abcdefhg, abcdefgih, abcdefghji, abcdefghikj, abcdefghijlk);
     if (is_B_transposed)
         CHECK(safe_ptr_assign(copy_ker,
-                new jit_brgemm_matmul_copy_B_transposed_int8_t(conf)));
+                new jit_brgemm_matmul_copy_b_transposed_int8_t(conf)));
     else
         CHECK(safe_ptr_assign(
-                copy_ker, new jit_brgemm_matmul_copy_B_int8_t(conf)));
+                copy_ker, new jit_brgemm_matmul_copy_b_int8_t(conf)));
     return copy_ker->create_kernel();
 }
 
-status_t create_brgemm_matmul_copy_A(
-        std::unique_ptr<jit_brgemm_matmul_copy_A_t> &copy_ker,
+status_t create_brgemm_matmul_copy_a(
+        std::unique_ptr<jit_brgemm_matmul_copy_a_t> &copy_ker,
         const brgemm_matmul_conf_t *conf) {
-    CHECK(safe_ptr_assign(copy_ker, new jit_brgemm_matmul_copy_A_int8_t(conf)));
+    CHECK(safe_ptr_assign(copy_ker, new jit_brgemm_matmul_copy_a_int8_t(conf)));
     return copy_ker->create_kernel();
 }
 

@@ -211,7 +211,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
         test_dts.emplace_back(memory::data_type::bf16);
 
     for (auto dt : test_dts) {
-        const auto binary_tensor_dims = std::get<0>(GetParam());
+        const auto &binary_tensor_dims = std::get<0>(GetParam());
         const auto format_tag = std::get<2>(GetParam());
 
         const memory::desc src_0_md {binary_tensor_dims, dt, format_tag};
@@ -235,7 +235,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
 
         ops.append_eltwise(scale, algorithm::eltwise_relu, alpha, beta);
 
-        const auto binary_po_tensor_dims = std::get<1>(GetParam());
+        const auto &binary_po_tensor_dims = std::get<1>(GetParam());
         memory::desc src1_po_md(
                 binary_po_tensor_dims, data_type::f32, format_tag);
         ops.append_binary(algorithm::binary_add, src1_po_md);

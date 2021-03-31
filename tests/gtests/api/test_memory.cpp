@@ -41,7 +41,7 @@ bool is_sycl_engine(dnnl_engine_kind_t eng_kind) {
     return false;
 }
 
-class memory_test_c : public ::testing::TestWithParam<dnnl_engine_kind_t> {
+class memory_test_c_t : public ::testing::TestWithParam<dnnl_engine_kind_t> {
 protected:
     void SetUp() override {
         eng_kind = GetParam();
@@ -59,9 +59,10 @@ protected:
     dnnl_engine_t engine = nullptr;
 };
 
-class memory_test_cpp : public ::testing::TestWithParam<dnnl_engine_kind_t> {};
+class memory_test_cpp_t : public ::testing::TestWithParam<dnnl_engine_kind_t> {
+};
 
-TEST_P(memory_test_c, OutOfMemory) {
+TEST_P(memory_test_c_t, OutOfMemory) {
     SKIP_IF(!engine, "Engine is not found.");
     SKIP_IF(is_sycl_engine(eng_kind), "Do not test C API with SYCL.");
 
@@ -77,7 +78,7 @@ TEST_P(memory_test_c, OutOfMemory) {
     ASSERT_EQ(s, dnnl_out_of_memory);
 }
 
-TEST_P(memory_test_cpp, OutOfMemory) {
+TEST_P(memory_test_cpp_t, OutOfMemory) {
     dnnl_engine_kind_t eng_kind_c = GetParam();
     engine::kind eng_kind = static_cast<engine::kind>(eng_kind_c);
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine is not found.");
@@ -118,7 +119,7 @@ TEST_P(memory_test_cpp, OutOfMemory) {
 }
 
 namespace {
-struct PrintToStringParamName {
+struct print_to_string_param_name_t {
     template <class ParamType>
     std::string operator()(
             const ::testing::TestParamInfo<ParamType> &info) const {
@@ -130,9 +131,9 @@ auto all_engine_kinds = ::testing::Values(dnnl_cpu, dnnl_gpu);
 
 } // namespace
 
-INSTANTIATE_TEST_SUITE_P(AllEngineKinds, memory_test_c, all_engine_kinds,
-        PrintToStringParamName());
-INSTANTIATE_TEST_SUITE_P(AllEngineKinds, memory_test_cpp, all_engine_kinds,
-        PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(AllEngineKinds, memory_test_c_t, all_engine_kinds,
+        print_to_string_param_name_t());
+INSTANTIATE_TEST_SUITE_P(AllEngineKinds, memory_test_cpp_t, all_engine_kinds,
+        print_to_string_param_name_t());
 
 } // namespace dnnl
