@@ -28,11 +28,11 @@
 --stag=abc,acb --wtag=abc,acb --dtag=abc
 --bia_dt=undef,f32 --bia_mask=4,6
 
---runtime_mb=0,1 --runtime_m=0 --runtime_n=0 --runtime_k=0
+--runtime_dims_masks=0,1:1
 --attr-post-ops='','sum'
 --batch=shapes_3d
 
---runtime_mb=0,1 --runtime_m=1 --runtime_n=1 --runtime_k=0,1
+--runtime_dims_masks=2:4,6:6,3:5,7:7
 --attr-oscale=common:2.25
 --attr-post-ops='sum;relu;add:u8'
 --batch=shapes_3d
