@@ -15,6 +15,7 @@ Checks: >
     readability-container-size-empty,
     readability-delete-null-pointer,
     readability-make-member-function-const,
+    readability-redundant-access-specifiers,
     performance-for-range-copy,
     performance-implicit-conversion-in-loop,
     performance-inefficient-algorithm,
@@ -24,6 +25,7 @@ Checks: >
     performance-unnecessary-copy-initialization,
     performance-unnecessary-value-param,
     performance-no-automatic-move,
+    performance-trivially-destructible,
     modernize-make-shared,
     modernize-use-bool-literals,
     modernize-use-emplace,
@@ -41,6 +43,8 @@ Checks: >
     bugprone-unhandled-self-assignment,
     bugprone-multiple-statement-macro,
     bugprone-macro-parentheses,
+    bugprone-undefined-memory-manipulation,
+    bugprone-unhandled-self-assignment,
     google-default-arguments,
     misc-misplaced-const,
     misc-definitions-in-headers,
@@ -48,6 +52,7 @@ Checks: >
     misc-uniqueptr-reset-release,
     misc-unused-alias-decls,
     misc-unused-using-decls,
+    cppcoreguidelines-prefer-member-initializer,
 
 CheckOptions:
   - key:             readability-identifier-naming.ClassCase
