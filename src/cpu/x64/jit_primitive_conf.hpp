@@ -120,7 +120,7 @@ struct jit_conv_conf_t {
     post_ops_t post_ops;
     bool is_fast_postops; // maybe skip injector for sum and/or relu
 
-    int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
+    int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b, nthr_oh;
 
     int idp, ihp, iwp, ohp, owp;
     int nb_ic, ic_block;
