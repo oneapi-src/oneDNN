@@ -235,7 +235,7 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
     const arg_scales_t &as = attr->scales_;
     if (!as.has_default_values()) {
         const char *delim = "";
-        DPRINT(str, len, written, "scales:'");
+        DPRINT(str, len, written, "scales:");
         for (const auto &map_entry : as.scales_) {
             const auto &val = map_entry.second;
             if (val.has_default_values()) continue;
@@ -247,13 +247,13 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
                 DPRINT(str, len, written, ":%g", val.scales_[0]);
             delim = "_";
         }
-        DPRINT(str, len, written, "';");
+        DPRINT(str, len, written, ";");
     }
 
     const zero_points_t &zp = attr->zero_points_;
     if (!zp.has_default_values()) {
         const char *delim = "";
-        DPRINT(str, len, written, "zero_points:'");
+        DPRINT(str, len, written, "zero_points:");
         for (const auto &arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
             if (zp.has_default_values(arg)) continue;
 
@@ -272,7 +272,7 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
             }
             delim = "_";
         }
-        DPRINT(str, len, written, "';");
+        DPRINT(str, len, written, ";");
     }
 
     const post_ops_t &po = attr->post_ops_;
