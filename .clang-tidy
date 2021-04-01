@@ -23,6 +23,7 @@ Checks: >
     performance-move-const-arg,
     performance-unnecessary-copy-initialization,
     performance-unnecessary-value-param,
+    performance-no-automatic-move,
     modernize-make-shared,
     modernize-use-bool-literals,
     modernize-use-emplace,

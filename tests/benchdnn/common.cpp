@@ -471,7 +471,7 @@ std::string locate_batch_file(const std::string &fname) {
     if (ifs.is_open()) return fname;
 
     for (int n = 0; n < n_paths; ++n) {
-        const std::string fullname = search_paths[n] + "/" + fname;
+        std::string fullname = search_paths[n] + "/" + fname;
         ifs.open(fullname);
         if (ifs.is_open()) {
             BENCHDNN_PRINT(50, "batch file used: %s\n", fullname.c_str());
@@ -493,7 +493,7 @@ std::string locate_batch_file(const std::string &fname) {
                         + std::string(driver_name);
             }
             // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
-            const std::string fullname = fdir + "/" + fname;
+            std::string fullname = fdir + "/" + fname;
             ifs.open(fullname);
             if (ifs.is_open()) {
                 search_paths[n_paths++] = std::move(fdir);
