@@ -55,7 +55,7 @@ public:
         dim_t offset;
     };
 
-    zp_src_pad_com_d calculate_zp_src_pad_com_d(const dim_t d_off);
+    zp_src_pad_com_d calculate_zp_src_pad_com_d(const dim_t d_off) const;
 
 private:
     enum bound { upper, lower };

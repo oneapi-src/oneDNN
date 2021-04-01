@@ -96,7 +96,7 @@ status_t dnnl_memory::set_data_handle(void *handle, stream_t *stream) {
     CHECK(memory_storage()->get_data_handle(&old_handle));
 
     if (handle != old_handle) {
-        CHECK(memory_storage()->set_data_handle(handle));
+        CHECK(memory_storage_->set_data_handle(handle));
     }
     return status::success;
 }

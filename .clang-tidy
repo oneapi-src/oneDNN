@@ -14,6 +14,7 @@ Checks: >
     readability-uniqueptr-delete-release,
     readability-container-size-empty,
     readability-delete-null-pointer,
+    readability-make-member-function-const,
     performance-for-range-copy,
     performance-implicit-conversion-in-loop,
     performance-inefficient-algorithm,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-int jit_avx2_kernel_sgemm_kern::next_acc(int idx, int um, int un) {
+int jit_avx2_kernel_sgemm_kern::next_acc(int idx, int um, int un) const {
     while (!(((idx / unroll_n_) < std::max(1, um / nelt_per_vecreg_))
             || ((idx % unroll_n_) < un)))
         idx++;

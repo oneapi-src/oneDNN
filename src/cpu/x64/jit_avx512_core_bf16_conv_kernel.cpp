@@ -1959,7 +1959,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
 }
 
 int jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::interleave_w_reorder_size(
-        int ur_w) {
+        int ur_w) const {
     const int reorder_block = 16;
     return rnd_up(jcp.stride_w * (ur_w - 1) + jcp.kw, reorder_block);
 }

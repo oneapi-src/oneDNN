@@ -144,7 +144,7 @@ struct prb_t {
         return alg == ALG_BOOT && oflag != FLAG_NONE;
     }
     float *generate_oscales();
-    int32_t *generate_zero_points(int arg);
+    int32_t *generate_zero_points(int arg) const;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 

@@ -62,7 +62,7 @@ jit_prelu_reduction_kernel_t::jit_prelu_reduction_kernel_t(
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)
 
-size_t jit_prelu_reduction_kernel_t::simd_w() {
+size_t jit_prelu_reduction_kernel_t::simd_w() const {
     return simd_w_;
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017 - 2020 Intel Corporation
+* Copyright 2017 - 2021 Intel Corporation
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -141,6 +141,8 @@ struct trans_context_t {
     std::unique_ptr<trans_wrapper_t> ind_tail_trans_ = nullptr;
     std::unique_ptr<trans_wrapper_t> dst_trans_ = nullptr;
     std::unique_ptr<trans_wrapper_t> dst_tail_trans_ = nullptr;
+
+    // NOLINTNEXTLINE(readability-make-member-function-const)
     status_t create_kernel() {
         if (src_trans_) CHECK(src_trans_->create_kernel());
         if (src_tail_trans_) CHECK(src_tail_trans_->create_kernel());

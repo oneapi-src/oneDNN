@@ -119,7 +119,7 @@ size_t jit_prelu_base_kernel_t::get_number_reserved_vmms() const noexcept {
 }
 
 int jit_prelu_base_kernel_t::get_compute_vmm(
-        size_t base_idx, size_t unroll_group) {
+        size_t base_idx, size_t unroll_group) const {
     return number_reserved_vmms_ + base_idx
             + unroll_group * number_vmm_single_compute_;
 }

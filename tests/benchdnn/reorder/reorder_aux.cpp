@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ float *prb_t::generate_oscales() {
     return scales;
 }
 
-int32_t *prb_t::generate_zero_points(int arg) {
+int32_t *prb_t::generate_zero_points(int arg) const {
     const attr_t::zero_points_t &zero_points = this->attr.zero_points;
     if (zero_points.is_def(arg)) return nullptr;
 

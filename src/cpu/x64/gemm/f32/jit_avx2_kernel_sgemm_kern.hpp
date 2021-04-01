@@ -59,7 +59,7 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
                                               : (PREFETCHSIZEB_ * 2 + 16);
     int off_ = 0, offb_ = 0;
 
-    int next_acc(int idx, int um, int un);
+    int next_acc(int idx, int um, int un) const;
     void prefetchB_beforeBload(int um, int un, int k_idx, int n_idx);
     void prefetchB_beforeFMA(int um, int un, int k_idx, int n_idx, int m_idx);
     void prefetchA_afterFMA(int um, int un, int k_idx, int n_idx, int m_idx);

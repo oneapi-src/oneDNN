@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ void jit_sse41_1x1_conv_kernel_f32::generate_bcast_loop(int load_loop_blk) {
 }
 
 size_t jit_sse41_1x1_conv_kernel_f32::get_fwd_output_ptr_l_off(
-        int i, int j, int n) {
+        int i, int j, int n) const {
     return i * get_output_i_offset(jcp) + j * get_output_j_offset(jcp) + n * 4;
 }
 

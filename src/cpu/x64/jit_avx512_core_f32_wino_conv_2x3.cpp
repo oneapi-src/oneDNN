@@ -56,17 +56,17 @@ struct jit_avx512_core_f32_wino_conv_2x3_src_trans_t : public jit_generator {
 
     void generate() override;
 
-    Zmm vreg_inp(int i) {
+    Zmm vreg_inp(int i) const {
         assert(i < jcp.alpha * jcp.alpha);
         return Zmm(31 - i);
     }
 
-    Zmm vreg_tmp(int i) {
+    Zmm vreg_tmp(int i) const {
         assert(i < jcp.alpha * jcp.alpha);
         return Zmm(15 - i);
     }
 
-    Zmm vreg_out(int i) {
+    Zmm vreg_out(int i) const {
         assert(i < jcp.alpha * jcp.alpha);
         return Zmm(31 - i);
     }
@@ -182,24 +182,24 @@ struct jit_avx512_core_f32_wino_conv_2x3_dst_trans_t : public jit_generator {
     void generate() override;
     bool maybe_relu(int position);
 
-    Zmm vreg_inp(int i) { // 16
+    Zmm vreg_inp(int i) const { // 16
         assert(i < jcp.alpha * jcp.alpha);
         return Zmm(31 - i);
     }
 
-    Zmm vreg_stg(int id) { // 8
+    Zmm vreg_stg(int id) const { // 8
         const int id_reg_stg = jcp.alpha * jcp.alpha + id;
         assert(id_reg_stg < jcp.alpha * jcp.alpha + 8);
         return Zmm(31 - id_reg_stg);
     }
 
-    Zmm vreg_out(int id) { // 4
+    Zmm vreg_out(int id) const { // 4
         const int id_reg_out = jcp.alpha * jcp.alpha + 8 + id;
         assert(id_reg_out < jcp.alpha * jcp.alpha + 12);
         return Zmm(31 - id_reg_out);
     }
 
-    Zmm vreg_tmp(int id) { // 2
+    Zmm vreg_tmp(int id) const { // 2
         const int id_reg_tmp = jcp.alpha * jcp.alpha + 12 + id;
         assert(id_reg_tmp < jcp.alpha * jcp.alpha + 14);
         return Zmm(31 - id_reg_tmp);
@@ -388,12 +388,12 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t : public jit_generator {
             memory_desc_t &bias_md, const primitive_attr_t &attr,
             memory_desc_t &expect_wei_md);
 
-    Zmm vreg_out(int n, int m) {
+    Zmm vreg_out(int n, int m) const {
         const int id_reg_out = n * jcp.m_block + m;
         assert(id_reg_out < jcp.n2_block * jcp.m_block);
         return Zmm(31 - id_reg_out);
     }
-    Zmm vreg_wei(int i) {
+    Zmm vreg_wei(int i) const {
         assert(31 - jcp.n2_block * jcp.m_block - i > 1);
         return Zmm(31 - jcp.n2_block * jcp.m_block - i);
     }

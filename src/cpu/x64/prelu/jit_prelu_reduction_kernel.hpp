@@ -41,7 +41,7 @@ public:
     };
 
     void generate() override;
-    size_t simd_w();
+    size_t simd_w() const;
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_prelu_reduction_kernel_t)
 
     void operator()(jit_prelu_reduction_kernel_t::call_params_t *params) {

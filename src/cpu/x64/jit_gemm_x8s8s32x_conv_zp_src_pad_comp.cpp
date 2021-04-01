@@ -96,7 +96,7 @@ void jit_gemm_x8s8s32x_zp_pad_comp_helper::zp_src_comp_pad_operation(
 
 jit_gemm_x8s8s32x_zp_pad_comp_helper::zp_src_pad_com_d
 jit_gemm_x8s8s32x_zp_pad_comp_helper::calculate_zp_src_pad_com_d(
-        const dim_t d_off) {
+        const dim_t d_off) const {
 
     dim_t zp_src_pad_com_d_off = 0;
 

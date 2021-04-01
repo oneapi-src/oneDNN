@@ -63,7 +63,7 @@ jit_avx512_dw_conv_fwd_kernel_bf16::jit_avx512_dw_conv_fwd_kernel_bf16(
                 bf16_emu_reserv_4, bf16_emu_reserv_5, bf16_emu_reserv_6);
 }
 
-int jit_avx512_dw_conv_fwd_kernel_bf16::get_acc_reg_idx(int idx) {
+int jit_avx512_dw_conv_fwd_kernel_bf16::get_acc_reg_idx(int idx) const {
     assert(idx + acc_idx_start <= get_max_regs());
     return idx + acc_idx_start;
 }

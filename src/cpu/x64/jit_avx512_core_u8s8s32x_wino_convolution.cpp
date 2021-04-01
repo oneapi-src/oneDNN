@@ -71,20 +71,20 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t : public jit_generator {
         : jcp(ajcp), attr_(attr), unsign_val_in_wino_domain(5) {}
     void generate() override;
 
-    int reg_inp_ind(int i) {
+    int reg_inp_ind(int i) const {
         assert(i < jcp.alpha * jcp.alpha);
         return (31 - i);
     }
 
-    Xmm vreg_inp(int i) { return Xmm(reg_inp_ind(i)); }
+    Xmm vreg_inp(int i) const { return Xmm(reg_inp_ind(i)); }
 
-    Zmm zmm_inp(int i) { return Zmm(reg_inp_ind(i)); }
+    Zmm zmm_inp(int i) const { return Zmm(reg_inp_ind(i)); }
 
-    Xmm vreg_tmp(int i) {
+    Xmm vreg_tmp(int i) const {
         assert(i < jcp.alpha * jcp.alpha);
         return Xmm(15 - i);
     }
-    Xmm vreg_out(int i) {
+    Xmm vreg_out(int i) const {
         assert(i < jcp.alpha * jcp.alpha);
         return Xmm(31 - i);
     }
@@ -269,26 +269,26 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t : public jit_generator {
     void generate() override;
     bool maybe_relu(int position);
 
-    Zmm vreg_inp(int i) { // 16
+    Zmm vreg_inp(int i) const { // 16
         assert(i < jcp.alpha * jcp.alpha);
         return Zmm(31 - i);
     }
-    Zmm vreg_stg(int id) { // 8
+    Zmm vreg_stg(int id) const { // 8
         const int id_reg_stg = jcp.alpha * jcp.alpha + id;
         assert(id < 8);
         return Zmm(31 - id_reg_stg);
     }
-    Zmm vreg_out(int id) { // 4
+    Zmm vreg_out(int id) const { // 4
         const int id_reg_out = jcp.alpha * jcp.alpha + 8 + id;
         assert(id < 4);
         return Zmm(31 - id_reg_out);
     }
-    Xmm xmm_out(int id) { // 4
+    Xmm xmm_out(int id) const { // 4
         const int id_reg_out = jcp.alpha * jcp.alpha + 8 + id;
         assert(id < 4);
         return Xmm(31 - id_reg_out);
     }
-    Zmm vreg_tmp(int id) { // 2
+    Zmm vreg_tmp(int id) const { // 2
         const int id_reg_tmp = jcp.alpha * jcp.alpha + 12 + id;
         assert(id < 2);
         return Zmm(31 - id_reg_tmp);
@@ -528,12 +528,12 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t : public jit_generator {
             memory_desc_t &weights_md, memory_desc_t &dst_md,
             memory_desc_t &bias_md, const primitive_attr_t &attr);
 
-    Zmm vreg_out(int n, int m) {
+    Zmm vreg_out(int n, int m) const {
         const int id_reg_out = n * jcp.m_block + m;
         assert(id_reg_out < jcp.n2_block * jcp.m_block);
         return Zmm(31 - id_reg_out);
     }
-    Zmm vreg_wei(int i) {
+    Zmm vreg_wei(int i) const {
         assert(31 - jcp.n2_block * jcp.m_block - i
                 > (jcp.ver == ver_vnni ? 0 : 2));
         return Zmm(31 - jcp.n2_block * jcp.m_block - i);
