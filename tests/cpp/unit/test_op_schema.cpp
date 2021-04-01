@@ -3318,6 +3318,28 @@ TEST(op_schema_test, test_avgpool_default_attributes) {
 
     tmp_op.get_attr<std::string>("auto_pad", &sval);
     EXPECT_EQ(*sval, "None");
+
+    tmp_op.get_attr<std::string>("exclude_pad", &sval);
+    EXPECT_EQ(*sval, "None");
+
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t lt_out = logical_tensor_init(1, data_type::f32);
+    tmp_op.add_input(lt_data);
+    tmp_op.add_output(lt_out);
+    std::vector<int64_t> strides = {2, 2};
+    std::vector<int64_t> kernel = {3, 3};
+    std::vector<int64_t> pads_begin = {1, 1};
+    std::vector<int64_t> pads_end = {2, 2};
+    std::vector<int64_t> dilations = {1, 1};
+    bool exclude_pad = false;
+
+    tmp_op.set_attr("strides", strides);
+    tmp_op.set_attr("pads_begin", pads_begin);
+    tmp_op.set_attr("pads_end", pads_end);
+    tmp_op.set_attr("kernel", kernel);
+    tmp_op.set_attr("exclude_pad", exclude_pad);
+
+    EXPECT_TRUE(opm->verify(&tmp_op));
 }
 
 TEST(op_schema_test, test_avgpoolbackprop_default_attributes) {

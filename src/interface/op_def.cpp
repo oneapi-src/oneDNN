@@ -56,7 +56,7 @@ DNNL_GRAPH_OP_SCHEMA(AvgPool, 1,
                 .set_attr("pads_end", "bottom and right padding", true,
                         attribute_kind::is)
                 .set_attr("exclude_pad", "a type of pooling strategy", true,
-                        attribute_kind::is)
+                        attribute_kind::b)
                 .set_attr("kernel", "size of each filter", true,
                         attribute_kind::is)
                 .set_attr("data_format",
