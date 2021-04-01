@@ -482,13 +482,15 @@ struct jit_uni_dw_conv_bwd_weights_kernel {
     ~jit_uni_dw_conv_bwd_weights_kernel() { delete ker_; }
 
     static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
-            const memory_desc_wrapper &diff_weights_d,
-            const memory_desc_wrapper &diff_dst_d, int nthreads);
+            const convolution_desc_t &cd, memory_desc_t &src_md,
+            memory_desc_t &diff_weights_md, memory_desc_t &diff_bias_md,
+            memory_desc_t &diff_dst_md, int nthreads);
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
 
+    static void partition_nthr_nxc(
+            jit_conv_conf_t &jcp, int nthreads, bool prioritize_threading);
     static void balance(jit_conv_conf_t &jcp, int nthreads);
 
     void operator()(const jit_dw_conv_call_s *p) const { (*ker_)(p); }
@@ -504,14 +506,20 @@ private:
 template <cpu_isa_t isa, data_type_t kernel_dt>
 status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
         jit_conv_conf_t &jcp, const convolution_desc_t &cd,
-        const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &diff_weights_d,
-        const memory_desc_wrapper &diff_dst_d, int nthreads) {
+        memory_desc_t &src_md, memory_desc_t &diff_weights_md,
+        memory_desc_t &diff_bias_md, memory_desc_t &diff_dst_md, int nthreads) {
     using namespace dnnl::impl::format_tag;
     using namespace dnnl::impl::utils;
 
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper diff_weights_d(&diff_weights_md);
+    const memory_desc_wrapper diff_bias_d(&diff_bias_md);
+    const memory_desc_wrapper diff_dst_d(&diff_dst_md);
+
     jcp.dwei_dt = cd.diff_weights_desc.data_type;
+    const int ndims = src_d.ndims();
     const bool is_bf16 = src_d.data_type() == data_type::bf16;
+    const bool is_f32 = src_d.data_type() == data_type::f32;
     jcp.isa = (is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16 : isa;
 
     if (!mayiuse(isa) || (is_bf16 && !mayiuse(avx512_core)))
@@ -519,6 +527,7 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
 
     jcp.ngroups = diff_weights_d.dims()[0];
     jcp.oc = diff_dst_d.dims()[1] / jcp.ngroups;
+    jcp.oc_without_padding = diff_dst_d.dims()[1];
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
@@ -526,8 +535,6 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.oc, jcp.ic);
 
     if (!jcp.is_depthwise) return status::unimplemented;
-
-    jcp.ch_block = one_of(isa, avx512_common, avx512_core) ? 16 : 8;
 
     jcp.mb = src_d.dims()[0];
 
@@ -562,22 +569,85 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
 
-    auto dat_tag = one_of(isa, avx512_common, avx512_core) ? nChw16c : nChw8c;
-    auto wei_tag = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
+    const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
+    const auto dat_tag_blocked = one_of(isa, avx512_common, avx512_core)
+            ? nChw16c
+            : nChw8c; // dnnl_aBcd16b
+    const auto wei_tag
+            = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
+    auto curr_src_tag = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_blocked);
+    auto curr_dst_tag
+            = diff_dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_blocked);
 
-    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
-    jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
-    jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag);
+    bool is_data_layout_nxc
+            = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
+    if (is_data_layout_nxc && is_bf16) return status::unimplemented;
 
-    bool args_ok = true && jcp.src_tag == dat_tag && jcp.wei_tag == wei_tag
-            && jcp.dst_tag == dat_tag && jcp.ngroups % jcp.ch_block == 0
+    auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_blocked;
+
+    if (src_md.format_kind == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(src_md, dat_tag_blocked));
+        jcp.src_tag = dat_tag_blocked;
+    } else if (curr_src_tag != dat_tag)
+        return status::unimplemented;
+    else
+        jcp.src_tag = dat_tag;
+
+    if (diff_dst_md.format_kind == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(diff_dst_md, dat_tag_blocked));
+        jcp.dst_tag = dat_tag_blocked;
+    } else if (curr_dst_tag != dat_tag)
+        return status::unimplemented;
+    else
+        jcp.dst_tag = dat_tag;
+
+    if (diff_weights_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(diff_weights_md, wei_tag));
+        jcp.wei_tag = wei_tag;
+    } else {
+        jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
+    }
+
+    // No support for mixed types between SRC and DIFF_DST tensors
+    if (!everyone_is(dat_tag, jcp.src_tag, jcp.dst_tag)
+            || jcp.wei_tag != wei_tag)
+        return status::unimplemented;
+
+    if (jcp.with_bias) {
+        if (diff_bias_d.format_kind() == format_kind::any)
+            CHECK(memory_desc_init_by_tag(diff_bias_md, x));
+    }
+
+    jcp.ch_block = one_of(isa, avx512_common, avx512_core) ? 16 : 8;
+    jcp.ch_tail = jcp.oc_without_padding % jcp.ch_block;
+
+    // note: bf16 to be supported in the next commit
+    bool ok_to_pad_channels = !is_data_layout_nxc && !is_bf16
+            && one_of(isa, avx512_common, avx512_core, avx2);
+    if (ok_to_pad_channels) { jcp.ngroups = rnd_up(jcp.ngroups, jcp.ch_block); }
+
+    bool args_ok = true
+            && IMPLICATION(!(is_data_layout_nxc && is_f32),
+                    jcp.ngroups % jcp.ch_block == 0)
             && jcp.dilate_h == 0 && jcp.dilate_w == 0 && jcp.kw <= 3
             && jcp.stride_w <= jcp.kw // no gaps in kernel
             && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
             && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1;
     if (!args_ok) return status::unimplemented;
 
-    jcp.nb_ch = jcp.ngroups / jcp.ch_block;
+    jcp.nb_ch = div_up(jcp.ngroups, jcp.ch_block);
+
+    // Note: avx2 can't do masked_fma and would require extra Vmms
+    // for byte_load.
+    // TODO: enable 'is_fast_depthwise' for bf16 if it offers performance
+    // improvement.
+    jcp.is_fast_depthwise = !is_bf16 && is_data_layout_nxc
+            && one_of(isa, avx512_common, avx2);
+    constexpr int max_registers = isa == avx512_common ? 32 : 16;
+    // Note: anything larger than 4 didn't show significant speedup
+    const int max_isa_unroll = jcp.is_fast_depthwise ? 4 : 1;
+    int max_ch_unroll = nstl::min(max_isa_unroll, max_registers / (2 * jcp.kw));
+    jcp.nb_ch_blocking = nstl::min(jcp.nb_ch, max_ch_unroll);
 
     /* kernel applicability check wrt boundaries
      * the conditions are quite general across the kernels we have,
@@ -601,6 +671,8 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
     jcp.typesize_in = types::data_type_size(src_d.data_type());
     jcp.bia_dt = jcp.with_bias ? cd.diff_bias_desc.data_type : data_type::undef;
 
+    jcp.harness = is_data_layout_nxc ? harness_nxc : harness_mb_reduction;
+
     balance(jcp, nthreads);
 
     return status::success;
@@ -610,22 +682,42 @@ template <cpu_isa_t isa, data_type_t kernel_dt>
 void jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
     using namespace dnnl::impl::memory_tracking::names;
-    /* Notes: if splitting thread work on 'mb', then a reduction has to take
-     * place. Hence, book a per-thread, local weights-buffer for the
-     * reduction */
-    if (jcp.nthr_mb > 1) {
-        const size_t mb = jcp.dwei_dt == data_type::bf16 ? jcp.nthr_mb
-                                                         : jcp.nthr_mb - 1;
-        const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
-        scratchpad.book<float>(key_conv_wei_reduction, wei_size * mb);
 
-        if (jcp.with_bias)
+    if (jcp.harness == harness_mb_reduction) {
+        /* Notes: if splitting thread work on 'mb', then a reduction has to take
+         * place. Hence, book a per-thread, local weights-buffer for the
+         * reduction */
+        if (jcp.nthr_mb > 1) {
+            const size_t mb = jcp.dwei_dt == data_type::bf16 ? jcp.nthr_mb
+                                                             : jcp.nthr_mb - 1;
+            const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
+            scratchpad.book<float>(key_conv_wei_reduction, wei_size * mb);
+
+            if (jcp.with_bias)
+                scratchpad.book<float>(key_conv_bia_reduction,
+                        jcp.ngroups * (jcp.nthr_mb - 1));
+        } else if (jcp.nthr_mb == 1 && jcp.dwei_dt == data_type::bf16) {
+            const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
+            scratchpad.book<float>(key_conv_wei_reduction, wei_size);
+        }
+    } else if (jcp.harness == harness_nxc) {
+        if (jcp.nthr_mb > 1 || jcp.nthr_oh > 1) {
+            assert(jcp.nthr > 0); // redundant check
+            const size_t buff_count = jcp.nthr - 1;
+            // note: because of weights blocked format, buffer is padded
+            // across ch_block
+            const size_t wei_size = utils::rnd_up(jcp.ngroups, jcp.ch_block)
+                    * jcp.kh * jcp.kw;
             scratchpad.book<float>(
-                    key_conv_bia_reduction, jcp.ngroups * (jcp.nthr_mb - 1));
-    } else if (jcp.nthr_mb == 1 && jcp.dwei_dt == data_type::bf16) {
-        const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
-        scratchpad.book<float>(key_conv_wei_reduction, wei_size);
+                    key_conv_wei_reduction, wei_size * buff_count);
+
+            if (jcp.with_bias) {
+                scratchpad.book<float>(
+                        key_conv_bia_reduction, jcp.ngroups * buff_count);
+            }
+        }
     }
+
     if (jcp.bia_dt == data_type::bf16)
         scratchpad.book<float>(key_conv_bias_bf16_convert_wsp, jcp.ngroups);
 }
@@ -633,22 +725,148 @@ void jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_scratchpad(
 template <cpu_isa_t isa, data_type_t kernel_dt>
 void jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::balance(
         jit_conv_conf_t &jcp, int nthreads) {
-    jcp.nthr = nthreads;
-    jcp.nthr_g = jcp.nthr_mb = 1;
+    jcp.nthr_oh = jcp.nthr_g = jcp.nthr_mb = 1;
+    if (jcp.harness == harness_mb_reduction) {
+        /* Basic-Heuristics for parallel strategy:
+         * 1) Tries to parallel on the number of Groups (g) where tasks are
+         * independent. Otherwise,
+         * 2) Tries to split the work across g and MiniBatch (mb).
+         * Parallelizing on mb requires computing a reduction for weights.
+         *
+         * NOTE: because of 'task partitioning' scheme, there will be unbalanced
+         * per-thread load when the number of threads is high (e.g. > 16).
+         */
+        jcp.oh_blk_size = 15;
+        jcp.nthr_g = nstl::min(jcp.nb_ch, nthreads);
+        jcp.nthr_mb = nstl::min(nstl::max(1, nthreads / jcp.nthr_g), jcp.mb);
+        jcp.nthr = jcp.nthr_g * jcp.nthr_mb;
+    } else if (jcp.harness == harness_nxc) {
+        /* Allocate threads and partition space with regards to 'nb_ch', 'mb'
+         * and 'nb_oh' (derived from selecting 'oh_block')
+         *
+         * note: 'prioritize_threading == true' showed slightly greater
+         * performance, but there might be cases where the opposite holds true;
+         * code is left for future tuning. */
+        partition_nthr_nxc(jcp, nthreads, true);
+        jcp.nthr = jcp.nthr_g * jcp.nthr_mb * jcp.nthr_oh;
+    }
+}
 
-    /* Basic-Heuristics for parallel strategy:
-     * 1) Tries to parallel on the number of Groups (g) where tasks are
-     * independent. Otherwise,
-     * 2) Tries to split the work across g and MiniBatch (mb).
-     * Parallelizing on mb requires computing a reduction for weights.
+template <cpu_isa_t isa, data_type_t kernel_dt>
+void jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::partition_nthr_nxc(
+        jit_conv_conf_t &jcp, int nthreads, bool prioritize_threading) {
+
+    /* Explore thread partitioning space across 'nb_ch', 'mb' and 'nb_oh'
+     * (determined by 'oh / oh_block'). Prioritize finding a
+     * partition where the most number of threads are used ('thr_eff').
      *
-     * NOTE: because of 'task partitioning' scheme, there will be unbalanced
-     * per-thread load when the number of threads is high (e.g. > 16).
+     * Additionally, try to reduce work imbalance across threads
+     * (i.e. 'total_imbalance').
      */
-    jcp.nthr_g = nstl::min(jcp.nb_ch, jcp.nthr);
-    jcp.nthr_mb = nstl::min(nstl::max(1, jcp.nthr / jcp.nthr_g), jcp.mb);
+    float best_thr_eff = 0.; // maximinze
+    float best_imbalance = 1.; // minimize
 
-    jcp.nthr = jcp.nthr_g * jcp.nthr_mb;
+    // Performance-tuning variables - enable through 'getenv_int()'
+    // if necessary
+    const int env_max_nthr_g = nthreads; // DNNL_MAX_NTHR_G
+    const int env_max_nthr_mb = nthreads; // DNNL_MAX_NTHR_MB
+    const int env_max_nthr_oh = nthreads; // DNNL_MAX_NTHR_OH
+    const int env_min_oh_block = 1; // DNNL_MIN_OH_BLOCK
+
+    const int ch_outer_blocks = utils::div_up(jcp.nb_ch, jcp.nb_ch_blocking);
+    int max_g = nstl::min(env_max_nthr_g, nstl::min(ch_outer_blocks, nthreads));
+    for (int g = max_g; g >= 1; --g) {
+        int cur_nthr_g = g;
+        auto div_nthr_g = nthreads / cur_nthr_g;
+
+        int available_nthr_mb = div_nthr_g;
+        int max_mb = nstl::min(
+                env_max_nthr_mb, nstl::min(jcp.mb, available_nthr_mb));
+        for (int mb = max_mb; mb >= 1; --mb) {
+            int cur_nthr_mb = mb;
+            auto div_nthr_mb = available_nthr_mb / cur_nthr_mb;
+
+            // used to skip cases where efficiency can only worsen
+            bool prev_under_blocked = false;
+
+            int available_nthr_oh = nstl::min(
+                    jcp.oh, nstl::min(env_max_nthr_oh, div_nthr_mb));
+            int max_oh_block = jcp.oh;
+            // Note: maybe it's worth exploring a heuristic to determine
+            // optimal_min(oh_block)
+            int min_oh_block
+                    = nstl::max(1, nstl::min(jcp.oh, env_min_oh_block));
+            for (int oh_block = max_oh_block; oh_block >= min_oh_block;
+                    --oh_block) {
+
+                // Calculate most efficient approximation for thread use and/or
+                // blocking:
+                int approx_g_block = utils::div_up(ch_outer_blocks, cur_nthr_g);
+                int approx_mb_block = utils::div_up(jcp.mb, cur_nthr_mb);
+                int approx_oh_block = utils::div_up(jcp.oh, oh_block);
+
+                int cur_nthr_oh = nstl::min(available_nthr_oh, approx_oh_block);
+
+                // calculate thread use efficiency
+                int total_nthr = cur_nthr_g * cur_nthr_mb * cur_nthr_oh;
+                float thr_eff = ((float)total_nthr) / nthreads;
+                assert(total_nthr <= nthreads);
+
+                // efficiency can only worsen, skip
+                if (prev_under_blocked && available_nthr_oh < approx_oh_block) {
+                    break;
+                }
+
+                // calculate imbalance
+                float imbalance_g = ((float)std::abs(approx_g_block * cur_nthr_g
+                                            - ch_outer_blocks))
+                        / ch_outer_blocks;
+                float imbalance_mb
+                        = ((float)std::abs(
+                                  approx_mb_block * cur_nthr_mb - jcp.mb))
+                        / jcp.mb;
+                float imbalance_oh
+                        = ((float)std::abs(oh_block * cur_nthr_oh - jcp.oh))
+                        / jcp.oh;
+                float total_imbalance = imbalance_g * (jcp.mb * jcp.oh)
+                        + imbalance_mb * (ch_outer_blocks * jcp.oh)
+                        + imbalance_oh * (ch_outer_blocks * jcp.mb);
+
+                /* 1) When 'prioritize_threading == true'
+                 * First Condition: pick the blocking strategy that uses the
+                 * most threads.
+                 * Second Condition: if current blocking strategy uses at least
+                 * the same amount of threads than the previous best (or more),
+                 * chose if work imbalance is less than previous best.
+                 *
+                 * 2) Otherwise, ('prioritize_threading == false')
+                 * First Condition: pick the blocking strategy that has the
+                 * lowest thread work imbalance.
+                 * Second Condition: if current blocking strategy has at least
+                 * the same amount of work imbalance than the previous best(or
+                 * lower), chose if it has more number of threads working.
+                 * */
+                const bool first_condition = prioritize_threading
+                        ? best_thr_eff <= thr_eff
+                        : best_imbalance >= total_imbalance;
+                const bool second_condition = prioritize_threading
+                        ? best_thr_eff == thr_eff
+                                && best_imbalance <= total_imbalance
+                        : best_imbalance == total_imbalance
+                                && best_thr_eff >= thr_eff;
+                if (first_condition) {
+                    if (second_condition) { continue; }
+                    jcp.nthr_g = cur_nthr_g;
+                    jcp.nthr_mb = cur_nthr_mb;
+                    jcp.nthr_oh = cur_nthr_oh;
+                    jcp.oh_blk_size = oh_block;
+                    best_imbalance = total_imbalance;
+                    best_thr_eff = thr_eff;
+                }
+                prev_under_blocked = oh_block * cur_nthr_oh < jcp.oh;
+            }
+        }
+    }
 }
 
 template struct jit_uni_dw_conv_bwd_weights_kernel<avx512_core,

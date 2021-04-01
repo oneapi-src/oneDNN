@@ -194,16 +194,15 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_t {
                             utils::one_of(
                                     this->desc()->diff_bias_desc.data_type,
                                     data_type::f32, data_type::bf16))
-                    && attr()->has_default_values() && !has_zero_dim_memory()
-                    && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             const int max_threads
                     = dnnl_in_parallel() ? 1 : dnnl_get_max_threads();
 
             status_t status = jit_uni_dw_conv_bwd_weights_kernel<isa,
-                    src_type>::init_conf(jcp_, *desc(), *src_md(),
-                    *diff_weights_md(), *diff_dst_md(), max_threads);
+                    src_type>::init_conf(jcp_, *desc(), src_md_,
+                    diff_weights_md_, diff_bias_md_, diff_dst_md_, max_threads);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -214,22 +213,7 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_t {
         }
 
         jit_conv_conf_t jcp_;
-
-    protected:
-        bool set_default_formats() {
-            using namespace format_tag;
-
-            auto dat_tag = utils::one_of(isa, avx512_common, avx512_core)
-                    ? nChw16c
-                    : nChw8c;
-            auto wei_tag = utils::one_of(isa, avx512_common, avx512_core)
-                    ? Goihw16g
-                    : Goihw8g;
-
-            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
     };
-
     jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd);
 
     typedef typename prec_traits<data_type::f32>::type f32_data_t;
@@ -244,7 +228,9 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_t {
                         pd()->jcp_)));
         CHECK(kernel_->create_kernel());
 
-        if (pd()->jcp_.nthr_mb > 1 && isa != sse41) {
+        const auto jcp = &pd()->jcp_;
+        const int reduction = jcp->nthr_mb * jcp->nthr_oh;
+        if (reduction > 1 && isa != sse41) {
             CHECK(safe_ptr_assign(
                     acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
             CHECK(acc_ker_->create_kernel());
@@ -253,14 +239,25 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_t {
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_weights(ctx);
-        execute_reduction(ctx);
+        switch (pd()->jcp_.harness) {
+            case harness_nxc:
+                execute_backward_weights_nxc(ctx);
+                execute_reduction_nxc(ctx);
+                break;
+            case harness_mb_reduction:
+                execute_backward_weights(ctx);
+                execute_reduction(ctx);
+                break;
+            default: assert(!"Invalid harness type");
+        }
         return status::success;
     }
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     void execute_reduction(const exec_ctx_t &ctx) const;
+    void execute_backward_weights_nxc(const exec_ctx_t &ctx) const;
+    void execute_reduction_nxc(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;

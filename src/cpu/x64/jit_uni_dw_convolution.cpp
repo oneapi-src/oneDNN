@@ -317,6 +317,119 @@ jit_uni_dw_convolution_bwd_weights_t<isa, src_type, diff_weights_type>::
 
 template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
 void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
+        diff_weights_type>::execute_backward_weights_nxc(const exec_ctx_t &ctx)
+        const {
+    const auto &jcp = pd()->jcp_;
+
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto diff_weights
+            = CTX_OUT_MEM(diff_weights_data_t *, DNNL_ARG_DIFF_WEIGHTS);
+
+    auto diff_wei_reduction_buffer
+            = ctx.get_scratchpad_grantor().template get<f32_data_t>(
+                    key_conv_wei_reduction);
+    auto diff_bias_reduction_buffer
+            = ctx.get_scratchpad_grantor().template get<f32_data_t>(
+                    key_conv_bia_reduction);
+    float *diff_bias = CTX_OUT_MEM(f32_data_t *, DNNL_ARG_DIFF_BIAS);
+
+    const int ch_block = jcp.ch_block;
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
+        auto conv_params = jit_dw_conv_call_s();
+        const int h_block_size = jcp.oh_blk_size;
+
+        const int ch_outer_blocks
+                = utils::div_up(jcp.nb_ch, jcp.nb_ch_blocking);
+        const int ithr_g = ithr % jcp.nthr_g;
+        int g_start {0}, g_end {0};
+        balance211(ch_outer_blocks, jcp.nthr_g, ithr_g, g_start, g_end);
+
+        const int ithr_mb = (ithr / jcp.nthr_g) % jcp.nthr_mb;
+        int mb_start {0}, mb_end {0};
+        balance211(jcp.mb, jcp.nthr_mb, ithr_mb, mb_start, mb_end);
+
+        const int ithr_oh = (ithr / (jcp.nthr_mb * jcp.nthr_g)) % jcp.nthr_oh;
+        const int nb_oh = div_up(jcp.oh, jcp.oh_blk_size);
+        int nb_oh_start {0}, nb_oh_end {0};
+        balance211(nb_oh, jcp.nthr_oh, ithr_oh, nb_oh_start, nb_oh_end);
+
+        const size_t wei_size
+                = utils::rnd_up(jcp.ngroups, jcp.ch_block) * jcp.kh * jcp.kw;
+        const bool main_thread = ithr_mb == 0 && ithr_oh == 0;
+        const int ithr_block = ithr_mb * jcp.nthr_oh + ithr_oh - 1;
+        assert(IMPLICATION(!main_thread, ithr_block >= 0));
+        f32_data_t *ithr_diff_weights
+                = (main_thread && diff_weights_type == data_type::f32)
+                ? (f32_data_t *)diff_weights
+                : diff_wei_reduction_buffer
+                        + static_cast<size_t>(ithr_block * wei_size);
+
+        const size_t filter_g_step
+                = static_cast<size_t>(jcp.kh * jcp.kw * jcp.ch_block);
+        const size_t src_h_step = static_cast<size_t>(jcp.iw * jcp.ngroups);
+        const size_t ddst_h_step = static_cast<size_t>(jcp.ow * jcp.ngroups);
+        const size_t bias_size = static_cast<size_t>(jcp.ngroups);
+        auto ithr_diff_bias = main_thread
+                ? diff_bias
+                : diff_bias_reduction_buffer + ithr_block * bias_size;
+        const int g_step = jcp.nb_ch_blocking;
+        for (int g_ = g_start; g_ < g_end; ++g_) {
+            const int g = g_ * jcp.nb_ch_blocking;
+            unsigned char last_g_flag
+                    = (g + g_step) >= jcp.nb_ch ? FLAG_OC_LAST : 0;
+            unsigned char zero_filter_flag = FLAG_ZERO_FILTER;
+            unsigned char zero_bias_flag = jcp.with_bias ? FLAG_ZERO_BIAS : 0;
+            for (int mb = mb_start; mb < mb_end; mb++) {
+                for (int nb_oh = nb_oh_start; nb_oh < nb_oh_end; ++nb_oh) {
+                    const int oh_s = nb_oh * h_block_size;
+                    const int h_work = nstl::min(h_block_size, jcp.oh - oh_s);
+                    const int oh_e = oh_s + h_work;
+                    const int ih = -jcp.t_pad + oh_s * jcp.stride_h;
+                    const int kh_top_overflow = nstl::max(0, -ih);
+                    const int kh_bottom_overflow
+                            = nstl::max(0, ih - jcp.ih + jcp.kh);
+                    const int kh_padding_offset
+                            = nstl::min(jcp.kh - 1, kh_top_overflow);
+                    conv_params.kh_count
+                            = jcp.kh - kh_top_overflow - kh_bottom_overflow;
+                    conv_params.filter_pad_off
+                            = static_cast<size_t>(kh_padding_offset * jcp.kw
+                                    * ch_block * jcp.typesize_out);
+                    const size_t filter_g_offset
+                            = static_cast<size_t>(g) * filter_g_step;
+                    conv_params.filter = &ithr_diff_weights[filter_g_offset];
+
+                    const size_t g_offset
+                            = static_cast<size_t>(g * jcp.ch_block);
+                    const size_t src_offset = static_cast<size_t>(mb * jcp.ih
+                                                      + ih + kh_top_overflow)
+                            * src_h_step;
+                    conv_params.input = &src[src_offset + g_offset];
+                    const size_t diff_dst_off
+                            = static_cast<size_t>(mb * jcp.oh + oh_s)
+                            * ddst_h_step;
+                    conv_params.output = &diff_dst[diff_dst_off + g_offset];
+                    conv_params.oh_index = oh_s;
+                    conv_params.oh_count = oh_e;
+                    if (jcp.with_bias)
+                        conv_params.bias = &ithr_diff_bias[g_offset];
+
+                    conv_params.exec_flags
+                            = zero_filter_flag | zero_bias_flag | last_g_flag;
+                    (*kernel_)(&conv_params);
+
+                    // flags are only needed during the first kernel call
+                    zero_filter_flag &= ~FLAG_ZERO_FILTER;
+                    zero_bias_flag &= ~FLAG_ZERO_BIAS;
+                }
+            }
+        }
+    });
+}
+
+template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
+void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
         diff_weights_type>::execute_backward_weights(const exec_ctx_t &ctx)
         const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
@@ -383,7 +496,8 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
         assert(nthr == jcp.nthr);
 
         auto conv_params = jit_dw_conv_call_s();
-        const int h_block_size = 15;
+        const int h_block_size = jcp.oh_blk_size;
+        const int nb_ch = jcp.nb_ch;
 
         /* assign iteration space to thread */
         const int ithr_g = ithr % jcp.nthr_g;
@@ -391,7 +505,7 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
 
         /* split dimensions */
         int g_start {0}, g_end {0};
-        balance211(jcp.nb_ch, jcp.nthr_g, ithr_g, g_start, g_end);
+        balance211(nb_ch, jcp.nthr_g, ithr_g, g_start, g_end);
 
         int mb_start {0}, mb_end {0};
         balance211(jcp.mb, jcp.nthr_mb, ithr_mb, mb_start, mb_end);
@@ -408,6 +522,7 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
                 : diff_bia_reduction_buf + (ithr_mb - 1) * bias_size;
 
         for (int g = g_start; g < g_end; ++g) {
+            unsigned char last_g_flag = g == nb_ch - 1 ? FLAG_OC_LAST : 0;
             unsigned char zero_filter_flag = FLAG_ZERO_FILTER;
             unsigned char zero_bias_flag = jcp.with_bias ? FLAG_ZERO_BIAS : 0;
 
@@ -427,7 +542,7 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
                             : 0;
 
                     set_kernel_params(&conv_params, mb, g, oh, h_work,
-                            zero_filter_flag | zero_bias_flag,
+                            zero_filter_flag | zero_bias_flag | last_g_flag,
                             kh_t_padding + kh_b_padding, kh_t_padding);
                     (*kernel_)(&conv_params);
 
@@ -513,46 +628,72 @@ template <>
 void jit_uni_dw_convolution_bwd_weights_t<sse41,
         data_type::f32>::execute_reduction(const exec_ctx_t &ctx) const {
 
+    auto diff_weights = CTX_OUT_MEM(f32_data_t *, DNNL_ARG_DIFF_WEIGHTS);
     auto diff_bias = CTX_OUT_MEM(f32_data_t *, DNNL_ARG_DIFF_BIAS);
-    auto diff_wei_reduction_buf
+    auto diff_wei_reduction_buffer
             = ctx.get_scratchpad_grantor().template get<f32_data_t>(
                     key_conv_wei_reduction);
-    auto diff_bia_reduction_buf
+    auto diff_bias_reduction_buffer
             = ctx.get_scratchpad_grantor().template get<f32_data_t>(
                     key_conv_bia_reduction);
-    auto diff_weights = CTX_OUT_MEM(f32_data_t *, DNNL_ARG_DIFF_WEIGHTS);
 
     const auto &jcp = pd()->jcp_;
 
-    const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
-    const size_t bias_size = jcp.with_bias ? jcp.ngroups : 0;
-
-    const int ch_block = jcp.ch_block;
-
     /* Apply single-threaded 'mb' reduction */
     for (int thr_mb = 1; thr_mb < jcp.nthr_mb; ++thr_mb) {
-        size_t mb_accum_offset = (thr_mb - 1) * wei_size;
-        size_t b_accum_offset = (thr_mb - 1) * bias_size;
+        const int ch_block = jcp.ch_block;
+        const size_t wei_size
+                = static_cast<size_t>(jcp.ngroups * jcp.kh * jcp.kw);
+        const size_t mb_accum_offset = (thr_mb - 1) * wei_size;
+        const size_t bias_size = jcp.ngroups;
+        const size_t b_accum_offset = (thr_mb - 1) * bias_size;
 
-        for (int g = 0; g < jcp.nb_ch; ++g) {
-            /* Reduction on Bias */
+        const int bias_ch_tail = jcp.ch_tail;
+        const int nb_ch = bias_ch_tail > 0 ? jcp.nb_ch - 1 : jcp.nb_ch;
+        for (int g = 0; g < nb_ch; ++g) {
             if (jcp.with_bias) {
                 PRAGMA_OMP_SIMD()
                 for (int g_block = 0; g_block < ch_block; ++g_block) {
-                    size_t bias_offset = g * ch_block + g_block;
+                    const size_t bias_offset
+                            = static_cast<size_t>(g * ch_block + g_block);
                     diff_bias[bias_offset]
-                            += diff_bia_reduction_buf[b_accum_offset
+                            += diff_bias_reduction_buffer[b_accum_offset
                                     + bias_offset];
                 }
             }
             for_(int kh = 0; kh < jcp.kh; ++kh)
             for (int kw = 0; kw < jcp.kw; ++kw) {
-                size_t wei_offset = (g * jcp.kh + kh) * jcp.kw + kw;
+                const size_t wei_sp_offset = (g * jcp.kh + kh) * jcp.kw + kw;
                 PRAGMA_OMP_SIMD()
                 for (int g_block = 0; g_block < ch_block; ++g_block) {
-                    const size_t off = wei_offset * ch_block + g_block;
-                    diff_weights[off]
-                            += diff_wei_reduction_buf[mb_accum_offset + off];
+                    const size_t wei_offset = static_cast<size_t>(
+                            wei_sp_offset * ch_block + g_block);
+                    diff_weights[wei_offset]
+                            += diff_wei_reduction_buffer[mb_accum_offset
+                                    + wei_offset];
+                }
+            }
+        }
+        // handle reduction for channel tail
+        if (jcp.with_bias) {
+            for (int g = 0; g < bias_ch_tail; ++g) {
+                const size_t bias_offset
+                        = static_cast<size_t>(nb_ch * ch_block + g);
+                diff_bias[bias_offset]
+                        += diff_bias_reduction_buffer[b_accum_offset
+                                + bias_offset];
+            }
+        }
+        if (bias_ch_tail > 0) {
+            for_(int kh = 0; kh < jcp.kh; ++kh)
+            for (int kw = 0; kw < jcp.kw; ++kw) {
+                const size_t wei_sp_offset = static_cast<size_t>(
+                        ((nb_ch * jcp.kh + kh) * jcp.kw + kw) * ch_block);
+                for (int g = 0; g < bias_ch_tail; ++g) {
+                    const size_t wei_offset = wei_sp_offset + g;
+                    diff_weights[wei_offset]
+                            += diff_wei_reduction_buffer[mb_accum_offset
+                                    + wei_offset];
                 }
             }
         }
@@ -563,56 +704,234 @@ template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
 void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
         diff_weights_type>::execute_reduction(const exec_ctx_t &ctx) const {
 
-    auto diff_wei_reduction_buf
+    const auto &jcp = pd()->jcp_;
+    assert(everyone_is(data_type::f32, diff_weights_type, jcp.dwei_dt));
+
+    auto diff_weights = CTX_OUT_MEM(f32_data_t *, DNNL_ARG_DIFF_WEIGHTS);
+    auto diff_wei_reduction_buffer
             = ctx.get_scratchpad_grantor().template get<f32_data_t>(
                     key_conv_wei_reduction);
-    auto diff_bia_reduction_buf
+    auto diff_bias_reduction_buffer
             = ctx.get_scratchpad_grantor().template get<f32_data_t>(
                     key_conv_bia_reduction);
-    auto diff_weights = CTX_OUT_MEM(f32_data_t *, DNNL_ARG_DIFF_WEIGHTS);
-
-    const auto &jcp = pd()->jcp_;
-
-    const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
-    const size_t bias_size = jcp.with_bias ? jcp.ngroups : 0;
-
-    const int ch_block = jcp.ch_block;
-
-    assert(diff_weights_type == data_type::f32
-            && jcp.dwei_dt == data_type::f32);
-
-    float *diff_bias = nullptr;
-    if (jcp.bia_dt == data_type::bf16) {
-        diff_bias = ctx.get_scratchpad_grantor().template get<f32_data_t>(
-                key_conv_bias_bf16_convert_wsp);
-    } else {
-        diff_bias = CTX_OUT_MEM(f32_data_t *, DNNL_ARG_DIFF_BIAS);
-    }
+    auto diff_bias_f32_to_bf16_accum
+            = ctx.get_scratchpad_grantor().template get<f32_data_t>(
+                    key_conv_bias_bf16_convert_wsp);
+    float *diff_bias = jcp.bia_dt == data_type::bf16
+            ? diff_bias_f32_to_bf16_accum
+            : CTX_OUT_MEM(f32_data_t *, DNNL_ARG_DIFF_BIAS);
 
     /* Apply single-threaded 'mb' reduction */
     for (int thr_mb = 1; thr_mb < jcp.nthr_mb; ++thr_mb) {
-        size_t mb_accum_offset = (thr_mb - 1) * wei_size;
-        size_t b_accum_offset = (thr_mb - 1) * bias_size;
+        const int ch_block = jcp.ch_block;
+        const size_t wei_size
+                = static_cast<size_t>(jcp.ngroups * jcp.kh * jcp.kw);
+        const size_t mb_accum_offset = (thr_mb - 1) * wei_size;
+        const size_t bias_size = jcp.ngroups;
+        const size_t b_accum_offset = (thr_mb - 1) * bias_size;
 
-        for (int g = 0; g < jcp.nb_ch; ++g) {
-            /* Reduction on Bias */
-            if (jcp.with_bias) {
+        if (jcp.with_bias) { // Reduction on Bias:
+            const int bias_ch_tail = jcp.ch_tail;
+            const int nb_ch = bias_ch_tail > 0 ? jcp.nb_ch - 1 : jcp.nb_ch;
+            for (int g = 0; g < nb_ch; ++g) {
                 PRAGMA_OMP_SIMD()
                 for (int g_block = 0; g_block < ch_block; ++g_block) {
-                    size_t bias_offset = g * ch_block + g_block;
+                    const size_t bias_offset
+                            = static_cast<size_t>(g * ch_block + g_block);
                     diff_bias[bias_offset]
-                            += diff_bia_reduction_buf[b_accum_offset
+                            += diff_bias_reduction_buffer[b_accum_offset
                                     + bias_offset];
                 }
             }
+            // handle reduction for channel tail
+            for (int g = 0; g < bias_ch_tail; g++) {
+                const size_t bias_offset
+                        = static_cast<size_t>(nb_ch * ch_block + g);
+                diff_bias[bias_offset]
+                        += diff_bias_reduction_buffer[b_accum_offset
+                                + bias_offset];
+            }
         }
         acc_ker_->accumulate(&diff_weights[0],
-                &diff_wei_reduction_buf[mb_accum_offset], wei_size);
+                &diff_wei_reduction_buffer[mb_accum_offset], wei_size);
     }
 
     if (jcp.bia_dt == data_type::bf16) {
         auto diff_bias_in = CTX_OUT_MEM(bf16_data_t *, DNNL_ARG_DIFF_BIAS);
         cvt_float_to_bfloat16(diff_bias_in, diff_bias, jcp.ngroups);
+    }
+}
+
+template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
+void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
+        diff_weights_type>::execute_reduction_nxc(const exec_ctx_t &ctx) const {
+
+    const auto &jcp = pd()->jcp_;
+    assert(everyone_is(data_type::f32, diff_weights_type, jcp.dwei_dt));
+
+    auto diff_weights = CTX_OUT_MEM(f32_data_t *, DNNL_ARG_DIFF_WEIGHTS);
+    auto diff_wei_reduction_buffer
+            = ctx.get_scratchpad_grantor().template get<f32_data_t>(
+                    key_conv_wei_reduction);
+    auto diff_bia_reduction_buffer
+            = ctx.get_scratchpad_grantor().template get<f32_data_t>(
+                    key_conv_bia_reduction);
+    auto diff_bias_f32_to_bf16_accum
+            = ctx.get_scratchpad_grantor().template get<f32_data_t>(
+                    key_conv_bias_bf16_convert_wsp);
+    float *diff_bias = jcp.bia_dt == data_type::bf16
+            ? diff_bias_f32_to_bf16_accum
+            : CTX_OUT_MEM(f32_data_t *, DNNL_ARG_DIFF_BIAS);
+
+    // TODO - maybe add 'KH' as another parallel dimension?
+    parallel_nd(jcp.nb_ch, [&](int NB_CH) {
+        const size_t nb_ch_step
+                = static_cast<size_t>(jcp.kh * jcp.kw * jcp.ch_block);
+        const size_t wei_offset = NB_CH * nb_ch_step;
+        auto ithr_diff_weights = &diff_weights[wei_offset];
+        auto ithr_dwei_reduction_buff = &diff_wei_reduction_buffer[wei_offset];
+
+        const int thr_work = jcp.nthr_mb * jcp.nthr_oh;
+        int ithr_reduction = 1;
+        while (ithr_reduction < thr_work) {
+            const int mb_ithr = (ithr_reduction - 1) % jcp.nthr_mb;
+            const int oh_ithr
+                    = ((ithr_reduction - 1) / jcp.nthr_mb) % jcp.nthr_oh;
+            const size_t ithr_offset
+                    = static_cast<size_t>(mb_ithr * jcp.nthr_oh + oh_ithr);
+            const size_t wei_size = static_cast<size_t>(
+                    utils::rnd_up(jcp.ngroups, jcp.ch_block) * jcp.kh * jcp.kw);
+            const size_t reduction_offset = ithr_offset * wei_size;
+            const size_t reduction_size
+                    = static_cast<size_t>(jcp.kh * jcp.kw * jcp.ch_block);
+            acc_ker_->accumulate(&ithr_diff_weights[0],
+                    &ithr_dwei_reduction_buff[reduction_offset],
+                    reduction_size);
+
+            const bool compute_bias = jcp.with_bias;
+            const int ch_block = jcp.ch_block;
+            const size_t bias_size = jcp.ngroups;
+            const size_t bias_accum_offset = ithr_offset * bias_size;
+            if (compute_bias) {
+                const size_t nb_ch_offset = NB_CH * ch_block;
+                const int bias_ch_tail = jcp.ch_tail;
+                const bool compute_ch_tail
+                        = (NB_CH == jcp.nb_ch - 1) && bias_ch_tail > 0;
+                if (!compute_ch_tail) {
+                    PRAGMA_OMP_SIMD()
+                    for (int g_block = 0; g_block < ch_block; ++g_block) {
+                        const size_t bias_offset
+                                = static_cast<size_t>(nb_ch_offset + g_block);
+                        diff_bias[bias_offset]
+                                += diff_bia_reduction_buffer[bias_accum_offset
+                                        + bias_offset];
+                    }
+                } else {
+                    // handle reduction for channel tail
+                    for (int g = 0; g < bias_ch_tail; g++) {
+                        const size_t bias_offset
+                                = static_cast<size_t>(nb_ch_offset + g);
+                        diff_bias[bias_offset]
+                                += diff_bia_reduction_buffer[bias_accum_offset
+                                        + bias_offset];
+                    }
+                }
+            }
+            ithr_reduction++;
+        }
+    });
+
+    if (jcp.bia_dt == data_type::bf16) {
+        auto diff_bias_in = CTX_OUT_MEM(bf16_data_t *, DNNL_ARG_DIFF_BIAS);
+        cvt_float_to_bfloat16(diff_bias_in, diff_bias, jcp.ngroups);
+    }
+}
+
+template <>
+void jit_uni_dw_convolution_bwd_weights_t<sse41,
+        data_type::f32>::execute_reduction_nxc(const exec_ctx_t &ctx) const {
+
+    auto diff_weights = CTX_OUT_MEM(f32_data_t *, DNNL_ARG_DIFF_WEIGHTS);
+    auto diff_bias = CTX_OUT_MEM(f32_data_t *, DNNL_ARG_DIFF_BIAS);
+
+    auto diff_wei_reduction_buffer
+            = ctx.get_scratchpad_grantor().template get<f32_data_t>(
+                    key_conv_wei_reduction);
+    auto diff_bia_reduction_buffer
+            = ctx.get_scratchpad_grantor().template get<f32_data_t>(
+                    key_conv_bia_reduction);
+
+    const auto &jcp = pd()->jcp_;
+
+    const int thr_work = jcp.nthr_mb * jcp.nthr_oh;
+    int ithr_reduction = 1;
+    while (ithr_reduction < thr_work) {
+        const int mb_ithr = (ithr_reduction - 1) % jcp.nthr_mb;
+        const int oh_ithr = ((ithr_reduction - 1) / jcp.nthr_mb) % jcp.nthr_oh;
+        const size_t ithr_offset
+                = static_cast<size_t>(mb_ithr * jcp.nthr_oh + oh_ithr);
+        const size_t wei_size = static_cast<size_t>(
+                utils::rnd_up(jcp.ngroups, jcp.ch_block) * jcp.kh * jcp.kw);
+        const size_t reduction_offset = ithr_offset * wei_size;
+
+        const int ch_block = jcp.ch_block;
+        const size_t bias_size = jcp.ngroups;
+        size_t b_accum_offset = ithr_offset * bias_size;
+
+        const bool compute_bias = jcp.with_bias;
+        const int bias_ch_tail = jcp.ch_tail;
+        const int nb_ch = bias_ch_tail > 0 ? jcp.nb_ch - 1 : jcp.nb_ch;
+        for (int g = 0; g < nb_ch; ++g) {
+            if (compute_bias) {
+                PRAGMA_OMP_SIMD()
+                for (int g_block = 0; g_block < ch_block; ++g_block) {
+                    const size_t bias_offset
+                            = static_cast<size_t>(g * ch_block + g_block);
+                    diff_bias[bias_offset]
+                            += diff_bia_reduction_buffer[b_accum_offset
+                                    + bias_offset];
+                }
+            }
+            for_(int kh = 0; kh < jcp.kh; ++kh)
+            for (int kw = 0; kw < jcp.kw; ++kw) {
+                const size_t wei_sp_offset
+                        = static_cast<size_t>((g * jcp.kh + kh) * jcp.kw + kw);
+                PRAGMA_OMP_SIMD()
+                for (int g_block = 0; g_block < ch_block; ++g_block) {
+                    const size_t wei_offset = static_cast<size_t>(
+                            wei_sp_offset * ch_block + g_block);
+                    diff_weights[wei_offset]
+                            += diff_wei_reduction_buffer[reduction_offset
+                                    + wei_offset];
+                }
+            }
+        }
+        // handle reduction for channel tail
+        if (compute_bias) {
+            for (int g = 0; g < bias_ch_tail; ++g) {
+                const size_t bias_offset
+                        = static_cast<size_t>(nb_ch * ch_block + g);
+                diff_bias[bias_offset]
+                        += diff_bia_reduction_buffer[b_accum_offset
+                                + bias_offset];
+            }
+        }
+        if (bias_ch_tail > 0) {
+            for_(int kh = 0; kh < jcp.kh; ++kh)
+            for (int kw = 0; kw < jcp.kw; ++kw) {
+                const size_t wei_sp_offset = static_cast<size_t>(
+                        (nb_ch * jcp.kh + kh) * jcp.kw + kw);
+                for (int g = 0; g < bias_ch_tail; ++g) {
+                    const size_t wei_offset
+                            = static_cast<size_t>(wei_sp_offset * ch_block + g);
+                    diff_weights[wei_offset]
+                            += diff_wei_reduction_buffer[reduction_offset
+                                    + wei_offset];
+                }
+            }
+        }
+
+        ithr_reduction++;
     }
 }
 
