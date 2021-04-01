@@ -158,6 +158,16 @@ dnnl::memory make_dnnl_memory(
 #endif
 }
 
+dnnl::memory make_dnnl_memory(const dnnl::memory::desc &md,
+        const dnnl::engine &p_engine, void *handle) {
+#if DNNL_GRAPH_WITH_SYCL
+    return dnnl::sycl_interop::make_memory(
+            md, p_engine, dnnl::sycl_interop::memory_kind::usm, handle);
+#else
+    return dnnl::memory(md, p_engine, handle);
+#endif
+}
+
 // fill 1 in the front of adesc, to make its ndims to be same as tgt_ndims
 memory::desc expand(const memory::desc &adesc, int tgt_ndims) {
     int64_t org_ndims = adesc.data.ndims;

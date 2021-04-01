@@ -25,6 +25,7 @@
 #include "operators/layernorm.hpp"
 #include "operators/matmul.hpp"
 #include "operators/pool.hpp"
+#include "operators/quantize.hpp"
 #include "operators/reorder.hpp"
 #include "operators/softmax.hpp"
 

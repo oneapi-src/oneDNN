@@ -91,6 +91,9 @@ memory::desc make_dnnl_memory_desc(const impl::logical_tensor_t &lt);
 
 memory make_dnnl_memory(const impl::tensor_t &atensor, const engine &p_engine);
 
+dnnl::memory make_dnnl_memory(const dnnl::memory::desc &md,
+        const dnnl::engine &p_engine, void *handle);
+
 memory::desc expand(const memory::desc &adesc, int tgt_ndims);
 
 memory::desc permute_NXC2NCX(const memory::desc &adesc);

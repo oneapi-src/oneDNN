@@ -87,6 +87,11 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(softmax_bwd_pass, dnnl, SoftMaxBackprop, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(quant_pass, dnnl, Quantize, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(dequant_pass, dnnl, Dequantize, 8.f)
 
+// single quantize/dequantize op doesn't need to check data type,
+// because it's checked in opschema
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(quant_pass, dnnl, Quantize, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(dequant_pass, dnnl, Dequantize, 8.f)
+
 #undef DNNL_BACKEND_SINGLE_OP_TRANSFORM
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_END

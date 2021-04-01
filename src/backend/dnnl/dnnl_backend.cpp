@@ -165,6 +165,10 @@ bool dnnl_backend::register_kernels() {
     // reorder kernel
     DNNL_REGISTER_KERNEL(convert, reorder)
 
+    // quantize and dequantize kernel
+    DNNL_REGISTER_KERNEL(Quantize, quantize_dequantize)
+    DNNL_REGISTER_KERNEL(Dequantize, quantize_dequantize)
+
 #undef DNNL_REGISTER_KERNEL
 
     return true;

@@ -4521,3 +4521,231 @@ TEST(operator_kernel, convert_data) {
         ASSERT_EQ(dst[i], ref_dst[i]);
     }
 }
+
+TEST(operator_kernel, quantize_per_tensor) {
+    impl::engine_t &engine = get_engine();
+    if (engine.kind() == impl::engine_kind::gpu) return;
+
+    impl::op_t quantize(impl::op_kind::Quantize);
+    quantize.set_attr<std::vector<float>>("scales", {0.1f});
+    quantize.set_attr<std::vector<int64_t>>("zps", {10});
+    quantize.set_attr<std::string>("qtype", "per_tensor");
+    quantize.set_attr<int64_t>("axis", 0);
+
+    test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
+    test::vector<uint8_t> dst(src.size(), 0);
+
+    // int8 = f32 / scales + zero_points
+    test::vector<uint8_t> ref_dst {0, 10, 20, 30};
+
+    // prepare input/output logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(1, {1, 2, 2}, impl::data_type::u8);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto op = op_factory.create_kernel(quantize);
+
+    op->compile(&quantize, &engine, {src_lt}, {dst_lt});
+
+    impl::stream_t &stream = get_stream();
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    op->execute(&quantize, &stream, {src_ts}, {dst_ts});
+    stream.wait();
+    for (size_t i = 0; i < src.size(); ++i) {
+        ASSERT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, quantize_per_tensor_any) {
+    impl::engine_t &engine = get_engine();
+    if (engine.kind() == impl::engine_kind::gpu) return;
+
+    impl::op_t quantize(impl::op_kind::Quantize);
+    quantize.set_attr<std::vector<float>>("scales", {0.1f});
+    quantize.set_attr<std::vector<int64_t>>("zps", {10});
+    quantize.set_attr<std::string>("qtype", "per_tensor");
+    quantize.set_attr<int64_t>("axis", 0);
+
+    test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
+    test::vector<uint8_t> dst(src.size(), 0);
+
+    // int8 = f32 / scales + zero_points
+    test::vector<uint8_t> ref_dst {0, 10, 20, 30};
+
+    // prepare input/output logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            1, {1, 2, 2}, impl::data_type::u8, impl::layout_type::any);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto op = op_factory.create_kernel(quantize);
+
+    op->compile(&quantize, &engine, {src_lt}, {dst_lt});
+
+    impl::stream_t &stream = get_stream();
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    op->execute(&quantize, &stream, {src_ts}, {dst_ts});
+    stream.wait();
+    for (size_t i = 0; i < src.size(); ++i) {
+        ASSERT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, quantize_per_channel_symmetric) {
+    impl::engine_t &engine = get_engine();
+    if (engine.kind() == impl::engine_kind::gpu) return;
+
+    impl::op_t quantize(impl::op_kind::Quantize);
+    quantize.set_attr<std::vector<float>>("scales", {0.1f, 0.2f});
+    quantize.set_attr<std::vector<int64_t>>("zps", {0, 0});
+    quantize.set_attr<std::string>("qtype", "per_channel");
+    quantize.set_attr<int64_t>("axis", 1);
+
+    test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
+    test::vector<int8_t> dst(src.size(), 0);
+
+    // int8 = f32 / scales
+    test::vector<int8_t> ref_dst {-10, 0, 5, 10};
+
+    // prepare input/output logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(1, {1, 2, 2}, impl::data_type::s8);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto op = op_factory.create_kernel(quantize);
+
+    op->compile(&quantize, &engine, {src_lt}, {dst_lt});
+
+    impl::stream_t &stream = get_stream();
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    op->execute(&quantize, &stream, {src_ts}, {dst_ts});
+    stream.wait();
+    for (size_t i = 0; i < src.size(); ++i) {
+        ASSERT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, dequantize_per_tensor) {
+    impl::engine_t &engine = get_engine();
+    if (engine.kind() == impl::engine_kind::gpu) return;
+
+    impl::op_t dequantize(impl::op_kind::Dequantize);
+    dequantize.set_attr<std::vector<float>>("scales", {0.1f});
+    dequantize.set_attr<std::vector<int64_t>>("zps", {10});
+    dequantize.set_attr<std::string>("qtype", "per_tensor");
+    dequantize.set_attr<int64_t>("axis", 0);
+
+    test::vector<uint8_t> src {0, 10, 20, 30};
+    test::vector<float> dst(src.size(), 0);
+
+    // f32 = scales * (int8 - zero_points)
+    test::vector<float> ref_dst {-1.0, 0.0, 1.0, 2.0};
+
+    // prepare input/output logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 2, 2}, impl::data_type::u8);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(1, {1, 2, 2}, impl::data_type::f32);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto op = op_factory.create_kernel(dequantize);
+
+    op->compile(&dequantize, &engine, {src_lt}, {dst_lt});
+
+    impl::stream_t &stream = get_stream();
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    op->execute(&dequantize, &stream, {src_ts}, {dst_ts});
+    stream.wait();
+    for (size_t i = 0; i < src.size(); ++i) {
+        ASSERT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, dequantize_per_tensor_any) {
+    impl::engine_t &engine = get_engine();
+    if (engine.kind() == impl::engine_kind::gpu) return;
+
+    impl::op_t dequantize(impl::op_kind::Dequantize);
+    dequantize.set_attr<std::vector<float>>("scales", {0.1f});
+    dequantize.set_attr<std::vector<int64_t>>("zps", {10});
+    dequantize.set_attr<std::string>("qtype", "per_tensor");
+    dequantize.set_attr<int64_t>("axis", 0);
+
+    test::vector<uint8_t> src {0, 10, 20, 30};
+    test::vector<float> dst(src.size(), 0);
+
+    // f32 = scales * (int8 - zero_points)
+    test::vector<float> ref_dst {-1.0, 0.0, 1.0, 2.0};
+
+    // prepare input/output logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 2, 2}, impl::data_type::u8);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            1, {1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto op = op_factory.create_kernel(dequantize);
+
+    op->compile(&dequantize, &engine, {src_lt}, {dst_lt});
+
+    impl::stream_t &stream = get_stream();
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    op->execute(&dequantize, &stream, {src_ts}, {dst_ts});
+    stream.wait();
+    for (size_t i = 0; i < src.size(); ++i) {
+        ASSERT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, dequantize_per_channel_symmetric) {
+    impl::engine_t &engine = get_engine();
+    if (engine.kind() == impl::engine_kind::gpu) return;
+
+    impl::op_t dequantize(impl::op_kind::Dequantize);
+    dequantize.set_attr<std::vector<float>>("scales", {0.1f, 0.2f});
+    dequantize.set_attr<std::vector<int64_t>>("zps", {0, 0});
+    dequantize.set_attr<std::string>("qtype", "per_channel");
+    dequantize.set_attr<int64_t>("axis", 1);
+
+    test::vector<int8_t> src {0, 10, 20, 30};
+    test::vector<float> dst(src.size(), 0);
+
+    // f32 = scales * int8
+    test::vector<float> ref_dst {0.0, 1, 4, 6};
+
+    // prepare input/output logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 2, 2}, impl::data_type::s8);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(1, {1, 2, 2}, impl::data_type::f32);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto op = op_factory.create_kernel(dequantize);
+
+    op->compile(&dequantize, &engine, {src_lt}, {dst_lt});
+
+    impl::stream_t &stream = get_stream();
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    op->execute(&dequantize, &stream, {src_ts}, {dst_ts});
+    stream.wait();
+    for (size_t i = 0; i < src.size(); ++i) {
+        ASSERT_EQ(dst[i], ref_dst[i]);
+    }
+}
