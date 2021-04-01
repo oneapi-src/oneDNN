@@ -68,7 +68,7 @@ std::tuple<dim_t, dim_t, x64::cpu_isa_t> brgemm_calc_k_block_with_isa(
         const auto k2_block_tail = rnn.K2 % k2_block_amx;
         const bool amx_block_invalid = k1_block_tail % padding
                 || k2_block_tail % padding || k1_block_amx % padding
-                || k2_block_amx % padding;
+                || k2_block_amx % padding || k1_block != k2_block;
 
         if (amx_block_invalid) {
             isa = is_amx_int8 ? x64::avx512_core_vnni : x64::avx512_core_bf16;
@@ -497,9 +497,15 @@ void rnn_brgemm_t::init_kernels(const cpu::rnn_utils::rnn_conf_t &rnn,
         }
     }
     if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
-        brgemm_init_tiles(desc_layer_b0_[0], pallete_buff_);
-        if (rnn.n_tail)
-            brgemm_init_tiles(desc_layer_N_tail_b0_[0], pallete_buff_n_tail_);
+        brgemm_init_tiles(desc_layer_b0_[0], pallete_buff_layer_);
+        brgemm_init_tiles(desc_iter_b0_[0], pallete_buff_iter_);
+
+        if (rnn.n_tail) {
+            brgemm_init_tiles(
+                    desc_layer_N_tail_b0_[0], pallete_buff_layer_n_tail_);
+            brgemm_init_tiles(
+                    desc_iter_N_tail_b0_[0], pallete_buff_iter_n_tail_);
+        }
         if (rnn.k1_tail)
             brgemm_init_tiles(desc_layer_K1_tail_b1_[0], pallete_buff_k1_tail_);
         if (rnn.k2_tail)

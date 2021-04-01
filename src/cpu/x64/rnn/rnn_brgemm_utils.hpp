@@ -80,8 +80,11 @@ struct rnn_brgemm_t {
     std::unique_ptr<x64::brgemm_kernel_t> kernel_proj_K_tail_b1_[4];
     std::unique_ptr<x64::brgemm_kernel_t> kernel_proj_NK_tail_b1_[4];
 
-    char pallete_buff_[64];
-    char pallete_buff_n_tail_[64];
+    char pallete_buff_iter_[64];
+    char pallete_buff_iter_n_tail_[64];
+    char pallete_buff_layer_[64];
+    char pallete_buff_layer_n_tail_[64];
+
     char pallete_buff_k1_tail_[64];
     char pallete_buff_k2_tail_[64];
     char pallete_buff_nk1_tail_[64];
