@@ -155,7 +155,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 include("cmake/build_oneDNN.cmake")
 
-set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Wall -Wextra -pedantic -Wconversion -Wno-sign-compare -Wunreachable-code -Wno-unknown-pragmas")
+set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Wall -Wextra -pedantic -Wconversion -Wno-sign-compare -Wunreachable-code")
 
 if(DNNL_GRAPH_WITH_SYCL)
     # Inhibit all warning messages from sycl
