@@ -34,6 +34,7 @@ file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/backend/dnnl/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/backend/fake/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/utils/*.[ch]pp
+    ${CMAKE_CURRENT_SOURCE_DIR}/pm/*.[ch]pp
 )
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")

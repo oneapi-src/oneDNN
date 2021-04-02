@@ -32,6 +32,7 @@ add_library(${LIB_NAME}_unit_test_objlib OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pass.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_v2_patterns.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_value.cpp
     )
 
