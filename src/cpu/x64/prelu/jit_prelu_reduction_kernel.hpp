@@ -38,6 +38,7 @@ public:
         const void *weights_diff_scratch = nullptr;
         void *weights_diff = nullptr;
         bool tail = false;
+        bool is_last_c_blk = false;
     };
 
     void generate() override;
@@ -57,7 +58,6 @@ private:
     void generate(bool tail);
 
     const Xbyak::Reg64 &reg_reduction_blocks_ = r8;
-    const Xbyak::Reg64 &reg_offset_ = r9;
     const Xbyak::Reg64 &reg_weights_diff_scratch_ = r10;
     const Xbyak::Reg8 &reg_tail_ = r12b;
 
@@ -71,9 +71,12 @@ protected:
     const size_t simd_w_ = 0;
     const data_type_t data_type_;
     const size_t tail_size_ = 0;
+    const Xbyak::Reg64 &reg_offset_ = r9;
     const Xbyak::Reg64 &reg_weights_diff_ = r11;
+    const Xbyak::Reg8 &reg_last_c_blk_byte_ = r13b;
     size_t number_reserved_vmms_ = 0;
-    size_t zero_pad_size_;
+    size_t tail_block_size_ = 0;
+    size_t c_blk_nelems_ = 0;
 };
 
 template <typename Vmm>

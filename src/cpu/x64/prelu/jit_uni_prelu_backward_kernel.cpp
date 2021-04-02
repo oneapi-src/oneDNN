@@ -36,7 +36,10 @@ jit_prelu_backward_kernel_t::jit_prelu_backward_kernel_t(
     , diff_dst_dt_(pd->diff_dst_md(0)->data_type)
     , diff_wei_dt_(bcast_ == prelu::bcast::full
                       ? pd->diff_weights_md(0)->data_type
-                      : data_type::f32) {}
+                      : data_type::f32)
+    , diff_src_block_tail_(prelu::get_block_tail_size(pd->diff_src_md(0)))
+    , diff_wei_block_tail_(prelu::get_block_tail_size(pd->diff_weights_md(0))) {
+}
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)
 
@@ -190,6 +193,9 @@ void jit_uni_prelu_backward_kernel_t<Vmm>::compute_dst(
         io_.at(diff_src_dt_)
                 ->store(src_diff_vmm, data_ptr(DNNL_ARG_DIFF_SRC, offset),
                         tail);
+        if (diff_src_block_tail_ && tail)
+            prelu::apply_zero_padding(this, tail_size_, diff_src_dt_,
+                    diff_src_block_tail_, reg_src_diff_, nullptr);
 
         accumulate_weights_diff(weights_diff_vmm, src_gt_zero_vmm,
                 data_ptr(DNNL_ARG_DIFF_WEIGHTS, offset), tail);
@@ -255,6 +261,9 @@ void jit_uni_prelu_backward_kernel_t<Xbyak::Zmm>::compute_dst(
         io_.at(diff_src_dt_)
                 ->store(src_diff_vmm, data_ptr(DNNL_ARG_DIFF_SRC, offset),
                         tail);
+        if (diff_src_block_tail_ && tail)
+            prelu::apply_zero_padding(this, tail_size_, diff_src_dt_,
+                    diff_src_block_tail_, reg_src_diff_, nullptr);
     }
 }
 
@@ -275,8 +284,12 @@ void jit_uni_prelu_backward_kernel_t<Vmm>::accumulate_weights_diff(
             uni_vaddps(partial_sum_vmm, partial_sum_vmm, tmp_vmm);
         }
         uni_vmovups(dst_addr, partial_sum_vmm);
-    } else
+    } else {
         io_.at(diff_wei_dt_)->store(partial_sum_vmm, dst_addr, tail);
+        if (diff_wei_block_tail_ && tail)
+            prelu::apply_zero_padding(this, tail_size_, diff_wei_dt_,
+                    diff_wei_block_tail_, reg_weights_diff_, nullptr);
+    }
 }
 
 template <typename Vmm>

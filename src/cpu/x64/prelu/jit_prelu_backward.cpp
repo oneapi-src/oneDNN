@@ -280,6 +280,7 @@ void jit_prelu_bwd_t::scratchpad_to_diff_weights_reduction(float *scratchpad,
                 = reinterpret_cast<void *>(scratchpad + blk_offset);
         params.weights_diff = weights_diff + blk_offset * weights_diff_dt;
         params.tail = tail_exists && c_blk == C_blocks - 1;
+        params.is_last_c_blk = c_blk == C_blocks - 1;
         (*reduction_kernel)(&params);
     });
 }

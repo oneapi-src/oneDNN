@@ -30,35 +30,15 @@ static dim_t get_C(const cpu_prelu_bwd_pd_t *pd) {
     return src_diff_d.ndims() >= 2 ? src_diff_d.dims()[1] : 1;
 }
 
-static dim_t get_tail_size(const cpu_prelu_bwd_pd_t *pd, const size_t simd_w,
-        size_t &zero_pad_size) {
-    const memory_desc_wrapper diff_weights_d(pd->diff_weights_md(0));
-    const auto inner_blks = diff_weights_d.blocking_desc().inner_blks[0];
-    const auto nelems = diff_weights_d.nelems();
-    const auto tail = nelems % simd_w;
-    const auto dt_size = diff_weights_d.data_type_size();
-    zero_pad_size = 0;
-
-    if (inner_blks == 0) return tail;
-
-    const size_t n_blocks = std::ceil(static_cast<float>(tail) / inner_blks);
-    const size_t blocked_tail_size = n_blocks * inner_blks;
-
-    if (simd_w >= blocked_tail_size) return blocked_tail_size;
-
-    const auto nchunks = nelems / simd_w;
-    const auto rem = (nchunks * simd_w) % blocked_tail_size;
-    zero_pad_size = (blocked_tail_size - tail - rem) * dt_size;
-    return tail;
-}
-
 jit_prelu_reduction_kernel_t::jit_prelu_reduction_kernel_t(
         const cpu_prelu_bwd_pd_t *pd, int simd_w)
     : scratchpad_c_block_offset_(
             utils::rnd_up(get_C(pd), alignment) * sizeof(float))
     , simd_w_(simd_w)
     , data_type_(pd->diff_weights_md(0)->data_type)
-    , tail_size_(get_tail_size(pd, simd_w, zero_pad_size_)) {}
+    , tail_size_(get_C(pd) % simd_w)
+    , tail_block_size_(prelu::get_block_tail_size(pd->diff_weights_md(0)))
+    , c_blk_nelems_(prelu::c_blk_nelems(pd->diff_weights_md(0), false)) {}
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)
 
@@ -72,6 +52,7 @@ void jit_prelu_reduction_kernel_t::load_kernel_call_params() {
             ptr[abi_param1 + PARAM_OFF(weights_diff_scratch)]);
     mov(reg_weights_diff_, ptr[abi_param1 + PARAM_OFF(weights_diff)]);
     mov(reg_tail_, byte[abi_param1 + PARAM_OFF(tail)]);
+    mov(reg_last_c_blk_byte_, byte[abi_param1 + PARAM_OFF(is_last_c_blk)]);
 }
 
 #undef PARAM_OFF
@@ -176,35 +157,18 @@ size_t jit_uni_prelu_reduction_kernel_t<Vmm>::get_unrolling_factor(
     return nstl::min(number_of_available_regs, max_num_threads);
 }
 
-template <>
-void jit_uni_prelu_reduction_kernel_t<Xbyak::Zmm>::finalize(bool tail) {
-    io_.store(accumulator_, ptr[reg_weights_diff_], tail);
-}
-
 template <typename Vmm>
 void jit_uni_prelu_reduction_kernel_t<Vmm>::finalize(bool tail) {
     io_.store(accumulator_, ptr[reg_weights_diff_], tail);
 
-    if (tail && zero_pad_size_) {
-        const size_t vlen = prelu::vmm_traits_t<Vmm>::vlen;
-        const int nchunks = zero_pad_size_ / vlen;
-        const int rem = zero_pad_size_ % vlen;
-
-        int offset = tail_size_ * dnnl_data_type_size(data_type_);
-        uni_vxorps(accumulator_, accumulator_, accumulator_);
-        for (int i = 0; i < nchunks; i++) {
-            Xbyak::Address chunk_addr = ptr[reg_weights_diff_ + offset];
-            if (isa_ == sse41)
-                store_bytes(accumulator_, chunk_addr, vlen);
-            else
-                vmovups(chunk_addr, accumulator_);
-            offset += vlen;
-        }
-        if (rem) {
-            Xbyak::Address rem_addr = ptr[reg_weights_diff_ + offset];
-            store_bytes(accumulator_, rem_addr, rem);
-        }
-    }
+    if (!tail_block_size_) return;
+    Xbyak::Label end;
+    cmp(reg_last_c_blk_byte_, 1);
+    jne(end, T_NEAR);
+    const auto base_off = (c_blk_nelems_ % simd_w_) ? tail_size_ : simd_w_;
+    prelu::apply_zero_padding(this, base_off, data_type_, tail_block_size_,
+            reg_weights_diff_, nullptr);
+    L(end);
 }
 
 template <typename Vmm>

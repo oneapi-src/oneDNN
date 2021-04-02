@@ -20,6 +20,7 @@
 #include <set>
 
 #include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -45,6 +46,11 @@ int get_n_vregs(const cpu_isa_t &isa) noexcept;
 bool dt_supported(const std::set<data_type_t> &tensor_data_types) noexcept;
 bool is_s8u8(const std::set<data_type_t> &tensor_data_types) noexcept;
 int get_simd_w(const std::set<data_type_t> &tensor_data_types) noexcept;
+size_t c_blk_nelems(const memory_desc_t *mem, bool padding) noexcept;
+size_t get_block_tail_size(const memory_desc_t *mem) noexcept;
+void apply_zero_padding(jit_generator *host, const size_t tail_size,
+        const data_type_t dt, const size_t block_tail_size,
+        const Xbyak::Reg64 &reg_dst, const Xbyak::Reg64 *reg_offset) noexcept;
 
 template <typename Vmm>
 struct vmm_traits_t {};

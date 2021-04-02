@@ -48,6 +48,7 @@ protected:
     const data_type_t src_dt_;
     const data_type_t wei_dt_;
     const data_type_t dst_dt_;
+    const size_t dst_tail_block_;
 
     jit_prelu_forward_kernel_t(const cpu_prelu_fwd_pd_t *pd,
             const cpu_isa_t &isa, const int vlen,
@@ -58,10 +59,10 @@ private:
     bool any_tensor_bf16() const override;
     void load_kernel_call_params() override;
     void finalize() override {}
-    const Xbyak::Reg64 &reg_src_ = r10;
-    const Xbyak::Reg64 &reg_dst_ = r11;
 
 protected:
+    const Xbyak::Reg64 &reg_src_ = r10;
+    const Xbyak::Reg64 &reg_dst_ = r11;
     const Xbyak::Reg64 &reg_weights_ = r12;
     const cpu_prelu_fwd_pd_t *pd_;
 };

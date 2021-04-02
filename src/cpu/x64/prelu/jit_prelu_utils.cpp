@@ -190,6 +190,39 @@ bool dt_supported(const std::set<data_type_t> &tensor_data_types) noexcept {
     return false;
 }
 
+size_t c_blk_nelems(const memory_desc_t *mem, bool padding) noexcept {
+    const memory_desc_wrapper mem_d {mem};
+    return mem_d.nelems(padding) / mem_d.dims()[0];
+}
+
+size_t get_block_tail_size(const memory_desc_t *mem) noexcept {
+    const memory_desc_wrapper mem_d {mem};
+    return mem_d.padded_dims()[1] - mem_d.dims()[1];
+}
+
+void apply_zero_padding(jit_generator *host, const size_t tail_size,
+        const data_type_t dt, const size_t block_tail_size,
+        const Xbyak::Reg64 &reg_dst, const Xbyak::Reg64 *reg_offset) noexcept {
+    using namespace Xbyak;
+    using namespace Xbyak::util;
+
+    const Reg32 &reg_zero = eax;
+    const Reg64 &reg_ptr = rdi;
+    const Reg64 &reg_counter = rcx;
+    const auto dt_size = types::data_type_size(dt);
+    const auto off_start = tail_size * dt_size;
+    const auto off_end = off_start + block_tail_size * dt_size;
+
+    host->xor_(reg_zero, reg_zero);
+    if (reg_offset == nullptr)
+        host->lea(reg_ptr, ptr[reg_dst + off_start]);
+    else
+        host->lea(reg_ptr, ptr[reg_dst + (*reg_offset * dt_size) + off_start]);
+    host->mov(reg_counter, off_end - off_start);
+    host->rep();
+    host->stosb();
+}
+
 } // namespace prelu
 } // namespace x64
 } // namespace cpu

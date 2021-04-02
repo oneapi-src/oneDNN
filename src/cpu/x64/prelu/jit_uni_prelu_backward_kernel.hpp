@@ -61,15 +61,16 @@ protected:
     const data_type_t diff_src_dt_;
     const data_type_t diff_dst_dt_;
     const data_type_t diff_wei_dt_;
-
-private:
-    bool any_tensor_bf16() const override;
-
-    void load_kernel_call_params() override;
+    const size_t diff_src_block_tail_;
+    const size_t diff_wei_block_tail_;
 
     const Xbyak::Reg64 &reg_src_ = r12;
     const Xbyak::Reg64 &reg_src_diff_ = r13;
     const Xbyak::Reg64 &reg_dst_diff_ = r14;
+
+private:
+    bool any_tensor_bf16() const override;
+    void load_kernel_call_params() override;
 };
 
 template <typename Vmm>

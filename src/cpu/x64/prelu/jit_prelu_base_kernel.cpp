@@ -91,7 +91,6 @@ size_t jit_prelu_base_kernel_t::calc_tail_size(
         const memory_desc_wrapper &tensor_md) const noexcept {
 
     const auto &ndims = tensor_md.ndims();
-    const auto inner_blks = tensor_md.blocking_desc().inner_blks[0];
     dim_t nelems = 0;
     if (bcast_ == prelu::bcast::full)
         nelems = tensor_md.nelems();
@@ -100,9 +99,7 @@ size_t jit_prelu_base_kernel_t::calc_tail_size(
     else if (bcast_ == prelu::bcast::per_oc_n_c_spatial && ndims >= 3)
         nelems = utils::array_product(tensor_md.dims() + 2, ndims - 2);
 
-    if (inner_blks == 0) return nelems % simd_w_;
-
-    return inner_blks;
+    return nelems % simd_w_;
 }
 
 int jit_prelu_base_kernel_t::reserve_vmm() {

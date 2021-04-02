@@ -32,6 +32,7 @@ jit_prelu_forward_kernel_t::jit_prelu_forward_kernel_t(
     , src_dt_(pd->src_md(0)->data_type)
     , wei_dt_(pd->weights_md(0)->data_type)
     , dst_dt_(pd->dst_md(0)->data_type)
+    , dst_tail_block_(prelu::get_block_tail_size(pd->dst_md(0)))
     , pd_(pd) {}
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)
@@ -234,6 +235,9 @@ void jit_uni_prelu_forward_kernel_t<Vmm>::compute_dst(
         }
 
         io_.at(dst_dt_)->store(dst_vmm, data_ptr(DNNL_ARG_DST, offset), tail);
+        if (dst_tail_block_ && tail)
+            prelu::apply_zero_padding(this, tail_size_, dst_dt_,
+                    dst_tail_block_, reg_dst_, &reg_offset_);
     }
 }
 
