@@ -19,6 +19,7 @@
 
 #include <future>
 #include <memory>
+#include <thread>
 #include <unordered_map>
 
 #include "c_types_map.hpp"
