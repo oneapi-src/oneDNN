@@ -28,6 +28,7 @@
 #endif
 
 #include <algorithm>
+#include <thread>
 #include <unordered_map>
 
 #ifdef _WIN32
