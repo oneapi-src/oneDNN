@@ -60,7 +60,8 @@ struct pooling_pd_t : public primitive_desc_t {
     /* common pooling aux functions */
 
     dim_t MB() const { return src_desc().dims[0]; }
-    dim_t C() const { return src_desc().dims[1]; }
+    dim_t IC() const { return src_desc().dims[1]; }
+    dim_t OC() const { return IC(); }
 
     dim_t ID() const { return ndims() >= 5 ? src_desc().dims[ndims() - 3] : 1; }
     dim_t IH() const { return ndims() >= 4 ? src_desc().dims[ndims() - 2] : 1; }
@@ -78,17 +79,17 @@ struct pooling_pd_t : public primitive_desc_t {
     dim_t KSH() const { return ndims() >= 4 ? desc_.strides[ndims() - 4] : 1; }
     dim_t KSW() const { return desc_.strides[ndims() - 3]; }
 
-    dim_t DD() const {
+    dim_t KDD() const {
         return is_pooling_v2()
                 ? (ndims() >= 5 ? desc_.dilation[ndims() - 5] : 0)
                 : 0;
     }
-    dim_t DH() const {
+    dim_t KDH() const {
         return is_pooling_v2()
                 ? (ndims() >= 4 ? desc_.dilation[ndims() - 4] : 0)
                 : 0;
     }
-    dim_t DW() const {
+    dim_t KDW() const {
         return is_pooling_v2() ? desc_.dilation[ndims() - 3] : 0;
     }
 
@@ -113,7 +114,7 @@ struct pooling_pd_t : public primitive_desc_t {
     bool is_pooling_v2() const {
         return desc_.primitive_kind == primitive_kind::pooling_v2;
     }
-    bool is_dilated() const { return DD() != 0 || DH() != 0 || DW() != 0; }
+    bool is_dilated() const { return KDD() != 0 || KDH() != 0 || KDW() != 0; }
 
     bool has_zero_dim_memory() const {
         return memory_desc_wrapper(src_desc()).has_zero_dim();

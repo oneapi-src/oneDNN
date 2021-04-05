@@ -51,7 +51,7 @@ status_t nchw_pooling_fwd_t<d_type>::execute_forward(
     const data_type_t ws_dt = ws ? ws_d.data_type() : data_type::undef;
 
     const int MB = pd()->MB();
-    const int C = pd()->C();
+    const int C = pd()->IC();
     const int OD = pd()->OD();
     const int OH = pd()->OH();
     const int OW = pd()->OW();
@@ -200,7 +200,7 @@ status_t nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
     const data_type_t ws_dt = ws ? ws_d.data_type() : data_type::undef;
 
     const int MB = pd()->MB();
-    const int C = pd()->C();
+    const int C = pd()->IC();
     const int OD = pd()->OD();
     const int OH = pd()->OH();
     const int OW = pd()->OW();
@@ -353,7 +353,7 @@ status_t nchw_pooling_bwd_t<d_type>::execute_backward(
     const memory_desc_wrapper ws_d(pd()->workspace_md());
 
     const int MB = pd()->MB();
-    const int C = pd()->C();
+    const int C = pd()->IC();
     const int OD = pd()->OD();
     const int OH = pd()->OH();
     const int OW = pd()->OW();
@@ -508,7 +508,7 @@ status_t nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
     const memory_desc_wrapper ws_d(pd()->workspace_md());
 
     const int MB = pd()->MB();
-    const int C = pd()->C();
+    const int C = pd()->IC();
     const int OD = pd()->OD();
     const int OH = pd()->OH();
     const int OW = pd()->OW();

@@ -172,7 +172,7 @@ status_t nhwc_pooling_fwd_t<d_type>::execute_forward(
 
     const int MB = pd()->MB();
     const int OD = pd()->OD();
-    const int OC = pd()->C();
+    const int OC = pd()->OC();
     const int OH = pd()->OH();
     const int OW = pd()->OW();
     const int ID = pd()->ID();
@@ -342,7 +342,7 @@ status_t nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
 
     const int MB = pd()->MB();
     const int OD = pd()->OD();
-    const int OC = pd()->C();
+    const int OC = pd()->OC();
     const int OH = pd()->OH();
     const int OW = pd()->OW();
     const int ID = pd()->ID();
@@ -517,7 +517,7 @@ status_t nhwc_pooling_bwd_t<d_type>::execute_backward(
     const int SD = pd()->KSD();
     const int SH = pd()->KSH();
     const int SW = pd()->KSW();
-    const int OC = pd()->C();
+    const int OC = pd()->OC();
     const int padF = pd()->padFront();
     const int padT = pd()->padT();
     const int padL = pd()->padL();
@@ -663,7 +663,7 @@ status_t nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
     const int SD = pd()->KSD();
     const int SH = pd()->KSH();
     const int SW = pd()->KSW();
-    const int OC = pd()->C();
+    const int OC = pd()->OC();
     const int padF = pd()->padFront();
     const int padT = pd()->padT();
     const int padL = pd()->padL();

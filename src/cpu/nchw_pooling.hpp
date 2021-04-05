@@ -75,7 +75,7 @@ struct nchw_pooling_fwd_t : public primitive_t {
         void init_scratchpad() {
             using namespace memory_tracking::names;
             if (src_md()->data_type == data_type::bf16) {
-                const size_t src_sz_ = ID() * IH() * IW() * C() * MB();
+                const size_t src_sz_ = ID() * IH() * IW() * IC() * MB();
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.template book<float>(key_pool_src_bf16cvt, src_sz_);
             }
@@ -170,7 +170,7 @@ struct nchw_pooling_bwd_t : public primitive_t {
             dim_t dst_sz_ = OD() * OH() * OW();
             dim_t src_sz_ = ID() * IH() * IW();
             dim_t nthrs = dnnl_get_max_threads();
-            dim_t C_per_thr = nstl::min(MB() * C() / nthrs, C());
+            dim_t C_per_thr = nstl::min(MB() * IC() / nthrs, IC());
             const dim_t max_block_size
                     = platform::get_per_core_cache_size(1) / 2;
             dim_t data_size_per_ch = (dst_sz_ + src_sz_) * 6; // f32 + bf16

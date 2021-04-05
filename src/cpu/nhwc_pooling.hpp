@@ -82,7 +82,7 @@ struct nhwc_pooling_fwd_t : public primitive_t {
         void init_scratchpad() {
             using namespace memory_tracking::names;
             if (src_md()->data_type == data_type::bf16) {
-                const size_t bf16cvt_sz_ = C() * dnnl_get_max_threads();
+                const size_t bf16cvt_sz_ = IC() * dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.template book<float>(
                         key_pool_src_bf16cvt, bf16cvt_sz_);
@@ -157,7 +157,7 @@ struct nhwc_pooling_bwd_t : public primitive_t {
         void init_scratchpad() {
             using namespace memory_tracking::names;
             if (diff_src_md()->data_type == data_type::bf16) {
-                size_t bf16cvt_sz_ = C() * dnnl_get_max_threads();
+                size_t bf16cvt_sz_ = IC() * dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.template book<float>(
                         key_pool_src_bf16cvt, bf16cvt_sz_);

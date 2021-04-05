@@ -76,9 +76,9 @@ status_t ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
     const int padF = pd()->padFront();
     const int padT = pd()->padT();
     const int padL = pd()->padL();
-    const int DD = pd()->DD();
-    const int DH = pd()->DH();
-    const int DW = pd()->DW();
+    const int DD = pd()->KDD();
+    const int DH = pd()->KDH();
+    const int DW = pd()->KDW();
 
     auto set_ws = [=](int mb, int oc, int od, int oh, int ow, int value) {
         if (ws) {
@@ -163,7 +163,7 @@ status_t ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
     };
 
     const int MB = pd()->MB();
-    const int OC = pd()->C();
+    const int OC = pd()->OC();
     const int OD = pd()->OD();
     const int OH = pd()->OH();
     const int OW = pd()->OW();
@@ -236,9 +236,9 @@ status_t ref_pooling_bwd_t<data_type>::execute_backward(
     const int padF = pd()->padFront();
     const int padT = pd()->padT();
     const int padL = pd()->padL();
-    const int DD = pd()->DD();
-    const int DH = pd()->DH();
-    const int DW = pd()->DW();
+    const int DD = pd()->KDD();
+    const int DH = pd()->KDH();
+    const int DW = pd()->KDW();
 
     auto ker_zero = [=](int mb, int oc) {
         for_(int id = 0; id < ID; ++id)
@@ -322,7 +322,7 @@ status_t ref_pooling_bwd_t<data_type>::execute_backward(
     };
 
     const int MB = pd()->MB();
-    const int OC = pd()->C();
+    const int OC = pd()->OC();
     const int OD = pd()->OD();
     const int OH = pd()->OH();
     const int OW = pd()->OW();
