@@ -36,25 +36,22 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     auto attributes_without_po = attr()->clone();
     attributes_without_po->post_ops_.entry_.clear();
 
-    const auto gemm_desc = desc();
-
-    const auto impl_list
-            = engine->get_implementation_list((op_desc_t *)gemm_desc);
+    const auto impl_list = engine->get_implementation_list(op_desc());
 
     int current_impl_idx
             = impl_list_item_t::find<ocl::gemm_with_post_ops_t::pd_t>(
                     impl_list);
 
-    dnnl_primitive_desc_iterator it_gemm_with_po(engine,
-            (op_desc_t *)&gemm_desc, attributes_with_po, nullptr,
+    dnnl_primitive_desc_iterator it_gemm_with_po(engine, op_desc(),
+            attributes_with_po, nullptr,
             current_impl_idx /* skip implementation */);
     if (!it_gemm_with_po.is_initialized()) return status::invalid_arguments;
     gemm_pd_ = *(++it_gemm_with_po);
     // exit if gemm kernel support post ops
     if (gemm_pd_) return status::unimplemented;
 
-    dnnl_primitive_desc_iterator it_gemm_without_po(engine,
-            (op_desc_t *)&gemm_desc, attributes_without_po, nullptr,
+    dnnl_primitive_desc_iterator it_gemm_without_po(engine, op_desc(),
+            attributes_without_po, nullptr,
             current_impl_idx /* skip implementation */);
     if (!it_gemm_without_po.is_initialized()) return status::invalid_arguments;
     gemm_pd_ = *(++it_gemm_without_po);
