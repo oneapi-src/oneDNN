@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,6 +38,12 @@ __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
     int d5 = GWS_GET_D5();
 
     const size_t data_off = DATA_OFF(d0, d1, d2, d3, d4, d5);
+
+    if (d0 >= DATA_D0 || d1 >= DATA_D1 || d2 >= DATA_D2 || d3 >= DATA_D3
+            || d4 >= DATA_D4 || d5 >= DATA_D5) {
+        dst[data_off] = CONVERT_DATA_T(0.f);
+        return;
+    }
 #else
     const size_t data_off = get_global_id(0)
 #if GWS1 > 1
@@ -90,6 +96,12 @@ __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
 
     const size_t data_off = DATA_OFF(d0, d1, d2, d3, d4, d5);
     const size_t diff_data_off = DIFF_DATA_OFF(d0, d1, d2, d3, d4, d5);
+
+    if (d0 >= DATA_D0 || d1 >= DATA_D1 || d2 >= DATA_D2 || d3 >= DATA_D3
+            || d4 >= DATA_D4 || d5 >= DATA_D5) {
+        diff_src[diff_data_off] = CONVERT_DATA_T(0.f);
+        return;
+    }
 
     POST_OP_DATA_T tmp_dd = DATA_TO_REF(diff_dst[diff_data_off]);
     POST_OP_DATA_T tmp_s = DATA_TO_REF(src[data_off]);

@@ -65,8 +65,7 @@ status_t gen9_eltwise_fwd_t::execute_forward_dense(
     status_t status = status::success;
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
-    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
-    CHECK(status);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
@@ -131,8 +130,7 @@ status_t gen9_eltwise_bwd_t::execute_backward_dense(
     auto &src = pd()->use_dst() ? CTX_IN_STORAGE(DNNL_ARG_DST)
                                 : CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
-    auto &diff_src = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
 
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
