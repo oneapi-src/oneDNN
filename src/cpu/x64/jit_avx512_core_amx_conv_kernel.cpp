@@ -4974,7 +4974,9 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
     bool use_full_spat_loop = jcp.ndims < 5 && jcp.ih == jcp.oh
             && jcp.iw == jcp.ow && everyone_is(1, jcp.stride_h, jcp.stride_w)
             && everyone_is(0, jcp.dilate_h, jcp.dilate_w)
-            && jcp.l_pad == jcp.kw / 2 && jcp.t_pad == jcp.kh / 2;
+            // TODO: Remove this constraint: only 3x3 kernel works now
+            && jcp.l_pad == jcp.kw / 2 && jcp.t_pad == jcp.kh / 2
+            && one_of(1, jcp.l_pad, jcp.r_pad) && jcp.kh == jcp.kw;
 
     jcp.harness = ndims == 5
             ? harness_3d_reduction
