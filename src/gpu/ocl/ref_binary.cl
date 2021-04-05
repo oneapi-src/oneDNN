@@ -22,8 +22,35 @@
 #define SRC1_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC1, x0, x1, x2, x3, x4, x5)
 #define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
 
-#if IS_TENSOR_OP && IS_DENSE && IS_SAME_MD && !WITH_BINARY_POST_OP
+float binary_op(float src0, float src1) {
+#if IS_ADD
+    return src0 + src1;
+#elif IS_MUL
+    return src0 * src1;
+#elif IS_MAX
+    return max(src0, src1);
+#elif IS_MIN
+    return min(src0, src1);
+#elif IS_DIV
+    return src0 / src1;
+#elif IS_SUB
+    return src0 - src1;
+#elif IS_GE
+    return src0 >= src1;
+#elif IS_GT
+    return src0 > src1;
+#elif IS_LE
+    return src0 <= src1;
+#elif IS_LT
+    return src0 < src1;
+#elif IS_EQ
+    return src0 == src1;
+#elif IS_NE
+    return src0 != src1;
+#endif
+}
 
+#if IS_TENSOR_OP && IS_DENSE && IS_SAME_MD && !WITH_BINARY_POST_OP
 KERNEL_ATTR
 __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
         __global DST_DATA_T *dst POST_OP_ARGS, float src0_scale,
@@ -41,31 +68,7 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     tmp_src1 = tmp_src1 * src1_scale;
 #endif
 
-#if IS_ADD
-    d = tmp_src0 + tmp_src1;
-#elif IS_MUL
-    d = tmp_src0 * tmp_src1;
-#elif IS_MAX
-    d = max(tmp_src0, tmp_src1);
-#elif IS_MIN
-    d = min(tmp_src0, tmp_src1);
-#elif IS_DIV
-    d = tmp_src0 / tmp_src1;
-#elif IS_SUB
-    d = tmp_src0 - tmp_src1;
-#elif IS_GE
-    d = tmp_src0 >= tmp_src1;
-#elif IS_GT
-    d = tmp_src0 > tmp_src1;
-#elif IS_LE
-    d = tmp_src0 <= tmp_src1;
-#elif IS_LT
-    d = tmp_src0 < tmp_src1;
-#elif IS_EQ
-    d = tmp_src0 == tmp_src1;
-#elif IS_NE
-    d = tmp_src0 != tmp_src1;
-#endif
+    d = binary_op(tmp_src0, tmp_src1);
 
     float dst_data;
 #if WITH_SUM
@@ -126,48 +129,23 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         return;
     }
 
-    for (int ic = 0; ic < block_size; ++ic) {
-        // using tmp vars to handle float calculations for bf16 datatypes
-        // CONVERT_FLOAT_T is a macro defined in ocl_types.h
-        float tmp_src0 = CONVERT_FLOAT_T(src0[src0_off]);
-        float tmp_src1 = CONVERT_FLOAT_T(src1[src1_off]);
-        float d = 0;
+    if (d1_init + block_size <= DST_D1) {
+        for (int ic = 0; ic < block_size; ++ic) {
+            // using tmp vars to handle float calculations for bf16 datatypes
+            // CONVERT_FLOAT_T is a macro defined in ocl_types.h
+            float tmp_src0 = CONVERT_FLOAT_T(src0[src0_off]);
+            float tmp_src1 = CONVERT_FLOAT_T(src1[src1_off]);
+            float d = 0;
 
 #if WITH_SRC0_SCALE
-        tmp_src0 = tmp_src0 * src0_scale;
+            tmp_src0 = tmp_src0 * src0_scale;
 #endif
 #if WITH_SRC1_SCALE
-        tmp_src1 = tmp_src1 * src1_scale;
+            tmp_src1 = tmp_src1 * src1_scale;
 #endif
+            d = binary_op(tmp_src0, tmp_src1);
 
-#if IS_ADD
-        d = tmp_src0 + tmp_src1;
-#elif IS_MUL
-        d = tmp_src0 * tmp_src1;
-#elif IS_MAX
-        d = max(tmp_src0, tmp_src1);
-#elif IS_MIN
-        d = min(tmp_src0, tmp_src1);
-#elif IS_DIV
-        d = tmp_src0 / tmp_src1;
-#elif IS_SUB
-        d = tmp_src0 - tmp_src1;
-#elif IS_GE
-        d = tmp_src0 >= tmp_src1;
-#elif IS_GT
-        d = tmp_src0 > tmp_src1;
-#elif IS_LE
-        d = tmp_src0 <= tmp_src1;
-#elif IS_LT
-        d = tmp_src0 < tmp_src1;
-#elif IS_EQ
-        d = tmp_src0 == tmp_src1;
-#elif IS_NE
-        d = tmp_src0 != tmp_src1;
-#endif
-
-        float dst_data;
-        if (DST_D1 == DST_PD1 || d1_init + ic < DST_D1) {
+            float dst_data;
 #if WITH_SUM
             dst_data = CONVERT_FLOAT_T(dst[dst_off]);
 #endif
@@ -176,18 +154,59 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
                     1, dims0_po[5], 1);
 
             dst[dst_off] = TO_DST(d);
-        } else {
-            dst[dst_off] = DATA_ZERO;
-        }
 
 #if USE_UNROLL_16B || SRC0_UNROLL_16B
-        src0_off++;
-        dst_off++;
-        ++dims0_po[1];
-        if (USE_UNROLL_16B && (SRC1_D1 > 1)) {
-            src1_off++;
-        } else if (SRC0_UNROLL_16B && (SRC1_D1 > 1)) {
-            src1_off += SRC1_S1_0; // Equilvalent stride in plain format
+            src0_off++;
+            dst_off++;
+            ++dims0_po[1];
+            if (USE_UNROLL_16B && (SRC1_D1 > 1)) {
+                src1_off++;
+            } else if (SRC0_UNROLL_16B && (SRC1_D1 > 1)) {
+                src1_off += SRC1_S1_0; // Equilvalent stride in plain format
+            }
+#endif
+        }
+    } else {
+        for (int ic = 0; ic < DST_D1 - d1_init; ic++) {
+            // using tmp vars to handle float calculations for bf16 datatypes
+            // CONVERT_FLOAT_T is a macro defined in ocl_types.h
+            float tmp_src0 = CONVERT_FLOAT_T(src0[src0_off]);
+            float tmp_src1 = CONVERT_FLOAT_T(src1[src1_off]);
+            float d = 0;
+
+#if WITH_SRC0_SCALE
+            tmp_src0 = tmp_src0 * src0_scale;
+#endif
+#if WITH_SRC1_SCALE
+            tmp_src1 = tmp_src1 * src1_scale;
+#endif
+            d = binary_op(tmp_src0, tmp_src1);
+
+            float dst_data;
+#if WITH_SUM
+            dst_data = CONVERT_FLOAT_T(dst[dst_off]);
+#endif
+            APPLY_POST_OPS_SERIAL(d, float, dst_data, float, dims0_po[0], 1,
+                    dims0_po[1], 1, dims0_po[2], 1, dims0_po[3], 1, dims0_po[4],
+                    1, dims0_po[5], 1);
+
+            dst[dst_off] = TO_DST(d);
+
+#if USE_UNROLL_16B || SRC0_UNROLL_16B
+            src0_off++;
+            dst_off++;
+            ++dims0_po[1];
+            if (USE_UNROLL_16B && (SRC1_D1 > 1)) {
+                src1_off++;
+            } else if (SRC0_UNROLL_16B && (SRC1_D1 > 1)) {
+                src1_off += SRC1_S1_0; // Equilvalent stride in plain format
+            }
+#endif
+        }
+#if DST_D1 != DST_PD1
+        for (int ic = 0; ic < DST_PD1 - DST_D1; ic++) {
+            dst[dst_off] = DATA_ZERO;
+            dst_off++;
         }
 #endif
     }
