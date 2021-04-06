@@ -54,6 +54,7 @@ bool canonical {false};
 bool mem_check {true};
 std::string skip_impl;
 bench_mode_t bench_mode {CORR};
+api_mode_t api_mode {PRIMITIVE};
 stat_t benchdnn_stat {0};
 const char *driver_name = "";
 

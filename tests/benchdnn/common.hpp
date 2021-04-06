@@ -128,6 +128,16 @@ bench_mode_t str2bench_mode(const char *str);
 extern bench_mode_t bench_mode;
 extern const char *driver_name;
 
+/* api mode */
+enum api_mode_t {
+    API_UNDEF = 0x0,
+    PRIMITIVE = 0x1, /** Primitive API mode */
+    GRAPH = 0x2, /** Graph API mode */
+};
+const char *api_mode2str(api_mode_t mode);
+api_mode_t str2api_mode(const char *str);
+extern api_mode_t api_mode;
+
 /* perf */
 extern double max_ms_per_prb; /** maximum time spends per prb in ms */
 extern int min_times_per_prb; /** minimal amount of runs per prb */

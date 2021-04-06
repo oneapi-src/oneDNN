@@ -68,6 +68,27 @@ bench_mode_t str2bench_mode(const char *str) {
     return mode;
 }
 
+const char *api_mode2str(api_mode_t mode) {
+    const char *modes[] = {"API_UNDEF", "PRIMITIVE", "GRAPH"};
+    assert((int)mode < sizeof(modes) / sizeof(*modes));
+    return modes[(int)mode];
+}
+
+api_mode_t str2api_mode(const char *str) {
+    api_mode_t mode = API_UNDEF;
+    if (strchr(str, 'g') || strchr(str, 'G'))
+        mode = (api_mode_t)((int)mode | (int)GRAPH);
+    if (strchr(str, 'p') || strchr(str, 'P'))
+        mode = (api_mode_t)((int)mode | (int)PRIMITIVE);
+    if (mode == API_UNDEF) {
+        []() {
+            SAFE(FAIL, CRIT);
+            return 0;
+        }();
+    }
+    return mode;
+}
+
 /* perf */
 #include <chrono>
 
