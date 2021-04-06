@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,8 +46,9 @@ struct rnn_data_qparams_t : public c_compatible {
     }
 
     bool operator==(const rnn_data_qparams_t &rhs) const {
-        bool ret = scale_ == rhs.scale_ && shift_ == rhs.shift_;
-        return ret;
+        using namespace utils;
+        return equal_with_nan(scale_, rhs.scale_)
+                && equal_with_nan(shift_, rhs.shift_);
     }
 
     float scale_;
@@ -67,15 +68,16 @@ struct rnn_tparams_t : public c_compatible {
     }
 
     bool operator==(const rnn_tparams_t &rhs) const {
+        using namespace utils;
+
         bool ret = test_mode_ == rhs.test_mode_ && ngates_ == rhs.ngates_
-                && cscale_ == rhs.cscale_;
+                && equal_with_nan(cscale_, rhs.cscale_);
 
         if (!ret) return ret;
 
         if (scales_) {
-            for (dim_t g = 0; g < ngates_; g++) {
-                if (scales_[g] != rhs.scales_[g]) { return false; }
-            }
+            if (std::memcmp(scales_, rhs.scales_, sizeof(float) * ngates_))
+                return false;
         }
         return true;
     }
@@ -133,7 +135,8 @@ struct scales_t : public c_compatible {
                 && !utils::any_null(scales_, rhs.scales_)
                 && defined() == rhs.defined()
                 && IMPLICATION(defined(),
-                        utils::array_cmp(scales_, rhs.scales_, count_));
+                        !std::memcmp(
+                                scales_, rhs.scales_, sizeof(float) * count_));
         return ret;
     }
 
@@ -395,21 +398,26 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
         bool operator==(const entry_t &rhs) const {
             using namespace dnnl::impl;
+            using namespace dnnl::impl::utils;
             if (kind != rhs.kind) { return false; }
             bool ret = true;
             switch (kind) {
                 case primitive_kind::eltwise:
                     ret = eltwise.alg == rhs.eltwise.alg
-                            && eltwise.scale == rhs.eltwise.scale
-                            && eltwise.alpha == rhs.eltwise.alpha
-                            && eltwise.beta == rhs.eltwise.beta;
+                            && equal_with_nan(eltwise.scale, rhs.eltwise.scale)
+                            && equal_with_nan(eltwise.alpha, rhs.eltwise.alpha)
+                            && equal_with_nan(eltwise.beta, rhs.eltwise.beta);
                     break;
                 case primitive_kind::sum:
-                    ret = sum.scale == rhs.sum.scale && sum.dt == rhs.sum.dt;
+                    ret = equal_with_nan(sum.scale, rhs.sum.scale)
+                            && sum.dt == rhs.sum.dt;
                     break;
                 case primitive_kind::convolution:
                     // Depthwise Only
-                    ret = depthwise_conv.stride == rhs.depthwise_conv.stride
+                    ret = !utils::any_null(depthwise_conv.scales,
+                                  rhs.depthwise_conv.scales)
+                            && depthwise_conv.stride
+                                    == rhs.depthwise_conv.stride
                             && depthwise_conv.wei_dt
                                     == rhs.depthwise_conv.wei_dt
                             && depthwise_conv.bias_dt
@@ -419,12 +427,10 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                             && depthwise_conv.count == rhs.depthwise_conv.count
                             && depthwise_conv.mask == rhs.depthwise_conv.mask;
                     if (!ret) break;
-                    for (int i = 0; i < depthwise_conv.count; ++i) {
-                        ret = ret
-                                && depthwise_conv.scales[i]
-                                        == rhs.depthwise_conv.scales[i];
-                        if (!ret) break;
-                    }
+
+                    ret = !std::memcmp(depthwise_conv.scales,
+                            rhs.depthwise_conv.scales,
+                            sizeof(float) * depthwise_conv.count);
                     break;
                 case primitive_kind::binary:
                     ret = binary.alg == rhs.binary.alg
