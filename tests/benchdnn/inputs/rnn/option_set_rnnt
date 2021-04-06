@@ -1,0 +1,13 @@
+# RNN-T LSTM shapes
+
+--alg=VANILLA_LSTM
+--activation=UNDEF
+--direction=left2right
+
+l1t1mb256sic240slc240dhc4096n"RNN-T:lstm_1"
+l1t1mb1sic1024slc1024dhc4096n"RNN-T:lstm_2"
+l1t1mb256sic1024slc1024dhc4096n"RNN-T:lstm_3"
+l1t1mb128sic2048slc2048dhc4096n"RNN-T:lstm_4"
+l1t1mb1sic320slc320dhc1280n"RNN-T:lstm_5"
+l1t1mb1sic1344slc1344dhc512n"RNN-T:lstm_6"
+l1t1mb1sic512slc512dhc29n"RNN-T:lstm_7"
