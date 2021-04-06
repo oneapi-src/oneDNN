@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -245,6 +246,10 @@ inline R array_min(const T *arr, size_t size) {
     for (size_t i = 0; i < size; ++i)
         min = std::min(min, arr[i]);
     return min;
+}
+
+inline bool equal_with_nan(float v1, float v2) {
+    return (v1 == v2) || (std::isnan(v1) && std::isnan(v2));
 }
 
 /* Sorts an array of @p vals using @p comparator. Uses @p vals_2nd_level as a
