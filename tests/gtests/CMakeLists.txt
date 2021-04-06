@@ -49,6 +49,7 @@ endif()
 
 # TODO: enable me!
 file(GLOB PRIM_TEST_CASES_SRC
+                              test_comparison_operators.cpp
                               test_primitive_cache_mt.cpp
                               test_iface_primitive_cache.cpp
                               test_iface_pd.cpp
@@ -149,8 +150,10 @@ if(WIN32 AND DNNL_WITH_SYCL)
 endif()
 
 # Tests that don't support '--engine' parameter
-set_source_files_properties(test_cross_engine_reorder.cpp
-        PROPERTIES NO_ENGINE_PARAM true)
+set_source_files_properties(
+            test_cross_engine_reorder.cpp
+            test_comparison_operators.cpp
+            PROPERTIES NO_ENGINE_PARAM true)
 
 function(register_gtest exe src)
     add_executable(${exe} ${MAIN_SRC_GTEST} ${src})
