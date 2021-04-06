@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2020 Intel Corporation
+# Copyright 2017-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,16 +15,21 @@
 #===============================================================================
 
 file(GLOB_RECURSE HEADERS
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.hpp
+    ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include/*.h
+    ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include/*.hpp
     )
 file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
-list(APPEND SOURCES ${TEST_THREAD})
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
     )
+
+# include dnnl directories
+include_directories(${PROJECT_SOURCE_DIR}/third_party/oneDNN)
+include_directories(${PROJECT_SOURCE_DIR}/third_party/oneDNN/include)
+include_directories(${PROJECT_SOURCE_DIR}/third_party/oneDNN/src)
+include_directories(${PROJECT_BINARY_DIR}/third_party/oneDNN/include)
 
 if(BENCHDNN_USE_RDPMC)
     add_definitions(-DBENCHDNN_USE_RDPMC)
@@ -45,8 +50,8 @@ file(COPY inputs DESTINATION .)
 if(WIN32 AND (NOT DNNL_BUILD_FOR_CI))
     string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
     configure_file(
-        "${PROJECT_SOURCE_DIR}/cmake/run_with_env.bat.in"
-        "${PROJECT_BINARY_DIR}/run_with_env.bat"
+        "${PROJECT_SOURCE_DIR}/third_party/oneDNN/cmake/run_with_env.bat.in"
+        "${PROJECT_BINARY_DIR}/third_party/oneDNN/run_with_env.bat"
     )
 endif()
 

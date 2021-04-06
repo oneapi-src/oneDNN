@@ -236,6 +236,7 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 add_subdirectory(src)
+add_subdirectory(tests/benchdnn)
 add_subdirectory(tests/cpp)
 add_subdirectory(examples/c)
 add_subdirectory(examples/cpp)
