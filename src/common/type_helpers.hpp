@@ -321,6 +321,9 @@ inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
 #define COMPARE_DESC_MEMBERS(m) lhs.m == rhs.m
 #define COMPARE_DESC_ARRAY_MEMBERS(m, s) utils::array_cmp(lhs.m, rhs.m, s)
 #define DEREF_AND_COMPARE_DESC_MEMBERS(m) *lhs.m == *rhs.m
+#define COMPARE_FLOAT_DESC_MEMBERS(m) utils::equal_with_nan(lhs.m, rhs.m)
+#define COMPARE_FLOAT_DESC_ARRAY_MEMBERS(m, s) \
+    !std::memcmp(lhs.m, rhs.m, sizeof(decltype(lhs.m)) * s)
 
 // clang-format off
 inline bool operator==(const batch_normalization_desc_t &lhs,
@@ -332,7 +335,7 @@ inline bool operator==(const batch_normalization_desc_t &lhs,
             && COMPARE_DESC_MEMBERS(data_scaleshift_desc)
             && COMPARE_DESC_MEMBERS(diff_data_scaleshift_desc)
             && COMPARE_DESC_MEMBERS(stat_desc)
-            && COMPARE_DESC_MEMBERS(batch_norm_epsilon)
+            && COMPARE_FLOAT_DESC_MEMBERS(batch_norm_epsilon)
             && COMPARE_DESC_MEMBERS(flags);
     return ret;
 }
@@ -388,8 +391,8 @@ inline bool operator==(const eltwise_desc_t &lhs, const eltwise_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(alg_kind)
             && COMPARE_DESC_MEMBERS(data_desc)
             && COMPARE_DESC_MEMBERS(diff_data_desc)
-            && COMPARE_DESC_MEMBERS(alpha)
-            && COMPARE_DESC_MEMBERS(beta);
+            && COMPARE_FLOAT_DESC_MEMBERS(alpha)
+            && COMPARE_FLOAT_DESC_MEMBERS(beta);
     return ret;
 }
 
@@ -428,7 +431,7 @@ inline bool operator==(const layer_normalization_desc_t &lhs,
             && COMPARE_DESC_MEMBERS(data_scaleshift_desc)
             && COMPARE_DESC_MEMBERS(diff_data_scaleshift_desc)
             && COMPARE_DESC_MEMBERS(stat_desc)
-            && COMPARE_DESC_MEMBERS(layer_norm_epsilon)
+            && COMPARE_FLOAT_DESC_MEMBERS(layer_norm_epsilon)
             && COMPARE_DESC_MEMBERS(flags);
     return ret;
 }
@@ -440,9 +443,9 @@ inline bool operator==(const lrn_desc_t &lhs, const lrn_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(data_desc)
             && COMPARE_DESC_MEMBERS(diff_data_desc)
             && COMPARE_DESC_MEMBERS(local_size)
-            && COMPARE_DESC_MEMBERS(lrn_alpha)
-            && COMPARE_DESC_MEMBERS(lrn_beta)
-            && COMPARE_DESC_MEMBERS(lrn_k);
+            && COMPARE_FLOAT_DESC_MEMBERS(lrn_alpha)
+            && COMPARE_FLOAT_DESC_MEMBERS(lrn_beta)
+            && COMPARE_FLOAT_DESC_MEMBERS(lrn_k);
     return ret;
 }
 
@@ -489,8 +492,8 @@ inline bool operator==(
             && COMPARE_DESC_MEMBERS(alg_kind)
             && COMPARE_DESC_MEMBERS(src_desc)
             && COMPARE_DESC_MEMBERS(dst_desc)
-            && COMPARE_DESC_MEMBERS(p)
-            && COMPARE_DESC_MEMBERS(eps);
+            && COMPARE_FLOAT_DESC_MEMBERS(p)
+            && COMPARE_FLOAT_DESC_MEMBERS(eps);
     return ret;
 }
 
@@ -512,7 +515,7 @@ inline bool operator==(
             && COMPARE_DESC_MEMBERS(diff_src_desc)
             && COMPARE_DESC_MEMBERS(dst_desc)
             && COMPARE_DESC_MEMBERS(diff_dst_desc)
-            && COMPARE_DESC_ARRAY_MEMBERS(factors, DNNL_MAX_NDIMS);
+            && COMPARE_FLOAT_DESC_ARRAY_MEMBERS(factors, DNNL_MAX_NDIMS);
     return ret;
 }
 
@@ -545,8 +548,8 @@ inline bool operator==(const rnn_desc_t &lhs, const rnn_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(diff_weights_projection_desc)
             && COMPARE_DESC_MEMBERS(flags)
             && COMPARE_DESC_MEMBERS(activation_kind)
-            && COMPARE_DESC_MEMBERS(alpha)
-            && COMPARE_DESC_MEMBERS(beta);
+            && COMPARE_FLOAT_DESC_MEMBERS(alpha)
+            && COMPARE_FLOAT_DESC_MEMBERS(beta);
     return ret;
 }
 
@@ -581,7 +584,7 @@ inline bool operator==(const sum_desc_t &lhs, const sum_desc_t &rhs) {
     if (!ret) return ret;
 
     for (int i = 0; i < lhs.n; i++) {
-        ret = ret && COMPARE_DESC_MEMBERS(scales[i]);
+        ret = ret && COMPARE_FLOAT_DESC_MEMBERS(scales[i]);
         if (!ret) break;
     }
 
@@ -593,8 +596,12 @@ inline bool operator==(const zero_pad_desc_t &lhs, const zero_pad_desc_t &rhs) {
     return ret;
 }
 // clang-format on
+
 #undef COMPARE_DESC_MEMBERS
 #undef COMPARE_DESC_ARRAY_MEMBERS
+#undef DEREF_AND_COMPARE_DESC_MEMBERS
+#undef COMPARE_FLOAT_DESC_MEMBERS
+#undef COMPARE_FLOAT_DESC_ARRAY_MEMBERS
 
 inline status_t memory_desc_init_by_strides(
         memory_desc_t &md, const dims_t strides) {
