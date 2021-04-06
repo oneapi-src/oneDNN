@@ -361,6 +361,8 @@ private:
             const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) const;
     void load_rhs_no_tail(const dnnl_data_type_t &data_type, const Vmm &tmp_reg,
             const Xbyak::Address &rhs_addr) const;
+    void load_rhs_i8_no_tail(const dnnl_data_type_t &data_type,
+            const Vmm &tmp_reg, const Xbyak::Address &rhs_addr) const;
     void cvt_to_f32(const Vmm &tmp_reg) const;
     /*
      * Returns pair consisting of flag indication preservation is needed for vmm
