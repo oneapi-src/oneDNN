@@ -72,6 +72,7 @@ namespace op_kind {
     X(matmul_bias_hardtanh, MatMul_bias_hardtanh) \
     X(matmul_bias_relu, MatMul_bias_relu) \
     X(matmul_bias_relu6, MatMul_bias_relu6) \
+    X(matmul_bias_gelu, MatMul_bias_gelu) \
     X(matmul_bias_sigmoid, MatMul_bias_sigmoid) \
     X(matmul_bias_swish, MatMul_bias_swish) \
     X(matmul_relu, MatMul_relu) \

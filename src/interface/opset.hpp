@@ -123,6 +123,7 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_bias_elu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_bias_hardtanh, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_bias_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_bias_relu6, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_bias_gelu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_bias_sigmoid, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_elu, 1);
@@ -267,6 +268,8 @@ public:
                         MatMul_bias_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         MatMul_bias_relu6, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        MatMul_bias_gelu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         MatMul_bias_sigmoid, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_relu, 1)>());

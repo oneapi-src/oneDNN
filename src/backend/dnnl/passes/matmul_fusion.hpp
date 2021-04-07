@@ -226,6 +226,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_relu6_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_gelu_fusion)
+        .set_priority(9.0f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *gelu = apattern->create_op(op_kind::GELU);
+                    bias->fill_and_connect_input(0, *matmul, 0);
+                    gelu->fill_and_connect_input(0, *bias, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::matmul_bias_gelu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_hardtanh_fusion)
         .set_priority(9.0f)
         .set_attr<FCreatePattern>("FCreatePattern",

@@ -48,7 +48,8 @@ struct matmul_op_set {
                 op_kind::matmul_bias_add, op_kind::matmul_bias_add_relu,
                 op_kind::matmul_bias_bn, op_kind::matmul_bias_elu,
                 op_kind::matmul_bias_hardtanh, op_kind::matmul_bias_relu6,
-                op_kind::matmul_bias_relu, op_kind::matmul_bias_sigmoid};
+                op_kind::matmul_bias_relu, op_kind::matmul_bias_gelu,
+                op_kind::matmul_bias_sigmoid};
         return with_bias_set.count(kind);
     }
 
@@ -89,9 +90,9 @@ struct matmul_op_set {
                 op_kind::matmul_gelu, op_kind::matmul_sigmoid,
                 op_kind::matmul_bias_elu, op_kind::matmul_bias_hardtanh,
                 op_kind::matmul_bias_relu6, op_kind::matmul_bias_relu,
-                op_kind::matmul_bias_sigmoid, op_kind::matmul_bias_add_relu,
-                op_kind::matmul_add_gelu, op_kind::matmul_add_relu,
-                op_kind::matmul_add_sigmoid};
+                op_kind::matmul_bias_gelu, op_kind::matmul_bias_sigmoid,
+                op_kind::matmul_bias_add_relu, op_kind::matmul_add_gelu,
+                op_kind::matmul_add_relu, op_kind::matmul_add_sigmoid};
         return with_eltwise_set.count(kind);
     }
 };
@@ -463,6 +464,7 @@ private:
                 return (algorithm::eltwise_logistic);
 
             case op_kind::matmul_gelu:
+            case op_kind::matmul_bias_gelu:
             case op_kind::matmul_add_gelu: return (algorithm::eltwise_gelu_erf);
 
             default:

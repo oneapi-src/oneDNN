@@ -1225,8 +1225,9 @@ TEST(op_schema_test, MatMul) {
 }
 
 TEST(op_schema_test, MatMul_bias) {
-    std::set<op_kind_t> matmul_kinds = {op_kind::matmul_bias,
-            op_kind::matmul_bias_relu, op_kind::matmul_bias_sigmoid};
+    std::set<op_kind_t> matmul_kinds
+            = {op_kind::matmul_bias, op_kind::matmul_bias_relu,
+                    op_kind::matmul_bias_sigmoid, op_kind::matmul_bias_gelu};
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 2;

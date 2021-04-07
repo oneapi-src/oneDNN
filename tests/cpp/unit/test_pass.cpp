@@ -1911,6 +1911,25 @@ TEST(pass_test, matmul_bias_relu6_fusion) {
     ASSERT_EQ(fused_op->get_kind(), matmul_bias_relu6);
 }
 
+TEST(pass_test, matmul_bias_gelu_fusion) {
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+
+    graph_t agraph;
+    op_t *op1 = agraph.create_op(MatMul);
+    op_t *op2 = agraph.create_op(BiasAdd);
+    op_t *op3 = agraph.create_op(GELU);
+    op2->fill_and_connect_input(0, *op1, 0);
+    op3->fill_and_connect_input(0, *op2, 0);
+
+    pass::pass_base_ptr apass = get_pass("matmul_bias_gelu_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias_gelu);
+}
 /*
 TEST(pass_test, layernorm_fusion) {
     using namespace dnnl::graph::impl;

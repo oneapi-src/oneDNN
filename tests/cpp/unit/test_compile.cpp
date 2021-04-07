@@ -1518,6 +1518,48 @@ TEST(operator_kernel, matmul_bias_relu_fusion) {
     }
 }
 
+TEST(operator_kernel, matmul_bias_gelu_fusion) {
+    impl::op_t matmul_op(impl::op_kind::matmul_bias_gelu);
+    impl::engine_t &engine = get_engine();
+
+    test::vector<float> src_data {1.0, 1.0, 1.0, 1.0};
+    test::vector<float> weight_data {0.5, 0.5, 0.5, 0.5};
+    test::vector<float> bias_data {1.0};
+    test::vector<float> ref_dst_data {1.9544998f, 1.9544998f};
+    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, {2, 1, 2}, impl::data_type::f32);
+    impl::logical_tensor_t weight
+            = utils::logical_tensor_init(1, {2, 2, 1}, impl::data_type::f32);
+    impl::logical_tensor_t bias
+            = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
+    impl::logical_tensor_t dst = utils::logical_tensor_init(
+            3, {2, 1, 1}, impl::data_type::f32, impl::layout_type::any);
+
+    std::vector<impl::logical_tensor_t> inputs {src, weight, bias};
+    std::vector<impl::logical_tensor_t> outputs {dst};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto matmul_kernel = op_factory.create_kernel(matmul_op);
+    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    impl::tensor_t src_ts(src, src_data.data());
+    impl::tensor_t weight_ts(weight, weight_data.data());
+    impl::tensor_t bias_ts(bias, bias_data.data());
+    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+
+    impl::stream_t &strm = get_stream();
+    matmul_kernel->execute(
+            &matmul_op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < ref_dst_data.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+    }
+}
+
 TEST(operator_kernel, matmul_bias_relu6_fusion) {
     impl::op_t matmul_op(impl::op_kind::matmul_bias_relu6);
     matmul_op.set_attr<float>("min", 0.0);

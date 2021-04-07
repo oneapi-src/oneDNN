@@ -137,6 +137,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(matmul_gelu, matmul_forward)
     DNNL_REGISTER_KERNEL(matmul_bias, matmul_forward)
     DNNL_REGISTER_KERNEL(matmul_bias_relu, matmul_forward)
+    DNNL_REGISTER_KERNEL(matmul_bias_gelu, matmul_forward)
     DNNL_REGISTER_KERNEL(matmul_bias_relu6, matmul_forward)
     DNNL_REGISTER_KERNEL(matmul_bias_elu, matmul_forward)
     DNNL_REGISTER_KERNEL(matmul_bias_sigmoid, matmul_forward)
