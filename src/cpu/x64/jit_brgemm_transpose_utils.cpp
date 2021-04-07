@@ -666,6 +666,156 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
     postamble();
 }
 
+void jit_brgemm_copy_src_t::copy_ic_blk_loop(
+        int initial_offset, int copy_ic_iters) {
+    for (int icb = 0; icb < div_up(copy_ic_iters, ic_loop_unroll); icb++) {
+        int ic_start = 0;
+        int ic_end = nstl::min(
+                (int)ic_loop_unroll, copy_ic_iters - icb * ic_loop_unroll);
+
+        for (int ic = ic_start; ic < ic_end; ic++) {
+            const int ic_idx = icb * ic_loop_unroll + ic;
+            const auto offset = addr_offset(initial_offset, ic_idx);
+
+            const auto zmm = get_zmm_copy(ic);
+            const auto addr = EVEX_compress_addr(reg_src, offset);
+            const auto addr_tr = EVEX_compress_addr(reg_tr_src, offset);
+
+            vmovdqu8(zmm, addr);
+            vmovdqu8(addr_tr, zmm);
+        }
+    }
+}
+
+void jit_brgemm_copy_src_t::zero_ic_blk_loop(
+        int initial_offset, int zero_ic_iters) {
+    const auto zmm_zero = get_zmm_copy(0);
+    if (zero_ic_iters > 0) vpxord(zmm_zero, zmm_zero, zmm_zero);
+
+    for (int icb = 0; icb < div_up(zero_ic_iters, ic_loop_unroll); icb++) {
+        int ic_start = 0;
+        int ic_end = nstl::min(
+                (int)ic_loop_unroll, zero_ic_iters - icb * ic_loop_unroll);
+
+        for (int ic = ic_start; ic < ic_end; ic++) {
+            const int ic_idx = icb * ic_loop_unroll + ic;
+            const auto offset = addr_offset(initial_offset, ic_idx);
+
+            const auto addr_tr = EVEX_compress_addr(reg_tr_src, offset);
+            vmovdqu8(addr_tr, zmm_zero);
+        }
+    }
+}
+
+void jit_brgemm_copy_src_t::copy_ic_tail(int initial_offset) {
+    // Masks for both load and store are already set up
+    const auto zmm = get_zmm_copy(0);
+    auto zmm_src = zmm | ic_tail_load | T_z;
+    auto zmm_tr_src = zmm | ic_tail_store;
+
+    const auto offset = addr_offset(initial_offset, 0);
+    const auto addr = EVEX_compress_addr(reg_src, offset);
+    const auto addr_tr = EVEX_compress_addr(reg_tr_src, offset);
+
+    vmovdqu8(zmm_src, addr);
+    vmovdqu8(addr_tr, zmm_tr_src);
+}
+
+void jit_brgemm_copy_src_t::zero_ic_tail(int initial_offset) {
+    const auto zmm_zero = get_zmm_copy(0);
+    vpxord(zmm_zero, zmm_zero, zmm_zero);
+
+    const auto offset = addr_offset(initial_offset, 0);
+    const auto addr_tr = EVEX_compress_addr(reg_tr_src, offset);
+    vmovdqu8(addr_tr, zmm_zero);
+}
+
+void jit_brgemm_copy_src_t::copy_ic_loop() {
+    const int ic_blk = conf_->LDA;
+    const int ic_blk_tail = conf_->ic % conf_->LDA;
+
+    const int ic_iters = ic_blk / ic_step_;
+    const bool ic_step_tail = ic_blk % ic_step_ != 0;
+
+    Xbyak::Label label_ic_tail, label_ic_exit;
+
+    cmp(reg_last_ic_blk, 0);
+    jne(label_ic_tail, T_NEAR);
+
+    // For non last input channel block freely copy
+    // ic_blk many elements from src to buffer.
+    // Note: copying is done in ic_step that is 64 for int8,
+    // and 32 for bfloat16 data type.
+    copy_ic_blk_loop(/* initial_offset = */ 0, ic_iters);
+    if (ic_step_tail) copy_ic_tail(ic_iters);
+    jmp(label_ic_exit, T_NEAR);
+
+    L(label_ic_tail);
+    int ic_tail_iters = ic_blk_tail / ic_step_;
+
+    // For last input channel block, we copy ic_blk_tail
+    // many elements and "zero out" rest of the buffer.
+    // TODO: In light of the fact that ic_step_ == ic_block
+    // and LDA = ic_block * gemm_batch_size, figure out when/if zero-out
+    // routines are really necessary.
+
+    copy_ic_blk_loop(/* initial_offset = */ 0, ic_tail_iters);
+    zero_ic_blk_loop(ic_tail_iters, ic_iters - ic_tail_iters);
+
+    // Copy and zero-out the appropriate tail parts
+    if (ic_step_tail) zero_ic_tail(ic_iters);
+    if (ic_blk_tail % ic_step_ != 0) copy_ic_tail(ic_tail_iters);
+
+    L(label_ic_exit);
+}
+
+void jit_brgemm_copy_src_t::copy_os_loop() {
+
+    Label loop_os;
+    L(loop_os);
+
+    copy_ic_loop();
+    add(reg_src, src_stride_);
+    add(reg_tr_src, tr_src_stride_);
+
+    dec(reg_os_work);
+    jnz(loop_os, T_NEAR);
+}
+
+void jit_brgemm_copy_src_t::set_tail_masks() {
+    const int ic_tail = conf_->ic % ic_step_;
+    assert(ic_tail > 0 && "kernel is meant to be used with tail processing");
+    const auto kmovq = [&](Opmask ic, size_t q) {
+        mov(regq_tmp, q);
+        jit_generator::kmovq(ic, regq_tmp);
+    };
+    const auto calc_mask = [&](size_t tail) -> size_t {
+        return size_t(((size_t)1 << typesize_ * tail) - 1);
+    };
+
+    const size_t tail_mask_load = calc_mask(ic_tail);
+    kmovq(ic_tail_load, tail_mask_load);
+
+    const int ic_tail_st = rnd_up(ic_tail, ic_granularity_);
+    const size_t tail_mask_store
+            = ic_tail_st == ic_step_ ? full_mask : calc_mask(ic_tail_st);
+    kmovq(ic_tail_store, tail_mask_store);
+}
+
+void jit_brgemm_copy_src_t::generate() {
+    preamble();
+
+    set_tail_masks();
+    mov(reg_src, ptr[param1 + GET_OFF(src)]);
+    mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
+    mov(reg_os_work, ptr[param1 + GET_OFF(os_work)]);
+    mov(reg_last_ic_blk, ptr[param1 + GET_OFF(last_ic_blk)]);
+
+    copy_os_loop();
+
+    postamble();
+}
+
 struct jit_trans_to_vnni_t : public jit_brgemm_trans_to_vnni_t,
                              public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_trans_to_vnni_t)
@@ -1815,6 +1965,18 @@ status_t create_brgemm_trans_src(
         return status::invalid_arguments;
 
     return trans_ker->create_kernel();
+}
+
+status_t create_brgemm_copy_src(
+        std::unique_ptr<jit_brgemm_copy_src_t> &copy_ker,
+        const jit_brgemm_primitive_conf_t *conf) {
+    if (conf->isa == avx512_core_bf16_amx_int8
+            || conf->isa == avx512_core_bf16_amx_bf16)
+        CHECK(safe_ptr_assign(copy_ker, new jit_brgemm_copy_src_t(conf)));
+    else
+        return status::invalid_arguments;
+
+    return copy_ker->create_kernel();
 }
 
 status_t create_brgemm_trans_to_vnni(

@@ -183,7 +183,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 CHECK(brgemm_init_tiles(
                         pd()->brg_descs_[idx], &brg_kernel_palettes_[idx][0]));
         }
-
+        if (pd()->jbgp_.use_buffer_a)
+            CHECK(create_brgemm_copy_src(copy_src_kernel_, &pd()->jbgp_));
         return status::success;
     }
 
@@ -193,10 +194,13 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
     }
 
 private:
+    void copy_src_chunk(
+            char *tr_src, const char *src, int os_work, bool last_ic_blk) const;
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_ip];
+    std::unique_ptr<jit_brgemm_copy_src_t> copy_src_kernel_;
     char brg_kernel_palettes_[max_num_brg_kernels_ip][64];
 };
 

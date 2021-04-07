@@ -137,8 +137,10 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         const bool oscales_ok = one_of(oscales.mask_, 0, 1 << 1);
         if (!oscales_ok) return status::unimplemented;
     }
+    const int min_ic_divisor = is_amx_int8 ? 4 : is_amx_bf16 ? 2 : 1;
 
     jbgp.use_buffer = IMPLICATION(jbgp.dst_dt == jbgp.acc_dt, jbgp.with_sum);
+    jbgp.use_buffer_a = jbgp.ic % min_ic_divisor != 0;
 
     constexpr int amx_int8_row = 64;
     constexpr int amx_bf16_row = 32;
@@ -196,7 +198,15 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
 
     jbgp.nb_ic_blocking = 1;
     const int max_nb_ic_blocking = nstl::min(64, jbgp.nb_ic);
-    if (IMPLICATION(!is_int8, jbgp.ic <= max_nb_ic_blocking * jbgp.ic_block)
+    if (jbgp.use_buffer_a) {
+        // With buffer_a each thread makes copy of the src chunk with
+        // jbgp.os_block * jbgp.nb_os_blocking * jbgp.K * jbgp.gemm_batch_size
+        // many elements.
+        jbgp.K = jbgp.ic_block;
+        jbgp.nb_ic_blocking = jbgp.gemm_batch_size
+                = max_div(jbgp.nb_ic, max_nb_ic_blocking);
+    } else if (IMPLICATION(
+                       !is_int8, jbgp.ic <= max_nb_ic_blocking * jbgp.ic_block)
             && everyone_is(1, jbgp.kw, jbgp.kh, jbgp.kd)) {
         // Optimization: data & weights layouts allow to generate
         // brgemm kernel with K = ic & batch = 1
@@ -237,9 +247,10 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
 
     jbgp.N = jbgp.oc_block;
     jbgp.N_tail = jbgp.oc % jbgp.oc_block;
-    jbgp.K_tail = jbgp.ic % jbgp.ic_block;
+    jbgp.K_tail = jbgp.use_buffer_a ? 0 : jbgp.ic % jbgp.ic_block;
 
-    jbgp.LDA = jbgp.ic_without_padding;
+    jbgp.LDA = jbgp.use_buffer_a ? jbgp.K * jbgp.gemm_batch_size
+                                 : jbgp.ic_without_padding;
     jbgp.LDB = jbgp.N;
     jbgp.LDC = (jbgp.use_buffer) ? jbgp.N : jbgp.oc_without_padding;
     jbgp.LDD = jbgp.oc_without_padding;
@@ -735,8 +746,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book(key_brgemm_primitive_buffer, nelements,
                 types::data_type_size(jbgp.acc_dt));
     }
-
-    if (jbgp.use_buffer_a) {
+    if (jbgp.use_buffer_a && jbgp.prop_kind == dnnl_backward_weights) {
         int ic_chunks = div_up(
                 div_up(jbgp.nb_ic, jbgp.nb_ic_blocking), jbgp.nthr_ic_b);
         int os_chunks
@@ -744,6 +754,10 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book(key_brgemm_primitive_buffer_a,
                 jbgp.nthr * ic_chunks * os_chunks * jbgp.gemm_batch_size
                         * jbgp.os_block * jbgp.ic_block * jbgp.nb_ic_blocking,
+                types::data_type_size(jbgp.src_dt));
+    } else if (jbgp.use_buffer_a) { // FWD
+        scratchpad.book(key_brgemm_primitive_buffer_a,
+                jbgp.nthr * jbgp.LDA * jbgp.os_block * jbgp.nb_os_blocking,
                 types::data_type_size(jbgp.src_dt));
     }
 

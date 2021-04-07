@@ -18,6 +18,7 @@
 #define CPU_X64_JIT_BRGEMM_TRANSPOSE_UTILS_HPP
 
 #include "cpu/x64/jit_brgemm_primitive_conf.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -41,6 +42,75 @@ struct jit_brgemm_trans_src_t {
     virtual ~jit_brgemm_trans_src_t() {}
 
     const jit_brgemm_primitive_conf_t *conf_;
+};
+
+struct jit_brgemm_copy_src_t : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_copy_src_t)
+
+    struct ctx_t {
+        const void *src;
+        const void *tr_src;
+
+        dim_t os_work;
+        dim_t last_ic_blk;
+    };
+
+    void operator()(ctx_t *ctx) { jit_generator::operator()(ctx); }
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+    jit_brgemm_copy_src_t(const jit_brgemm_primitive_conf_t *conf)
+        : conf_(conf)
+        , typesize_(conf_->isa == avx512_core_bf16_amx_int8
+                          ? sizeof(int8_t)
+                          : sizeof(bfloat16_t))
+        , ic_granularity_(granularity_in_bytes / typesize_)
+        , ic_step_(zmm_size_in_bytes / typesize_)
+        , src_stride_(conf_->ic_without_padding * typesize_)
+        , tr_src_stride_(conf_->LDA * typesize_) {
+        assert(conf_->isa == avx512_core_bf16_amx_int8
+                || conf_->isa == avx512_core_bf16_amx_bf16);
+    }
+    ~jit_brgemm_copy_src_t() {}
+
+private:
+    static constexpr size_t full_mask = size_t {0xffffffffffffffff};
+    static constexpr int ic_loop_unroll = 16;
+    static constexpr int zmm_size_in_bytes = 64;
+    static constexpr int granularity_in_bytes = 4;
+
+    const jit_brgemm_primitive_conf_t *conf_;
+    const int typesize_;
+    const int ic_granularity_, ic_step_;
+    const dim_t src_stride_, tr_src_stride_;
+
+    inline size_t addr_offset(int initial_offset, int ic_idx) {
+        return (ic_idx + initial_offset) * ic_step_ * typesize_;
+    }
+
+    inline Xbyak::Zmm get_zmm_copy(int i) const {
+        assert(i >= 0 && i < ic_loop_unroll);
+        return Xbyak::Zmm(i);
+    }
+
+    const Xbyak::Opmask ic_tail_load = k7;
+    const Xbyak::Opmask ic_tail_store = k6;
+
+    const Xbyak::Reg64 reg_src = rax;
+    const Xbyak::Reg64 reg_tr_src = rbx;
+
+    const Xbyak::Reg64 reg_os_work = r11;
+    const Xbyak::Reg64 reg_last_ic_blk = r12;
+    const Xbyak::Reg64 regq_tmp = r13;
+
+    void zero_ic_blk_loop(int initial_offset, int zero_ic_iters);
+    void copy_ic_blk_loop(int initial_offset, int copy_ic_iters);
+    void zero_ic_tail(int initial_offset);
+    void copy_ic_tail(int initial_offset);
+
+    void copy_ic_loop();
+    void copy_os_loop();
+    void set_tail_masks();
+    void generate() override;
 };
 
 struct jit_brgemm_trans_to_vnni_t {
@@ -116,6 +186,9 @@ struct jit_amx_ip_trans_diff_wei {
 
 status_t create_brgemm_trans_src(
         std::unique_ptr<jit_brgemm_trans_src_t> &trans_ker,
+        const jit_brgemm_primitive_conf_t *conf);
+status_t create_brgemm_copy_src(
+        std::unique_ptr<jit_brgemm_copy_src_t> &copy_ker,
         const jit_brgemm_primitive_conf_t *conf);
 status_t create_brgemm_trans_to_vnni(
         std::unique_ptr<jit_brgemm_trans_to_vnni_t> &trans_ker,
