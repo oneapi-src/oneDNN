@@ -104,8 +104,7 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
                 memory_tracking::names::key_gemm_tmp_buffer);
         CHECK(safe_ptr_assign(c_mem_before_po_worker,
                 new memory_t(ctx.stream()->engine(), pd()->dst_md(0),
-                        memory_flags_t::use_runtime_ptr,
-                        scratchpad->data_handle())));
+                        std::move(scratchpad))));
 
         gemm_exec_args_t args(ctx.args());
         args.c = c_mem_before_po_worker->memory_storage();
