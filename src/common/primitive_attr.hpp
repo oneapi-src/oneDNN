@@ -230,6 +230,15 @@ struct arg_scales_t : public c_compatible {
         return status::success;
     }
 
+    int get_index_val(int arg) const {
+        switch (arg) {
+            case DNNL_ARG_SRC_0: return 0;
+            case DNNL_ARG_SRC_1: return 1;
+            default: assert(!"unsupported arg");
+        }
+        return -1;
+    }
+
     std::map<int, scales_t> scales_;
 
 private:

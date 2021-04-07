@@ -59,6 +59,14 @@ status_t compute_stream_t::zero_pad(
     zero_pad_args[DNNL_ARG_SRC] = arg;
     exec_ctx_t zero_pad_ctx(this, std::move(zero_pad_args));
     zero_pad_ctx.set_resource_mapper(mapper);
+
+    // Verbose is implemented separately here since fake primitive descriptor
+    // contains only primitive_kind in internal op_desc, but no md. Such design
+    // was chosen to avoid re-creation of zeropad primitive in case it lives as
+    // a regular one in cache and may be evicted from there. It means that md
+    // is available only with incoming memory at execution point here, that's
+    // why separate logic is written apart from a common place.
+    // XXX: re-consider, once zeropad appears in other places in the library.
     if (get_verbose()) {
         const int str_size = 64;
         char md_fmt[str_size];

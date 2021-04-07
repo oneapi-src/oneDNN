@@ -15,6 +15,8 @@
 *******************************************************************************/
 
 #include <atomic>
+#include <iostream>
+#include <sstream>
 
 #include <stdlib.h>
 #ifndef _WIN32
@@ -36,7 +38,6 @@
 #include "convolution_pd.hpp"
 #include "deconvolution_pd.hpp"
 #include "eltwise_pd.hpp"
-#include "gemm_pd.hpp"
 #include "inner_product_pd.hpp"
 #include "layer_normalization_pd.hpp"
 #include "lrn_pd.hpp"
@@ -139,1047 +140,753 @@ void pd_info_t::init(
 
 /* init_info section */
 namespace {
-#define DNNL_VERBOSE_DAT_LEN 256
-#define DNNL_VERBOSE_ATTR_LEN 384
-#define DNNL_VERBOSE_AUX_LEN 384
-#define DNNL_VERBOSE_PRB_LEN 384
 
-#define DECL_DAT_AUX_PRB_STRS() \
-    int dat_written = 0, aux_written = 0, prb_written = 0, attr_written = 0; \
-    MAYBE_UNUSED((dat_written * aux_written * prb_written * attr_written)); \
-    char dat_str[DNNL_VERBOSE_DAT_LEN] = {'\0'}; \
-    MAYBE_UNUSED(dat_str); \
-    char attr_str[DNNL_VERBOSE_ATTR_LEN] = {'\0'}; \
-    MAYBE_UNUSED(attr_str); \
-    char aux_str[DNNL_VERBOSE_AUX_LEN] = {'\0'}; \
-    MAYBE_UNUSED(aux_str); \
-    char prb_str[DNNL_VERBOSE_PRB_LEN] = {'\0'}; \
-    MAYBE_UNUSED(prb_str)
-
-#define DFMT "%" PRId64
-
-void clear_buf(char *buf, int &written) {
-    /* TODO: do it better */
-    buf[0] = '#';
-    buf[1] = '\0';
-    written = 1;
+std::ostream &operator<<(std::ostream &ss, engine_kind_t eng_kind) {
+    ss << dnnl_engine_kind2str(eng_kind);
+    return ss;
 }
 
-#define CHECK_WRITTEN(buf, buf_len, written_now, written_total) \
-    do { \
-        if ((written_now) < 0 \
-                || (written_total) + (written_now) > (buf_len)) { \
-            clear_buf(buf, written_total); \
-        } else { \
-            (written_total) += (written_now); \
-        } \
-    } while (0)
-
-#define DPRINT(buf, buf_len, written, ...) \
-    do { \
-        int l = snprintf(buf + written, buf_len - written, __VA_ARGS__); \
-        CHECK_WRITTEN(buf, buf_len, l, written); \
-    } while (0)
-
-#define MD2STR(buf, buf_len, written, md) \
-    do { \
-        int l = dnnl_md2fmt_str((buf) + (written), (buf_len) - (written), md); \
-        CHECK_WRITTEN(buf, buf_len, l, written); \
-    } while (0)
-
-#define DIM2STR(buf, buf_len, written, md) \
-    do { \
-        int l = dnnl_md2dim_str((buf) + (written), (buf_len) - (written), md); \
-        CHECK_WRITTEN(buf, buf_len, l, written); \
-    } while (0)
-
-// XXX: Outputs strings corresponding to memory formats used for data tensors.
-void format_prb_desc_str(
-        char *str, int len, int &written, const memory_desc_t *md) {
-    const auto dims = md->dims;
-    if (md->ndims == 1)
-        DPRINT(str, len, written, "x" DFMT, dims[0]);
-    else if (md->ndims == 2)
-        DPRINT(str, len, written, "mb" DFMT "ic" DFMT, dims[0], dims[1]);
-    else if (md->ndims == 3)
-        DPRINT(str, len, written, "mb" DFMT "ic" DFMT "iw" DFMT, dims[0],
-                dims[1], dims[2]);
-    else if (md->ndims == 4)
-        DPRINT(str, len, written, "mb" DFMT "ic" DFMT "ih" DFMT "iw" DFMT,
-                dims[0], dims[1], dims[2], dims[3]);
-    else if (md->ndims == 5)
-        DPRINT(str, len, written,
-                "mb" DFMT "ic" DFMT "id" DFMT "ih" DFMT "iw" DFMT, dims[0],
-                dims[1], dims[2], dims[3], dims[4]);
-    else
-        DIM2STR(str, len, written, md);
+std::ostream &operator<<(std::ostream &ss, const engine_t *engine) {
+    ss << dnnl_engine_kind2str(engine->kind());
+    if (dnnl_engine_get_count(engine->kind()) > 1)
+        ss << ":" + std::to_string(engine->index());
+    return ss;
 }
 
-void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
-    // scratchpad mode is not a part of has_default_values(). Check it first.
-    const scratchpad_mode_t &spm = attr->scratchpad_mode_;
-    if (spm != scratchpad_mode_t::dnnl_scratchpad_mode_library) {
-        DPRINT(str, len, written, "scratchpad_mode:%s;",
-                dnnl_scratchpad_mode2str(spm));
-    }
-
-    if (attr->has_default_values()) return;
-
-    const scales_t &os = attr->output_scales_;
-    if (!os.has_default_values()) {
-        DPRINT(str, len, written, "oscale:%d", os.mask_);
-        if (os.mask_ == 0) DPRINT(str, len, written, ":%g", os.scales_[0]);
-        DPRINT(str, len, written, ";");
-    }
-
-    const arg_scales_t &as = attr->scales_;
-    if (!as.has_default_values()) {
-        const char *delim = "";
-        DPRINT(str, len, written, "scales:");
-        for (const auto &map_entry : as.scales_) {
-            const auto &val = map_entry.second;
-            if (val.has_default_values()) continue;
-
-            size_t arg_idx = map_entry.first - DNNL_ARG_SRC_0;
-            DPRINT(str, len, written, "%ssrc%zu:%d", delim, arg_idx, val.mask_);
-
-            if (val.mask_ == 0)
-                DPRINT(str, len, written, ":%g", val.scales_[0]);
-            delim = "_";
-        }
-        DPRINT(str, len, written, ";");
-    }
-
-    const zero_points_t &zp = attr->zero_points_;
-    if (!zp.has_default_values()) {
-        const char *delim = "";
-        DPRINT(str, len, written, "zero_points:");
-        for (const auto &arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-            if (zp.has_default_values(arg)) continue;
-
-            int mask = 0;
-            const int *zpp = nullptr;
-            zp.get(arg, nullptr, &mask, &zpp);
-            const char *arg_name = arg == DNNL_ARG_SRC
-                    ? "src"
-                    : arg == DNNL_ARG_WEIGHTS ? "wei" : "dst";
-            DPRINT(str, len, written, "%s%s:%d", delim, arg_name, mask);
-            if (mask == 0) {
-                if (is_runtime_value(*zpp))
-                    DPRINT(str, len, written, ":*");
-                else
-                    DPRINT(str, len, written, ":%d", *zpp);
-            }
-            delim = "_";
-        }
-        DPRINT(str, len, written, ";");
-    }
-
-    const post_ops_t &po = attr->post_ops_;
-    if (!po.has_default_values()) {
-        DPRINT(str, len, written, "post_ops:'");
-        for (int i = 0; i < po.len(); ++i) {
-            const post_ops_t::entry_t &e = po.entry_[i];
-            switch (e.kind) {
-                case primitive_kind::sum: {
-                    if (e.sum.scale == 1.f)
-                        DPRINT(str, len, written, "sum;");
-                    else
-                        DPRINT(str, len, written, "sum:%g;", e.sum.scale);
-                } break;
-                case primitive_kind::convolution: {
-                    using namespace data_type;
-                    const auto &c = e.depthwise_conv;
-                    DPRINT(str, len, written, "dw_k3s%dp1", c.stride);
-                    if (c.wei_dt == s8) {
-                        DPRINT(str, len, written, ":%s:%d",
-                                dnnl_dt2str(c.dst_dt), c.mask);
-                        if (c.mask == 0)
-                            DPRINT(str, len, written, ":%g", c.scales[0]);
-                    } else if (c.dst_dt != f32) {
-                        DPRINT(str, len, written, ":%s", dnnl_dt2str(c.dst_dt));
-                    }
-                    DPRINT(str, len, written, ";");
-                } break;
-                case primitive_kind::eltwise: {
-                    const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;
-                    const char *alg_str = dnnl_alg_kind2str(ew.alg);
-                    if (ew.scale != 1.f)
-                        DPRINT(str, len, written, "%s:%g:%g:%g;", alg_str,
-                                ew.alpha, ew.beta, ew.scale);
-                    else if (ew.beta != 0.f)
-                        DPRINT(str, len, written, "%s:%g:%g;", alg_str,
-                                ew.alpha, ew.beta);
-                    else if (ew.alpha != 0.f)
-                        DPRINT(str, len, written, "%s:%g;", alg_str, ew.alpha);
-                    else
-                        DPRINT(str, len, written, "%s;", alg_str);
-                } break;
-                case primitive_kind::binary: {
-                    const post_ops_t::entry_t::binary_t &eb = e.binary;
-                    int mask = 0;
-                    for (int d = 0; d < eb.src1_desc.ndims; ++d)
-                        mask += eb.src1_desc.dims[d] != 1 ? (1 << d) : 0;
-
-                    DPRINT(str, len, written, "%s:%s:%d;",
-                            dnnl_alg_kind2str(eb.alg),
-                            dnnl_dt2str(eb.src1_desc.data_type), mask);
-                } break;
-                default: assert(!"unsupported post op primitive kind!"); break;
-            }
-        }
-        DPRINT(str, len, written, "';");
-    }
-
-    const rnn_data_qparams_t &rnn_qp = attr->rnn_data_qparams_;
-    if (!rnn_qp.has_default_values()) {
-        DPRINT(str, len, written, "rnn_data_qparams:%g:%g;", rnn_qp.scale_,
-                rnn_qp.shift_);
-    }
-}
-
-void flags2str(char *str, int len, int written, unsigned flags) {
-    std::string s;
-    if (flags & dnnl_use_global_stats) s += "G";
-    if (flags & dnnl_use_scaleshift) s += "S";
-    if (flags & dnnl_fuse_norm_relu) s += "R";
-    DPRINT(str, len, written, "flags:%s", s.c_str());
-}
-
-const char *prim_kind2str(dnnl_primitive_kind_t prim_kind) {
+const char *prim_kind2str(primitive_kind_t prim_kind) {
     switch ((int)prim_kind) {
         case primitive_kind::zero_pad: return "zero_pad";
         default: return dnnl_prim_kind2str(prim_kind);
     }
 }
 
-// needed for cross engine reorder dump
-void verbose_templ_no_engine_kind(char *buffer, dnnl_primitive_kind_t prim_kind,
-        const char *impl_str, dnnl_prop_kind_t prop_kind, const char *data_str,
-        const char *attr_str, const char *aux_str, const char *prb_str,
-        int written = 0) {
-    MAYBE_UNUSED(verbose_templ_no_engine_kind);
-    DPRINT(buffer, DNNL_VERBOSE_BUF_LEN, written, "%s,%s,%s,%s,%s,%s,%s",
-            prim_kind2str(prim_kind), impl_str, dnnl_prop_kind2str(prop_kind),
-            data_str, attr_str, aux_str, prb_str);
+std::ostream &operator<<(std::ostream &ss, primitive_kind_t prim_kind) {
+    ss << prim_kind2str(prim_kind);
+    return ss;
 }
 
-void verbose_templ(char *buffer, const engine_t *engine,
-        dnnl_primitive_kind_t prim_kind, const char *impl_str,
-        dnnl_prop_kind_t prop_kind, const char *data_str, const char *attr_str,
-        const char *aux_str, const char *prb_str) {
-    MAYBE_UNUSED(verbose_templ);
-    std::string engine_idx;
-    if (dnnl_engine_get_count(engine->kind()) > 1)
-        engine_idx = ":" + std::to_string(engine->index());
-    int written = 0;
-    DPRINT(buffer, DNNL_VERBOSE_BUF_LEN, written, "%s%s,",
-            dnnl_engine_kind2str(engine->kind()), engine_idx.c_str());
-    verbose_templ_no_engine_kind(buffer, prim_kind, impl_str, prop_kind,
-            data_str, attr_str, aux_str, prb_str, written);
+std::ostream &operator<<(std::ostream &ss, prop_kind_t prop_kind) {
+    ss << dnnl_prop_kind2str(prop_kind);
+    return ss;
 }
 
-template <typename pd_t>
-static void init_info_batch_normalization(engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
+std::ostream &operator<<(std::ostream &ss, data_type_t data_type) {
+    ss << dnnl_dt2str(data_type);
+    return ss;
+}
 
-    { // data
-        auto md = s->src_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+std::ostream &operator<<(std::ostream &ss, alg_kind_t alg) {
+    ss << dnnl_alg_kind2str(alg);
+    return ss;
+}
+
+std::ostream &operator<<(std::ostream &ss, format_kind_t format_kind) {
+    ss << dnnl_fmt_kind2str(format_kind);
+    return ss;
+}
+
+std::string flags2str(unsigned flags) {
+    std::string s;
+    if (flags & dnnl_use_global_stats) s += "G";
+    if (flags & dnnl_use_scaleshift) s += "S";
+    if (flags & dnnl_fuse_norm_relu) s += "R";
+    return s;
+}
+
+// TODO: remove duplication from dnnl_debug.cpp
+std::string md2fmt_str(const dnnl_memory_desc_t *md) {
+    std::stringstream ss;
+    if (!md) {
+        ss << data_type::undef << "::" << format_kind::undef << "::";
+        return ss.str();
     }
-    { // diff data
-        auto md = s->diff_src_md();
-        if (md) {
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " diff_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+
+    memory_desc_wrapper mdw(md);
+    ss << mdw.data_type() << ":";
+
+    bool padded_dims = false, padded_offsets = false;
+    for (int d = 0; d < mdw.ndims(); ++d) {
+        if (mdw.dims()[d] != mdw.padded_dims()[d]) padded_dims = true;
+        if (mdw.padded_offsets()[d] != 0) padded_offsets = true;
+    }
+    bool offset0 = mdw.offset0();
+    ss << (padded_dims ? "p" : "") << (padded_offsets ? "o" : "");
+    ss << (offset0 ? "0" : "") << ":" << mdw.format_kind() << ":";
+
+    // TODO: extend
+    if (!mdw.is_blocking_desc()) {
+        ss << ":f" << mdw.extra().flags;
+        return ss.str();
+    }
+
+    const auto &blk = mdw.blocking_desc();
+
+    dims_t blocks = {0};
+    mdw.compute_blocks(blocks);
+
+    char dim_chars[DNNL_MAX_NDIMS + 1];
+
+    dims_t ou_blocks = {0};
+    utils::array_copy(ou_blocks, mdw.padded_dims(), mdw.ndims());
+
+    bool plain = true;
+    for (int d = 0; d < mdw.ndims(); ++d) {
+        dim_chars[d] = (blocks[d] == 1 ? 'a' : 'A') + (char)d;
+        if (blocks[d] != 1) plain = false;
+        ou_blocks[d] /= blocks[d];
+    }
+
+    dims_t strides;
+    utils::array_copy(strides, blk.strides, mdw.ndims());
+
+    utils::simultaneous_sort(strides, ou_blocks, dim_chars, mdw.ndims(),
+            [](dim_t a, dim_t b) { return b - a; });
+
+    dim_chars[mdw.ndims()] = '\0';
+    ss << dim_chars;
+
+    if (!plain) {
+        for (int iblk = 0; iblk < blk.inner_nblks; ++iblk) {
+            char c = ('a' + (char)blk.inner_idxs[iblk]);
+            ss << blk.inner_blks[iblk] << c;
         }
     }
 
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
+    ss << ":f" << mdw.extra().flags;
 
-    flags2str(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, s->desc()->flags);
-
-    format_prb_desc_str(
-            prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, s->src_md());
-
-    verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
-            dat_str, attr_str, aux_str, prb_str);
+    return ss.str();
 }
 
-template <typename pd_t>
-static void init_info_concat(const engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
+// Puts memory_desc information into stream without dimensions
+std::ostream &operator<<(std::ostream &ss, const memory_desc_t *md) {
+    ss << md2fmt_str(md);
+    return ss;
+}
 
-    { // src
-        for (int i = 0; i < s->n_inputs(); ++i) {
-            auto md = s->src_md(i);
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " ");
+// Returns string with dimension style from memory_desc since there's an
+// operator<< for memory_desc.
+std::string md2dim_str(const dnnl_memory_desc_t *md) {
+    if (md == nullptr || md->ndims == 0) return "";
 
-            DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
-            if (i != s->n_inputs() - 1)
-                DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
+    memory_desc_wrapper mdw(md);
+    std::string s;
+
+    for (int d = 0; d < mdw.ndims() - 1; ++d) {
+        auto val = mdw.dims()[d];
+        s += (is_runtime_value(val) ? "*" : std::to_string(val)) + "x";
+    }
+    auto val = mdw.dims()[mdw.ndims() - 1];
+    s += (is_runtime_value(val) ? "*" : std::to_string(val));
+
+    return s;
+}
+
+// Returns string with descriptor style from memory_desc since there's an
+// operator<< for memory_desc.
+std::string md2desc_str(const dnnl_memory_desc_t *md) {
+    const auto dims = md->dims;
+    std::string s;
+    if (md->ndims >= 6) return md2dim_str(md);
+
+    if (md->ndims == 1) {
+        s += "x" + std::to_string(dims[0]);
+        return s;
+    }
+
+    s += "mb" + std::to_string(dims[0]) + "ic" + std::to_string(dims[1]);
+    if (md->ndims >= 5) s += "id" + std::to_string(dims[md->ndims - 3]);
+    if (md->ndims >= 4) s += "ih" + std::to_string(dims[md->ndims - 2]);
+    if (md->ndims >= 3) s += "iw" + std::to_string(dims[md->ndims - 1]);
+    return s;
+}
+
+std::ostream &operator<<(std::ostream &ss, const scales_t &oscale) {
+    ss << oscale.mask_;
+    if (oscale.mask_ == 0) ss << ":" << oscale.scales_[0];
+    return ss;
+}
+
+std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
+    // scratchpad mode is not a part of has_default_values(). Check it first.
+    const scratchpad_mode_t &spm = attr->scratchpad_mode_;
+    if (spm != scratchpad_mode_t::dnnl_scratchpad_mode_library) {
+        ss << "scratchpad_mode:" << dnnl_scratchpad_mode2str(spm);
+    }
+
+    if (attr->has_default_values()) return ss;
+
+    const scales_t &os = attr->output_scales_;
+    if (!os.has_default_values()) { ss << "oscale:" << os << ";"; }
+
+    const arg_scales_t &as = attr->scales_;
+    if (!as.has_default_values()) {
+        const char *delim = "";
+        ss << "scales:";
+        for (const auto &map_entry : as.scales_) {
+            const auto &val = map_entry.second;
+            if (val.has_default_values()) continue;
+
+            int idx = as.get_index_val(map_entry.first);
+            ss << delim << "src" << idx << ":" << val;
+            delim = "_";
         }
+        ss << ";";
     }
 
-    { // dst
-        auto md = s->dst_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "dst_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
+    const zero_points_t &zp = attr->zero_points_;
+    if (!zp.has_default_values()) {
+        const char *delim = "";
+        ss << "zero_points:";
+        for (const auto &arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+            if (zp.has_default_values(arg)) continue;
 
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "axis:" DFMT,
-            s->desc()->concat_dimension);
-
-    verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
-            attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_convolution(engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    { // src
-        auto md = s->desc()->prop_kind == prop_kind::backward_data
-                ? s->diff_src_md()
-                : s->src_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // wei
-        auto md = s->desc()->prop_kind == prop_kind::backward_weights
-                ? s->diff_weights_md()
-                : s->weights_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // bia
-        auto md = s->desc()->prop_kind == prop_kind::backward_weights
-                ? s->diff_weights_md(1)
-                : s->weights_md(1);
-        if (md) {
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " bia_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        }
-    }
-    { // dst
-        auto md = !s->is_fwd() ? s->diff_dst_md() : s->dst_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s",
-            dnnl_alg_kind2str(s->desc()->alg_kind));
-
-    if (s->ndims() == 5) {
-        if (s->with_groups())
-            DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                    "mb" DFMT "_g" DFMT "ic" DFMT "oc" DFMT "_id" DFMT "od" DFMT
-                    "kd" DFMT "sd" DFMT "dd" DFMT "pd" DFMT "_ih" DFMT "oh" DFMT
-                    "kh" DFMT "sh" DFMT "dh" DFMT "ph" DFMT "_iw" DFMT "ow" DFMT
-                    "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
-                    s->MB(), s->G(), s->IC(), s->OC(), s->ID(), s->OD(),
-                    s->KD(), s->KSD(), s->KDD(), s->padFront(), s->IH(),
-                    s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(), s->IW(),
-                    s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
-        else
-            DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                    "mb" DFMT "_ic" DFMT "oc" DFMT "_id" DFMT "od" DFMT
-                    "kd" DFMT "sd" DFMT "dd" DFMT "pd" DFMT "_ih" DFMT "oh" DFMT
-                    "kh" DFMT "sh" DFMT "dh" DFMT "ph" DFMT "_iw" DFMT "ow" DFMT
-                    "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
-                    s->MB(), s->IC(), s->OC(), s->ID(), s->OD(), s->KD(),
-                    s->KSD(), s->KDD(), s->padFront(), s->IH(), s->OH(),
-                    s->KH(), s->KSH(), s->KDH(), s->padT(), s->IW(), s->OW(),
-                    s->KW(), s->KSW(), s->KDW(), s->padL());
-    } else if (s->ndims() == 4) {
-        if (s->with_groups())
-            DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                    "mb" DFMT "_g" DFMT "ic" DFMT "oc" DFMT "_ih" DFMT "oh" DFMT
-                    "kh" DFMT "sh" DFMT "dh" DFMT "ph" DFMT "_iw" DFMT "ow" DFMT
-                    "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
-                    s->MB(), s->G(), s->IC(), s->OC(), s->IH(), s->OH(),
-                    s->KH(), s->KSH(), s->KDH(), s->padT(), s->IW(), s->OW(),
-                    s->KW(), s->KSW(), s->KDW(), s->padL());
-        else
-            DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                    "mb" DFMT "_ic" DFMT "oc" DFMT "_ih" DFMT "oh" DFMT
-                    "kh" DFMT "sh" DFMT "dh" DFMT "ph" DFMT "_iw" DFMT "ow" DFMT
-                    "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
-                    s->MB(), s->IC(), s->OC(), s->IH(), s->OH(), s->KH(),
-                    s->KSH(), s->KDH(), s->padT(), s->IW(), s->OW(), s->KW(),
-                    s->KSW(), s->KDW(), s->padL());
-    } else {
-        if (s->with_groups())
-            DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                    "mb" DFMT "_g" DFMT "ic" DFMT "oc" DFMT "_iw" DFMT "ow" DFMT
-                    "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
-                    s->MB(), s->G(), s->IC(), s->OC(), s->IW(), s->OW(),
-                    s->KW(), s->KSW(), s->KDW(), s->padL());
-        else
-            DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                    "mb" DFMT "_ic" DFMT "oc" DFMT "_iw" DFMT "ow" DFMT
-                    "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
-                    s->MB(), s->IC(), s->OC(), s->IW(), s->OW(), s->KW(),
-                    s->KSW(), s->KDW(), s->padL());
-    }
-
-    verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
-            dat_str, attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_deconvolution(engine_t *e, pd_t *s, char *buffer) {
-    init_info_convolution(e, s, buffer);
-}
-
-template <typename pd_t>
-static void init_info_shuffle(engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    auto md = s->is_fwd() ? s->src_md() : s->diff_dst_md();
-
-    { // data
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "axis:%d group:" DFMT,
-            s->axis(), s->group_size());
-
-    dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, md);
-
-    verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
-            dat_str, attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_eltwise(const engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    { // data
-        auto md = s->use_dst() ? s->dst_md() : s->src_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-
-        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
-    }
-    { // diff data
-        auto md = s->diff_src_md();
-        if (md) {
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " diff_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        }
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written,
-            "alg:%s alpha:%g beta:%g", dnnl_alg_kind2str(s->desc()->alg_kind),
-            s->desc()->alpha, s->desc()->beta);
-
-    verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
-            dat_str, attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_gemm(const engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    const char *s_transa
-            = (s->desc()->transa() == transpose::notrans ? "N" : "T");
-    const char *s_transb
-            = (s->desc()->transb() == transpose::notrans ? "N" : "T");
-    DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, dat_written,
-            "m" DFMT "n" DFMT "k" DFMT "_lda" DFMT "ldb" DFMT "ldc" DFMT
-            " trans:%s%s a_dt:%s b_dt:%s c_dt:%s acc_dt:%s",
-            s->desc()->m(), s->desc()->n(), s->desc()->k(), s->desc()->lda(),
-            s->desc()->ldb(), s->desc()->ldc(), s_transa, s_transb,
-            dnnl_dt2str(s->desc()->a_type()), dnnl_dt2str(s->desc()->b_type()),
-            dnnl_dt2str(s->desc()->c_type()), dnnl_dt2str(s->desc()->acc_type));
-
-    verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
-            attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_inner_product(engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    { // src
-        auto md = s->desc()->prop_kind == prop_kind::backward_data
-                ? s->diff_src_md()
-                : s->src_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // wei
-        auto md = s->desc()->prop_kind == prop_kind::backward_weights
-                ? s->diff_weights_md()
-                : s->weights_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // bia
-        auto md = s->desc()->prop_kind == prop_kind::backward_weights
-                ? s->diff_weights_md(1)
-                : s->weights_md(1);
-        if (md) {
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " bia_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        }
-    }
-    { // dst
-        auto md = !s->is_fwd() ? s->diff_dst_md() : s->dst_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    if (s->ndims() == 5) {
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                "mb" DFMT "ic" DFMT "id" DFMT "ih" DFMT "iw" DFMT "oc" DFMT,
-                s->MB(), s->IC(), s->ID(), s->IH(), s->IW(), s->OC());
-    } else if (s->ndims() == 4) {
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                "mb" DFMT "ic" DFMT "ih" DFMT "iw" DFMT "oc" DFMT, s->MB(),
-                s->IC(), s->IH(), s->IW(), s->OC());
-    } else if (s->ndims() == 3) {
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                "mb" DFMT "ic" DFMT "iw" DFMT "oc" DFMT, s->MB(), s->IC(),
-                s->IW(), s->OC());
-    } else if (s->ndims() == 2) {
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                "mb" DFMT "ic" DFMT "oc" DFMT, s->MB(), s->IC(), s->OC());
-    }
-
-    verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
-            dat_str, attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_layer_normalization(engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    { // data
-        auto md = s->src_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // stats
-        auto md = s->is_fwd() && !s->stats_are_src() ? s->dst_md(1)
-                                                     : s->src_md(1);
-        if (md) {
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " stats_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        }
-    }
-    { // diff data
-        auto md = s->diff_src_md();
-        if (md) {
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " diff_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        }
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    flags2str(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, s->desc()->flags);
-
-    dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->dst_md());
-
-    verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
-            dat_str, attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_lrn(const engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    { // data
-        auto md = s->src_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // diff data
-        auto md = s->diff_src_md();
-        if (md) {
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " diff_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        }
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s",
-            dnnl_alg_kind2str(s->desc()->alg_kind));
-
-    format_prb_desc_str(
-            prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, s->src_md());
-    DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, "ls" DFMT "beta%g",
-            s->desc()->local_size, s->desc()->lrn_beta);
-
-    verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
-            dat_str, attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_mem(const engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    { // src
-        for (int i = 0; i < s->n_inputs(); ++i) {
-            auto md = s->src_md(i);
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " ");
-        }
-    }
-    { // dst
-        auto md = s->dst_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "dst_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->dst_md());
-
-    verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
-            attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_reorder(engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    { // src
-        for (int i = 0; i < s->n_inputs(); ++i) {
-            auto md = s->src_md(i);
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " ");
-        }
-    }
-    { // dst
-        auto md = s->dst_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "dst_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->dst_md());
-
-    auto src_ek = s->desc()->src_engine_kind;
-    auto dst_ek = s->desc()->dst_engine_kind;
-
-    if (src_ek != dst_ek) {
-        int written = 0;
-        DPRINT(buffer, DNNL_VERBOSE_BUF_LEN, written, "%s2%s,",
-                dnnl_engine_kind2str(src_ek), dnnl_engine_kind2str(dst_ek));
-        verbose_templ_no_engine_kind(buffer, s->kind(), s->name(),
-                prop_kind::undef, dat_str, attr_str, aux_str, prb_str, written);
-    } else {
-        verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef,
-                dat_str, attr_str, aux_str, prb_str);
-    }
-}
-
-template <typename pd_t>
-static void init_info_sum(engine_t *e, pd_t *s, char *buffer) {
-    init_info_mem(e, s, buffer);
-}
-
-template <typename pd_t>
-static void init_info_pooling(engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    { // src
-        auto md = s->is_fwd() ? s->src_md() : s->diff_src_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // dst
-        auto md = s->is_fwd() ? s->dst_md() : s->diff_dst_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // ws
-        auto md = s->workspace_md();
-        if (md) {
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " ws_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        }
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s",
-            dnnl_alg_kind2str(s->desc()->alg_kind));
-
-    if (s->ndims() == 5) {
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                "mb" DFMT "ic" DFMT
-                "_"
-                "id" DFMT "od" DFMT "kd" DFMT "dd" DFMT "sd" DFMT "pd" DFMT
-                "_"
-                "ih" DFMT "oh" DFMT "kh" DFMT "dh" DFMT "sh" DFMT "ph" DFMT
-                "_"
-                "iw" DFMT "ow" DFMT "kw" DFMT "dw" DFMT "sw" DFMT "pw" DFMT "",
-                s->MB(), s->C(), s->ID(), s->OD(), s->KD(), s->DD(), s->KSD(),
-                s->padFront(), s->IH(), s->OH(), s->KH(), s->DH(), s->KSH(),
-                s->padT(), s->IW(), s->OW(), s->KW(), s->DW(), s->KSW(),
-                s->padL());
-    } else if (s->ndims() == 4) {
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                "mb" DFMT "ic" DFMT
-                "_"
-                "ih" DFMT "oh" DFMT "kh" DFMT "dh" DFMT "sh" DFMT "ph" DFMT
-                "_"
-                "iw" DFMT "ow" DFMT "kw" DFMT "dw" DFMT "sw" DFMT "pw" DFMT,
-                s->MB(), s->C(), s->IH(), s->OH(), s->KH(), s->DH(), s->KSH(),
-                s->padT(), s->IW(), s->OW(), s->KW(), s->DW(), s->KSW(),
-                s->padL());
-    } else {
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                "mb" DFMT "ic" DFMT
-                "_"
-                "iw" DFMT "ow" DFMT "kw" DFMT "dw" DFMT "sw" DFMT "pw" DFMT,
-                s->MB(), s->C(), s->IW(), s->OW(), s->KW(), s->DW(), s->KSW(),
-                s->padL());
-    }
-
-    verbose_templ(buffer, e, s->desc()->primitive_kind, s->name(),
-            s->desc()->prop_kind, dat_str, attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_prelu(const engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-    { // data
-        const auto md = s->src_md(0);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // weights
-        const auto md = s->weights_md(0);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " weights_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // diff data
-        const auto md = s->diff_src_md(0);
-        if (md) {
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " diff_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        }
-    }
-    { // diff weights
-        const auto md = s->diff_weights_md(0);
-        if (md) {
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written,
-                    " diff_weights_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        }
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, s->src_md(0));
-    DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
-    DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-            s->is_fwd() ? s->weights_md(0) : s->diff_weights_md(0));
-
-    verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
-            dat_str, attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_softmax(const engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    { // data
-        auto md = s->dst_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // diff data
-        auto md = s->diff_src_md();
-        if (md) {
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " diff_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        }
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s ",
-            s->is_softmax() ? "softmax" : "logsoftmax");
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "axis:%d", s->axis());
-
-    dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->dst_md());
-
-    verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
-            dat_str, attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_logsoftmax(engine_t *e, pd_t *s, char *buffer) {
-    init_info_softmax(e, s, buffer);
-}
-
-template <typename pd_t>
-static void init_info_rnn(engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    { // src layer
-        auto md = s->is_fwd() ? s->src_md(0) : s->diff_src_md(0);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_layer_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    if (s->with_src_iter()) { // src iter
-        auto md = s->is_fwd() ? s->src_md(1) : s->diff_src_md(1);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " src_iter_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // wei_layer
-        auto md = s->is_fwd() ? s->weights_md(0) : s->diff_weights_md(0);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_layer_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // wei_iter
-        auto md = s->is_fwd() ? s->weights_md(1) : s->diff_weights_md(1);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_iter_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    if (s->is_lstm_peephole()) { // wei_peephole
-        auto md = s->arg_md(s->is_fwd() ? DNNL_ARG_WEIGHTS_PEEPHOLE
-                                        : DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_peephole_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    if (s->is_lstm_projection()) { // wei_projection
-        auto md = s->arg_md(s->is_fwd() ? DNNL_ARG_WEIGHTS_PROJECTION
-                                        : DNNL_ARG_DIFF_WEIGHTS_PROJECTION);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_proj_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    if (s->with_bias()) { // bias
-        auto md = s->arg_md(s->is_fwd() ? DNNL_ARG_BIAS : DNNL_ARG_DIFF_BIAS);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " bias_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // dst layer
-        auto md = s->is_fwd() ? s->dst_md(0) : s->diff_dst_md(0);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_layer_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    if (s->with_dst_iter()) { // dst iter
-        auto md = s->is_fwd() ? s->dst_md(1) : s->diff_dst_md(1);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_iter_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written,
-            "alg:%s direction:%s activation:%s",
-            dnnl_alg_kind2str(s->cell_kind()),
-            dnnl_rnn_direction2str(s->direction()),
-            dnnl_alg_kind2str(s->activation_kind()));
-
-    DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-            "l" DFMT "t" DFMT "mb" DFMT "sic" DFMT "slc" DFMT "dhc" DFMT
-            "dic" DFMT,
-            s->L(), s->T(), s->MB(), s->SIC(), s->SLC(), s->DHC(), s->DIC());
-
-    verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
-            dat_str, attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_binary(const engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    { // src0
-        auto md = s->src_md(0);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-
-        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
-    }
-    { // src1
-        auto md = s->src_md(1);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " src_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-
-        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
-    }
-    { // dst
-        auto md = s->dst_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s",
-            dnnl_alg_kind2str(s->desc()->alg_kind));
-
-    verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
-            attr_str, aux_str, prb_str);
-}
-
-template <typename pd_t>
-static void init_info_matmul(const engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-
-    { // src
-        auto md = s->src_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-
-        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
-    }
-    { // src1
-        auto md = s->weights_md(0);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-
-        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
-    }
-    { // bia
-        if (s->with_bias()) {
-            auto md = s->weights_md(1);
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " bia_");
-            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-
-            auto bia_ndims = s->weights_md(1)->ndims;
-            auto bia_dims = s->weights_md(1)->dims;
             int mask = 0;
-            for (int d = bia_ndims - 1; d >= 0; --d) {
-                mask += bia_dims[d] != 1 ? 1 << d : 0;
+            const int *zpp = nullptr;
+            zp.get(arg, nullptr, &mask, &zpp);
+
+            ss << delim
+               << (arg == DNNL_ARG_SRC ? "src"
+                                       : arg == DNNL_ARG_DST ? "dst" : "wei")
+               << ":" << mask;
+            if (mask == 0) {
+                if (is_runtime_value(*zpp))
+                    ss << ":*";
+                else
+                    ss << ":" << *zpp;
             }
-            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "_mask%d", mask);
+            delim = "_";
         }
-    }
-    { // dst
-        auto md = s->dst_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-
-        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+        ss << ";";
     }
 
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
+    const post_ops_t &po = attr->post_ops_;
+    if (!po.has_default_values()) {
+        ss << "post_ops:'";
+        for (int i = 0; i < po.len(); ++i) {
+            const post_ops_t::entry_t &e = po.entry_[i];
+            switch (e.kind) {
+                case primitive_kind::sum: {
+                    ss << "sum";
+                    if (e.sum.scale != 1.f) ss << ":" << e.sum.scale;
+                    ss << ";";
+                } break;
+                case primitive_kind::convolution: {
+                    using namespace data_type;
+                    const auto &c = e.depthwise_conv;
+                    ss << "dw_k3s" << c.stride << "p1";
+                    if (c.wei_dt == s8 || c.dst_dt != f32)
+                        ss << ":" << c.dst_dt;
+                    if (c.wei_dt == s8) {
+                        ss << c.mask;
+                        if (c.mask == 0) ss << c.scales[0];
+                    }
+                    ss << ";";
+                } break;
+                case primitive_kind::eltwise: {
+                    const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;
+                    ss << ew.alg;
+                    if (ew.alpha != 0.f || ew.beta != 0.f || ew.scale != 1.f)
+                        ss << ":" << ew.alpha;
+                    if (ew.beta != 0.f || ew.scale != 1.f) ss << ":" << ew.beta;
+                    if (ew.scale != 1.f) ss << ":" << ew.scale;
+                    ss << ";";
+                } break;
+                case primitive_kind::binary: {
+                    const post_ops_t::entry_t::binary_t &eb = e.binary;
+                    int mask = 0;
+                    for (int d = 0; d < eb.src1_desc.ndims; ++d)
+                        mask += eb.src1_desc.dims[d] != 1 ? (1 << d) : 0;
+                    ss << eb.alg << ":" << eb.src1_desc.data_type << ":" << mask
+                       << ";";
+                } break;
+                default: assert(!"unsupported post op primitive kind!"); break;
+            }
+        }
+        ss << "';";
+    }
 
-    verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
-            attr_str, aux_str, prb_str);
+    const rnn_data_qparams_t &rnn_qp = attr->rnn_data_qparams_;
+    if (!rnn_qp.has_default_values()) {
+        ss << "rnn_data_qparams:" << rnn_qp.scale_ << ":" << rnn_qp.shift_
+           << ";";
+    }
+
+    return ss;
 }
 
 template <typename pd_t>
-static void init_info_resampling(const engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
+static std::string init_info_batch_normalization(
+        const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
 
-    { // src
-        auto md = !s->is_fwd() ? s->diff_src_md() : s->src_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
-    { // dst
-        auto md = !s->is_fwd() ? s->diff_dst_md() : s->dst_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-    }
+    auto src_md = pd->src_md();
+    auto diff_src_md = pd->diff_src_md();
+    ss << "data_" << src_md;
+    if (diff_src_md) ss << " diff_" << diff_src_md;
+    ss << ",";
 
-    if (s->ndims() == 5) {
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                "mb" DFMT "_ic" DFMT "_id" DFMT "od" DFMT "_ih" DFMT "oh" DFMT
-                "_iw" DFMT "ow" DFMT,
-                s->MB(), s->C(), s->ID(), s->OD(), s->IH(), s->OH(), s->IW(),
-                s->OW());
-    } else if (s->ndims() == 4) {
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                "mb" DFMT "_ic" DFMT "_ih" DFMT "oh" DFMT "_iw" DFMT "ow" DFMT,
-                s->MB(), s->C(), s->IH(), s->OH(), s->IW(), s->OW());
-    } else {
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-                "mb" DFMT "_ic" DFMT "_iw" DFMT "ow" DFMT, s->MB(), s->C(),
-                s->IW(), s->OW());
-    }
+    ss << pd->attr() << ",";
+    ss << "flags:" << flags2str(pd->desc()->flags) << ",";
+    ss << md2desc_str(src_md);
 
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s",
-            dnnl_alg_kind2str(s->desc()->alg_kind));
-
-    verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
-            dat_str, attr_str, aux_str, prb_str);
-}
-
-void init_info_zero_pad(
-        const engine_t *e, const primitive_desc_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
-    verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
-            attr_str, aux_str, prb_str);
+    return ss.str();
 }
 
 template <typename pd_t>
-static void init_info_reduction(const engine_t *e, pd_t *s, char *buffer) {
-    DECL_DAT_AUX_PRB_STRS();
+static std::string init_info_binary(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
+       << ",";
 
-    { // src
-        auto md = s->src_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
-    }
-    { // dst
-        auto md = s->dst_md();
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
-        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
-    }
+    auto src0_md = pd->src_md(0);
+    auto src1_md = pd->src_md(1);
+    auto dst_md = pd->dst_md();
+    ss << "src_" << src0_md << " src_" << src1_md << " dst_" << dst_md << ",";
 
-    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
+    ss << pd->attr() << ",";
+    ss << "alg:" << pd->desc()->alg_kind << ",";
+    ss << md2dim_str(src0_md) << ":" << md2dim_str(src1_md);
 
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s p:%g eps:%g",
-            dnnl_alg_kind2str(s->desc()->alg_kind), s->desc()->p,
-            s->desc()->eps);
-
-    verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
-            attr_str, aux_str, prb_str);
+    return ss.str();
 }
 
-#undef DPRINT
+template <typename pd_t>
+static std::string init_info_concat(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
+       << ",";
+
+    for (int i = 0; i < pd->n_inputs(); ++i) {
+        auto src_i_md = pd->src_md(i);
+        ss << "src_" << src_i_md << " ";
+    }
+    auto dst_md = pd->dst_md();
+    ss << "dst_" << dst_md << ",";
+
+    ss << pd->attr() << ",";
+    ss << "axis:" << pd->desc()->concat_dimension << ",";
+
+    for (int i = 0; i < pd->n_inputs(); ++i) {
+        auto src_i_md = pd->src_md(i);
+        ss << md2dim_str(src_i_md);
+        if (i < pd->n_inputs() - 1) ss << ":";
+    }
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_convolution(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
+
+    auto src_md = pd->desc()->prop_kind == prop_kind::backward_data
+            ? pd->diff_src_md()
+            : pd->src_md();
+    auto wei_md = pd->desc()->prop_kind == prop_kind::backward_weights
+            ? pd->diff_weights_md(0)
+            : pd->weights_md(0);
+    auto bia_md = pd->desc()->prop_kind == prop_kind::backward_weights
+            ? pd->diff_weights_md(1)
+            : pd->weights_md(1);
+    auto dst_md = !pd->is_fwd() ? pd->diff_dst_md() : pd->dst_md();
+
+    ss << "src_" << src_md << " wei_" << wei_md;
+    if (bia_md) ss << " bia_" << bia_md;
+    ss << " dst_" << dst_md << ",";
+
+    ss << pd->attr() << ",";
+    ss << "alg:" << pd->desc()->alg_kind << ",";
+
+    if (pd->with_groups()) ss << "g" << pd->G();
+    ss << "mb" << pd->MB() << "_"
+       << "ic" << pd->IC() << "oc" << pd->OC() << "_";
+    if (pd->ndims() >= 5)
+        ss << "id" << pd->ID() << "od" << pd->OD() << "kd" << pd->KD() << "sd"
+           << pd->KSD() << "dd" << pd->KDD() << "pd" << pd->padFront() << "_";
+    if (pd->ndims() >= 4)
+        ss << "ih" << pd->IH() << "oh" << pd->OH() << "kh" << pd->KH() << "sh"
+           << pd->KSH() << "dh" << pd->KDH() << "ph" << pd->padT() << "_";
+    ss << "iw" << pd->IW() << "ow" << pd->OW() << "kw" << pd->KW() << "sw"
+       << pd->KSW() << "dw" << pd->KDW() << "pw" << pd->padL();
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_deconvolution(const engine_t *e, const pd_t *pd) {
+    return init_info_convolution(e, pd);
+}
+
+template <typename pd_t>
+static std::string init_info_eltwise(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
+
+    auto data_md = pd->use_dst() ? pd->dst_md() : pd->src_md();
+    auto diff_src_md = pd->diff_src_md();
+    ss << "data_" << data_md;
+    if (diff_src_md) ss << " diff_" << diff_src_md;
+    ss << ",";
+
+    ss << pd->attr() << ",";
+    ss << "alg:" << pd->desc()->alg_kind << " alpha:" << pd->desc()->alpha
+       << " beta:" << pd->desc()->beta << ",";
+    ss << md2dim_str(data_md);
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_inner_product(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
+
+    auto src_md = pd->desc()->prop_kind == prop_kind::backward_data
+            ? pd->diff_src_md()
+            : pd->src_md();
+    auto wei_md = pd->desc()->prop_kind == prop_kind::backward_weights
+            ? pd->diff_weights_md(0)
+            : pd->weights_md(0);
+    auto bia_md = pd->desc()->prop_kind == prop_kind::backward_weights
+            ? pd->diff_weights_md(1)
+            : pd->weights_md(1);
+    auto dst_md = !pd->is_fwd() ? pd->diff_dst_md() : pd->dst_md();
+
+    ss << "src_" << src_md << " wei_" << wei_md;
+    if (bia_md) ss << " bia_" << bia_md;
+    ss << " dst_" << dst_md << ",";
+
+    ss << pd->attr() << ",,";
+
+    ss << md2desc_str(src_md);
+    ss << "oc" << pd->OC();
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_layer_normalization(
+        const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
+
+    auto src_md = pd->src_md(0);
+    auto stats_md = pd->is_fwd() && !pd->stats_are_src() ? pd->dst_md(1)
+                                                         : pd->src_md(1);
+    auto diff_src_md = pd->diff_src_md();
+    ss << "data_" << src_md;
+    if (stats_md) ss << " stats_" << stats_md;
+    if (diff_src_md) ss << " diff_" << diff_src_md;
+    ss << ",";
+
+    ss << pd->attr() << ",";
+    ss << "flags:" << flags2str(pd->desc()->flags) << ",";
+    ss << md2dim_str(src_md);
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_lrn(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
+
+    auto data_md = pd->src_md();
+    auto diff_src_md = pd->diff_src_md();
+    ss << "data_" << data_md;
+    if (diff_src_md) ss << " diff_" << diff_src_md;
+    ss << ",";
+
+    ss << pd->attr() << ",";
+    ss << "alg:" << pd->desc()->alg_kind << ",";
+    ss << md2desc_str(data_md);
+    ss << "ls" << pd->desc()->local_size << "beta" << pd->desc()->lrn_beta;
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_matmul(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
+       << ",";
+
+    auto src_md = pd->src_md();
+    auto wei_md = pd->weights_md(0);
+    auto bia_md = pd->weights_md(1);
+    auto dst_md = pd->dst_md();
+
+    auto get_bia_mask = [&bia_md]() {
+        auto bia_ndims = bia_md->ndims;
+        auto bia_dims = bia_md->dims;
+        int mask = 0;
+        for (int d = bia_ndims - 1; d >= 0; --d) {
+            mask += bia_dims[d] != 1 ? 1 << d : 0;
+        }
+        return mask;
+    };
+
+    ss << "src_" << src_md << " wei_" << wei_md;
+    if (pd->with_bias()) ss << " bia_" << bia_md << "_mask" << get_bia_mask();
+    ss << " dst_" << dst_md << ",";
+
+    ss << pd->attr() << ",,";
+
+    ss << md2dim_str(src_md) << ":" << md2dim_str(wei_md) << ":"
+       << md2dim_str(dst_md);
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_pooling(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
+
+    auto src_md = pd->is_fwd() ? pd->src_md() : pd->diff_src_md();
+    auto dst_md = pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md();
+    auto ws_md = pd->workspace_md();
+
+    ss << "src_" << src_md << " dst_" << dst_md;
+    if (ws_md) ss << " ws_" << ws_md;
+    ss << ",";
+
+    ss << pd->attr() << ",";
+    ss << "alg:" << pd->desc()->alg_kind << ",";
+
+    ss << "mb" << pd->MB() << "ic" << pd->IC() << "_";
+    if (pd->ndims() >= 5)
+        ss << "id" << pd->ID() << "od" << pd->OD() << "kd" << pd->KD() << "sd"
+           << pd->KSD() << "dd" << pd->KDD() << "pd" << pd->padFront() << "_";
+    if (pd->ndims() >= 4)
+        ss << "ih" << pd->IH() << "oh" << pd->OH() << "kh" << pd->KH() << "sh"
+           << pd->KSH() << "dh" << pd->KDH() << "ph" << pd->padT() << "_";
+    ss << "iw" << pd->IW() << "ow" << pd->OW() << "kw" << pd->KW() << "sw"
+       << pd->KSW() << "dw" << pd->KDW() << "pw" << pd->padL();
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_prelu(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
+
+    auto data_md = pd->src_md(0);
+    auto wei_md = pd->weights_md(0);
+    auto diff_data_md = pd->diff_src_md(0);
+    auto diff_wei_md = pd->diff_weights_md(0);
+
+    ss << "data_" << data_md << " wei_" << wei_md;
+    if (diff_data_md) ss << " diff_" << diff_data_md;
+    if (diff_wei_md) ss << " diff_wei_" << diff_wei_md;
+    ss << ",";
+
+    ss << pd->attr() << ",,";
+    ss << md2dim_str(data_md) << ":" << md2dim_str(wei_md);
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_reduction(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
+       << ",";
+
+    auto src_md = pd->src_md();
+    auto dst_md = pd->dst_md();
+    ss << "src_" << src_md << " dst_" << dst_md << ",";
+
+    ss << pd->attr() << ",";
+    ss << "alg:" << pd->desc()->alg_kind << " p:" << pd->desc()->p
+       << " eps:" << pd->desc()->eps << ",";
+    ss << md2dim_str(src_md) << ":" << md2dim_str(dst_md);
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_reorder(const engine_t *e, pd_t *pd) {
+    std::stringstream ss;
+
+    const auto src_ek = pd->desc()->src_engine_kind;
+    const auto dst_ek = pd->desc()->dst_engine_kind;
+
+    if (src_ek != dst_ek)
+        ss << src_ek << "2" << dst_ek;
+    else
+        ss << e;
+
+    ss << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
+       << ",";
+
+    auto src_md = pd->src_md();
+    auto dst_md = pd->dst_md();
+    ss << "src_" << src_md << " dst_" << dst_md << ",";
+
+    ss << pd->attr() << ",,";
+    ss << md2dim_str(dst_md);
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_resampling(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
+
+    auto src_md = pd->is_fwd() ? pd->src_md() : pd->diff_src_md();
+    auto dst_md = pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md();
+
+    ss << "src_" << src_md << " dst_" << dst_md << ",";
+
+    ss << pd->attr() << ",";
+    ss << "alg:" << pd->desc()->alg_kind << ",";
+
+    ss << "mb" << pd->MB() << "ic" << pd->C() << "_";
+    if (pd->ndims() >= 5) ss << "id" << pd->ID() << "od" << pd->OD() << "_";
+    if (pd->ndims() >= 4) ss << "ih" << pd->IH() << "oh" << pd->OH() << "_";
+    ss << "iw" << pd->IW() << "ow" << pd->OW();
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_rnn(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
+
+    auto src_layer_md = pd->is_fwd() ? pd->src_md(0) : pd->diff_src_md(0);
+    ss << "src_layer_" << src_layer_md;
+    if (pd->with_src_iter()) {
+        auto src_iter_md = pd->is_fwd() ? pd->src_md(1) : pd->diff_src_md(1);
+        ss << " src_iter_" << src_iter_md;
+    }
+    auto wei_layer_md
+            = pd->is_fwd() ? pd->weights_md(0) : pd->diff_weights_md(0);
+    ss << " wei_layer_" << wei_layer_md;
+    auto wei_iter_md
+            = pd->is_fwd() ? pd->weights_md(1) : pd->diff_weights_md(1);
+    ss << " wei_iter_" << wei_iter_md;
+    if (pd->is_lstm_peephole()) {
+        auto wei_peephole_md
+                = pd->arg_md(pd->is_fwd() ? DNNL_ARG_WEIGHTS_PEEPHOLE
+                                          : DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE);
+        ss << " wei_peephole_" << wei_peephole_md;
+    }
+    if (pd->is_lstm_projection()) {
+        auto wei_projection_md
+                = pd->arg_md(pd->is_fwd() ? DNNL_ARG_WEIGHTS_PROJECTION
+                                          : DNNL_ARG_DIFF_WEIGHTS_PROJECTION);
+        ss << " wei_proj_" << wei_projection_md;
+    }
+    if (pd->with_bias()) {
+        auto bia_md
+                = pd->arg_md(pd->is_fwd() ? DNNL_ARG_BIAS : DNNL_ARG_DIFF_BIAS);
+        ss << " bias_" << bia_md;
+    }
+    auto dst_layer_md = pd->is_fwd() ? pd->dst_md(0) : pd->diff_dst_md(0);
+    ss << " dst_layer_" << dst_layer_md;
+    if (pd->with_dst_iter()) {
+        auto dst_iter_md = pd->is_fwd() ? pd->dst_md(1) : pd->diff_dst_md(1);
+        ss << " dst_iter_" << dst_iter_md;
+    }
+    ss << ",";
+
+    ss << pd->attr() << ",";
+    ss << "alg:" << pd->cell_kind()
+       << " direction:" << dnnl_rnn_direction2str(pd->direction())
+       << " activation:" << pd->activation_kind() << ",";
+
+    ss << "l" << pd->L() << "t" << pd->T() << "mb" << pd->MB() << "sic"
+       << pd->SIC() << "slc" << pd->SLC() << "dhc" << pd->DHC() << "dic"
+       << pd->DIC();
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_shuffle(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
+
+    auto data_md = pd->is_fwd() ? pd->src_md() : pd->diff_src_md();
+    ss << "data_" << data_md << ",";
+
+    ss << pd->attr() << ",";
+    ss << "axis:" << pd->axis() << " group:" << pd->group_size() << ",";
+    ss << md2dim_str(data_md);
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
+
+    auto data_md = pd->dst_md();
+    auto diff_data_md = pd->diff_src_md();
+    ss << "data_" << data_md << " diff_" << diff_data_md << ",";
+
+    ss << pd->attr() << ",";
+    ss << "alg:" << (pd->is_softmax() ? "softmax" : "logsoftmax")
+       << " axis:" << pd->axis() << ",";
+    ss << md2dim_str(data_md);
+
+    return ss.str();
+}
+
+template <typename pd_t>
+static std::string init_info_logsoftmax(const engine_t *e, const pd_t *pd) {
+    return init_info_softmax(e, pd);
+}
+
+template <typename pd_t>
+static std::string init_info_sum(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
+       << ",";
+
+    for (int i = 0; i < pd->n_inputs(); ++i) {
+        auto src_i_md = pd->src_md(i);
+        ss << "src_" << src_i_md << " ";
+    }
+    auto dst_md = pd->dst_md();
+    ss << "dst_" << dst_md << ",";
+
+    ss << pd->attr() << ",,";
+    ss << md2dim_str(dst_md);
+
+    return ss.str();
+}
+
 } // namespace
 
 void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
     if (is_initialized_) return;
 
     std::call_once(initialization_flag_, [&] {
-        str_.resize(DNNL_VERBOSE_BUF_LEN, '\0');
-
         using logsoftmax_pd_t = softmax_pd_t;
 // clang-format off
 #define CASE(kind) \
     case primitive_kind::kind: \
-        init_info_##kind(engine, (const kind##_pd_t *)pd, &str_[0]); \
+        str_ = init_info_##kind(engine, (const kind##_pd_t *)pd); \
         break
 
         switch ((int)pd->kind()) {
@@ -1189,7 +896,6 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(convolution);
             CASE(deconvolution);
             CASE(eltwise);
-            CASE(gemm);
             CASE(inner_product);
             CASE(layer_normalization);
             CASE(lrn);
@@ -1205,9 +911,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(shuffle);
             CASE(softmax);
             CASE(sum);
-            case primitive_kind::zero_pad:
-                init_info_zero_pad(engine, pd, &str_[0]);
-                break;
+            case primitive_kind::zero_pad: break;
             default: assert(!"unknown primitive kind");
         }
 #undef CASE
