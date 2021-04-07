@@ -17,11 +17,10 @@ You can:
 Before sending your pull requests, please make sure that you followed this
 list.
 
-* If you are contributing a new compute primitive, check the
-  [library functionality guidelines](CONTRIBUTING.md#library-functionality-guidelines).
-  It is strongly advised to first open an
-  [RFC pull request](CONTRIBUTING.md#RFC-pull-requests) with a
-  detailed explanation of expected use cases and performance benefits.
+* Check the [library functionality guidelines](CONTRIBUTING.md#library-functionality-guidelines).
+  If you are contributing a new compute primitive or propose changes to the
+  external API, it is strongly advised to first open an [RFC pull request](CONTRIBUTING.md#RFC-pull-requests)
+  with a detailed explanation of expected use cases and performance benefits.
 
 * Ensure that the changes are consistent with the
   [code contribution guidelines](CONTRIBUTING.md#code-contribution-guidelines)
