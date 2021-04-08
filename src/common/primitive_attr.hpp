@@ -414,10 +414,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                     break;
                 case primitive_kind::convolution:
                     // Depthwise Only
-                    ret = !utils::any_null(depthwise_conv.scales,
-                                  rhs.depthwise_conv.scales)
-                            && depthwise_conv.stride
-                                    == rhs.depthwise_conv.stride
+                    ret = depthwise_conv.stride == rhs.depthwise_conv.stride
                             && depthwise_conv.wei_dt
                                     == rhs.depthwise_conv.wei_dt
                             && depthwise_conv.bias_dt
@@ -428,9 +425,13 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                             && depthwise_conv.mask == rhs.depthwise_conv.mask;
                     if (!ret) break;
 
-                    ret = !std::memcmp(depthwise_conv.scales,
-                            rhs.depthwise_conv.scales,
-                            sizeof(float) * depthwise_conv.count);
+                    // only call memcmp with valid pointers
+                    if (depthwise_conv.count == 0) break;
+                    ret = !utils::any_null(depthwise_conv.scales,
+                                  rhs.depthwise_conv.scales)
+                            && !std::memcmp(depthwise_conv.scales,
+                                    rhs.depthwise_conv.scales,
+                                    sizeof(float) * depthwise_conv.count);
                     break;
                 case primitive_kind::binary:
                     ret = binary.alg == rhs.binary.alg
