@@ -23,6 +23,7 @@
 #include "operators/eltwise.hpp"
 #include "operators/inner_product.hpp"
 #include "operators/layernorm.hpp"
+#include "operators/logsoftmax.hpp"
 #include "operators/matmul.hpp"
 #include "operators/pool.hpp"
 #include "operators/quantize.hpp"

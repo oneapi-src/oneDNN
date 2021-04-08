@@ -160,6 +160,10 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(SoftMax, softmax_forward)
     DNNL_REGISTER_KERNEL(SoftMaxBackprop, softmax_backward)
 
+    // logsoftmax operators
+    DNNL_REGISTER_KERNEL(LogSoftmax, logsoftmax_forward)
+    DNNL_REGISTER_KERNEL(LogSoftmaxBackprop, logsoftmax_backward)
+
     // layernorm kernel
     DNNL_REGISTER_KERNEL(LayerNorm, layer_normalization_forward)
 
