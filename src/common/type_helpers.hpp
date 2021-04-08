@@ -459,7 +459,7 @@ inline bool operator==(const matmul_desc_t &lhs, const matmul_desc_t &rhs) {
     return ret;
 }
 
-inline bool operator==(const pooling_v2_desc_t &lhs, const pooling_v2_desc_t &rhs) {
+inline bool operator==(const pooling_desc_t &lhs, const pooling_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)
             && COMPARE_DESC_MEMBERS(alg_kind)
@@ -471,9 +471,18 @@ inline bool operator==(const pooling_v2_desc_t &lhs, const pooling_v2_desc_t &rh
             && COMPARE_DESC_ARRAY_MEMBERS(kernel, DNNL_MAX_NDIMS)
             && COMPARE_DESC_ARRAY_MEMBERS(padding[0], DNNL_MAX_NDIMS)
             && COMPARE_DESC_ARRAY_MEMBERS(padding[1], DNNL_MAX_NDIMS)
-            && COMPARE_DESC_ARRAY_MEMBERS(dilation, DNNL_MAX_NDIMS)
             && COMPARE_DESC_MEMBERS(accum_data_type);
     return ret;
+}
+
+inline bool operator==(
+        const pooling_v2_desc_t &lhs, const pooling_v2_desc_t &rhs) {
+    const auto &v1_desc_lhs = *reinterpret_cast<const pooling_desc_t *>(&lhs);
+    const auto &v1_desc_rhs = *reinterpret_cast<const pooling_desc_t *>(&rhs);
+
+    bool ret = v1_desc_lhs == v1_desc_rhs
+            && COMPARE_DESC_ARRAY_MEMBERS(dilation, DNNL_MAX_NDIMS);
+     return ret;
 }
 
 inline bool operator==(const prelu_desc_t &lhs, const prelu_desc_t &rhs) {

@@ -51,8 +51,6 @@ key_t::key_t(const primitive_desc_t *pd, const engine_t *engine)
 
 primitive_kind_t key_t::get_pkind(primitive_kind_t pkind) {
     switch (pkind) {
-        case primitive_kind::pooling:
-        case primitive_kind::pooling_v2: return primitive_kind::pooling_v2;
         case primitive_kind::softmax:
         case primitive_kind::logsoftmax: return primitive_kind::softmax;
         default: return pkind;
@@ -97,6 +95,7 @@ bool key_t::operator==(const key_t &rhs) const {
             CASE(layer_normalization)
             CASE(lrn)
             CASE(matmul)
+            CASE(pooling)
             CASE(pooling_v2)
             CASE(prelu)
             CASE(reduction)
@@ -474,7 +473,7 @@ size_t get_desc_hash(const matmul_desc_t &desc) {
     return seed;
 }
 
-size_t get_desc_hash(const pooling_v2_desc_t &desc) {
+size_t get_desc_hash(const pooling_desc_t &desc) {
     size_t seed = 0;
     // Kinds
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
@@ -488,12 +487,18 @@ size_t get_desc_hash(const pooling_v2_desc_t &desc) {
     // Strides, dilates, padding
     seed = get_array_hash(seed, desc.strides, DNNL_MAX_NDIMS);
     seed = get_array_hash(seed, desc.kernel, DNNL_MAX_NDIMS);
-    seed = get_array_hash(seed, desc.dilation, DNNL_MAX_NDIMS);
     seed = get_array_hash(seed, desc.padding[0], DNNL_MAX_NDIMS);
     seed = get_array_hash(seed, desc.padding[1], DNNL_MAX_NDIMS);
     // Accumulator type
     seed = hash_combine(seed, static_cast<size_t>(desc.accum_data_type));
     // Combined hash for pooling desc
+    return seed;
+}
+
+size_t get_desc_hash(const pooling_v2_desc_t &desc) {
+    const auto &v1_desc = *reinterpret_cast<const pooling_desc_t *>(&desc);
+    size_t seed = get_desc_hash(v1_desc);
+    seed = get_array_hash(seed, desc.dilation, DNNL_MAX_NDIMS);
     return seed;
 }
 
