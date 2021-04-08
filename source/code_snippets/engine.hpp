@@ -14,27 +14,29 @@ enum class kind {
 ///
 /// @param akind The kind of engine to construct
 /// @param device_id Specify which device to be used
-engine(kind akind, int device_id)
- 
-/// Create an engine from SYCL device and context
-/// @param akind The kind of engine to construct
-/// @param dev The SYCL device that this engine will encapsulate
-/// @param ctx The SYCL context that this engine will use
-engine(kind akind, const cl::sycl::device &dev,
-        const cl::sycl::context &ctx)
- 
+engine(kind akind, int device_id);
+
 /// Returns device handle of the current engine
 ///
 /// @returns Device handle
-void *get_device_handle() const
+void *get_device_handle() const;
  
 /// Returns device id of the current engine
 ///
 /// @returns Device id
-int get_device_id() const
+int get_device_id() const;
  
 /// Returns concrete kind of the current engine
 ///
 ///@returns Kind of engine
-kind get_kind() const
+kind get_kind() const;
 };
+
+/// Constructs an engine from SYCL device and context objects.
+///
+/// @param adevice SYCL device.
+/// @param acontext SYCL context.
+///
+/// @returns Created engine.
+inline engine dnnl::graph::sycl_interop::make_engine(
+        const cl::sycl::device &adevice, const cl::sycl::context &acontext);

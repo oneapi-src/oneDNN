@@ -5,7 +5,7 @@ class op {
 /// @param akind The op kind specifies which computation is represented by
 ///     the op, such as Convolution and ReLU.
 /// @param debug_string The string added for debug
-op(size_t id, kind akind, const std::string &debug_string)
+op(size_t id, kind akind, const std::string &debug_string);
  
 /// Contructs an Op object based on input/output tensors and attributes
 ///
@@ -17,27 +17,27 @@ op(size_t id, kind akind, const std::string &debug_string)
 /// @param debug_string The string added for debug
 op(size_t id, kind akind, const std::vector<logical_tensor> &inputs,
         const std::vector<logical_tensor> &outputs,
-        const std::string &debug_string)
+        const std::string &debug_string);
  
 /// Adds input logical tensor to the op
 ///
 /// @param t Input logical tensor
-void add_input(const logical_tensor &t)
+void add_input(const logical_tensor &t);
  
 /// Adds input logical tensors to the op
 ///
 /// @param ts The list of input logical tensors
-void add_inputs(const std::vector<logical_tensor> &ts)
+void add_inputs(const std::vector<logical_tensor> &ts);
  
 /// Adds output logical tensor to the op
 ///
 /// @param t Output logical tensor
-void add_output(const logical_tensor &t)
+void add_output(const logical_tensor &t);
  
 /// Adds output logical tensors to the op
 ///
 /// @param t The list of output logical tensors
-void add_outputs(const std::vector<logical_tensor> &ts)
+void add_outputs(const std::vector<logical_tensor> &ts);
 
 /// Sets the attribute according to the name and type (int64_t)
 ///
@@ -47,7 +47,7 @@ void add_outputs(const std::vector<logical_tensor> &ts)
 /// @returns The Op self
 template <typename Type,
         requires<std::is_same<Type, int64_t>::value> = true>
-op &set_attr(const std::string &name, const Type &a)
+op &set_attr(const std::string &name, const Type &a);
 
 /// Sets the attribute according to the name and type (float)
 ///
@@ -56,7 +56,7 @@ op &set_attr(const std::string &name, const Type &a)
 /// @param a The attribute's value
 /// @returns The Op self
 template <typename Type, requires<std::is_same<Type, float>::value> = true>
-op &set_attr(const std::string &name, const Type &a)
+op &set_attr(const std::string &name, const Type &a);
 
 /// Sets the attribute according to the name and type (bool)
 ///
@@ -65,7 +65,7 @@ op &set_attr(const std::string &name, const Type &a)
 /// @param a The attribute's value
 /// @returns The Op self
 template <typename Type, requires<std::is_same<Type, bool>::value> = true>
-op &set_attr(const std::string &name, const Type &a)
+op &set_attr(const std::string &name, const Type &a);
 
 /// Sets the attribute according to the name and type (string)
 ///
@@ -75,7 +75,7 @@ op &set_attr(const std::string &name, const Type &a)
 /// @returns The Op self
 template <typename Type,
         requires<std::is_same<Type, std::string>::value> = true>
-op &set_attr(const std::string &name, const Type &a)
+op &set_attr(const std::string &name, const Type &a);
 
 /// Sets the attribute according to the name and type
 /// (std::vector<int64_t>)
@@ -86,7 +86,7 @@ op &set_attr(const std::string &name, const Type &a)
 /// @returns The Op self
 template <typename Type,
         requires<std::is_same<Type, std::vector<int64_t>>::value> = true>
-op &set_attr(const std::string &name, const Type &a)
+op &set_attr(const std::string &name, const Type &a);
 
 /// Sets the attribute according to the name and type
 /// (std::vector<float>)
@@ -97,10 +97,10 @@ op &set_attr(const std::string &name, const Type &a)
 /// @returns The Op self
 template <typename Type,
         requires<std::is_same<Type, std::vector<float>>::value> = true>
-op &set_attr(const std::string &name, const Type &a)
+op &set_attr(const std::string &name, const Type &a);
 
 /// Returns the string format of the Op id and kind
 ///
 /// @returns Op id and kind in string format
-std::string to_string() const
+std::string to_string() const;
 };
