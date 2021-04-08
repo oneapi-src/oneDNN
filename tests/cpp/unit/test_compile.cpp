@@ -4176,6 +4176,84 @@ TEST(operator_kernel, softmax_backward) {
     }
 }
 
+TEST(operator_kernel, logsoftmax) {
+    impl::op_t logsoftmax_op(impl::op_kind::LogSoftmax);
+    impl::engine_t &eng = get_engine();
+
+    logsoftmax_op.set_attr<int64_t>("axis", 0);
+
+    test::vector<float> src_data {0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
+    test::vector<float> ref_dst_data {-0.6931472, -0.6931472, -0.6931472,
+            -0.6931472, -0.6931472, -0.6931472};
+    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, {2, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst = utils::logical_tensor_init(
+            1, {2, 3}, impl::data_type::f32, impl::layout_type::any);
+
+    std::vector<impl::logical_tensor_t> inputs {src};
+    std::vector<impl::logical_tensor_t> outputs {dst};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto softmax_kernel = op_factory.create_kernel(logsoftmax_op);
+
+    softmax_kernel->compile(&logsoftmax_op, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    impl::tensor_t src_ts(src, src_data.data());
+    impl::tensor_t dst_ts(outputs[0], dst_data.data());
+
+    impl::stream_t &strm = get_stream();
+    softmax_kernel->execute(&logsoftmax_op, &strm, {src_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < ref_dst_data.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+    }
+}
+
+TEST(operator_kernel, logsoftmax_backward) {
+    impl::op_t logsoftmax_op(impl::op_kind::LogSoftmaxBackprop);
+    impl::engine_t &eng = get_engine();
+
+    logsoftmax_op.set_attr<int64_t>("axis", 1);
+
+    test::vector<float> dst {-0.6931472, -0.6931472, -0.6931472, -0.6931472};
+    test::vector<float> diff_dst {1.0, 5.0, 2.0, 4.0};
+    test::vector<float> ref_diff_src {-2, 2, -1, 1};
+    test::vector<float> diff_src(ref_diff_src.size(), 0.0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(1, {2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t diff_dst_lt
+            = utils::logical_tensor_init(2, {2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+            3, {2, 2}, impl::data_type::f32, impl::layout_type::any);
+
+    std::vector<impl::logical_tensor_t> inputs {diff_dst_lt, dst_lt};
+    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto softmax_kernel = op_factory.create_kernel(logsoftmax_op);
+
+    softmax_kernel->compile(&logsoftmax_op, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
+    impl::tensor_t diff_src_ts(outputs[0], diff_src.data());
+
+    impl::stream_t &strm = get_stream();
+    softmax_kernel->execute(
+            &logsoftmax_op, &strm, {diff_dst_ts, dst_ts}, {diff_src_ts});
+    strm.wait();
+    for (size_t i = 0; i < ref_diff_src.size(); ++i) {
+        ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
+    }
+}
+
 TEST(operator_kernel, avg_pool_backward_exclude_pad) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();

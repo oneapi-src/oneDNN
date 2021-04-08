@@ -1821,3 +1821,78 @@ TEST(c_api_test, compile_softmax_bwd) {
     COMPILE_SOFTMAX_BWD_DESTROY;
 #undef COMPILE_SOFTMAX_BWD_DESTROY
 }
+
+TEST(c_api_test, compile_logsoftmax) {
+    dnnl_graph_graph_t *agraph = NULL;
+    dnnl_graph_op_t *logsoftmax = NULL;
+    dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
+    dnnl_graph_op_kind_t op_kind = kLogSoftmax;
+    dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
+    dnnl_graph_partition_t *partition = NULL;
+    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+
+#define COMPILE_LOGSOFTMAX_DESTROY \
+    do { \
+        dnnl_graph_graph_destroy(agraph); \
+        agraph = NULL; \
+        dnnl_graph_op_destroy(logsoftmax); \
+        logsoftmax = NULL; \
+        dnnl_graph_partition_destroy(partition); \
+        partition = NULL; \
+        dnnl_graph_compiled_partition_destroy(compiled_partition); \
+        compiled_partition = NULL; \
+    } while (0);
+
+    dnnl_graph_logical_tensor_t src;
+    dnnl_graph_logical_tensor_t dst;
+
+    const int64_t src_dim[] = {1, 4};
+    const int64_t dst_dim[] = {1, 4};
+
+    uint64_t part_num = 0;
+
+    dnnl_graph_op_create(&logsoftmax, 1, op_kind, "logsoftmax");
+    api_test_dnnl_graph_graph_create(&agraph, engine);
+
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&src, 0, dnnl_graph_f32, 2,
+                    src_dim, dnnl_graph_layout_type_strided),
+            dnnl_graph_result_success, COMPILE_LOGSOFTMAX_DESTROY);
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&dst, 1, dnnl_graph_f32, 2,
+                    dst_dim, dnnl_graph_layout_type_strided),
+            dnnl_graph_result_success, COMPILE_LOGSOFTMAX_DESTROY);
+
+    dnnl_graph_op_add_input(logsoftmax, &src);
+    dnnl_graph_op_add_output(logsoftmax, &dst);
+
+    ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, logsoftmax),
+            dnnl_graph_result_success, COMPILE_LOGSOFTMAX_DESTROY);
+
+    ASSERT_EQ_SAFE(dnnl_graph_graph_filter(agraph, policy),
+            dnnl_graph_result_success, COMPILE_LOGSOFTMAX_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
+            dnnl_graph_result_success, COMPILE_LOGSOFTMAX_DESTROY);
+    ASSERT_EQ_SAFE(part_num, 1, COMPILE_LOGSOFTMAX_DESTROY);
+
+    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition),
+            dnnl_graph_result_success, COMPILE_LOGSOFTMAX_DESTROY);
+    ASSERT_EQ_SAFE(
+            dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
+            dnnl_graph_result_success, COMPILE_LOGSOFTMAX_DESTROY);
+
+    ASSERT_EQ_SAFE(dnnl_graph_compiled_partition_create(
+                           &compiled_partition, partition),
+            dnnl_graph_result_success, COMPILE_LOGSOFTMAX_DESTROY);
+
+    dnnl_graph_engine_t *e;
+    api_test_dnnl_graph_engine_create(&e, engine);
+    const dnnl_graph_logical_tensor_t *const_inputs[1] = {&src};
+    const dnnl_graph_logical_tensor_t *const_dst[1] = {&dst};
+    ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition, compiled_partition,
+                           1, const_inputs, 1, const_dst, e),
+            dnnl_graph_result_success, COMPILE_LOGSOFTMAX_DESTROY);
+
+    COMPILE_LOGSOFTMAX_DESTROY;
+#undef COMPILE_LOGSOFTMAX_DESTROY
+}
