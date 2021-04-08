@@ -9,7 +9,7 @@
 --alg=nearest,linear
 --tag=abx,axb,aBx16b
 # attr-post-ops values adjusted to avoid failures
---attr-post-ops='','sum;add:f32:per_tensor;linear:1.5'
+--attr-post-ops=,sum+add:f32:per_tensor+linear:1.5
 --batch=set_all
 
 --sdt=s32,u8,s8
@@ -18,7 +18,7 @@
 --alg=nearest,linear
 --tag=abx,axb,aBx16b
 # attr-post-ops default values 
---attr-post-ops='','sum;add:f32:per_tensor;linear:1.5:-1.25:0.5'
+--attr-post-ops=,sum+add:f32:per_tensor+linear:1.5:-1.25:0.5
 --batch=set_all
 
 --sdt=f32,bf16,f16
@@ -27,7 +27,7 @@
 --alg=nearest,linear
 --tag=abx,axb,aBx16b
 # attr-post-ops values adjusted, skipped no post-ops case to avoid failures
---attr-post-ops='sum;add:f32:per_tensor;linear:1.5:-1.2:0.44'
+--attr-post-ops=sum+add:f32:per_tensor+linear:1.5:-1.2:0.44
 --batch=set_all
 
 --sdt=f32,bf16
@@ -35,5 +35,5 @@
 --dir=BWD_D
 --alg=nearest,linear
 --tag=abx,axb,aBx16b
---attr-post-ops=''
+--attr-post-ops=
 --batch=set_all

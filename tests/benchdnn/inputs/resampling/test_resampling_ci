@@ -5,7 +5,7 @@
 --alg=nearest,linear
 
 --dir=FWD_D
---attr-post-ops='','sum;add:f32'
+--attr-post-ops=,sum+add:f32
 
 --sdt=f32 --ddt=f32,s8
 --batch=shapes_ci
@@ -18,7 +18,7 @@
 
 # backward
 --dir=BWD_D
---attr-post-ops=''
+--attr-post-ops=
 
 --sdt=f32 --ddt=f32
 --batch=shapes_ci

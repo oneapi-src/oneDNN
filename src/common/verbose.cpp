@@ -312,33 +312,35 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
     // scratchpad mode is not a part of has_default_values(). Check it first.
     const scratchpad_mode_t &spm = attr->scratchpad_mode_;
     if (spm != scratchpad_mode_t::dnnl_scratchpad_mode_library) {
-        ss << "scratchpad_mode:" << dnnl_scratchpad_mode2str(spm);
+        ss << "attr-scratchpad:" << dnnl_scratchpad_mode2str(spm) << " ";
     }
 
     if (attr->has_default_values()) return ss;
 
     const scales_t &os = attr->output_scales_;
-    if (!os.has_default_values()) { ss << "oscale:" << os << ";"; }
+    if (!os.has_default_values()) { ss << "attr-oscale:" << os << " "; }
+
+    std::string empty_delim, attr_delim = "+";
 
     const arg_scales_t &as = attr->scales_;
     if (!as.has_default_values()) {
-        const char *delim = "";
-        ss << "scales:";
+        std::string delim = empty_delim;
+        ss << "attr-scales:";
         for (const auto &map_entry : as.scales_) {
             const auto &val = map_entry.second;
             if (val.has_default_values()) continue;
 
             int idx = as.get_index_val(map_entry.first);
             ss << delim << "src" << idx << ":" << val;
-            delim = "_";
+            delim = attr_delim;
         }
-        ss << ";";
+        ss << " ";
     }
 
     const zero_points_t &zp = attr->zero_points_;
     if (!zp.has_default_values()) {
-        const char *delim = "";
-        ss << "zero_points:";
+        std::string delim = empty_delim;
+        ss << "attr-zero-points:";
         for (const auto &arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
             if (zp.has_default_values(arg)) continue;
 
@@ -356,55 +358,54 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                 else
                     ss << ":" << *zpp;
             }
-            delim = "_";
+            delim = attr_delim;
         }
-        ss << ";";
+        ss << " ";
     }
 
     const post_ops_t &po = attr->post_ops_;
     if (!po.has_default_values()) {
-        ss << "post_ops:'";
+        std::string delim = empty_delim;
+        ss << "attr-post-ops:";
         for (int i = 0; i < po.len(); ++i) {
             const post_ops_t::entry_t &e = po.entry_[i];
             switch (e.kind) {
                 case primitive_kind::sum: {
-                    ss << "sum";
+                    ss << delim << "sum";
                     if (e.sum.scale != 1.f) ss << ":" << e.sum.scale;
-                    ss << ";";
                 } break;
                 case primitive_kind::convolution: {
                     using namespace data_type;
                     const auto &c = e.depthwise_conv;
-                    ss << "dw_k3s" << c.stride << "p1";
+                    ss << delim << "dw_k3s" << c.stride << "p1";
                     if (c.wei_dt == s8 || c.dst_dt != f32)
                         ss << ":" << c.dst_dt;
                     if (c.wei_dt == s8) {
                         ss << c.mask;
                         if (c.mask == 0) ss << c.scales[0];
                     }
-                    ss << ";";
                 } break;
                 case primitive_kind::eltwise: {
                     const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;
-                    ss << ew.alg;
+                    ss << delim << ew.alg;
                     if (ew.alpha != 0.f || ew.beta != 0.f || ew.scale != 1.f)
                         ss << ":" << ew.alpha;
                     if (ew.beta != 0.f || ew.scale != 1.f) ss << ":" << ew.beta;
                     if (ew.scale != 1.f) ss << ":" << ew.scale;
-                    ss << ";";
                 } break;
                 case primitive_kind::binary: {
                     const post_ops_t::entry_t::binary_t &eb = e.binary;
                     int mask = 0;
                     for (int d = 0; d < eb.src1_desc.ndims; ++d)
                         mask += eb.src1_desc.dims[d] != 1 ? (1 << d) : 0;
-                    ss << eb.alg << ":" << eb.src1_desc.data_type << ":" << mask
-                       << ";";
+                    ss << delim << eb.alg << ":" << eb.src1_desc.data_type
+                       << ":" << mask;
                 } break;
                 default: assert(!"unsupported post op primitive kind!"); break;
             }
+            delim = attr_delim;
         }
-        ss << "';";
+        ss << " ";
     }
 
     const rnn_data_qparams_t &rnn_qp = attr->rnn_data_qparams_;

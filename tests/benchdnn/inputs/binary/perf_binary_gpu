@@ -12,9 +12,9 @@
 # 1) no post-ops (pure-op);
 # 2) single binary post-op (optimized fq case)
 # 3) full fq chain of post-ops
---attr-post-ops='', \
-                'add:f32:per_oc', \
-                'max:f32:common;min:f32:common;add:f32:common;mul:f32:common;round;mul:f32:per_oc;add:f32:per_oc'
+--attr-post-ops=, \
+                add:f32:per_oc, \
+                max:f32:common+min:f32:common+add:f32:common+mul:f32:common+round+mul:f32:per_oc+add:f32:per_oc
 
 # 1st conv cases always have plain format
 --stag=abx:abx

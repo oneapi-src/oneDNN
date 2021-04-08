@@ -235,9 +235,10 @@ int attr_t::scale_t::from_str(const std::string &s) {
     if (start_pos == std::string::npos) return OK;
     if (start_pos >= s.size()) return FAIL; // to catch dangling ':'
 
-    int status = parse_value_and_runtime(
-            this->scale, this->runtime, get_substr(s, start_pos));
-    if (status != OK || this->scale < 0) return FAIL;
+    SAFE(parse_value_and_runtime(
+                 this->scale, this->runtime, get_substr(s, start_pos)),
+            WARN);
+    if (this->scale < 0) return FAIL;
     return OK;
 }
 
@@ -247,23 +248,25 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
 
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
-        auto arg = str2arg(get_substr(s, start_pos));
-        if (arg == BENCHDNN_DNNL_ARG_UNDEF || start_pos == std::string::npos
-                || start_pos >= s.size())
+        auto subs = get_substr(s, start_pos, '+');
+        size_t subs_pos = 0;
+
+        auto arg = str2arg(get_substr(subs, subs_pos));
+        if (arg == BENCHDNN_DNNL_ARG_UNDEF || subs_pos == std::string::npos
+                || subs_pos >= subs.size())
             return FAIL;
 
-        auto policy = str2policy(get_substr(s, start_pos));
-        if (policy == POLICY_TOTAL || start_pos == std::string::npos
-                || start_pos >= s.size())
+        auto policy = str2policy(get_substr(subs, subs_pos));
+        if (policy == POLICY_TOTAL || subs_pos == std::string::npos
+                || subs_pos >= subs.size())
             return FAIL;
 
         float zp = 0;
         bool runtime = false;
-        int status = parse_value_and_runtime(
-                zp, runtime, get_substr(s, start_pos, '_'));
-        if (status != OK) return status;
-
-        set(arg, policy, (int)zp, runtime); // XXX: overflow/underflow?
+        SAFE(parse_value_and_runtime(
+                     zp, runtime, get_substr(subs, subs_pos, '\0')),
+                WARN);
+        set(arg, policy, static_cast<int>(zp), runtime);
     }
     return OK;
 }
@@ -274,16 +277,21 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
 
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
-        auto arg = str2arg(get_substr(s, start_pos));
-        if (arg == BENCHDNN_DNNL_ARG_UNDEF || start_pos == std::string::npos
-                || start_pos >= s.size())
+        auto subs = get_substr(s, start_pos, '+');
+        // Special handling for really big float values
+        if (subs.back() == 'e') {
+            auto subs_add = get_substr(s, start_pos, '+');
+            subs += subs_add;
+        }
+        size_t subs_pos = 0;
+
+        auto arg = str2arg(get_substr(subs, subs_pos));
+        if (arg == BENCHDNN_DNNL_ARG_UNDEF || subs_pos == std::string::npos
+                || subs_pos >= s.size())
             return FAIL;
 
-        auto policy_str = get_substr(s, start_pos);
-        auto scale_str = policy_str + ":" + get_substr(s, start_pos, '_');
         scale_t arg_scale;
-        auto status = arg_scale.from_str(scale_str);
-        if (status != OK) return status;
+        SAFE(arg_scale.from_str(get_substr(subs, subs_pos, '\0')), WARN);
         set(arg, arg_scale);
     }
     return OK;
@@ -415,24 +423,26 @@ std::vector<int> attr_t::post_ops_t::get_binary_po_masks() const {
 
 int attr_t::post_ops_t::from_str(const std::string &s) {
     *this = post_ops_t();
+    if (s.empty()) return OK;
 
-    auto s_no_quotes = s;
-    // strip double quotes to allow command line style work from a batch file
-    if (s.front() == '\"' && s.back() == '\"')
-        s_no_quotes = s.substr(1, s.size() - 2);
+    // TODO: remove me after a while
+    if (s.front() == '\'' || s.back() == '\'') {
+        BENCHDNN_PRINT(0, "%s\n",
+                "ERROR: `--attr-post-ops` no longer requires opening and "
+                "closing `'` (and `\"` for CLI) quotes. Please discard them to "
+                "proceed with successful parsing.");
+        return FAIL;
+    } else if (s.find_first_of(";", 0) != std::string::npos) {
+        BENCHDNN_PRINT(0, "%s\n",
+                "ERROR: `--attr-post-ops` no longer accepts `;` as post-ops "
+                "delimiter. Please use `+` as a delimiter between several "
+                "post-ops, i.e. `--attr-post-ops=sum+relu`.");
+        return FAIL;
+    }
 
-    // "'" is mandatory as long as ";" is used as alg delimiter
-    if (s_no_quotes.front() != '\'' || s_no_quotes.back() != '\'') return FAIL;
-    if (s_no_quotes.size() == 2) return OK; // empty input
-
-    // strip quotes to simplify further logic
-    s_no_quotes = s_no_quotes.substr(1, s_no_quotes.size() - 2);
-
-    // operate over substrings separated by ';' represeting a single post op
-    // with further parsing of specific kind
     size_t start_pos = 0;
-    while (start_pos != s_no_quotes.size() && start_pos != std::string::npos) {
-        auto subs = get_substr(s_no_quotes, start_pos, ';');
+    while (start_pos != std::string::npos) {
+        auto subs = get_substr(s, start_pos, '+');
         size_t subs_pos = 0;
 
         auto kind = str2kind(get_substr(subs, subs_pos));
@@ -605,27 +615,25 @@ std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale) {
 
 std::ostream &operator<<(
         std::ostream &s, const attr_t::zero_points_t &zero_points) {
-    bool first = true;
+    const char *delim = "";
     for (const auto &point : zero_points.points) {
-        if (!first) s << '_';
-        first = false;
-
+        s << delim;
         s << supported_args.at(point.first)[0] << ":" << point.second.policy
           << ":" << point.second.value;
         if (point.second.runtime) s << '*';
+        delim = "+";
     }
 
     return s;
 }
 
 std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales) {
-    bool first = true;
+    const char *delim = "";
     for (const auto &v : scales.scales) {
         if (!v.second.is_def()) {
-            if (!first) s << '_';
-            first = false;
-
+            s << delim;
             s << supported_args.at(v.first)[0] << ":" << v.second;
+            delim = "+";
         }
     }
     return s;
@@ -637,10 +645,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k) {
 }
 
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
-    s << "'";
-
     for (int idx = 0; idx < post_ops.len(); ++idx) {
-        if (idx > 0) s << ";";
+        if (idx > 0) s << "+";
 
         const auto &e = post_ops.entry[idx];
         s << e.kind;
@@ -672,8 +678,6 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
         }
     }
 
-    s << "'";
-
     return s;
 }
 
@@ -689,7 +693,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
         if (!attr.zero_points.is_def())
             s << "--attr-zero-points=" << attr.zero_points << " ";
         if (!attr.post_ops.is_def())
-            s << "--attr-post-ops=\"" << attr.post_ops << "\" ";
+            s << "--attr-post-ops=" << attr.post_ops << " ";
         if (attr.scratchpad_mode != dnnl_scratchpad_mode_library)
             s << "--attr-scratchpad=" << attr.scratchpad_mode << " ";
     }

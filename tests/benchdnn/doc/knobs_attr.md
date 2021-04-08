@@ -3,13 +3,13 @@
 ## Usage
 ```
     --attr-oscale=POLICY[:SCALE[*]]
-    --attr-scales=ARG:POLICY[:SCALE[*]][_...]
-    --attr-zero-points=ARG:POLICY:ZEROPOINT[*][_...]
-    --attr-post-ops='SUM[:SCALE[:DATA_TYPE]];'
-                    'ELTWISE[:ALPHA[:BETA[:SCALE]]];[...;]'
-                    'DW_K3S1P1[:DST_DT[:OUTPUTSCALE]];'
-                    'DW_K3S2P1[:DST_DT[:OUTPUTSCALE]];'
-                    'BINARY:DT[:POLICY];'
+    --attr-scales=ARG:POLICY[:SCALE[*]][+...]
+    --attr-zero-points=ARG:POLICY:ZEROPOINT[*][+...]
+    --attr-post-ops=SUM[:SCALE[:DATA_TYPE]]
+                    ELTWISE[:ALPHA[:BETA[:SCALE]]]
+                    DW_K3S1P1[:DST_DT[:OUTPUTSCALE]]
+                    DW_K3S2P1[:DST_DT[:OUTPUTSCALE]]
+                    BINARY:DT[:POLICY]
 ```
 
 `--attr-oscale` defines output scale primitive attribute. `POLICY` specifies the
@@ -52,11 +52,12 @@ passed to a primitive at run-time.
 
 `--attr-scales` defines input scales per memory argument primitive attribute.
 `ARG` specifies which memory argument will be modified with input scale.
-`POLICY` and `SCALE` have the same semantics and meaning as for `--attr-oscale`.
-To specify more than one memory argument, underscore (`_`) delimiter is used.
+`POLICY`, `SCALE` and `*` have the same semantics and meaning as for
+`--attr-oscale`. To specify more than one memory argument, plus delimiter `+` is
+used.
 
 `ARG` supported values are:
-  - `src` corresponds to `DNNL_ARG_SRC`
+  - `src` or `src0` corresponds to `DNNL_ARG_SRC`
   - `src1` corresponds to `DNNL_ARG_SRC_1`
 
 `POLICY` supported values are:
@@ -70,7 +71,7 @@ attribute. This attribute is supported only for integer data types as of now.
 is an integer value which will be subtracted from each tensor point. Asterisk
 mark (`*`) is an optional addition to `ZEROPOINT` indicating the value will be
 passed to a primitive at run-time. To specify more than one memory argument,
-underscore (`_`) delimiter is used.
+plus delimiter `+` is used.
 
 `ARG` supported values are:
   - `src` corresponds to `DNNL_ARG_SRC`
@@ -82,19 +83,15 @@ underscore (`_`) delimiter is used.
   - `per_dim_1` (for `src` and `dst`, at run-time only)
 
 `--attr-post-ops` defines post operations primitive attribute. Depending on
-post operations kind, the syntax differs, but regardless the kind, single quotes
-are used in the beginning and in the end in a string literal, even when empty
-post operations are passed.
-
-Note that from shell command line, double quotes are required in front of and
-behind single quotes. This is caused by shell interpretator messing with
-delimiters used inside post-ops content. Refer to examples below.
+post operations kind, the syntax differs. To specify more than one post
+operation, plus delimiter `+` is used.
 
 `SUM` post operation kind appends operation result to the output. It supports
 optional arguments `SCALE` parsed as a real number, which scales the operation
 result before appending, and `DATA_TYPE` argument which defines sum data type
-parameter. If invalid or `undef` `DATA_TYPE` is specified, an error will be
-returned. Only single `SUM` operation can be applied to the output tensor.
+parameter. If invalid or `undef` value of `DATA_TYPE` is specified, an error
+will be returned. Only single `SUM` operation can be applied to the output
+tensor.
 
 `ELTWISE` post operation kind applies one of supported element-wise algorithms
 to the operation result and then stores it. It supports optional arguments
@@ -173,7 +170,7 @@ Run a set of f32 forward convolutions without bias appending accumulation into
 destination and perform relu on the output with scale set to 0.5:
 ``` sh
     ./benchdnn --conv --cfg=f32 --dir=FWD_D \
-               --attr-post-ops="'sum;relu:0.5'" --batch=conv_tails
+               --attr-post-ops=sum+relu:0.5 --batch=conv_tails
 ```
 
 Run a 1D-spatial reorder problem with s8 input data and u8 output data in four
@@ -189,8 +186,8 @@ Run a binary problem with s8 input data and u8 output data in nc layout
 applying scales to both inputs without any post operations:
 ``` sh
     ./benchdnn --binary --sdt=u8:s8 --ddt=u8 --stag=nc:nc \
-               --attr-scales=src:common:1.5_src1:common:2.5 \
-               --attr-post-ops="''" 100x100:100x100
+               --attr-scales=src:common:1.5+src1:common:2.5 \
+               --attr-post-ops= 100x100:100x100
 ```
 
 Run a 1x1 convolution fused with depthwise convolution where output scales set
@@ -200,11 +197,11 @@ The weights datatype is inferred as `s8`, `f32` and `bf16` for int8, f32 and
 bf16 convolutions respectively.
 ``` sh
   ./benchdnn --conv --cfg=u8s8u8 --attr-oscale=per_oc:0.5 \
-             --attr-post-ops="'relu;dw_k3s1p1:s8:per_oc:1.5;relu'" \
+             --attr-post-ops=relu+dw_k3s1p1:s8:per_oc:1.5+relu \
              ic16oc16ih4oh4kh1ph0
 ```
 
 Run a convolution problem with binary post operation:
 ``` sh
-  ./benchdnn --conv --attr-post-ops="'add:s32:common'" ic16oc16ih4oh4kh1ph0
+  ./benchdnn --conv --attr-post-ops=add:s32:common ic16oc16ih4oh4kh1ph0
 ```

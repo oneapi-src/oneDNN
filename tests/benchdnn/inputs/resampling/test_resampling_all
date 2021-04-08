@@ -28,8 +28,8 @@
 --dir=FWD_D
 --sdt=f32
 --ddt=f32
---attr-post-ops='mul:f32', \
-                'clip:2:10;sum:0.1;add:s8:per_oc;sum'
+--attr-post-ops=mul:f32, \
+                clip:2:10+sum:0.1+add:s8:per_oc+sum
 --batch=shapes_ci
 
 # bf16

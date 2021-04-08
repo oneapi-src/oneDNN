@@ -13,7 +13,7 @@
 --stag=abx,axb,aBx16b
 --dtag=abx,axb,aBx16b
 --attr-oscale=,per_dim_1:0.
---attr-post-ops='sum:0.5'
+--attr-post-ops=sum:0.5
 2x64x1x1
 
 --attr-oscale=per_dim_0:0.

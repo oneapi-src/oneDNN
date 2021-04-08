@@ -2,36 +2,36 @@
 
 --tag=abx,aBx16b,ABx16a16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=shapes_1d --batch=shapes_3d
---dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=shapes_1d
+--dir=FWD_D        --flags=GS,S    --attr-post-ops=relu --batch=shapes_1d
 --dir=BWD_D        --flags=        --attr-post-ops=       --batch=shapes_1d
 
 --tag=abx,aBx16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=shapes_topologies_small
---dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=shapes_topologies_small
+--dir=FWD_D        --flags=GS,S    --attr-post-ops=relu --batch=shapes_topologies_small
 --dir=BWD_D        --flags=        --attr-post-ops=       --batch=shapes_topologies_small
 
 --mb=2
 --dt=f16,s8,bf16
 --dir=FWD_I        --flags=GS      --attr-post-ops=       --batch=shapes_topologies_small
---dir=FWD_I        --flags=GS      --attr-post-ops='relu' --batch=shapes_topologies_small
+--dir=FWD_I        --flags=GS      --attr-post-ops=relu --batch=shapes_topologies_small
 
 --reset
 
 --mb=48
 --tag=ABx16a16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=shapes_topologies_small
---dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=shapes_topologies_small
+--dir=FWD_D        --flags=GS,S    --attr-post-ops=relu --batch=shapes_topologies_small
 --dir=BWD_D        --flags=        --attr-post-ops=       --batch=shapes_topologies_small
 
 --dt=f16,s8,bf16
 --dir=FWD_I        --flags=GS      --attr-post-ops=       --batch=shapes_topologies_small
---dir=FWD_I        --flags=GS      --attr-post-ops='relu' --batch=shapes_topologies_small
+--dir=FWD_I        --flags=GS      --attr-post-ops=relu --batch=shapes_topologies_small
 
 --mb=1,2,32
 --dt=bf16
 --tag=abx,aBx16b,ABx16a16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       ic96ih35iw35
---dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' ic96ih35iw35
+--dir=FWD_D        --flags=GS,S    --attr-post-ops=relu ic96ih35iw35
 --dir=BWD_D        --flags=        --attr-post-ops=       ic96ih35iw35
 
 --dt=f16,bf16
@@ -49,7 +49,7 @@
 --tag=axb
 --dir=FWD_I        --flags=        --attr-post-ops=       --batch=shapes_topologies_small
 --dir=FWD_D        --flags=SR,GS,S --attr-post-ops=       --batch=shapes_topologies_small
---dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=shapes_topologies_small
+--dir=FWD_D        --flags=GS,S    --attr-post-ops=relu --batch=shapes_topologies_small
 
 --reset
 --mb=1
@@ -73,9 +73,9 @@
 --dt=s8
 --dir=FWD_I
 --flags=G,GS
---attr-post-ops='','relu'
+--attr-post-ops=,relu
 --batch=shapes_topologies_small
 
 --flags=GR,GSR
---attr-post-ops=''
+--attr-post-ops=
 --batch=shapes_topologies_small

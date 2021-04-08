@@ -94,7 +94,7 @@ mb128ic3ih230oc64oh112kh7sh2ph0
 --reset
 --cfg=f16f16s8,f32f32s8
 --mb=2,16
---dir=FWD_B --stag=any 
+--dir=FWD_B --stag=any
 --batch=set_gpu
 --batch=shapes_basic_gpu
 
@@ -103,5 +103,5 @@ mb128ic3ih230oc64oh112kh7sh2ph0
 --cfg=f16,f16f16s8
 --mb=48,64
 --dir=FWD_B
---attr-post-ops="'add:f32:per_oc;linear:42.5;clip:0:255'"
+--attr-post-ops=add:f32:per_oc+linear:42.5+clip:0:255
 --batch=shapes_mobilenet_dw
