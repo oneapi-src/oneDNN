@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,15 +49,15 @@ using namespace mkldnn;
 
 using dim_t = mkldnn::memory::dim;
 
-const dim_t batch = 128;
-const dim_t src_seq_length_max = 28;
-const dim_t tgt_seq_length_max = 28;
+const dim_t batch = 32;
+const dim_t src_seq_length_max = 10;
+const dim_t tgt_seq_length_max = 10;
 
 const dim_t feature_size = 64;
 
 const dim_t enc_bidir_n_layers = 1;
-const dim_t enc_unidir_n_layers = 7;
-const dim_t dec_n_layers = 8;
+const dim_t enc_unidir_n_layers = 3;
+const dim_t dec_n_layers = 4;
 
 const int lstm_n_gates = 4;
 std::vector<float> weighted_src_layer(batch *feature_size, 1.0f);
