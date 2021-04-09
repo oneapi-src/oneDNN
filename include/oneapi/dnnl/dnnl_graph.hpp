@@ -618,7 +618,7 @@ public:
     ///
     /// @param tid The unique id of required tensor
     /// @returns The logical tensor
-    logical_tensor query_logical_tensor(uint64_t tid) const {
+    logical_tensor query_logical_tensor(size_t tid) const {
         dnnl_graph_logical_tensor_t lt;
         error::check_succeed(dnnl_graph_compiled_partition_query_logical_tensor(
                                      get(), tid, &lt),
