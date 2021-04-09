@@ -24,13 +24,13 @@ add_subdirectory (gtest)
 set(APP_NAME "gtest")
 set(MAIN_SRC_GTEST ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
 list(APPEND MAIN_SRC_GTEST ${TEST_THREAD})
-list(APPEND MAIN_SRC_GTEST ${CMAKE_CURRENT_SOURCE_DIR}/test_malloc.cpp)
 
 # Windows does not support weak/strong symbols and no guarrantees by the linker
 # for out_of_memory testing to work. Not tested on macOS
 if(UNIX)
     if(DNNL_ENABLE_MEM_DEBUG)
         add_definitions(-DDNNL_ENABLE_MEM_DEBUG)
+        list(APPEND MAIN_SRC_GTEST ${CMAKE_CURRENT_SOURCE_DIR}/test_malloc.cpp)
     endif()
 endif()
 
