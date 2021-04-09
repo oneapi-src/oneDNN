@@ -320,7 +320,7 @@ inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
 #define COMPARE_DESC_ARRAY_MEMBERS(m, s) utils::array_cmp(lhs.m, rhs.m, s)
 #define COMPARE_FLOAT_DESC_MEMBERS(m) utils::equal_with_nan(lhs.m, rhs.m)
 #define COMPARE_FLOAT_DESC_ARRAY_MEMBERS(m, s) \
-    !std::memcmp(lhs.m, rhs.m, sizeof(decltype(lhs.m)) * s)
+    !std::memcmp(lhs.m, rhs.m, sizeof(float) * s)
 
 // clang-format off
 inline bool operator==(const batch_normalization_desc_t &lhs,
