@@ -214,7 +214,7 @@ int main(int argc, char **argv) {
             std::cout << "Success!\n";
             
             // get inplace pairs and set tensor's handle accordingly
-            auto inplace_option = c_partitions[i].get_inplace_options();
+            auto inplace_option = c_partitions[i].get_inplace_ports();
             std::cout << "This partition has " << inplace_option.size() << " in-place option(s)\n";
             tm.update_tensor_handle_by_inplace_options(input_ts, output_ts, inputs, outputs, inplace_option);
 

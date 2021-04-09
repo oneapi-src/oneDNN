@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -149,7 +149,7 @@ public:
         size_t num_inplace_pairs = 10; // Initialized with an impossible value.
         const dnnl_graph_inplace_pair_t *inplace_pairs = nullptr;
         EXPECT_EQ(
-                dnnl_graph_compiled_partition_get_inplace_pairs(
+                dnnl_graph_compiled_partition_get_inplace_ports(
                         compiled_partition, &num_inplace_pairs, &inplace_pairs),
                 dnnl_graph_result_success);
         // Convolutional operator W/O sum has no in-place operation.

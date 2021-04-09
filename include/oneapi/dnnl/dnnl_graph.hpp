@@ -626,20 +626,22 @@ public:
         return logical_tensor {lt};
     }
 
-    /// Returns the in-place options
+    /// Returns the in-place port pairs
     ///
     /// @note
-    ///     Each entry of the returned in-place options is a pair that maps from
-    ///     input to output, indicating possible reused memory buffers in an
-    ///     operator.
+    ///     Each entry of the returned vector is a pair of IDs of input and
+    ///     output ports. For in-place ports, users can assign same memory
+    ///     buffer when passing tensor along with execution API. The in-place
+    ///     optimization is optional, users can always use different memory
+    ///     buffers for the execution.
     ///
     /// @returns List of pairs of that indicates input and output use same
     ///     memory buffer.
-    std::vector<std::pair<size_t, size_t>> get_inplace_options() const {
+    std::vector<std::pair<size_t, size_t>> get_inplace_ports() const {
         size_t num_inplace_pairs = std::numeric_limits<size_t>::max();
         const dnnl_graph_inplace_pair_t *inplace_pairs;
 
-        error::check_succeed(dnnl_graph_compiled_partition_get_inplace_pairs(
+        error::check_succeed(dnnl_graph_compiled_partition_get_inplace_ports(
                                      get(), &num_inplace_pairs, &inplace_pairs),
                 "could not get the in-place pairs from a compiled partition");
         if (num_inplace_pairs == 0) return {};

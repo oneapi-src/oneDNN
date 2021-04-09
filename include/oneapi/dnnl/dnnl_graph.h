@@ -532,7 +532,7 @@ dnnl_graph_compiled_partition_query_logical_tensor(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API
-dnnl_graph_compiled_partition_get_inplace_pairs(
+dnnl_graph_compiled_partition_get_inplace_ports(
         const dnnl_graph_compiled_partition_t *compiled_partition,
         size_t *num_inplace_pairs,
         const dnnl_graph_inplace_pair_t **inplace_pairs);

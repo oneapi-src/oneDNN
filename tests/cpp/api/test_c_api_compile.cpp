@@ -123,7 +123,7 @@ TEST(c_api_test, compile_bn) {
     // Check in-place pairs
     size_t num_inplace_pairs = 10; // Initialized with an impossible value.
     const dnnl_graph_inplace_pair_t *inplace_pairs = nullptr;
-    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_pairs(
+    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_ports(
                       compiled_partition, &num_inplace_pairs, &inplace_pairs),
             dnnl_graph_result_success);
     EXPECT_EQ(num_inplace_pairs,
@@ -236,7 +236,7 @@ TEST(c_api_test, compile_conv2d) {
     // Check in-place pairs
     size_t num_inplace_pairs = 10; // Initialized with an impossible value.
     const dnnl_graph_inplace_pair_t *inplace_pairs = nullptr;
-    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_pairs(
+    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_ports(
                       compiled_partition, &num_inplace_pairs, &inplace_pairs),
             dnnl_graph_result_success);
     EXPECT_EQ(num_inplace_pairs,
@@ -349,7 +349,7 @@ TEST(c_api_test, compile_grouped_conv2d) {
     // Check in-place pairs
     size_t num_inplace_pairs = 10; // Initialized with an impossible value.
     const dnnl_graph_inplace_pair_t *inplace_pairs = nullptr;
-    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_pairs(
+    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_ports(
                       compiled_partition, &num_inplace_pairs, &inplace_pairs),
             dnnl_graph_result_success);
     EXPECT_EQ(num_inplace_pairs,
@@ -501,7 +501,7 @@ TEST(c_api_test, compile_conv2d_bias_sum) {
     // Check in-place pairs
     size_t num_inplace_pairs = 10; // Initialized with an impossible value.
     const dnnl_graph_inplace_pair_t *inplace_pairs = nullptr;
-    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_pairs(
+    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_ports(
                       compiled_partition, &num_inplace_pairs, &inplace_pairs),
             dnnl_graph_result_success);
     EXPECT_EQ(num_inplace_pairs,
@@ -712,12 +712,12 @@ TEST(c_api_test, compile_conv2d_sum_conv2d) {
     // Check in-place pairs
     size_t num_inplace_pairs = 10; // Initialized with an impossible value.
     const dnnl_graph_inplace_pair_t *inplace_pairs = nullptr;
-    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_pairs(
+    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_ports(
                       *compiled_partition, &num_inplace_pairs, &inplace_pairs),
             dnnl_graph_result_success);
     EXPECT_EQ(num_inplace_pairs,
             0); // Convolutional operator W/O sum has no in-place operation.
-    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_pairs(
+    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_ports(
                       *(compiled_partition + 1), &num_inplace_pairs,
                       &inplace_pairs),
             dnnl_graph_result_success);
@@ -957,7 +957,7 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
     // Check in-place pairs
     size_t num_inplace_pairs = 10; // Initialized with an impossible value.
     const dnnl_graph_inplace_pair_t *inplace_pairs = nullptr;
-    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_pairs(
+    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_ports(
                       *compiled_partition, &num_inplace_pairs, &inplace_pairs),
             dnnl_graph_result_success);
     EXPECT_EQ(num_inplace_pairs, 0);
@@ -966,7 +966,7 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
     // blocked format. Though they are both opaque tensor, in-place operation
     // is not supported as the different formats they are.
     num_inplace_pairs = 10;
-    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_pairs(
+    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_ports(
                       *(compiled_partition + 1), &num_inplace_pairs,
                       &inplace_pairs),
             dnnl_graph_result_success);
@@ -1101,7 +1101,7 @@ TEST(c_api_test, compile_conv2d_with_unknown_shape) {
     // Check in-place pairs
     size_t num_inplace_pairs = 10; // Initialized with an impossible value.
     const dnnl_graph_inplace_pair_t *inplace_pairs = nullptr;
-    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_pairs(
+    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_ports(
                       compiled_partition, &num_inplace_pairs, &inplace_pairs),
             dnnl_graph_result_success);
     EXPECT_EQ(num_inplace_pairs,

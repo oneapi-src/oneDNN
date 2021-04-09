@@ -260,7 +260,7 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_query_logical_tensor(
     return compiled_partition->query_logical_tensor(tid, lt);
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_get_inplace_pairs(
+status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_get_inplace_ports(
         const compiled_partition_t *compiled_partition,
         size_t *num_inplace_pairs, const inplace_pair_t **inplace_pairs) {
     if (utils::any_null(compiled_partition, num_inplace_pairs, inplace_pairs))
