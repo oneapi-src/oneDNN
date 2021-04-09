@@ -189,6 +189,8 @@ std::string flags2str(unsigned flags) {
     std::string s;
     if (flags & dnnl_use_global_stats) s += "G";
     if (flags & dnnl_use_scaleshift) s += "S";
+    if (flags & dnnl_use_scale) s += "C";
+    if (flags & dnnl_use_shift) s += "H";
     if (flags & dnnl_fuse_norm_relu) s += "R";
     return s;
 }

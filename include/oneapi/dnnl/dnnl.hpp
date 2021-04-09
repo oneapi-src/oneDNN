@@ -655,7 +655,17 @@ enum class normalization_flags : unsigned {
     /// the workspace to implement backward propagation. On inference, the
     /// workspace is not required and behavior is the same as when normalization
     /// is fused with ReLU using the post-ops API.
-    fuse_norm_relu = dnnl_fuse_norm_relu
+    fuse_norm_relu = dnnl_fuse_norm_relu,
+
+    /// Use scale parameter. If specified, the user is expected to pass scale as
+    /// input on forward propagation. On backward propagation of type
+    /// #dnnl::prop_kind::backward, the library computes its derivative.
+    use_scale = dnnl_use_scale,
+
+    /// Use shift parameter. If specified, the user is expected to pass shift as
+    /// input on forward propagation. On backward propagation of type
+    /// #dnnl::prop_kind::backward, the library computes its derivative.
+    use_shift = dnnl_use_shift,
 };
 
 /// Converts normalization flags enum value from C++ API to C API type.

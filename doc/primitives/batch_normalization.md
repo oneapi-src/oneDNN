@@ -27,7 +27,7 @@ cases of higher and lower dimensions. Variable names follow the standard
 where
 
 - \f$\gamma(c), \beta(c)\f$ are optional scale and shift for a channel
-(see #dnnl_use_scaleshift flag),
+(see #dnnl_use_scaleshift, #dnnl_use_scale and #dnnl_use_shift flags),
 
 - \f$\mu(c), \sigma^2(c)\f$ are mean and variance for a channel (see
   #dnnl_use_global_stats flag), and
@@ -86,7 +86,7 @@ based on
 
 The tensors marked with an asterisk are used only when the primitive is
 configured to use \f$\gamma(c)\f$ and \f$\beta(c)\f$ (i.e.,
-#dnnl_use_scaleshift is set).
+#dnnl_use_scaleshift, #dnnl_use_scale or #dnnl_use_shift are set).
 
 ## Execution Arguments
 
@@ -99,6 +99,8 @@ requires different inputs and outputs.  For clarity, a summary is shown below.
 | #dnnl_normalization_flags_none                 | *Inputs*: \src <br><br> *Outputs*: \dst                                                       | *Inputs*: \src <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                                            | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                                                               | Same as for #dnnl_backward                                                                         |
 | #dnnl_use_global_stats                         | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \dst                            | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \dst                                                                            | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                                                               | Same as for #dnnl_backward                                                                         |
 | #dnnl_use_scaleshift                           | *Inputs*: \src, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst                            | *Inputs*: \src, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                 | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \f$\diffgamma\f$, \f$\diffbeta\f$ | Not supported                                                                                      |
+| #dnnl_use_scale                                | *Inputs*: \src, \f$\gamma\f$  <br><br> *Outputs*: \dst                                        | *Inputs*: \src, \f$\gamma\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                              | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$ <br><br> *Outputs*: \diffsrc, \f$\diffgamma\f$                               | Not supported                                                                                      |
+| #dnnl_use_shift                                | *Inputs*: \src, \f$\beta\f$ <br><br> *Outputs*: \dst                                          | *Inputs*: \src, \f$\beta\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                               | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \f$\diffbeta\f$                                 | Not supported                                                                                      |
 | #dnnl_use_global_stats \| #dnnl_use_scaleshift | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst                                                 | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \f$\diffgamma\f$, \f$\diffbeta\f$ | Not supported                                                                                      |
 | `flags` \| #dnnl_fuse_norm_relu                | *Inputs*: same as with `flags` <br><br> *Outputs*: same as with `flags`                       | *Inputs*: same as with `flags` <br><br> *Outputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) | *Inputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) <br><br> *Outputs*: same as with `flags`  | Same as for #dnnl_backward if `flags` do not contain #dnnl_use_scaleshift; not supported otherwise |
 
@@ -109,6 +111,8 @@ argument index as specified by the following table.
 | ---                         | ---                       |
 | \src                        | DNNL_ARG_SRC              |
 | \f$\gamma, \beta\f$         | DNNL_ARG_SCALE_SHIFT      |
+| \f$\gamma\f$                | DNNL_ARG_SCALE            |
+| \f$\beta\f$                 | DNNL_ARG_SHIFT            |
 | mean (\f$\mu\f$)            | DNNL_ARG_MEAN             |
 | variance (\f$\sigma^2\f$)   | DNNL_ARG_VARIANCE         |
 | \dst                        | DNNL_ARG_DST              |
@@ -116,6 +120,8 @@ argument index as specified by the following table.
 | \diffdst                    | DNNL_ARG_DIFF_DST         |
 | \diffsrc                    | DNNL_ARG_DIFF_SRC         |
 | \f$\diffgamma, \diffbeta\f$ | DNNL_ARG_DIFF_SCALE_SHIFT |
+| \f$\diffgamma\f$            | DNNL_ARG_DIFF_SCALE       |
+| \f$\diffbeta\f$             | DNNL_ARG_DIFF_SHIFT       |
 
 ## Implementation Details
 
@@ -124,7 +130,8 @@ argument index as specified by the following table.
 1. The different flavors of the primitive are partially controlled by the @p
    flags parameter that is passed to the operation descriptor initialization
    function (e.g., dnnl::batch_normalization_forward::desc::desc()). Multiple
-   flags can be set using the bitwise OR operator (`|`).
+   flags can be set using the bitwise OR operator (`|`). Flag
+   #dnnl_use_scaleshift can not be mixed with #dnnl_use_scale or #dnnl_use_shift.
 
 2. For forward propagation, the mean and variance might be either computed at
    runtime (in which case they are outputs of the primitive) or provided by
@@ -175,8 +182,12 @@ The format of the corresponding memory object must be #dnnl_x (#dnnl_a).
 
 #### Scale and Shift
 
-If used, the scale (\f$\gamma\f$) and shift (\f$\beta\f$) are combined in a
-single 2D tensor of shape \f$2 \times C\f$.
+If #dnnl_use_scaleshift is used, the scale (\f$\gamma\f$) and shift
+(\f$\beta\f$) are combined in a single 2D tensor of shape \f$2 \times C\f$.
+
+If #dnnl_use_scale or #dnnl_use_shift are used, the scale (\f$\gamma\f$) and
+shift (\f$\beta\f$) are separate 1D tensors of shape \f$C\f$.
+
 
 The format of the corresponding memory object must be #dnnl_nc (#dnnl_ab).
 

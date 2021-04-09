@@ -1367,6 +1367,23 @@ typedef enum {
     ///  - on training primitive requires workspace (required to be able to
     ///    perform backward pass)
     dnnl_fuse_norm_relu = 0x4U,
+
+    /// Use scale parameter
+    ///
+    /// If specified:
+    ///  - on forward propagation use scale for the batch normalization results
+    ///  - on backward propagation (for prop_kind == #dnnl_backward) compute
+    ///    diff wrt scale (hence one extra output used)
+    dnnl_use_scale = 0x8U,
+
+    /// Use shift parameter
+    ///
+    /// If specified:
+    ///  - on forward propagation use shift (aka bias) for the batch
+    ///    normalization results
+    ///  - on backward propagation (for prop_kind == #dnnl_backward) compute
+    ///    diff wrt shift (hence one extra output used)
+    dnnl_use_shift = 0x10U,
 } dnnl_normalization_flags_t;
 
 /// @} dnnl_api_primitives_common
@@ -2445,6 +2462,11 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// Variance values tensor argument.
 #define DNNL_ARG_VARIANCE 50
 
+/// A special mnemonic for scale argument of normalization primitives.
+#define DNNL_ARG_SCALE 51
+/// A special mnemonic for shift argument of normalization primitives.
+#define DNNL_ARG_SHIFT 52
+
 /// Workspace tensor argument. Workspace is used to pass information
 /// from forward propagation to backward propagation computations.
 #define DNNL_ARG_WORKSPACE 64
@@ -2525,6 +2547,11 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 
 /// Gradient (diff) of the bias tensor argument.
 #define DNNL_ARG_DIFF_BIAS 169
+
+/// A special mnemonic for scale argument of normalization primitives.
+#define DNNL_ARG_DIFF_SCALE 255
+/// A special mnemonic for shift argument of normalization primitives.
+#define DNNL_ARG_DIFF_SHIFT 256
 
 /// Output scaling factors provided at execution time.
 #define DNNL_ARG_ATTR_OUTPUT_SCALES 513
