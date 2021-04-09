@@ -28,6 +28,21 @@ namespace cpu {
 namespace x64 {
 namespace matmul {
 
+constexpr int max_batch_ndims = DNNL_MAX_NDIMS - 2;
+
+struct brgemm_matmul_bcast_desc_t {
+    int bcast_mask; // sets bcast_dim = 1, non_bcast_dim = 0
+
+    int first_bcast_dim {-1};
+    int last_bcast_dim {-1};
+
+    dim_t first_bcast_dim_to_last_batch_dim_prod {1};
+    dim_t bcast_dims_prod {1};
+
+    dim_t batch_dims[max_batch_ndims];
+    dim_t gb_off[max_batch_ndims]; // generalized batch offset
+};
+
 struct brgemm_matmul_conf_t {
     int ndims, batch_ndims;
     dim_t M, N, K, batch, batch_without_first_dim;
@@ -57,8 +72,8 @@ struct brgemm_matmul_conf_t {
     bool use_buffer_b;
     bool use_buffer_c;
 
-    bool is_A_broadcast;
-    bool is_B_broadcast;
+    brgemm_matmul_bcast_desc_t bcast_A_desc;
+    brgemm_matmul_bcast_desc_t bcast_B_desc;
 
     data_type_t src_dt;
     data_type_t dst_dt;

@@ -136,17 +136,30 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     matmul_helper_t helper(src_d, weights_d, dst_d);
 
     bgmmc.batch_ndims = bgmmc.ndims - 2;
-    if (bgmmc.batch_ndims == 1) {
-        // Support broadcast across a single batch dimension only
-        bgmmc.is_A_broadcast = src_d.dims()[0] == 1;
-        bgmmc.is_B_broadcast = weights_d.dims()[0] == 1;
-    } else {
-        for (int d = 0; d < (int)bgmmc.batch_ndims; d++) {
-            if (!everyone_is(
-                        src_d.dims()[d], weights_d.dims()[d], dst_d.dims()[d]))
-                return status::unimplemented;
+
+    auto init_bcast_desc = [&](brgemm_matmul_bcast_desc_t &bd,
+                                   const dims_t &inp_dims) {
+        const int ndims = bgmmc.batch_ndims;
+        const int mask = 1 << (ndims - 1);
+        bd.first_bcast_dim_to_last_batch_dim_prod = bgmmc.batch;
+        for (int d = 0; d < ndims; ++d) {
+            bd.batch_dims[d] = dst_d.dims()[d];
+            bd.gb_off[d] = (d == 0 ? bgmmc.batch : bd.gb_off[d - 1])
+                    / dst_d.dims()[d];
+            if (dst_d.dims()[d] != 1 && inp_dims[d] == 1) { // broadcast
+                bd.bcast_mask |= (mask >> d);
+                if (bd.first_bcast_dim == -1) {
+                    bd.first_bcast_dim = d;
+                    if (d == 0) // broadcast_dim == B0
+                        bd.first_bcast_dim_to_last_batch_dim_prod = bgmmc.batch;
+                }
+                bd.last_bcast_dim = d;
+                bd.bcast_dims_prod *= dst_d.dims()[d];
+            }
+            if (bd.first_bcast_dim == -1) // broadcast_dim > B0
+                bd.first_bcast_dim_to_last_batch_dim_prod /= dst_d.dims()[d];
         }
-    }
+    };
 
     bgmmc.M = helper.M();
     bgmmc.N = helper.N();
@@ -154,6 +167,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.batch = helper.batch();
     bgmmc.batch_without_first_dim
             = bgmmc.batch_ndims > 1 ? helper.batch() / dst_d.dims()[0] : 0;
+
+    init_bcast_desc(bgmmc.bcast_A_desc, src_d.dims());
+    init_bcast_desc(bgmmc.bcast_B_desc, weights_d.dims());
 
     // required granularity for k dimension
     const int k_gran = is_amx_int8 ? 4 : (is_amx_bf16 ? 2 : 1);
@@ -402,12 +418,8 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
     for (int d = 0; d < dmax; d++) {
         dims_t idx = {0};
         idx[bgmmc.ndims - 1 - d] = 1;
-        bgmmc.A_strides[d] = IMPLICATION(bgmmc.is_A_broadcast, d != dmax - 1)
-                ? bgmmc.a_dt_sz * src_d.off_v(idx)
-                : 0;
-        bgmmc.B_strides[d] = IMPLICATION(bgmmc.is_B_broadcast, d != dmax - 1)
-                ? bgmmc.b_dt_sz * wei_d.off_v(idx)
-                : 0;
+        bgmmc.A_strides[d] = bgmmc.a_dt_sz * src_d.off_v(idx);
+        bgmmc.B_strides[d] = bgmmc.b_dt_sz * wei_d.off_v(idx);
         bgmmc.C_strides[d] = bgmmc.c_dt_sz * dst_d.off_v(idx);
     }
 

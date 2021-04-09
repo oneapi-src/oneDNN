@@ -502,12 +502,38 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         base_brg_ker_idx_ = pd->get_brg_kernel_idx(true, false, false, false);
     }
 
+    // NOTE: gb --> generalized batch, bb --> broadcast batch
+    int get_bb_idx(int gb_idx, const brgemm_matmul_bcast_desc_t &bd) const {
+        if (!bd.bcast_mask) // no broadcast
+            return gb_idx;
+
+        int gb_off_before_bcast = utils::rnd_dn(
+                gb_idx, bd.first_bcast_dim_to_last_batch_dim_prod);
+        int bb_idx = gb_off_before_bcast / (bd.bcast_dims_prod);
+
+        dim_t cur_bcast_dims_prod = bd.bcast_dims_prod;
+        int mask = 1 << (bgmmc_.batch_ndims - bd.first_bcast_dim - 1);
+        for (int d = bd.first_bcast_dim; d < bd.last_bcast_dim; ++d) {
+            if (bd.bcast_mask & mask) // broadcast
+                cur_bcast_dims_prod /= bd.batch_dims[d];
+            else {
+                int cur_b = (gb_idx / bd.gb_off[d]) % bd.batch_dims[d];
+                bb_idx += cur_b * (bd.gb_off[d] / cur_bcast_dims_prod);
+            }
+            mask >>= 1;
+        }
+        bb_idx += gb_idx % bd.gb_off[bd.last_bcast_dim];
+        return bb_idx;
+    }
+
     const char *get_data_A_ptr(int b, int m, int k) const {
-        return data_A_ptr_ + get_data_A_off(b, m, k);
+        int cur_b = get_bb_idx(b, bgmmc_.bcast_A_desc);
+        return data_A_ptr_ + get_data_A_off(cur_b, m, k);
     }
 
     const char *get_data_B_ptr(int b, int k, int n) const {
-        return data_B_ptr_ + get_data_B_off(b, k, n);
+        int cur_b = get_bb_idx(b, bgmmc_.bcast_B_desc);
+        return data_B_ptr_ + get_data_B_off(cur_b, k, n);
     }
 
     char *get_data_C_ptr(int b, int m, int n) const {
