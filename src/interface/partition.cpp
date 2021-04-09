@@ -100,7 +100,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_infer_shape(partition_t *partition,
     return ret;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_partition_get_inputs_num(
+status_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports_num(
         const partition_t *partition, uint64_t *num) {
     if (partition == nullptr || num == nullptr) {
         return status::invalid_argument;
@@ -110,7 +110,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_inputs_num(
     return status::success;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_partition_get_outputs_num(
+status_t DNNL_GRAPH_API dnnl_graph_partition_get_out_ports_num(
         const partition_t *partition, uint64_t *num) {
     if (partition == nullptr || num == nullptr) {
         return status::invalid_argument;
@@ -120,7 +120,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_outputs_num(
     return status::success;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_partition_get_inputs(
+status_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports(
         const partition_t *partition, uint64_t num, logical_tensor_t *inputs) {
     if (utils::any_null(partition, inputs)
             || partition->get_inputs_num() != num) {
@@ -135,7 +135,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_inputs(
     return status::success;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_partition_get_outputs(
+status_t DNNL_GRAPH_API dnnl_graph_partition_get_out_ports(
         const partition_t *partition, uint64_t num, logical_tensor_t *outputs) {
     if (utils::any_null(partition, outputs)
             || partition->get_outputs_num() != num) {

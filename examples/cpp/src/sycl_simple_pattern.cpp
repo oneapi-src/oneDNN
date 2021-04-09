@@ -279,8 +279,8 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
     for (size_t i = 0; i < partitions.size(); ++i) {
         if (partitions[i].is_supported()) {
             std::cout << "\nPartition[" << partitions[i].get_id() << "] is being processed.\n";
-            std::vector<logical_tensor> inputs = partitions[i].get_inputs();
-            std::vector<logical_tensor> outputs = partitions[i].get_outputs();
+            std::vector<logical_tensor> inputs = partitions[i].get_in_ports();
+            std::vector<logical_tensor> outputs = partitions[i].get_out_ports();
 
             /// replace input logical tensor with the queried one
             replace_with_queried_logical_tensors(inputs, id_to_queried_logical_tensors);
@@ -296,7 +296,7 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
             //[Compile partition]
             std::cout << "Success!\n";
 
-            record_queried_logical_tensors(partitions[i].get_outputs(), c_partitions[i],
+            record_queried_logical_tensors(partitions[i].get_out_ports(), c_partitions[i],
                 id_to_queried_logical_tensors);
 
             std::cout << "Creating tensors and allocating memory buffer--";

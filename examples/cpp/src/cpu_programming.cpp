@@ -137,8 +137,8 @@ int cpu_programming_tutorial(engine::kind engine_kind) {
     for (size_t i = 0; i < partitions.size(); ++i) {
         if (partitions[i].is_supported()) {
             std::cout << "\nPartition[" << partitions[i].get_id() << "] is being processed.\n";
-            std::vector<logical_tensor> inputs = partitions[i].get_inputs();
-            std::vector<logical_tensor> outputs = partitions[i].get_outputs();
+            std::vector<logical_tensor> inputs = partitions[i].get_in_ports();
+            std::vector<logical_tensor> outputs = partitions[i].get_out_ports();
 
             std::cout << "Compiling--------------------------------------";
             /// compile to generate compiled partition

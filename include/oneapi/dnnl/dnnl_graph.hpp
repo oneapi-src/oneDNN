@@ -800,15 +800,15 @@ public:
     /// Returns a list of input logical tensors from the partition
     ///
     /// @returns A list of input logical tensors
-    std::vector<logical_tensor> get_inputs() const {
+    std::vector<logical_tensor> get_in_ports() const {
         uint64_t num;
-        error::check_succeed(dnnl_graph_partition_get_inputs_num(get(), &num),
+        error::check_succeed(dnnl_graph_partition_get_in_ports_num(get(), &num),
                 "could not get number of inputs of the partition");
         if (num == 0) return {};
 
         std::vector<dnnl_graph_logical_tensor_t> c_inputs(num);
         error::check_succeed(
-                dnnl_graph_partition_get_inputs(get(), num, c_inputs.data()),
+                dnnl_graph_partition_get_in_ports(get(), num, c_inputs.data()),
                 "could not get input logical tensors of the partition");
 
         std::vector<logical_tensor> inputs;
@@ -821,15 +821,16 @@ public:
     /// Returns a list of output logical tensors from the partition
     ///
     /// @returns A list of output logical tensor
-    std::vector<logical_tensor> get_outputs() const {
+    std::vector<logical_tensor> get_out_ports() const {
         uint64_t num;
-        error::check_succeed(dnnl_graph_partition_get_outputs_num(get(), &num),
+        error::check_succeed(
+                dnnl_graph_partition_get_out_ports_num(get(), &num),
                 "cannot get number of outputs of the partition");
         if (num == 0) return {};
 
         std::vector<dnnl_graph_logical_tensor_t> c_outputs(num);
-        error::check_succeed(
-                dnnl_graph_partition_get_outputs(get(), num, c_outputs.data()),
+        error::check_succeed(dnnl_graph_partition_get_out_ports(
+                                     get(), num, c_outputs.data()),
                 "could not get output logical tensors of the partition");
 
         std::vector<logical_tensor> outputs;

@@ -36,7 +36,7 @@ void set_any_layout(const std::vector<dnnl::graph::partition> &partitions,
     // partitions, we may only need outputs' supported flags
     std::unordered_map<size_t, std::vector<bool>> output_to_flag_map;
     for (const auto &p : partitions) {
-        for (const auto &out : p.get_outputs()) {
+        for (const auto &out : p.get_out_ports()) {
             size_t id = out.get_id();
             if (p.is_supported()
                     && output_to_flag_map.find(id)
@@ -45,7 +45,7 @@ void set_any_layout(const std::vector<dnnl::graph::partition> &partitions,
             }
         }
 
-        for (const auto &in : p.get_inputs()) {
+        for (const auto &in : p.get_in_ports()) {
             size_t id = in.get_id();
             auto iter = output_to_flag_map.find(id);
             if (iter != output_to_flag_map.end()) {
@@ -76,7 +76,7 @@ void set_any_layout(const std::vector<dnnl::graph::partition> &partitions,
     for (const auto &p : partitions) {
         // no need to set `any` layout if this partition is not supported
         if (!p.is_supported()) continue;
-        for (const auto &in : p.get_inputs()) {
+        for (const auto &in : p.get_in_ports()) {
             size_t id = in.get_id();
             auto iter = output_to_flag_map.find(id);
             // if this input tensor is not an output of another supported

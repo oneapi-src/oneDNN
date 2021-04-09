@@ -146,13 +146,13 @@ TEST(api_partition, get_inputs_outputs_ids) {
     ASSERT_EQ(partitions.size(), 1);
 
     // check ids of inputs
-    std::vector<logical_tensor> got_inputs = partitions[0].get_inputs();
+    std::vector<logical_tensor> got_inputs = partitions[0].get_in_ports();
     ASSERT_EQ(got_inputs.size(), input_ids.size());
     for (size_t i = 0; i < got_inputs.size(); ++i)
         ASSERT_EQ(got_inputs[i].get_id(), input_ids[i]);
 
     // check ids of outputs
-    std::vector<logical_tensor> got_outputs = partitions[0].get_outputs();
+    std::vector<logical_tensor> got_outputs = partitions[0].get_out_ports();
     ASSERT_EQ(got_outputs.size(), output_ids.size());
     for (size_t i = 0; i < got_outputs.size(); ++i)
         ASSERT_EQ(got_outputs[i].get_id(), output_ids[i]);

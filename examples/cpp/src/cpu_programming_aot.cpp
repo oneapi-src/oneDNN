@@ -133,8 +133,8 @@ int cpu_programming_aot_tutorial(engine::kind engine_kind) {
     for (size_t i = 0; i < partitions.size(); ++i) {
         /// just skip compilation if this partition is not supported by oneDNN Graph backend
         if (partitions[i].is_supported()) {
-            std::vector<logical_tensor> inputs = partitions[i].get_inputs();
-            std::vector<logical_tensor> outputs = partitions[i].get_outputs();
+            std::vector<logical_tensor> inputs = partitions[i].get_in_ports();
+            std::vector<logical_tensor> outputs = partitions[i].get_out_ports();
             std::cout << "Compiling partition[" << partitions[i].get_id() << "]--------------------";
             /// compile to generate compiled partition
             c_partitions[i] = partitions[i].compile(inputs, outputs, e);
@@ -150,8 +150,8 @@ int cpu_programming_aot_tutorial(engine::kind engine_kind) {
         if (partitions[i].is_supported()) {
             std::cout << "\nPartition[" << partitions[i].get_id() << "] is being executed.\n";
             std::cout << "Creating tensors and allocating memory buffer--";
-            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(partitions[i].get_inputs(), c_partitions[i], 1);
-            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(partitions[i].get_outputs(), c_partitions[i], 0);
+            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(partitions[i].get_in_ports(), c_partitions[i], 1);
+            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(partitions[i].get_out_ports(), c_partitions[i], 0);
             std::cout << "Success!\n";
 
             std::cout << "Executing compiled partition-------------------";

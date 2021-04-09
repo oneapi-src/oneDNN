@@ -187,15 +187,15 @@ for (size_t i = 0; i < partitions.size(); ++i) {
 At the compilation stage, users need to provide input and output logical tensors
 for oneDNN Graph compilation API. The below APIs will be used for this purpose.
 
-- `partition.get_inputs()`: return the list of input logical tensors from the
+- `partition.get_in_ports()`: return the list of input logical tensors from the
   partition
 
-- `partition.get_outputs()`: return the list of output logical tensors from the
-  partition
+- `partition.get_out_ports()`: return the list of output logical tensors from
+  the partition
 
 ~~~cpp
-std::vector<logical_tensor> inputs = partitions[i].get_inputs();
-std::vector<logical_tensor> outputs = partitions[i].get_outputs();
+std::vector<logical_tensor> inputs = partitions[i].get_in_ports();
+std::vector<logical_tensor> outputs = partitions[i].get_out_ports();
 ~~~
 
 Then, users can compile the partition according to the given inputs/outputs.
