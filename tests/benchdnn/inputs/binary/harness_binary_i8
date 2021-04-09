@@ -41,5 +41,5 @@
 --batch=option_set_all
 
 ## Check for proper saturation
---attr-scales=src:common:4.29497e+09_src1:common:4.29497e+09
+--attr-scales=src:common:4294967295_src1:common:4294967295
 --batch=option_set_all
