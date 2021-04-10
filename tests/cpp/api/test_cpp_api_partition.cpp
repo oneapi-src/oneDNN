@@ -70,6 +70,9 @@ TEST(api_partition, partition_test) {
     auto partitions = g.get_partitions(partition::policy::fusion);
     ASSERT_EQ(partitions.size(), 1);
 
+    // check partition engine kind
+    ASSERT_EQ(partitions[0].get_engine_kind(), engine_kind);
+
     //get_ops
     std::vector<size_t> ops = partitions[0].get_ops();
     ASSERT_EQ(ops.size(), 2);
