@@ -454,6 +454,16 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_out_ports(
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_is_supported(
         const dnnl_graph_partition_t *partition, uint8_t *is_supported);
 
+/// Returns the engine kind of the partition
+///
+/// @param partition The target partition.
+/// @param kind The output engine kind.
+/// @returns #dnnl_graph_result_success on success and a status describing the
+///     error otherwise.
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_engine_kind(
+        const dnnl_graph_partition_t *partition,
+        dnnl_graph_engine_kind_t *kind);
+
 /// @} dnnl_graph_api_partition
 
 /// @addtogroup dnnl_graph_api_conversion

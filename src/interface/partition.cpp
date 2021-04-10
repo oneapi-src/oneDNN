@@ -159,6 +159,14 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_is_supported(
     return status::success;
 }
 
+status_t DNNL_GRAPH_API dnnl_graph_partition_get_engine_kind(
+        const partition_t *partition, engine_kind_t *kind) {
+    if (utils::any_null(partition, kind)) { return status::invalid_argument; }
+
+    *kind = partition->get_pimpl()->get_engine_kind();
+    return status::success;
+}
+
 /// Initializes a conversion partition
 status_t DNNL_GRAPH_API dnnl_graph_conversion_init(partition_t *conversion,
         const logical_tensor_t *input, const logical_tensor_t *output,

@@ -840,6 +840,18 @@ public:
         return outputs;
     }
 
+    /// Returns the engine kind of the partition
+    ///
+    /// @returns The engine kind
+    engine::kind get_engine_kind() const {
+        dnnl_graph_engine_kind_t akind;
+        error::check_succeed(
+                dnnl_graph_partition_get_engine_kind(get(), &akind),
+                "cannot get the engine kind from the partition");
+
+        return static_cast<engine::kind>(akind);
+    }
+
 private:
     compiled_partition compile_(const std::vector<logical_tensor> &inputs,
             const std::vector<logical_tensor> &outputs, const engine *e) const {
