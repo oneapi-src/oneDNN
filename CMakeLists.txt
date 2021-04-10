@@ -144,16 +144,6 @@ enable_testing()
 
 include_directories(include)
 
-if(DNNL_CPU_SYCL)
-    if(TBB_FOUND)
-        set(DNNL_CPU_THREADING_RUNTIME "TBB")
-    else()
-        set(DNNL_CPU_THREADING_RUNTIME "SEQ")
-    endif()
-else()
-    set(DNNL_CPU_THREADING_RUNTIME "${DNNL_CPU_RUNTIME}")
-endif()
-
 configure_file(
     "${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/dnnl_config.h.in"
     "${PROJECT_BINARY_DIR}/include/oneapi/dnnl/dnnl_config.h"
