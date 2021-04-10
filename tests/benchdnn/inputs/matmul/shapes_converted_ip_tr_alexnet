@@ -1,0 +1,17 @@
+# These problems are ported from corresponding inner product shapes for
+# training mb=1024
+
+# FWD
+1024x9216:9216x4096n"Alexnet_train:FWD_ip1*1"
+1024x4096:4096x4096n"Alexnet_train:FWD_ip2*1"
+1024x4096:4096x1000n"Alexnet_train:FWD_ip3*1"
+
+# BWD/D
+1024x4096:4096x9216n"Alexnet_train:BWD_D_ip1*1"
+1024x4096:4096x4096n"Alexnet_train:BWD_D_ip2*1"
+1024x1000:1000x4096n"Alexnet_train:BWD_D_ip3*1"
+
+# BWD/W
+9216x1024:1024x4096n"Alexnet_train:BWD_W_ip1*1"
+4096x1024:1024x4096n"Alexnet_train:BWD_W_ip2*1"
+4096x1024:1024x1000n"Alexnet_train:BWD_W_ip3*1"

@@ -1,0 +1,13 @@
+--batch=shapes_converted_ip_tr_gmnt
+--batch=shapes_converted_ip_tr_wd
+--batch=shapes_converted_ip_tr_resnet
+--batch=shapes_converted_ip_tr_googlenet
+--batch=shapes_converted_ip_tr_vgg16
+--batch=shapes_converted_ip_tr_ncf
+--batch=shapes_converted_ip_tr_alexnet
+--batch=shapes_converted_ip_tr_maskrcnn
+--batch=shapes_converted_ip_tr_bert
+--batch=shapes_converted_ip_tr_bert_large
+--batch=shapes_converted_ip_tr_rnn_t
+--batch=shapes_converted_ip_tr_dlrm
+--batch=shapes_converted_ip_tr_transformer_lt

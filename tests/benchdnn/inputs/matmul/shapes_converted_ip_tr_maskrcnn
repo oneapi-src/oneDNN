@@ -1,0 +1,20 @@
+# These problems are ported from corresponding inner product shapes for
+# training mb=512
+
+# FWD
+512x12544:12544x1024n"masknet_train:FWD_ip1*1"
+512x1024:1024x1024n"masknet_train:FWD_ip2*1"
+512x1024:1024x324n"masknet_train:FWD_ip3*1"
+512x1024:1024x81n"masknet_train:FWD_ip4*1"
+
+# BWD/D
+512x1024:1024x12544n"masknet_train:BWD_D_ip1*1"
+512x1024:1024x1024n"masknet_train:BWD_D_ip2*1"
+512x324:324x1024n"masknet_train:BWD_D_ip3*1"
+512x81:81x1024n"masknet_train:BWD_D_ip4*1"
+
+# BWD/W
+12544x512:512x1024n"masknet_train:BWD_W_ip1*1"
+1024x512:512x1024n"masknet_train:BWD_W_ip2*1"
+1024x512:512x324n"masknet_train:BWD_W_ip3*1"
+1024x512:512x81n"masknet_train:BWD_W_ip4*1"
