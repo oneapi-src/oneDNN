@@ -246,7 +246,7 @@ inline U logistic_bwd_use_dst(T dd, T d) {
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U soft_relu_fwd(T s) {
-    float exp_overflow_bound = 88.72283172607421875;
+    float exp_overflow_bound = 20.f;
     float in = (float)s;
     return in < exp_overflow_bound ? (U)(::log1pf(::expf(in))) : (U)in;
 }

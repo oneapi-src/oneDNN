@@ -786,9 +786,9 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_compute_vector_fwd(
     h->uni_vaddps(vmm_src, vmm_src, vmm_aux1);
     h->uni_vaddps(vmm_src, vmm_src, vmm_aux0);
 
-    // get vmm_mask = src > max logf
-    // y = (x < max log f) ? soft_relu(x) : x
-    compute_cmp_mask(vmm_aux2, table_val(exp_ln_flt_max_f), _cmp_gt_os);
+    // get vmm_mask = src > 20.f
+    // y = (x < 20.f) ? soft_relu(x) : x
+    compute_cmp_mask(vmm_aux2, table_val(soft_relu_twenty), _cmp_gt_os);
     blend_with_mask(vmm_src, vmm_aux2);
 }
 
@@ -2221,6 +2221,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::register_table_entries() {
     static const table_t soft_relu_consts {
             {soft_relu_one_twenty_six, {0x42fc0000, true}},
             {soft_relu_mantissa_sign_mask, {0x807fffff, true}},
+            {soft_relu_twenty, {0x41a00000, true}},
     };
 
     // soft_relu ln(1 + x) polynomial approximation
