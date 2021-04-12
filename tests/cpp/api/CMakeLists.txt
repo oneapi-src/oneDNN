@@ -62,3 +62,4 @@ set(TEST_FILES_NEED_VERSION ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_version.cpp
 APPLY_VERSION_DEFINITIONS("${TEST_FILES_NEED_VERSION}")
 
 add_test("${LIB_NAME}_api_test" "${LIB_NAME}_api_test")
+maybe_configure_windows_test("${LIB_NAME}_api_test" TEST)

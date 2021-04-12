@@ -54,6 +54,28 @@ make -j
 make doc
 ~~~
 
+### Windows
+
+- Generate a Microsoft Visual Studio solution
+
+~~~cmd
+mkdir build && cd build
+cmake .. -G "Visual Studio 16 2019"
+~~~
+
+To build with unittests and examples
+
+~~~cmd
+mkdir build && cd build
+cmake .. -G "Visual Studio 16 2019" -DDNNL_GRAPH_BUILD_TESTS=1 -DDNNL_GRAPH_BUILD_EXAMPLES=1 -DCTESTCONFIG_PATH=\\PATH\TO\oneDNNGRAPH\build\src\Release
+~~~
+
+- Build the Library
+
+~~~cmd
+cmake --build . --config Release
+~~~
+
 ## Validate the Build
 
 If the library is built for the host system, you can run unit tests and examples

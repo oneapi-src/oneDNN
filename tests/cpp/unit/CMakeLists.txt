@@ -63,8 +63,9 @@ target_link_libraries(${LIB_NAME}_unit_test
     ${DNNL_GRAPH_TEST_LINK_FLAGS}
     ${LIB_NAME}_gtest
     ${LIB_NAME}_static # Use static to access private symbols not available in public API
-    dl
+    ${EXTRA_SHARED_LIBS}
     ${DNNL_GRAPH_COMMON_LINK_FLAGS} # FIXME: consider target_link_options from cmake 3.13
     )
 
 add_test("${LIB_NAME}_unit_test" "${LIB_NAME}_unit_test")
+maybe_configure_windows_test("${LIB_NAME}_unit_test" TEST)

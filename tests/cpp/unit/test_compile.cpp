@@ -171,6 +171,7 @@ void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic, impl::dim_t ih,
     float *mean_ptr = nullptr;
     float *variance_ptr = nullptr;
 
+    size_t mb_ = static_cast<size_t>(mb);
     size_t ic_ = static_cast<size_t>(ic);
     size_t ih_ = static_cast<size_t>(ih);
     size_t iw_ = static_cast<size_t>(iw);
@@ -193,11 +194,11 @@ void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic, impl::dim_t ih,
     float *src_ptr = src->get_data_handle<float>();
 
     // derives ref mean
-    for (size_t channel = 0; channel < ic; ++channel) {
+    for (size_t channel = 0; channel < ic_; ++channel) {
         mean_ptr[channel] = 0.f;
-        for (size_t batch = 0; batch < mb; ++batch) {
-            for (size_t h = 0; h < ih; ++h) {
-                for (size_t w = 0; w < iw; ++w) {
+        for (size_t batch = 0; batch < mb_; ++batch) {
+            for (size_t h = 0; h < ih_; ++h) {
+                for (size_t w = 0; w < iw_; ++w) {
                     size_t idx = channel_last
                             ? channel + w * ic_ + h * iw_ * ic_
                                     + batch * ih_ * iw_ * ic_
@@ -207,14 +208,14 @@ void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic, impl::dim_t ih,
                 }
             }
         }
-        mean_ptr[channel] /= static_cast<float>(mb * ih * iw);
+        mean_ptr[channel] /= static_cast<float>(mb_ * ih_ * iw_);
     }
     // derives ref variance
-    for (size_t channel = 0; channel < ic; ++channel) {
+    for (size_t channel = 0; channel < ic_; ++channel) {
         variance_ptr[channel] = 0.f;
-        for (size_t batch = 0; batch < mb; ++batch) {
-            for (size_t h = 0; h < ih; ++h) {
-                for (size_t w = 0; w < iw; ++w) {
+        for (size_t batch = 0; batch < mb_; ++batch) {
+            for (size_t h = 0; h < ih_; ++h) {
+                for (size_t w = 0; w < iw_; ++w) {
                     size_t idx = channel_last
                             ? channel + w * ic_ + h * iw_ * ic_
                                     + batch * ih_ * iw_ * ic_
@@ -231,10 +232,10 @@ void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic, impl::dim_t ih,
     float *dst_ptr = dst->get_data_handle<float>();
     float *scale_ptr = scale->get_data_handle<float>();
     float *shift_ptr = shift->get_data_handle<float>();
-    for (size_t batch = 0; batch < mb; ++batch) {
-        for (size_t channel = 0; channel < ic; ++channel) {
-            for (size_t h = 0; h < ih; ++h) {
-                for (size_t w = 0; w < iw; ++w) {
+    for (size_t batch = 0; batch < mb_; ++batch) {
+        for (size_t channel = 0; channel < ic_; ++channel) {
+            for (size_t h = 0; h < ih_; ++h) {
+                for (size_t w = 0; w < iw_; ++w) {
                     size_t idx = channel_last
                             ? channel + w * ic_ + h * iw_ * ic_
                                     + batch * ih_ * iw_ * ic_

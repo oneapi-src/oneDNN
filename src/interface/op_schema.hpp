@@ -292,7 +292,11 @@ private:
     static op_name_version_schema_map &get_map();
 };
 
+#ifdef GNUC
 #define DNNL_GRAPH_UNUSED __attribute__((__unused__))
+#else
+#define DNNL_GRAPH_UNUSED
+#endif // GNUC
 
 void register_schema(op_schema &&schema);
 

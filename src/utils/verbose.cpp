@@ -19,7 +19,11 @@
 #include <memory>
 #include <stdlib.h>
 #include <vector>
+#ifndef _WIN32
 #include <sys/time.h>
+#else
+#include <windows.h>
+#endif
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
@@ -47,6 +51,8 @@
 #define DNNL_GRAPH_VERSION_HASH "N/A"
 #endif
 
+#define DFMT "%" PRId64
+
 namespace dnnl {
 namespace graph {
 namespace impl {
@@ -54,10 +60,18 @@ namespace utils {
 
 // The following code is derived from oneDNN/src/common/verbose.cpp
 double get_msec() {
+#ifdef _WIN32
+    static LARGE_INTEGER frequency;
+    if (frequency.QuadPart == 0) QueryPerformanceFrequency(&frequency);
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    return 1e+3 * now.QuadPart / frequency.QuadPart;
+#else
     struct timeval time;
     gettimeofday(&time, nullptr);
     return 1e+3 * static_cast<double>(time.tv_sec)
             + 1e-3 * static_cast<double>(time.tv_usec);
+#endif
 }
 
 int getenv(const char *name, char *buffer, int buffer_size) {
@@ -193,7 +207,7 @@ void clear_buf(char *buf, int &written) {
 void verbose_templ_no_engine_kind(char *buffer, size_t parition_id,
         const char *op_name_str, const char *fmt_str, const char *data_str,
         const char *backend_str, int written = 0) {
-    DPRINT(buffer, DNNL_GRAPH_VERBOSE_BUF_LEN, written, "%ld,%s,%s,%s,%s",
+    DPRINT(buffer, DNNL_GRAPH_VERBOSE_BUF_LEN, written, DFMT ",%s,%s,%s,%s",
             parition_id, op_name_str, fmt_str, data_str, backend_str);
 }
 
@@ -209,9 +223,9 @@ int logical_tensor2dim_str(char *str, size_t str_len,
 
     PUTS(":");
     for (int i = 0; i < ndim - 1; ++i) {
-        PUTS("%ldx", dims[i]);
+        PUTS(DFMT "x", dims[i]);
     }
-    PUTS("%ld", dims[ndim - 1]);
+    PUTS(DFMT, dims[ndim - 1]);
 
     return written_len;
 }
@@ -229,11 +243,11 @@ int logical_tensor2layout_str(char *str, size_t str_len,
     if (lt.layout_type() == impl::layout_type::strided) {
         const auto strides = lt.strides();
         for (int i = 0; i < ndim - 1; ++i) {
-            PUTS("%lds", strides[i]);
+            PUTS(DFMT "s", strides[i]);
         }
-        PUTS("%ld", strides[ndim - 1]);
+        PUTS(DFMT "d", strides[ndim - 1]);
     } else if (lt.layout_type() == impl::layout_type::opaque) {
-        PUTS("%ld", lt.layout_id());
+        PUTS(DFMT "d", lt.layout_id());
     } else {
         assert(!"layout type must be any, strided or opaque.");
     }
@@ -246,7 +260,7 @@ int logical_tensor2str(char *str, size_t str_len,
     if (str == nullptr || str_len <= 1u) return -1;
 
     int written = 0;
-    DPRINT(str, DNNL_GRAPH_VERBOSE_DAT_LEN, written, "%s:%ld:%s",
+    DPRINT(str, DNNL_GRAPH_VERBOSE_DAT_LEN, written, "%s:" DFMT ":%s",
             data_type2str(logical_tensor.data_type), logical_tensor.id,
             layout_type2str(logical_tensor.layout_type));
 

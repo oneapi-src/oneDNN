@@ -61,8 +61,12 @@ void Logger::log_message_int(int32_t level, const char *message) {
     const std::lock_guard<std::mutex> lock(mutex_);
     const time_t tt = std::chrono::system_clock::to_time_t(
             std::chrono::system_clock::now());
+#ifdef _WIN32
+    auto tm = gmtime(&tt); // NOLINT
+#else
     struct tm buf;
     auto tm = gmtime_r(&tt, &buf);
+#endif /* _WIN32 */
     if (tm) {
         char buffer[256];
         strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%Sz", tm);

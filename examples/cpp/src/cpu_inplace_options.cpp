@@ -243,7 +243,7 @@ int main(int argc, char **argv) {
     float *actual_output_ptr = tm.get(add_dst_desc.get_id()).get_data_handle<float>();
     auto output_dims = add_dst_desc.get_dims();
     auto num_elem = product(output_dims);
-    for (int i = 0; i < num_elem; ++i) {
+    for (int64_t i = 0; i < num_elem; ++i) {
         if (std::abs(expected_result - actual_output_ptr[i]) > 1e-6f) {
             printf("expected = %.2f, actual = %.2f\n", expected_result, actual_output_ptr[i]);
             throw std::runtime_error(

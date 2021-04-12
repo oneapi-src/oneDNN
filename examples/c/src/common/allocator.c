@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,10 +22,19 @@
 void *allocate(size_t mem_size, dnnl_graph_allocator_attr_t attr) {
     (void)attr;
     void *ptr;
+#ifdef _WIN32
+    ptr = _aligned_malloc(mem_size, MEM_ALIGNMENT);
+    int ret = ((ptr) ? 0 : errno);
+#else
     int ret = posix_memalign(&ptr, MEM_ALIGNMENT, mem_size);
+#endif /* _WIN32 */
     return (ret == 0) ? ptr : NULL;
 }
 
 void deallocate(void *buffer) {
+#ifdef _WIN32
+    _aligned_free(buffer);
+#else
     free(buffer);
+#endif /* _WIN32 */
 }

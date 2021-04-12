@@ -27,6 +27,18 @@ function(JOIN VALUES GLUE OUTPUT)
     set (${OUTPUT} "${_TMP_STR}" PARENT_SCOPE)
 endfunction()
 
+# Common configuration for tests / test cases on Windows
+function(maybe_configure_windows_test name kind)
+    if(WIN32)
+        string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
+        set_property(${kind} ${name} PROPERTY ENVIRONMENT "PATH=${PATH}")
+        if(TARGET ${name} AND CMAKE_GENERATOR MATCHES "Visual Studio")
+            configure_file(${PROJECT_SOURCE_DIR}/cmake/template.vcxproj.user
+                ${name}.vcxproj.user @ONLY)
+        endif()
+    endif()
+endfunction()
+
 # Append to a variable
 #   var = var + value
 macro(append var value)

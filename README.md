@@ -65,6 +65,10 @@ on macOS* 11.2 (BigSur) with
 * Apple LLVM version 12.0 (XCode 12.0)
 * [Intel C++ Compiler Classic](https://software.intel.com/content/www/us/en/develop/tools/oneapi/hpc-toolkit.html)
 
+on Windows* with
+
+* Microsoft Visual C++ 16.0 (Visual Studio 2019)
+
 GPU engine was validated on Ubuntu* 18.04 with
 * [Intel Graphics Compute Runtime for OpenCL](https://github.com/intel/compute-runtime/releases)
 * [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
@@ -96,6 +100,8 @@ directory with sudo or specifying the target directory via
 ```bash
 make install
 ```
+
+To build on Windows, see [Build from Source](./doc/build/build.md#Windows).
 
 ## Support
 

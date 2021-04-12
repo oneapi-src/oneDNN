@@ -238,7 +238,12 @@ int main(int argc, char **argv) {
     uint64_t partitions_num;
     DNNL_GRAPH_CHECK(
             dnnl_graph_graph_get_partition_num(graph, &partitions_num));
-    dnnl_graph_partition_t *partitions[partitions_num];
+    if (partitions_num != 2) {
+        printf("Error: partitions number is not equal to %llu\n",
+                (unsigned long long)partitions_num);
+        return -1;
+    }
+    dnnl_graph_partition_t *partitions[2];
     for (int i = 0; i < partitions_num; i++) {
         DNNL_GRAPH_CHECK(dnnl_graph_partition_create(&partitions[i]));
     }
@@ -264,7 +269,7 @@ int main(int argc, char **argv) {
         size_t ops_num;
         DNNL_GRAPH_CHECK(
                 dnnl_graph_partition_get_op_num(partitions[i], &ops_num));
-        size_t partition_ops_ids[ops_num];
+        size_t partition_ops_ids[2];
         DNNL_GRAPH_CHECK(dnnl_graph_partition_get_ops(
                 partitions[i], ops_num, partition_ops_ids));
 
@@ -341,7 +346,7 @@ int main(int argc, char **argv) {
     // Step 6: compile the partitions
     // do layout propagation and mount backend's execution kernel
     printf("Step 6: Compile the partitions----------");
-    dnnl_graph_compiled_partition_t *compiled_partitions[partitions_num];
+    dnnl_graph_compiled_partition_t *compiled_partitions[2];
     for (int i = 0; i < partitions_num; i++) {
         // we find the corresponding fake op in example graph, create
         // logical tensor according to its inputs and outputs example
@@ -353,7 +358,7 @@ int main(int argc, char **argv) {
                 &compiled_partitions[i], partitions[i]));
         p_map[idx].l_cp_ = compiled_partitions[i];
 
-        dnnl_graph_logical_tensor_t l_lts_in[e_op->inputs_num_];
+        dnnl_graph_logical_tensor_t l_lts_in[3];
         for (int j = 0; j < e_op->inputs_num_; j++) {
             example_tensor_t *e_t = e_op->inputs_[j];
 
@@ -374,7 +379,7 @@ int main(int argc, char **argv) {
             }
         }
 
-        dnnl_graph_logical_tensor_t l_lts_out[e_op->outputs_num_];
+        dnnl_graph_logical_tensor_t l_lts_out[2];
         for (int j = 0; j < e_op->outputs_num_; j++) {
             example_tensor_t *e_t = e_op->outputs_[j];
 
@@ -392,8 +397,8 @@ int main(int argc, char **argv) {
         }
 
         // compile the partition
-        const dnnl_graph_logical_tensor_t *l_lts_in_ptr[e_op->inputs_num_];
-        const dnnl_graph_logical_tensor_t *l_lts_out_ptr[e_op->outputs_num_];
+        const dnnl_graph_logical_tensor_t *l_lts_in_ptr[3];
+        const dnnl_graph_logical_tensor_t *l_lts_out_ptr[2];
         for (int j = 0; j < e_op->inputs_num_; j++) {
             l_lts_in_ptr[j] = l_lts_in + j;
         }
@@ -472,7 +477,7 @@ int main(int argc, char **argv) {
         int64_t idx = find_by_example_op(e_op);
         dnnl_graph_compiled_partition_t *l_cp = p_map[idx].l_cp_;
 
-        dnnl_graph_tensor_t *l_ts_in[e_op->inputs_num_];
+        dnnl_graph_tensor_t *l_ts_in[3];
         for (int j = 0; j < e_op->inputs_num_; j++) {
             example_tensor_t *e_t = e_op->inputs_[j];
 
@@ -484,7 +489,7 @@ int main(int argc, char **argv) {
                     &l_ts_in[j], &l_lt, e_t->data_));
         }
 
-        dnnl_graph_tensor_t *l_ts_out[e_op->outputs_num_];
+        dnnl_graph_tensor_t *l_ts_out[2];
         for (int j = 0; j < e_op->outputs_num_; j++) {
             example_tensor_t *e_t = e_op->outputs_[j];
 

@@ -70,7 +70,11 @@ public:
 };
 
 template <typename T>
+#if DNNL_GRAPH_WITH_SYCL
 using vector = std::vector<T, TestAllocator<T>>;
+#else
+using vector = std::vector<T>;
+#endif // DNNL_GRAPH_WITH_SYCL
 } // namespace test
 
 #endif
