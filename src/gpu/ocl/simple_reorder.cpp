@@ -148,6 +148,15 @@ bool dim_is_div_by_16_or_less_than_16(
     return (padded_dims[dim_index] % 16 == 0 || padded_dims[dim_index] < 16);
 }
 
+bool is_broadcast_by_strides(const memory_desc_wrapper &mdw) {
+    if (mdw.is_blocking_desc()) {
+        for (int i = 0; i < mdw.ndims(); i++) {
+            if (mdw.blocking_desc().strides[i] == 0) { return true; }
+        }
+    }
+    return false;
+}
+
 reorder_kernel_t select_kernel(const reorder_conf_t &conf,
         const memory_desc_wrapper &src_mdw, const memory_desc_wrapper &dst_mdw,
         const compute::device_info_t *dev_info) {
@@ -166,6 +175,10 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
 
     const bool allow_unroll
             = !conf.has_padding && !conf.scale_quant && !type_s8_u8;
+
+    if (is_broadcast_by_strides(src_mdw) || is_broadcast_by_strides(dst_mdw)) {
+        return reorder_kernel_t::reorder_reference;
+    }
     if (!conf.scale_quant) {
         if (matches_one_NxN_layout(src_mdw, dst_mdw, 16)) {
             // W/A for compiler bug: avoid using intel_sub_group_shuffle with
