@@ -341,8 +341,8 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
     nthr_ = nthr_mb_ = nthr_oc_b_ = nthr_ic_b_ = 1;
     nb_os_blocking_ = j.nb_os_blocking;
 
-    const bool is_amx_bf16 = j.isa == avx512_core_bf16_amx_bf16;
     const bool is_f32 = everyone_is(f32, j.src_dt, j.wei_dt, j.dst_dt);
+    const bool is_bf16 = everyone_is(bf16, j.src_dt, j.dst_dt);
 
     const int max_threads = j.nthr;
     const int nthr = max_threads;
@@ -355,7 +355,17 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
         int wei_size = j.ic * j.oc;
         int os_chunks = div_up(j.nb_os, nb_os_blocking);
         float wei_compensation_scale = 0.5f * (dst_size + src_size) / wei_size;
-        float oi_channels_ratio = (float)src_size / dst_size;
+
+        float oi_channels_ratio = 0;
+        if (is_bf16) {
+            oi_channels_ratio = ((j.oc > 3 * j.ic && os_chunks > 1)
+                                        || (os_chunks == 1 && j.ic > j.oc))
+                    ? (float)src_size / dst_size
+                    : (float)dst_size / src_size;
+        } else {
+            oi_channels_ratio = (float)src_size / dst_size;
+        }
+
         auto get_src_coef = [=]() {
             if (is_f32) {
                 float src_coef = nstl::max(1.0f / oi_channels_ratio, 1.0f);
@@ -440,7 +450,7 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
             = calc_mem_cost(nb_os_blocking_, nthr_mb_, nthr_oc_b_, nthr_ic_b_);
 
     /* find the best thread distribution with lowest memory cost */
-    const int min_osb_chunk = is_f32 ? 32 : 1;
+    const int min_osb_chunk = is_f32 ? 32 : is_bf16 ? 8 : 1;
     const int nthr_mb_max = nstl::min(nthr, div_up(j.nb_os, min_osb_chunk));
     for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
         int nb_os_blocking = j.nb_os_blocking;
@@ -459,16 +469,6 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
         const int nthr_oc_b_max = nstl::min(nthr_par, oc_chunks);
         for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
             int nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, ic_chunks);
-            if (is_amx_bf16) {
-                if (j.nb_ic_blocking != 2
-                        && utils::div_up(
-                                   utils::div_up(j.nb_ic, j.nb_ic_blocking),
-                                   nthr_ic_b)
-                                        % 2
-                                != 0)
-                    continue;
-            }
-
             float mem_cost = calc_mem_cost(
                     nb_os_blocking, nthr_mb, nthr_oc_b, nthr_ic_b);
             if (mem_cost <= best_mem_cost) {
@@ -488,10 +488,14 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
 
-    constexpr int amx_bf16_row = 32;
+    constexpr int amx_bf16_row = 64;
     const bool big_ic_blk_ok
             = is_f32 && jbgp.ic % (4 * jbgp.simd_w) == 0 && jbgp.mb <= 128;
-    jbgp.ic_block = big_ic_blk_ok ? 4 * jbgp.simd_w : jbgp.simd_w;
+    jbgp.ic_block = big_ic_blk_ok && !is_amx_bf16
+            ? 4 * jbgp.simd_w
+            : (is_amx_bf16 && jbgp.wei_dt != jbgp.acc_dt) ? amx_bf16_row
+                                                          : jbgp.simd_w;
+
     if (jbgp.oc >= 64)
         jbgp.oc_block = 64;
     else if (jbgp.oc >= 32)
@@ -499,14 +503,14 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     else
         jbgp.oc_block = 16;
 
+    jbgp.os = jbgp.mb;
+    jbgp.os_block = (is_amx_bf16) ? amx_bf16_row : 16;
+    jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
+
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
     jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
     jbgp.nb_oc_blocking = 1;
     jbgp.nb_ic_blocking = jbgp.nb_ic % 2 ? 1 : 2;
-
-    jbgp.os = jbgp.mb;
-    jbgp.os_block = (is_amx_bf16) ? amx_bf16_row : 16;
-    jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
 
     // Configure matrix sizes
     jbgp.M = jbgp.ic_block;
@@ -518,7 +522,13 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.K_tail = jbgp.os % jbgp.os_block;
 
     jbgp.nb_os_blocking = 1;
-    int os_blocking_max = 64;
+    int os_blocking_max = (is_amx_bf16)
+            ? ((size_t)jbgp.src_dt * jbgp.mb * jbgp.ic
+                      < platform::get_per_core_cache_size(2))
+                    ? 8
+                    : 4
+            : 64;
+
     for (int bl = os_blocking_max; bl >= 1; bl--)
         if (jbgp.nb_os % bl == 0) {
             jbgp.nb_os_blocking = bl;

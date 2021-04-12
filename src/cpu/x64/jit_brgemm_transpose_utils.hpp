@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,6 +88,32 @@ struct jit_brgemm_trans_wei_t {
     const jit_brgemm_primitive_conf_t *conf_;
 };
 
+struct jit_amx_ip_trans_diff_wei {
+    struct ctx_t {
+        const void *src;
+        const void *dst;
+
+        size_t last_oc_block;
+        size_t last_ic_block;
+    };
+
+    virtual void operator()(ctx_t *ctx) = 0;
+    virtual status_t create_kernel() = 0;
+
+    jit_amx_ip_trans_diff_wei(const jit_brgemm_primitive_conf_t *jbgp,
+            const int ext_ic_block, const int ext_oc_block)
+        : jbgp_(jbgp)
+        , ext_ic_block_(ext_ic_block)
+        , ext_oc_block_(ext_oc_block) {}
+
+    virtual ~jit_amx_ip_trans_diff_wei() {}
+
+    const jit_brgemm_primitive_conf_t *jbgp_;
+
+    int ext_ic_block_ = 0;
+    int ext_oc_block_ = 0;
+};
+
 status_t create_brgemm_trans_src(
         std::unique_ptr<jit_brgemm_trans_src_t> &trans_ker,
         const jit_brgemm_primitive_conf_t *conf);
@@ -98,7 +124,10 @@ status_t create_brgemm_trans_to_vnni(
 status_t create_brgemm_trans_wei(
         std::unique_ptr<jit_brgemm_trans_wei_t> &trans_ker,
         const jit_brgemm_primitive_conf_t *conf);
-
+status_t create_brgemm_amx_ip_trans_wei(
+        std::unique_ptr<jit_amx_ip_trans_diff_wei> &trans_ker,
+        const jit_brgemm_primitive_conf_t *conf, const int ext_ic_block,
+        const int ext_oc_block);
 } // namespace x64
 } // namespace cpu
 } // namespace impl

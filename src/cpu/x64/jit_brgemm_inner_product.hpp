@@ -439,27 +439,31 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 }
             }
         }
-
+        if (isa == avx512_core_bf16_amx_bf16) {
+            ext_ic_block_
+                    = (jbgp.wei_dt == dnnl::impl::data_type::bf16) ? 32 : 16;
+            ext_oc_block_ = jbgp.oc_block;
+        }
         CHECK(create_brgemm_trans_src(trans_A_kernel_, &pd()->jbgp_));
 
         if (jbgp.use_buffer_b)
             CHECK(create_brgemm_trans_to_vnni(trans_B_kernel_, &pd()->jbgp_,
                     jit_brgemm_trans_to_vnni_t::matrix_to_transform::matrix_B));
 
-        if (jbgp.wei_dt != jbgp.acc_dt)
-            CHECK(create_brgemm_trans_to_vnni(trans_C_kernel_, &pd()->jbgp_,
-                    jit_brgemm_trans_to_vnni_t::matrix_to_transform::matrix_C));
-
+        if (isa != avx512_core_bf16_amx_bf16) {
+            if (jbgp.wei_dt != jbgp.acc_dt)
+                CHECK(create_brgemm_trans_to_vnni(trans_C_kernel_, &pd()->jbgp_,
+                        jit_brgemm_trans_to_vnni_t::matrix_to_transform::
+                                matrix_C));
+        } else if (jbgp.wei_dt == dnnl::impl::data_type::bf16) {
+            CHECK(create_brgemm_amx_ip_trans_wei(diff_wei_trans_kernel_,
+                    &pd()->jbgp_, ext_ic_block_, ext_oc_block_));
+        }
         if (jbgp.nthr_mb > 1) {
             CHECK(safe_ptr_assign(
                     acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
             CHECK(acc_ker_->create_kernel());
         }
-        CHECK(safe_ptr_assign(diff_wei_trans_kernel_,
-                new jit_diff_wei_trans_to_vnni_t((pd()->jbgp_).kd,
-                        (pd()->jbgp_).kh, (pd()->jbgp_).kw,
-                        (pd()->jbgp_).ic_block, (pd()->jbgp_).oc_block)));
-        CHECK(diff_wei_trans_kernel_->create_kernel());
 
         return status::success;
     }
@@ -477,7 +481,7 @@ private:
     std::unique_ptr<jit_brgemm_trans_to_vnni_t> trans_B_kernel_;
     std::unique_ptr<jit_brgemm_trans_to_vnni_t> trans_C_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
-    std::unique_ptr<jit_diff_wei_trans_to_vnni_t> diff_wei_trans_kernel_;
+    std::unique_ptr<jit_amx_ip_trans_diff_wei> diff_wei_trans_kernel_;
 
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
@@ -488,26 +492,16 @@ private:
             int trans_batch, int current_m, int current_k) const;
     void transform_matrix_b_chunk(char *tr_diff_dst, const char *diff_dst,
             int trans_batch, int current_col_size, int current_row_size) const;
+    void transpose_matrix_c_chunk(const thread_info_t *ti, const int ocb,
+            const int icb, int oc_size, int ic_size,
+            bool is_reduction = false) const;
 
     char brg_kernel_palettes_[max_num_brg_kernels_ip][64];
-    dim_t get_wei_offset(const memory_desc_wrapper &diff_weights_d, int ocb,
-            int icb, bool is_internal = false) const;
-    void store_in_vnni_format(const thread_info_t *ti) const;
+    dim_t get_wei_offset(int ocb, int icb) const;
+    char *get_wei_acc_ptr(const thread_info_t *ti, int ocb, int icb) const;
 
-    inline bool is_bf16_out() const {
-        const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
-        return diff_weights_d.data_type() == data_type::bf16;
-    }
-
-    inline bool store_amx_vnni_weights() const {
-        constexpr bool is_amx = (isa == avx512_core_bf16_amx_bf16);
-        return is_amx && is_bf16_out();
-    }
-
-    inline bool store_cpx_vnni_weights() const {
-        constexpr bool is_amx = (isa == avx512_core_bf16_amx_bf16);
-        return !is_amx && is_bf16_out();
-    }
+    int ext_ic_block_ = 0;
+    int ext_oc_block_ = 0;
 };
 
 } // namespace x64

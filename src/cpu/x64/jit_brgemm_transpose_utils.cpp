@@ -1594,6 +1594,213 @@ void jit_brgemm_trans_wei_bf16_t::generate() {
     postamble();
 }
 
+struct jit_amx_ip_trans_diff_wei_to_vnni : public jit_amx_ip_trans_diff_wei,
+                                           public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_amx_ip_trans_diff_wei_to_vnni)
+
+    jit_amx_ip_trans_diff_wei_to_vnni(const jit_brgemm_primitive_conf_t *jbgp,
+            const int ext_ic_block, const int ext_oc_block)
+        : jit_amx_ip_trans_diff_wei(jbgp, ext_ic_block, ext_oc_block) {}
+
+    void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+private:
+    void generate() override;
+};
+
+void jit_amx_ip_trans_diff_wei_to_vnni::generate() {
+    const int typesize_out = 2;
+    const int typesize_acc = 4;
+    const int simd_w = 16;
+
+    using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
+
+    const reg64_t &reg_output = r15;
+    const reg64_t &reg_input = r14;
+    const reg64_t &reg_prm_table = r13;
+    const reg64_t &reg_last_ic_block = r12;
+    const reg64_t &reg_last_oc_block = r11;
+    const reg32_t &regw_tmp = r10d;
+
+    const Xbyak::Zmm &zmm_idx = Xbyak::Zmm(31);
+    auto get_zmm_src = [&](int ic) { return Xbyak::Zmm(ic % 8); };
+
+    Xbyak::Label prm_table;
+    Xbyak::Label skip_oc_tail, to_exit;
+
+    Xbyak::Opmask load_mask = k4;
+
+    int tail_mask = (jbgp_->N_tail % simd_w)
+            ? (1 << (jbgp_->N_tail % simd_w)) - 1
+            : 0xffff;
+    auto kmovw = [=](Xbyak::Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovw(k, regw_tmp);
+    };
+
+    auto reorder_oc_block = [&](int icb, int ic_block, bool is_oc_tail) {
+        // INP:      [64i][No]    : FP32
+        // OUT: [ICB][16i][No][2i]: BF16
+        if (ic_block <= 0) return;
+
+        dim_t inp_icb_offset = typesize_acc
+                * (icb * ext_ic_block_ * jbgp_->oc_block); // Internal
+        dim_t out_icb_offset = typesize_out
+                * (icb * div_up(ext_ic_block_, 2) * jbgp_->oc_block
+                        * 2); // External
+        bool tailing_done = false;
+        for (int oc = 0; oc < jbgp_->oc_block; oc += simd_w) {
+            dim_t inp_offset = inp_icb_offset + typesize_acc * (oc); // Internal
+            dim_t out_offset
+                    = out_icb_offset + typesize_out * (oc * 2); // External
+            kmovw(load_mask, 0xffff);
+            if (is_oc_tail) {
+                if (jbgp_->N_tail && (oc + simd_w) >= jbgp_->N_tail) {
+                    if (tailing_done == false) {
+                        kmovw(load_mask, tail_mask);
+                        tailing_done = true;
+                    } else {
+                        auto zmm_src_0 = get_zmm_src(0);
+                        vpxord(zmm_src_0, zmm_src_0, zmm_src_0);
+                        for (int ic = 0; ic < ext_ic_block_ / 2; ic++) {
+                            vmovups(ptr[reg_output + out_offset
+                                            + typesize_out
+                                                    * (ic * jbgp_->oc_block
+                                                            * 2)],
+                                    zmm_src_0);
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            int ic = 0;
+            for (; ic < ic_block / 2; ic++) {
+                int ic1 = 2 * ic;
+                int ic2 = 2 * ic + 1;
+
+                auto zmm_src_0 = get_zmm_src(ic1);
+                auto zmm_src_1 = get_zmm_src(ic2);
+
+                vmovups(zmm_src_0 | load_mask | T_z,
+                        ptr[reg_input + inp_offset
+                                + typesize_acc * (ic1 * jbgp_->oc_block)]);
+                vmovups(zmm_src_1 | load_mask | T_z,
+                        ptr[reg_input + inp_offset
+                                + typesize_acc * (ic2 * jbgp_->oc_block)]);
+
+                vcvtne2ps2bf16(zmm_src_0, zmm_src_1, zmm_src_0);
+                vpermw(zmm_src_0, zmm_idx, zmm_src_0);
+
+                vmovups(ptr[reg_output + out_offset
+                                + typesize_out * (ic * jbgp_->oc_block * 2)],
+                        zmm_src_0);
+            }
+            if (ic_block % 2) {
+                int ic1 = 2 * ic;
+                int ic2 = 2 * ic + 1;
+
+                auto zmm_src_0 = get_zmm_src(ic1);
+                auto zmm_src_1 = get_zmm_src(ic2);
+
+                vmovups(zmm_src_0 | load_mask | T_z,
+                        ptr[reg_input + inp_offset
+                                + typesize_acc * (ic1 * jbgp_->oc_block)]);
+                vpxord(zmm_src_1, zmm_src_1, zmm_src_1);
+
+                vcvtne2ps2bf16(zmm_src_0, zmm_src_1, zmm_src_0);
+                vpermw(zmm_src_0, zmm_idx, zmm_src_0);
+
+                vmovups(ptr[reg_output + out_offset
+                                + typesize_out * (ic * jbgp_->oc_block * 2)],
+                        zmm_src_0);
+                ic++;
+            }
+            if (ic < ext_ic_block_ / 2) {
+                auto zmm_src_0 = get_zmm_src(0);
+                vpxord(zmm_src_0, zmm_src_0, zmm_src_0);
+                for (; ic < ext_ic_block_ / 2; ic++) {
+                    vmovups(ptr[reg_output + out_offset
+                                    + typesize_out
+                                            * (ic * jbgp_->oc_block * 2)],
+                            zmm_src_0);
+                }
+            }
+        }
+    };
+
+    auto reorder_ic_block = [&](bool is_oc_tail, bool is_ic_tail) {
+        int nb_ic = div_up(jbgp_->ic_block, ext_ic_block_);
+        for (int icb = 0; icb < nb_ic; icb++) {
+            int ic_0 = icb * ext_ic_block_;
+            int ic_1 = (icb + 1) * ext_ic_block_;
+            if (is_ic_tail) {
+                int ext_ic_tail = (jbgp_->ic % ext_ic_block_)
+                        ? (jbgp_->ic % ext_ic_block_)
+                        : ext_ic_block_;
+                if (jbgp_->M_tail && ic_0 >= jbgp_->M_tail) break;
+                if (jbgp_->M_tail && ic_0 <= jbgp_->M_tail
+                        && jbgp_->M_tail <= ic_1) {
+                    reorder_oc_block(icb, ext_ic_tail, is_oc_tail);
+                } else {
+                    reorder_oc_block(icb, ext_ic_block_, is_oc_tail);
+                }
+            } else {
+                reorder_oc_block(icb, ext_ic_block_, is_oc_tail);
+            }
+        }
+    };
+
+    auto reorder = [&](bool is_oc_tail) {
+        Xbyak::Label skip_ic_tail, to_exit_1;
+
+        cmp(reg_last_ic_block, 0);
+        je(skip_ic_tail, T_NEAR);
+
+        reorder_ic_block(is_oc_tail, true);
+        jmp(to_exit, T_NEAR);
+
+        L(skip_ic_tail);
+        reorder_ic_block(is_oc_tail, false);
+
+        L(to_exit_1);
+    };
+
+    preamble();
+
+    mov(reg_input, ptr[abi_param1 + GET_OFF(src)]);
+    mov(reg_output, ptr[abi_param1 + GET_OFF(dst)]);
+    mov(reg_last_ic_block, ptr[abi_param1 + GET_OFF(last_ic_block)]);
+    mov(reg_last_oc_block, ptr[abi_param1 + GET_OFF(last_oc_block)]);
+
+    mov(reg_prm_table, prm_table);
+    vmovups(zmm_idx, ptr[reg_prm_table]);
+
+    cmp(reg_last_oc_block, 0);
+    je(skip_oc_tail, T_NEAR);
+
+    reorder(true);
+    jmp(to_exit, T_NEAR);
+
+    L(skip_oc_tail);
+    reorder(false);
+
+    L(to_exit);
+    postamble();
+
+    align(64);
+    L(prm_table);
+    const uint16_t prm_array[32]
+            = {0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23, 8, 24, 9,
+                    25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31};
+    for (size_t i = 0; i < 32; ++i)
+        dw(prm_array[i]);
+}
+
+#undef GET_OFF
+
 status_t create_brgemm_trans_src(
         std::unique_ptr<jit_brgemm_trans_src_t> &trans_ker,
         const jit_brgemm_primitive_conf_t *conf) {
@@ -1638,6 +1845,21 @@ status_t create_brgemm_trans_wei(
         CHECK(safe_ptr_assign(
                 trans_ker, new jit_brgemm_trans_wei_bf16_t(conf)));
     else
+        return status::invalid_arguments;
+
+    return trans_ker->create_kernel();
+}
+
+status_t create_brgemm_amx_ip_trans_wei(
+        std::unique_ptr<jit_amx_ip_trans_diff_wei> &trans_ker,
+        const jit_brgemm_primitive_conf_t *conf, const int ext_ic_block,
+        const int ext_oc_block) {
+    if (conf->prop_kind == dnnl_backward_weights
+            && conf->wei_dt == data_type::bf16) {
+        CHECK(safe_ptr_assign(trans_ker,
+                new jit_amx_ip_trans_diff_wei_to_vnni(
+                        conf, ext_ic_block, ext_oc_block)));
+    } else
         return status::invalid_arguments;
 
     return trans_ker->create_kernel();
