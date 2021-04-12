@@ -48,10 +48,12 @@ bool is_channel_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
         const memory_desc_wrapper &dst_d) {
     // channel broadcast only for nchw data format
     const auto ndims = dst_d.ndims();
+
+    if (!dst_d.is_blocking_desc()) return false;
+
     const auto &strides = dst_d.blocking_desc().strides;
-    return dst_d.is_blocking_desc()
-            && (dst_d.is_plain() && strides[1] != 1 && strides[0] >= strides[1]
-                    && IMPLICATION(ndims >= 3, strides[1] >= strides[2]))
+    return (dst_d.is_plain() && strides[1] != 1 && strides[0] >= strides[1]
+                   && IMPLICATION(ndims >= 3, strides[1] >= strides[2]))
             && mask.count() == 1 && mask.test(1);
 }
 
