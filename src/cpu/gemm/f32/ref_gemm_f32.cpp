@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -188,6 +188,9 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_,
     const dim_t M = *M_, N = *N_, K = *K_;
     const dim_t lda = *lda_, ldb = *ldb_, ldc = *ldc_;
     const data_t alpha = *alpha_, beta = *beta_;
+
+    // early out and avoid division by zero in partitioning
+    if (utils::one_of(0, M, N)) return dnnl_success;
 
     int max_nthr = dnnl_get_current_num_threads();
     int nthr_m, nthr_n, nthr_k;
