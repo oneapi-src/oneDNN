@@ -15,7 +15,7 @@
 --runtime_m=1 --runtime_n=0,1 --runtime_k=1
 --bia_dt=f32 --bia_mask=1,2,3
 --attr-oscale=,common:1.25
---attr-post-ops='add:f32','sum;mul:s32:per_oc;linear:2:-1'
+--attr-post-ops='add:f32;mul:u8:per_tensor','sum;mul:s32:per_oc;linear:2:-1'
 --batch=shapes_2d
 
 # test any
@@ -34,7 +34,7 @@
 --bia_dt=undef,f32 --bia_mask=4,6
 
 --runtime_dims_masks=0,1:1
---attr-post-ops='','sum'
+--attr-post-ops='','sum;add:s8:per_tensor'
 --batch=shapes_3d
 
 --runtime_dims_masks=2:4,6:6,3:5,7:7

@@ -86,6 +86,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.post_ops_binary_rhs_arg_vec = post_ops_data.binary_post_ops_rhs;
     brgemm_p.oc_logical_off = post_ops_data.oc_logical_off;
     brgemm_p.dst_row_logical_off = post_ops_data.dst_row_logical_off;
+    brgemm_p.data_C_ptr_ = post_ops_data.data_C_ptr_;
     brgemm_p.first_mb_matrix_addr_off = post_ops_data.first_mb_matrix_addr_off;
     brgemm_p.a_zp_compensations = post_ops_data.a_zp_compensations;
     brgemm_p.b_zp_compensations = post_ops_data.b_zp_compensations;
@@ -384,7 +385,8 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
                             false /*sum_requires_scale_one*/,
                             {broadcasting_strategy_t::per_oc,
                                     broadcasting_strategy_t::scalar,
-                                    broadcasting_strategy_t::per_mb_spatial})))
+                                    broadcasting_strategy_t::per_mb_spatial,
+                                    broadcasting_strategy_t::no_broadcast})))
         return status::unimplemented;
 
     const int sum_idx = post_ops.find(primitive_kind::sum);

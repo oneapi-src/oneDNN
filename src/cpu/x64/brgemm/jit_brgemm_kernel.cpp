@@ -72,11 +72,15 @@ struct jit_brgemm_kernel_base_t : public jit_generator {
 
             using namespace dnnl::impl::cpu::binary_injector_utils;
             std::tie(with_binary_per_oc_bcast_, with_binary_per_oc_sp_bcast_,
-                    with_binary_channel_bcast_)
+                    with_binary_channel_bcast_, with_binary_no_bcast_)
                     = bcast_strategies_present_tup(brg.attr->post_ops_.entry_,
                             dst_md_wrapper, broadcasting_strategy_t::per_oc,
                             broadcasting_strategy_t::per_oc_spatial,
-                            broadcasting_strategy_t::per_mb_spatial);
+                            broadcasting_strategy_t::per_mb_spatial,
+                            broadcasting_strategy_t::no_broadcast);
+            handle_binary_po_offset_ = with_binary_per_oc_bcast_
+                    || with_binary_per_oc_sp_bcast_
+                    || with_binary_channel_bcast_ || with_binary_no_bcast_;
         }
     }
 
@@ -177,12 +181,15 @@ private:
     constexpr static int reg_aux_zp_comp_b_offs_ = 160;
     constexpr static int reg_zp_c_values_offs_ = 168;
     constexpr static int reg_aux_zp_c_values_offs_ = 176;
-    constexpr static int stack_space_needed_ = 184;
+    constexpr static int reg_data_C_ptr_ = 184;
+    constexpr static int stack_space_needed_ = 192;
 
     bool is_ldb_loop;
+    bool handle_binary_po_offset_ = false;
     bool with_binary_per_oc_bcast_ = false;
     bool with_binary_per_oc_sp_bcast_ = false;
     bool with_binary_channel_bcast_ = false;
+    bool with_binary_no_bcast_ = false;
 
     Xbyak::Opmask ld_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
@@ -470,6 +477,10 @@ void jit_brgemm_kernel_base_t::read_params() {
         mov(reg_scales, ptr[param1 + GET_OFF(ptr_scales)]);
         mov(ptr[rsp + reg_scales_offs_], reg_scales);
     }
+    if (with_binary_no_bcast_) {
+        mov(reg_aux_binary_postops_sp, ptr[param1 + GET_OFF(data_C_ptr_)]);
+        mov(ptr[rsp + reg_data_C_ptr_], reg_aux_binary_postops_sp);
+    }
     if (with_binary_channel_bcast_) {
         mov(reg_aux_binary_postops_sp,
                 ptr[param1 + GET_OFF(first_mb_matrix_addr_off)]);
@@ -578,8 +589,7 @@ void jit_brgemm_kernel_base_t::apply_post_ops(
     if (brg.with_binary) {
         mov(param1, ptr[rsp + abi_param1_offs_ + guard_space]);
 
-        if (with_binary_per_oc_bcast_ || with_binary_per_oc_sp_bcast_
-                || with_binary_channel_bcast_) {
+        if (handle_binary_po_offset_) {
             mov(reg_binary_po_stack_frame, rsp);
 
             for_(int bd = 0; bd < bd_block; bd++)
@@ -603,19 +613,33 @@ void jit_brgemm_kernel_base_t::apply_post_ops(
                                     + reg_aux_binary_postops_sp_offs_
                                     + guard_space]);
                 }
+                if (with_binary_no_bcast_) {
+                    rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                            zmm_idx, po_offset(bd, ld));
+                    rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
+                            zmm_idx, reg_aux_D);
+                }
                 if (is_ld_tail) rhs_arg_params.vmm_tail_idx_.emplace(zmm_idx);
             }
         }
     }
+    const int D_shift_val = std::log2(brg.typesize_D);
     const auto sum_injector = [&] {
         const float *p_sum_scale = &brg.sum_scale;
         const bool p_sum_scale_reg_set = *p_sum_scale != 1.f;
 
+        // if needed, restore reg_aux_D before sum logic
+        if (with_binary_no_bcast_) {
+            sal(reg_aux_D, D_shift_val);
+            add(reg_aux_D,
+                    ptr[reg_binary_po_stack_frame + reg_data_C_ptr_
+                            + guard_space]);
+        }
+
         const injector_utils::conditional_register_preserve_guard_t
-                register_guard((with_binary_per_oc_bcast_
-                                       || with_binary_per_oc_sp_bcast_)
-                                && p_sum_scale_reg_set,
-                        this, {reg_ptr_sum_scale});
+                register_guard(
+                        (handle_binary_po_offset_) && p_sum_scale_reg_set, this,
+                        {reg_ptr_sum_scale});
 
         if (p_sum_scale_reg_set) mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
 
@@ -633,6 +657,12 @@ void jit_brgemm_kernel_base_t::apply_post_ops(
                     vfmadd231ps(zmm, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
             }
         }
+        if (with_binary_no_bcast_) {
+            sub(reg_aux_D,
+                    ptr[reg_binary_po_stack_frame + reg_data_C_ptr_
+                            + guard_space]);
+            sar(reg_aux_D, D_shift_val);
+        }
     };
 
     if (brg.with_sum) {
@@ -640,8 +670,20 @@ void jit_brgemm_kernel_base_t::apply_post_ops(
                 primitive_kind::sum, sum_injector);
     }
 
-    postops_injector_->compute_vector_range(
-            32 - bd_block * ld_block2, 32, rhs_arg_params);
+    if (with_binary_no_bcast_) {
+        // use offset from reg_aux_D for binary no broadcast
+        // substract pointer to D from reg_aux_D and divide it by D dt size
+        sub(reg_aux_D,
+                ptr[reg_binary_po_stack_frame + reg_data_C_ptr_ + guard_space]);
+        sar(reg_aux_D, D_shift_val);
+        postops_injector_->compute_vector_range(
+                32 - bd_block * ld_block2, 32, rhs_arg_params);
+        sal(reg_aux_D, D_shift_val);
+        add(reg_aux_D,
+                ptr[reg_binary_po_stack_frame + reg_data_C_ptr_ + guard_space]);
+    } else
+        postops_injector_->compute_vector_range(
+                32 - bd_block * ld_block2, 32, rhs_arg_params);
 }
 
 void jit_brgemm_kernel_base_t::store_accumulators_apply_post_ops(

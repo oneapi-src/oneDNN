@@ -634,6 +634,8 @@ INSTANTIATE_TEST_SUITE_P(TensorDims, post_ops_attr_test_t,
                 std::make_tuple(memory::dims {3, 2, 16, 16},
                         memory::dims {3, 1, 16, 16}, tag::abcd),
                 std::make_tuple(memory::dims {9, 9, 64, 64},
-                        memory::dims {9, 1, 64, 64}, tag::abcd)));
+                        memory::dims {9, 1, 64, 64}, tag::abcd),
+                std::make_tuple(memory::dims {3, 2, 16, 16},
+                        memory::dims {3, 2, 16, 16}, tag::abcd)));
 
 } // namespace dnnl

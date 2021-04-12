@@ -276,7 +276,8 @@ void brgemm_matmul_t<isa>::compute_kernel(
                     static_cast<const void *>(ptr_bias),
                     brgmm_ctx.get_oscales_ptr(n),
                     post_ops_binary_rhs_arg_vec.data(), static_cast<size_t>(n),
-                    dst_row_logical_off, first_mb_matrix_addr_off,
+                    dst_row_logical_off, brgmm_ctx.get_data_C_ptr(0, 0, 0),
+                    first_mb_matrix_addr_off,
                     static_cast<const void *>(zp_comp_a),
                     static_cast<const void *>(zp_comp_b),
                     static_cast<const void *>(zp_c_val_ptr)};
@@ -321,7 +322,8 @@ void brgemm_matmul_t<isa>::compute_kernel(
                     static_cast<const void *>(ptr_bias),
                     brgmm_ctx.get_oscales_ptr(n),
                     post_ops_binary_rhs_arg_vec.data(), static_cast<size_t>(n),
-                    dst_row_logical_off, first_mb_matrix_addr_off,
+                    dst_row_logical_off, brgmm_ctx.get_data_C_ptr(0, 0, 0),
+                    first_mb_matrix_addr_off,
                     static_cast<const void *>(zp_comp_a),
                     static_cast<const void *>(zp_comp_b),
                     static_cast<const void *>(zp_c_val_ptr)};
