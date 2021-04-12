@@ -71,7 +71,7 @@ struct gen9_sum_t : public gpu_primitive_t {
 
         kernel_ctx.define_int("VECT_DT_N", vector_size);
         kernel_ctx.define_int("N_INPUTS", pd()->n_inputs());
-        kernel_ctx.define_int("N_ELEMS", data_d.nelems());
+        kernel_ctx.define_int("N_ELEMS", data_d.nelems(true));
 
         def_memory_desc_info(
                 kernel_ctx, memory_desc_info_t::create(data_d), "SRC");

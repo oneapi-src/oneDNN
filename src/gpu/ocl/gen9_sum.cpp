@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ status_t gen9_sum_t::execute(const exec_ctx_t &ctx) const {
     auto &output = CTX_OUT_STORAGE(DNNL_ARG_DST);
     const int num_arrs = pd()->n_inputs();
     const memory_desc_wrapper o_d(pd()->dst_md());
-    const size_t nelems = o_d.nelems();
+    const size_t nelems = o_d.nelems(true);
     compute::kernel_arg_list_t arg_list;
 
     for (int a = 0; a < max_num_arrs; ++a) {
