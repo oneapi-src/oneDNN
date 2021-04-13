@@ -142,9 +142,9 @@ void compute_attention(float *context_vectors, dim_t src_seq_length_max,
     for (dim_t i = 0; i < batch; i++)
         exp_sums[i] = 0.0f;
 
-    PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(2)
-    for (dim_t i = 0; i < src_seq_length_max; i++) {
-        for (dim_t j = 0; j < batch; j++) {
+    PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(1)
+    for (dim_t j = 0; j < batch; j++) {
+        for (dim_t i = 0; i < src_seq_length_max; i++) {
             alignments[i * batch + j] = expf(alignments[i * batch + j]);
             exp_sums[j] += alignments[i * batch + j];
         }
@@ -163,10 +163,10 @@ void compute_attention(float *context_vectors, dim_t src_seq_length_max,
                     + j]
                     = 0.0f;
 
-    PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(3)
+    PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(2)
     for (dim_t i = 0; i < batch; i++)
-        for (dim_t k = 0; k < src_seq_length_max; k++)
-            for (dim_t j = 0; j < feature_size; j++)
+        for (dim_t j = 0; j < feature_size; j++)
+            for (dim_t k = 0; k < src_seq_length_max; k++)
                 context_vectors[i * (feature_size + feature_size) + feature_size
                         + j]
                         += alignments[k * batch + i]
