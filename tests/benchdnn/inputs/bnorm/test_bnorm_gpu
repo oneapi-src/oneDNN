@@ -38,7 +38,7 @@
 --mb=2
 --dir=FWD_I,FWD_D
 --tag=abx,aBx16b,ABx16a16b
---flags=,S
+--flags=,S,C
 --batch=shapes_1d
 --batch=shapes_topologies_small
 --batch=shapes_3d
@@ -55,8 +55,8 @@
 --mb=1
 --dt=f32,bf16
 --tag=axb,aBx16b
---dir=BWD_D,BWD_W,BWD_WB,BWD_DW     --flags=        --batch=shapes_topologies_small
---dir=BWD_W,BWD_WB,BWD_DW           --flags=SR,GS,S --batch=shapes_topologies_small
+--dir=BWD_D,BWD_W,BWD_WB,BWD_DW     --flags=,CH        --batch=shapes_topologies_small
+--dir=BWD_W,BWD_WB,BWD_DW           --flags=SR,GS,S,H  --batch=shapes_topologies_small
 
 --reset
 --mb=32

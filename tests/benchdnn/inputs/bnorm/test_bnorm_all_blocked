@@ -17,6 +17,7 @@
 --flags=  --batch=shapes_googlenet_v2
 --flags=G --batch=shapes_densenet_121
 --flags=S --batch=shapes_resnet_50
+--flags=C,H --batch=shapes_resnet_50
 --flags=R --batch=shapes_googlenet_v3
 
 # inference
