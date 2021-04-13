@@ -550,7 +550,7 @@ TEST(c_api_test, compile_conv2d_sum_conv2d) {
     int64_t group = 1;
 
     dnnl_graph_op_create(&conv0, 1, kConvolution, "conv0");
-    dnnl_graph_op_create(&conv1, 2, kConvolution, "conv0");
+    dnnl_graph_op_create(&conv1, 2, kConvolution, "conv1");
     dnnl_graph_op_create(&sum, 3, kAdd, "sum");
     api_test_dnnl_graph_graph_create(&agraph, engine);
 
@@ -727,6 +727,254 @@ TEST(c_api_test, compile_conv2d_sum_conv2d) {
     COMPILE_CONV2D_SUM_CONV2D_DESTROY_PLUS;
 #undef COMPILE_CONV2D_SUM_CONV2D_DESTROY
 #undef COMPILE_CONV2D_SUM_CONV2D_DESTROY_PLUS
+}
+
+TEST(c_api_test, compile_sum_conv2d_strided_bn) {
+    dnnl_graph_graph_t *agraph = NULL;
+    dnnl_graph_op_t *conv0 = NULL;
+    dnnl_graph_op_t *bn = NULL;
+    dnnl_graph_op_t *sum = NULL;
+    dnnl_graph_engine_kind_t engine = api_test_engine_kind;
+    dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
+    dnnl_graph_partition_t **partition = NULL;
+    dnnl_graph_compiled_partition_t **compiled_partition = NULL;
+    dnnl_graph_logical_tensor_t conv0_input;
+    dnnl_graph_logical_tensor_t conv0_weight;
+    dnnl_graph_logical_tensor_t conv0_output;
+    dnnl_graph_logical_tensor_t bn_input;
+    dnnl_graph_logical_tensor_t bn_gamma;
+    dnnl_graph_logical_tensor_t bn_beta;
+    dnnl_graph_logical_tensor_t bn_mean;
+    dnnl_graph_logical_tensor_t bn_var;
+    dnnl_graph_logical_tensor_t sum_input1;
+    dnnl_graph_logical_tensor_t sum_output;
+
+#define COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY \
+    do { \
+        dnnl_graph_graph_destroy(agraph); \
+        agraph = NULL; \
+        dnnl_graph_op_destroy(conv0); \
+        conv0 = NULL; \
+        dnnl_graph_op_destroy(bn); \
+        bn = NULL; \
+        dnnl_graph_op_destroy(sum); \
+        sum = NULL; \
+    } while (0);
+
+    const int64_t N = 128;
+    const int64_t IC = 3;
+    const int64_t IH = 227;
+    const int64_t IW = 227;
+
+    const int64_t KH = 11;
+    const int64_t KW = 11;
+
+    const int64_t OC = 11;
+    const int64_t OH = 55;
+    const int64_t OW = 55;
+
+    const int64_t input_dim[] = {N, IC, IH, IW};
+    const int64_t weight_dim[] = {OC, IC, KH, KW};
+    const int64_t output_dim[] = {N, OC, OH, OW};
+    uint64_t part_num = 0;
+    int64_t stride[] = {4, 4};
+    int64_t padding[] = {0, 0};
+    int64_t dilations[] = {1, 1};
+    int64_t group = 1;
+
+    float epsilon = 0.001f;
+
+    dnnl_graph_op_create(&conv0, 1, kConvolution, "conv0");
+    dnnl_graph_op_create(&bn, 2, kBatchNormInference, "batchnorm");
+    dnnl_graph_op_create(&sum, 3, kAdd, "sum");
+    api_test_dnnl_graph_graph_create(&agraph, engine);
+
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&conv0_input, 1,
+                    dnnl_graph_f32, 4, input_dim, dnnl_graph_layout_type_any),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&conv0_weight, 2,
+                    dnnl_graph_f32, 4, weight_dim, dnnl_graph_layout_type_any),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&conv0_output, 3,
+                    dnnl_graph_f32, 4, output_dim, dnnl_graph_layout_type_any),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&sum_input1, 4,
+                    dnnl_graph_f32, 4, output_dim, dnnl_graph_layout_type_any),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&sum_output, 5,
+                    dnnl_graph_f32, 4, output_dim, dnnl_graph_layout_type_any),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init_with_dims(&bn_input, 6,
+                           dnnl_graph_f32, 4, input_dim,
+                           dnnl_graph_layout_type_strided),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&bn_gamma, 7,
+                    dnnl_graph_f32, 1, &OC, dnnl_graph_layout_type_strided),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&bn_beta, 8,
+                    dnnl_graph_f32, 1, &OC, dnnl_graph_layout_type_strided),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&bn_mean, 9,
+                    dnnl_graph_f32, 1, &OC, dnnl_graph_layout_type_strided),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&bn_var, 10,
+                    dnnl_graph_f32, 1, &OC, dnnl_graph_layout_type_strided),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+
+    dnnl_graph_op_add_input(conv0, &conv0_input);
+    dnnl_graph_op_add_input(conv0, &conv0_weight);
+    dnnl_graph_op_add_output(conv0, &conv0_output);
+    dnnl_graph_op_add_input(bn, &bn_input);
+    dnnl_graph_op_add_input(bn, &bn_gamma);
+    dnnl_graph_op_add_input(bn, &bn_beta);
+    dnnl_graph_op_add_input(bn, &bn_mean);
+    dnnl_graph_op_add_input(bn, &bn_var);
+    dnnl_graph_op_add_output(bn, &sum_input1);
+    dnnl_graph_op_add_input(sum, &conv0_output);
+    dnnl_graph_op_add_input(sum, &sum_input1);
+    dnnl_graph_op_add_output(sum, &sum_output);
+
+    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv0, "strides",
+                           dnnl_graph_attribute_kind_is, &stride, 2),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv0, "pads_begin",
+                           dnnl_graph_attribute_kind_is, &padding, 2),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv0, "pads_end",
+                           dnnl_graph_attribute_kind_is, &padding, 2),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv0, "dilations",
+                           dnnl_graph_attribute_kind_is, &dilations, 2),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv0, "data_format",
+                           dnnl_graph_attribute_kind_s, "NCX", 1),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv0, "filter_format",
+                           dnnl_graph_attribute_kind_s, "OIX", 1),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv0, "groups",
+                           dnnl_graph_attribute_kind_i, &group, 1),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+
+    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(bn, "epsilon",
+                           dnnl_graph_attribute_kind_f, &epsilon, 1),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+
+    ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, conv0), dnnl_graph_result_success,
+            COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, bn), dnnl_graph_result_success,
+            COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, sum), dnnl_graph_result_success,
+            COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_graph_filter(agraph, policy),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
+            dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+    ASSERT_EQ_SAFE(part_num, 2, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
+
+    partition = (dnnl_graph_partition_t **)malloc(
+            part_num * sizeof(dnnl_graph_partition_t *));
+    compiled_partition = (dnnl_graph_compiled_partition_t **)malloc(
+            part_num * sizeof(dnnl_graph_compiled_partition_t *));
+
+#define COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS \
+    do { \
+        COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY; \
+        for (size_t i = 0; i < part_num; ++i) { \
+            dnnl_graph_partition_destroy(*(partition + i)); \
+            dnnl_graph_compiled_partition_destroy(*(compiled_partition + i)); \
+        } \
+        if (partition) { \
+            free(partition); \
+            partition = NULL; \
+        } \
+        if (compiled_partition) { \
+            free(compiled_partition); \
+            compiled_partition = NULL; \
+        } \
+    } while (0);
+
+    for (size_t i = 0; i < part_num; ++i) {
+        ASSERT_EQ_SAFE(dnnl_graph_partition_create(partition + i),
+                dnnl_graph_result_success,
+                COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS);
+    }
+    ASSERT_EQ_SAFE(dnnl_graph_graph_get_partitions(agraph, part_num, partition),
+            dnnl_graph_result_success,
+            COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS);
+    for (size_t i = 0; i < part_num; ++i) {
+        ASSERT_EQ_SAFE(dnnl_graph_compiled_partition_create(
+                               compiled_partition + i, *(partition + i)),
+                dnnl_graph_result_success,
+                COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS);
+    }
+
+    const dnnl_graph_logical_tensor_t *p0_inputs[5]
+            = {&bn_input, &bn_gamma, &bn_beta, &bn_mean, &bn_var};
+    const dnnl_graph_logical_tensor_t *p0_outputs[1] = {&sum_input1};
+
+    dnnl_graph_engine_t *e;
+    api_test_dnnl_graph_engine_create(&e, engine);
+    ASSERT_EQ_SAFE(dnnl_graph_partition_compile(*partition, *compiled_partition,
+                           5, p0_inputs, 1, p0_outputs, e),
+            dnnl_graph_result_success,
+            COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS);
+    dnnl_graph_logical_tensor_t opt_sum_input1;
+    ASSERT_EQ_SAFE(dnnl_graph_compiled_partition_query_logical_tensor(
+                           *compiled_partition, sum_input1.id, &opt_sum_input1),
+            dnnl_graph_result_success,
+            COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS);
+    ASSERT_EQ(opt_sum_input1.layout_type, dnnl_graph_layout_type_opaque);
+
+    const dnnl_graph_logical_tensor_t *p1_inputs[3]
+            = {&conv0_input, &conv0_weight, &opt_sum_input1};
+    const dnnl_graph_logical_tensor_t *p1_outputs[1] = {&sum_output};
+    ASSERT_EQ_SAFE(
+            dnnl_graph_partition_compile(*(partition + 1),
+                    *(compiled_partition + 1), 3, p1_inputs, 1, p1_outputs, e),
+            dnnl_graph_result_success,
+            COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS);
+
+    dnnl_graph_logical_tensor_t opaque_sum_output;
+    ASSERT_EQ_SAFE(dnnl_graph_compiled_partition_query_logical_tensor(
+                           *(compiled_partition + 1), sum_output.id,
+                           &opaque_sum_output),
+            dnnl_graph_result_success,
+            COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS);
+    ASSERT_EQ(opaque_sum_output.layout_type, dnnl_graph_layout_type_opaque);
+
+    // Check in-place pairs
+    size_t num_inplace_pairs = 10; // Initialized with an impossible value.
+    const dnnl_graph_inplace_pair_t *inplace_pairs = nullptr;
+    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_pairs(
+                      *compiled_partition, &num_inplace_pairs, &inplace_pairs),
+            dnnl_graph_result_success);
+    EXPECT_EQ(num_inplace_pairs, 0);
+
+    // `opt_sum_input1` is of plain format, while `opaque_sum_output` is of
+    // blocked format. Though they are both opaque tensor, in-place operation
+    // is not supported as the different formats they are.
+    num_inplace_pairs = 10;
+    EXPECT_EQ(dnnl_graph_compiled_partition_get_inplace_pairs(
+                      *(compiled_partition + 1), &num_inplace_pairs,
+                      &inplace_pairs),
+            dnnl_graph_result_success);
+    EXPECT_EQ(num_inplace_pairs, 0);
+
+    COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS;
+#undef COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY
+#undef COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS
 }
 
 TEST(c_api_test, compile_conv2d_with_unknown_shape) {

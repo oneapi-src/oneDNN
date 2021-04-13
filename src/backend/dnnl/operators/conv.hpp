@@ -662,8 +662,11 @@ private:
             size_t input_idx = with_bias_ ? conv::kBias + 1 : conv::kWeight + 1;
             if (with_bn_) input_idx = bn_input_offset_ + conv::kVariance + 1;
             constexpr size_t output_idx = 0;
-            if (logical_tensor_wrapper(inputs[input_idx]).is_opaque()
-                    && logical_tensor_wrapper(outputs[output_idx]).is_opaque())
+
+            const logical_tensor_wrapper post_src_lt(inputs[input_idx]);
+            const logical_tensor_wrapper dst_lt(outputs[output_idx]);
+            if (post_src_lt.is_opaque() && dst_lt.is_opaque()
+                    && post_src_lt.is_similar(dst_lt))
                 inplace_pairs_.push_back(
                         {inputs[input_idx].id, outputs[output_idx].id});
         }
