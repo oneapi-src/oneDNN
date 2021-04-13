@@ -37,6 +37,19 @@ namespace bnorm {
 
 static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
         dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss) {
+    dnnl::impl::parallel_nd(prb->ic, [&](int64_t c) {
+        mean.set_elem(c, 4 * ((c % 5) - 2));
+        var.set_elem(c, ((c % 7) << 1));
+
+        if (prb->flags & USE_SCALESHIFT) {
+            ss.set_elem(c, (1 << (c % 7)));
+            ss.set_elem(prb->ic + c, ((c % 3) - 1) * ss.get_elem(c));
+        } else {
+            ss.set_elem(c, 1);
+            ss.set_elem(prb->ic + c, 0);
+        }
+    });
+
     dnnl::impl::parallel_nd(prb->ic, prb->mb, prb->id, prb->ih, prb->iw,
             [&](int64_t c, int64_t mb, int64_t d, int64_t h, int64_t w) {
                 int64_t l_base = mb * prb->id * prb->ih * prb->iw + c * 239 * 2;
@@ -46,18 +59,6 @@ static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
                 const int64_t l = l_base + sp;
                 const int64_t value = (l % 65) - 32;
                 s[sp] = round_to_nearest_representable(prb->dt, value);
-
-                ((float *)mean)[c] = 4 * ((c % 5) - 2);
-                ((float *)var)[c] = ((c % 7) << 1);
-
-                if (prb->flags & USE_SCALESHIFT) {
-                    ((float *)ss)[c] = (1 << (c % 7));
-                    ((float *)ss)[prb->ic + c]
-                            = ((c % 3) - 1) * ((float *)ss)[c];
-                } else {
-                    ((float *)ss)[c] = 1;
-                    ((float *)ss)[prb->ic + c] = 0;
-                }
             });
 
     return OK;
