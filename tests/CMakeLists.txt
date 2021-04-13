@@ -67,6 +67,16 @@ if(CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
     append_if(UNIX  CMAKE_CXX_FLAGS "-fp-model precise -fno-reciprocal-math")
 endif()
 
+# dpcpp driver (unlike clang) may apply fp-model fast. Apply the supported flag
+# to the corresponding driver by checking for MSVC support.
+if(DNNL_WITH_SYCL)
+    if(MSVC)
+        append(CMAKE_CXX_FLAGS "/fp:precise")
+    else()
+        append(CMAKE_CXX_FLAGS "-ffp-model=precise -fno-reciprocal-math")
+    endif()
+endif()
+
 register_exe(api-c api.c "test")
 
 if(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND (UNIX OR MINGW))
