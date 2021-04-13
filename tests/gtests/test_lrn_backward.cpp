@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <cmath>
+#include <memory>
 
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
@@ -251,14 +252,15 @@ protected:
 
         test_lrn_desc_t ld = p.test_ld;
 
-        src_desc.reset(new memory::desc(
-                {ld.mb, ld.c, ld.h, ld.w}, data_type, p.data_format));
-        dst_desc.reset(new memory::desc(
-                {ld.mb, ld.c, ld.h, ld.w}, data_type, p.data_format));
-        diff_src_desc.reset(new memory::desc(
-                {ld.mb, ld.c, ld.h, ld.w}, data_type, p.diff_data_format));
-        diff_dst_desc.reset(new memory::desc(
-                {ld.mb, ld.c, ld.h, ld.w}, data_type, p.diff_data_format));
+        auto dims = {ld.mb, ld.c, ld.h, ld.w};
+        src_desc = std::make_shared<memory::desc>(
+                dims, data_type, p.data_format);
+        dst_desc = std::make_shared<memory::desc>(
+                dims, data_type, p.data_format);
+        diff_src_desc = std::make_shared<memory::desc>(
+                dims, data_type, p.diff_data_format);
+        diff_dst_desc = std::make_shared<memory::desc>(
+                dims, data_type, p.diff_data_format);
 
         Forward();
         Backward();
@@ -270,8 +272,8 @@ protected:
                 p.test_ld.k);
         lrn_fwd_prim_desc = lrn_forward::primitive_desc(lrn_desc, eng);
 
-        src.reset(new test_memory(*src_desc, eng));
-        dst.reset(new test_memory(*dst_desc, eng));
+        src = std::make_shared<test_memory>(*src_desc, eng);
+        dst = std::make_shared<test_memory>(*dst_desc, eng);
 
         fill_data<data_t>(src->get_size() / sizeof(data_t), src->get());
         fill_data<data_t>(dst->get_size() / sizeof(data_t), dst->get());
@@ -294,9 +296,9 @@ protected:
                 *diff_dst_desc, p.test_ld.local_size, p.test_ld.alpha,
                 p.test_ld.beta, p.test_ld.k);
 
-        src.reset(new test_memory(*src_desc, eng));
-        diff_src.reset(new test_memory(*diff_src_desc, eng));
-        diff_dst.reset(new test_memory(*diff_dst_desc, eng));
+        src = std::make_shared<test_memory>(*src_desc, eng);
+        diff_src = std::make_shared<test_memory>(*diff_src_desc, eng);
+        diff_dst = std::make_shared<test_memory>(*diff_dst_desc, eng);
 
         auto lrn_prim_desc = lrn_backward::primitive_desc(
                 lrn_desc, eng, lrn_fwd_prim_desc);

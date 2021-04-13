@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+#include <memory>
 
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
@@ -262,8 +264,10 @@ protected:
         }
 
         memory::data_type data_type = data_traits<data_t>::data_type;
-        src_desc.reset(new memory::desc(src_dims, data_type, p.src_format));
-        dst_desc.reset(new memory::desc(dst_dims, data_type, p.src_format));
+        src_desc = std::make_shared<memory::desc>(
+                src_dims, data_type, p.src_format);
+        dst_desc = std::make_shared<memory::desc>(
+                dst_dims, data_type, p.src_format);
 
         Forward();
         Backward();

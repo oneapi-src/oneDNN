@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -298,15 +298,19 @@ protected:
         ASSERT_EQ(data_type, dnnl::memory::data_type::f32);
 
         if (p.ndims == 5) {
-            src_desc.reset(new memory::desc({pd.mb, pd.c, pd.id, pd.ih, pd.iw},
-                    data_type, p.diff_src_format));
-            dst_desc.reset(new memory::desc({pd.mb, pd.c, pd.od, pd.oh, pd.ow},
-                    data_type, p.diff_dst_format));
+            auto src_dims = {pd.mb, pd.c, pd.id, pd.ih, pd.iw};
+            auto dst_dims = {pd.mb, pd.c, pd.od, pd.oh, pd.ow};
+            src_desc = std::make_shared<memory::desc>(
+                    src_dims, data_type, p.diff_src_format);
+            dst_desc = std::make_shared<memory::desc>(
+                    dst_dims, data_type, p.diff_dst_format);
         } else {
-            src_desc.reset(new memory::desc(
-                    {pd.mb, pd.c, pd.ih, pd.iw}, data_type, p.diff_src_format));
-            dst_desc.reset(new memory::desc(
-                    {pd.mb, pd.c, pd.oh, pd.ow}, data_type, p.diff_dst_format));
+            auto src_dims = {pd.mb, pd.c, pd.ih, pd.iw};
+            auto dst_dims = {pd.mb, pd.c, pd.oh, pd.ow};
+            src_desc = std::make_shared<memory::desc>(
+                    src_dims, data_type, p.diff_src_format);
+            dst_desc = std::make_shared<memory::desc>(
+                    dst_dims, data_type, p.diff_dst_format);
         }
 
         if (p.ndims == 5) {

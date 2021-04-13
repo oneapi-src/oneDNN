@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+#include <memory>
 
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
@@ -200,26 +202,26 @@ protected:
         else
             bias_dims = {};
 
-        dec_src_desc.reset(
-                new memory::desc(src_dims, data_type, p.formats.src_format));
-        dec_dst_desc.reset(
-                new memory::desc(dst_dims, data_type, p.formats.src_format));
-        dec_weights_desc.reset(new memory::desc(
-                weights_dims, data_type, p.formats.weights_format));
-        dec_bias_desc.reset(
-                new memory::desc(bias_dims, data_type, p.formats.bias_format));
+        dec_src_desc = std::make_shared<memory::desc>(
+                src_dims, data_type, p.formats.src_format);
+        dec_dst_desc = std::make_shared<memory::desc>(
+                dst_dims, data_type, p.formats.src_format);
+        dec_weights_desc = std::make_shared<memory::desc>(
+                weights_dims, data_type, p.formats.weights_format);
+        dec_bias_desc = std::make_shared<memory::desc>(
+                bias_dims, data_type, p.formats.bias_format);
 
-        con_src_desc.reset(
-                new memory::desc(dst_dims, data_type, p.formats.src_format));
-        con_dst_desc.reset(
-                new memory::desc(src_dims, data_type, p.formats.src_format));
-        con_weights_desc.reset(new memory::desc(
-                c_weights_dims, data_type, p.formats.weights_format));
+        con_src_desc = std::make_shared<memory::desc>(
+                dst_dims, data_type, p.formats.src_format);
+        con_dst_desc = std::make_shared<memory::desc>(
+                src_dims, data_type, p.formats.src_format);
+        con_weights_desc = std::make_shared<memory::desc>(
+                c_weights_dims, data_type, p.formats.weights_format);
 
-        src.reset(new test_memory(*dec_src_desc, eng));
-        weights.reset(new test_memory(*dec_weights_desc, eng));
-        bias.reset(new test_memory(*dec_bias_desc, eng));
-        dst.reset(new test_memory(*dec_dst_desc, eng));
+        src = std::make_shared<test_memory>(*dec_src_desc, eng);
+        weights = std::make_shared<test_memory>(*dec_weights_desc, eng);
+        bias = std::make_shared<test_memory>(*dec_bias_desc, eng);
+        dst = std::make_shared<test_memory>(*dec_dst_desc, eng);
 
         padR = {right_padding(dd.oh, dd.ih, dd.kh, dd.padh, dd.strh, dd.dilh),
                 right_padding(dd.ow, dd.iw, dd.kw, dd.padw, dd.strw, dd.dilw)};

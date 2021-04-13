@@ -346,7 +346,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(post_ops_attr_test_t,
     std::vector<memory::data_type> test_dts {
             memory::data_type::f32, memory::data_type::s8};
 
-    const auto tensor_dims = std::get<0>(GetParam());
+    const auto &tensor_dims = std::get<0>(GetParam());
     const auto format_tag = std::get<2>(GetParam());
 
     auto src_md = memory::desc(tensor_dims, memory::data_type::u8, format_tag);
@@ -371,7 +371,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(post_ops_attr_test_t,
 
     ops.append_eltwise(scale, algorithm::eltwise_relu, alpha, beta);
 
-    const auto binary_po_tensor_dims = std::get<1>(GetParam());
+    const auto &binary_po_tensor_dims = std::get<1>(GetParam());
     memory::desc src1_po_md(
             binary_po_tensor_dims, memory::data_type::f32, format_tag);
     ops.append_binary(algorithm::binary_add, src1_po_md);
