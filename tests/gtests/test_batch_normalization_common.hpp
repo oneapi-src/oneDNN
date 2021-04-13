@@ -168,6 +168,10 @@ protected:
         } else if (isS8(data_type)) {
             Forward(inference, bf::use_global_stats);
             Forward(inference, bf::use_global_stats | bf::use_scale_shift);
+            Forward(inference, bf::use_global_stats | bf::use_scale);
+            Forward(inference, bf::use_global_stats | bf::use_shift);
+            Forward(inference,
+                    bf::use_global_stats | bf::use_scale | bf::use_shift);
         }
     }
 
@@ -292,16 +296,18 @@ protected:
         auto ws_desc = bnorm_bwd_pd.query_md(dnnl::query::workspace_md);
         ws.reset(new test_memory(ws_desc, eng));
 
-        if (useScaleShift)
+        if (useScaleShift || useScale) {
             weights = test::make_memory(bnorm_bwd_pd.weights_desc(), eng);
-        diff_weights = test::make_memory(bnorm_bwd_pd.diff_weights_desc(), eng);
+            diff_weights
+                    = test::make_memory(bnorm_bwd_pd.diff_weights_desc(), eng);
+        }
         if (useShift)
             diff_bias
                     = test::make_memory(bnorm_bwd_pd.diff_weights_desc(), eng);
         mean = test::make_memory(bnorm_bwd_pd.mean_desc(), eng);
         variance = test::make_memory(bnorm_bwd_pd.variance_desc(), eng);
 
-        if (useScaleShift) fill<float>(weights);
+        if (useScaleShift || useScale) fill<float>(weights);
         fill<float>(diff_src->get());
         fill<float>(diff_dst->get());
         fill<float>(mean);
@@ -315,7 +321,7 @@ protected:
             execBnormFwd(
                     true, useGlobalStats, useScaleShift, useScale, useShift);
 
-        execBnormBwd(useScaleShift, pk);
+        execBnormBwd(useScaleShift, useScale, useShift, pk);
 
         check_bnorm_bwd(p, src->get(), diff_dst->get(), mean, variance, weights,
                 diff_src->get(), diff_weights, diff_bias, flags, pk);
@@ -351,7 +357,8 @@ protected:
         strm.wait();
     }
 
-    void execBnormBwd(bool useScaleShift, prop_kind pk) {
+    void execBnormBwd(
+            bool useScaleShift, bool useScale, bool useShift, prop_kind pk) {
         std::unordered_map<int, memory> args = {
                 {DNNL_ARG_SRC, src->get()},
                 {DNNL_ARG_DIFF_DST, diff_dst->get()},
@@ -367,6 +374,16 @@ protected:
                 args.insert({DNNL_ARG_DIFF_SCALE_SHIFT, diff_weights});
         }
 
+        if (useScale) {
+            args.insert({DNNL_ARG_SCALE, weights});
+            if (pk == prop_kind::backward)
+                args.insert({DNNL_ARG_DIFF_SCALE, diff_weights});
+        }
+        if (useShift) {
+            args.insert({DNNL_ARG_SHIFT, bias});
+            if (pk == prop_kind::backward)
+                args.insert({DNNL_ARG_DIFF_SHIFT, diff_bias});
+        }
         batch_normalization_backward(bnorm_bwd_pd).execute(strm, args);
         strm.wait();
     }
@@ -390,21 +407,25 @@ protected:
         const memory::desc src_d = src.get_desc();
         const memory::desc dst_d = dst.get_desc();
         const memory::desc weights_d
-                = use_weights ? weights.get_desc() : memory::desc();
+                = use_weights || use_bias || use_weights_bias
+                ? weights.get_desc()
+                : memory::desc();
 
         const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
         const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
         const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
 
+        const size_t bias_off = use_weights_bias && !weights_mdw.has_zero_dim()
+                ? weights_mdw.off_l(bp.c, true)
+                : 0;
         auto src_data = map_memory<const data_t>(src);
         auto dst_data = map_memory<const data_t>(dst);
         auto weights_data = (use_weights || use_weights_bias)
                 ? map_memory<const float>(weights)
                 : nullptr;
-        auto bias_data = use_bias ? map_memory<const float>(bias)
-                                  : use_weights_bias
-                        ? &weights_data[weights_mdw.off_l(bp.c, true)]
-                        : nullptr;
+        auto bias_data = use_bias
+                ? map_memory<const float>(bias)
+                : use_weights_bias ? &weights_data[bias_off] : nullptr;
         auto mean_data = (!calculate_stats || is_training)
                 ? map_memory<const float>(mean)
                 : nullptr;
@@ -513,10 +534,16 @@ protected:
 
         const memory::desc src_d = src.get_desc();
         const memory::desc diff_dst_d = diff_dst.get_desc();
-        const memory::desc weights_d = weights.get_desc();
+        const memory::desc weights_d = use_weights || use_weights_bias
+                ? weights.get_desc()
+                : memory::desc();
         const memory::desc diff_src_d = diff_src.get_desc();
-        const memory::desc diff_weights_d = diff_weights.get_desc();
-        const memory::desc diff_bias_d = diff_bias.get_desc();
+        const memory::desc diff_weights_d = use_weights || use_weights_bias
+                ? diff_weights.get_desc()
+                : memory::desc();
+        const memory::desc diff_bias_d = use_bias
+                ? diff_bias.get_desc()
+                : use_weights_bias ? diff_weights.get_desc() : memory::desc();
 
         const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
         const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
@@ -526,6 +553,11 @@ protected:
                 diff_weights_d.data);
         const dnnl::impl::memory_desc_wrapper diff_bias_mdw(diff_bias_d.data);
 
+        const size_t diff_bias_off
+                = use_weights_bias && !diff_weights_mdw.has_zero_dim()
+                ? diff_weights_mdw.off_l(bp.c, true)
+                : 0;
+
         auto src_data = map_memory<const float>(src);
         auto weights_data = (use_weights || use_weights_bias)
                 ? map_memory<const float>(weights)
@@ -534,23 +566,28 @@ protected:
         auto mean_data = map_memory<const float>(mean);
         auto variance_data = map_memory<const float>(variance);
         const auto diff_src_data = map_memory<float>(diff_src);
-        const auto diff_weights_data = (pk == prop_kind::backward)
+        const auto diff_weights_data
+                = (pk == prop_kind::backward
+                          && (use_weights_bias || use_weights))
                 ? map_memory<float>(diff_weights)
                 : nullptr;
         const auto diff_bias_data = (pk == prop_kind::backward) ? use_bias
                         ? map_memory<float>(diff_bias)
-                        : &diff_weights_data[diff_weights_mdw.off_l(bp.c, true)]
+                        : &diff_weights_data[diff_bias_off]
                                                                 : nullptr;
 
         if (bp.mb * bp.c * bp.d * bp.h * bp.w == 0) {
             if (pk == prop_kind::backward) {
                 for (memory::dim c = 0; c < bp.c; ++c) {
-                    auto dg = diff_weights_data[diff_weights_mdw.off_l(
-                            c, true)];
-                    auto db = diff_weights_data[diff_weights_mdw.off_l(
-                            bp.c + c, true)];
-                    ASSERT_NEAR(dg, 0., 1e-7);
-                    ASSERT_NEAR(db, 0., 1e-7);
+                    if (use_weights || use_weights_bias) {
+                        auto dg = diff_weights_data[diff_weights_mdw.off_l(
+                                c, true)];
+                        ASSERT_NEAR(dg, 0., 1e-7);
+                    }
+                    if (use_bias || use_weights_bias) {
+                        auto db = diff_bias_data[diff_bias_mdw.off_l(c, true)];
+                        ASSERT_NEAR(db, 0., 1e-7);
+                    }
                 }
             }
             return;
@@ -571,8 +608,9 @@ protected:
             auto v_variance = variance_data[c];
             const float sqrt_variance = 1.0f / sqrt(v_variance + p.epsilon);
 
-            auto gamma = use_weights ? weights_data[weights_mdw.off_l(c, true)]
-                                     : 1;
+            auto gamma = use_weights || use_weights_bias
+                    ? weights_data[weights_mdw.off_l(c, true)]
+                    : 1.0f;
 
             for_(memory::dim n = 0; n < bp.mb; n++)
             for_(memory::dim d = 0; d < bp.d; d++)
@@ -588,19 +626,25 @@ protected:
             ref_diff_gamma *= sqrt_variance;
 
             if (pk == prop_kind::backward) {
-                auto diff_gamma
-                        = diff_weights_data[diff_weights_mdw.off_l(c, true)];
-                float norm_max = std::max(
-                        std::abs(diff_gamma), std::abs(ref_diff_gamma));
-                if (norm_max < 1e-2) norm_max = float(1);
-                ASSERT_NEAR((diff_gamma - ref_diff_gamma) / norm_max, 0., eps);
+                if (use_weights || use_weights_bias) {
+                    auto diff_gamma = diff_weights_data[diff_weights_mdw.off_l(
+                            c, true)];
+                    float norm_max = std::max(
+                            std::abs(diff_gamma), std::abs(ref_diff_gamma));
+                    if (norm_max < 1e-2) norm_max = float(1);
+                    ASSERT_NEAR(
+                            (diff_gamma - ref_diff_gamma) / norm_max, 0., eps);
+                }
 
-                auto diff_beta
-                        = diff_bias_data[diff_weights_mdw.off_l(c, true)];
-                norm_max = std::max(
-                        std::abs(diff_beta), std::abs(ref_diff_beta));
-                if (norm_max < 1e-2) norm_max = float(1);
-                ASSERT_NEAR((diff_beta - ref_diff_beta) / norm_max, 0., eps);
+                if (use_bias || use_weights_bias) {
+                    auto diff_beta
+                            = diff_bias_data[diff_bias_mdw.off_l(c, true)];
+                    float norm_max = std::max(
+                            std::abs(diff_beta), std::abs(ref_diff_beta));
+                    if (norm_max < 1e-2) norm_max = float(1);
+                    ASSERT_NEAR(
+                            (diff_beta - ref_diff_beta) / norm_max, 0., eps);
+                }
             }
 
             for_(memory::dim n = 0; n < bp.mb; n++)
