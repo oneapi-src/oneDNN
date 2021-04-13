@@ -77,6 +77,7 @@ std::tuple<dim_t, dim_t, x64::cpu_isa_t> brgemm_calc_k_block_with_isa(
             k2_block = k2_block_amx;
             isa = is_amx_int8 ? x64::avx512_core_bf16_amx_int8
                               : x64::avx512_core_bf16_amx_bf16;
+            return std::make_tuple(k1_block, k2_block, isa);
         }
     }
 
