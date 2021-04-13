@@ -131,6 +131,8 @@ const char *data_kind2str(data_kind_t kind) {
         case MEAN: return "MEAN";
         case VAR: return "VAR";
         case SS: return "SS";
+        case SC: return "SC";
+        case SH: return "SH";
         case GWEI: return "GWEI";
     }
     assert(!"incorrect data kind");

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,6 +41,8 @@ using flags_t = unsigned;
 const flags_t NONE = dnnl_normalization_flags_none;
 const flags_t GLOB_STATS = dnnl_use_global_stats;
 const flags_t USE_SCALESHIFT = dnnl_use_scaleshift;
+const flags_t USE_SCALE = dnnl_use_scale;
+const flags_t USE_SHIFT = dnnl_use_shift;
 const flags_t FUSE_NORM_RELU = dnnl_fuse_norm_relu;
 flags_t str2flags(const char *str);
 std::string flags2str(flags_t flags);
@@ -120,6 +122,10 @@ struct prb_t : public desc_t {
     bool need_ws() const {
         return (flags & FUSE_NORM_RELU) && !(dir & FLAG_INF);
     }
+
+    bool use_ss() const { return flags & USE_SCALESHIFT; }
+    bool use_sc() const { return flags & USE_SCALE; }
+    bool use_sh() const { return flags & USE_SHIFT; }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
@@ -181,10 +187,11 @@ inline void inv_data_off(const prb_t *prb, size_t off, int64_t &mb, int64_t &c,
 
 void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &ss,
-        dnn_mem_t &ws, dnn_mem_t &dst, dnn_mem_t &src_hat);
+        const dnn_mem_t &sh, dnn_mem_t &ws, dnn_mem_t &dst, dnn_mem_t &src_hat);
 void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src_hat,
         const dnn_mem_t &var, const dnn_mem_t &d_dst, const dnn_mem_t &ss,
-        const dnn_mem_t &ws, dnn_mem_t &d_src, dnn_mem_t &d_ss);
+        const dnn_mem_t &sh, const dnn_mem_t &ws, dnn_mem_t &d_src,
+        dnn_mem_t &d_ss, dnn_mem_t &d_sh);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

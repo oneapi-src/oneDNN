@@ -89,7 +89,21 @@ std::ostream &operator<<(std::ostream &s, const std::vector<T> &v) {
 }
 
 typedef int data_kind_t;
-enum { SRC = 0, WEI, BIA, DST, ACC, DATA, MEAN, VAR, SS, GWEI, DAT_TOTAL };
+enum {
+    SRC = 0,
+    WEI,
+    BIA,
+    DST,
+    ACC,
+    DATA,
+    MEAN,
+    VAR,
+    SS,
+    SC,
+    SH,
+    GWEI,
+    DAT_TOTAL
+};
 const char *data_kind2str(data_kind_t kind);
 
 struct attr_t {

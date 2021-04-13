@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,9 @@ static int check_flags() {
     CHECK_CASE_CPP_STR_EQ(flags2str(NONE), "");
     CHECK_CASE_CPP_STR_EQ(flags2str(GLOB_STATS), "G");
     CHECK_CASE_CPP_STR_EQ(flags2str(USE_SCALESHIFT), "S");
+    CHECK_CASE_CPP_STR_EQ(flags2str(USE_SCALE), "C");
+    CHECK_CASE_CPP_STR_EQ(flags2str(USE_SHIFT), "H");
+    CHECK_CASE_CPP_STR_EQ(flags2str(USE_SCALE | USE_SHIFT), "CH");
     CHECK_CASE_CPP_STR_EQ(flags2str(FUSE_NORM_RELU), "R");
     CHECK_CASE_CPP_STR_EQ(flags2str(GLOB_STATS | USE_SCALESHIFT), "GS");
     CHECK_CASE_CPP_STR_EQ(flags2str(GLOB_STATS | FUSE_NORM_RELU), "GR");
@@ -38,6 +41,9 @@ static int check_flags() {
     CHECK_EQ(str2flags(""), NONE);
     CHECK_EQ(str2flags("G"), GLOB_STATS);
     CHECK_EQ(str2flags("S"), USE_SCALESHIFT);
+    CHECK_EQ(str2flags("C"), USE_SCALE);
+    CHECK_EQ(str2flags("H"), USE_SHIFT);
+    CHECK_EQ(str2flags("CH"), USE_SCALE | USE_SHIFT);
     CHECK_EQ(str2flags("R"), FUSE_NORM_RELU);
     CHECK_EQ(str2flags("GS"), GLOB_STATS | USE_SCALESHIFT);
     CHECK_EQ(str2flags("GR"), GLOB_STATS | FUSE_NORM_RELU);
