@@ -131,11 +131,14 @@ struct ip_convolution_fwd_t : public primitive_t {
             // Currently this means:
             //  - int8 with any forward prop_kind on any isa
             //  - fp32/bf16 with `forward_inference` on avx512_core and higher
+            //  -      bf16 with `forward_training` on avx512_core_amx
             const bool set_any_to_nspc = false
                     || (utils::one_of(weights_md_.data_type, data_type::f32,
                                 data_type::bf16)
                             && desc()->prop_kind == prop_kind::forward_inference
                             && mayiuse(avx512_core))
+                    || (weights_md_.data_type == data_type::bf16
+                            && mayiuse(avx512_core_bf16_amx_bf16))
                     || weights_md_.data_type == data_type::s8;
             CHECK(set_and_or_check_formats(set_any_to_nspc));
 
