@@ -82,26 +82,23 @@ nested_scratchpad_t::~nested_scratchpad_t() = default;
 status_t primitive_create(primitive_iface_t **primitive_iface,
         const primitive_desc_iface_t *primitive_desc_iface) {
 
-    status_t status = status::success;
     std::pair<primitive_iface_t *, bool> p_iface;
 
     if (get_verbose() >= 2) {
         double start_ms = get_msec();
-        status = primitive_desc_iface->create_primitive_iface(p_iface);
+        CHECK(primitive_desc_iface->create_primitive_iface(p_iface));
         double duration_ms = get_msec() - start_ms;
 
         const char *str = p_iface.second ? "cache_hit" : "cache_miss";
         std::string stamp;
         if (get_verbose_timestamp()) stamp = "," + std::to_string(start_ms);
-
         printf("dnnl_verbose%s,create:%s,%s,%g\n", stamp.c_str(), str,
                 p_iface.first->pd()->info(), duration_ms);
         fflush(stdout);
     } else {
-        status = primitive_desc_iface->create_primitive_iface(p_iface);
+        CHECK(primitive_desc_iface->create_primitive_iface(p_iface));
     }
-    if (status == status::success) (*primitive_iface) = p_iface.first;
-    return status;
+    return safe_ptr_assign((*primitive_iface), p_iface.first);
 }
 
 status_t primitive_execute(
