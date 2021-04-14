@@ -338,6 +338,7 @@ primitive for each input and output memory object.
  Forward / Backward (2)     |  All (3)                     | bf16       | bf16               | bf16    | f32  | bf16
  Forward                    |  All (3)                     | f16        | f16                | f16     | f16  | f16
  Forward inference          |  Vanilla LSTM, LSTMP and GRU | u8         | u8                 | s8      | f32  | u8, f32
+ Forward inference          |  Vanilla LSTM, LSTMP         | s8         | s8                 | s8      | f32  | s8, f32
 
 (1) With LSTM and Peephole LSTM cells, the cell state datatype is f32,
 except for the f16 configuration.
@@ -391,6 +392,8 @@ details on how to use and set these quantization parameters.
     - Bias must always be present (that is, the corresponding memory descriptor
       argument cannot be zero memory descriptor when the RNN operation
       descriptor is initialized).
+    - oneDNN supports s8 as input data only on systems with Advanced Matrix
+      Extension(AMX) support.
 
 2. **GPU**
     - No support for GRU
