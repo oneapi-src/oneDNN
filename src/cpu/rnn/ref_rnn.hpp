@@ -144,6 +144,11 @@ struct _ref_rnn_common_t : public primitive_t {
                     this->dst_md(1), this->dst_md(2));
             if (!ok) return status::unimplemented;
 
+            /* check that no data shift have been passed to s8s8 lstm */
+            if (!IMPLICATION(rnn_.is_signed_int8(),
+                        this->attr()->rnn_data_qparams_.shift_ == 0.f))
+                return status::unimplemented;
+
             /* check that only supported attr have been passed */
             primitive_attr_t::skip_mask_t attr_mask
                     = primitive_attr_t::skip_mask_t::rnn_tparams;
@@ -244,9 +249,16 @@ struct _ref_rnn_common_t : public primitive_t {
 
             if (rnn_.is_bf16() && !mayiuse(avx512_core_bf16))
                 return status::unimplemented;
+            if (rnn_.is_signed_int8() && !mayiuse(avx512_core_bf16_amx_int8))
+                return status::unimplemented;
             if (rnn_.is_int8() && !mayiuse(avx512_core_vnni))
                 return status::unimplemented;
             if (rnn_.is_f32() && !mayiuse(avx512_core))
+                return status::unimplemented;
+
+            /* check that no shift have been passed to s8s8 amx lstm */
+            if (!IMPLICATION(rnn_.is_signed_int8(),
+                        this->attr()->rnn_data_qparams_.shift_ == 0))
                 return status::unimplemented;
 
             /* check that only supported attr have been passed */
@@ -270,6 +282,10 @@ struct _ref_rnn_common_t : public primitive_t {
             CHECK(x64::rnn_brgemm_utils::rnn_brgemm_t::configure_brgemm(rnn_,
                     this->desc()->cell_kind, sizeof(src_layer_t),
                     sizeof(scratch_t)));
+
+            // Only AMX LSTM supports s8s8 now
+            if (rnn_.is_signed_int8() && !rnn_.is_int8_amx())
+                return status::unimplemented;
 
             // Set weights descriptors to desired format
             memory_desc_t new_weights_layer_md = *this->weights_md(0);
@@ -302,7 +318,7 @@ struct _ref_rnn_common_t : public primitive_t {
                     return status::unimplemented;
                 }
             }
-            if (rnn_.is_int8()) {
+            if (rnn_.is_unsigned_int8()) {
                 const memory_desc_wrapper &weights_layer_d(
                         this->weights_layer_md_);
                 const memory_desc_wrapper &weights_iter_d(

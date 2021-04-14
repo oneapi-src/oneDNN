@@ -1029,7 +1029,7 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
         data_type_t acc_type>
 rnn_bias_finalize_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         acc_type>::bias_finalize)) {
-    if (rnn.is_int8()) {
+    if (rnn.is_unsigned_int8()) {
         float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
         float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
         float *weights_scales = pd()->attr()->rnn_weights_qparams_.scales_;

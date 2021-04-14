@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -270,13 +270,17 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
                                                         : format_tag::ldgOi32o;
             if (tag != format_tag::undef) {
                 CHECK(memory_desc_init_by_tag(weights_md, tag));
-                if (rnn.is_int8()) {
+                if (rnn.is_unsigned_int8()) {
                     weights_md.extra.flags
                             = 0 | memory_extra_flags::rnn_u8s8_compensation;
                     weights_md.extra.compensation_mask
                             = (weights_type == weights_type_t::projection)
                             ? 13 // 1101
                             : 27; // 11011
+                } else if (rnn.is_signed_int8()) {
+                    weights_md.extra.flags
+                            = 0 | memory_extra_flags::rnn_s8s8_compensation;
+                    weights_md.extra.compensation_mask = 0;
                 }
                 return status::success;
             } else {
