@@ -32,7 +32,7 @@
 
 namespace dnnl {
 
-impl::cpu::x64::cpu_isa_t cvt_to_internal_cpu_isa(cpu_isa input_isa) {
+inline impl::cpu::x64::cpu_isa_t cvt_to_internal_cpu_isa(cpu_isa input_isa) {
 #define HANDLE_ISA(isa) \
     case cpu_isa::isa: return impl::cpu::x64::cpu_isa_t::isa; break
 
@@ -66,7 +66,8 @@ impl::cpu::x64::cpu_isa_t cvt_to_internal_cpu_isa(cpu_isa input_isa) {
 //
 // Moreover, by default we don't differentiate internal cpu_isa_t according to
 // the CPU ISA hints
-std::set<impl::cpu::x64::cpu_isa_t> masked_internal_cpu_isa(cpu_isa isa) {
+inline std::set<impl::cpu::x64::cpu_isa_t> masked_internal_cpu_isa(
+        cpu_isa isa) {
     using namespace impl::cpu::x64;
     cpu_isa_t internal_isa = cvt_to_internal_cpu_isa(isa);
 
@@ -82,7 +83,7 @@ std::set<impl::cpu::x64::cpu_isa_t> masked_internal_cpu_isa(cpu_isa isa) {
     }
 }
 
-std::set<std::pair<impl::cpu::x64::cpu_isa_t, impl::cpu::x64::cpu_isa_t>>
+inline std::set<std::pair<impl::cpu::x64::cpu_isa_t, impl::cpu::x64::cpu_isa_t>>
 hints_masked_internal_cpu_isa(cpu_isa_hints hints) {
     using namespace impl::cpu::x64;
     using mask_pair = std::pair<cpu_isa_t, cpu_isa_t>;
@@ -100,7 +101,7 @@ hints_masked_internal_cpu_isa(cpu_isa_hints hints) {
     }
 }
 
-const std::set<cpu_isa> &cpu_isa_all() {
+inline const std::set<cpu_isa> &cpu_isa_all() {
     static const std::set<cpu_isa> isa_all {cpu_isa::sse41, cpu_isa::avx,
             cpu_isa::avx2, cpu_isa::avx2_vnni, cpu_isa::avx512_mic,
             cpu_isa::avx512_mic_4ops, cpu_isa::avx512_core,
@@ -110,7 +111,7 @@ const std::set<cpu_isa> &cpu_isa_all() {
     return isa_all;
 }
 
-const std::set<cpu_isa> &compatible_cpu_isa(cpu_isa input_isa) {
+inline const std::set<cpu_isa> &compatible_cpu_isa(cpu_isa input_isa) {
     // Do not use internal `is_superset` routine as this is used to verify
     // the correctness of cpu_isa_traits routines
     static const std::map<cpu_isa, const std::set<cpu_isa>> isa_cmpt_info {
@@ -153,25 +154,25 @@ const std::set<cpu_isa> &compatible_cpu_isa(cpu_isa input_isa) {
     return iter->second;
 }
 
-bool is_superset(cpu_isa isa_1, cpu_isa isa_2) {
+inline bool is_superset(cpu_isa isa_1, cpu_isa isa_2) {
     const auto &cmpt_list = compatible_cpu_isa(isa_1);
     return cmpt_list.find(isa_2) != cmpt_list.end();
 }
 
-bool is_superset(dnnl_cpu_isa_t isa_1, dnnl_cpu_isa_t isa_2) {
+inline bool is_superset(dnnl_cpu_isa_t isa_1, dnnl_cpu_isa_t isa_2) {
     return is_superset(
             static_cast<cpu_isa>(isa_1), static_cast<cpu_isa>(isa_2));
 }
 
-bool mayiuse(impl::cpu::x64::cpu_isa_t isa, bool soft = false) {
+inline bool mayiuse(impl::cpu::x64::cpu_isa_t isa, bool soft = false) {
     return impl::cpu::x64::mayiuse(isa, soft);
 }
 
-bool mayiuse(cpu_isa isa, bool soft = false) {
+inline bool mayiuse(cpu_isa isa, bool soft = false) {
     return mayiuse(cvt_to_internal_cpu_isa(isa), soft);
 }
 
-bool mayiuse(dnnl_cpu_isa_t isa, bool soft = false) {
+inline bool mayiuse(dnnl_cpu_isa_t isa, bool soft = false) {
     return mayiuse(static_cast<cpu_isa>(isa), soft);
 }
 
