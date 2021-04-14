@@ -728,7 +728,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
         const void *src, *dst;
         const uint8_t *ws;
         const acc_data_t *mean, *var;
-        const acc_data_t *scale_shift;
+        const acc_data_t *scale, *shift;
         size_t blk_has_tail;
     };
 
@@ -743,7 +743,8 @@ struct jit_bnorm_fwd_t : public jit_generator {
     const Reg64 &reg_off_dat_ = r8;
     const Reg64 &reg_off_dat_save_ = r9;
     const Reg64 &reg_ptr_ws_ = r10;
-    const Reg64 &reg_ptr_scale_shift_ = r11;
+    const Reg64 &reg_ptr_scale_ = r11;
+    const Reg64 &reg_ptr_shift_ = reg_N_;
     const Reg64 &reg_ptr_var_ = r12;
     const Reg64 &reg_ptr_mean_ = r13;
     const Reg64 &reg_ptr_dst_ = r14;
@@ -775,15 +776,20 @@ struct jit_bnorm_fwd_t : public jit_generator {
     int stride_N_, stride_S_, stride_C_;
     size_t data_type_size_, acc_type_size_;
 
+    enum {
+        stack_off_N = 0,
+        stack_off_shift = 8,
+        stack_size_required = 16,
+    };
+
     void load_common_params() {
 #define PARAM_PTR(x) ptr[PARAM_ADDR(x)]
         mov(reg_ptr_src_, PARAM_PTR(src));
         mov(reg_ptr_dst_, PARAM_PTR(dst));
         mov(reg_ptr_mean_, PARAM_PTR(mean));
         mov(reg_ptr_var_, PARAM_PTR(var));
-        mov(reg_ptr_scale_shift_, PARAM_PTR(scale_shift));
+        mov(reg_ptr_scale_, PARAM_PTR(scale));
         mov(reg_ptr_ws_, PARAM_PTR(ws));
-#undef PARAM_PTR
 
         Xmm x = Xmm(v_.getIdx());
 
@@ -796,6 +802,12 @@ struct jit_bnorm_fwd_t : public jit_generator {
         uni_vbroadcastss(vone_, x);
 
         mov(reg_blk_has_tail_, dword[PARAM_ADDR(blk_has_tail)]);
+
+        mov(reg_tmp_, PARAM_PTR(shift));
+        mov(ptr[rsp + stack_off_shift], reg_tmp_);
+        mov(reg_tmp_, PARAM_PTR(N));
+        mov(ptr[rsp + stack_off_N], reg_tmp_);
+#undef PARAM_PTR
     }
 
     void load_c_specifics() {
@@ -815,13 +827,12 @@ struct jit_bnorm_fwd_t : public jit_generator {
         } else
             vdivps(vsqrtvar_, vone_, vsqrtvar_);
 
-        if (bdesc_->use_scaleshift()) {
+        if (bdesc_->use_scaleshift() || bdesc_->use_scale())
             jit_tail_.uni_vmovups_maybe_tail(
-                    vgamma_, vmmword[reg_ptr_scale_shift_ + reg_off_c_]);
-            int beta_off = bdesc_->C() * acc_type_size_;
-            jit_tail_.uni_vmovups_maybe_tail(vbeta_,
-                    vmmword[reg_ptr_scale_shift_ + reg_off_c_ + beta_off]);
-        }
+                    vgamma_, vmmword[reg_ptr_scale_ + reg_off_c_]);
+        if (bdesc_->use_scaleshift() || bdesc_->use_shift())
+            jit_tail_.uni_vmovups_maybe_tail(
+                    vbeta_, vmmword[reg_ptr_shift_ + reg_off_c_]);
     }
 
     void compute_bnorm(bool stream_store_allowed) {
@@ -830,7 +841,13 @@ struct jit_bnorm_fwd_t : public jit_generator {
         uni_vsubps(v_, v_, vmean_);
         uni_vmulps(v_, v_, vsqrtvar_);
 
-        if (bdesc_->use_scaleshift()) uni_vfmadd213ps(v_, vgamma_, vbeta_);
+        if (bdesc_->use_scaleshift()
+                || (bdesc_->use_scale() && bdesc_->use_shift()))
+            uni_vfmadd213ps(v_, vgamma_, vbeta_);
+        else if (bdesc_->use_scale())
+            uni_vmulps(v_, v_, vgamma_);
+        else if (bdesc_->use_shift())
+            uni_vaddps(v_, v_, vbeta_);
 
         jit_relu_.fwd_process_relu(v_);
 
@@ -901,9 +918,13 @@ struct jit_bnorm_fwd_t : public jit_generator {
 
     void compute(bool stream_store_allowed) {
         Label label_N;
-        mov(reg_N_, dword[PARAM_ADDR(N)]);
+        mov(reg_N_, ptr[rsp + stack_off_N]);
         L(label_N);
         {
+            // save reg_N_, because register is shared with reg_ptr_shift_
+            mov(ptr[rsp + stack_off_N], reg_N_);
+            mov(reg_ptr_shift_, ptr[rsp + stack_off_shift]);
+
             xor_(reg_off_dat_save_, reg_off_dat_save_);
             xor_(reg_off_c_, reg_off_c_);
 
@@ -924,6 +945,8 @@ struct jit_bnorm_fwd_t : public jit_generator {
             add(reg_ptr_dst_, stride_N_ * data_type_size_);
             add(reg_ptr_ws_, stride_N_ / bits_per_byte);
 
+            // restore reg_N_, because register is shared with reg_ptr_shift_
+            mov(reg_N_, ptr[rsp + stack_off_N]);
             dec(reg_N_);
             jnz(label_N);
         }
@@ -959,6 +982,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
         const bool stream_store_allowed = !is_bf16 && !is_tail_in_nspc_format;
 
         preamble();
+        sub(rsp, stack_size_required);
         load_common_params();
         jit_relu_.fwd_prepare_relu();
         jit_tail_.prepare_tail();
@@ -972,6 +996,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
         { compute(false); }
         L(end_store);
 
+        add(rsp, stack_size_required);
         postamble();
     }
 };
@@ -989,7 +1014,7 @@ struct jit_bnorm_bwd_t : public jit_generator {
         const void *src, *diff_src, *diff_dst;
         const uint8_t *ws;
         const acc_data_t *mean, *var;
-        const acc_data_t *scale_shift, *diff_scale_shift;
+        const acc_data_t *scale, *diff_scale, *diff_shift;
         size_t blk_has_tail;
     };
 
@@ -1080,21 +1105,21 @@ struct jit_bnorm_bwd_t : public jit_generator {
         } else
             vdivps(vsqrtvar_, vone_, vsqrtvar_);
 
-        if (bdesc_->use_scaleshift()) {
-            mov(reg_ptr_c_, ptr[PARAM_ADDR(scale_shift)]);
+        if (bdesc_->use_scaleshift() || bdesc_->use_scale()) {
+            mov(reg_ptr_c_, ptr[PARAM_ADDR(scale)]);
             jit_tail_.uni_vmovups_maybe_tail(
                     vgamma_, vmmword[reg_ptr_c_ + reg_off_c_]);
         }
 
         if (calculate_diff_stats()) {
-            mov(reg_ptr_c_, ptr[PARAM_ADDR(diff_scale_shift)]);
+            mov(reg_ptr_c_, ptr[PARAM_ADDR(diff_scale)]);
             jit_tail_.uni_vmovups_maybe_tail(
                     vdiff_gamma_, vmmword[reg_ptr_c_ + reg_off_c_]);
             uni_vmulps(vdiff_gamma_, vdiff_gamma_, vsqrtvar_);
             uni_vdivps(vdiff_gamma_, vdiff_gamma_, vNS_);
-            int off = bdesc_->C() * acc_type_size_;
+            mov(reg_ptr_c_, ptr[PARAM_ADDR(diff_shift)]);
             jit_tail_.uni_vmovups_maybe_tail(
-                    vdiff_beta_, vmmword[reg_ptr_c_ + reg_off_c_ + off]);
+                    vdiff_beta_, vmmword[reg_ptr_c_ + reg_off_c_]);
             uni_vdivps(vdiff_beta_, vdiff_beta_, vNS_);
         }
     }
@@ -1113,7 +1138,8 @@ struct jit_bnorm_bwd_t : public jit_generator {
             uni_vsubps(v_, v_, vtmp_);
         }
 
-        if (bdesc_->use_scaleshift()) uni_vmulps(v_, v_, vgamma_);
+        if (bdesc_->use_scaleshift() || bdesc_->use_scale())
+            uni_vmulps(v_, v_, vgamma_);
         uni_vmulps(v_, v_, vsqrtvar_);
 
         if (stream_store_allowed) {
@@ -1716,7 +1742,8 @@ public:
         int C_PADDED = get_c_padded(bdesc);
 
         int sbuf_sz = use_tmp_stats(bdesc) * 2 * C_PADDED;
-        int pbuf_sz = use_tmp_diff_scale_shift(bdesc) * 2 * C_PADDED;
+        int pbuf_sz = (use_tmp_diff_scale(bdesc) + use_tmp_diff_shift(bdesc))
+                * C_PADDED;
         int rbuf_sz = (bdesc->is_fwd() ? 1 : 2) * C_PADDED * nthrs;
 
         scratchpad.book<acc_data_t>(key_bnorm_tmp_stats, sbuf_sz);
@@ -1810,8 +1837,9 @@ public:
 
     void exec_fwd_step_normalization(const dim_t C_blks,
             const bnorm_dims_t &nthr, const void *src, void *dst,
-            const acc_data_t *scale_shift, const acc_data_t *mean,
-            const acc_data_t *var, uint8_t *ws, bool blk_has_tail) {
+            const acc_data_t *scale, const acc_data_t *shift,
+            const acc_data_t *mean, const acc_data_t *var, uint8_t *ws,
+            bool blk_has_tail) {
         size_t stride_C, stride_N, stride_S;
         std::tie(stride_N, stride_S, stride_C)
                 = get_data_strides<isa>(bdesc_, tag_kind_);
@@ -1834,15 +1862,16 @@ public:
             c.ws = &ws[d_off / bits_per_byte];
             c.mean = &mean[start.C * simd_w];
             c.var = &var[start.C * simd_w];
-            c.scale_shift = &scale_shift[start.C * simd_w];
+            c.scale = &scale[start.C * simd_w];
+            c.shift = &shift[start.C * simd_w];
             c.blk_has_tail = blk_has_tail && stop.C == C_blks;
             (*ker_fwd_)(&c);
         });
     }
 
-    void exec_fwd(const void *src, void *dst, const acc_data_t *scale_shift,
-            acc_data_t *mean, acc_data_t *var, uint8_t *ws,
-            const memory_tracking::grantor_t &scratchpad) {
+    void exec_fwd(const void *src, void *dst, const acc_data_t *scale,
+            const acc_data_t *shift, acc_data_t *mean, acc_data_t *var,
+            uint8_t *ws, const memory_tracking::grantor_t &scratchpad) {
         auto rbuf = scratchpad.get<acc_data_t>(key_bnorm_reduction);
         if (use_tmp_stats(bdesc_)) {
             auto sbuf = scratchpad.get<acc_data_t>(key_bnorm_tmp_stats);
@@ -1876,8 +1905,8 @@ public:
             exec_fwd_step_normalization(C_blk_step, nthr,
                     (void *)((char *)src + (C_blk_st * stride_C) * dt_size_),
                     (void *)((char *)dst + (C_blk_st * stride_C) * dt_size_),
-                    scale_shift + C_blk_st * simd_w, mean + C_blk_st * simd_w,
-                    var + C_blk_st * simd_w,
+                    scale + C_blk_st * simd_w, shift + C_blk_st * simd_w,
+                    mean + C_blk_st * simd_w, var + C_blk_st * simd_w,
                     ws + C_blk_st * stride_C / bits_per_byte,
                     (C_blk_st + C_blk_step) * simd_w > C_);
         }
@@ -1885,8 +1914,8 @@ public:
 
     void exec_bwd_step_diff_ss(const dim_t C_blks, const bnorm_dims_t &nthr,
             const void *src, const void *diff_dst, const acc_data_t *mean,
-            const acc_data_t *var, const uint8_t *ws, acc_data_t *diff_ss,
-            acc_data_t *rbuf, bool blk_has_tail) {
+            const acc_data_t *var, const uint8_t *ws, acc_data_t *diff_scale,
+            acc_data_t *diff_shift, acc_data_t *rbuf, bool blk_has_tail) {
         size_t stride_C, stride_N, stride_S;
         std::tie(stride_N, stride_S, stride_C)
                 = get_data_strides<isa>(bdesc_, tag_kind_);
@@ -1897,8 +1926,8 @@ public:
         const int nthr_NS = nthr.N * nthr.S;
         const bool need_reduction = nthr_NS > 1;
 
-        acc_data_t *diff_gamma = diff_ss;
-        acc_data_t *diff_beta = diff_ss + C_;
+        acc_data_t *diff_gamma = diff_scale;
+        acc_data_t *diff_beta = diff_shift;
 
         acc_data_t *const r_diff_gamma = need_reduction ? rbuf : diff_gamma;
         acc_data_t *const r_diff_beta
@@ -1963,8 +1992,9 @@ public:
     void exec_bwd_step_normalization(const dim_t C_blks,
             const bnorm_dims_t &nthr, const void *src, void *diff_src,
             const void *diff_dst, const acc_data_t *mean, const acc_data_t *var,
-            const uint8_t *ws, const acc_data_t *scale_shift,
-            const acc_data_t *diff_ss, bool blk_has_tail) {
+            const uint8_t *ws, const acc_data_t *scale,
+            const acc_data_t *diff_scale, const acc_data_t *diff_shift,
+            bool blk_has_tail) {
         size_t stride_C, stride_N, stride_S;
         std::tie(stride_N, stride_S, stride_C)
                 = get_data_strides<isa>(bdesc_, tag_kind_);
@@ -1988,8 +2018,9 @@ public:
             c.ws = &ws[d_off / bits_per_byte];
             c.mean = &mean[start.C * simd_w];
             c.var = &var[start.C * simd_w];
-            c.scale_shift = &scale_shift[start.C * simd_w];
-            c.diff_scale_shift = &diff_ss[start.C * simd_w];
+            c.scale = &scale[start.C * simd_w];
+            c.diff_scale = &diff_scale[start.C * simd_w];
+            c.diff_shift = &diff_shift[start.C * simd_w];
             c.blk_has_tail = blk_has_tail && stop.C == C_blks;
 
             (*ker_bwd_)(&c);
@@ -1997,13 +2028,19 @@ public:
     }
 
     void exec_bwd(const void *src, void *diff_src, const void *diff_dst,
-            const acc_data_t *scale_shift, acc_data_t *diff_scale_shift,
-            const acc_data_t *mean, const acc_data_t *var, const uint8_t *ws,
+            const acc_data_t *scale, acc_data_t *diff_scale,
+            acc_data_t *diff_shift, const acc_data_t *mean,
+            const acc_data_t *var, const uint8_t *ws,
             const memory_tracking::grantor_t &scratchpad) {
         auto rbuf = scratchpad.get<acc_data_t>(key_bnorm_reduction);
-        if (use_tmp_diff_scale_shift(bdesc_)) {
+        if (use_tmp_diff_scale(bdesc_)) {
             auto pbuf = scratchpad.get<acc_data_t>(key_bnorm_tmp_diff_ss);
-            diff_scale_shift = pbuf;
+            diff_scale = pbuf;
+        }
+        if (use_tmp_diff_shift(bdesc_)) {
+            auto pbuf = scratchpad.get<acc_data_t>(key_bnorm_tmp_diff_ss);
+            size_t shift_off = use_tmp_diff_scale(bdesc_) ? bdesc_->C() : 0;
+            diff_shift = &pbuf[shift_off];
         }
 
         size_t stride_C;
@@ -2027,7 +2064,8 @@ public:
                             + (C_blk_st * stride_C) * dt_size_),
                     mean + C_blk_st * simd_w, var + C_blk_st * simd_w,
                     ws + C_blk_st * stride_C / bits_per_byte,
-                    diff_scale_shift + C_blk_st * simd_w, rbuf,
+                    diff_scale + C_blk_st * simd_w,
+                    diff_shift + C_blk_st * simd_w, rbuf,
                     (C_blk_st + C_blk_step) * simd_w > C_);
 
             exec_bwd_step_normalization(C_blk_step, nthr,
@@ -2038,8 +2076,8 @@ public:
                             + (C_blk_st * stride_C) * dt_size_),
                     mean + C_blk_st * simd_w, var + C_blk_st * simd_w,
                     ws + C_blk_st * stride_C / bits_per_byte,
-                    scale_shift + C_blk_st * simd_w,
-                    diff_scale_shift + C_blk_st * simd_w,
+                    scale + C_blk_st * simd_w, diff_scale + C_blk_st * simd_w,
+                    diff_shift + C_blk_st * simd_w,
                     (C_blk_st + C_blk_step) * simd_w > C_);
         }
     }
@@ -2050,9 +2088,17 @@ private:
                 && bdesc->desc()->prop_kind == prop_kind::forward_inference;
     }
 
-    static bool use_tmp_diff_scale_shift(
-            const batch_normalization_pd_t *bdesc) {
-        return false || (bdesc->is_bwd() && !bdesc->use_scaleshift())
+    static bool use_tmp_diff_scale(const batch_normalization_pd_t *bdesc) {
+        return false
+                || (bdesc->is_bwd() && !bdesc->use_scaleshift()
+                        && !bdesc->use_scale())
+                || bdesc->desc()->prop_kind == prop_kind::backward_data;
+    }
+
+    static bool use_tmp_diff_shift(const batch_normalization_pd_t *bdesc) {
+        return false
+                || (bdesc->is_bwd() && !bdesc->use_scaleshift()
+                        && !bdesc->use_shift())
                 || bdesc->desc()->prop_kind == prop_kind::backward_data;
     }
 
@@ -2196,8 +2242,23 @@ template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
     status_t status = status::success;
+
+    const memory_desc_wrapper ss_d(pd()->weights_md());
+
+    const auto use_ss = pd()->use_scaleshift();
+    const auto use_sc = pd()->use_scale();
+    const auto use_sh = pd()->use_shift();
+
+    const size_t shift_off
+            = use_ss && !ss_d.has_zero_dim() ? ss_d.off(1, 0) : 0;
+
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
-    auto scale_shift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
+    auto scale = CTX_IN_MEM(
+            const acc_data_t *, use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    auto shift = use_sh ? CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SHIFT)
+                        : use_ss ? &CTX_IN_MEM(const acc_data_t *,
+                                  DNNL_ARG_SCALE_SHIFT)[shift_off]
+                                 : nullptr;
 
     auto mean = pd()->stats_is_src()
             ? const_cast<acc_data_t *>(
@@ -2217,7 +2278,7 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::execute(
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
-    bnorm_driver_->exec_fwd(src, dst, scale_shift, mean, var, ws, scratchpad);
+    bnorm_driver_->exec_fwd(src, dst, scale, shift, mean, var, ws, scratchpad);
 
     return status::success;
 }
@@ -2301,23 +2362,38 @@ template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
     status_t status = status::success;
+
+    const memory_desc_wrapper diff_ss_d(pd()->diff_weights_md());
+
+    const auto use_ss = pd()->use_scaleshift();
+    const auto use_sc = pd()->use_scale();
+    const auto use_sh = pd()->use_shift();
+
+    const size_t diff_shift_off
+            = use_ss && !diff_ss_d.has_zero_dim() ? diff_ss_d.off(1, 0) : 0;
+
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto mean = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN);
     auto var = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE);
     auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
-    auto scale_shift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
+    auto scale = CTX_IN_MEM(
+            const acc_data_t *, use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
     auto ws = CTX_IN_MEM(const uint8_t *, DNNL_ARG_WORKSPACE);
 
     auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
-    auto diff_scale_shift = CTX_OUT_CLEAN_MEM(
-            acc_data_t *, DNNL_ARG_DIFF_SCALE_SHIFT, status);
+    auto diff_scale = CTX_OUT_CLEAN_MEM(acc_data_t *,
+            use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT, status);
+    CHECK(status);
+    auto diff_shift = use_sh
+            ? CTX_OUT_CLEAN_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT, status)
+            : use_ss ? &diff_scale[diff_shift_off] : nullptr;
     CHECK(status);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
-    bnorm_driver_->exec_bwd(src, diff_src, diff_dst, scale_shift,
-            diff_scale_shift, mean, var, ws, scratchpad);
+    bnorm_driver_->exec_bwd(src, diff_src, diff_dst, scale, diff_scale,
+            diff_shift, mean, var, ws, scratchpad);
 
     return status::success;
 }
