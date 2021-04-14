@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,6 +81,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
 template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru);
 template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
+template rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_gru);
 
 template <typename T1, typename T2, typename T3, typename T4, typename T5,
         typename weights_data_t, typename src_data_t, typename acc_data_t,

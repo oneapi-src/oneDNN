@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -288,6 +288,16 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part2_postgemm) {
                 dequantize_s32_f32, dequantize_u8_f32, reinterpret_s32_f32,
                 scales, rnn, cell_position, ws_gates_, scratch_gates_,
                 dst_layer_, dst_iter_, src_iter_, bias_);
+}
+
+template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::gru_part1_postgemm) {
+    assert(!"GRU signed int8 is not supported");
+}
+
+template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::gru_part2_postgemm) {
+    assert(!"GRU signed int8 is not supported");
 }
 
 template <typename T, typename src_data_t, typename acc_data_t,

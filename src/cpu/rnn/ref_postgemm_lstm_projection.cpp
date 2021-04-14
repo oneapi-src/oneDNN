@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,10 +93,6 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_projection_postgemm) {
     auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
     auto w_proj_comp = src_iter_c_;
 
-    float *weights_projection_scales = (rnn.is_brgemm && !rnn.unfused_post_gemm)
-            ? weights_scales_
-            : pd_->attr()->rnn_weights_projection_qparams_.scales_;
-
     float data_shift = pd_->attr()->rnn_data_qparams_.shift_;
     float data_scale = pd_->attr()->rnn_data_qparams_.scale_;
 
@@ -109,8 +105,8 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_projection_postgemm) {
 
     auto dequantize_s32_f32 = [&](gemm_acc_t s, int j) {
         float wscale = pd_->attr()->rnn_weights_projection_qparams_.mask_ == 0
-                ? weights_projection_scales[0]
-                : weights_projection_scales[j];
+                ? weights_scales_[0]
+                : weights_scales_[j];
         float wcomp = w_proj_comp[j] * data_shift;
 
         return (saturate<float>(s) - wcomp) / (wscale * data_scale);
@@ -124,6 +120,48 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_projection_postgemm) {
             int dst_off = i * dst_layer_ld + j;
             float tmp = dequantize_s32_f32(scratch_gates_[scratch_off], j);
             dst_layer_[dst_off] = quantize_f32_u8(tmp);
+        }
+    };
+    if (rnn.is_brgemm && !rnn.unfused_post_gemm) {
+        for (int i = 0; i < rnn.m_block; i++)
+            postgemm_call(i);
+    } else {
+        parallel_nd(rnn.mb, [&](int i) { postgemm_call(i); });
+    }
+    proj_dst_copy(rnn, cell_position, dst_iter_, dst_layer_, block_step);
+}
+
+template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::lstm_projection_postgemm) {
+    // Here, we use
+    // - scratch_gates to pass the s32 output of the projection
+    // - no need to pass the projection compensation for s8s8 amx
+    auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
+
+    const float data_shift = pd_->attr()->rnn_data_qparams_.shift_;
+    const float data_scale = pd_->attr()->rnn_data_qparams_.scale_;
+
+    auto quantize_f32_s8 = [&](float f) {
+        float qf = f * data_scale + data_shift;
+        return qz_a1b0<float, dst_layer_t>()(qf);
+    };
+
+    auto dequantize_s32_f32 = [&](gemm_acc_t s, int j) {
+        float wscale = pd_->attr()->rnn_weights_projection_qparams_.mask_ == 0
+                ? weights_scales_[0]
+                : weights_scales_[j];
+
+        return (saturate<float>(s)) / (wscale * data_scale);
+    };
+
+    auto postgemm_call = [&](int i) {
+        int n_elem = block_step / (int)sizeof(dst_layer_t);
+        PRAGMA_OMP_SIMD()
+        for (int j = 0; j < n_elem; j++) {
+            int scratch_off = i * rnn.scratch_gates_ld + j;
+            int dst_off = i * dst_layer_ld + j;
+            float tmp = dequantize_s32_f32(scratch_gates_[scratch_off], j);
+            dst_layer_[dst_off] = quantize_f32_s8(tmp);
         }
     };
     if (rnn.is_brgemm && !rnn.unfused_post_gemm) {

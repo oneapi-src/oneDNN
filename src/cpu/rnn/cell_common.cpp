@@ -40,6 +40,9 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
 rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         acc_type>::cell_execution_ref)) {
     auto weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
+    auto weights_projection_scales = rnn.is_lstm_projection
+            ? pd_->attr()->rnn_weights_projection_qparams_.scales_
+            : nullptr;
 
     auto src_layer_ld = rnn.src_layer_ld(cell_position);
     auto src_iter_ld = rnn.src_iter_ld(cell_position);
@@ -84,7 +87,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         rnn_postgemm_->execute_part2(rnn, cell_position, nullptr, dst_proj,
                 dst_layer_, nullptr, nullptr, w_proj_comp, nullptr, nullptr,
                 nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-                nullptr, dst_iter_, weights_scales,
+                nullptr, dst_iter_, weights_projection_scales,
                 rnn.dlc * sizeof(dst_layer_t));
     }
 
@@ -94,6 +97,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_ref);
 template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_ref);
 template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_ref);
+template rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_ref);
 
 #if DNNL_X64
 
@@ -124,6 +128,12 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 #if DNNL_X64
     auto weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
     auto weights_projectons_scales = rnn.is_lstm_projection
+            ? pd_->attr()->rnn_weights_projection_qparams_.scales_
+            : nullptr;
+    // pased the const weight scale to postgemm to avoid the shift
+    // in scale array for per_oc in brgemm
+    const auto wscales_postgemm = pd_->attr()->rnn_weights_qparams_.scales_;
+    const auto wscales_proj_postgemm = rnn.is_lstm_projection
             ? pd_->attr()->rnn_weights_projection_qparams_.scales_
             : nullptr;
 
@@ -396,7 +406,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
                 diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
                 weights_peephole_, bias_[0], ws_grid_, scratch_cell_, dst_iter_,
-                weights_scales, rnn.dhc * sizeof(scratch_t));
+                wscales_postgemm, rnn.dhc * sizeof(scratch_t));
     }
     if (rnn.is_lstm_projection) {
         // Here, because the accumulation type is likely different
@@ -531,7 +541,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             rnn_postgemm_->execute_part2(rnn, cell_position, nullptr, Cp,
                     dst_layer_, nullptr, nullptr, w_proj_comp, nullptr, nullptr,
                     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-                    nullptr, nullptr, dst_iter_, weights_scales,
+                    nullptr, nullptr, dst_iter_, wscales_proj_postgemm,
                     rnn.dlc * sizeof(dst_layer_t));
         }
     }
@@ -542,6 +552,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_brgemm);
 template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_brgemm);
 template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_brgemm);
+template rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_brgemm);
 
 template <typename scratch_data_t, typename acc_data_t>
 void lstm_bwd_weights_peephole_and_bias(const rnn_utils::rnn_conf_t &rnn,

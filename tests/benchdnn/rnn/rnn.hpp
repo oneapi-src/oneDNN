@@ -191,7 +191,11 @@ struct dt_conf_t {
     virtual const entry_t &operator[](data_kind_t kind) const = 0;
 
     const std::string &str() const { return str_; }
-    bool is_int8() const { return operator[](SRC_LAYER).dt == dnnl_u8; }
+    bool is_int8() const {
+        return operator[](SRC_LAYER).dt == dnnl_u8
+                || operator[](SRC_LAYER).dt == dnnl_s8;
+    }
+    bool is_s8() const { return operator[](SRC_LAYER).dt == dnnl_s8; }
 
     static const dt_conf_t &create(const std::string &str);
 
@@ -361,7 +365,11 @@ struct prb_t : public desc_t {
         return 0;
     }
 
-    bool is_int8() const { return cfg[SRC_LAYER].dt == dnnl_u8; }
+    bool is_int8() const {
+        return cfg[SRC_LAYER].dt == dnnl_u8 || cfg[SRC_LAYER].dt == dnnl_s8;
+    }
+    bool is_u8() const { return cfg[SRC_LAYER].dt == dnnl_u8; }
+    bool is_s8() const { return cfg[SRC_LAYER].dt == dnnl_s8; }
     bool is_lstm_peephole() const { return with_peephole; }
     bool is_lstm_projection() const { return with_projection; }
 

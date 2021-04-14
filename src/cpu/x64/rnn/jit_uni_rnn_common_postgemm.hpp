@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -351,8 +351,8 @@ protected:
         if (pd_->weights_md()->data_type != data_type::s8) return;
         /* int8 (de)quantization init*/
         const primitive_attr_t *attr = pd_->attr();
-        float data_scale = attr->rnn_data_qparams_.scale_;
-        float data_shift = attr->rnn_data_qparams_.shift_;
+        const float data_scale = attr->rnn_data_qparams_.scale_;
+        const float data_shift = attr->rnn_data_qparams_.shift_;
 
         L(qlabel);
         {
@@ -421,7 +421,8 @@ protected:
     // Assumption: write_only = true assumes that the quantized value
     // to write is in src
     template <typename Vmm>
-    void q_d(Xbyak::Address dst, Vmm src, int in_len, bool write_only = false) {
+    void q_d(data_type_t src_data_t, Xbyak::Address dst, Vmm src, int in_len,
+            bool write_only = false) {
         Vmm qd_vmm(qd_reg_idx);
         if (!write_only) {
             uni_vpxor(qd_vmm, qd_vmm, qd_vmm);
@@ -432,8 +433,11 @@ protected:
             uni_vminps(src, src, u8_saturation_addr);
             uni_vcvtps2dq(src, src); // convert to int32
             uni_vpackssdw(src, src, qd_vmm); // convert from s32 to s16
-            // convert from s16 to u8 with saturation
-            uni_vpackuswb(src, src, qd_vmm);
+            // convert from s16 to u8/s8 with saturation
+            if (src_data_t == data_type::u8)
+                uni_vpackuswb(src, src, qd_vmm);
+            else
+                uni_vpacksswb(src, src, qd_vmm);
         }
         // Note that the results are interleaved by 128 bit chunks, so we need to merge them together
         switch (in_len) {
@@ -470,7 +474,7 @@ protected:
             dim_t scale_off, int mask, bool packed,
             Xbyak::Reg64 *comp = nullptr) {
         // nothing to do if not int8
-        if (src_data_t != data_type::u8) return;
+        if (!utils::one_of(src_data_t, data_type::u8, data_type::s8)) return;
 
         size_t qscale_dt_size = sizeof(float);
 
@@ -569,7 +573,10 @@ protected:
                     assert(!"unsupported");
                 break;
             case data_type::bf16: bf16_dc(dst, src, in_len, write_only); break;
-            case data_type::u8: q_d(dst, src, in_len, write_only); break;
+            case data_type::u8:
+            case data_type::s8:
+                q_d(src_data_t, dst, src, in_len, write_only);
+                break;
             default: assert(!"unsupported");
         }
     }
@@ -586,7 +593,8 @@ protected:
                     assert(!"unsupported");
                 break;
             case data_type::bf16: bf16_uc(dst, src, in_len); break;
-            case data_type::u8: deq_h(dst, src, in_len); break;
+            case data_type::u8:
+            case data_type::s8: deq_h(dst, src, in_len); break;
             default: assert(!"unsupported");
         }
     }

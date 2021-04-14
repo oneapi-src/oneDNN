@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -91,28 +91,29 @@ status_t check_data_type_consistency_fwd(const rnn_desc_t &r) {
     data_type_t weights_layer_dt = r.weights_layer_desc.data_type;
     data_type_t weights_projection_dt = r.weights_projection_desc.data_type;
 
-    bool is_forward = !(r.prop_kind == prop_kind::backward);
-    bool is_inference = r.prop_kind == prop_kind::forward_inference;
-    bool is_int8_ok = one_of(r.cell_kind, dnnl_vanilla_lstm, dnnl_vanilla_gru);
+    const bool is_forward = !(r.prop_kind == prop_kind::backward);
+    const bool is_inference = r.prop_kind == prop_kind::forward_inference;
+    const bool is_int8_ok
+            = one_of(r.cell_kind, dnnl_vanilla_lstm, dnnl_vanilla_gru);
 
-    bool cell_state_check = expect_dt(r.src_iter_c_desc, f32, f16)
+    const bool cell_state_check = expect_dt(r.src_iter_c_desc, f32, f16)
             && expect_dt(r.dst_iter_c_desc, f32, f16);
 
-    bool is_f32 = everyone_is(f32, src_layer_dt, dst_layer_dt, weights_iter_dt,
-                          weights_layer_dt)
+    const bool is_f32 = everyone_is(f32, src_layer_dt, dst_layer_dt,
+                                weights_iter_dt, weights_layer_dt)
             && expect_dt(r.src_iter_desc, f32)
             && expect_dt(r.weights_peephole_desc, f32)
             && expect_dt(r.weights_projection_desc, f32)
             && expect_dt(r.dst_iter_desc, f32) && expect_dt(r.bias_desc, f32);
 
-    bool is_bf16 = everyone_is(bf16, src_layer_dt, dst_layer_dt,
-                           weights_iter_dt, weights_layer_dt)
+    const bool is_bf16 = everyone_is(bf16, src_layer_dt, dst_layer_dt,
+                                 weights_iter_dt, weights_layer_dt)
             && expect_dt(r.src_iter_desc, bf16)
             && expect_dt(r.weights_peephole_desc, f32)
             && one_of(weights_projection_dt, bf16, data_type::undef)
             && expect_dt(r.dst_iter_desc, bf16) && expect_dt(r.bias_desc, f32);
 
-    bool is_f16 = is_forward
+    const bool is_f16 = is_forward
             && everyone_is(f16, src_layer_dt, dst_layer_dt, weights_iter_dt,
                     weights_layer_dt)
             && expect_dt(r.src_iter_desc, f16)
@@ -120,7 +121,7 @@ status_t check_data_type_consistency_fwd(const rnn_desc_t &r) {
             && r.weights_peephole_desc.data_type == data_type::undef
             && expect_dt(r.dst_iter_desc, f16) && expect_dt(r.bias_desc, f16);
 
-    bool is_u8u8u8 = is_inference && is_int8_ok && src_layer_dt == u8
+    const bool is_u8u8u8 = is_inference && is_int8_ok && src_layer_dt == u8
             && one_of(dst_layer_dt, u8, f32)
             && everyone_is(s8, weights_iter_dt, weights_layer_dt)
             && expect_dt(r.src_iter_desc, u8)
@@ -130,15 +131,33 @@ status_t check_data_type_consistency_fwd(const rnn_desc_t &r) {
             && expect_dt(r.dst_iter_desc, u8)
             && expect_dt(r.dst_iter_c_desc, f32) && expect_dt(r.bias_desc, f32);
 
-    bool is_f32u8f32 = is_inference && is_int8_ok && src_layer_dt == u8
+    const bool is_f32u8f32 = is_inference && is_int8_ok && src_layer_dt == u8
             && everyone_is(s8, weights_iter_dt, weights_layer_dt)
             && r.weights_peephole_desc.data_type == data_type::undef
             && one_of(weights_projection_dt, s8, data_type::undef)
             && one_of(dst_layer_dt, u8, f32) && expect_dt(r.src_iter_desc, f32)
             && expect_dt(r.dst_iter_desc, f32) && expect_dt(r.bias_desc, f32);
 
+    const bool is_s8s8s8 = is_inference && is_int8_ok && src_layer_dt == s8
+            && one_of(dst_layer_dt, s8, f32)
+            && everyone_is(s8, weights_iter_dt, weights_layer_dt)
+            && expect_dt(r.src_iter_desc, s8)
+            && expect_dt(r.src_iter_c_desc, f32)
+            && r.weights_peephole_desc.data_type == data_type::undef
+            && one_of(weights_projection_dt, s8, data_type::undef)
+            && expect_dt(r.dst_iter_desc, s8)
+            && expect_dt(r.dst_iter_c_desc, f32) && expect_dt(r.bias_desc, f32);
+
+    const bool is_f32s8f32 = is_inference && is_int8_ok && src_layer_dt == s8
+            && everyone_is(s8, weights_iter_dt, weights_layer_dt)
+            && r.weights_peephole_desc.data_type == data_type::undef
+            && one_of(weights_projection_dt, s8, data_type::undef)
+            && one_of(dst_layer_dt, s8, f32) && expect_dt(r.src_iter_desc, f32)
+            && expect_dt(r.dst_iter_desc, f32) && expect_dt(r.bias_desc, f32);
+
     return cell_state_check
-                    && (is_f32 || is_bf16 || is_f16 || is_u8u8u8 || is_f32u8f32)
+                    && (is_f32 || is_bf16 || is_f16 || is_u8u8u8 || is_f32u8f32
+                            || is_s8s8s8 || is_f32s8f32)
             ? success
             : unimplemented;
 }

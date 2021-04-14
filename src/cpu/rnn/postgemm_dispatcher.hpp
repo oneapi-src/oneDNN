@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -234,7 +234,7 @@ private:
 
         const bool jit_fwd = pd_->is_fwd()
                 && utils::one_of(src_type, data_type::f32, data_type::u8,
-                        data_type::bf16);
+                        data_type::s8, data_type::bf16);
         const bool jit_bwd = !pd_->is_fwd()
                 && utils::one_of(src_type, data_type::f32, data_type::bf16);
 
@@ -286,6 +286,8 @@ using rnn_postgemm_bwd_bf16_t = rnn_postgemm_dispatcher<prop_kind::backward,
 
 using rnn_postgemm_fwd_u8_t = rnn_postgemm_dispatcher<prop_kind::forward,
         data_type::u8, data_type::s32, data_type::s32>;
+using rnn_postgemm_fwd_s8_t = rnn_postgemm_dispatcher<prop_kind::forward,
+        data_type::s8, data_type::s32, data_type::s32>;
 
 } // namespace cpu
 } // namespace impl

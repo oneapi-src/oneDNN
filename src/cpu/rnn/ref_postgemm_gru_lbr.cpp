@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -126,6 +126,11 @@ rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_lbr_postgemm) {
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_lbr_postgemm) {
     assert(!"GRU LBR int8 is not supported");
+}
+
+template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::gru_lbr_postgemm) {
+    assert(!"GRU LBR signed int8 is not supported");
 }
 
 template <typename T1, typename src_data_t, typename acc_data_t,

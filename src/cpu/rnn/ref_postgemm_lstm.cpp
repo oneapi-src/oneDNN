@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -178,23 +178,18 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
     const float *scales = pd_->attr()->rnn_tparams_.scales_;
     const float *cscale = &(pd_->attr()->rnn_tparams_.cscale_);
 
-    float *weights_scales = (rnn.is_brgemm && !rnn.unfused_post_gemm)
-            ? weights_scales_
-            : pd_->attr()->rnn_weights_qparams_.scales_;
     float data_shift = pd_->attr()->rnn_data_qparams_.shift_;
     float data_scale = pd_->attr()->rnn_data_qparams_.scale_;
 
     auto quantize_f32_u8 = [&](float f) {
         float qf = f * data_scale + data_shift;
-        qf = nstl::min(qf, 255.0f);
-        qf = nstl::max(qf, 0.0f);
-        return (dst_layer_t)mxcsr_cvt(qf);
+        return qz_a1b0<float, dst_layer_t>()(qf);
     };
 
     auto dequantize_s32_f32 = [&](gemm_acc_t s, int gate, int j) {
         float wscale = pd_->attr()->rnn_weights_qparams_.mask_ == 0
-                ? weights_scales[0]
-                : weights_scales[gate * rnn.dhc + j];
+                ? weights_scales_[0]
+                : weights_scales_[gate * rnn.dhc + j];
 
         return saturate<float>(s) * (1.f / (wscale * data_scale));
     };
@@ -213,6 +208,46 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
                 src_iter_, src_iter_c_, weights_peephole_, bias_, block_step);
     else
         lstm_fwd_postgemm_template(linear_f, linear_f, quantize_f32_u8,
+                dequantize_s32_f32, scales, cscale, rnn, cell_position,
+                ws_gates_, scratch_gates_, dst_layer_, dst_iter_, dst_iter_c_,
+                src_iter_, src_iter_c_, weights_peephole_, bias_, block_step);
+}
+
+template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::lstm_postgemm) {
+    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+    const float *cscale = &(pd_->attr()->rnn_tparams_.cscale_);
+
+    const float data_shift = pd_->attr()->rnn_data_qparams_.shift_;
+    const float data_scale = pd_->attr()->rnn_data_qparams_.scale_;
+
+    auto quantize_f32_s8 = [&](float f) {
+        float qf = f * data_scale + data_shift;
+        return qz_a1b0<float, dst_layer_t>()(qf);
+    };
+
+    auto dequantize_s32_f32 = [&](gemm_acc_t s, int gate, int j) {
+        float wscale = pd_->attr()->rnn_weights_qparams_.mask_ == 0
+                ? weights_scales_[0]
+                : weights_scales_[gate * rnn.dhc + j];
+
+        return saturate<float>(s) * (1.f / (wscale * data_scale));
+    };
+
+    auto linear_f = [](const float *scale, float a) { return *scale * a; };
+    auto logistic_f = [](const float *scale, float a) {
+        return logistic_fwd<float>(a);
+    };
+    auto tanh_f
+            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
+
+    if (!pd_->attr()->rnn_tparams_.test_mode_)
+        lstm_fwd_postgemm_template(logistic_f, tanh_f, quantize_f32_s8,
+                dequantize_s32_f32, scales, cscale, rnn, cell_position,
+                ws_gates_, scratch_gates_, dst_layer_, dst_iter_, dst_iter_c_,
+                src_iter_, src_iter_c_, weights_peephole_, bias_, block_step);
+    else
+        lstm_fwd_postgemm_template(linear_f, linear_f, quantize_f32_s8,
                 dequantize_s32_f32, scales, cscale, rnn, cell_position,
                 ws_gates_, scratch_gates_, dst_layer_, dst_iter_, dst_iter_c_,
                 src_iter_, src_iter_c_, weights_peephole_, bias_, block_step);

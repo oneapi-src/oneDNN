@@ -131,6 +131,14 @@ rnn_gemm_sig(ref_rnn_fwd_u8s8_t::packed_gemm) {
             &beta, c_, &ldC, &offsetc);
 }
 
+template <>
+rnn_gemm_sig(ref_rnn_fwd_s8s8_t::packed_gemm) {
+    assert(transA == 'N' && transB == 'N' && alpha == 1.);
+    int32_t offsetc = 0;
+    return gemm_s8s8s32_compute("P", "N", "F", &m, &n, &k, a_, &ldA, b_, &ldB,
+            &beta, c_, &ldC, &offsetc);
+}
+
 //*************** Grid computations strategy: linear ***************//
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
         data_type_t acc_type>
@@ -542,6 +550,7 @@ void copy_init_layer_bwd_template(const rnn_conf_t &rnn,
 RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_fwd_f32_t)
 RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_fwd_bf16_t)
 RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_fwd_u8s8_t)
+RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_fwd_s8s8_t)
 
 #define RNN_DECL_COPY_INIT_LAYER_BWD(cname) \
     template <> \
@@ -572,8 +581,8 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
             rnn.n_dir, rnn.n_iter + 1, rnn.mb, rnn.ws_states_iter_ld);
     AOC<float, 5> ws_states_iter_c(ws_states_iter_c_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_iter + 1, rnn.mb, rnn.ws_states_iter_c_ld);
-    float data_shift = pd->attr()->rnn_data_qparams_.shift_;
-    float data_scale = pd->attr()->rnn_data_qparams_.scale_;
+    const float data_shift = pd->attr()->rnn_data_qparams_.shift_;
+    const float data_scale = pd->attr()->rnn_data_qparams_.scale_;
 
     const bool quantize = rnn.is_int8()
             && IMPLICATION(pd->with_src_iter(),
@@ -673,6 +682,7 @@ void copy_init_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
 RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_fwd_f32_t)
 RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_fwd_bf16_t)
 RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_fwd_u8s8_t)
+RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_fwd_s8s8_t)
 
 #define RNN_DECL_COPY_INIT_ITER_BWD(cname) \
     template <> \
@@ -701,8 +711,8 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
 
     AOC<const src_data_t, 5> ws_states_layer(ws_states_layer_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_iter + 1, rnn.mb, rnn.ws_states_layer_ld);
-    float shift = (pd->attr()->rnn_data_qparams_.shift_);
-    float scale = (pd->attr()->rnn_data_qparams_.scale_);
+    const float shift = (pd->attr()->rnn_data_qparams_.shift_);
+    const float scale = (pd->attr()->rnn_data_qparams_.scale_);
 
     const bool dequantize
             = pd->dst_md(0)->data_type == data_type::f32 && rnn.is_int8();
@@ -712,6 +722,9 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     static constexpr bool rnn_u8u8_case
             = std::is_same<dst_layer_dt, uint8_t>::value
             && std::is_same<src_data_t, uint8_t>::value;
+    static constexpr bool rnn_s8s8_case
+            = std::is_same<dst_layer_dt, int8_t>::value
+            && std::is_same<src_data_t, int8_t>::value;
 
     auto copy_vec = [&](dst_layer_dt *dd, const src_data_t *ss) {
         if (dequantize_at_copy) {
@@ -730,10 +743,11 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
             PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dlc; s++) {
                 float val = (float)ss[s] + dd[s];
-                val = std::min(std::max(val, 0.f), 255.f);
+                val = qz_a1b0<float, src_data_t>()(val);
                 dd[s] = (dst_layer_dt)((val - 2 * shift) / scale);
             }
-        } else if (rnn_u8u8_case) { // instead of checking for rnn.is_int8()
+        } else if (rnn_u8u8_case
+                || rnn_s8s8_case) { // instead of checking for rnn.is_int8()
             PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dlc; s++)
                 dd[s] = saturate<dst_layer_dt, int16_t>(
@@ -838,6 +852,7 @@ void copy_res_layer_bwd_template(const rnn_conf_t &rnn,
 RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_fwd_f32_t)
 RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_fwd_bf16_t)
 RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_fwd_u8s8_t)
+RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_fwd_s8s8_t)
 
 #define RNN_DECL_COPY_RES_LAYER_BWD(cname) \
     template <> \
@@ -867,8 +882,8 @@ void copy_res_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     AOC<const float, 5> ws_states_iter_c(ws_states_iter_c_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_iter + 1, rnn.mb, rnn.ws_states_iter_c_ld);
 
-    float data_shift = pd->attr()->rnn_data_qparams_.shift_;
-    float data_scale = pd->attr()->rnn_data_qparams_.scale_;
+    const float data_shift = pd->attr()->rnn_data_qparams_.shift_;
+    const float data_scale = pd->attr()->rnn_data_qparams_.scale_;
 
     const bool dequantize = pd->with_dst_iter()
             && pd->dst_md(1)->data_type == data_type::f32 && rnn.is_int8();
@@ -955,6 +970,7 @@ void copy_res_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
 RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_f32_t)
 RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_bf16_t)
 RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_u8s8_t)
+RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_s8s8_t)
 
 #define RNN_DECL_COPY_RES_ITER_BWD(cname) \
     template <> \
@@ -1325,6 +1341,15 @@ rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
 
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_ref);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_brgemm);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_gru);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_gru_lbr);
+
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::f32,
         data_type::f32, data_type::f32>;
 template struct _ref_rnn_common_t<prop_kind::backward, data_type::f32,
@@ -1336,6 +1361,8 @@ template struct _ref_rnn_common_t<prop_kind::backward, data_type::bf16,
         data_type::bf16, data_type::f32>;
 
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8,
+        data_type::s8, data_type::s32>;
+template struct _ref_rnn_common_t<prop_kind::forward, data_type::s8,
         data_type::s8, data_type::s32>;
 
 #undef AOC

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,6 +62,12 @@ template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
 template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru_lbr);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr) {
+    assert(!"GRU LBR int8 is not supported");
+    return dnnl_unimplemented;
+}
+
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_gru_lbr) {
     assert(!"GRU LBR int8 is not supported");
     return dnnl_unimplemented;
 }

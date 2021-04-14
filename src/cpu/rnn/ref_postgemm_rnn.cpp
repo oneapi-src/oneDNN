@@ -154,6 +154,11 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::rnn_postgemm) {
     assert(!"VANILLA RNN int8 is not supported");
 }
 
+template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::rnn_postgemm) {
+    assert(!"VANILLA RNN int8 is not supported");
+}
+
 template <typename T1, typename T2, typename src_data_t, typename acc_data_t,
         typename scratch_data_t>
 void rnn_bwd_postgemm_template(T1 func1, T2 to_src, const float *scales,
