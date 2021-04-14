@@ -810,6 +810,7 @@ struct jit_brgemm_conv_conf_t {
     bool with_binary;
 
     bool is_fused_conv;
+    bool is_os_blocking;
     int nb_ic, ic_block;
     int nb_oc, oc_block;
     int nb_iw, iw_block;
