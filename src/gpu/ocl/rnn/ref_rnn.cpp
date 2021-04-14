@@ -1445,9 +1445,10 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     // initialize diff_state to 0
     if (aprop == prop_kind::backward) {
         ws_set(ctx, compute_stream, workspace_, ws_dhG1_offset_,
-                rnn_utils::dhG1_gru, 0.0f, rnn.ws_dhG1_size);
+                rnn_utils::dhG1_gru, 0.0f, rnn.ws_dhG1_size / sizeof(float));
         ws_set(ctx, compute_stream, workspace_, ws_diff_states_offset_,
-                rnn_utils::diff_states, 0.0f, rnn.ws_diff_states_size);
+                rnn_utils::diff_states, 0.0f,
+                rnn.ws_diff_states_size / sizeof(float));
     }
 
     DPRINT("\n%s(%d) WS before bias prepare\n\n", __FUNCTION__, __LINE__);
