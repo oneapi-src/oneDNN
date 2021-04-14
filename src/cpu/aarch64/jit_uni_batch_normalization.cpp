@@ -2223,6 +2223,8 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
             && one_of(src_md()->data_type, f32, bf16)
             && IMPLICATION(src_md()->data_type == bf16, false)
             && check_scale_shift_data_type()
+            /* separate scale and shift are not supported */
+            && !use_scale() && !use_shift()
             && (attr()->has_default_values() || this->with_relu_post_op());
     if (!ok) return status::unimplemented;
 
@@ -2320,7 +2322,10 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
                     everyone_is(bf16, src_md()->data_type,
                             diff_src_md()->data_type))
             && IMPLICATION(src_md()->data_type == bf16, false)
-            && check_scale_shift_data_type() && attr()->has_default_values();
+            && check_scale_shift_data_type()
+            && attr()->has_default_values()
+            /* separate scale and shift are not supported */
+            && !use_scale() && !use_shift();
     if (!ok) return status::unimplemented;
 
     const memory_desc_wrapper src_d(src_md());

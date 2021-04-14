@@ -434,6 +434,8 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::pd_t::init(
             && one_of(ndims(), 4, 5) && stats_is_src()
             && src_md()->data_type == s8 && check_scale_shift_data_type()
             && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
+            /* separate scale and shift are not supported */
+            && !use_scale() && !use_shift()
             && (attr()->has_default_values() || this->with_relu_post_op());
     if (!ok) return status::unimplemented;
 
