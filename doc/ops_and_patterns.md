@@ -21,9 +21,11 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - Convolution
 - ConvolutionBackpropData
 - ConvolutionBackpropFilters
+- Dequantize
 - Divide
 - Elu
 - EluBackprop
+- End
 - Erf
 - Exp
 - GELU
@@ -47,6 +49,7 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - Pow
 - PowBackprop
 - PowBackpropExponent
+- Quantize
 - ReduceSum
 - ReLU
 - ReLUBackprop
