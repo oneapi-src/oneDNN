@@ -14,5 +14,6 @@
 
 ## scales
 --ddt=f32 --sdt=f32:f32
---attr-scales=,src:common:0.25_src1:common:0.5,src:common:0.125,src1:common:2
+--attr-scales=,src:common:0.25_src1:common:0.5,src:common:0.125,src1:common:2, \
+              src:common:0.25*_src1:common:0.5*
 --batch=option_set_all

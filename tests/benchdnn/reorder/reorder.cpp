@@ -378,7 +378,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t scales, src_zero_points_m, dst_zero_points_m;
     maybe_prepare_runtime_scales(
-            scales, prb->attr, get_n_scales(prb), prb->scales);
+            scales, prb->attr.oscale, get_n_scales(prb), prb->scales);
     maybe_prepare_runtime_zero_points(
             src_zero_points_m, prb->attr, DNNL_ARG_SRC, 1, prb->src_zp);
     maybe_prepare_runtime_zero_points(

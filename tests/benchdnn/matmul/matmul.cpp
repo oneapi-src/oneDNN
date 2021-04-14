@@ -352,7 +352,7 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t src_zero_points_m, wei_zero_points_m, dst_zero_points_m;
     const auto &wei_zero_point_val
             = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).value;
-    maybe_prepare_runtime_scales(scales, prb->attr, prb->n, prb->scales);
+    maybe_prepare_runtime_scales(scales, prb->attr.oscale, prb->n, prb->scales);
     maybe_prepare_runtime_zero_points(
             src_zero_points_m, prb->attr, DNNL_ARG_SRC, prb->k, prb->src_zp);
     maybe_prepare_runtime_zero_points(wei_zero_points_m, prb->attr,

@@ -2550,8 +2550,8 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 #define DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) \
     (DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE * ((idx) + 1))
 
-// XXX: next define should have a (1 << 20) = 1048576 value to preserve 5 bits
-// for DNNL_ARG_ATTR_MULTIPLE_POST_OP argument.
+/// Input scaling factors provided at execution time.
+#define DNNL_ARG_ATTR_INPUT_SCALES 1048576
 
 /// A structure that contains an index and a memory object, and is used to pass
 /// arguments to dnnl_primitive_execute().

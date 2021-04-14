@@ -23,6 +23,7 @@
 #include "common/math_utils.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
+#include "cpu/cpu_primitive.hpp"
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/ref_binary.hpp"
@@ -40,22 +41,15 @@ status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
     auto dst = CTX_OUT_CLEAN_MEM(dst_data_t *, DNNL_ARG_DST, status);
     CHECK(status);
 
+    const float *scales[2];
+    ASSIGN_INPUT_SCALE_VALUE(scales[0], DNNL_ARG_SRC_0);
+    ASSIGN_INPUT_SCALE_VALUE(scales[1], DNNL_ARG_SRC_1);
+
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
     const auto alg = pd()->desc()->alg_kind;
-
-    // 0:src0 1:src1
-    constexpr int nargs = 2;
-    scales_t scales[nargs];
-    int args[nargs] = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
-
-    CHECK(scales[0].copy_from(pd()->attr()->scales_.get(args[0])));
-    CHECK(scales[1].copy_from(pd()->attr()->scales_.get(args[1])));
-
-    bool do_scale_src0 = !scales[0].has_default_values();
-    bool do_scale_src1 = !scales[1].has_default_values();
 
     const auto nelems = dst_d.nelems();
     const auto ndims = pd()->ndims();
@@ -79,8 +73,8 @@ status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
         float y_f = (float)src1[off_B];
         float dst_f = (float)dst[off_C];
 
-        if (do_scale_src0) x_f *= scales[0].scales_[0];
-        if (do_scale_src1) y_f *= scales[1].scales_[0];
+        x_f *= scales[0][0];
+        y_f *= scales[1][0];
 
         float acc = compute_binary_scalar(alg, x_f, y_f);
 

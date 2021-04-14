@@ -910,7 +910,8 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(fill_wei(prb, wei_dt, wei_fp, res), WARN);
     SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
     SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
-    maybe_prepare_runtime_scales(scales, prb->attr, prb->oc, prb->scales);
+    maybe_prepare_runtime_scales(
+            scales, prb->attr.oscale, prb->oc, prb->scales);
     maybe_prepare_runtime_zero_points(
             src_zero_points_m, prb->attr, DNNL_ARG_SRC, prb->ic, prb->src_zp);
     maybe_prepare_runtime_zero_points(

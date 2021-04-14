@@ -16,6 +16,7 @@
 
 #include <functional>
 
+#include "cpu/cpu_primitive.hpp"
 #include "cpu/x64/jit_uni_binary.hpp"
 
 namespace dnnl {
@@ -79,10 +80,10 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
     conf_.is_bf16 = conf_.dst_type == bf16;
     conf_.op_type = get_op_type(src0_md_);
     assert(conf_.op_type != op_t::none);
-    conf_.do_scale_src0
-            = !attr()->scales_.get(DNNL_ARG_SRC_0).has_default_values();
-    conf_.do_scale_src1
-            = !attr()->scales_.get(DNNL_ARG_SRC_1).has_default_values();
+    conf_.do_scale_src0 = !attr()->scales_.get(DNNL_ARG_SRC_0).defined()
+            || !attr()->scales_.get(DNNL_ARG_SRC_0).has_default_values();
+    conf_.do_scale_src1 = !attr()->scales_.get(DNNL_ARG_SRC_1).defined()
+            || !attr()->scales_.get(DNNL_ARG_SRC_1).has_default_values();
     conf_.do_sum = po.contain(primitive_kind::sum, 0)
             && po.entry_[0].sum.scale != 0.f;
     conf_.with_eltwise = po.find(primitive_kind::eltwise) != -1;
@@ -671,8 +672,9 @@ status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
     const auto &post_ops = pd()->attr()->post_ops_;
     const auto &post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(post_ops, ctx);
-    const auto scales_src0 = pd()->attr()->scales_.get(DNNL_ARG_SRC_0).scales_;
-    const auto scales_src1 = pd()->attr()->scales_.get(DNNL_ARG_SRC_1).scales_;
+    const float *scales[2];
+    ASSIGN_INPUT_SCALE_VALUE(scales[0], DNNL_ARG_SRC_0);
+    ASSIGN_INPUT_SCALE_VALUE(scales[1], DNNL_ARG_SRC_1);
 
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));
@@ -702,13 +704,13 @@ status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
 
     if ((bcast_type == bcast_t::none || point_broadcast_no_oc_tail)
             && !postops_per_oc_broadcast_exists && !blocked_oc_tail)
-        execute_no_bcast_strategy(src0, src1, dst, scales_src0, scales_src1,
+        execute_no_bcast_strategy(src0, src1, dst, scales[0], scales[1],
                 post_ops_binary_rhs_arg_vec, bcast_type);
     else if (bcast_type == bcast_t::per_w)
-        execute_bcast_per_w_strategy(src0, src1, dst, scales_src0, scales_src1,
+        execute_bcast_per_w_strategy(src0, src1, dst, scales[0], scales[1],
                 post_ops_binary_rhs_arg_vec, op_type, blocked_oc_tail);
     else
-        execute_bcast_per_c_strategy(src0, src1, dst, scales_src0, scales_src1,
+        execute_bcast_per_c_strategy(src0, src1, dst, scales[0], scales[1],
                 post_ops_binary_rhs_arg_vec, op_type, bcast_type,
                 blocked_oc_tail);
 

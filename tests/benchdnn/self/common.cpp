@@ -75,6 +75,11 @@ static int check_attr2str() {
     attr.scales.set(DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.3));
     CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.3 ");
 
+    attr = attr_t();
+    attr.scales.set(
+            DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.3, true));
+    CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.3* ");
+
     attr.scales.set(DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.3));
     attr.scales.set(DNNL_ARG_SRC_1, attr_t::scale_t(policy_t::COMMON, 3));
     CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.3_src1:common:3 ");

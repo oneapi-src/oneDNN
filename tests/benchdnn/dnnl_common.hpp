@@ -420,8 +420,8 @@ int execute_and_wait(dnnl_primitive_t prim, const args_t &args);
 int measure_perf(benchdnn_timer_t &t, perf_function_t &perf_func, args_t &args);
 int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args);
 
-void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
-        int64_t scale_cnt, const float *scales);
+void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
+        const attr_t::scale_t &scale, int64_t scale_cnt, const float *scales);
 
 void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
         const attr_t &attr, int arg, int64_t count, const int32_t *zero_points);

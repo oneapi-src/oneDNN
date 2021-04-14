@@ -3,7 +3,7 @@
 ## Usage
 ```
     --attr-oscale=POLICY[:SCALE[*]]
-    --attr-scales=ARG:POLICY[:SCALE][_...]
+    --attr-scales=ARG:POLICY[:SCALE[*]][_...]
     --attr-zero-points=ARG:POLICY:ZEROPOINT[*][_...]
     --attr-post-ops='SUM[:SCALE[:DATA_TYPE]];'
                     'ELTWISE[:ALPHA[:BETA[:SCALE]]];[...;]'

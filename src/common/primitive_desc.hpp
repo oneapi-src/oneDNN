@@ -74,6 +74,12 @@ struct primitive_desc_t : public c_compatible {
         if ((arg & DNNL_ARG_ATTR_ZERO_POINTS)
                 && !attr()->zero_points_.defined(arg))
             return arg_usage_t::input;
+        if ((arg == (DNNL_ARG_ATTR_INPUT_SCALES | DNNL_ARG_SRC_0))
+                && !attr()->scales_.get(DNNL_ARG_SRC_0).defined())
+            return arg_usage_t::input;
+        if ((arg == (DNNL_ARG_ATTR_INPUT_SCALES | DNNL_ARG_SRC_1))
+                && !attr()->scales_.get(DNNL_ARG_SRC_1).defined())
+            return arg_usage_t::input;
         if (arg == DNNL_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
             return arg_usage_t::output;
         for (int idx = 0; idx < attr()->post_ops_.len(); ++idx) {
