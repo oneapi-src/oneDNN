@@ -42,7 +42,7 @@ struct call_params_t {
     // keep int sizes at 8 bytes -- jit code expects this
     size_t channel_offt_count, spat_offt_count;
     float eps;
-    const float *scale_shift, *mean, *var;
+    const float *scale, *shift, *mean, *var;
     const data_t *src, *dst;
 };
 
@@ -60,7 +60,8 @@ struct jit_bnorm_base_t : public jit_generator {
 
     Reg64 reg_param = abi_param1;
 
-    Reg64 reg_scale_shift = rbx;
+    Reg64 reg_scale = rbx;
+    Reg64 reg_shift = rdx;
     Reg64 reg_mean = rbp;
 
     Reg64 reg_channel_offt_count = r8;
@@ -108,7 +109,8 @@ struct jit_bnorm_base_t : public jit_generator {
         mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
         mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
         mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
-        mov(reg_scale_shift, ptr[reg_param + PARAM_OFF(scale_shift)]);
+        mov(reg_scale, ptr[reg_param + PARAM_OFF(scale)]);
+        mov(reg_shift, ptr[reg_param + PARAM_OFF(shift)]);
         mov(reg_var, ptr[reg_param + PARAM_OFF(var)]);
 #undef PARAM_OFF
     }
@@ -122,13 +124,13 @@ struct jit_bnorm_base_t : public jit_generator {
     }
 
     Address scale_ptr(size_t offt = 0) {
-        return vmmword[reg_scale_shift + reg_channel_offt_4byte + offt
+        return vmmword[reg_scale + reg_channel_offt_4byte + offt
                 + 0 * chan_data_offt_];
     }
 
     Address shift_ptr(size_t offt = 0) {
-        return vmmword[reg_scale_shift + reg_channel_offt_4byte + offt
-                + 1 * chan_data_offt_];
+        return vmmword[reg_shift + reg_channel_offt_4byte + offt
+                + 0 * chan_data_offt_];
     }
 
     Address src_ptr(size_t offt = 0) {
@@ -142,8 +144,8 @@ struct jit_bnorm_base_t : public jit_generator {
     virtual void prepare_tail_mask() {}
     virtual void load_mean_and_var(const Vmm &vmean, const Vmm &vsqrtvar,
             size_t offt, bool need_tail) {}
-    virtual void load_scale_and_shift(const Vmm &vscale, const Vmm &vshift,
-            size_t offt, bool need_tail) {}
+    virtual void load_scale(const Vmm &vscale, size_t offt, bool need_tail) {}
+    virtual void load_shift(const Vmm &vshift, size_t offt, bool need_tail) {}
     virtual void compute_dst(bool need_tail) {}
 
     // Precomputes vscale and vshift for following
@@ -155,9 +157,19 @@ struct jit_bnorm_base_t : public jit_generator {
         uni_vaddps(vsqrtvar, vsqrtvar, veps);
         uni_vsqrtps(vsqrtvar, vsqrtvar);
 
-        if (pd_->use_scaleshift()) {
-            load_scale_and_shift(vscale, vshift, offt, need_tail);
+        if (pd_->use_scaleshift() || (pd_->use_scale() && pd_->use_shift())) {
+            load_scale(vscale, offt, need_tail);
             uni_vdivps(vscale, vscale, vsqrtvar);
+            load_shift(vshift, offt, need_tail);
+            uni_vfnmadd231ps(vshift, vmean, vscale);
+        } else if (pd_->use_scale()) {
+            load_scale(vscale, offt, need_tail);
+            uni_vdivps(vscale, vscale, vsqrtvar);
+            uni_vmulps(vmean, vmean, vscale);
+            uni_vsubps(vshift, vzero, vmean, vshift);
+        } else if (pd_->use_shift()) {
+            uni_vdivps(vscale, vone, vsqrtvar, vscale);
+            load_shift(vshift, offt, need_tail);
             uni_vfnmadd231ps(vshift, vmean, vscale);
         } else {
             uni_vdivps(vscale, vone, vsqrtvar, vscale);
@@ -218,13 +230,18 @@ struct jit_bnorm_t<avx512_core> : public jit_bnorm_base_t<avx512_core> {
         }
     }
 
-    void load_scale_and_shift(const Vmm &vscale, const Vmm &vshift, size_t offt,
-            bool need_tail) override {
+    void load_scale(const Vmm &vscale, size_t offt, bool need_tail) override {
         if (need_tail) {
             uni_vmovups_tail(vscale, tail_opmask, scale_ptr(offt));
-            uni_vmovups_tail(vshift, tail_opmask, shift_ptr(offt));
         } else {
             uni_vmovups(vscale, scale_ptr(offt));
+        }
+    }
+
+    void load_shift(const Vmm &vshift, size_t offt, bool need_tail) override {
+        if (need_tail) {
+            uni_vmovups_tail(vshift, tail_opmask, shift_ptr(offt));
+        } else {
             uni_vmovups(vshift, shift_ptr(offt));
         }
     }
@@ -321,13 +338,18 @@ struct jit_bnorm_t<avx2> : public jit_bnorm_base_t<avx2> {
         }
     }
 
-    void load_scale_and_shift(const Vmm &vscale, const Vmm &vshift, size_t offt,
-            bool need_tail) override {
+    void load_scale(const Vmm &vscale, size_t offt, bool need_tail) override {
         if (need_tail) {
             uni_vmovups_tail(vscale, tail_vmask, scale_ptr(offt));
-            uni_vmovups_tail(vshift, tail_vmask, shift_ptr(offt));
         } else {
             uni_vmovups(vscale, scale_ptr(offt));
+        }
+    }
+
+    void load_shift(const Vmm &vshift, size_t offt, bool need_tail) override {
+        if (need_tail) {
+            uni_vmovups_tail(vshift, tail_vmask, shift_ptr(offt));
+        } else {
             uni_vmovups(vshift, shift_ptr(offt));
         }
     }
@@ -440,15 +462,22 @@ struct jit_bnorm_t<sse41> : public jit_bnorm_base_t<sse41> {
         }
     }
 
-    void load_scale_and_shift(const Vmm &vscale, const Vmm &vshift, size_t offt,
-            bool need_tail) override {
+    void load_scale(const Vmm &vscale, size_t offt, bool need_tail) override {
         if (need_tail) {
             for (size_t tl = 0; tl < c_tail_ % simd_w_; tl++) {
                 pinsrd(vscale, scale_ptr(offt + tl * sizeof(float)), tl);
-                pinsrd(vshift, shift_ptr(offt + tl * sizeof(float)), tl);
             }
         } else {
             movups(vscale, scale_ptr(offt));
+        }
+    }
+
+    void load_shift(const Vmm &vshift, size_t offt, bool need_tail) override {
+        if (need_tail) {
+            for (size_t tl = 0; tl < c_tail_ % simd_w_; tl++) {
+                pinsrd(vshift, shift_ptr(offt + tl * sizeof(float)), tl);
+            }
+        } else {
             movups(vshift, shift_ptr(offt));
         }
     }
@@ -552,7 +581,8 @@ struct driver_t : public c_compatible {
     // TODO: for problems where thread pieces don't fit L2 cache, add spatial
     // re-balance using less pieces.
     void exec(int ithr, int nthr, const data_t *src, data_t *dst,
-            const float *scale_shift, const float *mean, const float *var) {
+            const float *scale, const float *shift, const float *mean,
+            const float *var) {
         dim_t N = pd_->MB();
         dim_t C = pd_->C();
         dim_t D = pd_->D();
@@ -564,7 +594,8 @@ struct driver_t : public c_compatible {
 
         p.eps = pd_->desc()->batch_norm_epsilon;
 
-        p.scale_shift = scale_shift;
+        p.scale = scale;
+        p.shift = shift;
         p.mean = mean;
         p.var = var;
 
@@ -626,8 +657,23 @@ template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_s8_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
     status_t status = status::success;
+
+    const memory_desc_wrapper ss_d(pd()->weights_md());
+
+    const auto use_ss = pd()->use_scaleshift();
+    const auto use_sc = pd()->use_scale();
+    const auto use_sh = pd()->use_shift();
+
+    const size_t shift_off
+            = use_ss && !ss_d.has_zero_dim() ? ss_d.off(1, 0) : 0;
+
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto scale_shift = CTX_IN_MEM(const float *, DNNL_ARG_SCALE_SHIFT);
+    auto scale = CTX_IN_MEM(
+            const float *, use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    auto shift = use_sh ? CTX_IN_MEM(const float *, DNNL_ARG_SHIFT)
+                        : use_ss ? &CTX_IN_MEM(const float *,
+                                  DNNL_ARG_SCALE_SHIFT)[shift_off]
+                                 : nullptr;
     auto mean = const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN));
     auto var
             = const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE));
@@ -640,7 +686,7 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::execute(
             <= 4096;
 
     parallel(force_sequential ? 1 : 0, [&](const int ithr, const int nthr) {
-        bnorm_driver_->exec(ithr, nthr, src, dst, scale_shift, mean, var);
+        bnorm_driver_->exec(ithr, nthr, src, dst, scale, shift, mean, var);
     });
 
     return status::success;
