@@ -31,6 +31,9 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/tests/gtest
 
 enable_testing()
 
+append(CMAKE_CXX_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
+append(CMAKE_C_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
+
 if(UNIX)
     if(APPLE)
         # TODO(wuxun): now it will fail to build with macOS in Debug mode, need
