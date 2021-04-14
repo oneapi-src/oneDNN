@@ -265,3 +265,9 @@ g1ic32ih202iw202oc32oh202ow202kh7kw1ph3pw0
 g1ic32ih202iw202oc32oh202ow202kh7kw3ph3pw1
 g1ic32ih202oc32oh202kh5ph2
 g1ic32ih202oc32oh202kh7ph3
+
+# Strides along w-dimension but not along h-dimension
+--reset
+--skip-impl="ref:gemm"
+--dir=FWD_I --cfg=u8s8u8
+ic64ih28iw27oc64oh28ow14kh1kw1sh1sw2ph0pw0n"1x1_mixed_strides"
