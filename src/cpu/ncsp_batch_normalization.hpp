@@ -149,9 +149,16 @@ struct ncsp_batch_normalization_bwd_t : public primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.template book<acc_data_t>(
                     key_bnorm_reduction, 2 * C() * dnnl_get_max_threads());
-            if (!(use_scaleshift() && desc()->prop_kind == prop_kind::backward))
+            const auto pk_is_bwd = desc()->prop_kind == prop_kind::backward;
+            size_t ss_size = 0;
+            if ((!use_scaleshift() && !use_scale()) || !pk_is_bwd)
+                ss_size += C();
+            if ((!use_scaleshift() && !use_shift()) || !pk_is_bwd)
+                ss_size += C();
+
+            if (ss_size)
                 scratchpad.template book<acc_data_t>(
-                        key_bnorm_tmp_diff_ss, 2 * C());
+                        key_bnorm_tmp_diff_ss, ss_size);
 
             if (d_type == data_type::bf16) {
                 const int simd_w = 16;
