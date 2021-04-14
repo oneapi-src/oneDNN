@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -207,7 +207,8 @@ __kernel void reduce_variance(
 KERNEL_ATTR
 __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
-        __global float *scaleshift, __global int *ws, float eps) {
+        __global float *scaleshift, __global float *shift, __global int *ws,
+        float eps) {
     const int n = GWS_GET_MB();
     const int c = GWS_GET_IC();
     const int d = GWS_GET_ID();
@@ -217,8 +218,16 @@ __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
     float sm = scaleshift[c];
     float sv = scaleshift[IC + c];
 #else
+#if USE_SCALE == 1
+    float sm = scaleshift[c];
+#else
     float sm = 1;
+#endif
+#if USE_SHIFT == 1
+    float sv = shift[c];
+#else
     float sv = 0;
+#endif
 #endif
 
 #if SAVE_STATS == 0 && CALCULATE_STATS == 1
@@ -333,7 +342,8 @@ __kernel void calculate_stats(__global DATA_T *src, __global float *mean,
 
 NAMED_KERNEL_ATTR(REDUCE)
 __kernel void reduce_stats(__global float *reduce_temp,
-        __global float *diff_scaleshift, __global float *variance, float eps) {
+        __global float *diff_scaleshift, __global float *diff_shift,
+        __global float *variance, float eps) {
     const int c = GWS_GET_REDUCE_STAT_IC();
     reduce_temp += c;
     float diff_gamma = 0.0f, diff_beta = 0.0f;
@@ -347,6 +357,8 @@ __kernel void reduce_stats(__global float *reduce_temp,
     diff_scaleshift[c] = diff_gamma * sqrt_variance;
 #if DIFF_SCALESHIFT == 1
     diff_scaleshift[IC + c] = diff_beta;
+#elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
+    diff_shift[c] = diff_beta;
 #else
     diff_scaleshift[REDUCE_STAT_NBLOCKS * IC + c] = diff_beta;
 #endif
@@ -385,7 +397,8 @@ __kernel void calculate_stats(__global DATA_T *src, __global float *mean,
 }
 NAMED_KERNEL_ATTR(REDUCE)
 __kernel void reduce_stats(__global float *reduce_temp,
-        __global float *diff_scaleshift, __global float *variance, float eps) {
+        __global float *diff_scaleshift, __global float *diff_shift,
+        __global float *variance, float eps) {
     const int c = GWS_GET_REDUCE_STAT_IC();
     float diff_gamma = 0.0f;
     float diff_beta = 0.0f;
@@ -400,6 +413,8 @@ __kernel void reduce_stats(__global float *reduce_temp,
     diff_scaleshift[c] = diff_gamma * sqrt_variance;
 #if DIFF_SCALESHIFT == 1
     diff_scaleshift[IC + c] = diff_beta;
+#elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
+    diff_shift[c] = diff_beta;
 #else
     diff_scaleshift[IC * reduce_size + c] = diff_beta;
 #endif
@@ -410,7 +425,8 @@ KERNEL_ATTR
 __kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global int *ws, __global DATA_T *diff_src,
-        __global float *diff_scaleshift, float eps) {
+        __global float *diff_scaleshift, __global float *diff_shift,
+        float eps) {
 
 #if USE_16MB_UNROLL == 1
     const int n = GWS_GET_MB();
@@ -419,7 +435,7 @@ __kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
     const int h = GWS_GET_IH();
     const int w = GWS_GET_IW();
 
-#if USE_SCALESHIFT == 1
+#if USE_SCALESHIFT == 1 || USE_SCALE == 1
     float gamma = as_float(
             intel_sub_group_block_read((const __global uint *)&scaleshift[c]));
 #else
@@ -437,6 +453,9 @@ __kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
 #if DIFF_SCALESHIFT == 1
     float diff_beta = as_float(intel_sub_group_block_read(
             (const __global uint *)&diff_scaleshift[IC + c]));
+#elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
+    float diff_beta = as_float(
+            intel_sub_group_block_read((const __global uint *)&diff_shift[c]));
 #else
     float diff_beta = as_float(intel_sub_group_block_read((const __global uint
                     *)&diff_scaleshift[REDUCE_STAT_NBLOCKS * IC + c]));
@@ -501,7 +520,7 @@ __kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
     float v_mean = mean[c];
     float v_variance = variance[c];
     float sqrt_variance = 1.0f / sqrt(v_variance + eps);
-#if USE_SCALESHIFT == 1
+#if USE_SCALESHIFT == 1 || USE_SCALE == 1
     float gamma = scaleshift[c];
 #else
     float gamma = 1;
@@ -509,6 +528,8 @@ __kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
     float diff_gamma = diff_scaleshift[c];
 #if DIFF_SCALESHIFT == 1
     float diff_beta = diff_scaleshift[IC + c];
+#elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
+    float diff_beta = diff_shift[c];
 #else
     int reduce_size = MB * ID * IH * IW / REDUCE_DIM;
     float diff_beta = diff_scaleshift[reduce_size * IC + c];

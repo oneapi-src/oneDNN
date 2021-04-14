@@ -482,9 +482,9 @@ struct bnorm_conf_t {
     bool with_relu, use_16mb_unroll, use_nhwc;
     int stat_ic;
     bool is_forward, is_backward;
-    bool use_scaleshift, save_stats, is_training;
+    bool use_scaleshift, use_scale, use_shift, save_stats, is_training;
     bool fuse_norm_relu, calculate_stats, calculate_diff_stats;
-    bool diff_scaleshift;
+    bool diff_scaleshift, diff_scale, diff_shift;
     float relu_negative_slope, eps;
     int sub_group_size;
     bool vectorize_calc_stats;
