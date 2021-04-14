@@ -477,8 +477,9 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         const bool inference_ok
                 = IMPLICATION(prb->dt == dnnl_s8 || prb->dt == dnnl_f16,
                         (prb->dir & FLAG_INF) && (prb->flags & GLOB_STATS));
+        const bool flags_ok = !prb->use_sc() && !prb->use_sh();
 
-        if (!bwd_ok || !inference_ok) {
+        if (!bwd_ok || !inference_ok || !flags_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }

@@ -81,6 +81,8 @@ struct cudnn_batch_normalization_fwd_t : public primitive_t {
                             attr()->post_ops_.len() == 1 && with_relu_post_op())
                     && IMPLICATION(utils::one_of(src_dt, s8, f16),
                             !is_training() && stats_is_src())
+                    /* separate scale and shift are not supported */
+                    && !use_scale() && !use_shift()
                     && src_md()->format_desc.blocking.inner_nblks == 0;
             if (!ok) return status::unimplemented;
 
@@ -150,7 +152,9 @@ struct cudnn_batch_normalization_bwd_t : public primitive_t {
                             f32, src_md()->data_type, diff_src_md()->data_type))
                     && attr()->has_default_values() && !use_global_stats()
                     && src_md()->format_desc.blocking.inner_nblks == 0
-                    && diff_src_md()->format_desc.blocking.inner_nblks == 0;
+                    && diff_src_md()->format_desc.blocking.inner_nblks == 0
+                    /* separate scale and shift are not supported */
+                    && !use_scale() && !use_shift();
             if (!ok) return status::unimplemented;
 
             cudnn_batch_normalization_common_t::init_ws(this, ws_md_);

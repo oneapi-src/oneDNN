@@ -179,6 +179,9 @@ protected:
         bool useShift = (bool)(flags & normalization_flags::use_shift);
         bool useGlobalStats
                 = (bool)(flags & normalization_flags::use_global_stats);
+
+        SKIP_IF_CUDA(useScale || useShift, "Scale and Shift not supported");
+
         bool isTraining = pk == prop_kind::forward_training;
 
         auto bnorm_fwd_d = batch_normalization_forward::desc(
@@ -252,6 +255,7 @@ protected:
         (void)useGlobalStats;
 
         SKIP_IF_CUDA(useGlobalStats, "Global stats not supported");
+        SKIP_IF_CUDA(useScale || useShift, "Scale and Shift not supported");
 
         auto bnorm_fwd_d = batch_normalization_forward::desc(
                 prop_kind::forward_training, *data_d, p.epsilon, flags);
