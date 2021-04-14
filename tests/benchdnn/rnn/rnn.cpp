@@ -23,6 +23,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "tests/cpu_x64_isa_common.hpp"
 #include "tests/test_thread.hpp"
 
 #include "dnnl_common.hpp"
@@ -188,14 +189,15 @@ int check_s8s8_reorder(const prb_t &prb, data_kind_t kind,
     auto nelems = mem_fp.nelems();
     const int64_t n_chunks = 16;
     const int64_t chunk_size = div_up(nelems, n_chunks);
-    const auto quantize = [&](const float *scales, int nscales, int idx_chunk) {
+    const auto quantize = [&](const float *scales, int nscales, float shift,
+                                  int idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             const float current_scale = scales[idx % nscales];
             float val_f32 = mem_fp.get_elem(idx);
-            int8_t val_s8
-                    = saturate_and_round<dnnl_s8>(val_f32 * current_scale);
+            int8_t val_s8 = saturate_and_round<dnnl_s8>(
+                    val_f32 * current_scale + shift);
             mem_s8_src.set_elem(idx, val_s8);
         }
     };
@@ -203,14 +205,19 @@ int check_s8s8_reorder(const prb_t &prb, data_kind_t kind,
         case WEIGHTS_LAYER:
         case WEIGHTS_ITER:
             dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
-                quantize(prb.wei_scales, prb.wei_nscales, idx);
+                quantize(prb.wei_scales, prb.wei_nscales, 0, idx);
             });
             break;
         case WEIGHTS_PROJECTION:
             dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
-                quantize(prb.wei_proj_scales, prb.wei_proj_nscales, idx);
+                quantize(prb.wei_proj_scales, prb.wei_proj_nscales, 0, idx);
             });
             break;
+        case SRC_LAYER:
+        case SRC_ITER:
+            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+                quantize(&(prb.data_scale), 1, prb.data_shift, idx);
+            });
         default: assert(!"unsupported kind");
     }
 
@@ -793,6 +800,16 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
             return;
         }
         if (prb.alg != VANILLA_LSTM && prb.alg != VANILLA_GRU) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+
+    // only AMX LSTM cell kinds support signed int8 so far;
+    if (prb.is_s8()) {
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (prb.alg != VANILLA_LSTM
+                || !dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core_amx)) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }

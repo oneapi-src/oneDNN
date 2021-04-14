@@ -253,7 +253,7 @@ private:
     status_t execute_dense(out_data_t *output, const in_data_t *input,
             const float scale, const float shift) const {
         assert(type_i == data_type::f32);
-        assert(type_o == data_type::u8);
+        assert(type_o == data_type::u8 || type_o == data_type::s8);
 
         const memory_desc_wrapper &input_d = pd()->src_md();
         const memory_desc_wrapper &output_d = pd()->dst_md();
@@ -272,9 +272,7 @@ private:
                 PRAGMA_OMP_SIMD()
                 for (int j = 0; j < inner_dim; ++j) {
                     const float in = (float)i_[j] * scale + shift;
-                    const float out_l = nstl::max(in, 0.0f);
-                    const float out = nstl::min(out_l, 255.0f);
-                    o_[j] = (out_data_t)(nearbyintf(out));
+                    o_[j] = qz_a1b0<float, out_data_t>()(in);
                 }
             }
         });
@@ -284,15 +282,14 @@ private:
     status_t execute_generic(out_data_t *output, const in_data_t *input,
             float scale, float shift) const {
         assert(type_i == data_type::f32);
-        assert(type_o == data_type::u8);
+        assert(type_o == data_type::u8 || type_o == data_type::s8);
 
         const memory_desc_wrapper &input_d = pd()->src_md();
         const memory_desc_wrapper &output_d = pd()->dst_md();
         const size_t nelems = input_d.nelems();
         parallel_nd(nelems, [&](size_t i) {
-            float in = (float)input[input_d.off_l(i)] * scale + shift;
-            float out = nstl::max(nstl::min(in, 255.0f), 0.0f);
-            output[output_d.off_l(i)] = (out_data_t)(nearbyintf(out));
+            const float in = (float)input[input_d.off_l(i)] * scale + shift;
+            output[output_d.off_l(i)] = qz_a1b0<float, out_data_t>()(in);
         });
         return status::success;
     }
@@ -767,15 +764,18 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
                             attr->rnn_weights_projection_qparams_.mask_, 0, 8))
                 return unimplemented;
 
-            const bool req_comp = od.extra().flags
-                    & memory_extra_flags::rnn_u8s8_compensation;
-            auto mask_ok = [&](int mask) {
-                return mask
-                        == ((id.ndims() == 5) ? 27 /* 11011 */
-                                              : 13 /* 1101 */);
-            };
-            if (!req_comp || !mask_ok(od.extra().compensation_mask))
-                return invalid_arguments;
+            // Check the proper memory desc has been passed to u8s8 and s8s8
+            const bool check_u8s8
+                    = (od.extra().flags
+                              & memory_extra_flags::rnn_u8s8_compensation)
+                    && od.extra().compensation_mask
+                            == ((id.ndims() == 5) ? 27 /* 11011 */
+                                                  : 13 /* 1101 */);
+            const bool check_s8s8
+                    = (od.extra().flags
+                              & memory_extra_flags::rnn_s8s8_compensation)
+                    && od.extra().compensation_mask == 0;
+            if (!(check_u8s8 || check_s8s8)) return invalid_arguments;
 
             auto _pd = new pd_t(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
@@ -875,6 +875,13 @@ private:
                           .template get<void>(memory_tracking::names::
                                           key_reorder_rnn_weights_reduction);
         float *comp = reinterpret_cast<float *>(dst + compensation_offset);
+        const bool req_comp = dst_d.extra().flags
+                & memory_extra_flags::rnn_u8s8_compensation;
+        auto mask_ok = [&](int mask) {
+            return mask
+                    == ((src_d.ndims() == 5) ? 27 /* 11011 */
+                                             : 13 /* 1101 */);
+        };
 
         float *scales = nullptr;
         int mask = 0;
@@ -892,8 +899,9 @@ private:
         } else
             scratch_quantized = (int8_t * __restrict) src;
 
-        compensate_igo(comp, src_d, scratch_quantized, scratch_compensation,
-                pd()->thr_scratch_comp_sz_);
+        if (req_comp && mask_ok(dst_d.extra().compensation_mask))
+            compensate_igo(comp, src_d, scratch_quantized, scratch_compensation,
+                    pd()->thr_scratch_comp_sz_);
 
         auto off_plain = [&](int l, int d, int i, int g, int o) {
             return ((((dim_t)l * D + d) * I + i) * G + g) * O + o;
