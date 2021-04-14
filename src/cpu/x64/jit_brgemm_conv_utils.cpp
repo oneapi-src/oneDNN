@@ -298,7 +298,6 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
         nb_kd = 0;
         nb_kh = 0;
         nb_kw = 0;
-        is_os_block = false;
         sp = 0;
         sp_block = 0;
         nb_sp = 0;
@@ -308,7 +307,6 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     int ur;
     int nb_kd, nb_kh, nb_kw;
     float eff;
-    bool is_os_block;
     static unsigned L1;
     static unsigned L2;
     static unsigned L3;
@@ -424,7 +422,7 @@ float brg_blocking_t::io_k(const loop_t loop, const array_in_loop_t arr,
 void brg_blocking_t::select_ic_block() {
     auto max_simd_blocks = nstl::min(5 * simd_w, div_up(ic, simd_w));
     const auto est_ur = nstl::min(sp_block, estimate_ur(oc_block));
-    const auto inp_ur = is_os_block ? est_ur : inp_w(est_ur, kw_block);
+    const auto inp_ur = is_os_blocking ? est_ur : inp_w(est_ur, kw_block);
 
     if (kw_block > 1) {
         // try to fit src into L1
@@ -492,14 +490,14 @@ int brg_blocking_t::get_brgemm_ur(
     const float beta_init = 0.0;
 
     const auto M = sp_block;
-    const auto M_tail = is_os_block ? os % sp_block : ow % sp_block;
+    const auto M_tail = is_os_blocking ? os % sp_block : ow % sp_block;
     const auto K = ic >= ic_block ? ic_block : 0;
     const auto K_tail = ic % ic_block;
     const auto N = oc >= oc_block ? oc_block : 0;
     const auto N_tail = oc % oc_block;
 
     status_t status = success;
-    int res_ur = estimate_brgemm_ur(is_os_block ? os_block : ow_block);
+    int res_ur = estimate_brgemm_ur(is_os_blocking ? os_block : ow_block);
 
     for (int i = 0; i < M; i++) {
         auto vM = i + 1;
@@ -564,7 +562,7 @@ void brg_blocking_t::update_blocks() {
     nb_kd = div_up(kd, kd_block);
     nb_kh = div_up(kh, kh_block);
     nb_kw = div_up(kw, kw_block);
-    if (is_os_block) {
+    if (is_os_blocking) {
         nb_os = div_up(os, os_block);
         sp = os;
         sp_block = os_block;
@@ -905,7 +903,7 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
 
 void brg_blocking_t::calc_blocks() {
     sp = ow;
-    is_os_block = false;
+    is_os_blocking = false;
 
     nb_ic_blocking = 1;
     // --- Select kernel blocking ---
@@ -971,8 +969,8 @@ float brg_blocking_t::est_eff_1x1() {
     const auto brgemm_eff = squeeze_val(
             ur * (2.f - nstl::min(1.9f, (float)ur / sp_block)) / 64, 0.5f);
 
-    const auto sp_amount = is_os_block ? div_up(nb_os, nb_os_blocking)
-                                       : nb_od * nb_oh * nb_sp;
+    const auto sp_amount = is_os_blocking ? div_up(nb_os, nb_os_blocking)
+                                          : nb_od * nb_oh * nb_sp;
     const auto work_amount = mb * ngroups * nb_oc * sp_amount;
 
     const auto sp_eff = (float)sp / rnd_up(sp, sp_block);
@@ -992,11 +990,13 @@ float brg_blocking_t::est_eff_1x1() {
 
     const auto dim_oh = nb_sp * dim_sp;
     const auto nb_oh_thr = nstl::min(nb_oh, div_up(job, dim_oh));
-    const auto oh_thr = is_os_block ? 1 : nstl::min(oh, nb_oh_thr * oh_block);
+    const auto oh_thr
+            = is_os_blocking ? 1 : nstl::min(oh, nb_oh_thr * oh_block);
 
     const auto dim_od = nb_oh * dim_oh;
     const auto nb_od_thr = nstl::min(nb_od, div_up(job, dim_od));
-    const auto od_thr = is_os_block ? 1 : nstl::min(od, nb_od_thr * od_block);
+    const auto od_thr
+            = is_os_blocking ? 1 : nstl::min(od, nb_od_thr * od_block);
 
     auto job_eff = 1.f;
     if (job < nthr) {
@@ -1009,14 +1009,14 @@ float brg_blocking_t::est_eff_1x1() {
             balance211(work_amount, nthr, ithr, start, end);
             int n {0}, g {0}, ocb {0}, oss {0}, odp {0}, ohp {0}, spb {0};
             if (loop_order == loop_ndhwgc) {
-                if (is_os_block)
+                if (is_os_blocking)
                     nd_iterator_init(start, n, mb, oss, sp_amount, g, ngroups,
                             ocb, nb_oc);
                 else
                     nd_iterator_init(start, n, mb, odp, od, ohp, oh, spb, nb_sp,
                             g, ngroups, ocb, nb_oc);
             } else if (loop_order == loop_ngcdhw) {
-                if (is_os_block)
+                if (is_os_blocking)
                     nd_iterator_init(start, n, mb, g, ngroups, ocb, nb_oc, oss,
                             sp_amount);
                 else
@@ -1028,7 +1028,7 @@ float brg_blocking_t::est_eff_1x1() {
                 const int ocp = ocb * oc_block;
                 const auto oc_sz = nstl::min(oc - ocp, oc_block);
                 int sp_sz = 0;
-                if (is_os_block) {
+                if (is_os_blocking) {
                     const auto osb_start = oss * nb_os_blocking;
                     const auto osb_range
                             = nstl::min(nb_os - osb_start, nb_os_blocking);
@@ -1043,14 +1043,14 @@ float brg_blocking_t::est_eff_1x1() {
                 thr_job += sp_sz * oc_sz;
 
                 if (loop_order == loop_ndhwgc) {
-                    if (is_os_block)
+                    if (is_os_blocking)
                         nd_iterator_step(
                                 n, mb, oss, sp_amount, g, ngroups, ocb, nb_oc);
                     else
                         nd_iterator_step(n, mb, odp, od, ohp, oh, spb, nb_sp, g,
                                 ngroups, ocb, nb_oc);
                 } else if (loop_order == loop_ngcdhw) {
-                    if (is_os_block)
+                    if (is_os_blocking)
                         nd_iterator_step(
                                 n, mb, g, ngroups, ocb, nb_oc, oss, sp_amount);
                     else
@@ -1110,7 +1110,7 @@ float brg_blocking_t::est_eff_1x1() {
 
     const auto rnd_oc_for_sp
             = simd_w * ((loop_order == loop_ndhwgc) ? nsimd_oc_thr : ocblock);
-    if (is_os_block) {
+    if (is_os_blocking) {
         // -- harness: loop by os_blocks --
         l++;
         loop[l].src.set(sp_block * ic_blocking_size, 1);
@@ -1186,7 +1186,7 @@ float brg_blocking_t::est_eff_1x1() {
     const auto wei_cost = wei_mem_k * wei_ops;
     const auto call_kernel_cost = 1000.f * job * ic_chunks;
 
-    const auto up_sp_size = is_os_block ? 1 : od * oh;
+    const auto up_sp_size = is_os_blocking ? 1 : od * oh;
 
     const auto cache_eff = ((dim_t)mb * up_sp_size * sp * ic * oc)
             / (nthr * (src_cost + dst_cost + wei_cost + call_kernel_cost));
@@ -1199,10 +1199,10 @@ float brg_blocking_t::est_eff_1x1() {
 void brg_blocking_t::calc_blocks_1x1() {
     if (stride_d == 1 && stride_h == 1) {
         sp = os;
-        is_os_block = true;
+        is_os_blocking = true;
     } else {
         sp = ow;
-        is_os_block = false;
+        is_os_blocking = false;
     }
 
     od_blk_size = 1;
@@ -1649,7 +1649,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     // Configure matrix sizes
 
-    if (best_brgb.is_os_block) {
+    if (best_brgb.is_os_blocking) {
         if (jcp.os_block == 0) return status::unimplemented;
         jcp.M = jcp.os_block;
         jcp.M_tail = jcp.os % jcp.os_block;

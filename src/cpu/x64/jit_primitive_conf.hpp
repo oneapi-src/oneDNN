@@ -789,6 +789,7 @@ struct jit_brgemm_conv_conf_t {
     bool with_eltwise;
     bool is_fused_conv;
     post_ops_t::entry_t::eltwise_t eltwise;
+    bool is_os_blocking;
     int nb_ic, ic_block;
     int nb_oc, oc_block;
     int nb_iw, iw_block;

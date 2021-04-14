@@ -148,7 +148,6 @@ status_t brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::init(
     wei_dsz = jcp.wei_dsz;
 
     ic_chunks = div_up(jcp.nb_ic, jcp.nb_ic_blocking);
-    is_os_blocking = ((SD * SH) == 1);
 
     // const variables used for address calculations
     src_w_sz = (dim_t)IW * jcp.ic_without_padding;
@@ -226,8 +225,8 @@ void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::exec_ker(
 
     const auto os = (od * OH + oh) * OW + ow;
 
-    const bool is_os_tail = is_os_blocking ? (jcp.os - os < jcp.os_block)
-                                           : (OW - ow < jcp.ow_block);
+    const bool is_os_tail = jcp.is_os_blocking ? (jcp.os - os < jcp.os_block)
+                                               : (OW - ow < jcp.ow_block);
     const bool is_oc_tail = (jcp.oc - oc < jcp.oc_block);
     const bool is_ic_tail
             = (icc == ic_chunks - 1 && ((jcp.ic - ic) % jcp.ic_block != 0));
@@ -310,7 +309,7 @@ void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type,
             ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
             : nullptr;
 
-    if (is_os_blocking) {
+    if (jcp.is_os_blocking) {
         const int os_chunks = div_up(jcp.nb_os, jcp.nb_os_blocking);
         const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_oc * os_chunks;
 
