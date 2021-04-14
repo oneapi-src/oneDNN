@@ -1196,7 +1196,9 @@ float brg_blocking_t::est_eff_1x1() {
 }
 
 void brg_blocking_t::calc_blocks_1x1() {
-    if (stride_d == 1 && stride_h == 1) {
+    const bool is_os_blocking_ok
+            = utils::everyone_is(1, stride_d, stride_h) && iw % stride_w == 0;
+    if (is_os_blocking_ok) {
         sp = os;
         is_os_blocking = true;
     } else {
