@@ -178,9 +178,7 @@ struct attr_t {
     };
 
     struct arg_scales_t {
-        void set(int arg, scale_t scale) {
-            scales.insert(std::make_pair(arg, scale));
-        }
+        void set(int arg, scale_t scale) { scales[arg] = scale; }
 
         scale_t get(int arg) const {
             const auto &s = scales.find(arg);

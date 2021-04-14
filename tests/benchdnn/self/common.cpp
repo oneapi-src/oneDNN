@@ -64,12 +64,13 @@ static int check_attr2str() {
     CHECK_PRINT_EQ(attr,
             "--attr-oscale=per_dim_01:3.2 --attr-zero-points=src:common:1 ");
 
+    attr.zero_points.set(DNNL_ARG_SRC, policy_t::PER_DIM_0, 3, false);
     attr.zero_points.set(DNNL_ARG_WEIGHTS, {policy_t::PER_DIM_1, 2, true});
     CHECK_PRINT_EQ2(attr,
             "--attr-oscale=per_dim_01:3.2 "
-            "--attr-zero-points=src:common:1_wei:per_dim_1:2* ",
+            "--attr-zero-points=src:per_dim_0:3_wei:per_dim_1:2* ",
             "--attr-oscale=per_dim_01:3.2 "
-            "--attr-zero-points=wei:per_dim_1:2*_src:common:1 ");
+            "--attr-zero-points=wei:per_dim_1:2*_src:per_dim_0:3 ");
 
     attr = attr_t();
     attr.scales.set(DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.3));
@@ -80,9 +81,9 @@ static int check_attr2str() {
             DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.3, true));
     CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.3* ");
 
-    attr.scales.set(DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.3));
+    attr.scales.set(DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.2));
     attr.scales.set(DNNL_ARG_SRC_1, attr_t::scale_t(policy_t::COMMON, 3));
-    CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.3_src1:common:3 ");
+    CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.2_src1:common:3 ");
 
     return OK;
 }
