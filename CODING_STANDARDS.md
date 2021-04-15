@@ -67,3 +67,17 @@ Coding style is secondary to the general code design.
 
 - Consider using utils to improve readability (`IMPLICATION`, `one_of`,
   `everyone_is`).
+
+### Xbyak
+
+- Don't use `char[]` for label names and don't pass them as parameters. Instead,
+  use `Xbyak::Label` variables. For example:
+  ~~~cpp
+  {
+        Xbyak::Label barrier_exit_label;
+        ...
+        jmp(barrier_exit_label);
+        ...
+        L(barrier_exit_label);
+  }
+  ~~~
