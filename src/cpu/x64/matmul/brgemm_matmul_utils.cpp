@@ -175,38 +175,42 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     const int k_gran = is_amx_int8 ? 4 : (is_amx_bf16 ? 2 : 1);
     const int k_blk_gran = is_amx_int8 ? 64 : (is_amx_bf16 ? 32 : 4);
 
+    const format_tag_t transposed_tensor_layout_tag
+            = pick(bgmmc.batch_ndims, ba, acb, abdc, abced, abcdfe, abcdegf,
+                    abcdefhg, abcdefgih, abcdefghji, abcdefghikj, abcdefghijlk);
     auto set_or_check_tags = [&]() -> status_t {
-        format_tag_t desired_src_tag = pick(bgmmc.batch_ndims, ab, abc, abcd,
-                abcde, abcdef, abcdefg, abcdefgh, abcdefghi, abcdefghij,
-                abcdefghijk, abcdefghijkl);
-        format_tag_t desired_dst_tag = desired_src_tag;
+        const format_tag_t plain_tensor_layout_tag = pick(bgmmc.batch_ndims, ab,
+                abc, abcd, abcde, abcdef, abcdefg, abcdefgh, abcdefghi,
+                abcdefghij, abcdefghijk, abcdefghijkl);
 
         if (src_d.format_kind() == format_kind::any) {
+            const format_tag_t desired_src_tag = plain_tensor_layout_tag;
             CHECK(memory_desc_init_by_tag(src_md, desired_src_tag));
             bgmmc.src_tag = desired_src_tag;
         } else {
-            bgmmc.src_tag
-                    = memory_desc_matches_one_of_tag(src_md, desired_src_tag);
+            bgmmc.src_tag = is_amx_bf16 ? memory_desc_matches_one_of_tag(src_md,
+                                    plain_tensor_layout_tag,
+                                    transposed_tensor_layout_tag)
+                                        : memory_desc_matches_one_of_tag(src_md,
+                                                plain_tensor_layout_tag);
         }
 
         if (dst_d.format_kind() == format_kind::any) {
+            const format_tag_t desired_dst_tag = plain_tensor_layout_tag;
             CHECK(memory_desc_init_by_tag(dst_md, desired_dst_tag));
             bgmmc.dst_tag = desired_dst_tag;
         } else {
-            bgmmc.dst_tag
-                    = memory_desc_matches_one_of_tag(dst_md, desired_dst_tag);
+            bgmmc.dst_tag = memory_desc_matches_one_of_tag(
+                    dst_md, plain_tensor_layout_tag);
         }
 
-        format_tag_t desired_wei_tag = desired_src_tag;
         if (weights_d.format_kind() == format_kind::any) {
+            const format_tag_t desired_wei_tag = plain_tensor_layout_tag;
             CHECK(memory_desc_init_by_tag(weights_md, desired_wei_tag));
             bgmmc.wei_tag = desired_wei_tag;
         } else {
-            format_tag_t transposed_wei_tag = pick(bgmmc.batch_ndims, ba, acb,
-                    abdc, abced, abcdfe, abcdegf, abcdefhg, abcdefgih,
-                    abcdefghji, abcdefghikj, abcdefghijlk);
-            bgmmc.wei_tag = memory_desc_matches_one_of_tag(
-                    weights_md, desired_wei_tag, transposed_wei_tag);
+            bgmmc.wei_tag = memory_desc_matches_one_of_tag(weights_md,
+                    plain_tensor_layout_tag, transposed_tensor_layout_tag);
         }
         bgmmc.wei_k_blk = k_blk_gran;
         bgmmc.wei_n_blk = 64;
@@ -295,9 +299,17 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         return bgmmc.K;
     };
 
+    auto is_buffer_c_required = [&]() -> bool {
+        return (bgmmc.acc_dt != bgmmc.dst_dt || bgmmc.with_sum)
+                && (bgmmc.K > bgmmc.K_blk * bgmmc.brgemm_batch_size
+                        || bgmmc.K % bgmmc.K_blk > 0);
+    };
+
+    bgmmc.transposed_A = bgmmc.src_tag == transposed_tensor_layout_tag;
     const auto L2_treshold = 3 * platform::get_per_core_cache_size(2) / 4;
     const bool is_copy_a_required = bgmmc.K % k_gran != 0
-            || bgmmc.wei_zp_type != brgemm_broadcast_t::none;
+            || bgmmc.wei_zp_type != brgemm_broadcast_t::none
+            || bgmmc.transposed_A;
     bgmmc.use_buffer_a = is_copy_a_required;
     // Supported computation with copy only part of A related to K_tail if
     // is_copy_a_required == true, but the current performance measurements
@@ -308,8 +320,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     // Try to improve blocking wrt L2 size
     // TODO: improve blocking algorithm
     while (attempts > 0) {
-        bgmmc.use_buffer_c = (bgmmc.acc_dt != bgmmc.dst_dt || bgmmc.with_sum)
-                && bgmmc.K > bgmmc.K_blk * bgmmc.brgemm_batch_size;
+        bgmmc.use_buffer_c = is_buffer_c_required();
         bgmmc.LDA = get_actual_LDA();
 
         int num_M_blk = div_up(bgmmc.M, bgmmc.M_blk);
@@ -318,11 +329,56 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             bgmmc.M_chunk_size = num_M_blk;
             bgmmc.N_chunk_size = num_N_blk;
         } else {
-            int need_M_work_per_thr
-                    = div_up(bgmmc.nthr, num_N_blk * bgmmc.batch);
-            int max_num_M_blk = div_up(num_M_blk, need_M_work_per_thr);
-            if (max_num_M_blk > 1)
-                bgmmc.M_chunk_size = nstl::min(max_num_M_blk, 4);
+            // bgmmc.N_chunk_size and bgmmc.M_chunk_size parameters allow to
+            // reuse copied / transformed chunks for A and B matrixes.
+            // It reduces overhead on copy routines.
+            const int desired_M_chunk
+                    = nstl::min(bgmmc.use_buffer_b ? 4 : 1, num_M_blk);
+            const int desired_N_chunk
+                    = nstl::min(bgmmc.transposed_A ? 4 : 1, num_N_blk);
+            const int min_m_blk_threshold = 32;
+            int M_chunk = desired_M_chunk;
+            int N_chunk = desired_N_chunk;
+            while (M_chunk >= 1 && N_chunk >= 1) {
+                // Trying to find balance between M/N work distribution across
+                // threads and reusage of copied parts of matrixes A & B.
+                const int par_work_along_n = div_up(num_N_blk, N_chunk);
+                const int par_work_along_m = div_up(num_M_blk, M_chunk);
+                const int par_work_total
+                        = bgmmc.batch * par_work_along_n * par_work_along_m;
+                if ((float)par_work_total < 0.7f * bgmmc.nthr
+                        && bgmmc.M_blk > min_m_blk_threshold) {
+                    bgmmc.M_blk = div_up(bgmmc.M_blk, 2);
+                    num_M_blk = div_up(bgmmc.M, bgmmc.M_blk);
+                    continue;
+                }
+                if ((float)par_work_total > bgmmc.nthr
+                        && (float)par_work_total < 1.2f * bgmmc.nthr
+                        && M_chunk == desired_M_chunk
+                        && N_chunk == desired_N_chunk) {
+                    if (num_M_blk % M_chunk != 0 || desired_N_chunk == 1)
+                        M_chunk++;
+                    else
+                        N_chunk++;
+                    bgmmc.M_chunk_size = M_chunk;
+                    bgmmc.N_chunk_size = N_chunk;
+                    break;
+                }
+                if ((float)par_work_total >= 0.85f * bgmmc.nthr) {
+                    bgmmc.M_chunk_size = M_chunk;
+                    bgmmc.N_chunk_size = N_chunk;
+                    break;
+                }
+
+                const int allowed_chunk_size_diff
+                        = num_M_blk % M_chunk == 0 ? 1 : 0;
+                const bool reduce_N_chunk = N_chunk > 1
+                        && N_chunk + allowed_chunk_size_diff >= M_chunk;
+                if (reduce_N_chunk)
+                    N_chunk--;
+                else
+                    M_chunk--;
+            }
         }
 
         auto chunk_sz = get_chunk_size();
@@ -356,6 +412,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             bgmmc.LDA = get_actual_LDA();
         }
     }
+    bgmmc.use_buffer_c = is_buffer_c_required();
+    bgmmc.LDA = get_actual_LDA();
 
     bgmmc.M_tail = bgmmc.M % bgmmc.M_blk;
     bgmmc.N_tail = bgmmc.N % bgmmc.N_blk;

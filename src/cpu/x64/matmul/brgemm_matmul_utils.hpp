@@ -112,6 +112,7 @@ struct brgemm_matmul_conf_t {
     dim_t s8s8_comp_n_str;
     bool has_zero_point_a, has_zero_point_b, has_zero_point_c;
     bool post_ops_applicable;
+    bool transposed_A;
 
     dim_t zp_a_comp_shift_n;
     dim_t zp_a_comp_elems_per_thr;
