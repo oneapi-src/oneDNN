@@ -34,7 +34,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/examples)
 
 if(UNIX)
-    find_library(LIBM m)
+    find_library(LIBM m REQUIRED)
 endif()
 
 file(GLOB_RECURSE sources *.cpp *.c)
