@@ -172,11 +172,13 @@ status_t gen12lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
         } else {
             conf.ver = ver_ow_block;
             int off = conf.kw == 4 ? 1 : 0;
-            if (conf.ow < 15 - off) {
+            // Try to do not use ow blocks of size > 10 as there is
+            // a lot of GRF memory used what leads to spills
+            if (conf.ow < 10 - off) {
                 conf.ow_block = conf.ow;
             } else {
                 for (int i = 0; i < 7; ++i) {
-                    conf.ow_block = utils::max_div(conf.ow + i, 14 - off);
+                    conf.ow_block = utils::max_div(conf.ow + i, 10 - off);
                     if (conf.ow_block > 4) break;
                 }
             }
