@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,10 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
                     backward_data, backward)
             && 2 <= data_desc->ndims && data_desc->ndims <= 5
             && IMPLICATION(prop_kind & backward, diff_data_desc != nullptr)
-            && (flags & ~(dnnl_use_global_stats | dnnl_use_scaleshift)) == 0;
+            && (flags
+                       & ~(dnnl_use_global_stats | dnnl_use_scaleshift
+                               | dnnl_use_scale | dnnl_use_shift))
+                    == 0;
     if (!args_ok) return invalid_arguments;
 
     auto ld = layer_normalization_desc_t();
@@ -69,15 +72,28 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
                 format_tag::any));
 
     int ndims = data_desc->ndims;
-    dims_t scaleshift_dims = {2, data_desc->dims[ndims - 1]};
-    dnnl_memory_desc_init_by_tag(&ld.data_scaleshift_desc, 2, scaleshift_dims,
-            data_type::f32, dnnl_nc);
+    ld.data_scaleshift_desc = zero_md();
+    if (flags & (dnnl_use_scale | dnnl_use_shift)) {
+        dims_t scaleshift_dims = {data_desc->dims[ndims - 1]};
+        dnnl_memory_desc_init_by_tag(&ld.data_scaleshift_desc, 1,
+                scaleshift_dims, data_type::f32, dnnl_x);
+    } else {
+        dims_t scaleshift_dims = {2, data_desc->dims[ndims - 1]};
+        dnnl_memory_desc_init_by_tag(&ld.data_scaleshift_desc, 2,
+                scaleshift_dims, data_type::f32, dnnl_nc);
+    }
     ld.diff_data_scaleshift_desc = zero_md();
     if (ld.prop_kind == backward) {
         ld.diff_data_scaleshift_desc = ld.data_scaleshift_desc;
     }
 
     ld.layer_norm_epsilon = epsilon;
+
+    // dnnl_use_scaleshift can't be mixed with dnnl_use_scale or dnnl_use_shift
+    if ((flags & dnnl_use_scaleshift)
+            && (flags & (dnnl_use_scale | dnnl_use_shift)))
+        return invalid_arguments;
+
     ld.flags = flags;
 
     if (ld.prop_kind == backward_data) {
