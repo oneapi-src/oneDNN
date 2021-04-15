@@ -14,8 +14,7 @@ You can:
 
 ## Pull request checklist
 
-Before sending your pull requests, please make sure that you followed this
-list.
+Before sending your pull requests, make sure that you have followed this list:
 
 * Check the [library functionality guidelines](CONTRIBUTING.md#library-functionality-guidelines).
   If you are contributing a new compute primitive or propose changes to the
@@ -50,7 +49,7 @@ criteria:
 
 Significant library changes (new primitives, library architecture changes,
 API modifications, etc) require approval from oneDNN maintainers before
-opening a Pull Request with such implementation. For that we use the Request
+opening a pull request with such implementation. For that we use the Request
 For Comments (RFC) process, which consists of opening, discussing, and
 accepting (promoting) RFC pull requests.
 
@@ -59,7 +58,7 @@ More information about the process can be found in the dedicated
 
 ## Code contribution guidelines
 
-The code must be:
+When submitting your contribution, please make sure that it is:
 
 * *Tested*: oneDNN uses gtests for lightweight functional testing and
   benchdnn for functionality that requires both performance and functional
@@ -72,6 +71,45 @@ The code must be:
 * *Portable*: oneDNN supports different operating systems, CPU and GPU
   architectures, compilers, and run-times. The new code should be compliant
   with the [System Requirements](README.md#system-requirements).
+
+All code in oneDNN gets promoted to product branches (`master`, `rls-`, and
+`mnt-`) only through GitHub pull requests. Requirements for promotion:
+
+- The request is reviewed and approved by maintainers for all affected
+  components.
+- All discussions in the pull request are resolved.
+- Continuous integration pipeline passed without errors.
+- Promotion to release (`rls-`) branches can be done only by maintainers
+  (enforced by GitHub)
+- The pull request author is responsible for collecting all the necessary
+  approvals, rebasing of the changes, and resolving the discussions.
+
+To simplify the work of reviewers, make sure that the commits in the pull
+request adhere to the following requirements:
+
+- Commit message should be fit into 50 (at most 72) characters and have the
+  imperative mood.
+- Commit message should follow the format:
+  `<scope>:[scope: ..] <short description>`
+  Scope examples:
+  * Top level: `build`, `api`, `doc`, `tests`, `common`, `cpu`, `gpu`
+  * Second level: `convolution`, `pooling`, `utils`, `verbose`
+  * Example commit message:
+~~~git
+common: verbose: fix crash when prim_iface_t is empty
+~~~
+
+- Commit body should also fit 72 characters. Think of it as a standard e-mail
+  body or a markdown document in terms of styling - write sentences from the
+  very left border keeping capital letters and punctuation in place.
+- oneDNN branches maintain linear history. Rebase the changes on top of target
+  branch before creating a pull request. Rebase again after resolving all the
+  discussions, as well as in case of merge conflicts.
+- Use `git add -p`  and `git rebase -i` liberally to split unrelated changes
+  into multiple self-contained commits. This is a courtesy to reviewers: smaller
+  commits are easier to comprehend. It also helps with bisecting in the future.
+  Of course judgement needs to be applied whether to split changes or not. For
+  example, split code cleanup and the actual fix into two separate patches.
 
 ## Coding Standards
 
