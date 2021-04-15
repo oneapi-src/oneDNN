@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -169,8 +169,9 @@ struct jit_stat_and_data_kernel_t : stat_and_data_kernel_t<data_type>,
     jit_stat_and_data_kernel_t(const layer_normalization_pd_t *pd);
 
     using data_t = typename prec_traits<data_type>::type;
-    void operator()(const data_t *src, data_t *dst, const float *ss,
-            float *mean, float *var, const size_t block_size) const override;
+    void operator()(const data_t *src, data_t *dst, const float *scale,
+            const float *shift, float *mean, float *var,
+            const size_t block_size) const override;
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
@@ -182,6 +183,8 @@ private:
             Xbyak::Ymm>::type;
     using stat_and_data_kernel_t<data_type>::C_;
     using stat_and_data_kernel_t<data_type>::use_scaleshift_;
+    using stat_and_data_kernel_t<data_type>::use_scale_;
+    using stat_and_data_kernel_t<data_type>::use_shift_;
     using stat_and_data_kernel_t<data_type>::save_stats_;
     using stat_and_data_kernel_t<data_type>::calculate_stats_;
     using stat_and_data_kernel_t<data_type>::eps_;
@@ -189,7 +192,8 @@ private:
     struct ker_args_t {
         const data_t *src;
         data_t *dst;
-        const float *ss;
+        const float *scale;
+        const float *shift;
         const float *mean;
         const float *var;
         size_t block_size;
@@ -208,10 +212,11 @@ private:
     const Xbyak::Reg64 &reg_dst = rax;
     const Xbyak::Reg64 &reg_mean = rbx;
     const Xbyak::Reg64 &reg_var = rbp;
-    const Xbyak::Reg64 &reg_ss = r8;
+    const Xbyak::Reg64 &reg_scale = r8;
     const Xbyak::Reg64 &reg_block_end = r9;
     const Xbyak::Reg64 &reg_eps = r10;
     const Xbyak::Reg64 &reg_tmp = r11;
+    const Xbyak::Reg64 &reg_shift = r12;
 
     Vmm vmm_ones = Vmm(8);
     Vmm vmm_eps = Vmm(9);
@@ -236,13 +241,13 @@ jit_stat_and_data_kernel_t<data_type>::jit_stat_and_data_kernel_t(
 
 template <data_type_t data_type>
 void jit_stat_and_data_kernel_t<data_type>::operator()(const data_t *src,
-        data_t *dst, const float *ss, float *mean, float *var,
-        const size_t block_size) const {
+        data_t *dst, const float *scale, const float *shift, float *mean,
+        float *var, const size_t block_size) const {
     ker_args_t args;
     args.src = src;
     args.dst = dst;
-    // scale and shift
-    args.ss = ss;
+    args.scale = scale;
+    args.shift = shift;
     args.mean = mean;
     args.block_size = block_size * C_ * types::data_type_size(data_type);
     args.eps = eps_;
@@ -259,7 +264,8 @@ void jit_stat_and_data_kernel_t<data_type>::generate() {
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
     mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
     mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
-    mov(reg_ss, ptr[reg_param + PARAM_OFF(ss)]);
+    mov(reg_scale, ptr[reg_param + PARAM_OFF(scale)]);
+    mov(reg_shift, ptr[reg_param + PARAM_OFF(shift)]);
     mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
     mov(reg_var, ptr[reg_param + PARAM_OFF(var)]);
     mov(reg_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
@@ -270,17 +276,24 @@ void jit_stat_and_data_kernel_t<data_type>::generate() {
     static constexpr float one = 1.0;
 
     const auto calculate_dst = [=](int nelems, size_t offt_elems) {
-        if (use_scaleshift_) {
+        if (use_scaleshift_ || use_scale_) {
             jit_transfer_.template load<f32>(
-                    vmm_gamma, reg_ss, nelems, offt_elems);
+                    vmm_gamma, reg_scale, nelems, offt_elems);
+        }
+        if (use_scaleshift_ || use_shift_) {
             jit_transfer_.template load<f32>(
-                    vmm_beta, reg_ss, nelems, offt_elems + C_);
+                    vmm_beta, reg_shift, nelems, offt_elems);
         }
         jit_transfer_.template load<data_type>(
                 vmm_data, reg_src, nelems, offt_elems);
         vsubps(vmm_data, vmm_data, vmm_mean);
         vmulps(vmm_data, vmm_data, vmm_inv_sqrtvar);
-        if (use_scaleshift_) vfmadd213ps(vmm_data, vmm_gamma, vmm_beta);
+        if (use_scaleshift_ || (use_scale_ && use_shift_))
+            vfmadd213ps(vmm_data, vmm_gamma, vmm_beta);
+        else {
+            if (use_scale_) vmulps(vmm_data, vmm_data, vmm_gamma);
+            if (use_shift_) vaddps(vmm_data, vmm_data, vmm_beta);
+        }
         jit_transfer_.template store<data_type>(
                 vmm_data, reg_dst, nelems, offt_elems);
     };
@@ -598,6 +611,8 @@ private:
     using diff_data_kernel_t<data_type>::eps_;
     using diff_data_kernel_t<data_type>::calculate_diff_stats_;
     using diff_data_kernel_t<data_type>::use_scaleshift_;
+    using diff_data_kernel_t<data_type>::use_scale_;
+    using diff_data_kernel_t<data_type>::use_shift_;
 
     struct ker_args_t {
         const data_t *src;
@@ -686,7 +701,7 @@ void jit_diff_data_kernel_t<data_type>::generate() {
         Vmm vmm_ddst = vmm_dsrc;
         jit_transfer_.template load<data_type>(
                 vmm_ddst, reg_diff_dst, nelems, offt_elems);
-        if (use_scaleshift_) {
+        if (use_scaleshift_ || use_scale_) {
             jit_transfer_.template load<f32>(
                     vmm_gamma, reg_gamma, nelems, offt_elems);
             vmulps(vmm_ddst, vmm_ddst, vmm_gamma);
@@ -701,7 +716,7 @@ void jit_diff_data_kernel_t<data_type>::generate() {
     auto compute_diff_src = [=](int nelems, size_t offt_elems) {
         jit_transfer_.template load<data_type>(
                 vmm_dsrc, reg_diff_dst, nelems, offt_elems);
-        if (use_scaleshift_) {
+        if (use_scaleshift_ || use_scale_) {
             jit_transfer_.template load<f32>(
                     vmm_gamma, reg_gamma, nelems, offt_elems);
             vmulps(vmm_dsrc, vmm_dsrc, vmm_gamma);

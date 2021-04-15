@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,8 +31,9 @@ struct stat_and_data_kernel_t {
             const layer_normalization_pd_t *pd);
     virtual ~stat_and_data_kernel_t() = default;
 
-    virtual void operator()(const data_t *src, data_t *dst, const float *ss,
-            float *mean, float *var, const size_t block_size) const;
+    virtual void operator()(const data_t *src, data_t *dst, const float *scale,
+            const float *shift, float *mean, float *var,
+            const size_t block_size) const;
 
     virtual status_t create_kernel() { return status::success; }
 
@@ -40,12 +41,16 @@ protected:
     stat_and_data_kernel_t(const layer_normalization_pd_t *pd)
         : C_(pd->norm_axis())
         , use_scaleshift_(pd->use_scaleshift())
+        , use_scale_(pd->use_scale())
+        , use_shift_(pd->use_shift())
         , save_stats_(pd->is_training())
         , calculate_stats_(!pd->stats_are_src())
         , eps_(pd->desc()->layer_norm_epsilon) {}
 
     int C_;
     bool use_scaleshift_;
+    bool use_scale_;
+    bool use_shift_;
     bool save_stats_;
     bool calculate_stats_;
     const float eps_;
@@ -91,12 +96,16 @@ protected:
         : C_(pd->norm_axis())
         , eps_(pd->desc()->layer_norm_epsilon)
         , calculate_diff_stats_(!pd->use_global_stats())
-        , use_scaleshift_(pd->use_scaleshift()) {}
+        , use_scaleshift_(pd->use_scaleshift())
+        , use_scale_(pd->use_scale())
+        , use_shift_(pd->use_shift()) {}
 
     int C_;
     const float eps_;
     bool calculate_diff_stats_;
     bool use_scaleshift_;
+    bool use_scale_;
+    bool use_shift_;
 };
 
 } // namespace lnorm_utils

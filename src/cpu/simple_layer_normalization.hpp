@@ -117,7 +117,8 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
             reorder_stat(ctx, engine, ctx.args().at(DNNL_ARG_VARIANCE),
                     {&variance, false});
         }
-        execute_forward(ctx);
+        status_t status = execute_forward(ctx);
+        if (status != status::success) return status;
         // reorder output stats
         if (!pd()->stats_are_src() && reorder_) {
             reorder_stat(
@@ -131,7 +132,7 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
 
 private:
     using data_t = typename prec_traits<data_type>::type;
-    void execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<lnorm_utils::stat_and_data_kernel_t<data_type>>
@@ -232,13 +233,12 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
                     {&variance, false});
         }
 
-        execute_backward(ctx);
-        return status::success;
+        return execute_backward(ctx);
     }
 
 private:
     using data_t = typename prec_traits<data_type>::type;
-    void execute_backward(const exec_ctx_t &ctx) const;
+    status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<lnorm_utils::diff_ss_kernel_t<data_type>> diff_ss_kernel_;
