@@ -278,8 +278,15 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postops(
         if (jcp.with_binary) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
                     rhs_arg_params_tail;
-            const auto temp_offset_reg = this->r12;
             const auto dst_layout_nxc = is_dst_layout_nxc();
+            const auto temp_offset_reg
+                    = jcp.with_binary_per_oc_bcast ? reg_ch_blocks : reg_output;
+            const bool preserve_reg_needed
+                    = IMPLICATION(jcp.with_binary_per_oc_bcast, dst_layout_nxc);
+            const injector_utils::conditional_register_preserve_guard_t
+                    register_guard(
+                            preserve_reg_needed, this, {temp_offset_reg});
+
             const auto ch_blk = jcp.ch_block;
             const auto ocb_stride
                     = dst_layout_nxc ? ch_blk : jcp.oh * jcp.ow * ch_blk;
@@ -298,28 +305,36 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postops(
                                 && c_tail <= r * vlen)
                             return;
                         const int o_off
-                                = (ch * ocb_stride + ow * ow_stride + r * 4)
-                                * sizeof(float);
+                                = (ch * ocb_stride + ow * ow_stride + r * vlen);
                         const auto vmm_idx = get_acc_reg_idx(
                                 r * ur_ch_blocks * ur_w + ch * ur_w + ow);
                         vmm_idxs.emplace(vmm_idx);
 
-                        rhs_arg_params_tail.vmm_idx_to_oc_elem_off_addr.emplace(
-                                vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
-                        rhs_arg_params_tail.vmm_idx_to_oc_elem_off_val.emplace(
-                                vmm_idx,
-                                (ch * repeats + r) * jcp.ch_block / repeats);
-                        rhs_arg_params_tail.vmm_idx_to_out_off_oprnd.emplace(
-                                vmm_idx, temp_offset_reg);
-                        rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
-                                vmm_idx, o_off);
+                        if (jcp.with_binary_per_oc_bcast) {
+                            rhs_arg_params_tail.vmm_idx_to_oc_elem_off_addr
+                                    .emplace(vmm_idx,
+                                            ptr[param1 + GET_OFF(oc_l_off)]);
+                            rhs_arg_params_tail.vmm_idx_to_oc_elem_off_val
+                                    .emplace(vmm_idx,
+                                            (ch * repeats + r) * jcp.ch_block
+                                                    / repeats);
+                            if (dst_layout_nxc)
+                                rhs_arg_params_tail.vmm_idx_to_oc_off_oprnd
+                                        .emplace(vmm_idx, temp_offset_reg);
+                        } else if (jcp.with_binary_no_bcast) {
+                            rhs_arg_params_tail.vmm_idx_to_out_off_oprnd
+                                    .emplace(vmm_idx, temp_offset_reg);
+                            rhs_arg_params_tail.vmm_idx_to_out_elem_off_val
+                                    .emplace(vmm_idx, o_off);
+                        }
                         if (mask_flag_blocked_layout || is_tail_load)
                             rhs_arg_params_tail.vmm_tail_idx_.emplace(vmm_idx);
                     });
-            const injector_utils::register_preserve_guard_t register_guard(
-                    this, {temp_offset_reg});
-            mov(temp_offset_reg, reg_output);
-            sub(temp_offset_reg, ptr[param1 + GET_OFF(dst_orig)]);
+            if (jcp.with_binary_no_bcast) {
+                sub(temp_offset_reg, ptr[param1 + GET_OFF(dst_orig)]);
+                sar(temp_offset_reg, std::log2(jcp.typesize_out));
+            } else if (jcp.with_binary_per_oc_bcast && dst_layout_nxc)
+                sub(temp_offset_reg, aux_reg_ch_blocks);
 
             rhs_arg_params = rhs_arg_params_tail;
             rhs_arg_params.vmm_tail_idx_.clear();

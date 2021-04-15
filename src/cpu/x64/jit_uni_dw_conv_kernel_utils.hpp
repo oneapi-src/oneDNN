@@ -233,6 +233,13 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     if (jcp.with_eltwise) jcp.eltwise = post_ops.entry_[eltwise_ind].eltwise;
     const int binary_ind = post_ops.find(primitive_kind::binary);
     jcp.with_binary = binary_ind != -1;
+    if (jcp.with_binary) {
+        using namespace dnnl::impl::cpu::binary_injector_utils;
+        std::tie(jcp.with_binary_per_oc_bcast, jcp.with_binary_no_bcast)
+                = bcast_strategies_present_tup(post_ops.entry_, dst_d,
+                        broadcasting_strategy_t::per_oc,
+                        broadcasting_strategy_t::no_broadcast);
+    }
 
     jcp.post_ops = post_ops;
 

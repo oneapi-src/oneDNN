@@ -110,6 +110,9 @@ struct jit_conv_conf_t {
     bool with_eltwise;
     bool with_binary;
 
+    bool with_binary_per_oc_bcast;
+    bool with_binary_no_bcast;
+
     bool is_fused_conv;
     int dw_conv_buffer_oc;
 
