@@ -439,27 +439,27 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     Address mean_ptr(size_t offt = 0) {
-        return vmmword[reg_mean + reg_coff + offt + 0 * chan_data_offt];
+        return vmmword[reg_mean + reg_coff + offt];
     }
 
     Address var_ptr(size_t offt = 0) {
-        return vmmword[reg_var + reg_coff + offt + 0 * chan_data_offt];
+        return vmmword[reg_var + reg_coff + offt];
     }
 
     Address diff_gamma_ptr(size_t offt = 0) {
-        return vmmword[reg_diff_scale + reg_coff + offt + 0 * chan_data_offt];
+        return vmmword[reg_diff_scale + reg_coff + offt];
     }
 
     Address diff_beta_ptr(size_t offt = 0) {
-        return vmmword[reg_diff_shift + reg_coff + offt + 0 * chan_data_offt];
+        return vmmword[reg_diff_shift + reg_coff + offt];
     }
 
     Address gamma_ptr(size_t offt = 0) {
-        return vmmword[reg_scale + reg_coff + offt + 0 * chan_data_offt];
+        return vmmword[reg_scale + reg_coff + offt];
     }
 
     Address beta_ptr(size_t offt = 0) {
-        return vmmword[reg_shift + reg_coff + offt + 0 * chan_data_offt];
+        return vmmword[reg_shift + reg_coff + offt];
     }
 
     template <typename init_t, typename body_t, typename fini_t>
