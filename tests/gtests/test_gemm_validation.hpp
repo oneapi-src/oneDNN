@@ -144,6 +144,18 @@ void compare(const test_params &p, const test_memory &c_mem,
     });
 }
 
+template <typename a_dt, typename b_dt, typename c_dt>
+void validate(const test_params &p, test_gemm_data &gemm_data) {
+    const int64_t M_test = gemm_data.mapper_m->dim_test();
+    const int64_t N_test = gemm_data.mapper_n->dim_test();
+
+    ref_gemm<a_dt, b_dt, c_dt>::call(p, M_test, N_test, *gemm_data.a_mem,
+            *gemm_data.b_mem, *gemm_data.c_ref_mem, *gemm_data.oc_mem);
+    extend_matrix<c_dt>(*gemm_data.c_ref_mem, p.off.c, p.M, p.N, p.ldc,
+            *gemm_data.mapper_m, *gemm_data.mapper_n);
+    compare<a_dt, c_dt>(p, *gemm_data.c_mem, *gemm_data.c_ref_mem);
+}
+
 } // namespace dnnl
 
 #endif

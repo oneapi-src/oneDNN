@@ -94,9 +94,6 @@ bool is_memory_kind_buffer(const test_memory &mem) {
  * 5.  Compare C_calc and C_ref
  */
 
-const int M_test_max = 47;
-const int N_test_max = 53;
-
 template <typename a_dt, typename b_dt, typename c_dt>
 struct dnnl_gemm {
     static dnnl_status_t call(test_params &p, const test_memory &a_mem,
@@ -551,33 +548,14 @@ struct run_test_gemm {
             return;
         }
 
-        size_t sizeA, sizeB, sizeC;
-        get_matrix_size(p, sizeA, sizeB, sizeC);
+        test_gemm_data gemm_data;
+        prepare_data_for_gemm_testing<a_dt, b_dt, c_dt>(p, gemm_data);
 
-        engine eng = get_test_engine();
-        test_memory a_mem = get_matrix_memory<a_dt>(sizeA, p.off.a, eng);
-        test_memory b_mem = get_matrix_memory<b_dt>(sizeB, p.off.b, eng);
-        test_memory c_mem = get_matrix_memory<c_dt>(sizeC, p.off.c, eng);
-        test_memory c_ref_mem = get_matrix_memory<c_dt>(sizeC, p.off.c, eng);
-        test_memory oc_mem
-                = get_matrix_memory<c_dt>(p.size_oc(), p.off.co, eng);
-
-        mapper_t mapper_m(p.M, M_test_max), mapper_n(p.N, N_test_max);
-        const int64_t M_test = mapper_m.dim_test();
-        const int64_t N_test = mapper_n.dim_test();
-
-        fill_matrices<a_dt, b_dt, c_dt>(
-                p, mapper_m, mapper_n, a_mem, b_mem, c_mem, c_ref_mem, oc_mem);
-
-        auto status = dnnl_gemm<a_dt, b_dt, c_dt>::call(
-                p, a_mem, b_mem, c_mem, oc_mem);
+        auto status = dnnl_gemm<a_dt, b_dt, c_dt>::call(p, *gemm_data.a_mem,
+                *gemm_data.b_mem, *gemm_data.c_mem, *gemm_data.oc_mem);
 
         if (status == dnnl_success) {
-            ref_gemm<a_dt, b_dt, c_dt>::call(
-                    p, M_test, N_test, a_mem, b_mem, c_ref_mem, oc_mem);
-            extend_matrix<c_dt>(
-                    c_ref_mem, p.off.c, p.M, p.N, p.ldc, mapper_m, mapper_n);
-            compare<a_dt, c_dt>(p, c_mem, c_ref_mem);
+            validate<a_dt, b_dt, c_dt>(p, gemm_data);
         }
 
         if (status != dnnl_success)

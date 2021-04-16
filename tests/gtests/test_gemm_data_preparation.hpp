@@ -46,10 +46,27 @@ namespace dnnl {
  * should randomly map the elements {X_test, ..., X-1} onto {0, ..., X_test-1}.
  */
 
+static constexpr int M_test_max = 47;
+static constexpr int N_test_max = 53;
+
 /** Mapper:
  * a surjective function from {0, ..., dim-1} onto {0, ..., dim_test-1}.
  */
 struct mapper_t {
+    mapper_t(const mapper_t &other)
+        : dim_(other.dim_)
+        , dim_test_(other.dim_test_)
+        , gen_(other.gen_)
+        , gen_start_(other.gen_start_)
+        , mapper_(other.mapper_) {}
+
+    mapper_t(mapper_t &&other) noexcept
+        : dim_(other.dim_)
+        , dim_test_(other.dim_test_)
+        , gen_(other.gen_)
+        , gen_start_(other.gen_start_)
+        , mapper_(std::move(other.mapper_)) {}
+
     mapper_t(int64_t dim, int64_t dim_test_max, int64_t gen = 7,
             int64_t gen_start = 13)
         : dim_(dim)
@@ -74,6 +91,16 @@ private:
     const int64_t dim_test_;
     const int64_t gen_, gen_start_;
     std::vector<int64_t> mapper_;
+};
+
+struct test_gemm_data {
+    std::shared_ptr<test_memory> a_mem;
+    std::shared_ptr<test_memory> b_mem;
+    std::shared_ptr<test_memory> c_mem;
+    std::shared_ptr<test_memory> c_ref_mem;
+    std::shared_ptr<test_memory> oc_mem;
+    std::shared_ptr<mapper_t> mapper_m;
+    std::shared_ptr<mapper_t> mapper_n;
 };
 
 /** Prepares matrix A or B according to the dimension mapper.
@@ -179,16 +206,15 @@ inline void get_matrix_size(
         const test_params &p, size_t &sizeA, size_t &sizeB, size_t &sizeC) {
     const bool tr_a = (p.transA == 'T' || p.transA == 't');
     const bool tr_b = (p.transB == 'T' || p.transB == 't');
-    sizeA = tr_a ? p.lda * p.K : p.lda * p.M,
-    sizeB = tr_b ? p.ldb * p.N : p.ldb * p.K, sizeC = p.ldc * p.M;
+    sizeA = tr_a ? p.lda * p.K : p.lda * p.M;
+    sizeB = tr_b ? p.ldb * p.N : p.ldb * p.K;
+    sizeC = p.ldc * p.M;
 }
 
 template <typename T>
-inline test_memory get_matrix_memory(
-        memory::dim n, memory::dim off, engine &eng) {
-    auto d = create_md(
+inline memory::desc get_matrix_md(memory::dim n, memory::dim off) {
+    return create_md(
             {n + off}, data_traits<T>::data_type, memory::format_tag::x);
-    return test_memory(d, eng);
 }
 
 template <typename a_dt, typename b_dt, typename c_dt>
@@ -226,6 +252,32 @@ void fill_matrices(const test_params &p, const mapper_t &mapper_m,
         for (int64_t i = 0; i < p.size_oc(); i++)
             oc[i] = 0;
     }
+}
+
+template <typename a_dt, typename b_dt, typename c_dt>
+void prepare_data_for_gemm_testing(
+        const test_params &p, test_gemm_data &gemm_data) {
+    size_t sizeA, sizeB, sizeC;
+    get_matrix_size(p, sizeA, sizeB, sizeC);
+
+    engine eng = get_test_engine();
+    gemm_data.a_mem.reset(
+            new test_memory(get_matrix_md<a_dt>(sizeA, p.off.a), eng));
+    gemm_data.b_mem.reset(
+            new test_memory(get_matrix_md<b_dt>(sizeB, p.off.b), eng));
+    gemm_data.c_mem.reset(
+            new test_memory(get_matrix_md<c_dt>(sizeC, p.off.c), eng));
+    gemm_data.c_ref_mem.reset(
+            new test_memory(get_matrix_md<c_dt>(sizeC, p.off.c), eng));
+    gemm_data.oc_mem.reset(
+            new test_memory(get_matrix_md<c_dt>(p.size_oc(), p.off.co), eng));
+
+    gemm_data.mapper_m.reset(new mapper_t(p.M, M_test_max));
+    gemm_data.mapper_n.reset(new mapper_t(p.N, N_test_max));
+
+    fill_matrices<a_dt, b_dt, c_dt>(p, *gemm_data.mapper_m, *gemm_data.mapper_n,
+            *gemm_data.a_mem, *gemm_data.b_mem, *gemm_data.c_mem,
+            *gemm_data.c_ref_mem, *gemm_data.oc_mem);
 }
 
 } // namespace dnnl
