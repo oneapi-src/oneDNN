@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ namespace lnorm {
 
 flags_t str2flags(const char *str) {
     flags_t flags = bnorm::str2flags(str);
-    assert(flags <= (GLOB_STATS | USE_SCALESHIFT));
+    assert(flags <= (GLOB_STATS | USE_SCALESHIFT | USE_SCALE | USE_SHIFT));
     return flags;
 }
 
