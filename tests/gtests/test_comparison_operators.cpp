@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include "dnnl.hpp"
@@ -37,7 +38,9 @@ bool self_compare(const T &desc) {
 
 #define TEST_SELF_COMPARISON(v) ASSERT_EQ(true, self_compare(v))
 
-TEST(comparison_operators, TestAttrOutputScales) {
+class comparison_operators_t : public ::testing::Test {};
+
+HANDLE_EXCEPTIONS_FOR_TEST(comparison_operators_t, TestAttrOutputScales) {
     dnnl::primitive_attr attr;
 
     attr.set_output_scales(0, {NAN});
@@ -47,7 +50,7 @@ TEST(comparison_operators, TestAttrOutputScales) {
     TEST_SELF_COMPARISON(attr);
 }
 
-TEST(comparison_operators, TestAttrArgScales) {
+HANDLE_EXCEPTIONS_FOR_TEST(comparison_operators_t, TestAttrArgScales) {
     dnnl::primitive_attr attr;
 
     attr.set_scales(DNNL_ARG_SRC_0, 0, {NAN});
@@ -57,14 +60,14 @@ TEST(comparison_operators, TestAttrArgScales) {
     TEST_SELF_COMPARISON(attr);
 }
 
-TEST(comparison_operators, TestAttrDataQparams) {
+TEST(comparison_operators_t, TestAttrDataQparams) {
     dnnl::primitive_attr attr;
 
     attr.set_rnn_data_qparams(1.5f, NAN);
     TEST_SELF_COMPARISON(attr);
 }
 
-TEST(comparison_operators, TestAttrWeightsQparams) {
+HANDLE_EXCEPTIONS_FOR_TEST(comparison_operators_t, TestAttrWeightsQparams) {
     dnnl::primitive_attr attr;
 
     attr.set_rnn_weights_qparams(0, {NAN});
@@ -74,7 +77,8 @@ TEST(comparison_operators, TestAttrWeightsQparams) {
     TEST_SELF_COMPARISON(attr);
 }
 
-TEST(comparison_operators, TestAttrWeightsProjectionQparams) {
+HANDLE_EXCEPTIONS_FOR_TEST(
+        comparison_operators_t, TestAttrWeightsProjectionQparams) {
     dnnl::primitive_attr attr;
 
     attr.set_rnn_weights_projection_qparams(0, {NAN});
@@ -84,7 +88,7 @@ TEST(comparison_operators, TestAttrWeightsProjectionQparams) {
     TEST_SELF_COMPARISON(attr);
 }
 
-TEST(comparison_operators, TestSumPostOp) {
+TEST(comparison_operators_t, TestSumPostOp) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
 
@@ -93,7 +97,7 @@ TEST(comparison_operators, TestSumPostOp) {
     TEST_SELF_COMPARISON(attr);
 }
 
-TEST(comparison_operators, TestEltwisePostOp) {
+TEST(comparison_operators_t, TestEltwisePostOp) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
 
@@ -102,7 +106,7 @@ TEST(comparison_operators, TestEltwisePostOp) {
     TEST_SELF_COMPARISON(attr);
 }
 
-TEST(comparison_operators, TestDepthwisePostOp) {
+HANDLE_EXCEPTIONS_FOR_TEST(comparison_operators_t, TestDepthwisePostOp) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
 
@@ -117,49 +121,49 @@ TEST(comparison_operators, TestDepthwisePostOp) {
     TEST_SELF_COMPARISON(attr);
 }
 
-TEST(comparison_operators, TestBatchNormDesc) {
+TEST(comparison_operators_t, TestBatchNormDesc) {
     auto bnorm_desc = dnnl_batch_normalization_desc_t();
     bnorm_desc.batch_norm_epsilon = NAN;
     TEST_SELF_COMPARISON(bnorm_desc);
 }
 
-TEST(comparison_operators, TestEltwiseDesc) {
+TEST(comparison_operators_t, TestEltwiseDesc) {
     auto eltwise_desc = dnnl_eltwise_desc_t();
     eltwise_desc.alpha = NAN;
     TEST_SELF_COMPARISON(eltwise_desc);
 }
 
-TEST(comparison_operators, TestLayerNormDesc) {
+TEST(comparison_operators_t, TestLayerNormDesc) {
     auto lnorm_desc = dnnl_layer_normalization_desc_t();
     lnorm_desc.layer_norm_epsilon = NAN;
     TEST_SELF_COMPARISON(lnorm_desc);
 }
 
-TEST(comparison_operators, TestLRNDesc) {
+TEST(comparison_operators_t, TestLRNDesc) {
     auto lrn_desc = dnnl_lrn_desc_t();
     lrn_desc.lrn_alpha = NAN;
     TEST_SELF_COMPARISON(lrn_desc);
 }
 
-TEST(comparison_operators, TestReductionDesc) {
+TEST(comparison_operators_t, TestReductionDesc) {
     auto reduction_desc = dnnl_reduction_desc_t();
     reduction_desc.p = NAN;
     TEST_SELF_COMPARISON(reduction_desc);
 }
 
-TEST(comparison_operators, TestResamplingDesc) {
+TEST(comparison_operators_t, TestResamplingDesc) {
     auto resampling_desc = dnnl_resampling_desc_t();
     resampling_desc.factors[0] = NAN;
     TEST_SELF_COMPARISON(resampling_desc);
 }
 
-TEST(comparison_operators, TestRNNDesc) {
+TEST(comparison_operators_t, TestRNNDesc) {
     auto rnn_desc = dnnl_rnn_desc_t();
     rnn_desc.alpha = NAN;
     TEST_SELF_COMPARISON(rnn_desc);
 }
 
-TEST(comparison_operators, TestSumDesc) {
+TEST(comparison_operators_t, TestSumDesc) {
     float scales[2] = {NAN, 2.5f};
     dnnl_memory_desc_t src_mds[2] = {};
     dnnl_memory_desc_t dst_md {};
