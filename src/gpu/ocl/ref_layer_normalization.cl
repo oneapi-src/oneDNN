@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,8 +27,8 @@
 #if VECTORIZE_CALC_STATS == 1
 KERNEL_ATTR
 __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
-        __global float *variance, __global DATA_T *dst,
-        __global float *scaleshift, float eps) {
+        __global float *variance, __global DATA_T *dst, __global float *scale,
+        __global float *shift, float eps) {
 
     int x[6] = {0};
     x[0] = GWS_GET_X0();
@@ -88,9 +88,8 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
     float sqrt_variance = sqrt(v_variance + eps);
     int local_id = get_sub_group_local_id();
     for (int c = 0; c < C; c += SUB_GROUP_SIZE) {
-        float sm = (USE_SCALESHIFT ? scaleshift[c + local_id] : 1.0f)
-                / sqrt_variance;
-        float sv = USE_SCALESHIFT ? scaleshift[C + c + local_id] : 0.0f;
+        float sm = (scale ? scale[c + local_id] : 1.0f) / sqrt_variance;
+        float sv = shift ? shift[SHIFT_OFF + c + local_id] : 0.0f;
 
         x[NDIMS - 1] = c + local_id;
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
@@ -110,8 +109,8 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
 
 KERNEL_ATTR
 __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
-        __global float *variance, __global DATA_T *dst,
-        __global float *scaleshift, float eps) {
+        __global float *variance, __global DATA_T *dst, __global float *scale,
+        __global float *shift, float eps) {
 
     int x[6] = {0};
     x[0] = GWS_GET_X0();
@@ -145,8 +144,8 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
 
     float sqrt_variance = sqrt(v_variance + eps);
     for (int c = 0; c < C; ++c) {
-        float sm = (USE_SCALESHIFT ? scaleshift[c] : 1.0f) / sqrt_variance;
-        float sv = USE_SCALESHIFT ? scaleshift[C + c] : 0.0f;
+        float sm = (scale ? scale[c] : 1.0f) / sqrt_variance;
+        float sv = shift ? shift[SHIFT_OFF + c] : 0.0f;
 
         x[NDIMS - 1] = c;
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
@@ -166,11 +165,12 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
 #endif
 
 #if IS_BWD
-#if USE_SCALESHIFT
+#if USE_SCALESHIFT || USE_SCALE || USE_SHIFT
 NAMED_KERNEL_ATTR(SCALESHIFT)
 __kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
         __global float *mean, __global float *variance,
-        __global DATA_T *diff_dst, __global float *diff_scaleshift, float eps) {
+        __global DATA_T *diff_dst, __global float *diff_scale,
+        __global float *diff_shift, float eps) {
 
     int c = GWS_GET_C();
     int x[6] = {0};
@@ -200,15 +200,15 @@ __kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
             }
         }
     }
-    diff_scaleshift[c] = diff_gamma;
-    diff_scaleshift[C + c] = diff_beta;
+    if (diff_scale) diff_scale[c] = diff_gamma;
+    if (diff_shift) diff_shift[SHIFT_OFF + c] = diff_beta;
 }
 #endif
 
 KERNEL_ATTR
 __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
-        __global float *scaleshift, __global DATA_T *diff_src, float eps) {
+        __global float *scale, __global DATA_T *diff_src, float eps) {
 
     int x[6] = {0};
     x[0] = GWS_GET_X0();
@@ -224,7 +224,7 @@ __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
 
     if (CALCULATE_STATS) {
         for (int c = 0; c < C; ++c) {
-            float gamma = USE_SCALESHIFT ? scaleshift[c] : 1.0f;
+            float gamma = scale ? scale[c] : 1.0f;
 
             x[NDIMS - 1] = c;
             int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
@@ -238,7 +238,7 @@ __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
     }
 
     for (int c = 0; c < C; ++c) {
-        float gamma = USE_SCALESHIFT ? scaleshift[c] : 1.0f;
+        float gamma = scale ? scale[c] : 1.0f;
 
         x[NDIMS - 1] = c;
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);

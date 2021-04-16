@@ -508,12 +508,15 @@ struct lnorm_conf_t {
     memory_desc_info_t stat_md_info;
 
     bool use_scaleshift;
+    bool use_scale;
+    bool use_shift;
     bool calculate_stats;
     bool save_stats;
     bool vectorize_calc_stats;
     float eps;
     int sub_group_size;
     int vect_dt_n;
+    int shift_off;
 
     compute::dispatch_t dispatch_scaleshift;
     compute::dispatch_t dispatch;
