@@ -205,11 +205,17 @@ else()
         else()
             set(compat_link "${CMAKE_CURRENT_BINARY_DIR}/libmkldnn${ext_and_ver}")
         endif()
-        add_custom_command(OUTPUT ${compat_link}
-            # to make the next command work fine
-            COMMAND ${CMAKE_COMMAND} -E remove -f ${compat_link}
-            COMMAND ${CMAKE_COMMAND} -E create_symlink libdnnl${ext_and_ver} ${compat_link}
-            DEPENDS ${LIB_NAME})
+        if(CMAKE_HOST_SYSTEM_NAME STREQUAL Windows)               
+            add_custom_command(OUTPUT ${compat_link}
+                COMMAND ${CMAKE_COMMAND} -E copy libdnnl${ext_and_ver} ${compat_link}
+                DEPENDS ${LIB_NAME})
+        else()
+            add_custom_command(OUTPUT ${compat_link}
+                # to make the next command work fine
+                COMMAND ${CMAKE_COMMAND} -E remove -f ${compat_link}
+                COMMAND ${CMAKE_COMMAND} -E create_symlink libdnnl${ext_and_ver} ${compat_link}
+                DEPENDS ${LIB_NAME})
+        endif()
         add_custom_target(compat_libs${ver} ALL DEPENDS ${compat_link})
         install(FILES ${compat_link} DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
     endforeach()
