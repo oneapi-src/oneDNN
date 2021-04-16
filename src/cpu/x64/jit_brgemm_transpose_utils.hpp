@@ -67,8 +67,12 @@ struct jit_brgemm_copy_src_t : public jit_generator {
         , ic_step_(zmm_size_in_bytes / typesize_)
         , src_stride_(conf_->ic_without_padding * typesize_)
         , tr_src_stride_(conf_->LDA * typesize_) {
+
+        // Kernel is supposed to be called under the following two conditions
         assert(conf_->isa == avx512_core_bf16_amx_int8
                 || conf_->isa == avx512_core_bf16_amx_bf16);
+        assert(conf_->ic % ic_granularity_ != 0);
+        MAYBE_UNUSED(ic_granularity_);
     }
     ~jit_brgemm_copy_src_t() {}
 
@@ -83,8 +87,8 @@ private:
     const int ic_granularity_, ic_step_;
     const dim_t src_stride_, tr_src_stride_;
 
-    inline size_t addr_offset(int initial_offset, int ic_idx) {
-        return (ic_idx + initial_offset) * ic_step_ * typesize_;
+    inline size_t addr_offset(int ic_idx) {
+        return ic_idx * ic_step_ * typesize_;
     }
 
     inline Xbyak::Zmm get_zmm_copy(int i) const {
@@ -93,23 +97,20 @@ private:
     }
 
     const Xbyak::Opmask ic_tail_load = k7;
-    const Xbyak::Opmask ic_tail_store = k6;
 
     const Xbyak::Reg64 reg_src = rax;
     const Xbyak::Reg64 reg_tr_src = rbx;
 
     const Xbyak::Reg64 reg_os_work = r11;
     const Xbyak::Reg64 reg_last_ic_blk = r12;
-    const Xbyak::Reg64 regq_tmp = r13;
+    const Xbyak::Reg64 reg_tail_mask = r13;
 
-    void zero_ic_blk_loop(int initial_offset, int zero_ic_iters);
-    void copy_ic_blk_loop(int initial_offset, int copy_ic_iters);
-    void zero_ic_tail(int initial_offset);
+    void copy_ic_blk_loop(int copy_ic_iters);
     void copy_ic_tail(int initial_offset);
 
     void copy_ic_loop();
     void copy_os_loop();
-    void set_tail_masks();
+    void set_tail_mask();
     void generate() override;
 };
 

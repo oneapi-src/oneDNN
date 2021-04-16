@@ -136,10 +136,11 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
         bool is_oc_tail = (jbgp.oc - oc < jbgp.oc_block);
         bool is_last_ic_chunk = icc == ic_chunks - 1;
         bool is_ic_tail = is_last_ic_chunk && jbgp.K_tail > 0;
-        const int gemm_batch = jbgp.use_buffer_a
-                ? jbgp.gemm_batch_size
-                : nstl::min(
-                        jbgp.gemm_batch_size, (jbgp.ic - ic) / jbgp.ic_block);
+        const int remaining_ic_blks = jbgp.use_buffer_a
+                ? (utils::rnd_up(jbgp.ic, jbgp.ic_block) - ic) / jbgp.ic_block
+                : (jbgp.ic - ic) / jbgp.ic_block;
+        const int gemm_batch
+                = nstl::min(jbgp.gemm_batch_size, remaining_ic_blks);
 
         int brg_ker_idx = brgemm_inner_product_utils::get_brg_kernel_index(
                 jbgp, kernel_init, is_os_tail, is_oc_tail, false);
