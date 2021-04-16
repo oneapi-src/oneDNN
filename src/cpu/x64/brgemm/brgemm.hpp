@@ -62,7 +62,7 @@ namespace x64 {
 ///        the number of rows of the matrces B
 /// @param strides Strides between the matrices in the batch. Can be nullptr.
 ///
-status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
+status_t DNNL_API brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
         brgemm_batch_kind_t type, impl::data_type_t dt_a,
         impl::data_type_t dt_b, bool transA, bool transB,
         brgemm_layout_t layout, float alpha, float beta, dim_t LDA, dim_t LDB,
@@ -94,21 +94,22 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
 /// @param brgattr Specifies kernel attributes and hints: virtual padding,
 ///     maximum batch size, kernel loop order etc.
 ///
-status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr);
+status_t DNNL_API brgemm_desc_set_attr(
+        brgemm_t *brg, const brgemm_attr_t &brgattr);
 
 /// Generates a BRGEMM kernel based on descriptor
 ///
 /// @param brg_kernel Output BRGEMM kernel
 /// @param brg BRGEMM descriptor
 ///
-status_t brgemm_kernel_create(
+status_t DNNL_API brgemm_kernel_create(
         brgemm_kernel_t **brg_kernel, const brgemm_t &brg);
 
 /// Destroys a BRGEMM kernel
 ///
 /// @param brg_kernel BRGEMM kernel
 ///
-void brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel);
+void DNNL_API brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel);
 
 /// Execute BRGEMM kernel (brgemm_addr version)
 ///
@@ -123,7 +124,7 @@ void brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel);
 /// @param scratch Scratchpad needed for AMX version, can be nullptr for
 ///     avx512 version
 ///
-void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
+void DNNL_API brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
         const brgemm_batch_element_t *batch, void *ptr_C,
         void *scratch = nullptr);
 
@@ -194,7 +195,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
 /// @param brg BRGEMM descriptor
 /// @param palette 64 bytes array contains tiles configuration
 ///
-status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]);
+status_t DNNL_API brgemm_init_tiles(const brgemm_t &brg, char palette[64]);
 
 } // namespace x64
 } // namespace cpu

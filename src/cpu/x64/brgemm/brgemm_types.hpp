@@ -71,18 +71,8 @@ typedef enum {
     brgemm_ld_loop_innermost,
 } brgemm_kernel_innermost_loop_t;
 
-struct brgemm_attr_t {
-    brgemm_attr_t()
-        : max_bs(INT_MAX)
-        , max_top_vpad(0)
-        , max_bottom_vpad(0)
-        , hint_expected_A_size(platform::get_per_core_cache_size(1))
-        , hint_expected_B_size(platform::get_per_core_cache_size(1))
-        , hint_expected_C_size(platform::get_per_core_cache_size(1))
-        , hint_innermost_loop(brgemm_ld_loop_innermost)
-        , hint_loop_order(brgemm_kernel_loop_order_t::brgemm_lo_default)
-        , hint_prefetching(brgemm_kernel_prefetching_t::brgemm_prf_default)
-        , wary_tail_read(true) {}
+struct DNNL_API brgemm_attr_t {
+    brgemm_attr_t();
     int max_bs;
     int max_top_vpad, max_bottom_vpad;
     dim_t hint_expected_A_size, hint_expected_B_size, hint_expected_C_size;
