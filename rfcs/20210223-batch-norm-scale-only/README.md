@@ -19,6 +19,13 @@ suggests separating entities into two independent memories, thus, making it
 easier to pass scales and shifts directly into primitive arguments if they were
 used prior a batch normalization call.
 
+#### Scaleshift memory descritor.
+
+Normalization primitives contain only one memory descriptor for scale and shift
+parameters with dimensions `[2, channels]`. In case of separate scale and shift
+the same memory descriptor will describe scale and shift parameters with
+dimensions `[channels]`.
+
 ~~~c
 /* dnnl_types.h */
 
@@ -48,13 +55,17 @@ typedef enum {
     /// If no specified:
     ///  - on backward propagation prop_kind == #dnnl_backward_data has the
     ///    same behavior as prop_kind == #dnnl_backward
-    dnnl_use_shift = 0x16U,
+    dnnl_use_shift = 0x10U,
 } dnnl_normalization_flags_t;
 
 /// A special mnemonic for scale argument of normalization primitives.
 #define DNNL_ARG_SCALE 51 // or alternatively DNNL_ARG_WEIGHTS_1 (34)
 /// A special mnemonic for shift argument of normalization primitives.
 #define DNNL_ARG_SHIFT 52 // or alternatively DNNL_ARG_WEIGHTS_2 (35)
+/// A special mnemonic for scale argument of normalization primitives.
+#define DNNL_ARG_DIFF_SCALE 255
+/// A special mnemonic for shift argument of normalization primitives.
+#define DNNL_ARG_DIFF_SHIFT 256
 ~~~
 
 For compatibility reasons, oneDNN would still support both versions of flags
