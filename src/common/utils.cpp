@@ -19,11 +19,11 @@
 #include <windows.h>
 #endif
 
-#if defined __linux__ || defined __APPLE__ || defined __FreeBSD__
+#if defined __unix__ || defined __APPLE__ || defined __FreeBSD__
 #include <unistd.h>
 #endif
 
-#ifdef __linux__
+#ifdef __unix__
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif
