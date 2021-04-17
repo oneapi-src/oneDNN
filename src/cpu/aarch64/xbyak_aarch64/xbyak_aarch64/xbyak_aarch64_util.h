@@ -19,7 +19,17 @@
 
 #include <stdint.h>
 #ifdef __linux__
+#include <sys/auxv.h>
 #include <sys/prctl.h>
+
+/* In old Linux such as Ubuntu 16.04, HWCAP_ATOMICS, HWCAP_FP, HWCAP_ASIMD
+   can not be found in <bits/hwcap.h> which is included from <sys/auxv.h>.
+   Xbyak_aarch64 uses <asm/hwcap.h> as an alternative.
+ */
+#ifndef HWCAP_FP
+#include <asm/hwcap.h>
+#endif
+
 #elif defined(__APPLE__)
 #include <sys/sysctl.h>
 #endif
@@ -49,45 +59,6 @@ enum sveLen_t {
   SVE_2048 = 16 * 16,
 };
 
-struct Type_id_aa64isar0_el1 {
-  int resv0 : 4;
-  int aes : 4;
-  int sha1 : 4;
-  int sha2 : 4;
-  int crc32 : 4;
-  int atomic : 4;
-  int resv1 : 4;
-  int rdm : 4;
-  int resv2 : 12;
-  int dp : 4;
-  int resv3 : 16;
-};
-
-inline Type_id_aa64isar0_el1 get_id_aa64isar0_el1() {
-  Type_id_aa64isar0_el1 x;
-  asm __volatile__("mrs %0, id_aa64isar0_el1" : "=r"(x));
-  return x;
-}
-
-struct Type_id_aa64pfr0_el1 {
-  int el0 : 4;
-  int el1 : 4;
-  int el2 : 4;
-  int el3 : 4;
-  int fp : 4;
-  int advsimd : 4;
-  int gic : 4;
-  int ras : 4;
-  int sve : 4;
-  int resv0 : 28;
-};
-
-inline Type_id_aa64pfr0_el1 get_id_aa64pfr0_el1() {
-  Type_id_aa64pfr0_el1 x;
-  asm __volatile__("mrs %0, id_aa64pfr0_el1" : "=r"(x));
-  return x;
-}
-
 #ifdef __APPLE__
 constexpr char hw_opt_atomics[] = "hw.optional.armv8_1_atomics";
 constexpr char hw_opt_fp[] = "hw.optional.floatingpoint";
@@ -110,28 +81,28 @@ public:
   static const Type tSVE = 1 << 3;
   static const Type tATOMIC = 1 << 4;
 
-  static const uint64_t ZCR_EL1_LEN_SHIFT = 0;
-  static const uint64_t ZCR_EL1_LEN_MASK = 0xf;
-
   Cpu() : type_(tNONE), sveLen_(SVE_NONE) {
 #ifdef __linux__
-    Type_id_aa64isar0_el1 isar0 = get_id_aa64isar0_el1();
-    if (isar0.atomic == 2) {
+    unsigned long hwcap = getauxval(AT_HWCAP);
+    if (hwcap & HWCAP_ATOMICS) {
       type_ |= tATOMIC;
     }
 
-    Type_id_aa64pfr0_el1 pfr0 = get_id_aa64pfr0_el1();
-    if (pfr0.fp == 1) {
+    if (hwcap & HWCAP_FP) {
       type_ |= tFP;
     }
-    if (pfr0.advsimd == 1) {
+    if (hwcap & HWCAP_ASIMD) {
       type_ |= tADVSIMD;
     }
-    if (pfr0.sve == 1) {
+#ifdef HWCAP_SVE
+    /* Some old <sys/auxv.h> may not define HWCAP_SVE.
+       In that case, SVE is treated as if it were not supported. */
+    if (hwcap & HWCAP_SVE) {
       type_ |= tSVE;
       // svcntb(); if arm_sve.h is available
       sveLen_ = (sveLen_t)prctl(51); // PR_SVE_GET_VL
     }
+#endif
 #elif defined(__APPLE__)
     size_t val = 0;
     size_t len = sizeof(val);
