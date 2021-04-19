@@ -74,16 +74,56 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
     return OK;
 }
 
-int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
-    const auto nelems = mem_fp.nelems();
+bool is_norm_alg(const alg_t alg) {
+    return alg == alg_t::norm_lp_max || alg == alg_t::norm_lp_sum
+            || alg == alg_t::norm_lp_power_p_max
+            || alg == alg_t::norm_lp_power_p_sum;
+}
+
+int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+        float non_neutral_prob, bool use_reduced_range,
+        bool only_positive_values) {
     const auto sdt = mem_dt.dt();
+    const auto nelems = mem_fp.nelems();
+    const float neutral_value = prb->alg == alg_t::mul ? 1.0f : 0.0f;
+    const float mean_shift = prb->alg == alg_t::mean ? 1.0f : 0.0f;
+    const bool is_signed = sdt != dnnl_u8;
+    const bool is_int = is_integral_dt(sdt);
+
+    int value_range = use_reduced_range ? 16 : 1000;
+    if (is_int) value_range = use_reduced_range ? 3 : max_dt(dnnl_s8);
+
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+
+    dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        const int64_t idx_start = idx_chunk * chunk_size;
+        const int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+
+        std::minstd_rand msr(idx_start + 1);
+        msr.discard(1);
+        std::uniform_int_distribution<> igen(1, value_range);
+
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            float value = neutral_value;
+            if (flip_coin(idx, non_neutral_prob)) {
+                const int gen = igen(msr);
+                value = is_int ? gen : gen / 8.f;
+                if (!only_positive_values && is_signed && flip_coin(gen, 0.5f))
+                    value = -value;
+            }
+            value += mean_shift;
+            mem_fp.set_elem(idx, round_to_nearest_representable(sdt, value));
+        }
+    });
+    SAFE(mem_dt.reorder(mem_fp), WARN);
+    return OK;
+}
+
+int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const auto nelems = mem_fp.nelems();
     const auto ddt = prb->ddt;
     if (!nelems) return OK;
-
-    const int range = prb->alg == alg_t::mul
-            ? (sdt == dnnl_u8 || sdt == dnnl_s8) ? 1024 : 4
-            : 16;
-    const int f_min = sdt == dnnl_u8 ? 1 : -range / 2;
 
     int nelems_to_reduce = 1;
     for (int dim = 0; dim < prb->ndims; dim++) {
@@ -91,81 +131,36 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
             nelems_to_reduce *= prb->src_dims.at(dim);
         }
     }
-    // Fill only some number of elements with values other than neutral value
-    // to avoid precision problems caused by different orders of accumulation
-    // between some kernels and benchdnn reference. Number of elements was
-    // selected experimentally.
+    // There is no accumulation error in case of min or max algorithm
+    const bool is_min_or_max = prb->alg == alg_t::min || prb->alg == alg_t::max;
+    // Number of elements that should not exceed datatype limit after reduction
     int safe_to_reduce_elems = nelems_to_reduce;
-    if (prb->alg == alg_t::norm_lp_max || prb->alg == alg_t::norm_lp_power_p_max
-            || prb->alg == alg_t::norm_lp_power_p_sum
-            || prb->alg == alg_t::norm_lp_sum) {
-        safe_to_reduce_elems = 5e3;
-    } else if (ddt == dnnl_f32 || ddt == dnnl_f16 || ddt == dnnl_bf16) {
-        // It should work if float is used as an accumulator for f16 and bf16
-        safe_to_reduce_elems = 1e5;
+    if (!is_min_or_max) { // Other algs do computations, reduce final values
+        safe_to_reduce_elems = prb->alg == alg_t::mul ? 10 : 1000;
+        // Integral values easily reach border values,
+        // shrink their final values more
+        if (is_integral_dt(ddt))
+            safe_to_reduce_elems = prb->alg == alg_t::mul ? 3 : 10;
     }
-    const int64_t non_neutral_elems
-            = nelems / nelems_to_reduce * safe_to_reduce_elems;
-    // No special meaning; just to increase the precision of neutral_gen
-    const int prob_range = 1000;
-    const float non_neutral_prob = non_neutral_elems / nelems;
+    const float non_neutral_prob
+            = 1.f * safe_to_reduce_elems / nelems_to_reduce;
 
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        std::minstd_rand msr(i);
-        msr.discard(1);
-        std::uniform_int_distribution<> igen(0, range);
-        const float gen = static_cast<float>(igen(msr));
-        const float neutral_value = prb->alg == alg_t::mul ? 1.0f : 0.0f;
-        float value = neutral_value;
+    return fill_mem(
+            prb, mem_dt, mem_fp, non_neutral_prob, !is_min_or_max, false);
+}
 
-        const float neutral_gen = ((89 * i) + 73) % prob_range;
-        if (neutral_gen <= non_neutral_prob * prob_range) {
-            if (prb->alg == alg_t::mul) {
-                if (sdt == dnnl_s8 || sdt == dnnl_u8) {
-                    // generate {1, 2}, but probability of 2 is 1/range
-                    value = gen == range ? 2.0f : 1.0f;
-                } else {
-                    // generate {-2, -0.5, 1, 0.5, 2} to avoid underflow/overflow
-                    value = powf(f_min + gen, 2.0f) / 2;
-                    if (f_min + gen != 0.0f) {
-                        const float sign = fabs(f_min + gen) / (f_min + gen);
-                        value *= sign;
-                    } else {
-                        value = 1.0f;
-                    }
-                }
-            } else if (prb->alg == alg_t::mean && ddt == dnnl_f16) {
-                // Shift the mean to value different than 0 as results equal
-                // to 0 may be treated as mistrusted.
-                float mean_shift = 0.5;
-                value = (f_min + gen) / range + mean_shift;
-            } else {
-                value = (sdt == dnnl_bf16 || sdt == dnnl_f16)
-                        ? (f_min + gen) / range
-                        : (f_min + gen) * (1.0f + 4.0f / range);
-            }
-        }
-        mem_fp.set_elem(i, round_to_nearest_representable(sdt, value));
-    });
-    SAFE(mem_dt.reorder(mem_fp), WARN);
-
-    return OK;
+int fill_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const bool only_positive_values = is_norm_alg(prb->alg);
+    return fill_mem(prb, mem_dt, mem_fp, 1.0f, false, only_positive_values);
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->sdt, prb->ddt}, FWD_D, res);
     if (res->state == SKIPPED) return;
 
-    bool is_invalid = false;
-    switch (prb->alg) {
-        case alg_t::norm_lp_max:
-        case alg_t::norm_lp_sum:
-        case alg_t::norm_lp_power_p_max:
-        case alg_t::norm_lp_power_p_sum:
-            is_invalid = is_integral_dt(prb->sdt) || prb->p < 1.f;
-            break;
-        default: break;
-    }
+    const bool is_invalid = is_norm_alg(prb->alg)
+            && (is_integral_dt(prb->sdt) || prb->p < 1.f);
+
     if (is_invalid) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
@@ -207,18 +202,19 @@ int doit(const prb_t *prb, res_t *res) {
     const auto &src_md = q(DNNL_ARG_SRC);
     dnn_mem_t src_fp(src_md, fp_dt, abx_tag, test_engine);
     dnn_mem_t src_dt(src_md, test_engine);
-    SAFE(fill_mem(prb, src_dt, src_fp), WARN);
+    SAFE(fill_src(prb, src_dt, src_fp), WARN);
 
     const auto &dst_md = q(DNNL_ARG_DST);
     dnn_mem_t dst_fp(dst_md, fp_dt, abx_tag, test_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
     if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
-        SAFE(fill_mem(prb, dst_dt, dst_fp), WARN);
+        SAFE(fill_dst(prb, dst_dt, dst_fp), WARN);
 
+    const bool binary_po_only_positive_vals = is_norm_alg(prb->alg);
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
-    SAFE(binary::setup_binary_po(
-                 const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+    SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
+                 binary_po_fp, binary_po_only_positive_vals),
             WARN);
 
     args_t args;
