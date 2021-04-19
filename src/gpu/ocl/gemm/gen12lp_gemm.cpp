@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ struct gen12lp_gemm_driver_params_t {
     static constexpr auto block_k = 1024;
 };
 
-status_t gen12lp_gemm_t::launch_x8x8s32(gemm_exec_ctx_t ctx,
+status_t gen12lp_gemm_t::launch_x8x8s32(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c, int offset_a,
         int offset_b, int offset_c, int lda, int ldb, int ldc, int m, int n,
@@ -102,7 +102,7 @@ status_t gen12lp_gemm_t::launch_x8x8s32(gemm_exec_ctx_t ctx,
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 
-status_t gen12lp_gemm_t::launch_scale_x8x8s32(gemm_exec_ctx_t ctx,
+status_t gen12lp_gemm_t::launch_scale_x8x8s32(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream,
         const memory_storage_t &c_temp, const memory_storage_t &c, char offsetc,
         int offset_c, int m, int n, int ldc, float alpha, float beta,

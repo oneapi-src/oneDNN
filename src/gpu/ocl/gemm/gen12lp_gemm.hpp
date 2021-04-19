@@ -80,6 +80,7 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
                     && utils::one_of(d->c_type(), data_type::s32)
                     && attr()->has_default_values(attr_skip_mask)
                     && zero_points_ok() && attr()->output_scales_.mask_ == 0
+                    && attr()->post_ops_.len() <= 2
                     && IMPLICATION(attr()->post_ops_.len() == 1,
                             attr()->post_ops_.find(eltwise) != -1
                                     || attr()->post_ops_.find(sum) != -1)
@@ -251,15 +252,16 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
     status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 private:
-    status_t launch_x8x8s32(gemm_exec_ctx_t ctx, compute::compute_stream_t *s,
-            const memory_storage_t &a, const memory_storage_t &b,
-            const memory_storage_t &c, int offset_a, int offset_b, int offset_c,
-            int lda, int ldb, int ldc, int m, int n, int k, int beta, int ao,
-            int bo, const memory_storage_t &co, int offset_co, bool apply_co,
-            bool apply_eltwise, float eltwise_alpha, float eltwise_beta,
-            float eltwise_scale, bool aligned) const;
+    status_t launch_x8x8s32(const gemm_exec_ctx_t &ctx,
+            compute::compute_stream_t *s, const memory_storage_t &a,
+            const memory_storage_t &b, const memory_storage_t &c, int offset_a,
+            int offset_b, int offset_c, int lda, int ldb, int ldc, int m, int n,
+            int k, int beta, int ao, int bo, const memory_storage_t &co,
+            int offset_co, bool apply_co, bool apply_eltwise,
+            float eltwise_alpha, float eltwise_beta, float eltwise_scale,
+            bool aligned) const;
 
-    status_t launch_scale_x8x8s32(gemm_exec_ctx_t ctx,
+    status_t launch_scale_x8x8s32(const gemm_exec_ctx_t &ctx,
             compute::compute_stream_t *s, const memory_storage_t &c_temp,
             const memory_storage_t &c, char offsetc, int offset_c, int m, int n,
             int ldc, float alpha, float beta, const memory_storage_t &co,
