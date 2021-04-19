@@ -41,6 +41,7 @@ struct gemm_exec_args_t {
     memory_storage_t *c_zero_point = nullptr;
     memory_storage_t *bias = nullptr;
     memory_storage_t *output_scales = nullptr;
+    exec_args_t exec_args;
 };
 
 struct gemm_exec_ctx_t {

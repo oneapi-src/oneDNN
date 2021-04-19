@@ -17,8 +17,12 @@
 #ifndef GPU_OCL_GEMM_GEMM_WITH_POST_OPS_HPP
 #define GPU_OCL_GEMM_GEMM_WITH_POST_OPS_HPP
 
+#include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
+#include "gpu/gemm/gpu_gemm_utils.hpp"
 #include "gpu/gpu_gemm_pd.hpp"
+#include "gpu/gpu_resource.hpp"
+#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -40,21 +44,28 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
         status_t init(engine_t *engine);
 
         void init_scratchpad();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         bool use_scratchpad() const {
             return use_scratchpad_with_post_op_worker;
         }
 
         std::shared_ptr<primitive_desc_t> gemm_pd_;
-        std::shared_ptr<primitive_desc_t> post_op_worker_pd_;
         bool use_scratchpad_with_post_op_worker = false;
+        bool use_reorder = false;
+        compute::dispatch_t dispatch_;
+        attr_info_t attr_info_;
+        float scale_ = 1;
     };
 
     status_t init(engine_t *engine) override {
         auto ret_status = pd()->gemm_pd_->create_primitive(gemm_prim_, engine);
         CHECK(ret_status);
-        ret_status = pd()->post_op_worker_pd_->create_primitive(
-                post_op_worker_prim_, engine);
+        compute::kernel_ctx_t kernel_ctx;
+        ret_status = pd()->init_kernel_ctx(kernel_ctx);
+        CHECK(ret_status);
+        ret_status = create_kernel(
+                engine, &post_process_kernel_, "gemm_post_ops", kernel_ctx);
         return ret_status;
     }
 
@@ -62,13 +73,34 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
 
 protected:
     primitive_list_t nested_primitives() const override {
-        return {gemm_prim_.get(), post_op_worker_prim_.get()};
+        primitive_list_t list = {gemm_prim_.get()};
+        return list;
+    }
+    status_t init_res_storage(
+            engine_t *engine, gpu_resource_t *r) const override {
+        const auto *attr = pd()->attr();
+        std::unique_ptr<memory_storage_t> tmp_mem_storage;
+        //TODO: Add zero points support
+        for (const auto idx : {A0_, B0_, C0_}) {
+            CHECK(gemm_utils::prepare_zero_points(
+                    attr, engine, idx, tmp_mem_storage));
+            r->add_memory_storage(idx, std::move(tmp_mem_storage));
+        }
+        CHECK(gemm_utils::prepare_scales(attr, engine, tmp_mem_storage));
+        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
+        return status::success;
     }
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<primitive_t> gemm_prim_;
-    std::shared_ptr<primitive_t> post_op_worker_prim_;
+    compute::kernel_t post_process_kernel_;
+    enum {
+        A0_ = DNNL_ARG_A,
+        B0_ = DNNL_ARG_B,
+        C0_ = DNNL_ARG_C,
+        SCALES_ = DNNL_ARG_ATTR_OUTPUT_SCALES
+    };
 };
 
 } // namespace ocl

@@ -29,15 +29,21 @@ namespace ocl {
 
 status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
 
-    if (attr()->post_ops_.len() == 0) return status::unimplemented;
-
+    auto d = desc();
     auto attributes_with_po = attr()->clone();
+    attr_info_ = attr_info_t::create(attributes_with_po);
+    bool ok = IMPLICATION(attr_info_.with_oscales,
+                      attr_info_.with_common_oscales
+                              || attr_info_.with_per_oc_oscales)
+            && desc_.c_desc.ndims <= 2
+            && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k());
+    if (!ok) return status::unimplemented;
 
     auto attributes_without_po = attr()->clone();
     attributes_without_po->post_ops_.entry_.clear();
+    dnnl_primitive_attr_set_output_scales(attributes_without_po, 1, 0, &scale_);
 
     const auto impl_list = engine->get_implementation_list(op_desc());
-
     int current_impl_idx
             = impl_list_item_t::find<ocl::gemm_with_post_ops_t::pd_t>(
                     impl_list);
@@ -48,36 +54,80 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     if (!it_gemm_with_po.is_initialized()) return status::invalid_arguments;
     gemm_pd_ = *(++it_gemm_with_po);
     // exit if gemm kernel support post ops
-    if (gemm_pd_) return status::unimplemented;
-
-    dnnl_primitive_desc_iterator it_gemm_without_po(engine, op_desc(),
+    if (gemm_pd_ && strstr(gemm_pd_->name(), "ref") == nullptr)
+        return status::unimplemented;
+    auto gemm_desc = *desc();
+    auto dst_type = gemm_desc.c_desc.data_type;
+    use_reorder = dst_md(0)->data_type != desc()->acc_type;
+    gemm_desc.c_desc.data_type = gemm_desc.acc_type;
+    gemm_desc.bias_desc = glob_zero_md;
+    dnnl_primitive_desc_iterator it_gemm_without_po(engine,
+            reinterpret_cast<const op_desc_t *>(&gemm_desc),
             attributes_without_po, nullptr,
             current_impl_idx /* skip implementation */);
     if (!it_gemm_without_po.is_initialized()) return status::invalid_arguments;
     gemm_pd_ = *(++it_gemm_without_po);
-    if (!gemm_pd_) return status::unimplemented;
-
-    desc_.c_desc = *gemm_pd_->dst_md();
-
-    // initilize post op worker
-    dnnl_eltwise_desc_t po_worker_desc;
-    dnnl_memory_desc_t po_input_mem_desc(*dst_md(0));
-    dnnl_eltwise_forward_desc_init(&po_worker_desc,
-            dnnl_prop_kind_t::dnnl_forward_inference,
-            dnnl_alg_kind_t::dnnl_eltwise_linear, &po_input_mem_desc, 1, 0);
-    dnnl_primitive_desc_iterator it(
-            engine, (op_desc_t *)&po_worker_desc, attributes_with_po, nullptr);
-    if (!it.is_initialized()) return status::invalid_arguments;
-    post_op_worker_pd_ = *(++it);
-    if (post_op_worker_pd_) {
-        use_scratchpad_with_post_op_worker
-                = attributes_with_po->post_ops_.find(primitive_kind_t::dnnl_sum)
-                != -1;
-    } else {
+    if (!gemm_pd_ || strstr(gemm_pd_->name(), "ref") != nullptr)
         return status::unimplemented;
-    }
+    //set tags for end user
+    desc_.a_desc = *gemm_pd_->arg_md(DNNL_ARG_SRC_0);
+    desc_.b_desc = *gemm_pd_->arg_md(DNNL_ARG_SRC_1);
+    desc_.c_desc = *gemm_pd_->arg_md(DNNL_ARG_DST);
+    desc_.c_desc.data_type = dst_type;
+
+    compute::kernel_ctx_t kernel_ctx;
+    use_scratchpad_with_post_op_worker = use_reorder
+            || attributes_with_po->post_ops_.find(primitive_kind_t::dnnl_sum)
+                    != -1;
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto ndims = gemm_pd_->dst_md()->ndims;
+    dispatch_ = compute_engine->create_dispatch(gemm_pd_->dst_md());
+    dispatch_.define_dim("MB", 0, gemm_pd_->dst_md()->dims[0]);
+    dispatch_.define_dim("OC", 1, gemm_pd_->dst_md()->dims[1]);
+    dispatch_.define_dim("MB3", nstl::max(1, ndims - 3),
+            ndims > 3 ? gemm_pd_->dst_md()->dims[3] : 1);
+    dispatch_.define_dim("MB2", nstl::max(1, ndims - 2),
+            ndims > 2 ? gemm_pd_->dst_md()->dims[2] : 1);
+    dispatch_.generate();
+    attr_info_ = attr_info_t::create(attributes_with_po);
+
     init_scratchpad();
 
+    return status::success;
+}
+status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    auto c_type = dst_md(0)->data_type;
+    const memory_desc_wrapper bia_d(src_md(2));
+    const memory_desc_wrapper dst_d(gemm_pd_->dst_md(0));
+    offsets_t off;
+    int bia_off[4][MAX_NDIMS];
+    set_offsets(dst_d, off.dst_off);
+    set_offsets(bia_d, bia_off);
+    int ndims = dst_d.ndims();
+    def_offsets(off.dst_off, kernel_ctx, "DST", ndims);
+    def_offsets(bia_off, kernel_ctx, "BIA", ndims);
+    bool with_bias = !bia_d.is_zero();
+    bool is_int8 = src_md(1)->data_type == data_type::s8;
+    kernel_ctx.set_data_type(is_int8 ? data_type::f32 : c_type);
+    //here SRC is output tensor of gemm call
+    def_data_type(kernel_ctx, desc()->acc_type, "SRC");
+    def_data_type(
+            kernel_ctx, is_int8 ? data_type::f32 : desc()->acc_type, "ACC");
+    def_data_type(kernel_ctx,
+            with_bias ? src_md(2)->data_type
+                      : is_int8 ? data_type::f32 : c_type,
+            "BIAS");
+    def_data_type(kernel_ctx, desc()->acc_type, "SPAD");
+    def_data_type(kernel_ctx, c_type, "DST");
+
+    kernel_ctx.define_int("USE_TEMP_DST", use_scratchpad_with_post_op_worker);
+
+    kernel_ctx.define_int("WITH_BIAS", with_bias);
+    kernel_ctx.define_int("NDIMS", ndims);
+    kernel_ctx.define_int("BIA_NDIMS", bia_d.md_->ndims);
+    def_attr_info(kernel_ctx, attr_info_);
+    def_dispatch(kernel_ctx, dispatch_);
     return status::success;
 }
 
@@ -87,83 +137,57 @@ void gemm_with_post_ops_t::pd_t::init_scratchpad() {
         size_t size
                 = utils::array_product(dst_md()->padded_dims, dst_md()->ndims);
         scratchpad.book(memory_tracking::names::key_gemm_tmp_buffer, size,
-                types::data_type_size(dst_md()->data_type));
+                types::data_type_size(desc()->acc_type));
     }
-    scratchpad.book(memory_tracking::names::key_nested,
+    scratchpad.book(memory_tracking::names::key_nested_multiple,
             gemm_pd_->scratchpad_registry());
-    scratchpad.book(memory_tracking::names::key_nested,
-            post_op_worker_pd_->scratchpad_registry());
 }
 
 status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
     std::unique_ptr<memory_t> c_mem_before_po_worker;
     status_t exec_status;
+    gemm_exec_args_t g_args(ctx.args());
 
     if (pd()->use_scratchpad()) {
         auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                 memory_tracking::names::key_gemm_tmp_buffer);
+        auto tmp_md = *(pd()->dst_md(0));
+        tmp_md.data_type = pd()->desc()->acc_type;
         CHECK(safe_ptr_assign(c_mem_before_po_worker,
-                new memory_t(ctx.stream()->engine(), pd()->dst_md(0),
+                new memory_t(ctx.stream()->engine(), &tmp_md,
                         std::move(scratchpad))));
 
-        gemm_exec_args_t args(ctx.args());
-        args.c = c_mem_before_po_worker->memory_storage();
-
-        exec_ctx_t tmp_exec_ctx(ctx.stream());
-        tmp_exec_ctx.set_resource_mapper(ctx.get_resource_mapper());
-        tmp_exec_ctx.set_scratchpad_grantor(&ctx.get_scratchpad_grantor());
-        nested_scratchpad_t ns(
-                tmp_exec_ctx, memory_tracking::names::key_nested, gemm_prim_);
-
-        gemm_exec_ctx_t gemm_ex_ctx
-                = gemm_exec_ctx_t(ctx.stream(), args, ctx.desc());
-        gemm_ex_ctx.set_resource_mapper(ctx.get_resource_mapper());
-        gemm_ex_ctx.set_scratchpad_grantor(ns.grantor());
-
-        exec_status = gemm_utils::gpu_gemm(gemm_prim_)->execute(gemm_ex_ctx);
-    } else {
-        exec_status = gemm_utils::gpu_gemm(gemm_prim_)->execute(ctx);
+        g_args.c = c_mem_before_po_worker->memory_storage();
     }
+    exec_ctx_t tmp_exec_ctx(ctx.stream());
+    tmp_exec_ctx.set_resource_mapper(ctx.get_resource_mapper());
+    tmp_exec_ctx.set_scratchpad_grantor(&ctx.get_scratchpad_grantor());
+    nested_scratchpad_t g_ns(tmp_exec_ctx,
+            memory_tracking::names::key_nested_multiple, gemm_prim_);
 
+    gemm_exec_ctx_t gemm_ex_ctx
+            = gemm_exec_ctx_t(ctx.stream(), g_args, ctx.desc());
+    gemm_ex_ctx.set_resource_mapper(ctx.get_resource_mapper());
+    gemm_ex_ctx.set_scratchpad_grantor(g_ns.grantor());
+
+    exec_status = gemm_utils::gpu_gemm(gemm_prim_)->execute(gemm_ex_ctx);
     CHECK(exec_status);
 
-    std::unique_ptr<memory_t> dst_mem;
-    const auto *dst_memory_storage = &GEMM_CTX_ARG_STORAGE(c);
-#ifdef DNNL_WITH_SYCL
-    auto *sycl_memory_storage
-            = utils::downcast<const impl::sycl::sycl_memory_storage_base_t *>(
-                    dst_memory_storage);
-    auto m_kind = sycl_memory_storage->memory_kind();
-
-    memory_t *memory_ptr;
-    ::dnnl_sycl_interop_memory_create(&memory_ptr, pd()->dst_md(0),
-            ctx.stream()->engine(), m_kind, dst_memory_storage->data_handle());
-    CHECK(safe_ptr_assign(dst_mem, memory_ptr));
-#else
-    CHECK(safe_ptr_assign(dst_mem,
-            new memory_t(ctx.stream()->engine(), pd()->dst_md(0),
-                    memory_flags_t::use_runtime_ptr,
-                    dst_memory_storage->data_handle())));
-#endif
-
-    exec_args_t po_worker_args;
-    if (pd()->use_scratchpad()) {
-        po_worker_args[DNNL_ARG_SRC]
-                = memory_arg_t {c_mem_before_po_worker.get(), true};
-    } else {
-        po_worker_args[DNNL_ARG_SRC] = memory_arg_t {dst_mem.get(), true};
-    }
-    po_worker_args[DNNL_ARG_DST] = memory_arg_t {dst_mem.get(), false};
-    exec_ctx_t po_exec_ctx(ctx.stream(), std::move(po_worker_args));
-    po_exec_ctx.set_resource_mapper(ctx.get_resource_mapper());
-
-    po_exec_ctx.set_scratchpad_grantor(&ctx.get_scratchpad_grantor());
-    nested_scratchpad_t ns(po_exec_ctx, memory_tracking::names::key_nested,
-            post_op_worker_prim_);
-    po_exec_ctx.set_scratchpad_grantor(ns.grantor());
-
-    exec_status = post_op_worker_prim_->execute(po_exec_ctx);
-
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, GEMM_CTX_ARG_STORAGE(c));
+    arg_list.set(1, GEMM_CTX_ARG_STORAGE(bias));
+    arg_list.set(2, GEMM_CTX_ARG_STORAGE(c));
+    const auto &args = ctx.args();
+    int idx = append_post_ops_to_arg_list_gemm(
+            args.exec_args, arg_list, 3, pd()->attr_info_.all_post_ops);
+    arg_list.set(idx++,
+            pd()->use_scratchpad() ? *c_mem_before_po_worker->memory_storage()
+                                   : memory_storage_t::empty_storage());
+    arg_list.set(idx,
+            pd()->attr_info_.with_oscales ? CTX_GPU_RES_STORAGE(SCALES_)
+                                          : memory_storage_t::empty_storage());
+    auto nd_range = pd()->dispatch_.nd_range();
+    exec_status = parallel_for(ctx, nd_range, post_process_kernel_, arg_list);
     return exec_status;
 };
 

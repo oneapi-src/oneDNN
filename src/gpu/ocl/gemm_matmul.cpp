@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ status_t gemm_matmul_t::execute(const exec_ctx_t &ctx) const {
     gemm_args.b_zero_point = b0;
     gemm_args.c_zero_point = c0;
     gemm_args.output_scales = scales;
-
+    gemm_args.exec_args = ctx.args();
     auto gemm_desc = gemm_desc_t();
     gemm_desc.primitive_kind = primitive_kind::gemm;
     gemm_desc.a_desc = *src_d.md_;

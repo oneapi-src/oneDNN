@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ status_t gemm_inner_product_fwd_t::execute_forward(
     gemm_args.b_zero_point = a0;
     gemm_args.c_zero_point = c0;
     gemm_args.output_scales = scales;
+    gemm_args.exec_args = ctx.args();
 
     gemm_exec_ctx_t gemm_ctx(ctx, gemm_args);
 

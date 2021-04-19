@@ -1086,14 +1086,20 @@ inline void def_post_ops_cfg(
     kernel_ctx.add_option(po_kernel_args);
 }
 
-inline int append_post_ops_to_arg_list(const exec_ctx_t &ctx,
+inline int append_post_ops_to_arg_list_base(const exec_args_t &args,
         compute::kernel_arg_list_t &arg_list, int post_op_idx,
         const post_ops_t &all_post_ops) {
     auto set_arg_entry = [&](const post_ops_t::entry_t &e, int po_idx) {
         if (e.is_binary()) {
-            auto &binary_arg = CTX_IN_STORAGE(
+            auto arg = args.at(
                     DNNL_ARG_ATTR_MULTIPLE_POST_OP(po_idx) | DNNL_ARG_SRC_1);
+            assert(arg.is_const);
+
+            auto &binary_arg = arg.mem
+                    ? *(arg.mem->memory_storage())
+                    : dnnl::impl::memory_storage_t::empty_storage();
             arg_list.set(post_op_idx++, binary_arg);
+
         } else {
             arg_list.set(post_op_idx++, memory_storage_t::empty_storage());
         }
@@ -1123,6 +1129,19 @@ inline int append_post_ops_to_arg_list(const exec_ctx_t &ctx,
         set_arg_entry(empty_po, 0);
     }
     return post_op_idx;
+}
+inline int append_post_ops_to_arg_list_gemm(const exec_args_t &args,
+        compute::kernel_arg_list_t &arg_list, int post_op_idx,
+        const post_ops_t &all_post_ops) {
+    return append_post_ops_to_arg_list_base(
+            args, arg_list, post_op_idx, all_post_ops);
+}
+inline int append_post_ops_to_arg_list(const exec_ctx_t &ctx,
+        compute::kernel_arg_list_t &arg_list, int post_op_idx,
+        const post_ops_t &all_post_ops) {
+    exec_args_t args;
+    return append_post_ops_to_arg_list_base(
+            ctx.args(), arg_list, post_op_idx, all_post_ops);
 }
 
 inline bool post_ops_preserves_zeroes(
