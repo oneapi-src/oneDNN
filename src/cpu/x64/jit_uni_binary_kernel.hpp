@@ -61,6 +61,7 @@ protected:
     const jit_binary_conf_t conf_;
     const bool is_tail_kernel_;
     const size_t tail_size_;
+    const size_t padding_tail_size_;
 };
 
 template <cpu_isa_t isa>

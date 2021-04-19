@@ -666,11 +666,9 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
 }
 
 status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
-    status_t status = status::success;
     const auto src0 = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC_0);
     const auto src1 = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC_1);
-    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
     const auto &post_ops = pd()->attr()->post_ops_;
     const auto &post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(post_ops, ctx);

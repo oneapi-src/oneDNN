@@ -38,7 +38,9 @@ binary_kernel_t::binary_kernel_t(const size_t vlen, const binary_pd_t *pd,
     , pd_(pd)
     , conf_(conf)
     , is_tail_kernel_(tail_kernel)
-    , tail_size_(get_tail_size()) {}
+    , tail_size_(get_tail_size())
+    , padding_tail_size_(
+              pd->src_md(0)->padded_dims[1] - pd->src_md(0)->dims[1]) {}
 
 size_t binary_kernel_t::get_tail_size() const {
     memory_desc_wrapper src0_d(pd_->src_md(0));
@@ -274,10 +276,55 @@ void jit_uni_binary_kernel_t<isa>::compute_dst(int unroll, bool tail) {
     for (int i = 0; i < unroll; i++) {
         const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
         const int offt = simd_w_ * i;
-        io_.at(conf_.dst_type)
-                ->store(vreg_tmp_src0,
-                        dst_ptr(offt * types::data_type_size(conf_.dst_type)),
-                        tail);
+        const auto dt_size = types::data_type_size(conf_.dst_type);
+
+        if (is_tail_kernel_ && padding_tail_size_) {
+            // apply zero-padding
+            Label end;
+            auto off_base = 0;
+            auto zero_pad_left = padding_tail_size_;
+
+            // inplace data is assumed to be zero-padded
+            cmp(reg_src0_, reg_dst_);
+            je(end, T_NEAR);
+
+            if (zero_pad_left >= simd_w_ - tail_size_) {
+                vxorps(vreg_zero_, vreg_zero_, vreg_zero_);
+                if (is_avx512)
+                    uni_vmovups(vreg_zero_ | tail_opmask_, vreg_tmp_src0);
+                else
+                    uni_vblendvps(vreg_zero_, vreg_zero_, vreg_tmp_src0,
+                            vmm_tail_vmask_);
+                io_.at(conf_.dst_type)
+                        ->store(vreg_zero_, dst_ptr(offt * dt_size), false);
+                off_base = simd_w_ * dt_size;
+                zero_pad_left -= simd_w_ - tail_size_;
+            } else {
+                io_.at(conf_.dst_type)
+                        ->store(vreg_tmp_src0, dst_ptr(offt * dt_size), true);
+                off_base = tail_size_ * dt_size;
+            }
+
+            if (zero_pad_left) {
+                push(rdi);
+                const Reg32 &reg_zero = eax;
+                const Reg64 &reg_ptr = rdi;
+                const Reg64 &reg_counter = rcx;
+                const auto off_start = off_base;
+                const auto off_end = off_start + zero_pad_left * dt_size;
+                xor_(reg_zero, reg_zero);
+                lea(reg_ptr,
+                        ptr[dst_ptr(offt * dt_size).getRegExp()
+                                + RegExp(off_start)]);
+                mov(reg_counter, off_end - off_start);
+                rep();
+                stosb();
+                pop(rdi);
+            }
+            L(end);
+        } else
+            io_.at(conf_.dst_type)
+                    ->store(vreg_tmp_src0, dst_ptr(offt * dt_size), tail);
     }
 }
 
