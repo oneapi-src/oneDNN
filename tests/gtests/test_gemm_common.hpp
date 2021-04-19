@@ -37,9 +37,7 @@
 #include "tests/test_thread.hpp"
 #endif
 
-#if DNNL_X64
-#include "tests/cpu_x64_isa_common.hpp"
-#endif
+#include "tests/test_isa_common.hpp"
 
 #include <cstdint>
 #include <utility>

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_ISA_COMMON_HPP
-#define CPU_X64_ISA_COMMON_HPP
+#ifndef TEST_ISA_COMMON_HPP
+#define TEST_ISA_COMMON_HPP
 
 #include <cassert>
 #include <map>
@@ -28,9 +28,13 @@
 
 #include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl.hpp"
+#if DNNL_X64
 #include "src/cpu/x64/cpu_isa_traits.hpp"
+#endif
 
 namespace dnnl {
+
+#if DNNL_X64
 
 inline impl::cpu::x64::cpu_isa_t cvt_to_internal_cpu_isa(cpu_isa input_isa) {
 #define HANDLE_ISA(isa) \
@@ -176,6 +180,13 @@ inline bool mayiuse(dnnl_cpu_isa_t isa, bool soft = false) {
     return mayiuse(static_cast<cpu_isa>(isa), soft);
 }
 
-} // namespace dnnl
+#else
 
+inline bool is_superset(dnnl_cpu_isa_t isa_1, dnnl_cpu_isa_t isa_2) {
+    return false;
+}
+
+#endif
+
+} // namespace dnnl
 #endif

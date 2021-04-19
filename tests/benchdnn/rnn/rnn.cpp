@@ -23,7 +23,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#include "tests/cpu_x64_isa_common.hpp"
+#include "tests/test_isa_common.hpp"
 #include "tests/test_thread.hpp"
 
 #include "dnnl_common.hpp"

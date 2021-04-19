@@ -17,13 +17,12 @@
 #ifndef CPU_GEMM_INNER_PRODUCT_UTILS_HPP
 #define CPU_GEMM_INNER_PRODUCT_UTILS_HPP
 
+#include "common/broadcast_strategy.hpp"
 #include "common/c_types_map.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
 #include "cpu/cpu_inner_product_pd.hpp"
-
-#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 
 namespace dnnl {
 namespace impl {

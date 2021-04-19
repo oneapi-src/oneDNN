@@ -20,9 +20,7 @@
 #include <type_traits>
 
 #include "dnnl_test_common.hpp"
-#if DNNL_X64
-#include "tests/cpu_x64_isa_common.hpp"
-#endif
+#include "tests/test_isa_common.hpp"
 #include "gtest/gtest.h"
 
 #include "oneapi/dnnl/dnnl.hpp"

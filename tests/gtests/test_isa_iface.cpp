@@ -14,9 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#if DNNL_X64
-#include "tests/cpu_x64_isa_common.hpp"
-#endif
+#include "tests/test_isa_common.hpp"
 
 #include "gtest/gtest.h"
 
