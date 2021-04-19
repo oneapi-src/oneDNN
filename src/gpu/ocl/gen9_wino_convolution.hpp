@@ -119,7 +119,7 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
         if (status != status::success) return status;
 
         std::vector<compute::kernel_t> kernels;
-        create_kernels(engine, &kernels, kernel_names, kernel_ctx);
+        CHECK(create_kernels(engine, &kernels, kernel_names, kernel_ctx));
         kernel_ = kernels[0];
         wei_trans_kernel_ = kernels[1];
         if (!kernel_ || !wei_trans_kernel_) return status::runtime_error;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,15 +65,6 @@ inline status_t create_kernels(const compute::compute_engine_t *engine,
         const compute::kernel_ctx_t &kernel_ctx) {
     return create_kernels(
             engine, kernel_list, kernel_ctx, ocl::get_kernel_source);
-}
-
-inline compute::kernel_t create_kernel(const compute::compute_engine_t *engine,
-        const std::string &name, const compute::kernel_ctx_t &kernel_ctx) {
-    compute::kernel_t kernel;
-    compute::kernel_list_t kernel_list;
-    kernel_list.add(name.c_str(), &kernel);
-    create_kernels(engine, kernel_list, kernel_ctx);
-    return kernel;
 }
 
 } // namespace ocl
