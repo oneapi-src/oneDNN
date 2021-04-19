@@ -693,6 +693,62 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
     }
 
+#elif VECTORIZE_GROUPS
+
+    int d[6];
+    int blk[6];
+    int b[6] = {0, 0, 0, 0, 0, 0};
+
+    d[0] = GWS_GET_D0();
+    d[1] = GWS_GET_D1();
+    d[2] = GWS_GET_D2();
+    d[3] = GWS_GET_D3();
+    d[4] = GWS_GET_D4();
+    d[5] = GWS_GET_D5();
+    blk[0] = GWS_GET_D0_BLOCK();
+    blk[1] = GWS_GET_D1_BLOCK();
+    blk[2] = GWS_GET_D2_BLOCK();
+    blk[3] = GWS_GET_D3_BLOCK();
+    blk[4] = GWS_GET_D4_BLOCK();
+    blk[5] = GWS_GET_D5_BLOCK();
+
+    SRC_DATA_T cache[GROUP * GROUP];
+    // there will be blocks on 2 dimensions
+    // order of loops is important: one dim gets adjacent data, the other does not
+    // that order will be inverted in dst's loops
+    // There will be GROUP reads of SIMD{VECT} items, each with
+    // sizeof(SRC_DATA_T) bytes, and they all point to contiguous mem area.
+    // GROUP and VECT must be selected in such way that resulting mem
+    // accesses could be combined into full cache line accesses by mem ccontroller
+    int coeff = (VECT_DIM == SRC_LOOP_DIM ? get_sub_group_size() : 1);
+    for (int i = 0; i < blk[SRC_LOOP_DIM]; i++) {
+        b[SRC_LOOP_DIM] = coeff * i;
+        const int src_off = SRC_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+                d[3] + b[3], d[4] + b[4], d[5] + b[5]);
+        unroll_for(int j = 0; j < GROUP; j++) {
+            int cidx = GROUP * i + j;
+            int sidx = src_off + get_sub_group_size() * j;
+            cache[cidx] = SRC_BLOCK_READ(&src[sidx]);
+        }
+    }
+    b[SRC_LOOP_DIM] = 0;
+    coeff = (VECT_DIM == DST_LOOP_DIM ? get_sub_group_size() : 1);
+    for (int i = 0; i < blk[DST_LOOP_DIM]; i++) {
+        b[DST_LOOP_DIM] = coeff * i;
+        const int dst_off = DST_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+                d[3] + b[3], d[4] + b[4], d[5] + b[5]);
+        unroll_for(int j = 0; j < GROUP; j++) {
+            int cidx = i + j * GROUP;
+            int didx = dst_off + get_sub_group_size() * j;
+            DST_DATA_T dst_tmp;
+#if WITH_SUM_AB
+            dst_tmp = DST_BLOCK_READ(&dst[didx]);
+#endif
+            REORDER(dst_tmp, cache[cidx], alpha, beta);
+            DST_BLOCK_WRITE(&dst[didx], dst_tmp);
+        }
+    }
+
 #elif USE_DENSE_VECT
     const int d0_blk_start = GWS_GET_D0();
     const int d0_blk_end = d0_blk_start + (GWS_GET_D0_BLOCK() * 16);

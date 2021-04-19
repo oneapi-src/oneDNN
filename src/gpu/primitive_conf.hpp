@@ -597,7 +597,19 @@ enum reorder_kernel_t {
     transpose16x16,
     reorder_nchw,
     unaligned_sizes,
-    reorder_alt
+    reorder_alt,
+    vectorize_groups
+};
+
+struct vectorize_group {
+    int vector_dim;
+    int src_loop_dim;
+    int dst_loop_dim;
+    int group_size;
+};
+
+union reorder_implementation {
+    vectorize_group vg;
 };
 struct reorder_conf_t {
     bool has_padding;
@@ -614,6 +626,8 @@ struct reorder_conf_t {
 
     memory_desc_info_t src_md_info;
     memory_desc_info_t dst_md_info;
+
+    reorder_implementation aux_data;
 };
 
 // Concat

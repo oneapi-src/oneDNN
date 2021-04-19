@@ -179,6 +179,7 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
     if (is_broadcast_by_strides(src_mdw) || is_broadcast_by_strides(dst_mdw)) {
         return reorder_kernel_t::reorder_reference;
     }
+
     if (!conf.scale_quant) {
         if (matches_one_NxN_layout(src_mdw, dst_mdw, 16)) {
             // W/A for compiler bug: avoid using intel_sub_group_shuffle with
@@ -200,6 +201,28 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
     if (src_mdw.matches_one_of_tag(nhwc) && dst_mdw.matches_one_of_tag(nchw)
             && dim_is_div_by_16_or_less_than_16(dst_mdw, 1)) {
         return reorder_kernel_t::unaligned_sizes;
+    }
+
+    if (!has_padding_or_scale_quant && (conf.nelems % 256 == 0)
+            && src_mdw.similar_to(dst_mdw, true, false, 0)
+            && !has_padding_or_scale_quant) {
+        return reorder_kernel_t::dense_vector;
+    }
+
+    // This kernel works on tensors that have common innermost dim. Tries to
+    // access mem using large enough chunks to utilize whole cache lines.
+    auto src_last = get_Nth_last_dim_or_block(src_mdw);
+    auto dst_last = get_Nth_last_dim_or_block(dst_mdw);
+    auto inner_dim = dst_last.idx;
+    if (!has_padding_or_scale_quant && src_last.idx == dst_last.idx
+            && src_last.size % 8 == 0 && dst_last.size % 8 == 0
+            && conf.ndims <= MAX_NDIMS
+            && (src_last.size % (2 * dst_last.size) == 0
+                    || dst_last.size % (2 * src_last.size) == 0)
+            && !(conf.scale_mask & (1 << inner_dim))
+            && dst_mdw.dims()[inner_dim] == dst_mdw.padded_dims()[inner_dim]
+            && src_mdw.dims()[inner_dim] == src_mdw.padded_dims()[inner_dim]) {
+        return reorder_kernel_t::vectorize_groups;
     }
 
     if (allow_unroll) {
@@ -239,12 +262,6 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
         return reorder_kernel_t::plain_to_ABcd4axb;
     }
 
-    if (!has_padding_or_scale_quant && (conf.nelems % 256 == 0)
-            && src_mdw.similar_to(dst_mdw, true, false, 0)
-            && !has_padding_or_scale_quant) {
-        return reorder_kernel_t::dense_vector;
-    }
-
     // This kernel will be used where last dimension is not reordered.
     // It will vectorize that dimension.
     if (!has_padding_or_scale_quant && src_mdw.is_dense() && dst_mdw.is_dense()
@@ -271,6 +288,7 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
             && !has_padding_or_scale_quant) {
         return reorder_kernel_t::reorder_alt;
     }
+
     return reorder_kernel_t::reorder_reference;
 }
 
@@ -406,6 +424,60 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             vect_dim = last;
             vect_size = (last_dim % 16 == 0) ? 16 : 8;
             break;
+        case vectorize_groups: {
+            auto last_dim_src = get_Nth_last_dim_or_block(src_mdw);
+            auto nextlast_dim_src = get_Nth_last_dim_or_block(src_mdw, 1);
+            auto last_dim_dst = get_Nth_last_dim_or_block(dst_mdw);
+            auto nextlast_dim_dst = get_Nth_last_dim_or_block(dst_mdw, 1);
+            int min_common_size
+                    = std::min(last_dim_src.size, last_dim_dst.size);
+            vect_dim = last_dim_src.idx;
+            vect_size = (min_common_size % 16 == 0) ? 16 : 8;
+            assert(last_dim_src.size % vect_size == 0
+                    && last_dim_dst.size % vect_size == 0);
+            assert(last_dim_src.idx == last_dim_dst.idx);
+            int src_chunks;
+            if (last_dim_src.size / vect_size > 1) {
+                src_chunks = last_dim_src.size / vect_size;
+                conf.aux_data.vg.dst_loop_dim = last_dim_src.idx;
+            } else {
+                src_chunks = nextlast_dim_src.size;
+                conf.aux_data.vg.dst_loop_dim = nextlast_dim_src.idx;
+            }
+            int dst_chunks;
+            if (last_dim_dst.size / vect_size > 1) {
+                dst_chunks = last_dim_dst.size / vect_size;
+                conf.aux_data.vg.src_loop_dim = last_dim_dst.idx;
+            } else {
+                dst_chunks = nextlast_dim_dst.size;
+                conf.aux_data.vg.src_loop_dim = nextlast_dim_dst.idx;
+            }
+            // TODO:
+            // Final algorithm for selecting group size should consider:
+            // 1. Group size must be small enough to guarantee no spill.
+            // 2. Group size should be large enough to fill whole cache lines
+            //    on both reads and writes, with line size determined by HW
+            // 3. If there's not enough data to feed all EUs, ignore (2) and
+            //    decrease group size.
+            int max_data_size = (int)std::max(
+                    src_mdw.data_type_size(), dst_mdw.data_type_size());
+
+            int group = 16 / max_data_size;
+            while (group > 1) {
+                if (src_chunks % group == 0 && dst_chunks % group == 0) {
+                    break;
+                }
+                group--;
+            }
+            assert(group >= 1);
+
+            conf.aux_data.vg.vector_dim = last_dim_src.idx;
+            conf.aux_data.vg.group_size = group;
+            conf.sub_group_size = vect_size;
+
+            blocks[conf.aux_data.vg.src_loop_dim] = group;
+            blocks[conf.aux_data.vg.dst_loop_dim] = group;
+        } break;
         case plain_to_ABxx8ayb:
             conf.sub_group_size = 16;
             blocks[0] = 8;
@@ -548,6 +620,13 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     if (conf.implementation == vectorize_last_dim) {
         kernel_ctx.define_int("VECTORIZE_LAST_DIM", 1);
     }
+    if (conf.implementation == vectorize_groups) {
+        kernel_ctx.define_int("VECTORIZE_GROUPS", 1);
+        kernel_ctx.define_int("VECT_DIM", conf.aux_data.vg.vector_dim);
+        kernel_ctx.define_int("SRC_LOOP_DIM", conf.aux_data.vg.src_loop_dim);
+        kernel_ctx.define_int("DST_LOOP_DIM", conf.aux_data.vg.dst_loop_dim);
+        kernel_ctx.define_int("GROUP", conf.aux_data.vg.group_size);
+    }
 
     if (conf.implementation == plain_to_ABxx8ayb) {
         kernel_ctx.define_int("PLAIN_TO_AB_XX_8AYB", 1);
@@ -616,7 +695,6 @@ status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
     arg_list.set(4, scales ? *scales : memory_storage_t::empty_storage());
 
     auto nd_range = conf.dispatch.nd_range();
-
     status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;
