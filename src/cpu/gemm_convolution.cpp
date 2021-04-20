@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -330,12 +330,13 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
                             ref_post_ops_t::args_t args;
                             args.ctx = &ctx;
                             args.dst_md = pd()->dst_md();
-                            args.l_offset = (oc_start + oc) * jcp.os;
+                            args.l_offset = d_ - dst;
 
                             PRAGMA_OMP_SIMD()
                             for (int oS = 0; oS < m; ++oS) {
                                 d_[oS] += b;
                                 post_ops_->execute(d_[oS], args);
+                                args.l_offset++;
                             }
                         });
                     }
