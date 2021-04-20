@@ -155,8 +155,8 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
             /* right tail */
 #if ZERO_TAIL > 0
             if (right_tail) {
-                for (int i = OW_SLM_TAIL;
-                        i < SW * OW_BLOCK + (KW - 1) * (1 + DW); i++) {
+                for (int i = SLM_TAIL; i < SW * OW_BLOCK + (KW - 1) * (1 + DW);
+                        i++) {
                     S_part[i] = 0;
                 }
             }
@@ -214,8 +214,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
                     /* Copy last block to SLM */
                     if (right_tail) {
                         __attribute__((opencl_unroll_hint)) for (int i = 0;
-                                                                 i < SLM_TAIL; i
-                                                                 < OW_SLM_TAIL;
+                                                                 i < SLM_TAIL;
                                                                  i += 8) {
                             if (i + sub_local_id < SLM_TAIL) {
 
@@ -277,8 +276,8 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
             /* right tail */
 #if ZERO_TAIL > 0
             if (right_tail) {
-                for (int i = OW_SLM_TAIL;
-                        i < SW * OW_BLOCK + (KW - 1) * (1 + DW); i += 8) {
+                for (int i = SLM_TAIL; i < SW * OW_BLOCK + (KW - 1) * (1 + DW);
+                        i += 8) {
                     if (i + sub_local_id < SW * OW_BLOCK + (KW - 1) * (1 + DW))
                         S_part[i + sub_local_id] = 0;
                 }
