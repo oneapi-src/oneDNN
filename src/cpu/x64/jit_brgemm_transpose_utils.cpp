@@ -668,8 +668,8 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
 
 void jit_brgemm_copy_src_t::copy_ic_blk_loop(int copy_ic_iters) {
     for (int icb = 0; icb < div_up(copy_ic_iters, ic_loop_unroll); icb++) {
-        int ic_start = 0;
-        int ic_end = nstl::min(
+        const int ic_start = 0;
+        const int ic_end = nstl::min(
                 (int)ic_loop_unroll, copy_ic_iters - icb * ic_loop_unroll);
 
         for (int ic = ic_start; ic < ic_end; ic++) {
@@ -689,8 +689,8 @@ void jit_brgemm_copy_src_t::copy_ic_blk_loop(int copy_ic_iters) {
 void jit_brgemm_copy_src_t::copy_ic_tail(int ic_offset) {
     // Mask for ic tail load is already set up
     const auto zmm = get_zmm_copy(0);
-    auto zmm_src = zmm | ic_tail_load | T_z;
-    auto zmm_tr_src = zmm;
+    const auto zmm_src = zmm | reg_m_ic_tail_load | T_z;
+    const auto zmm_tr_src = zmm;
 
     const auto offset = addr_offset(ic_offset);
     const auto addr = EVEX_compress_addr(reg_src, offset);
@@ -703,32 +703,24 @@ void jit_brgemm_copy_src_t::copy_ic_tail(int ic_offset) {
 void jit_brgemm_copy_src_t::copy_ic_loop() {
     Xbyak::Label label_ic_tail, label_ic_exit;
 
+    // Note: copying is done in chunks of size ic_step_ that equals ic_block
+    const auto copy_ic = [&](bool is_last_blk) {
+        const int ic_blk = is_last_blk ? (conf_->ic % conf_->LDA) : conf_->LDA;
+        const int ic_iters = ic_blk / ic_step_;
+        const int ic_iters_tail = ic_blk % ic_step_;
+
+        copy_ic_blk_loop(ic_iters);
+        if (ic_iters_tail != 0) copy_ic_tail(/* ic_offset = */ ic_iters);
+    };
+
     cmp(reg_last_ic_blk, 0);
     jne(label_ic_tail, T_NEAR);
 
-    // For non last input channel block freely copy
-    // ic_blk many elements from src to buffer.
-    // Note: copying is done in chunks of size ic_step_ that equals ic_block
-    const int ic_blk = conf_->LDA;
-    const int ic_iters = ic_blk / ic_step_;
-    const int ic_iters_tail = ic_blk % ic_step_;
-
-    copy_ic_blk_loop(ic_iters);
-    if (ic_iters_tail != 0) copy_ic_tail(/* ic_offset = */ ic_iters);
-    // End of non last-input-channel block
+    copy_ic(/* is_last_blk = */ false);
     jmp(label_ic_exit, T_NEAR);
 
     L(label_ic_tail);
-    // For last input channel block we copy ic_blk_tail many elements from src
-    // to buffer.
-    const int ic_blk_tail = conf_->ic % conf_->LDA;
-    int ic_blk_tail_iters = ic_blk_tail / ic_step_;
-    const int ic_blk_tail_iters_tail = ic_blk_tail % ic_step_;
-
-    copy_ic_blk_loop(ic_blk_tail_iters);
-    if (ic_blk_tail_iters_tail > 0)
-        copy_ic_tail(/* ic_offset = */ ic_blk_tail_iters);
-    // End of last-input-channel block
+    copy_ic(/* is_last_blk = */ true);
 
     L(label_ic_exit);
 }
@@ -749,10 +741,11 @@ void jit_brgemm_copy_src_t::copy_os_loop() {
 void jit_brgemm_copy_src_t::set_tail_mask() {
     const int ic_tail = conf_->ic % ic_step_;
     assert(ic_tail > 0 && "kernel is meant to be used with tail processing");
-    const size_t tail_mask_load = ((size_t)1 << (typesize_ * ic_tail)) - 1;
+    const size_t tail_mask_load
+            = (static_cast<size_t>(1) << (typesize_ * ic_tail)) - 1;
 
     mov(reg_tail_mask, tail_mask_load);
-    kmovq(ic_tail_load, reg_tail_mask);
+    kmovq(reg_m_ic_tail_load, reg_tail_mask);
 }
 
 void jit_brgemm_copy_src_t::generate() {

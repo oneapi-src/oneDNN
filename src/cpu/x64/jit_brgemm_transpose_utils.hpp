@@ -96,7 +96,7 @@ private:
         return Xbyak::Zmm(i);
     }
 
-    const Xbyak::Opmask ic_tail_load = k7;
+    const Xbyak::Opmask reg_m_ic_tail_load = k7;
 
     const Xbyak::Reg64 reg_src = rax;
     const Xbyak::Reg64 reg_tr_src = rbx;

@@ -294,16 +294,9 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
 
     jbgp.nb_ic_blocking = 1;
     const int max_nb_ic_blocking = nstl::min(64, jbgp.nb_ic);
-    if (jbgp.use_buffer_a) {
-        // With buffer_a each thread makes copy of the src chunk with
-        // jbgp.os_block * jbgp.nb_os_blocking * jbgp.K * jbgp.gemm_batch_size
-        // many elements.
-        jbgp.K = jbgp.ic_block;
-        jbgp.nb_ic_blocking = jbgp.gemm_batch_size
-                = max_div(jbgp.nb_ic, max_nb_ic_blocking);
-    } else if (IMPLICATION(
-                       !is_int8, jbgp.ic <= max_nb_ic_blocking * jbgp.ic_block)
-            && everyone_is(1, jbgp.kw, jbgp.kh, jbgp.kd)) {
+    if (IMPLICATION(!is_int8, jbgp.ic <= max_nb_ic_blocking * jbgp.ic_block)
+            && everyone_is(1, jbgp.kw, jbgp.kh, jbgp.kd)
+            && !jbgp.use_buffer_a) {
         // Optimization: data & weights layouts allow to generate
         // brgemm kernel with K = ic & batch = 1
         // (K = rnd_dn(ic, ic_block), K_tail = ic % ic_block & batch = 1)
