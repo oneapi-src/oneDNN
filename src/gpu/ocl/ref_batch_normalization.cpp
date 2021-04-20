@@ -347,17 +347,28 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
     auto &variance = *variance_ptr;
 
     if (conf.calculate_stats) {
-        compute::kernel_arg_list_t calc_mean_arg_list;
-        calc_mean_arg_list.set(0, src);
-        calc_mean_arg_list.set(1, conf.skip_reduce_stat ? mean : *temp_reduce);
+        if (conf.skip_reduce_stat) {
+            compute::kernel_arg_list_t calc_var_arg_list;
+            calc_var_arg_list.set(0, src);
+            calc_var_arg_list.set(1, mean);
+            calc_var_arg_list.set(2, variance);
 
-        auto nd_range_calc_mean = conf.dispatch_calc_stat.nd_range();
+            auto nd_range_calc_var = conf.dispatch_calc_stat.nd_range();
 
-        status = parallel_for(ctx, nd_range_calc_mean, calculate_mean_kernel_,
-                calc_mean_arg_list);
-        if (status != status::success) return status;
+            status = parallel_for(ctx, nd_range_calc_var,
+                    calculate_mean_variance_kernel_, calc_var_arg_list);
+            if (status != status::success) return status;
+        } else {
+            compute::kernel_arg_list_t calc_mean_arg_list;
+            calc_mean_arg_list.set(0, src);
+            calc_mean_arg_list.set(1, *temp_reduce);
 
-        if (!conf.skip_reduce_stat) {
+            auto nd_range_calc_mean = conf.dispatch_calc_stat.nd_range();
+
+            status = parallel_for(ctx, nd_range_calc_mean,
+                    calculate_mean_kernel_, calc_mean_arg_list);
+            if (status != status::success) return status;
+
             compute::kernel_arg_list_t reduce_mean_arg_list;
             reduce_mean_arg_list.set(0, *temp_reduce);
             reduce_mean_arg_list.set(1, mean);
@@ -367,21 +378,18 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
             status = parallel_for(ctx, nd_range_reduce_mean,
                     reduce_mean_kernel_, reduce_mean_arg_list);
             if (status != status::success) return status;
-        }
 
-        compute::kernel_arg_list_t calc_var_arg_list;
-        calc_var_arg_list.set(0, src);
-        calc_var_arg_list.set(1, mean);
-        calc_var_arg_list.set(
-                2, conf.skip_reduce_stat ? variance : *temp_reduce);
+            compute::kernel_arg_list_t calc_var_arg_list;
+            calc_var_arg_list.set(0, src);
+            calc_var_arg_list.set(1, mean);
+            calc_var_arg_list.set(2, *temp_reduce);
 
-        auto nd_range_calc_var = conf.dispatch_calc_stat.nd_range();
+            auto nd_range_calc_var = conf.dispatch_calc_stat.nd_range();
 
-        status = parallel_for(ctx, nd_range_calc_var,
-                calculate_variance_kernel_, calc_var_arg_list);
-        if (status != status::success) return status;
+            status = parallel_for(ctx, nd_range_calc_var,
+                    calculate_variance_kernel_, calc_var_arg_list);
+            if (status != status::success) return status;
 
-        if (!conf.skip_reduce_stat) {
             compute::kernel_arg_list_t reduce_var_arg_list;
             reduce_var_arg_list.set(0, *temp_reduce);
             reduce_var_arg_list.set(1, variance);

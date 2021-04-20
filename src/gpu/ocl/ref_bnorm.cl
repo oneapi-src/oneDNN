@@ -70,15 +70,7 @@ __kernel void calculate_mean(__global DATA_T *src, __global float *mean) {
 
     float total_sum = sub_group_reduce_add(sum);
     int local_id = get_sub_group_local_id();
-    if (local_id == 0) {
-        if (SKIP_REDUCE_STATS) {
-            // Reduce phase of bnorm won't be run as there are
-            // no more dimensions to be reduced
-            mean[x[1]] = total_sum / (MB * ID * IH * IW);
-        } else {
-            mean[reduce_idx * IC + x[1]] = total_sum;
-        }
-    }
+    if (local_id == 0) { mean[reduce_idx * IC + x[1]] = total_sum; }
 }
 
 NAMED_KERNEL_ATTR(CALC)
@@ -117,15 +109,62 @@ __kernel void calculate_variance(
     float total_sum = sub_group_reduce_add(sum);
     int local_id = get_sub_group_local_id();
     if (local_id == 0) {
-        if (SKIP_REDUCE_STATS) {
-            // Reduce phase of bnorm won't be run as there are
-            // no more dimensions to be reduced
-            variance[x[1]] = total_sum / (MB * ID * IH * IW);
-        } else {
-            variance += MB * ID * IH * IW * IC / REDUCE_DIM;
-            variance[reduce_idx * IC + x[1]] = total_sum;
-        }
+        variance += MB * ID * IH * IW * IC / REDUCE_DIM;
+        variance[reduce_idx * IC + x[1]] = total_sum;
     }
+}
+
+NAMED_KERNEL_ATTR(CALC)
+__kernel void calculate_mean_variance(
+        __global DATA_T *src, __global float *mean, __global float *variance) {
+#if SKIP_REDUCE_STATS == 1
+    int x[5];
+    x[0] = GWS_GET_STAT_MB();
+    x[1] = GWS_GET_STAT_IC();
+    x[2] = GWS_GET_STAT_ID();
+    x[3] = GWS_GET_STAT_IH();
+    x[4] = GWS_GET_STAT_IW();
+
+    // sum of all src elements from given C
+    VECT_FLOAT_T src_sum = 0;
+    // sum of all src^2 elements from given C
+    VECT_FLOAT_T src_pow_sum = 0;
+
+    for (int i = 0; i < REDUCE_DIM; i += SUB_GROUP_SIZE * VECT_DT_N) {
+        x[REDUCE_DIM_IDX] = i;
+        int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4]);
+        VECT_FLOAT_T src_vect = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+                VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off])));
+        src_sum += src_vect;
+        src_pow_sum += src_vect * src_vect;
+    }
+#if VECT_DT_N == 1
+    float sum = src_sum;
+    float pow_sum = src_pow_sum;
+#else // VECT_DT_N == 1
+    float sum = 0;
+    float pow_sum = 0;
+    for (int i = 0; i < VECT_DT_N; ++i) {
+        sum += src_sum[i];
+        pow_sum += src_pow_sum[i];
+    }
+#endif // VECT_DT_N == 1
+
+    x[REDUCE_DIM_IDX] = 0;
+    int reduce_idx = reduce_index(x);
+
+    float total_sum = sub_group_reduce_add(sum);
+    float total_pow_sum = sub_group_reduce_add(pow_sum);
+    int local_id = get_sub_group_local_id();
+    if (local_id == 0) {
+        float calc_mean = total_sum / (MB * ID * IH * IW);
+        float calc_variance = total_pow_sum - 2 * calc_mean * total_sum
+                + calc_mean * calc_mean;
+        calc_variance /= (MB * ID * IH * IW);
+        mean[x[1]] = calc_mean < 0 ? 0 : calc_mean;
+        variance[x[1]] = calc_variance < 0 ? 0 : calc_variance;
+    }
+#endif // SKIP_REDUCE_STATS == 1
 }
 
 #else // VECTORIZE_CALC_STATS == 1

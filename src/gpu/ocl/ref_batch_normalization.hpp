@@ -90,13 +90,17 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        std::vector<const char *> kernel_names
-                = {"ref_bnorm_fwd", nullptr, nullptr, nullptr, nullptr};
+        std::vector<const char *> kernel_names = {
+                "ref_bnorm_fwd", nullptr, nullptr, nullptr, nullptr, nullptr};
         if (pd()->conf.calculate_stats) {
             kernel_names[1] = "calculate_mean";
             kernel_names[2] = "calculate_variance";
             kernel_names[3] = "reduce_mean";
             kernel_names[4] = "reduce_variance";
+        }
+
+        if (pd()->conf.skip_reduce_stat) {
+            kernel_names[5] = "calculate_mean_variance";
         }
 
         std::vector<compute::kernel_t> kernels;
@@ -108,6 +112,7 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
         calculate_variance_kernel_ = kernels[2];
         reduce_mean_kernel_ = kernels[3];
         reduce_variance_kernel_ = kernels[4];
+        calculate_mean_variance_kernel_ = kernels[5];
 
         return status::success;
     }
@@ -124,6 +129,7 @@ private:
     compute::kernel_t reduce_mean_kernel_;
     compute::kernel_t calculate_variance_kernel_;
     compute::kernel_t reduce_variance_kernel_;
+    compute::kernel_t calculate_mean_variance_kernel_;
 };
 
 struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
