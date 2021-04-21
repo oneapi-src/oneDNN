@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ref_layer_normalization.hpp"
+#include "common/c_types_map.hpp"
 
 #include "common/primitive_exec_types.hpp"
 
@@ -25,6 +26,8 @@ namespace ocl {
 
 static status_t init_conf_common(lnorm_conf_t &conf,
         const layer_normalization_pd_t *pd, engine_t *engine) {
+    using namespace dnnl::impl::format_tag;
+
     memory_desc_wrapper src_mdw(pd->src_md());
     memory_desc_wrapper stat_mdw(pd->stat_md());
     memory_desc_wrapper dst_mdw(pd->dst_md());
@@ -45,17 +48,27 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     conf.vect_dt_n = 1;
     conf.sub_group_size = 1;
 
+    int c_block = 1;
+    if (src_mdw.is_blocking_desc()) {
+        c_block = src_mdw.blocking_desc()
+                          .inner_blks[src_mdw.blocking_desc().inner_nblks - 1];
+    }
+
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch_scaleshift = compute_engine->create_dispatch();
     conf.dispatch = compute_engine->create_dispatch(
             pd->is_fwd() ? dst_mdw.md_ : src_mdw.md_);
     auto &dims = (pd->is_fwd() ? src_mdw : dst_mdw).dims();
     if (pd->is_fwd()) {
-        if ((conf.norm_axis % 16 == 0) && ndims < 4) {
+        if ((conf.norm_axis % 16 == 0) && ndims < 4
+                && (c_block == 1 || src_mdw.is_dense())) {
             conf.vectorize_calc_stats = true;
             conf.sub_group_size = 16;
             int vector_size = 8;
             while (conf.norm_axis % (conf.sub_group_size * vector_size) != 0) {
+                vector_size /= 2;
+            }
+            while (c_block > 1 && vector_size * conf.sub_group_size > c_block) {
                 vector_size /= 2;
             }
             conf.vect_dt_n = vector_size;
