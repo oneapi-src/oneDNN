@@ -37,6 +37,7 @@ int jit_eltwise_injector_f32<hw>::min_scratch_regs() {
             case eltwise_linear: return 0;
             case eltwise_clip: return 0;
             case eltwise_gelu_tanh: return 1;
+            case eltwise_logistic: return 0;
             default: assert(!"unsupported eltwise algorithm");
         }
     } else {
@@ -106,6 +107,7 @@ int jit_eltwise_injector_f32<hw>::phase_count() {
             case eltwise_linear: return 2;
             case eltwise_clip: return 2;
             case eltwise_gelu_tanh: return 8;
+            case eltwise_logistic: return 4;
             default: break;
         }
     } else {
@@ -193,6 +195,19 @@ void jit_eltwise_injector_f32<hw>::gelu_tanh_compute_fwd(
         case 5: h->add(simd, a, a, 1.0f); break;
         case 6: h->einv(simd, a, a); break;
         case 7: h->mul(simd, r, a, r); break;
+        default: assert(!"invalid phase");
+    }
+}
+
+template <gpu_gen_t hw>
+void jit_eltwise_injector_f32<hw>::logistic_compute_fwd(
+        int simd, const ngen::GRF &r, int phase) {
+    const float log2e = 1.442695f; // log_2(e)
+    switch (phase) {
+        case 0: h->mul(simd, r, r, -1.f * log2e); break;
+        case 1: h->exp(simd, r, r); break;
+        case 2: h->add(simd, r, r, 1.f); break;
+        case 3: h->inv(simd, r, r); break;
         default: assert(!"invalid phase");
     }
 }
@@ -343,6 +358,9 @@ void jit_eltwise_injector_f32<hw>::compute(const ngen::GRFRange &regs) {
                             break;
                         case eltwise_gelu_tanh:
                             gelu_tanh_compute_fwd(simd, base, phase, ii);
+                            break;
+                        case eltwise_logistic:
+                            logistic_compute_fwd(simd, base, phase);
                             break;
                         default: assert(!"unsupported eltwise algorithm");
                     }
