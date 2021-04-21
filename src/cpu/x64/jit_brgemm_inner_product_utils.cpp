@@ -140,6 +140,10 @@ status_t init_ip_conf_fwd(
 
     constexpr int amx_int8_row = 64;
     jbgp.ic_block = (is_amx_int8) ? amx_int8_row : jbgp.simd_w;
+
+    // gemm-based inner product performs better when oc = 1
+    if (is_f32 && jbgp.oc == 1) return status::unimplemented;
+
     if (jbgp.oc >= 64) {
         jbgp.oc_block = 64;
     } else if (jbgp.oc >= 32) {
