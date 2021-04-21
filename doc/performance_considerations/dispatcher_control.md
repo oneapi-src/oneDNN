@@ -44,11 +44,14 @@ otherwise disabled by default.
 * AVX2 < AVX2_VNNI.
 
 This feature can also be managed at run-time with the following functions:
-* @ref dnnl::set_max_cpu_isa function allows changing the ISA at run-time.
-The limitation is that, it is possible to set the value only before the first
-JIT-ed function is generated. This limitation ensures that the JIT-ed code
-observe consistent CPU features both during generation and execution.
+* @ref dnnl::set_max_cpu_isa function allows changing the ISA at run-time. The
+  limitation is that it is possible to set the value only once. This ensures
+  that the JIT-ed code observe consistent CPU features both during generation
+  and execution. In addition, it is advised to call this function before any
+  other oneDNN API. This is because the first internal ISA query will disable
+  the ability to change the ISA. Once disabled, changing the ISA will return an
+  error.
 * @ref dnnl::get_effective_cpu_isa function returns the currently used CPU ISA
-which is the highest available CPU ISA by default.
+  which is the highest available CPU ISA by default.
 
 Function settings take precedence over environment variables.
