@@ -1761,6 +1761,59 @@ DNNL_GRAPH_OP_SCHEMA(INT8_Conv_bias_relu, 1,
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(INT8_Conv_bias_add_relu, 1,
+        op_schema()
+                .set_num_inputs(4)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {data_type::s8, data_type::u8})
+                .set_input(1, "filter", "filter tensor",
+                        {data_type::s8, data_type::u8})
+                .set_input(2, "bias", "bias tensor", data_type::f32)
+                .set_input(3, "other", "add src1 tensor",
+                        {data_type::s8, data_type::u8})
+                .set_output(0, "output", "output tensor",
+                        {data_type::s8, data_type::u8})
+                .set_attr("qtype",
+                        "specifies which dequantization type is used", false,
+                        attribute_kind::s, "per_tensor")
+                .set_attr("axis",
+                        "specifies dimension on which apply per-channel "
+                        "dequantization",
+                        false, attribute_kind::i, int64_t(1))
+                .set_attr("scales", "apply in quantization formula", true,
+                        attribute_kind::fs)
+                .set_attr("zps", "offset value that maps to float zero", true,
+                        attribute_kind::is)
+                .set_shape_inference_function(infer_conv_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(INT8_Conv_add_relu, 1,
+        op_schema()
+                .set_num_inputs(3)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {data_type::s8, data_type::u8})
+                .set_input(1, "filter", "filter tensor",
+                        {data_type::s8, data_type::u8})
+                .set_input(2, "other", "add src1 tensor",
+                        {data_type::s8, data_type::u8})
+                .set_output(0, "output", "output tensor",
+                        {data_type::s8, data_type::u8})
+                .set_attr("qtype",
+                        "specifies which dequantization type is used", false,
+                        attribute_kind::s, "per_tensor")
+                .set_attr("axis",
+                        "specifies dimension on which apply per-channel "
+                        "dequantization",
+                        false, attribute_kind::i, int64_t(1))
+                .set_attr("scales", "apply in quantization formula", true,
+                        attribute_kind::fs)
+                .set_attr("zps", "offset value that maps to float zero", true,
+                        attribute_kind::is)
+                .set_shape_inference_function(infer_conv_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

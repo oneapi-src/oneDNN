@@ -34,12 +34,12 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(BatchNormTrainingBackprop, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(BiasAdd, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(BiasAddBackprop, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Clamp, 1);
-class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Dequantize, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ClampBackprop, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Concat, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Convolution, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ConvolutionBackpropData, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ConvolutionBackpropFilters, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Dequantize, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Divide, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Elu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(EluBackprop, 1);
@@ -138,6 +138,8 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_bias, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_bias_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_add_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_bias_add_relu, 1);
 
 class opset_v1 {
 public:
@@ -290,6 +292,10 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_Conv_bias_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Conv_add_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Conv_bias_add_relu, 1)>());
     }
 };
 
