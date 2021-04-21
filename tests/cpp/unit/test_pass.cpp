@@ -1476,17 +1476,23 @@ TEST(pass_test, conv_bias_bn_sum_relu_fusion) {
 }
 
 TEST(pass_test, matmul_relu_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *in_op = agraph.create_op(MatMul);
-    op_t *out_op = agraph.create_op(ReLU);
-    out_op->fill_and_connect_input(0, *in_op, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t relu {1, ReLU, "relu"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    relu.add_input(lt_vec[2]);
+    relu.add_output(lt_vec[3]);
 
-    pass::pass_base_ptr matmul_relu_fusion_pass
-            = get_pass("matmul_relu_fusion");
-    matmul_relu_fusion_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("matmul_relu_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -1494,17 +1500,75 @@ TEST(pass_test, matmul_relu_fusion) {
     ASSERT_EQ(fused_op->get_kind(), matmul_relu);
 }
 
-TEST(pass_test, matmul_elu_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
+TEST(pass_test, matmul_relu_fail_fusion) {
     graph_t agraph;
-    op_t *in_op = agraph.create_op(MatMul);
-    op_t *out_op = agraph.create_op(Elu);
-    out_op->fill_and_connect_input(0, *in_op, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t relu {1, ReLU, "relu"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_input(lt_vec[2]);
+    matmul.add_output(lt_vec[3]);
+    relu.add_input(lt_vec[3]);
+    relu.add_output(lt_vec[4]);
 
-    pass::pass_base_ptr matmul_elu_fusion_pass = get_pass("matmul_elu_fusion");
-    matmul_elu_fusion_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("matmul_relu_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
+
+    pass::pass_base_ptr apass2 = get_pass("matmul_bias_relu_fusion");
+    apass2->run(agraph);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias_relu);
+}
+
+TEST(pass_test, relu_matmul) {
+    graph_t agraph;
+    op_t relu {0, ReLU, "relu"};
+    op_t matmul {1, MatMul, "matmul"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    relu.add_input(lt_vec[0]);
+    relu.add_output(lt_vec[1]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_input(lt_vec[2]);
+    matmul.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("matmul_relu_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
+}
+
+TEST(pass_test, matmul_elu_fusion) {
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t elu {1, Elu, "elu"};
+    elu.set_attr("alpha", 0.1f);
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    elu.add_input(lt_vec[2]);
+    elu.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&elu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("matmul_elu_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -1513,17 +1577,23 @@ TEST(pass_test, matmul_elu_fusion) {
 }
 
 TEST(pass_test, matmul_sigmoid_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *in_op = agraph.create_op(MatMul);
-    op_t *out_op = agraph.create_op(Sigmoid);
-    out_op->fill_and_connect_input(0, *in_op, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t sigmoid {1, Sigmoid, "sigmoid"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    sigmoid.add_input(lt_vec[2]);
+    sigmoid.add_output(lt_vec[3]);
 
-    pass::pass_base_ptr matmul_sigmoid_fusion_pass
-            = get_pass("matmul_sigmoid_fusion");
-    matmul_sigmoid_fusion_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("matmul_sigmoid_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -1532,17 +1602,25 @@ TEST(pass_test, matmul_sigmoid_fusion) {
 }
 
 TEST(pass_test, matmul_hardtanh_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *in_op = agraph.create_op(MatMul);
-    op_t *out_op = agraph.create_op(HardTanh);
-    out_op->fill_and_connect_input(0, *in_op, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t hardtanh {1, HardTanh, "hardtanh"};
+    hardtanh.set_attr("min", -1.f);
+    hardtanh.set_attr("max", 1.f);
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    hardtanh.add_input(lt_vec[2]);
+    hardtanh.add_output(lt_vec[3]);
 
-    pass::pass_base_ptr matmul_hardtanh_fusion_pass
-            = get_pass("matmul_hardtanh_fusion");
-    matmul_hardtanh_fusion_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&hardtanh), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("matmul_hardtanh_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -1551,17 +1629,23 @@ TEST(pass_test, matmul_hardtanh_fusion) {
 }
 
 TEST(pass_test, matmul_gelu_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *in_op = agraph.create_op(MatMul);
-    op_t *out_op = agraph.create_op(GELU);
-    out_op->fill_and_connect_input(0, *in_op, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t gelu {1, GELU, "gelu"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    gelu.add_input(lt_vec[2]);
+    gelu.add_output(lt_vec[3]);
 
-    pass::pass_base_ptr matmul_gelu_fusion_pass
-            = get_pass("matmul_gelu_fusion");
-    matmul_gelu_fusion_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&gelu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("matmul_gelu_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -1570,19 +1654,27 @@ TEST(pass_test, matmul_gelu_fusion) {
 }
 
 TEST(pass_test, matmul_sum_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *in_op1 = agraph.create_op(MatMul);
-    op_t *in_op2 = agraph.create_op(Wildcard);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t wildcard {1, Wildcard, "wildcard"};
+    op_t add {2, Add, "add"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    wildcard.add_output(lt_vec[3]);
+    add.add_input(lt_vec[2]);
+    add.add_input(lt_vec[3]);
+    add.add_output(lt_vec[4]);
 
-    op_t *out_op = agraph.create_op(Add);
-    out_op->fill_and_connect_input(0, *in_op1, 0);
-    out_op->fill_and_connect_input(1, *in_op2, 0);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
 
-    pass::pass_base_ptr matmul_sum_fusion_pass = get_pass("matmul_sum_fusion");
-    matmul_sum_fusion_pass->run(agraph);
+    pass::pass_base_ptr apass = get_pass("matmul_sum_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -1591,19 +1683,27 @@ TEST(pass_test, matmul_sum_fusion) {
 }
 
 TEST(pass_test, matmul_sum_fusion_opposite_order) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *in_op1 = agraph.create_op(MatMul);
-    op_t *in_op2 = agraph.create_op(Wildcard);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t wildcard {1, Wildcard, "wildcard"};
+    op_t add {2, Add, "add"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    wildcard.add_output(lt_vec[3]);
+    add.add_input(lt_vec[3]);
+    add.add_input(lt_vec[2]);
+    add.add_output(lt_vec[4]);
 
-    op_t *out_op = agraph.create_op(Add);
-    out_op->fill_and_connect_input(1, *in_op1, 0);
-    out_op->fill_and_connect_input(0, *in_op2, 0);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
 
-    pass::pass_base_ptr matmul_sum_fusion_pass = get_pass("matmul_sum_fusion");
-    matmul_sum_fusion_pass->run(agraph);
+    pass::pass_base_ptr apass = get_pass("matmul_sum_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -1612,23 +1712,31 @@ TEST(pass_test, matmul_sum_fusion_opposite_order) {
 }
 
 TEST(pass_test, matmul_sum_gelu_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *in_op1 = agraph.create_op(MatMul);
-    op_t *in_op2 = agraph.create_op(Wildcard);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t wildcard {1, Wildcard, "wildcard"};
+    op_t add {2, Add, "add"};
+    op_t gelu {3, GELU, "add"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    wildcard.add_output(lt_vec[3]);
+    add.add_input(lt_vec[2]);
+    add.add_input(lt_vec[3]);
+    add.add_output(lt_vec[4]);
+    gelu.add_input(lt_vec[4]);
+    gelu.add_output(lt_vec[5]);
 
-    op_t *add_op = agraph.create_op(Add);
-    add_op->fill_and_connect_input(0, *in_op1, 0);
-    add_op->fill_and_connect_input(1, *in_op2, 0);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&gelu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 4);
 
-    op_t *gelu_op = agraph.create_op(GELU);
-    gelu_op->fill_and_connect_input(0, *add_op, 0);
-
-    pass::pass_base_ptr matmul_sum_gelu_fusion_pass
-            = get_pass("matmul_sum_gelu_fusion");
-    matmul_sum_gelu_fusion_pass->run(agraph);
+    pass::pass_base_ptr apass = get_pass("matmul_sum_gelu_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -1637,23 +1745,31 @@ TEST(pass_test, matmul_sum_gelu_fusion) {
 }
 
 TEST(pass_test, matmul_sum_relu_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *in_op1 = agraph.create_op(MatMul);
-    op_t *in_op2 = agraph.create_op(Wildcard);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t wildcard {1, Wildcard, "wildcard"};
+    op_t add {2, Add, "add"};
+    op_t relu {3, ReLU, "add"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    wildcard.add_output(lt_vec[3]);
+    add.add_input(lt_vec[2]);
+    add.add_input(lt_vec[3]);
+    add.add_output(lt_vec[4]);
+    relu.add_input(lt_vec[4]);
+    relu.add_output(lt_vec[5]);
 
-    op_t *add_op = agraph.create_op(Add);
-    add_op->fill_and_connect_input(0, *in_op1, 0);
-    add_op->fill_and_connect_input(1, *in_op2, 0);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 4);
 
-    op_t *relu_op = agraph.create_op(ReLU);
-    relu_op->fill_and_connect_input(0, *add_op, 0);
-
-    pass::pass_base_ptr matmul_sum_relu_fusion_pass
-            = get_pass("matmul_sum_relu_fusion");
-    matmul_sum_relu_fusion_pass->run(agraph);
+    pass::pass_base_ptr apass = get_pass("matmul_sum_relu_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -1679,30 +1795,44 @@ TEST(pass_test, conv_bwd_f_biasadd_bwd_fusion) {
     ASSERT_EQ(fused_op->get_kind(), conv_bwd_f_biasadd_bwd);
 }
 
-TEST(pass_test, relu_matmul) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
+TEST(pass_test, matmul_bias_fusion) {
     graph_t agraph;
-    op_t *in_op = agraph.create_op(ReLU);
-    op_t *out_op = agraph.create_op(MatMul);
-    out_op->fill_and_connect_input(0, *in_op, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t bias {1, BiasAdd, "bias"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    bias.add_input(lt_vec[2]);
+    bias.add_input(lt_vec[3]);
+    bias.add_output(lt_vec[4]);
 
-    pass::pass_base_ptr matmul_relu_fusion_pass
-            = get_pass("matmul_relu_fusion");
-    matmul_relu_fusion_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&bias), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
 
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
+    pass::pass_base_ptr apass = get_pass("matmul_bias_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias);
 }
 
-TEST(pass_test, matmul_bias_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
+TEST(pass_test, matmul_bias_fusion_case2) {
     graph_t agraph;
-    op_t *in_op = agraph.create_op(MatMul);
-    op_t *out_op = agraph.create_op(BiasAdd);
-    out_op->fill_and_connect_input(0, *in_op, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_input(lt_vec[2]);
+    matmul.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 1);
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_fusion");
     apass->run(agraph);
@@ -1714,40 +1844,60 @@ TEST(pass_test, matmul_bias_fusion) {
 }
 
 TEST(pass_test, matmul_bias_sigmoid_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *op1 = agraph.create_op(MatMul);
-    op_t *op2 = agraph.create_op(BiasAdd);
-    op_t *op3 = agraph.create_op(Sigmoid);
-    op2->fill_and_connect_input(0, *op1, 0);
-    op3->fill_and_connect_input(0, *op2, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t sigmoid {1, Sigmoid, "sigmoid"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_input(lt_vec[2]);
+    matmul.add_output(lt_vec[3]);
+    sigmoid.add_input(lt_vec[3]);
+    sigmoid.add_output(lt_vec[4]);
 
-    pass::pass_base_ptr matmul_bias_sigmoid_pass
-            = get_pass("matmul_bias_sigmoid_fusion");
-    matmul_bias_sigmoid_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("matmul_sigmoid_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
+
+    pass::pass_base_ptr apass2 = get_pass("matmul_bias_sigmoid_fusion");
+    apass2->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fop = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fop->get_kind(), matmul_bias_sigmoid);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias_sigmoid);
 }
 
 TEST(pass_test, matmul_bias_elu_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *op1 = agraph.create_op(MatMul);
-    op_t *op2 = agraph.create_op(BiasAdd);
-    op_t *op3 = agraph.create_op(Elu);
-    op2->fill_and_connect_input(0, *op1, 0);
-    op3->fill_and_connect_input(0, *op2, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t bias {1, BiasAdd, "bias"};
+    op_t elu {2, Elu, "elu"};
+    elu.set_attr("alpha", 0.1f);
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    bias.add_input(lt_vec[2]);
+    bias.add_input(lt_vec[3]);
+    bias.add_output(lt_vec[4]);
+    elu.add_input(lt_vec[4]);
+    elu.add_output(lt_vec[5]);
 
-    pass::pass_base_ptr matmul_bias_elu_pass
-            = get_pass("matmul_bias_elu_fusion");
-    matmul_bias_elu_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&bias), status::success);
+    ASSERT_EQ(agraph.add_op(&elu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
+
+    pass::pass_base_ptr apass = get_pass("matmul_bias_elu_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -1756,151 +1906,223 @@ TEST(pass_test, matmul_bias_elu_fusion) {
 }
 
 TEST(pass_test, matmul_bias_relu_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *op1 = agraph.create_op(MatMul);
-    op_t *op2 = agraph.create_op(BiasAdd);
-    op_t *op3 = agraph.create_op(ReLU);
-    op2->fill_and_connect_input(0, *op1, 0);
-    op3->fill_and_connect_input(0, *op2, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t bias {1, BiasAdd, "bias"};
+    op_t relu {2, ReLU, "relu"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    bias.add_input(lt_vec[2]);
+    bias.add_input(lt_vec[3]);
+    bias.add_output(lt_vec[4]);
+    relu.add_input(lt_vec[4]);
+    relu.add_output(lt_vec[5]);
 
-    pass::pass_base_ptr matmul_bias_relu_pass
-            = get_pass("matmul_bias_relu_fusion");
-    matmul_bias_relu_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&bias), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
+
+    pass::pass_base_ptr apass = get_pass("matmul_bias_relu_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fop = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fop->get_kind(), matmul_bias_relu);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias_relu);
 }
 
 TEST(pass_test, matmul_bias_hardtanh_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *op1 = agraph.create_op(MatMul);
-    op_t *op2 = agraph.create_op(BiasAdd);
-    op_t *op3 = agraph.create_op(HardTanh);
-    op2->fill_and_connect_input(0, *op1, 0);
-    op3->fill_and_connect_input(0, *op2, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t hardtanh {1, HardTanh, "hardtanh"};
+    hardtanh.set_attr("min", 0.1f);
+    hardtanh.set_attr("max", 0.2f);
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_input(lt_vec[2]);
+    matmul.add_output(lt_vec[3]);
+    hardtanh.add_input(lt_vec[3]);
+    hardtanh.add_output(lt_vec[4]);
 
-    pass::pass_base_ptr matmul_bias_hardtanh_pass
-            = get_pass("matmul_bias_hardtanh_fusion");
-    matmul_bias_hardtanh_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&hardtanh), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("matmul_hardtanh_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
+
+    pass::pass_base_ptr apass2 = get_pass("matmul_bias_hardtanh_fusion");
+    apass2->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fop = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fop->get_kind(), matmul_bias_hardtanh);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias_hardtanh);
 }
 
 TEST(pass_test, matmul_bias_sum_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *op1 = agraph.create_op(MatMul);
-    op_t *op2 = agraph.create_op(BiasAdd);
-    op_t *op3 = agraph.create_op(Wildcard);
-    op_t *op4 = agraph.create_op(Add);
-    op2->fill_and_connect_input(0, *op1, 0);
-    op4->fill_and_connect_input(0, *op2, 0);
-    op4->fill_and_connect_input(1, *op3, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t relu {1, ReLU, "relu"};
+    op_t add {2, Add, "add"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(7);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_input(lt_vec[2]);
+    matmul.add_output(lt_vec[3]);
+    relu.add_input(lt_vec[4]);
+    relu.add_output(lt_vec[5]);
+    add.add_input(lt_vec[5]);
+    add.add_input(lt_vec[3]);
+    add.add_output(lt_vec[6]);
 
-    pass::pass_base_ptr matmul_bias_sum_pass
-            = get_pass("matmul_bias_sum_fusion");
-    matmul_bias_sum_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
+
+    pass::pass_base_ptr apass = get_pass("matmul_bias_sum_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fop = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fop->get_kind(), matmul_bias_add);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias_add);
 }
 
 TEST(pass_test, matmul_bias_sum_relu_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *op1 = agraph.create_op(MatMul);
-    op_t *op2 = agraph.create_op(BiasAdd);
-    op_t *op3 = agraph.create_op(Wildcard);
-    op_t *op4 = agraph.create_op(Add);
-    op_t *op5 = agraph.create_op(ReLU);
-    op2->fill_and_connect_input(0, *op1, 0);
-    op4->fill_and_connect_input(0, *op2, 0);
-    op4->fill_and_connect_input(1, *op3, 0);
-    op5->fill_and_connect_input(0, *op4, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t wildcard {1, Wildcard, "wildcard"};
+    op_t add {2, Add, "add"};
+    op_t relu {3, ReLU, "relu"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(8);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_input(lt_vec[2]);
+    matmul.add_output(lt_vec[3]);
+    wildcard.add_input(lt_vec[4]);
+    wildcard.add_output(lt_vec[5]);
+    add.add_input(lt_vec[5]);
+    add.add_input(lt_vec[3]);
+    add.add_output(lt_vec[6]);
+    relu.add_input(lt_vec[6]);
+    relu.add_output(lt_vec[7]);
 
-    pass::pass_base_ptr matmul_bias_sum_relu_pass
-            = get_pass("matmul_bias_sum_relu_fusion");
-    matmul_bias_sum_relu_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard), status::success);
+
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 4);
+
+    pass::pass_base_ptr apass = get_pass("matmul_bias_sum_relu_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fop = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fop->get_kind(), matmul_bias_add_relu);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias_add_relu);
 }
 
 TEST(pass_test, matmul_bias_swish_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *op1 = agraph.create_op(MatMul);
-    op_t *op2 = agraph.create_op(BiasAdd);
-    op_t *op3 = agraph.create_op(Sigmoid);
-    op_t *op4 = agraph.create_op(Multiply);
-    op2->fill_and_connect_input(0, *op1, 0);
-    op3->fill_and_connect_input(0, *op2, 0);
-    op4->fill_and_connect_input(0, *op3, 0);
-    op4->fill_and_connect_input(1, *op2, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t bias {1, BiasAdd, "bias"};
+    op_t sigmoid {2, Sigmoid, "sigmoid"};
+    op_t mul {3, Multiply, "mul"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(7);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    bias.add_input(lt_vec[2]);
+    bias.add_input(lt_vec[3]);
+    bias.add_output(lt_vec[4]);
+    sigmoid.add_input(lt_vec[4]);
+    sigmoid.add_output(lt_vec[5]);
+    mul.add_input(lt_vec[5]);
+    mul.add_input(lt_vec[4]);
+    mul.add_output(lt_vec[6]);
 
-    pass::pass_base_ptr matmul_bias_swish_pass
-            = get_pass("matmul_bias_swish_fusion");
-    matmul_bias_swish_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&bias), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&mul), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 4);
+
+    pass::pass_base_ptr apass = get_pass("matmul_bias_swish_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fop = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fop->get_kind(), matmul_bias_swish);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias_swish);
 }
 
 TEST(pass_test, matmul_bias_bn_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *op1 = agraph.create_op(MatMul);
-    op_t *op2 = agraph.create_op(BiasAdd);
-    op_t *op3 = agraph.create_op(BatchNormInference);
-    op2->fill_and_connect_input(0, *op1, 0);
-    op3->fill_and_connect_input(0, *op2, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t bias {1, BiasAdd, "bias"};
+    op_t bn {2, BatchNormInference, "bn"};
+    bn.set_attr("epsilon", 0.9f);
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(10);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    bias.add_input(lt_vec[2]);
+    bias.add_input(lt_vec[3]);
+    bias.add_output(lt_vec[4]);
+    bn.add_input(lt_vec[4]);
+    bn.add_input(lt_vec[5]);
+    bn.add_input(lt_vec[6]);
+    bn.add_input(lt_vec[7]);
+    bn.add_input(lt_vec[8]);
+    bn.add_output(lt_vec[9]);
 
-    pass::pass_base_ptr matmul_bias_bn_pass = get_pass("matmul_bias_bn_fusion");
-    matmul_bias_bn_pass->run(agraph);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&bias), status::success);
+    ASSERT_EQ(agraph.add_op(&bn), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
+
+    pass::pass_base_ptr apass = get_pass("matmul_bias_bn_fusion");
+    apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    auto fop = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fop->get_kind(), matmul_bias_bn);
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), matmul_bias_bn);
 }
 
 TEST(pass_test, matmul_bias_relu6_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
     graph_t agraph;
-    op_t *op1 = agraph.create_op(MatMul);
-    op_t *op2 = agraph.create_op(BiasAdd);
-    op_t *op3 = agraph.create_op(HardTanh);
-    op3->set_attr<float>("min", 0);
-    op3->set_attr<float>("max", 6);
-    op2->fill_and_connect_input(0, *op1, 0);
-    op3->fill_and_connect_input(0, *op2, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t relu6 {1, HardTanh, "hardtanh"};
+    relu6.set_attr("min", 0.f);
+    relu6.set_attr("max", 6.f);
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_input(lt_vec[2]);
+    matmul.add_output(lt_vec[3]);
+    relu6.add_input(lt_vec[3]);
+    relu6.add_output(lt_vec[4]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu6), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_relu6_fusion");
     apass->run(agraph);
@@ -1911,24 +2133,29 @@ TEST(pass_test, matmul_bias_relu6_fusion) {
     ASSERT_EQ(fused_op->get_kind(), matmul_bias_relu6);
 }
 
-TEST(pass_test, matmul_bias_gelu_fusion) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::impl::op_kind;
-
+TEST(pass_test, matmul_bias_relu6_fusion_fail) {
     graph_t agraph;
-    op_t *op1 = agraph.create_op(MatMul);
-    op_t *op2 = agraph.create_op(BiasAdd);
-    op_t *op3 = agraph.create_op(GELU);
-    op2->fill_and_connect_input(0, *op1, 0);
-    op3->fill_and_connect_input(0, *op2, 0);
+    op_t matmul {0, MatMul, "matmul"};
+    op_t relu6 {1, HardTanh, "hardtanh"};
+    relu6.set_attr("min", 0.2f);
+    relu6.set_attr("max", 6.f);
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_input(lt_vec[2]);
+    matmul.add_output(lt_vec[3]);
+    relu6.add_input(lt_vec[3]);
+    relu6.add_output(lt_vec[4]);
 
-    pass::pass_base_ptr apass = get_pass("matmul_bias_gelu_fusion");
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu6), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("matmul_bias_relu6_fusion");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.get_num_partitions(), 1);
-
-    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_op->get_kind(), matmul_bias_gelu);
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
 /*
 TEST(pass_test, layernorm_fusion) {
