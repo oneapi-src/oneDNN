@@ -29,11 +29,13 @@ specify ISA specific hint to enable oneDNN to dispatch appropriate kernel.
 This feature can also be managed at run-time with the following functions:
 
 * @ref dnnl::set_cpu_isa_hints function allows changing the CPU ISA hint at
-run-time. The limitation is that, it is possible to set the value only before
-the first JIT-ed function is generated - that is, before the primitive creation
-stage.
-* @ref dnnl::get_cpu_isa_hints function returns the currently used CPU ISA
-hints that by default poses no restrictions.
+  run-time. The limitation is that it is possible to set the value only once. In
+  addition, it is advised to call this function before any other oneDNN API.
+  This is because the first internal query of CPU ISA hints will disable the
+  ability to change it. Once disabled, changing the CPU ISA hint will return an
+  error.
+* @ref dnnl::get_cpu_isa_hints function returns the currently used CPU ISA hints
+  and by default poses no restrictions.
 
 Function settings take precedence over environment variables. Moreover, if the
 hint is not applicable then it would be silently ignored. For instance with
