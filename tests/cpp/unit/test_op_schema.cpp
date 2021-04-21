@@ -695,6 +695,10 @@ TEST(op_schema_test, generate_default_attrib) {
     matmul_op.add_output(lt_out);
     EXPECT_TRUE(matmul_op_schema->verify(&matmul_op));
 
+    logical_tensor_t lt_bias = logical_tensor_init(3, data_type::f32);
+    matmul_op.add_input(lt_bias);
+    EXPECT_TRUE(matmul_op_schema->verify(&matmul_op));
+
     matmul_op.set_attr("transpose_a", true);
     const bool *flag;
     const bool **ret_flag = &flag;
@@ -1209,7 +1213,7 @@ TEST(op_schema_test, maxpool_ceil_mode) {
 }
 
 TEST(op_schema_test, MatMul) {
-    std::set<op_kind_t> matmul_kinds = {op_kind::MatMul, op_kind::matmul_relu,
+    std::set<op_kind_t> matmul_kinds = {op_kind::matmul_relu,
             op_kind::matmul_elu, op_kind::matmul_sigmoid,
             op_kind::matmul_hardtanh, op_kind::matmul_gelu};
     const size_t expected_in_size = 2;
@@ -1220,6 +1224,12 @@ TEST(op_schema_test, MatMul) {
 
     for (auto k : matmul_kinds) {
         verify_op_schema(k, expected_in_size, expected_out_size,
+                expected_attr_size, attrs_data);
+    }
+
+    const std::set<size_t> expected_in_sizes = {2, 3};
+    for (auto s : expected_in_sizes) {
+        verify_op_schema(op_kind::MatMul, s, expected_out_size,
                 expected_attr_size, attrs_data);
     }
 }

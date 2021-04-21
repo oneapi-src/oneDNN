@@ -623,10 +623,12 @@ DNNL_GRAPH_OP_SCHEMA(LogSoftmaxBackprop, 1,
 
 DNNL_GRAPH_OP_SCHEMA(MatMul, 1,
         op_schema()
-                .set_num_inputs(2)
+                .set_inputs_option(op_schema::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
                 .set_input(1, "b", "second input tensor")
+                .set_input(2, "bias", "bias tensor")
                 .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
