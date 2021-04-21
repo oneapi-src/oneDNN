@@ -91,6 +91,11 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     src_md_, weights_md_, dst_md_, bias_md_, *attr(),
                     dnnl_get_max_threads()));
 
+            bool are_post_ops_applicable = one_of(true, jbgp_.with_sum,
+                    jbgp_.with_bias, jbgp_.with_scales, jbgp_.with_eltwise,
+                    jbgp_.with_binary, jbgp_.acc_dt != jbgp_.dst_dt,
+                    jbgp_.signed_input);
+
             const float alpha = 1.0;
             const float beta = 1.0;
             const float beta_init = 0.0;
@@ -114,6 +119,11 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 CHECK(brgemm_desc_set_postops(
                         &brg, attr(), &dst_md_, LDD, jbgp_.bia_dt));
 
+                if (are_post_ops_applicable && jbgp_.nthr_ic_b > 1) {
+                    brgemm_attr_t brgattr;
+                    brgattr.generate_skip_accumulation = true;
+                    CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                }
                 if (isa == avx512_core_bf16_amx_int8
                         || isa == avx512_core_bf16_amx_bf16) {
                     brgemm_attr_t brgattr;
@@ -170,6 +180,11 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
         }
         if (pd()->jbgp_.use_buffer_a)
             CHECK(create_brgemm_copy_to_coarse(copy_src_kernel_, &pd()->jbgp_));
+        if (pd()->jbgp_.nthr_ic_b > 1) {
+            CHECK(safe_ptr_assign(
+                    acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
+            CHECK(acc_ker_->create_kernel());
+        }
         return status::success;
     }
 
@@ -185,6 +200,7 @@ private:
     std::unique_ptr<brgemm_kernel_t>
             brg_kernels_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
     std::unique_ptr<jit_brgemm_copy_to_coarse_t> copy_src_kernel_;
+    std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
     char brg_kernel_palettes_
             [brgemm_inner_product_utils::max_num_brg_kernels_ip][64];
 };
