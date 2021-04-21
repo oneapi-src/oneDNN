@@ -2012,6 +2012,115 @@ DNNL_GRAPH_OP_SCHEMA(INT8_MatMul_bias_gelu, 1,
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(Mul_scales, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "x", "input tensor",
+                        {data_type::s8, data_type::u8, data_type::f32})
+                .set_output(0, "y", "output tensor", data_type::f32)
+                .set_attr("qtype", "quantization type", false,
+                        attribute_kind::s, "per_tensor")
+                .set_attr("axis", "quantization type", false, attribute_kind::i,
+                        int64_t(1))
+                .set_attr("scales", "input scale", true, attribute_kind::fs)
+                .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(Add_zps, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "x", "input tensor",
+                        {data_type::s8, data_type::u8, data_type::f32})
+                .set_output(
+                        0, "y", "output tensor", {data_type::s8, data_type::u8})
+                .set_attr("qtype", "quantization type", false,
+                        attribute_kind::s, "per_tensor")
+                .set_attr("axis", "quantization type", false, attribute_kind::i,
+                        int64_t(1))
+                .set_attr("zps", "input zero_point", true, attribute_kind::is)
+                .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(Convert, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "x", "input tensor",
+                        {data_type::s8, data_type::u8, data_type::f32})
+                .set_output(0, "y", "output tensor",
+                        {data_type::s8, data_type::u8, data_type::f32})
+                .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(Permute, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "x", "input tensor",
+                        {data_type::s8, data_type::u8, data_type::f32})
+                .set_output(0, "y", "output tensor",
+                        {data_type::s8, data_type::u8, data_type::f32})
+                .set_attr("from_format",
+                        "the format of input, the options are NCX and NXC",
+                        false, attribute_kind::s, "NXC")
+                .set_attr("to_format",
+                        "the format of output, the options are NCX and NXC",
+                        false, attribute_kind::s, "NCX")
+                .set_attr("permute_kind",
+                        "if set to transpose then [from/to]_format will be "
+                        "ignored",
+                        false, attribute_kind::s, "none")
+                .set_shape_inference_function(infer_permute_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(To_group, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "x", "input tensor",
+                        {data_type::s8, data_type::u8, data_type::f32})
+                .set_output(0, "y", "output tensor",
+                        {data_type::s8, data_type::u8, data_type::f32})
+                .set_attr("groups", "the groups", false, attribute_kind::i,
+                        (int64_t)1)
+                .set_shape_inference_function(infer_to_group_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(Broadcast, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "x", "input tensor",
+                        {data_type::s8, data_type::u8, data_type::f32})
+                .set_output(0, "y", "output tensor",
+                        {data_type::s8, data_type::u8, data_type::f32})
+                .set_attr("insert_1dim", "where to insert 1 dim", false,
+                        attribute_kind::s, "none")
+                .set_attr("broadcast_to", "target ndims to broadcast", false,
+                        attribute_kind::i, (int64_t)(-1))
+                .set_shape_inference_function(infer_broadcast_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(Dnnl_convolution, 1,
+        op_schema()
+                .set_inputs_option(op_schema::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16,
+                                data_type::u8, data_type::s8})
+                .set_input(1, "filter", "filter tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16,
+                                data_type::s8})
+                .set_input(2, "bias", "bias tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16,
+                                data_type::s32})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16,
+                                data_type::u8, data_type::s8})
+                .set_shape_inference_function(infer_dnnl_conv_output_shape)
+                .set_attr("output_format",
+                        "the data format of output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
+                .SET_CONV_COMMON_ATTRS)
+
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

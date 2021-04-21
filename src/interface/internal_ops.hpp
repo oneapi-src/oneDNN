@@ -98,7 +98,13 @@ namespace op_kind {
     X(int8_matmul_sigmoid, INT8_MatMul_sigmoid) \
     X(int8_matmul_bias_sigmoid, INT8_MatMul_bias_sigmoid) \
     X(int8_matmul_gelu, INT8_MatMul_gelu) \
-    X(int8_matmul_bias_gelu, INT8_MatMul_bias_gelu)
+    X(int8_matmul_bias_gelu, INT8_MatMul_bias_gelu) \
+    X(mul_scales, Mul_scales) \
+    X(add_zps, Add_zps) \
+    X(permute, Permute) \
+    X(to_group, To_group) \
+    X(broadcast, Broadcast) \
+    X(dnnl_convolution, Dnnl_convolution)
 
 enum {
     kAny = 0x1234,
