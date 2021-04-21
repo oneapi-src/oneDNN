@@ -260,12 +260,14 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
 
 status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
+    const bool is_avx512_bf16 = jbgp.isa == avx512_core_bf16;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
+    const bool is_bf16 = everyone_is(bf16, jbgp.wei_dt, jbgp.dst_dt);
 
     jbgp.use_buffer_b = true;
     jbgp.ip_bwd_d_global_b_transpose = false;
 
-    constexpr int amx_bf16_row = 32;
+    constexpr int amx_bf16_row = 64;
     jbgp.oc_block = (is_amx_bf16) ? amx_bf16_row : jbgp.simd_w;
 
     jbgp.ic_block
@@ -277,8 +279,17 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.os = jbgp.mb;
 
     // Configure matrix sizes
-    const int max_M = nstl::min(64, jbgp.os);
+    int plat_max_M = 0;
+    if (is_amx_bf16) {
+        plat_max_M = (jbgp.ic >= 512 && jbgp.oc / jbgp.ic <= 4) ? 128 : 64;
+    } else if (is_avx512_bf16) {
+        plat_max_M = (jbgp.ic > 256) ? 128 : 64;
+    } else {
+        plat_max_M = 64;
+    }
+    const int max_M = nstl::min(plat_max_M, jbgp.os);
     const int min_M = is_amx_bf16 ? 16 : 6;
+
     jbgp.os_block = 1;
     for (int m_ = max_M; m_ >= min_M; m_--) {
         if (jbgp.os % m_ == 0) {
@@ -296,19 +307,6 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
             break;
         }
 
-    jbgp.M = jbgp.os_block;
-    jbgp.M_tail = jbgp.os % jbgp.os_block;
-
-    jbgp.K = jbgp.oc_block;
-    jbgp.N = jbgp.ic_block;
-    jbgp.N_tail = jbgp.ic % jbgp.ic_block;
-    jbgp.K_tail = jbgp.oc % jbgp.oc_block;
-
-    jbgp.LDA = jbgp.oc_without_padding;
-    jbgp.LDB = jbgp.N;
-    jbgp.LDC = (jbgp.use_buffer) ? jbgp.N : jbgp.ic_without_padding;
-    jbgp.LDD = jbgp.ic_without_padding;
-
     jbgp.nb_oc_blocking = 1;
     const int oc_chunk_max_size = 64;
     for (int bl = oc_chunk_max_size; bl >= 1; bl--)
@@ -320,11 +318,12 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.nthr_oc_b = 1;
     const int num_work_to_parallel = div_up(jbgp.nb_ic, jbgp.nb_ic_blocking)
             * div_up(jbgp.nb_os, jbgp.nb_os_blocking);
-    // For f32 data type, use oc reduction if we have
+    // Use oc reduction if we have
     //   * very large output channels
     //   * small work amount available to each thread
-    if (is_f32 && (num_work_to_parallel < 2 * jbgp.nthr || jbgp.oc > 1024)) {
-        const int min_chunck_sz = 16;
+    if ((num_work_to_parallel < 2 * jbgp.nthr
+                || jbgp.oc > (is_bf16 ? 4096 : 1024))) {
+        const int min_chunck_sz = (is_avx512_bf16) ? 32 : 16;
         const int num_min_chunk_sz = div_up(jbgp.nb_oc, min_chunck_sz);
         float ratio = 0.5f * num_min_chunk_sz * jbgp.nb_os
                 + (float)num_min_chunk_sz / jbgp.nb_ic + 0.5f;
@@ -343,6 +342,19 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
             = div_up(rnd_up(jbgp.gemm_batch_size * sc_size, 4096), sc_size);
 
     jbgp.use_buffer = jbgp.src_dt != jbgp.acc_dt || jbgp.nthr_oc_b > 1;
+
+    jbgp.M = jbgp.os_block;
+    jbgp.M_tail = jbgp.os % jbgp.os_block;
+
+    jbgp.K = jbgp.oc_block;
+    jbgp.N = jbgp.ic_block;
+    jbgp.N_tail = jbgp.ic % jbgp.ic_block;
+    jbgp.K_tail = jbgp.oc % jbgp.oc_block;
+
+    jbgp.LDA = jbgp.oc_without_padding;
+    jbgp.LDB = jbgp.N;
+    jbgp.LDD = jbgp.ic_without_padding;
+    jbgp.LDC = jbgp.use_buffer && jbgp.nthr_oc_b == 1 ? jbgp.N : jbgp.LDD;
 
     return status::success;
 }
@@ -740,8 +752,9 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             nelements = (size_t)n_reduction_buffers * jbgp.nb_ic * jbgp.ic_block
                     * jbgp.nb_oc * jbgp.oc_block;
         } else if (jbgp.prop_kind == dnnl_backward_data && jbgp.nthr_oc_b > 1) {
-            int n_reduction_buffers = jbgp.nthr_oc_b - (jbgp.dst_dt == f32);
-            nelements = (size_t)n_reduction_buffers * jbgp.ic * jbgp.os;
+            const int adj_buffers = (jbgp.src_dt == f32) ? 1 : 0;
+            int n_reduction_buffers = jbgp.nthr_oc_b - adj_buffers;
+            nelements = (size_t)n_reduction_buffers * jbgp.LDC * jbgp.os;
         }
         scratchpad.book(key_brgemm_primitive_buffer, nelements,
                 types::data_type_size(jbgp.acc_dt));
