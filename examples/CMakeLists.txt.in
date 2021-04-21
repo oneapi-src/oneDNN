@@ -51,7 +51,11 @@ enable_testing()
 if(UNIX OR MINGW)
     find_library(LIBM m)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+
+    if (NOT DNNL_CPU_RUNTIME MATCHES "(SYCL|DPCPP)" AND NOT DNNL_GPU_RUNTIME MATCHES "(SYCL|DPCPP)")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+    endif()
+
     if(NOT APPLE)
         set(CMAKE_EXE_LINKER_FLAGS "-Wl,--as-needed")
     endif()
