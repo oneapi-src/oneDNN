@@ -90,7 +90,15 @@ namespace op_kind {
     X(int8_conv_relu, INT8_Conv_relu) \
     X(int8_conv_bias_relu, INT8_Conv_bias_relu) \
     X(int8_conv_add_relu, INT8_Conv_add_relu) \
-    X(int8_conv_bias_add_relu, INT8_Conv_bias_add_relu)
+    X(int8_conv_bias_add_relu, INT8_Conv_bias_add_relu) \
+    X(int8_matmul, INT8_MatMul) \
+    X(int8_matmul_bias, INT8_MatMul_bias) \
+    X(int8_matmul_relu, INT8_MatMul_relu) \
+    X(int8_matmul_bias_relu, INT8_MatMul_bias_relu) \
+    X(int8_matmul_sigmoid, INT8_MatMul_sigmoid) \
+    X(int8_matmul_bias_sigmoid, INT8_MatMul_bias_sigmoid) \
+    X(int8_matmul_gelu, INT8_MatMul_gelu) \
+    X(int8_matmul_bias_gelu, INT8_MatMul_bias_gelu)
 
 enum {
     kAny = 0x1234,

@@ -488,6 +488,32 @@ TEST(op_schema_test, int8_conv) {
     }
 }
 
+TEST(op_schema_test, int8_matmul) {
+    std::set<op_kind_t> matmul_kinds
+            = {op_kind::int8_matmul, op_kind::int8_matmul_relu,
+                    op_kind::int8_matmul_sigmoid, op_kind::int8_matmul_gelu};
+    const size_t expected_in_size = 2;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 6;
+    const std::map<std::string, bool> attrs_data
+            = {{"transpose_a", false}, {"transpose_b", false}, {"qtype", false},
+                    {"axis", false}, {"scales", true}, {"zps", true}};
+
+    for (auto k : matmul_kinds) {
+        verify_op_schema(k, expected_in_size, expected_out_size,
+                expected_attr_size, attrs_data);
+    }
+
+    std::set<op_kind_t> matmul_bias_kinds = {op_kind::int8_matmul_bias,
+            op_kind::int8_matmul_bias_relu, op_kind::int8_matmul_bias_sigmoid,
+            op_kind::int8_matmul_bias_gelu};
+    const size_t expected_in_size2 = 3;
+    for (auto k : matmul_bias_kinds) {
+        verify_op_schema(k, expected_in_size2, expected_out_size,
+                expected_attr_size, attrs_data);
+    }
+}
+
 TEST(op_schema_test, conv_bias_infer_shape) {
     const op_schema *a_op_schema
             = op_schema_registry::get_op_schema(op_kind::conv_bias);
