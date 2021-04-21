@@ -259,6 +259,16 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
     const bool is_int8 = one_of(jbgp.src_dt, u8, s8) && jbgp.wei_dt == s8;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
+
+    // NOTE: comment about is_gigantic_shape is in get_os_block()
+    // The idea here is to use just mb and oc parallelism (i.e. w/o ic reduction)
+    // for "gigantic shapes" as there is a lot of parallelism without enabling
+    // ic parallelism.
+    const bool is_gigantic_shape
+            = jbgp.ic >= 9216 && jbgp.oc >= 4096 && jbgp.os >= 512;
+    const bool use_ic_reduction
+            = is_f32 && jbgp.ic > 1024 && !is_gigantic_shape;
+
     const auto &p = attr.post_ops_;
     jbgp.with_sum = p.find(primitive_kind::sum) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
@@ -276,7 +286,6 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     }
     const int min_ic_divisor = is_amx_int8 ? 4 : is_amx_bf16 ? 2 : 1;
 
-    jbgp.use_buffer = IMPLICATION(jbgp.dst_dt == jbgp.acc_dt, jbgp.with_sum);
     jbgp.use_buffer_a = jbgp.ic % min_ic_divisor != 0;
 
     constexpr int amx_int8_row = 64;
@@ -302,13 +311,22 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     //   * 1 <= nb_os_blocking <= 8 AND nb_os_blocking <= nb_os
     //   * Work amount per thread ~ 2
     //   * NOTE: here nb_oc_blocking = 1 as os is large
-    if (jbgp.os > 256 && is_f32)
+    if (jbgp.os > 256 && is_f32) {
         jbgp.nb_os_blocking = saturate(1, nstl::min(8, jbgp.nb_os),
                 nstl::min(nstl::max(jbgp.oc / jbgp.os / 2, 1),
                         div_up(jbgp.nb_os * jbgp.nb_oc, 2 * jbgp.nthr)));
 
+        // For os > 256, compute all os blocks as a single chunk when performing
+        // IC reduction. Note that this condition is empirical
+        if (use_ic_reduction && jbgp.nb_os_blocking > 1)
+            jbgp.nb_os_blocking = jbgp.nb_os;
+    }
+
     jbgp.nb_ic_blocking = 1;
+    jbgp.nthr_ic_b = 1;
     const int max_nb_ic_blocking = nstl::min(64, jbgp.nb_ic);
+    const int total_work = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking)
+            * div_up(jbgp.nb_os, jbgp.nb_os_blocking);
     if (IMPLICATION(!is_int8, jbgp.ic <= max_nb_ic_blocking * jbgp.ic_block)
             && everyone_is(1, jbgp.kw, jbgp.kh, jbgp.kd)
             && !jbgp.use_buffer_a) {
@@ -320,6 +338,26 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
                                           : rnd_dn(jbgp.ic, jbgp.ic_block);
         jbgp.nb_ic_blocking = jbgp.nb_ic;
         jbgp.gemm_batch_size = 1;
+    } else if (!jbgp.use_buffer_a
+            && (use_ic_reduction || (is_f32 && total_work < 2 * jbgp.nthr))) {
+        // Use IC reduction if we have
+        //  * very large input channels (OR)
+        //  * work amount per thread is small
+        const int min_chunk_sz = 16;
+        const int num_min_chunk_sz = div_up(jbgp.nb_ic, min_chunk_sz);
+        float reduce_work = 0.5f * num_min_chunk_sz * jbgp.nb_os
+                + (float)num_min_chunk_sz / jbgp.nb_oc + 0.5f;
+        const int reduce_thr_groups = jbgp.nb_ic >= 1024 ? 8 : 4;
+        jbgp.nthr_ic_b
+                = saturate(1, nstl::min(reduce_thr_groups, num_min_chunk_sz),
+                        int(reduce_work));
+        jbgp.nthr_ic_b = nstl::min(jbgp.nthr_ic_b, jbgp.nthr);
+        if (jbgp.nthr_ic_b > 1) {
+            jbgp.nb_ic_blocking = div_up(jbgp.nb_ic, jbgp.nthr_ic_b);
+            jbgp.nb_ic_blocking /= div_up(jbgp.nb_ic_blocking, 64);
+        }
+        jbgp.gemm_batch_size = jbgp.nb_ic_blocking;
+        jbgp.K = jbgp.ic_block;
     } else {
         jbgp.nb_ic_blocking = max_div(jbgp.nb_ic, max_nb_ic_blocking);
         const bool small_nb_ic = jbgp.nb_ic <= max_nb_ic_blocking;
@@ -358,7 +396,10 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
             }
         }
     }
+    jbgp.use_buffer = (IMPLICATION(jbgp.dst_dt == jbgp.acc_dt, jbgp.with_sum))
+            || (jbgp.nthr_ic_b > 1);
 
+    // Configure matrix sizes
     jbgp.M = jbgp.os_block;
     jbgp.M_tail = jbgp.os % jbgp.os_block;
 
@@ -369,8 +410,8 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     jbgp.LDA = jbgp.use_buffer_a ? jbgp.K * jbgp.gemm_batch_size
                                  : jbgp.ic_without_padding;
     jbgp.LDB = jbgp.N;
-    jbgp.LDC = (jbgp.use_buffer) ? jbgp.N : jbgp.oc_without_padding;
     jbgp.LDD = jbgp.oc_without_padding;
+    jbgp.LDC = (jbgp.use_buffer && jbgp.nthr_ic_b == 1) ? jbgp.N : jbgp.LDD;
 
     return status::success;
 }
@@ -888,6 +929,12 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const int adj_buffers = (jbgp.src_dt == f32) ? 1 : 0;
             int n_reduction_buffers = jbgp.nthr_oc_b - adj_buffers;
             nelements = (size_t)n_reduction_buffers * jbgp.LDC * jbgp.os;
+        } else if (one_of(jbgp.prop_kind, forward_training, forward_inference)
+                && jbgp.nthr_ic_b > 1) {
+            const bool need_extra_buffer
+                    = (jbgp.dst_dt == f32 && jbgp.with_sum);
+            int n_reduction_buffers = jbgp.nthr_ic_b - !need_extra_buffer;
+            nelements = (size_t)n_reduction_buffers * jbgp.oc * jbgp.os;
         }
         scratchpad.book(key_brgemm_primitive_buffer, nelements,
                 types::data_type_size(jbgp.acc_dt));
