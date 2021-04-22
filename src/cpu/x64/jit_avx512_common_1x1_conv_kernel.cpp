@@ -856,7 +856,9 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     static constexpr bool sum_requires_scale_one = true;
     const bool post_ops_ok_
             = post_ops_ok({avx512_common, {eltwise, binary, sum}, jcp.post_ops,
-                    &dst_d, sum_at_pos_0_only, sum_requires_scale_one});
+                    &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
+                    {broadcasting_strategy_t::scalar,
+                            broadcasting_strategy_t::per_oc}});
     if (!post_ops_ok_) return status::unimplemented;
 
     bool args_ok = true && jcp.ngroups == 1 && jcp.src_tag == required_dat_tag

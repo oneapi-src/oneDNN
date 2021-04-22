@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,7 +63,9 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
                 const auto dst_md = memory_desc_wrapper(dst_md_);
                 ok &= post_ops_ok({avx512_core, {binary, eltwise, sum},
                         attr()->post_ops_, &dst_md, sum_at_pos_0_only,
-                        sum_requires_scale_one});
+                        sum_requires_scale_one,
+                        {broadcasting_strategy_t::scalar,
+                                broadcasting_strategy_t::per_oc}});
             }
             if (!ok) return status::unimplemented;
 

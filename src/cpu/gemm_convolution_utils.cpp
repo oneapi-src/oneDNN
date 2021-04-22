@@ -24,6 +24,8 @@
 #include "cpu/gemm_convolution_utils.hpp"
 #if DNNL_X64
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#else
+#include "cpu/binary_injector_utils.hpp"
 #endif
 
 #include "cpu/platform.hpp"
@@ -1052,6 +1054,16 @@ status_t init_conf(conv_gemm_conf_t &jcp,
     jcp.with_eltwise = eltwise_ind != -1;
     const int binary_ind = jcp.post_ops.find(primitive_kind::binary);
     jcp.with_binary = binary_ind != -1;
+
+    if (jcp.with_binary) {
+        const bool is_binary_no_bcast
+                = binary_injector_utils::bcast_strategy_present(
+                        binary_injector_utils::extract_bcast_strategies(
+                                jcp.post_ops.entry_, dst_d),
+                        broadcasting_strategy_t::no_broadcast);
+        if (is_binary_no_bcast) return status::unimplemented;
+    }
+
     const int sum_ind = jcp.post_ops.find(primitive_kind::sum);
     jcp.with_sum = sum_ind != -1;
 

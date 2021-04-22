@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -715,8 +715,10 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
         }
 
     using namespace injector;
-    const bool post_ops_ok_
-            = post_ops_ok({isa, {eltwise, binary, sum}, jcp.post_ops, &dst_d});
+    const bool post_ops_ok_ = post_ops_ok(
+            {isa, {eltwise, binary, sum}, jcp.post_ops, &dst_d, false, false,
+                    {broadcasting_strategy_t::scalar,
+                            broadcasting_strategy_t::per_oc}});
     if (!post_ops_ok_) return status::unimplemented;
 
     args_ok = true && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0
