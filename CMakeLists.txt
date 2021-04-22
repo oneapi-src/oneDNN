@@ -105,8 +105,10 @@ if(UNIX OR MINGW)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
 endif()
 
-# if gcc version is less than gcc 5, DNNL_GRAPH_SUPPORT_CXX17 should set OFF
-option(DNNL_GRAPH_SUPPORT_CXX17 "uses features from c++ standard 17" OFF)
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+
+include("cmake/options.cmake")
+
 if(DNNL_GRAPH_SUPPORT_CXX17)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5)
         message(FATAL_ERROR "Current compiler version does not support C++17 features. Please undefine DNNL_GRAPH_SUPPORT_CXX17.")
@@ -130,34 +132,9 @@ else()
     endif()
 endif()
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-option(DNNL_GRAPH_VERBOSE
-    "allows oneDNN Graph library be verbose whenever DNNL_GRAPH_VERBOSE
-    environment variable set to 1, 2 or 3" ON) # enabled by default
-
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "oneDNN supports 64 bit platforms only")
 endif()
-
-set(DNNL_GRAPH_CPU_RUNTIME "OMP" CACHE STRING
-    "specifies the threading runtime for CPU engines;
-    supports OMP (default).")
-
-if(NOT "${DNNL_GRAPH_CPU_RUNTIME}" MATCHES "^(OMP|SEQ|DPCPP|THREADPOOL)$")
-    message(FATAL_ERROR "Unsupported CPU runtime: ${DNNL_GRAPH_CPU_RUNTIME}")
-endif()
-
-set(DNNL_GRAPH_GPU_RUNTIME "NONE" CACHE STRING
-    "specifies the runtime to use for GPU engines.
-    Can be NONE (default; no GPU engines)
-    or DPCPP (DPC++ GPU engines).")
-
-if(NOT "${DNNL_GRAPH_GPU_RUNTIME}" MATCHES "^(NONE|DPCPP)$")
-    message(FATAL_ERROR "Unsupported GPU runtime: ${DNNL_GRAPH_GPU_RUNTIME}")
-endif()
-
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 include("cmake/build_oneDNN.cmake")
 
@@ -240,4 +217,3 @@ add_subdirectory(tests/benchdnn)
 add_subdirectory(tests/cpp)
 add_subdirectory(examples/c)
 add_subdirectory(examples/cpp)
-
