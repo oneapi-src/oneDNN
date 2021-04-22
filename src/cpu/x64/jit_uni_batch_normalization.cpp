@@ -95,7 +95,7 @@ struct jit_bnorm_t : public jit_generator {
     Reg64 reg_var = reg_param;
     Reg64 reg_diff_scale = rax;
     Reg64 reg_coff_max_bwd_copy = reg_diff_scale;
-    Reg64 reg_shift = reg_diff_scale;
+    Reg64 reg_shift = reg_rbuf1;
 
     Reg64 reg_coff = r8;
     Reg64 reg_coff_max = r9;
@@ -175,9 +175,10 @@ struct jit_bnorm_t : public jit_generator {
         stack_off_s_tail = 88,
         stack_off_is_cblk_tail = 96,
         stack_off_ws_off_copy = 104,
-        stack_off_diff_shift = 112,
-        stack_off_soff_max = 120,
-        stack_size_required = 128,
+        stack_off_shift = 112,
+        stack_off_diff_shift = 120,
+        stack_off_soff_max = 128,
+        stack_size_required = 136,
     };
 
     int bit_shift() { return 5 - is_bf16_; }
@@ -253,7 +254,7 @@ struct jit_bnorm_t : public jit_generator {
 
         if (bdesc_->is_fwd()) {
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(shift)]);
-            mov(reg_shift, reg_tmp);
+            mov(ptr[rsp + stack_off_shift], reg_tmp);
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(var)]);
             mov(reg_var, reg_tmp);
         } else {
@@ -1102,6 +1103,7 @@ struct jit_bnorm_t : public jit_generator {
         mov(reg_src, ptr[rsp + stack_off_src]);
         mov(reg_dst, ptr[rsp + stack_off_dst]);
         mov(reg_ws, ptr[rsp + stack_off_ws]);
+        mov(reg_shift, ptr[rsp + stack_off_shift]);
 
         xor_(reg_soff, reg_soff);
         Label dst_spatial;
