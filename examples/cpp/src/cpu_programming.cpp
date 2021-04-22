@@ -175,8 +175,8 @@ int cpu_programming_tutorial(engine::kind engine_kind) {
     if (partitions.size() == 6) {
         float *actual_output_ptr1 = tm.get(conv_dst_lt.get_id()).get_data_handle<float>();
         auto output_dims = conv_dst_lt.get_dims();
-        auto num_elem = std::accumulate(output_dims.begin(), output_dims.end(), 0);
-        for (int i = 0; i < num_elem; ++i) {
+        auto num_elem = std::accumulate(output_dims.begin(), output_dims.end(), (int64_t)0);
+        for (size_t i = 0; i < static_cast<size_t>(num_elem); ++i) {
             if (std::abs(expected_output_1 - actual_output_ptr1[i]) > 1e-6f) {
                 printf("expected = %.2f, actual = %.2f\n", expected_output_1, actual_output_ptr1[i]);
                 throw std::runtime_error(

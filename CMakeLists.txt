@@ -137,28 +137,9 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
 endif()
 
 include("cmake/build_oneDNN.cmake")
+include("cmake/utils.cmake")
 
-if(MSVC)
-    if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
-        set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "/MP /wd4018 /wd4800 /wd4068 /wd4305 /wd4551 /wd4244 /wd4996")
-    endif()
-else()
-    set(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Wall -Wextra -pedantic -Wconversion -Wno-sign-compare -Wunreachable-code")
-endif()
-
-if(DNNL_GRAPH_WITH_SYCL)
-    # Inhibit all warning messages from sycl
-    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-w -Wno-deprecated-declarations")
-else()
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-        # suppress some warnings for gtest header files when built with Clang
-        append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-w -Werror")
-    elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
-        append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "/WX")
-    else()
-        append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Werror -Wfatal-errors")
-    endif()
-endif()
+set(DNNL_GRAPH_COMMON_LINK_FLAGS)
 
 if(${COVERAGE_REPORT})
     message("Compiling oneDNN Graph with coverage support")
@@ -182,30 +163,14 @@ if(${DNNL_GRAPH_ENABLE_ASAN})
         )
 endif()
 
-if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-Wno-gnu-statement-expression -Wno-gnu-statement-expression -Wno-string-conversion -Wno-format")
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
-    # workaround for Intel Compiler that produces error caused
-    # by pragma omp simd collapse(..)
-    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-diag-disable:13379")
-    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-diag-disable:15552")
-    # disable `was not vectorized: vectorization seems inefficient` remark
-    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-diag-disable:15335")
-    # disable: foo has been targeted for automatic cpu dispatch
-    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-diag-disable:15009")
-    # disable: remark #11074: Inlining inhibited by limit max-size
-    # disable: remark #11074: Inlining inhibited by limit max-total-size
-    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-diag-disable:11074")
-    # disable: remark #11076: To get full report use -qopt-report=4 -qopt-report-phase ipo
-    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-diag-disable:11076")
-endif()
-
 if(NOT WIN32)
     include("cmake/check_headers.cmake")
 endif()
 include("cmake/Doxygen.cmake")
 include("cmake/version.cmake")
 include("cmake/OpenMP.cmake")
+include("cmake/platform.cmake")
+include("cmake/SDL.cmake")
 
 enable_testing()
 
@@ -213,7 +178,6 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 add_subdirectory(src)
-add_subdirectory(tests/benchdnn)
-add_subdirectory(tests/cpp)
+add_subdirectory(tests)
 add_subdirectory(examples/c)
 add_subdirectory(examples/cpp)

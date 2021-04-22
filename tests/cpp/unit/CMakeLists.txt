@@ -36,8 +36,6 @@ add_library(${LIB_NAME}_unit_test_objlib OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_value.cpp
     )
 
-set_target_properties(${LIB_NAME}_unit_test_objlib PROPERTIES CXX_VISIBILITY_PRESET "hidden")
-set_target_properties(${LIB_NAME}_unit_test_objlib PROPERTIES VISIBILITY_INLINES_HIDDEN 1)
 # Set path to exported and non exported headers
 target_include_directories(${LIB_NAME}_unit_test_objlib
     PRIVATE

@@ -208,7 +208,8 @@ void verbose_templ_no_engine_kind(char *buffer, size_t parition_id,
         const char *op_name_str, const char *fmt_str, const char *data_str,
         const char *backend_str, int written = 0) {
     DPRINT(buffer, DNNL_GRAPH_VERBOSE_BUF_LEN, written, DFMT ",%s,%s,%s,%s",
-            parition_id, op_name_str, fmt_str, data_str, backend_str);
+            static_cast<int64_t>(parition_id), op_name_str, fmt_str, data_str,
+            backend_str);
 }
 
 int logical_tensor2dim_str(char *str, size_t str_len,
@@ -261,7 +262,8 @@ int logical_tensor2str(char *str, size_t str_len,
 
     int written = 0;
     DPRINT(str, DNNL_GRAPH_VERBOSE_DAT_LEN, written, "%s:" DFMT ":%s",
-            data_type2str(logical_tensor.data_type), logical_tensor.id,
+            data_type2str(logical_tensor.data_type),
+            static_cast<int64_t>(logical_tensor.id),
             layout_type2str(logical_tensor.layout_type));
 
     return written;

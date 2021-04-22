@@ -18,10 +18,6 @@
 # The library is then used to link the final shared library (dnnl_graph.so) and unit level
 # tests (dnnl_graph_unit_test)
 
-if(WIN32)
-    add_definitions(-DDNNL_GRAPH_DLL_EXPORTS)
-endif()
-
 file(GLOB HEADERS_ROOT
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.hpp
@@ -48,13 +44,13 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         PROPERTIES COMPILE_FLAGS "-prec-div")
 endif()
 
-append(CMAKE_CXX_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
-append(CMAKE_C_FLAGS ${DNNL_GRAPH_COMMON_COMPILATION_FLAGS})
+append(CMAKE_CXX_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
+append(CMAKE_C_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
+
+append(CMAKE_C_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
+append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
 add_library(${LIB_NAME}_objlib OBJECT ${SOURCES})
-set_target_properties(${LIB_NAME}_objlib PROPERTIES POSITION_INDEPENDENT_CODE ON)
-set_target_properties(${LIB_NAME}_objlib PROPERTIES CXX_VISIBILITY_PRESET "hidden")
-set_target_properties(${LIB_NAME}_objlib PROPERTIES VISIBILITY_INLINES_HIDDEN 1)
 
 APPLY_VERSION_DEFINITIONS(${CMAKE_CURRENT_SOURCE_DIR}/utils/verbose.cpp)
 

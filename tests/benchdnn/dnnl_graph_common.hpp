@@ -82,7 +82,8 @@ inline dnnl::graph::engine &get_test_engine() {
     dnnl::graph::engine::kind graph_engine_kind = engine_tgt_kind == dnnl_cpu
             ? dnnl::graph::engine::kind::cpu
             : dnnl::graph::engine::kind::gpu;
-    static dnnl::graph::engine instance(graph_engine_kind, engine_index);
+    static dnnl::graph::engine instance(
+            graph_engine_kind, static_cast<int>(engine_index));
     return instance;
 }
 

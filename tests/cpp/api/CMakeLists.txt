@@ -36,8 +36,6 @@ set(API_TEST_SRCS
     )
 
 add_executable(${LIB_NAME}_api_test ${API_TEST_SRCS})
-set_target_properties(${LIB_NAME}_api_test PROPERTIES CXX_VISIBILITY_PRESET "hidden")
-set_target_properties(${LIB_NAME}_api_test PROPERTIES VISIBILITY_INLINES_HIDDEN 1)
 
 target_link_libraries(${LIB_NAME}_api_test
     LINK_PRIVATE
