@@ -3485,8 +3485,9 @@ dnnl_status_t DNNL_API dnnl_set_jit_profiling_jitdumpdir(const char *dir);
 /// #dnnl_cpu_isa_t and #dnnl::cpu_isa for the list of the values accepted by
 /// the C and C++ API functions respectively.
 ///
-/// This function has effect only before the first JIT kernel is generated and
-/// will return an error afterwards.
+/// This function has effect only once, and returns an error on subsequent
+/// calls. It should also be invoked before any other oneDNN API call, otherwise
+/// it may return an error.
 ///
 /// This function overrides the DNNL_MAX_CPU_ISA environment variable. The
 /// environment variable can be set to the desired maximal ISA name in upper
@@ -3528,8 +3529,9 @@ dnnl_cpu_isa_t DNNL_API dnnl_get_effective_cpu_isa(void);
 /// #dnnl::cpu_isa_hints for the list of the values accepted by the C and C++
 /// API functions respectively.
 ///
-/// This function has effect only before the first JIT kernel is generated and
-/// will return an error afterwards.
+/// This function has effect only once, and returns an error on subsequent
+/// calls. It should also be invoked before any other oneDNN API call, otherwise
+/// it may return an error.
 ///
 /// This function overrides the DNNL_CPU_ISA_HINTS environment variable.
 /// @sa @ref dev_guide_cpu_isa_hints for more details
