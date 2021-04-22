@@ -299,7 +299,9 @@ status_t ref_zero_pad_t::execute_subg_16_mask_and_clear_dt_1B(
             = utils::downcast<compute::compute_engine_t *>(
                     ctx.stream()->engine());
     const compute::device_info_t *device = engine->device_info();
-    const unsigned int hw_threads = device->hw_threads();
+    const compute::gpu_arch_t gpu_gen = device->gpu_arch();
+    const size_t max_local_ws = static_cast<size_t>(
+            gpu_gen == compute::gpu_arch_t::gen9 ? 256 : 512);
 
     const auto &dims = mdw.dims();
     const auto nelems = mdw.nelems(true);
@@ -313,8 +315,7 @@ status_t ref_zero_pad_t::execute_subg_16_mask_and_clear_dt_1B(
 
     const unsigned block_size = 16 * 8; // SIMD * block_size
     const size_t gws[3] = {static_cast<size_t>(16 * nelems / block_size), 1, 1};
-    const size_t lws[3]
-            = {static_cast<size_t>(hw_threads == 168 ? 256 : 512), 1, 1};
+    const size_t lws[3] = {max_local_ws, 1, 1};
 
     const compute::nd_range_t zp_nd_range = compute::nd_range_t(3, gws, lws);
 
