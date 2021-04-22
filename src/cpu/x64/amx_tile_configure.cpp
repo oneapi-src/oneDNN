@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,8 +37,28 @@ private:
     void generate() override {
         preamble();
 
-        tilerelease();
         ldtilecfg(ptr[abi_param1]);
+
+        postamble();
+    }
+};
+
+struct jit_amx_tilerelease_t : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_amx_tilecfg_t)
+
+    // TODO: Need to check status
+    jit_amx_tilerelease_t()
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx) {
+        create_kernel();
+    }
+
+    void tile_release() const { (*this)(); }
+
+private:
+    void generate() override {
+        preamble();
+
+        tilerelease();
 
         postamble();
     }
@@ -47,6 +67,11 @@ private:
 void amx_tile_configure(const char palette[64]) {
     static const jit_amx_tilecfg_t tilecfg;
     tilecfg.tile_configure(palette);
+};
+
+void amx_tile_release() {
+    static const jit_amx_tilerelease_t tilerls;
+    tilerls.tile_release();
 };
 
 } // namespace x64
