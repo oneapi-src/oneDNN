@@ -189,6 +189,7 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
             nd_iterator_step(mb, jcp.mb, g, jcp.ngroups, ihc, ih_chunks, iwb,
                     jcp.nb_iw, icc, ic_chunks);
         }
+        amx_tile_release();
     });
 }
 

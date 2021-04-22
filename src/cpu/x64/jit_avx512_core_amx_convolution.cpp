@@ -408,6 +408,8 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
             nd_iterator_step(mb, jcp.mb, g, jcp.ngroups, owb, jcp.nb_ow, ohc,
                     oh_chunks, occ, oc_chunks);
         }
+
+        amx_tile_release();
     });
     return status::success;
 }
@@ -790,6 +792,8 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
             nd_iterator_step(mb, jcp.mb, g, jcp.ngroups, odc, jcp.od, ohc,
                     oh_chunks, owb, jcp.nb_ow, occ, oc_chunks);
         }
+
+        amx_tile_release();
     });
     return status::success;
 }
@@ -2003,6 +2007,8 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::execute_backward_weights(
                 break;
             default: assert(!"Invalid harness type");
         }
+
+        amx_tile_release();
     });
 
     if (!jcp.global_transpose) {

@@ -213,6 +213,8 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
             nd_iterator_step(mb, jcp.mb, g, jcp.ngroups, _osb, os_chunks, _ocb,
                     oc_chunks);
         }
+
+        amx_tile_release();
     });
     return status::success;
 }
