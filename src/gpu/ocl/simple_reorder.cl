@@ -693,6 +693,61 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
     }
 
+#elif PAD_INNERMOST
+    int sgId = get_sub_group_local_id();
+    int d[6];
+    int blk[6];
+    int b[6] = {0, 0, 0, 0, 0, 0};
+
+    d[0] = GWS_GET_D0();
+    d[1] = GWS_GET_D1();
+    d[2] = GWS_GET_D2();
+    d[3] = GWS_GET_D3();
+    d[4] = GWS_GET_D4();
+    d[5] = GWS_GET_D5();
+    blk[0] = GWS_GET_D0_BLOCK();
+    blk[1] = GWS_GET_D1_BLOCK();
+    blk[2] = GWS_GET_D2_BLOCK();
+    blk[3] = GWS_GET_D3_BLOCK();
+    blk[4] = GWS_GET_D4_BLOCK();
+    blk[5] = GWS_GET_D5_BLOCK();
+
+    __local SRC_DATA_T cache[SG_PER_WG * GROUP * GROUP * VECT_SIZE];
+
+    // offset to local memory for given subgroup
+    int sg_off = get_sub_group_id() * VECT_SIZE * (GROUP * GROUP);
+
+    for (int i = 0; i < blk[SRC_LOOP_DIM]; i++) {
+        b[SRC_LOOP_DIM] = i;
+        const int src_off = SRC_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+                d[3] + b[3], d[4] + b[4], d[5] + b[5]);
+        unroll_for(int j = 0; j < GROUP; j++) {
+            int coff = sg_off + VECT_SIZE * GROUP * i + VECT_SIZE * j;
+            int soff = src_off + INNERMOST_SIZE * j;
+            if (sgId < INNERMOST_SIZE) {
+                cache[coff + sgId] = src[soff + sgId];
+            } else {
+                cache[coff + sgId] = 0;
+            }
+        }
+    }
+    b[SRC_LOOP_DIM] = 0;
+    for (int i = 0; i < blk[DST_LOOP_DIM]; i++) {
+        b[DST_LOOP_DIM] = i;
+        const int dst_off = DST_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+                d[3] + b[3], d[4] + b[4], d[5] + b[5]);
+        unroll_for(int j = 0; j < GROUP; j++) {
+            int coff = sg_off + VECT_SIZE * GROUP * j + VECT_SIZE * i;
+            int doff = dst_off + VECT_SIZE * j;
+            DST_DATA_T dst_tmp;
+#if WITH_SUM_AB
+            dst_tmp = DST_BLOCK_READ(&dst[doff + sgId]);
+#endif
+            REORDER(dst_tmp, cache[coff + sgId], alpha, beta);
+            dst[doff + sgId] = dst_tmp;
+        }
+    }
+
 #elif VECTORIZE_GROUPS
 
     int d[6];

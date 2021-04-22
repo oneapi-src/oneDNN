@@ -157,6 +157,43 @@ bool is_broadcast_by_strides(const memory_desc_wrapper &mdw) {
     return false;
 }
 
+bool is_padded(const memory_desc_wrapper &mdw, int dim) {
+    return (mdw.dims()[dim] != mdw.padded_dims()[dim]);
+}
+
+bool fits_3ch(const memory_desc_wrapper &src_mdw,
+        const memory_desc_wrapper &dst_mdw, int scale_mask) {
+    // TODO: make it more generic, now it works only for dense->padded case
+    if (src_mdw.ndims() < 2 || dst_mdw.ndims() < 2) { return false; }
+
+    auto last_dim_src = get_Nth_last_dim_or_block(src_mdw);
+    auto nextlast_dim_src = get_Nth_last_dim_or_block(src_mdw, 1);
+    auto last_dim_dst = get_Nth_last_dim_or_block(dst_mdw);
+    auto nextlast_dim_dst = get_Nth_last_dim_or_block(dst_mdw, 1);
+
+    if (last_dim_src.idx != last_dim_dst.idx) { return false; }
+    if (last_dim_src.size > last_dim_dst.size) { return false; }
+    if (last_dim_dst.size > 16 || last_dim_dst.size % 8 != 0) { return false; }
+    if (last_dim_src.idx == nextlast_dim_src.idx) { return false; }
+    if (last_dim_src.idx == nextlast_dim_dst.idx) { return false; }
+    if (nextlast_dim_src.idx == nextlast_dim_dst.idx) { return false; }
+    if (nextlast_dim_src.size % 2 != 0) { return false; }
+    if (nextlast_dim_dst.size % 2 != 0) { return false; }
+    if (is_padded(src_mdw, last_dim_src.idx)) { return false; }
+    if (is_padded(src_mdw, nextlast_dim_src.idx)) { return false; }
+    if (is_padded(src_mdw, nextlast_dim_dst.idx)) { return false; }
+    if (is_padded(dst_mdw, nextlast_dim_src.idx)) { return false; }
+    if (is_padded(dst_mdw, nextlast_dim_dst.idx)) { return false; }
+    if (scale_mask & (1 << last_dim_src.idx)) { return false; }
+    if (scale_mask & (1 << nextlast_dim_src.idx)) { return false; }
+    if (scale_mask & (1 << nextlast_dim_dst.idx)) { return false; }
+    // no 2nd layer of block on innermost dim in dst
+    if (dst_mdw.padded_dims()[last_dim_src.idx] != last_dim_dst.size) {
+        return false;
+    }
+    return true;
+}
+
 reorder_kernel_t select_kernel(const reorder_conf_t &conf,
         const memory_desc_wrapper &src_mdw, const memory_desc_wrapper &dst_mdw,
         const compute::device_info_t *dev_info) {
@@ -209,6 +246,9 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
         return reorder_kernel_t::dense_vector;
     }
 
+    if (fits_3ch(src_mdw, dst_mdw, conf.scale_mask)) {
+        return reorder_kernel_t::pad_innermost;
+    }
     // This kernel works on tensors that have common innermost dim. Tries to
     // access mem using large enough chunks to utilize whole cache lines.
     auto src_last = get_Nth_last_dim_or_block(src_mdw);
@@ -424,6 +464,38 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             vect_dim = last;
             vect_size = (last_dim % 16 == 0) ? 16 : 8;
             break;
+        case pad_innermost: {
+            auto last_dim_src = get_Nth_last_dim_or_block(src_mdw);
+            auto nextlast_dim_src = get_Nth_last_dim_or_block(src_mdw, 1);
+            auto last_dim_dst = get_Nth_last_dim_or_block(dst_mdw);
+            auto nextlast_dim_dst = get_Nth_last_dim_or_block(dst_mdw, 1);
+
+            int min_common_size
+                    = std::min(last_dim_src.size, last_dim_dst.size);
+            int max_common_size
+                    = std::max(last_dim_src.size, last_dim_dst.size);
+
+            // Group size bigger than 4 would need too much private mem;
+            // group size 1 will give worse perf than reference kernel.
+            int max_group_size = 4;
+            while (nextlast_dim_src.size % max_group_size != 0
+                    || nextlast_dim_dst.size % max_group_size != 0) {
+                max_group_size--;
+            }
+
+            conf.aux_data.vg.vector_dim = last_dim_src.idx;
+            conf.aux_data.vg.group_size = max_group_size;
+            conf.aux_data.vg.src_loop_dim = nextlast_dim_dst.idx;
+            conf.aux_data.vg.dst_loop_dim = nextlast_dim_src.idx;
+            conf.aux_data.vg.innermost_size = min_common_size;
+            conf.sub_group_size = max_common_size;
+
+            blocks[conf.aux_data.vg.src_loop_dim] = conf.aux_data.vg.group_size;
+            blocks[conf.aux_data.vg.dst_loop_dim] = conf.aux_data.vg.group_size;
+            vect_dim = conf.aux_data.vg.vector_dim;
+            vect_size = conf.sub_group_size;
+        } break;
+
         case vectorize_groups: {
             auto last_dim_src = get_Nth_last_dim_or_block(src_mdw);
             auto nextlast_dim_src = get_Nth_last_dim_or_block(src_mdw, 1);
@@ -620,6 +692,20 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     if (conf.implementation == vectorize_last_dim) {
         kernel_ctx.define_int("VECTORIZE_LAST_DIM", 1);
     }
+    if (conf.implementation == pad_innermost) {
+        kernel_ctx.define_int("PAD_INNERMOST", 1);
+        kernel_ctx.define_int(
+                "VECT_DIM", conf.aux_data.vg.vector_dim); //useless
+        kernel_ctx.define_int("SRC_LOOP_DIM", conf.aux_data.vg.src_loop_dim);
+        kernel_ctx.define_int("DST_LOOP_DIM", conf.aux_data.vg.dst_loop_dim);
+        kernel_ctx.define_int("GROUP", conf.aux_data.vg.group_size);
+        auto lr = conf.dispatch.nd_range().local_range();
+        kernel_ctx.define_int(
+                "SG_PER_WG", (lr[0] * lr[1] * lr[2]) / conf.sub_group_size);
+        kernel_ctx.define_int(
+                "INNERMOST_SIZE", conf.aux_data.vg.innermost_size);
+        kernel_ctx.define_int("VECT_SIZE", conf.sub_group_size);
+    }
     if (conf.implementation == vectorize_groups) {
         kernel_ctx.define_int("VECTORIZE_GROUPS", 1);
         kernel_ctx.define_int("VECT_DIM", conf.aux_data.vg.vector_dim);
@@ -627,7 +713,6 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
         kernel_ctx.define_int("DST_LOOP_DIM", conf.aux_data.vg.dst_loop_dim);
         kernel_ctx.define_int("GROUP", conf.aux_data.vg.group_size);
     }
-
     if (conf.implementation == plain_to_ABxx8ayb) {
         kernel_ctx.define_int("PLAIN_TO_AB_XX_8AYB", 1);
         kernel_ctx.define_int(
