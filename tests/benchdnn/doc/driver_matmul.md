@@ -98,7 +98,7 @@ runtime, but sizes specified at creation time:
                --cfg=u8s8u8 \
                --wtag=any \
                --attr-zero-points=src:1*_dst:-2* \
-               10x30:30x20 # or m10n20k3 with deprecated matmul desc
+               10x30:30x20 # or m10n20k30 with deprecated matmul desc
 ```
 
 Run single precision batched matrix multiplication with bias, of which only the
@@ -106,7 +106,7 @@ full dimension is along the `n`-axis:
 ``` sh
     ./benchdnn --matmul \
                --bia_dt=f32 --bia_mask=4 \
-               2x10x30:2x30x20 # or mb2m10n20k3 with deprecated matmul desc
+               2x10x30:2x30x20 # or mb2m10n20k30 with deprecated matmul desc
 ```
 
 More examples with different driver options can be found at
