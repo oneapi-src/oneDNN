@@ -289,6 +289,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
             ++start;
             nd_iterator_step(osc, os_chunks, occ, oc_chunks);
         }
+        if (is_amx) amx_tile_release();
     });
 }
 
@@ -626,6 +627,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             ++start;
             nd_iterator_step(oss, os_chunks, icb, jbgp.nb_ic);
         }
+        if (is_amx) amx_tile_release();
     });
 
     if (jbgp.nthr_oc_b > 1) {
@@ -1122,6 +1124,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
         ker(osc, icc * jbgp.nb_ic_blocking + icb,
                 occ * jbgp.nb_oc_blocking + ocb);
     }
+    if (is_amx_bf16) amx_tile_release();
 }
 
 template <cpu_isa_t isa>
