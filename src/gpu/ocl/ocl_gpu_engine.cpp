@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <CL/cl.h>
 
 #include "gpu/ocl/ocl_gpu_engine.hpp"

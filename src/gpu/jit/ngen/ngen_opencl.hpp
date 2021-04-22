@@ -36,7 +36,7 @@ public:
 };
 class opencl_error : public std::runtime_error {
 public:
-    opencl_error(cl_int status_ = 0) : std::runtime_error("An OpenCL error occurred."), status(status_) {}
+    opencl_error(cl_int status_ = 0) : std::runtime_error("An OpenCL error occurred: " + std::to_string(status_)), status(status_) {}
 protected:
     cl_int status;
 };
@@ -72,17 +72,23 @@ static inline std::vector<uint8_t> getOpenCLCProgramBinary(cl_context context, c
         throw opencl_error();
 
     detail::handleCL(clBuildProgram(program, 1, &device, options, nullptr, nullptr));
-
-    size_t binarySize;
-    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES, sizeof(binarySize), &binarySize, nullptr));
-
-    std::vector<uint8_t> binary(binarySize);
-    const auto *binaryPtr = binary.data();
-    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_BINARIES, sizeof(binaryPtr), &binaryPtr, nullptr));
-
+    size_t nDevices = 0; 
+    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES, sizeof(size_t), &nDevices, nullptr));
+    std::vector<size_t> binarySize(nDevices);
+    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES, sizeof(size_t) * nDevices, binarySize.data(), nullptr));
+    std::vector<cl_device_id> devices(nDevices);
+    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_DEVICES, sizeof(cl_device_id) * nDevices, devices.data(), nullptr));
+    size_t deviceIdx = std::distance(devices.begin(), std::find(devices.begin(), devices.end(), device));
+    std::vector<uint8_t *> binaryPointers(nDevices); 
+    std::vector<std::vector<uint8_t>> binaries(nDevices);
+    for(size_t i =0; i < nDevices; ++i){
+        binaries[i].resize(binarySize[i]);
+        binaryPointers[i] = binaries[i].data();
+    }
+    
+    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_BINARIES, sizeof(uint8_t *) * nDevices , binaryPointers.data(), nullptr));
     detail::handleCL(clReleaseProgram(program));
-
-    return binary;
+    return binaries[deviceIdx];
 }
 
 inline bool tryZebin(cl_device_id device)
