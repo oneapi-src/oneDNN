@@ -53,10 +53,11 @@ struct static_params_t {
 };
 
 /*
- * Checks if isa is supported by binary injector.
+ * Checks if isa is supported by eltwise injector.
  */
 constexpr bool is_isa_supported(cpu_isa_t isa) {
-    return utils::one_of(isa, sse41, avx, avx2, avx512_common, avx512_core);
+    return utils::one_of(isa, sse41, avx, avx2, avx512_common, avx512_core,
+            avx512_core_bf16);
 }
 
 /*
