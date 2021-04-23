@@ -475,8 +475,7 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 
             auto policy_str = get_substr(subs, subs_pos);
             auto scale_str = policy_str + ":" + get_substr(subs, subs_pos);
-            auto status = e.convolution.oscale.from_str(scale_str);
-            if (status != OK) return status;
+            SAFE(e.convolution.oscale.from_str(scale_str), WARN);
         } else if (e.is_eltwise_kind()) {
             e.eltwise.alpha = std::stof(get_substr(subs, subs_pos));
             if (subs_pos == std::string::npos) continue;
@@ -495,7 +494,10 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
             e.binary.policy = str2policy(get_substr(subs, subs_pos));
+            if (e.binary.policy == POLICY_TOTAL) return FAIL;
         }
+        if (subs_pos == std::string::npos) continue;
+        if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
     }
     return OK;
 }
