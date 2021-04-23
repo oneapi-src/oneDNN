@@ -206,6 +206,7 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             nd_iterator_step(
                     b, bgmmc.batch, mc, bgmmc.M_chunks, nc, bgmmc.N_chunks);
         }
+        if (is_amx) { amx_tile_release(); }
     });
 
     return status::success;
