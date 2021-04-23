@@ -268,7 +268,7 @@ jit_pp_kernel_t<isa, acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
         dim_t dst_mb_stride, const primitive_attr_t *attr, data_type_t bias_dt,
         const memory_desc_t *dst_md, bool skip_sum)
     : pp_kernel_t<acc_type, dst_type>(
-            OC, MB, dst_mb_stride, attr, bias_dt, skip_sum) {
+            OC, MB, dst_mb_stride, attr, bias_dt, dst_md->ndims, skip_sum) {
     assert(IMPLICATION(dst_type == data_type::bf16, mayiuse(avx512_core)));
     assert(isa != avx512_common);
 

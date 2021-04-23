@@ -85,7 +85,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
     auto check_attr_oscale = [&]() -> bool {
         const auto &oscale = attr()->output_scales_;
         return oscale.mask_ == 0
-                || (oscale.mask_ == (1 << 1) && batched() == false);
+                || (oscale.mask_ == (1 << (dst_md()->ndims - 1)));
     };
 
     auto check_attr_post_ops = [&]() -> bool {
@@ -197,6 +197,8 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const float alpha = params.get_gemm_alpha(scales);
     const float beta = params.gemm_beta_;
     const dim_t acc_ldc = dst_is_acc ? ldc : N;
+    const int scale_idx_mult
+            = this->pd()->attr()->output_scales_.mask_ == (1 << (ndims - 1));
 
     std::atomic<status_t> st(status::success);
     // use parallel over batch when binary po with channel bcast
@@ -292,13 +294,13 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                             ? M * N * (cur_b / batch_without_dim0)
                                     + matrix_offset
                             : 0;
+                    const ptrdiff_t oc_off = i_work % N;
                     (*pp_kernel_)(curr_dst, curr_acc,
-                            bias
-                                    + static_cast<ptrdiff_t>(i_work % N)
-                                            * bia_dt_size,
-                            pp_scales, 0, dst_logical_off, dst_start_row_idx,
-                            gemm_M * gemm_N, static_cast<size_t>(N), ldc,
-                            nullptr, post_ops_binary_rhs_arg_vec.data(), dst,
+                            bias + oc_off * bia_dt_size,
+                            pp_scales + oc_off * scale_idx_mult, 0,
+                            dst_logical_off, dst_start_row_idx, gemm_M * gemm_N,
+                            static_cast<size_t>(N), ldc, nullptr,
+                            post_ops_binary_rhs_arg_vec.data(), dst,
                             matrix_per_first_batch_off, ctx, *pd()->dst_md());
                 }
                 i_work += gemm_M * gemm_N;

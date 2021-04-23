@@ -332,12 +332,12 @@ protected:
     }
 };
 
-struct post_ops_attr_test_t
+struct attr_test_t
     : public ::testing::TestWithParam<std::tuple<memory::dims, memory::dims,
-              memory::format_tag, memory::data_type>> {};
+              memory::format_tag, memory::data_type, int>> {};
 
-HANDLE_EXCEPTIONS_FOR_TEST_P(post_ops_attr_test_t,
-        TestMatmulShouldCallSameImplementationWithPostops) {
+HANDLE_EXCEPTIONS_FOR_TEST_P(
+        attr_test_t, TestMatmulShouldCallSameImplementationWithAttributes) {
     auto engine_kind = get_test_engine_kind();
     SKIP_IF(!DNNL_X64 || engine_kind != engine::kind::cpu,
             "Binary impl_info_str should be same only on x64 CPU");
@@ -362,10 +362,15 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(post_ops_attr_test_t,
     const float scale = 1.f;
     const float alpha = 1.f;
     const float beta = 1.f;
+    const float oscale = 1.5f;
+
+    const int ndims = std::get<4>(GetParam());
+    // per-channel output scales
+    std::vector<float> oscales(tensor_dims[1], oscale);
+    attr.set_output_scales(1 << (ndims - 1), oscales);
+
     dnnl::post_ops ops;
-
     ops.append_sum(1.0);
-
     ops.append_eltwise(scale, algorithm::eltwise_relu, alpha, beta);
 
     const auto &binary_po_tensor_dims = std::get<1>(GetParam());
@@ -628,20 +633,21 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(
         Generic_u8s8u8, iface, cases_x8(data_type::u8, data_type::u8));
 
-INSTANTIATE_TEST_SUITE_P(TensorDims, post_ops_attr_test_t,
+INSTANTIATE_TEST_SUITE_P(TensorDims, attr_test_t,
         ::testing::Values(
-                // {{src0, src1, dst same_dim}, { binary post-op dim }}
+                // {{src0, src1, dst same_dim}, { binary post-op dim }},
+                // format_tag, post-op data type, ndims
                 std::make_tuple(memory::dims {3, 2, 16, 16},
                         memory::dims {3, 1, 16, 16}, tag::abcd,
-                        memory::data_type::f32),
+                        memory::data_type::f32, 4),
                 std::make_tuple(memory::dims {9, 9, 64, 64},
                         memory::dims {9, 1, 64, 64}, tag::abcd,
-                        memory::data_type::f32),
+                        memory::data_type::f32, 4),
                 std::make_tuple(memory::dims {3, 2, 16, 16},
                         memory::dims {3, 2, 16, 16}, tag::abcd,
-                        memory::data_type::f32),
+                        memory::data_type::f32, 4),
                 std::make_tuple(memory::dims {2, 10, 10, 10},
                         memory::dims {2, 10, 10, 10}, tag::abcd,
-                        memory::data_type::bf16)));
+                        memory::data_type::bf16, 4)));
 
 } // namespace dnnl

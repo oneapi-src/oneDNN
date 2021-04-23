@@ -62,7 +62,8 @@ struct pp_kernel_t {
 
 protected:
     pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
-            const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum);
+            const primitive_attr_t *attr, data_type_t bias_dt,
+            const int dst_ndims, bool skip_sum);
 
     size_t OC_;
     size_t MB_;

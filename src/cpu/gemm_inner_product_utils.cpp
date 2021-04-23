@@ -36,9 +36,10 @@ namespace inner_product_utils {
 template <data_type_t acc_type, data_type_t dst_type>
 struct ref_pp_kernel_t : public pp_kernel_t<acc_type, dst_type> {
     ref_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
-            const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum)
+            const primitive_attr_t *attr, data_type_t bias_dt,
+            const int dst_ndims, bool skip_sum)
         : pp_kernel_t<acc_type, dst_type>(
-                OC, MB, dst_mb_stride, attr, bias_dt, skip_sum)
+                OC, MB, dst_mb_stride, attr, bias_dt, dst_ndims, skip_sum)
         , ref_post_ops_(this->do_sum_ || this->do_eltwise_ || this->do_binary_
                           ? utils::make_unique<ref_post_ops_t>(
                                   this->post_ops_, skip_sum)
@@ -132,13 +133,17 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
 template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC, size_t MB,
         dim_t dst_mb_stride, const primitive_attr_t *attr, data_type_t bias_dt,
-        bool skip_sum)
+        const int dst_ndims, bool skip_sum)
     : OC_(OC)
     , MB_(MB)
     , dst_mb_stride_(dst_mb_stride)
     , bias_data_type_(bias_dt) {
     do_scale_ = !attr->output_scales_.has_default_values();
-    if (do_scale_) scale_idx_mult_ = (attr->output_scales_.mask_ == (1 << 1));
+    if (do_scale_)
+        // PER_OC mask definition for matmul batched case
+        // also valid for ip because dst_ndims == 2
+        scale_idx_mult_
+                = (attr->output_scales_.mask_ == (1 << (dst_ndims - 1)));
 
     post_ops_ = attr->post_ops_;
     const int eltwise_ind = post_ops_.find(primitive_kind::eltwise);
@@ -169,7 +174,7 @@ pp_kernel_t<acc_type, dst_type> *pp_kernel_t<acc_type, dst_type>::create(
 #endif
 
     return new ref_pp_kernel_t<acc_type, dst_type>(
-            OC, MB, dst_mb_stride, attr, bias_dt, skip_sum);
+            OC, MB, dst_mb_stride, attr, bias_dt, dst_md->ndims, skip_sum);
 }
 
 using namespace data_type;
