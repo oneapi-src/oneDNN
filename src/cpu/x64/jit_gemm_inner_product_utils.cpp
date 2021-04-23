@@ -903,7 +903,6 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
         cmp(reg_tmp, reg_len);
         cmovg(reg_tmp, reg_len);
         sub(reg_len, reg_tmp);
-        maybe_advance_mb_stride();
         process_runtime_oc();
         rewind_ptrs();
     }
