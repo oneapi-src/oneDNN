@@ -1354,6 +1354,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const bool is_depthwise = with_groups && everyone_is(1, jcp.ic, jcp.oc);
     if (is_depthwise) return status::unimplemented;
 
+    // TODO: optimize grouped convolutions with small ic
+    const bool is_grouped_small_ic
+            = with_groups && jcp.ngroups > 1 && jcp.ic <= 16;
+    if (is_grouped_small_ic) return status::unimplemented;
+
     // TODO: support s8 by brgemm convolutions
     if (jcp.src_dt == s8) return status::unimplemented;
 
