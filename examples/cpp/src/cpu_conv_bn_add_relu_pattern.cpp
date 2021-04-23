@@ -128,6 +128,7 @@ int main(int argc, char **argv) {
     logical_tensor bn1_mean_desc {id_mgr["bn1_mean"], data_type::f32, conv1_bias_dims, layout_type::strided};
     logical_tensor bn1_var_desc {id_mgr["bn1_var"], data_type::f32, conv1_bias_dims, layout_type::strided};
     logical_tensor bn1_dst_desc {id_mgr["bn1_dst"], data_type::f32, conv1_dst_dims, layout_type::strided};
+    logical_tensor add0_src_desc {id_mgr["add0_src"], data_type::f32, input_dims, layout_type::strided};
     
     op bn1 {id_mgr["bn1"], op::kind::BatchNormInference, {conv1_dst_desc, bn1_scale_desc, bn1_shift_desc, bn1_mean_desc, bn1_var_desc}, {bn1_dst_desc}, "bn1"};
     bn1.set_attr<float>("epsilon", 0.f);
@@ -135,7 +136,7 @@ int main(int argc, char **argv) {
 
     logical_tensor add0_dst_desc {id_mgr["add0_dst"], data_type::f32, conv1_dst_dims, layout_type::strided};
 
-    op add0 {id_mgr["add0"], op::kind::Add, {bn1_dst_desc, conv0_src_desc}, {add0_dst_desc}, "add0"};
+    op add0 {id_mgr["add0"], op::kind::Add, {bn1_dst_desc, add0_src_desc}, {add0_dst_desc}, "add0"};
 
     logical_tensor relu1_dst_desc {id_mgr["relu1_dst"], data_type::f32, conv1_dst_dims, layout_type::strided};
     
