@@ -31,7 +31,7 @@
               src:common:16+src1:common:2, \
               src:common:8, \
               src1:common:4, \
-              src:common:16*_src1:common:2*
+              src:common:16*+src1:common:2*
 --attr-post-ops=
 --batch=option_set_all
 --batch=option_set_src0_bcast
