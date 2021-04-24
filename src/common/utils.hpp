@@ -629,14 +629,15 @@ struct device_id_hash_t {
 // get() method also has a 'soft' mode when the setting is not locked for
 // re-setting. This is used for testing purposes.
 template <typename T>
-struct set_before_first_get_setting_t {
+struct set_once_before_first_get_setting_t {
 private:
     T value_;
     std::atomic<unsigned> state_;
     enum : unsigned { idle = 0, busy_setting = 1, locked = 2 };
 
 public:
-    set_before_first_get_setting_t(T init) : value_ {init}, state_ {idle} {}
+    set_once_before_first_get_setting_t(T init)
+        : value_ {init}, state_ {idle} {}
 
     bool set(T new_value) {
         if (state_.load() == locked) return false;

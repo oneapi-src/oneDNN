@@ -52,8 +52,8 @@ cpu_isa_t init_max_cpu_isa() {
     return max_cpu_isa_val;
 }
 
-set_before_first_get_setting_t<cpu_isa_t> &max_cpu_isa() {
-    static set_before_first_get_setting_t<cpu_isa_t> max_cpu_isa_setting(
+set_once_before_first_get_setting_t<cpu_isa_t> &max_cpu_isa() {
+    static set_once_before_first_get_setting_t<cpu_isa_t> max_cpu_isa_setting(
             init_max_cpu_isa());
     return max_cpu_isa_setting;
 }
