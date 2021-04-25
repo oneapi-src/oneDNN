@@ -20,8 +20,13 @@ endif()
 
 enable_testing()
 
-append(CMAKE_CXX_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
+# propagate common compilation flags
 append(CMAKE_C_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
+append(CMAKE_CXX_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
+
+# propagate EXAMPLE specific flags
+append(CMAKE_C_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
+append(CMAKE_CXX_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     append_if(WIN32 CMAKE_CXX_FLAGS "/fp:precise")

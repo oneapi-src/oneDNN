@@ -141,16 +141,6 @@ include("cmake/utils.cmake")
 
 set(DNNL_GRAPH_COMMON_LINK_FLAGS)
 
-if(${COVERAGE_REPORT})
-    message("Compiling oneDNN Graph with coverage support")
-    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-fprofile-arcs -ftest-coverage")
-    set(DNNL_GRAPH_COMMON_LINK_FLAGS ${DNNL_GRAPH_COMMON_LINK_FLAGS}
-        -lgcov
-        -fprofile-arcs
-        -ftest-coverage
-        )
-endif()
-
 if(${DNNL_GRAPH_ENABLE_ASAN})
     message(STATUS "Build oneDNN Graph with AddressSanitizer")
     append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-fsanitize=address -fno-omit-frame-pointer -fno-var-tracking")
@@ -171,6 +161,7 @@ include("cmake/version.cmake")
 include("cmake/OpenMP.cmake")
 include("cmake/platform.cmake")
 include("cmake/SDL.cmake")
+include("cmake/coverage.cmake")
 
 enable_testing()
 

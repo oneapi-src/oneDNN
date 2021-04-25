@@ -44,9 +44,15 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         PROPERTIES COMPILE_FLAGS "-prec-div")
 endif()
 
-append(CMAKE_CXX_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
+# propagate common compilation flags
 append(CMAKE_C_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
+append(CMAKE_CXX_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
 
+# propagate SRC specific flags
+append(CMAKE_C_FLAGS "${CMAKE_SRC_CCXX_FLAGS}")
+append(CMAKE_CXX_FLAGS "${CMAKE_SRC_CCXX_FLAGS}")
+
+# propagate no warning flags
 append(CMAKE_C_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 

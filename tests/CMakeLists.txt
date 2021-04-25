@@ -39,6 +39,10 @@ if(WIN32 AND NOT MINGW)
 endif()
 
 # propagate TEST specific flags
+append(CMAKE_C_FLAGS "${CMAKE_TEST_CCXX_FLAGS}")
+append(CMAKE_CXX_FLAGS "${CMAKE_TEST_CCXX_FLAGS}")
+
+# propagate TEST specific flags
 append(CMAKE_C_FLAGS "${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 
