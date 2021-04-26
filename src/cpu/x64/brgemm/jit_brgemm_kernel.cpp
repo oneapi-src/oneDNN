@@ -67,7 +67,7 @@ struct jit_brgemm_kernel_base_t : public jit_generator {
                     this->param1, enabled_bcast_strategy, rhs_sp};
 
             postops_injector_ = utils::make_unique<
-                    injector::jit_uni_postops_injector_t<avx512_common>>(
+                    injector::jit_uni_postops_injector_t<avx512_core>>(
                     this, brg.attr->post_ops_, bsp);
 
             using namespace dnnl::impl::cpu::binary_injector_utils;
@@ -89,7 +89,7 @@ struct jit_brgemm_kernel_base_t : public jit_generator {
     brgemm_t brg;
 
 private:
-    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_common>>
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
             postops_injector_;
 
     using reg64_t = const Xbyak::Reg64;

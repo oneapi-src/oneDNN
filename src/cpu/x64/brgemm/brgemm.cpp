@@ -377,11 +377,12 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
 
     const int binary_ind = post_ops.find(primitive_kind::binary);
     brg->with_binary = binary_ind != -1;
+    const cpu_isa_t isa = get_max_cpu_isa_mask();
 
     if ((brg->with_binary && !dst_md)
             || !injector::post_ops_ok(
-                    post_ops_ok_args_t(avx512_common, {sum, eltwise, binary},
-                            post_ops, &dst_d, false /*sum_at_pos_0_only*/,
+                    post_ops_ok_args_t(isa, {sum, eltwise, binary}, post_ops,
+                            &dst_d, false /*sum_at_pos_0_only*/,
                             false /*sum_requires_scale_one*/,
                             {broadcasting_strategy_t::per_oc,
                                     broadcasting_strategy_t::scalar,
