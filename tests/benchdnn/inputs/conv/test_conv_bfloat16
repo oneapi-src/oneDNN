@@ -52,6 +52,10 @@
 
 --batch=harness_conv_dw_bfloat16
 
+## Per tensor post-op
+--skip-impl=  # TODO ! test everything until jit injector is available
+--attr-post-ops=add:bf16:per_tensor --batch=shapes_tails
+
 # Test src-transpose padding handling in bf16 bwd-w convolution
 --reset --mb=2
 --skip-impl="ref:gemm"

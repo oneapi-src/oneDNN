@@ -46,7 +46,13 @@
 --cfg=s8s8s32
 --attr-post-ops=sum:0.5+add:f32:common+abs+max:u8:per_oc
 --batch=shapes_tails
+--attr-post-ops=sum:0.5+add:f32:common+abs+max:u8:per_tensor
+--batch=shapes_tails
 
 --cfg=u8s8s8
 --attr-post-ops=add:s8:per_oc+add:s32+add:u8:per_oc+max:f32:per_oc
+--batch=shapes_resnet_50
+
+--skip-impl="ref:gemm"      # ! test jit version only
+--attr-post-ops=add:s8:per_tensor+add:s32+add:u8:per_tensor+max:f32:per_tensor
 --batch=shapes_resnet_50
