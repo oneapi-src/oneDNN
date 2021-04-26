@@ -259,6 +259,7 @@ struct mapped_ptr_t {
 
     operator T *() { return ptr_; }
     operator const T *() const { return ptr_; }
+    operator bool() const { return ptr_ != nullptr; }
 
 private:
     const memory *mem_;
@@ -666,22 +667,8 @@ public:
         }
         // Fill with a magic number to catch possible uninitialized access
         mapped_ptr_t<char> ptr(&mem_);
-        memset(ptr, 0xFF, size_);
+        if (ptr) memset(ptr, 0xFF, size_);
     }
-
-#if 0
-    template <typename malloc_t, typename free_t>
-    test_memory(const memory::desc &d, const dnnl::engine &e,
-            const malloc_t &f_malloc, const free_t &f_free) {
-        size_ = d.get_size();
-        data_.reset(static_cast<char *>(f_malloc(size_)), f_free);
-        mem_ = test::make_memory(d, e, data_.get());
-
-        // Fill with a magic number to catch possible uninitialized access
-        mapped_ptr_t<char> ptr(&mem_);
-        memset(ptr, 0xFF, size_);
-    }
-#endif
 
     size_t get_size() const { return size_; }
     const memory &get() const { return mem_; }
