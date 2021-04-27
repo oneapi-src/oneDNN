@@ -146,6 +146,7 @@ enum class cpu_isa_cmp_t {
 
 const char *get_isa_info();
 
+cpu_isa_t get_max_cpu_isa();
 cpu_isa_t DNNL_API get_max_cpu_isa_mask(bool soft = false);
 status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
 dnnl_cpu_isa_t get_effective_cpu_isa();

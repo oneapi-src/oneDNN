@@ -170,6 +170,10 @@ const char *get_isa_info() {
     return get_isa_info_t().get_name();
 }
 
+cpu_isa_t get_max_cpu_isa() {
+    return get_isa_info_t().isa;
+}
+
 cpu_isa_t get_max_cpu_isa_mask(bool soft) {
     MAYBE_UNUSED(soft);
 #ifdef DNNL_ENABLE_MAX_CPU_ISA

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 * Copyright 2020 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -98,6 +98,10 @@ static isa_info_t get_isa_info_t(void) {
 
 const char *get_isa_info() {
     return get_isa_info_t().get_name();
+}
+
+cpu_isa_t get_max_cpu_isa() {
+    return get_isa_info_t().isa;
 }
 
 cpu_isa_t get_max_cpu_isa_mask(bool soft) {
