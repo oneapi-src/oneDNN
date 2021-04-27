@@ -42,10 +42,10 @@ struct simple_concat_t : public gpu_primitive_t {
                     && set_default_params() == status::success;
             if (!ok) return status::unimplemented;
 
-            return init_conf(engine);
+            return init_conf();
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf();
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         concat_conf_t conf;
     };

@@ -38,8 +38,7 @@ bool is_same_axis_order(
     return true;
 }
 
-static status_t init_conf_common(
-        engine_t *engine, concat_conf_t &conf, const concat_pd_t *pd) {
+static status_t init_conf_common(concat_conf_t &conf, const concat_pd_t *pd) {
     using namespace utils;
 
     const memory_desc_wrapper dst_mdw(pd->dst_md());
@@ -141,26 +140,16 @@ static status_t init_conf_common(
         }
     }
 
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
-
+    if (conf.inner_axis % 16 || conf.inner_axis < 32)
+        return status::unimplemented;
     conf.data_type_size = (conf.inner_axis % 32 == 0) ? 4 : 2;
     conf.inner_axis /= conf.data_type_size;
 
     conf.dst_extern_dim_size
             = conf.dst_extern_dim_size * data_type_size / conf.data_type_size;
 
-    if (conf.inner_axis % 16 || conf.inner_axis < 32) {
-        if (compute_engine->device_info()->gpu_arch()
-                        > compute::gpu_arch_t::gen9
-                && data_type_size > 1) {
-            conf.simd = 1;
-            conf.block = 1;
-        } else
-            return status::unimplemented;
-    } else {
-        conf.simd = (conf.inner_axis % 16 == 0) ? 16 : 8;
-        conf.block = conf.simd * utils::max_div(conf.inner_axis / conf.simd, 8);
-    }
+    conf.simd = (conf.inner_axis % 16 == 0) ? 16 : 8;
+    conf.block = conf.simd * utils::max_div(conf.inner_axis / conf.simd, 8);
 
     conf.gws_d[0] = conf.inner_axis / conf.block * conf.simd;
     conf.gws_d[1] = extern_axis;
@@ -186,8 +175,8 @@ static status_t init_kernel_ctx_common(
     return status::success;
 }
 
-status_t simple_concat_t::pd_t::init_conf(engine_t *engine) {
-    return init_conf_common(engine, conf, this);
+status_t simple_concat_t::pd_t::init_conf() {
+    return init_conf_common(conf, this);
 }
 
 status_t simple_concat_t::pd_t::init_kernel_ctx(
