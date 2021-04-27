@@ -198,7 +198,7 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
                         broadcasting_strategy_t::per_mb_spatial);
         const bool supported_channel_bcast = IMPLICATION(
                 is_binary_po_channel_bcast, (*dst_d).ndims() == 4);
-        const cpu_isa_t isa = get_max_cpu_isa_mask();
+        const cpu_isa_t isa = get_max_cpu_isa();
         return supported_channel_bcast
                 && injector::post_ops_ok({isa, {binary, eltwise, sum}, post_ops,
                         dst_d, sum_at_pos_0_only, sum_requires_scale_one,

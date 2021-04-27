@@ -55,34 +55,17 @@ struct static_params_t {
 /*
  * Checks if isa is supported by eltwise injector.
  */
-constexpr bool is_isa_supported(cpu_isa_t isa) {
-    return utils::one_of(isa, sse41, avx, avx2, avx512_common, avx512_core,
-            avx512_core_bf16);
-}
+bool is_isa_supported(cpu_isa_t isa);
 
 /*
  * Checks if eltwise algorithm is supported by eltwise injector.
  */
-constexpr bool is_alg_supported(alg_kind_t alg) {
-    using namespace alg_kind;
-    return utils::one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
-            eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-            eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-            eltwise_logsigmoid, eltwise_mish, eltwise_exp, eltwise_gelu_tanh,
-            eltwise_hardswish, eltwise_swish, eltwise_log, eltwise_clip,
-            eltwise_clip_v2, eltwise_pow, eltwise_gelu_erf, eltwise_round,
-            eltwise_relu_use_dst_for_bwd, eltwise_tanh_use_dst_for_bwd,
-            eltwise_elu_use_dst_for_bwd, eltwise_sqrt_use_dst_for_bwd,
-            eltwise_logistic_use_dst_for_bwd, eltwise_exp_use_dst_for_bwd,
-            eltwise_clip_v2_use_dst_for_bwd);
-}
+bool is_alg_supported(alg_kind_t alg);
 
 /*
  * Checks if eltwise injection for given args is supported.
  */
-constexpr bool is_supported(cpu_isa_t isa, alg_kind_t alg) {
-    return is_isa_supported(isa) && is_alg_supported(alg);
-}
+bool is_supported(cpu_isa_t isa, alg_kind_t alg);
 
 } // namespace eltwise_injector
 

@@ -370,6 +370,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(post_ops_attr_test_t,
 
     const auto &binary_po_tensor_dims = std::get<1>(GetParam());
     const auto &binary_po_mem_dt = std::get<3>(GetParam());
+    SKIP_IF(unsupported_data_type(binary_po_mem_dt),
+            "Engine does not support this data type.");
     memory::desc src1_po_md(
             binary_po_tensor_dims, binary_po_mem_dt, format_tag);
     ops.append_binary(algorithm::binary_add, src1_po_md);

@@ -109,7 +109,7 @@ bool post_ops_ok(jit_brgemm_primitive_conf_t &jbgp,
 
     const auto &post_ops = attr.post_ops_;
 
-    return injector::post_ops_ok(post_ops_ok_args_t(get_max_cpu_isa_mask(),
+    return injector::post_ops_ok(post_ops_ok_args_t(get_max_cpu_isa(),
             {sum, eltwise, binary}, post_ops, &dst_d,
             false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
             {broadcasting_strategy_t::per_oc,
