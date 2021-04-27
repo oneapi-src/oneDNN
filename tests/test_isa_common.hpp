@@ -180,6 +180,18 @@ inline bool mayiuse(dnnl_cpu_isa_t isa, bool soft = false) {
     return mayiuse(static_cast<cpu_isa>(isa), soft);
 }
 
+inline cpu_isa get_max_cpu_isa(bool soft = false) {
+    for (auto it = cpu_isa_all().crbegin(); it != cpu_isa_all().crend(); it++) {
+        if (mayiuse(*it, soft)) return *it;
+    }
+
+    return cpu_isa::all;
+}
+
+inline impl::cpu::x64::cpu_isa_t get_max_cpu_isa_mask(bool soft = false) {
+    return impl::cpu::x64::get_max_cpu_isa_mask(soft);
+}
+
 #else
 
 inline bool is_superset(dnnl_cpu_isa_t isa_1, dnnl_cpu_isa_t isa_2) {

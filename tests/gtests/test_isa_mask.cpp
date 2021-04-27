@@ -27,45 +27,39 @@
 
 namespace dnnl {
 
-class isa_test_t : public ::testing::TestWithParam<cpu_isa> {
-protected:
-    void SetUp() override {
-        const cpu_isa cur_isa = ::testing::TestWithParam<cpu_isa>::GetParam();
-        const auto cur_internal_isa = cvt_to_internal_cpu_isa(cur_isa);
+TEST(isa_test_t, TestISA) {
 
-        // Use soft version of mayiuse that allows resetting the max_cpu_isa
-        const bool test_flag = true;
+    // Use soft version of mayiuse that allows resetting the max_cpu_isa
+    const bool test_flag = true;
+    const cpu_isa cur_isa = get_max_cpu_isa(test_flag);
 
-        status st = set_max_cpu_isa(cur_isa);
-        // status::unimplemented if the feature was disabled at compile time
-        if (st == status::unimplemented) return;
+    status st = set_max_cpu_isa(cur_isa);
+    // status::unimplemented if the feature was disabled at compile time
+    if (st == status::unimplemented) return;
 
-        ASSERT_TRUE(st == status::success);
+    ASSERT_TRUE(st == status::success);
 
-        const std::set<cpu_isa> &compatible_isa = compatible_cpu_isa(cur_isa);
-        const std::set<cpu_isa> &all_isa = cpu_isa_all();
+    const auto cur_internal_isa = get_max_cpu_isa_mask(test_flag);
 
-        std::set<cpu_isa> incompatible_isa;
-        std::set_difference(all_isa.cbegin(), all_isa.cend(),
-                compatible_isa.cbegin(), compatible_isa.cend(),
-                std::inserter(incompatible_isa, incompatible_isa.begin()));
+    const std::set<cpu_isa> &compatible_isa = compatible_cpu_isa(cur_isa);
+    const std::set<cpu_isa> &all_isa = cpu_isa_all();
 
-        for (const cpu_isa cmpt_isa : compatible_isa) {
-            const auto &internal_isa_set = masked_internal_cpu_isa(cmpt_isa);
-            for (auto internal_isa : internal_isa_set) {
-                ASSERT_TRUE(!mayiuse(cur_internal_isa, test_flag)
-                        || mayiuse(internal_isa, test_flag));
-            }
-        }
+    std::set<cpu_isa> incompatible_isa;
+    std::set_difference(all_isa.cbegin(), all_isa.cend(),
+            compatible_isa.cbegin(), compatible_isa.cend(),
+            std::inserter(incompatible_isa, incompatible_isa.begin()));
 
-        for (const cpu_isa incmpt_isa : incompatible_isa) {
-            ASSERT_TRUE(!mayiuse(incmpt_isa, test_flag));
+    for (const cpu_isa cmpt_isa : compatible_isa) {
+        const auto &internal_isa_set = masked_internal_cpu_isa(cmpt_isa);
+        for (auto internal_isa : internal_isa_set) {
+            ASSERT_TRUE((cur_internal_isa & internal_isa) == internal_isa);
         }
     }
-};
 
-TEST_P(isa_test_t, TestISA) {}
-INSTANTIATE_TEST_SUITE_P(TestISACompatibility, isa_test_t,
-        ::testing::ValuesIn(cpu_isa_all().cbegin(), cpu_isa_all().cend()));
+    for (const cpu_isa incmpt_isa : incompatible_isa) {
+        const auto &internal_isa = cvt_to_internal_cpu_isa(incmpt_isa);
+        ASSERT_TRUE((cur_internal_isa & internal_isa) != internal_isa);
+    }
+}
 
 } // namespace dnnl
