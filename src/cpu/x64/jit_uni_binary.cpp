@@ -198,6 +198,14 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
             && dst_d.is_dense(true);
     if (!ok) return false;
 
+    // TODO: fix implementation for tensor with paddings to work with any block
+    // size. For now return unimplemented if more than single blocking
+    // or `block size > 16`.
+    const auto &blk_d = dst_d.blocking_desc();
+    if (!dst_d.is_dense()
+            && (blk_d.inner_nblks > 1 || blk_d.inner_blks[0] > 16))
+        return false;
+
     if (!conf_.is_i8) {
         const bool has_padding = utils::one_of(true,
                 src0_d.nelems(true) != src0_d.nelems(false),
