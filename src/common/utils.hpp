@@ -633,32 +633,31 @@ struct set_before_first_get_setting_t {
 private:
     T value_;
     std::atomic<unsigned> state_;
-    enum : unsigned { idle = 0, busy_setting = 1, locked_after_a_get = 2 };
+    enum : unsigned { idle = 0, busy_setting = 1, locked = 2 };
 
 public:
     set_before_first_get_setting_t(T init) : value_ {init}, state_ {idle} {}
 
     bool set(T new_value) {
-        if (state_.load() == locked_after_a_get) return false;
+        if (state_.load() == locked) return false;
 
         while (true) {
             unsigned expected = idle;
             if (state_.compare_exchange_weak(expected, busy_setting)) break;
-            if (expected == locked_after_a_get) return false;
+            if (expected == locked) return false;
         }
 
         value_ = new_value;
-        state_.store(idle);
+        state_.store(locked);
         return true;
     }
 
     T get(bool soft = false) {
-        if (!soft && state_.load() != locked_after_a_get) {
+        if (!soft && state_.load() != locked) {
             while (true) {
                 unsigned expected = idle;
-                if (state_.compare_exchange_weak(expected, locked_after_a_get))
-                    break;
-                if (expected == locked_after_a_get) break;
+                if (state_.compare_exchange_weak(expected, locked)) break;
+                if (expected == locked) break;
             }
         }
         return value_;
