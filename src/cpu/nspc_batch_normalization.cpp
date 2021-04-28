@@ -147,10 +147,13 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
 
             acc_data_t *mean_loc = tmp_mean + nstl::max(C, (dim_t)16) * ithr;
 
-            for (dim_t c = 0; c < C; c++) {
-                mean_loc[c] = mean[c];
-                ws_reduce[C * ithr + c] = 0.;
+            if (ithr > 0 || save_stats) {
+                for (dim_t c = 0; c < C; c++)
+                    mean_loc[c] = mean[c];
             }
+
+            for (dim_t c = 0; c < C; c++)
+                ws_reduce[C * ithr + c] = 0.;
 
             for (dim_t n = N_s; n < N_e; n++) {
                 for (dim_t sp = 0; sp < SP; sp++) {
@@ -182,8 +185,10 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
         });
         parallel(nthr, [&](const int ithr, const int nthr) {
             acc_data_t *variance_loc = tmp_var + nstl::max(C, (dim_t)16) * ithr;
-            for (dim_t c = 0; c < C; c++)
-                variance_loc[c] = variance[c];
+            if (ithr > 0 || save_stats) {
+                for (dim_t c = 0; c < C; c++)
+                    variance_loc[c] = variance[c];
+            }
         });
     }
 
