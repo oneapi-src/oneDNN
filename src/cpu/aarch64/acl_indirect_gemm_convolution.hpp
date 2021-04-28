@@ -26,6 +26,7 @@
 
 #include "arm_compute/runtime/FunctionDescriptors.h"
 #include "arm_compute/runtime/NEON/NEFunctions.h"
+#include "arm_compute/runtime/Scheduler.h"
 
 namespace dnnl {
 namespace impl {
