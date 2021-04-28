@@ -30,8 +30,8 @@ __kernel void ref_prelu_fwd(const __global SRC_DATA_T *src,
     const int d5 = GWS_GET_D5();
 
     const unsigned data_off = OFF_MD(SRC, d0, d1, d2, d3, d4, d5);
-    const unsigned wei_off = OFF_MD(WEI, d0 % WEI_PD0, d1 % WEI_PD1,
-            d2 % WEI_PD2, d3 % WEI_PD3, d4 % WEI_PD4, d5 % WEI_PD5);
+    const unsigned wei_off = OFF_MD(WEI, d0 % WEI_D0, d1 % WEI_D1, d2 % WEI_D2,
+            d3 % WEI_D3, d4 % WEI_D4, d5 % WEI_D5);
 
     const float src_data = SRC_TO_REF(src[data_off]);
 
