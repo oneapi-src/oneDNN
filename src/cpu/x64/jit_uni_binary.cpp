@@ -478,7 +478,8 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
                                     : 0);
 
     if (op_type == op_t::c_blocked) {
-        const dim_t C_blocks = std::ceil(src0_d.padded_dims()[1] / simd_w);
+        const dim_t C_blocks = std::ceil(
+                static_cast<float>(src0_d.padded_dims()[1]) / simd_w);
         // Compute strategy:
         // Each block is individual - parallel over MB and C_blocks safely.
 
@@ -583,7 +584,8 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
             = utils::array_product(src0_d.padded_dims() + 1, ndims - 1);
 
     if (op_type == op_t::c_blocked) {
-        const dim_t C_blocks = std::ceil(src0_d.padded_dims()[1] / simd_w);
+        const dim_t C_blocks = std::ceil(
+                static_cast<float>(src0_d.padded_dims()[1]) / simd_w);
         // Compute strategy:
         // Each line of channels is individual, parallel over MB, C_blocks
         // and spatial (width and other spatial dims separately).
