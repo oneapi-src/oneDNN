@@ -83,18 +83,21 @@ extern const impl_list_map_t comp_f32_s8_impl_list_map;
 extern const impl_list_map_t comp_bf16_s8_impl_list_map;
 extern const impl_list_map_t comp_s8_s8_impl_list_map;
 
+// clang-format off
+
 #define REG_SR(idt, ifmt, odt, ofmt, ...) \
     impl_list_item_t(impl_list_item_t::reorder_type_deduction_helper_t< \
-            simple_reorder_t<idt, ifmt, odt, ofmt, __VA_ARGS__>::pd_t>())
+            simple_reorder_t<idt, ifmt, odt, ofmt, __VA_ARGS__>::pd_t>()),
 
 #define REG_SR_BIDIR(idt, ifmt, odt, ofmt) \
-    REG_SR(idt, ifmt, odt, ofmt, fmt_order::keep), \
-            REG_SR(idt, ifmt, odt, ofmt, fmt_order::reverse)
+    REG_SR(idt, ifmt, odt, ofmt, fmt_order::keep) \
+    REG_SR(idt, ifmt, odt, ofmt, fmt_order::reverse)
 
 #define REG_SR_DIRECT_COPY(idt, odt) \
-    REG_SR(idt, any, odt, any, fmt_order::any, spec::direct_copy), \
-            REG_SR(idt, any, odt, any, fmt_order::any, \
-                    spec::direct_copy_except_dim_0)
+    REG_SR(idt, any, odt, any, fmt_order::any, spec::direct_copy) \
+    REG_SR(idt, any, odt, any, fmt_order::any, spec::direct_copy_except_dim_0)
+
+// clang-format on
 
 #if defined(__INTEL_COMPILER) || (defined(__GNUC__) && !defined(__clang__))
 /* Direct copy for icc which is faster than jitted code;
@@ -102,21 +105,21 @@ extern const impl_list_map_t comp_s8_s8_impl_list_map;
  * code, but still worth it because doesn't require jitting, i.e. much
  * faster creation time. This is tentative solution and should be
  * removed later (when we will cache jitted code?...). */
-#define REG_FAST_DIRECT_COPY_F32_F32_COMMA REG_SR_DIRECT_COPY(f32, f32),
+#define REG_FAST_DIRECT_COPY_F32_F32 REG_SR_DIRECT_COPY(f32, f32)
 #else
-#define REG_FAST_DIRECT_COPY_F32_F32_COMMA
+#define REG_FAST_DIRECT_COPY_F32_F32
 #endif
 
 #ifdef __INTEL_COMPILER
 /* direct copy for icc, which is faster than jitted code */
-#define REG_FAST_DIRECT_COPY_COMMA(sdt, ddt) REG_SR_DIRECT_COPY(sdt, ddt),
+#define REG_FAST_DIRECT_COPY(sdt, ddt) REG_SR_DIRECT_COPY(sdt, ddt)
 #else
-#define REG_FAST_DIRECT_COPY_COMMA(sdt, ddt)
+#define REG_FAST_DIRECT_COPY(sdt, ddt)
 #endif
 
 #define CPU_REORDER_INSTANCE(...) \
     impl_list_item_t(impl_list_item_t::reorder_type_deduction_helper_t< \
-            __VA_ARGS__::pd_t>())
+            __VA_ARGS__::pd_t>()),
 
 } // namespace cpu
 } // namespace impl
