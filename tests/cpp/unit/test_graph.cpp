@@ -20,6 +20,8 @@
 
 #include "interface/c_types_map.hpp"
 #include "interface/graph.hpp"
+#include "interface/logical_tensor.hpp"
+#include "interface/value.hpp"
 #include "utils.hpp"
 
 #include "backend/dnnl/dnnl_backend.hpp"
@@ -293,4 +295,155 @@ TEST(graph_test, wildcard) {
     op.add_output(t1);
     ASSERT_EQ(agraph.add_op(&op), status::success);
     ASSERT_EQ(agraph.num_ops(), 1);
+}
+
+TEST(graph_test, get_input_output_edges) {
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
+    using ltw = dnnl::graph::impl::logical_tensor_wrapper;
+
+    graph_t agraph;
+    op_t op0 {0, Convolution, std::string("conv0")};
+    op_t op1 {1, Add, std::string("add0")};
+    op_t op2 {2, ReLU, std::string("relu0")};
+    op_t op3 {3, Wildcard, std::string("wildcard0")};
+
+    op0.set_attr<std::vector<int64_t>>("strides", {4, 4});
+    op0.set_attr<std::vector<int64_t>>("pads_begin", {111, 111});
+    op0.set_attr<std::vector<int64_t>>("pads_end", {111, 111});
+    op0.set_attr<std::string>("auto_pad", "VALID");
+    op0.set_attr<std::vector<int64_t>>("dilations", {1, 1});
+    op0.set_attr<std::string>("data_format", "NCX");
+    op0.set_attr<std::string>("filter_format", "OIX");
+    op0.set_attr<int64_t>("groups", 1);
+
+    // prepare logical tensor
+    logical_tensor_t src = logical_tensor_init(0, impl::data_type::f32);
+    logical_tensor_t weight = logical_tensor_init(1, impl::data_type::f32);
+    logical_tensor_t bias = logical_tensor_init(2, impl::data_type::f32);
+    logical_tensor_t other = logical_tensor_init(3, impl::data_type::f32);
+    logical_tensor_t conv_dst = logical_tensor_init(4, impl::data_type::f32);
+    logical_tensor_t add_dst = logical_tensor_init(5, impl::data_type::f32);
+    logical_tensor_t dst = logical_tensor_init(6, impl::data_type::f32);
+
+    op0.add_input(src);
+    op0.add_input(weight);
+    op0.add_input(bias);
+    op0.add_output(conv_dst);
+
+    op1.add_input(conv_dst);
+    op1.add_input(other);
+    op1.add_output(add_dst);
+
+    op2.add_input(add_dst);
+    op2.add_output(dst);
+
+    op3.add_input(conv_dst);
+
+    ASSERT_EQ(agraph.add_op(&op0), status::success);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
+    ASSERT_EQ(agraph.add_op(&op2), status::success);
+    ASSERT_EQ(agraph.add_op(&op3), status::success);
+    ASSERT_EQ(agraph.num_ops(), 4);
+    agraph.build_graph();
+
+    auto ops = agraph.get_ops();
+    ops.pop_back();
+    graph_t subgraph(ops);
+    ASSERT_EQ(subgraph.num_ops(), 3);
+
+    auto in_vals = subgraph.get_input_values();
+    ASSERT_EQ(in_vals.size(), 4);
+    ASSERT_EQ(ltw(in_vals[0]->get_logical_tensor()), ltw(src));
+    ASSERT_EQ(ltw(in_vals[1]->get_logical_tensor()), ltw(weight));
+    ASSERT_EQ(ltw(in_vals[2]->get_logical_tensor()), ltw(bias));
+    ASSERT_EQ(ltw(in_vals[3]->get_logical_tensor()), ltw(other));
+
+    auto out_vals = subgraph.get_output_values();
+    ASSERT_EQ(out_vals.size(), 2);
+    logical_tensor_t out_lt1 = out_vals[0]->get_logical_tensor();
+    logical_tensor_t out_lt2 = out_vals[1]->get_logical_tensor();
+    if (out_lt1.id == 6)
+        ASSERT_EQ(out_lt2.id, 4);
+    else if (out_lt1.id == 4)
+        ASSERT_EQ(out_lt2.id, 6);
+    else
+        ASSERT_TRUE(false);
+}
+
+TEST(graph_pass_test, infer_shape) {
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
+    using ltw = dnnl::graph::impl::logical_tensor_wrapper;
+
+    std::vector<int64_t> src_shape {8, 3, 227, 227};
+    std::vector<int64_t> weight_shape {96, 3, 11, 11};
+    std::vector<int64_t> bias_shape {96};
+    std::vector<int64_t> dst_shape {8, 96, 55, 55};
+
+    graph_t agraph;
+    op_t op0 {0, Convolution, std::string("conv0")};
+    op_t op1 {1, Add, std::string("add0")};
+    op_t op2 {2, ReLU, std::string("relu0")};
+
+    op0.set_attr<std::vector<int64_t>>("strides", {4, 4});
+    op0.set_attr<std::vector<int64_t>>("pads_begin", {111, 111});
+    op0.set_attr<std::vector<int64_t>>("pads_end", {111, 111});
+    op0.set_attr<std::string>("auto_pad", "VALID");
+    op0.set_attr<std::vector<int64_t>>("dilations", {1, 1});
+    op0.set_attr<std::string>("data_format", "NCX");
+    op0.set_attr<std::string>("filter_format", "OIX");
+    op0.set_attr<int64_t>("groups", 1);
+
+    // prepare logical tensor
+    logical_tensor_t src
+            = logical_tensor_init(0, src_shape, impl::data_type::f32);
+    logical_tensor_t weight
+            = logical_tensor_init(1, weight_shape, impl::data_type::f32);
+    logical_tensor_t bias
+            = logical_tensor_init(2, bias_shape, impl::data_type::f32);
+    logical_tensor_t other
+            = logical_tensor_init(3, dst_shape, impl::data_type::f32);
+    logical_tensor_t conv_dst = logical_tensor_init(4, impl::data_type::f32);
+    logical_tensor_t add_dst = logical_tensor_init(5, impl::data_type::f32);
+    logical_tensor_t dst = logical_tensor_init(6, impl::data_type::f32);
+
+    op0.add_input(src);
+    op0.add_input(weight);
+    op0.add_input(bias);
+    op0.add_output(conv_dst);
+
+    op1.add_input(conv_dst);
+    op1.add_input(other);
+    op1.add_output(add_dst);
+
+    op2.add_input(add_dst);
+    op2.add_output(dst);
+
+    ASSERT_EQ(agraph.add_op(&op0), status::success);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
+    ASSERT_EQ(agraph.add_op(&op2), status::success);
+    ASSERT_EQ(agraph.num_ops(), 3);
+    agraph.build_graph();
+
+    auto in_vals = agraph.get_input_values();
+    ASSERT_EQ(in_vals.size(), 4);
+    ASSERT_EQ(ltw(in_vals[0]->get_logical_tensor()), ltw(src));
+    ASSERT_EQ(ltw(in_vals[1]->get_logical_tensor()), ltw(weight));
+    ASSERT_EQ(ltw(in_vals[2]->get_logical_tensor()), ltw(bias));
+    ASSERT_EQ(ltw(in_vals[3]->get_logical_tensor()), ltw(other));
+
+    ASSERT_EQ(agraph.infer_shape(), status::success);
+
+    auto out_vals = agraph.get_output_values();
+    ASSERT_EQ(out_vals.size(), 1);
+    logical_tensor_t out_lt = out_vals[0]->get_logical_tensor();
+    ASSERT_EQ(out_lt.id, 6);
+    ASSERT_EQ(out_lt.ndims, 4);
+    ASSERT_EQ(out_lt.dims[0], 8);
+    ASSERT_EQ(out_lt.dims[1], 96);
+    ASSERT_EQ(out_lt.dims[2], 55);
+    ASSERT_EQ(out_lt.dims[3], 55);
 }

@@ -425,6 +425,7 @@ void topo_order_visit(const std::vector<op_t *> &root_ops, const FUN &f) {
         }
         if (ready) {
             todo.pop();
+            // TODO(xx) need check the return status of f
             f(top);
             visited.insert(top);
         }

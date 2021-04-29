@@ -18,6 +18,7 @@
 #define INTERFACE_GRAPH_HPP
 
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -33,11 +34,19 @@
 #include "op_schema.hpp"
 #include "partition.hpp"
 #include "partition_impl.hpp"
+#include "utils.hpp"
 #include "utils/compatible.hpp"
+#include "value.hpp"
 
 struct dnnl_graph_graph : public dnnl_graph_id {
     using op_t = dnnl::graph::impl::op_t;
+    using value_t = dnnl::graph::impl::value_t;
     using op_ptr = std::shared_ptr<op_t>;
+    using value_ptr = std::shared_ptr<value_t>;
+    using logical_tensor_t = dnnl::graph::impl::logical_tensor_t;
+    using logical_tensor_wrapper = dnnl::graph::impl::logical_tensor_wrapper;
+    using op_schema = dnnl::graph::impl::op_schema;
+    using op_schema_registry = dnnl::graph::impl::op_schema_registry;
 
 private:
     /*! \brief added ops*/
@@ -62,6 +71,8 @@ public:
         , ops_(deep_copy(other.ops_))
         , engine_kind_(other.engine_kind_)
         , partition_impls_(other.partition_impls_) {};
+
+    dnnl_graph_graph(const std::vector<op_ptr> &ops) : ops_(ops) {};
 
     dnnl_graph_graph &operator=(const dnnl_graph_graph &other) = delete;
 
@@ -140,6 +151,65 @@ public:
         return outputs;
     }
 
+    /*!
+     * \brief Get the input values (values whose producer are not in the graph)
+     * of this graph.
+     * \return vector of input values pointers
+     */
+    std::vector<value_t *> get_input_values() {
+        std::vector<value_t *> in_vals;
+        for (const op_ptr &n : ops_) {
+            for (const value_ptr &in_val : n->get_input_values()) {
+                if (!in_val->has_producer()) {
+                    in_vals.emplace_back(in_val.get());
+                    continue;
+                }
+
+                op_t &producer = in_val->get_producer();
+                if (std::none_of(ops_.begin(), ops_.end(),
+                            [&producer](const op_ptr &op) {
+                                return op.get() == &producer;
+                            })) {
+                    in_vals.emplace_back(in_val.get());
+                }
+            }
+        }
+
+        return in_vals;
+    }
+
+    /*!
+     * \brief Get the output values (values whose comsumers are not all in the
+     * graph) of this graph.
+     * \return vector of output values pointers
+     */
+    std::vector<value_t *> get_output_values() {
+        std::vector<value_t *> out_vals;
+        for (const op_ptr &n : ops_) {
+            for (const value_ptr &out_val : n->get_output_values()) {
+                std::vector<value_t::consumer_t> consumers
+                        = out_val->get_consumers();
+
+                bool has_outer_consumer = false;
+                for (const value_t::consumer_t &csm : consumers) {
+                    op_t &csm_op = csm.get_op();
+                    if (std::none_of(ops_.begin(), ops_.end(),
+                                [&csm_op](const op_ptr &op) {
+                                    return op.get() == &csm_op;
+                                })) {
+                        has_outer_consumer = true;
+                        break;
+                    }
+                }
+
+                if (consumers.empty() || has_outer_consumer)
+                    out_vals.emplace_back(out_val.get());
+            }
+        }
+
+        return out_vals;
+    }
+
     void add_partition(
             const std::shared_ptr<dnnl::graph::impl::partition_impl_t> &pimpl) {
         partition_impls_.push_back(pimpl);
@@ -169,6 +239,59 @@ public:
     dnnl::graph::impl::status_t build_graph();
 
     void visualize(const std::string &filename);
+
+    // This function is used to infer shape for all the ops in a graph.
+    // Before calling this function, the inputs value of the graph should
+    // have valid shape
+    dnnl::graph::impl::status_t infer_shape() {
+        using value_ptr = std::shared_ptr<value_t>;
+
+        // Check inputs shape
+        for (value_t *in : get_input_values()) {
+            logical_tensor_t lt = in->get_logical_tensor();
+            if (logical_tensor_wrapper(lt).is_shape_unknown())
+                return dnnl::graph::impl::status::invalid_shape;
+        }
+
+        // call each op's infer shape function in topological order
+        impl::topo_order_visit(get_output_ops(), [](impl::op_t *op) {
+            std::vector<logical_tensor_t> tmp_inputs, tmp_outputs;
+            std::vector<logical_tensor_t *> tmp_inputs_ptr, tmp_outputs_ptr;
+
+            // avoid re-allocating
+            tmp_inputs.reserve(op->num_inputs());
+            tmp_outputs.reserve(op->num_outputs());
+            tmp_inputs_ptr.reserve(op->num_inputs());
+            tmp_outputs_ptr.reserve(op->num_inputs());
+
+            for (const value_ptr &in : op->get_input_values()) {
+                tmp_inputs.emplace_back(in->get_logical_tensor());
+                tmp_inputs_ptr.emplace_back(&tmp_inputs.back());
+            }
+            for (const value_ptr &out : op->get_output_values()) {
+                tmp_outputs.emplace_back(out->get_logical_tensor());
+                tmp_outputs_ptr.emplace_back(&tmp_outputs.back());
+            }
+
+            const op_schema *opm
+                    = op_schema_registry::get_op_schema(op->get_kind());
+            assertm(opm, "can't infer shape for cur op: no schema");
+
+            dnnl::graph::impl::status_t ret
+                    = opm->shape_infer(op, tmp_inputs_ptr, tmp_outputs_ptr);
+            assertm(ret == dnnl::graph::impl::status::success,
+                    ("infer shape failed for op: " + op->get_name()));
+
+            for (size_t i = 0; i < op->num_outputs(); i++) {
+                op->get_output_value(i)->set_dims(
+                        logical_tensor_wrapper(tmp_outputs[i]).vdims());
+            }
+
+            return ret;
+        });
+
+        return dnnl::graph::impl::status::success;
+    }
 
     static std::vector<op_ptr> deep_copy(const std::vector<op_ptr> &ops);
 };

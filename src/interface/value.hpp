@@ -46,6 +46,13 @@ public:
 
     logical_tensor_t get_logical_tensor() const { return val_; }
 
+    void set_dims(const std::vector<dim_t> &dims) {
+        val_.ndims = static_cast<int>(dims.size());
+        for (size_t d = 0; d < dims.size(); ++d) {
+            val_.dims[d] = dims[d];
+        }
+    }
+
     op_t &get_producer() const { return *producer_; }
     void set_producer(op_t &producer) { producer_ = &producer; }
     void reset_producer() { producer_ = nullptr; }
