@@ -69,14 +69,17 @@
 // clang-format on
 
 #if defined(DNNL_CPU_RUNTIME) && defined(DNNL_GPU_RUNTIME)
-#if (DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE) \
-        || (DNNL_CPU_RUNTIME == DNNL_RUNTIME_OCL)
+#if (DNNL_CPU_RUNTIME == DNNL_RUNTIME_OCL)
 #error "Unexpected DNNL_CPU_RUNTIME"
 #endif
 #if (DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE) \
         && (DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL) \
         && (DNNL_GPU_RUNTIME != DNNL_RUNTIME_SYCL)
 #error "Unexpected DNNL_GPU_RUNTIME"
+#endif
+#if (DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE \
+        && DNNL_GPU_RUNTIME == DNNL_RUNTIME_NONE)
+#error "At least one runtime must be specified"
 #endif
 #else
 #error "BOTH DNNL_CPU_RUNTIME and DNNL_GPU_RUNTIME must be defined"
