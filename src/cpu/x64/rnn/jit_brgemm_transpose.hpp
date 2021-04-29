@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_RNN_JIT_GATES_REDUCTION_HPP
-#define CPU_X64_RNN_JIT_GATES_REDUCTION_HPP
+#ifndef CPU_X64_RNN_JIT_BRGEMM_TRANSPOSE_HPP
+#define CPU_X64_RNN_JIT_BRGEMM_TRANSPOSE_HPP
 
 #include <vector>
 #include "cpu/x64/jit_generator.hpp"
@@ -29,26 +29,16 @@ struct rnn_conf_t;
 
 namespace x64 {
 
-/*
- * Used in gates reduction phase during backward rnn/lstm calculations.
- * Fused into diff weights calculations. Performing diff_bias calculations.
- *
- * diff_bias = scratch_blocked reduction over mb
- *
- * Data formats
- * scratch_blocked Oi32o(f32)/OI32o2i(bf16) (n_gates * rnn.dhc, mb)
- * diff_bias = o(n_gates * rnn.dhc)
- */
-class jit_gates_reduction_t : public jit_generator {
+class jit_brgemm_transpose_t : public jit_generator {
 public:
-    jit_gates_reduction_t(const rnn_utils::rnn_conf_t &rnn, bool is_n_tail);
+    jit_brgemm_transpose_t(const int m_block);
 
     struct call_params_t {
         const void *src = nullptr;
         void *dst = nullptr;
     };
 
-    void operator()(jit_gates_reduction_t::call_params_t *params) const {
+    void operator()(jit_brgemm_transpose_t::call_params_t *params) const {
         jit_generator::operator()(params);
     }
 
@@ -56,33 +46,26 @@ private:
     std::vector<Xbyak::Zmm> reserve_acc_regs();
     void generate() override;
     void load_addresses();
-    void init();
-    void store_data();
     void compute_loop();
-    void compute(dim_t unrolling);
-    void compute_step(
-            const Xbyak::Zmm &acc, const Xbyak::Address &addr, bool tail);
-    size_t reserve_vmm();
+    void compute(const dim_t unrolling, const bool is_tail);
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_gates_reduction_t)
-    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_gates_reduction_t);
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_transpose_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_brgemm_transpose_t);
 
     static constexpr dim_t simd_w_ = 16;
+    static constexpr dim_t vmms_available_ = 32;
 
-    size_t number_reserved_vmms_ = 0;
-    const rnn_utils::rnn_conf_t &rnn_;
-    const bool is_n_tail_;
-    const dim_t n_block_;
-    const dim_t n_simd_w_blks_;
-    const dim_t n_tail_;
+    const int m_block_;
+    const int full_loop_iters_;
+    const int tail_;
+    const int k_blocks_nb_;
 
     const Xbyak::Reg64 &reg_src_ = r8;
     const Xbyak::Reg64 &reg_dst_ = r9;
+
     const Xbyak::Reg64 &reg_tmp_ = r10;
-    const Xbyak::Reg64 &reg_loop_ = r11;
-    const Xbyak::Opmask &tail_mask_ = k3;
-    const Xbyak::Zmm bf16_ones_;
-    std::vector<Xbyak::Zmm> acc_regs_;
+    const Xbyak::Reg64 &reg_full_loop_ = r11;
+    const Xbyak::Opmask &tail_mask_ = k1;
 };
 
 } // namespace x64

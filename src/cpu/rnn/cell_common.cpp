@@ -792,7 +792,6 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 rnn, rnn.slc, rnn.src_layer_ld(cell_position));
         const auto iter_transpose = src_layer_iter_transpose_t(
                 rnn, rnn.sic, rnn.src_iter_ld(cell_position));
-
         layer_transpose.execute_in_parallel(src_layer_, scratch_src_layer_);
         iter_transpose.execute_in_parallel(src_iter_, scratch_src_iter_);
     }
@@ -803,8 +802,6 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     // diff_bias = scratch reduction over mb
     diff_weights_calc.execute();
 #endif
-
-    // gates_reduction(rnn, scratch_gates_, diff_bias_);
 
     return dnnl_success;
 }

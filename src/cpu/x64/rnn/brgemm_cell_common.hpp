@@ -207,6 +207,8 @@ private:
     const rnn_utils::cell_position_t cell_position_;
     const jit_gates_reduction_t *const kernel_gates_reduction_;
     const jit_gates_reduction_t *const kernel_gates_reduction_tail_;
+    const jit_brgemm_transpose_t *const kernel_transpose_iter_;
+    const jit_brgemm_transpose_t *const kernel_transpose_layer_;
     gemm_acc_t *const amx_scratchpad_;
     brgemm_batch_element_t *const addr_batch_global_;
 };

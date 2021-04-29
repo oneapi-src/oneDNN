@@ -511,9 +511,6 @@ private:
 #endif
     void execute_(const exec_ctx_t &ctx) const;
 
-    void prepare_scratch_gates_blocked(const exec_ctx_t &ctx,
-            scratch_t *scratch_gates_blocked, scratch_t *scratch_gates) const;
-
     rnn_grid_execution_sig(linear_execution);
     rnn_cell_execution_sig(cell_execution_ref);
     rnn_cell_execution_sig(cell_execution_brgemm_fwd);

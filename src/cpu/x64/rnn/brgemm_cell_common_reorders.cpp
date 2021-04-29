@@ -30,8 +30,8 @@ void scratch_gates_blocked_reorder_t::execute(
     const auto &d_wei = rnn_.diff_wei_brgemm;
     const auto I = rnn_.mb;
     const auto O = n_tail ? d_wei.n_tail : d_wei.n_block;
-    const auto o_block = 32;
-    const auto i_block = 4 / sizeof(Dt);
+    const int o_block = 32;
+    const int i_block = 4 / sizeof(Dt);
 
     for (int ib = 0; ib < I; ib += i_block) {
         const auto off_plain = ib * ld_GO;
@@ -63,13 +63,11 @@ void src_layer_iter_transpose_t::execute<bfloat16_t>(
     const int O = m_block_;
     const int I = rnn_.mb;
 
-    if (rnn_.mb == 1) {
-        uint32_t *dst_32 = reinterpret_cast<uint32_t *>(dst);
-        for (int o = 0; o < O; o++) {
-            const uint32_t inp = static_cast<uint32_t>(src[o].raw_bits_);
-            uint32_t &out = dst_32[o];
-            out = inp;
-        }
+    if (rnn_.mb == 1 && kernel_transpose_) {
+        jit_brgemm_transpose_t::call_params_t params;
+        params.src = reinterpret_cast<const void *>(src);
+        params.dst = reinterpret_cast<void *>(dst);
+        (*kernel_transpose_)(&params);
     } else {
         const auto I_extended = utils::rnd_up(I, 2);
         const bool add_extra_column = (I_extended > I);

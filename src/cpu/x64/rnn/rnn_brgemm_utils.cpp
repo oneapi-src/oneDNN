@@ -974,6 +974,25 @@ void rnn_brgemm_t<prop_kind::backward>::init_kernels(
                         rnn, true /*n_tail*/);
         kernel_gates_reduction_tail_->create_kernel();
     }
+
+    if (rnn.mb == 1 && src_type == data_type::bf16) {
+        const bool is_m_block_equal = rnn.slc == rnn.sic;
+        const auto m_block_iter = is_m_block_equal ? rnn.diff_wei_brgemm.m_block
+                                                   : rnn.diff_wei_brgemm.M_iter;
+
+        kernel_transpose_iter_
+                = utils::make_unique<jit_brgemm_transpose_t>(m_block_iter);
+        kernel_transpose_iter_->create_kernel();
+
+        if (!is_m_block_equal) {
+            const auto m_block_layer = is_m_block_equal
+                    ? rnn.diff_wei_brgemm.m_block
+                    : rnn.diff_wei_brgemm.M_layer;
+            kernel_transpose_layer_
+                    = utils::make_unique<jit_brgemm_transpose_t>(m_block_layer);
+            kernel_transpose_layer_->create_kernel();
+        }
+    }
 }
 
 } // namespace rnn_brgemm_utils

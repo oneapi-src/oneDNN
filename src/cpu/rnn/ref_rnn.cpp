@@ -1373,7 +1373,7 @@ rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_ref);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_brgemm_fwd);
 template <>
-rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_brgemm_bwd);
+rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_brgemm_bwd);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_gru);
 template <>

@@ -441,6 +441,10 @@ brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
     , kernel_gates_reduction_(rnn_brgemm.kernel_gates_reduction_.get())
     , kernel_gates_reduction_tail_(
               rnn_brgemm.kernel_gates_reduction_tail_.get())
+    , kernel_transpose_iter_(rnn_brgemm.kernel_transpose_iter_.get())
+    , kernel_transpose_layer_(rnn_brgemm.kernel_transpose_layer_
+                      ? rnn_brgemm.kernel_transpose_layer_.get()
+                      : kernel_transpose_iter_)
     , amx_scratchpad_(amx_scratchpad)
     , addr_batch_global_(addr_batch_global) {}
 
@@ -491,10 +495,12 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
             = addr_batch_global_ + ithr * (k_blocks_ + 1);
 
     const scratch_gates_blocked_reorder_t scratch_gates_blocked_reorder {rnn_};
-    const auto src_layer_transpose = src_layer_iter_transpose_t(
-            rnn_, m_layer_block_, rnn_.src_layer_ld(cell_position_));
-    const auto src_iter_transpose = src_layer_iter_transpose_t(
-            rnn_, m_iter_block_, rnn_.src_iter_ld(cell_position_));
+    const auto src_layer_transpose
+            = src_layer_iter_transpose_t(rnn_, m_layer_block_,
+                    rnn_.src_layer_ld(cell_position_), kernel_transpose_layer_);
+    const auto src_iter_transpose
+            = src_layer_iter_transpose_t(rnn_, m_iter_block_,
+                    rnn_.src_iter_ld(cell_position_), kernel_transpose_iter_);
 
     while (start < end) {
         const bool should_reorder_gates = last_n_block_id != n_block_id;
@@ -553,12 +559,13 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
 
         for (int k_block_id = 0; k_block_id < k_blocks_; k_block_id++) {
             addr_batch[k_block_id].ptr.A
-                    = A_iter_transposed + k_block_id * k_block_;
+                    = (A_iter_transposed) + k_block_id * k_block_;
             addr_batch[k_block_id].ptr.B
                     = B_blocked + k_block_id * B_kb_offset_;
         }
-        if (should_transpose_src)
+        if (should_transpose_src) {
             src_iter_transpose.execute(A_iter_m, A_iter_transposed);
+        }
         brgemm_kernel_execute(kernel_iter, k_blocks_, addr_batch,
                 reinterpret_cast<void *>(C_diff_iter_n), nullptr);
 
@@ -568,8 +575,9 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
             addr_batch[k_block_id].ptr.B
                     = B_blocked + k_block_id * B_kb_offset_;
         }
-        if (should_transpose_src)
+        if (should_transpose_src) {
             src_layer_transpose.execute(A_layer_m, A_layer_transposed);
+        }
         brgemm_kernel_execute(kernel_layer, k_blocks_, addr_batch,
                 reinterpret_cast<void *>(C_diff_layer_n), nullptr);
 
@@ -633,10 +641,12 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
     const scratch_gates_blocked_reorder_t scratch_gates_blocked_reorder {rnn_};
     amx_tile_configuration_loader_t load_cfg_if_needed;
 
-    const auto src_layer_transpose = src_layer_iter_transpose_t(
-            rnn_, m_layer_block_, rnn_.src_layer_ld(cell_position_));
-    const auto src_iter_transpose = src_layer_iter_transpose_t(
-            rnn_, m_iter_block_, rnn_.src_iter_ld(cell_position_));
+    const auto src_layer_transpose
+            = src_layer_iter_transpose_t(rnn_, m_layer_block_,
+                    rnn_.src_layer_ld(cell_position_), kernel_transpose_layer_);
+    const auto src_iter_transpose
+            = src_layer_iter_transpose_t(rnn_, m_iter_block_,
+                    rnn_.src_iter_ld(cell_position_), kernel_transpose_iter_);
 
     while (start < end) {
         const bool should_reorder_gates = last_n_block_id != n_block_id;
@@ -652,10 +662,10 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
                 ? A_layer_transposed_ithr + m_layer * LDA_layer_
                 : A_layer_ + m_layer;
 
-        src_iter_t *const A_iter_transposed = global_transpose
+        src_iter_t *const A_iter_transposed = (global_transpose)
                 ? const_cast<src_iter_t *>(A_iter_m)
                 : A_iter_transposed_ithr;
-        src_layer_t *const A_layer_transposed = global_transpose
+        src_layer_t *const A_layer_transposed = (global_transpose)
                 ? const_cast<src_layer_t *>(A_layer_m)
                 : A_layer_transposed_ithr;
 
@@ -722,8 +732,10 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
             addr_batch[k_block_id].ptr.B
                     = B_blocked + k_block_id * B_kb_offset_;
         }
-        if (should_transpose_src)
+        if (should_transpose_src) {
             src_iter_transpose.execute(A_iter_m, A_iter_transposed);
+        }
+
         load_cfg_if_needed(kernel_iter_config);
         brgemm_kernel_execute(kernel_iter, k_blocks_, addr_batch,
                 reinterpret_cast<void *>(C_diff_iter_n), amx_buffer);
@@ -735,8 +747,10 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
                     = B_blocked + k_block_id * B_kb_offset_;
         }
 
-        if (should_transpose_src)
+        if (should_transpose_src) {
             src_layer_transpose.execute(A_layer_m, A_layer_transposed);
+        }
+
         load_cfg_if_needed(kernel_layer_config);
         brgemm_kernel_execute(kernel_layer, k_blocks_, addr_batch,
                 reinterpret_cast<void *>(C_diff_layer_n), amx_buffer);

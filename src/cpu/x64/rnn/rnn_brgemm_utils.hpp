@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
+#include "cpu/x64/rnn/jit_brgemm_transpose.hpp"
 #include "cpu/x64/rnn/jit_gates_reduction.hpp"
 
 namespace dnnl {
@@ -180,6 +181,9 @@ struct rnn_brgemm_t<prop_kind::backward> : public rnn_brgemm_base_t {
 
     std::unique_ptr<jit_gates_reduction_t> kernel_gates_reduction_;
     std::unique_ptr<jit_gates_reduction_t> kernel_gates_reduction_tail_;
+
+    std::unique_ptr<jit_brgemm_transpose_t> kernel_transpose_iter_;
+    std::unique_ptr<jit_brgemm_transpose_t> kernel_transpose_layer_;
 };
 
 } // namespace rnn_brgemm_utils
