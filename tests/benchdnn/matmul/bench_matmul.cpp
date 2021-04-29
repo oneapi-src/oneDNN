@@ -42,9 +42,6 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_wtag : s.wtag)
     for_(const auto &i_dtag : s.dtag)
-    for_(const auto &i_ld_src : s.ld_src)
-    for_(const auto &i_ld_wei : s.ld_wei)
-    for_(const auto &i_ld_dst : s.ld_dst)
     for_(auto i_runtime_mb : s.runtime_mb)
     for_(auto i_runtime_m : s.runtime_m)
     for_(auto i_runtime_n : s.runtime_n)
@@ -70,10 +67,9 @@ void check_correctness(const settings_t &s) {
             SAFE_V(FAIL);
         }
 
-        const prb_t prb(s.desc, i_cfg, i_stag, i_wtag, i_dtag, i_ld_src,
-                i_ld_wei, i_ld_dst, i_runtime_mb, i_runtime_m, i_runtime_n,
-                i_runtime_k, i_bia_cfg.first, i_bia_cfg.second, i_rt_dims_masks,
-                attr);
+        const prb_t prb(s.desc, i_cfg, i_stag, i_wtag, i_dtag, i_runtime_mb,
+                i_runtime_m, i_runtime_n, i_runtime_k, i_bia_cfg.first,
+                i_bia_cfg.second, i_rt_dims_masks, attr);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -107,12 +103,6 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.wtag, def.wtag, argv[0], "wtag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
-                || parse_vector_option(
-                        s.ld_src, def.ld_src, atoi, argv[0], "ld_src")
-                || parse_vector_option(
-                        s.ld_wei, def.ld_wei, atoi, argv[0], "ld_wei")
-                || parse_vector_option(
-                        s.ld_dst, def.ld_dst, atoi, argv[0], "ld_dst")
                 || parse_vector_option(s.runtime_mb, def.runtime_mb, str2bool,
                         argv[0], "runtime_mb")
                 || parse_vector_option(s.runtime_m, def.runtime_m, str2bool,
