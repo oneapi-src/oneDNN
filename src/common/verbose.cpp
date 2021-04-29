@@ -384,8 +384,8 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                     if (c.wei_dt == s8 || c.dst_dt != f32)
                         ss << ":" << c.dst_dt;
                     if (c.wei_dt == s8) {
-                        ss << c.mask;
-                        if (c.mask == 0) ss << c.scales[0];
+                        ss << ":" << c.mask;
+                        if (c.mask == 0) ss << ":" << c.scales[0];
                     }
                 } break;
                 case primitive_kind::eltwise: {
