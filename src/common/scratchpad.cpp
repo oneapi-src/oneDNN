@@ -19,7 +19,9 @@
 #include "engine.hpp"
 #include "utils.hpp"
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #include "cpu/cpu_engine.hpp"
+#endif
 
 #include "scratchpad.hpp"
 
@@ -28,6 +30,7 @@ namespace impl {
 
 namespace {
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 engine_t *get_cpu_engine() {
     static std::unique_ptr<engine_t, engine_deleter_t> cpu_engine;
     static std::once_flag initialized;
@@ -41,6 +44,7 @@ engine_t *get_cpu_engine() {
     });
     return cpu_engine.get();
 }
+#endif
 
 memory_storage_t *create_scratchpad_memory_storage(
         engine_t *engine, size_t size) {
@@ -54,11 +58,15 @@ memory_storage_t *create_scratchpad_memory_storage(
     // scratchpad has to be destroyed from inside a kernel. This doesn't
     // play well with SYCL runtime, so switching to native CPU engine for such
     // cases.
-    engine_t *mem_engine
-            = (engine->kind() == engine_kind::cpu
-                      && !is_native_runtime(engine->runtime_kind()))
+    engine_t *mem_engine = nullptr;
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    mem_engine = (engine->kind() == engine_kind::cpu
+                         && !is_native_runtime(engine->runtime_kind()))
             ? get_cpu_engine()
             : engine;
+#else
+    mem_engine = engine;
+#endif
 
     memory_storage_t *mem_storage = nullptr;
     auto status = mem_engine->create_memory_storage(&mem_storage, size);

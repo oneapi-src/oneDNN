@@ -52,7 +52,9 @@
 #include "softmax_pd.hpp"
 #include "sum_pd.hpp"
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #include "cpu/platform.hpp"
+#endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "gpu/ocl/verbose.hpp"
@@ -81,9 +83,11 @@ int get_verbose() {
         printf("dnnl_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
         printf("dnnl_verbose,info,cpu,runtime:%s\n",
                 dnnl_runtime2str(dnnl_version()->cpu_runtime));
         printf("dnnl_verbose,info,cpu,isa:%s\n", cpu::platform::get_isa_info());
+#endif
         printf("dnnl_verbose,info,gpu,runtime:%s\n",
                 dnnl_runtime2str(dnnl_version()->gpu_runtime));
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL

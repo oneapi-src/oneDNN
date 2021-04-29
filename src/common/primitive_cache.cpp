@@ -21,13 +21,29 @@
 #include "rw_mutex.hpp"
 #include "z_magic.hpp"
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #include "cpu/platform.hpp"
+#else
+#include <chrono>
+#endif
 
 #include <algorithm>
 #include <unordered_map>
 
 namespace dnnl {
 namespace impl {
+
+namespace {
+
+size_t get_timestamp() {
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    return cpu::platform::get_timestamp();
+#else
+    return std::chrono::steady_clock::now().time_since_epoch().count();
+#endif
+}
+
+} // namespace
 
 primitive_cache_t &primitive_cache() {
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
@@ -133,7 +149,7 @@ void lru_primitive_cache_t::add(const key_t &key, const value_t &value) {
         evict(1);
     }
 
-    size_t timestamp = dnnl::impl::cpu::platform::get_timestamp();
+    size_t timestamp = get_timestamp();
 
     auto res = cache_mapper_.emplace(std::piecewise_construct,
             std::forward_as_tuple(key),
@@ -146,7 +162,7 @@ lru_primitive_cache_t::value_t lru_primitive_cache_t::get(const key_t &key) {
     auto it = cache_mapper_.find(key);
     if (it == cache_mapper_.end()) return value_t();
 
-    size_t timestamp = dnnl::impl::cpu::platform::get_timestamp();
+    size_t timestamp = get_timestamp();
     it->second.timestamp_.store(timestamp);
     // Return the entry
     return it->second.value_;

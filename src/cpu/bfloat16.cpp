@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,49 +31,20 @@
 namespace dnnl {
 namespace impl {
 
-bfloat16_t &bfloat16_t::operator=(float f) {
+bool try_cvt_float_to_bfloat16(bfloat16_t *out, const float *inp) {
+
 #if DNNL_X64
     if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
         cpu::x64::bf16_support::jit_call_t p;
-        p.inp = (void *)&f;
-        p.out = (void *)this;
+        p.inp = (void *)inp;
+        p.out = (void *)out;
         static const cpu::x64::jit_avx512_core_cvt_ps_to_bf16_t
                 cvt_one_ps_to_bf16(1);
         cvt_one_ps_to_bf16(&p);
-        return *this;
+        return true;
     }
 #endif
-
-    auto iraw = utils::bit_cast<std::array<uint16_t, 2>>(f);
-    switch (std::fpclassify(f)) {
-        case FP_SUBNORMAL:
-        case FP_ZERO:
-            // sign preserving zero (denormal go to zero)
-            raw_bits_ = iraw[1];
-            raw_bits_ &= 0x8000;
-            break;
-        case FP_INFINITE: raw_bits_ = iraw[1]; break;
-        case FP_NAN:
-            // truncate and set MSB of the mantissa force QNAN
-            raw_bits_ = iraw[1];
-            raw_bits_ |= 1 << 6;
-            break;
-        case FP_NORMAL:
-            // round to nearest even and truncate
-            const uint32_t rounding_bias = 0x00007FFF + (iraw[1] & 0x1);
-            const uint32_t int_raw
-                    = utils::bit_cast<uint32_t>(f) + rounding_bias;
-            iraw = utils::bit_cast<std::array<uint16_t, 2>>(int_raw);
-            raw_bits_ = iraw[1];
-            break;
-    }
-
-    return *this;
-}
-
-bfloat16_t::operator float() const {
-    std::array<uint16_t, 2> iraw = {{0, raw_bits_}};
-    return utils::bit_cast<float>(iraw);
+    return false;
 }
 
 void cvt_float_to_bfloat16(bfloat16_t *out, const float *inp, size_t nelems) {
