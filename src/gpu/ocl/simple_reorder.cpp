@@ -699,7 +699,8 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
         kernel_ctx.define_int("SRC_LOOP_DIM", conf.aux_data.vg.src_loop_dim);
         kernel_ctx.define_int("DST_LOOP_DIM", conf.aux_data.vg.dst_loop_dim);
         kernel_ctx.define_int("GROUP", conf.aux_data.vg.group_size);
-        auto lr = conf.dispatch.nd_range().local_range();
+        auto r = conf.dispatch.nd_range();
+        auto *lr = r.local_range();
         kernel_ctx.define_int(
                 "SG_PER_WG", (lr[0] * lr[1] * lr[2]) / conf.sub_group_size);
         kernel_ctx.define_int(
