@@ -43,7 +43,7 @@
 #endif
 
 // This hack renames the namespaces used by threading functions for
-// threapdool-related functions so that the calls to dnnl::impl::parallel*()
+// threadpool-related functions so that the calls to dnnl::impl::parallel*()
 // from the test use a special testing threadpool.
 //
 // At the same time, the calls to dnnl::impl::parallel*() from within the
