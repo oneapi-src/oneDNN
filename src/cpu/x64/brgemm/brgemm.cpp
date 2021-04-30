@@ -35,6 +35,13 @@ using namespace dnnl::impl::utils;
 using namespace prop_kind;
 using namespace data_type;
 
+enum {
+    decomposition_2x2 = 101,
+    decomposition_3x1_3,
+    decomposition_3x1_2,
+    not_definded,
+};
+
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
         const brgemm_batch_element_t *batch, void *ptr_C, void *scratch) {
     brgemm_kernel_params_t brgemm_p;
@@ -274,44 +281,113 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
         brg->rd_block = 16 / brg->typesize_A;
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
+
+        brg->is_M_tail = false;
     } else {
         // Blocking configuration for AMX
         const int max_width = 16, min_width = 1;
-        for (int m_block = max_width; m_block >= min_width; m_block--) {
-            if (brg->bcast_dim % m_block == 0) {
-                brg->bd_block = m_block;
-                break;
-            }
-        }
-        if (brg->bd_block == 1) {
-            brg->bd_block = nstl::min(max_width, brg->bcast_dim);
-            brg->bdb_tail = brg->bcast_dim % max_width;
-            for (int i = max_width; i >= min_width; i--) {
-                int i_tail = brg->bcast_dim % i;
-                if (i_tail > brg->bdb_tail || i_tail == 0) {
-                    brg->bd_block = i;
-                    brg->bdb_tail = i_tail;
-                    if (i_tail == 0) break;
-                }
-            }
-        }
-        brg->bdb = brg->bcast_dim / brg->bd_block;
-        brg->bdb_tail = brg->bcast_dim % brg->bd_block;
-
-        brg->bd_block2 = (brg->bdb >= 2) ? 2 : 1;
-        brg->bdb2 = brg->bdb / brg->bd_block2;
-        brg->bdb2_tail
-                = (brg->bd_block2 == 1) ? brg->bdb : brg->bdb % brg->bd_block2;
-
         brg->ld_block = 16;
         brg->ldb = brg->load_dim / brg->ld_block;
         brg->ldb_tail = brg->load_dim % brg->ld_block;
 
-        brg->ld_block2
-                = (brg->ldb > 0 && brg->ldb % 2 == 0 && brg->ldb_tail == 0) ? 2
-                                                                            : 1;
-        brg->ldb2 = brg->ldb / brg->ld_block2;
-        brg->ldb2_tail = brg->ldb % brg->ld_block2;
+        auto set_decomposition_by_ld = [&]() {
+            if (brg->bd_block2 == 1 && brg->ldb > 0 && brg->ldb_tail == 0) {
+                if (brg->ldb % 3 == 0)
+                    brg->ld_block2 = 3;
+                else if (brg->ldb % 2 == 0)
+                    brg->ld_block2 = 2;
+                else
+                    brg->ld_block2 = 1;
+            } else {
+                brg->ld_block2
+                        = (brg->ldb > 0 && brg->ldb % 2 == 0
+                                  && brg->ldb_tail == 0 && brg->bd_block2 < 3)
+                        ? 2
+                        : 1;
+            }
+            brg->ldb2 = brg->ldb / brg->ld_block2;
+            brg->ldb2_tail = brg->ldb % brg->ld_block2;
+
+            // Re-adjust the bd_block2 if possible
+            if (brg->ld_block2 == 1 && !brg->is_M_tail && brg->ldb_tail == 0) {
+                brg->bd_block2 = (brg->bdb >= 3) ? 3 : (brg->bdb >= 2) ? 2 : 1;
+                brg->bdb2 = brg->bdb / brg->bd_block2;
+                brg->bdb2_tail = (brg->bd_block2 == 1)
+                        ? brg->bdb
+                        : brg->bdb % brg->bd_block2;
+            }
+        };
+
+        auto try_3x1_decomposition = [&](int width_step) {
+            brg->is_M_tail = false;
+            if (brg->bcast_dim > (width_step - 1) * max_width
+                    && brg->bcast_dim < width_step * max_width
+                    && brg->ldb_tail == 0) {
+                brg->bd_block = max_width;
+                brg->bdb = div_up(brg->bcast_dim, brg->bd_block);
+                brg->bdb_tail = brg->bcast_dim % brg->bd_block;
+
+                brg->bd_block2 = width_step;
+                brg->bdb2 = brg->bdb / brg->bd_block2;
+                brg->bdb2_tail = brg->bdb % brg->bd_block2;
+                brg->is_M_tail = true;
+            }
+            set_decomposition_by_ld();
+
+            return brg->is_M_tail;
+        };
+
+        auto try_2x2_decomposition = [&]() {
+            for (int m_block = max_width; m_block >= min_width; m_block--) {
+                if (brg->bcast_dim % m_block == 0) {
+                    brg->bd_block = m_block;
+                    break;
+                }
+            }
+            if (brg->bd_block == 1) {
+                brg->bd_block = nstl::min(max_width, brg->bcast_dim);
+                brg->bdb_tail = brg->bcast_dim % max_width;
+                for (int i = max_width; i >= min_width; i--) {
+                    int i_tail = brg->bcast_dim % i;
+                    if (i_tail > brg->bdb_tail || i_tail == 0) {
+                        brg->bd_block = i;
+                        brg->bdb_tail = i_tail;
+                        if (i_tail == 0) break;
+                    }
+                }
+            }
+            brg->bdb = brg->bcast_dim / brg->bd_block;
+            brg->bdb_tail = brg->bcast_dim % brg->bd_block;
+
+            brg->bd_block2 = (brg->bdb >= 2) ? 2 : 1;
+            brg->bdb2 = brg->bdb / brg->bd_block2;
+            brg->bdb2_tail = (brg->bd_block2 == 1) ? brg->bdb
+                                                   : brg->bdb % brg->bd_block2;
+            brg->is_M_tail = false;
+
+            set_decomposition_by_ld();
+
+            return !(brg->ld_block2 == 1 || brg->bd_block2 == 1
+                    || brg->bd_block < 8);
+        };
+
+        bool is_decomposition_defined = false;
+        for (int i = decomposition_2x2; i != not_definded; i++) {
+            switch (i) {
+                case decomposition_2x2:
+                    is_decomposition_defined = try_2x2_decomposition();
+                    break;
+                case decomposition_3x1_3:
+                    is_decomposition_defined = try_3x1_decomposition(3);
+                    break;
+                case decomposition_3x1_2:
+                    is_decomposition_defined = try_3x1_decomposition(2);
+                    break;
+                default: assert(!"invalid value"); break;
+            };
+            if (is_decomposition_defined) break;
+        }
+        if (!is_decomposition_defined) try_2x2_decomposition();
 
         brg->rd_block = brg->is_bf16_amx ? 32 : 64;
         brg->rdb = brg->reduce_dim / brg->rd_block;
@@ -502,25 +578,29 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
     int Cc = brg.ld_block * brg.typesize_C;
     int Cc_t = brg.ldb_tail * brg.typesize_C;
 
-    int Ar = brg.bd_block;
     int Br = (brg.typesize_C != 0) ? Ac / brg.typesize_C : 0;
-    int Cr = brg.bd_block;
 
-    if (brg.ldb_tail && (brg.ld_block2 + 1 > brgemm_amx::max_n_block2))
-        return status::unimplemented;
-    for (int m = 0; m < brgemm_amx::max_m_block2; m++)
-        tc_configure_tile(buff, brgemm_amx::get_A_tensor(m), Ar, Ac);
+    if (brg.ldb_tail && (brg.ld_block2 > 1)) return status::unimplemented;
+
+    for (int m = 0; m < brg.bd_block2; m++) {
+        int Ar = (brg.is_M_tail && m == brg.bd_block2 - 1) ? brg.bdb_tail
+                                                           : brg.bd_block;
+        tc_configure_tile(buff, brg.get_A_tensor(m), Ar, Ac);
+    }
+
     for (int n = 0; n < brg.ld_block2; n++)
-        tc_configure_tile(buff, brgemm_amx::get_B_tensor(n), Br, Bc);
+        tc_configure_tile(buff, brg.get_B_tensor(n), Br, Bc);
     if (brg.ldb_tail)
-        tc_configure_tile(
-                buff, brgemm_amx::get_B_tensor(brg.ld_block2), Br, Bc_t);
-    for (int m = 0; m < brgemm_amx::max_m_block2; m++) {
+        tc_configure_tile(buff, brg.get_B_tensor(brg.ld_block2), Br, Bc_t);
+
+    for (int m = 0; m < brg.bd_block2; m++) {
+        int Cr = (brg.is_M_tail && m == brg.bd_block2 - 1) ? brg.bdb_tail
+                                                           : brg.bd_block;
         for (int n = 0; n < brg.ld_block2; n++)
-            tc_configure_tile(buff, brgemm_amx::get_C_tensor(m, n), Cr, Cc);
+            tc_configure_tile(buff, brg.get_C_tensor(m, n), Cr, Cc);
         if (brg.ldb_tail)
             tc_configure_tile(
-                    buff, brgemm_amx::get_C_tensor(m, brg.ld_block2), Cr, Cc_t);
+                    buff, brg.get_C_tensor(m, brg.ld_block2), Cr, Cc_t);
     }
     buff->palette_id = amx::get_max_palette();
 

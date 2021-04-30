@@ -17,7 +17,6 @@
 #ifndef CPU_X64_BRGEMM_BRGEMM_HPP
 #define CPU_X64_BRGEMM_BRGEMM_HPP
 
-#include "cpu/x64/brgemm/brgemm_amx.hpp"
 #include "cpu/x64/brgemm/brgemm_types.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 
