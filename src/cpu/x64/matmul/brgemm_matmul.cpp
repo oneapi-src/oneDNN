@@ -251,8 +251,7 @@ void brgemm_matmul_t<isa>::compute_kernel(
             = brgmm_ctx.get_post_ops_binary_rhs_arg_vec();
 
     if (gemm_batch > 0 && brg_kernel != nullptr) {
-        const bool is_tile_reconf_required = is_amx
-                && (is_M_tail || (is_N_tail && !bgmmc.post_ops_applicable));
+        const bool is_tile_reconf_required = is_amx && (is_M_tail || is_N_tail);
         if (is_tile_reconf_required)
             amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
 
