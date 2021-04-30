@@ -17,7 +17,6 @@
 #include "gpu/ocl/gen9_convolution.hpp"
 
 #include "common/c_types_map.hpp"
-#include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
 #include "common/reorder.hpp"

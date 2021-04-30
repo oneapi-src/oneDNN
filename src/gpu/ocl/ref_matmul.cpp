@@ -17,7 +17,6 @@
 #include "gpu/ocl/ref_matmul.hpp"
 
 #include "common/c_types_map.hpp"
-#include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 namespace dnnl {
 namespace impl {

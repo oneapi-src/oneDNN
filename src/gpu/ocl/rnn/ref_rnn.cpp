@@ -29,7 +29,6 @@
 #include "gpu/ocl/rnn/ref_rnn.hpp"
 
 #include "common/c_types_map.hpp"
-#include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/gemm_utils.hpp"
 #include "common/math_utils.hpp"
