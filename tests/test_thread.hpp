@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,18 +17,47 @@
 #ifndef TEST_THREAD_HPP
 #define TEST_THREAD_HPP
 
+#include "oneapi/dnnl/dnnl_config.h"
+
+#ifdef COMMON_DNNL_THREAD_HPP
+#error "src/common/dnnl_thread.hpp" was already included
+#endif
+
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+
+#if DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_SEQ
+#error "DNNL_CPU_THREADING_RUNTIME is expected to be SEQ for GPU only configurations."
+#endif
+
+#undef DNNL_CPU_THREADING_RUNTIME
+
+// Enable CPU threading layer for testing:
+// - DPCPP: TBB
+// - OCL: OpenMP
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+#define DNNL_CPU_THREADING_RUNTIME DNNL_RUNTIME_TBB
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#define DNNL_CPU_THREADING_RUNTIME DNNL_RUNTIME_OMP
+#endif
+
+#endif
+
 // This hack renames the namespaces used by threading functions for
 // threapdool-related functions so that the calls to dnnl::impl::parallel*()
 // from the test use a special testing threadpool.
 //
 // At the same time, the calls to dnnl::impl::parallel*() from within the
 // library continue using the library version of these functions.
-#ifdef COMMON_DNNL_THREAD_HPP
-#error "src/common/dnnl_thread.hpp" was already included
-#endif
 #define threadpool_utils testing_threadpool_utils
 #include "src/common/dnnl_thread.hpp"
 #undef threadpool_utils
+
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+// Restore the original DNNL_CPU_THREADING_RUNTIME value.
+#undef DNNL_CPU_THREADING_RUNTIME
+#define DNNL_CPU_THREADING_RUNTIME DNNL_RUNTIME_SEQ
+#endif
+
 #ifndef COMMON_DNNL_THREAD_HPP
 #error "src/common/dnnl_thread.hpp" has an unexpected header guard
 #endif
