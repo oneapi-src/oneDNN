@@ -96,6 +96,11 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_reduction.cpp
                               )
 
+if(DNNL_CPU_RUNTIME STREQUAL "NONE")
+    list(APPEND PRIM_TEST_CASES_SRC test_iface_gpu_only.cpp)
+    set_source_files_properties(test_iface_gpu_only.cpp PROPERTIES NO_ENGINE_PARAM true)
+endif()
+
 if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
     file(GLOB CPU_SPECIFIC_TESTS
         test_gemm_f16.cpp
