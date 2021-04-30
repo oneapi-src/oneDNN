@@ -23,7 +23,10 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #include "tests/test_isa_common.hpp"
+#endif
+
 #include "tests/test_thread.hpp"
 
 #include "dnnl_common.hpp"
@@ -805,6 +808,7 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
         }
     }
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     // only AMX LSTM cell kinds support signed int8 so far;
     if (prb.is_s8()) {
         static auto isa = dnnl_get_effective_cpu_isa();
@@ -814,6 +818,7 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
             return;
         }
     }
+#endif
 
     // LSTM w/ projection is not supported for bf16
     if (prb.is_lstm_projection() && prb.cfg[SRC_LAYER].dt == dnnl_bf16) {

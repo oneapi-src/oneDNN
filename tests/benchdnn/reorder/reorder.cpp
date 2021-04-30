@@ -226,6 +226,13 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE \
+        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_NONE
+    auto cross_engine = prb->cross_engine;
+    if (cross_engine == CPU2GPU || cross_engine == GPU2CPU)
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+#endif
+
     const auto sdt = prb->conf_in->dt;
     const auto ddt = prb->conf_out->dt;
     check_known_skipped_case_common({sdt, ddt}, FWD_D, res);

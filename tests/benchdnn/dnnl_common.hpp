@@ -343,6 +343,12 @@ inline const engine_t &get_test_engine() {
 
 // Engine used to run reference implementations (fast-ref-gpu option).
 inline const engine_t &get_cpu_engine() {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+    fprintf(stderr,
+            "CPU engine is not available for GPU only configurations\n");
+    SAFE_V(FAIL);
+    assert(!"unexpected");
+#endif
     static const engine_t instance(dnnl_cpu);
     return instance;
 }

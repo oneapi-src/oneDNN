@@ -308,10 +308,12 @@ void check_known_skipped_case_common(
         return;
     }
 
-    const bool has_bf16_support = is_gpu()
-            || (is_cpu()
-                    && dnnl::impl::cpu::platform::has_data_type_support(
-                            dnnl_bf16));
+    bool has_bf16_support = is_gpu();
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    using namespace dnnl::impl::cpu::platform;
+    has_bf16_support = has_bf16_support
+            || (is_cpu() && has_data_type_support(dnnl_bf16));
+#endif
 
     for (const auto &i_dt : v_dt) {
         // bf16 is supported on AVX512-CORE+
