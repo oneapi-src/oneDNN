@@ -371,8 +371,11 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
             const post_ops_t::entry_t &e = po.entry_[i];
             switch (e.kind) {
                 case primitive_kind::sum: {
+                    const auto &s = e.sum;
                     ss << delim << "sum";
-                    if (e.sum.scale != 1.f) ss << ":" << e.sum.scale;
+                    if (s.scale != 1.f || s.dt != data_type::undef)
+                        ss << ":" << s.scale;
+                    if (s.dt != data_type::undef) ss << ":" << s.dt;
                 } break;
                 case primitive_kind::convolution: {
                     using namespace data_type;
