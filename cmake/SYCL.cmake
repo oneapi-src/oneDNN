@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2020 Intel Corporation
+# Copyright 2019-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,7 +40,9 @@ if(DPCPP_SUPPORTED)
     # Explicitly link against sycl as Intel oneAPI DPC++ Compiler does not
     # always do it implicitly.
     if(WIN32)
-        list(APPEND EXTRA_SHARED_LIBS $<$<CONFIG:Debug>:sycld> $<$<NOT:$<CONFIG:Debug>>:sycl>)
+        list(APPEND EXTRA_SHARED_LIBS
+            $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithMDd>>:sycld>
+            $<$<AND:$<NOT:$<CONFIG:Debug>>,$<NOT:$<CONFIG:RelWithMDd>>>:sycl>)
     else()
         list(APPEND EXTRA_SHARED_LIBS sycl)
     endif()
