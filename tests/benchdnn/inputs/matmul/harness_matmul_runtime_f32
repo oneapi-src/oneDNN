@@ -3,7 +3,7 @@
 --skip-impl=ref
 
 --cfg=f32
---stag=ab,ba --wtag=ab,ba
+--stag=ab,ba --wtag=ab,ba --dtag=ab
 --bia_dt=undef,f32 --bia_mask=2
 
 --runtime_m=0 --runtime_n=0 --runtime_k=0

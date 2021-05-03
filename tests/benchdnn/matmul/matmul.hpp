@@ -67,7 +67,7 @@ struct settings_t {
     desc_t desc {};
 
     std::vector<const dt_conf_t *> cfg {conf_f32};
-    std::vector<std::string> stag {tag::abx}, wtag {tag::abx}, dtag {tag::abx};
+    std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
     std::vector<int64_t> ld_src {LD_NONE}, ld_wei {LD_NONE}, ld_dst {LD_NONE};
     std::vector<bool> runtime_mb {false}, runtime_m {false}, runtime_n {false},
             runtime_k {false};

@@ -3,7 +3,7 @@
 --skip-impl=ref
 
 --cfg=u8s8u8,s8s8f32
---stag=ab,ba --wtag=ab,ba
+--stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_m=0,1 --runtime_n=0 --runtime_k=0
 --bia_dt=undef,f32,u8 --bia_mask=2
 
@@ -16,7 +16,7 @@
 --skip-impl=ref
 
 --cfg=u8s8u8,s8s8f32
---stag=ab,ba --wtag=ab,ba
+--stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_m=0 --runtime_n=0 --runtime_k=0,1
 --bia_dt=undef,f32,u8 --bia_mask=2
 

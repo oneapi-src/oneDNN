@@ -2,7 +2,7 @@
 --reset
 
 --cfg=u8s8s8,s8s8f32
---stag=ab --wtag=ab,ba
+--stag=ab --wtag=ab,ba --dtag=ab
 --runtime_m=0,1 --runtime_n=0 --runtime_k=0,1
 --bia_dt=undef,f32 --bia_mask=1,3
 
@@ -11,7 +11,7 @@
 --attr-oscale=per_oc:2.25 --attr-post-ops=relu       --batch=shapes_2d
 
 --cfg=s8s8s32
---stag=ba --wtag=ab,ba
+--stag=ba --wtag=ab,ba --dtag=ab
 --runtime_m=1 --runtime_n=0,1 --runtime_k=1
 --bia_dt=f32 --bia_mask=1,2,3
 --attr-oscale=,common:1.25
@@ -23,7 +23,7 @@
 --cfg=u8s8s32,s8s8s32
 --runtime_m=0 --runtime_n=0 --runtime_k=0
 --bia_dt=undef
---stag=ab,ba,any --wtag=ab,ba,any --dtag=any
+--stag=ab,ba,any --wtag=ab,ba,any --dtag=ab,any
 --batch=shapes_2d
 
 # 3d
