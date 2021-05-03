@@ -149,9 +149,10 @@ oneDNN CPU engine is used to execute primitives on Intel Architecture
 Processors, 64-bit Arm Architecture (AArch64) processors,
 64-bit Power ISA (PPC64) processors, IBMz (s390x), and compatible devices.
 
-The CPU engine is built by default and cannot be disabled at build time. The
-engine can be configured to use the OpenMP, TBB or DPCPP runtime. The
-following additional requirements apply:
+The CPU engine is built by default but can be disabled at build time by setting
+`DNNL_CPU_RUNTIME` to `NONE`. In this case, GPU engine must be enabled.
+The CPU engine can be configured to use the OpenMP, TBB or DPCPP runtime.
+The following additional requirements apply:
 * OpenMP runtime requires C++ compiler with OpenMP 2.0 or later
   standard support
 * TBB runtime requires

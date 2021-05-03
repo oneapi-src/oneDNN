@@ -3,23 +3,23 @@ Build Options {#dev_guide_build_options}
 
 oneDNN supports the following build-time options.
 
-| CMake Option                | Supported values (defaults in bold) | Description
-| :---                        | :---                                | :---
-| DNNL_LIBRARY_TYPE           | **SHARED**, STATIC                  | Defines the resulting library type
-| DNNL_CPU_RUNTIME            | **OMP**, TBB, SEQ, THREADPOOL, DPCPP| Defines the threading runtime for CPU engines
-| DNNL_GPU_RUNTIME            | **NONE**, OCL, DPCPP                | Defines the offload runtime for GPU engines
-| DNNL_BUILD_EXAMPLES         | **ON**, OFF                         | Controls building the examples
-| DNNL_BUILD_TESTS            | **ON**, OFF                         | Controls building the tests
-| DNNL_ARCH_OPT_FLAGS         | *compiler flags*                    | Specifies compiler optimization flags (see warning note below)
-| DNNL_ENABLE_CONCURRENT_EXEC | ON, **OFF**                         | Disables sharing a common scratchpad between primitives in #dnnl::scratchpad_mode::library mode
-| DNNL_ENABLE_JIT_PROFILING   | **ON**, OFF                         | Enables [integration with performance profilers](@ref dev_guide_profilers)
-| DNNL_ENABLE_PRIMITIVE_CACHE | **ON**, OFF                         | Enables [primitive cache](@ref dev_guide_primitive_cache)
-| DNNL_ENABLE_MAX_CPU_ISA     | **ON**, OFF                         | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
-| DNNL_ENABLE_CPU_ISA_HINTS   | **ON**, OFF                         | Enables [CPU ISA hints](@ref dev_guide_cpu_isa_hints)
-| DNNL_VERBOSE                | **ON**, OFF                         | Enables [verbose mode](@ref dev_guide_verbose)
-| DNNL_AARCH64_USE_ACL        | ON, **OFF**                         | Enables integration with Arm Compute Library for AArch64 builds
-| DNNL_BLAS_VENDOR            | **NONE**, ARMPL                     | Defines an external BLAS library to link to for GEMM-like operations
-| DNNL_GPU_VENDOR             | **INTEL**, NVIDIA                   | Defines GPU vendor for GPU engines
+| CMake Option                | Supported values (defaults in bold)        | Description
+| :---                        | :---                                       | :---
+| DNNL_LIBRARY_TYPE           | **SHARED**, STATIC                         | Defines the resulting library type
+| DNNL_CPU_RUNTIME            | NONE, **OMP**, TBB, SEQ, THREADPOOL, DPCPP | Defines the threading runtime for CPU engines
+| DNNL_GPU_RUNTIME            | **NONE**, OCL, DPCPP                       | Defines the offload runtime for GPU engines
+| DNNL_BUILD_EXAMPLES         | **ON**, OFF                                | Controls building the examples
+| DNNL_BUILD_TESTS            | **ON**, OFF                                | Controls building the tests
+| DNNL_ARCH_OPT_FLAGS         | *compiler flags*                           | Specifies compiler optimization flags (see warning note below)
+| DNNL_ENABLE_CONCURRENT_EXEC | ON, **OFF**                                | Disables sharing a common scratchpad between primitives in #dnnl::scratchpad_mode::library mode
+| DNNL_ENABLE_JIT_PROFILING   | **ON**, OFF                                | Enables [integration with performance profilers](@ref dev_guide_profilers)
+| DNNL_ENABLE_PRIMITIVE_CACHE | **ON**, OFF                                | Enables [primitive cache](@ref dev_guide_primitive_cache)
+| DNNL_ENABLE_MAX_CPU_ISA     | **ON**, OFF                                | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
+| DNNL_ENABLE_CPU_ISA_HINTS   | **ON**, OFF                                | Enables [CPU ISA hints](@ref dev_guide_cpu_isa_hints)
+| DNNL_VERBOSE                | **ON**, OFF                                | Enables [verbose mode](@ref dev_guide_verbose)
+| DNNL_AARCH64_USE_ACL        | ON, **OFF**                                | Enables integration with Arm Compute Library for AArch64 builds
+| DNNL_BLAS_VENDOR            | **NONE**, ARMPL                            | Defines an external BLAS library to link to for GEMM-like operations
+| DNNL_GPU_VENDOR             | **INTEL**, NVIDIA                          | Defines GPU vendor for GPU engines
 
 All other building options or values that can be found in CMake files are intended for
 development/debug purposes and are subject to change without notice.
@@ -29,8 +29,9 @@ Please avoid using them.
 
 ## CPU Options
 Intel Architecture Processors and compatible devices are supported by
-oneDNN CPU engine. The CPU engine is built by default and cannot
-be disabled at build time.
+oneDNN CPU engine. The CPU engine is built by default but can be disabled
+at build time by setting `DNNL_CPU_RUNTIME` to `NONE`. In this case,
+GPU engine must be enabled.
 
 ### Targeting Specific Architecture
 oneDNN uses JIT code generation to implement most of its functionality
