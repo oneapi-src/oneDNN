@@ -113,6 +113,7 @@ struct brgemm_matmul_conf_t {
     bool has_zero_point_a, has_zero_point_b, has_zero_point_c;
     bool post_ops_applicable;
     bool transposed_A;
+    bool blocked_B;
 
     dim_t zp_a_comp_shift_n;
     dim_t zp_a_comp_elems_per_thr;

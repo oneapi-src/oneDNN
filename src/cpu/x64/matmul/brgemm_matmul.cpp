@@ -17,6 +17,7 @@
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
+#include "common/tag_traits.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
@@ -437,6 +438,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     brg_matmul_exec_ctx_t(const exec_ctx_t &ctx, const pd_t *pd, int32_t src_zp,
             int32_t wei_zp, int32_t dst_zp)
         : bgmmc_(pd->get_brgemm_matmul_conf()) {
+
         data_A_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
         data_B_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
         data_C_ptr_ = CTX_OUT_MEM(char *, DNNL_ARG_DST);
@@ -501,6 +503,22 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         post_ops_binary_rhs_arg_vec_ = binary_injector::prepare_binary_args(
                 pd->attr()->post_ops_, ctx);
         base_brg_ker_idx_ = pd->get_brg_kernel_idx(true, false, false, false);
+        vnni_factor = isa == avx512_core_bf16_amx_int8
+                ? 4
+                : isa == avx512_core_bf16_amx_bf16 ? 2 : 1;
+
+        if (bgmmc_.has_zero_point_a && bgmmc_.blocked_B) {
+            const size_t reorder_zp_offset
+                    = weights_d.size() - weights_d.additional_buffer_size();
+            const int32_t *reorder_zp_comp = reinterpret_cast<const int32_t *>(
+                    &data_B_ptr_[reorder_zp_offset]);
+
+            for (int nb = 0; nb < bgmmc.num_N_blocks; nb++) {
+                int32_t *zp = get_zp_a_compensation_ptr(0, nb);
+                for (int b = 0; b < bgmmc.wei_n_blk; b++)
+                    zp[b] = src_zp * reorder_zp_comp[nb * bgmmc.wei_n_blk + b];
+            }
+        }
     }
 
     // NOTE: gb --> generalized batch, bb --> broadcast batch
@@ -604,9 +622,26 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 + bgmmc_.A_strides[0] * k;
     }
     dim_t get_data_B_off(int b, int k, int n) const {
-        return bgmmc_.B_strides[2] * b + bgmmc_.B_strides[1] * k
-                + bgmmc_.B_strides[0] * n;
+        int k_idx = bgmmc_.blocked_B ? k / bgmmc_.wei_k_blk : k;
+        int n_idx = bgmmc_.blocked_B ? n / bgmmc_.wei_n_blk : n;
+
+        return bgmmc_.B_strides[2] * b + bgmmc_.B_strides[1] * k_idx
+                + bgmmc_.B_strides[0] * n_idx
+                + get_data_B_off_within_block(k, n);
     }
+
+    dim_t get_data_B_off_within_block(int k, int n) const {
+        using namespace format_tag;
+
+        if (!bgmmc_.blocked_B) return 0;
+
+        int x0 = k % bgmmc_.wei_k_blk;
+        int x1 = n % bgmmc_.wei_n_blk;
+        dim_t offset = (x0 / vnni_factor) * vnni_factor * bgmmc_.wei_n_blk
+                + x1 * vnni_factor + x0 % vnni_factor;
+        return bgmmc_.b_dt_sz * offset;
+    }
+
     dim_t get_data_C_off(int b, int m, int n) const {
         return bgmmc_.C_strides[2] * b + bgmmc_.C_strides[1] * m
                 + bgmmc_.C_strides[0] * n;
@@ -650,10 +685,15 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     int32_t *get_zp_a_compensation_ptr(int ithr, int n_blk_idx) const {
         if (!bgmmc_.has_zero_point_a) return nullptr;
 
-        const int n_blk_local = n_blk_idx % bgmmc_.N_chunk_size;
-        return zero_point_a_compensations_ptr_
-                + ithr * bgmmc_.zp_a_comp_elems_per_thr
-                + n_blk_local * bgmmc_.zp_a_comp_shift_n;
+        if (bgmmc_.blocked_B) {
+            return zero_point_a_compensations_ptr_
+                    + n_blk_idx * bgmmc_.zp_a_comp_shift_n;
+        } else {
+            const int n_blk_local = n_blk_idx % bgmmc_.N_chunk_size;
+            return zero_point_a_compensations_ptr_
+                    + ithr * bgmmc_.zp_a_comp_elems_per_thr
+                    + n_blk_local * bgmmc_.zp_a_comp_shift_n;
+        }
     }
 
     int32_t *get_zp_b_compensation_result_ptr(int ithr, int m_blk_idx) const {
@@ -725,6 +765,7 @@ private:
     std::vector<const void *> post_ops_binary_rhs_arg_vec_;
 
     int base_brg_ker_idx_;
+    int vnni_factor;
 };
 
 template struct brgemm_matmul_t<avx512_core_bf16_amx_int8>;
