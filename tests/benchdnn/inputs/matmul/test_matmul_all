@@ -57,3 +57,6 @@
 
 # data-tags
 --batch=harness_matmul_data_tags
+
+# matmul with strides
+--batch=harness_matmul_strides
