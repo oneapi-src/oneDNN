@@ -243,6 +243,15 @@ const format_tag_t AB16b16a2b = dnnl_AB16b16a2b;
 const format_tag_t AB16b32a2b = dnnl_AB16b32a2b;
 const format_tag_t AB16b48a2b = dnnl_AB16b48a2b;
 const format_tag_t AB16b64a2b = dnnl_AB16b64a2b;
+const format_tag_t BA16a16b2a = dnnl_BA16a16b2a;
+const format_tag_t BA16a32b2a = dnnl_BA16a32b2a;
+const format_tag_t BA16a48b2a = dnnl_BA16a48b2a;
+const format_tag_t BA16a64b2a = dnnl_BA16a64b2a;
+const format_tag_t BA16a16b4a = dnnl_BA16a16b4a;
+const format_tag_t BA16a32b4a = dnnl_BA16a32b4a;
+const format_tag_t BA16a48b4a = dnnl_BA16a48b4a;
+const format_tag_t BA16a64b4a = dnnl_BA16a64b4a;
+
 const format_tag_t Abc16a = dnnl_Abc16a;
 const format_tag_t ABc16a16b = dnnl_ABc16a16b;
 const format_tag_t ABc4a4b = dnnl_ABc4a4b;
