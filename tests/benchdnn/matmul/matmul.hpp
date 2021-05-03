@@ -68,6 +68,7 @@ struct settings_t {
 
     std::vector<const dt_conf_t *> cfg {conf_f32};
     std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
+    std::vector<strides_t> strides {strides_t(STRIDES_SIZE)};
     std::vector<bool> runtime_mb {false}, runtime_m {false}, runtime_n {false},
             runtime_k {false};
     std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
@@ -93,15 +94,17 @@ struct settings_t {
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, const dt_conf_t *cfg, const std::string &stag,
-            const std::string &wtag, const std::string &dtag, bool runtime_mb,
-            bool runtime_m, bool runtime_n, bool runtime_k,
-            dnnl_data_type_t bia_dt, int bia_mask,
-            const std::vector<dims_mask_t> &rt_dims_masks, const attr_t &attr)
+            const std::string &wtag, const std::string &dtag,
+            const strides_t &strides, bool runtime_mb, bool runtime_m,
+            bool runtime_n, bool runtime_k, dnnl_data_type_t bia_dt,
+            int bia_mask, const std::vector<dims_mask_t> &rt_dims_masks,
+            const attr_t &attr)
         : desc_t(desc)
         , cfg(cfg)
         , stag(stag)
         , wtag(wtag)
         , dtag(dtag)
+        , strides(strides)
         , runtime_mb(runtime_mb)
         , runtime_m(runtime_m)
         , runtime_n(runtime_n)
@@ -147,6 +150,7 @@ struct prb_t : public desc_t {
     const dt_conf_t *cfg;
     int ndims;
     std::string stag, wtag, dtag;
+    strides_t strides;
     bool runtime_mb, runtime_m, runtime_n, runtime_k;
     dnnl_data_type_t bia_dt;
     int bia_mask;

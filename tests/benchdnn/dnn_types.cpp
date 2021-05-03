@@ -58,7 +58,7 @@ dims_t off2dims_idx(const dims_t &dims, int64_t off) {
 }
 
 std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
-    s << dims[0];
+    if (!dims.empty()) s << dims[0];
     for (size_t d = 1; d < dims.size(); ++d)
         s << "x" << dims[d];
     return s;

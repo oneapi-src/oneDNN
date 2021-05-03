@@ -241,6 +241,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
     if (canonical || prb.wtag != def.wtag[0]) s << "--wtag=" << prb.wtag << " ";
     if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
+    if (canonical || prb.strides != def.strides[0])
+        s << "--strides=" << prb.strides << " ";
 
     if (canonical || prb.src_runtime_dim_mask().any()
             || prb.weights_runtime_dim_mask().any())

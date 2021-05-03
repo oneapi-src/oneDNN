@@ -53,6 +53,15 @@ struct dims_t : public std::vector<int64_t> {
     }
 };
 
+// strides for SRC, WEI, and DST
+using strides_t = std::vector<dims_t>;
+enum {
+    STRIDES_SRC = 0,
+    STRIDES_WEI = 1,
+    STRIDES_DST = 2,
+    STRIDES_SIZE = 3,
+};
+
 enum dir_t {
     DIR_UNDEF = 0,
     FLAG_DAT = 1,

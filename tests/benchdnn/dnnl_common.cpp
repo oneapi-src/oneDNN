@@ -409,7 +409,17 @@ bool is_nvidia_eltwise_ok(
 }
 
 int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
-        dnnl_data_type_t data_type, const std::string &tag_) {
+        dnnl_data_type_t data_type, const std::string &tag_,
+        const dims_t &strides_) {
+    const bool use_strides = !strides_.empty();
+    // Ignore tag_ in case strides_ are explicitly provided
+    if (use_strides) {
+        std::vector<dnnl_dim_t> strides(strides_);
+        DNN_SAFE(dnnl_memory_desc_init_by_strides(
+                         md, ndims, dims, data_type, strides.data()),
+                CRIT);
+        return OK;
+    }
     auto tag = normalize_tag(tag_, ndims);
     if (tag == tag::undef || tag == tag::any || ndims == 0) {
         dnnl_format_tag_t enum_tag = (tag == tag::undef || ndims == 0)

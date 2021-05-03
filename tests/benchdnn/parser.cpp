@@ -160,6 +160,18 @@ bool parse_skip_nonlinear(std::vector<bool> &skip,
     return parse_vector_option(skip, def_skip, str2bool, str, option_name);
 }
 
+bool parse_strides(std::vector<strides_t> &strides,
+        const std::vector<strides_t> &def_strides, const char *str,
+        const std::string &option_name /* = "strides"*/) {
+    auto str2strides = [&](const char *str) -> strides_t {
+        strides_t strides(STRIDES_SIZE);
+        parse_multi_dims(strides, str);
+        return strides;
+    };
+    return parse_vector_option(
+            strides, def_strides, str2strides, str, option_name);
+}
+
 bool parse_trivial_strides(std::vector<bool> &ts,
         const std::vector<bool> &def_ts, const char *str,
         const std::string &option_name /* = "trivial-strides"*/) {
