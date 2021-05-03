@@ -18,6 +18,7 @@
 #include <limits.h>
 #include <stdint.h>
 
+#include <cctype>
 #include <fstream>
 #include <functional>
 #include <string>
@@ -27,6 +28,8 @@
 #include "dnnl.h"
 
 #include "common.hpp"
+
+#include "tests/test_thread.hpp"
 
 // BENCHDNN_MEMORY_CHECK macro enables guarding mechanism for memory allocation:
 // memory block is allocated on a page boundary and the page after the block is
@@ -585,6 +588,7 @@ void gemm(const char *layout, const char *transa, const char *transb, int64_t m,
         int64_t n, int64_t k, const float alpha, const float *a,
         const int64_t lda, const float *b, const int64_t ldb, const float beta,
         float *c, const int64_t ldc) {
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     if (*layout == 'C') {
         dnnl_sgemm(
                 *transa, *transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
@@ -592,6 +596,30 @@ void gemm(const char *layout, const char *transa, const char *transb, int64_t m,
         dnnl_sgemm(
                 *transb, *transa, n, m, k, alpha, b, ldb, a, lda, beta, c, ldc);
     }
+#else
+    if (std::toupper(*layout) != 'C') {
+        gemm("C", transb, transa, n, m, k, alpha, b, ldb, a, lda, beta, c, ldc);
+        return;
+    }
+
+    auto a_accessor = [&](int64_t i, int64_t j) {
+        if (std::toupper(*transa) == 'N') return a[i * lda + j];
+        return a[j * lda + i];
+    };
+
+    auto b_accessor = [&](int64_t i, int64_t j) {
+        if (std::toupper(*transb) == 'N') return b[i * ldb + j];
+        return b[j * ldb + i];
+    };
+
+    dnnl::impl::parallel_nd(m, n, [&](int64_t i, int64_t j) {
+        float ab = 0.0f;
+        for (int64_t _k = 0; _k < k; ++_k)
+            ab += a_accessor(i, _k) * b_accessor(_k, j);
+        float cij = (beta == 0) ? 0.0f : beta * c[i * ldc + j];
+        c[i * ldc + j] = alpha * ab + cij;
+    });
+#endif
 }
 
 int sanitize_desc(int &ndims, std::vector<std::reference_wrapper<int64_t>> d,
