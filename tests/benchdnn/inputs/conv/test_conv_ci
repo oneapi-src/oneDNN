@@ -47,13 +47,21 @@
 --stag=any,axb
 --dtag=any,axb
 --attr-post-ops=,sum:0.5,linear:2:1,add:f32,sum:0.5+add:f32:per_oc
+--attr-zero-points=
+--batch=shapes_basic
+--attr-post-ops=
+--attr-zero-points=,src:common:2+dst:common:1,src:per_dim_1:1*+dst:per_dim_1:1*
 --batch=shapes_basic
 ### Signed input
 --cfg=s8s8s8
 --stag=any
 --dtag=any
+--attr-post-ops=,sum:0.5,linear:2:1,add:f32,sum:0.5+add:f32:per_oc
+--attr-zero-points=
 --batch=shapes_basic
 --attr-post-ops=
+--attr-zero-points=,src:common:2+dst:common:1,src:per_dim_1:1*+dst:per_dim_1:1*
+--batch=shapes_basic
 ## Wino
 --alg=wino
 --cfg=u8s8s32_wino
@@ -62,4 +70,5 @@
 # TODO: non-relu and non-unit relu scale is not supported by wino
 # TODO: binary post op is not supported by wino
 --attr-post-ops=,sum:0.5,relu,sum:0.25+relu:0:0:0.75
+--attr-zero-points=
 --batch=shapes_basic
