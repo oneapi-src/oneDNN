@@ -38,7 +38,7 @@ namespace cpu {
                                                             : (f).off(n, c, d, \
                                                                     h, w))))
 
-template <impl::data_type_t data_type>
+template <data_type_t data_type>
 status_t ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
         const exec_ctx_t &ctx) const {
     status_t status = status::success;
@@ -78,7 +78,7 @@ status_t ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
     return status::success;
 }
 
-template <impl::data_type_t data_type>
+template <data_type_t data_type>
 status_t ref_eltwise_fwd_t<data_type>::execute_forward_generic(
         const exec_ctx_t &ctx) const {
     /* fast return */
@@ -119,7 +119,7 @@ status_t ref_eltwise_fwd_t<data_type>::execute_forward_generic(
     return status::success;
 }
 
-template <impl::data_type_t data_type>
+template <data_type_t data_type>
 status_t ref_eltwise_fwd_t<data_type>::execute_forward_dense(
         const exec_ctx_t &ctx) const {
     status_t status = status::success;
@@ -153,7 +153,7 @@ status_t ref_eltwise_fwd_t<data_type>::execute_forward_dense(
     return status::success;
 }
 
-template <impl::data_type_t data_type>
+template <data_type_t data_type>
 status_t ref_eltwise_bwd_t<data_type>::execute_backward_generic(
         const exec_ctx_t &ctx) const {
     /* fast return */
@@ -191,14 +191,14 @@ status_t ref_eltwise_bwd_t<data_type>::execute_backward_generic(
     return status::success;
 }
 
-template <>
-status_t ref_eltwise_bwd_t<data_type::f32>::execute_backward_dense(
+template <data_type_t data_type>
+status_t ref_eltwise_bwd_t<data_type>::execute_backward_dense(
         const exec_ctx_t &ctx) const {
     status_t status = status::success;
-    auto src = pd()->use_dst() ? CTX_IN_MEM(const data_t *, DNNL_ARG_DST)
-                               : CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    const void *src = pd()->use_dst() ? CTX_IN_MEM(const void *, DNNL_ARG_DST)
+                                      : CTX_IN_MEM(const void *, DNNL_ARG_SRC);
+    const void *diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
+    void *diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
 
     const memory_desc_wrapper data_d(pd()->data_md());
@@ -209,66 +209,62 @@ status_t ref_eltwise_bwd_t<data_type::f32>::execute_backward_dense(
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
-    src += data_d.offset0();
-    diff_dst += diff_data_d.offset0();
-    diff_src += diff_data_d.offset0();
+    if (data_type == data_type::f32) {
+        const float *src_ptr = static_cast<const float *>(src);
+        const float *diff_dst_ptr = static_cast<const float *>(diff_dst);
+        float *diff_src_ptr = static_cast<float *>(diff_src);
 
-    parallel(0, [&](const int ithr, const int nthr) {
-        dim_t start = 0, end = 0;
-        balance211(nelems, nthr, ithr, start, end);
-        if (start == end) return;
+        src_ptr += data_d.offset0();
+        diff_dst_ptr += diff_data_d.offset0();
+        diff_src_ptr += diff_data_d.offset0();
 
-        for (dim_t i = start; i < end; i++) {
-            diff_src[i] = compute_eltwise_scalar_bwd(
-                    alg_kind, diff_dst[i], src[i], alpha, beta);
-        }
-    });
-    return status::success;
-}
+        parallel(0, [&](const int ithr, const int nthr) {
+            dim_t start = 0, end = 0;
+            balance211(nelems, nthr, ithr, start, end);
+            if (start == end) return;
 
-template <>
-status_t ref_eltwise_bwd_t<data_type::bf16>::execute_backward_dense(
-        const exec_ctx_t &ctx) const {
-    using namespace memory_tracking::names;
+            for (dim_t i = start; i < end; i++) {
+                diff_src_ptr[i] = compute_eltwise_scalar_bwd(
+                        alg_kind, diff_dst_ptr[i], src_ptr[i], alpha, beta);
+            }
+        });
+    } else if (data_type == data_type::bf16) {
+        const bfloat16_t *src_ptr = static_cast<const bfloat16_t *>(src);
+        const bfloat16_t *diff_dst_ptr
+                = static_cast<const bfloat16_t *>(diff_dst);
+        bfloat16_t *diff_src_ptr = static_cast<bfloat16_t *>(diff_src);
 
-    status_t status = status::success;
-    auto src = pd()->use_dst() ? CTX_IN_MEM(const data_t *, DNNL_ARG_DST)
-                               : CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
+        src_ptr += data_d.offset0();
+        diff_dst_ptr += diff_data_d.offset0();
+        diff_src_ptr += diff_data_d.offset0();
 
-    auto scratchpad = ctx.get_scratchpad_grantor();
-    auto s_f = scratchpad.template get<float>(key_eltwise_src);
-    auto dd_f = scratchpad.template get<float>(key_eltwise_diff_dst);
+        using namespace memory_tracking::names;
+        auto scratchpad = ctx.get_scratchpad_grantor();
+        auto *src_f32 = scratchpad.template get<float>(key_eltwise_src);
+        auto *diff_dst_f32
+                = scratchpad.template get<float>(key_eltwise_diff_dst);
 
-    const memory_desc_wrapper data_d(pd()->data_md());
-    const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
+        parallel(0, [&](const int ithr, const int nthr) {
+            dim_t start = 0, end = 0;
+            balance211(nelems, nthr, ithr, start, end);
+            if (start == end) return;
 
-    const auto nelems = data_d.nelems(true);
-    const auto alg_kind = pd()->desc()->alg_kind;
-    const float alpha = pd()->desc()->alpha;
-    const float beta = pd()->desc()->beta;
+            cvt_bfloat16_to_float(
+                    src_f32 + start, src_ptr + start, end - start);
+            cvt_bfloat16_to_float(
+                    diff_dst_f32 + start, diff_dst_ptr + start, end - start);
 
-    src += data_d.offset0();
-    diff_dst += diff_data_d.offset0();
-    diff_src += diff_data_d.offset0();
+            for (dim_t i = start; i < end; i++) {
+                diff_dst_f32[i] = compute_eltwise_scalar_bwd(
+                        alg_kind, diff_dst_f32[i], src_f32[i], alpha, beta);
+            }
 
-    parallel(0, [&](const int ithr, const int nthr) {
-        dim_t start = 0, end = 0;
-        balance211(nelems, nthr, ithr, start, end);
-        if (start == end) return;
-
-        cvt_bfloat16_to_float(s_f + start, src + start, end - start);
-        cvt_bfloat16_to_float(dd_f + start, diff_dst + start, end - start);
-
-        for (dim_t i = start; i < end; i++) {
-            dd_f[i] = compute_eltwise_scalar_bwd(
-                    alg_kind, dd_f[i], s_f[i], alpha, beta);
-        }
-
-        cvt_float_to_bfloat16(diff_src + start, dd_f + start, end - start);
-    });
+            cvt_float_to_bfloat16(
+                    diff_src_ptr + start, diff_dst_f32 + start, end - start);
+        });
+    } else {
+        assert(!"unsupported data type");
+    }
     return status::success;
 }
 
