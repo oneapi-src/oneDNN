@@ -111,9 +111,10 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             brgattr.wary_tail_read = false;
 
             // TODO: change expected sizes to local chunks wrt L2 blocking
-            brgattr.hint_expected_A_size = bgmmc_.M * bgmmc_.K;
-            brgattr.hint_expected_B_size = bgmmc_.N * bgmmc_.K;
-            brgattr.hint_expected_C_size = bgmmc_.M * bgmmc_.N;
+            brgattr.hint_expected_A_size = vM * vK * bgmmc_.brgemm_batch_size;
+            brgattr.hint_expected_B_size = vN * vK * bgmmc_.brgemm_batch_size;
+            brgattr.hint_expected_C_size = vM * vN * bgmmc_.brgemm_batch_size;
+            brgattr.hint_innermost_loop = brgemm_ld_loop_innermost;
 
             CHECK(brgemm_desc_set_attr(&brg, brgattr));
         }
