@@ -364,6 +364,7 @@ MIT License:
 SIL Open Font License (OFL):
 * [Font Awesome](https://github.com/FortAwesome/Font-Awesome)
 * [Font Lato](https://fonts.google.com/specimen/Lato)
+* Font Asana Math
 
 This third party software, even if included with the distribution of
 the Intel software, may be governed by separate license terms, including
