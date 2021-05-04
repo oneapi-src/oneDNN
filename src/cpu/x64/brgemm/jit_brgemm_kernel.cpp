@@ -1162,34 +1162,35 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_amx(int bd_block2,
         }
     };
 
-    auto maybe_tileloadd_nt = [=](const Tmm &t1, int offset) {
-        if (brg.brgattr.hint_expected_A_size != LLONG_MAX
-                && brg.brgattr.hint_expected_B_size != LLONG_MAX
-                && brg.brgattr.hint_expected_C_size != LLONG_MAX) {
-            if (static_cast<size_t>(
-                        brg.typesize_A * brg.brgattr.hint_expected_A_size
-                        + brg.typesize_B * brg.brgattr.hint_expected_B_size
-                        + brg.typesize_C * brg.brgattr.hint_expected_C_size)
-                    >= platform::get_per_core_cache_size(1))
-                tileloaddt1(t1, ptr[reg_aux_B + offset + reg_stride_ldb]);
-            else
-                tileloadd(t1, ptr[reg_aux_B + offset + reg_stride_ldb]);
-        } else
-            tileloaddt1(t1, ptr[reg_aux_B + offset + reg_stride_ldb]);
+    auto maybe_tileloadd_nt = [=](const Tmm &t1, reg64_t base, int offset,
+                                      reg64_t stride, bool try_load_nt) {
+        if (try_load_nt
+                && static_cast<size_t>(
+                           brg.typesize_A * brg.brgattr.hint_expected_A_size
+                           + brg.typesize_B * brg.brgattr.hint_expected_B_size
+                           + brg.typesize_C * brg.brgattr.hint_expected_C_size)
+                        >= platform::get_per_core_cache_size(1))
+            tileloaddt1(t1, ptr[base + offset + stride]);
+        else
+            tileloadd(t1, ptr[base + offset + stride]);
     };
 
     int rbd_block = (is_rd_tail) ? 1 : brg.rdb;
     for (int rdb = 0; rdb < rbd_block; rdb++) {
         for (int bdb = 0; bdb < bd_block2; bdb++) {
-            tileloadd(Tmm(brg.get_A_tensor(bdb)),
-                    ptr[reg_aux_A
-                            + (rdb * rdb_A_offset() + A_offset(bdb, 0, true))
-                            + reg_stride_lda]);
+            maybe_tileloadd_nt(Tmm(brg.get_A_tensor(bdb)), reg_aux_A,
+                    rdb * rdb_A_offset() + A_offset(bdb, 0, true),
+                    reg_stride_lda,
+                    brg.brgattr.hint_innermost_loop
+                            == brgemm_bd_loop_innermost);
         }
         for (int ldb = 0; ldb < ld_block2; ldb++) {
             const int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
-            maybe_tileloadd_nt(Tmm(brg.get_B_tensor(idx)),
-                    rdb * rdb_B_offset() + B_offset(ldb, 0, true));
+            maybe_tileloadd_nt(Tmm(brg.get_B_tensor(idx)), reg_aux_B,
+                    rdb * rdb_B_offset() + B_offset(ldb, 0, true),
+                    reg_stride_ldb,
+                    brg.brgattr.hint_innermost_loop
+                            == brgemm_ld_loop_innermost);
             for (int bdb = 0; bdb < bd_block2; bdb++) {
                 tdpbxxd(Tmm(brg.get_C_tensor(bdb, idx)),
                         Tmm(brg.get_A_tensor(bdb)), Tmm(brg.get_B_tensor(idx)));
