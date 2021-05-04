@@ -86,6 +86,9 @@ if(NOT "${DNNL_CODE_COVERAGE}" MATCHES "^(OFF|GCOV)$")
     message(FATAL_ERROR "Unsupported code coverage tool: ${DNNL_CODE_COVERAGE}")
 endif()
 
+set(DNNL_DPCPP_HOST_COMPILER "DEFAULT" CACHE STRING
+    "specifies host compiler for Intel oneAPI DPC++ Compiler")
+
 # =============
 # Optimizations
 # =============

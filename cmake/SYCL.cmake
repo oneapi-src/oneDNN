@@ -20,6 +20,9 @@ endif()
 set(SYCL_cmake_included true)
 
 if(NOT DNNL_WITH_SYCL)
+    if (NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT")
+        message(FATAL_ERROR "DNNL_DPCPP_HOST_COMPILER is supported only for DPCPP runtime")
+    endif()
     return()
 endif()
 
@@ -46,6 +49,11 @@ if(DPCPP_SUPPORTED)
     else()
         list(APPEND EXTRA_SHARED_LIBS sycl)
     endif()
+
+    if(NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT" AND DNNL_SYCL_CUDA)
+        message(FATAL_ERROR "DNNL_DPCPP_HOST_COMPILER options is not supported for NVIDIA.")
+    endif()
+
     if(DNNL_SYCL_CUDA)
         # Explicitly linking against OpenCL without finding the right one can
         # end up linking the tests against Nvidia OpenCL. This can be
