@@ -43,9 +43,10 @@
 #include <sys/mman.h>
 #endif
 
-bench_mode_t CORR = {0x1}; // Correctness mode. Default one.
-bench_mode_t PERF = {0x2}; // Performance mode. May be combined with CORR.
-bench_mode_t LIST = {0x4}; // Listing mode. Standalone mode to only create prb.
+bench_mode_t RUN {0x1}; // Run mode.
+bench_mode_t CORR {0x2}; // Correctness mode. The default one.
+bench_mode_t PERF {0x4}; // Performance mode. May be combined with CORR.
+bench_mode_t LIST {0x8}; // Listing mode. Standalone mode to only create prb.
 
 bool is_bench_mode(bench_mode_t user_mode) {
     return !(bench_mode & user_mode).none();
@@ -170,12 +171,17 @@ void parse_result(
 
     switch (res.state) {
         case UNTESTED:
-            if (!is_bench_mode(CORR)) {
+            if (is_bench_mode(PERF)) {
                 want_perf_report = true;
                 if (status == FAIL)
                     bs.failed++;
                 else
                     bs.passed++;
+                break;
+            } else if (is_bench_mode(RUN)) {
+                assert(status == OK);
+                BENCHDNN_PRINT(0, "%d:EXECUTED __REPRO: %s\n", bs.tests, pstr);
+                want_perf_report = false;
                 break;
             }
         case FAILED:

@@ -701,6 +701,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
 }
 
 std::ostream &operator<<(std::ostream &s, bench_mode_t mode) {
+    if (is_bench_mode(RUN) && !(is_bench_mode(CORR) || is_bench_mode(PERF)))
+        s << "R";
     if (is_bench_mode(CORR)) s << "C";
     if (is_bench_mode(PERF)) s << "P";
     if (is_bench_mode(LIST)) s << "L";

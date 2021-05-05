@@ -258,6 +258,7 @@ static bool parse_bench_mode(
     const auto str2bench_mode = [](const std::string &_str) {
         bench_mode_t mode;
         for (size_t i = 0; i < _str.size(); i++) {
+            if (_str[i] == 'r' || _str[i] == 'R') mode |= RUN;
             if (_str[i] == 'c' || _str[i] == 'C') mode |= CORR;
             if (_str[i] == 'p' || _str[i] == 'P') mode |= PERF;
             if (_str[i] == 'l' || _str[i] == 'L') mode |= LIST;
