@@ -208,8 +208,18 @@ int doit(const prb_t *prb, res_t *res) {
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
-    SAFE(binary::setup_binary_po(
-                 const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+    // When post-ops occur, the relative difference can change
+    // between the output from reference and the kernel. The compare
+    // function usually uses to compare a relative difference.
+    // Therefore, we should not lead to a situation where the
+    // relative difference is very small after executing a
+    // post-ops operation. Therefore, all values for binary post_ops
+    // are positive when the linear algorithm is present. This is
+    // important because there may be small differences in the result
+    // between the expected value and the gotten value with this algorithm.
+    const bool only_positive_values = prb->alg == linear;
+    SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
+                 binary_po_fp, only_positive_values),
             WARN);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
