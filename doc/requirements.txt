@@ -1,0 +1,4 @@
+sphinx
+breathe
+sphinx_book_theme
+bs4

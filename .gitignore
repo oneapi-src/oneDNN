@@ -26,3 +26,6 @@ CMakeSettings.json
 compile_flags.txt
 compile_commands.json
 .git-blame-ignore-revs
+doc/_build
+doc/api
+doc/xml
