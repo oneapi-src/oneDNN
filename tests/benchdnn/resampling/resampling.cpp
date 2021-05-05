@@ -226,7 +226,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_fwd(prb, src_fp, dst_fp, binary_po_fp);
             float trh = prb->alg == nearest ? 0.f : 3 * epsilon_dt(prb->ddt);
 
@@ -252,7 +252,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd(prb, src_fp, dst_fp);
             float trh = prb->alg == nearest ? 0.f : 6 * epsilon_dt(prb->sdt);
             // cuDNN precision is different from ref one due to different

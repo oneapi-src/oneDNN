@@ -514,7 +514,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             dnn_mem_t dst_fused(dst_dt, fp, tag::abx, test_engine);
             dnn_mem_t dst_unfused(dst_dt1, fp, tag::abx, test_engine);
             // Used p1 to avoid writing separate compare function. Compare uses

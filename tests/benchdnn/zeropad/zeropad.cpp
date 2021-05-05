@@ -149,11 +149,11 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(0, test_mem);
     perf_function_t perf_func_ = &perf_func;
 
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         execute_and_wait(perf_func_, test_engine, args);
         SAFE(compare(test_mem, res), WARN);
     }
-    if (bench_mode & PERF) {
+    if (is_bench_mode(PERF)) {
         // Get plain memory desc size to have a proper padded area size.
         dnnl_memory_desc_t plain_data_md {};
         SAFE(init_md(&plain_data_md, prb->ndims, prb->dims.data(), prb->dt,

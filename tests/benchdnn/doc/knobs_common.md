@@ -48,8 +48,7 @@ The following common options are supported:
 
 * --mode=`MODE` -- Specifies **benchdnn** mode to be used for benchmarking. MODE 
   values can be `C` or `c` for correctness testing (the default), `P` or `p` for
-  performance testing, `PC` or `pc` for both correctness and performance
-  testing, `L` or `l` for listing mode. Refer to
+  performance testing, `L` or `l` for listing mode. Refer to
   [modes](benchdnn_general_info.md) for details.
 
 * --reset -- Instructs the driver to reset DRIVER-OPTIONS (not COMMON-OPTIONS!)

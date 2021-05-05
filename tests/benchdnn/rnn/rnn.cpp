@@ -973,7 +973,7 @@ int doit(const prb_t &prb, res_t *res) {
     SAFE(execute_and_wait(prim, args), WARN);
 
     if (prb.prop != dnnl_backward) {
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_fwd(prb, src_layer_fp, src_iter_fp, src_iter_c_fp,
                     weights_layer_fp, weights_iter_fp, weights_peephole_fp,
                     weights_projection_fp, bias_fp, dst_layer_fp, dst_iter_fp,
@@ -1127,7 +1127,7 @@ int doit(const prb_t &prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd(prb, src_layer_fp, src_iter_fp, src_iter_c_fp,
                     diff_dst_layer_fp, diff_dst_iter_fp, diff_dst_iter_c_fp,
                     weights_layer_fp, weights_iter_fp, weights_peephole_fp,

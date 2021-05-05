@@ -255,6 +255,27 @@ void parse_multi_dims(std::vector<dims_t> &dims, const char *str) {
 // service functions
 static bool parse_bench_mode(
         const char *str, const std::string &option_name = "mode") {
+    const auto str2bench_mode = [](const std::string &_str) {
+        bench_mode_t mode;
+        for (size_t i = 0; i < _str.size(); i++) {
+            if (_str[i] == 'c' || _str[i] == 'C') mode |= CORR;
+            if (_str[i] == 'p' || _str[i] == 'P') mode |= PERF;
+            if (_str[i] == 'l' || _str[i] == 'L') mode |= LIST;
+        }
+        if (!(mode & LIST).none() && mode.count() > 1) {
+            fprintf(stderr,
+                    "ERROR: LIST mode is incompatible with any other modes. "
+                    "Please use just `--mode=L` instead.\n");
+            exit(2);
+        }
+        if (mode.none()) {
+            fprintf(stderr, "ERROR: empty mode is not allowed.\n");
+            exit(2);
+        }
+
+        return mode;
+    };
+
     return parse_single_value_option(
             bench_mode, CORR, str2bench_mode, str, option_name);
 }

@@ -395,7 +395,7 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(prim, args), WARN);
 
     /* Step 6: check correctness */
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         if (prb->is_reorder_with_compensation()) {
             /* "bootstrap" algorithm: compare to another oneDNN reorder. use
              * this when benchdnn does not know about all details of the data

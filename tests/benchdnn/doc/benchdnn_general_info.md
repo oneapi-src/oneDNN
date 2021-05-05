@@ -54,13 +54,13 @@ tests/benchdnn/inputs/<primitive_name>/test_<test-name>.
   controlled by a `--max-ms-per-prb=N` option. Instead of time, the number of
   rounds can be set as a criterion, which is controlled by a
   `--fix-times-per-prb=N` option. Refer to
-  [performance options](knobs_common.md) for details.
-* Correctness & Performance mode: This is a combination of two modes running
-  consecutively, first correctness, then performance.
-* Listing mode: In this flow the driver constructs the problem, prints its
-  reproducer line, and then moves to the next problem. It is also known as a
-  dry run. This mode is useful to extract the full list of problems from an
-  input file.
+  [performance options](knobs_common.md) for details. Performance mode may be
+  combined with correctness one, consecutively checking if problem passes
+  correctness validation and then, if successful, measuring its performance.
+* Listing mode: In this flow the driver constructs the problem and returns.
+  Useful to dry-run input files checking parsing errors or find a specific
+  reproducer line if combined with `verbose` option. This mode is standalone and
+  cannot be used with any other mode.
 
 ## Problem Statuses
 

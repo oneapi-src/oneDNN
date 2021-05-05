@@ -268,7 +268,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(prim, args), WARN);
 
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         compute_ref(prb, src0_fp, src1_fp, binary_po_fp, dst_fp);
 
         compare::compare_t cmp;

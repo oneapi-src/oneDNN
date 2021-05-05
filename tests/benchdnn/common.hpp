@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <bitset>
 #include <cinttypes>
 #include <functional>
 #include <string>
@@ -103,16 +104,12 @@ extern std::string skip_impl; /* empty or "" means skip nothing */
     T(const T &) = delete; \
     T &operator=(const T &) = delete;
 
-enum bench_mode_t {
-    MODE_UNDEF = 0x0,
-    CORR = 0x1,
-    PERF = 0x2,
-    LIST = 0x4,
-};
-const char *bench_mode2str(bench_mode_t mode);
-bench_mode_t str2bench_mode(const char *str);
-extern bench_mode_t bench_mode;
+using bench_mode_t = std::bitset<3>;
+extern bench_mode_t CORR, PERF, LIST; // pre-defined modes
+extern bench_mode_t bench_mode; // user mode
 extern const char *driver_name;
+
+bool is_bench_mode(bench_mode_t user_mode);
 
 /* perf */
 extern double max_ms_per_prb; /** maximum time spends per prb in ms */

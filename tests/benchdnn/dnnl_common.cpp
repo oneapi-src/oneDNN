@@ -148,7 +148,7 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
 
     execute_map_args(args);
 
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         for (int i = 0; i < args.size(); ++i) {
             SAFE(check_zero_padding(args.dnn_mem(i), args.arg(i)), WARN);
         }
@@ -245,7 +245,7 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
 int measure_perf(
         benchdnn_timer_t &t, perf_function_t &perf_func, args_t &args) {
     int ret = OK;
-    if (bench_mode & PERF) {
+    if (is_bench_mode(PERF)) {
         stream_t stream(get_test_engine());
         std::vector<dnnl_exec_arg_t> dnnl_args;
         execute_unmap_args(args, dnnl_args);

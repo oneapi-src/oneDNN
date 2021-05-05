@@ -608,7 +608,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     // Running ref to collect src_hat (used instead of src + mean) and ws, if
     // fuse_relu flag is requested.
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         compute_ref_fwd(prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp, ws_fp,
                 dst_fp, src_hat_fp);
         if (prb->dir & FLAG_FWD) {
@@ -667,7 +667,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd(prb, src_hat_fp, var_fp, d_dst_fp, ss_fp, sh_fp,
                     ws_fp, d_src_fp, d_ss_fp, d_sh_fp);
             if ((use_ss || use_sc) && (prb->dir & FLAG_WEI)) {
