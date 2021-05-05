@@ -47,7 +47,9 @@ def generate_verbose(path_to_benchdnn, driver, batch):
     sub_env = os.environ.copy()
     sub_env['DNNL_VERBOSE'] = '1'
     sub_env['DNNL_PRIMITIVE_CACHE_CAPACITY'] = '0'
-    sub_args = [benchdnn_exe, f"--{driver}", f"-v1", f"--batch={batch}"]
+    sub_args = [
+        benchdnn_exe, f"--{driver}", f"--mode=R", f"-v1", f"--batch={batch}"
+    ]
     try:
         sub = subprocess.run(sub_args,
                              capture_output=True,
