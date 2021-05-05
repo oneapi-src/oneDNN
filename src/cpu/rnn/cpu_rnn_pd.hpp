@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ protected:
         return status::success;
     }
 
-    status_t check_layout_consistency() {
+    status_t check_layout_consistency(bool is_brgemm) {
         using namespace format_tag;
         using namespace data_type;
         using namespace types;
@@ -207,7 +207,7 @@ protected:
         return status::success;
     }
 
-    status_t check_layout_consistency() {
+    status_t check_layout_consistency(bool is_brgemm) {
         using namespace format_tag;
         using namespace types;
 
@@ -231,19 +231,20 @@ protected:
                 && IMPLICATION(!is_zero_md(&dst_iter_c_md_),
                         is_blocked(dst_iter_c_md_, 4, true));
 
-        if (weights_layer_md_.format_kind == format_kind::rnn_packed)
-            ok = ok
-                    && (weights_layer_md_.format_desc.rnn_packed_desc.format
-                            == dnnl_ldgoi_p);
-        else
-            ok = ok && rnn_utils::is_ldgoi(&weights_layer_md_);
+        const auto check_weights_consistency =
+                [&](const memory_desc_t &weights_md) {
+                    if (weights_md.format_kind == format_kind::rnn_packed)
+                        return ok
+                                && weights_md.format_desc.rnn_packed_desc.format
+                                == dnnl_ldgoi_p;
+                    else if (is_brgemm)
+                        return ok && rnn_utils::is_ldgoi_blocked(&weights_md);
+                    else
+                        return ok && rnn_utils::is_ldgoi(&weights_md);
+                };
 
-        if (weights_iter_md_.format_kind == format_kind::rnn_packed)
-            ok = ok
-                    && (weights_iter_md_.format_desc.rnn_packed_desc.format
-                            == dnnl_ldgoi_p);
-        else
-            ok = ok && rnn_utils::is_ldgoi(&weights_iter_md_);
+        ok = check_weights_consistency(weights_layer_md_);
+        ok = check_weights_consistency(weights_iter_md_);
 
         ok = ok
                 && IMPLICATION(is_lstm_peephole(),

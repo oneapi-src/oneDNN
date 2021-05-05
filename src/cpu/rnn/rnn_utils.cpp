@@ -79,6 +79,12 @@ bool rnn_utils::is_ldigo_blocked(const memory_desc_wrapper &mdw) {
     return md_format_tag != format_tag::undef;
 }
 
+bool rnn_utils::is_ldgoi_blocked(const memory_desc_wrapper &mdw) {
+    format_tag_t md_format_tag = mdw.matches_one_of_tag(
+            format_tag::ldgIo32i, format_tag::ldgIO32i2o);
+    return md_format_tag != format_tag::undef;
+}
+
 bool rnn_utils::is_ldio_blocked(const memory_desc_wrapper &mdw) {
     format_tag_t md_format_tag = mdw.matches_one_of_tag(
             format_tag::ldOi32o, format_tag::ldOI32o4i);
@@ -262,12 +268,19 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
         using namespace format_tag;
         if (rnn.is_brgemm) {
             format_tag_t tag = format_tag::undef;
-            tag = (weights_type == weights_type_t::projection)
-                    ? (rnn.is_int8()) ? format_tag::ldOI32o4i
-                                      : format_tag::ldOi32o
-                    : (rnn.is_int8()) ? format_tag::ldgOI32o4i
-                                      : (rnn.is_bf16()) ? format_tag::ldgOI32o2i
-                                                        : format_tag::ldgOi32o;
+
+            if (weights_type == weights_type_t::projection) {
+                tag = rnn.is_int8() ? format_tag::ldOI32o4i
+                                    : format_tag::ldOi32o;
+            } else if (rnn.is_fwd) {
+                tag = rnn.is_int8() ? format_tag::ldgOI32o4i
+                                    : rnn.is_bf16() ? format_tag::ldgOI32o2i
+                                                    : format_tag::ldgOi32o;
+            } else {
+                tag = rnn.is_bf16() ? format_tag::ldgIO32i2o
+                                    : format_tag::ldgIo32i;
+            }
+
             if (tag != format_tag::undef) {
                 CHECK(memory_desc_init_by_tag(weights_md, tag));
                 if (rnn.is_unsigned_int8()) {

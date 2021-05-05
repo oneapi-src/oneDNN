@@ -102,7 +102,7 @@ void rnn_fwd_postgemm_template(T func1, const float *scales, float alpha,
         }
     };
 
-    if (rnn.is_brgemm) {
+    if (rnn.is_brgemm && !rnn.unfused_post_gemm) {
         for (int i = 0; i < rnn.m_block; i++)
             postgemm_call(i);
     } else

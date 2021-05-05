@@ -17,15 +17,16 @@
 /*
  * Common for RNN and LSTM cell execution
  */
-
 #include "common/bfloat16.hpp"
 #include "common/dnnl_thread.hpp"
 
 #include "cpu/rnn/ref_rnn.hpp"
 #include "cpu/simple_q10n.hpp"
 #if DNNL_X64
-#include "cpu/x64/amx_tile_configure.hpp"
+#include "cpu/x64/rnn/brgemm_cell_common.hpp"
 #endif
+#include <functional>
+#include "cpu/x64/rnn/brgemm_cell_common_reorders.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -99,35 +100,10 @@ template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_ref);
 template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_ref);
 template rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_ref);
 
-#if DNNL_X64
-
-struct amx_tile_configuration_loader_t {
-    /*
-     * Tile configurations are prepared in init phase. In execute we must load
-     * proper configuration for given situation. Tile configure is an expensive
-     * performance operation. We should avoid multiple reconfigurations as well
-     * as loading same configuration if it is already loaded.
-     */
-    void operator()(const char *requested_cfg_addr) {
-        if (current_cfg_addr != requested_cfg_addr) {
-            amx_tile_configure(requested_cfg_addr);
-            current_cfg_addr = requested_cfg_addr;
-        }
-    }
-    ~amx_tile_configuration_loader_t() {
-        if (current_cfg_addr) amx_tile_release();
-    }
-
-private:
-    const char *current_cfg_addr = nullptr;
-};
-
-#endif
-
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
         data_type_t acc_type>
 rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
-        acc_type>::cell_execution_brgemm)) {
+        acc_type>::cell_execution_brgemm_fwd)) {
 #if DNNL_X64
     auto weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
     auto weights_projectons_scales = rnn.is_lstm_projection
@@ -141,6 +117,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             : nullptr;
 
     auto dst_postgemm = rnn.is_lstm_projection ? proj_ht_ : dst_layer_;
+    auto dst_iter_postgemm = rnn.is_lstm_projection ? nullptr : dst_iter_;
 
     const dim_t layer_desc_idx = rnn.layer_brgemm_desc(cell_position);
     const dim_t iter_desc_idx = rnn.iter_brgemm_desc(cell_position);
@@ -158,7 +135,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     auto Aic = src_iter_c_;
 
     auto Dpg = dst_postgemm;
-    auto Di = rnn.is_lstm_projection ? nullptr : dst_iter_;
+    auto Di = dst_iter_postgemm;
     auto Dic = dst_iter_c_;
 
     auto Bl = w_layer_[0];
@@ -392,7 +369,9 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 }
             }
             if (!rnn.unfused_post_gemm) {
-                rnn_postgemm_->execute(rnn, cell_position, ws_gates_, C_n,
+                const auto curr_ws_gates_ = ws_gates_ + (m * rnn.ws_gates_ld)
+                        + nb_i * rnn.n_block;
+                rnn_postgemm_->execute(rnn, cell_position, curr_ws_gates_, C_n,
                         Dpg_n, Dic_n, Ai_m, Aic_n, diff_src_layer_,
                         diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
                         diff_dst_iter_, diff_dst_iter_c_, weights_peephole_n,
@@ -408,8 +387,9 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 dst_postgemm, dst_iter_c_, src_iter_, src_iter_c_,
                 diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
                 diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-                weights_peephole_, bias_[0], ws_grid_, scratch_cell_, dst_iter_,
-                wscales_postgemm, rnn.dhc * sizeof(scratch_t));
+                weights_peephole_, bias_[0], ws_grid_, scratch_cell_,
+                dst_iter_postgemm, wscales_postgemm,
+                rnn.dhc * sizeof(scratch_t));
     }
     if (rnn.is_lstm_projection) {
         // Here, because the accumulation type is likely different
@@ -443,6 +423,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             balance211(work_amount_proj, nthr, ithr, start, end);
             gemm_acc_t *amx_buffer = nullptr;
             brgemm_batch_element_t *addr_batch = nullptr;
+            amx_tile_configuration_loader_t load_cfg_if_needed;
 
             if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
                 int max_K_Block = nstl::max(rnn.KB1_blocks + 1,
@@ -450,7 +431,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 addr_batch = addr_batch_global + ithr * max_K_Block;
 
                 amx_buffer = amx_scratchpad + rnn.m_block * rnn.n_block * ithr;
-                amx_tile_configure(rnn_brgemm_.pallete_buff_proj_);
+                load_cfg_if_needed(rnn_brgemm_.pallete_buff_proj_);
             } else {
                 addr_batch = addr_batch_global + ithr;
             }
@@ -481,7 +462,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
                 if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
                     if (do_n_tail)
-                        amx_tile_configure(
+                        load_cfg_if_needed(
                                 rnn_brgemm_.pallete_buff_nproj_tail_);
                     for (int k = 0; k < rnn.KBproj_blocks; k++) {
                         addr_batch[k].ptr.A = Ap_m + k * rnn.kproj_block;
@@ -512,7 +493,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                                                       [proj_desc_idx]
                                               .get();
                         }
-                        amx_tile_configure(tail_cfg_kproj);
+                        load_cfg_if_needed(tail_cfg_kproj);
                         addr_batch[0].ptr.A
                                 = Ap_m + rnn.KBproj_blocks * rnn.kproj_block;
                         addr_batch[0].ptr.B = Bp_n
@@ -520,7 +501,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                                         * rnn.n_block;
                         brgemm_kernel_execute(brgemm_kernel_proj_tail, 1,
                                 addr_batch, (void *)Cp_n, amx_buffer);
-                        amx_tile_configure(tail_recfg);
+                        load_cfg_if_needed(tail_recfg);
                     }
                 } else {
                     addr_batch[0].ptr.A = Ap_m;
@@ -538,7 +519,6 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 ++start;
                 nd_iterator_step(nb, rnn.Nproj_blocks, mb, rnn.M_blocks);
             }
-            if (rnn.is_int8_amx() || rnn.is_bf16_amx()) { amx_tile_release(); }
         });
         // we have to downconvert the output to dst_layer_t and copy to dst_iter if needed
         if (rnn.unfused_post_gemm) {
@@ -553,10 +533,19 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     return dnnl_success;
 }
 
-template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_brgemm);
-template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_brgemm);
-template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_brgemm);
-template rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_brgemm);
+template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_brgemm_fwd);
+template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_brgemm_fwd);
+template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_brgemm_fwd);
+template rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_brgemm_fwd);
+
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_brgemm_fwd) {
+    return dnnl_success;
+}
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_brgemm_fwd) {
+    return dnnl_success;
+}
 
 template <typename scratch_data_t, typename acc_data_t>
 void lstm_bwd_weights_peephole_and_bias(const rnn_utils::rnn_conf_t &rnn,
@@ -766,14 +755,78 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_ref) {
             scratch_cell_, dst_iter_);
 }
 
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+        acc_type>::cell_execution_brgemm_bwd)) {
+
+    rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
+            dst_layer_, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
+            diff_src_iter_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
+            diff_dst_iter_c_, weights_peephole_, bias_[0], ws_grid_,
+            scratch_cell_, dst_iter_, nullptr, 0);
+
+#if DNNL_X64
+    using brgemm_diff_src_calc_t = x64::brgemm_diff_src_layer_iter_t<weights_t,
+            scratch_t, gemm_acc_t>;
+    using brgemm_diff_weights_calc_t
+            = x64::brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t,
+                    scratch_t, gemm_acc_t>;
+
+    const brgemm_diff_src_calc_t diff_src_calc(rnn_brgemm_, rnn, cell_position,
+            scratch_gates_, w_iter_[0], w_layer_[0], diff_src_iter_,
+            diff_src_layer_, amx_scratchpad, addr_batch_global);
+    const brgemm_diff_weights_calc_t diff_weights_calc(rnn_brgemm_, rnn,
+            cell_position, src_iter_, scratch_src_iter_, src_layer_,
+            scratch_src_layer_, scratch_gates_, scratch_gates_blocked_,
+            diff_w_iter_, diff_w_layer_, diff_bias_, amx_scratchpad,
+            addr_batch_global);
+
+    // calculate
+    // dff_src_iter = scratch * w_iter
+    // dff_src_layer = scratch * w_layer
+    diff_src_calc.execute();
+
+    if (rnn.diff_wei_brgemm.global_transpose) {
+        const auto layer_transpose = src_layer_iter_transpose_t(
+                rnn, rnn.slc, rnn.src_layer_ld(cell_position));
+        const auto iter_transpose = src_layer_iter_transpose_t(
+                rnn, rnn.sic, rnn.src_iter_ld(cell_position));
+
+        layer_transpose.execute_in_parallel(src_layer_, scratch_src_layer_);
+        iter_transpose.execute_in_parallel(src_iter_, scratch_src_iter_);
+    }
+    // calculate
+    // dff_weights_layer = src_layer^T * scratch
+    // dff_weights_iter = src_iter^T * scratch
+    // performs gates reductions
+    // diff_bias = scratch reduction over mb
+    diff_weights_calc.execute();
+#endif
+
+    // gates_reduction(rnn, scratch_gates_, diff_bias_);
+
+    return dnnl_success;
+}
+
 template <>
-rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_brgemm) {
+rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_brgemm_bwd) {
     return dnnl_success;
 }
 template <>
-rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_brgemm) {
+rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_brgemm_bwd) {
     return dnnl_success;
 }
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_brgemm_bwd) {
+    return dnnl_success;
+}
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_brgemm_bwd) {
+    return dnnl_success;
+}
+template rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_brgemm_bwd);
+template rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_brgemm_bwd);
 
 } // namespace cpu
 } // namespace impl

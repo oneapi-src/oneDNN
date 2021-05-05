@@ -21,6 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
+#include "common/primitive.hpp"
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
@@ -46,7 +47,7 @@
 
 #if DNNL_X64
 #define rnn_cell_execution_sig(f) \
-    dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
+    dnnl_status_t f(const exec_ctx_t &ctx, const rnn_utils::rnn_conf_t &rnn, \
             rnn_utils::cell_position_t cell_position, dst_layer_t *dst_layer_, \
             float *dst_iter_c_, gemm_acc_t *diff_src_layer_, \
             gemm_acc_t *diff_src_iter_, gemm_acc_t *diff_src_iter_c_, \
@@ -60,12 +61,13 @@
             float *diff_weights_projection_, float *diff_weights_peephole_, \
             float *diff_bias_, gates_t *ws_gates_, scratch_t *scratch_gates_, \
             ht_t *proj_ht_, gemm_acc_t *scratch_diff_ht_, gates_t *ws_grid_, \
-            scratch_t *scratch_cell_, dst_iter_t *dst_iter_, \
-            gemm_acc_t *amx_scratchpad, \
+            scratch_t *scratch_cell_, scratch_t *scratch_gates_blocked_, \
+            scratch_t *scratch_src_layer_, scratch_t *scratch_src_iter_, \
+            dst_iter_t *dst_iter_, gemm_acc_t *amx_scratchpad, \
             x64::brgemm_batch_element_t *addr_batch_global) const
 
 #define rnn_grid_execution_sig(f) \
-    dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
+    dnnl_status_t f(const exec_ctx_t &ctx, const rnn_utils::rnn_conf_t &rnn, \
             weights_t **weights_layer_, weights_t **weights_iter_, \
             weights_t **weights_projection_, const float *weights_peephole_, \
             const float *w_proj_comp, float **bias_, \
@@ -78,10 +80,11 @@
             gemm_acc_t *ws_diff_states_iter_c_, gates_t *ws_gates_, \
             ht_t *ws_ht_, gates_t *ws_grid_, scratch_t *scratch_gates_, \
             ht_t *scratch_ht_, gemm_acc_t *scratch_diff_ht_, \
-            scratch_t *scratch_cell_, gemm_acc_t *diff_weights_layer_, \
-            gemm_acc_t *diff_weights_iter_, float *diff_weights_projection_, \
-            float *diff_weights_peephole_, float *diff_bias_, \
-            gemm_acc_t *amx_scratchpad, \
+            scratch_t *scratch_cell_, scratch_t *scratch_gates_blocked_, \
+            scratch_t *scratch_src_layer_, scratch_t *scratch_src_iter_, \
+            gemm_acc_t *diff_weights_layer_, gemm_acc_t *diff_weights_iter_, \
+            float *diff_weights_projection_, float *diff_weights_peephole_, \
+            float *diff_bias_, gemm_acc_t *amx_scratchpad, \
             x64::brgemm_batch_element_t *addr_batch_global) const
 #else
 #define rnn_cell_execution_sig(f) \
@@ -195,90 +198,136 @@ enum data_type_conf_t {
     f32s8f32s8
 };
 
+struct diff_src_brgemm_conf_t {
+    dim_t M = 0, N = 0, K = 0;
+
+    dim_t n_block = 0, N_blocks = 0, n_tail = 0;
+    dim_t m_block = 0, M_blocks = 0;
+
+    dim_t K_blocks = 0, k_block = 0, k_tail = 0;
+    dim_t Kpadded = 0;
+
+    dim_t N_iter = 0, N_layer = 0;
+    dim_t N_layer_blocks = 0, n_layer_tail = 0;
+    dim_t N_iter_blocks = 0, n_iter_tail = 0;
+    dim_t LDA = 0, LDB = 0, LDC = 0;
+
+#if DNNL_X64
+    x64::cpu_isa_t isa = x64::isa_any;
+#endif
+};
+
+struct diff_wei_brgemm_conf_t {
+    dim_t M = 0, M_layer = 0, M_iter = 0, N = 0, K = 0;
+
+    dim_t n_block = 0, N_blocks = 0, n_tail = 0;
+    dim_t m_block = 0, M_blocks = 0;
+    dim_t K_blocks = 0, k_block = 0, k_tail = 0;
+    dim_t Kpadded = 0;
+
+    dim_t LDA_layer = 0, LDA_iter = 0, LDB = 0, LDC_iter = 0, LDC_layer = 0;
+
+    bool global_transpose = false;
+
+#if DNNL_X64
+    x64::cpu_isa_t isa = x64::isa_any;
+#endif
+};
+
 struct rnn_conf_t {
     execution_direction_t exec_dir;
     data_type_conf_t dt_conf;
-    int n_layer, n_iter, n_dir, n_gates, n_states;
-    int mb;
-    int slc, sic, dhc, dic, dlc;
+    int n_layer = 0, n_iter = 0, n_dir = 0, n_gates = 0, n_states = 0;
+    int mb = 0;
+    int slc = 0, sic = 0, dhc = 0, dic = 0, dlc = 0;
     //int gates_ld, gates_nld, gates_ws_ld;
 
-    int n_parts_weights_layer;
+    int n_parts_weights_layer = 0;
     int parts_weights_layer[DNNL_RNN_MAX_N_PARTS];
     size_t part_weights_layer_pack_size[DNNL_RNN_MAX_N_PARTS];
 
-    int n_parts_weights_iter;
+    int n_parts_weights_iter = 0;
     int parts_weights_iter[DNNL_RNN_MAX_N_PARTS];
     size_t part_weights_iter_pack_size[DNNL_RNN_MAX_N_PARTS];
 
-    int n_parts_weights_projection;
+    int n_parts_weights_projection = 0;
     int parts_weights_projection[DNNL_RNN_MAX_N_PARTS];
     size_t part_weights_projection_pack_size[DNNL_RNN_MAX_N_PARTS];
 
-    int n_bias, n_parts_bias, parts_bias[DNNL_RNN_MAX_N_PARTS];
+    int n_bias = 0, n_parts_bias = 0, parts_bias[DNNL_RNN_MAX_N_PARTS];
 
     /* Size of packed data in bytes */
-    size_t weights_layer_comp_offset, weights_layer_pack_size;
-    size_t weights_iter_comp_offset, weights_iter_pack_size;
-    size_t weights_projection_comp_offset, weights_projection_pack_size;
+    size_t weights_layer_comp_offset = 0, weights_layer_pack_size = 0;
+    size_t weights_iter_comp_offset = 0, weights_iter_pack_size = 0;
+    size_t weights_projection_comp_offset = 0, weights_projection_pack_size = 0;
 
-    bool copy_bias;
-    int weights_layer_ld, weights_layer_nld;
-    int diff_weights_layer_ld, diff_weights_layer_nld;
-    int weights_iter_ld, weights_iter_nld;
-    int diff_weights_iter_ld, diff_weights_iter_nld;
-    int weights_projection_ld, weights_projection_nld;
-    int diff_weights_projection_ld, diff_weights_projection_nld;
+    bool copy_bias = 0;
+    int weights_layer_ld = 0, weights_layer_nld = 0;
+    int diff_weights_layer_ld = 0, diff_weights_layer_nld = 0;
+    int weights_iter_ld = 0, weights_iter_nld = 0;
+    int diff_weights_iter_ld = 0, diff_weights_iter_nld = 0;
+    int weights_projection_ld = 0, weights_projection_nld = 0;
+    int diff_weights_projection_ld = 0, diff_weights_projection_nld = 0;
 
-    int proj_ht_ld, proj_ht_nld;
+    int proj_ht_ld = 0, proj_ht_nld = 0;
 
-    int ws_gates_ld, ws_gates_nld;
-    int ws_ht_ld, ws_ht_nld;
-    int ws_states_layer_ld, ws_states_layer_nld;
-    int ws_states_iter_ld, ws_states_iter_nld;
-    int ws_states_iter_c_ld, ws_states_iter_c_nld;
-    int ws_diff_states_layer_ld, ws_diff_states_layer_nld;
-    int ws_diff_states_iter_ld, ws_diff_states_iter_nld;
-    int ws_diff_states_iter_c_ld, ws_diff_states_iter_c_nld;
+    int ws_gates_ld = 0, ws_gates_nld = 0;
+    int ws_ht_ld = 0, ws_ht_nld = 0;
+    int ws_states_layer_ld = 0, ws_states_layer_nld = 0;
+    int ws_states_iter_ld = 0, ws_states_iter_nld = 0;
+    int ws_states_iter_c_ld = 0, ws_states_iter_c_nld = 0;
+    int ws_diff_states_layer_ld = 0, ws_diff_states_layer_nld = 0;
+    int ws_diff_states_iter_ld = 0, ws_diff_states_iter_nld = 0;
+    int ws_diff_states_iter_c_ld = 0, ws_diff_states_iter_c_nld = 0;
 
-    int scratch_gates_ld, scratch_gates_nld;
-    int scratch_ht_ld, scratch_ht_nld;
-    int scratch_diff_ht_ld, scratch_diff_ht_nld;
+    int scratch_gates_ld = 0, scratch_gates_nld = 0;
+    int scratch_ht_ld = 0, scratch_ht_nld = 0;
+    int scratch_diff_ht_ld = 0, scratch_diff_ht_nld = 0;
 
-    int src_layer_ld_, src_layer_nld_;
-    int src_iter_ld_, src_iter_nld_;
-    int src_iter_c_ld_, src_iter_c_nld_;
-    int dst_layer_ld_, dst_layer_nld_;
-    int dst_iter_ld_, dst_iter_nld_;
-    int dst_iter_c_ld_, dst_iter_c_nld_;
+    int src_layer_ld_ = 0, src_layer_nld_ = 0;
+    int src_iter_ld_ = 0, src_iter_nld_ = 0;
+    int src_iter_c_ld_ = 0, src_iter_c_nld_ = 0;
+    int dst_layer_ld_ = 0, dst_layer_nld_ = 0;
+    int dst_iter_ld_ = 0, dst_iter_nld_ = 0;
+    int dst_iter_c_ld_ = 0, dst_iter_c_nld_ = 0;
 
-    int weights_iter_compensation_size, weights_layer_compensation_size;
-    bool is_fwd, is_training, is_lbr, is_lstm_peephole, is_lstm_projection;
-    bool use_workspace;
+    int weights_iter_compensation_size = 0, weights_layer_compensation_size = 0;
+    bool is_fwd = 0, is_training = 0, is_lbr = 0, is_lstm_peephole = 0,
+         is_lstm_projection = 0;
+    bool use_workspace = 0;
 
     // Size of workspace for each tensor in bytes
     // Notes:
     // 1. For non-LSTMP ws_states_iter_size == ws_states_layer_size. The corresponding
     //    pointers should point to the same places.
-    size_t ws_gates_size;
-    size_t ws_ht_size;
-    size_t ws_states_layer_size;
-    size_t ws_states_iter_size;
-    size_t ws_states_iter_c_size;
-    size_t ws_diff_states_layer_size;
-    size_t ws_diff_states_iter_size;
-    size_t ws_diff_states_iter_c_size;
-    size_t scratch_gates_size;
-    size_t scratch_ht_size;
-    size_t scratch_diff_ht_size;
-    size_t scratch_cell_size;
-    size_t ws_grid_comp_size;
-    size_t ws_per_cell;
-    size_t ws_bias_size;
+    size_t ws_gates_size = 0;
+    size_t ws_ht_size = 0;
+    size_t ws_states_layer_size = 0;
+    size_t ws_states_iter_size = 0;
+    size_t ws_states_iter_c_size = 0;
+    size_t ws_diff_states_layer_size = 0;
+    size_t ws_diff_states_iter_size = 0;
+    size_t ws_diff_states_iter_c_size = 0;
+    size_t scratch_gates_size = 0;
 
-    bool merge_gemm_iter, merge_gemm_layer, force_nocopy, use_layer_packed_gemm,
-            use_iter_packed_gemm, use_projection_packed_gemm;
-    int n_iter_scratch_gates;
+    size_t scratch_gates_blocked_size = 0;
+    size_t scratch_gates_blocked_nested_reorder_size = 0;
+    size_t scratch_src_layer_size = 0;
+    size_t scratch_src_layer_nested_reorder_size = 0;
+    size_t scratch_src_iter_size = 0;
+    size_t scratch_src_iter_nested_reorder_size = 0;
+
+    size_t scratch_ht_size = 0;
+    size_t scratch_diff_ht_size = 0;
+    size_t scratch_cell_size = 0;
+    size_t ws_grid_comp_size = 0;
+    size_t ws_per_cell = 0;
+    size_t ws_bias_size = 0;
+
+    bool merge_gemm_iter = false, merge_gemm_layer = false,
+         force_nocopy = false, use_layer_packed_gemm = false,
+         use_iter_packed_gemm = false, use_projection_packed_gemm = false;
+    int n_iter_scratch_gates = 0;
 
     inline bool is_int8() const {
         return is_signed_int8() || is_unsigned_int8();
@@ -423,6 +472,9 @@ struct rnn_conf_t {
     }
     bool is_brgemm;
 
+    diff_src_brgemm_conf_t diff_src_brgemm;
+    diff_wei_brgemm_conf_t diff_wei_brgemm;
+
     dim_t M, N, K1, K2;
 
     dim_t LDB1, LDB2;
@@ -455,6 +507,7 @@ bool is_ldgoi(const memory_desc_wrapper &md);
 bool is_ldio(const memory_desc_wrapper &md);
 bool is_ldoi(const memory_desc_wrapper &md);
 bool is_ldigo_blocked(const memory_desc_wrapper &md);
+bool is_ldgoi_blocked(const memory_desc_wrapper &md);
 bool is_ldio_blocked(const memory_desc_wrapper &md);
 
 int get_good_ld(int dim, int sizeof_dt);

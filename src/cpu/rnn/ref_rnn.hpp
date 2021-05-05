@@ -89,6 +89,9 @@ struct _ref_rnn_common_t : public primitive_t {
 
     using class_name
             = _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>;
+#if DNNL_X64
+    using ref_rnn_brgemm_t = x64::rnn_brgemm_utils::rnn_brgemm_t<aprop>;
+#endif
 
     typedef rnn_cell_execution_sig((class_name::*cell_execution_f));
     typedef rnn_grid_execution_sig((class_name::*grid_execution_f));
@@ -200,7 +203,7 @@ struct _ref_rnn_common_t : public primitive_t {
                 }
             }
 
-            CHECK(this->check_layout_consistency());
+            CHECK(this->check_layout_consistency(false /*is_brgemm*/));
 
             set_conf<class_name>(rnn_, *this->desc(), this->weights_md(0),
                     this->weights_md(1),
@@ -225,13 +228,13 @@ struct _ref_rnn_common_t : public primitive_t {
             data_type_t weights_layer_dt
                     = this->desc()->weights_layer_desc.data_type;
 
-            if (aprop == backward || one_of(this->desc()->prop_kind, backward))
-                return status::unimplemented;
-            bool ok = true
-                    && one_of(cell_kind, alg_kind::vanilla_rnn,
-                            alg_kind::vanilla_lstm)
+            bool ok = one_of(cell_kind, alg_kind::vanilla_rnn,
+                              alg_kind::vanilla_lstm)
                     && IMPLICATION(aprop == prop_kind::forward,
-                            one_of(this->desc()->prop_kind, forward_inference))
+                            one_of(this->desc()->prop_kind, forward_training,
+                                    forward_inference))
+                    && IMPLICATION(aprop == backward,
+                            one_of(this->desc()->prop_kind, backward))
                     && src_layer_dt == src_type
                     && everyone_is(
                             weights_type, weights_iter_dt, weights_layer_dt)
@@ -245,8 +248,19 @@ struct _ref_rnn_common_t : public primitive_t {
                     this->weights_md(1),
                     this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION), this->dst_md(0),
                     this->dst_md(1), this->dst_md(2));
+
+            ok = ok
+                    && IMPLICATION(one_of(this->desc()->prop_kind,
+                                           forward_training, backward),
+                            (rnn_.is_bf16() || rnn_.is_f32()));
+
             if (!ok) return status::unimplemented;
 
+            if (!(IMPLICATION((cell_kind == alg_kind::vanilla_lstm
+                                      && (rnn_.is_lstm_peephole
+                                              || rnn_.is_lstm_projection)),
+                        this->desc()->prop_kind == forward_inference)))
+                return status::unimplemented;
             if (rnn_.is_bf16() && !mayiuse(avx512_core_bf16))
                 return status::unimplemented;
             if (rnn_.is_signed_int8() && !mayiuse(avx512_core_bf16_amx_int8))
@@ -279,7 +293,7 @@ struct _ref_rnn_common_t : public primitive_t {
                     this->diff_weights_md(0), this->diff_weights_md(1),
                     this->arg_md(DNNL_ARG_DIFF_WEIGHTS_PROJECTION));
 
-            CHECK(x64::rnn_brgemm_utils::rnn_brgemm_t::configure_brgemm(rnn_,
+            CHECK(ref_rnn_brgemm_t::configure_brgemm(rnn_,
                     this->desc()->cell_kind, sizeof(src_layer_t),
                     sizeof(scratch_t)));
 
@@ -339,7 +353,7 @@ struct _ref_rnn_common_t : public primitive_t {
                     rnn_.weights_projection_comp_offset = 0;
                 }
             }
-            CHECK(this->check_layout_consistency());
+            CHECK(this->check_layout_consistency(true /*is_brgemm*/));
 
             return status::success;
 #else
@@ -399,10 +413,12 @@ struct _ref_rnn_common_t : public primitive_t {
                     key_rnn_diff_ht, rnn_.scratch_diff_ht_size);
             scratchpad.template book<scratch_t>(
                     key_rnn_cell, rnn_.scratch_cell_size);
+
 #if DNNL_X64
-            if (rnn_.is_brgemm)
-                x64::rnn_brgemm_utils::rnn_brgemm_t::init_scratchpad(rnn_,
-                        scratchpad, sizeof(gemm_acc_t), alignof(gemm_acc_t));
+            if (rnn_.is_brgemm) {
+                ref_rnn_brgemm_t::init_scratchpad(rnn_, scratchpad,
+                        sizeof(gemm_acc_t), alignof(gemm_acc_t));
+            }
 #endif
         }
     };
@@ -448,7 +464,10 @@ struct _ref_rnn_common_t : public primitive_t {
             case alg_kind::vanilla_rnn:
             case alg_kind::vanilla_lstm:
                 cell_func = (pd()->rnn_.is_brgemm)
-                        ? &class_name::cell_execution_brgemm
+                        ? (aprop == prop_kind::forward
+                                        ? &class_name::cell_execution_brgemm_fwd
+                                        : &class_name::
+                                                  cell_execution_brgemm_bwd)
                         : &class_name::cell_execution_ref;
                 break;
             case alg_kind::vanilla_gru:
@@ -472,8 +491,9 @@ struct _ref_rnn_common_t : public primitive_t {
                 scratch_cell_offset_, scratchpad_size, workspace_size);
 #if DNNL_X64
         const auto rnn = pd()->rnn_;
-        if (pd()->rnn_.is_brgemm)
+        if (rnn.is_brgemm) {
             rnn_brgemm_.init_kernels(rnn, src_type, weights_type);
+        }
 #endif
         return status::success;
     }
@@ -487,12 +507,18 @@ struct _ref_rnn_common_t : public primitive_t {
 
 private:
 #if DNNL_X64
-    x64::rnn_brgemm_utils::rnn_brgemm_t rnn_brgemm_;
+    ref_rnn_brgemm_t rnn_brgemm_;
 #endif
     void execute_(const exec_ctx_t &ctx) const;
+
+    void prepare_scratch_gates_blocked(const exec_ctx_t &ctx,
+            scratch_t *scratch_gates_blocked, scratch_t *scratch_gates) const;
+
     rnn_grid_execution_sig(linear_execution);
     rnn_cell_execution_sig(cell_execution_ref);
-    rnn_cell_execution_sig(cell_execution_brgemm);
+    rnn_cell_execution_sig(cell_execution_brgemm_fwd);
+    rnn_cell_execution_sig(cell_execution_brgemm_bwd);
+
     rnn_cell_execution_sig(cell_execution_gru);
     rnn_cell_execution_sig(cell_execution_gru_lbr);
     rnn_gemm_sig(gemm);

@@ -100,10 +100,12 @@ protected:
         // use rsp and offset it with the size of pushed registers in
         // preamble
         mov(addr_states_t_l_copy_reg, ptr[base_args]);
-        mov(n_step_reg, ptr[base_args + 40]);
+        if (rnn_.is_brgemm && !rnn_.unfused_post_gemm)
+            mov(n_step_reg, ptr[base_args + 40]);
 #else
         auto addr_states_t_l_copy_reg = abi_param5;
-        mov(n_step_reg, ptr[base_args + 24]);
+        if (rnn_.is_brgemm && !rnn_.unfused_post_gemm)
+            mov(n_step_reg, ptr[base_args + 24]);
 #endif
 
         auto sg_addr
@@ -115,7 +117,7 @@ protected:
         init_regs(weights_scales, vlen);
         injector_->load_table_addr();
 
-        if (rnn_.is_brgemm)
+        if (rnn_.is_brgemm && !rnn_.unfused_post_gemm)
             mov(loop_cnt, n_step_reg);
         else
             mov(loop_cnt, rnn_.dhc * scratch_dt_size);

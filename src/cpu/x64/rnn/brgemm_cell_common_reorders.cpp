@@ -132,11 +132,6 @@ template void scratch_gates_blocked_reorder_t::execute<float>(
 template void scratch_gates_blocked_reorder_t::execute<bfloat16_t>(
         const bfloat16_t *, bfloat16_t *, const bool) const;
 
-template void src_layer_iter_transpose_t::execute<float>(
-        const float *, float *) const;
-template void src_layer_iter_transpose_t::execute<bfloat16_t>(
-        const bfloat16_t *, bfloat16_t *) const;
-
 template void src_layer_iter_transpose_t::execute_in_parallel<float>(
         const float *, float *) const;
 template void src_layer_iter_transpose_t::execute_in_parallel<bfloat16_t>(
