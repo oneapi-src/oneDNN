@@ -93,8 +93,8 @@ bool is_alt_faster_than_ref(const memory_desc_wrapper &src_mdw,
     return true;
 }
 
-bool matches_one_NxN_layout(
-        const memory_desc_wrapper &src, const memory_desc_wrapper &dst, int n) {
+bool matches_one_NxN_layout(const memory_desc_wrapper &src,
+        const memory_desc_wrapper &dst, int n, int scale_mask) {
     if (dst.ndims() < 2) { return false; }
     if (!src.is_blocking_desc() || !dst.is_blocking_desc()) { return false; }
     auto dst_last = get_Nth_last_dim_or_block(dst, 0);
@@ -116,6 +116,10 @@ bool matches_one_NxN_layout(
     if (dst.padded_dims()[dst_last.idx] != dst.dims()[dst_last.idx]) {
         return false;
     }
+    // no scale mask allowed on src's or dst's innermost dimension
+    if (scale_mask & (1 << src_last.idx)) { return false; }
+    if (scale_mask & (1 << dst_last.idx)) { return false; }
+
     return true;
 }
 
@@ -217,18 +221,22 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
         return reorder_kernel_t::reorder_reference;
     }
 
-    if (!conf.scale_quant) {
-        if (matches_one_NxN_layout(src_mdw, dst_mdw, 16)) {
-            // W/A for compiler bug: avoid using intel_sub_group_shuffle with
-            // SIMD16 on gen12lp
-            if (dev_info->gpu_arch() == compute::gpu_arch_t::gen12lp) {
-                return reorder_kernel_t::transpose8x8;
-            }
-            return reorder_kernel_t::transpose16x16;
-        }
-        if (matches_one_NxN_layout(src_mdw, dst_mdw, 8)) {
+    if (matches_one_NxN_layout(src_mdw, dst_mdw, 16, conf.scale_mask)) {
+        // W/A for compiler bug: avoid using intel_sub_group_shuffle with
+        // SIMD16 on gen12lp
+        if (dev_info->gpu_arch() == compute::gpu_arch_t::gen12lp) {
             return reorder_kernel_t::transpose8x8;
         }
+        if (dev_info->gpu_arch() == compute::gpu_arch_t::gen9) {
+            return reorder_kernel_t::local16x16;
+        }
+        return reorder_kernel_t::transpose16x16;
+    }
+    if (matches_one_NxN_layout(src_mdw, dst_mdw, 8, conf.scale_mask)) {
+        if (dev_info->gpu_arch() == compute::gpu_arch_t::gen9) {
+            return reorder_kernel_t::local8x8;
+        }
+        return reorder_kernel_t::transpose8x8;
     }
     if (src_mdw.matches_one_of_tag(nhwc) && dst_mdw.matches_one_of_tag(nchw)
             && padded_dims[last] % 16 == 0
@@ -563,12 +571,14 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             vect_size = 16;
             break;
         case transpose8x8:
+        case local8x8:
             conf.sub_group_size = 8;
             blocks[get_Nth_last_dim_or_block(dst_mdw).idx] = 8;
             vect_dim = get_Nth_last_dim_or_block(src_mdw).idx;
             vect_size = 8;
             break;
         case transpose16x16:
+        case local16x16:
             conf.sub_group_size = 16;
             blocks[get_Nth_last_dim_or_block(dst_mdw).idx] = 16;
             vect_dim = get_Nth_last_dim_or_block(src_mdw).idx;
@@ -723,6 +733,15 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     if (conf.implementation == transpose8x8
             || conf.implementation == transpose16x16) {
         kernel_ctx.define_int("TRANSPOSE_NXN", 1);
+        kernel_ctx.define_int(
+                "DST_BLOCK_DIM", get_Nth_last_dim_or_block(src_mdw).idx);
+    }
+
+    if (conf.implementation == local8x8 || conf.implementation == local16x16) {
+        kernel_ctx.define_int("LOCAL_NXN", 1);
+        auto r = conf.dispatch.nd_range();
+        auto *lr = r.local_range();
+        kernel_ctx.define_int("SG_PER_WG", lr[0] * lr[1] * lr[2]);
         kernel_ctx.define_int(
                 "DST_BLOCK_DIM", get_Nth_last_dim_or_block(src_mdw).idx);
     }

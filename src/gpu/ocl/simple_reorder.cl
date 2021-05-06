@@ -389,18 +389,27 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 
     REORDER_BLOCK(block_size, src_mem, src_all, d5);
 
-#elif TRANSPOSE_NXN
-    // Fast reorder that uses intel_sub_group_read/write functions
-    // to guarantee good memory bandwidth. Supports many layouts,
-    // see details in simple_reorder.cpp
+#elif TRANSPOSE_NXN || LOCAL_NXN
+    // Fast reorder in which a subgroup of N work items loads N disjoint sets
+    // of N sequential addresses, transposes the NxN matrix and writes it back
+    // as N sets of N addresses. N = 8 or 16. Sets are strided in src by the
+    // dimansion that'll be last in dst and strided in dst by dimension that
+    // was last in src.
+    // One version uses intel_sub_group_read/write functions to perform
+    // the transposition. It needs no auxiliary mem accesses, but uses a lot
+    // of private registers.
+    // The other version uses local memory to performs transposition. It
+    // would be slower but uses few private registers, so it's actually faster
+    // on Gen9 architecture where private data would otherwise spill over to
+    // global mem.
     //
-    // Uses subgroup size = N = 8 or 16.
-    // Each subgroup will read N sets of N values. Sets are strided in src by
-    // the dimension that'll be last in dst.
-    // The NxN data piece is shared between subgroup's work items and transposed
-    // Each subgroup will write N sets of N values.
+    // LocalNxN kernel shares local memory across work items. In general that
+    // doesn't work without barriers. Here we take caution to only access
+    // data that was produced by work items in the same *sub*group. Those
+    // are guaranteed to execute simultaneously, so no barriers are needed.
 #define BATCH_SIZE SUB_GROUP_SIZE
     int sgId = get_sub_group_local_id();
+    int sg_off = get_sub_group_id() * SUB_GROUP_SIZE * BATCH_SIZE;
 
     const int d0 = GWS_GET_D0();
     const int d1 = GWS_GET_D1();
@@ -416,8 +425,12 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     const int d4_block = GWS_GET_D4_BLOCK();
     const int d5_block = GWS_GET_D5_BLOCK();
 
+#ifdef TRANSPOSE_NXN
     SRC_DATA_T src_buf[SUB_GROUP_SIZE];
     SRC_DATA_T dst_buf[SUB_GROUP_SIZE];
+#else
+    __local SRC_DATA_T tmp[SG_PER_WG * BATCH_SIZE];
+#endif
     SRC_DATA_T send_buf;
 
 #if PAD_FILL_ZERO == 1
@@ -441,9 +454,14 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
             const int iter = d0i + d1i + d2i + d3i + d4i + d5i;
             const int src_off = SRC_OFF(
                     d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5 + d5i);
-
+#ifdef TRANSPOSE_NXN
             src_buf[iter] = SRC_BLOCK_READ(&src[src_off]);
+#else
+            tmp[sg_off + iter * SUB_GROUP_SIZE + sgId]
+                    = SRC_BLOCK_READ(&src[src_off]);
+#endif
         }
+#ifdef TRANSPOSE_NXN
         // Share and transpose. Each work item keeps 1 own value and
         // gets (N-1) values from other work items
         dst_buf[sgId] = src_buf[sgId];
@@ -453,8 +471,8 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
                     = intel_sub_group_shuffle(
                             send_buf, (BATCH_SIZE + sgId - i) % BATCH_SIZE);
         }
+#endif
     }
-
     for_(int d0i = 0; d0i < d0_block; d0i++)
     for_(int d1i = 0; d1i < d1_block; d1i++)
     for_(int d2i = 0; d2i < d2_block; d2i++)
@@ -480,7 +498,15 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #if WITH_SUM_AB
             dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
 #endif
+#if SCALE_QUANT
+            alpha = scales[SCALE_OFF(d0, d1, d2, d3, d4, d5)];
+#endif
+#ifdef TRANSPOSE_NXN
             REORDER(dst_tmp, dst_buf[iter], alpha, beta);
+#else
+            send_buf = tmp[sg_off + sgId * SUB_GROUP_SIZE + iter];
+            REORDER(dst_tmp, send_buf, alpha, beta);
+#endif
         } else {
             dst_tmp = 0;
         }
