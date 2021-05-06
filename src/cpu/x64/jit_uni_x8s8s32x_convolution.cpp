@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -257,14 +257,18 @@ jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_1d(
         }
         oscales = local_scales;
     }
-    size_t offset = weights_d.size() - weights_d.additional_buffer_size();
+
+    size_t extra_data_offset
+            = weights_d.size() - weights_d.additional_buffer_size();
+    size_t ch_offset = jcp.is_depthwise ? jcp.nb_ch * jcp.ch_block
+                                        : jcp.ngroups * jcp.oc;
     auto w = const_cast<wei_data_t *>(weights);
     const int32_t *compensation = (jcp.signed_input)
-            ? reinterpret_cast<int32_t *>(&w[offset])
+            ? reinterpret_cast<int32_t *>(&w[extra_data_offset])
             : nullptr;
     const int32_t *zp_compensation = jcp.src_zero_point
-            ? reinterpret_cast<int32_t *>(&w[offset])
-                    + (jcp.signed_input ? jcp.ngroups * jcp.oc : 0)
+            ? reinterpret_cast<int32_t *>(&w[extra_data_offset])
+                    + (jcp.signed_input ? ch_offset : 0)
             : nullptr;
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     int nb_groups = jcp.nb_ch / jcp.nb_ch_blocking;
