@@ -423,8 +423,10 @@ protected:
         auto weights_data = (use_weights || use_weights_bias)
                 ? map_memory<const float>(weights)
                 : nullptr;
+        const auto bias_mapped_mem
+                = use_bias ? map_memory<const float>(bias) : nullptr;
         auto bias_data = use_bias
-                ? map_memory<const float>(bias)
+                ? &bias_mapped_mem[0]
                 : use_weights_bias ? &weights_data[bias_off] : nullptr;
         auto mean_data = (!calculate_stats || is_training)
                 ? map_memory<const float>(mean)
@@ -571,8 +573,12 @@ protected:
                           && (use_weights_bias || use_weights))
                 ? map_memory<float>(diff_weights)
                 : nullptr;
+        const auto diff_bias_mapped_mem
+                = (pk == prop_kind::backward) && use_bias
+                ? map_memory<float>(diff_bias)
+                : nullptr;
         const auto diff_bias_data = (pk == prop_kind::backward) ? use_bias
-                        ? map_memory<float>(diff_bias)
+                        ? &diff_bias_mapped_mem[0]
                         : &diff_weights_data[diff_bias_off]
                                                                 : nullptr;
 
