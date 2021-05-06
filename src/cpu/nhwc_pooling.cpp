@@ -159,12 +159,9 @@ status_t nhwc_pooling_fwd_t<d_type>::execute_forward(
 
     const auto alg = pd()->desc()->alg_kind;
 
-    status_t status = status::success;
     const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
-    CHECK(status);
-    auto ws = CTX_OUT_CLEAN_MEM(unsigned char *, DNNL_ARG_WORKSPACE, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
 
     const memory_desc_wrapper MEM_D(src)(pd()->src_md());
     const memory_desc_wrapper MEM_D(dst)(pd()->dst_md());
@@ -323,12 +320,9 @@ status_t nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
 
     const auto alg = pd()->desc()->alg_kind;
 
-    status_t status = status::success;
     const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
-    CHECK(status);
-    auto ws = CTX_OUT_CLEAN_MEM(unsigned char *, DNNL_ARG_WORKSPACE, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     float *const bf16cvt_src_wsp = scratchpad.template get<float>(
@@ -497,11 +491,9 @@ status_t nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
 template <data_type_t d_type>
 status_t nhwc_pooling_bwd_t<d_type>::execute_backward(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper MEM_D(diff_src)(pd()->diff_src_md());
     const memory_desc_wrapper MEM_D(diff_dst)(pd()->diff_dst_md());
@@ -637,11 +629,9 @@ template <>
 status_t nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
         const exec_ctx_t &ctx) const {
 
-    status_t status = status::success;
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     float *bf16cvt_dsrc = scratchpad.template get<float>(

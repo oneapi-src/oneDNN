@@ -47,17 +47,36 @@ template <data_type_t data_type, data_type_t acc_type>
 status_t ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
         const exec_ctx_t &ctx) const {
 
-    status_t status = status::success;
-
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
-    CHECK(status);
-    auto ws = CTX_OUT_CLEAN_MEM(unsigned char *, DNNL_ARG_WORKSPACE, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper ws_d(pd()->workspace_md());
+    const auto has_padding = !dst_d.is_dense();
+
+    if (has_padding) {
+        const auto res_dst = std::div(static_cast<int>(dst_d.size()), PAGE_4K);
+        const auto res_ws = std::div(static_cast<int>(ws_d.size()), PAGE_4K);
+        if (!res_dst.quot) std::memset(dst, 0, res_dst.rem);
+        if (!res_ws.quot) std::memset(ws, 0, res_ws.rem);
+
+        const auto blk_all = res_dst.quot + res_ws.quot;
+        parallel_nd(blk_all, [&](dim_t i) {
+            if (i < res_dst.quot) {
+                const auto ptr_dst
+                        = reinterpret_cast<unsigned char *>(dst) + i * PAGE_4K;
+                const auto tail = (i + 1 == res_dst.quot) ? res_dst.rem : 0;
+                std::memset(ptr_dst, 0, PAGE_4K + tail);
+            } else {
+                const auto ptr_ws = reinterpret_cast<unsigned char *>(ws)
+                        + (i - res_dst.quot) * PAGE_4K;
+                const auto tail = (i + 1 == blk_all) ? res_ws.rem : 0;
+                std::memset(ptr_ws, 0, PAGE_4K + tail);
+            }
+        });
+    }
 
     auto alg = pd()->desc()->alg_kind;
     const data_type_t ws_dt = ws ? ws_d.data_type() : data_type::undef;
@@ -211,16 +230,28 @@ template <data_type_t data_type>
 status_t ref_pooling_bwd_t<data_type>::execute_backward(
         const exec_ctx_t &ctx) const {
 
-    status_t status = status::success;
-
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper ws_d(pd()->workspace_md());
+    const auto has_padding = !diff_src_d.is_dense();
+
+    if (has_padding) {
+        const auto res = std::div(static_cast<int>(diff_src_d.size()), PAGE_4K);
+        if (!res.quot) {
+            std::memset(diff_src, 0, res.rem);
+        } else {
+            parallel_nd(res.quot, [&](dim_t i) {
+                const auto tail = (i + 1 == res.quot) ? res.rem : 0;
+                const auto ptr_dst = reinterpret_cast<unsigned char *>(diff_src)
+                        + i * PAGE_4K;
+                std::memset(ptr_dst, 0, PAGE_4K + tail);
+            });
+        }
+    }
 
     const auto alg = pd()->desc()->alg_kind;
 
