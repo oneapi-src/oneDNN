@@ -1294,6 +1294,31 @@ public:
         vpmaxsd(x1, x2, op);
     }
 
+    void uni_vpmaxsb(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        if (is_valid_isa(avx))
+            vpmaxsb(x1, x2, op);
+        else {
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
+            pmaxsb(x1, op);
+        }
+    }
+
+    void uni_vpmaxsb(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op) {
+        vpmaxsb(x1, x2, op);
+    }
+
+    void uni_vpminub(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        if (is_valid_isa(avx))
+            vpminub(x1, x2, op);
+        else {
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
+            pminub(x1, op);
+        }
+    }
+
     void mul_by_const(
             const Xbyak::Reg &out, const Xbyak::Reg64 &tmp, int value) {
         // Generates a shift + add sequence for multiplicating contents of the
