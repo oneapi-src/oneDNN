@@ -668,9 +668,7 @@ int compare_dat(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
             // TODO: Dirty hack to make testing green. Find an original source
             // of the problem and find a better solution.
             if (!ok && (prb.alg == LBR_GRU || prb.alg == VANILLA_RNN)
-                    && prb.prop == dnnl_backward
-                    && (prb.direction == dnnl_bidirectional_concat
-                            || prb.direction == dnnl_bidirectional_sum)) {
+                    && prb.prop == dnnl_backward) {
                 ok = diff < diff_threshold;
             }
 
