@@ -97,6 +97,20 @@ inline bool check_gemm_compatible_formats(const matmul_pd_t &pd) {
     return ok;
 }
 
+inline bool check_gemm_binary_per_oc_compatible_formats(const matmul_pd_t &pd) {
+    const memory_desc_wrapper dst_d(pd.dst_md());
+    const dims_t &strides = dst_d.blocking_desc().strides;
+    const dims_t &dims = dst_d.dims();
+    const int ndims = dst_d.ndims();
+
+    // check d, h, w... (b2, m, n... for matmul) dimensions are continuous
+    bool ok = true;
+    for (int i = 2; i < ndims - 1; i++)
+        ok = ok && strides[i] == strides[i + 1] * dims[i + 1];
+    // only allowed for nchw and nhwc (b0xb1xMxN or b0xMxNxb1 for matmul)
+    return ok && strides[0] == utils::array_product(dims + 1, ndims - 1);
+}
+
 inline size_t get_scratchpad_size(const dim_t batch, dim_t M, const dim_t N,
         const bool can_fuse_src_batch_dims) {
     assert(batch > 0);

@@ -350,38 +350,35 @@ private:
      * Used in scalar broadcast strategy, broadcasting single value of given
      * data type over entire vector Vmm register.
      */
-    void execute_broadcast(const dnnl_data_type_t &data_type,
-            const Vmm &tmp_reg, const Xbyak::Address &rhs_addr,
-            const tail_lode_mode_t tail_load_mode,
-            bool with_tail = false) const;
-    void load_rhs(const dnnl_data_type_t &data_type, const Vmm &tmp_reg,
+    void execute_broadcast(const data_type_t &data_type, const Vmm &tmp_reg,
             const Xbyak::Address &rhs_addr,
             const tail_lode_mode_t tail_load_mode,
             bool with_tail = false) const;
-    void execute_broadcast_tail(const dnnl_data_type_t &data_type,
+    void load_rhs(const data_type_t &data_type, const Vmm &tmp_reg,
+            const Xbyak::Address &rhs_addr,
+            const tail_lode_mode_t tail_load_mode,
+            bool with_tail = false) const;
+    void execute_broadcast_tail_with_opmask(const data_type_t &data_type,
             const Vmm &tmp_reg, const Xbyak::Address &rhs_addr) const;
-    void execute_broadcast_tail_with_opmask(const dnnl_data_type_t &data_type,
-            const Vmm &tmp_reg, const Xbyak::Address &rhs_addr) const;
-    void execute_broadcast_tail_statically(const dnnl_data_type_t &data_type,
+    void execute_broadcast_tail_statically(const data_type_t &data_type,
             const Vmm &tmp_reg, const Xbyak::Address &rhs_addr,
             const std::size_t tail_size) const;
-    void execute_broadcast_tail_with_gpr(const dnnl_data_type_t &data_type,
+    void execute_broadcast_tail_with_gpr(const data_type_t &data_type,
             const Vmm &tmp_reg, const Xbyak::Address &rhs_addr) const;
-    void load_rhs_tail_dynamically_with_opmask(
-            const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
-            const Xbyak::Address &rhs_addr) const;
-    void load_rhs_tail_dynamically_with_gpr(
-            const dnnl_data_type_t &data_type, const Vmm &tmp_vmm) const;
-    void load_rhs_tail_statically(const dnnl_data_type_t &data_type,
+    void load_rhs_tail_dynamically_with_opmask(const data_type_t &data_type,
             const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) const;
-    void execute_broadcast_no_tail(const dnnl_data_type_t &data_type,
+    void load_rhs_tail_dynamically_with_gpr(
+            const data_type_t &data_type, const Vmm &tmp_vmm) const;
+    void load_rhs_tail_statically(const data_type_t &data_type,
+            const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) const;
+    void execute_broadcast_no_tail(const data_type_t &data_type,
             const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) const;
     void execute_broadcast_s8u8_no_tail(const data_type_t &data_type,
             const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) const;
-    void load_rhs_no_tail(const dnnl_data_type_t &data_type, const Vmm &tmp_reg,
+    void load_rhs_no_tail(const data_type_t &data_type, const Vmm &tmp_reg,
             const Xbyak::Address &rhs_addr) const;
-    void load_rhs_i8_no_tail(const dnnl_data_type_t &data_type,
-            const Vmm &tmp_reg, const Xbyak::Address &rhs_addr) const;
+    void load_rhs_i8_no_tail(const data_type_t &data_type, const Vmm &tmp_reg,
+            const Xbyak::Address &rhs_addr) const;
     void cvt_to_f32(const Vmm &tmp_reg) const;
     /*
      * Returns pair consisting of flag indication preservation is needed for vmm

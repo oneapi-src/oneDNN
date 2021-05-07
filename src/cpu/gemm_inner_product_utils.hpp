@@ -51,7 +51,7 @@ struct pp_kernel_t {
 
     virtual void operator()(dst_data_t *dst, const acc_data_t *acc,
             const char *bias, const float *scales, size_t start,
-            size_t dst_row_idx, size_t dst_logical_off, size_t end,
+            size_t dim1_off, size_t dst_logical_off, size_t end,
             size_t runtime_oc, dim_t dst_mb_stride,
             const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
@@ -79,6 +79,7 @@ protected:
     float sum_scale_ = 0.f;
     bool mb_blk_kernel_ = false;
     post_ops_t post_ops_;
+    int ndims_;
 
     bool has_trivial_mb_stride() const {
         return (!runtime_oc()) && (OC_ == (size_t)dst_mb_stride_);

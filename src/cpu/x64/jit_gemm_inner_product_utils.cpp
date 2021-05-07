@@ -50,8 +50,8 @@ struct jit_pp_kernel_t : public pp_kernel_t<acc_type, dst_type>,
 
     void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
             const float *scales, size_t start, size_t dst_logical_off,
-            size_t dst_row_idx, size_t end, size_t runtime_oc,
-            dim_t dst_mb_stride, const float *dst_zero_points,
+            size_t dim1_off, size_t end, size_t runtime_oc, dim_t dst_mb_stride,
+            const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
             size_t first_mb_matrix_addr_off, const exec_ctx_t &ctx,
             const memory_desc_t &dst_md) const override;
@@ -115,7 +115,7 @@ private:
         size_t oc = 0;
         size_t len = 0;
         size_t oc_offset = 0;
-        size_t dst_row_idx = 0;
+        size_t dim1_off = 0;
         size_t dst_logical_off = 0;
         size_t first_mb_matrix_addr_off = 0;
         dim_t dst_mb_stride = 0;
@@ -369,13 +369,13 @@ void jit_pp_kernel_t<isa, acc_type,
     mov(binary_post_op_oc_off_reg, binary_post_op_current_offset_on_stack);
     add(binary_post_op_oc_off_reg, offset);
 
-    const size_t max
-            = any_binary_postop_is_per_oc_bcast_type_ ? this->OC_ : this->MB_;
-    Xbyak::Label end;
-    cmp(binary_post_op_oc_off_reg, max);
-    jl(end, T_NEAR);
-    xor_(binary_post_op_oc_off_reg, binary_post_op_oc_off_reg);
-    L(end);
+    if (this->ndims_ == 2) {
+        Xbyak::Label end;
+        cmp(binary_post_op_oc_off_reg, this->OC_);
+        jl(end, T_NEAR);
+        xor_(binary_post_op_oc_off_reg, binary_post_op_oc_off_reg);
+        L(end);
+    }
 
     mov(binary_post_op_current_offset_on_stack, binary_post_op_oc_off_reg);
 }
@@ -967,7 +967,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
                 advance_ptrs_imm(OC_tail);
             }
 
-            if (any_binary_postop_is_per_oc_sp_bcast_type_) {
+            if (any_binary_postop_is_per_oc_sp_bcast_type_
+                    && this->ndims_ <= 3) {
                 static constexpr size_t offset_oc_spatial = 1;
                 advance_binary_postops_per_oc_off(offset_oc_spatial);
             }
@@ -1124,11 +1125,9 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::generate() {
     if (this->do_binary_) {
         mov(reg_stack_frame_, rsp);
         sub(rsp, stack_space_needed_);
-        if (any_binary_postop_is_per_oc_bcast_type_)
-            // zero initialize binary post_ops oc offset accumulator
-            mov(ptr[rsp + reg_binary_post_op_oc_off_], reg_oc_offset);
-        else if (any_binary_postop_is_per_oc_sp_bcast_type_) {
-            mov(reg_tmp_comp, ptr[reg_param + PARAM_OFF(dst_row_idx)]);
+        if (any_binary_postop_is_per_oc_sp_bcast_type_
+                || any_binary_postop_is_per_oc_bcast_type_) {
+            mov(reg_tmp_comp, ptr[reg_param + PARAM_OFF(dim1_off)]);
             mov(ptr[rsp + reg_binary_post_op_oc_off_], reg_tmp_comp);
         }
         if (any_binary_postop_is_no_bcast_type_) {
@@ -1188,7 +1187,7 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::generate() {
 template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
 void jit_pp_kernel_t<isa, acc_type, dst_type>::operator()(dst_data_t *dst,
         const acc_data_t *acc, const char *bias, const float *scales,
-        size_t start, size_t dst_logical_off, size_t dst_row_idx, size_t end,
+        size_t start, size_t dst_logical_off, size_t dim1_off, size_t end,
         size_t runtime_oc, dim_t dst_mb_stride, const float *dst_zero_points,
         const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
         size_t first_mb_matrix_addr_off, const exec_ctx_t & /* ctx */,
@@ -1219,7 +1218,7 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::operator()(dst_data_t *dst,
     args.len = end - start;
     args.oc_offset = oc_offset;
     args.dst_logical_off = dst_logical_off;
-    args.dst_row_idx = dst_row_idx;
+    args.dim1_off = dim1_off;
     args.dst_mb_stride = dst_mb_stride;
     args.first_mb_matrix_addr_off = first_mb_matrix_addr_off;
 

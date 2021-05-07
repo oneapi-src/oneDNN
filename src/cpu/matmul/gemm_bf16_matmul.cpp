@@ -93,8 +93,16 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
                 broadcasting_strategy_t::per_oc_spatial,
                 broadcasting_strategy_t::per_mb_spatial,
                 broadcasting_strategy_t::no_broadcast};
+        const bool is_binary_po_per_oc
+                = binary_injector_utils::bcast_strategy_present(
+                        binary_injector_utils::extract_bcast_strategies(
+                                post_ops.entry_, dst_md()),
+                        broadcasting_strategy_t::per_oc);
         return cpu::inner_product_utils::post_ops_ok(
-                post_ops, dst_md(), enabled_bcast_strategy);
+                       post_ops, dst_md(), enabled_bcast_strategy)
+                && IMPLICATION(is_binary_po_per_oc,
+                        gemm_based::check_gemm_binary_per_oc_compatible_formats(
+                                *this));
     };
 
     // check basic attributes
@@ -162,6 +170,8 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const dim_t batch = helper.batch();
     const dim_t batch_without_dim0
             = helper.ndims() > 3 ? batch / dst_d.dims()[0] : 0;
+    const dim_t batch_without_dim01
+            = helper.ndims() > 4 ? batch_without_dim0 / dst_d.dims()[1] : 1;
     const char transA = helper.transA();
     const char transB = helper.transB();
     const dim_t lda = helper.lda();
@@ -200,12 +210,22 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     std::atomic<status_t> st(status::success);
     // use parallel over batch when binary po with channel bcast
     // (except batch == 1)
-    const bool is_binary_po_channel_bcast = bcast_strategy_present(
-            extract_bcast_strategies(po.entry_, pd()->dst_md()),
-            broadcasting_strategy_t::per_mb_spatial);
-    const bool parallel_over_batch = batch > 1
-            && (!can_fuse_src_batch_dims || is_binary_po_channel_bcast);
-    if (parallel_over_batch) {
+    bool is_binary_po_per_oc;
+    bool is_binary_po_per_oc_sp;
+    bool is_binary_po_channel_bcast;
+    std::tie(is_binary_po_per_oc, is_binary_po_per_oc_sp,
+            is_binary_po_channel_bcast)
+            = bcast_strategies_present_tup(po.entry_, pd()->dst_md(),
+                    broadcasting_strategy_t::per_oc,
+                    broadcasting_strategy_t::per_oc_spatial,
+                    broadcasting_strategy_t::per_mb_spatial);
+    // if batched, parralel over batch for per_mb_sp and per_oc binary
+    // post-op broadcast
+    const bool can_use_po_with_fused_batch = !is_binary_po_channel_bcast
+            && IMPLICATION(
+                    is_binary_po_per_oc || is_binary_po_per_oc_sp, ndims == 2);
+    const bool parallel_over_batch = batch > 1 && !can_fuse_src_batch_dims;
+    if (IMPLICATION(can_use_po_with_fused_batch, parallel_over_batch)) {
         const int src_mask
                 = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
         const int wei_mask
@@ -285,7 +305,10 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                     const float *pp_scales
                             = params.get_post_processing_scales(scales);
                     const size_t dst_logical_off = i_work;
-                    const size_t dst_start_row_idx = (i_work % (M * N)) / N;
+                    const size_t dim1_off = helper.ndims() > 3
+                            ? ((cur_b % batch_without_dim0)
+                                    / batch_without_dim01)
+                            : cur_m;
                     // offset for case with post-op broadcast_channel
                     const size_t matrix_per_first_batch_off = helper.ndims() > 3
                             ? M * N * (cur_b / batch_without_dim0)
@@ -295,7 +318,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                     (*pp_kernel_)(curr_dst, curr_acc,
                             bias + oc_off * bia_dt_size,
                             pp_scales + oc_off * scale_idx_mult, 0,
-                            dst_logical_off, dst_start_row_idx, gemm_M * gemm_N,
+                            dst_logical_off, dim1_off, gemm_M * gemm_N,
                             static_cast<size_t>(N), ldc, nullptr,
                             post_ops_binary_rhs_arg_vec.data(), dst,
                             matrix_per_first_batch_off, ctx, *pd()->dst_md());
@@ -318,9 +341,9 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                 size_t start {}, end {};
                 balance211((size_t)(M * N), nthr, ithr, start, end);
                 const size_t dst_logical_off = start;
-                const size_t dst_row_idx = start / N;
+                const size_t dim1_off = start % N;
                 (*pp_kernel_)(dst, acc, bias, pp_scales, start, dst_logical_off,
-                        dst_row_idx, end, (size_t)N, ldc, nullptr,
+                        dim1_off, end, (size_t)N, ldc, nullptr,
                         post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
                         *pd()->dst_md());
             });

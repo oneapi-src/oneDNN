@@ -50,8 +50,8 @@ struct ref_pp_kernel_t : public pp_kernel_t<acc_type, dst_type> {
 
     void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
             const float *scales, size_t start, size_t dst_logical_offs,
-            size_t dst_row_idx, size_t end, size_t runtime_oc,
-            dim_t dst_mb_stride, const float *dst_zero_points,
+            size_t dim1_off, size_t end, size_t runtime_oc, dim_t dst_mb_stride,
+            const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
             size_t first_mb_matrix_addr_off, const exec_ctx_t &ctx,
             const memory_desc_t &dst_md) const override;
@@ -63,7 +63,7 @@ private:
 template <data_type_t acc_type, data_type_t dst_type>
 void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         const acc_data_t *acc, const char *bias, const float *scales,
-        size_t start, size_t dst_row_idx, size_t dst_logical_off, size_t end,
+        size_t start, size_t dim1_off, size_t dst_logical_off, size_t end,
         size_t runtime_oc, dim_t dst_mb_stride, const float *dst_zero_points,
         const void * /* post_ops_binary_rhs_arg_vec */,
         const void * /* dst_orig */, size_t /* first_mb_matrix_addr_off */,
@@ -137,7 +137,8 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC, size_t MB,
     : OC_(OC)
     , MB_(MB)
     , dst_mb_stride_(dst_mb_stride)
-    , bias_data_type_(bias_dt) {
+    , bias_data_type_(bias_dt)
+    , ndims_(dst_ndims) {
     do_scale_ = !attr->output_scales_.has_default_values();
     if (do_scale_)
         // PER_OC mask definition for matmul batched case

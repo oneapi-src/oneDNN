@@ -63,9 +63,9 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
         parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start, end;
             balance211((size_t)(OC * MB), nthr, ithr, start, end);
-            static constexpr size_t dst_start_row_idx = 0;
+            const size_t dim1_off = start % OC;
             (*pp_kernel_)(dst, dst, (char *)bias, scales, start, start,
-                    dst_start_row_idx, end, 0,
+                    dim1_off, end, 0,
                     pd()->OC() * pd()->OD() * pd()->OH() * pd()->OW(), nullptr,
                     post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
                     *pd()->dst_md());
