@@ -28,6 +28,12 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+static bool is_padding(const memory_desc_wrapper &md) {
+    for (int i = 0; i < md.ndims(); i++)
+        if (md.dims()[i] != md.padded_dims()[i]) return true;
+    return false;
+}
+
 template <impl::data_type_t data_type>
 status_t ref_softmax_fwd_t<data_type>::execute_forward_dense(
         const exec_ctx_t &ctx) const {
@@ -37,8 +43,10 @@ status_t ref_softmax_fwd_t<data_type>::execute_forward_dense(
     const memory_desc_wrapper data_d(pd()->dst_md());
     const auto ou_stride = pd()->outer_stride();
     const auto is_inplace = (src == dst);
-    const auto zero_pad = !data_d.is_dense() && !is_inplace;
-    const auto tail_size = data_d.padded_dims()[1] - data_d.dims()[1];
+    const auto has_padding = is_padding(data_d);
+    const auto zero_padding = has_padding && !is_inplace;
+    const auto axis = pd()->axis();
+    const auto axis_blk_size = data_d.padded_dims()[axis] - data_d.dims()[axis];
 
     parallel_nd(outer_size_, [&](int ou) {
         const data_t *src_data = src + ou * ou_stride;
@@ -126,9 +134,9 @@ status_t ref_softmax_fwd_t<data_type>::execute_forward_dense(
                 dst_data[c] = dst_data[c] - space_denom;
             }
         }
-        if (zero_pad) {
+        if (zero_padding) {
             PRAGMA_OMP_SIMD()
-            for (int i = 0; i < tail_size; i++)
+            for (int i = 0; i < axis_blk_size; i++)
                 dst_data[channels_ + i] = 0;
         }
     });
@@ -145,18 +153,22 @@ status_t ref_softmax_fwd_t<data_type>::execute_forward_generic(
     const memory_desc_wrapper data_d(pd()->src_md());
 
     const auto is_inplace = (src == dst);
-    const auto zero_pad = !data_d.is_dense() && !is_inplace;
-    const auto nelem = data_d.nelems(true);
-    dim_t nelem_per_n, spat_size, block_size, tail_size, off_full_blocks,
-            last_block_elem;
-    if (zero_pad && nelem) {
-        nelem_per_n = data_d.nelems(true) / data_d.dims()[0];
-        spat_size = nelem_per_n / data_d.padded_dims()[1];
-        block_size = data_d.blocking_desc().inner_blks[0];
-        tail_size = data_d.padded_dims()[1] - data_d.dims()[1];
-        off_full_blocks
-                = (data_d.dims()[1] / block_size) * spat_size * block_size;
-        last_block_elem = block_size - tail_size - 1;
+    const auto has_padding = is_padding(data_d);
+    if (has_padding && !is_inplace) {
+        if (data_d.is_dense(true)) {
+            const auto res = std::div(static_cast<int>(data_d.size()), PAGE_4K);
+            if (!res.quot)
+                std::memset(dst, 0, res.rem);
+            else
+                parallel_nd(res.quot, [&](dim_t i) {
+                    const auto tail = (i + 1 == res.quot) ? res.rem : 0;
+                    const auto ptr_dst = reinterpret_cast<unsigned char *>(dst)
+                            + i * PAGE_4K;
+                    std::memset(ptr_dst, 0, PAGE_4K + tail);
+                });
+        } else
+            // needed for submemory correctness
+            ctx.zero_pad_output(DNNL_ARG_DST);
     }
 
     parallel_nd(outer_size_, [&](int ou) {
@@ -204,18 +216,6 @@ status_t ref_softmax_fwd_t<data_type>::execute_forward_generic(
                     dst[off] = dst[off] / space_denom[in];
                 } else if (pd()->is_logsoftmax()) {
                     dst[off] = dst[off] - space_denom[in];
-                }
-
-                if (zero_pad) {
-                    const dim_t offset_per_n = off % nelem_per_n;
-                    if (off_full_blocks > offset_per_n) continue;
-
-                    const dim_t offset_per_block = offset_per_n % block_size;
-                    if (offset_per_block == last_block_elem) {
-                        PRAGMA_OMP_SIMD()
-                        for (int i = 1; i < tail_size + 1; i++)
-                            dst[off + i] = 0;
-                    }
                 }
             }
         }
@@ -265,18 +265,23 @@ status_t ref_softmax_bwd_t<data_type>::execute_backward_generic(
     const memory_desc_wrapper data_d(pd()->dst_md());
 
     const auto is_inplace = (diff_dst == diff_src);
-    const auto zero_pad = !diff_d.is_dense() && !is_inplace;
-    const auto nelem = diff_d.nelems(true);
-    dim_t nelem_per_n, spat_size, block_size, tail_size, off_full_blocks,
-            last_block_elem;
-    if (zero_pad && nelem) {
-        nelem_per_n = nelem / diff_d.dims()[0];
-        spat_size = nelem_per_n / data_d.padded_dims()[1];
-        block_size = diff_d.blocking_desc().inner_blks[0];
-        tail_size = diff_d.padded_dims()[1] - diff_d.dims()[1];
-        off_full_blocks
-                = (diff_d.dims()[1] / block_size) * spat_size * block_size;
-        last_block_elem = block_size - tail_size - 1;
+    const auto has_padding = is_padding(diff_d);
+    if (has_padding && !is_inplace) {
+        if (diff_d.is_dense(true)) {
+            const auto res = std::div(static_cast<int>(diff_d.size()), PAGE_4K);
+            if (!res.quot)
+                std::memset(diff_src, 0, res.rem);
+            else
+                parallel_nd(res.quot, [&](dim_t i) {
+                    const auto tail = (i + 1 == res.quot) ? res.rem : 0;
+                    const auto ptr_dst
+                            = reinterpret_cast<unsigned char *>(diff_src)
+                            + i * PAGE_4K;
+                    std::memset(ptr_dst, 0, PAGE_4K + tail);
+                });
+        } else
+            // needed for submemory correctness
+            ctx.zero_pad_output(DNNL_ARG_DIFF_SRC);
     }
 
     parallel_nd(outer_size_, inner_size_, [&](int ou, int in) {
@@ -300,18 +305,6 @@ status_t ref_softmax_bwd_t<data_type>::execute_backward_generic(
             } else if (pd()->is_logsoftmax()) {
                 diff_src[off_diff]
                         = diff_dst[off_diff] - expf(dst[off_data]) * sbr;
-            }
-
-            if (zero_pad) {
-                const dim_t offset_per_n = off_diff % nelem_per_n;
-                if (off_full_blocks > offset_per_n) continue;
-
-                const dim_t offset_per_block = offset_per_n % block_size;
-                if (offset_per_block == last_block_elem) {
-                    PRAGMA_OMP_SIMD()
-                    for (int i = 1; i < tail_size + 1; i++)
-                        diff_src[off_diff + i] = 0;
-                }
             }
         }
     });
