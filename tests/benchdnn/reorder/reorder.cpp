@@ -108,16 +108,16 @@ int fill_memory_extra(const prb_t *prb, dnnl_memory_extra_desc_t &extra) {
     extra.flags = dnnl_memory_extra_flag_none;
 
     if (prb->is_reorder_with_compensation()) {
-        int with_groups
-                = (prb->oflag & (FLAG_GCONV_S8S8 | FLAG_GCONV_ZP_COMP)) ? 1 : 0;
-        if (prb->oflag & (FLAG_CONV_S8S8 | FLAG_GCONV_S8S8)) {
-            extra.flags = dnnl_memory_extra_flag_compensation_conv_s8s8;
-            extra.compensation_mask = (1 << 0) + with_groups * (1 << 1);
-        }
-        if (prb->oflag & (FLAG_CONV_ZP_COMP | FLAG_GCONV_ZP_COMP)) {
-            extra.flags
-                    |= dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
-            extra.asymm_compensation_mask = (1 << 0) + with_groups * (1 << 1);
+        for (const auto &i_oflag : prb->oflag) {
+            if (i_oflag.first & FLAG_S8S8_COMP) {
+                extra.flags |= dnnl_memory_extra_flag_compensation_conv_s8s8;
+                extra.compensation_mask = i_oflag.second;
+            }
+            if (i_oflag.first & FLAG_ZP_COMP) {
+                extra.flags
+                        |= dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
+                extra.asymm_compensation_mask = i_oflag.second;
+            }
         }
     }
 
@@ -397,7 +397,7 @@ int doit(const prb_t *prb, res_t *res) {
     /* Step 6: check correctness */
     if (is_bench_mode(CORR)) {
         if (prb->is_reorder_with_compensation()) {
-            /* "bootstrap" algorithm: compare to another oneDNN reorder. use
+            /* "bootstrap" approach: compare to another oneDNN reorder. use
              * this when benchdnn does not know about all details of the data
              * layout, as is the case for compensated weights formats. */
 
@@ -414,7 +414,7 @@ int doit(const prb_t *prb, res_t *res) {
                          ref_dst_dt_out_fmt_out, dst_dt_out_fmt_out, res),
                     WARN);
         } else {
-            /* (default) "reference" algorithm: compare to benchdnn reorder */
+            /* (default) "reference" approach: compare to benchdnn reorder */
 
             /* Step 5b: execute benchdnn reorder */
             SAFE(ref_reorder(prb, dst_dt_out_fmt_ref, src_dt_in_fmt_ref), WARN);

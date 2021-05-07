@@ -195,8 +195,19 @@ std::string flags2str(unsigned flags) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &ss, const memory_extra_desc_t &extra) {
+    using namespace memory_extra_flags;
+
+    ss << ":f" << extra.flags;
+    if (extra.flags & compensation_conv_s8s8)
+        ss << ":s8m" << extra.compensation_mask;
+    if (extra.flags & compensation_conv_asymmetric_src)
+        ss << ":zpm" << extra.asymm_compensation_mask;
+    return ss;
+}
+
 // TODO: remove duplication from dnnl_debug.cpp
-std::string md2fmt_str(const dnnl_memory_desc_t *md) {
+std::string md2fmt_str(const memory_desc_t *md) {
     std::stringstream ss;
     if (!md) {
         ss << data_type::undef << "::" << format_kind::undef << "::";
@@ -217,7 +228,7 @@ std::string md2fmt_str(const dnnl_memory_desc_t *md) {
 
     // TODO: extend
     if (!mdw.is_blocking_desc()) {
-        ss << ":f" << mdw.extra().flags;
+        ss << mdw.extra();
         return ss.str();
     }
 
@@ -254,7 +265,7 @@ std::string md2fmt_str(const dnnl_memory_desc_t *md) {
         }
     }
 
-    ss << ":f" << mdw.extra().flags;
+    ss << mdw.extra();
 
     return ss.str();
 }
@@ -267,7 +278,7 @@ std::ostream &operator<<(std::ostream &ss, const memory_desc_t *md) {
 
 // Returns string with dimension style from memory_desc since there's an
 // operator<< for memory_desc.
-std::string md2dim_str(const dnnl_memory_desc_t *md) {
+std::string md2dim_str(const memory_desc_t *md) {
     if (md == nullptr || md->ndims == 0) return "";
 
     memory_desc_wrapper mdw(md);
@@ -285,7 +296,7 @@ std::string md2dim_str(const dnnl_memory_desc_t *md) {
 
 // Returns string with descriptor style from memory_desc since there's an
 // operator<< for memory_desc.
-std::string md2desc_str(const dnnl_memory_desc_t *md) {
+std::string md2desc_str(const memory_desc_t *md) {
     const auto dims = md->dims;
     std::string s;
     if (md->ndims >= 6) return md2dim_str(md);
