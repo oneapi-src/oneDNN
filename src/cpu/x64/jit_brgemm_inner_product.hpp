@@ -141,11 +141,9 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = jbgp_.gemm_batch_size;
                     brgattr.wary_tail_read = false;
-                    brgattr.hint_expected_A_size
-                            = i_M * i_K * jbgp_.gemm_batch_size;
-                    brgattr.hint_expected_B_size
-                            = i_K * i_N * jbgp_.gemm_batch_size;
-                    brgattr.hint_expected_C_size = i_M * i_N;
+                    brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.ic;
+                    brgattr.hint_expected_B_size = jbgp_.oc * jbgp_.ic;
+                    brgattr.hint_expected_C_size = jbgp_.mb * jbgp_.oc;
                     brgattr.hint_innermost_loop = brgemm_ld_loop_innermost;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
@@ -269,11 +267,9 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = jbgp_.gemm_batch_size;
                     brgattr.wary_tail_read = false;
-                    brgattr.hint_expected_A_size
-                            = i_M * i_K * jbgp_.gemm_batch_size;
-                    brgattr.hint_expected_B_size
-                            = i_K * i_N * jbgp_.gemm_batch_size;
-                    brgattr.hint_expected_C_size = i_M * i_N;
+                    brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.oc;
+                    brgattr.hint_expected_B_size = jbgp_.oc * jbgp_.ic;
+                    brgattr.hint_expected_C_size = jbgp_.mb * jbgp_.ic;
                     brgattr.hint_innermost_loop = brgemm_ld_loop_innermost;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
@@ -396,11 +392,9 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = jbgp_.gemm_batch_size;
                     brgattr.wary_tail_read = false;
-                    brgattr.hint_expected_A_size
-                            = i_M * i_K * jbgp_.gemm_batch_size;
-                    brgattr.hint_expected_B_size
-                            = i_K * i_N * jbgp_.gemm_batch_size;
-                    brgattr.hint_expected_C_size = i_M * i_N;
+                    brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.ic;
+                    brgattr.hint_expected_B_size = jbgp_.mb * jbgp_.oc;
+                    brgattr.hint_expected_C_size = jbgp_.ic * jbgp_.oc;
                     brgattr.hint_innermost_loop = brgemm_ld_loop_innermost;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
