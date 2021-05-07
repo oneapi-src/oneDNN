@@ -384,15 +384,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 : 1.f;
         const bool broadcast_scales = (D_mask == 1);
 
-        const auto zero_padding_needed = !output_d.is_dense();
-        if (zero_padding_needed) {
-            // This kernel is used primarily for tensors with multiple inner
-            // blocks for which generic zero padding must be used.
-
-            // TODO: apply zero padding inside parallel_nd()
-            const auto memory = ctx.memory(DNNL_ARG_TO);
-            memory->zero_pad(ctx);
-        }
+        // This kernel is used primarily for tensors with multiple inner
+        // blocks for which generic zero padding must be used.
+        // TODO: apply zero padding inside parallel_nd()
+        ctx.zero_pad_output(DNNL_ARG_TO);
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
                            int32_t *c, int32_t *zp, const float *s,
@@ -1831,15 +1826,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const size_t nelems = input_d.nelems();
 
-        const auto zero_padding_needed = !output_d.is_dense();
-        if (zero_padding_needed) {
-            // This kernel is used also for tensors with multiple inner
-            // blocks for which generic zero padding must be used.
-
-            // TODO: apply zero padding inside parallel_nd()
-            const auto memory = ctx.memory(DNNL_ARG_TO);
-            memory->zero_pad(ctx);
-        }
+        // This kernel is used also for tensors with multiple inner
+        // blocks for which generic zero padding must be used.
+        // TODO: apply zero padding inside parallel_nd()
+        ctx.zero_pad_output(DNNL_ARG_TO);
 
         int ndims_start = 0, ndims_mask = 0;
         int smask = pd()->attr()->output_scales_.mask_;
