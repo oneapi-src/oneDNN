@@ -50,22 +50,24 @@ status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
     const auto alg = pd()->desc()->alg_kind;
 
     const auto nelems = dst_d.nelems();
-    const auto nelems_pad = dst_d.nelems(true);
     const auto ndims = pd()->ndims();
-    const auto has_padding = !dst_d.is_dense();
     const auto has_postops = pd()->attr()->post_ops_.len() != 0;
     const auto is_inplace
             = static_cast<const void *>(src0) == static_cast<void *>(dst);
+    bool has_padding = false;
+    for (int i = 0; i < dst_d.ndims(); i++)
+        if (dst_d.dims()[i] != dst_d.padded_dims()[i]) {
+            has_padding = true;
+            break;
+        }
 
     if (has_padding && !is_inplace) {
-        if (has_postops) {
-            // Use zero-padding implementation as we cannot memset over populated memory
-            const auto memory = ctx.memory(DNNL_ARG_TO);
-            memory->zero_pad(ctx);
+        if (has_postops || !dst_d.is_dense(true)) {
+            // Use zero-padding implementation as we cannot memset over
+            // populated dst memory or submemories.
+            ctx.zero_pad_output(DNNL_ARG_TO);
         } else {
-            const auto res = std::div(
-                    static_cast<int>(nelems_pad * dst_d.data_type_size()),
-                    PAGE_4K);
+            const auto res = std::div(static_cast<int>(dst_d.size()), PAGE_4K);
             if (!res.quot)
                 std::memset(dst, 0, res.rem);
             else
