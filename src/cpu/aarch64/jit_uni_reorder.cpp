@@ -121,7 +121,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 && utils::one_of(p.otype, f32, s32, data_type::s8, u8)
                 && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
                 && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
-                && simple_impl_desc_init(p, nullptr) && mayiuse(sve_512);
+                && simple_impl_desc_init(p, nullptr);
         if (!ok) return false;
 
         const ptrdiff_t max_stride = (1LL << 31) - 1;
@@ -190,14 +190,14 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 step_size);
     }
 
-    void tr8x8_avx2(int i_off, int o_off) {
+    void tr8x8_sve256(int i_off, int o_off) {
         using namespace data_type;
 
         const auto cvt2ps
                 = [=](const int startIdx, const int regNum, data_type_t idt) {
                       switch (idt) {
                           case f32:
-                              // do nothing
+                              /* do nothing */
                               break;
                           case s32: cvt_z_s32_f32(startIdx, regNum); break;
                           case data_type::s8:
@@ -210,11 +210,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                               break;
                           default: assert(!"unreachable");
                       }
-
-                      for (int i = startIdx; i < startIdx + regNum; i++) {
-                          mov(ZRegS(i), P_MSB_256 / T_m, 0);
-                      }
                   };
+
         const auto cvt2odt = [=](const int startIdx, const int regNum,
                                      data_type_t odt, data_type_t idt) {
             switch (odt) {
@@ -250,6 +247,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         const bool need_saturation
                 = (utils::one_of(prb_.otype, u8, data_type::s8, s32)
                         && interim_f32);
+        const uint64_t sveLen = get_sve_length();
 
         add_imm(X_TMP_0, XReg(x_ptr_in_off), i_off * itype_sz, X_DEFAULT_ADDR);
         add_imm(X_TMP_1, X_TMP_0, is(0) * itype_sz, X_DEFAULT_ADDR);
@@ -286,11 +284,11 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 #if 0
         /* Deubg code */
         index(z0.s, 0, 1);
-        mov(z0.s, P_MSB_256/T_m, 0);
+        mov(z0.s, P_NOT_256/T_m, 0);
         mov(z_tmp_vec[0].s, 16);
         for(uint32_t i=1; i<8; i++) {
           add(ZRegS{i}, ZRegS{i-1}, z_tmp_vec[0].s);
-          mov(ZRegS{i}, P_MSB_256/T_m, 0);
+          mov(ZRegS{i}, P_NOT_256/T_m, 0);
         }
 #endif
 
@@ -320,8 +318,11 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         /* 4th turn */
         for (uint32_t i = 0; i < unroll / 2; i++) {
             ZRegB z {unroll / 2 + i};
+            ZRegB z_tmp = z_tmp_vec[unroll / 2 + i].b;
+            /* Move bit 128-255 to 0-127. */
             ext(z, z, 16);
-            ext(z_tmp_vec[unroll / 2 + i].b, z_tmp_vec[unroll / 2 + i].b, 48);
+            /* Move bit 0-127 to 128-255. */
+            ext(z_tmp, z_tmp, sveLen - 16);
         }
 
         /* 5th turn */
@@ -337,7 +338,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     interim_f32 ? f32 : prb_.itype, prb_.otype);
             for (int i = 0; i < unroll; i++)
                 saturate_f32(ZRegS(i), ymm_zero, ymm_saturation_ubound,
-                        prb_.otype, p_512);
+                        prb_.otype, p_all);
         }
 
         if (prb_.otype != f32)
@@ -377,7 +378,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     bool can_do_tr8x8() {
         using namespace data_type;
 
-        return mayiuse(sve_512) && prb_.ndims >= 2
+        return get_sve_length() >= Xbyak_aarch64::util::SVE_256
+                && prb_.ndims >= 2
                 && ((utils::one_of(prb_.itype, u8, data_type::s8, s32, f32)
                         && utils::one_of(
                                 prb_.otype, u8, data_type::s8, s32, f32)))
@@ -393,7 +395,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         int i_off = 0, o_off = 0;
         for (int off = 0; off < len; off += step_size) {
             step(off, i_off, o_off, i_off, o_off, step_size);
-            tr8x8_avx2(i_off, o_off);
+            tr8x8_sve256(i_off, o_off);
         }
 
         return true;
@@ -455,7 +457,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         if (vlen == 64 || vlen == 32) {
                             ZRegS r(ur);
                             /* MSB side 256 bits are ignored. */
-                            scvtf(r, p_512 / T_m, r);
+                            scvtf(r, p_all / T_m, r);
                         } else if (vlen == 16) {
                             VReg4S r(ur);
                             scvtf(r, r);
@@ -465,8 +467,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         /* Out of order can be expected. */
                         if (vlen == 64 || vlen == 32) {
                             ZRegS r(ur);
-                            frinti(r, p_512 / T_m, r);
-                            fcvtzs(r, p_512 / T_m, r);
+                            frinti(r, p_all / T_m, r);
+                            fcvtzs(r, p_all / T_m, r);
                         } else if (vlen == 16) {
                             VReg4S r(ur);
                             frinti(r, r);
@@ -516,49 +518,50 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 = [=](const int startIdx, const int regNum, data_type_t idt) {
                       switch (idt) {
                           case f32:
-                              // do nothing
+                              /* do nothing */
                               break;
-                          case s32: cvt_z_s32_f32(startIdx, regNum); break;
+                          case s32: cvt_v_s32_f32(startIdx, regNum); break;
                           case data_type::s8:
-                              cvt_z_s8_s32(startIdx, regNum);
-                              cvt_z_s32_f32(startIdx, regNum);
+                              cvt_v_s8_s32(startIdx, regNum);
+                              cvt_v_s32_f32(startIdx, regNum);
                               break;
                           case u8:
-                              cvt_z_u8_s32(startIdx, regNum);
-                              cvt_z_s32_f32(startIdx, regNum);
+                              cvt_v_u8_s32(startIdx, regNum);
+                              cvt_v_s32_f32(startIdx, regNum);
                               break;
                           default: assert(!"unreachable");
                       }
                   };
+
         auto cvt2odt = [=](const int startIdx, const int regNum,
                                data_type_t odt, data_type_t idt) {
             switch (odt) {
                 case s32:
                     if (idt == f32)
-                        cvt_z_f32_s32(startIdx, regNum);
+                        cvt_v_f32_s32(startIdx, regNum);
                     else if (idt == data_type::s8)
-                        cvt_z_s8_s32(startIdx, regNum);
+                        cvt_v_s8_s32(startIdx, regNum);
                     else if (idt == u8)
-                        cvt_z_u8_s32(startIdx, regNum);
+                        cvt_v_u8_s32(startIdx, regNum);
                     break;
                 case data_type::s8:
-                    if (idt == f32) cvt_z_f32_s32(startIdx, regNum);
+                    if (idt == f32) cvt_v_f32_s32(startIdx, regNum);
                     if (idt == f32 || idt == s32)
-                        cvt_z_s32_s8(startIdx, regNum);
-                    if (idt == u8) { cvt_z_u8_s8(startIdx, regNum); }
+                        cvt_v_s32_s8(startIdx, regNum);
+                    if (idt == u8) { cvt_v_u8_s8(startIdx, regNum); }
                     break;
                 case u8:
-                    if (idt == f32) cvt_z_f32_s32(startIdx, regNum);
+                    if (idt == f32) cvt_v_f32_s32(startIdx, regNum);
                     if (idt == f32 || idt == s32)
-                        cvt_z_s32_u8(startIdx, regNum);
-                    if (idt == data_type::s8) cvt_z_s8_u8(startIdx, regNum);
+                        cvt_v_s32_u8(startIdx, regNum);
+                    if (idt == data_type::s8) cvt_v_s8_u8(startIdx, regNum);
                     break;
                 default: assert(!"unreachable");
             }
         };
 
         /* check whether loading 4 values at once is possible */
-        bool can_load_xmm = mayiuse(sve_512) && reg_unroll % 4 == 0;
+        bool can_load_xmm = reg_unroll % 4 == 0;
         for (int ur = 1; ur < reg_unroll; ++ur)
             if (i_off[ur] != i_off[ur - 1] + 1) can_load_xmm = false;
         const int load_step = can_load_xmm ? 4 : 1;
@@ -646,7 +649,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     for (int ur = 0; ur < reg_unroll; ur += load_step)
                         if (need_saturation)
                             saturate_f32(VReg4S(ur), xmm_zero,
-                                    xmm_saturation_ubound, prb_.otype, p_512);
+                                    xmm_saturation_ubound, prb_.otype, p_all);
 
                     for (int ur = 0; ur < reg_unroll; ur += load_step)
                         cvt2odt(ur, 1, prb_.otype,
@@ -802,8 +805,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         } else {
             /* xmm[0] <-- scale * xmm[0] */
             if (prb_.scale_type == scale_type_t::COMMON) {
-                for (int ur = 0; ur < reg_unroll; ur += ur_step)
-                    fmul(ZRegS(ur), p_lsb_32 / T_m, ZRegS(xmm_scale.getIdx()));
+                for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                    VReg4S tmp(ur);
+                    fmul(tmp, tmp, VReg4S(xmm_scale.getIdx()));
+                }
             } else if (prb_.scale_type == scale_type_t::MANY) {
                 int ur = 0;
                 int tmp_ur = 0;
@@ -818,9 +823,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
                     for (int i = 0; i < count; i++)
                         ldr(SReg(tmp_vec_idx[i]), ptr(x_tmp_vec[i]));
-                    for (int i = 0; i < count; i++)
-                        fmul(ZRegS(tmp_ur + ur_step * i), p_lsb_32 / T_m,
-                                ZRegS(tmp_vec_idx[i]));
+                    for (int i = 0; i < count; i++) {
+                        VReg4S tmp(tmp_ur + ur_step * i);
+                        fmul(tmp, tmp, VReg4S(tmp_vec_idx[i]));
+                    }
 
                     tmp_ur += ur_step * count;
                 }
@@ -884,7 +890,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     xmm_zero, xmm_saturation_ubound, reg_tmp, f32, prb_.otype);
             for (int ur = 0; ur < reg_unroll; ur += ur_step) {
                 saturate_f32(VReg4S(ur), xmm_zero, xmm_saturation_ubound,
-                        prb_.otype, p_512);
+                        prb_.otype, p_all);
             }
         }
 
@@ -1033,31 +1039,41 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         assert(!"no implementation available");
     }
 
+#define UNROLL_INST(inst, reg, ...) \
+    for (size_t i = startIdx; i < startIdx + regNum; i++) { \
+        reg tmp(i); \
+        inst(__VA_ARGS__); \
+    }
+#define UNROLL_INST2(inst, ...) \
+    for (size_t i = startIdx; i < startIdx + regNum; i++) \
+        inst(__VA_ARGS__);
+
     void cvt_z_s32_f32(const size_t startIdx, const size_t regNum) {
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegS tmp(i);
-            scvtf(tmp, p_lsb_256 / T_m, tmp);
-        }
+        UNROLL_INST(scvtf, ZRegS, tmp, p_all / T_m, tmp);
+    }
+
+    void cvt_v_s32_f32(const size_t startIdx, const size_t regNum) {
+        UNROLL_INST(scvtf, VReg4S, tmp, tmp);
     }
 
     void cvt_z_f32_s32(const size_t startIdx, const size_t regNum) {
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegS tmp(i);
-            frinti(tmp, p_lsb_256 / T_m, tmp);
-        }
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegS tmp(i);
-            fcvtzs(tmp, p_lsb_256 / T_m, tmp);
-        }
+        UNROLL_INST(frinti, ZRegS, tmp, p_all / T_m, tmp);
+        UNROLL_INST(fcvtzs, ZRegS, tmp, p_all / T_m, tmp);
+    }
+
+    void cvt_v_f32_s32(const size_t startIdx, const size_t regNum) {
+        UNROLL_INST(frinti, VReg4S, tmp, tmp);
+        UNROLL_INST(fcvtzs, VReg4S, tmp, tmp);
     }
 
     void cvt_z_s8_s32(const size_t startIdx, const size_t regNum) {
         cvt_z_b_s(startIdx, regNum);
+        UNROLL_INST(sxtb, ZRegS, tmp, p_all / T_m, tmp);
+    }
 
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegS tmp(i);
-            sxtb(tmp, p_lsb_256 / T_m, tmp);
-        }
+    void cvt_v_s8_s32(const size_t startIdx, const size_t regNum) {
+        UNROLL_INST(sxtl, VReg, tmp.h8, tmp.b8);
+        UNROLL_INST(sxtl, VReg, tmp.s4, tmp.h4);
     }
 
     void cvt_z_s8_f32(const size_t startIdx, const size_t regNum) {
@@ -1065,28 +1081,38 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         cvt_z_s32_f32(startIdx, regNum);
     }
 
+    void cvt_v_s8_f32(const size_t startIdx, const size_t regNum) {
+        cvt_v_b_s(startIdx, regNum);
+        cvt_v_s32_f32(startIdx, regNum);
+    }
+
     void cvt_z_b_s(const size_t startIdx, const size_t regNum) {
         assert(z_tmp7.getIdx() < startIdx
                 || startIdx + regNum - 1 < z_tmp7.getIdx());
 
         dup(z_tmp7.b, 0);
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegB tmp(i);
-            zip1(tmp, tmp, z_tmp7.b);
-        }
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegH tmp(i);
-            zip1(tmp, tmp, z_tmp7.h);
-        }
+        UNROLL_INST(zip1, ZRegB, tmp, tmp, z_tmp7.b);
+        UNROLL_INST(zip1, ZRegH, tmp, tmp, z_tmp7.h);
+    }
+
+    void cvt_v_b_s(const size_t startIdx, const size_t regNum) {
+        assert(v_tmp7.getIdx() < startIdx
+                || startIdx + regNum - 1 < v_tmp7.getIdx());
+
+        mov_imm(W_TMP_0, 0);
+        dup(v_tmp7.b16, W_TMP_0);
+        UNROLL_INST(zip1, VReg16B, tmp, tmp, v_tmp7.b16);
+        UNROLL_INST(zip1, VReg8H, tmp, tmp, v_tmp7.h8);
     }
 
     void cvt_z_u8_s32(const size_t startIdx, const size_t regNum) {
         cvt_z_b_s(startIdx, regNum);
+        UNROLL_INST(uxtb, ZRegS, tmp, p_all / T_m, tmp);
+    }
 
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegS tmp(i);
-            uxtb(tmp, p_lsb_256 / T_m, tmp);
-        }
+    void cvt_v_u8_s32(const size_t startIdx, const size_t regNum) {
+        UNROLL_INST(uxtl, VReg, tmp.h8, tmp.b8);
+        UNROLL_INST(uxtl, VReg, tmp.s4, tmp.h4);
     }
 
     void cvt_z_s32_s8(const size_t startIdx, const size_t regNum) {
@@ -1094,70 +1120,98 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 || startIdx + regNum - 1 < z_tmp7.getIdx());
 
         dup(z_tmp7.s, 0);
+        UNROLL_INST2(smin, ZRegS(i), 127);
+        UNROLL_INST2(smax, ZRegS(i), -128);
+        UNROLL_INST(uzp1, ZRegH, tmp, tmp, z_tmp7.h);
+        UNROLL_INST(uzp1, ZRegB, tmp, tmp, z_tmp7.b);
+    }
 
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            smin(ZRegS(i), 127);
-        }
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            smax(ZRegS(i), -128);
-        }
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegH z(i);
-            uzp1(z, z, z_tmp7.h);
-        }
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegB z(i);
-            uzp1(z, z, z_tmp7.b);
-        }
+    void cvt_v_s32_s8(const size_t startIdx, const size_t regNum) {
+        assert(v_tmp7.getIdx() < startIdx
+                || startIdx + regNum - 1 < v_tmp7.getIdx());
+
+        mov_imm(W_TMP_0, 127);
+        dup(v_tmp7.s4, W_TMP_0);
+        mov_imm(W_TMP_0, -128);
+        UNROLL_INST2(smin, VReg4S(i), VReg4S(i), v_tmp7.s4);
+        dup(v_tmp7.s4, W_TMP_0);
+        UNROLL_INST2(smax, VReg4S(i), VReg4S(i), v_tmp7.s4);
+        mov_imm(W_TMP_0, 0);
+        dup(v_tmp7.s4, W_TMP_0);
+        UNROLL_INST(uzp1, VReg8H, tmp, tmp, v_tmp7.h8);
+        UNROLL_INST(uzp1, VReg16B, tmp, tmp, v_tmp7.b16);
     }
 
     void cvt_z_u8_s8(const size_t startIdx, const size_t regNum) {
-        for (size_t i = startIdx; i < startIdx + regNum; i++)
-            umin(ZRegB(i), 127);
+        UNROLL_INST2(umin, ZRegB(i), 127);
+    }
+
+    void cvt_v_u8_s8(const size_t startIdx, const size_t regNum) {
+        assert(v_tmp7.getIdx() < startIdx
+                || startIdx + regNum - 1 < v_tmp7.getIdx());
+
+        mov_imm(W_TMP_0, 127);
+        dup(v_tmp7.b16, W_TMP_0);
+        UNROLL_INST(umin, VReg16B, tmp, tmp, v_tmp7.b16);
     }
 
     void cvt_z_u32_u8(const size_t startIdx, const size_t regNum) {
-        for (size_t i = startIdx; i < startIdx + regNum; i++)
-            umin(ZRegS(i), 255);
+        UNROLL_INST2(umin, ZRegS(i), 255);
+        UNROLL_INST(uzp1, ZRegH, tmp, tmp, tmp);
+        UNROLL_INST(uzp1, ZRegB, tmp, tmp, tmp);
+    }
 
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegH z(i);
-            uzp1(z, z, z);
-        }
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegB z(i);
-            uzp1(z, z, z);
-        }
+    void cvt_v_u32_u8(const size_t startIdx, const size_t regNum) {
+        assert(v_tmp7.getIdx() < startIdx
+                || startIdx + regNum - 1 < v_tmp7.getIdx());
+
+        mov_imm(W_TMP_0, 255);
+        dup(v_tmp7.s4, W_TMP_0);
+        UNROLL_INST(umin, VReg4S, tmp, tmp, v_tmp7.s4);
+        UNROLL_INST(uzp1, VReg8H, tmp, tmp, tmp);
+        UNROLL_INST(uzp1, VReg16B, tmp, tmp, tmp);
     }
 
     void cvt_z_s32_u8(const size_t startIdx, const size_t regNum) {
         assert(z_tmp7.getIdx() < startIdx
                 || startIdx + regNum - 1 < z_tmp7.getIdx());
+
         dupm(z_tmp7.s, 255);
+        UNROLL_INST2(smax, ZRegS(i), 0);
+        UNROLL_INST2(smin, ZRegS(i), p_all / T_m, z_tmp7.s);
+        UNROLL_INST(uzp1, ZRegH, tmp, tmp, tmp);
+        UNROLL_INST(uzp1, ZRegB, tmp, tmp, tmp);
+        UNROLL_INST2(mov, ZRegB(i), P_NOT_128 / T_m, 0);
+    }
 
-        for (size_t i = startIdx; i < startIdx + regNum; i++)
-            smax(ZRegS(i), 0);
+    void cvt_v_s32_u8(const size_t startIdx, const size_t regNum) {
+        assert(v_tmp7.getIdx() < startIdx
+                || startIdx + regNum - 1 < v_tmp7.getIdx());
 
-        for (size_t i = startIdx; i < startIdx + regNum; i++)
-            smin(ZRegS(i), p_512 / T_m, z_tmp7.s);
-
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegH z(i);
-            uzp1(z, z, z);
-        }
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            ZRegB z(i);
-            uzp1(z, z, z);
-        }
-        for (size_t i = startIdx; i < startIdx + regNum; i++) {
-            mov(ZRegB(i), P_MSB_384 / T_m, 0);
-        }
+        mov_imm(W_TMP_0, 0);
+        dup(v_tmp7.s4, W_TMP_0);
+        mov_imm(W_TMP_0, 255);
+        UNROLL_INST(smax, VReg4S, tmp, tmp, v_tmp7.s4);
+        dup(v_tmp7.s4, W_TMP_0);
+        UNROLL_INST(smin, VReg4S, tmp, tmp, v_tmp7.s4);
+        UNROLL_INST(uzp1, VReg8H, tmp, tmp, tmp);
+        UNROLL_INST(uzp1, VReg16B, tmp, tmp, tmp);
     }
 
     void cvt_z_s8_u8(const size_t startIdx, const size_t regNum) {
-        for (size_t i = startIdx; i < startIdx + regNum; i++)
-            smax(ZRegB(i), 0);
+        UNROLL_INST2(smax, ZRegB(i), 0);
     }
+
+    void cvt_v_s8_u8(const size_t startIdx, const size_t regNum) {
+        assert(v_tmp7.getIdx() < startIdx
+                || startIdx + regNum - 1 < v_tmp7.getIdx());
+
+        mov_imm(W_TMP_0, 0);
+        dup(v_tmp7.b16, W_TMP_0);
+        UNROLL_INST(smax, VReg16B, tmp, tmp, v_tmp7.b16);
+    }
+#undef UNROLL_INST
+#undef UNROLL_INST
 
     jit_uni_reorder_kernel_f32_t(const desc_t &desc) : kernel_t(desc) {
         itype_sz = data_type_size(prb_.itype);
@@ -1166,6 +1220,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     }
 
     void generate() override {
+        using namespace Xbyak_aarch64::util;
+        uint64_t sveLen = get_sve_length();
+
         preamble();
 #define PARAM(x) offsetof(call_param_t, x)
         if (prb_.scale_type == scale_type_t::COMMON) {
@@ -1186,9 +1243,11 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         mov(x_ptr_in_off, XReg(reg_ptr_in.getIdx()));
         mov(x_ptr_out_off, XReg(reg_ptr_out.getIdx()));
         mov(x_ptr_scale_off, XReg(reg_ptr_scale.getIdx()));
-        ptrue(p_lsb_256.b, VL32);
-        ptrue(p_lsb_32.b, VL4);
-        ptrue(p_512.b);
+
+        if (sveLen) { /* SVE is available. */
+            ptrue(p_lsb_256.b, VL32);
+            ptrue(p_all.b);
+        }
 
         if (can_do_tr8x8()) {
             dup(ymm_zero, 0);
@@ -1243,9 +1302,8 @@ private:
 
     /* Caution: Chose predicate registers not used by x64's implementation. */
     PReg p_lsb_256 = p7;
-    PReg p_512 = p6;
+    PReg p_all = p6;
     PReg p_tmp0 = p5;
-    PReg p_lsb_32 = p4;
 
     const std::vector<uint32_t> tmp_vec_idx = {20, 21, 22, 23, 24, 25, 26, 27};
     ZReg z_tmp0 = z20;
@@ -1256,6 +1314,7 @@ private:
     ZReg z_tmp5 = z25;
     ZReg z_tmp6 = z26;
     ZReg z_tmp7 = z27;
+    VReg v_tmp7 = v27;
 
     const std::vector<ZReg> z_tmp_vec
             = {z_tmp0, z_tmp1, z_tmp2, z_tmp3, z_tmp4, z_tmp5, z_tmp6, z_tmp7};
