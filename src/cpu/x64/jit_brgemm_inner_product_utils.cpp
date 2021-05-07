@@ -54,7 +54,13 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
     if (try_to_adjust
             || one_of(jbgp.prop_kind, forward_training, forward_inference)) {
         min_os_block = (is_amx_int8 || is_amx_bf16) ? 16 : 6;
-        max_os_block = 64;
+        // Currently gigantic flag is used to separate out transformer_lt and
+        // alexnet shapes for which larger os_block gives better performance.
+        // TODO: Figure out how much the constraints for `gigantic-ness` can
+        // be further loosened.
+        const bool is_gigantic_shape
+                = jbgp.ic >= 9216 && jbgp.oc >= 4096 && jbgp.os >= 512;
+        max_os_block = is_gigantic_shape ? 128 : 64;
         // Work done by each thread is given by:
         //     (nb_oc / nb_oc_blocking) * (nb_os / nb_os_blocking)
         // As a first approximation we take nb_oc_blocking = nb_os_blocking = 1
