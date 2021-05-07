@@ -549,6 +549,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         inp[plain_off], s[oc] * adj_scale);
                 if (has_asymmetric_comp) zp[oc] -= (int32_t)(out[oc]);
             }
+            // fill memory with '0' in case of padded channel dimensions
+            for (int oc = oc_block; oc < oc_blksize; ++oc) {
+                out[oc] = 0;
+            }
         };
 
         size_t offset
@@ -699,6 +703,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 = (output_d.extra().flags & memory_extra_flags::scale_adjust)
                 ? output_d.extra().scale_adjust
                 : 1.f;
+
+        // This kernel is used primarily for tensors with multiple inner
+        // blocks for which generic zero padding must be used.
+        // TODO: apply zero padding inside parallel_nd()
+        ctx.zero_pad_output(DNNL_ARG_TO);
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
                            int32_t *zp, const float *s, const int oc_block,
