@@ -80,7 +80,6 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_inner_product_backward_weights.cpp
                               test_shuffle.cpp
                               test_rnn_forward.cpp
-                              test_convolution_format_any.cpp
                               test_convolution_forward_f32.cpp
                               test_convolution_forward_u8s8s32.cpp
                               test_convolution_forward_u8s8fp.cpp
@@ -89,23 +88,32 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_convolution_backward_data_f32.cpp
                               test_convolution_backward_weights_f32.cpp
                               test_deconvolution.cpp
-                              test_gemm_f16.cpp
-                              test_gemm_f32.cpp
-                              test_gemm_f16f16f32.cpp
-                              test_gemm_bf16bf16f32.cpp
-                              test_gemm_bf16bf16bf16.cpp
-                              test_gemm_u8s8s32.cpp
-                              test_gemm_s8s8s32.cpp
-                              test_gemm_s8u8s32.cpp
-                              test_gemm_u8u8s32.cpp
                               test_layer_normalization.cpp
                               test_binary.cpp
                               test_logsoftmax.cpp
                               test_matmul.cpp
                               test_resampling.cpp
-                              test_global_scratchpad.cpp
                               test_reduction.cpp
                               )
+
+if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
+    file(GLOB CPU_SPECIFIC_TESTS
+        test_gemm_f16.cpp
+        test_gemm_f32.cpp
+        test_gemm_f16f16f32.cpp
+        test_gemm_bf16bf16f32.cpp
+        test_gemm_bf16bf16bf16.cpp
+        test_gemm_u8s8s32.cpp
+        test_gemm_s8s8s32.cpp
+        test_gemm_s8u8s32.cpp
+        test_gemm_u8u8s32.cpp
+        test_convolution_format_any.cpp
+        test_global_scratchpad.cpp
+        )
+    foreach(TEST_FILE ${CPU_SPECIFIC_TESTS})
+        list(APPEND PRIM_TEST_CASES_SRC "${TEST_FILE}")
+    endforeach()
+endif()
 
 if(NOT DNNL_USE_CLANG_SANITIZER)
     # Due to the following tests have long run-time, move them to Nightly set
@@ -120,8 +128,9 @@ if(NOT DNNL_USE_CLANG_SANITIZER)
     endif()
 endif()
 
+
 # Add X64-specific tests
-if(DNNL_TARGET_ARCH STREQUAL "X64")
+if(DNNL_TARGET_ARCH STREQUAL "X64" AND NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
     file(GLOB X64_PRIM_TEST_CASES_SRC
         test_isa_mask.cpp
         test_isa_hints.cpp
@@ -167,29 +176,32 @@ function(register_gtest exe src)
                 -DDNNL_TEST_WITH_ENGINE_PARAM)
     endif()
 
-    if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE" AND NOT no_engine_param)
+    if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE" AND NOT no_engine_param AND NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
         add_dnnl_test(${exe}_cpu ${exe} COMMAND ${exe} --engine=cpu)
         maybe_configure_windows_test(${exe}_cpu TEST)
 
         add_dnnl_test(${exe}_gpu ${exe} COMMAND ${exe} --engine=gpu)
         maybe_configure_windows_test(${exe}_gpu TEST)
+    elseif(DNNL_CPU_RUNTIME STREQUAL "NONE" AND NOT no_engine_param)
+        add_dnnl_test(${exe}_gpu ${exe} COMMAND ${exe} --engine=gpu)
+        maybe_configure_windows_test(${exe} TEST)
     else()
         add_dnnl_test(${exe} ${exe})
         maybe_configure_windows_test(${exe} TEST)
     endif()
 endfunction()
 
-set(skip_usm_pattern "^$") # no skip by default
-if(DNNL_WITH_SYCL)
+set(skip_pattern "^$") # no skip by default
+if(DNNL_WITH_SYCL OR DNNL_CPU_RUNTIME STREQUAL "NONE")
     # - cross_engine_reorder creates usm pointers on CPU and GPU that belong to
     #   the different context, which causes synchronization issues.
     #   FIXME: the library should handle this case gracefully.
-    set(skip_usm_pattern "(test_cross_engine_reorder)")
+    set(skip_pattern "(test_cross_engine_reorder)")
 endif()
 
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     get_filename_component(exe ${TEST_FILE} NAME_WE)
-    if(NOT ${exe} MATCHES "${skip_usm_pattern}" AND NOT DNNL_SYCL_CUDA)
+    if(NOT ${exe} MATCHES "${skip_pattern}" AND NOT DNNL_SYCL_CUDA)
         register_gtest(${exe} ${TEST_FILE})
     endif()
 
@@ -202,7 +214,10 @@ endforeach()
 
 add_subdirectory(api)
 add_subdirectory(internals)
-add_subdirectory(regression)
+
+if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
+    add_subdirectory(regression)
+endif()
 
 if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)

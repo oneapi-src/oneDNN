@@ -117,12 +117,15 @@ inline bool is_nvidia_gpu(const dnnl::engine &eng) {
 }
 
 inline bool unsupported_data_type(memory::data_type dt, dnnl::engine eng) {
-    dnnl::engine::kind kind = eng.get_kind();
-
     bool supported = true; // optimism
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    dnnl::engine::kind kind = eng.get_kind();
     if (kind == dnnl::engine::kind::cpu)
         supported = dnnl::impl::cpu::platform::has_data_type_support(
                 memory::convert_to_c(dt));
+#endif
+
 #ifdef DNNL_SYCL_CUDA
     if (is_nvidia_gpu(eng)) {
         switch (dt) {

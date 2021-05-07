@@ -95,6 +95,11 @@ protected:
 
 TEST_P(sycl_engine_test, BasicInterop) {
     auto param = GetParam();
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+    SKIP_IF(param.adev_kind != dev_kind::gpu
+                    && param.adev_kind != dev_kind::gpu_only,
+            "Skip non-GPU engine kinds for GPU only configuration");
+#endif
 
     device *dev_ptr = nullptr;
     switch (param.adev_kind) {
@@ -133,6 +138,10 @@ TEST_P(sycl_engine_test, BasicInterop) {
 }
 
 TEST(sycl_engine_test, HostDevice) {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+    SKIP_IF(true, "Skip test for host device for GPU only configuration");
+#endif
+
     device dev(host_selector {});
     context ctx(dev);
 
@@ -169,6 +178,11 @@ TEST(sycl_engine_test, HostDevice) {
 
 TEST_P(sycl_engine_test, SubDevice) {
     auto param = GetParam();
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+    SKIP_IF(param.adev_kind != dev_kind::gpu
+                    && param.adev_kind != dev_kind::gpu_only,
+            "Skip non-GPU engine kinds for GPU only configuration");
+#endif
 
     SKIP_IF(param.expected_status != dnnl_success,
             "Don't test for failed scenarios");
@@ -194,6 +208,14 @@ TEST_P(sycl_engine_test, SubDevice) {
             },
             param.expected_status != dnnl_success, param.expected_status);
 }
+
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+TEST_P(sycl_engine_test, gpu_only) {
+    device dev(cpu_selector {});
+    context ctx(dev);
+    EXPECT_ANY_THROW(sycl_interop::make_engine(dev, ctx));
+}
+#endif
 
 INSTANTIATE_TEST_SUITE_P(Simple, sycl_engine_test,
         ::testing::Values(sycl_engine_test_params {dev_kind::gpu, ctx_kind::gpu,

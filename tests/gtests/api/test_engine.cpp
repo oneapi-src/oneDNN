@@ -30,6 +30,14 @@ protected:
 };
 
 HANDLE_EXCEPTIONS_FOR_TEST_P(engine_test_t, TestMultithreading) {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+    if (eng_kind == engine::kind::cpu) {
+        EXPECT_EQ((int)engine::get_count(eng_kind), 0);
+        EXPECT_ANY_THROW(engine eng(eng_kind, 0));
+        return;
+    }
+#endif
+
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine is not found.");
     engine eng {eng_kind, 0};

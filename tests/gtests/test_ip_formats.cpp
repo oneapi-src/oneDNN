@@ -20,7 +20,11 @@
 #include <type_traits>
 
 #include "dnnl_test_common.hpp"
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #include "tests/test_isa_common.hpp"
+#endif
+
 #include "gtest/gtest.h"
 
 #include "oneapi/dnnl/dnnl.hpp"
@@ -46,8 +50,11 @@ protected:
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
                 "GPU takes a lot of time to complete this test.");
 
-        bool supports_bf16
+        bool supports_bf16 = false;
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+        supports_bf16
                 = dnnl::impl::cpu::platform::has_data_type_support(dnnl_bf16);
+#endif
 
         bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
 

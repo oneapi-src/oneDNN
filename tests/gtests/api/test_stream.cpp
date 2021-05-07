@@ -86,6 +86,7 @@ TEST(stream_test_c_t, WaitNullStream) {
     ASSERT_EQ(status, dnnl_invalid_arguments);
 }
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 TEST(stream_test_c_t, Wait) {
     dnnl_engine_t engine;
     DNNL_CHECK(dnnl_engine_create(&engine, dnnl_cpu, 0));
@@ -98,6 +99,7 @@ TEST(stream_test_c_t, Wait) {
     DNNL_CHECK(dnnl_stream_destroy(stream));
     DNNL_CHECK(dnnl_engine_destroy(engine));
 }
+#endif
 
 TEST_P(stream_test_cpp_t, Wait) {
     dnnl_engine_kind_t eng_kind_c = dnnl_cpu;
@@ -118,6 +120,7 @@ TEST_P(stream_test_cpp_t, Wait) {
     s.wait();
 }
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 TEST(stream_test_c_t, GetStream) {
     dnnl_engine_t engine;
     DNNL_CHECK(dnnl_engine_create(&engine, dnnl_cpu, 0));
@@ -132,6 +135,7 @@ TEST(stream_test_c_t, GetStream) {
     DNNL_CHECK(dnnl_stream_destroy(stream));
     DNNL_CHECK(dnnl_engine_destroy(engine));
 }
+#endif
 
 namespace {
 struct print_to_string_param_name_t {

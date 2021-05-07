@@ -18,10 +18,10 @@
 #include "gtest/gtest.h"
 
 #include "oneapi/dnnl/dnnl.hpp"
-#include "src/common/dnnl_thread.hpp"
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #include "tests/test_isa_common.hpp"
-
+#endif
 namespace dnnl {
 
 // short names for brevity
@@ -48,6 +48,7 @@ protected:
         input_int8.dat_dt = data_type::u8;
         input_int8.wei_dt = data_type::s8;
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #if DNNL_X64
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
         const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
@@ -63,6 +64,12 @@ protected:
 #elif DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
         input_f32.wino_supported = is_cpu;
+#endif
+
+#else
+        const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
+        input_f32.wino_supported = is_gpu;
+        input_f16.wino_supported = is_gpu;
 #endif
     }
 };
