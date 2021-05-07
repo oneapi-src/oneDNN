@@ -27,7 +27,7 @@ namespace jit {
 struct EmulationStrategy {
     bool emulate64 = false; // Emulate 64-bit arithmetic (required for GenXLP)
     bool emulateDWxDW
-            = false; // Emulate DW x DW -> DW multiplication (required for Gen12)
+            = false; // Emulate DW x DW -> DW multiplication (required for Xe)
     bool emulate64_add32
             = false; // Use 32-bit adds for 64-bit arithmetic, assuming no 2^32 boundaries crossed.
 
@@ -35,8 +35,8 @@ struct EmulationStrategy {
     EmulationStrategy(ngen::HW hw) {
         using namespace ngen;
         if (hw == HW::Gen11) emulate64 = true;
-        if (hw >= HW::Gen12LP) emulateDWxDW = true;
-        if (hw == HW::Gen12LP) emulate64 = true;
+        if (hw >= HW::Xe_LP) emulateDWxDW = true;
+        if (hw == HW::Xe_LP) emulate64 = true;
     }
 };
 

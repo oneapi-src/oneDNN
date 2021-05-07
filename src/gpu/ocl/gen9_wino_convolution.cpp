@@ -55,7 +55,7 @@ static bool is_impl_optimal(conv_conf_t &conf, const convolution_desc_t &cd,
             score = blocks * utilization;
             if (score >= 128 && utilization >= 0.50) return true;
             return false;
-        case compute::gpu_arch_t::gen12lp:
+        case compute::gpu_arch_t::xe_lp:
             // Performance is poor with large oc*ic and small spatial, this is
             // likely due to overflowing cache and no blocking on ic.
             score = (float)conf.oc * conf.ic / (oh_blocks * ow_blocks);

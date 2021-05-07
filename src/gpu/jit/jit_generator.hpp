@@ -36,7 +36,7 @@ namespace jit {
 using gpu_gen_t = ngen::HW;
 constexpr gpu_gen_t gpu_gen9 = ngen::HW::Gen9;
 constexpr gpu_gen_t gpu_gen11 = ngen::HW::Gen11;
-constexpr gpu_gen_t gpu_gen12lp = ngen::HW::Gen12LP;
+constexpr gpu_gen_t gpu_xe_lp = ngen::HW::Xe_LP;
 
 // nGEN jit generator
 //

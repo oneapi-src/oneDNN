@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_GEN12LP_X8S8S32X_CONVOLUTION_HPP
-#define GPU_GEN12LP_X8S8S32X_CONVOLUTION_HPP
+#ifndef GPU_XE_LP_X8S8S32X_CONVOLUTION_HPP
+#define GPU_XE_LP_X8S8S32X_CONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
@@ -31,14 +31,14 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct gen12lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
+struct xe_lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : gpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T("ocl:gen12lp", gen12lp_x8s8x_convolution_fwd_t);
+        DECLARE_COMMON_PD_T("ocl:xe_lp", xe_lp_x8s8x_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace prop_kind;
@@ -148,7 +148,7 @@ struct gen12lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
         if (pd()->conf.attr_info.with_src_zpoints
                 && (pd()->conf.is_depthwise || pd()->conf.ic > 4)) {
             create_kernel(engine, &src_compensation_kernel_,
-                    "gen12lp_x8s8x_compensation", kernel_ctx);
+                    "xe_lp_x8s8x_compensation", kernel_ctx);
             if (!src_compensation_kernel_) return status::runtime_error;
         }
 
@@ -191,15 +191,14 @@ private:
     enum { SCALES_ = 0 };
 };
 
-struct gen12lp_x8s8x_convolution_bwd_data_t : public gpu_primitive_t {
+struct xe_lp_x8s8x_convolution_bwd_data_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_convolution_bwd_data_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : gpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(
-                "ocl:gen12lp", gen12lp_x8s8x_convolution_bwd_data_t);
+        DECLARE_COMMON_PD_T("ocl:xe_lp", xe_lp_x8s8x_convolution_bwd_data_t);
 
         status_t init(engine_t *engine) {
             using namespace prop_kind;

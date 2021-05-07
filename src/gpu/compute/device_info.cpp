@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
 
     uint64_t extensions = 0;
     switch (gpu_arch) {
-        case gpu_arch_t::gen12lp:
+        case gpu_arch_t::xe_lp:
             extensions |= (uint64_t)device_ext_t::intel_dot_accumulate;
             break;
         default: break;
@@ -49,7 +49,7 @@ inline gpu_arch_t str2gpu_arch(const char *str) {
     if (!strcmp(STRINGIFY(_case), str)) return gpu_arch_t::_case
 
     CASE(gen9);
-    CASE(gen12lp);
+    CASE(xe_lp);
     return gpu_arch_t::unknown;
 #undef CASE
 }
@@ -85,7 +85,7 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
     int32_t threads_per_eu = 7;
     switch (gpu_arch_) {
         case gpu::compute::gpu_arch_t::gen9:
-        case gpu::compute::gpu_arch_t::gen12lp: threads_per_eu = 7; break;
+        case gpu::compute::gpu_arch_t::xe_lp: threads_per_eu = 7; break;
         default: break;
     }
 

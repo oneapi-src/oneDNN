@@ -18,7 +18,7 @@
  * Do not #include this file directly; ngen uses it internally.
  */
 
-// Gen12 binary encoding.
+// Xe binary encoding.
 
 struct EncodingTag12 {};
 template <HW hw> struct EncodingTag12Dispatch { using tag = EncodingTag12; };
@@ -75,7 +75,7 @@ public:
 
     SWSBInfo decode(Opcode op) const {
         if (combined.combined) {
-            bool vl = isVariableLatency(HW::Gen12LP, op);
+            bool vl = isVariableLatency(HW::Xe_LP, op);
             auto pipe = (op == Opcode::send || op == Opcode::sendc) ? Pipe::A : Pipe::Default;
             return SWSBInfo(combined.sbid, vl, true) | SWSBInfo(pipe, combined.dist);
         } else if (isPipeline()) {
@@ -537,7 +537,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
     RegData rd;
 
     switch (op) {
-        case Opcode::nop_gen12:
+        case Opcode::nop_xe:
         case Opcode::illegal:
             return false;
         case Opcode::send:
@@ -571,9 +571,9 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             return true;
         }
         case Opcode::dp4a:
-        case Opcode::bfe_gen12:
-        case Opcode::bfi2_gen12:
-        case Opcode::csel_gen12:
+        case Opcode::bfe_xe:
+        case Opcode::bfi2_xe:
+        case Opcode::csel_xe:
         case Opcode::mad:
         case Opcode::madm: {  // ternary
             TernaryOperand12 o;

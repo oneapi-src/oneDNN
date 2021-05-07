@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -147,8 +147,8 @@ public:
                     kernel = binary_format_kernel_t<HW::Gen9>::make_kernel(
                             engine);
                     break;
-                case compute::gpu_arch_t::gen12lp:
-                    kernel = binary_format_kernel_t<HW::Gen12LP>::make_kernel(
+                case compute::gpu_arch_t::xe_lp:
+                    kernel = binary_format_kernel_t<HW::Xe_LP>::make_kernel(
                             engine);
                     break;
                 default: break;

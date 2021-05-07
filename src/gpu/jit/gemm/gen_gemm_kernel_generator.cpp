@@ -133,7 +133,7 @@ constexpr bool equal(T1 t1, T2 t2, To... to) {
 }
 
 static inline constexpr bool isGen9IGEMM(HW hw, Type Ta, Type Tb, Type Tc) {
-    return (hw < HW::Gen12LP && Ta.size() == 1 && Tb.size() == 1
+    return (hw < HW::Xe_LP && Ta.size() == 1 && Tb.size() == 1
             && Tc.size() == 4);
 }
 
@@ -323,12 +323,12 @@ void gemm_kernel_generator_t<hw>::allocVFlagStorage(
 /* Pseudo-instructions. */
 /************************/
 
-// goto instruction with Gen12 semantics.
+// goto instruction with Xe semantics.
 template <HW hw>
 void gemm_kernel_generator_t<hw>::goto12(const InstructionModifier &mod,
         ngen::Label &jip, ngen::Label &uip, bool branchCtrl) {
     InstructionModifier mmod = mod;
-    if (!isGen12 && !branchCtrl) {
+    if (!isXe && !branchCtrl) {
         if (mmod.getPredCtrl() == PredCtrl::None) stub();
         mmod.setPredInv(!mmod.isPredInv());
     }
@@ -403,7 +403,7 @@ void gemm_kernel_generator_t<hw>::addScaled(const InstructionModifier &mod,
 // Synchronize on all pipes and OOO operations.
 template <HW hw>
 void gemm_kernel_generator_t<hw>::syncall() {
-    if (hw == HW::Gen12LP) sync.allwr(SWSB(1));
+    if (hw == HW::Xe_LP) sync.allwr(SWSB(1));
 }
 
 // Multiply by a constant, optimizing for power-of-2 constants.
@@ -497,7 +497,7 @@ void gemm_kernel_generator_t<hw>::mod(const ngen::Subregister &dst,
         const CommonStrategy &strategy, CommonState &state) {
     if (is_zero_or_pow2(modulus))
         and_<DT>(1, dst, src, modulus - 1);
-    else if (strategy.emulate.emulate64 && (hw <= HW::Gen12LP))
+    else if (strategy.emulate.emulate64 && (hw <= HW::Xe_LP))
         math<DT>(1, MathFunction::irem, dst, src, modulus);
     else {
         alignDown<DT>(dst, src, modulus, strategy, state);
@@ -514,7 +514,7 @@ void gemm_kernel_generator_t<hw>::modExt(const ngen::Subregister &dstMod,
     if (is_zero_or_pow2(modulus)) {
         and_<DT>(1, dstMultiple, src, ~uint32_t(modulus - 1));
         and_<DT>(1, dstMod, src, modulus - 1);
-    } else if (strategy.emulate.emulate64 && (hw <= HW::Gen12LP)) {
+    } else if (strategy.emulate.emulate64 && (hw <= HW::Xe_LP)) {
         math<DT>(1, MathFunction::irem, dstMod, src, modulus);
         add<DT>(1, dstMultiple, src, -dstMod);
     } else {
@@ -531,7 +531,7 @@ void gemm_kernel_generator_t<hw>::alignDown(const ngen::Subregister &dst,
         const CommonStrategy &strategy, CommonState &state) {
     if (is_zero_or_pow2(align))
         and_<DT>(1, dst, src, uint32_t(-align));
-    else if (strategy.emulate.emulate64 && (hw <= HW::Gen12LP)) {
+    else if (strategy.emulate.emulate64 && (hw <= HW::Xe_LP)) {
         auto rem = state.ra.alloc_sub<uint32_t>();
         math<DT>(1, MathFunction::irem, rem, src, uint32_t(align));
         add<DT>(1, dst, src, -rem);
@@ -608,7 +608,7 @@ void gemm_kernel_generator_t<hw>::slmBarrier(
         const GRF &temp, const GRF &r0_info) {
     if (hw >= HW::Gen11) {
         slmfence(temp, r0_info);
-        if (hw < HW::Gen12LP) mov<uint32_t>(8, null, temp);
+        if (hw < HW::Xe_LP) mov<uint32_t>(8, null, temp);
     }
     barrier(temp, r0_info);
 }
@@ -1054,7 +1054,7 @@ Bundle gemm_kernel_generator_t<hw>::getHint(
                 default: break;
             }
             break;
-        case HW::Gen12LP:
+        case HW::Xe_LP:
             switch (strategy.registerScheme) {
                 case GEMMStrategy::CSeparate:
                     switch (type) {
@@ -1119,7 +1119,7 @@ Bundle gemm_kernel_generator_t<hw>::getHint(
         case HW::Gen9:
         case HW::Gen10:
         case HW::Gen11:
-        case HW::Gen12LP:
+        case HW::Xe_LP:
             switch (type) {
                 case HintType::S: return Bundle();
                 case HintType::D: return Bundle();
@@ -1426,7 +1426,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
 
             // Allowed accesses:
             //   A64             Essentially max 256 bytes.
-            //                    8 slots x (1,2,4,8) dwords [Gen12/surface: 1,2,4]
+            //                    8 slots x (1,2,4,8) dwords [Xe/surface: 1,2,4]
             //                    8 slots x (1,2,4) qwords
             //                   16 slots x (1,2,4) dwords
             //                   16 slots x (1,2) qwords
@@ -1482,7 +1482,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
             block.simdSize
                     = std::min<int>(block.simdSize, rounddown_pow2(slots));
 
-            bool no8x8 = isGen12;
+            bool no8x8 = isXe;
             bool simd1 = !a64 && !channelScattered;
 
             int hwMaxXBlock;
@@ -2846,7 +2846,7 @@ void gemm_kernel_generator_t<hw>::atomicAddMatrixBlock(Type T, const GRF &src,
                             break;
                         case Type::u16:
                         case Type::s16:
-                            if (hw < HW::Gen12LP) hw_unsupported();
+                            if (hw < HW::Xe_LP) hw_unsupported();
                             atomic(AtomicOp::add, mod, scattered_word(),
                                     atype.base, addr[hoff], curSrc);
                             break;
@@ -2915,7 +2915,7 @@ void gemm_kernel_generator_t<hw>::atomicAddMatrixBlock(Type T, const GRF &src,
 
                     switch (block.ebytes) {
                         case 2:
-                            if (hw < HW::Gen12LP) hw_unsupported();
+                            if (hw < HW::Xe_LP) hw_unsupported();
                             atomic(AtomicOp::cmpwr, atomicMod, rOld,
                                     scattered_word(), atype.base, addr[hoff],
                                     rOld);
@@ -3672,8 +3672,7 @@ static bool needsRemask(Type T, bool column,
 static inline int outerProductCount(
         HW hw, const GEMMProblem &problem, const GEMMStrategy &strategy) {
     auto Ta = problem.Ta, Tb = problem.Tb, Tc = problem.Tc;
-    if (Ta.size() == 1 && Tb.size() == 1 && Tc.size() == 4
-            && (hw >= HW::Gen12LP))
+    if (Ta.size() == 1 && Tb.size() == 1 && Tc.size() == 4 && (hw >= HW::Xe_LP))
         return 4;
     return 1;
 }
@@ -3733,7 +3732,7 @@ void gemm_kernel_generator_t<hw>::outerProduct(int h, int ha, int hb,
     bool mixedMode = ((Tc.real() == Type::f32)
             && (Ta.real() != Type::f32 || Tb.real() != Type::f32));
     bool useDP4A = (Ta.size() == 1 && Tb.size() == 1 && Tc.size() == 4
-            && hw >= HW::Gen12LP);
+            && hw >= HW::Xe_LP);
 
     int opCount = outerProductCount(hw, problem, strategy);
     int aCP, bCP;
@@ -3743,7 +3742,7 @@ void gemm_kernel_generator_t<hw>::outerProduct(int h, int ha, int hb,
     int nec = elementsPerGRF(hw, Tc);
     bool globalCM = isLayoutColMajor(state.C_layout);
 
-    bool sortByOffset = (hw < HW::Gen12LP);
+    bool sortByOffset = (hw < HW::Xe_LP);
     int omax = sortByOffset ? nec : 1;
 
     struct FMAItem {
@@ -3771,11 +3770,10 @@ void gemm_kernel_generator_t<hw>::outerProduct(int h, int ha, int hb,
             colMajor ? mac(mod, C(1), A(1), bcastSrc)
                      : mac(mod, C(1), bcastSrc, B(1));
         } else {
-            // On Gen12, always put broadcast in src2 for better bank conflict avoidance.
-            colMajor
-                    ? mad(mod, C(1), C(1), A(1), bcastSrc)
-                    : (hw < HW::Gen12LP) ? mad(mod, C(1), C(1), bcastSrc, B(1))
-                                         : mad(mod, C(1), C(1), B(1), bcastSrc);
+            // On Xe, always put broadcast in src2 for better bank conflict avoidance.
+            colMajor ? mad(mod, C(1), C(1), A(1), bcastSrc)
+                     : (hw < HW::Xe_LP) ? mad(mod, C(1), C(1), bcastSrc, B(1))
+                                        : mad(mod, C(1), C(1), B(1), bcastSrc);
         }
     };
 
@@ -3855,11 +3853,11 @@ void gemm_kernel_generator_t<hw>::outerProduct(int h, int ha, int hb,
                             // Check for and avoid bundle conflicts.
                             if (strategy.registerScheme
                                     == GEMMStrategy::CSeparate) {
-                                // Pre-Gen12 standard layout: C never conflicts with A and B.
+                                // Pre-Xe standard layout: C never conflicts with A and B.
                                 // Just check for conflicts between A and B.
                                 if (strategy.duplicateA || strategy.duplicateB)
                                     doFMA = !Bundle::conflicts(hw, A, B);
-                            } else if (hw >= HW::Gen12LP) {
+                            } else if (hw >= HW::Xe_LP) {
                                 // Check for conflicts between A/B and C and fix now.
                                 if (strategy.duplicateA)
                                     if (Bundle::conflicts(hw, A, C))
@@ -4680,7 +4678,7 @@ bool gemm_kernel_generator_t<hw>::doStdCRemainder(
                 // Generate jump table.
                 shl(1, temp, remainder,
                         uint16_t(4)); // Multiply by instruction length.
-                if (isGen12) // Gen12+ jmpi is relative to current IP.
+                if (isXe) // Xe+ jmpi is relative to current IP.
                     add(1, temp, temp, uint16_t(16));
                 jmpi(1, temp.d()); // Indexed jump into jump table.
                 for (int r = 0; r < unroll; r++)
@@ -4860,8 +4858,7 @@ bool gemm_kernel_generator_t<hw>::doStdCRemainder(
                     Subregister t2 = state.ra.alloc_sub<uint32_t>();
 
                     add(1 | sat, t2, remainder, int16_t(-unroll + 1));
-                    add(1, t1, remainder,
-                            int16_t(-1 + (isGen12 ? fragSize : 0)));
+                    add(1, t1, remainder, int16_t(-1 + (isXe ? fragSize : 0)));
                     add(1, t1, t1,
                             t2); // Increment index if remainder == unroll.
                     if (fragSize < 16) // Precondition: fragSize <= 16.
@@ -5611,8 +5608,8 @@ void gemm_kernel_generator_t<hw>::gemmAllocRegs(
                         getHint(hintB0, strategy));
             break;
         case GEMMStrategy::VNC: {
-            if (hw < HW::Gen12LP) stub();
-            // Gen12+. Assign non-broadcast input matrix (V), then broadcast input matrix (N), then C.
+            if (hw < HW::Xe_LP) stub();
+            // Xe+. Assign non-broadcast input matrix (V), then broadcast input matrix (N), then C.
             auto unrollVBytes = strategy.unroll[globalCM ? LoopM : LoopN]
                     * (globalCM ? Ta.size() : Tb.size());
             auto unrollNBytes = strategy.unroll[globalCM ? LoopN : LoopM]
@@ -5660,8 +5657,8 @@ void gemm_kernel_generator_t<hw>::gemmAllocRegs(
             break;
         }
         case GEMMStrategy::ABInterleave: {
-            // Gen12+. Interleave A and B, place C afterward.
-            if (hw < HW::Gen12LP) stub();
+            // Xe+. Interleave A and B, place C afterward.
+            if (hw < HW::Xe_LP) stub();
             auto chunk = Bundle(0, 0).stride(hw) >> 1;
 
             // Test allocation. Put A earlier if it has more registers.
@@ -5785,7 +5782,7 @@ void gemm_kernel_generator_t<hw>::makeSumLayout(bool column, Type Tsrc,
         const vector<RegisterBlock> &srcLayout, Type Tdst,
         vector<RegisterBlock> &dstLayout, const CommonStrategy &strategy,
         CommonState &state) {
-    bool canDP4A = (hw >= HW::Gen12LP) && one_of(Tsrc, Type::s8, Type::u8)
+    bool canDP4A = (hw >= HW::Xe_LP) && one_of(Tsrc, Type::s8, Type::u8)
             && one_of(Tdst, Type::s32, Type::u32);
     bool cm = isLayoutColMajor(srcLayout);
     bool hReduce = (column == cm);
@@ -5823,7 +5820,7 @@ void gemm_kernel_generator_t<hw>::accumulateSum(bool column, Type Tsrc,
         Type Tdst, const GRFMultirange &dstRegs,
         const vector<RegisterBlock> &dstLayout, const CommonStrategy &strategy,
         CommonState &state) {
-    bool canDP4A = (hw >= HW::Gen12LP) && one_of(Tsrc, Type::s8, Type::u8)
+    bool canDP4A = (hw >= HW::Xe_LP) && one_of(Tsrc, Type::s8, Type::u8)
             && one_of(Tdst, Type::s32, Type::u32);
 
     bool cm = isLayoutColMajor(srcLayout);
@@ -7571,7 +7568,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
             mark(lKLoopCooldown1);
             if (hw >= HW::Gen11) {
                 slmfence(temp, r0_info);
-                if (hw < HW::Gen12LP) mov<uint32_t>(8, null, temp);
+                if (hw < HW::Xe_LP) mov<uint32_t>(8, null, temp);
                 mark(skipFence);
             }
 
@@ -9670,7 +9667,7 @@ void gemm_kernel_generator_t<hw>::gemmOffsetABC(bool initial, Subregister i0,
             }
             emul(1, tempQ0, y, state.inputs.ldc[q], strategy, state);
             eadd(1, offsetC, offsetC, tempQ0.reinterpret(0, offsetC.getType()),
-                    strategy, state); // Gen12: Use add3.
+                    strategy, state); // Xe: Use add3.
         }
     }
     if (doCO) {
@@ -10494,7 +10491,7 @@ void GEMMStrategy::sanityCheck(HW hw, const GEMMProblem &problem) {
 
     // Mixed mode restrictions:
     //   mixed hf/f is max SIMD 8 on Gen9
-    //   mixed hf/f is not allowed on Gen12
+    //   mixed hf/f is not allowed on Xe
     if ((Tc_real == Type::f32)
             && (Ta_real != Type::f32 || Tb_real != Type::f32))
         fmaSIMD = std::min(fmaSIMD, GRF::bytes(hw) >> 2);
@@ -12032,7 +12029,7 @@ void gemm_kernel_generator_t<hw>::prologue(const CommonStrategy &strategy) {
     or_(1, cr0, cr0, cr0Enable);
 
     InstructionModifier imod = 1;
-    if (hw < HW::Gen12LP) imod |= Switch;
+    if (hw < HW::Xe_LP) imod |= Switch;
 
     if (interface.getSIMD() < 16) mov(imod, sr0[2], uint16_t(0xFFFF));
 }
@@ -12097,7 +12094,7 @@ constexpr typename gemm_kernel_generator_t<hw>::status_stream::Endl
         gemm_kernel_generator_t<hw>::status_stream::endl;
 
 template class gemm_kernel_generator_t<HW::Gen9>;
-template class gemm_kernel_generator_t<HW::Gen12LP>;
+template class gemm_kernel_generator_t<HW::Xe_LP>;
 
 } // namespace jit
 } // namespace gpu

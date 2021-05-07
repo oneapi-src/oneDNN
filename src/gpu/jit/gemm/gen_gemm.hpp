@@ -114,7 +114,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             arch_ = dev_info->gpu_arch();
 
-            ok &= utils::one_of(arch_, arch_t::gen9, arch_t::gen12lp);
+            ok &= utils::one_of(arch_, arch_t::gen9, arch_t::xe_lp);
 
             if (!ok) return status::unimplemented;
 

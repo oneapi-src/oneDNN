@@ -28,7 +28,7 @@
 #define POST_OP(val)
 #endif
 
-kernel void gen12lp_gemm_scale_x8x8s32(global int *cc, global int *c, char trc,
+kernel void xe_lp_gemm_scale_x8x8s32(global int *cc, global int *c, char trc,
         int offset_c, int m, int n, int ldc, float alpha, float beta,
         global int *co, int offset_co, int alpha_is_zero, int apply_eltwise,
         float eltwise_alpha, float eltwise_beta, float eltwise_scale) {

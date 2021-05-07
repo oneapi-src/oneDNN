@@ -376,7 +376,7 @@ void barriersignal(const GRF &temp, uint32_t threadCount, const GRF &r0_info = r
 
 void barrierwait()
 {
-    if (isGen12)
+    if (isXe)
         sync.bar(NoMask);
     else
         wait(NoMask, n0[0]);

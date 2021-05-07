@@ -170,7 +170,7 @@ inline HW decodeGfxCoreFamily(GfxCoreFamily family)
         case GfxCoreFamily::Gen10LP:  return HW::Gen10;
         case GfxCoreFamily::Gen11:    return HW::Gen11;
         case GfxCoreFamily::Gen11LP:  return HW::Gen11;
-        case GfxCoreFamily::Gen12LP:  return HW::Gen12LP;
+        case GfxCoreFamily::Xe_LP:  return HW::Xe_LP;
         default:                      return HW::Unknown;
     }
 }
@@ -181,7 +181,7 @@ inline GfxCoreFamily encodeGfxCoreFamily(HW hw)
         case HW::Gen9:    return GfxCoreFamily::Gen9;
         case HW::Gen10:   return GfxCoreFamily::Gen10;
         case HW::Gen11:   return GfxCoreFamily::Gen11LP;
-        case HW::Gen12LP: return GfxCoreFamily::Gen12LP;
+        case HW::Xe_LP: return GfxCoreFamily::Xe_LP;
         default:          return GfxCoreFamily::Unknown;
     }
 }
@@ -191,7 +191,7 @@ inline HW decodeProductFamily(ProductFamily family)
     if (family >= ProductFamily::SKL && family < ProductFamily::CNL) return HW::Gen9;
     if (family >= ProductFamily::CNL && family < ProductFamily::ICL) return HW::Gen10;
     if (family >= ProductFamily::ICL && family < ProductFamily::TGLLP) return HW::Gen11;
-    if (family >= ProductFamily::TGLLP && family <= ProductFamily::DG1) return HW::Gen12LP;
+    if (family >= ProductFamily::TGLLP && family <= ProductFamily::DG1) return HW::Xe_LP;
     return HW::Unknown;
 }
 

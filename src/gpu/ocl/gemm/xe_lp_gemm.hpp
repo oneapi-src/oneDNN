@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_GEN12LP_GEMM_HPP
-#define GPU_OCL_GEMM_GEN12LP_GEMM_HPP
+#ifndef GPU_OCL_GEMM_XE_LP_GEMM_HPP
+#define GPU_OCL_GEMM_XE_LP_GEMM_HPP
 
 #include <assert.h>
 #include <memory>
@@ -25,7 +25,7 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_gemm_pd.hpp"
-#include "gpu/ocl/gemm/gen12lp_gemm_kernel.hpp"
+#include "gpu/ocl/gemm/xe_lp_gemm_kernel.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 namespace dnnl {
@@ -33,7 +33,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct gen12lp_gemm_t : public gpu_gemm_t {
+struct xe_lp_gemm_t : public gpu_gemm_t {
     using gpu_gemm_t::gpu_gemm_t;
     enum class type { no_copy };
 
@@ -44,7 +44,7 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
                 const hint_class *)
             : gpu_gemm_pd_t(adesc, attr, nullptr) {}
 
-        DECLARE_COMMON_PD_T("ocl:gemm:any", gen12lp_gemm_t);
+        DECLARE_COMMON_PD_T("ocl:gemm:any", xe_lp_gemm_t);
         status_t init(engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
@@ -200,7 +200,7 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
         //compute kernel
         switch (pd()->desc()->c_type()) {
             case data_type::s32:
-                kernel_name = "gen12lp_gemm_compute_x8x8s32";
+                kernel_name = "xe_lp_gemm_compute_x8x8s32";
                 break;
             default: return status::unimplemented;
         }
@@ -221,7 +221,7 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
         for (bool aligned : {false, true}) {
             compute::kernel_ctx_t kernel_ctx;
 
-            auto status = gen12lp_gemm_x8x8s32_kernel_t::init_kernel_ctx(
+            auto status = xe_lp_gemm_x8x8s32_kernel_t::init_kernel_ctx(
                     kernel_ctx, pd()->desc()->transa(), pd()->desc()->transb(),
                     fixed_c, column_c, row_c, pd()->attr_info_, aligned,
                     a_off_non_zero, b_off_non_zero, pd()->desc()->a_type(),
@@ -234,10 +234,10 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
         }
 
         //scale kernel
-        kernel_name = "gen12lp_gemm_scale_x8x8s32";
+        kernel_name = "xe_lp_gemm_scale_x8x8s32";
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = gen12lp_gemm_scale_x8x8s32_kernel_t::init_kernel_ctx(
+        auto status = xe_lp_gemm_scale_x8x8s32_kernel_t::init_kernel_ctx(
                 kernel_ctx, pd()->attr_info_, pd()->desc()->a_type(),
                 pd()->desc()->b_type(), pd()->desc()->c_type());
         if (status != status::success) return status;
