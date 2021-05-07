@@ -150,6 +150,10 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     return false;
 }
 
+static inline uint64_t get_sve_length() {
+    return cpu().getSveLen();
+}
+
 static inline bool mayiuse_atomic() {
     using namespace Xbyak_aarch64::util;
     return cpu().isAtomicSupported();
