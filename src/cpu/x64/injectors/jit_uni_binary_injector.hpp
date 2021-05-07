@@ -352,12 +352,20 @@ private:
      */
     void execute_broadcast(const dnnl_data_type_t &data_type,
             const Vmm &tmp_reg, const Xbyak::Address &rhs_addr,
+            const tail_lode_mode_t tail_load_mode,
             bool with_tail = false) const;
     void load_rhs(const dnnl_data_type_t &data_type, const Vmm &tmp_reg,
             const Xbyak::Address &rhs_addr,
             const tail_lode_mode_t tail_load_mode,
             bool with_tail = false) const;
     void execute_broadcast_tail(const dnnl_data_type_t &data_type,
+            const Vmm &tmp_reg, const Xbyak::Address &rhs_addr) const;
+    void execute_broadcast_tail_with_opmask(const dnnl_data_type_t &data_type,
+            const Vmm &tmp_reg, const Xbyak::Address &rhs_addr) const;
+    void execute_broadcast_tail_statically(const dnnl_data_type_t &data_type,
+            const Vmm &tmp_reg, const Xbyak::Address &rhs_addr,
+            const std::size_t tail_size) const;
+    void execute_broadcast_tail_with_gpr(const dnnl_data_type_t &data_type,
             const Vmm &tmp_reg, const Xbyak::Address &rhs_addr) const;
     void load_rhs_tail_dynamically_with_opmask(
             const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,

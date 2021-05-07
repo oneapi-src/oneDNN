@@ -614,7 +614,7 @@ void jit_uni_binary_injector_t<isa, Vmm>::inject_binary(
 
         if (rhs_addr.isBroadcast())
             execute_broadcast(rhs_arg_data_type, tmp_vmm,
-                    remove_bcast_bit(rhs_addr), with_tail);
+                    remove_bcast_bit(rhs_addr), tail_load_mode, with_tail);
         else
             load_rhs(rhs_arg_data_type, tmp_vmm, rhs_addr, tail_load_mode,
                     with_tail);
@@ -642,10 +642,21 @@ void jit_uni_binary_injector_t<isa, Vmm>::inject_binary(
 template <cpu_isa_t isa, typename Vmm>
 void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast(
         const dnnl_data_type_t &data_type, const Vmm &tmp_reg,
-        const Xbyak::Address &rhs_addr, bool with_tail) const {
-    if (with_tail)
-        execute_broadcast_tail(data_type, tmp_reg, rhs_addr);
-    else
+        const Xbyak::Address &rhs_addr, const tail_lode_mode_t tail_load_mode,
+        bool with_tail) const {
+    if (with_tail) {
+        if (tail_load_mode == tail_lode_mode_t::DYNAMIC
+                || (tail_load_mode == tail_lode_mode_t::DEFAULT
+                        && is_avx512_)) {
+            if (is_avx512_)
+                execute_broadcast_tail_with_opmask(
+                        data_type, tmp_reg, rhs_addr);
+            else
+                execute_broadcast_tail_with_gpr(data_type, tmp_reg, rhs_addr);
+        } else
+            execute_broadcast_tail_statically(data_type, tmp_reg, rhs_addr,
+                    rhs_arg_static_params_.tail_size);
+    } else
         execute_broadcast_no_tail(data_type, tmp_reg, rhs_addr);
 }
 
@@ -805,7 +816,7 @@ void jit_uni_binary_injector_t<sse41,
 }
 
 template <cpu_isa_t isa, typename Vmm>
-void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail(
+void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_with_opmask(
         const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
 
@@ -932,7 +943,7 @@ struct helper_bcast_tail_t {};
 
 template <typename Vmm>
 struct helper_bcast_tail_t<avx2, Vmm> {
-    static void execute_broadcast_tail(jit_generator *host,
+    static void execute_broadcast_tail_statically(jit_generator *host,
             const size_t tail_size, const dnnl_data_type_t &data_type,
             const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) {
         host->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
@@ -953,30 +964,39 @@ struct helper_bcast_tail_t<avx2, Vmm> {
     }
 };
 
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_statically(
+        const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
+        const Xbyak::Address &rhs_addr, const std::size_t tail_size) const {
+    assert(!"unsupported tail load mode");
+}
+
 template <>
-void jit_uni_binary_injector_t<avx2, Xbyak::Ymm>::execute_broadcast_tail(
-        const dnnl_data_type_t &data_type, const Xbyak::Ymm &tmp_vmm,
-        const Xbyak::Address &rhs_addr) const {
-    const auto &tail_size = rhs_arg_static_params_.tail_size;
-    helper_bcast_tail_t<avx2, Xbyak::Ymm>::execute_broadcast_tail(
+void jit_uni_binary_injector_t<avx2,
+        Xbyak::Ymm>::execute_broadcast_tail_statically(const dnnl_data_type_t
+                                                               &data_type,
+        const Xbyak::Ymm &tmp_vmm, const Xbyak::Address &rhs_addr,
+        const std::size_t tail_size) const {
+    helper_bcast_tail_t<avx2, Xbyak::Ymm>::execute_broadcast_tail_statically(
             host_, tail_size, data_type, tmp_vmm, rhs_addr);
 }
 
 template <>
-void jit_uni_binary_injector_t<avx2, Xbyak::Xmm>::execute_broadcast_tail(
-        const dnnl_data_type_t &data_type, const Xbyak::Xmm &tmp_vmm,
-        const Xbyak::Address &rhs_addr) const {
-    const auto &tail_size = rhs_arg_static_params_.tail_size;
-    helper_bcast_tail_t<avx2, Xbyak::Xmm>::execute_broadcast_tail(
+void jit_uni_binary_injector_t<avx2,
+        Xbyak::Xmm>::execute_broadcast_tail_statically(const dnnl_data_type_t
+                                                               &data_type,
+        const Xbyak::Xmm &tmp_vmm, const Xbyak::Address &rhs_addr,
+        const std::size_t tail_size) const {
+    helper_bcast_tail_t<avx2, Xbyak::Xmm>::execute_broadcast_tail_statically(
             host_, tail_size, data_type, tmp_vmm, rhs_addr);
 }
 
 template <>
-void jit_uni_binary_injector_t<avx, Xbyak::Ymm>::execute_broadcast_tail(
-        const dnnl_data_type_t &data_type, const Xbyak::Ymm &tmp_vmm,
-        const Xbyak::Address &rhs_addr) const {
-
-    const auto &tail_size = rhs_arg_static_params_.tail_size;
+void jit_uni_binary_injector_t<avx,
+        Xbyak::Ymm>::execute_broadcast_tail_statically(const dnnl_data_type_t
+                                                               &data_type,
+        const Xbyak::Ymm &tmp_vmm, const Xbyak::Address &rhs_addr,
+        const std::size_t tail_size) const {
 
     host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
 
@@ -1018,11 +1038,11 @@ void jit_uni_binary_injector_t<avx, Xbyak::Ymm>::execute_broadcast_tail(
 }
 
 template <>
-void jit_uni_binary_injector_t<avx, Xbyak::Xmm>::execute_broadcast_tail(
-        const dnnl_data_type_t &data_type, const Xbyak::Xmm &tmp_vmm,
-        const Xbyak::Address &rhs_addr) const {
-
-    const auto &tail_size = rhs_arg_static_params_.tail_size;
+void jit_uni_binary_injector_t<avx,
+        Xbyak::Xmm>::execute_broadcast_tail_statically(const dnnl_data_type_t
+                                                               &data_type,
+        const Xbyak::Xmm &tmp_vmm, const Xbyak::Address &rhs_addr,
+        const std::size_t tail_size) const {
 
     host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
 
@@ -1044,12 +1064,13 @@ void jit_uni_binary_injector_t<avx, Xbyak::Xmm>::execute_broadcast_tail(
 }
 
 template <>
-void jit_uni_binary_injector_t<sse41, Xbyak::Xmm>::execute_broadcast_tail(
-        const dnnl_data_type_t &data_type, const Xbyak::Xmm &tmp_vmm,
-        const Xbyak::Address &rhs_addr) const {
+void jit_uni_binary_injector_t<sse41,
+        Xbyak::Xmm>::execute_broadcast_tail_statically(const dnnl_data_type_t
+                                                               &data_type,
+        const Xbyak::Xmm &tmp_vmm, const Xbyak::Address &rhs_addr,
+        const std::size_t tail_size) const {
 
     host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
-    const auto &tail_size = rhs_arg_static_params_.tail_size;
     if (data_type == data_type::f32 || data_type == data_type::s32) {
         static const std::array<Xbyak::uint8, 2> imms {
                 {MM_SHUFFLE(3, 2, 0, 0), MM_SHUFFLE(3, 0, 0, 0)}};
@@ -1067,6 +1088,20 @@ void jit_uni_binary_injector_t<sse41, Xbyak::Xmm>::execute_broadcast_tail(
             host_->pmovzxbd(tmp_vmm, tmp_vmm);
     } else
         assert(!"unsupported data type");
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_with_gpr(
+        const dnnl_data_type_t &data_type, const Vmm &tmp_vmm,
+        const Xbyak::Address &rhs_addr) const {
+    const Xbyak::Reg64 &reg_tmp = rhs_arg_static_params_.rhs_helper_reg;
+    const Xbyak::Reg64 &reg_tail_size = rhs_arg_static_params_.reg_tail_size;
+
+    auto runtime_tail_load = [&](int load_size) {
+        execute_broadcast_tail_statically(
+                data_type, tmp_vmm, rhs_addr, load_size);
+    };
+    host_->runtime_tail_process<Vmm>(reg_tail_size, reg_tmp, runtime_tail_load);
 }
 
 template <cpu_isa_t isa, typename Vmm>
