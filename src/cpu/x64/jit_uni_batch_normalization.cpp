@@ -1900,6 +1900,8 @@ struct driver_t : public c_compatible {
             int C_blks_thr = C_blk_e - C_blk_s;
             int N_thr = N_e - N_s;
 
+            if (C_blks_thr == 0 || N_thr == 0) continue;
+
             size_t coff_base = global_C_blk_s * simd_w;
             size_t soff_base = is_nspc_
                     ? coff_base + N_s * img_size
@@ -1910,22 +1912,32 @@ struct driver_t : public c_compatible {
             p.S_s = S_s * vlen_spat_data;
             p.S_tail = (p.spat_size - S_e) * vlen_spat_data;
             p.coff_max = C_blks_thr * simd_w;
-            p.mean = (use_tmp_stats(bdesc_) ? sbuf : mean) + coff_base;
-            p.var = (use_tmp_stats(bdesc_) ? sbuf + C_PADDED : var) + coff_base;
-            p.scale = scale + coff_base;
-            p.shift = shift + coff_base;
-            p.diff_scale = (use_tmp_diff_scale(bdesc_) ? pbuf : diff_scale)
-                    + coff_base;
-            p.diff_shift = (use_tmp_diff_shift(bdesc_) ? &pbuf[shift_off]
-                                                       : diff_shift)
-                    + coff_base;
+            const auto tmp_mean = use_tmp_stats(bdesc_) ? sbuf : mean;
+            if (tmp_mean != nullptr) p.mean = tmp_mean + coff_base;
+            const auto tmp_var = use_tmp_stats(bdesc_) ? sbuf + C_PADDED : var;
+            if (tmp_var != nullptr) p.var = tmp_var + coff_base;
+            if (scale != nullptr) p.scale = scale + coff_base;
+            if (shift != nullptr) p.shift = shift + coff_base;
+            const auto tmp_diff_scale
+                    = use_tmp_diff_scale(bdesc_) ? pbuf : diff_scale;
+            if (tmp_diff_scale != nullptr)
+                p.diff_scale = tmp_diff_scale + coff_base;
+            const auto tmp_diff_shift = use_tmp_diff_shift(bdesc_)
+                    ? &pbuf[shift_off]
+                    : diff_shift;
+            if (tmp_diff_shift != nullptr)
+                p.diff_shift = tmp_diff_shift + coff_base;
 
             p.soff_max = dt_size_ * N_thr * img_size;
-            p.src = (void *)((char *)src + soff_base * dt_size_);
-            p.dst = (void *)((char *)dst + soff_base * dt_size_);
-            p.diff_src = (void *)((char *)diff_src + soff_base * dt_size_);
-            p.diff_dst = (void *)((char *)diff_dst + soff_base * dt_size_);
-            p.ws = ws + soff_base / 8;
+            if (src != nullptr)
+                p.src = (void *)((char *)src + soff_base * dt_size_);
+            if (dst != nullptr)
+                p.dst = (void *)((char *)dst + soff_base * dt_size_);
+            if (diff_src != nullptr)
+                p.diff_src = (void *)((char *)diff_src + soff_base * dt_size_);
+            if (diff_dst != nullptr)
+                p.diff_dst = (void *)((char *)diff_dst + soff_base * dt_size_);
+            if (ws != nullptr) p.ws = ws + soff_base / 8;
 
             p.mb_stride_Bc = dt_size_ * (img_size - p.coff_max * p.spat_size);
 
