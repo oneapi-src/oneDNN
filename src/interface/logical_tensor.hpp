@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <assert.h>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,6 +35,13 @@ namespace impl {
 inline logical_tensor_t zero_logical_tensor() {
     auto zero = logical_tensor_t();
     return zero;
+}
+
+inline logical_tensor_t empty_logical_tensor_with_default_id() {
+    auto empty = logical_tensor_t();
+    empty.id = (std::numeric_limits<size_t>::max)();
+    empty.ndims = -1;
+    return empty;
 }
 
 struct logical_tensor_wrapper {

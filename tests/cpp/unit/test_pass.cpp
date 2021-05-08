@@ -30,6 +30,8 @@
 #include "backend/fake/fake_backend.hpp"
 #include "backend/fake/fake_partition_impl.hpp"
 
+#include "backend/dnnl/subgraph/passes.hpp"
+
 #include "utils.hpp"
 
 using namespace dnnl::graph::impl;
@@ -3197,4 +3199,257 @@ TEST(pass_test, int8_matmul_bias_relu_fusion) {
             int8_matmul_bias_relu);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+}
+
+TEST(pass_test, int8_conv_lower_down_pass) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+            conv
+             | (f32)
+            sum
+             | (f32)
+            relu
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps {0};
+    std::vector<float> scales {0.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t conv {2, Convolution, "conv"};
+    set_conv_common_attr(conv);
+    op_t dequant_other {3, Dequantize, "dequant"};
+    dequant_other.set_attr("scales", scales);
+    dequant_other.set_attr("zps", zps);
+    op_t sum {4, Add, "sum"};
+    op_t relu {5, ReLU, "relu"};
+    op_t quant {6, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_bias = logical_tensor_init(4, data_type::f32);
+    logical_tensor_t fp32_conv_out = logical_tensor_init(5, data_type::f32);
+    conv.add_input(fp32_data);
+    conv.add_input(fp32_weight);
+    conv.add_input(fp32_bias);
+    conv.add_output(fp32_conv_out);
+
+    logical_tensor_t s8_other = logical_tensor_init(6, data_type::u8);
+    logical_tensor_t fp32_other = logical_tensor_init(7, data_type::f32);
+    dequant_other.add_input(s8_other);
+    dequant_other.add_output(fp32_other);
+
+    logical_tensor_t fp32_sum_out = logical_tensor_init(8, data_type::f32);
+    sum.add_input(fp32_conv_out);
+    sum.add_input(fp32_other);
+    sum.add_output(fp32_sum_out);
+
+    logical_tensor_t fp32_relu_out = logical_tensor_init(9, data_type::f32);
+    relu.add_input(fp32_sum_out);
+    relu.add_output(fp32_relu_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(10, data_type::u8);
+    quant.add_input(fp32_relu_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&conv), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant_other), status::success);
+    ASSERT_EQ(agraph.add_op(&sum), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("int8_conv_bias_add_relu_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            int8_conv_bias_add_relu);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
+
+    std::vector<std::shared_ptr<op_t>> subgraph
+            = agraph.get_partitions()[0]->get_ops();
+    ASSERT_EQ(subgraph.size(), 7);
+
+    dnnl_impl::split_quant_dequant(subgraph);
+    ASSERT_EQ(subgraph.size(), 11);
+    auto conv_op = std::find_if(subgraph.begin(), subgraph.end(),
+            [](const std::shared_ptr<op_t> op) {
+                return op->get_kind() == op_kind::Convolution;
+            });
+    auto &producer0 = (*conv_op)->get_input_value(0)->get_producer();
+    ASSERT_EQ(producer0.get_kind(), op_kind::mul_scales);
+    ASSERT_EQ(producer0.get_attr<std::vector<float>>("scales")[0], scales[0]);
+    auto &producer1 = (*conv_op)->get_input_value(1)->get_producer();
+    ASSERT_EQ(producer1.get_kind(), op_kind::mul_scales);
+    ASSERT_EQ(producer1.get_attr<std::vector<float>>("scales")[0], scales[0]);
+
+    // 2. merge into int8 conv, change the input's scales to output scale
+    dnnl_impl::fuse_to_int8_conv(subgraph);
+    dnnl_impl::folding_mul_scales(subgraph);
+    auto qconv_op = std::find_if(subgraph.begin(), subgraph.end(),
+            [](const std::shared_ptr<op_t> op) {
+                return op->get_kind() == op_kind::dnnl_convolution;
+            });
+    auto &consumer
+            = (*qconv_op)->get_output_value(0)->get_consumers()[0].get_op();
+    ASSERT_EQ(consumer.get_kind(), op_kind::mul_scales);
+    ASSERT_EQ(consumer.get_attr<std::vector<float>>("scales")[0],
+            scales[0] * scales[0]);
+
+    // 3. fuse output mul_scales op to conv's output scale
+    dnnl_impl::primitive_attr_mgr prm_attr_mgr;
+    dnnl_impl::fuse_output_scales(subgraph, prm_attr_mgr);
+
+    // 4. fuse post ops to int8 conv
+    ASSERT_EQ(
+            dnnl_impl::fuse_post_ops(subgraph, prm_attr_mgr), status::success);
+
+    qconv_op = std::find_if(subgraph.begin(), subgraph.end(),
+            [](const std::shared_ptr<op_t> op) {
+                return op->get_kind() == op_kind::dnnl_convolution;
+            });
+    ASSERT_TRUE((*qconv_op)->has_attr("primitive_attr_key"));
+    int64_t key = (*qconv_op)->get_attr<int64_t>("primitive_attr_key");
+    dnnl::primitive_attr &prm_attr = prm_attr_mgr.get_attr(key);
+    auto post_ops = prm_attr.get_post_ops();
+    ASSERT_EQ(post_ops.len(), 2);
+}
+
+TEST(pass_test, int8_matmul_lower_down_pass) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+            matmul
+             | (f32)
+            relu
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps {0};
+    std::vector<float> scales {0.5f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t matmul {2, MatMul, "matmul"};
+    matmul.set_attr<bool>("transpose_a", false);
+    matmul.set_attr<bool>("transpose_b", false);
+    op_t relu {3, ReLU, "relu"};
+    op_t quant {4, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_bias = logical_tensor_init(4, data_type::f32);
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(5, data_type::f32);
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight);
+    matmul.add_input(fp32_bias);
+    matmul.add_output(fp32_matmul_out);
+
+    logical_tensor_t fp32_relu_out = logical_tensor_init(6, data_type::f32);
+    relu.add_input(fp32_matmul_out);
+    relu.add_output(fp32_relu_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(7, data_type::u8);
+    quant.add_input(fp32_relu_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("int8_matmul_bias_relu_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            int8_matmul_bias_relu);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+
+    std::vector<std::shared_ptr<op_t>> subgraph
+            = agraph.get_partitions()[0]->get_ops();
+    ASSERT_EQ(subgraph.size(), 5);
+
+    dnnl_impl::split_quant_dequant(subgraph);
+    ASSERT_EQ(subgraph.size(), 8);
+    auto matmul_op = std::find_if(subgraph.begin(), subgraph.end(),
+            [](const std::shared_ptr<op_t> op) {
+                return op->get_kind() == op_kind::MatMul;
+            });
+    auto &producer0 = (*matmul_op)->get_input_value(0)->get_producer();
+    ASSERT_EQ(producer0.get_kind(), op_kind::mul_scales);
+    ASSERT_EQ(producer0.get_attr<std::vector<float>>("scales")[0], scales[0]);
+    auto &producer1 = (*matmul_op)->get_input_value(1)->get_producer();
+    ASSERT_EQ(producer1.get_kind(), op_kind::mul_scales);
+    ASSERT_EQ(producer1.get_attr<std::vector<float>>("scales")[0], scales[0]);
+
+    // 2. merge into int8 matmul, change the input's scales to output scale
+    dnnl_impl::fuse_to_int8_matmul(subgraph);
+    dnnl_impl::folding_mul_scales(subgraph);
+    auto qmatmul_op = std::find_if(subgraph.begin(), subgraph.end(),
+            [](const std::shared_ptr<op_t> op) {
+                return op->get_kind() == op_kind::MatMul;
+            });
+    auto &consumer
+            = (*qmatmul_op)->get_output_value(0)->get_consumers()[0].get_op();
+    ASSERT_EQ(consumer.get_kind(), op_kind::mul_scales);
+    ASSERT_EQ(consumer.get_attr<std::vector<float>>("scales")[0],
+            scales[0] * scales[0]);
+
+    // 3. fuse output mul_scales op to matmul's output scale
+    dnnl_impl::primitive_attr_mgr prm_attr_mgr;
+    dnnl_impl::fuse_output_scales(subgraph, prm_attr_mgr);
+
+    // 4. fuse post ops to int8 matmul
+    ASSERT_EQ(
+            dnnl_impl::fuse_post_ops(subgraph, prm_attr_mgr), status::success);
+
+    qmatmul_op = std::find_if(subgraph.begin(), subgraph.end(),
+            [](const std::shared_ptr<op_t> op) {
+                return op->get_kind() == op_kind::MatMul;
+            });
+    ASSERT_TRUE((*qmatmul_op)->has_attr("primitive_attr_key"));
+    int64_t key = (*qmatmul_op)->get_attr<int64_t>("primitive_attr_key");
+    dnnl::primitive_attr &prm_attr = prm_attr_mgr.get_attr(key);
+    auto post_ops = prm_attr.get_post_ops();
+    ASSERT_EQ(post_ops.len(), 1);
 }

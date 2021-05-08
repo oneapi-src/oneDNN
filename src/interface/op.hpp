@@ -200,6 +200,14 @@ public:
         add_output(std::make_shared<value_t>(lt));
     }
 
+    void connect_output(size_t index, std::shared_ptr<value_t> &value) {
+        value->set_producer(*this);
+        value->set_offset(index);
+
+        if (outputs_.size() <= index) { outputs_.resize(index + 1); }
+        outputs_[index] = value;
+    }
+
     const std::vector<std::shared_ptr<value_t>> &get_output_values() const {
         return outputs_;
     }

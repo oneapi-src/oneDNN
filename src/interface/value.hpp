@@ -53,6 +53,12 @@ public:
         }
     }
 
+    void set_layout_type(layout_type_t new_type) {
+        val_.layout_type = new_type;
+    }
+
+    void set_data_type(data_type_t new_dtype) { val_.data_type = new_dtype; }
+
     op_t &get_producer() const { return *producer_; }
     void set_producer(op_t &producer) { producer_ = &producer; }
     void reset_producer() { producer_ = nullptr; }
