@@ -523,16 +523,22 @@ DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
                 .set_num_inputs(std::set<size_t>({1, 3}))
                 .set_outputs_option(op_schema::param_num_option::optional)
                 .set_num_outputs(std::set<size_t>({1, 3}))
-                .set_input(0, "input", "input tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_input(1, "gamma",
-                        "(optional) gamma scaling for normalized value")
+                        "(optional) gamma scaling for normalized value",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_input(2, "beta",
-                        "(optional) bias added to the scaled normalized value")
-                .set_output(0, "output", "output tensor")
+                        "(optional) bias added to the scaled normalized value",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_output(1, "mean",
-                        "(optional) the mean calculated along the given axis")
+                        "(optional) the mean calculated along the given axis",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_output(2, "variance",
-                        "(optional) the std calculated along the given axis")
+                        "(optional) the std calculated along the given axis",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("keep_stats",
                         "used to indicate whether to output mean and variance",
                         false, attribute_kind::b, true)
@@ -900,8 +906,10 @@ DNNL_GRAPH_OP_SCHEMA(SoftMax, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
                 .set_attr("axis", "the axis of which the SoftMax is calculated",
                         false, attribute_kind::i, (int64_t)1)
                 .set_shape_inference_function(infer_identity_output_shape))

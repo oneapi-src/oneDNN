@@ -3979,3 +3979,34 @@ TEST(op_schema_test, test_dequant) {
     dequant_op.set_attr("scales", std::vector<float> {0.1});
     EXPECT_TRUE(dequant_op_schema->verify(&dequant_op));
 }
+
+TEST(op_schema_test, layernorm_bf16) {
+    const op_schema *schema = op_schema_registry::get_op_schema(kLayerNorm);
+
+    op_t lnorm {0, kLayerNorm, std::string("layer_norm")};
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
+    logical_tensor_t lt_gamma = logical_tensor_init(1, data_type::bf16);
+    logical_tensor_t lt_beta = logical_tensor_init(2, data_type::bf16);
+    logical_tensor_t lt_output = logical_tensor_init(5, data_type::bf16);
+
+    lnorm.add_input(lt_data);
+    lnorm.add_input(lt_gamma);
+    lnorm.add_input(lt_beta);
+    lnorm.add_output(lt_output);
+
+    EXPECT_TRUE(schema->verify(&lnorm));
+}
+
+TEST(op_schema_test, softmax_bf16) {
+    const op_schema *schema = op_schema_registry::get_op_schema(kSoftMax);
+
+    op_t softmax {0, kSoftMax, std::string("softmax")};
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
+    logical_tensor_t lt_output = logical_tensor_init(1, data_type::bf16);
+
+    softmax.add_input(lt_data);
+    softmax.add_output(lt_output);
+
+    softmax.set_attr<int64_t>("axis", 1);
+    EXPECT_TRUE(schema->verify(&softmax));
+}
