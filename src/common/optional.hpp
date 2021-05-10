@@ -19,6 +19,7 @@
 
 #include <cassert>
 #include <memory>
+#include <new>
 #include <type_traits>
 
 #include "utils.hpp"
@@ -53,13 +54,15 @@ public:
     static_assert(!std::is_volatile<T>::value, "");
     static_assert(!is_optional_t<T>::value, "");
 
-    optional_t(const null_opt_t null_opt) : has_value_(false), dummy(0) {}
+    optional_t(const null_opt_t null_opt) : has_value_(false), dummy {} {}
     optional_t(T object) : has_value_(true), value_(object) {}
-    optional_t(const optional_t &other) : has_value_(other.has_value_) {
-        if (has_value_) value_ = other.value_;
+    optional_t(const optional_t &other)
+        : has_value_(other.has_value_), dummy {} {
+        if (has_value_) new (std::addressof(value_)) T(other.value_);
     }
-    optional_t(optional_t<T> &&other) noexcept : has_value_(other.has_value_) {
-        if (has_value_) value_ = std::move(other.value_);
+    optional_t(optional_t<T> &&other) noexcept
+        : has_value_(other.has_value_), dummy {} {
+        if (has_value_) new (std::addressof(value_)) T(std::move(other.value_));
     }
     ~optional_t() {
         if (has_value_) value_.~T();
