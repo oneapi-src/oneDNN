@@ -501,9 +501,12 @@ size_t dnnl_data_type_size(dnnl_data_type_t data_type) {
 status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
         engine_t *engine, void *handle) {
 #ifdef DNNL_WITH_SYCL
-    return dnnl_sycl_interop_memory_create(
-            memory, md, engine, dnnl_sycl_interop_usm, handle);
-#else
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (engine->kind() == engine_kind::gpu)
+#endif
+        return dnnl_sycl_interop_memory_create(
+                memory, md, engine, dnnl_sycl_interop_usm, handle);
+#endif
     if (any_null(memory, engine)) return invalid_arguments;
 
     memory_desc_t z_md = types::zero_md();
@@ -525,7 +528,6 @@ status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
     }
     *memory = _memory;
     return success;
-#endif
 }
 
 status_t dnnl_memory_get_memory_desc(
