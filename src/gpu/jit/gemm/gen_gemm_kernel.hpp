@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ protected:
     static ngen::HW convert_dnnl_arch_to_hw(compute::gpu_arch_t arch) {
         switch (arch) {
             case compute::gpu_arch_t::gen9: return ngen::HW::Gen9;
-            case compute::gpu_arch_t::gen12lp: return ngen::HW::Gen12LP;
+            case compute::gpu_arch_t::xe_lp: return ngen::HW::Xe_LP;
             default: return ngen::HW::Unknown;
         }
     }

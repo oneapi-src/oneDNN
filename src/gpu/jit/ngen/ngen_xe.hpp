@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -457,7 +457,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
     RegData rd;
 
     switch (op) {
-        case Opcode::nop_gen12:
+        case Opcode::nop_xe:
         case Opcode::illegal:
             return false;
         case Opcode::send:
@@ -491,9 +491,9 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             return true;
         }
         case Opcode::dp4a:
-        case Opcode::bfe_gen12:
-        case Opcode::bfi2_gen12:
-        case Opcode::csel_gen12:
+        case Opcode::bfe_xe:
+        case Opcode::bfi2_xe:
+        case Opcode::csel_xe:
         case Opcode::mad:
         case Opcode::madm: {  // ternary
             TernaryOperand12 o;

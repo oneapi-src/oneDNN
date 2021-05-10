@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -224,7 +224,7 @@ GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = true)
 {
     // Check jumps and no-ops
     auto op = insn.opcode();
-    if (isBranch(op) || op == Opcode::nop_gen12 || op == Opcode::sync || op == Opcode::illegal)
+    if (isBranch(op) || op == Opcode::nop_xe || op == Opcode::sync || op == Opcode::illegal)
         return GeneralizedPipe();
 
     // Check OOO instructions.
@@ -242,7 +242,7 @@ GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = true)
         }
     }
 
-    // For SWSB purposes, Gen12LP has a single in-order pipe.
+    // For SWSB purposes, Xe_LP has a single in-order pipe.
     return PipeMaskA;
 }
 
@@ -385,7 +385,7 @@ inline bool contains(const DependencyRegion &dep1, const DependencyRegion &dep2)
 inline int timeout(GeneralizedPipe pipe)
 {
     switch (pipe.inOrderPipe()) {
-        case PipeMaskA: return 11; // Gen12LP
+        case PipeMaskA: return 11; // Xe_LP
         default:        return std::numeric_limits<int>::max();
     }
 }
@@ -763,7 +763,7 @@ void DependencyTable<consumer>::dump() const
 template <typename Program>
 inline bool hasAutoSWSB(HW hw, const Program &program)
 {
-    if (hw < HW::Gen12LP)
+    if (hw < HW::Xe_LP)
         return false;
     for (uint32_t n = 0; n < program.size(); n++)
         if (program[n].autoSWSB())
@@ -958,7 +958,7 @@ inline SWSBInfo encodeSWSB(HW hw, Dependency<false> &produce, Dependency<true> &
 
     if (consume.dist > 0) {
         hasDist = true;
-        if (hw == HW::Gen12LP)
+        if (hw == HW::Xe_LP)
             pipe = Pipe::Default;
         else if (GeneralizedPipe(consume.depPipe) == consume.pipe)
             pipe = Pipe::Default;
@@ -1167,7 +1167,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                         p = 0;
                     bb.producers.clear();
                     bb.consumers.clear();
-                    syncSWSB = (hw == HW::Gen12LP) ? SWSB(1) : SWSB<AllPipes>(1);
+                    syncSWSB = (hw == HW::Xe_LP) ? SWSB(1) : SWSB<AllPipes>(1);
                 }
             }
 
@@ -1253,7 +1253,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                         bb.producers.removeIntersections(generated, hw);
                         generated.depPipe = PipeMaskNone;
                         generated.dist = 0;
-                        auto swsb = (hw == HW::Gen12LP) ? SWSB(1) : SWSB<AllPipes>(1);
+                        auto swsb = (hw == HW::Xe_LP) ? SWSB(1) : SWSB<AllPipes>(1);
                         if (recordSWSB)
                             bb.syncs.push_back({uint32_t(inum), swsb.raw(), SyncFunction::nop, 0});
                     }

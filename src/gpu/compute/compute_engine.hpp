@@ -102,8 +102,8 @@ public:
     bool is_gen9() const {
         return device_info_->gpu_arch() == gpu_arch_t::gen9;
     }
-    bool is_gen12lp() const {
-        return device_info_->gpu_arch() == gpu_arch_t::gen12lp;
+    bool is_xe_lp() const {
+        return device_info_->gpu_arch() == gpu_arch_t::xe_lp;
     }
     bool mayiuse_ngen_kernels() {
         return device_info_->mayiuse_ngen_kernels(this);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,9 +75,9 @@ status_t gen_gemm_kernel_t::complete_strategy() {
     using ngen::HW;
 
     problem_.nonuniformWGs = false;
-    problem_.fused = (hw_ >= HW::Gen12LP);
-    strategy_.emulate64 = (hw_ == HW::Gen11 || hw_ == HW::Gen12LP);
-    strategy_.emulateDWxDW = (hw_ >= HW::Gen12LP);
+    problem_.fused = (hw_ >= HW::Xe_LP);
+    strategy_.emulate64 = (hw_ == HW::Gen11 || hw_ == HW::Xe_LP);
+    strategy_.emulateDWxDW = (hw_ >= HW::Xe_LP);
     strategy_.checkAdd32 = strategy_.emulate64;
     strategy_.spf = !problem_.fused;
 
@@ -110,7 +110,7 @@ status_t gen_gemm_kernel_t::read_strategy(const char *str) {
     bool override_register_scheme = false;
     bool override_c_remainder = false;
 
-    bool dp4aIGEMM = hw_ >= HW::Gen12LP && problem_.Ta.size() == 1
+    bool dp4aIGEMM = hw_ >= HW::Xe_LP && problem_.Ta.size() == 1
             && problem_.Tb.size() == 1 && problem_.Tc.size() == 4;
 
     strategy_.ka_load_masked = strategy_.kb_load_masked = 0;
@@ -266,7 +266,7 @@ status_t gen_gemm_kernel_t::read_strategy(const char *str) {
                 || strategy_.kBlocking;
     }
 
-    if (!override_register_scheme && (hw_ >= HW::Gen12LP)) {
+    if (!override_register_scheme && (hw_ >= HW::Xe_LP)) {
         strategy_.registerScheme
                 = (strategy_.unroll[LoopM] * problem_.Ta.size()
                           == strategy_.unroll[LoopN] * problem_.Tb.size())
@@ -338,8 +338,8 @@ std::vector<unsigned char> gen_gemm_kernel_t::get_binary(
             program_binary = generator.getBinary(ctx, dev);
             break;
         }
-        case HW::Gen12LP: {
-            gemm_kernel_generator_t<HW::Gen12LP> generator;
+        case HW::Xe_LP: {
+            gemm_kernel_generator_t<HW::Xe_LP> generator;
             generator.gemm(problem_, strategy_, interface_);
             program_binary = generator.getBinary(ctx, dev);
             break;
@@ -461,7 +461,7 @@ const kernel_table_t *gen9_x8_nocopy_tables[2][2] = {
     {gen9_x8_nocopy_tn_table, gen9_x8_nocopy_tt_table}
 };
 
-const kernel_table_t gen12lp_f32_nocopy_nn_table[] = {
+const kernel_table_t xe_lp_f32_nocopy_nn_table[] = {
     {{8,  4 }, { 0,  0}, {0, 0}},
     {{8,  8 }, { 0,  0}, {0, 0}},
     {{16, 8 }, { 0,  0}, {0, 0}},
@@ -469,68 +469,68 @@ const kernel_table_t gen12lp_f32_nocopy_nn_table[] = {
     {{32, 12}, {-1, -1}, {0, 0}}
 };
 
-const kernel_table_t gen12lp_f32_nocopy_nt_table[] = {
+const kernel_table_t xe_lp_f32_nocopy_nt_table[] = {
     {{8,  4 }, { 0,  0}, {0, 0}},
     {{8,  8 }, { 0,  0}, {0, 0}},
     {{16, 16}, { 0,  0}, {0, 0}},
     {{32, 16}, {-1, -1}, {0, 0}}
 };
 
-const kernel_table_t gen12lp_f32_nocopy_tn_table[] = {
+const kernel_table_t xe_lp_f32_nocopy_tn_table[] = {
     {{8,  4 }, { 0,  0}, {0, 0}},
     {{16, 8 }, { 0,  0}, {0, 0}},
     {{16, 16}, {-1, -1}, {0, 0}}
 };
 
-const kernel_table_t gen12lp_f32_nocopy_tt_table[] = {
+const kernel_table_t xe_lp_f32_nocopy_tt_table[] = {
     {{12, 32}, {-1, -1}, {0, 0}}
 };
 
-const kernel_table_t *gen12lp_f32_nocopy_tables[2][2] = {
-    {gen12lp_f32_nocopy_nn_table, gen12lp_f32_nocopy_nt_table},
-    {gen12lp_f32_nocopy_tn_table, gen12lp_f32_nocopy_tt_table}
+const kernel_table_t *xe_lp_f32_nocopy_tables[2][2] = {
+    {xe_lp_f32_nocopy_nn_table, xe_lp_f32_nocopy_nt_table},
+    {xe_lp_f32_nocopy_tn_table, xe_lp_f32_nocopy_tt_table}
 };
 
-const kernel_table_t gen12lp_f16_nocopy_nn_table[] = {
+const kernel_table_t xe_lp_f16_nocopy_nn_table[] = {
     {{32, 32}, {-1, -1}, {0, 0}}
 };
 
-const kernel_table_t gen12lp_f16_nocopy_nt_table[] = {
+const kernel_table_t xe_lp_f16_nocopy_nt_table[] = {
     {{32, 32}, {-1, -1}, {0, 0}}
 };
 
-const kernel_table_t gen12lp_f16_nocopy_tn_table[] = {
+const kernel_table_t xe_lp_f16_nocopy_tn_table[] = {
     {{32, 16}, {-1, -1}, {0, 0}}
 };
 
-const kernel_table_t gen12lp_f16_nocopy_tt_table[] = {
+const kernel_table_t xe_lp_f16_nocopy_tt_table[] = {
     {{32, 32}, {-1, -1}, {0, 0}}
 };
 
-const kernel_table_t *gen12lp_f16_nocopy_tables[2][2] = {
-    {gen12lp_f16_nocopy_nn_table, gen12lp_f16_nocopy_nt_table},
-    {gen12lp_f16_nocopy_tn_table, gen12lp_f16_nocopy_tt_table}
+const kernel_table_t *xe_lp_f16_nocopy_tables[2][2] = {
+    {xe_lp_f16_nocopy_nn_table, xe_lp_f16_nocopy_nt_table},
+    {xe_lp_f16_nocopy_tn_table, xe_lp_f16_nocopy_tt_table}
 };
 
-const kernel_table_t gen12lp_x8_nocopy_nn_table[] = {
+const kernel_table_t xe_lp_x8_nocopy_nn_table[] = {
     {{32, 16}, {-1, -1}, {0, 0}}
 };
 
-const kernel_table_t gen12lp_x8_nocopy_nt_table[] = {
+const kernel_table_t xe_lp_x8_nocopy_nt_table[] = {
     {{16, 32}, {-1, -1}, {0, 0}}
 };
 
-const kernel_table_t gen12lp_x8_nocopy_tn_table[] = {
+const kernel_table_t xe_lp_x8_nocopy_tn_table[] = {
     {{16, 16}, {-1, -1}, {0, 0}}
 };
 
-const kernel_table_t gen12lp_x8_nocopy_tt_table[] = {
+const kernel_table_t xe_lp_x8_nocopy_tt_table[] = {
     {{16, 32}, {-1, -1}, {0, 0}}
 };
 
-const kernel_table_t *gen12lp_x8_nocopy_tables[2][2] = {
-    {gen12lp_x8_nocopy_nn_table, gen12lp_x8_nocopy_nt_table},
-    {gen12lp_x8_nocopy_tn_table, gen12lp_x8_nocopy_tt_table}
+const kernel_table_t *xe_lp_x8_nocopy_tables[2][2] = {
+    {xe_lp_x8_nocopy_nn_table, xe_lp_x8_nocopy_nt_table},
+    {xe_lp_x8_nocopy_tn_table, xe_lp_x8_nocopy_tt_table}
 };
 // clang-format on
 
@@ -545,11 +545,11 @@ void gen_gemm_nocopy_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
 
     using tables_t = decltype(gen9_f32_nocopy_tables);
     const tables_t *all_tables[3][2]
-            = {{&gen9_f32_nocopy_tables, &gen12lp_f32_nocopy_tables},
-                    {&gen9_f16_nocopy_tables, &gen12lp_f16_nocopy_tables},
-                    {&gen9_x8_nocopy_tables, &gen12lp_x8_nocopy_tables}};
+            = {{&gen9_f32_nocopy_tables, &xe_lp_f32_nocopy_tables},
+                    {&gen9_f16_nocopy_tables, &xe_lp_f16_nocopy_tables},
+                    {&gen9_x8_nocopy_tables, &xe_lp_x8_nocopy_tables}};
 
-    int arch_idx = (arch == compute::gpu_arch_t::gen12lp) ? 1 : 0;
+    int arch_idx = (arch == compute::gpu_arch_t::xe_lp) ? 1 : 0;
     int type_idx = (c_type == data_type::f16)
             ? 1
             : (c_type == data_type::s32) ? 2 : 0;

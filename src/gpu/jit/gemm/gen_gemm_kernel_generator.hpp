@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -446,7 +446,7 @@ struct CommonStrategy {
     bool accR0 = true; // Stuff r0 header in an accumulator register.
     bool emulate64 = false; // Emulate 64-bit arithmetic (required for GenXLP)
     bool emulateDWxDW
-            = false; // Emulate DW x DW -> DW multiplication (required for Gen12)
+            = false; // Emulate DW x DW -> DW multiplication (required for Xe Architecture)
     bool emulate64_add32
             = false; // Use 32-bit adds for 64-bit arithmetic, assuming no 2^32 boundaries crossed.
     bool wgInSS

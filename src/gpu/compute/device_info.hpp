@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ namespace compute {
 enum class gpu_arch_t {
     unknown,
     gen9,
-    gen12lp,
+    xe_lp,
 };
 
 enum class device_ext_t : uint64_t {
@@ -55,7 +55,7 @@ enum class device_ext_t : uint64_t {
     intel_subgroups_char         = 1ull << 18,
     intel_subgroups_short        = 1ull << 19,
     intel_subgroups_long         = 1ull << 20,
-    // Intel specific Gen12LP+
+    // Intel specific Xe_LP+
     intel_subgroup_local_block_io = 1ull << 21,
     intel_dot_accumulate          = 1ull << 22,
     last

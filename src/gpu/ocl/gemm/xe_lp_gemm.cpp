@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/gemm/gen12lp_gemm.hpp"
+#include "gpu/ocl/gemm/xe_lp_gemm.hpp"
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_traits.hpp"
@@ -25,13 +25,13 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct gen12lp_gemm_driver_params_t {
+struct xe_lp_gemm_driver_params_t {
     static constexpr auto block_m = 2048;
     static constexpr auto block_n = 2048;
     static constexpr auto block_k = 1024;
 };
 
-status_t gen12lp_gemm_t::launch_x8x8s32(gemm_exec_ctx_t ctx,
+status_t xe_lp_gemm_t::launch_x8x8s32(gemm_exec_ctx_t ctx,
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c, int offset_a,
         int offset_b, int offset_c, int lda, int ldb, int ldc, int m, int n,
@@ -43,9 +43,9 @@ status_t gen12lp_gemm_t::launch_x8x8s32(gemm_exec_ctx_t ctx,
     assert(kernel);
 
     int unroll_m, unroll_n, block_m, block_n;
-    gen12lp_gemm_x8x8s32_kernel_t::get_unrolls(unroll_m, unroll_n);
-    block_m = gen12lp_gemm_driver_params_t::block_m;
-    block_n = gen12lp_gemm_driver_params_t::block_n;
+    xe_lp_gemm_x8x8s32_kernel_t::get_unrolls(unroll_m, unroll_n);
+    block_m = xe_lp_gemm_driver_params_t::block_m;
+    block_n = xe_lp_gemm_driver_params_t::block_n;
     int kk = ((k + 3) & ~3);
 
     int sizea = block_m * (kk + sizeof(int));
@@ -102,7 +102,7 @@ status_t gen12lp_gemm_t::launch_x8x8s32(gemm_exec_ctx_t ctx,
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 
-status_t gen12lp_gemm_t::launch_scale_x8x8s32(gemm_exec_ctx_t ctx,
+status_t xe_lp_gemm_t::launch_scale_x8x8s32(gemm_exec_ctx_t ctx,
         compute::compute_stream_t *compute_stream,
         const memory_storage_t &c_temp, const memory_storage_t &c, char offsetc,
         int offset_c, int m, int n, int ldc, float alpha, float beta,
@@ -133,7 +133,7 @@ status_t gen12lp_gemm_t::launch_scale_x8x8s32(gemm_exec_ctx_t ctx,
 
     int unroll_m, unroll_n;
 
-    gen12lp_gemm_scale_x8x8s32_kernel_t::get_unrolls(unroll_m, unroll_n);
+    xe_lp_gemm_scale_x8x8s32_kernel_t::get_unrolls(unroll_m, unroll_n);
 
     size_t nthreads_x = (m + unroll_m - 1) / unroll_m;
     size_t nthreads_y = (n + unroll_n - 1) / unroll_n;
@@ -149,11 +149,11 @@ status_t gen12lp_gemm_t::launch_scale_x8x8s32(gemm_exec_ctx_t ctx,
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 
-status_t gen12lp_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
+status_t xe_lp_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     return execute_standard(ctx);
 }
 
-status_t gen12lp_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
+status_t xe_lp_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     auto a_type = pd()->desc()->a_type();
     auto b_type = pd()->desc()->b_type();
     auto c_type = pd()->desc()->c_type();
@@ -222,11 +222,11 @@ status_t gen12lp_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     int unroll_m, unroll_n;
     int block_m, block_n, block_k;
 
-    gen12lp_gemm_x8x8s32_kernel_t::get_unrolls(unroll_m, unroll_n);
+    xe_lp_gemm_x8x8s32_kernel_t::get_unrolls(unroll_m, unroll_n);
 
-    block_m = gen12lp_gemm_driver_params_t::block_m;
-    block_n = gen12lp_gemm_driver_params_t::block_n;
-    block_k = gen12lp_gemm_driver_params_t::block_k;
+    block_m = xe_lp_gemm_driver_params_t::block_m;
+    block_n = xe_lp_gemm_driver_params_t::block_n;
+    block_k = xe_lp_gemm_driver_params_t::block_k;
 
     bool apply_co = true;
     bool aligned = false;

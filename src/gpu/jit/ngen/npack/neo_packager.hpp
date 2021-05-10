@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -174,7 +174,7 @@ inline HW getBinaryArch(const std::vector<uint8_t> &binary)
         case OpenCLProgramDeviceType::Gen10LP:  return HW::Gen10;
         case OpenCLProgramDeviceType::Gen11:    return HW::Gen11;
         case OpenCLProgramDeviceType::Gen11LP:  return HW::Gen11;
-        case OpenCLProgramDeviceType::Gen12LP:  return HW::Gen12LP;
+        case OpenCLProgramDeviceType::Xe_LP:  return HW::Xe_LP;
         default:                                return HW::Unknown;
     }
 }

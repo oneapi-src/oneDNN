@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -185,7 +185,7 @@ public:
 };
 class sfid_needed_exception : public std::runtime_error {
 public:
-    sfid_needed_exception() : std::runtime_error("SFID must be specified on Gen12+") {}
+    sfid_needed_exception() : std::runtime_error("SFID must be specified on Xe+ Architecture") {}
 };
 class invalid_execution_size_exception : public std::runtime_error {
 public:
@@ -199,7 +199,7 @@ enum class HW {
     Gen9,
     Gen10,
     Gen11,
-    Gen12LP,
+    Xe_LP,
 };
 
 // Data types. Bits[0:3] are the ID, bits[4:7] hold the width, in bytes.
@@ -1255,27 +1255,27 @@ enum class Opcode {
     mad = 0x5B,
     lrp = 0x5C,
     madm = 0x5D,
-    nop_gen12 = 0x60,
-    mov_gen12 = 0x61,
-    sel_gen12 = 0x62,
-    movi_gen12 = 0x63,
-    not_gen12 = 0x64,
-    and_gen12 = 0x65,
-    or_gen12 = 0x66,
-    xor_gen12 = 0x67,
-    shr_gen12 = 0x68,
-    shl_gen12 = 0x69,
-    smov_gen12 = 0x6A,
-    asr_gen12 = 0x6C,
-    ror_gen12 = 0x6E,
-    rol_gen12 = 0x6F,
-    cmp_gen12 = 0x70,
-    cmpn_gen12 = 0x71,
-    csel_gen12 = 0x72,
-    bfrev_gen12 = 0x77,
-    bfe_gen12 = 0x78,
-    bfi1_gen12 = 0x79,
-    bfi2_gen12 = 0x7A,
+    nop_xe = 0x60,
+    mov_xe = 0x61,
+    sel_xe = 0x62,
+    movi_xe = 0x63,
+    not_xe = 0x64,
+    and_xe = 0x65,
+    or_xe = 0x66,
+    xor_xe = 0x67,
+    shr_xe = 0x68,
+    shl_xe = 0x69,
+    smov_xe = 0x6A,
+    asr_xe = 0x6C,
+    ror_xe = 0x6E,
+    rol_xe = 0x6F,
+    cmp_xe = 0x70,
+    cmpn_xe = 0x71,
+    csel_xe = 0x72,
+    bfrev_xe = 0x77,
+    bfe_xe = 0x78,
+    bfi1_xe = 0x79,
+    bfi2_xe = 0x7A,
     nop = 0x7E,
 };
 
@@ -1320,7 +1320,7 @@ static const char *getMnemonic(Opcode op, HW hw)
 
     const char *mnemonic = names[static_cast<int>(op) & 0x7F];
 
-    if (hw < HW::Gen12LP) switch (op) {
+    if (hw < HW::Xe_LP) switch (op) {
         case Opcode::mov:   mnemonic = "mov";   break;
         case Opcode::line:  mnemonic = "line";  break;
         case Opcode::pln:   mnemonic = "pln";   break;
@@ -1471,7 +1471,7 @@ protected:
             unsigned maskCtrl : 1;
             unsigned _zeros_: 18;
             unsigned autoSWSB : 1;
-            unsigned fusionCtrl : 1;        // Gen12
+            unsigned fusionCtrl : 1;        // Xe Architecture
             unsigned eot : 1;
             unsigned swsb : 8;
         } parts;
@@ -1910,7 +1910,7 @@ union ExtendedMessageDescriptor {
         unsigned sfid : 4;
         unsigned : 1;
         unsigned eot : 1;
-        unsigned extMessageLen : 5;    /* # of GRFs sent in src1: valid range 0-15 (pre-Gen12) */
+        unsigned extMessageLen : 5;    /* # of GRFs sent in src1: valid range 0-15 (pre-Xe Architecture) */
         unsigned : 1;
         unsigned : 4;                  /* Part of exFuncCtrl for non-immediate sends */
         unsigned exFuncCtrl : 16;
@@ -2362,7 +2362,7 @@ void encodeLoadDescriptors(MessageDescriptor &desc, ExtendedMessageDescriptor &e
     base.apply(exdesc, desc);
 }
 
-// Generate descriptors for a store operation. Requires split send for pre-Gen12.
+// Generate descriptors for a store operation. Requires split send for pre-Xe Architecture.
 template <typename DataSpec>
 void encodeStoreDescriptors(MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc,
     const InstructionModifier &mod, const DataSpec &spec, AddressBase base)
@@ -2378,7 +2378,7 @@ void encodeStoreDescriptors(MessageDescriptor &desc, ExtendedMessageDescriptor &
     base.apply(exdesc, desc);
 }
 
-// Generate descriptors for an atomic operation. Requires split send for binary and ternary atomics pre-Gen12.
+// Generate descriptors for an atomic operation. Requires split send for binary and ternary atomics pre-Xe Architecture.
 template <typename DataSpec>
 void encodeAtomicDescriptors(MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc,
     AtomicOp op, const InstructionModifier &mod, const RegData &dst, const DataSpec &spec, AddressBase base)

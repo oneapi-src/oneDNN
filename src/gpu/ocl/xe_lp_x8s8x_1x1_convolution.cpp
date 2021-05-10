@@ -14,16 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 #include <algorithm>
-#include "gpu/ocl/gen12lp_x8s8x_1x1_convolution.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
+#include "gpu/ocl/xe_lp_x8s8x_1x1_convolution.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t gen12lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_conf(
-        engine_t *engine) {
+status_t xe_lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_conf(engine_t *engine) {
     using namespace format_tag;
 
     const convolution_desc_t &cd = *desc();
@@ -149,7 +148,7 @@ status_t gen12lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_conf(
     return status::success;
 }
 
-status_t gen12lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
+status_t xe_lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("G", conf.ngroups);
     kernel_ctx.define_int("MB", conf.mb);
@@ -209,7 +208,7 @@ status_t gen12lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
     return status::success;
 }
 
-void gen12lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_scratchpad() {
+void xe_lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_scratchpad() {
     if (conf.attr_info.with_src_zpoints) {
         size_t size = conf.ngroups * utils::rnd_up(conf.oc, 32);
 
@@ -219,7 +218,7 @@ void gen12lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_scratchpad() {
     }
 }
 
-status_t gen12lp_x8s8x_1x1_convolution_fwd_t::execute_forward(
+status_t xe_lp_x8s8x_1x1_convolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);

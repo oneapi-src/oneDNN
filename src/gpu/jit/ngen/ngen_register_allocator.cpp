@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ int Bundle::first_reg(HW hw) const
         return (bundle0 << 8) | bank0;
     case HW::Gen11:
         return (bundle0 << 8) | (bank0 << 1);
-    case HW::Gen12LP:
+    case HW::Xe_LP:
         return (bundle0 << 1) | bank0;
     default:
         return 0;
@@ -61,7 +61,7 @@ int Bundle::stride(HW hw) const
         return 2;
     case HW::Gen11:
         return 4;
-    case HW::Gen12LP:
+    case HW::Xe_LP:
         return 16;
     default:
         return 128;
@@ -84,7 +84,7 @@ int64_t Bundle::reg_mask(HW hw, int offset) const
         if (bundle_id != any && bundle_id != offset)    bundle_mask = 0;
         if (bank_id != any)                             bank_mask = 0x3333333333333333 << (bank_id << 1);
         return bundle_mask & bank_mask;
-    case HW::Gen12LP:
+    case HW::Xe_LP:
         if (bundle_id != any)                           base_mask  = 0x0003000300030003;
         if (bank_id != any)                             base_mask &= 0x5555555555555555;
         return base_mask << (bank0 + (bundle0 << 1));
@@ -103,7 +103,7 @@ Bundle Bundle::locate(HW hw, RegData reg)
             return Bundle(base & 1, base >> 6);
         case HW::Gen11:
             return Bundle((base >> 1) & 1, base >> 6);
-        case HW::Gen12LP:
+        case HW::Xe_LP:
             return Bundle(base & 1, (base >> 1) & 7);
         default:
             return Bundle();

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -398,7 +398,7 @@
 
 #ifdef TN
 __attribute__((intel_reqd_sub_group_size(16))) kernel void
-gen12lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
+xe_lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
         int offsetA, int offsetB, int offsetC, int lda, int ldb, int ldc, int m,
         int n, int k, int beta, int ao, int bo, global int *co, int offsetCO,
         int apply_co, local A_TYPE *sa, local B_TYPE *sb, int apply_eltwise,
@@ -591,7 +591,7 @@ gen12lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
 
 #ifdef NN
 __attribute__((intel_reqd_sub_group_size(16))) kernel void
-gen12lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
+xe_lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
         int offsetA, int offsetB, int offsetC, int lda, int ldb, int ldc, int m,
         int n, int k, int beta, int ao, int bo, global int *co, int offsetCO,
         int apply_co, local A_TYPE *sa, local B_TYPE *sb, int apply_eltwise,
@@ -813,7 +813,7 @@ gen12lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
 
 #ifdef NT
 __attribute__((intel_reqd_sub_group_size(16))) kernel void
-gen12lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
+xe_lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
         int offsetA, int offsetB, int offsetC, int lda, int ldb, int ldc, int m,
         int n, int k, int beta, int ao, int bo, global int *co, int offsetCO,
         int apply_co, local A_TYPE *sa, local B_TYPE *sb, int apply_eltwise,
@@ -1078,7 +1078,7 @@ gen12lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
 
 #ifdef TT
 __attribute__((intel_reqd_sub_group_size(16))) kernel void
-gen12lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
+xe_lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
         int offsetA, int offsetB, int offsetC, int lda, int ldb, int ldc, int m,
         int n, int k, int beta, int ao, int bo, global int *co, int offsetCO,
         int apply_co, local A_TYPE *sa, local B_TYPE *sb, int apply_eltwise,

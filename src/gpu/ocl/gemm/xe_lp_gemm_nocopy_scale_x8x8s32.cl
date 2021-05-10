@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@
 #define POST_OP(val)
 #endif
 
-kernel void gen12lp_gemm_scale_x8x8s32(global int *cc, global int *c, char trc,
+kernel void xe_lp_gemm_scale_x8x8s32(global int *cc, global int *c, char trc,
         int offset_c, int m, int n, int ldc, float alpha, float beta,
         global int *co, int offset_co, int alpha_is_zero, int apply_eltwise,
         float eltwise_alpha, float eltwise_beta, float eltwise_scale) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -356,7 +356,7 @@ void barriersignal(const GRF &temp, const GRF &r0_info = r0) { barriersignal(Ins
 
 void barrierwait()
 {
-    if (isGen12)
+    if (isXe)
         sync.bar(NoMask);
     else
         wait(NoMask, n0[0]);

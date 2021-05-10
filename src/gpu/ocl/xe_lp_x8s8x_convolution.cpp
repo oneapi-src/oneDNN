@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/gen12lp_x8s8x_convolution.hpp"
+#include "gpu/ocl/xe_lp_x8s8x_convolution.hpp"
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -37,7 +37,7 @@ bool is_nhwc(const memory_desc_wrapper &src_mdw,
     return is_nhwc;
 }
 
-status_t gen12lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
+status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
     using namespace format_tag;
 
     const memory_desc_t *src = src_md();
@@ -349,7 +349,7 @@ status_t gen12lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t gen12lp_x8s8x_convolution_fwd_t::pd_t::init_kernel_ctx(
+status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     int owx = nstl::max(
             1, utils::div_up(conf.iw + 2 * conf.l_pad, conf.stride_w));
@@ -447,7 +447,7 @@ status_t gen12lp_x8s8x_convolution_fwd_t::pd_t::init_kernel_ctx(
     return status::success;
 }
 
-void gen12lp_x8s8x_convolution_fwd_t::pd_t::init_scratchpad() {
+void xe_lp_x8s8x_convolution_fwd_t::pd_t::init_scratchpad() {
     if (conf.attr_info.with_src_zpoints) {
         size_t size = conf.is_depthwise
                 ? utils::rnd_up(conf.ngroups, 32)
@@ -459,7 +459,7 @@ void gen12lp_x8s8x_convolution_fwd_t::pd_t::init_scratchpad() {
     }
 }
 
-status_t gen12lp_x8s8x_convolution_fwd_t::execute_forward(
+status_t xe_lp_x8s8x_convolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
@@ -547,7 +547,7 @@ status_t gen12lp_x8s8x_convolution_fwd_t::execute_forward(
     return status;
 }
 
-status_t gen12lp_x8s8x_convolution_bwd_data_t::pd_t::init_conf() {
+status_t xe_lp_x8s8x_convolution_bwd_data_t::pd_t::init_conf() {
     using namespace format_tag;
 
     const convolution_desc_t &cd = *desc();
@@ -660,7 +660,7 @@ status_t gen12lp_x8s8x_convolution_bwd_data_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t gen12lp_x8s8x_convolution_bwd_data_t::pd_t::init_kernel_ctx(
+status_t xe_lp_x8s8x_convolution_bwd_data_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("G", conf.ngroups);
     kernel_ctx.define_int("MB", conf.mb);
@@ -720,7 +720,7 @@ status_t gen12lp_x8s8x_convolution_bwd_data_t::pd_t::init_kernel_ctx(
     return status::success;
 }
 
-status_t gen12lp_x8s8x_convolution_bwd_data_t::execute_backward_data(
+status_t xe_lp_x8s8x_convolution_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
 
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
