@@ -131,6 +131,7 @@ device_uuid_t get_device_uuid(const cl::sycl::device &dev) {
     ze_device_properties_t ze_device_properties;
     auto ze_device = dev.get_native<cl::sycl::backend::level_zero>();
     auto status = func_zeDeviceGetProperties(ze_device, &ze_device_properties);
+    MAYBE_UNUSED(status);
     assert(status == status::success);
 
     const auto &ze_device_id = ze_device_properties.uuid.id;
