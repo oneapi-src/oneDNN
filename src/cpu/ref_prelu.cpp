@@ -103,12 +103,22 @@ static dim_t weights_offset(
 }
 
 static void zero_memory(const memory_desc_wrapper &mem_d, byte *mem_ptr) {
-    const dim_t mem_size = mem_d.size();
-    parallel(0, [&](std::size_t ithr, std::size_t nthr) {
-        dim_t start {0}, end {0};
-        balance211(mem_size, nthr, ithr, start, end);
-        std::memset(mem_ptr + start, 0, end - start);
-    });
+    const auto res = std::div(static_cast<int>(mem_d.size()), PAGE_4K);
+    if (!res.quot)
+        std::memset(mem_ptr, 0, res.rem);
+    else
+        parallel_nd(res.quot, [&](dim_t i) {
+            const auto tail = (i + 1 == res.quot) ? res.rem : 0;
+            const auto ptr_dst
+                    = reinterpret_cast<unsigned char *>(mem_ptr) + i * PAGE_4K;
+            std::memset(ptr_dst, 0, PAGE_4K + tail);
+        });
+}
+
+static bool is_padding(const memory_desc_wrapper &md) {
+    for (int i = 0; i < md.ndims(); i++)
+        if (md.dims()[i] != md.padded_dims()[i]) return true;
+    return false;
 }
 
 status_t ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
@@ -120,8 +130,14 @@ status_t ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     const memory_desc_wrapper data_d(pd()->src_md(0));
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
-
-    if (!data_d.is_dense()) zero_memory(data_d, dst);
+    const auto is_inplace = (src == dst);
+    const auto has_padding = is_padding(data_d);
+    if (has_padding && !is_inplace) {
+        if (data_d.is_dense(true))
+            zero_memory(data_d, dst);
+        else
+            ctx.zero_pad_output(DNNL_ARG_TO);
+    }
 
     const int mask = utils::get_dims_mask(
             data_d.dims(), weights_d.dims(), data_d.ndims());
@@ -238,9 +254,6 @@ void ref_prelu_bwd_t::calculate_scalar(const byte *src, const byte *weights,
 
     std::vector<float> buf_nthr_partial_results(dnnl_get_max_threads());
 
-    if (!data_d.is_dense()) zero_memory(data_d, diff_src);
-    if (!weights_d.is_dense()) zero_memory(weights_d, diff_weights);
-
     parallel(0, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
 
@@ -300,9 +313,6 @@ void ref_prelu_bwd_t::calculate_no_broadcast(const byte *src,
     const int mask = utils::get_dims_mask(
             data_d.dims(), weights_d.dims(), data_d.ndims());
 
-    if (!data_d.is_dense()) zero_memory(data_d, diff_src);
-    if (!weights_d.is_dense()) zero_memory(weights_d, diff_weights);
-
     parallel(0, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
 
@@ -348,9 +358,6 @@ void ref_prelu_bwd_t::calculate_shared_axes(const byte *src,
     const dim_t work_amount = weights_d.nelems();
     const int mask = utils::get_dims_mask(
             data_d.dims(), weights_d.dims(), data_d.ndims());
-
-    if (!data_d.is_dense()) zero_memory(data_d, diff_src);
-    if (!weights_d.is_dense()) zero_memory(weights_d, diff_weights);
 
     parallel(0, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
@@ -421,8 +428,26 @@ status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper data_d(pd()->src_md(0));
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md(0));
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
     const auto bcast_type = dnnl::impl::get_rhs_arg_broadcasting_strategy(
             *weights_d.md_, data_d);
+
+    const auto is_inplace = (diff_src == diff_dst);
+    if (is_padding(diff_src_d) && !is_inplace) {
+        if (diff_src_d.is_dense(true))
+            zero_memory(diff_src_d, diff_src);
+        else
+            // needed for submemory correctness
+            ctx.zero_pad_output(DNNL_ARG_DIFF_SRC);
+    }
+    if (is_padding(diff_weights_d)) {
+        if (diff_weights_d.is_dense(true))
+            zero_memory(diff_weights_d, diff_weights);
+        else
+            // needed for submemory correctness
+            ctx.zero_pad_output(DNNL_ARG_DIFF_WEIGHTS);
+    }
 
     switch (bcast_type) {
         case broadcasting_strategy_t::scalar:
