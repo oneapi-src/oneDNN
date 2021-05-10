@@ -30,10 +30,10 @@ namespace utils {
 // When C++17 will be supported it is highly recommended
 // to remove this class and start using std::optional instead.
 
-struct null_opt_t {
-    null_opt_t() = default;
+struct nullopt_t {
+    nullopt_t() = default;
 };
-static constexpr null_opt_t null_opt {};
+static constexpr nullopt_t nullopt {};
 
 template <typename T>
 class optional_t;
@@ -52,7 +52,7 @@ public:
     static_assert(!std::is_volatile<T>::value, "");
     static_assert(!is_optional_t<T>::value, "");
 
-    optional_t(const null_opt_t null_opt) : has_value_(false), dummy {} {}
+    optional_t(const nullopt_t nullopt) : has_value_(false), dummy {} {}
     optional_t(T object) : has_value_(true), value_(object) {}
     optional_t(const optional_t &other)
         : has_value_(other.has_value_), dummy {} {
@@ -66,7 +66,7 @@ public:
         if (has_value_) value_.~T();
     }
 
-    optional_t &operator=(const null_opt_t null_opt) {
+    optional_t &operator=(const nullopt_t nullopt) {
         if (has_value_) value_.~T();
         has_value_ = false;
     }

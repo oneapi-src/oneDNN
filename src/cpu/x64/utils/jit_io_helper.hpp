@@ -99,7 +99,7 @@ public:
     io_gather_conf_t(const std::size_t simd_w, const Xbyak::Opmask &full_opmask,
             const int full_vmm_mask_idx, const Xbyak::Reg64 &reg_tmp,
             const Xbyak::Reg64 &reg_tmp1,
-            const utils::optional_t<int> &vmm_tmp_idx = utils::null_opt);
+            const utils::optional_t<int> &vmm_tmp_idx = utils::nullopt);
     io_gather_conf_t(const io_gather_conf_t &other) = default;
 
     io_gather_conf_t &operator=(const io_gather_conf_t &other) = default;
@@ -124,14 +124,13 @@ public:
 
     jit_io_helper_t(jit_generator *host, const cpu_isa_t &isa,
             const data_type_t &data_type, const io_conf_t &io_conf,
-            const utils::optional_t<io_tail_conf_t> &tail_conf
-            = utils::null_opt,
+            const utils::optional_t<io_tail_conf_t> &tail_conf = utils::nullopt,
             const utils::optional_t<io_emu_bf16_conf_t> &bf16_conf
-            = utils::null_opt,
+            = utils::nullopt,
             const utils::optional_t<io_saturation_conf_t> &saturation_conf
-            = utils::null_opt,
+            = utils::nullopt,
             const utils::optional_t<io_gather_conf_t> &gather_conf
-            = utils::null_opt);
+            = utils::nullopt);
     jit_io_helper_t(jit_io_helper_t &&) = default;
     jit_io_helper_t &operator=(jit_io_helper_t &&) = default;
 
@@ -204,14 +203,13 @@ public:
 
     jit_io_multi_dt_helper_t(jit_generator *host, const cpu_isa_t &isa,
             const data_types_t &data_types, const io_conf_t &io_conf,
-            const utils::optional_t<io_tail_conf_t> &tail_conf
-            = utils::null_opt,
+            const utils::optional_t<io_tail_conf_t> &tail_conf = utils::nullopt,
             const utils::optional_t<io_emu_bf16_conf_t> &bf16_conf
-            = utils::null_opt,
+            = utils::nullopt,
             const std::map<data_type_t, io_saturation_conf_t> &saturation_confs
             = {},
             const utils::optional_t<io_gather_conf_t> &gather_conf
-            = utils::null_opt);
+            = utils::nullopt);
     ~jit_io_multi_dt_helper_t();
     void prepare_tail_mask();
     void prepare_full_mask();
