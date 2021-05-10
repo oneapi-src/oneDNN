@@ -23,6 +23,12 @@
 #define VECT_DT_N 1
 #endif
 
+#if VECT_DT_N == 1
+#define VECT_CHAR_TO_INT convert_int
+#else
+#define VECT_CHAR_TO_INT CONCAT2(convert_int, VECT_DT_N)
+#endif
+
 #if USE_16MB_UNROLL == 0 && (CALCULATE_STATS == 1 || IS_BWD == 1)
 int reduce_index(int x[5]) {
     int dim[5] = {MB, IC, ID, IH, IW};
@@ -246,7 +252,7 @@ __kernel void reduce_variance(
 KERNEL_ATTR
 __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
-        __global float *scaleshift, __global float *shift, __global int *ws,
+        __global float *scaleshift, __global float *shift, __global char *ws,
         float eps) {
     const int n = GWS_GET_MB();
     const int c = GWS_GET_IC();
@@ -302,7 +308,7 @@ __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
 #if USE_16MB_UNROLL == 1
 NAMED_KERNEL_ATTR(CALC)
 __kernel void calculate_stats(__global DATA_T *src, __global float *mean,
-        __global DATA_T *diff_dst, __global int *ws,
+        __global DATA_T *diff_dst, __global char *ws,
         __global float *diff_scaleshift) {
     const int mb = GWS_GET_STAT_MB();
     const int stat_mb_block_idx = mb / MB_BLOCK;
@@ -341,12 +347,12 @@ __kernel void calculate_stats(__global DATA_T *src, __global float *mean,
                 VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[8 * 16])));
 #endif
 #if FUSE_BN_RELU == 1
-        VECT_INT_T ws0
-                = AS_VECT_INT_T(VECT_UINT_READ((const __global uint *)&ws[0]));
+        VECT_INT_T ws0 = VECT_CHAR_TO_INT(AS_VECT_CHAR_T(
+                VECT_UCHAR_READ((const __global uchar *)&ws[0])));
         dd0 = select((VECT_FLOAT_T)0.0f, dd0, ws0);
 #ifdef MB16
-        VECT_INT_T ws1 = AS_VECT_INT_T(
-                VECT_UINT_READ((const __global uint *)&ws[8 * 16]));
+        VECT_INT_T ws1 = VECT_CHAR_TO_INT(AS_VECT_CHAR_T(
+                VECT_UCHAR_READ((const __global uchar *)&ws[8 * 16])));
         dd1 = select((VECT_FLOAT_T)0.0f, dd1, ws1);
 #endif
         ws += MB_BLOCK * IC_BLOCK;
@@ -406,7 +412,7 @@ __kernel void reduce_stats(__global float *reduce_temp,
 
 NAMED_KERNEL_ATTR(CALC)
 __kernel void calculate_stats(__global DATA_T *src, __global float *mean,
-        __global DATA_T *diff_dst, __global int *ws,
+        __global DATA_T *diff_dst, __global char *ws,
         __global float *diff_scaleshift) {
     float diff_gamma = 0;
     float diff_beta = 0;
@@ -463,9 +469,9 @@ __kernel void reduce_stats(__global float *reduce_temp,
 KERNEL_ATTR
 __kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
-        __global float *scaleshift, __global int *ws, __global DATA_T *diff_src,
-        __global float *diff_scaleshift, __global float *diff_shift,
-        float eps) {
+        __global float *scaleshift, __global char *ws,
+        __global DATA_T *diff_src, __global float *diff_scaleshift,
+        __global float *diff_shift, float eps) {
 
 #if USE_16MB_UNROLL == 1
     const int n = GWS_GET_MB();
@@ -513,12 +519,12 @@ __kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
 #endif
 #if FUSE_BN_RELU == 1
     ws += d_off;
-    VECT_INT_T blockWS0
-            = AS_VECT_INT_T(VECT_UINT_READ((const __global uint *)&ws[0]));
+    VECT_INT_T blockWS0 = VECT_CHAR_TO_INT(
+            AS_VECT_CHAR_T(VECT_UCHAR_READ((const __global uchar *)&ws[0])));
     blockD0 = select((VECT_FLOAT_T)0.0f, blockD0, blockWS0);
 #ifdef MB16
-    VECT_INT_T blockWS1 = AS_VECT_INT_T(
-            VECT_UINT_READ((const __global uint *)&ws[8 * IC_BLOCK]));
+    VECT_INT_T blockWS1 = VECT_CHAR_TO_INT(AS_VECT_CHAR_T(
+            VECT_UCHAR_READ((const __global uchar *)&ws[8 * IC_BLOCK])));
     blockD1 = select((VECT_FLOAT_T)0.0f, blockD1, blockWS1);
 #endif
 #endif

@@ -31,6 +31,13 @@
     convert_uint8(as_uint8( \
             intel_sub_group_block_read8((const __global uint *)(ptr))))
 
+#define LOAD_CHAR_1x16(ptr) \
+    as_char(intel_sub_group_block_read_uc((const __global uchar *)(ptr)));
+
+#define LOAD_CHAR_8x16(ptr) \
+    convert_char8(as_char8( \
+            intel_sub_group_block_read_uc8((const __global uchar *)(ptr))))
+
 #define LOAD_DATA_1x16(ptr) \
     CONVERT_FLOAT_T(AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T *)(ptr))))
 
@@ -51,6 +58,12 @@
 
 #define STORE_FLOAT_8x16(ptr, val) \
     intel_sub_group_block_write8((__global uint *)(ptr), as_uint8(val));
+
+#define STORE_CHAR_1x16(ptr, val) \
+    intel_sub_group_block_write_uc((__global uchar *)(ptr), as_uchar(val));
+
+#define STORE_CHAR_8x16(ptr, val) \
+    intel_sub_group_block_write_uc8((__global uchar *)(ptr), as_uchar8(val));
 
 #if USE_NHWC
 #define IC_BLOCK_STRIDE IC
@@ -243,7 +256,7 @@ __kernel void gen9_reduce_variance(
 KERNEL_ATTR
 __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
-        __global float *scaleshift, __global float *shift, __global int *ws,
+        __global float *scaleshift, __global float *shift, __global char *ws,
         float eps) {
     const int n = GWS_GET_MB();
     const int c = GWS_GET_IC();
@@ -308,16 +321,18 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
 #if HAS_SP_TAIL
     if (sp == SP_TAIL) {
         for (int k = 0; k < SP - SP_TAIL; ++k) {
-            STORE_FLOAT_1x16(&ws[k * IC_BLOCK_STRIDE], blockWS0[k]);
+            STORE_CHAR_1x16(
+                    &ws[k * IC_BLOCK_STRIDE], convert_char(blockWS0[k]));
         }
     } else
 #endif // HAS_SP_TAIL
     {
 #if USE_NHWC
         for (int k = 0; k < 8; ++k)
-            STORE_FLOAT_1x16(&ws[k * IC_BLOCK_STRIDE], blockWS0[k]);
+            STORE_CHAR_1x16(
+                    &ws[k * IC_BLOCK_STRIDE], convert_char(blockWS0[k]));
 #else
-        STORE_FLOAT_8x16(&ws[0], blockWS0);
+        STORE_CHAR_8x16(&ws[0], convert_char8(blockWS0));
 #endif
     }
 #endif // IS_TRAINING
@@ -362,6 +377,13 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
         } \
     }
 
+#define LOAD_CHAR_Nx16_USING_LOOP(n, dest, src) \
+    { \
+        for (int k = 0; k < n; ++k) { \
+            dest[k] = LOAD_CHAR_1x16(&src[k * IC_BLOCK_STRIDE]); \
+        } \
+    }
+
 #define LOAD_DATA_8x16_USING_LAYOUT(dest, src) \
     { \
         if (USE_NHWC) { \
@@ -380,9 +402,18 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
         } \
     }
 
+#define LOAD_CHAR_8x16_USING_LAYOUT(dest, src) \
+    { \
+        if (USE_NHWC) { \
+            LOAD_CHAR_Nx16_USING_LOOP(8, dest, src); \
+        } else { \
+            dest = LOAD_CHAR_8x16(src); \
+        } \
+    }
+
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
-        __global DATA_T *diff_dst, __global int *ws,
+        __global DATA_T *diff_dst, __global char *ws,
         __global float *diff_scaleshift) {
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
@@ -422,8 +453,8 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
         float8 dd_data;
 
 #if FUSE_BN_RELU == 1
-        uint8 ws_data;
-        LOAD_UINT_8x16_USING_LAYOUT(ws_data, ws);
+        char8 ws_data;
+        LOAD_CHAR_8x16_USING_LAYOUT(ws_data, ws);
 #endif // #if FUSE_BN_RELU == 1
 
         LOAD_DATA_8x16_USING_LAYOUT(src_data, src);
@@ -437,7 +468,7 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
 
 #if FUSE_BN_RELU == 1
         const float8 C_ZERO = 0.0;
-        dd_data = select(C_ZERO, dd_data, ws_data);
+        dd_data = select(C_ZERO, dd_data, convert_int8(ws_data));
 #endif // #if FUSE_BN_RELU == 1
 
         const float8 v0 = src_data - v_mean;
@@ -451,9 +482,9 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
                 % C_PARALLEL_FACTOR; // replace with "and 0x7" ?????
         while (sp-- >= 1) {
 #if FUSE_BN_RELU == 1
-            const uint ws_data = LOAD_UINT_1x16(&ws[0]);
+            const char ws_data = LOAD_CHAR_1x16(&ws[0]);
 #else
-            const uint ws_data = 1;
+            const char ws_data = 1;
 #endif // #if FUSE_BN_RELU == 1
 
             const float src_data = LOAD_DATA_1x16(&src[0]);
@@ -513,9 +544,9 @@ __kernel void gen9_reduce_stats(__global float *reduce_temp,
 KERNEL_ATTR
 __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
-        __global float *scaleshift, __global int *ws, __global DATA_T *diff_src,
-        __global float *diff_scaleshift, __global float *diff_shift,
-        float eps) {
+        __global float *scaleshift, __global char *ws,
+        __global DATA_T *diff_src, __global float *diff_scaleshift,
+        __global float *diff_shift, float eps) {
     const int c = GWS_GET_IC();
 
     const float v_variance = LOAD_FLOAT_1x16(&variance[c]);
@@ -571,8 +602,8 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
         float8 dd_data;
 
 #if FUSE_BN_RELU == 1
-        uint8 ws_data;
-        LOAD_UINT_8x16_USING_LAYOUT(ws_data, ws);
+        char8 ws_data;
+        LOAD_CHAR_8x16_USING_LAYOUT(ws_data, ws);
 #endif // #if FUSE_BN_RELU == 1
 
         LOAD_DATA_8x16_USING_LAYOUT(dd_data, diff_dst);
@@ -586,7 +617,7 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
 
 #if FUSE_BN_RELU == 1
         const float8 C_ZERO = 0.0;
-        dd_data = select(C_ZERO, dd_data, ws_data);
+        dd_data = select(C_ZERO, dd_data, convert_int8(ws_data));
 #endif // #if FUSE_BN_RELU == 1
 
 #if CALCULATE_DIFF_STATS == 1
@@ -611,7 +642,7 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
         sp = (SP - SP_TAIL) % C_PARALLEL_FACTOR; // replace with "and 0x7" ?????
         while (sp-- >= 1) {
 #if FUSE_BN_RELU == 1
-            const uint ws_data = LOAD_UINT_1x16(&ws[0]);
+            const char ws_data = LOAD_CHAR_1x16(&ws[0]);
 #endif // #if FUSE_BN_RELU == 1
 
             float dd_data = LOAD_DATA_1x16(&diff_dst[0]);
