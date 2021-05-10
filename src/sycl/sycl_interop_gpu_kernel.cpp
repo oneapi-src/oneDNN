@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -190,7 +190,9 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
             auto sycl_nd_range = to_sycl_nd_range(range);
             cgh.parallel_for(sycl_nd_range, *sycl_kernel_);
         } else {
-            auto sycl_range = to_sycl_range(range);
+            auto *global_range = range.global_range();
+            auto sycl_range = cl::sycl::range<3>(
+                    global_range[2], global_range[1], global_range[0]);
             cgh.parallel_for(sycl_range, *sycl_kernel_);
         }
     });
