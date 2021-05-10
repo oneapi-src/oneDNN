@@ -256,6 +256,11 @@ struct _ref_rnn_common_t : public primitive_t {
 
             if (!ok) return status::unimplemented;
 
+            if (rnn_.is_f32()
+                    && utils::one_of(this->desc()->prop_kind, backward,
+                            forward_training))
+                return status::unimplemented;
+
             if (!(IMPLICATION((cell_kind == alg_kind::vanilla_lstm
                                       && (rnn_.is_lstm_peephole
                                               || rnn_.is_lstm_projection)),

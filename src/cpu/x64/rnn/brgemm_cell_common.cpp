@@ -473,6 +473,7 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
     scratch_t *const B_blocked = B_blocked_scratch_
             + ithr * rnn_.diff_wei_brgemm.Kpadded
                     * rnn_.diff_wei_brgemm.n_block;
+
     scratch_t *const A_iter_transposed_ithr = global_transpose
             ? A_iter_transposed_scratch_
             : (A_iter_transposed_scratch_
@@ -504,8 +505,10 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
 
     while (start < end) {
         const bool should_reorder_gates = last_n_block_id != n_block_id;
-        const bool should_transpose_src
-                = !global_transpose && (last_m_block_id != m_block_id);
+        const bool transpose_needed
+                = !(rnn_.mb == 1 && std::is_same<float, src_iter_t>::value);
+        const bool should_transpose_src = transpose_needed && !global_transpose
+                && (last_m_block_id != m_block_id);
 
         const int m_iter = m_block_id * m_iter_block_;
         const int m_layer = m_block_id * m_layer_block_;
@@ -516,10 +519,12 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
                 ? A_layer_transposed_ithr + m_layer * LDA_layer_
                 : A_layer_ + m_layer;
 
-        src_iter_t *const A_iter_transposed = global_transpose
+        src_iter_t *const A_iter_transposed
+                = (global_transpose || !transpose_needed)
                 ? const_cast<src_iter_t *>(A_iter_m)
                 : A_iter_transposed_ithr;
-        src_layer_t *const A_layer_transposed = global_transpose
+        src_layer_t *const A_layer_transposed
+                = (global_transpose || !transpose_needed)
                 ? const_cast<src_layer_t *>(A_layer_m)
                 : A_layer_transposed_ithr;
 
@@ -559,7 +564,7 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
 
         for (int k_block_id = 0; k_block_id < k_blocks_; k_block_id++) {
             addr_batch[k_block_id].ptr.A
-                    = (A_iter_transposed) + k_block_id * k_block_;
+                    = A_iter_transposed + k_block_id * k_block_;
             addr_batch[k_block_id].ptr.B
                     = B_blocked + k_block_id * B_kb_offset_;
         }
@@ -662,10 +667,10 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
                 ? A_layer_transposed_ithr + m_layer * LDA_layer_
                 : A_layer_ + m_layer;
 
-        src_iter_t *const A_iter_transposed = (global_transpose)
+        src_iter_t *const A_iter_transposed = global_transpose
                 ? const_cast<src_iter_t *>(A_iter_m)
                 : A_iter_transposed_ithr;
-        src_layer_t *const A_layer_transposed = (global_transpose)
+        src_layer_t *const A_layer_transposed = global_transpose
                 ? const_cast<src_layer_t *>(A_layer_m)
                 : A_layer_transposed_ithr;
 
