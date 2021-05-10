@@ -49,6 +49,31 @@ if($ENV{DNNL_WERROR})
     set(DNNL_WERROR $ENV{DNNL_WERROR})
 endif()
 
+# The flags that can be used for the main and host compilers should be moved to
+# the macros to avoid code duplication and ensure consistency.
+macro(platform_unix_and_mingw_common_ccxx_flags var)
+    append(${var} "-Wall -Wno-unknown-pragmas")
+    append_if(DNNL_WERROR ${var} "-Werror")
+    append(${var} "-fvisibility=internal")
+endmacro()
+
+macro(platform_unix_and_mingw_common_cxx_flags var)
+    append(${var} "-fvisibility-inlines-hidden")
+endmacro()
+
+macro(platform_unix_and_mingw_noexcept_ccxx_flags var)
+    append(${var} "-fno-exceptions")
+endmacro()
+
+macro(platform_gnu_x64_arch_ccxx_flags var)
+    set(${var} "-msse4.1")
+endmacro()
+
+macro(platform_gnu_nowarn_ccxx_flags var)
+    # suppress warning on assumptions made regarding overflow (#146)
+    append(${var} "-Wno-strict-overflow")
+endmacro()
+
 if(WIN32 AND DNNL_WITH_SYCL)
     # XXX: Intel oneAPI DPC++ Compiler defines __GNUC__ and __STDC__ macros on
     # Windows. It is not aligned with clang behavior so manually undefine them.
@@ -117,7 +142,6 @@ if(MSVC)
         append(CMAKE_CCXX_FLAGS "/fp:precise")
     endif()
 elseif(UNIX OR MINGW)
-    append(CMAKE_CCXX_FLAGS "-Wall -Wno-unknown-pragmas")
     if(DNNL_WITH_SYCL)
         # XXX: Intel oneAPI DPC++ Compiler generates a lot of warnings
         append(CMAKE_CCXX_FLAGS "-w")
@@ -127,10 +151,10 @@ elseif(UNIX OR MINGW)
         # fast=1 depending on the version.
         append(CMAKE_CCXX_FLAGS "-ffp-model=precise -fno-reciprocal-math")
     endif()
-    append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "-Werror")
-    append(CMAKE_CCXX_FLAGS "-fvisibility=internal")
-    append(CMAKE_CXX_FLAGS "-fvisibility-inlines-hidden")
-    append(CMAKE_CCXX_NOEXCEPT_FLAGS "-fno-exceptions")
+
+    platform_unix_and_mingw_common_ccxx_flags(CMAKE_CCXX_FLAGS)
+    platform_unix_and_mingw_common_cxx_flags(CMAKE_CXX_FLAGS)
+    platform_unix_and_mingw_noexcept_ccxx_flags(CMAKE_CMAKE_CCXX_NOEXCEPT_FLAGS)
     # compiler specific settings
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         if(DNNL_TARGET_ARCH STREQUAL "AARCH64")
@@ -251,10 +275,9 @@ elseif(UNIX OR MINGW)
                  append(DEF_ARCH_OPT_FLAGS "-march=native")
              endif()
         elseif(DNNL_TARGET_ARCH STREQUAL "X64")
-             set(DEF_ARCH_OPT_FLAGS "-msse4.1")
+             platform_gnu_x64_arch_ccxx_flags(DEF_ARCH_OPT_FLAGS)
         endif()
-        # suppress warning on assumptions made regarding overflow (#146)
-        append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-strict-overflow")
+        platform_gnu_nowarn_ccxx_flags(CMAKE_CCXX_NOWARN_FLAGS)
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         set(DEF_ARCH_OPT_FLAGS "-xSSE4.1")
         # workaround for Intel Compiler that produces error caused

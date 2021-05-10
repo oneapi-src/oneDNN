@@ -33,6 +33,9 @@ append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 include_directories_with_host_compiler(${PROJECT_SOURCE_DIR}/include)
 include_directories_with_host_compiler(${PROJECT_SOURCE_DIR}/examples)
 
+append_host_compiler_options(CMAKE_CXX_FLAGS "${DPCPP_EXAMPLE_CXX_FLAGS}")
+append_host_compiler_options(CMAKE_CXX_FLAGS "${DPCPP_CXX_NOWARN_FLAGS}")
+
 if(UNIX)
     find_library(LIBM m REQUIRED)
 endif()

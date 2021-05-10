@@ -24,25 +24,50 @@ endif()
 set(SDL_cmake_included true)
 include("cmake/utils.cmake")
 
+# The flags that can be used for the main and host compilers should be moved to
+# the macros to avoid code duplication and ensure consistency.
+macro(sdl_unix_common_ccxx_flags var)
+    append(${var} "-fPIC -Wformat -Wformat-security")
+endmacro()
+
+macro(sdl_gnu_common_ccxx_flags var)
+    if (DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
+        # GNU compiler 7.4 or newer is required for host compiler
+        append(${var} "-fstack-protector-strong")
+    else()
+        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9)
+            append(${var} "-fstack-protector-all")
+        else()
+            append(${var} "-fstack-protector-strong")
+        endif()
+    endif()
+endmacro()
+
+# GCC might be very paranoid for partial structure initialization, e.g.
+#   struct { int a, b; } s = { 0, };
+# However the behavior is triggered by `Wmissing-field-initializers`
+# only. To prevent warnings on users' side who use the library and turn
+# this warning on, let's use it too. Applicable for the library sources
+# and interfaces only (tests currently rely on that fact heavily)
+macro(sdl_gnu_src_ccxx_flags var)
+    append(CMAKE_SRC_CCXX_FLAGS "-Wmissing-field-initializers")
+endmacro()
+
+macro(sdl_gnu_example_ccxx_flags var)
+    # At this point the flags for src and examples are the same
+    sdl_gnu_src_ccxx_flags(${var})
+endmacro()
+
 if(UNIX)
-    set(CMAKE_CCXX_FLAGS "-fPIC -Wformat -Wformat-security")
+    set(CMAKE_CCXX_FLAGS)
+
+    sdl_unix_common_ccxx_flags(CMAKE_CCXX_FLAGS)
     append(CMAKE_CXX_FLAGS_RELEASE "-D_FORTIFY_SOURCE=2")
     append(CMAKE_C_FLAGS_RELEASE "-D_FORTIFY_SOURCE=2")
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9)
-            append(CMAKE_CCXX_FLAGS "-fstack-protector-all")
-        else()
-            append(CMAKE_CCXX_FLAGS "-fstack-protector-strong")
-        endif()
-
-        # GCC might be very paranoid for partial structure initialization, e.g.
-        #   struct { int a, b; } s = { 0, };
-        # However the behavior is triggered by `Wmissing-field-initializers`
-        # only. To prevent warnings on users' side who use the library and turn
-        # this warning on, let's use it too. Applicable for the library sources
-        # and interfaces only (tests currently rely on that fact heavily)
-        append(CMAKE_SRC_CCXX_FLAGS "-Wmissing-field-initializers")
-        append(CMAKE_EXAMPLE_CCXX_FLAGS "-Wmissing-field-initializers")
+        sdl_gnu_common_ccxx_flags(CMAKE_CCXX_FLAGS)
+        sdl_gnu_src_ccxx_flags(CMAKE_SRC_CCXX_FLAGS)
+        sdl_gnu_example_ccxx_flags(CMAKE_EXAMPLE_CCXX_FLAGS)
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
         get_filename_component(CXX_CMD_NAME ${CMAKE_CXX_COMPILER} NAME)
         # Fujitsu CXX compiler does not support "-fstack-protector-all".

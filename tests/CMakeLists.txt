@@ -60,6 +60,8 @@ endif()
 append(CMAKE_C_FLAGS "${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 
+append_host_compiler_options(CMAKE_CXX_FLAGS "${DPCPP_CXX_NOWARN_FLAGS}")
+
 if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
     register_exe(api-c api.c "test")
 endif()

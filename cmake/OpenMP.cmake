@@ -91,7 +91,12 @@ if(OpenMP_CXX_FOUND)
 endif()
 
 if(DNNL_CPU_THREADING_RUNTIME MATCHES "OMP")
-    if(OpenMP_CXX_FOUND)
+    if(DNNL_WITH_SYCL AND DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
+        # Tell DPCPP compiler to link against libgomp. By default, it links
+        # against libiomp5
+        append(CMAKE_SHARED_LINKER_FLAGS "-fopenmp=libgomp")
+        append(CMAKE_EXE_LINKER_FLAGS "-fopenmp=libgomp")
+    elseif(OpenMP_CXX_FOUND)
         if(MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
             list(APPEND EXTRA_SHARED_LIBS ${OpenMP_CXX_LIBRARIES})
         endif()
