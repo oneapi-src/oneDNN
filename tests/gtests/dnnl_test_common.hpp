@@ -107,7 +107,7 @@ inline int get_vendor_id(const std::string &vendor) {
 
 inline bool is_nvidia_gpu(const dnnl::engine &eng) {
 #ifdef DNNL_WITH_SYCL
-    const int nvidia_vendor_id = get_vendor_id("nvidia");
+    const uint32_t nvidia_vendor_id = get_vendor_id("nvidia");
     const auto device = dnnl::sycl_interop::get_device(eng);
     const auto eng_vendor_id
             = device.get_info<cl::sycl::info::device::vendor_id>();

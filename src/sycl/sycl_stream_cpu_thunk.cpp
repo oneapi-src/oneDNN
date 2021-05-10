@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ extern "C" void dnnl_impl_sycl_cpu_thunk(const thunk_params_t *params) {
     auto *prim_iface = submit_ctx->prim_iface;
 
     assert(params->size == submit_ctx->sycl_mem_storages.size());
-    for (int i = 0; i < params->size; i++) {
+    for (size_t i = 0; i < params->size; i++) {
         auto *mem_storage = submit_ctx->sycl_mem_storages[i];
         void *handle = mem_storage->data_handle();
         void *host_ptr = reinterpret_cast<void *>(params->native_pointers[i]);

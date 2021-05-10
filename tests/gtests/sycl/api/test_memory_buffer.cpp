@@ -278,7 +278,7 @@ TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
 #endif
 
     memory::dims tz = {2, 3, 4, 5};
-    const size_t N = tz.size();
+    const int N = tz.size();
 
     memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
 

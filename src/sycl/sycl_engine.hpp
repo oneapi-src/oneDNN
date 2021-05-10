@@ -57,13 +57,13 @@ namespace sycl {
 inline std::vector<cl::sycl::device> get_sycl_devices(
         cl::sycl::info::device_type dev_type,
         backend_t backend = backend_t::unknown) {
-    const int intel_vendor_id = 0x8086;
+    const uint32_t intel_vendor_id = 0x8086;
 #ifdef DNNL_SYCL_CUDA
-    const int vendor_id = ((dev_type == cl::sycl::info::device_type::gpu)
+    const uint32_t vendor_id = ((dev_type == cl::sycl::info::device_type::gpu)
                     ? 0x10DE
                     : intel_vendor_id);
 #else
-    const int vendor_id = intel_vendor_id;
+    const uint32_t vendor_id = intel_vendor_id;
 #endif
     auto gpu_backend
             = backend == backend_t::unknown ? get_sycl_gpu_backend() : backend;
