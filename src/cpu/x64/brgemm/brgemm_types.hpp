@@ -18,6 +18,7 @@
 #define CPU_X64_BRGEMM_BRGEMM_TYPES_HPP
 
 #include "common/primitive_attr.hpp"
+#include "cpu/platform.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -63,7 +63,8 @@ if(DNNL_ENABLE_JIT_PROFILING OR DNNL_ENABLE_ITT_TASKS)
     endif()
 endif()
 
-if(DNNL_ENABLE_ITT_TASKS)
+
+if(DNNL_ENABLE_ITT_TASKS AND NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
     # Only supported for certain architectures (see src/common/CMakeLists.txt)
     if(DNNL_TARGET_ARCH STREQUAL "AARCH64" OR DNNL_TARGET_ARCH STREQUAL "X64")
         add_definitions(-DDNNL_ENABLE_ITT_TASKS)
@@ -92,7 +93,10 @@ if(UNIX)
 endif()
 
 add_subdirectory(common)
-add_subdirectory(cpu)
+
+if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
+    add_subdirectory(cpu)
+endif()
 
 if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
     add_subdirectory(gpu)

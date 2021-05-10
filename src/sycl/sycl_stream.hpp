@@ -26,9 +26,9 @@
 #include "gpu/ocl/ocl_utils.hpp"
 #include "sycl/sycl_gpu_engine.hpp"
 #include "sycl/sycl_memory_storage.hpp"
-#include "sycl/sycl_stream_cpu_thunk.hpp"
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+#include "sycl/sycl_stream_cpu_thunk.hpp"
 #include "sycl/sycl_stream_submit_cpu_primitive.hpp"
 #endif
 

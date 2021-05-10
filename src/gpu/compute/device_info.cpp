@@ -15,11 +15,11 @@
 *******************************************************************************/
 
 #include <mutex>
+#include <thread>
 
 #include "gpu/compute/device_info.hpp"
 
 #include "common/verbose.hpp"
-#include "cpu/platform.hpp"
 #include "gpu/jit/binary_format.hpp"
 
 #ifdef DNNL_WITH_SYCL
@@ -78,8 +78,15 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
     // integrated GPUs assuming that last-level cache for GPU is shared
     // with CPU.
     // Integrated GPUs share LLC with CPU which is L3 cache on CPU.
-    llc_cache_size_ = cpu::platform::get_per_core_cache_size(3)
-            * cpu::platform::get_num_cores();
+
+    // XXX: this is the only place where GPU runtime functionally depends on
+    // CPU runtime. The `llc_cache_size_` is used only in one kernel for gen9.
+    // The idea is to use approximate cache size.
+
+    // llc_cache_size_ = cpu::platform::get_per_core_cache_size(3)
+    //        * cpu::platform::get_num_cores();
+    // Assumption is that HT is likely enabled on client systems.
+    llc_cache_size_ = std::thread::hardware_concurrency() * (1 << 20);
 
     // Assume 7 threads by default
     int32_t threads_per_eu = 7;

@@ -24,7 +24,9 @@ set(Threading_cmake_included true)
 
 # CPU threading runtime specifies the threading used by the library:
 # sequential, OpenMP or TBB. In future it may be different from CPU runtime.
-if(DNNL_CPU_SYCL)
+if(DNNL_CPU_RUNTIME STREQUAL "NONE")
+    set(DNNL_CPU_THREADING_RUNTIME "SEQ")
+elseif(DNNL_CPU_SYCL)
     set(DNNL_CPU_THREADING_RUNTIME "TBB")
 else()
     set(DNNL_CPU_THREADING_RUNTIME "${DNNL_CPU_RUNTIME}")

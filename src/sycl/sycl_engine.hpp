@@ -27,9 +27,12 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/utils.hpp"
-#include "sycl/sycl_cpu_engine.hpp"
 #include "sycl/sycl_gpu_engine.hpp"
 #include "sycl/sycl_utils.hpp"
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#include "sycl/sycl_cpu_engine.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -139,6 +142,9 @@ public:
     }
 
     size_t count() const override {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+        if (engine_kind_ == engine_kind::cpu) return 0;
+#endif
         auto dev_type = (engine_kind_ == engine_kind::cpu)
                 ? cl::sycl::info::device_type::cpu
                 : cl::sycl::info::device_type::gpu;

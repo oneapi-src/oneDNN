@@ -22,7 +22,11 @@ namespace sycl {
 
 status_t sycl_engine_factory_t::engine_create(
         engine_t **engine, size_t index) const {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+    if (engine_kind_ == engine_kind::cpu) return status::unimplemented;
+#endif
     assert(index < count());
+
     auto dev_type = (engine_kind_ == engine_kind::cpu)
             ? cl::sycl::info::device_type::cpu
             : cl::sycl::info::device_type::gpu;
@@ -74,12 +78,22 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
     if (engine_kind_ == engine_kind::gpu && !dev.is_gpu())
         return status::invalid_arguments;
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     std::unique_ptr<sycl_engine_base_t, engine_deleter_t> sycl_engine(
             (engine_kind_ == engine_kind::cpu)
                     ? static_cast<sycl_engine_base_t *>(
                             new sycl_cpu_engine_t(dev, ctx, index))
                     : static_cast<sycl_engine_base_t *>(
                             new sycl_gpu_engine_t(dev, ctx, index)));
+#else
+
+    if (engine_kind_ == engine_kind::cpu) return status::unimplemented;
+
+    std::unique_ptr<sycl_engine_base_t, engine_deleter_t> sycl_engine(
+            static_cast<sycl_engine_base_t *>(
+                    new sycl_gpu_engine_t(dev, ctx, index)));
+
+#endif
     if (!sycl_engine) return status::out_of_memory;
 
     CHECK(sycl_engine->init());

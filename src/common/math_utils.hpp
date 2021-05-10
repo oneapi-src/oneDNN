@@ -24,8 +24,6 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
-#include "../cpu/platform.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace math {
