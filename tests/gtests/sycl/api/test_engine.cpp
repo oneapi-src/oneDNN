@@ -41,13 +41,13 @@ std::string to_string(ctx_kind kind) {
     return strs[static_cast<int>(kind)];
 }
 
+} // namespace
+
 struct sycl_engine_test_params {
     dev_kind adev_kind;
     ctx_kind actx_kind;
     dnnl_status_t expected_status;
 };
-
-} // namespace
 
 class sycl_engine_test
     : public ::testing::TestWithParam<sycl_engine_test_params> {
