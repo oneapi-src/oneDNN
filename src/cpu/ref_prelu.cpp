@@ -96,23 +96,10 @@ static dim_t offset(const memory_desc_wrapper &mem, dims_t dims) {
 
 static dim_t weights_offset(
         const int mask, const memory_desc_wrapper &mem, dims_t &dims) {
-    dims_t wei_dims;
-    std::copy(dims, dims + max_supported_ndims, wei_dims);
-    utils::apply_mask_on_dims(wei_dims, mem.ndims(), mask);
-    return offset(mem, wei_dims);
-}
-
-static void zero_memory(const memory_desc_wrapper &mem_d, byte *mem_ptr) {
-    const auto res = std::div(static_cast<int>(mem_d.size()), PAGE_4K);
-    if (!res.quot)
-        std::memset(mem_ptr, 0, res.rem);
-    else
-        parallel_nd(res.quot, [&](dim_t i) {
-            const auto tail = (i + 1 == res.quot) ? res.rem : 0;
-            const auto ptr_dst
-                    = reinterpret_cast<unsigned char *>(mem_ptr) + i * PAGE_4K;
-            std::memset(ptr_dst, 0, PAGE_4K + tail);
-        });
+    dims_t dims_w;
+    std::copy(dims, dims + max_supported_ndims, dims_w);
+    utils::apply_mask_on_dims(dims_w, mem.ndims(), mask);
+    return offset(mem, dims_w);
 }
 
 static bool is_padding(const memory_desc_wrapper &md) {
@@ -132,12 +119,7 @@ status_t ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const auto is_inplace = (src == dst);
     const auto has_padding = is_padding(data_d);
-    if (has_padding && !is_inplace) {
-        if (data_d.is_dense(true))
-            zero_memory(data_d, dst);
-        else
-            ctx.zero_pad_output(DNNL_ARG_TO);
-    }
+    if (has_padding && !is_inplace) ctx.zero_pad_output(DNNL_ARG_TO);
 
     const int mask = utils::get_dims_mask(
             data_d.dims(), weights_d.dims(), data_d.ndims());
@@ -200,6 +182,7 @@ static float reduce(float *mem, dim_t size) {
     return mem[0];
 }
 
+namespace prelu {
 void set_reduction_buffers(
         const dim_t work_amount, dim_t &group_size, dim_t &buf_size) {
     float sqrt = std::sqrt(work_amount);
@@ -221,15 +204,16 @@ dim_t get_scalar_scratchpad_offset(const std::size_t ithr,
     }
     return offset;
 }
+} // namespace prelu
 
 float ref_prelu_bwd_t::ker(const byte *src, const byte *weights,
-        const byte *diff_dst, byte *diff_src, dim_t data_off, dim_t weight_off,
-        dim_t diff_data_off) const {
+        const byte *diff_dst, byte *diff_src, dim_t data_off,
+        dim_t weight_off) const {
 
     const auto dtype = pd()->src_md(0)->data_type;
     const auto wtype = pd()->weights_md(0)->data_type;
     const float src_val = load(dtype, src, data_off);
-    const float diff_dst_val = load(dtype, diff_dst, diff_data_off);
+    const float diff_dst_val = load(dtype, diff_dst, data_off);
     const float weights_val = load(wtype, weights, weight_off);
 
     const float diff_src_res
@@ -271,10 +255,10 @@ void ref_prelu_bwd_t::calculate_scalar(const byte *src, const byte *weights,
                 off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
 
         dim_t group_size, buf_size;
-        set_reduction_buffers(workload, group_size, buf_size);
+        prelu::set_reduction_buffers(workload, group_size, buf_size);
 
         const dim_t scratchpad_offset
-                = get_scalar_scratchpad_offset(ithr, nthr, work_amount);
+                = prelu::get_scalar_scratchpad_offset(ithr, nthr, work_amount);
         auto *buf = &scratchpad_buf[scratchpad_offset];
         auto *group_buf = &scratchpad_buf[scratchpad_offset + buf_size];
 
@@ -282,9 +266,8 @@ void ref_prelu_bwd_t::calculate_scalar(const byte *src, const byte *weights,
         for (dim_t iwork = start; iwork < end; ++iwork) {
             const auto data_off = offset(data_d, off);
             const auto weight_off = 0;
-            const auto diff_data_off = data_off;
-            buf[offset_buf] = ker(src, weights, diff_dst, diff_src, data_off,
-                    weight_off, diff_data_off);
+            buf[offset_buf] = ker(
+                    src, weights, diff_dst, diff_src, data_off, weight_off);
             if (++offset_buf == data_size) {
                 group_buf[group_off++] = reduce(buf, offset_buf);
                 offset_buf = 0;
@@ -330,12 +313,10 @@ void ref_prelu_bwd_t::calculate_no_broadcast(const byte *src,
         for (dim_t iwork = start; iwork < end; ++iwork) {
             const auto data_off = offset(data_d, off);
             const auto weight_off = weights_offset(mask, weights_d, off);
-            const auto diff_data_off = data_off;
-            const auto diff_weight_off = weight_off;
-            const auto res = ker(src, weights, diff_dst, diff_src, data_off,
-                    weight_off, diff_data_off);
+            const auto res = ker(
+                    src, weights, diff_dst, diff_src, data_off, weight_off);
 
-            store(weights_d.data_type(), res, diff_weights, diff_weight_off);
+            store(weights_d.data_type(), res, diff_weights, weight_off);
             utils::nd_iterator_step(off[0], dims_d[0], off[1], dims_d[1],
                     off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
         }
@@ -356,9 +337,6 @@ void ref_prelu_bwd_t::calculate_shared_axes(const byte *src,
     }
 
     const dim_t work_amount = weights_d.nelems();
-    const int mask = utils::get_dims_mask(
-            data_d.dims(), weights_d.dims(), data_d.ndims());
-
     parallel(0, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
 
@@ -367,7 +345,7 @@ void ref_prelu_bwd_t::calculate_shared_axes(const byte *src,
 
         dim_t group_size, buf_size;
         const dim_t workload = data_d.nelems() / weights_d.nelems();
-        set_reduction_buffers(workload, group_size, buf_size);
+        prelu::set_reduction_buffers(workload, group_size, buf_size);
         dim_t scratchpad_offset = (buf_size + group_size) * ithr;
         auto *buf = &scratchpad_buf[scratchpad_offset];
         auto *group_buf = &scratchpad_buf[scratchpad_offset + buf_size];
@@ -377,6 +355,7 @@ void ref_prelu_bwd_t::calculate_shared_axes(const byte *src,
                 off_w[2], dims_w[2], off_w[3], dims_w[3], off_w[4], dims_w[4]);
 
         for (dim_t iwork = start; iwork < end; ++iwork) {
+            const auto weight_off = offset(weights_d, off_w);
             for (int i = 0; i < max_supported_ndims; i++) {
                 dims_start[i] = (dims_d[i] == dims_w[i]) ? off_w[i] : 0;
                 dims_end[i]
@@ -389,10 +368,8 @@ void ref_prelu_bwd_t::calculate_shared_axes(const byte *src,
             for_(off_d[3] = dims_start[3]; off_d[3] < dims_end[3]; ++off_d[3])
             for (off_d[4] = dims_start[4]; off_d[4] < dims_end[4]; ++off_d[4]) {
                 const auto data_off = offset(data_d, off_d);
-                const auto weight_off = weights_offset(mask, weights_d, off_d);
-                const auto diff_data_off = data_off;
-                const auto diff_weight = ker(src, weights, diff_dst, diff_src,
-                        data_off, weight_off, diff_data_off);
+                const auto diff_weight = ker(
+                        src, weights, diff_dst, diff_src, data_off, weight_off);
                 buf[buf_off] = diff_weight;
                 if (++buf_off == data_size) {
                     group_buf[group_off++] = reduce(buf, buf_off);
@@ -402,9 +379,8 @@ void ref_prelu_bwd_t::calculate_shared_axes(const byte *src,
                             : workload - (group_off * buf_size);
                 }
             }
-            const auto diff_weight_off = offset(weights_d, off_w);
             store(weights_d.data_type(), reduce(group_buf, group_size),
-                    diff_weights, diff_weight_off);
+                    diff_weights, weight_off);
             utils::nd_iterator_step(off_w[0], dims_w[0], off_w[1], dims_w[1],
                     off_w[2], dims_w[2], off_w[3], dims_w[3], off_w[4],
                     dims_w[4]);
@@ -434,20 +410,10 @@ status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
             *weights_d.md_, data_d);
 
     const auto is_inplace = (diff_src == diff_dst);
-    if (is_padding(diff_src_d) && !is_inplace) {
-        if (diff_src_d.is_dense(true))
-            zero_memory(diff_src_d, diff_src);
-        else
-            // needed for submemory correctness
-            ctx.zero_pad_output(DNNL_ARG_DIFF_SRC);
-    }
-    if (is_padding(diff_weights_d)) {
-        if (diff_weights_d.is_dense(true))
-            zero_memory(diff_weights_d, diff_weights);
-        else
-            // needed for submemory correctness
-            ctx.zero_pad_output(DNNL_ARG_DIFF_WEIGHTS);
-    }
+    if (is_padding(diff_src_d) && !is_inplace)
+        ctx.zero_pad_output(DNNL_ARG_DIFF_SRC);
+
+    if (is_padding(diff_weights_d)) ctx.zero_pad_output(DNNL_ARG_DIFF_WEIGHTS);
 
     switch (bcast_type) {
         case broadcasting_strategy_t::scalar:

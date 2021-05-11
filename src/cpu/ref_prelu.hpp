@@ -34,11 +34,12 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
-
+namespace prelu {
 void set_reduction_buffers(
         const dim_t work_amount, dim_t &group_size, dim_t &buf_size);
 dim_t get_scalar_scratchpad_offset(const std::size_t ithr,
         const std::size_t nthr, const dim_t work_amount);
+} // namespace prelu
 
 static constexpr int max_supported_ndims = 5;
 using byte = unsigned char;
@@ -121,14 +122,14 @@ struct ref_prelu_bwd_t : public primitive_t {
             } else if (broadcast_strategy == broadcasting_strategy_t::scalar) {
                 size_t thread_count = nstl::min(dnnl_get_max_threads(),
                         static_cast<int>(data_md_d.nelems()));
-                scratchpad_size = get_scalar_scratchpad_offset(
+                scratchpad_size = prelu::get_scalar_scratchpad_offset(
                         thread_count, thread_count, data_md_d.nelems());
             } else {
                 dim_t group_size, buf_size;
                 size_t thread_count = nstl::min(dnnl_get_max_threads(),
                         static_cast<int>(weights_md_d.nelems()));
                 dim_t work_amount = data_md_d.nelems() / weights_md_d.nelems();
-                set_reduction_buffers(work_amount, group_size, buf_size);
+                prelu::set_reduction_buffers(work_amount, group_size, buf_size);
                 scratchpad_size = thread_count * (group_size + buf_size);
             }
             scratchpad.book(memory_tracking::names::key_prelu_reduction,
@@ -147,8 +148,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     float ker(const byte *src, const byte *weights, const byte *diff_dst,
-            byte *diff_src, dim_t data_off, dim_t weight_off,
-            dim_t diff_data_off) const;
+            byte *diff_src, dim_t data_off, dim_t weight_off) const;
     void calculate_scalar(const byte *src, const byte *weights,
             byte *diff_weights, const byte *diff_dst, byte *diff_src,
             float *scratchpad_buf) const;
