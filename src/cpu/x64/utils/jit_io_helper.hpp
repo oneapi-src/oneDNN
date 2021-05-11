@@ -111,7 +111,7 @@ public:
     Xbyak::Reg64 reg_tmp1_ = Xbyak::Reg64();
     // It is needed, when io_helper use emulation for gather
     // and it is not needed for sse.
-    utils::optional_t<int> vmm_tmp_idx_ = 0;
+    utils::optional_t<int> vmm_tmp_idx_ = utils::nullopt;
 };
 
 template <typename Vmm>
