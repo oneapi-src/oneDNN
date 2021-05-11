@@ -104,7 +104,8 @@ namespace op_kind {
     X(permute, Permute) \
     X(to_group, To_group) \
     X(broadcast, Broadcast) \
-    X(dnnl_convolution, Dnnl_convolution)
+    X(dnnl_convolution, Dnnl_convolution) \
+    X(int8_maxpool, INT8_MaxPool)
 
 enum {
     kAny = 0x1234,

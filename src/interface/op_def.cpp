@@ -676,6 +676,48 @@ DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
                         attribute_kind::s, "None")
                 .set_shape_inference_function(infer_pool_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(INT8_MaxPool, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {data_type::s8, data_type::u8})
+                .set_output(0, "output", "output tensor",
+                        {data_type::s8, data_type::u8})
+                .set_attr("strides", "the distance to slide the filter", true,
+                        attribute_kind::is)
+                .set_attr("pads_begin", "top and left padding", true,
+                        attribute_kind::is)
+                .set_attr("pads_end", "bottom and right padding", true,
+                        attribute_kind::is)
+                .set_attr("kernel", "size of each filter", true,
+                        attribute_kind::is)
+                .set_attr("dilations",
+                        "the distance in width and height between elements "
+                        "in the filter",
+                        false, attribute_kind::is,
+                        std::vector<int64_t>(1, DNNL_GRAPH_MAX_NDIMS))
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
+                .set_attr("rounding_type", "a type of rounding to be applied",
+                        false, attribute_kind::s, "floor")
+                .set_attr("auto_pad", "how the padding is calculated", false,
+                        attribute_kind::s, "None")
+                .set_attr("qtype",
+                        "specifies which dequantization type is used", false,
+                        attribute_kind::s, "per_tensor")
+                .set_attr("axis",
+                        "specifies dimension on which apply per-channel "
+                        "dequantization",
+                        false, attribute_kind::i, int64_t(1))
+                .set_attr("scales", "apply in quantization formula", true,
+                        attribute_kind::fs)
+                .set_attr("zps", "offset value that maps to float zero", true,
+                        attribute_kind::is)
+                .set_shape_inference_function(infer_pool_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
         op_schema()
                 .set_inputs_option(op_schema::param_num_option::optional)
