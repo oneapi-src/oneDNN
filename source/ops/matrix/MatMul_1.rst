@@ -12,8 +12,8 @@ MatMul
 
 **Short description**: Generalized matrix multiplication
 
-**OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_matrix_MatMul_1.html>`__
+**OpenVINO description**: This OP definition is based on OpenVINO OP MatMul, and
+adds an optional bias as its third input.
 
 **Detailed description**
 
@@ -30,21 +30,53 @@ a single shot.
 Before matrix multiplication, there is an implicit shape alignment for input
 arguments. It consists of the following steps:
 
-1. If rank of an input less than 2 it is unsqueezed to 2D tensor by adding axes
-   with size 1 to the left of the shape. For example, if input has shape ``[S]``
-   it will be reshaped to ``[1, S]``. It is applied for each input
-   independently.
-2. Applied transpositions specified by optional ``transpose_a`` and
-   ``transpose_b`` attributes.
-3. If ranks of input arguments are different after steps 1 and 2, each is
-   unsqueezed from the left side of the shape by necessary number of axes to
-   make both shapes of the same rank.
+1. Applying transpositions specified by optional ``transpose_a`` and
+   ``transpose_b`` attributes. Only the two right-most dimensions are
+   transposed, other dimensions remain the same. Transpose attributes are
+   ignored for 1D tensors.
+2. One-dimensional tensors unsqueezing is applied for each input independently.
+   The axes inserted in this step are not included in the output shape.
+      If rank of the first input is equal to 1, it is always unsqueezed to 2D
+      tensor row vector (regardless of ``transpose_a``) by adding axes with
+      size 1 at ROW_INDEX_DIM, to the left of the shape. For example [S] will
+      be reshaped to [1, S].
+
+      If rank of the second input is equal to 1, it is always unsqueezed to 2D
+      tensor column vector (regardless of ``transpose_b``) by adding axes with
+      size 1 at COL_INDEX_DIM, to the right of the shape. For example [S] will
+      be reshaped to [S, 1].
+3. If ranks of input arguments are different after steps 1 and 2, the tensor
+   with a smaller rank is unsqueezed from the left side of the shape by
+   necessary number of axes to make both shapes of the same rank.
 4. Usual rules of the broadcasting are applied for batch dimensions.
 
-Two attributes, ``transpose_a`` and ``transpose_b`` specifies embedded
-transposition for two right-most dimension for the first and the second input
-tensors correspondingly. It implies swapping of *ROW_INDEX_DIM* and
-*COL_INDEX_DIM* in the corresponding input tensor. Batch dimensions are not
+Temporary axes inserted in step 2 are removed from the final output shape after
+multiplying. After vector-matrix multiplication, the temporary axis inserted at
+ROW_INDEX_DIM is removed. After matrix-vector multiplication, the temporary
+axis inserted at COL_INDEX_DIM is removed. Output shape of two 1D tensors
+multiplication ``[S]`` x ``[S]`` is squeezed to scalar.
+
+Output shape inference logic examples (ND here means bigger than 1D):
+
+1D x 1D: ``[X] x [X] -> [1, X] x [X, 1] -> [1, 1] => []`` (scalar)
+
+1D x ND: ``[X] x [B, ..., X, Y] -> [1, X] x [B, ..., X, Y] -> [B, ..., 1, Y] => [B, ..., Y]``
+
+ND x 1D: ``[B, ..., X, Y] x [Y] -> [B, ..., X, Y] x [Y, 1] -> [B, ..., X, 1] => [B, ..., X]``
+
+ND x ND: ``[B, ..., X, Y] x [B, ..., Y, Z] => [B, ..., X, Z]``
+
+ND x MD(M>N): [B, ..., X, Y] x [A, ..., B, ..., Y, Z] => [A, ..., B, ..., X, Z]
+
+MD x ND(M>N): [A, ..., B, ..., X, Y] x [B, ..., Y, Z] => [A, ..., B, ..., X, Z]
+
+And bias can be 1D tensor or have the same number of dimensions as output
+tensor.
+
+Two attributes, ``transpose_a`` and ``transpose_b`` specify embedded
+transposition for two right-most dimensions for the first and the second input
+tensors correspondingly. It implies swapping of ROW_INDEX_DIM and COL_INDEX_DIM
+in the corresponding input tensor. Batch dimensions and 1D tensors are not
 affected by these attributes.
 
 **Attributes**
@@ -52,7 +84,7 @@ affected by these attributes.
 * *transpose_a*
 
   * **Description**: transposes dimensions *ROW_INDEX_DIM* and *COL_INDEX_DIM*
-    of the 1st input; 0 means no transpose, 1 means transpose
+    of the 1st input; False means no transpose, True means transpose
   * **Range of values**: False or True
   * **Type**: boolean
   * **Default value**: False
@@ -61,7 +93,7 @@ affected by these attributes.
 * *transpose_b*
 
   * **Description**: transposes dimensions *ROW_INDEX_DIM* and *COL_INDEX_DIM*
-    of the second input; 0 means no transpose, 1 means transpose
+    of the second input; False means no transpose, True means transpose
   * **Range of values**: False or True
   * **Type**: boolean
   * **Default value**: False
@@ -72,6 +104,9 @@ affected by these attributes.
 * **1**: Input batch of matrices A. :math:`Rank >= 1`. **Required.**
 
 * **2**: Input batch of matrices B. :math:`Rank >= 1`. **Required.**
+
+* **3**: Input bias. :math:`Rank == 1 or Rank == Rank(output)`. Broadcasting is
+         supported. **Optional.**
 
 **Outputs**
 
