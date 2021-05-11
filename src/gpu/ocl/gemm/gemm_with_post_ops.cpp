@@ -184,8 +184,9 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
             pd()->use_scratchpad() ? *c_mem_before_po_worker->memory_storage()
                                    : memory_storage_t::empty_storage());
     arg_list.set(idx,
-            pd()->attr_info_.with_oscales ? CTX_GPU_RES_STORAGE(SCALES_)
-                                          : memory_storage_t::empty_storage());
+            !pd()->attr()->output_scales_.defined()
+                    ? GEMM_CTX_ARG_STORAGE(output_scales)
+                    : CTX_GPU_RES_STORAGE(SCALES_));
     auto nd_range = pd()->dispatch_.nd_range();
     exec_status = parallel_for(ctx, nd_range, post_process_kernel_, arg_list);
     return exec_status;
