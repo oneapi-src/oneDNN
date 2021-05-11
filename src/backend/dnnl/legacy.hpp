@@ -17,6 +17,10 @@
 #ifndef BACKEND_DNNL_LEGACY_HPP
 #define BACKEND_DNNL_LEGACY_HPP
 
+#include <memory>
+
+#include "interface/value.hpp"
+
 #include "tensor.hpp"
 
 namespace dnnl {
@@ -25,6 +29,9 @@ namespace impl {
 namespace dnnl_impl {
 
 void fill_layout_info(impl::logical_tensor_t *lt, const tensor::desc &td);
+
+void fill_layout_info(
+        std::shared_ptr<impl::value_t> &val, const tensor::desc &td);
 
 } // namespace dnnl_impl
 } // namespace impl

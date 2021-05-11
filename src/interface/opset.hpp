@@ -153,8 +153,9 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add_zps, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Convert, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Permute, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(To_group, 1);
-class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Broadcast, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Expand, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MaxPool, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Dnnl_convolution, 1);
 
 class opset_v1 {
 public:
@@ -331,8 +332,10 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Convert, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Permute, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(To_group, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Broadcast, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Expand, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MaxPool, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        Dnnl_convolution, 1)>());
     }
 };
 

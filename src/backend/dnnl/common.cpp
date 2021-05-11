@@ -132,18 +132,24 @@ dnnl::stream make_dnnl_stream(
 
 dnnl::memory::desc make_dnnl_memory_desc(const impl::logical_tensor_t &lt) {
     const impl::logical_tensor_wrapper ltw(lt);
-    const dnnl::memory::dims dims = ltw.vdims();
-    const auto dtype = static_cast<dnnl::memory::data_type>(ltw.data_type());
 
-    if (ltw.is_any()) {
-        return dnnl::memory::desc {dims, dtype, dnnl::memory::format_tag::any};
-    } else if (ltw.is_strided()) {
-        return dnnl::memory::desc {dims, dtype, ltw.vstrides()};
-    } else {
+    if (ltw.is_opaque()) {
         const auto &td = dnnl_backend::get_singleton().get_mem_desc(
                 static_cast<size_t>(ltw.layout_id()));
         return static_cast<dnnl::memory::desc>(
                 impl::utils::any_cast<tensor::desc>(td.value()));
+    } else if (ltw.is_any() || ltw.is_strided()) {
+        const dnnl::memory::dims dims = ltw.vdims();
+        const auto dtype
+                = static_cast<dnnl::memory::data_type>(ltw.data_type());
+        if (ltw.is_any()) {
+            return dnnl::memory::desc {
+                    dims, dtype, dnnl::memory::format_tag::any};
+        } else {
+            return dnnl::memory::desc {dims, dtype, ltw.vstrides()};
+        }
+    } else {
+        return {};
     }
 }
 
@@ -176,6 +182,17 @@ memory::desc expand(const memory::desc &adesc, int tgt_ndims) {
     return adesc.reshape(expanded_dims);
 }
 
+// transpose the right-most two dimensions
+memory::desc permute_last_two_dims(const memory::desc &adesc) {
+    assert(adesc.data.ndims > 1);
+    int count = 0;
+    std::vector<int> axes(adesc.data.ndims);
+    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+    const auto last_dim = static_cast<dims::size_type>(adesc.data.ndims - 1);
+    std::swap(axes[last_dim], axes[last_dim - 1]);
+    return adesc.permute_axes(axes);
+}
+
 // permute the NXC format adesc to NCX format
 /// \note
 /// The logical axes will be permuted in the following manner:
@@ -187,11 +204,23 @@ memory::desc expand(const memory::desc &adesc, int tgt_ndims) {
 ///     permutation[2] = 3
 ///     permutation[3] = 1
 memory::desc permute_NXC2NCX(const memory::desc &adesc) {
+    assert(adesc.data.ndims > 2);
     int count = 0;
     std::vector<int> axes(adesc.data.ndims);
     std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
     axes.push_back(axes[1]);
     axes.erase(axes.begin() + 1);
+    memory::desc ret = adesc.permute_axes(axes);
+    return ret;
+}
+
+memory::desc permute_NCX2NXC(const memory::desc &adesc) {
+    assert(adesc.data.ndims > 2);
+    int count = 0;
+    std::vector<int> axes(adesc.data.ndims);
+    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+    axes.insert(axes.begin() + 1, axes.back());
+    axes.pop_back();
     memory::desc ret = adesc.permute_axes(axes);
     return ret;
 }
@@ -207,6 +236,7 @@ memory::desc permute_NXC2NCX(const memory::desc &adesc) {
 ///     permutation[2] = 1
 ///     permutation[3] = 0
 memory::desc permute_XIO2OIX(const memory::desc &adesc) {
+    assert(adesc.data.ndims > 2);
     int count = 0;
     std::vector<int> axes(adesc.data.ndims);
     std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
@@ -215,6 +245,11 @@ memory::desc permute_XIO2OIX(const memory::desc &adesc) {
     axes.erase(axes.begin());
     axes.erase(axes.begin());
     return adesc.permute_axes(axes);
+}
+
+memory::desc to_grouped(const memory::desc &adesc, dim groups) {
+    auto grouped_shape = group_dims(adesc.dims(), groups);
+    return adesc.reshape(grouped_shape);
 }
 
 } // namespace dnnl_impl

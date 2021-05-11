@@ -46,6 +46,11 @@ public:
 
     logical_tensor_t get_logical_tensor() const { return val_; }
 
+    void set_logical_tensor(const logical_tensor_t &lt) {
+        assertm(lt.id == val_.id, "logical tensor id conflict");
+        val_ = lt;
+    }
+
     void set_dims(const std::vector<dim_t> &dims) {
         val_.ndims = static_cast<int>(dims.size());
         for (size_t d = 0; d < dims.size(); ++d) {
@@ -55,6 +60,11 @@ public:
 
     void set_layout_type(layout_type_t new_type) {
         val_.layout_type = new_type;
+    }
+
+    void set_layout_id(int64_t layout_id) {
+        val_.layout.layout_id = layout_id;
+        val_.layout_type = layout_type::opaque;
     }
 
     void set_data_type(data_type_t new_dtype) { val_.data_type = new_dtype; }

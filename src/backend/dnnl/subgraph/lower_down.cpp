@@ -111,12 +111,10 @@ void split_quant_dequant(std::vector<op_ptr> &subgraph) {
                 "output");
 
         op_ptr op1, op2;
-        impl::logical_tensor_t new_lt;
         if (cur_op->get_kind() == op_kind::Dequantize) {
             // f32 = scales * (int8 - zps)
             op1 = std::make_shared<op_t>(op_kind::add_zps);
             op2 = std::make_shared<op_t>(op_kind::mul_scales);
-            new_lt = in_vals[0]->get_logical_tensor();
 
             std::vector<int64_t> neg_zps = dnnl_impl::utils::fmap(
                     zps, [](int64_t zp) { return -zp; });
@@ -126,7 +124,6 @@ void split_quant_dequant(std::vector<op_ptr> &subgraph) {
             // int8 = f32 / scales + zps
             op1 = std::make_shared<op_t>(op_kind::mul_scales);
             op2 = std::make_shared<op_t>(op_kind::add_zps);
-            new_lt = out_vals[0]->get_logical_tensor();
 
             std::vector<float> inv_scales = dnnl_impl::utils::fmap(
                     scales, [](float s) { return 1.f / (s + scale_eps); });
@@ -143,6 +140,8 @@ void split_quant_dequant(std::vector<op_ptr> &subgraph) {
         in_vals[0]->add_consumer(*op1, 0);
         op1->add_input(in_vals[0]);
 
+        impl::logical_tensor_t new_lt
+                = impl::empty_logical_tensor_with_default_id();
         auto new_val = std::make_shared<value_t>(*op1, 0, new_lt, true);
         op1->add_output(new_val);
 
@@ -343,8 +342,9 @@ void fuse_to_int8_conv(std::vector<op_ptr> &subgraph) {
             auto bias_val = conv_op->get_input_value(2);
             bias_val->remove_consumer(*conv_op, 2);
             mul_op1->connect_input(0, bias_val);
+            auto scaled_bias_lt = impl::empty_logical_tensor_with_default_id();
             auto scaled_bias_val = std::make_shared<value_t>(
-                    *mul_op1, 0, bias_val->get_logical_tensor(), true);
+                    *mul_op1, 0, scaled_bias_lt, true);
             mul_op1->add_output(scaled_bias_val);
             qconv_op->connect_input(2, scaled_bias_val);
 
@@ -352,8 +352,10 @@ void fuse_to_int8_conv(std::vector<op_ptr> &subgraph) {
         }
 
         auto out_value = conv_op->get_output_value(0);
-        auto new_value1 = std::make_shared<value_t>(
-                *qconv_op, 0, out_value->get_logical_tensor(), true);
+
+        auto new_lt1 = impl::empty_logical_tensor_with_default_id();
+        auto new_value1
+                = std::make_shared<value_t>(*qconv_op, 0, new_lt1, true);
 
         qconv_op->add_output(new_value1);
         out_value->set_producer(*mul_op);
@@ -452,16 +454,18 @@ void fuse_to_int8_matmul(std::vector<op_ptr> &subgraph) {
             auto bias_value = matmul_op->get_input_value(2);
             bias_value->remove_consumer(*matmul_op, 2);
             bias_mul_op->connect_input(0, bias_value);
+            auto scaled_bias_lt = impl::empty_logical_tensor_with_default_id();
             auto scaled_bias_val = std::make_shared<value_t>(
-                    *bias_mul_op, 0, bias_value->get_logical_tensor(), true);
+                    *bias_mul_op, 0, scaled_bias_lt, true);
             bias_mul_op->add_output(scaled_bias_val);
             q_matmul_op->connect_input(2, scaled_bias_val);
             subgraph.emplace_back(bias_mul_op);
         }
 
         auto out_value = matmul_op->get_output_value(0);
-        auto new_value1 = std::make_shared<value_t>(
-                *q_matmul_op, 0, out_value->get_logical_tensor(), true);
+        auto new_lt1 = impl::empty_logical_tensor_with_default_id();
+        auto new_value1
+                = std::make_shared<value_t>(*q_matmul_op, 0, new_lt1, true);
 
         q_matmul_op->add_output(new_value1);
         out_value->set_producer(*mul_scales_op);

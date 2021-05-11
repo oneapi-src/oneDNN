@@ -145,6 +145,30 @@ void insert_op_after(op_ptr &inserted_op, op_ptr &base_op, size_t offset) {
     inserted_op->add_input(new_val);
 }
 
+void set_given_inputs_outputs(std::vector<op_ptr> &subgraph,
+        const std::vector<impl::logical_tensor_t> &inputs,
+        const std::vector<impl::logical_tensor_t> &outputs) {
+    // set the inputs's layout to subgraph's inputs value
+    auto graph_in_vals = impl::graph_t(subgraph).get_input_values();
+    auto graph_out_vals = impl::graph_t(subgraph).get_output_values();
+
+    for (auto &graph_in : graph_in_vals) {
+        for (const auto &in : inputs) {
+            if (graph_in->get_logical_tensor().id == in.id) {
+                graph_in->set_logical_tensor(in);
+            }
+        }
+    }
+
+    for (auto &graph_out : graph_out_vals) {
+        for (const auto &out : outputs) {
+            if (graph_out->get_logical_tensor().id == out.id) {
+                graph_out->set_logical_tensor(out);
+            }
+        }
+    }
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

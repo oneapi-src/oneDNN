@@ -802,7 +802,7 @@ status_t infer_to_group_output_shape(op_t *n,
     return status::success;
 }
 
-status_t infer_broadcast_output_shape(op_t *n,
+status_t infer_expand_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     using ltw = logical_tensor_wrapper;
@@ -818,8 +818,8 @@ status_t infer_broadcast_output_shape(op_t *n,
         }
     }
 
-    if (n->has_attr("broadcast_to")) {
-        auto target_ndims = n->get_attr<int64_t>("broadcast_to");
+    if (n->has_attr("expand_to")) {
+        auto target_ndims = n->get_attr<int64_t>("expand_to");
         if (target_ndims != -1) {
             in_dims.insert(in_dims.begin(),
                     static_cast<size_t>(target_ndims) - in_dims.size(), 1);

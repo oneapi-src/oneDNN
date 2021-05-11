@@ -41,15 +41,15 @@ void insert_to_group_for_conv(std::vector<std::shared_ptr<op_t>> &subgraph);
 /// (2) either `transpose_a` or `transpose_b` is true
 void insert_transpose_for_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
 
-/// Insert a broadcast op for matmul's input tensors
+/// Insert a expand op for matmul's input tensors
 ///
 /// There maybe three scenarios as below:
 /// (1) one of inputs (src or weight) has only one dimension, DNNL require at
 ///     two dimensions, so need to insert dim 1 before/after the current dim
 /// (2) The batch dimensions of src and weight are not matched, need to
-///     broadcast
-/// (3) bias dimensions are not matched with dst, need to broadcast
-void insert_broadcast_for_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
+///     expand
+/// (3) bias dimensions are not matched with dst, need to expand
+void insert_expand_for_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
 
 } // namespace dnnl_impl
 } // namespace impl

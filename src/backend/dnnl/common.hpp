@@ -96,9 +96,15 @@ dnnl::memory make_dnnl_memory(const dnnl::memory::desc &md,
 
 memory::desc expand(const memory::desc &adesc, int tgt_ndims);
 
+memory::desc permute_last_two_dims(const memory::desc &adesc);
+
 memory::desc permute_NXC2NCX(const memory::desc &adesc);
 
+memory::desc permute_NCX2NXC(const memory::desc &adesc);
+
 memory::desc permute_XIO2OIX(const memory::desc &adesc);
+
+memory::desc to_grouped(const memory::desc &adesc, dim groups);
 
 #ifndef NDEBUG
 #define BACKEND_DNNL_ENFORCE(condition, message) \

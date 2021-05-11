@@ -103,7 +103,7 @@ namespace op_kind {
     X(add_zps, Add_zps) \
     X(permute, Permute) \
     X(to_group, To_group) \
-    X(broadcast, Broadcast) \
+    X(expand, Expand) \
     X(dnnl_convolution, Dnnl_convolution) \
     X(int8_maxpool, INT8_MaxPool)
 

@@ -47,20 +47,12 @@ void insert_reorder(std::vector<op_ptr> &subgraph) {
             op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::convert);
             insert_op_before(reorder_op, cur_op, i);
             to_be_inserted_ops.emplace_back(reorder_op);
-            auto in_lt = reorder_op->get_input_value(0)->get_logical_tensor();
-            auto out_value = reorder_op->get_output_value(0);
-            out_value->set_data_type(in_lt.data_type);
-            out_value->set_layout_type(layout_type::any);
         }
 
         for (size_t i = 0; i < cur_op->num_outputs(); i++) {
             op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::convert);
             insert_op_after(reorder_op, cur_op, i);
             to_be_inserted_ops.emplace_back(reorder_op);
-            auto in_value = reorder_op->get_input_value(0);
-            auto out_lt = reorder_op->get_output_value(0)->get_logical_tensor();
-            in_value->set_data_type(out_lt.data_type);
-            in_value->set_layout_type(layout_type::any);
         }
     }
 
@@ -103,10 +95,6 @@ void insert_permute_for_conv(std::vector<op_ptr> &subgraph) {
 
             insert_op_before(perm_op, cur_op, i);
             to_be_inserted_ops.emplace_back(perm_op);
-            auto in_lt = perm_op->get_input_value(0)->get_logical_tensor();
-            auto out_value = perm_op->get_output_value(0);
-            out_value->set_data_type(in_lt.data_type);
-            out_value->set_layout_type(layout_type::any);
         }
 
         // remove the attrs in cur_op to avoid re-permute
@@ -133,10 +121,6 @@ void insert_to_group_for_conv(std::vector<op_ptr> &subgraph) {
 
         insert_op_before(to_group_op, cur_op, 1);
         to_be_inserted_ops.emplace_back(to_group_op);
-        auto in_lt = to_group_op->get_input_value(0)->get_logical_tensor();
-        auto out_value = to_group_op->get_output_value(0);
-        out_value->set_data_type(in_lt.data_type);
-        out_value->set_layout_type(layout_type::any);
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(std::move(op));
@@ -156,7 +140,7 @@ void insert_transpose_for_matmul(std::vector<op_ptr> &subgraph) {
 
         for (size_t i = 0; i < trans_flag.size(); ++i) {
             // skip if transpose flag is false or the input's ndim is 1
-            // otherwise, we need do broadcast
+            // otherwise, we need do do expand
             if (!trans_flag[i]
                     || cur_op->get_input_value(i)->get_logical_tensor().ndims
                             <= 1)
@@ -171,23 +155,19 @@ void insert_transpose_for_matmul(std::vector<op_ptr> &subgraph) {
             } else {
                 cur_op->set_attr<bool>("transpose_b", false);
             }
-            auto in_lt = transpose_op->get_input_value(0)->get_logical_tensor();
-            auto out_value = transpose_op->get_output_value(0);
-            out_value->set_data_type(in_lt.data_type);
-            out_value->set_layout_type(layout_type::any);
         }
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(std::move(op));
 }
 
-void insert_broadcast_for_matmul(std::vector<op_ptr> &subgraph) {
+void insert_expand_for_matmul(std::vector<op_ptr> &subgraph) {
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() != op_kind::MatMul) continue;
 
-        std::vector<op_ptr> broadcast_ops;
-        broadcast_ops.reserve(cur_op->num_inputs());
+        std::vector<op_ptr> expand_ops;
+        expand_ops.reserve(cur_op->num_inputs());
 
         int32_t new_src_ndims, new_wei_ndims;
         // FIXME(wuxun): if the producer op is transpose, the ndims is unknown
@@ -228,48 +208,39 @@ void insert_broadcast_for_matmul(std::vector<op_ptr> &subgraph) {
         int32_t dst_ndims
                 = cur_op->get_output_value(0)->get_logical_tensor().ndims;
         for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
-            auto broadcast_op = std::make_shared<op_t>(op_kind::broadcast);
+            auto expand_op = std::make_shared<op_t>(op_kind::expand);
             if (i < 2) { // src and weight
                 auto ndims = ori_ndims[i];
                 if (ndims != 1) {
-                    broadcast_ops.emplace_back(broadcast_op);
+                    expand_ops.emplace_back(expand_op);
                     continue;
                 }
                 // 1D -> 2D
                 if (i == 0) {
-                    broadcast_op->set_attr<std::string>(
-                            "insert_1dim", "before");
+                    expand_op->set_attr<std::string>("insert_1dim", "before");
                     new_src_ndims = ndims + 1;
                 } else if (i == 1) {
-                    broadcast_op->set_attr<std::string>("insert_1dim", "after");
+                    expand_op->set_attr<std::string>("insert_1dim", "after");
                     new_wei_ndims = ndims + 1;
                 }
             } else { // bias
-                // broadcast bias to dst ndims if they are mis-matched
+                // expand bias to dst ndims if they are mis-matched
                 if (cur_op->get_input_value(i)->get_logical_tensor().ndims
                         != dst_ndims)
-                    broadcast_op->set_attr<int64_t>("broadcast_to", dst_ndims);
+                    expand_op->set_attr<int64_t>("expand_to", dst_ndims);
             }
-            broadcast_ops.emplace_back(broadcast_op);
+            expand_ops.emplace_back(expand_op);
         }
 
-        for (size_t i = 0; i < broadcast_ops.size(); ++i) {
+        for (size_t i = 0; i < expand_ops.size(); ++i) {
             if (i == 0 && new_src_ndims < new_wei_ndims) {
-                broadcast_ops[i]->set_attr<int64_t>(
-                        "broadcast_to", new_wei_ndims);
+                expand_ops[i]->set_attr<int64_t>("expand_to", new_wei_ndims);
             } else if (i == 1 && new_wei_ndims < new_src_ndims) {
-                broadcast_ops[i]->set_attr<int64_t>(
-                        "broadcast_to", new_src_ndims);
+                expand_ops[i]->set_attr<int64_t>("expand_to", new_src_ndims);
             }
 
-            insert_op_before(broadcast_ops[i], cur_op, i);
-            to_be_inserted_ops.emplace_back(broadcast_ops[i]);
-            auto in_lt = broadcast_ops[i]
-                                 ->get_input_value(0)
-                                 ->get_logical_tensor();
-            auto out_value = broadcast_ops[i]->get_output_value(0);
-            out_value->set_data_type(in_lt.data_type);
-            out_value->set_layout_type(layout_type::any);
+            insert_op_before(expand_ops[i], cur_op, i);
+            to_be_inserted_ops.emplace_back(expand_ops[i]);
         }
     }
     for (const auto &op : to_be_inserted_ops)

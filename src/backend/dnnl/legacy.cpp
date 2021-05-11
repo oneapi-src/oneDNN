@@ -17,6 +17,7 @@
 #include <limits>
 
 #include "interface/backend.hpp"
+#include "interface/value.hpp"
 
 #include "common.hpp"
 #include "dnnl_backend.hpp"
@@ -34,6 +35,16 @@ void fill_layout_info(impl::logical_tensor_t *lt, const tensor::desc &td) {
                 = dnnl_backend::get_singleton().set_mem_desc(td);
         lt->layout.layout_id = static_cast<int64_t>(layout_id.value());
         lt->layout_type = impl::layout_type::opaque;
+    }
+}
+
+void fill_layout_info(
+        std::shared_ptr<impl::value_t> &val, const tensor::desc &td) {
+    impl::logical_tensor_t lt = val->get_logical_tensor();
+    const impl::logical_tensor_wrapper ltw(lt);
+    if (ltw.is_any()) { // we only reset any format
+        val->set_layout_id(static_cast<int64_t>(
+                dnnl_backend::get_singleton().set_mem_desc(td).value()));
     }
 }
 

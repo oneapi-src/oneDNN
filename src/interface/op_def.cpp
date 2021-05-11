@@ -2125,7 +2125,7 @@ DNNL_GRAPH_OP_SCHEMA(To_group, 1,
                         (int64_t)1)
                 .set_shape_inference_function(infer_to_group_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(Broadcast, 1,
+DNNL_GRAPH_OP_SCHEMA(Expand, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
@@ -2135,9 +2135,9 @@ DNNL_GRAPH_OP_SCHEMA(Broadcast, 1,
                         {data_type::s8, data_type::u8, data_type::f32})
                 .set_attr("insert_1dim", "where to insert 1 dim", false,
                         attribute_kind::s, "none")
-                .set_attr("broadcast_to", "target ndims to broadcast", false,
+                .set_attr("expand_to", "target ndims to expand", false,
                         attribute_kind::i, (int64_t)(-1))
-                .set_shape_inference_function(infer_broadcast_output_shape))
+                .set_shape_inference_function(infer_expand_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Dnnl_convolution, 1,
         op_schema()
