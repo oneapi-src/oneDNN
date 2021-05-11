@@ -22,8 +22,6 @@
 #include <new>
 #include <type_traits>
 
-#include "utils.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace utils {
