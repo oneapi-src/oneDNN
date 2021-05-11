@@ -375,6 +375,44 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+/* When the error is larger than eps, It could be
+ * due to catastrophic cancellation in final result
+ * which is computed as `Y = a * X + b`.
+ * When `a * X`  is close to `b` and `sign(a * X) = - sign(b)`.
+ * Then large error in `a * X` could result in a final
+ * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
+ * which has no meaningful digits left in mantissa.*/
+void add_additional_fwd_lnorm_check(const prb_t *prb, const dnn_mem_t &ss_fp,
+        const dnn_mem_t &sh_fp, const dnn_mem_t &dst_fp, const float eps,
+        compare::compare_t &cmp) {
+    using cmp_args_t = compare::compare_t::driver_check_func_args_t;
+    const auto lnorm_add_check = [&](const cmp_args_t &args) {
+        bool scale_or_shift = prb->use_ss() || prb->use_sc() || prb->use_sh();
+        if (!scale_or_shift) return false;
+
+        dims_t l_dims(dst_fp.md_);
+        dims_t dims_idx = off2dims_idx(l_dims, args.idx);
+        int64_t c = dims_idx[prb->ndims - 1];
+        const float beta = prb->use_sh() ? ((const float *)sh_fp)[c]
+                                         : ((const float *)ss_fp)[prb->c + c];
+        /* Using an empirically derived threshold,
+         * check if cancellation error
+         * in `|Y| = |a*X - (-b)|` is huge.*/
+        bool maybe_cancellation_error
+                = (fabsf(args.got - beta)
+                          / (fabsf(args.got) > FLT_MIN ? fabsf(args.got) : 1))
+                > 1.0f;
+        if (maybe_cancellation_error) {
+            /* Check for error in `a * X` */
+            float diff_aX
+                    = fabsf((args.got - beta) - (args.got + args.diff - beta));
+            return diff_aX <= eps;
+        }
+        return false;
+    };
+    cmp.set_driver_check_function(lnorm_add_check);
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -480,41 +518,9 @@ int doit(const prb_t *prb, res_t *res) {
             cmp_data.set_data_kind(DATA);
             // TODO: improve bf16 filling
             if (prb->dt == dnnl_bf16) cmp_data.set_zero_trust_percent(100.f);
-            /* When the error is larger than eps, It could be
-             * due to catastrophic cancellation in final result
-             * which is computed as `Y = a * X + b`.
-             * When `a * X`  is close to `b` and `sign(a * X) = - sign(b)`.
-             * Then large error in `a * X` could result in a final
-             * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
-             * which has no meaningful digits left in mantissa.*/
-            const auto lnorm_add_check = [&prb, &ss_fp, &sh_fp, &dst_fp, &eps](
-                                                 int64_t i, float got,
-                                                 float diff) {
-                bool scale_or_shift
-                        = prb->use_ss() || prb->use_sc() || prb->use_sh();
-                if (!scale_or_shift) return false;
 
-                dims_t l_dims(dst_fp.md_);
-                dims_t dims_idx = off2dims_idx(l_dims, i);
-                int64_t c = dims_idx[prb->ndims - 1];
-                const float beta = prb->use_sh()
-                        ? ((const float *)sh_fp)[c]
-                        : ((const float *)ss_fp)[prb->c + c];
-                /* Using an empirically derived threshold,
-                 * check if cancellation error
-                 * in `|Y| = |a*X - (-b)|` is huge.*/
-                bool maybe_cancellation_error
-                        = (fabsf(got - beta)
-                                  / (fabsf(got) > FLT_MIN ? fabsf(got) : 1))
-                        > 1.0f;
-                if (maybe_cancellation_error) {
-                    /* Check for error in `a * X` */
-                    float diff_aX = fabsf((got - beta) - (got + diff - beta));
-                    return diff_aX <= eps;
-                }
-                return false;
-            };
-            cmp_data.set_driver_check_function(lnorm_add_check);
+            add_additional_fwd_lnorm_check(
+                    prb, ss_fp, sh_fp, dst_fp, eps, cmp_data);
             SAFE(cmp_data.compare(dst_fp, dst_dt, prb->attr, res), WARN);
 
             if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {

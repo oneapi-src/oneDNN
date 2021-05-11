@@ -273,11 +273,14 @@ int doit(const prb_t *prb, res_t *res) {
 
         compare::compare_t cmp;
         cmp.set_threshold(epsilon_dt(dst_dt.dt()));
-        const auto binary_add_check = [&](int64_t i, float got, float diff) {
-            // fp16 result can slightly mismatch for division due to difference
-            // in backends implementations.
-            return prb->alg == alg_t::DIV ? diff < epsilon_dt(prb->ddt) : false;
-        };
+        const auto binary_add_check =
+                [&](const compare::compare_t::driver_check_func_args_t &args) {
+                    // fp16 result can slightly mismatch for division due to difference
+                    // in backends implementations.
+                    return prb->alg == alg_t::DIV
+                            ? args.diff < epsilon_dt(args.dt)
+                            : false;
+                };
         cmp.set_driver_check_function(binary_add_check);
 
         const std::vector<alg_t> cmp_alg = {alg_t::GE, alg_t::GT, alg_t::LE,

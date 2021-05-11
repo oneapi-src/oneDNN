@@ -286,14 +286,14 @@ int doit(const prb_t *prb, res_t *res) {
             cmp.set_zero_trust_percent(100.f); // TODO: consider enabling
 
             const auto pooling_add_check
-                    = [&](int64_t i, float got, float diff) {
+                    = [&](const compare::compare_t::driver_check_func_args_t
+                                      &args) {
                           // cuDNN bug: it spits fp16 min value as -inf,
                           // not -65504.
-                          if (is_nvidia_gpu() && prb->cfg[DST].dt == dnnl_f16) {
-                              const float exp = round_to_nearest_representable(
-                                      prb->cfg[DST].dt, dst_fp.get_elem(i));
-                              return exp == lowest_dt(prb->cfg[DST].dt)
-                                      && std::isinf(got) && std::signbit(got);
+                          if (is_nvidia_gpu() && args.dt == dnnl_f16) {
+                              return args.exp == lowest_dt(args.dt)
+                                      && std::isinf(args.got)
+                                      && std::signbit(args.got);
                           }
                           return false;
                       };

@@ -370,14 +370,16 @@ int doit(const prb_t *prb, res_t *res) {
         cmp.set_threshold(trh);
         cmp.set_zero_trust_percent(get_eltwise_zero_trust_percent(prb));
 
-        const auto eltwise_add_check = [&](int64_t i, float got, float diff) {
-            // Some algorithms require absolute value comparison for inputs
-            // where catastrophic cancellation may happen.
-            const float src = arg_fp.get_elem(i);
-            if (check_abs_err(prb, src, trh)) return diff <= trh;
-            if (prb->attr.post_ops.binary_index() != -1) return diff <= trh;
-            return false;
-        };
+        const auto eltwise_add_check =
+                [&](const compare::compare_t::driver_check_func_args_t &args) {
+                    // Some algorithms require absolute value comparison for inputs
+                    // where catastrophic cancellation may happen.
+                    const float src = arg_fp.get_elem(args.idx);
+                    if (check_abs_err(prb, src, trh)) return args.diff <= trh;
+                    if (prb->attr.post_ops.binary_index() != -1)
+                        return args.diff <= trh;
+                    return false;
+                };
         cmp.set_driver_check_function(eltwise_add_check);
     }
 
