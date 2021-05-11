@@ -770,6 +770,69 @@ TEST(operator_kernel, broadcast_add) {
     }
 }
 
+TEST(operator_kernel, add_shape_mismatch_0) {
+    impl::engine_t &eng = get_engine();
+
+    impl::op_t add_op(impl::op_kind::Add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto add_kernel = op_factory.create_kernel(add_op);
+    ASSERT_TRUE(add_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {8, 4, 256}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {2, 2, 512}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(2, {8, 4, 256}, impl::data_type::f32);
+
+    // compile the add operator
+    auto ret = add_kernel->compile(&add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    ASSERT_EQ(ret, impl::status::invalid_shape);
+}
+
+TEST(operator_kernel, add_shape_mismatch_1) {
+    impl::engine_t &eng = get_engine();
+
+    impl::op_t add_op(impl::op_kind::Add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto add_kernel = op_factory.create_kernel(add_op);
+    ASSERT_TRUE(add_kernel);
+
+    impl::logical_tensor_t src0_lt = utils::logical_tensor_init(
+            0, {8, 15, 5, 7}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {8, 15, 5, 7}, impl::data_type::f32);
+
+    // compile the add operator
+    auto ret = add_kernel->compile(&add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    ASSERT_EQ(ret, impl::status::success);
+}
+
+TEST(operator_kernel, add_shape_mismatch_2) {
+    impl::engine_t &eng = get_engine();
+
+    impl::op_t add_op(impl::op_kind::Add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto add_kernel = op_factory.create_kernel(add_op);
+    ASSERT_TRUE(add_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt = utils::logical_tensor_init(
+            1, {8, 15, 5, 7}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {8, 15, 5, 7}, impl::data_type::f32);
+
+    // compile the add operator
+    auto ret = add_kernel->compile(&add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+    ASSERT_EQ(ret, impl::status::success);
+}
+
 TEST(operator_kernel, reversed_different_format_broadcast_add) {
     impl::engine_t &eng = get_engine();
 
