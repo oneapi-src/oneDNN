@@ -214,3 +214,36 @@ TEST(api_partition, unsupported_partitions) {
     for (auto &p : partitions)
         ASSERT_FALSE(p.is_supported());
 }
+
+TEST(api_partition, add_infer_shape) {
+    using namespace dnnl::graph;
+    engine::kind engine_kind = static_cast<engine::kind>(api_test_engine_kind);
+    graph g(engine_kind);
+
+    std::vector<int64_t> shape_0 {1};
+    std::vector<int64_t> shape_1 {8, 15, 5, 7};
+    std::vector<int64_t> shape_2 {-1, -1, -1, -1};
+
+    logical_tensor lt_0 {0, logical_tensor::data_type::f32, shape_0,
+            logical_tensor::layout_type::strided};
+    logical_tensor lt_1 {1, logical_tensor::data_type::f32, shape_1,
+            logical_tensor::layout_type::strided};
+    logical_tensor lt_2 {2, logical_tensor::data_type::f32, shape_2,
+            logical_tensor::layout_type::strided};
+
+    op add {3, op::kind::Add, "add"};
+    add.add_inputs({lt_0, lt_1});
+    add.add_outputs({lt_2});
+
+    g.add_op(add);
+    auto ps = g.get_partitions();
+    ASSERT_EQ(ps.size(), 1);
+
+    std::vector<logical_tensor> out {lt_2};
+    ps[0].infer_shape({lt_0, lt_1}, out);
+    ASSERT_EQ(out[0].get_dims().size(), 4);
+    ASSERT_EQ(out[0].get_dims()[0], 8);
+    ASSERT_EQ(out[0].get_dims()[1], 15);
+    ASSERT_EQ(out[0].get_dims()[2], 5);
+    ASSERT_EQ(out[0].get_dims()[3], 7);
+}

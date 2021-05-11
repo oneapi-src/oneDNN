@@ -77,6 +77,24 @@ private:
         return !(src0.dims() == src1.dims() && src0.dims() == dst.dims());
     }
 
+    // (3, 4) * (3, 4) is doable
+    // (1, 4) * (3, 4) is doable
+    // (3, 4, 5) * (4, 5) is doable
+    // (3, 4, 5) * (1, 5) is doable
+    // (3, 4, 5) * (2, 4, 5) is NOT doable
+    bool doable(const std::vector<dim_t> &shape_0,
+            const std::vector<dim_t> &shape_1) {
+        const int ndims_0 = static_cast<int>(shape_0.size());
+        const int ndims_1 = static_cast<int>(shape_1.size());
+        const int small = ndims_0 < ndims_1 ? ndims_0 : ndims_1;
+        for (int i = 1; i <= small; ++i) {
+            bool match = shape_0[ndims_0 - i] == shape_1[ndims_1 - i]
+                    || shape_0[ndims_0 - i] == 1 || shape_1[ndims_1 - i] == 1;
+            if (!match) return false;
+        }
+        return true;
+    }
+
 public:
     ~binary() {
         if (expected_dst_buf_)
@@ -89,6 +107,11 @@ public:
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using ltw = impl::logical_tensor_wrapper;
         using desc = dnnl::memory::desc;
+
+        if (!doable(ltw(inputs[idx_src0_]).vdims(),
+                    ltw(inputs[idx_src1_]).vdims())) {
+            return status::invalid_shape;
+        }
 
         if (op->has_attr("auto_broadcast")) {
             auto_broadcast_ = op->get_attr<std::string>("auto_broadcast");
