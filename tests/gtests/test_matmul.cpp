@@ -448,11 +448,13 @@ static auto cases_ef = []() {
             dnnl_unimplemented});
 
     // unimplemented data types
-    cases.push_back(
-            {{{{10, 1}, data_type::f32, tag::ab},
-                     {{1, 20}, data_type::f32, tag::ab},
-                     {{10, 20}, data_type::f32, tag::ab}, data_type::u8},
-                    {}, true, dnnl_unimplemented});
+    if (get_test_engine_kind() == engine::kind::cpu) {
+        cases.push_back(
+                {{{{10, 1}, data_type::f32, tag::ab},
+                         {{1, 20}, data_type::f32, tag::ab},
+                         {{10, 20}, data_type::f32, tag::ab}, data_type::u8},
+                        {}, true, dnnl_unimplemented});
+    }
     // XXX: disable assert in type_helpers.hpp: default_accum_data_type(...)
     // cases.push_back({{{{10, 1}, data_type::u8, tag::ab}, {{1, 20},
     // data_type::u8, tag::ab},
