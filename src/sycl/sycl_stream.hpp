@@ -33,6 +33,7 @@
 #endif
 
 #include <algorithm>
+#include <cstring>
 #include <map>
 #include <memory>
 #include <utility>
@@ -111,6 +112,29 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         if (size == 0) return status::success;
         // TODO: add src and dst sizes check
 
+        const bool host_mem_src = src.engine()->kind() == engine_kind::cpu
+                && is_native_runtime(src.engine()->runtime_kind());
+        const bool host_mem_dst = dst.engine()->kind() == engine_kind::cpu
+                && is_native_runtime(dst.engine()->runtime_kind());
+
+        // Handle cases when GPU runtime is SYCL and CPU runtime is not.
+        if (host_mem_src || host_mem_dst) {
+            void *src_mapped_ptr;
+            void *dst_mapped_ptr;
+
+            CHECK(src.map_data(&src_mapped_ptr, this, size));
+            CHECK(dst.map_data(&dst_mapped_ptr, this, size));
+
+            std::memcpy(static_cast<void *>(dst_mapped_ptr),
+                    static_cast<const void *>(src_mapped_ptr), size);
+
+            CHECK(src.unmap_data(src_mapped_ptr, this));
+            CHECK(dst.unmap_data(dst_mapped_ptr, this));
+
+            return status::success;
+        }
+
+        // Handle all other cases.
         auto *sycl_src
                 = utils::downcast<const sycl_memory_storage_base_t *>(&src);
         auto *sycl_dst
