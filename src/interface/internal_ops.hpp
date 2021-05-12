@@ -99,6 +99,8 @@ namespace op_kind {
     X(int8_matmul_bias_sigmoid, INT8_MatMul_bias_sigmoid) \
     X(int8_matmul_gelu, INT8_MatMul_gelu) \
     X(int8_matmul_bias_gelu, INT8_MatMul_bias_gelu) \
+    X(int8_matmul_add, INT8_MatMul_add) \
+    X(int8_matmul_bias_add, INT8_MatMul_bias_add) \
     X(mul_scales, Mul_scales) \
     X(add_zps, Add_zps) \
     X(permute, Permute) \
