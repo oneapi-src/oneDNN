@@ -351,7 +351,7 @@ TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
     q->submit([&](handler &cgh) {
         auto a = sycl_buf.get_access<access::mode::write>(cgh);
         cgh.parallel_for<init_kernel>(
-                range<1>(N), [=](id<1> i) { a[i] = i.get(0) - N / 2; });
+                range<1>(N), [=](id<1> i) { a[i] = (int)i.get(0) - N / 2; });
     });
 
     auto eltwise_d = eltwise_forward::desc(
