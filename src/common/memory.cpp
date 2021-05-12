@@ -189,9 +189,8 @@ status_t dnnl_memory_desc_init_by_strides(memory_desc_t *memory_desc, int ndims,
                     : default_strides[d + 1] * md.padded_dims[d + 1];
         }
         strides = default_strides;
-    } else {
-        /* TODO: add sanity check for the provided strides */
     }
+    if (!memory_desc_strides_check(md, strides)) return invalid_arguments;
 
     array_copy(md.format_desc.blocking.strides, strides, md.ndims);
 
