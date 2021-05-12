@@ -126,11 +126,9 @@ op_t jit_uni_binary_t::pd_t::get_op_type(const memory_desc_wrapper &src0_d) {
 
 bcast_t jit_uni_binary_t::pd_t::get_bcast_type(
         const memory_desc_wrapper &src1_d, const dims_t &bcast_dims) {
-    const auto ndims = src1_d.ndims();
-
     if (src1_d.nelems() == 1)
         return bcast_t::scalar;
-    else if (ndims >= 3 && bcast_dims[1] == 1)
+    else if (bcast_dims[1] == 1)
         return bcast_t::per_w;
     else
         return bcast_t::per_c;
@@ -158,11 +156,6 @@ bool jit_uni_binary_t::pd_t::is_bcast_pattern(const dims_t &bcast_dims,
             && bcast_dims[ndims - 1] == W_bcast;
 }
 
-bool jit_uni_binary_t::pd_t::is_bcast_pattern(const dims_t &bcast_dims,
-        const dim_t N_bcast, const dim_t C_bcast) const {
-    return bcast_dims[0] == N_bcast && bcast_dims[1] == C_bcast;
-}
-
 bool jit_uni_binary_t::pd_t::is_bcast_allowed(const int ndims) const {
     // supported cases: NxCxDxHxW:{NxCx1x1x1,1xCx1x1x1,Nx1x1x1xW,
     //                            1x1x1x1xW,1x1x1x1x1}
@@ -178,11 +171,6 @@ bool jit_uni_binary_t::pd_t::is_bcast_allowed(const int ndims) const {
                         || is_bcast_pattern(bcast_dims, ndims, 0, 1, 0)
                         || is_bcast_pattern(bcast_dims, ndims, 1, 1, 0)
                         || is_bcast_pattern(bcast_dims, ndims, 1, 1, 1));
-    else
-        ok = ok
-                && (is_bcast_pattern(bcast_dims, 0, 0)
-                        || is_bcast_pattern(bcast_dims, 1, 0)
-                        || is_bcast_pattern(bcast_dims, 1, 1));
     return ok;
 }
 
@@ -236,7 +224,7 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
         if (!src0_d.similar_to(dst_d, true, false, 0)) return false;
     }
     // broadcast operation
-    if (ndims < 2 || !is_bcast_allowed(ndims)) return false;
+    if (!is_bcast_allowed(ndims)) return false;
 
     if (!conf_.is_i8) {
         if (src0_d.is_plain() && src1_d.is_plain()) {
@@ -688,7 +676,7 @@ status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
     const memory_desc_wrapper src1_d(pd()->src_md(1));
     const auto ndims = src0_d.ndims();
     const auto &dims = src0_d.dims();
-    const dim_t C = ndims >= 2 ? dims[1] : 1;
+    const dim_t C = ndims >= 2 ? dims[1] : 0;
 
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(

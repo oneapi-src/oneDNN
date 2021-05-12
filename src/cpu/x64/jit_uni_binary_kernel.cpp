@@ -49,7 +49,9 @@ size_t binary_kernel_t::get_tail_size() const {
 
     dim_t nelems = 0;
 
-    if (!conf_.is_i8 && conf_.op_type == op_t::c_blocked
+    if (ndims == 1)
+        nelems = dims[0];
+    else if (!conf_.is_i8 && conf_.op_type == op_t::c_blocked
             && (is_tail_kernel_ || conf_.bcast_type == bcast_t::per_w))
         nelems = dims[1];
     else if (conf_.bcast_type == bcast_t::none
