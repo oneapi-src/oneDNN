@@ -174,7 +174,7 @@ private:
 
     static constexpr bool is_zmm_ = std::is_same<Vmm, Xbyak::Zmm>::value;
     static constexpr bool is_ymm_ = std::is_same<Vmm, Xbyak::Ymm>::value;
-    static constexpr bool is_xmm_ = std::is_same<Vmm, Xbyak::Ymm>::value;
+    static constexpr bool is_xmm_ = std::is_same<Vmm, Xbyak::Xmm>::value;
     static constexpr std::size_t vlen_ = is_zmm_ ? 64 : is_ymm_ ? 32 : 16;
     static constexpr std::size_t simd_w_ = vlen_ / sizeof(float);
     const std::size_t tail_size_;
