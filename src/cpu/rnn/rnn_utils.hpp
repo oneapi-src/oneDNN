@@ -981,13 +981,13 @@ template <typename T>
 struct ws_gates_aoc {
     ws_gates_aoc(const rnn_conf_t &rnn, T *data)
         : gates_(data, rnn.ws_gates_nld, rnn.ws_gates_ld), DHC_(rnn.dhc) {}
-    T &operator()(int batch, int gate, int dhc) {
+    T &operator()(int batch, int gate, int dhc) const {
         return gates_(batch, gate * DHC_ + dhc);
     }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<T, 2> gates_;
-    int DHC_;
+    const dnnl::impl::utils::array_offset_calculator<T, 2> gates_;
+    const int DHC_;
 };
 using ws_gates_aoc_t = ws_gates_aoc<float>;
 using ws_gates_aoc_s32_t = ws_gates_aoc<int32_t>;
@@ -996,10 +996,10 @@ template <typename T>
 struct ws_ht_aoc {
     ws_ht_aoc(const rnn_conf_t &rnn, T *data)
         : ht_(data, rnn.ws_ht_nld, rnn.ws_ht_ld) {}
-    T &operator()(int batch, int dhc) { return ht_(batch, dhc); }
+    T &operator()(int batch, int dhc) const { return ht_(batch, dhc); }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<T, 2> ht_;
+    const dnnl::impl::utils::array_offset_calculator<T, 2> ht_;
 };
 
 template <typename T>
@@ -1007,13 +1007,13 @@ struct scratch_gates_aoc {
     scratch_gates_aoc(const rnn_conf_t &rnn, T *data)
         : gates_(data, rnn.scratch_gates_nld, rnn.scratch_gates_ld)
         , DHC_(rnn.dhc) {}
-    T &operator()(int batch, int gate, int dhc) {
+    T &operator()(int batch, int gate, int dhc) const {
         return gates_(batch, gate * DHC_ + dhc);
     }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<T, 2> gates_;
-    int DHC_;
+    const dnnl::impl::utils::array_offset_calculator<T, 2> gates_;
+    const int DHC_;
 };
 using scratch_gates_aoc_t = scratch_gates_aoc<float>;
 using scratch_gates_aoc_s32_t = scratch_gates_aoc<int32_t>;
@@ -1022,10 +1022,10 @@ template <typename T>
 struct scratch_ht_aoc {
     scratch_ht_aoc(const rnn_conf_t &rnn, T *data)
         : ht_(data, rnn.scratch_ht_nld, rnn.scratch_ht_ld) {}
-    T &operator()(int batch, int dhc) { return ht_(batch, dhc); }
+    T &operator()(int batch, int dhc) const { return ht_(batch, dhc); }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<T, 2> ht_;
+    const dnnl::impl::utils::array_offset_calculator<T, 2> ht_;
 };
 using scratch_ht_aoc_t = scratch_ht_aoc<float>;
 using scratch_ht_aoc_s32_t = scratch_ht_aoc<int32_t>;
@@ -1034,19 +1034,21 @@ template <typename T>
 struct weights_peephole_aoc_t {
     weights_peephole_aoc_t(const rnn_conf_t &rnn, T *data)
         : weights_peephole_(data, 3, rnn.dhc) {}
-    T &operator()(int g, int dhc) { return weights_peephole_(g, dhc); }
+    T &operator()(int g, int dhc) const { return weights_peephole_(g, dhc); }
 
 private:
-    utils::array_offset_calculator<T, 2> weights_peephole_;
+    const utils::array_offset_calculator<T, 2> weights_peephole_;
 };
 
 struct bias_aoc_t {
     bias_aoc_t(const rnn_conf_t &rnn, const float *data)
         : bias_(data, rnn.n_bias, rnn.dhc) {}
-    const float &operator()(int bias_n, int dhc) { return bias_(bias_n, dhc); }
+    const float &operator()(int bias_n, int dhc) const {
+        return bias_(bias_n, dhc);
+    }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<const float, 2> bias_;
+    const dnnl::impl::utils::array_offset_calculator<const float, 2> bias_;
 };
 
 template <typename T>
@@ -1055,10 +1057,10 @@ struct ws_states_layer_aoc {
         : state_(data, rnn.ws_states_layer_nld, leading_dim) {}
     ws_states_layer_aoc(const rnn_conf_t &rnn, T *data)
         : state_(data, rnn.ws_states_layer_nld, rnn.ws_states_layer_ld) {}
-    T &operator()(int batch, int dhc) { return state_(batch, dhc); }
+    T &operator()(int batch, int dhc) const { return state_(batch, dhc); }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<T, 2> state_;
+    const dnnl::impl::utils::array_offset_calculator<T, 2> state_;
 };
 
 template <typename T>
@@ -1067,10 +1069,10 @@ struct ws_states_iter_aoc {
         : state_(data, rnn.ws_states_iter_nld, leading_dim) {}
     ws_states_iter_aoc(const rnn_conf_t &rnn, T *data)
         : state_(data, rnn.ws_states_iter_nld, rnn.ws_states_iter_ld) {}
-    T &operator()(int batch, int dhc) { return state_(batch, dhc); }
+    T &operator()(int batch, int dhc) const { return state_(batch, dhc); }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<T, 2> state_;
+    const dnnl::impl::utils::array_offset_calculator<T, 2> state_;
 };
 
 template <typename T>
@@ -1079,10 +1081,10 @@ struct ws_states_iter_c_aoc {
         : state_(data, rnn.ws_states_iter_c_nld, leading_dim) {}
     ws_states_iter_c_aoc(const rnn_conf_t &rnn, T *data)
         : state_(data, rnn.ws_states_iter_c_nld, rnn.ws_states_iter_c_ld) {}
-    T &operator()(int batch, int dhc) { return state_(batch, dhc); }
+    T &operator()(int batch, int dhc) const { return state_(batch, dhc); }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<T, 2> state_;
+    const dnnl::impl::utils::array_offset_calculator<T, 2> state_;
 };
 
 template <typename T>
@@ -1090,10 +1092,12 @@ struct ws_diff_states_layer_aoc {
     ws_diff_states_layer_aoc(const rnn_conf_t &rnn, T *data)
         : diff_states_layer_(data, rnn.ws_diff_states_layer_nld,
                 rnn.ws_diff_states_layer_ld) {}
-    T &operator()(int batch, int dhc) { return diff_states_layer_(batch, dhc); }
+    T &operator()(int batch, int dhc) const {
+        return diff_states_layer_(batch, dhc);
+    }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<T, 2> diff_states_layer_;
+    const dnnl::impl::utils::array_offset_calculator<T, 2> diff_states_layer_;
 };
 
 template <typename T>
@@ -1101,10 +1105,12 @@ struct ws_diff_states_iter_aoc {
     ws_diff_states_iter_aoc(const rnn_conf_t &rnn, T *data)
         : diff_states_iter_(data, rnn.ws_diff_states_iter_nld,
                 rnn.ws_diff_states_iter_ld) {}
-    T &operator()(int batch, int dhc) { return diff_states_iter_(batch, dhc); }
+    T &operator()(int batch, int dhc) const {
+        return diff_states_iter_(batch, dhc);
+    }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<T, 2> diff_states_iter_;
+    const dnnl::impl::utils::array_offset_calculator<T, 2> diff_states_iter_;
 };
 
 template <typename T>
@@ -1112,12 +1118,12 @@ struct ws_diff_states_iter_c_aoc {
     ws_diff_states_iter_c_aoc(const rnn_conf_t &rnn, T *data)
         : diff_states_iter_c_(data, rnn.ws_diff_states_iter_c_nld,
                 rnn.ws_diff_states_iter_c_ld) {}
-    T &operator()(int batch, int dhc) {
+    T &operator()(int batch, int dhc) const {
         return diff_states_iter_c_(batch, dhc);
     }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<T, 2> diff_states_iter_c_;
+    const dnnl::impl::utils::array_offset_calculator<T, 2> diff_states_iter_c_;
 };
 
 struct ws_diff_w_iter_aoc_t {
@@ -1125,13 +1131,14 @@ struct ws_diff_w_iter_aoc_t {
         : diff_weights_iter_(
                 data, rnn.diff_weights_iter_nld, rnn.diff_weights_iter_ld)
         , DHC_(rnn.dhc) {}
-    float &operator()(int sic, int gate, int dhc) {
+    float &operator()(int sic, int gate, int dhc) const {
         return diff_weights_iter_(sic, gate * DHC_ + dhc);
     }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<float, 2> diff_weights_iter_;
-    int DHC_;
+    const dnnl::impl::utils::array_offset_calculator<float, 2>
+            diff_weights_iter_;
+    const int DHC_;
 };
 
 } // namespace rnn_utils

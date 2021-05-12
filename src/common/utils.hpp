@@ -418,25 +418,25 @@ struct array_offset_calculator {
         _base_ptr = base;
     }
     template <typename... Targs>
-    inline Telem &operator()(Targs... Fargs) {
+    inline Telem &operator()(Targs... Fargs) const {
         return *(_base_ptr + _offset(1, Fargs...));
     }
 
 private:
     template <typename... Targs>
-    inline size_t _offset(size_t const dimension, size_t element) {
+    inline size_t _offset(size_t const dimension, size_t element) const {
         return element;
     }
 
     template <typename... Targs>
     inline size_t _offset(
-            size_t const dimension, size_t theta, size_t element) {
+            size_t const dimension, size_t theta, size_t element) const {
         return element + (_dims[dimension] * theta);
     }
 
     template <typename... Targs>
     inline size_t _offset(size_t const dimension, size_t theta, size_t element,
-            Targs... Fargs) {
+            Targs... Fargs) const {
         size_t t_prime = element + (_dims[dimension] * theta);
         return _offset(dimension + 1, t_prime, Fargs...);
     }
