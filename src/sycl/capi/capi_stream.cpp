@@ -29,7 +29,8 @@ using namespace dnnl::impl;
 
 status_t dnnl_sycl_interop_stream_create(
         stream_t **stream, engine_t *engine, void *queue) {
-    bool args_ok = true && !utils::any_null(stream, engine, queue);
+    bool args_ok = true && !utils::any_null(stream, engine, queue)
+            && engine->runtime_kind() == runtime_kind::sycl;
     if (!args_ok) return status::invalid_arguments;
 
     auto *sycl_engine

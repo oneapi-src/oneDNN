@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -151,6 +151,14 @@ inline cl::sycl::queue get_queue(const stream &astream) {
 template <typename T, int ndims = 1>
 cl::sycl::buffer<T, ndims> get_buffer(const memory &amemory) {
     static_assert(ndims == 1, "only 1D buffers supported");
+
+    // XXX: workaround: when CPU runtime is not SYCL and amemory was created
+    // for CPU engine `get_buffer` should return an error. Use interop API to
+    // implement the check.
+    dnnl_sycl_interop_memory_kind_t ckind;
+    error::wrap_c_api(
+            dnnl_sycl_interop_memory_get_memory_kind(amemory.get(), &ckind),
+            "could not get SYCL buffer object");
 
     void *handle_ptr;
     error::wrap_c_api(dnnl_memory_get_data_handle(amemory.get(), &handle_ptr),

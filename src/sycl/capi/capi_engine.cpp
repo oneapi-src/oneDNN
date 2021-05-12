@@ -41,6 +41,10 @@ status_t dnnl_sycl_interop_engine_create(
     else
         return status::invalid_arguments;
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (kind == engine_kind::cpu) return status::invalid_arguments;
+#endif
+
     auto ef = dnnl::impl::sycl::get_engine_factory(kind);
     if (!ef) return status::invalid_arguments;
 

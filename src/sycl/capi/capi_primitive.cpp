@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ status_t dnnl_sycl_interop_primitive_execute(
         const dnnl_exec_arg_t *args, const void *deps_, void *return_event_) {
     bool ok = !utils::any_null(primitive_iface, stream)
             && primitive_iface->engine() == stream->engine()
+            && primitive_iface->engine()->runtime_kind() == runtime_kind::sycl
             && IMPLICATION(nargs > 0, args != nullptr);
     if (!ok) return status::invalid_arguments;
 
