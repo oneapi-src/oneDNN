@@ -83,6 +83,13 @@ TEST_P(sycl_stream_test, Create) {
     SKIP_IF(!has(kind), "Device not found.");
 
     stream s(get_engine(kind));
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (kind == engine::kind::cpu) {
+        EXPECT_ANY_THROW(sycl_interop::get_queue(s));
+        return;
+    }
+#endif
     queue sycl_queue = sycl_interop::get_queue(s);
 
     auto queue_dev = sycl_queue.get_device();
@@ -96,6 +103,13 @@ TEST_P(sycl_stream_test, BasicInterop) {
     engine::kind kind = GetParam();
     SKIP_IF(!has(kind), "Device not found.");
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (kind == engine::kind::cpu) {
+        cl::sycl::queue dummy;
+        EXPECT_ANY_THROW(sycl_interop::make_stream(get_engine(kind), dummy));
+        return;
+    }
+#endif
     queue interop_queue(get_context(kind), get_device(kind));
     stream s = sycl_interop::make_stream(get_engine(kind), interop_queue);
 
@@ -106,6 +120,10 @@ TEST_P(sycl_stream_test, InteropIncompatibleQueue) {
     engine::kind kind = GetParam();
     SKIP_IF(!has(engine::kind::cpu) || !has(engine::kind::gpu),
             "CPU or GPU device not found.");
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    SKIP_IF(true, "Skip this test for classic CPU runtime");
+#endif
 
     auto other_kind = (kind == engine::kind::gpu) ? engine::kind::cpu
                                                   : engine::kind::gpu;

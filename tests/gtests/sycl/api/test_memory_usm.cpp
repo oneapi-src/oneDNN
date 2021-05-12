@@ -62,8 +62,17 @@ TEST_P(sycl_memory_usm_test, Constructor) {
     memory::dim n = 100;
     memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (eng_kind == engine::kind::cpu) {
+        int dummy_ptr;
+        EXPECT_ANY_THROW(sycl_interop::make_memory(
+                mem_d, eng, sycl_interop::memory_kind::usm, &dummy_ptr));
+        return;
+    }
+#endif
     void *ptr = cl::sycl::malloc_shared(sizeof(float) * n,
             sycl_interop::get_device(eng), sycl_interop::get_context(eng));
+
     auto mem = sycl_interop::make_memory(
             mem_d, eng, sycl_interop::memory_kind::usm, ptr);
 
@@ -97,6 +106,14 @@ TEST_P(sycl_memory_usm_test, ConstructorNone) {
     engine eng(eng_kind, 0);
     memory::desc mem_d({0}, memory::data_type::f32, memory::format_tag::x);
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (eng_kind == engine::kind::cpu) {
+        EXPECT_ANY_THROW(sycl_interop::make_memory(
+                mem_d, eng, sycl_interop::memory_kind::usm, DNNL_MEMORY_NONE));
+        return;
+    }
+#endif
+
     auto mem = sycl_interop::make_memory(
             mem_d, eng, sycl_interop::memory_kind::usm, DNNL_MEMORY_NONE);
 
@@ -114,6 +131,14 @@ TEST_P(sycl_memory_usm_test, ConstructorAllocate) {
     engine eng(eng_kind, 0);
     memory::dim n = 100;
     memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (eng_kind == engine::kind::cpu) {
+        EXPECT_ANY_THROW(sycl_interop::make_memory(mem_d, eng,
+                sycl_interop::memory_kind::usm, DNNL_MEMORY_ALLOCATE));
+        return;
+    }
+#endif
 
     auto mem = sycl_interop::make_memory(
             mem_d, eng, sycl_interop::memory_kind::usm, DNNL_MEMORY_ALLOCATE);
@@ -142,6 +167,13 @@ TEST_P(sycl_memory_usm_test, DefaultConstructor) {
     memory::dim n = 100;
     memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (eng_kind == engine::kind::cpu) {
+        EXPECT_ANY_THROW(sycl_interop::make_memory(
+                mem_d, eng, sycl_interop::memory_kind::usm));
+        return;
+    }
+#endif
     auto mem = sycl_interop::make_memory(
             mem_d, eng, sycl_interop::memory_kind::usm);
 

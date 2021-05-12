@@ -614,6 +614,13 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
 namespace test {
 inline dnnl::memory make_memory(
         const dnnl::memory::desc &md, const dnnl::engine &eng) {
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (eng.get_kind() == dnnl::engine::kind::cpu) {
+        return dnnl::memory(md, eng);
+    }
+#endif
+
 #if defined(TEST_DNNL_DPCPP_BUFFER)
     return dnnl::sycl_interop::make_memory(
             md, eng, dnnl::sycl_interop::memory_kind::buffer);
@@ -623,6 +630,12 @@ inline dnnl::memory make_memory(
 }
 inline dnnl::memory make_memory(
         const dnnl::memory::desc &md, const dnnl::engine &eng, void *handle) {
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (eng.get_kind() == dnnl::engine::kind::cpu) {
+        return dnnl::memory(md, eng);
+    }
+#endif
+
 #if defined(TEST_DNNL_DPCPP_BUFFER)
     return dnnl::sycl_interop::make_memory(
             md, eng, dnnl::sycl_interop::memory_kind::buffer, handle);

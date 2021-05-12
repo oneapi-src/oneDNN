@@ -126,6 +126,17 @@ TEST_P(sycl_engine_test, BasicInterop) {
 
     catch_expected_failures(
             [&]() {
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+                if (!impl::utils::one_of(param.adev_kind, dev_kind::gpu,
+                            dev_kind::gpu_only)) {
+                    engine eng(engine::kind::cpu, 0);
+                    EXPECT_ANY_THROW(sycl_interop::make_engine(dev, ctx));
+                    EXPECT_ANY_THROW(sycl_interop::get_device(eng));
+                    EXPECT_ANY_THROW(sycl_interop::get_context(eng));
+
+                    return;
+                }
+#endif
                 auto eng = sycl_interop::make_engine(dev, ctx);
                 if (param.expected_status != dnnl_success) {
                     FAIL() << "Success not expected";
@@ -140,6 +151,10 @@ TEST_P(sycl_engine_test, BasicInterop) {
 TEST(sycl_engine_test, HostDevice) {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
     SKIP_IF(true, "Skip test for host device for GPU only configuration");
+#endif
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    SKIP_IF(true, "Skip this test for classic CPU runtime");
 #endif
 
     device dev(host_selector {});
@@ -225,8 +240,10 @@ INSTANTIATE_TEST_SUITE_P(Simple, sycl_engine_test,
                 sycl_engine_test_params {
                         dev_kind::host, ctx_kind::host, dnnl_success}));
 
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
 INSTANTIATE_TEST_SUITE_P(InvalidArgs, sycl_engine_test,
         ::testing::Values(sycl_engine_test_params {dev_kind::cpu_only,
                 ctx_kind::gpu_only, dnnl_invalid_arguments}));
+#endif
 
 } // namespace dnnl
