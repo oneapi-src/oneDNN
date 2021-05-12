@@ -44,7 +44,8 @@ private:
         std::vector<float> inv_scales;
         inv_scales.reserve(scales.size());
         for (auto &s : scales) {
-            inv_scales.emplace_back(1.f / s);
+            // add epsilon to avoid divide zero
+            inv_scales.emplace_back(1.f / (s + 1e-9f));
         }
         return inv_scales;
     };

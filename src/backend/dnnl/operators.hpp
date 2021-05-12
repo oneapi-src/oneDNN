@@ -30,4 +30,7 @@
 #include "operators/reorder.hpp"
 #include "operators/softmax.hpp"
 
+#include "subgraph/operators/int8_conv.hpp"
+#include "subgraph/operators/int8_matmul.hpp"
+
 #endif

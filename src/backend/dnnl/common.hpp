@@ -116,6 +116,11 @@ memory::desc to_grouped(const memory::desc &adesc, dim groups);
 #define BACKEND_DNNL_ENFORCE(condition, message)
 #endif
 
+#define BACKEND_DNNL_CHECK(ret) \
+    do { \
+        if (ret != impl::status::success) return ret; \
+    } while (false)
+
 #define BACKEND_DNNL_TYPE_DISPATCH(type_enum, type_key, ...) \
     switch (type_enum) { \
         case data_type::f32: { \

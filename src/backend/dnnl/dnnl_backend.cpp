@@ -175,6 +175,24 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(Quantize, quantize_dequantize)
     DNNL_REGISTER_KERNEL(Dequantize, quantize_dequantize)
 
+    // quantized conv
+    DNNL_REGISTER_KERNEL(int8_conv, quantized_conv)
+    DNNL_REGISTER_KERNEL(int8_conv_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(int8_conv_bias, quantized_conv)
+    DNNL_REGISTER_KERNEL(int8_conv_bias_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(int8_conv_add_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(int8_conv_bias_add_relu, quantized_conv)
+
+    // qunatized matmul
+    DNNL_REGISTER_KERNEL(int8_matmul, quantized_matmul);
+    DNNL_REGISTER_KERNEL(int8_matmul_bias, quantized_matmul);
+    DNNL_REGISTER_KERNEL(int8_matmul_relu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(int8_matmul_bias_relu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(int8_matmul_sigmoid, quantized_matmul);
+    DNNL_REGISTER_KERNEL(int8_matmul_bias_sigmoid, quantized_matmul);
+    DNNL_REGISTER_KERNEL(int8_matmul_gelu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(int8_matmul_bias_gelu, quantized_matmul);
+
 #undef DNNL_REGISTER_KERNEL
 
     return true;

@@ -117,30 +117,50 @@ public:
         , perm_ins_(perm_ins)
         , perm_outs_(perm_outs)
         , kernel_(kernel)
-        , op_(op) {}
+        , op_(op)
+        , use_subgraph_(false) {}
+
+    // used in subgraph mode
+    dnnl_compiled_partition_impl_t(const impl::engine_t &engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs,
+            kernel_ptr &kernel)
+        : impl::compiled_partition_impl_t(
+                engine, inputs, outputs, kernel->inplace_pairs_)
+        , kernel_(kernel)
+        , use_subgraph_(true) {}
 
     virtual impl::status_t execute(const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        std::vector<impl::tensor_t> ordered_inputs, ordered_outputs;
-        ordered_inputs.reserve(inputs_.size());
-        ordered_outputs.reserve(outputs_.size());
-        for (size_t i = 0; i < inputs_.size(); i++) {
-            assertm(perm_ins_[i] < inputs.size()
-                            && inputs[perm_ins_[i]].get_logical_tensor().id
-                                    == inputs_[i].id,
-                    "invalid inputs");
-            ordered_inputs.emplace_back(inputs[perm_ins_[i]]);
-        }
-        for (size_t i = 0; i < outputs_.size(); i++) {
-            assertm(perm_outs_[i] < outputs.size()
-                            && outputs[perm_outs_[i]].get_logical_tensor().id
-                                    == outputs_[i].id,
-                    "invalid inputs");
-            ordered_outputs.emplace_back(outputs[perm_outs_[i]]);
-        }
+        if (use_subgraph_) {
+            // In subgraph mode, we don't need to resort the inputs and outputs
+            return kernel_->execute((const dnnl_partition_impl_t *)nullptr,
+                    g_stream, inputs, outputs);
+        } else {
+            std::vector<impl::tensor_t> ordered_inputs, ordered_outputs;
+            ordered_inputs.reserve(inputs_.size());
+            ordered_outputs.reserve(outputs_.size());
+            for (size_t i = 0; i < inputs_.size(); i++) {
+                assertm(perm_ins_[i] < inputs.size()
+                                && inputs[perm_ins_[i]].get_logical_tensor().id
+                                        == inputs_[i].id,
+                        "invalid inputs");
+                ordered_inputs.emplace_back(inputs[perm_ins_[i]]);
+            }
+            for (size_t i = 0; i < outputs_.size(); i++) {
+                assertm(perm_outs_[i] < outputs.size()
+                                && outputs[perm_outs_[i]]
+                                                .get_logical_tensor()
+                                                .id
+                                        == outputs_[i].id,
+                        "invalid inputs");
+                ordered_outputs.emplace_back(outputs[perm_outs_[i]]);
+            }
 
-        return kernel_->execute(op_, g_stream, ordered_inputs, ordered_outputs);
+            return kernel_->execute(
+                    op_, g_stream, ordered_inputs, ordered_outputs);
+        }
     }
 
 #if DNNL_GRAPH_WITH_SYCL
@@ -176,6 +196,7 @@ private:
     std::map<size_t, size_t> perm_outs_;
     kernel_ptr kernel_;
     const impl::op_t *op_;
+    bool use_subgraph_ {false};
 };
 
 class dnnl_partition_impl_t : public impl::partition_impl_t {
@@ -273,63 +294,108 @@ public:
             const impl::engine_t *g_engine = nullptr) override {
         using ltw = impl::logical_tensor_wrapper;
 
-        impl::op_t *fused_op = dynamic_cast<const dnnl_partition_impl_t *>(
-                compiled_partition->src_partition().get_pimpl())
-                                       ->get_fused_op();
+        static std::set<op_kind_t> subgraph_patterns {op_kind::int8_conv_relu,
+                op_kind::int8_conv, op_kind::int8_conv_bias_relu,
+                op_kind::int8_conv_bias, op_kind::int8_conv_bias_add_relu,
+                op_kind::int8_conv_add_relu, op_kind::int8_matmul,
+                op_kind::int8_matmul_bias, op_kind::int8_matmul_relu,
+                op_kind::int8_matmul_bias_relu, op_kind::int8_matmul_sigmoid,
+                op_kind::int8_matmul_bias_sigmoid, op_kind::int8_matmul_gelu,
+                op_kind::int8_matmul_bias_gelu};
+
+        const dnnl_partition_impl_t *part
+                = dynamic_cast<const dnnl_partition_impl_t *>(
+                        compiled_partition->src_partition().get_pimpl());
+
+        impl::op_t *fused_op = part->get_fused_op();
         if (!fused_op) return status::compile_fail;
-
-        // To support arbitrary re-connection in FWK graph, we need to
-        // find required input and output logical tensors from the compile
-        // function's parameters
-        status_t ret;
-        std::vector<impl::logical_tensor_t> ordered_inputs;
-        std::map<size_t, size_t> perm_ins;
-        ret = get_ordered_inputs_outputs(
-                fused_op, inputs_, inputs, ordered_inputs, perm_ins);
-        if (status::success != ret) return ret;
-
-        std::vector<impl::logical_tensor_t> ordered_outputs;
-        std::map<size_t, size_t> perm_outs;
-        ret = get_ordered_inputs_outputs(
-                fused_op, outputs_, outputs, ordered_outputs, perm_outs);
-        if (status::success != ret) return ret;
-
-        // Check if all the shapes are known
-        // In the phase of compilation, all the output shape should be known.
-        auto pos = std::find_if(ordered_outputs.begin(), ordered_outputs.end(),
-                [&](const impl::logical_tensor_t &out) -> bool {
-                    return ltw(out).is_shape_unknown();
-                });
-        if (pos != ordered_outputs.end()) { return status::invalid_argument; }
-
-        // Infer attributes of the op, i.e.
-        std::vector<impl::logical_tensor_t *> tmp_inputs, tmp_outputs;
-        for (auto &in : ordered_inputs) {
-            tmp_inputs.emplace_back(&in);
-        }
-        for (auto &out : ordered_outputs) {
-            tmp_outputs.emplace_back(&out);
-        }
-        const op_schema *cur_op_schema
-                = op_schema_registry::get_op_schema(fused_op->get_kind());
-        if (cur_op_schema) {
-            cur_op_schema->shape_infer(fused_op, tmp_inputs, tmp_outputs);
-        }
 
         // create kernel
         auto kernel = dnnl_backend::get_singleton().create_kernel(*fused_op);
         if (!kernel) return status::compile_fail;
 
-        // compile kernel
-        ret = kernel->compile(
-                fused_op, g_engine, ordered_inputs, ordered_outputs);
-        if (ret != impl::status::success) return status::compile_fail;
+        status_t ret;
 
-        // wrapper kernel to dnnl_compiled_partition_impl_t
-        auto pimpl = std::make_shared<dnnl_compiled_partition_impl_t>(*g_engine,
-                ordered_inputs, ordered_outputs, perm_ins, perm_outs, kernel,
-                fused_op);
-        compiled_partition->init(pimpl);
+        // compile kernel. patterns in subgraph_patterns set will use subgraph
+        // mode
+        bool use_subgraph = subgraph_patterns.count(fused_op->get_kind());
+        if (use_subgraph) {
+            // compile will transform the subgraph in partition, so we make
+            // a copy
+            auto copied_part = std::make_shared<dnnl_partition_impl_t>(*part);
+
+            // In subgraph mode, we don't need to resort the inputs or outputs
+            // FIXME(qun) will modify the outputs inside the compile, which
+            // break the constant semantics
+            ret = kernel->compile(copied_part.get(), g_engine, inputs, outputs);
+            if (ret != status::success) return status::compile_fail;
+
+            std::vector<impl::logical_tensor_t> ordered_inputs;
+            std::vector<impl::logical_tensor_t> ordered_outputs;
+            std::map<size_t, size_t> dummy;
+            ret = get_ordered_inputs_outputs(
+                    fused_op, inputs_, inputs, ordered_inputs, dummy);
+            if (status::success != ret) return ret;
+
+            ret = get_ordered_inputs_outputs(
+                    fused_op, outputs_, outputs, ordered_outputs, dummy);
+            if (status::success != ret) return ret;
+
+            // wrapper kernel to dnnl_compiled_partition_impl_t
+            auto pimpl = std::make_shared<dnnl_compiled_partition_impl_t>(
+                    *g_engine, ordered_inputs, ordered_outputs, kernel);
+            compiled_partition->init(pimpl);
+        } else {
+            // To support arbitrary re-connection in FWK graph, we need to
+            // find required input and output logical tensors from the compile
+            // function's parameters
+            std::vector<impl::logical_tensor_t> ordered_inputs;
+            std::map<size_t, size_t> perm_ins;
+            ret = get_ordered_inputs_outputs(
+                    fused_op, inputs_, inputs, ordered_inputs, perm_ins);
+            if (status::success != ret) return ret;
+
+            std::vector<impl::logical_tensor_t> ordered_outputs;
+            std::map<size_t, size_t> perm_outs;
+            ret = get_ordered_inputs_outputs(
+                    fused_op, outputs_, outputs, ordered_outputs, perm_outs);
+            if (status::success != ret) return ret;
+
+            // Check if all the shapes are known. In the phase of compilation,
+            // all the output shape should be known.
+            auto pos = std::find_if(ordered_outputs.begin(),
+                    ordered_outputs.end(),
+                    [&](const impl::logical_tensor_t &out) -> bool {
+                        return ltw(out).is_shape_unknown();
+                    });
+            if (pos != ordered_outputs.end()) {
+                return status::invalid_argument;
+            }
+
+            // Infer attributes of the node, i.e.
+            std::vector<impl::logical_tensor_t *> tmp_inputs, tmp_outputs;
+            for (auto &in : ordered_inputs) {
+                tmp_inputs.emplace_back(&in);
+            }
+            for (auto &out : ordered_outputs) {
+                tmp_outputs.emplace_back(&out);
+            }
+            const op_schema *cur_op_schema
+                    = op_schema_registry::get_op_schema(fused_op->get_kind());
+            if (cur_op_schema) {
+                cur_op_schema->shape_infer(fused_op, tmp_inputs, tmp_outputs);
+            }
+
+            ret = kernel->compile(
+                    fused_op, g_engine, ordered_inputs, ordered_outputs);
+            if (ret != status::success) return status::compile_fail;
+
+            // wrapper kernel to dnnl_compiled_partition_impl_t
+            auto pimpl = std::make_shared<dnnl_compiled_partition_impl_t>(
+                    *g_engine, ordered_inputs, ordered_outputs, perm_ins,
+                    perm_outs, kernel, fused_op);
+            compiled_partition->init(pimpl);
+        }
 
         return status::success;
     }

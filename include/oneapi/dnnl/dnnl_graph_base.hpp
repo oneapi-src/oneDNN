@@ -102,6 +102,16 @@ constexpr dnnl_graph_data_type_t get_data_type() {
     return dnnl_graph_f32;
 }
 
+template <typename T, requires<std::is_same<T, int8_t>::value> = true>
+constexpr dnnl_graph_data_type_t get_data_type() {
+    return dnnl_graph_s8;
+}
+
+template <typename T, requires<std::is_same<T, uint8_t>::value> = true>
+constexpr dnnl_graph_data_type_t get_data_type() {
+    return dnnl_graph_u8;
+}
+
 // TODO(wuxun): now use int16 to simulate float16, need fix in the future
 template <typename T, requires<std::is_same<T, int16_t>::value> = true>
 constexpr dnnl_graph_data_type_t get_data_type() {
@@ -117,7 +127,9 @@ constexpr dnnl_graph_data_type_t get_data_type() {
 template <typename T,
         requires<!std::is_same<T, float>::value
                 && !std::is_same<T, int16_t>::value
-                && !std::is_same<T, uint16_t>::value> = true>
+                && !std::is_same<T, uint16_t>::value
+                && !std::is_same<T, int8_t>::value
+                && !std::is_same<T, uint8_t>::value> = true>
 constexpr dnnl_graph_data_type_t get_data_type() {
     return dnnl_graph_data_type_undef;
 }

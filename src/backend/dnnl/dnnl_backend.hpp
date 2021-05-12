@@ -36,6 +36,8 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
+class dnnl_partition_impl_t;
+
 class layout_id_manager {
 public:
     layout_id_manager() {};
@@ -121,16 +123,69 @@ struct enum_hash {
 struct kernel_base {
     virtual ~kernel_base() {}
 
+    template <typename T>
+    impl::status_t compile(const T *op_or_part, const impl::engine_t *aengine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) {
+        auto ret = compile_impl(op_or_part, aengine, inputs, outputs);
+        if (ret != impl::status::success) return ret;
+        return prepare_inplace_pairs_impl(aengine, inputs, outputs);
+    }
+
+    template <typename T>
+    impl::status_t execute(const T *op_or_part, const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) {
+        return execute_impl(op_or_part, astream, inputs, outputs);
+    }
+
+    // This function is used in fused op mode
     virtual impl::status_t compile_impl(const impl::op_t *aop,
             const impl::engine_t *aengine,
             const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs)
-            = 0;
+            const std::vector<impl::logical_tensor_t> &outputs) {
+        UNUSED(aop);
+        UNUSED(aengine);
+        UNUSED(inputs);
+        UNUSED(outputs);
+        return impl::status::success;
+    }
+
+    // This function is used in fused op mode
     virtual impl::status_t execute_impl(const impl::op_t *aop,
             const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
-            const std::vector<impl::tensor_t> &outputs)
-            = 0;
+            const std::vector<impl::tensor_t> &outputs) {
+        UNUSED(aop);
+        UNUSED(astream);
+        UNUSED(inputs);
+        UNUSED(outputs);
+        return impl::status::success;
+    }
+
+    // This function is used in subgraph mode
+    virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
+            const impl::engine_t *aengine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) {
+        UNUSED(part);
+        UNUSED(aengine);
+        UNUSED(inputs);
+        UNUSED(outputs);
+        return status::success;
+    }
+
+    // This function is used in subgraph mode
+    virtual impl::status_t execute_impl(const dnnl_partition_impl_t *part,
+            const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs) {
+        UNUSED(astream);
+        UNUSED(inputs);
+        UNUSED(outputs);
+        return impl::status::success;
+    }
+
     virtual impl::status_t prepare_inplace_pairs_impl(
             const impl::engine_t *aengine,
             const std::vector<impl::logical_tensor_t> &inputs,
@@ -140,20 +195,6 @@ struct kernel_base {
         UNUSED(outputs);
         return impl::status::success;
     };
-
-    impl::status_t compile(const impl::op_t *aop, const impl::engine_t *aengine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) {
-        auto ret = compile_impl(aop, aengine, inputs, outputs);
-        if (ret != impl::status::success) return ret;
-        return prepare_inplace_pairs_impl(aengine, inputs, outputs);
-    }
-
-    impl::status_t execute(const impl::op_t *aop, const impl::stream_t *astream,
-            const std::vector<impl::tensor_t> &inputs,
-            const std::vector<impl::tensor_t> &outputs) {
-        return execute_impl(aop, astream, inputs, outputs);
-    }
 
     std::vector<impl::inplace_pair_t> inplace_pairs_;
 };

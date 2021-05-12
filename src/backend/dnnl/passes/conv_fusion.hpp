@@ -558,6 +558,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
+                    // dnnl backend just support int8_conv_add related funsion
+                    // when dequantize which connect to add is symmetric
+                    dequant_other->set_attr<bool>("symmetric_check", true);
+
                     op_t *conv = apattern->create_op(op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
                     op_t *add = apattern->create_op(op_kind::Add);
@@ -578,6 +582,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
+                    // dnnl backend just support int8_conv_add related funsion
+                    // when dequantize which connect to add is symmetric
+                    dequant_other->set_attr<bool>("symmetric_check", true);
+
                     op_t *conv = apattern->create_op(op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
                     op_t *bias = apattern->create_op(op_kind::BiasAdd);
@@ -609,6 +617,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_add_relu_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
+                    // dnnl backend just support int8_conv_add related funsion
+                    // when dequantize which connect to add is symmetric
+                    dequant_other->set_attr<bool>("symmetric_check", true);
+
                     op_t *conv = apattern->create_op(op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
                     op_t *add = apattern->create_op(op_kind::Add);

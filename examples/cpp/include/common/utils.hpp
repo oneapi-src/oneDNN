@@ -42,6 +42,14 @@
             using type_key = uint16_t; \
             __VA_ARGS__ \
         } break; \
+        case dnnl::graph::logical_tensor::data_type::u8: { \
+            using type_key = uint8_t; \
+            __VA_ARGS__ \
+        } break; \
+        case dnnl::graph::logical_tensor::data_type::s8: { \
+            using type_key = int8_t; \
+            __VA_ARGS__ \
+        } break; \
         default: \
             throw std::runtime_error( \
                     "Not supported data type in current example."); \
@@ -59,6 +67,12 @@ void *get_handle_from_tensor(const dnnl::graph::tensor &src,
             break;
         case dnnl::graph::logical_tensor::data_type::bf16:
             return src.get_data_handle<uint16_t>();
+            break;
+        case dnnl::graph::logical_tensor::data_type::u8:
+            return src.get_data_handle<uint8_t>();
+            break;
+        case dnnl::graph::logical_tensor::data_type::s8:
+            return src.get_data_handle<int8_t>();
             break;
         default:
             throw std::runtime_error(

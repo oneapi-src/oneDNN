@@ -684,12 +684,11 @@ void fuse_zero_points(
                 auto zps = zp_op->get_attr<std::vector<int64_t>>("zps");
 
                 int mask = zps.size() == 1 ? 0 : 1 << axis;
-                std::vector<int32_t> int32_zps;
-                for (auto &zp : zps) {
-                    int32_zps.emplace_back(static_cast<int32_t>(zp));
-                }
 
-                prm_attr.set_zero_points(DNNL_ARG_SRC, mask, int32_zps);
+                std::vector<int32_t> neg_int32_zps = dnnl_impl::utils::fmap(zps,
+                        [](int64_t zp) { return static_cast<int32_t>(-zp); });
+
+                prm_attr.set_zero_points(DNNL_ARG_SRC, mask, neg_int32_zps);
             }
 
             fuse_op_to_successor(zp_op, subgraph);
