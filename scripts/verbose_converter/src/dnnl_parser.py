@@ -56,9 +56,22 @@ class LogParser:
             def convert_mds(log_mds):
                 mds = []
                 for md in log_mds.split(' '):
-                    # arg_dt:padding:desc:tag:flags
-                    (arg_dt, padding, format_kind, tag, flags) = \
-                        md.split(':')
+                    # arg_dt:padding:format_kind:tag:flags
+                    fields = md.split(':')
+                    arg_dt = fields[0]
+                    padding = fields[1]
+                    format_kind = fields[2]
+                    tag = fields[3]
+                    flags = {}
+                    flags['value'] = fields[4]
+                    if len(fields) > 5:
+                        flag_fields = fields[5:]
+                        for f in flag_fields:
+                            if f[:3] == 's8m':
+                                flags['s8_comp_mask'] = f[3:]
+                            if f[:3] == 'zpm':
+                                flags['zp_comp_mask'] = f[3:]
+
                     data_type = arg_dt.split('_')[-1]
                     arg = arg_dt[:-len(data_type) - 1]
                     mds.append({
@@ -255,11 +268,15 @@ class LogParser:
                         cvt = convert.get(key)
                         if cvt == None:
                             cvt = convert_pass
-                        entry[key] = cvt(log_entry[idx])
+                        field = log_entry[idx]
+                        try:
+                            entry[key] = cvt(field)
+                        except:
+                            self.__writer.print(f"Parser: parsing entry error: {field}: {value}", 'WARN')
                     else:
-                        self.__writer.print(f"Unknown entry: {value}", 'WARN')
+                        self.__writer.print(f"Parser: Uunknown entry: {value}", 'WARN')
                 except:
-                    pass
+                    self.__writer.print(f"Parser: skipping empty entry: {key}", 'WARN')
             return entry
 
         verbose_template = "dnnl_verbose,operation,engine,primitive," + \

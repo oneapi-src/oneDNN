@@ -282,7 +282,7 @@ def convert_tags(mds, prim_kind):
                 continue
 
             # pass wtag any for cases with compensation
-            if md_arg == 'w' and md['flags'] != 'f0':
+            if md_arg == 'w' and md['flags']['value'] != 'f0':
                 tags += f' --{md_arg}tag=any'
             else:
                 md_tag = md['tag']
@@ -352,6 +352,49 @@ def convert_tags(mds, prim_kind):
     }
 
     convert = cvt_tags.get(prim_kind)
+    if convert:
+        return convert(mds)
+    return ''
+
+def convert_flags(mds, prim_kind):
+    def convert_flags_reorder(mds):
+        def convert_flag(prefix, md):
+            flag = ''
+            flag_fields = md.get('flags')
+            if flag_fields != None:
+                cvt = { 's8_comp_mask' : 's8s8_comp', 'zp_comp_mask' : 'zp_comp' }
+                for f in cvt.keys():
+                    value = flag_fields.get(f)
+                    if value != None:
+                        benchdnn_flag = cvt[f] + ':' + value
+                        if flag == '':
+                            flag = benchdnn_flag
+                        else:
+                            flag += '+' + benchdnn_flag
+            if flag != '':
+                return f"--{prefix}flag={flag}"
+            else:
+                return ''
+
+        flags = ''
+        # FIXME: fix benchdnn input template
+        input_md = [md for md in mds if 'src' in md['arg']][0]
+        output_md = [md for md in mds if 'dst' in md['arg']][0]
+
+        iflag = convert_flag('i', input_md)
+        oflag = convert_flag('o', output_md)
+
+        if iflag != '':
+            flags += iflag
+        if oflag != '':
+            flags += ' ' + oflag
+        return flags
+
+    cvt_flags = {
+        'reorder': convert_flags_reorder,
+    }
+
+    convert = cvt_flags.get(prim_kind)
     if convert:
         return convert(mds)
     return ''
@@ -522,6 +565,7 @@ class InputGenerator:
             # XXX: data types configuration is not unified across drivers
             case += ' ' + convert_dts(entry['mds'], entry['prim_kind'])
             case += ' ' + convert_tags(entry['mds'], entry['prim_kind'])
+            case += ' ' + convert_flags(entry['mds'], entry['prim_kind'])
             case += ' ' + convert_attrs(entry['exts'])
             case += ' ' + convert_shapes(entry['shapes'], entry['prim_kind'])
             return case
