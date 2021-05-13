@@ -162,13 +162,10 @@ status_t jit_uni_shuffle_t<isa>::execute(const exec_ctx_t &ctx) const {
     using namespace prop_kind;
     using namespace utils;
 
-    status_t status = status::success;
-
     const auto i_arg = pd()->is_fwd() ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
     const auto o_arg = pd()->is_fwd() ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
     auto input = CTX_IN_MEM(const uint8_t *, i_arg);
-    auto output = CTX_OUT_CLEAN_MEM(uint8_t *, o_arg, status);
-    CHECK(status);
+    auto output = CTX_OUT_MEM(uint8_t *, o_arg);
 
     const auto conf = pd()->get_conf();
 
@@ -194,6 +191,7 @@ status_t jit_uni_shuffle_t<isa>::execute(const exec_ctx_t &ctx) const {
             args.dst = output + (off + SP * c_curr) * data_type_size;
 
             args.cb_loop_size = c_work;
+            args.is_padded_block = cb + 1 == CB;
 
             args.input_off_ptr = this->input_off_ + c_curr;
             (*kernel_)(&args);

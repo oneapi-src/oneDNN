@@ -883,6 +883,7 @@ struct jit_shuffle_call_s {
 
     dim_t cb_loop_size
             = 0; // number of loop iterations over corresponding C batches
+    bool is_padded_block = false;
 };
 
 enum class binary_op_t : unsigned { none, c_blocked, n_spatial_c, n_c_spatial };

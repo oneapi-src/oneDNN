@@ -32,10 +32,17 @@ using namespace Xbyak;
 
 #define GET_OFF(field) offsetof(jit_shuffle_call_s, field)
 
+static size_t get_padding_size(const jit_shuffle_conf_t &conf) {
+    const auto padding_tail_size = conf.c % conf.blk_size;
+    return (padding_tail_size) ? conf.blk_size - padding_tail_size : 0;
+}
+
 template <cpu_isa_t isa>
 jit_uni_shuffle_kernel_t<isa>::jit_uni_shuffle_kernel_t(
         const jit_shuffle_conf_t conf)
-    : jit_generator(nullptr, MAX_CODE_SIZE, true, isa), conf_(conf) {
+    : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
+    , conf_(conf)
+    , padding_size_(get_padding_size(conf)) {
     const bool use_bf16_emulation = conf_.data_type == data_type::bf16
             && conf_.isa != avx512_core_bf16;
     bf16_emulation_ = use_bf16_emulation
@@ -221,51 +228,83 @@ void jit_uni_shuffle_kernel_t<sse41>::gather_data(const Reg64 &reg_src_addr,
 template <>
 void jit_uni_shuffle_kernel_t<avx512_common>::store_data(const int data_idx,
         const Reg64 &reg_dst_addr, const int offset, const bool is_tail) {
+    const auto extend_for_padding
+            = is_tail && padding_size_ + conf_.simd_tail >= conf_.simd_w;
     if (conf_.data_type == data_type::bf16) {
         const Ymm to_store_data = Ymm(data_idx);
+        const Ymm ymm_tmp = Ymm(vmm_tmp_.getIdx());
 
         if (bf16_emulation_)
             bf16_emulation_->vcvtneps2bf16(to_store_data, Zmm(data_idx));
         else
             vcvtneps2bf16(to_store_data, Zmm(data_idx));
 
-        if (is_tail)
-            vmovdqu16(ptr[reg_dst_addr + offset] | k_tail_mask_, to_store_data);
-        else
-            vmovups(ptr[reg_dst_addr + offset], to_store_data);
+        if (extend_for_padding) {
+            vmovdqu16(ymm_tmp | k_tail_mask_ | T_z, to_store_data);
+            vmovups(ptr[reg_dst_addr + offset], ymm_tmp);
+        } else {
+            if (is_tail)
+                vmovdqu16(ptr[reg_dst_addr + offset] | k_tail_mask_,
+                        to_store_data);
+            else
+                vmovups(ptr[reg_dst_addr + offset], to_store_data);
+        }
     } else {
-        if (is_tail)
-            vmovups(ptr[reg_dst_addr + offset] | k_tail_mask_, Vmm(data_idx));
-        else
-            vmovups(ptr[reg_dst_addr + offset], Vmm(data_idx));
+        if (extend_for_padding) {
+            vmovups(vmm_tmp_ | k_tail_mask_ | T_z, Vmm(data_idx));
+            vmovups(ptr[reg_dst_addr + offset], vmm_tmp_);
+        } else {
+            if (is_tail)
+                vmovups(ptr[reg_dst_addr + offset] | k_tail_mask_,
+                        Vmm(data_idx));
+            else
+                vmovups(ptr[reg_dst_addr + offset], Vmm(data_idx));
+        }
     }
+    append_zero_padding(reg_dst_, extend_for_padding);
 }
 
 template <>
 void jit_uni_shuffle_kernel_t<avx>::store_data(const int data_idx,
         const Reg64 &reg_dst_addr, const int offset, const bool is_tail) {
+    const auto extend_for_padding
+            = is_tail && padding_size_ + conf_.simd_tail >= conf_.simd_w;
+
     if (conf_.data_type == data_type::bf16) {
         const Xmm to_store_data = Xmm(data_idx);
+        const Xmm xmm_tmp = Xmm(vmm_tmp_.getIdx());
 
         if (bf16_emulation_)
             bf16_emulation_->vcvtneps2bf16(to_store_data, Ymm(data_idx));
         else
             vcvtneps2bf16(to_store_data, Ymm(data_idx));
 
-        if (is_tail) {
-            for (unsigned i = 0; i < conf_.simd_tail; i++)
-                pextrw(ptr[reg_dst_addr + offset + i * conf_.dt_size],
-                        to_store_data, i);
+        if (extend_for_padding) {
+            uni_vxorps(xmm_tmp, xmm_tmp, xmm_tmp);
+            vpblendvb(xmm_tmp, xmm_tmp, to_store_data, vmm_tail_mask_);
+            vmovups(ptr[reg_dst_addr + offset], xmm_tmp);
         } else {
-            vmovups(ptr[reg_dst_addr + offset], to_store_data);
+            if (is_tail)
+                for (unsigned i = 0; i < conf_.simd_tail; i++)
+                    pextrw(ptr[reg_dst_addr + offset + i * conf_.dt_size],
+                            to_store_data, i);
+            else
+                vmovups(ptr[reg_dst_addr + offset], to_store_data);
         }
     } else {
-        if (is_tail)
-            vmaskmovps(
-                    ptr[reg_dst_addr + offset], vmm_tail_mask_, Vmm(data_idx));
-        else
-            vmovups(ptr[reg_dst_addr + offset], Vmm(data_idx));
+        if (extend_for_padding) {
+            uni_vxorps(vmm_tmp_, vmm_tmp_, vmm_tmp_);
+            vpblendvb(vmm_tmp_, vmm_tmp_, Vmm(data_idx), vmm_tail_mask_);
+            vmovups(ptr[reg_dst_addr + offset], vmm_tmp_);
+        } else {
+            if (is_tail)
+                vmaskmovps(ptr[reg_dst_addr + offset], vmm_tail_mask_,
+                        Vmm(data_idx));
+            else
+                vmovups(ptr[reg_dst_addr + offset], Vmm(data_idx));
+        }
     }
+    append_zero_padding(reg_dst_, extend_for_padding);
 }
 
 template <>
@@ -286,6 +325,7 @@ void jit_uni_shuffle_kernel_t<sse41>::store_data(const int data_idx,
         else
             movups(ptr[reg_dst_addr + offset], Vmm(data_idx));
     }
+    append_zero_padding(reg_dst_, false);
 }
 
 template <cpu_isa_t isa>
@@ -407,6 +447,48 @@ void jit_uni_shuffle_kernel_t<isa>::shuffle_blocked_format() {
 }
 
 template <cpu_isa_t isa>
+void jit_uni_shuffle_kernel_t<isa>::append_zero_padding(
+        const Reg64 &reg_dst_addr, const bool extend_for_padding) {
+
+    static constexpr size_t reg64_size = 8;
+    const size_t simd_w_byte = conf_.simd_w * sizeof(float);
+
+    if (!padding_size_) return;
+
+    const auto padding_start
+            = (extend_for_padding) ? conf_.simd_w : conf_.c % conf_.blk_size;
+    const auto padding_end = (extend_for_padding)
+            ? padding_size_ - (conf_.simd_w - conf_.simd_tail)
+            : padding_size_;
+    const auto off_start = padding_start * conf_.dt_size;
+    const auto padding_to_add = padding_end * conf_.dt_size;
+
+    if (!padding_to_add) return;
+
+    Label end;
+    unsigned int off = 0;
+
+    cmp(reg_padded_block, 0);
+    je(end, T_NEAR);
+
+    if (simd_w_byte <= padding_to_add) {
+        uni_vxorps(vmm_zero_, vmm_zero_, vmm_zero_);
+        for (; off + simd_w_byte < padding_to_add; off += simd_w_byte)
+            uni_vmovups(ptr[reg_dst_addr + off_start + off], vmm_zero_);
+    }
+
+    if (off != padding_to_add) {
+        xor_(reg_tmp_, reg_tmp_);
+        for (; off + reg64_size < padding_to_add; off += reg64_size)
+            mov(ptr[reg_dst_addr + off_start + off], reg_tmp_);
+        for (; off < padding_to_add; off++)
+            mov(ptr[reg_dst_addr + off_start + off], Reg8(reg_tmp_.getIdx()));
+    }
+
+    L(end);
+}
+
+template <cpu_isa_t isa>
 void jit_uni_shuffle_kernel_t<isa>::generate() {
     preamble();
 
@@ -435,6 +517,7 @@ void jit_uni_shuffle_kernel_t<isa>::generate() {
 
     mov(reg_src_, ptr[reg_param + GET_OFF(src)]);
     mov(reg_dst_, ptr[reg_param + GET_OFF(dst)]);
+    mov(reg_padded_block, ptr[reg_param + GET_OFF(is_padded_block)]);
 
     shuffle_blocked_format();
 

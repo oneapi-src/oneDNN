@@ -70,6 +70,9 @@ struct jit_uni_shuffle_kernel_t : public jit_generator {
 
     void shuffle_blocked_format();
 
+    void append_zero_padding(
+            const Reg64 &reg_dst_addr, const bool zero_extend_write);
+
     void generate() override;
 
     const Vmm vmm_tail_mask_ = Vmm(0);
@@ -81,6 +84,7 @@ struct jit_uni_shuffle_kernel_t : public jit_generator {
     const Vmm vmm_src_ = Vmm(2);
     const Vmm vmm_tmp_ = Vmm(3);
     const Vmm vmm_indices_ = Vmm(4);
+    const Vmm vmm_zero_ = Vmm(11);
 
     const Opmask k_tail_mask_ = k1;
     const Opmask k_full_mask_ = k2;
@@ -98,6 +102,7 @@ struct jit_uni_shuffle_kernel_t : public jit_generator {
     const Reg64 &reg_tmp4_ = r11;
     const Reg64 &reg_tmp5_ = r12;
     const Reg64 &reg_tmp6_ = r13;
+    const Reg8 &reg_padded_block = r14b;
 
     const Zmm bf16_emu_reserv_1 = Zmm(7);
     const Zmm bf16_emu_reserv_2 = Zmm(8);
@@ -107,6 +112,7 @@ struct jit_uni_shuffle_kernel_t : public jit_generator {
 
     const jit_shuffle_conf_t conf_;
     std::unique_ptr<bf16_emulation_t> bf16_emulation_;
+    const size_t padding_size_;
 };
 
 } // namespace x64
