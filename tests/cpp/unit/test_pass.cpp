@@ -3309,65 +3309,6 @@ TEST(pass_test, int8_matmul_bias_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
 }
 
-TEST(pass_test, int8_maxpool_fusion) {
-    /*
-             | (u8/s8)
-          dequant
-             | (f32)
-           maxpool
-
-             | (f32)
-           quant
-             | (u8/s8)
-    */
-
-    graph_t agraph;
-    std::vector<int64_t> zps = {0};
-    std::vector<float> scales = {3.1f};
-    op_t dequant {0, Dequantize, "dequant"};
-    dequant.set_attr("scales", scales);
-    dequant.set_attr("zps", zps);
-
-    std::vector<int64_t> strides = {1, 1};
-    std::vector<int64_t> pads_begin = {0, 0};
-    std::vector<int64_t> pads_end = {0, 0};
-    std::vector<int64_t> kernel = {2, 2};
-    op_t maxpool {1, MaxPool, "maxpool"};
-    maxpool.set_attr("strides", strides);
-    maxpool.set_attr("pads_begin", pads_begin);
-    maxpool.set_attr("pads_end", pads_end);
-    maxpool.set_attr("kernel", kernel);
-
-    op_t quant {2, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
-
-    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
-    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
-    dequant.add_input(int8_data);
-    dequant.add_output(fp32_data);
-
-    logical_tensor_t fp32_maxpool_out = logical_tensor_init(2, data_type::f32);
-    maxpool.add_input(fp32_data);
-    maxpool.add_output(fp32_maxpool_out);
-
-    logical_tensor_t int8_out = logical_tensor_init(3, data_type::u8);
-    quant.add_input(fp32_maxpool_out);
-    quant.add_output(int8_out);
-
-    ASSERT_EQ(agraph.add_op(&dequant), status::success);
-    ASSERT_EQ(agraph.add_op(&maxpool), status::success);
-    ASSERT_EQ(agraph.add_op(&quant), status::success);
-
-    agraph.build_graph();
-
-    pass::pass_base_ptr apass = get_pass("int8_maxpool_fusion");
-    apass->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 1);
-    ASSERT_EQ(
-            get_fused_op(agraph.get_partitions()[0])->get_kind(), int8_maxpool);
-}
-
 TEST(pass_test, int8_matmul_bias_add_fusion_with_symmetric_check) {
     /*
         | (u8/s8)  | (s8)
