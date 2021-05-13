@@ -38,13 +38,18 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
     const int *perm = pd()->perm_, *iperm = pd()->iperm_;
     const int concat_dim = pd()->concat_dim();
     auto o_base_ptr = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    if (o_base_ptr == nullptr) return status::success;
 
     for (int a = 0; a < num_arrs; ++a) {
         const memory_desc_wrapper i_d(pd()->src_md(a));
         const memory_desc_wrapper o_d(pd()->src_image_md(a));
-
-        iptrs[a] = CTX_IN_MEM(const data_t *, DNNL_ARG_MULTIPLE_SRC + a)
-                + i_d.blk_off(0);
+        const auto iptr = CTX_IN_MEM(const data_t *, DNNL_ARG_MULTIPLE_SRC + a);
+        if (iptr == nullptr) {
+            iptrs[a] = nullptr;
+            nelems_to_copy[a] = 0;
+            continue;
+        }
+        iptrs[a] = iptr + i_d.blk_off(0);
         optrs[a] = o_base_ptr + o_d.blk_off(0);
         nelems_to_copy[a] = pd()->nelems_to_concat(i_d);
         for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
@@ -89,6 +94,9 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
     parallel_nd(phys_dims[0], phys_dims[1], phys_dims[2], phys_dims[3],
             phys_dims[4], num_arrs,
             [&](dim_t n0, dim_t n1, dim_t n2, dim_t n3, dim_t n4, int a) {
+                // check if zero memory
+                if (iptrs[a] == nullptr) return;
+
                 // XXX: this code may access uninitialized values in is[*][0-4] --
                 // that's why we have to set them to zero although this is
                 // probably benign
