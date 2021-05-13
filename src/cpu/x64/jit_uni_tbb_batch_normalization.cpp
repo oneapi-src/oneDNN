@@ -2241,7 +2241,6 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::init(engine_t *engine) {
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
 
     const memory_desc_wrapper ss_d(pd()->weights_md());
 
@@ -2260,21 +2259,16 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::execute(
                                   DNNL_ARG_SCALE_SHIFT)[shift_off]
                                  : nullptr;
 
-    auto mean = pd()->stats_is_src()
-            ? const_cast<acc_data_t *>(
-                    CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN))
-            : CTX_OUT_CLEAN_MEM(acc_data_t *, DNNL_ARG_MEAN, status);
-    CHECK(status);
+    auto mean = pd()->stats_is_src() ? const_cast<acc_data_t *>(
+                        CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN))
+                                     : CTX_OUT_MEM(acc_data_t *, DNNL_ARG_MEAN);
     auto var = pd()->stats_is_src()
             ? const_cast<acc_data_t *>(
                     CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE))
-            : CTX_OUT_CLEAN_MEM(acc_data_t *, DNNL_ARG_VARIANCE, status);
-    CHECK(status);
+            : CTX_OUT_MEM(acc_data_t *, DNNL_ARG_VARIANCE);
 
-    auto dst = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DST, status);
-    CHECK(status);
-    auto ws = CTX_OUT_CLEAN_MEM(uint8_t *, DNNL_ARG_WORKSPACE, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+    auto ws = CTX_OUT_MEM(uint8_t *, DNNL_ARG_WORKSPACE);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -2361,7 +2355,6 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::init(engine_t *engine) {
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
 
     const memory_desc_wrapper diff_ss_d(pd()->diff_weights_md());
 
@@ -2380,15 +2373,11 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::execute(
             const acc_data_t *, use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
     auto ws = CTX_IN_MEM(const uint8_t *, DNNL_ARG_WORKSPACE);
 
-    auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
-    auto diff_scale = CTX_OUT_CLEAN_MEM(acc_data_t *,
-            use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT, status);
-    CHECK(status);
-    auto diff_shift = use_sh
-            ? CTX_OUT_CLEAN_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT, status)
-            : use_ss ? &diff_scale[diff_shift_off] : nullptr;
-    CHECK(status);
+    auto diff_src = CTX_OUT_MEM(void *, DNNL_ARG_DIFF_SRC);
+    auto diff_scale = CTX_OUT_MEM(acc_data_t *,
+            use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT);
+    auto diff_shift = use_sh ? CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT)
+                             : use_ss ? &diff_scale[diff_shift_off] : nullptr;
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 

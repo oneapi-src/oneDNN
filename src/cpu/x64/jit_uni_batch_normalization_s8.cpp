@@ -656,7 +656,6 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::init(engine_t *engine) {
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_s8_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
 
     const memory_desc_wrapper ss_d(pd()->weights_md());
 
@@ -677,8 +676,7 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::execute(
     auto mean = const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN));
     auto var
             = const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE));
-    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     // do sequential if the problem is less than one 4K memory page
     const bool force_sequential
