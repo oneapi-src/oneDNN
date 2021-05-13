@@ -81,6 +81,10 @@ inline bool check_gemm_compatible_formats(const matmul_pd_t &pd) {
 
         const dims_t &strides = mdw.blocking_desc().strides;
 
+        // disable md with zero stride for a particular dimension
+        for (int dim = 0; dim < ndims; ++dim)
+            if (strides[dim] == 0) return false;
+
         // for GeMM atleast one of the two innermost axes must be contiguous
         return utils::one_of(1, strides[ndims - 1], strides[ndims - 2]);
     };
