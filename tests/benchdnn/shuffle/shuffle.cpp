@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,47 +59,53 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &spd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
-    dnnl_memory_desc_t data_d;
     dnnl_shuffle_desc_t sd;
 
+    dnnl_memory_desc_t data_d;
     SAFE(init_md(&data_d, prb->ndims, prb->dims.data(), prb->dt, prb->tag),
-            CRIT);
-
-    auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
-                                         : dnnl_forward_training;
-    DNN_SAFE(dnnl_shuffle_forward_desc_init(
-                     &sd, prop_kind, &data_d, prb->axis, prb->group),
             WARN);
 
-    dnnl_primitive_desc_t _hint = nullptr;
-    auto cleanup_pd = [&]() { dnnl_primitive_desc_destroy(_hint); };
-    if (prb->dir & FLAG_BWD) {
-        dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
-                &_hint, &sd, nullptr, engine, nullptr);
-        if (init_fwd_status == dnnl_unimplemented)
-            return res->state = UNIMPLEMENTED, OK;
-        SAFE(init_fwd_status, WARN);
+    if (prb->dir & FLAG_FWD) {
+        auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
+                                             : dnnl_forward_training;
 
-        DNN_SAFE_CLEAN(dnnl_memory_desc_init_by_tag(&data_d, prb->ndims,
-                               prb->dims.data(), prb->dt, dnnl_format_tag_any),
-                WARN, cleanup_pd);
+        DNN_SAFE(dnnl_shuffle_forward_desc_init(
+                         &sd, prop_kind, &data_d, prb->axis, prb->group),
+                WARN);
+    } else {
+        dnnl_memory_desc_t diff_data_d;
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, prb->ndims,
+                         prb->dims.data(), prb->dt, dnnl_format_tag_any),
+                WARN);
 
-        DNN_SAFE_CLEAN(dnnl_shuffle_backward_desc_init(
-                               &sd, &data_d, prb->axis, prb->group),
-                WARN, cleanup_pd);
+        DNN_SAFE(dnnl_shuffle_backward_desc_init(
+                         &sd, &diff_data_d, prb->axis, prb->group),
+                WARN);
     }
 
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args_t());
+    dnnl_primitive_desc_t hint_fwd_pd_ {};
+    dnnl_status_t status = dnnl_success;
+    if (prb->dir & FLAG_BWD) {
+        dnnl_shuffle_desc_t sd_fwd;
+        DNN_SAFE(dnnl_shuffle_forward_desc_init(&sd_fwd, dnnl_forward_training,
+                         &data_d, prb->axis, prb->group),
+                WARN);
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&spd, &sd, dnnl_attr, engine, _hint);
+        status = dnnl_primitive_desc_create(
+                &hint_fwd_pd_, &sd_fwd, nullptr, engine, nullptr);
+        if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
+    }
+    auto hint_fwd_pd = make_benchdnn_dnnl_wrapper(hint_fwd_pd_);
+    SAFE(status, WARN);
 
-    dnnl_primitive_desc_destroy(_hint);
-    dnnl_primitive_attr_destroy(dnnl_attr);
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args_t()));
 
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    SAFE(init_status, WARN);
+    status = dnnl_primitive_desc_create(
+            &spd, &sd, dnnl_attr, engine, hint_fwd_pd);
+
+    if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
+    SAFE(status, WARN);
 
     res->impl_name = query_impl_info(spd);
     BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
@@ -123,15 +129,14 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t s {};
-    SAFE(init_prim(&s, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(s, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(s));
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -164,7 +169,7 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(o_arg, dst_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    SAFE(execute_and_wait(s, args), WARN);
+    SAFE(execute_and_wait(prim, args), WARN);
 
     if (bench_mode & CORR) {
         compute_shuffle(prb, src_fp, dst_fp);
@@ -172,11 +177,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    measure_perf(res->timer, s, args);
-
-    DNN_SAFE_V(dnnl_primitive_destroy(s));
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace shuffle

@@ -1,0 +1,47 @@
+# These problems are ported from corresponding inner product shapes for
+# training
+
+# FWD
+# encoder
+5120x1024:1024x1024n"transformer_lt_train:FWD_encoder:SA*2"
+5120x1024:1024x4096n"transformer_lt_train:FWD_encoder:FF1*1"
+5120x4096:4096x1024n"transformer_lt_train:FWD_encoder:FF2*1"
+20480x1024:1024x1024n"transformer_lt_train:FWD_encoder:SA-precompute*1"
+# decoder
+512x1024:1024x1024n"transformer_lt_train:FWD_decoder:SA1*1"
+# mb5120ic1024oc1024n"transformer_lt:decoder:SA10"
+10240x1024:1024x1024n"transformer_lt_train:FWD_decoder:SA20*1"
+512x1024:1024x4096n"transformer_lt_train:FWD_decoder:FF1*1"
+512x4096:4096x1024n"transformer_lt_train:FWD_decoder:FF2*1"
+# vocabulary
+512x10246:10246x33945n"transformer_lt_train:FWD_output_logits*1"
+
+# BWD/D
+# encoder
+5120x1024:1024x1024n"transformer_lt_train:BWD_D_encoder:SA*2"
+5120x4096:4096x1024n"transformer_lt_train:BWD_D_encoder:FF1*1"
+5120x1024:1024x4096n"transformer_lt_train:BWD_D_encoder:FF2*1"
+20480x1024:1024x1024n"transformer_lt_train:BWD_D_encoder:SA-precompute*1"
+# decoder
+512x1024:1024x1024n"transformer_lt_train:BWD_D_decoder:SA1*1"
+# mb5120ic1024oc1024n"transformer_lt:decoder:SA10"
+10240x1024:1024x1024n"transformer_lt_train:BWD_D_decoder:SA20*1"
+512x4096:4096x1024n"transformer_lt_train:BWD_D_decoder:FF1*1"
+512x1024:1024x4096n"transformer_lt_train:BWD_D_decoder:FF2*1"
+# vocabulary
+512x33945:33945x10246n"transformer_lt_train:BWD_D_output_logits*1"
+
+# BWD/W
+# encoder
+1024x5120:5120x1024n"transformer_lt_train:BWD_W_encoder:SA*2"
+1024x5120:5120x4096n"transformer_lt_train:BWD_W_encoder:FF1*1"
+4096x5120:5120x1024n"transformer_lt_train:BWD_W_encoder:FF2*1"
+1024x20480:20480x1024n"transformer_lt_train:BWD_W_encoder:SA-precompute*1"
+# decoder
+1024x512:512x1024n"transformer_lt_train:BWD_W_decoder:SA1*1"
+# mb5120ic1024oc1024n"transformer_lt:decoder:SA10"
+1024x10240:10240x1024n"transformer_lt_train:BWD_W_decoder:SA20*1"
+1024x512:512x4096n"transformer_lt_train:BWD_W_decoder:FF1*1"
+4096x512:512x1024n"transformer_lt_train:BWD_W_decoder:FF2*1"
+# vocabulary
+10246x512:512x33945n"transformer_lt_train:BWD_W_output_logits*1"

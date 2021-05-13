@@ -22,13 +22,10 @@
 #include <string.h>
 #include <string>
 
+#include <algorithm>
 #include <sstream>
 
 #include "oneapi/dnnl/dnnl.h"
-
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "oneapi/dnnl/dnnl_threadpool.h"
-#endif
 
 #include "common.hpp"
 #include "dnn_types.hpp"
@@ -36,7 +33,6 @@
 #include "dnnl_debug.hpp"
 #include "dnnl_memory.hpp"
 #include "src/common/math_utils.hpp"
-#include "tests/test_thread.hpp"
 
 #define BENCHDNN_DNNL_ARG_UNDEF 0
 
@@ -135,22 +131,25 @@ const char *data_kind2str(data_kind_t kind) {
         case MEAN: return "MEAN";
         case VAR: return "VAR";
         case SS: return "SS";
+        case SC: return "SC";
+        case SH: return "SH";
         case GWEI: return "GWEI";
     }
     assert(!"incorrect data kind");
     return "incorrect data kind";
 }
 
-static const std::map<int, const char *> supported_args {
-        {DNNL_ARG_SRC, "src"},
-        {DNNL_ARG_SRC_1, "src1"},
-        {DNNL_ARG_WEIGHTS, "wei"},
-        {DNNL_ARG_DST, "dst"},
+static const std::map<int, std::vector<const char *>> supported_args {
+        {DNNL_ARG_SRC, {"src", "src0"}},
+        {DNNL_ARG_SRC_1, {"src1"}},
+        {DNNL_ARG_WEIGHTS, {"wei"}},
+        {DNNL_ARG_DST, {"dst"}},
 };
 
 static int str2arg(const std::string &str) {
     for (const auto &arg : supported_args)
-        if (str.compare(arg.second) == 0) return arg.first;
+        for (const auto &s : arg.second)
+            if (str.compare(s) == 0) return arg.first;
     return BENCHDNN_DNNL_ARG_UNDEF;
 }
 
@@ -165,6 +164,8 @@ policy_t attr_t::str2policy(const std::string &str) {
     CASE(PER_DIM_0);
     CASE(PER_DIM_1);
     CASE(PER_DIM_01);
+    CASE(PER_MB_SPATIAL);
+    CASE(PER_SPATIAL);
     CASE(PER_TENSOR);
 #undef CASE
     assert(!"unknown attr_t::policy_t policy");
@@ -177,6 +178,8 @@ const char *attr_t::policy2str(policy_t policy) {
     if (policy == PER_DIM_0) return "per_dim_0";
     if (policy == PER_DIM_1) return "per_dim_1";
     if (policy == PER_DIM_01) return "per_dim_01";
+    if (policy == PER_MB_SPATIAL) return "per_mb_spatial";
+    if (policy == PER_SPATIAL) return "per_spatial";
     if (policy == PER_TENSOR) return "per_tensor";
     assert(!"unknown attr_t::policy_t policy");
     return "unknown attr_t::policy_t policy";
@@ -188,9 +191,11 @@ int attr_t::get_default_mask(policy_t policy) {
         case PER_OC:
         case PER_DIM_1: return (1 << 1);
         case PER_DIM_01: return (1 << 0) + (1 << 1);
+        case PER_MB_SPATIAL: return (1 << 0) + (1 << 2) + (1 << 3);
+        case PER_SPATIAL: return (1 << 2) + (1 << 3);
         case PER_TENSOR: return (1 << DNNL_MAX_NDIMS) - 1;
         case COMMON: return 0;
-        default: SAFE_V(FAIL); return 0;
+        default: SAFE(FAIL, CRIT); return 0;
     }
 }
 
@@ -230,9 +235,10 @@ int attr_t::scale_t::from_str(const std::string &s) {
     if (start_pos == std::string::npos) return OK;
     if (start_pos >= s.size()) return FAIL; // to catch dangling ':'
 
-    int status = parse_value_and_runtime(
-            this->scale, this->runtime, get_substr(s, start_pos));
-    if (status != OK || this->scale < 0) return FAIL;
+    SAFE(parse_value_and_runtime(
+                 this->scale, this->runtime, get_substr(s, start_pos)),
+            WARN);
+    if (this->scale < 0) return FAIL;
     return OK;
 }
 
@@ -242,23 +248,25 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
 
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
-        auto arg = str2arg(get_substr(s, start_pos));
-        if (arg == BENCHDNN_DNNL_ARG_UNDEF || start_pos == std::string::npos
-                || start_pos >= s.size())
+        auto subs = get_substr(s, start_pos, '+');
+        size_t subs_pos = 0;
+
+        auto arg = str2arg(get_substr(subs, subs_pos));
+        if (arg == BENCHDNN_DNNL_ARG_UNDEF || subs_pos == std::string::npos
+                || subs_pos >= subs.size())
             return FAIL;
 
-        auto policy = str2policy(get_substr(s, start_pos));
-        if (policy == POLICY_TOTAL || start_pos == std::string::npos
-                || start_pos >= s.size())
+        auto policy = str2policy(get_substr(subs, subs_pos));
+        if (policy == POLICY_TOTAL || subs_pos == std::string::npos
+                || subs_pos >= subs.size())
             return FAIL;
 
         float zp = 0;
         bool runtime = false;
-        int status = parse_value_and_runtime(
-                zp, runtime, get_substr(s, start_pos, '_'));
-        if (status != OK) return status;
-
-        set(arg, policy, (int)zp, runtime); // XXX: overflow/underflow?
+        SAFE(parse_value_and_runtime(
+                     zp, runtime, get_substr(subs, subs_pos, '\0')),
+                WARN);
+        set(arg, policy, static_cast<int>(zp), runtime);
     }
     return OK;
 }
@@ -269,16 +277,21 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
 
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
-        auto arg = str2arg(get_substr(s, start_pos));
-        if (arg == BENCHDNN_DNNL_ARG_UNDEF || start_pos == std::string::npos
-                || start_pos >= s.size())
+        auto subs = get_substr(s, start_pos, '+');
+        // Special handling for really big float values
+        if (subs.back() == 'e') {
+            auto subs_add = get_substr(s, start_pos, '+');
+            subs += subs_add;
+        }
+        size_t subs_pos = 0;
+
+        auto arg = str2arg(get_substr(subs, subs_pos));
+        if (arg == BENCHDNN_DNNL_ARG_UNDEF || subs_pos == std::string::npos
+                || subs_pos >= s.size())
             return FAIL;
 
-        auto policy_str = get_substr(s, start_pos);
-        auto scale_str = policy_str + ":" + get_substr(s, start_pos, '_');
         scale_t arg_scale;
-        auto status = arg_scale.from_str(scale_str);
-        if (status != OK) return status;
+        SAFE(arg_scale.from_str(get_substr(subs, subs_pos, '\0')), WARN);
         set(arg, arg_scale);
     }
     return OK;
@@ -288,72 +301,89 @@ using pk_t = attr_t::post_ops_t::kind_t;
 
 struct po_table_entry_t {
     pk_t kind;
-    const char *kind_name;
+    std::vector<std::string> kind_names;
     dnnl_alg_kind_t dnnl_kind;
 };
 
 static po_table_entry_t kind_table[] = {
         // sum
-        {pk_t::SUM, "sum", dnnl_alg_kind_undef},
+        {pk_t::SUM, {"sum"}, dnnl_alg_kind_undef},
         // depthwise convolution
-        {pk_t::DW_K3S1P1, "dw_k3s1p1", dnnl_convolution_auto},
-        {pk_t::DW_K3S2P1, "dw_k3s2p1", dnnl_convolution_auto},
+        {pk_t::DW_K3S1P1, {"dw_k3s1p1"}, dnnl_convolution_auto},
+        {pk_t::DW_K3S2P1, {"dw_k3s2p1"}, dnnl_convolution_auto},
         // eltwise
-        {pk_t::ELTWISE_START, "eltwise_undef", dnnl_alg_kind_undef},
-        {pk_t::ABS, "abs", dnnl_eltwise_abs},
-        {pk_t::BRELU, "bounded_relu", dnnl_eltwise_bounded_relu},
-        {pk_t::BRELU, "brelu", dnnl_eltwise_bounded_relu},
-        {pk_t::CLIP, "clip", dnnl_eltwise_clip},
-        {pk_t::CLIP_V2, "clip_v2", dnnl_eltwise_clip_v2},
-        {pk_t::CLIP_V2_DST, "clip_v2_dst",
+        {pk_t::ELTWISE_START, {"eltwise_undef"}, dnnl_alg_kind_undef},
+        {pk_t::ABS, {"abs", "eltwise_abs"}, dnnl_eltwise_abs},
+        {pk_t::BRELU, {"bounded_relu", "eltwise_bounded_relu", "brelu"},
+                dnnl_eltwise_bounded_relu},
+        {pk_t::CLIP, {"clip", "eltwise_clip"}, dnnl_eltwise_clip},
+        {pk_t::CLIP_V2, {"clip_v2", "eltwise_clip_v2"}, dnnl_eltwise_clip_v2},
+        {pk_t::CLIP_V2_DST, {"clip_v2_dst", "eltwise_clip_v2_use_dst_for_bwd"},
                 dnnl_eltwise_clip_v2_use_dst_for_bwd},
-        {pk_t::ELU, "elu", dnnl_eltwise_elu},
-        {pk_t::ELU_DST, "elu_dst", dnnl_eltwise_elu_use_dst_for_bwd},
-        {pk_t::EXP, "exp", dnnl_eltwise_exp},
-        {pk_t::EXP_DST, "exp_dst", dnnl_eltwise_exp_use_dst_for_bwd},
-        {pk_t::GELU_ERF, "gelu_erf", dnnl_eltwise_gelu_erf},
-        {pk_t::GELU_TANH, "gelu_tanh", dnnl_eltwise_gelu_tanh},
-        {pk_t::HARDSWISH, "hardswish", dnnl_eltwise_hardswish},
-        {pk_t::LINEAR, "linear", dnnl_eltwise_linear},
-        {pk_t::LOG, "log", dnnl_eltwise_log},
-        {pk_t::LOGISTIC, "logistic", dnnl_eltwise_logistic},
-        {pk_t::LOGISTIC_DST, "logistic_dst",
+        {pk_t::ELU, {"elu", "eltwise_elu"}, dnnl_eltwise_elu},
+        {pk_t::ELU_DST, {"elu_dst", "eltwise_elu_use_dst_for_bwd"},
+                dnnl_eltwise_elu_use_dst_for_bwd},
+        {pk_t::EXP, {"exp", "eltwise_exp"}, dnnl_eltwise_exp},
+        {pk_t::EXP_DST, {"exp_dst", "eltwise_exp_use_dst_for_bwd"},
+                dnnl_eltwise_exp_use_dst_for_bwd},
+        {pk_t::GELU_ERF, {"gelu_erf", "eltwise_gelu_erf"},
+                dnnl_eltwise_gelu_erf},
+        {pk_t::GELU_TANH, {"gelu_tanh", "eltwise_gelu_tanh"},
+                dnnl_eltwise_gelu_tanh},
+        {pk_t::HARDSWISH, {"hardswish", "eltwise_hardswish"},
+                dnnl_eltwise_hardswish},
+        {pk_t::LINEAR, {"linear", "eltwise_linear"}, dnnl_eltwise_linear},
+        {pk_t::LOG, {"log", "eltwise_log"}, dnnl_eltwise_log},
+        {pk_t::LOGISTIC, {"logistic", "eltwise_logistic"},
+                dnnl_eltwise_logistic},
+        {pk_t::LOGISTIC_DST,
+                {"logistic_dst", "eltwise_logistic_use_dst_for_bwd"},
                 dnnl_eltwise_logistic_use_dst_for_bwd},
-        {pk_t::LOGSIGMOID, "logsigmoid", dnnl_eltwise_logsigmoid},
-        {pk_t::MISH, "mish", dnnl_eltwise_mish},
-        {pk_t::POW, "pow", dnnl_eltwise_pow},
-        {pk_t::RELU, "relu", dnnl_eltwise_relu},
-        {pk_t::RELU_DST, "relu_dst", dnnl_eltwise_relu_use_dst_for_bwd},
-        {pk_t::ROUND, "round", dnnl_eltwise_round},
-        {pk_t::SQRT, "sqrt", dnnl_eltwise_sqrt},
-        {pk_t::SQRT_DST, "sqrt_dst", dnnl_eltwise_sqrt_use_dst_for_bwd},
-        {pk_t::SQUARE, "square", dnnl_eltwise_square},
-        {pk_t::SRELU, "soft_relu", dnnl_eltwise_soft_relu},
-        {pk_t::SRELU, "srelu", dnnl_eltwise_soft_relu},
-        {pk_t::SWISH, "swish", dnnl_eltwise_swish},
-        {pk_t::TANH, "tanh", dnnl_eltwise_tanh},
-        {pk_t::TANH_DST, "tanh_dst", dnnl_eltwise_tanh_use_dst_for_bwd},
-        {pk_t::ELTWISE_END, "eltwise_undef", dnnl_alg_kind_undef},
+        {pk_t::LOGSIGMOID, {"logsigmoid", "eltwise_logsigmoid"},
+                dnnl_eltwise_logsigmoid},
+        {pk_t::MISH, {"mish", "eltwise_mish"}, dnnl_eltwise_mish},
+        {pk_t::POW, {"pow", "eltwise_pow"}, dnnl_eltwise_pow},
+        {pk_t::RELU, {"relu", "eltwise_relu"}, dnnl_eltwise_relu},
+        {pk_t::RELU_DST, {"relu_dst", "eltwise_relu_use_dst_for_bwd"},
+                dnnl_eltwise_relu_use_dst_for_bwd},
+        {pk_t::ROUND, {"round", "eltwise_round"}, dnnl_eltwise_round},
+        {pk_t::SQRT, {"sqrt", "eltwise_sqrt"}, dnnl_eltwise_sqrt},
+        {pk_t::SQRT_DST, {"sqrt_dst", "eltwise_sqrt_use_dst_for_bwd"},
+                dnnl_eltwise_sqrt_use_dst_for_bwd},
+        {pk_t::SQUARE, {"square", "eltwise_square"}, dnnl_eltwise_square},
+        {pk_t::SRELU, {"soft_relu", "eltwise_soft_relu", "srelu"},
+                dnnl_eltwise_soft_relu},
+        {pk_t::SWISH, {"swish", "eltwise_swish"}, dnnl_eltwise_swish},
+        {pk_t::TANH, {"tanh", "eltwise_tanh"}, dnnl_eltwise_tanh},
+        {pk_t::TANH_DST, {"tanh_dst", "eltwise_tanh_use_dst_for_bwd"},
+                dnnl_eltwise_tanh_use_dst_for_bwd},
+        {pk_t::ELTWISE_END, {"eltwise_undef"}, dnnl_alg_kind_undef},
         // binary
-        {pk_t::BINARY_START, "binary_undef", dnnl_alg_kind_undef},
-        {pk_t::ADD, "add", dnnl_binary_add},
-        {pk_t::DIV, "div", dnnl_binary_div}, {pk_t::EQ, "eq", dnnl_binary_eq},
-        {pk_t::GE, "ge", dnnl_binary_ge}, {pk_t::GT, "gt", dnnl_binary_gt},
-        {pk_t::LE, "le", dnnl_binary_le}, {pk_t::LT, "lt", dnnl_binary_lt},
-        {pk_t::MAX, "max", dnnl_binary_max},
-        {pk_t::MIN, "min", dnnl_binary_min},
-        {pk_t::MUL, "mul", dnnl_binary_mul}, {pk_t::NE, "ne", dnnl_binary_ne},
-        {pk_t::SUB, "sub", dnnl_binary_sub},
-        {pk_t::BINARY_END, "binary_undef", dnnl_alg_kind_undef},
+        {pk_t::BINARY_START, {"binary_undef"}, dnnl_alg_kind_undef},
+        {pk_t::ADD, {"add", "binary_add"}, dnnl_binary_add},
+        {pk_t::DIV, {"div", "binary_div"}, dnnl_binary_div},
+        {pk_t::EQ, {"eq", "binary_eq"}, dnnl_binary_eq},
+        {pk_t::GE, {"ge", "binary_ge"}, dnnl_binary_ge},
+        {pk_t::GT, {"gt", "binary_gt"}, dnnl_binary_gt},
+        {pk_t::LE, {"le", "binary_le"}, dnnl_binary_le},
+        {pk_t::LT, {"lt", "binary_lt"}, dnnl_binary_lt},
+        {pk_t::MAX, {"max", "binary_max"}, dnnl_binary_max},
+        {pk_t::MIN, {"min", "binary_min"}, dnnl_binary_min},
+        {pk_t::MUL, {"mul", "binary_mul"}, dnnl_binary_mul},
+        {pk_t::NE, {"ne", "binary_ne"}, dnnl_binary_ne},
+        {pk_t::SUB, {"sub", "binary_sub"}, dnnl_binary_sub},
+        {pk_t::BINARY_END, {"binary_undef"}, dnnl_alg_kind_undef},
         // guard entry
-        {pk_t::KIND_TOTAL, "kind_undef", dnnl_alg_kind_undef}};
+        {pk_t::KIND_TOTAL, {"kind_undef"}, dnnl_alg_kind_undef}};
 
 pk_t attr_t::post_ops_t::str2kind(const std::string &str) {
     std::string s(str);
-    // s.compare is lexicographical, case matters
+    // string::operator== is lexicographical, case matters
     std::transform(s.begin(), s.end(), s.begin(), ::tolower);
     for (const auto &e : kind_table) {
-        if (s.compare(e.kind_name) == 0) return e.kind;
+        for (const auto &name : e.kind_names) {
+            if (s == name) return e.kind;
+        }
     }
     assert(!"unknown attr_t::post_ops_t::kind_t kind");
     const auto table_size = sizeof(kind_table) / sizeof(*kind_table);
@@ -362,11 +392,11 @@ pk_t attr_t::post_ops_t::str2kind(const std::string &str) {
 
 const char *attr_t::post_ops_t::kind2str(pk_t kind) {
     for (const auto &e : kind_table) {
-        if (e.kind == kind) return e.kind_name;
+        if (e.kind == kind) return e.kind_names[0].c_str();
     }
     assert(!"unknown attr::post_ops::kind");
     const auto table_size = sizeof(kind_table) / sizeof(*kind_table);
-    return kind_table[table_size - 1].kind_name;
+    return kind_table[table_size - 1].kind_names[0].c_str();
 }
 
 dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(pk_t kind) {
@@ -393,24 +423,26 @@ std::vector<int> attr_t::post_ops_t::get_binary_po_masks() const {
 
 int attr_t::post_ops_t::from_str(const std::string &s) {
     *this = post_ops_t();
+    if (s.empty()) return OK;
 
-    auto s_no_quotes = s;
-    // strip double quotes to allow command line style work from a batch file
-    if (s.front() == '\"' && s.back() == '\"')
-        s_no_quotes = s.substr(1, s.size() - 2);
+    // TODO: remove me after a while
+    if (s.front() == '\'' || s.back() == '\'') {
+        BENCHDNN_PRINT(0, "%s\n",
+                "ERROR: `--attr-post-ops` no longer requires opening and "
+                "closing `'` (and `\"` for CLI) quotes. Please discard them to "
+                "proceed with successful parsing.");
+        return FAIL;
+    } else if (s.find_first_of(";", 0) != std::string::npos) {
+        BENCHDNN_PRINT(0, "%s\n",
+                "ERROR: `--attr-post-ops` no longer accepts `;` as post-ops "
+                "delimiter. Please use `+` as a delimiter between several "
+                "post-ops, i.e. `--attr-post-ops=sum+relu`.");
+        return FAIL;
+    }
 
-    // "'" is mandatory as long as ";" is used as alg delimiter
-    if (s_no_quotes.front() != '\'' || s_no_quotes.back() != '\'') return FAIL;
-    if (s_no_quotes.size() == 2) return OK; // empty input
-
-    // strip quotes to simplify further logic
-    s_no_quotes = s_no_quotes.substr(1, s_no_quotes.size() - 2);
-
-    // operate over substrings separated by ';' represeting a single post op
-    // with further parsing of specific kind
     size_t start_pos = 0;
-    while (start_pos != s_no_quotes.size() && start_pos != std::string::npos) {
-        auto subs = get_substr(s_no_quotes, start_pos, ';');
+    while (start_pos != std::string::npos) {
+        auto subs = get_substr(s, start_pos, '+');
         size_t subs_pos = 0;
 
         auto kind = str2kind(get_substr(subs, subs_pos));
@@ -427,6 +459,8 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
             e.sum.dt = str2dt(get_substr(subs, subs_pos).c_str());
+            // sum dt, if specified, should be defined
+            if (e.sum.dt == dnnl_data_type_undef) return FAIL;
         } else if (e.is_convolution_kind()) {
             e.convolution.dst_dt = str2dt(get_substr(subs, subs_pos).c_str());
             if (subs_pos == std::string::npos) continue;
@@ -581,27 +615,25 @@ std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale) {
 
 std::ostream &operator<<(
         std::ostream &s, const attr_t::zero_points_t &zero_points) {
-    bool first = true;
+    const char *delim = "";
     for (const auto &point : zero_points.points) {
-        if (!first) s << '_';
-        first = false;
-
-        s << supported_args.at(point.first) << ":" << point.second.policy << ":"
-          << point.second.value;
+        s << delim;
+        s << supported_args.at(point.first)[0] << ":" << point.second.policy
+          << ":" << point.second.value;
         if (point.second.runtime) s << '*';
+        delim = "+";
     }
 
     return s;
 }
 
 std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales) {
-    bool first = true;
+    const char *delim = "";
     for (const auto &v : scales.scales) {
         if (!v.second.is_def()) {
-            if (!first) s << '_';
-            first = false;
-
-            s << supported_args.at(v.first) << ":" << v.second;
+            s << delim;
+            s << supported_args.at(v.first)[0] << ":" << v.second;
+            delim = "+";
         }
     }
     return s;
@@ -613,10 +645,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k) {
 }
 
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
-    s << "'";
-
     for (int idx = 0; idx < post_ops.len(); ++idx) {
-        if (idx > 0) s << ";";
+        if (idx > 0) s << "+";
 
         const auto &e = post_ops.entry[idx];
         s << e.kind;
@@ -648,8 +678,6 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
         }
     }
 
-    s << "'";
-
     return s;
 }
 
@@ -665,7 +693,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
         if (!attr.zero_points.is_def())
             s << "--attr-zero-points=" << attr.zero_points << " ";
         if (!attr.post_ops.is_def())
-            s << "--attr-post-ops=\"" << attr.post_ops << "\" ";
+            s << "--attr-post-ops=" << attr.post_ops << " ";
         if (attr.scratchpad_mode != dnnl_scratchpad_mode_library)
             s << "--attr-scratchpad=" << attr.scratchpad_mode << " ";
     }
@@ -789,7 +817,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
             // Only common policy is supported in the library at this point
             int64_t count = 1;
             int mask = attr_t::get_default_mask(e.policy);
-            const float *scales = &e.scale;
+            const float *scales = e.runtime ? &DNNL_RUNTIME_F32_VAL : &e.scale;
 
             DNN_SAFE_V(dnnl_primitive_attr_set_scales(
                     dnnl_attr, arg_name, count, mask, scales));
@@ -1271,50 +1299,6 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
             it_bin_po++;
         }
     }
-}
-
-engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {
-    size_t idx = engine_kind == dnnl_cpu ? 0 : engine_index;
-#ifdef DNNL_WITH_SYCL
-    if (engine_kind == dnnl_cpu) {
-        static dnnl_engine_t inst = nullptr;
-        if (!inst) DNN_SAFE_V(dnnl_engine_create(&inst, engine_kind, idx));
-        engine_ = inst;
-    } else if (engine_kind == dnnl_gpu) {
-        static dnnl_engine_t inst = nullptr;
-        if (!inst) DNN_SAFE_V(dnnl_engine_create(&inst, engine_kind, idx));
-        engine_ = inst;
-    } else
-        assert(!"unsupported engine_kind");
-#else
-    DNN_SAFE_V(dnnl_engine_create(&engine_, engine_kind, idx));
-#endif
-}
-
-engine_t::engine_t(dnnl_engine_t engine) : engine_(engine), is_owner_(false) {}
-
-engine_t::~engine_t() {
-    if (!is_owner_) return;
-#ifdef DNNL_WITH_SYCL
-    engine_ = nullptr;
-#else
-    DNN_SAFE_V(dnnl_engine_destroy(engine_));
-#endif
-}
-
-stream_t::stream_t(dnnl_engine_t engine) {
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    if (is_cpu(engine)) {
-        SAFE_V(dnnl_threadpool_interop_stream_create(
-                &stream_, engine, dnnl::testing::get_threadpool()));
-        return;
-    }
-#endif
-    DNN_SAFE_V(dnnl_stream_create(&stream_, engine, dnnl_stream_default_flags));
-}
-
-stream_t::~stream_t() {
-    DNN_SAFE_V(dnnl_stream_destroy(stream_));
 }
 
 #undef BENCHDNN_DNNL_ARG_UNDEF

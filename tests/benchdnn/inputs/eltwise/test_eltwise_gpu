@@ -5,10 +5,10 @@
 --dt=f32,bf16
 --tag=abx,aBx16b,ABx16a16b
 --dir=FWD_D
---attr-post-ops='','add:f32:per_tensor'
+--attr-post-ops=,add:f32:per_tensor
 --batch=option_set_all_algs
 --dir=BWD_D
---attr-post-ops=''
+--attr-post-ops=
 --batch=option_set_all_algs
 
 # uint8, int8, int32
@@ -18,7 +18,7 @@
 --dt=u8,s8,s32
 --tag=axb
 --dir=FWD_I
---attr-post-ops='','add:s8:per_tensor'
+--attr-post-ops=,add:s8:per_tensor
 --batch=option_set_all_algs_int8
 
 # f16
@@ -28,5 +28,5 @@
 --dt=f16
 --tag=axb
 --dir=FWD_I
---attr-post-ops='','add:f16:per_tensor'
+--attr-post-ops=,add:f16:per_tensor
 --batch=option_set_all_algs

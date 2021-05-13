@@ -36,3 +36,18 @@
 --stag=abx:aBx16b:ABx16a16b:ABcd16b16a:BAcd16a16b:BAcd16b16a:aBCd16b16c:aBCd16c16b:aCBd16b16c:aCBd16c16b
 --dtag=abx,aBx16b,ABx16a16b,ABcd16b16a,BAcd16a16b,BAcd16b16a,aBCd16b16c,aBCd16c16b,aCBd16b16c,aCBd16c16b
 --scales=1.25:3:0.5:2:0.5:2:0.5:2:0.5:2    16x32x48x5
+
+#padding
+--reset
+--ddt=f32
+--sdt=f32:f32
+--stag=aBcd16b
+--dtag=aBcd16b
+1x8x64x64 1x8x640x1024 1x24x640x1024
+
+--sdt=bf16:bf16
+--ddt=bf16
+--stag=AB48a16b:AB48a16b
+--dtag=AB48a16b
+512x1024
+

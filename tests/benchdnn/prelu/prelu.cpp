@@ -66,12 +66,11 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                 WARN);
     }
 
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args_t());
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args_t()));
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&ppd, &pd, dnnl_attr, engine, nullptr);
-
-    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
@@ -150,15 +149,14 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t p {};
-    SAFE(init_prim(&p, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(p, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(p));
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -195,7 +193,7 @@ int doit(const prb_t *prb, res_t *res) {
         dst_dt = dnn_mem_t(data_md, test_engine);
 
         args.set(DNNL_ARG_DST, dst_dt);
-        SAFE(execute_and_wait(p, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(prb, src_fp, weights_fp, dst_fp);
@@ -222,7 +220,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(DNNL_ARG_DIFF_WEIGHTS, d_weights_dt);
-        SAFE(execute_and_wait(p, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(
@@ -244,11 +242,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    measure_perf(res->timer, p, args);
-
-    DNN_SAFE_V(dnnl_primitive_destroy(p));
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace prelu

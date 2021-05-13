@@ -21,10 +21,10 @@
 --prop=FWD_I
 --with-peephole=false
 --with-projection=false
---cfg=u8u8u8u8,f32u8f32f32
+--cfg=u8u8u8u8,f32u8f32f32,s8s8s8s8,f32s8f32f32
 --scaling=common
 --batch=shapes_small
 
---cfg=u8u8u8f32,f32u8f32u8
+--cfg=u8u8u8f32,f32u8f32u8,s8s8s8f32,f32s8f32s8
 --scaling=per_oc
 --batch=shapes_small

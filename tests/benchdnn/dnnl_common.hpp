@@ -28,6 +28,9 @@
 #include "src/common/float16.hpp"
 #include "src/common/nstl.hpp"
 
+int check_pd_cache(dnnl_primitive_desc_t pd);
+int check_primitive_cache(dnnl_primitive_t p);
+
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_debug.hpp"
@@ -36,12 +39,12 @@
 
 #define DNN_SAFE(f, s) \
     do { \
-        dnnl_status_t status = f; \
-        if (status != dnnl_success) { \
+        dnnl_status_t status__ = f; \
+        if (status__ != dnnl_success) { \
             if (s == CRIT || s == WARN) { \
                 BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
-                        __PRETTY_FUNCTION__, __LINE__, #f, status2str(status), \
-                        (int)status); \
+                        __PRETTY_FUNCTION__, __LINE__, #f, \
+                        status2str(status__), (int)status__); \
                 fflush(0); \
                 if (s == CRIT) exit(2); \
             } \
@@ -51,29 +54,13 @@
 
 #define DNN_SAFE_V(f) \
     do { \
-        dnnl_status_t status = f; \
-        if (status != dnnl_success) { \
+        dnnl_status_t status__ = f; \
+        if (status__ != dnnl_success) { \
             BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
                     __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), \
-                    status2str(status), (int)status); \
+                    status2str(status__), (int)status__); \
             fflush(0); \
             exit(2); \
-        } \
-    } while (0)
-
-#define DNN_SAFE_CLEAN(f, s, clean) \
-    do { \
-        dnnl_status_t status = f; \
-        if (status != dnnl_success) { \
-            if (s == CRIT || s == WARN) { \
-                BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
-                        __PRETTY_FUNCTION__, __LINE__, #f, status2str(status), \
-                        (int)status); \
-                fflush(0); \
-                if (s == CRIT) exit(2); \
-            } \
-            clean(); \
-            return FAIL; \
         } \
     } while (0)
 
@@ -255,6 +242,99 @@ private:
     std::vector<std::pair<int, const dnn_mem_t *>> args_;
 };
 
+template <typename T>
+struct dnnl_api_traits;
+//{
+//    static void destroy(T t) {}
+//};
+
+template <>
+struct dnnl_api_traits<dnnl_primitive_t> {
+    static void destroy(dnnl_primitive_t t) {
+        DNN_SAFE_V(dnnl_primitive_destroy(t));
+    }
+};
+
+template <>
+struct dnnl_api_traits<dnnl_primitive_desc_t> {
+    static void destroy(dnnl_primitive_desc_t t) {
+        DNN_SAFE_V(dnnl_primitive_desc_destroy(t));
+    }
+};
+
+template <>
+struct dnnl_api_traits<dnnl_primitive_attr_t> {
+    static void destroy(dnnl_primitive_attr_t t) {
+        DNN_SAFE_V(dnnl_primitive_attr_destroy(t));
+    }
+};
+
+// Generic class providing RAII support for DNNL objects in benchdnn
+template <typename T>
+struct benchdnn_dnnl_wrapper_t {
+    benchdnn_dnnl_wrapper_t(T t = nullptr) : t_(t) {
+        static_assert(std::is_pointer<T>::value, "T is not a pointer type.");
+    }
+
+    benchdnn_dnnl_wrapper_t(benchdnn_dnnl_wrapper_t &&rhs) {
+        T t = rhs.release();
+        t_ = t;
+    }
+
+    ~benchdnn_dnnl_wrapper_t() { do_destroy(); }
+
+    T release() {
+        T tmp = t_;
+        t_ = nullptr;
+        return tmp;
+    }
+
+    void reset(T t) {
+        do_destroy();
+        t_ = t;
+    }
+
+    operator T() const { return t_; }
+
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(benchdnn_dnnl_wrapper_t);
+
+private:
+    T t_;
+
+    void do_destroy() {
+        if (t_) { dnnl_api_traits<T>::destroy(t_); }
+    }
+};
+
+// Constructs a wrapper object (providing RAII support)
+template <typename T>
+benchdnn_dnnl_wrapper_t<T> make_benchdnn_dnnl_wrapper(T t) {
+    return benchdnn_dnnl_wrapper_t<T>(t);
+}
+
+struct engine_t {
+    engine_t(dnnl_engine_kind_t engine_kind);
+    engine_t(dnnl_engine_t engine);
+    engine_t(const engine_t &other);
+    ~engine_t();
+    operator dnnl_engine_t() const { return engine_; }
+
+private:
+    engine_t &operator=(engine_t &other) = delete;
+    dnnl_engine_t engine_;
+    bool is_owner_;
+};
+
+struct stream_t {
+    stream_t(dnnl_engine_t engine);
+    ~stream_t();
+    operator dnnl_stream_t() const { return stream_; }
+
+private:
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
+    dnnl_stream_t stream_;
+};
+
 // Engine used to run oneDNN primitives for testing.
 inline const engine_t &get_test_engine() {
     static const engine_t instance(engine_tgt_kind);
@@ -270,15 +350,23 @@ inline const engine_t &get_cpu_engine() {
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 
 template <typename func_t, typename prb_t>
-int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *prb,
-        res_t *res, dir_t dir = FLAG_FWD,
-        const_dnnl_primitive_desc_t hint = nullptr) {
+int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
+        const func_t &init_pd_func, prb_t *prb, res_t *res,
+        dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr) {
     dnnl_primitive_desc_t pd {};
-    dnnl_primitive_t return_prim {};
+    dnnl_primitive_t prim_ {};
 
-    auto cleanup_pd = [&]() { dnnl_primitive_desc_destroy(pd); };
-    auto cleanup_prim = [&]() { dnnl_primitive_destroy(return_prim); };
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
+
+    // The first primitive creation using a temporary engine.
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    // The idea is to create the requested primitive twice using different
+    // engines but the same device and context in the case of OpenCL and DPCPP.
+    // Rationale: make sure that the primitive cache is robust in the case
+    // where CPU and GPU engines are re-created because this is a commonly
+    // used scenario in the frameworks.
+    engine_t engine(get_test_engine());
+#else
     // The idea is to create the requested primitive twice using
     // different engines.
     // Rationale:
@@ -290,26 +378,34 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *prb,
     // implementations, e.g. if a primitive implementation contains
     // a memory_storage_t (for scales, zero points or buffers), which depends
     // on a particular engine then it should fail at execution time.
-
-    // The first primitive creation using a temporary engine.
     engine_t engine(engine_tgt_kind);
-    SAFE(init_pd_func(engine, prb, pd, res, dir, hint), WARN);
-    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
-    DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(pd), WARN, cleanup_prim);
-    DNN_SAFE(dnnl_primitive_destroy(return_prim), WARN);
+#endif
 
+    SAFE(init_pd_func(engine, prb, pd, res, dir, hint), WARN);
+    auto pd1 = make_benchdnn_dnnl_wrapper(pd);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+
+    DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
+    DNN_SAFE(dnnl_primitive_destroy(prim_), CRIT);
 #endif
     // The second (if the cache is enabled) primitive creation using
     // the global test engine.
     SAFE(init_pd_func(get_test_engine(), prb, pd, res, dir, hint), WARN);
+    auto pd2 = make_benchdnn_dnnl_wrapper(pd);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    int check_pd_cache_status = check_pd_cache(pd2);
+
     // Collect memory footprint for a given primitive descriptor.
     SAFE(get_memory_footprint(pd, res), WARN);
+
     // This primitive is expected to come from the cache.
-    DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
-    DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(pd), WARN, cleanup_prim);
-    (*prim) = return_prim;
+    DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
+    int check_primitive_cache_status = check_primitive_cache(prim_);
+
+    SAFE(check_pd_cache_status | check_primitive_cache_status, WARN);
+
+    user_prim.reset(prim_);
+
     return OK;
 }
 
@@ -324,8 +420,8 @@ int execute_and_wait(dnnl_primitive_t prim, const args_t &args);
 int measure_perf(benchdnn_timer_t &t, perf_function_t &perf_func, args_t &args);
 int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args);
 
-void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
-        int64_t scale_cnt, const float *scales);
+void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
+        const attr_t::scale_t &scale, int64_t scale_cnt, const float *scales);
 
 void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
         const attr_t &attr, int arg, int64_t count, const int32_t *zero_points);

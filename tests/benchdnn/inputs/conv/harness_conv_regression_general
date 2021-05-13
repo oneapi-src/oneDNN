@@ -7,8 +7,8 @@
 # DNNL-611
 --reset --cfg=f32
 --dir=FWD_D mb1ic64ih150iw200oc256oh150ow200kh1kw1ph0pw0sh1sw1n"rfcn-resnet50-res2a_branch1"
---dir=FWD_B --attr-post-ops='relu' mb1ic64ih150iw200oc256oh150ow200kh1kw1ph0pw0sh1sw1n"rfcn-resnet50-res2a_branch1" --attr-post-ops=
---dir=BWD_W mb1ic256ih150iw200oc64oh150ow200kh1kw1ph0pw0sh1sw1n"rfcn-resnet50-res2a_branch1"
+--dir=FWD_B --attr-post-ops=relu mb1ic64ih150iw200oc256oh150ow200kh1kw1ph0pw0sh1sw1n"rfcn-resnet50-res2a_branch1"
+--dir=BWD_W --attr-post-ops=     mb1ic256ih150iw200oc64oh150ow200kh1kw1ph0pw0sh1sw1n"rfcn-resnet50-res2a_branch1"
 
 # DS2 (stride_h != stride_w)
 --reset --cfg=f32 --skip-impl="ref:gemm"
@@ -18,7 +18,7 @@
 
 # github #174
 --reset --cfg=f32
---dir=FWD_B,FWD_D --attr-post-ops='sum','sum;relu' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
+--dir=FWD_B,FWD_D --attr-post-ops=sum,sum+relu mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
 
 # DNNL-623
 --reset --cfg=u8s8u8 --dir=FWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
@@ -124,7 +124,7 @@ mb1_g16ic16oc16_ih5oh2kh2sh3ph0
 --dir=FWD_D,BWD_D,BWD_W
 --cfg=f32,bf16bf16bf16 g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1
 
-# AVX JIT incorrectly calculates output when 'nb_oc_block' results in a prime number
+# AVX JIT incorrectly calculates output when nb_oc_block results in a prime number
 --reset --dir=FWD_I mb1ic3ih320oc51oh160kh7sh2ph3n"regression_oc-channel"
 
 # Dilated convolution with ih<=dh when there is _no_ compute work.
@@ -155,7 +155,7 @@ mb1_ic1oc16_ih124kh3oh122n"jit_reads_past_end_of_src_buffer:2"
 mb1_ic1oc16_ih16kh3oh16ph1n"jit_reads_past_end_of_src_buffer:3"
 mb1_ic2oc16_ih16kh3oh16ph1n"jit_reads_past_end_of_src_buffer:4"
 mb1_ic1oc16_ih10oh10kh3ph1n"jit_reads_past_end_of_src_buffer:5"
- 
+
 # Test Input-channel blocking w/stride heuristic
 --reset --dir=BWD_D
 ic32oc1_id5ih1iw1_od2oh1ow1_kd3kh1kw1_sd2sh1sw1n"ic-blocking_stride-d_test"
@@ -192,11 +192,11 @@ mb1ic16ih2iw30oc1oh1ow30kh2kw3ph0pw17dh0dw16n"bwd-w_check_dilation_padding_1"
 mb1ic16ih2iw84oc1oh1ow84kh2kw3ph0pw29dh0dw28n"bwd-w_check_dilation_padding_2"
 mb1ic16ih2iw70oc1oh1ow10kh2kw3ph0pw0dh0dw29n"bwd_w_check_large-dilation"
 
-# dw fusion with strides, skip 1x1's that doesn't support strides.
+# dw fusion with strides, skip 1x1s that doesnt support strides.
 --reset
 --skip-impl="ref_fused_convolution"
 --cfg=f32,u8s8u8
---attr-post-ops='relu;dw_k3s1p1;sqrt'
+--attr-post-ops=relu+dw_k3s1p1+sqrt
 ic256oc256_ih60oh20kh1ph0sh3_iw50ow25kw1pw0sw2n"dw_fusion_with_strides"
 
 --cfg=bf16bf16bf16
@@ -205,7 +205,7 @@ ic256oc256_ih60oh20kh1ph0sh3_iw50ow25kw1pw0sw2n"dw_fusion_with_strides"
 # dw fusion with reorder
 --reset
 --cfg=f32
---attr-post-ops='relu;dw_k3s1p1;sqrt'
+--attr-post-ops=relu+dw_k3s1p1+sqrt
 ic16oc16_ih10oh6kh1ph0sh2n"dw_fusion_with_reorder"
 
 --reset
@@ -219,13 +219,13 @@ mb1_ic16oc1_ih2oh1kh2sh1dh0ph0_iw1000kw6sw1dw30pw127n"1d_conv_large_dilated_padd
 
 # convolution size has to be larger than L2
 --reset
---skip-impl='ref:gemm'
+--skip-impl=ref:gemm
 --dir=BWD_WB --stag=axb --dtag=axb
 mb2g1ic33iw84350oc33ow84349kw2pw0n"channel_tail_for_specialized_axb_bwd_w_kernel"
 
 # small spatial convolution in amx kernel
 --reset
---skip-impl='ref:gemm'
+--skip-impl=ref:gemm
 --cfg=bf16bf16bf16,u8s8u8
 ic64ih20iw14oc16oh20ow7kh1kw1sh1sw2ph0pw0n"small_ow_large_oh"
 --cfg=u8s8f32
@@ -237,6 +237,43 @@ mb1ic64ih1iw33oc1oh1ow33kh1kw24ph0pw23n"l_pad_exceeds_ow_block"
 
 # test hw_transpose optimization
 --reset
---skip-impl='ref:gemm'
+--skip-impl=ref:gemm
 --dir=BWD_WB
 ic3oc64_ih25oh18kh8sh1dh0ph0_iw20ow1kw20sw1dw0pw0n"1st_conv_hw-transpose"
+
+# certain eltwise postops can ruin zero-padding of dst
+--reset
+--skip-impl=ref:gemm
+--attr-post-ops=relu+logistic
+ic16ih9oc17oh9kh1ph0n"oc_tail_with_multiple_eltwise_postops:conv1"
+ic16ih9oc17oh9kh3ph1n"oc_tail_with_multiple_eltwise_postops:conv2"
+--cfg=bf16bf16bf16 --stag=aBx16b --dtag=aBx16b # special case for bf16 amx conv
+ic16ih9oc17oh9kh3ph1n"oc_tail_with_multiple_eltwise_postops:conv3"
+
+# depthwise channel tail processing
+--reset
+--skip-impl="ref:gemm"
+--dir=FWD_D
+--stag=axb --dtag=axb
+g113mb1ic113ih1oc113oh1kh3ph1n"depthwise_channel_tail_nxc_format"
+
+# MFDNN-4945 AMX bwd/wu large spatial cases
+--reset
+--skip-impl=ref:gemm
+--dir=BWD_WB --cfg=bf16f32bf16
+g1ic32ih202iw202oc32oh202ow202kh7kw1ph3pw0
+g1ic32ih202iw202oc32oh202ow202kh7kw3ph3pw1
+g1ic32ih202oc32oh202kh5ph2
+g1ic32ih202oc32oh202kh7ph3
+
+# Strides along w-dimension but not along h-dimension
+--reset
+--skip-impl="ref:gemm"
+--dir=FWD_I --cfg=u8s8u8
+ic64ih28iw27oc64oh28ow14kh1kw1sh1sw2ph0pw0n"1x1_mixed_strides"
+
+# Gemm with ref binary post-ops
+--reset
+--skip-impl=
+--attr-post-ops=add:f32:per_tensor,mul:f32:per_oc
+g2ic32id5oc6od3kd3pd0noc%simd_width_!=0_with_im2col

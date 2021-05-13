@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,16 +26,25 @@
 namespace reduction {
 
 enum alg_t {
-    UNDEF,
-    MIN,
-    MAX,
-    MUL,
-    SUM,
-    MEAN,
-    NORM_LP_MAX,
-    NORM_LP_SUM,
-    NORM_LP_POWER_P_MAX,
-    NORM_LP_POWER_P_SUM
+    undef,
+    min,
+    max,
+    mul,
+    sum,
+    mean,
+    norm_lp_max,
+    norm_lp_sum,
+    norm_lp_power_p_max,
+    norm_lp_power_p_sum,
+    reduction_min = min,
+    reduction_max = max,
+    reduction_mul = mul,
+    reduction_sum = sum,
+    reduction_mean = mean,
+    reduction_norm_lp_max = norm_lp_max,
+    reduction_norm_lp_sum = norm_lp_sum,
+    reduction_norm_lp_power_p_max = norm_lp_power_p_max,
+    reduction_norm_lp_power_p_sum = norm_lp_power_p_sum,
 };
 
 alg_t str2alg(const char *str);
@@ -56,7 +65,7 @@ struct settings_t {
     std::vector<std::string> stag {tag::abx};
     std::vector<std::string> dtag {tag::any};
     std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
-    std::vector<alg_t> alg {alg_t::SUM};
+    std::vector<alg_t> alg {alg_t::sum};
     std::vector<float> p {1.0f}, eps {0.0f};
     std::vector<int64_t> mb {0};
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -134,7 +134,8 @@ private:
 };
 
 int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
-        std::vector<dnn_mem_t> &mem_dt, std::vector<dnn_mem_t> &mem_fp);
+        std::vector<dnn_mem_t> &mem_dt, std::vector<dnn_mem_t> &mem_fp,
+        bool only_positive_values = false);
 
 void compute_ref(const prb_t *prb, const dnn_mem_t &src0, const dnn_mem_t &src1,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst);

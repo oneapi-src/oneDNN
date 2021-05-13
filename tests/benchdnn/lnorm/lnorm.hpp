@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,6 +40,8 @@ using flags_t = bnorm::flags_t;
 const flags_t NONE = bnorm::NONE;
 const flags_t GLOB_STATS = bnorm::GLOB_STATS;
 const flags_t USE_SCALESHIFT = bnorm::USE_SCALESHIFT;
+const flags_t USE_SCALE = bnorm::USE_SCALE;
+const flags_t USE_SHIFT = bnorm::USE_SHIFT;
 const auto flags2str = bnorm::flags2str;
 flags_t str2flags(const char *str);
 
@@ -106,6 +108,10 @@ struct prb_t {
     attr_t attr;
     float eps;
     int ndims;
+
+    bool use_ss() const { return flags & USE_SCALESHIFT; }
+    bool use_sc() const { return flags & USE_SCALE; }
+    bool use_sh() const { return flags & USE_SHIFT; }
 };
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
@@ -139,10 +145,12 @@ private:
 };
 
 void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &mean,
-        dnn_mem_t &var, const dnn_mem_t &ss, dnn_mem_t &dst);
+        dnn_mem_t &var, const dnn_mem_t &ss, const dnn_mem_t &sh,
+        dnn_mem_t &dst);
 void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
-        const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss);
+        const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss,
+        dnn_mem_t &d_sh);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

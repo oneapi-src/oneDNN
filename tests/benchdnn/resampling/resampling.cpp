@@ -41,9 +41,10 @@ int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const float gen = ((97 * i) - 19 * kind + 101) % (range + 1);
-        const float value = (dt == dnnl_f32)
+        const float value = dt == dnnl_f32 || is_integral_dt(dt)
                 ? (f_min + gen) * (1.0f + 4.0f / range)
                 : (f_min + gen) / range;
+
         mem_fp.set_elem(i, round_to_nearest_representable(dt, value));
     });
 
@@ -103,7 +104,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                 WARN);
     }
 
-    dnnl_primitive_desc_t _hint = nullptr;
+    dnnl_primitive_desc_t hint_fwd_pd_ {};
+    dnnl_status_t status = dnnl_success;
     if (prb->dir & FLAG_BWD) {
         dnnl_memory_desc_t fwd_src_d, fwd_dst_d;
         SAFE(init_md(&fwd_src_d, prb->ndims, src_dims, prb->sdt, prb->tag),
@@ -116,31 +118,29 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                          dnnl_forward_training, alg, nullptr, &fwd_src_d,
                          &fwd_dst_d),
                 WARN);
-        dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
-                &_hint, &rd_fwd, nullptr, engine, nullptr);
-        if (init_fwd_status == dnnl_unimplemented)
-            return res->state = UNIMPLEMENTED, OK;
-        SAFE(init_fwd_status, WARN);
+
+        status = dnnl_primitive_desc_create(
+                &hint_fwd_pd_, &rd_fwd, nullptr, engine, nullptr);
+        if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
     }
+    auto hint_fwd_pd = make_benchdnn_dnnl_wrapper(hint_fwd_pd_);
+    SAFE(status, WARN);
+
     attr_args_t attr_args;
     attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims, dst_dims);
-    const auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args);
+    const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args));
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&rpd, &pd, dnnl_attr, engine, _hint);
+    status = dnnl_primitive_desc_create(
+            &rpd, &pd, dnnl_attr, engine, hint_fwd_pd);
 
-    dnnl_primitive_desc_destroy(_hint);
-    dnnl_primitive_attr_destroy(dnnl_attr);
-
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    SAFE(init_status, WARN);
+    if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
+    SAFE(status, WARN);
 
     res->impl_name = query_impl_info(rpd);
     if (maybe_skip(res->impl_name)) {
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                 res->impl_name.c_str());
-        DNN_SAFE(dnnl_primitive_desc_destroy(rpd), WARN);
         return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
     } else {
         BENCHDNN_PRINT(
@@ -152,13 +152,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->sdt, prb->ddt}, prb->dir, res);
-
-    // TODO: temporary disable post-ops and mixed dt on CPU
-    if (engine_tgt_kind == dnnl_cpu
-            && (prb->attr.post_ops.len() > 0 || prb->sdt != prb->ddt)) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
 
     if (res->state == SKIPPED) return;
 
@@ -178,15 +171,14 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t rp {};
-    SAFE(init_prim(&rp, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(rp, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(rp));
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -232,16 +224,18 @@ int doit(const prb_t *prb, res_t *res) {
 
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(rp, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(prb, src_fp, dst_fp, binary_po_fp);
             float trh = prb->alg == nearest ? 0.f : 3 * epsilon_dt(prb->ddt);
+
             if (is_nvidia_gpu()) {
                 // cuDNN precision is different from ref one due to different
                 // computation algorithm used for resampling.
                 trh = prb->ddt == dnnl_f16 ? 4e-2 : 2e-5;
             }
+
             compare::compare_t cmp;
             cmp.set_threshold(trh);
             // No sense to test zero trust for upsampling since it produces
@@ -256,7 +250,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_SRC, src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(rp, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(prb, src_fp, dst_fp);
@@ -275,11 +269,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    measure_perf(res->timer, rp, args);
-
-    DNN_SAFE_V(dnnl_primitive_destroy(rp));
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace resampling

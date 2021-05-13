@@ -89,7 +89,21 @@ std::ostream &operator<<(std::ostream &s, const std::vector<T> &v) {
 }
 
 typedef int data_kind_t;
-enum { SRC = 0, WEI, BIA, DST, ACC, DATA, MEAN, VAR, SS, GWEI, DAT_TOTAL };
+enum {
+    SRC = 0,
+    WEI,
+    BIA,
+    DST,
+    ACC,
+    DATA,
+    MEAN,
+    VAR,
+    SS,
+    SC,
+    SH,
+    GWEI,
+    DAT_TOTAL
+};
 const char *data_kind2str(data_kind_t kind);
 
 struct attr_t {
@@ -101,6 +115,8 @@ struct attr_t {
         PER_DIM_0, // ... dims[0] point.
         PER_DIM_1, // ... dims[1] point.
         PER_DIM_01, // ... unique combination of dims[0] and dims[1] points.
+        PER_MB_SPATIAL, // ... combination of dims[0], dims[2], dims[3] points.
+        PER_SPATIAL, // ... combination of dims[2] and dims[3] points.
         PER_TENSOR, // ... point in the tensor.
         POLICY_TOTAL // guard
     };
@@ -176,9 +192,7 @@ struct attr_t {
     };
 
     struct arg_scales_t {
-        void set(int arg, scale_t scale) {
-            scales.insert(std::make_pair(arg, scale));
-        }
+        void set(int arg, scale_t scale) { scales[arg] = scale; }
 
         scale_t get(int arg) const {
             const auto &s = scales.find(arg);
@@ -467,28 +481,6 @@ private:
     std::map<int, entry_t> entries;
     std::map<int, dnnl_memory_desc_t> mds;
     dw_t dw_entry; // only single dw fusion is supported
-};
-
-struct engine_t {
-    engine_t(dnnl_engine_kind_t engine_kind);
-    engine_t(dnnl_engine_t engine);
-    ~engine_t();
-    operator dnnl_engine_t() const { return engine_; }
-
-private:
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(engine_t);
-    dnnl_engine_t engine_;
-    bool is_owner_;
-};
-
-struct stream_t {
-    stream_t(dnnl_engine_t engine);
-    ~stream_t();
-    operator dnnl_stream_t() const { return stream_; }
-
-private:
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
-    dnnl_stream_t stream_;
 };
 
 std::ostream &dump_global_params(std::ostream &s);

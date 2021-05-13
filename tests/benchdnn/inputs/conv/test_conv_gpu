@@ -84,11 +84,24 @@ g2ic2ih1iw2oc4oh1ow2kh1kw1ph0pw0
 g1ic16iw5oc16ow5kw1pw0
 mb3g1ic33iw5oc33ow17kw1pw0
 mb16ic16ih224oc64oh112kh7sh2ph3n
-
+#test user scratchpad
+--reset
+--dir=BWD_W
+--cfg=bf16bf16bf16
+--attr-scratchpad=user
+mb128ic3ih230oc64oh112kh7sh2ph0
 #int8dst
 --reset
 --cfg=f16f16s8,f32f32s8
 --mb=2,16
---dir=FWD_B --stag=any 
+--dir=FWD_B --stag=any
 --batch=set_gpu
 --batch=shapes_basic_gpu
+
+# dw gen9 fwd conv
+--reset
+--cfg=f16,f16f16s8
+--mb=48,64
+--dir=FWD_B
+--attr-post-ops=add:f32:per_oc+linear:42.5+clip:0:255
+--batch=shapes_mobilenet_dw

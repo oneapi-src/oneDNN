@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,13 +52,12 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                 CRIT);
     }
 
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args_t());
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args_t()));
 
     dnnl_status_t init_status = dnnl_concat_primitive_desc_create(&cpd,
             prb->dtag != tag::undef ? &dst_d : nullptr, prb->n_inputs(),
             prb->axis, src_d.data(), dnnl_attr, engine);
-
-    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
@@ -133,15 +132,14 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t c {};
-    SAFE(init_prim(&c, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(c));
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -176,7 +174,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input]);
     }
 
-    SAFE(execute_and_wait(c, args), WARN);
+    SAFE(execute_and_wait(prim, args), WARN);
 
     if (bench_mode & CORR) {
         compute_ref(prb, src_fp, dst_fp);
@@ -184,11 +182,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    measure_perf(res->timer, c, args);
-
-    DNN_SAFE_V(dnnl_primitive_destroy(c));
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace concat

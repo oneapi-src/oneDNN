@@ -17,6 +17,7 @@
 --flags=  --batch=shapes_googlenet_v2
 --flags=G --batch=shapes_densenet_121
 --flags=S --batch=shapes_resnet_50
+--flags=C,H --batch=shapes_resnet_50
 --flags=R --batch=shapes_googlenet_v3
 
 # inference
@@ -29,19 +30,19 @@
 --flags=,G,S
 --mb=1,17
 --tag=aBx16b
---attr-post-ops='','relu'
+--attr-post-ops=,relu
 --batch=set_nd
 
 --mb=1,64
 --tag=aBx8b
---attr-post-ops=''
+--attr-post-ops=
 --flags=  --batch=shapes_googlenet_v2
 --flags=G --batch=shapes_densenet_121
 --flags=S --batch=shapes_resnet_50
 
 --flags=
 --mb=1
---attr-post-ops='relu'
+--attr-post-ops=relu
 --batch=set_nd
 
 # bf16

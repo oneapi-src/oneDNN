@@ -14,5 +14,5 @@
 
 --dt=f32,bf16
 --flags=,GS
---attr-post-ops='','relu'
+--attr-post-ops=,relu
 --batch=shapes_regressions

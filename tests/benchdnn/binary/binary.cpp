@@ -32,7 +32,8 @@
 namespace binary {
 
 //TODO: Consider filling with powers of 2 for division to avoid rounding errors
-int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+        bool only_positive_values = false) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
@@ -42,7 +43,8 @@ int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const int64_t gen = (12 * i + 5 * input_idx + 16) % (range + 1);
-        const float value = (f_min + gen) * 1.25f;
+        float value = (f_min + gen) * 1.25f;
+        if (only_positive_values) value = fabs(value);
         mem_fp.set_elem(i, round_to_nearest_representable(dt, value));
     });
 
@@ -52,7 +54,8 @@ int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 }
 
 int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
-        std::vector<dnn_mem_t> &mem_dt, std::vector<dnn_mem_t> &mem_fp) {
+        std::vector<dnn_mem_t> &mem_dt, std::vector<dnn_mem_t> &mem_fp,
+        bool only_positive_values) {
     // TODO: currently run-time dimensions are not supported in binary post-op.
     // To add a support two ways are possible: 1) add query support to the
     // library and extract expected md from pd; 2) pass a vector of pre-defined
@@ -83,7 +86,7 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
         args.push_back((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
 
         fill_mem((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1),
-                mem_dt.back(), mem_fp.back());
+                mem_dt.back(), mem_fp.back(), only_positive_values);
     }
     return OK;
 }
@@ -116,12 +119,11 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 
     attr_args_t attr_args;
     attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims[0], dst_dims);
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args);
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args));
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, nullptr);
-
-    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
@@ -201,15 +203,14 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t b {};
-    SAFE(init_prim(&b, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(b, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(b));
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -254,7 +255,18 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
     args.set(binary_po_args, binary_po_dt);
 
-    SAFE(execute_and_wait(b, args), WARN);
+    dnn_mem_t input_scales_m0;
+    float scale0 = prb->attr.scales.get(DNNL_ARG_SRC_0).scale;
+    maybe_prepare_runtime_scales(
+            input_scales_m0, prb->attr.scales.get(DNNL_ARG_SRC_0), 1, &scale0);
+    args.set(DNNL_ARG_ATTR_INPUT_SCALES | DNNL_ARG_SRC_0, input_scales_m0);
+    dnn_mem_t input_scales_m1;
+    float scale1 = prb->attr.scales.get(DNNL_ARG_SRC_1).scale;
+    maybe_prepare_runtime_scales(
+            input_scales_m1, prb->attr.scales.get(DNNL_ARG_SRC_1), 1, &scale1);
+    args.set(DNNL_ARG_ATTR_INPUT_SCALES | DNNL_ARG_SRC_1, input_scales_m1);
+
+    SAFE(execute_and_wait(prim, args), WARN);
 
     if (bench_mode & CORR) {
         compute_ref(prb, src0_fp, src1_fp, binary_po_fp, dst_fp);
@@ -280,11 +292,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    measure_perf(res->timer, b, args);
-
-    DNN_SAFE_V(dnnl_primitive_destroy(b));
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace binary

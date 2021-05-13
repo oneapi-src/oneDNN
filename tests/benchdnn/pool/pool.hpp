@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,15 @@
 
 namespace pool {
 
-enum alg_t { MAX, AVG_NP, AVG_P };
+enum alg_t {
+    undef,
+    max,
+    avg_np,
+    avg_p,
+    pooling_max = max,
+    pooling_avg_exclude_padding = avg_np,
+    pooling_avg_include_padding = avg_p,
+};
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 dnnl_alg_kind_t alg2alg_kind(alg_t alg);
@@ -106,7 +114,7 @@ struct settings_t {
     std::vector<dir_t> dir {FWD_D};
     std::vector<const dt_conf_t *> cfg {conf_f32};
     std::vector<std::string> tag {tag::abx};
-    std::vector<alg_t> alg {MAX};
+    std::vector<alg_t> alg {max};
     std::vector<int64_t> mb {0};
     std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
@@ -230,7 +238,7 @@ inline int64_t get_num_summands(
     auto ih_end_excluded = ih_end > IH ? (ih_end - IH - 1) / (DH + 1) + 1 : 0;
     auto iw_end_excluded = iw_end > IW ? (iw_end - IW - 1) / (DW + 1) + 1 : 0;
 
-    return prb->alg == AVG_P ? KD * KH * KW
+    return prb->alg == avg_p ? KD * KH * KW
                              : (KD - id_start_excluded - id_end_excluded)
                     * (KH - ih_start_excluded - ih_end_excluded)
                     * (KW - iw_start_excluded - iw_end_excluded);

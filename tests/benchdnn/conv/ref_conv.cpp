@@ -21,14 +21,14 @@
 namespace conv {
 
 template <typename get_args_func>
-void exec_conv(get_args_func get_args, const prb_t *prb, dnnl_primitive_t c_ref,
-        dnn_mem_t &src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        dnn_mem_t &dst_m) {
+void exec_conv(get_args_func get_args, const prb_t *prb,
+        dnnl_primitive_t prim_ref, dnn_mem_t &src_m, dnn_mem_t &wei_m,
+        dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
     const_dnnl_primitive_desc_t pd_ref;
     dnnl_engine_t engine_ref;
 
-    SAFE_V(dnnl_primitive_get_primitive_desc(c_ref, &pd_ref));
-    SAFE_V(dnnl_primitive_desc_query(
+    DNN_SAFE_V(dnnl_primitive_get_primitive_desc(prim_ref, &pd_ref));
+    DNN_SAFE_V(dnnl_primitive_desc_query(
             pd_ref, dnnl_query_engine, 0, &engine_ref));
     const auto &scratchpad_md = *dnnl_primitive_desc_query_md(
             pd_ref, dnnl_query_exec_arg_md, DNNL_ARG_SCRATCHPAD);
@@ -47,7 +47,7 @@ void exec_conv(get_args_func get_args, const prb_t *prb, dnnl_primitive_t c_ref,
 
     args_t args = get_args(prb, src_ref, wei_ref, bia_ref, dst_ref);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad);
-    SAFE_V(execute_and_wait(c_ref, args));
+    SAFE_V(execute_and_wait(prim_ref, args));
 }
 
 args_t get_args_conv_fwd(const prb_t *prb, dnn_mem_t &src_ref,
@@ -82,11 +82,11 @@ args_t get_args_conv_bwd_w(const prb_t *prb, dnn_mem_t &src_ref,
     return args;
 }
 
-void compute_ref_fwd(const prb_t *prb, dnnl_primitive_t c_ref, dnn_mem_t &src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
+void compute_ref_fwd(const prb_t *prb, dnnl_primitive_t prim_ref,
+        dnn_mem_t &src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m) {
-    if (c_ref) {
-        exec_conv(get_args_conv_fwd, prb, c_ref, src_m, wei_m, bia_m, dst_m);
+    if (prim_ref) {
+        exec_conv(get_args_conv_fwd, prb, prim_ref, src_m, wei_m, bia_m, dst_m);
         return;
     }
     if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
@@ -96,11 +96,11 @@ void compute_ref_fwd(const prb_t *prb, dnnl_primitive_t c_ref, dnn_mem_t &src_m,
     }
 }
 
-void compute_ref_bwd_d(const prb_t *prb, dnnl_primitive_t c_ref,
+void compute_ref_bwd_d(const prb_t *prb, dnnl_primitive_t prim_ref,
         dnn_mem_t &diff_src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m) {
-    if (c_ref) {
-        exec_conv(get_args_conv_bwd_d, prb, c_ref, diff_src_m, wei_m, bia_m,
+    if (prim_ref) {
+        exec_conv(get_args_conv_bwd_d, prb, prim_ref, diff_src_m, wei_m, bia_m,
                 diff_dst_m);
         return;
     }
@@ -112,11 +112,11 @@ void compute_ref_bwd_d(const prb_t *prb, dnnl_primitive_t c_ref,
     }
 }
 
-void compute_ref_bwd_w(const prb_t *prb, dnnl_primitive_t c_ref,
+void compute_ref_bwd_w(const prb_t *prb, dnnl_primitive_t prim_ref,
         dnn_mem_t &src_m, dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m,
         dnn_mem_t &diff_dst_m) {
-    if (c_ref) {
-        exec_conv(get_args_conv_bwd_w, prb, c_ref, src_m, diff_wei_m,
+    if (prim_ref) {
+        exec_conv(get_args_conv_bwd_w, prb, prim_ref, src_m, diff_wei_m,
                 diff_bia_m, diff_dst_m);
         return;
     }

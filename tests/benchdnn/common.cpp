@@ -276,7 +276,7 @@ void parse_result(
 static void *zmalloc_protect(size_t size) {
     const size_t page_sz = getpagesize();
 
-    const size_t block_sz = size + 2 * sizeof(void *);
+    const size_t block_sz = size + 3 * sizeof(void *);
     const size_t total_sz = div_up(block_sz, page_sz) * page_sz + page_sz;
 
     void *mem_ptr;
@@ -303,22 +303,29 @@ static void *zmalloc_protect(size_t size) {
         return nullptr;
     }
 
+    // Align down `ptr` on 8 bytes before storing addresses to make behavior
+    // defined.
+    ptrdiff_t to_align = reinterpret_cast<ptrdiff_t>(ptr) % sizeof(void *);
+    void *ptr_aligned_8 = ptr - to_align;
     // Save pointers for zfree_protect
-    ((void **)ptr)[-2] = ptr_start;
-    ((void **)ptr)[-1] = ptr_protect;
+    ((void **)ptr_aligned_8)[-2] = ptr_start;
+    ((void **)ptr_aligned_8)[-1] = ptr_protect;
 
     return ptr;
 }
 
 static void zfree_protect(void *ptr) {
-    const size_t page_sz = getpagesize();
+    // Get aligned ptr before obtaining addresses
+    ptrdiff_t to_align = reinterpret_cast<ptrdiff_t>(ptr) % sizeof(void *);
+    void *ptr_aligned_8 = reinterpret_cast<uint8_t *>(ptr) - to_align;
 
     // Restore read-write access for the protected region
-    void *ptr_protect = ((void **)ptr)[-1];
+    void *ptr_protect = ((void **)ptr_aligned_8)[-1];
+    const size_t page_sz = getpagesize();
     mprotect(ptr_protect, page_sz, PROT_READ | PROT_WRITE);
 
     // Deallocate the whole region
-    void *ptr_start = ((void **)ptr)[-2];
+    void *ptr_start = ((void **)ptr_aligned_8)[-2];
     ::free(ptr_start);
 }
 #endif
@@ -485,7 +492,7 @@ std::string locate_batch_file(const std::string &fname) {
     if (ifs.is_open()) return fname;
 
     for (int n = 0; n < n_paths; ++n) {
-        const std::string fullname = search_paths[n] + "/" + fname;
+        std::string fullname = search_paths[n] + "/" + fname;
         ifs.open(fullname);
         if (ifs.is_open()) {
             BENCHDNN_PRINT(50, "batch file used: %s\n", fullname.c_str());
@@ -507,7 +514,7 @@ std::string locate_batch_file(const std::string &fname) {
                         + std::string(driver_name);
             }
             // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
-            const std::string fullname = fdir + "/" + fname;
+            std::string fullname = fdir + "/" + fname;
             ifs.open(fullname);
             if (ifs.is_open()) {
                 search_paths[n_paths++] = std::move(fdir);
@@ -523,7 +530,7 @@ std::string locate_batch_file(const std::string &fname) {
 
 int batch(const char *fname, bench_f bench) {
     std::ifstream ifs(locate_batch_file(std::string(fname)));
-    SAFE_V(ifs.is_open() ? OK : FAIL);
+    SAFE(ifs.is_open() ? OK : FAIL, CRIT);
 
     std::vector<std::string> opts;
     std::string str;

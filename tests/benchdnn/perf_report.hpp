@@ -114,6 +114,10 @@ struct base_perf_report_t {
 
 #undef HANDLE
 
+        auto opt_name = std::string(option);
+        opt_name.pop_back();
+        BENCHDNN_PRINT(0, "Error: perf report option \"%s\" is not supported\n",
+                opt_name.c_str());
         SAFE_V(FAIL);
     }
 

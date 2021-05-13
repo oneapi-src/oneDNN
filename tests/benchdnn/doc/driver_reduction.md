@@ -15,13 +15,16 @@ where *reduction-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--dtag={any [default], ...}` -- physical dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
- - `--alg={SUM [default], ...}` -- algorithm for reduction operations.
+ - `--alg={sum [default], ...}` -- algorithm for reduction operations.
             Refer to [reduction primitive](https://oneapi-src.github.io/oneDNN/dev_guide_reduction.html)
             for details.
  - `--p=FLOAT` -- float value corresponding to algorithm operation.
             Refer to ``Floating point arguments`` below.
  - `--eps=FLOAT` -- float value corresponding to algorithm operation.
             Refer to ``Floating point arguments`` below.
+ - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
+            operations are set by default. Refer to [attributes](knobs_attr.md)
+            for details.
 
 and *reduction-desc* is a problem descriptor. The canonical form is:
 ```
@@ -33,7 +36,7 @@ the end to specify fewer dimensions.
 
 ## Floating point arguments
 Some operations support `p` and `eps` arguments such as
-`NORM_LP_MAX`, `NORM_LP_SUM`, `NORM_LP_POWER_P_MAX`, `NORM_LP_POWER_P_SUM`.
+`norm_lp_max`, `norm_lp_sum`, `norm_lp_power_p_max`, `norm_lp_power_p_sum`.
 
 ## Essence of Testing
 
@@ -50,7 +53,7 @@ Run a specific reduction primitive problem:
 - Source tensor uses `acb` memory format.
 - The reduce operation is sum.
 ``` sh
-    ./benchdnn --reduction --sdt=f32 --ddt=f32 --stag=acb --alg=SUM 1x2x3:1x1x3
+    ./benchdnn --reduction --sdt=f32 --ddt=f32 --stag=acb --alg=sum 1x2x3:1x1x3
 ```
 
 More examples with different driver options can be found at

@@ -20,9 +20,12 @@ where *conv-knobs* are:
  - `--alg={DIRECT [default], WINO, AUTO}` -- convolution algorithm. `WINO` is
             Winograd-based convolution. `AUTO` will pick one of `DIRECT` or
             `WINO` automatically, library-based decision.
- - `--attr-oscale="STRING"` -- output scale primitive attribute. No oscale is
+ - `--attr-oscale=STRING` -- output scale primitive attribute. No oscale is
             set by default. Refer to [attributes](knobs_attr.md) for details.
- - `--attr-post-ops="STRING"` -- post operation primitive attribute. No post
+ - `--attr-zero-points=STRING` -- zero points primitive attribute. No zero
+            points are set by default. Refer to [attributes](knobs_attr.md)
+            for details.
+ - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
             operations are set by default. Refer to [attributes](knobs_attr.md)
             for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.

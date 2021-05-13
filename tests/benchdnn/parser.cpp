@@ -98,7 +98,7 @@ bool parse_attr(attr_t &attr, const char *str,
                 "will iterate over all possible combinations.");
         notice_printed = true;
     }
-    SAFE_V(str2attr(&attr, str + pattern.size()));
+    SAFE(str2attr(&attr, str + pattern.size()), CRIT);
     return true;
 }
 
@@ -197,7 +197,7 @@ bool parse_batch(const bench_f bench, const char *str,
         const std::string &option_name /* = "batch"*/) {
     const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) != eol) {
-        SAFE_V(batch(str + pattern.size(), bench));
+        SAFE(batch(str + pattern.size(), bench), CRIT);
         return true;
     }
     return false;

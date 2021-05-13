@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,6 +40,8 @@ flags_t str2flags(const char *str) {
     while (str && *str) {
         if (*str == 'G') flags |= GLOB_STATS;
         if (*str == 'S') flags |= USE_SCALESHIFT;
+        if (*str == 'C') flags |= USE_SCALE;
+        if (*str == 'H') flags |= USE_SHIFT;
         if (*str == 'R') flags |= FUSE_NORM_RELU;
         str++;
     }
@@ -50,6 +52,8 @@ std::string flags2str(flags_t flags) {
     std::string str;
     if (flags & GLOB_STATS) str += "G";
     if (flags & USE_SCALESHIFT) str += "S";
+    if (flags & USE_SCALE) str += "C";
+    if (flags & USE_SHIFT) str += "H";
     if (flags & FUSE_NORM_RELU) str += "R";
     return str;
 }
