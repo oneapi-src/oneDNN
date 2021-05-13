@@ -243,14 +243,8 @@ int main(int argc, char **argv) {
     float *actual_output_ptr = tm.get(add_dst_desc.get_id()).get_data_handle<float>();
     auto output_dims = add_dst_desc.get_dims();
     auto num_elem = product(output_dims);
-    for (int64_t i = 0; i < num_elem; ++i) {
-        if (std::abs(expected_result - actual_output_ptr[i]) > 1e-6f) {
-            printf("expected = %.2f, actual = %.2f\n", expected_result, actual_output_ptr[i]);
-            throw std::runtime_error(
-                    "output result is not equal to excepted "
-                    "results");
-        }
-    }
+    std::vector<float> expected_output(num_elem, expected_result);
+    compare_data(expected_output.data(), actual_output_ptr, num_elem);
     std::cout << "Success!\n";
 
     set_compiled_partition_cache_capacity(0);

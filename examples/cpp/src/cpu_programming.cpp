@@ -176,27 +176,15 @@ int cpu_programming_tutorial(engine::kind engine_kind) {
         float *actual_output_ptr1 = tm.get(conv_dst_lt.get_id()).get_data_handle<float>();
         auto output_dims = conv_dst_lt.get_dims();
         auto num_elem = std::accumulate(output_dims.begin(), output_dims.end(), (int64_t)0);
-        for (size_t i = 0; i < static_cast<size_t>(num_elem); ++i) {
-            if (std::abs(expected_output_1 - actual_output_ptr1[i]) > 1e-6f) {
-                printf("expected = %.2f, actual = %.2f\n", expected_output_1, actual_output_ptr1[i]);
-                throw std::runtime_error(
-                        "output result is not equal to excepted "
-                        "results");
-            }
-        }
+        std::vector<float> expected_output1(num_elem, expected_output_1);
+        compare_data(expected_output1.data(), actual_output_ptr1, num_elem);
     }
 
     float *actual_output_ptr2 = tm.get(relu_dst_lt.get_id()).get_data_handle<float>();
     auto output_dims = relu_dst_lt.get_dims();
     auto num_elem = product(output_dims);
-    for (int i = 0; i < num_elem; ++i) {
-        if (std::abs(expected_output_2 - actual_output_ptr2[i]) > 1e-6f) {
-            printf("expected = %.2f, actual = %.2f\n", expected_output_2, actual_output_ptr2[i]);
-            throw std::runtime_error(
-                    "output result is not equal to excepted "
-                    "results");
-        }
-    }
+    std::vector<float> expected_output2(num_elem, expected_output_2);
+    compare_data(expected_output2.data(), actual_output_ptr2, num_elem);
     std::cout << "Example passed successfully!\n";
     return 0;
 }

@@ -17,6 +17,7 @@
 #ifndef COMMON_UTILS_HPP
 #define COMMON_UTILS_HPP
 
+#include <cmath>
 #include <iostream>
 #include <map>
 #include <numeric>
@@ -149,6 +150,46 @@ private:
     // indicates that the graph is frozen
     bool frozen_;
 };
+
+template <typename T>
+static void compare_data(T *dst, T *ref, size_t size, float rtol = 1e-5f,
+        float atol = 1e-6f, bool equal_nan = false) {
+    auto cal_error = [&](const float dst, const float ref) -> bool {
+        const float diff_f32 = dst - ref;
+        const float gap = rtol
+                        * (std::abs(ref) > std::abs(dst) ? std::abs(ref)
+                                                         : std::abs(dst))
+                + atol;
+        bool good = std::abs(diff_f32) <= gap;
+        return good;
+    };
+
+    for (size_t i = 0; i < size; ++i) {
+        if (std::isfinite(dst[i]) && std::isfinite(ref[i])) {
+            const float ref_f32 = static_cast<float>(ref[i]);
+            const float dst_f32 = static_cast<float>(dst[i]);
+            if (!cal_error(dst_f32, ref_f32)) {
+                printf("expected = %s, actual = %s\n",
+                        std::to_string(ref[i]).c_str(),
+                        std::to_string(dst[i]).c_str());
+                throw std::runtime_error(
+                        "output result is not equal to excepted "
+                        "results");
+            }
+        } else {
+            bool cond = (dst[i] == ref[i]);
+            if (equal_nan) { cond = std::isnan(dst[i]) && std::isnan(ref[i]); }
+            if (!cond) {
+                printf("expected = %s, actual = %s\n",
+                        std::to_string(ref[i]).c_str(),
+                        std::to_string(dst[i]).c_str());
+                throw std::runtime_error(
+                        "output result is not equal to excepted "
+                        "results");
+            }
+        }
+    }
+}
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 template <typename dtype>
