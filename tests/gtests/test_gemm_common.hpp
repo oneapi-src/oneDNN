@@ -17,6 +17,15 @@
 #ifndef TEST_GEMM_COMMON_H
 #define TEST_GEMM_COMMON_H
 
+#include <cstdint>
+#include <utility>
+#include <vector>
+#include <type_traits>
+
+#include "test_gemm_data_preparation.hpp"
+#include "test_gemm_params.hpp"
+#include "test_gemm_validation.hpp"
+
 #include "dnnl_test_common.hpp"
 #include "dnnl_thread.hpp"
 #include "gtest/gtest.h"
@@ -38,11 +47,6 @@
 #endif
 
 #include "tests/test_isa_common.hpp"
-
-#include <cstdint>
-#include <utility>
-#include <vector>
-#include <type_traits>
 
 #define CONCAT_WITH_UNDERSCORE_(a, b) a##_##b
 #define CONCAT_WITH_UNDERSCORE(a, b) CONCAT_WITH_UNDERSCORE_(a, b)
@@ -72,78 +76,6 @@ dnnl_status_t dnnl_gemm_bf16bf16f32(char transa, char transb, dnnl_dim_t M,
 
 namespace dnnl {
 
-struct test_igemm_params {
-    char offsetc;
-    bool nonzero_oa;
-    bool nonzero_ob;
-    bool nonzero_oc;
-
-    int8_t oa() const { return (int8_t)(nonzero_oa ? 4 : 0); }
-    int8_t ob() const { return (int8_t)(nonzero_ob ? 3 : 0); }
-};
-
-struct test_pack_params {
-    bool pack_a;
-    bool pack_b;
-};
-
-struct gemm_offset {
-    int64_t a;
-    int64_t b;
-    int64_t c;
-    int64_t co;
-};
-
-struct test_params {
-    char transA;
-    char transB;
-    int64_t M;
-    int64_t N;
-    int64_t K;
-    float alpha;
-    float beta;
-    int64_t lda;
-    int64_t ldb;
-    int64_t ldc;
-
-    test_igemm_params igemm_params;
-    test_pack_params pack_params;
-    bool expect_to_fail;
-    dnnl_status_t expected_status;
-
-    gemm_offset off;
-
-    bool tr_a() const { return transA == 'T' || transA == 't'; }
-    bool tr_b() const { return transB == 'T' || transB == 't'; }
-    int64_t sizeC() const { return M * ldc; }
-
-    bool oc_is_R() const {
-        auto c = igemm_params.offsetc;
-        return c == 'R' || c == 'r';
-    }
-    bool oc_is_C() const {
-        auto c = igemm_params.offsetc;
-        return c == 'C' || c == 'c';
-    }
-    int64_t size_oc() const { return oc_is_R() ? N : oc_is_C() ? M : 1; }
-};
-
-template <typename... TArgs>
-inline test_params make_test_params_with_offset(
-        const gemm_offset &off, TArgs &&... args) {
-    test_params params {std::forward<TArgs>(args)...};
-    params.off = off;
-    return params;
-}
-
-template <typename... TArgs>
-inline test_params make_test_params_pack(
-        const test_pack_params &pack_params, TArgs &&... args) {
-    test_params params {std::forward<TArgs>(args)...};
-    params.pack_params = pack_params;
-    return params;
-}
-
 #if defined(DNNL_WTIH_SYCL)
 bool is_memory_kind_buffer(const test_memory &mem) {
     return sycl_interop::get_memory_kind(mem.get())
@@ -152,31 +84,8 @@ bool is_memory_kind_buffer(const test_memory &mem) {
 #endif
 
 /* Test implementation description.
- *
- * To reduce the time spent in GEMM validation the test matrices A, B, and C
- * are generated from sub-matrices (A', B', and C') of smaller size:
- * - A(M, K) <-> A'(M_test, K)
- * - B(K, N) <-> B'(K, N_test)
- * - C(M, N) <-> C'(M_test, N_test)
- *
- * The matrices A', B', and C' are generated randomly. Then:
- * - A(m, k) := A'(mapper_m[m], k),
- * - B(k, n) := B'(k, mapper_n[n]),
- * - C(m, n) := C'(mapper_m[m], mapper_n[n]);
- *
- * Here `mapper_x[]` is surjection of {0, ..., X-1} onto {0, ..., X_test-1}.
- * For simplicity mapper_x[x] = x, for x in {0, ..., X_test-1}.
- *
- * This technique allows reducing the complexity of the validation code from
- * O(M*N*K) to O(M_test * N_test * K).
- *
- * X_test := min(X, X_test_max), where X_test_max is prime number around 50.
- *
- * To make the test robust the surjective functions mapper_m and mapper_n
- * should randomly map the elements {X_test, ..., X-1} onto {0, ..., X_test-1}.
- *
- * The validation itself looks as follows:
- * 0.  Prepare mapper_m and mapper_n
+ * The testing steps looks as follows:
+ * 0.  Prepare mapper_m and mapper_n <- details in test_gemm_data_preparation.hpp
  * 1.a Generate random matrices A', B', C'
  * 1.b Prepare matrices A, B, C based on A', B', and C' respectively
  * 2.  Compute C_calc := Op(M, N, K, A, B, C)
@@ -187,311 +96,6 @@ bool is_memory_kind_buffer(const test_memory &mem) {
 
 const int M_test_max = 47;
 const int N_test_max = 53;
-
-/** Mapper:
- * a surjective function from {0, ..., dim-1} onto {0, ..., dim_test-1}.
- */
-struct mapper_t {
-    mapper_t(int64_t dim, int64_t dim_test_max, int64_t gen = 7,
-            int64_t gen_start = 13)
-        : dim_(dim)
-        , dim_test_((std::min)(dim, dim_test_max))
-        , gen_(gen)
-        , gen_start_(gen_start)
-        , mapper_(dim) {
-        for (int64_t d = 0; d < dim_test_; ++d)
-            mapper_[d] = d;
-        for (int64_t g = gen_start_ % dim_test_, d = dim_test_; d < dim_; ++d) {
-            mapper_[d] = mapper_[g];
-            g = g * gen_ % dim_test_;
-        }
-    }
-
-    int64_t dim() const { return dim_; }
-    int64_t dim_test() const { return dim_test_; }
-    int64_t operator[](int64_t d) const { return mapper_[d]; }
-
-private:
-    const int64_t dim_;
-    const int64_t dim_test_;
-    const int64_t gen_, gen_start_;
-    std::vector<int64_t> mapper_;
-};
-
-enum class layout_t { ROW_MAJOR, COL_MAJOR };
-
-/** Prepares matrix A or B according to the dimension mapper.
- * The K dimension is always assumed to be columns, hence:
- * - A layout = A_is_transposed ? ROW_MAJOR : COL_MAJOR
- * - B layout = B_is_transposed ? COL_MAJOR : ROW_MAJOR
- */
-template <typename data_t>
-void prepare_matrix(const test_memory &M_mem, int64_t off_beg, layout_t layout,
-        int64_t R, int64_t C, int64_t LD, const mapper_t &mapper) {
-    auto M = map_memory<data_t>(M_mem);
-    auto dt = data_traits<data_t>::data_type;
-    bool is_fp = (false || dt == memory::data_type::f16
-            || dt == memory::data_type::bf16 || dt == memory::data_type::f32);
-    const data_t mean = (data_t)(is_fp ? 1.f : 4);
-    const data_t var = (data_t)(is_fp ? 2e-1f : 3);
-
-    ASSERT_EQ(R, mapper.dim());
-    const int R_test = mapper.dim_test();
-
-    if (layout == layout_t::COL_MAJOR) {
-        dnnl::impl::parallel_nd(C, R_test, [&](int64_t c, int64_t r) {
-            const int64_t off = c * LD + r;
-            M[off_beg + off] = set_value<data_t>(off, mean, var, 1.);
-        });
-        if (R > R_test) {
-            const int64_t R_rest = R - R_test;
-            dnnl::impl::parallel_nd(C, R_rest, [&](int64_t c, int64_t r_) {
-                const int64_t r = R_test + r_;
-                const int64_t off = c * LD + r;
-                const int64_t off0 = c * LD + mapper[r];
-                M[off_beg + off] = M[off_beg + off0];
-            });
-        }
-    } else {
-        dnnl::impl::parallel_nd(R_test, C, [&](int64_t r, int64_t c) {
-            const int64_t off = r * LD + c;
-            M[off_beg + off] = set_value<data_t>(off, mean, var, 1.);
-        });
-        if (R > R_test) {
-            const int64_t R_rest = R - R_test;
-            dnnl::impl::parallel_nd(R_rest, C, [&](int64_t r_, int64_t c) {
-                const int64_t r = R_test + r_;
-                const int64_t off = r * LD + c;
-                const int64_t off0 = mapper[r] * LD + c;
-                M[off_beg + off] = M[off_beg + off0];
-            });
-        }
-    }
-
-    // To test if igemm row/col sum are correct when performing sign/zero
-    // extensions.
-    if (dt == memory::data_type::u8)
-        M[off_beg] = data_t(UINT8_MAX);
-    else if (dt == memory::data_type::s8)
-        M[off_beg] = data_t(-64);
-}
-
-/** Extends columns of the matrix M according to the mapper_c */
-template <typename data_t>
-void extend_matrix_cols(const test_memory &M_mem, int64_t off, int64_t R,
-        int64_t C, int64_t LD, const mapper_t &mapper_c) {
-    auto M = map_memory<data_t>(M_mem);
-    ASSERT_EQ(C, mapper_c.dim());
-    const int64_t C_test = mapper_c.dim_test();
-    if (C_test == C) return;
-
-    dnnl::impl::parallel_nd(R, C - C_test, [&](int64_t r, int64_t c_) {
-        const int64_t c = C_test + c_;
-        const int64_t c0 = mapper_c[c];
-        M[off + r * LD + c] = M[off + r * LD + c0];
-    });
-}
-
-/** Extends rows of the matrix M according to the mapper_r */
-template <typename data_t>
-void extend_matrix_rows(const test_memory &M_mem, int64_t off, int64_t R,
-        int64_t C, int64_t LD, const mapper_t &mapper_r) {
-    auto M = map_memory<data_t>(M_mem);
-    ASSERT_EQ(R, mapper_r.dim());
-    const int64_t R_test = mapper_r.dim_test();
-    if (R_test == R) return;
-
-    dnnl::impl::parallel_nd(R - R_test, [&](int64_t r_) {
-        const int64_t r = R_test + r_;
-        const int64_t r0 = mapper_r[r];
-        for (int64_t c = 0; c < C; ++c)
-            M[off + r * LD + c] = M[off + r0 * LD + c];
-    });
-}
-
-/** Extends matrix M according to the mapper_r and mapper_c */
-template <typename data_t>
-void extend_matrix(const test_memory &M_mem, int64_t off, int64_t R, int64_t C,
-        int64_t LD, const mapper_t &mapper_r, const mapper_t &mapper_c) {
-    ASSERT_EQ(R, mapper_r.dim());
-    ASSERT_EQ(C, mapper_c.dim());
-    extend_matrix_rows<data_t>(M_mem, off, R, C, LD, mapper_r);
-    extend_matrix_cols<data_t>(M_mem, off, R, C, LD, mapper_c);
-}
-
-template <typename a_dt, typename b_dt, typename c_dt>
-struct ref_gemm {
-    static void call(const test_params &p, int64_t M, int64_t N,
-            const test_memory &a_mem, const test_memory &b_mem,
-            const test_memory &c_mem, const test_memory &) {
-        auto a = map_memory<a_dt>(a_mem);
-        auto b = map_memory<b_dt>(b_mem);
-        auto c = map_memory<c_dt>(c_mem);
-
-        const bool tr_a = p.transA && (p.transA == 'T' || p.transA == 't');
-        const bool tr_b = p.transB && (p.transB == 'T' || p.transB == 't');
-
-        auto pa = [&](int64_t i, int64_t j) {
-            return a[p.off.a + i * p.lda + j];
-        };
-        auto pb = [&](int64_t i, int64_t j) {
-            return b[p.off.b + i * p.ldb + j];
-        };
-        auto pc = [&](int64_t i, int64_t j) -> c_dt & {
-            return c[p.off.c + i * p.ldc + j];
-        };
-
-        dnnl::impl::parallel_nd(M, N, [&](int64_t im, int64_t in) {
-            c_dt c_elem = (p.beta == 0.) ? 0. : pc(im, in) * p.beta;
-
-            for (int64_t ik = 0; ik < p.K; ik++) {
-                const a_dt a_elem = tr_a ? pa(ik, im) : pa(im, ik);
-                const b_dt b_elem = tr_b ? pb(in, ik) : pb(ik, in);
-                c_elem += p.alpha * a_elem * b_elem;
-            }
-            pc(im, in) = c_elem;
-        });
-    }
-};
-
-template <typename a_dt, typename b_dt>
-struct ref_gemm<a_dt, b_dt, int32_t> {
-    static void call(const test_params &p, int64_t M, int64_t N,
-            const test_memory &a_mem, const test_memory &b_mem,
-            const test_memory &c_mem, const test_memory &oc_mem) {
-        auto A = map_memory<a_dt>(a_mem);
-        auto B = map_memory<b_dt>(b_mem);
-        auto C = map_memory<int32_t>(c_mem);
-        auto oc = map_memory<int32_t>(oc_mem);
-
-        const bool tr_a = p.transA && (p.transA == 'T' || p.transA == 't');
-        const bool tr_b = p.transB && (p.transB == 'T' || p.transB == 't');
-        bool OCisR = (p.igemm_params.offsetc == 'R'
-                || p.igemm_params.offsetc == 'r');
-        bool OCisC = (p.igemm_params.offsetc == 'C'
-                || p.igemm_params.offsetc == 'c');
-
-        auto pa = [&](int64_t i, int64_t j) {
-            return (double)A[p.off.a + i * p.lda + j];
-        };
-        auto pb = [&](int64_t i, int64_t j) {
-            return (double)B[p.off.b + i * p.ldb + j];
-        };
-        auto pc = [&](int64_t i, int64_t j) -> int32_t & {
-            return C[p.off.c + i * p.ldc + j];
-        };
-
-        int8_t oa = p.igemm_params.oa();
-        int8_t ob = p.igemm_params.ob();
-
-        dnnl::impl::parallel_nd(M, N, [&](int64_t m, int64_t n) {
-            double c_elem = 0;
-            for (int64_t k = 0; k < p.K; k++) {
-                const double a_elem = (tr_a ? pa(k, m) : pa(m, k)) - oa;
-                const double b_elem = (tr_b ? pb(n, k) : pb(k, n)) - ob;
-                c_elem += a_elem * b_elem;
-            }
-
-            double coffset = OCisR ? oc[n] : OCisC ? oc[m] : oc[0];
-            double val = (p.beta == 0.f ? 0. : p.beta * (double)pc(m, n))
-                    + p.alpha * c_elem + coffset;
-            pc(m, n) = static_cast<int32_t>(
-                    nearbyint(saturate<int32_t, double>(val)));
-        });
-    }
-};
-
-template <typename a_dt, typename c_dt>
-void compare(const test_params &p, const test_memory &c_mem,
-        const test_memory &c_ref_mem) {
-    using data_type = memory::data_type;
-    auto c = map_memory<c_dt>(c_mem);
-    auto c_ref = map_memory<c_dt>(c_ref_mem);
-    dnnl::impl::parallel_nd(p.M, p.ldc, [&](int64_t i, int64_t j) {
-        if (is_current_test_failed()) return;
-
-        c_dt ref = c_ref[p.off.c + i * p.ldc + j];
-        c_dt got = c[p.off.c + i * p.ldc + j];
-        c_dt diff = got - ref;
-
-        if (data_traits<a_dt>::data_type == data_type::f16) {
-            const float eps = 1e-3 * p.K;
-            float e = (std::abs(ref) > eps) ? diff / ref : float(diff);
-            ASSERT_NEAR(e, 0.0, eps) << "Row: " << i << " Col: " << j;
-        } else if (data_traits<a_dt>::data_type == data_type::bf16) {
-            const float eps = 1e-2 * p.K;
-            float e = (std::abs(ref) > eps) ? diff / ref : float(diff);
-            ASSERT_NEAR(e, 0.0, eps) << "Row: " << i << " Col: " << j;
-        } else if (data_traits<a_dt>::data_type == data_type::f32) {
-            c_dt e = (std::abs(ref) > 1e-4) ? c_dt(diff / ref) : diff;
-            ASSERT_NEAR(e, 0.0, 1e-4) << "Row: " << i << " Col: " << j;
-        } else {
-            // igemm
-            c_dt eps = 0;
-            if (p.alpha == 1.0f) {
-                eps = 1;
-            } else if (data_traits<a_dt>::data_type == data_type::u8) {
-                eps = p.K / 700 + 1;
-            } else if (data_traits<a_dt>::data_type == data_type::s8) {
-                eps = p.K / 350 + 1;
-            }
-            ASSERT_NEAR(diff, 0, eps) << "Row: " << i << " Col: " << j;
-        }
-    });
-}
-
-inline void get_matrix_size(
-        const test_params &p, size_t &sizeA, size_t &sizeB, size_t &sizeC) {
-    const bool tr_a = (p.transA == 'T' || p.transA == 't');
-    const bool tr_b = (p.transB == 'T' || p.transB == 't');
-    sizeA = tr_a ? p.lda * p.K : p.lda * p.M,
-    sizeB = tr_b ? p.ldb * p.N : p.ldb * p.K, sizeC = p.ldc * p.M;
-}
-
-template <typename T>
-inline test_memory get_matrix_memory(
-        memory::dim n, memory::dim off, engine &eng) {
-    auto d = create_md(
-            {n + off}, data_traits<T>::data_type, memory::format_tag::x);
-    return test_memory(d, eng);
-}
-
-template <typename a_dt, typename b_dt, typename c_dt>
-void fill_matrices(const test_params &p, const mapper_t &mapper_m,
-        const mapper_t &mapper_n, const test_memory &a_mem,
-        const test_memory &b_mem, const test_memory &c_mem,
-        const test_memory &c_ref_mem, const test_memory &oc_mem) {
-    prepare_matrix<a_dt>(a_mem, p.off.a,
-            p.tr_a() ? layout_t::COL_MAJOR : layout_t::ROW_MAJOR, p.M, p.K,
-            p.lda, mapper_m);
-    prepare_matrix<b_dt>(b_mem, p.off.b,
-            p.tr_b() ? layout_t::ROW_MAJOR : layout_t::COL_MAJOR, p.N, p.K,
-            p.ldb, mapper_n);
-
-    fill_data<c_dt>(p.off.c + p.sizeC(), c_mem.get());
-    extend_matrix<c_dt>(c_mem, p.off.c, p.M, p.N, p.ldc, mapper_m, mapper_n);
-    {
-        auto C = map_memory<c_dt>(c_mem);
-        auto C_ref = map_memory<c_dt>(c_ref_mem);
-        dnnl::impl::parallel_nd(p.sizeC(),
-                [&](int64_t i) { C_ref[p.off.c + i] = C[p.off.c + i]; });
-    }
-
-    if (oc_mem.get_size() == 0) return;
-
-    if (p.igemm_params.nonzero_oc) {
-        fill_data<c_dt>(p.size_oc(), oc_mem.get(), (c_dt)1, (c_dt)0);
-        if (p.oc_is_R()) {
-            extend_matrix_cols<c_dt>(oc_mem, 0, 1, p.N, p.N, mapper_n);
-        } else if (p.oc_is_C()) {
-            extend_matrix_rows<c_dt>(oc_mem, 0, p.M, 1, 1, mapper_m);
-        }
-    } else {
-        auto oc = map_memory<c_dt>(oc_mem);
-        for (int64_t i = 0; i < p.size_oc(); i++)
-            oc[i] = 0;
-    }
-}
 
 template <typename a_dt, typename b_dt, typename c_dt>
 struct dnnl_gemm {
