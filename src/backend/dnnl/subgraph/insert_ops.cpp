@@ -149,13 +149,10 @@ void insert_transpose_for_matmul(std::vector<op_ptr> &subgraph) {
             transpose_op->set_attr<std::string>("permute_kind", "transpose");
             insert_op_before(transpose_op, cur_op, i);
             to_be_inserted_ops.emplace_back(transpose_op);
-            // remove attr to avoid re-transpose during shape inference
-            if (i == 0) {
-                cur_op->set_attr<bool>("transpose_a", false);
-            } else {
-                cur_op->set_attr<bool>("transpose_b", false);
-            }
         }
+        // remove attr to avoid re-transpose during shape inference
+        cur_op->set_attr<bool>("transpose_a", false);
+        cur_op->set_attr<bool>("transpose_b", false);
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(std::move(op));

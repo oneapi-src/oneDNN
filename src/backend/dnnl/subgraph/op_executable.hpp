@@ -194,25 +194,43 @@ struct matmul_executable : public op_executable {
             with_sum_ = op->get_attr<bool>("with_sum");
     }
 
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
     virtual void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) override {
-        if (with_sum_) {
-            auto post_src_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
-            auto dst_mem = args.find(DNNL_ARG_DST)->second;
-            if (post_src_mem.get_data_handle() != dst_mem.get_data_handle()) {
-                dnnl::reorder::primitive_desc post_src_reorder_pd(
-                        post_src_mem, dst_mem);
-                dnnl::reorder(post_src_reorder_pd)
-                        .execute(stream, post_src_mem, dst_mem);
+        // only first iteration
+        if (first_iteration_) {
+            cached_args_ = args;
+            dst_mem_ = cached_args_.find(DNNL_ARG_DST)->second;
+
+            if (with_sum_) {
+                psrc_mem_ = cached_args_.find(DNNL_GRAPH_ARG_POST_SRC)->second;
+                if (psrc_mem_.get_data_handle() != dst_mem_.get_data_handle()) {
+                    psrc_reorder_pd_ = dnnl::reorder::primitive_desc(
+                            psrc_mem_, dst_mem_);
+                    reorder_psrc_ = true;
+                }
             }
         }
 
-        dnnl::matmul(pd_).execute(stream, args);
+        if (reorder_psrc_) {
+            dnnl::reorder(psrc_reorder_pd_)
+                    .execute(stream, psrc_mem_, dst_mem_);
+        }
+
+        dnnl::matmul(pd_).execute(stream, cached_args_);
+        first_iteration_ = false;
     }
 
 private:
     dnnl::matmul::primitive_desc pd_;
     bool with_sum_ {false};
+    std::unordered_map<int, memory> cached_args_;
+    bool first_iteration_ {true};
+    memory psrc_mem_;
+    memory dst_mem_;
+    dnnl::reorder::primitive_desc psrc_reorder_pd_;
+    bool reorder_psrc_ {false};
 };
 
 struct reorder_executable : public op_executable {

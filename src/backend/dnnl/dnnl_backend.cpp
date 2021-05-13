@@ -192,6 +192,8 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(int8_matmul_bias_sigmoid, quantized_matmul);
     DNNL_REGISTER_KERNEL(int8_matmul_gelu, quantized_matmul);
     DNNL_REGISTER_KERNEL(int8_matmul_bias_gelu, quantized_matmul);
+    DNNL_REGISTER_KERNEL(int8_matmul_add, quantized_matmul);
+    DNNL_REGISTER_KERNEL(int8_matmul_bias_add, quantized_matmul);
 
 #undef DNNL_REGISTER_KERNEL
 
