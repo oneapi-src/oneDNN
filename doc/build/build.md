@@ -77,6 +77,11 @@ cmake .. \
           <extra build options>
 ~~~
 
+Open-source version of oneAPI DPC++ Compiler may not contain OpenCL runtime.
+In this case, you can use `OPENCLROOT` CMake option or environment variable
+of the same name to specify path to the OpenCL runtime if it is installed in
+a custom location.
+
 - Build the library
 ~~~sh
 make -j
@@ -169,6 +174,12 @@ cmake .. -G Ninja -DDNNL_CPU_RUNTIME=DPCPP ^
                   -DCMAKE_PREFIX_PATH=<path to Level Zero headers> ^
                   <extra build options>
 ~~~
+
+Open-source version of oneAPI DPC++ Compiler may not contain OpenCL runtime.
+In this case, you can use `OPENCLROOT` CMake option or environment variable
+of the same name to specify path to the OpenCL runtime if it is installed in
+a custom location.
+
 @note The only CMake generator that supports oneAPI DPC++ Compiler on Windows
 is Ninja. CC and CXX variables must be set to clang and clang++ respectively. 
 
