@@ -74,7 +74,8 @@
 #if IS_FWD
 
 NAMED_KERNEL_ATTR(CALC)
-__kernel void gen9_calc_mean(__global DATA_T *src, __global float *mean) {
+__kernel void gen9_calc_mean(
+        __global DATA_T *src, __global float *reduce_temp) {
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
@@ -141,7 +142,7 @@ __kernel void gen9_calc_mean(__global DATA_T *src, __global float *mean) {
         v_mean += res0[i] + res1[i];
     }
 
-    STORE_FLOAT_1x16(&mean[mb_sp_idx * IC + c], v_mean);
+    STORE_FLOAT_1x16(&reduce_temp[mb_sp_idx * IC + c], v_mean);
 }
 
 NAMED_KERNEL_ATTR(REDUCE)
@@ -157,8 +158,8 @@ __kernel void gen9_reduce_mean(
 }
 
 NAMED_KERNEL_ATTR(CALC)
-__kernel void gen9_calc_variance(
-        __global DATA_T *src, __global float *mean, __global float *variance) {
+__kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
+        __global float *reduce_temp) {
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
@@ -235,7 +236,7 @@ __kernel void gen9_calc_variance(
     }
 
     STORE_FLOAT_1x16(
-            &variance[REDUCE_STAT_NBLOCKS * IC + mb_sp_idx * IC + c], v_var);
+            &reduce_temp[REDUCE_STAT_NBLOCKS * IC + mb_sp_idx * IC + c], v_var);
 }
 
 NAMED_KERNEL_ATTR(REDUCE)
@@ -243,9 +244,6 @@ __kernel void gen9_reduce_variance(
         __global float *reduce_temp, __global float *variance) {
     const int c = GWS_GET_REDUCE_STAT_IC();
     reduce_temp += REDUCE_STAT_NBLOCKS * IC + c;
-#if SAVE_STATS == 0
-    variance += IC;
-#endif
     float sum = 0.0f;
     for (int i = 0; i < REDUCE_STAT_NBLOCKS; i++)
         sum += reduce_temp[i * IC];
@@ -261,10 +259,6 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
     const int n = GWS_GET_MB();
     const int c = GWS_GET_IC();
     const int sp = GWS_GET_SP() * VECT_SIZE;
-
-#if SAVE_STATS == 0 && CALCULATE_STATS == 1
-    variance += IC;
-#endif
 
 #if USE_NHWC
     const uint d_off = sp * IC + c;

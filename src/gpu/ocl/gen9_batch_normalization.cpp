@@ -251,6 +251,14 @@ void gen9_batch_normalization_fwd_t::pd_t::init_scratchpad() {
         auto scratchpad = scratchpad_registry().registrar();
         scratchpad.book(key_bnorm_reduction, size,
                 types::data_type_size(data_type::f32), OCL_BUFFER_ALIGNMENT);
+        if (!conf.save_stats) {
+            scratchpad.book(key_bnorm_tmp_mean, conf.ic,
+                    types::data_type_size(data_type::f32),
+                    OCL_BUFFER_ALIGNMENT);
+            scratchpad.book(key_bnorm_tmp_var, conf.ic,
+                    types::data_type_size(data_type::f32),
+                    OCL_BUFFER_ALIGNMENT);
+        }
     }
 }
 
@@ -281,22 +289,24 @@ status_t gen9_batch_normalization_fwd_t::execute_forward(
     auto &ws = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_WORKSPACE, status);
     CHECK(status);
 
-    auto *mean_ptr = &mean_;
-    auto *variance_ptr = &variance_;
-
     std::unique_ptr<memory_storage_t> temp_reduce;
+    std::unique_ptr<memory_storage_t> tmp_mean;
+    std::unique_ptr<memory_storage_t> tmp_variance;
     if (conf.calculate_stats) {
         temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
                 key_bnorm_reduction);
 
         if (!conf.save_stats) {
-            mean_ptr = temp_reduce.get();
-            variance_ptr = temp_reduce.get();
+            tmp_mean = ctx.get_scratchpad_grantor().get_memory_storage(
+                    key_bnorm_tmp_mean);
+            tmp_variance = ctx.get_scratchpad_grantor().get_memory_storage(
+                    key_bnorm_tmp_var);
         }
     }
 
-    auto &mean = *mean_ptr;
-    auto &variance = *variance_ptr;
+    auto &mean = (conf.calculate_stats && !conf.save_stats) ? *tmp_mean : mean_;
+    auto &variance = (conf.calculate_stats && !conf.save_stats) ? *tmp_variance
+                                                                : variance_;
 
     if (conf.calculate_stats) {
         compute::kernel_arg_list_t calc_mean_arg_list;
