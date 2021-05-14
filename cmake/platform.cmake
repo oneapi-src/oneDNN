@@ -111,11 +111,21 @@ if(MSVC)
         # We don't want to optimize jit gemm kernels to reduce compile time
         append(CMAKE_CCXX_FLAGS "-Wno-overriding-t-option")
     endif()
+    if(DNNL_WITH_SYCL OR CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
+        # Default fp-model in icx and dpcpp (unlike clang) may be precise or
+        # fast=1 depending on the version.
+        append(CMAKE_CCXX_FLAGS "/fp:precise")
+    endif()
 elseif(UNIX OR MINGW)
     append(CMAKE_CCXX_FLAGS "-Wall -Wno-unknown-pragmas")
     if(DNNL_WITH_SYCL)
         # XXX: Intel oneAPI DPC++ Compiler generates a lot of warnings
         append(CMAKE_CCXX_FLAGS "-w")
+    endif()
+    if(DNNL_WITH_SYCL OR CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
+        # Default fp-model in icx and dpcpp (unlike clang) may be precise or
+        # fast=1 depending on the version.
+        append(CMAKE_CCXX_FLAGS "-ffp-model=precise -fno-reciprocal-math")
     endif()
     append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "-Werror")
     append(CMAKE_CCXX_FLAGS "-fvisibility=internal")
