@@ -61,23 +61,19 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
             && gemm_based::check_gemm_compatible_formats(*this);
     if (!ok) return status::unimplemented;
 
-    // set state
-    params_.dst_is_acc_ = dst_type == data_type::f32;
-
-    status_t status = check_and_configure_attributes();
-    if (status != status::success) return status;
+    CHECK(check_and_configure_attributes());
 
     gemm_based::book_acc_scratchpad(*this, params_, sizeof(acc_data_t));
 
     return status::success;
 }
 
-static bool should_gemm_execute_sum_po(
-        const gemm_based::params_t &params) noexcept {
+static bool should_gemm_execute_sum_po(const gemm_based::params_t &params,
+        impl::data_type_t dst_type) noexcept {
     const auto &po = params.pp_attr_.post_ops_;
     static constexpr int sum_idx = 0;
     return po.len() > 0 && po.contain(primitive_kind::sum, sum_idx)
-            && params.dst_is_acc_;
+            && dst_type == data_type::f32 && params.gemm_applies_output_scales_;
 }
 
 template <impl::data_type_t dst_type>
@@ -97,12 +93,8 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
                 broadcasting_strategy_t::per_oc_spatial,
                 broadcasting_strategy_t::per_mb_spatial,
                 broadcasting_strategy_t::no_broadcast};
-        if (IMPLICATION(post_ops.contain(sum, 0),
-                    params_.gemm_applies_output_scales_)) {
-            return cpu::inner_product_utils::post_ops_ok(
-                    post_ops, dst_md(), enabled_bcast_strategy);
-        }
-        return false;
+        return cpu::inner_product_utils::post_ops_ok(
+                post_ops, dst_md(), enabled_bcast_strategy);
     };
 
     // check basic attributes
@@ -112,19 +104,24 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
     CHECK(params_.pp_attr_.copy_from(*attr()));
     params_.gemm_applies_output_scales_
             = attr()->output_scales_.mask_ == 0 && !with_bias();
+
     if (params_.gemm_applies_output_scales_)
         params_.pp_attr_.output_scales_.set(1.f);
 
     // check post-ops
-    if (check_attr_post_ops()) {
-        if (should_gemm_execute_sum_po(params_)) {
-            // set state
-            const auto &po = params_.pp_attr_.post_ops_;
-            static constexpr int sum_idx = 0;
-            params_.gemm_beta_ = po.entry_[sum_idx].sum.scale;
-        }
-    } else {
-        return status::unimplemented;
+    if (!check_attr_post_ops()) return status::unimplemented;
+    const bool sum_po_via_gemm_beta
+            = should_gemm_execute_sum_po(params_, dst_type);
+    // set state
+    params_.dst_is_acc_ = dst_type == data_type::f32
+            && IMPLICATION(attr()->post_ops_.find(primitive_kind::sum) != -1,
+                    sum_po_via_gemm_beta);
+
+    if (sum_po_via_gemm_beta) {
+        // set state
+        const auto &po = params_.pp_attr_.post_ops_;
+        static constexpr int sum_idx = 0;
+        params_.gemm_beta_ = po.entry_[sum_idx].sum.scale;
     }
 
     // set state
@@ -136,7 +133,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
 
 template <impl::data_type_t dst_type>
 bool gemm_bf16_matmul_t<dst_type>::should_skip_sum_po() const noexcept {
-    return should_gemm_execute_sum_po(pd()->params());
+    return should_gemm_execute_sum_po(pd()->params(), dst_type);
 }
 
 template <impl::data_type_t dst_type>

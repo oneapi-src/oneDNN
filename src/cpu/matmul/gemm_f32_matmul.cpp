@@ -58,14 +58,16 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
 
     if (!ok) return status::unimplemented;
 
-    // set state
-    params_.dst_is_acc_ = true;
     if (!has_runtime_dims_or_strides())
         params_.can_fuse_src_batch_dims_
                 = matmul_helper_t(src_md(), weights_md(), dst_md())
                           .can_fuse_src_batch_dims();
 
-    return check_and_configure_attributes();
+    CHECK(check_and_configure_attributes());
+
+    gemm_based::book_acc_scratchpad(*this, params_, sizeof(acc_data_t));
+
+    return status::success;
 }
 
 static bool should_gemm_execute_sum_po(
@@ -73,7 +75,7 @@ static bool should_gemm_execute_sum_po(
     const auto &po = params.pp_attr_.post_ops_;
     static constexpr int sum_idx = 0;
     return po.len() > 0 && po.contain(primitive_kind::sum, sum_idx)
-            && params.dst_is_acc_;
+            && params.gemm_applies_output_scales_;
 }
 
 status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
@@ -92,12 +94,8 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
                 broadcasting_strategy_t::per_oc_spatial,
                 broadcasting_strategy_t::per_mb_spatial,
                 broadcasting_strategy_t::no_broadcast};
-        if (IMPLICATION(post_ops.contain(sum, 0),
-                    params_.gemm_applies_output_scales_)) {
-            return cpu::inner_product_utils::post_ops_ok(
-                    post_ops, dst_md(), enabled_bcast_strategy);
-        }
-        return false;
+        return cpu::inner_product_utils::post_ops_ok(
+                post_ops, dst_md(), enabled_bcast_strategy);
     };
 
     // check basic attributes
@@ -112,8 +110,13 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
 
     // check post-ops
     if (!check_attr_post_ops()) return status::unimplemented;
+    const bool sum_po_via_gemm_beta = should_gemm_execute_sum_po(params_);
+    // set state
+    params_.dst_is_acc_
+            = IMPLICATION(attr()->post_ops_.find(primitive_kind::sum) != -1,
+                    sum_po_via_gemm_beta);
 
-    if (should_gemm_execute_sum_po(params_)) {
+    if (sum_po_via_gemm_beta) {
         // set state
         const auto &po = params_.pp_attr_.post_ops_;
         static constexpr int sum_idx = 0;
@@ -121,8 +124,8 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
     }
 
     // set state
-    params_.has_pp_kernel_
-            = with_bias() || !params_.pp_attr_.has_default_values();
+    params_.has_pp_kernel_ = !params_.dst_is_acc_ || with_bias()
+            || !params_.pp_attr_.has_default_values();
 
     return status::success;
 }
@@ -167,6 +170,26 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const bool can_fuse_src_batch_dims = pd()->has_runtime_dims_or_strides()
             ? helper.can_fuse_src_batch_dims()
             : params.can_fuse_src_batch_dims_;
+    const dim_t acc_stride = gemm_based::get_scratchpad_size(
+            batch, M, N, can_fuse_src_batch_dims);
+    bool dst_is_acc = params.dst_is_acc_;
+    acc_data_t *acc = dst_is_acc
+            ? (acc_data_t *)dst
+            : ctx.get_scratchpad_grantor().template get<acc_data_t>(
+                    memory_tracking::names::key_matmul_dst_in_acc_dt);
+    // case: dynamic sizes
+    bool need_free_acc = false;
+    if (acc == nullptr) {
+        acc = (acc_data_t *)malloc(sizeof(acc_data_t) * acc_stride
+                        * ((can_fuse_src_batch_dims || batch == 1)
+                                        ? 1
+                                        : (dim_t)dnnl_get_max_threads()),
+                64);
+        if (acc == nullptr) return status::out_of_memory;
+        need_free_acc = true;
+    }
+
+    const dim_t acc_ldc = dst_is_acc ? ldc : N;
     const int scale_idx_mult
             = this->pd()->attr()->output_scales_.mask_ == (1 << (ndims - 1));
 
@@ -195,6 +218,9 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             dim_t cur_b {0}, cur_m {0}, cur_n {0};
             dims_t s_dims_idx, w_dims_idx, d_dims_idx;
             size_t i_work = t_work_start;
+            const bool reuse_acc = acc != (acc_data_t *)dst;
+            acc_data_t *curr_acc
+                    = reuse_acc ? acc + ithr * acc_stride : nullptr;
 
             while (i_work < t_work_end) {
                 utils::nd_iterator_init(
@@ -216,7 +242,9 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                 const src_data_t *curr_src = src + src_d.off_v(s_dims_idx);
                 const weights_data_t *curr_weights
                         = weights + weights_d.off_v(w_dims_idx);
-                dst_data_t *curr_dst = dst + dst_d.off_v(d_dims_idx);
+                const dim_t dst_off = dst_d.off_v(d_dims_idx);
+                dst_data_t *curr_dst = dst + dst_off;
+                if (!reuse_acc) curr_acc = acc + dst_off;
                 dim_t gemm_M {0}, gemm_N {0};
 
                 size_t matrix_offset;
@@ -241,7 +269,7 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
                 status_t st_thr = extended_sgemm(&transB, &transA, &gemm_N,
                         &gemm_M, &K, &alpha, curr_weights, &ldb, curr_src, &lda,
-                        &beta, curr_dst, &ldc, nullptr, false);
+                        &beta, curr_acc, &acc_ldc, nullptr, false);
                 if (st_thr != status::success) {
                     st = st_thr;
                     return;
@@ -258,7 +286,7 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                                     + matrix_offset
                             : 0;
                     const ptrdiff_t oc_off = i_work % N;
-                    (*pp_kernel_)(curr_dst, curr_dst,
+                    (*pp_kernel_)(curr_dst, curr_acc,
                             bias + oc_off * bia_dt_size,
                             pp_scales + oc_off * scale_idx_mult, 0,
                             dst_logical_off, dst_row_idx, gemm_M * gemm_N,
@@ -274,10 +302,9 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         M = batch * M;
 
         st = extended_sgemm(&transB, &transA, &N, &M, &K, &alpha, weights, &ldb,
-                src, &lda, &beta, dst, &ldc, nullptr, false);
-        if (st != status::success) return st;
+                src, &lda, &beta, acc, &acc_ldc, nullptr, false);
 
-        if (params.has_pp_kernel_) {
+        if (st == status::success && params.has_pp_kernel_) {
             const bool force_sequential = pp_kernel_->sequential_kernel();
             const float *pp_scales = params.get_post_processing_scales(scales);
             parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
@@ -285,13 +312,15 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                 balance211((size_t)(M * N), nthr, ithr, start, end);
                 const size_t dst_logical_off = start;
                 const size_t dst_start_row_idx = start / N;
-                (*pp_kernel_)(dst, dst, bias, pp_scales, start, dst_logical_off,
+                (*pp_kernel_)(dst, acc, bias, pp_scales, start, dst_logical_off,
                         dst_start_row_idx, end, (size_t)N, ldc, nullptr,
                         post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
                         *pd()->dst_md());
             });
         }
     }
+
+    if (need_free_acc) free(acc);
 
     return st;
 }
