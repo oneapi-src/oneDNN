@@ -438,8 +438,8 @@ int doit(const prb_t *prb, res_t *res) {
             // are summed together.
             using cmp_args_t = compare::compare_t::driver_check_func_args_t;
             const auto reorder_add_check = [&](const cmp_args_t &args) {
-                if (has_sum && args.dt == dnnl_s32
-                        && args.got == max_dt(args.dt) && is_gpu()) {
+                if (args.dt == dnnl_s32 && args.got == max_dt(args.dt)
+                        && is_gpu()) {
                     // 128.f = float(INT_MAX)
                     //                - BENCHDNN_S32_TO_F32_SAT_CONST;
                     return args.diff == 128.f;
