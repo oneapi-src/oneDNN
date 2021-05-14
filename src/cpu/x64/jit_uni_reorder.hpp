@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,6 +51,12 @@ struct prb_t {
     ptrdiff_t ooff;
     scale_type_t scale_type;
     float beta;
+    int full_ndims;
+    int ip_tail;
+    int op_tail;
+    int iblock;
+    int oblock;
+    int blk_idx;
 };
 
 status_t prb_init(prb_t &prb, const memory_desc_t &imd,
@@ -81,6 +87,7 @@ struct call_param_t {
     const void *in;
     void *out;
     const float *scale;
+    size_t blk_chunks;
 };
 
 struct kernel_t {
