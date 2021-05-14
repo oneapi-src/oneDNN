@@ -37,7 +37,6 @@ using namespace data_type;
 template <data_type_t d_type>
 status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
 
     const bool calculate_stats = !pd()->stats_is_src();
     const bool save_stats = pd()->is_training();
@@ -67,21 +66,16 @@ status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                 CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE));
     } else {
         if (save_stats) {
-            mean = CTX_OUT_CLEAN_MEM(acc_data_t *, DNNL_ARG_MEAN, status);
-            CHECK(status);
-            variance = CTX_OUT_CLEAN_MEM(
-                    acc_data_t *, DNNL_ARG_VARIANCE, status);
-            CHECK(status);
+            mean = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_MEAN);
+            variance = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_VARIANCE);
         } else {
             mean = scratchpad.template get<acc_data_t>(key_bnorm_tmp_mean);
             variance = scratchpad.template get<acc_data_t>(key_bnorm_tmp_var);
         }
     }
 
-    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
-    CHECK(status);
-    auto ws = CTX_OUT_CLEAN_MEM(uint8_t *, DNNL_ARG_WORKSPACE, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto ws = CTX_OUT_MEM(uint8_t *, DNNL_ARG_WORKSPACE);
     acc_data_t *bf16_src_cvt_wsp
             = scratchpad.template get<acc_data_t>(key_bnorm_bf16cvt);
 
@@ -306,7 +300,6 @@ template struct ncsp_batch_normalization_fwd_t<bf16>;
 template <data_type_t d_type>
 status_t ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
 
     const memory_desc_wrapper diff_ss_d(pd()->diff_weights_md());
 
@@ -325,16 +318,12 @@ status_t ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const uint8_t *, DNNL_ARG_WORKSPACE);
 
-    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
-    auto diff_scale = CTX_OUT_CLEAN_MEM(acc_data_t *,
-            use_scale ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
-            status);
-    CHECK(status);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_scale = CTX_OUT_MEM(acc_data_t *,
+            use_scale ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT);
     auto diff_shift = use_shift
-            ? CTX_OUT_CLEAN_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT, status)
+            ? CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT)
             : use_ss ? &diff_scale[diff_shift_off] : nullptr;
-    CHECK(status);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     auto *ws_reduce = scratchpad.template get<acc_data_t>(key_bnorm_reduction);
