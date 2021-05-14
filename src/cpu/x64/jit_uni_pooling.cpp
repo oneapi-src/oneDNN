@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017 - 2020 Intel Corporation
+* Copyright 2017 - 2021 Intel Corporation
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -67,6 +67,12 @@ struct trans_wrapper_t {
             prb.nodes[1].n = xs;
             prb.nodes[1].is = x_inp_str;
             prb.nodes[1].os = x_out_str;
+
+            prb.full_ndims = prb.ndims;
+            prb.ip_tail = 0;
+            prb.op_tail = 0;
+            prb.iblock = 1;
+            prb.oblock = 1;
 
             kernel_t::desc_init(desc, prb, 2);
             return kernel_t::create(desc);
