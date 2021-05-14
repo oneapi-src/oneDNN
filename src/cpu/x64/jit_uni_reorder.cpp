@@ -446,133 +446,85 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             const int *o_off, const int *s_off) {
         using namespace data_type;
 
-        // TODO: Clean up the code by using "uni" instructions once
-        // jit_generator properly supports avx versions of instructions
-        // on Xmm registers.
-        const auto cvt2ps = [=](const Xmm &dst, const Operand &src,
-                                    data_type_t idt) {
-            Xmm dst_pure = Xmm(dst.getIdx());
-            if (mayiuse(avx)) {
-                switch (idt) {
-                    case f32:
-                        if (src.isMEM() || src.getIdx() != dst.getIdx())
-                            vmovups(dst, src);
-                        break;
-                    case bf16:
-                        vpmovzxwd(dst, src);
-                        vpslld(dst, dst, 0x10);
-                        break;
-                    case s32: vcvtdq2ps(dst, src); break;
-                    case s8:
-                        vpmovsxbd(dst, src);
-                        vcvtdq2ps(dst_pure, dst);
-                        break;
-                    case u8:
-                        vpmovzxbd(dst, src);
-                        vcvtdq2ps(dst_pure, dst);
-                        break;
-                    default: assert(!"unreachable");
-                }
-            } else {
-                switch (idt) {
-                    case f32:
-                        if (src.isMEM() || src.getIdx() != dst.getIdx())
-                            movups(dst, src);
-                        break;
-                    case s32: cvtdq2ps(dst, src); break;
-                    case s8:
-                        pmovsxbd(dst, src);
-                        cvtdq2ps(dst_pure, dst);
-                        break;
-                    case u8:
-                        pmovzxbd(dst, src);
-                        cvtdq2ps(dst_pure, dst);
-                        break;
-                    default: assert(!"unreachable");
-                }
-            }
-        };
+        const auto cvt2ps
+                = [=](const Xmm &dst, const Operand &src, data_type_t idt) {
+                      Xmm dst_pure = Xmm(dst.getIdx());
+                      switch (idt) {
+                          case f32:
+                              if (src.isMEM() || src.getIdx() != dst.getIdx())
+                                  uni_vmovups(dst, src);
+                              break;
+                          case bf16:
+                              if (mayiuse(avx)) {
+                                  vpmovzxwd(dst, src);
+                                  vpslld(dst, dst, 0x10);
+                                  break;
+                              } else
+                                  assert("unreachable!");
+                          case s32: uni_vcvtdq2ps(dst, src); break;
+                          case s8:
+                              uni_vpmovsxbd(dst, src);
+                              uni_vcvtdq2ps(dst_pure, dst);
+                              break;
+                          case u8:
+                              uni_vpmovzxbd(dst, src);
+                              uni_vcvtdq2ps(dst_pure, dst);
+                              break;
+                          default: assert(!"unreachable");
+                      }
+                  };
 
         const auto cvt2odt = [=](const Xmm &xmm, data_type_t odt,
                                      data_type_t idt) {
-            if (mayiuse(avx)) {
-                switch (odt) {
-                    case bf16:
-                        if (utils::one_of(idt, f32, s8, u8)) {
-                            if (idt != f32) cvt2ps(xmm, xmm, idt);
-                            if (mayiuse(avx512_core_bf16)) {
-                                vcvtneps2bf16(xmm, xmm);
-                            } else {
-                                bf16_emu_->vcvtneps2bf16(
-                                        Ymm(xmm.getIdx()), Zmm(xmm.getIdx()));
-                            }
+            switch (odt) {
+                case bf16:
+                    if (!mayiuse(avx)) assert(!"unreachable");
+                    if (utils::one_of(idt, f32, s8, u8)) {
+                        if (idt != f32) cvt2ps(xmm, xmm, idt);
+                        if (mayiuse(avx512_core_bf16)) {
+                            vcvtneps2bf16(xmm, xmm);
+                        } else {
+                            bf16_emu_->vcvtneps2bf16(
+                                    Ymm(xmm.getIdx()), Zmm(xmm.getIdx()));
                         }
-                        break;
-                    case s32:
-                        if (idt == f32)
-                            vcvtps2dq(xmm, xmm);
-                        else if (idt == s8)
-                            vpmovsxbd(xmm, xmm);
-                        else if (idt == u8)
-                            vpmovzxbd(xmm, xmm);
-                        break;
-                    case s8:
-                        if (idt == bf16) cvt2ps(xmm, xmm, idt);
-                        if (utils::one_of(idt, f32, bf16)) vcvtps2dq(xmm, xmm);
-                        if (utils::one_of(idt, bf16, f32, s32)) {
-                            if (mayiuse(avx512_core)) {
-                                vpmovsdb(xmm, xmm);
-                            } else {
-                                vpackssdw(xmm, xmm, xmm_zero);
-                                vpacksswb(xmm, xmm, xmm_zero);
-                            }
+                    }
+                    break;
+                case s32:
+                    if (idt == f32)
+                        uni_vcvtps2dq(xmm, xmm);
+                    else if (idt == s8)
+                        uni_vpmovsxbd(xmm, xmm);
+                    else if (idt == u8)
+                        uni_vpmovzxbd(xmm, xmm);
+                    break;
+                case s8:
+                    if (idt == bf16) cvt2ps(xmm, xmm, idt);
+                    if (utils::one_of(idt, f32, bf16)) uni_vcvtps2dq(xmm, xmm);
+                    if (utils::one_of(idt, bf16, f32, s32)) {
+                        if (mayiuse(avx512_core)) {
+                            vpmovsdb(xmm, xmm);
+                        } else {
+                            uni_vpackssdw(xmm, xmm, xmm_zero);
+                            uni_vpacksswb(xmm, xmm, xmm_zero);
                         }
-                        if (idt == u8) vpminub(xmm, xmm, xmm_4x127b);
-                        break;
-                    case u8:
-                        if (idt == bf16) cvt2ps(xmm, xmm, idt);
-                        if (utils::one_of(idt, f32, bf16)) vcvtps2dq(xmm, xmm);
-                        if (utils::one_of(idt, bf16, f32, s32)) {
-                            if (mayiuse(avx512_core)) {
-                                vpmaxsd(xmm, xmm, xmm_zero);
-                                vpmovusdb(xmm, xmm);
-                            } else {
-                                vpackssdw(xmm, xmm, xmm_zero);
-                                vpackuswb(xmm, xmm, xmm_zero);
-                            }
+                    }
+                    if (idt == u8) uni_vpminub(xmm, xmm, xmm_4x127b);
+                    break;
+                case u8:
+                    if (idt == bf16) cvt2ps(xmm, xmm, idt);
+                    if (utils::one_of(idt, f32, bf16)) uni_vcvtps2dq(xmm, xmm);
+                    if (utils::one_of(idt, bf16, f32, s32)) {
+                        if (mayiuse(avx512_core)) {
+                            vpmaxsd(xmm, xmm, xmm_zero);
+                            vpmovusdb(xmm, xmm);
+                        } else {
+                            uni_vpackssdw(xmm, xmm, xmm_zero);
+                            uni_vpackuswb(xmm, xmm, xmm_zero);
                         }
-                        if (idt == s8) vpmaxsb(xmm, xmm, xmm_zero);
-                        break;
-                    default: assert(!"unreachable");
-                }
-            } else {
-                switch (odt) {
-                    case s32:
-                        if (idt == f32)
-                            cvtps2dq(xmm, xmm);
-                        else if (idt == s8)
-                            pmovsxbd(xmm, xmm);
-                        else if (idt == u8)
-                            pmovzxbd(xmm, xmm);
-                        break;
-                    case s8:
-                        if (idt == f32) cvtps2dq(xmm, xmm);
-                        if (utils::one_of(idt, f32, s32)) {
-                            packssdw(xmm, xmm_zero);
-                            packsswb(xmm, xmm_zero);
-                        }
-                        if (idt == u8) pminub(xmm, xmm_4x127b);
-                        break;
-                    case u8:
-                        if (idt == f32) cvtps2dq(xmm, xmm);
-                        if (utils::one_of(idt, f32, s32)) {
-                            packssdw(xmm, xmm_zero);
-                            packuswb(xmm, xmm_zero);
-                        }
-                        if (idt == s8) pmaxsb(xmm, xmm_zero);
-                        break;
-                    default: assert(!"unreachable");
-                }
+                    }
+                    if (idt == s8) uni_vpmaxsb(xmm, xmm, xmm_zero);
+                    break;
+                default: assert(!"unreachable");
             }
         };
 
