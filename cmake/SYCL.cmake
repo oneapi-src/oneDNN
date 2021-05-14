@@ -57,7 +57,22 @@ if(DPCPP_SUPPORTED)
         find_package(cuDNN REQUIRED)
         list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
     else()
-        list(APPEND EXTRA_SHARED_LIBS OpenCL)
+        find_library(OPENCL_LIBRARY OpenCL PATHS ENV LIBRARY_PATH ENV LIB NO_DEFAULT_PATH)
+        if(OPENCL_LIBRARY)
+            message(STATUS "OpenCL runtime is found in the environment: ${OPENCL_LIBRARY}")
+            # OpenCL runtime was found in the environment hence simply add it to
+            # the EXTRA_SHARED_LIBS list
+            list(APPEND EXTRA_SHARED_LIBS ${OPENCL_LIBRARY})
+        else()
+            message(STATUS "OpenCL runtime is not found in the environment. Try to find it using find_package(...)")
+            # This is expected when using OSS compiler that doesn't distribute
+            # OpenCL runtime
+            find_package(OpenCL REQUIRED)
+            # Unset INTERFACE_INCLUDE_DIRECTORIES property because DPCPP
+            # compiler contains OpenCL headers
+            set_target_properties(OpenCL::OpenCL PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+            list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
+        endif()
     endif()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
 
