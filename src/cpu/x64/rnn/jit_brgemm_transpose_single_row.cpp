@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/x64/rnn/jit_brgemm_transpose.hpp"
+#include "cpu/x64/rnn/jit_brgemm_transpose_single_row.hpp"
 
 #include <cmath>
 #include "cpu/rnn/rnn_utils.hpp"
@@ -24,27 +24,29 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-jit_brgemm_transpose_t::jit_brgemm_transpose_t(const int m_block)
+jit_brgemm_transpose_single_row_t::jit_brgemm_transpose_single_row_t(
+        const int m_block)
     : m_block_(m_block)
     , full_loop_iters_(m_block_ / (vmms_available_ * simd_w_))
     , tail_(m_block_ % simd_w_)
     , k_blocks_nb_(m_block_ / simd_w_) {}
 
-void jit_brgemm_transpose_t::generate() {
+void jit_brgemm_transpose_single_row_t::generate() {
     preamble();
     load_addresses();
     compute_loop();
     postamble();
 }
 
-#define PARAM_OFF(x) offsetof(jit_brgemm_transpose_t::call_params_t, x)
-void jit_brgemm_transpose_t::load_addresses() {
+#define PARAM_OFF(x) \
+    offsetof(jit_brgemm_transpose_single_row_t::call_params_t, x)
+void jit_brgemm_transpose_single_row_t::load_addresses() {
     mov(reg_src_, ptr[abi_param1 + PARAM_OFF(src)]);
     mov(reg_dst_, ptr[abi_param1 + PARAM_OFF(dst)]);
 }
 #undef PARAM
 
-void jit_brgemm_transpose_t::compute(
+void jit_brgemm_transpose_single_row_t::compute(
         const dim_t unrolling, const bool is_tail) {
 
     if (is_tail) {
@@ -67,7 +69,7 @@ void jit_brgemm_transpose_t::compute(
     }
 }
 
-void jit_brgemm_transpose_t::compute_loop() {
+void jit_brgemm_transpose_single_row_t::compute_loop() {
     Xbyak::Label unroll_full_loop, loop_end;
 
     if (full_loop_iters_ > 0) {

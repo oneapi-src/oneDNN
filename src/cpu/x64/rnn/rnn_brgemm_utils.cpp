@@ -680,7 +680,7 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
     rnn.kproj_block = 0;
 
     auto &diff_wei_conf = rnn.diff_wei_brgemm;
-    diff_wei_conf.global_transpose = rnn.mb > 2;
+    diff_wei_conf.global_transpose = rnn.mb > 1;
     diff_wei_conf.M_iter = rnn.sic;
     diff_wei_conf.M_layer = rnn.slc;
     diff_wei_conf.M = nstl::max(rnn.sic, rnn.slc);
@@ -1069,22 +1069,63 @@ void rnn_brgemm_t<prop_kind::backward>::init_kernels(
         kernel_gates_reduction_tail_->create_kernel();
     }
 
-    if (rnn.mb == 1 && src_type == data_type::bf16) {
-        const bool is_m_block_equal = rnn.slc == rnn.sic;
-        const auto m_block_iter = is_m_block_equal ? rnn.diff_wei_brgemm.m_block
-                                                   : rnn.diff_wei_brgemm.M_iter;
-
-        kernel_transpose_iter_
-                = utils::make_unique<jit_brgemm_transpose_t>(m_block_iter);
-        kernel_transpose_iter_->create_kernel();
-
-        if (!is_m_block_equal) {
-            const auto m_block_layer = is_m_block_equal
+    if (rnn.mb == 1) {
+        if (src_type == data_type::bf16) {
+            const bool is_m_block_equal = rnn.slc == rnn.sic;
+            const auto m_block_iter = is_m_block_equal
                     ? rnn.diff_wei_brgemm.m_block
-                    : rnn.diff_wei_brgemm.M_layer;
-            kernel_transpose_layer_
-                    = utils::make_unique<jit_brgemm_transpose_t>(m_block_layer);
-            kernel_transpose_layer_->create_kernel();
+                    : rnn.diff_wei_brgemm.M_iter;
+
+            kernel_transpose_single_row_iter_
+                    = utils::make_unique<jit_brgemm_transpose_single_row_t>(
+                            m_block_iter);
+            kernel_transpose_single_row_iter_->create_kernel();
+
+            if (!is_m_block_equal) {
+                const auto m_block_layer = is_m_block_equal
+                        ? rnn.diff_wei_brgemm.m_block
+                        : rnn.diff_wei_brgemm.M_layer;
+                kernel_transpose_single_row_layer_
+                        = utils::make_unique<jit_brgemm_transpose_single_row_t>(
+                                m_block_layer);
+                kernel_transpose_single_row_layer_->create_kernel();
+            }
+        }
+    } else {
+        jit_brgemm_primitive_conf_t trans_conf;
+        trans_conf.prop_kind = dnnl_backward_weights;
+        trans_conf.src_dt = src_type;
+        static constexpr int blk_size = 16;
+        trans_conf.os_block = blk_size; // src's rows block size
+        trans_conf.ic_block = blk_size; // src's cols block size
+        trans_conf.M = 0;
+        const auto rnd_up_size = (src_type == data_type::bf16 ? 2 : 1);
+        trans_conf.LDA
+                = utils::rnd_up(rnn.mb, rnd_up_size); // dst's leading dim
+        trans_conf.K_tail = rnn.mb % blk_size; // src's rows tail
+
+        const int LDA_iter[]
+                = {rnn.src_iter_ld_, rnn.dst_layer_ld_, rnn.ws_states_iter_ld};
+        trans_conf.M_tail = rnn.sic % blk_size; // src's cols tail
+        for (int i = 0; i < num_base_kernels_; i++) {
+            trans_conf.ic = LDA_iter[i];
+            const auto status = create_brgemm_trans_src(
+                    kernel_transpose_iter_[i], &trans_conf);
+            MAYBE_UNUSED(status);
+            assert(status == dnnl_success
+                    && "Failed to create brgemm transpose kernel!");
+        }
+
+        const int LDA_layer[]
+                = {rnn.src_layer_ld_, rnn.dst_iter_ld_, rnn.ws_states_layer_ld};
+        trans_conf.M_tail = rnn.slc % blk_size; // src's cols tail
+        for (int i = 0; i < num_base_kernels_; i++) {
+            trans_conf.ic = LDA_layer[i];
+            const auto status = create_brgemm_trans_src(
+                    kernel_transpose_layer_[i], &trans_conf);
+            MAYBE_UNUSED(status);
+            assert(status == dnnl_success
+                    && "Failed to create brgemm transpose kernel!");
         }
     }
 }

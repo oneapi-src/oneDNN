@@ -17,7 +17,8 @@
 #ifndef CPU_X64_RNN_BRGEMM_CELL_COMMON_REORDERS_HPP
 #define CPU_X64_RNN_BRGEMM_CELL_COMMON_REORDERS_HPP
 
-#include "cpu/x64/rnn/jit_brgemm_transpose.hpp"
+#include "cpu/x64/jit_brgemm_transpose_utils.hpp"
+#include "cpu/x64/rnn/jit_brgemm_transpose_single_row.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -39,25 +40,19 @@ private:
 };
 
 struct src_layer_iter_transpose_t {
-    src_layer_iter_transpose_t(const cpu::rnn_utils::rnn_conf_t &rnn,
-            const int m_block, const int ld_src,
-            const jit_brgemm_transpose_t *const kernel_transpose = nullptr)
-        : rnn_(rnn)
-        , m_block_(m_block)
-        , ld_src_(ld_src)
-        , kernel_transpose_(kernel_transpose) {};
+    src_layer_iter_transpose_t(const int src_ld, const int dst_ld,
+            const int rows, const int cols,
+            jit_brgemm_trans_src_t *const kernel_transpose);
 
     template <typename Dt>
     void execute(const Dt *src, Dt *dst) const;
 
-    template <typename Dt>
-    void execute_in_parallel(const Dt *src, Dt *dst) const;
-
 private:
-    const cpu::rnn_utils::rnn_conf_t &rnn_;
-    const int m_block_;
-    const int ld_src_;
-    const jit_brgemm_transpose_t *const kernel_transpose_;
+    const int src_ld_;
+    const int dst_ld_;
+    const int src_rows_;
+    const int src_cols_;
+    jit_brgemm_trans_src_t *const kernel_transpose_;
 };
 
 } // namespace x64

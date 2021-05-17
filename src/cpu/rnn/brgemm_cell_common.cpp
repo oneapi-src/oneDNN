@@ -211,12 +211,21 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     diff_src_calc.execute();
 
     if (rnn.diff_wei_brgemm.global_transpose) {
-        const auto layer_transpose = src_layer_iter_transpose_t(
-                rnn, rnn.slc, rnn.src_layer_ld(cell_position));
-        const auto iter_transpose = src_layer_iter_transpose_t(
-                rnn, rnn.sic, rnn.src_iter_ld(cell_position));
-        layer_transpose.execute_in_parallel(src_layer_, scratch_src_layer_);
-        iter_transpose.execute_in_parallel(src_iter_, scratch_src_iter_);
+        const auto src_layer_ld = rnn.src_layer_ld(cell_position);
+        const auto src_iter_ld = rnn.src_iter_ld(cell_position);
+        const auto src_layer_ld_nb = rnn.layer_brgemm_desc(cell_position);
+        const auto src_iter_ld_nb = rnn.iter_brgemm_desc(cell_position);
+        const auto rnd_up_size = (src_type == data_type::bf16 ? 2 : 1);
+        const auto dst_ld = utils::rnd_up(rnn.mb, rnd_up_size);
+
+        const auto layer_transpose = src_layer_iter_transpose_t(src_layer_ld,
+                dst_ld, rnn.mb, rnn.slc,
+                rnn_brgemm_.kernel_transpose_layer_[src_layer_ld_nb].get());
+        const auto iter_transpose = src_layer_iter_transpose_t(src_iter_ld,
+                dst_ld, rnn.mb, rnn.sic,
+                rnn_brgemm_.kernel_transpose_iter_[src_iter_ld_nb].get());
+        layer_transpose.execute(src_layer_, scratch_src_layer_);
+        iter_transpose.execute(src_iter_, scratch_src_iter_);
     }
     // calculate
     // dff_weights_layer = src_layer^T * scratch

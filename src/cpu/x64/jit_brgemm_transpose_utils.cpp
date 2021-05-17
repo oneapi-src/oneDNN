@@ -192,19 +192,22 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
     };
 
     auto fixup16x16 = [=]() {
+
         // swap 8
-        for (int i = 0; i < 8; i++) {
-            auto tmp = tmp_zmm(i);
-            auto src0 = src_zmm(i);
-            auto src8 = src_zmm(8 + i);
+        const auto max_iters_phase_1 = std::min(ncolumns, 8);
+        for (int i = 0; i < max_iters_phase_1; i++) {
+            const auto tmp = tmp_zmm(i);
+            const auto src0 = src_zmm(i);
+            const auto src8 = src_zmm(8 + i);
             vshuff64x2(tmp, src0, src8, 0x44);
             store(tmp, i);
         }
 
-        for (int i = 0; i < 8; i++) {
-            auto tmp = tmp_zmm(8 + i);
-            auto src0 = src_zmm(i);
-            auto src8 = src_zmm(8 + i);
+        const auto max_iters_phase_2 = std::min(ncolumns - 8, 8);
+        for (int i = 0; i < max_iters_phase_2; i++) {
+            const auto tmp = tmp_zmm(8 + i);
+            const auto src0 = src_zmm(i);
+            const auto src8 = src_zmm(8 + i);
             vshuff64x2(tmp, src0, src8, 0xee);
             store(tmp, 8 + i);
         }
@@ -220,7 +223,7 @@ void jit_brgemm_trans_m_k_f32_t::generate() {
     assert(conf_->ic_block % transpose_size == 0);
     int os_block = conf_->os_block;
     int last_os_block_tail = conf_->K_tail % transpose_size;
-    int ic_tail = conf_->ic % transpose_size;
+    int ic_tail = conf_->M_tail % transpose_size;
     src_stride = conf_->ic * typesize;
     tr_src_stride = conf_->LDA * typesize;
     dim_t m_src_shift = transpose_size * typesize;
@@ -247,7 +250,7 @@ void jit_brgemm_trans_m_k_f32_t::generate() {
     kmovw(kF0F0, 0xf0f0); // 1111000011110000
 
     auto compute_M = [=](bool is_os_tail) {
-        auto nrows = is_os_tail ? last_os_block_tail : transpose_size;
+        const auto nrows = is_os_tail ? last_os_block_tail : transpose_size;
         mov(reg_loop_M, ptr[param1 + GET_OFF(current_M)]);
         mov(reg_src, reg_src_base);
         mov(reg_tr_src, reg_tr_src_base);
@@ -541,7 +544,7 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
 
     int os_block = conf_->os_block;
     int last_os_block_tail = conf_->K_tail % transpose_size;
-    int ic_tail = conf_->ic % transpose_size;
+    int ic_tail = conf_->M_tail % transpose_size;
     src_stride = conf_->ic * typesize;
     tr_src_stride = conf_->LDA * typesize;
 

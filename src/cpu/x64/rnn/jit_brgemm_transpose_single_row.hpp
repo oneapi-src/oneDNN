@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_RNN_JIT_BRGEMM_TRANSPOSE_HPP
-#define CPU_X64_RNN_JIT_BRGEMM_TRANSPOSE_HPP
+#ifndef CPU_X64_RNN_JIT_BRGEMM_TRANSPOSE_SINGLE_ROW_HPP
+#define CPU_X64_RNN_JIT_BRGEMM_TRANSPOSE_SINGLE_ROW_HPP
 
 #include <vector>
 #include "cpu/x64/jit_generator.hpp"
@@ -29,16 +29,23 @@ struct rnn_conf_t;
 
 namespace x64 {
 
-class jit_brgemm_transpose_t : public jit_generator {
+/*
+ * Transpose generator for brgemm based rnn, optimized for cases when number of
+ * input rows == 1.
+ * In such case, because of perf reasons, number of output columns is extended
+ * to 2.
+ */
+class jit_brgemm_transpose_single_row_t : public jit_generator {
 public:
-    jit_brgemm_transpose_t(const int m_block);
+    jit_brgemm_transpose_single_row_t(const int m_block);
 
     struct call_params_t {
         const void *src = nullptr;
         void *dst = nullptr;
     };
 
-    void operator()(jit_brgemm_transpose_t::call_params_t *params) const {
+    void operator()(
+            jit_brgemm_transpose_single_row_t::call_params_t *params) const {
         jit_generator::operator()(params);
     }
 
@@ -49,8 +56,8 @@ private:
     void compute_loop();
     void compute(const dim_t unrolling, const bool is_tail);
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_transpose_t)
-    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_brgemm_transpose_t);
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_transpose_single_row_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_brgemm_transpose_single_row_t);
 
     static constexpr dim_t simd_w_ = 16;
     static constexpr dim_t vmms_available_ = 32;

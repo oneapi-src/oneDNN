@@ -1,4 +1,3 @@
-
 /*******************************************************************************
 * Copyright 2021 Intel Corporation
 *
@@ -22,7 +21,8 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
-#include "cpu/x64/rnn/jit_brgemm_transpose.hpp"
+#include "cpu/x64/jit_brgemm_transpose_utils.hpp"
+#include "cpu/x64/rnn/jit_brgemm_transpose_single_row.hpp"
 #include "cpu/x64/rnn/jit_diff_weights_peephole.hpp"
 #include "cpu/x64/rnn/jit_gates_reduction.hpp"
 
@@ -35,6 +35,9 @@ struct rnn_conf_t;
 }
 
 namespace x64 {
+
+struct jit_brgemm_trans_src_t;
+
 namespace rnn_brgemm_utils {
 
 using brgemm_ker_ptr_t = std::unique_ptr<brgemm_kernel_t>;
@@ -44,6 +47,8 @@ struct rnn_brgemm_base_t {
     static void init_scratchpad(const cpu::rnn_utils::rnn_conf_t &rnn,
             memory_tracking::registrar_t &scratchpad, dim_t gemm_acc_type_size,
             dim_t gemm_acc_align);
+    static constexpr dim_t num_base_kernels_ = 3;
+    static constexpr dim_t num_proj_kernels_ = 4;
 };
 
 template <prop_kind_t aprop>
@@ -58,9 +63,6 @@ struct rnn_brgemm_t<prop_kind::forward> : public rnn_brgemm_base_t {
             dim_t scratch_type_size);
     void init_kernels(const cpu::rnn_utils::rnn_conf_t &rnn,
             data_type_t src_type, data_type_t weights_type);
-
-    static constexpr dim_t num_base_kernels_ = 3;
-    static constexpr dim_t num_proj_kernels_ = 4;
 
     brgemm_t desc_layer_b0_[num_base_kernels_];
     brgemm_t desc_iter_b0_[num_base_kernels_];
@@ -184,8 +186,15 @@ public:
     std::unique_ptr<jit_gates_reduction_t> kernel_gates_reduction_;
     std::unique_ptr<jit_gates_reduction_t> kernel_gates_reduction_tail_;
 
-    std::unique_ptr<jit_brgemm_transpose_t> kernel_transpose_iter_;
-    std::unique_ptr<jit_brgemm_transpose_t> kernel_transpose_layer_;
+    std::unique_ptr<jit_brgemm_transpose_single_row_t>
+            kernel_transpose_single_row_iter_;
+    std::unique_ptr<jit_brgemm_transpose_single_row_t>
+            kernel_transpose_single_row_layer_;
+
+    std::unique_ptr<jit_brgemm_trans_src_t>
+            kernel_transpose_iter_[num_base_kernels_];
+    std::unique_ptr<jit_brgemm_trans_src_t>
+            kernel_transpose_layer_[num_base_kernels_];
 
     std::unique_ptr<jit_diff_weights_peephole_t> kernel_peephole_;
     std::unique_ptr<jit_diff_weights_peephole_t> kernel_peephole_tail_;
