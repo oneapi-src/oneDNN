@@ -54,7 +54,7 @@ bool compare_extreme_values(float a, float b) {
 }
 
 compare_t::driver_check_func_args_t::driver_check_func_args_t(
-        const dnn_mem_t &exp_mem, const dnn_mem_t &got_f32, const int i,
+        const dnn_mem_t &exp_mem, const dnn_mem_t &got_f32, const int64_t i,
         const dnnl_data_type_t data_type)
     : dt(data_type)
     , idx(i)

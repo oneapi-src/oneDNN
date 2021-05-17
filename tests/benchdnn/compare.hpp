@@ -29,7 +29,7 @@ bool compare_extreme_values(float a, float b);
 struct compare_t {
     struct driver_check_func_args_t {
         driver_check_func_args_t(const dnn_mem_t &exp_mem,
-                const dnn_mem_t &got_f32, const int i,
+                const dnn_mem_t &got_f32, const int64_t i,
                 const dnnl_data_type_t data_type);
 
         const dnnl_data_type_t dt = dnnl_data_type_undef;
