@@ -686,8 +686,14 @@ template struct jit_uni_dw_conv_fwd_kernel_f32<sse41>;
 template <cpu_isa_t isa>
 inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::load_vmm(
         Vmm &vmm, const Xbyak::Address &addr, bool tail) {
-    constexpr int simd_w = cpu_isa_traits<isa>::vlen;
-    int bytes = (tail ? jcp.ch_tail * sizeof(float) : simd_w);
+    int ch_tail = jcp.oc_without_padding % simd_w_; // special case for SSE41
+    int bytes = (tail && ch_tail > 0 ? ch_tail : simd_w_) * sizeof(float);
+    load_bytes(vmm, addr, bytes);
+}
+template <>
+inline void jit_uni_dw_conv_bwd_data_kernel_f32<avx2>::load_vmm(
+        Vmm &vmm, const Xbyak::Address &addr, bool tail) {
+    int bytes = (tail ? jcp.ch_tail : jcp.ch_block) * sizeof(float);
     load_bytes(vmm, addr, bytes);
 }
 template <>
@@ -700,8 +706,14 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<avx512_common>::load_vmm(
 template <cpu_isa_t isa>
 inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::store_vmm(
         Vmm &vmm, const Xbyak::Address &addr, bool tail) {
-    constexpr int simd_w = cpu_isa_traits<isa>::vlen;
-    int bytes = (tail ? jcp.ch_tail * sizeof(float) : simd_w);
+    int ch_tail = jcp.oc_without_padding % simd_w_; // special case for SSE41
+    int bytes = (tail && ch_tail > 0 ? ch_tail : simd_w_) * sizeof(float);
+    store_bytes(vmm, addr, bytes);
+}
+template <>
+inline void jit_uni_dw_conv_bwd_data_kernel_f32<avx2>::store_vmm(
+        Vmm &vmm, const Xbyak::Address &addr, bool tail) {
+    int bytes = (tail ? jcp.ch_tail : jcp.ch_block) * sizeof(float);
     store_bytes(vmm, addr, bytes);
 }
 template <>
@@ -714,8 +726,7 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<avx512_common>::store_vmm(
 template <cpu_isa_t isa>
 inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::load_ddst(
         int ur_ch_blocks, int ur_str_w) {
-    int repeats = isa == sse41 ? 2 : 1;
-    for (int i = 0; i < repeats; i++) {
+    for (int i = 0; i < reg_repeats_; i++) {
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
             for (int w = 0; w < ur_str_w; w++) {
                 Vmm vmm_acc = get_acc_reg(
@@ -761,11 +772,18 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_filter(
         Label kw_label;
         L(kw_label);
         {
-            int repeats = isa == sse41 ? 2 : 1;
-            for (int i = 0; i < repeats; i++) {
+            for (int r = 0; r < reg_repeats_; r++) {
                 for (int ch = 0; ch < ur_ch_blocks; ch++) {
-                    bool masked_load = is_last_ch && ch == ur_ch_blocks - 1;
-                    int ker_off = ch * kh * kw * ch_blk + i * 4;
+                    bool last_block = is_last_ch && ch == ur_ch_blocks - 1;
+                    bool masked_load = last_block
+                            && IMPLICATION(
+                                    isa == sse41, tail_simd_overlap(r + 1));
+
+                    // sse41: if second simd_w is outside channel_block, skip
+                    if (last_block && isa == sse41 && tail_simd_overlap(r))
+                        break;
+
+                    int ker_off = ch * kh * kw * ch_blk + r * simd_w_;
                     Vmm vmm_ker = get_ker_reg(0);
                     load_vmm(vmm_ker,
                             ptr[aux1_reg_kernel + ker_off * sizeof(float)],
@@ -774,13 +792,15 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_filter(
                     for (int w = 0; w < ur_str_w; w++) {
                         size_t sp_offset = w * sp_step;
                         size_t ch_offset = ch * ch_block_step;
-                        size_t ddst_off = sp_offset + ch_offset + i * 4;
+                        size_t ddst_off = static_cast<size_t>(
+                                (sp_offset + ch_offset + r * simd_w_)
+                                * sizeof(float));
 
                         Vmm vmm_ddst = get_ddst_reg(0);
                         load_vmm(vmm_ddst, ptr[aux1_reg_ddst + ddst_off],
                                 masked_load);
 
-                        Vmm vmm_acc = get_acc_reg(i * ur_ch_blocks * ur_str_w
+                        Vmm vmm_acc = get_acc_reg(r * ur_ch_blocks * ur_str_w
                                 + ch * ur_str_w + w);
                         uni_vfmadd231ps(vmm_acc, vmm_ddst, vmm_ker);
                     }
@@ -819,19 +839,24 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::store_dsrc(
     const size_t sp_step
             = dsrc_layout_nxc ? jcp.ngroups : ch_block; // spatial step
 
-    int repeats = isa == sse41 ? 2 : 1;
-    for (int i = 0; i < repeats; i++) {
+    for (int r = 0; r < reg_repeats_; r++) {
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
-            bool masked_store = is_last_ch && ch == ur_ch_blocks - 1;
+            bool last_block = is_last_ch && ch == ur_ch_blocks - 1;
+            bool masked_store = last_block
+                    && IMPLICATION(isa == sse41, tail_simd_overlap(r + 1));
+
+            // sse41: if second simd_w is outside channel_block, skip
+            if (last_block && tail_simd_overlap(r)) break;
+
             for (int w = 0; w < ur_str_w; w++) {
                 size_t sp_offset = w * stride_w * sp_step;
-                size_t ch_offset = ch * ch_block_step;
-                int dsrc_off = sp_offset + ch_offset + i * 4;
+                size_t ch_offset = ch * ch_block_step + r * simd_w_;
+                size_t dsrc_off = static_cast<size_t>(
+                        (sp_offset + ch_offset) * sizeof(float));
 
-                Vmm vmm_acc = get_acc_reg(
-                        i * ur_ch_blocks * ur_str_w + ch * ur_str_w + w);
-                store_vmm(vmm_acc, ptr[reg_dsrc + dsrc_off * sizeof(float)],
-                        masked_store);
+                Vmm vmm_acc
+                        = get_acc_reg((r * ur_ch_blocks + ch) * ur_str_w + w);
+                store_vmm(vmm_acc, ptr[reg_dsrc + dsrc_off], masked_store);
             }
         }
     }

@@ -135,6 +135,8 @@ struct jit_uni_dw_conv_bwd_data_kernel_f32 : public jit_generator {
 private:
     using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
             isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
+    const int reg_repeats_ = (isa == sse41) ? 2 : 1;
+    const int simd_w_ = cpu_isa_traits<isa>::vlen / sizeof(float);
     using reg64_t = const Xbyak::Reg64;
 
     inline Vmm get_ker_reg(int idx) { return Vmm(idx + 0); }
@@ -171,6 +173,10 @@ private:
     inline void store_dsrc(int ur_ch_blocks, int ur_str_w, bool is_last_ch);
 
     void generate() override;
+
+    inline bool tail_simd_overlap(int reg_repeat) {
+        return reg_repeat * simd_w_ >= jcp.ch_tail;
+    }
 
     inline bool is_dsrc_layout_nxc() {
         return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
