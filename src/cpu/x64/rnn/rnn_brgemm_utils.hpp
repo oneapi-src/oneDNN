@@ -23,6 +23,7 @@
 #include "common/memory_tracking.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/rnn/jit_brgemm_transpose.hpp"
+#include "cpu/x64/rnn/jit_diff_weights_peephole.hpp"
 #include "cpu/x64/rnn/jit_gates_reduction.hpp"
 
 namespace dnnl {
@@ -163,9 +164,10 @@ struct rnn_diff_wei_brgemm_t {
     brgemm_pallete_t pallete_buff_iter_k_tail_ = {};
     brgemm_pallete_t pallete_buff_layer_k_tail_ = {};
 };
+
 template <>
 struct rnn_brgemm_t<prop_kind::backward> : public rnn_brgemm_base_t {
-
+public:
     static void init_scratchpad(const cpu::rnn_utils::rnn_conf_t &rnn,
             memory_tracking::registrar_t &scratchpad, dim_t gemm_acc_type_size,
             dim_t gemm_acc_align);
@@ -184,6 +186,14 @@ struct rnn_brgemm_t<prop_kind::backward> : public rnn_brgemm_base_t {
 
     std::unique_ptr<jit_brgemm_transpose_t> kernel_transpose_iter_;
     std::unique_ptr<jit_brgemm_transpose_t> kernel_transpose_layer_;
+
+    std::unique_ptr<jit_diff_weights_peephole_t> kernel_peephole_;
+    std::unique_ptr<jit_diff_weights_peephole_t> kernel_peephole_tail_;
+
+private:
+    static void configure_brgemm_peephole(cpu::rnn_utils::rnn_conf_t &rnn);
+
+    void init_peephole_kernels(const cpu::rnn_utils::rnn_conf_t &rnn);
 };
 
 } // namespace rnn_brgemm_utils

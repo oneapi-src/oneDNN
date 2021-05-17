@@ -19,6 +19,7 @@
 
 #include "common/bfloat16.hpp"
 #include "cpu/rnn/rnn_utils.hpp"
+#include "cpu/x64/rnn/jit_diff_weights_peephole.hpp"
 #include "cpu/x64/rnn/jit_gates_reduction.hpp"
 #include "cpu/x64/rnn/rnn_brgemm_utils.hpp"
 
@@ -211,6 +212,36 @@ private:
     const jit_brgemm_transpose_t *const kernel_transpose_layer_;
     gemm_acc_t *const amx_scratchpad_;
     brgemm_batch_element_t *const addr_batch_global_;
+};
+
+template <typename scratch_t>
+class brgemm_diff_wei_peep_t {
+public:
+    using ref_rnn_brgemm_t
+            = rnn_brgemm_utils::rnn_brgemm_t<prop_kind::backward>;
+
+    brgemm_diff_wei_peep_t(const ref_rnn_brgemm_t &rnn_brgemm,
+            const rnn_utils::rnn_conf_t &rnn,
+            rnn_utils::cell_position_t cell_position,
+            const scratch_t *scratch_gates, const float *src_iter_c,
+            const float *dst_iter_c, float *diff_weights_peephole);
+
+    void execute() const;
+
+private:
+    void kernel(const int ithr, const int nthr) const;
+
+    const int n_gates_ = 3;
+    const rnn_utils::rnn_conf_t &rnn_;
+    const scratch_t *scratch_gates_;
+    const float *src_iter_c_;
+    const float *dst_iter_c_;
+    float *diff_weights_peephole_;
+    const int work_amount_;
+    const int dst_iter_c_ld_;
+    const int src_iter_c_ld_;
+    const jit_diff_weights_peephole_t *const kernel_;
+    const jit_diff_weights_peephole_t *const kernel_tail_;
 };
 
 } // namespace x64

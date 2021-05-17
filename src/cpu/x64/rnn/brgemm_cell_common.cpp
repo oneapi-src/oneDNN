@@ -786,12 +786,83 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
     }
 }
 
+template <typename scratch_t>
+brgemm_diff_wei_peep_t<scratch_t>::brgemm_diff_wei_peep_t(
+        const ref_rnn_brgemm_t &rnn_brgemm, const rnn_utils::rnn_conf_t &rnn,
+        rnn_utils::cell_position_t cell_position,
+        const scratch_t *scratch_gates, const float *src_iter_c,
+        const float *dst_iter_c, float *diff_weights_peephole)
+    : rnn_(rnn)
+    , scratch_gates_(scratch_gates)
+    , src_iter_c_(src_iter_c)
+    , dst_iter_c_(dst_iter_c)
+    , diff_weights_peephole_(diff_weights_peephole)
+    , work_amount_(n_gates_ * rnn_.dhc_blocks_peephole)
+    , dst_iter_c_ld_(rnn.dst_iter_c_ld(cell_position))
+    , src_iter_c_ld_(rnn.src_iter_c_ld(cell_position))
+    , kernel_(rnn_brgemm.kernel_peephole_.get())
+    , kernel_tail_(rnn_brgemm.kernel_peephole_tail_.get()) {}
+
+template <typename scratch_t>
+void brgemm_diff_wei_peep_t<scratch_t>::execute() const {
+    parallel(rnn_.nthr, [this](const int ithr, const int nthr) {
+        this->kernel(ithr, nthr);
+    });
+}
+
+template <typename scratch_t>
+void brgemm_diff_wei_peep_t<scratch_t>::kernel(
+        const int ithr, const int nthr) const {
+
+    int start = 0, end = 0;
+    balance211(work_amount_, nthr, ithr, start, end);
+
+    int g = 0, dhc_block_id = 0;
+
+    nd_iterator_init(
+            start, g, n_gates_, dhc_block_id, rnn_.dhc_blocks_peephole);
+
+    const rnn_utils::ws_states_iter_c_aoc<const float> dst_iter_c(
+            rnn_, dst_iter_c_, dst_iter_c_ld_);
+    const rnn_utils::ws_states_iter_c_aoc<const float> src_iter_c(
+            rnn_, src_iter_c_, src_iter_c_ld_);
+    const rnn_utils::ws_gates_aoc<const scratch_t> scratch_gates(
+            rnn_, scratch_gates_);
+    const rnn_utils::weights_peephole_aoc_t<float> diff_weights_peephole(
+            rnn_, diff_weights_peephole_);
+
+    while (start < end) {
+        const auto dhc = dhc_block_id * rnn_.dhc_block_peephole;
+        const auto &c_states = g < 2 ? src_iter_c : dst_iter_c;
+        const auto scratch_g = g == 2 ? 3 : g;
+        const auto *const kernel = rnn_.dhc_tail_peephole
+                        && dhc_block_id == rnn_.dhc_blocks_peephole - 1
+                ? kernel_tail_
+                : kernel_;
+
+        jit_diff_weights_peephole_t::call_params_t params;
+
+        for (int mb = 0; mb < rnn_.mb; ++mb) {
+            params.c_states = &c_states(mb, dhc);
+            params.scratch_gates = &scratch_gates(mb, scratch_g, dhc);
+            params.dst = &diff_weights_peephole(g, dhc);
+            (*kernel)(&params);
+        }
+
+        ++start;
+        nd_iterator_step(g, n_gates_, dhc_block_id, rnn_.dhc_blocks_peephole);
+    }
+}
+
 template class brgemm_diff_src_layer_iter_t<float, float, float>;
 template class brgemm_diff_src_layer_iter_t<bfloat16_t, bfloat16_t, float>;
 
 template class brgemm_diff_weights_layer_iter_t<float, float, float, float>;
 template class brgemm_diff_weights_layer_iter_t<bfloat16_t, bfloat16_t,
         bfloat16_t, float>;
+
+template class brgemm_diff_wei_peep_t<bfloat16_t>;
+template class brgemm_diff_wei_peep_t<float>;
 
 } // namespace x64
 } // namespace cpu

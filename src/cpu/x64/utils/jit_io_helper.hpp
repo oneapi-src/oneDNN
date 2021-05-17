@@ -207,7 +207,7 @@ public:
             const utils::optional_t<io_emu_bf16_conf_t> &bf16_conf
             = utils::nullopt,
             const std::map<data_type_t, io_saturation_conf_t> &saturation_confs
-            = {},
+            = std::map<data_type_t, io_saturation_conf_t> {},
             const utils::optional_t<io_gather_conf_t> &gather_conf
             = utils::nullopt);
     ~jit_io_multi_dt_helper_t();

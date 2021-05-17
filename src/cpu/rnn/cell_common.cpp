@@ -382,6 +382,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             nd_iterator_step(nb_i, Nblocking, mb, rnn.M_blocks);
         }
     });
+
     if (rnn.unfused_post_gemm) {
         rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
                 dst_postgemm, dst_iter_c_, src_iter_, src_iter_c_,
@@ -391,6 +392,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 dst_iter_postgemm, wscales_postgemm,
                 rnn.dhc * sizeof(scratch_t));
     }
+
     if (rnn.is_lstm_projection) {
         // Here, because the accumulation type is likely different
         // than dst_iter, we have to use scratch to hold temporary
@@ -619,7 +621,7 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
         scratch_data_t *scratch_cell_, src_data_t *dst_iter_) {
 
     if (rnn.is_lstm_projection) {
-        parallel_nd(rnn.mb, [&](int i) {
+        parallel_nd(rnn.mb, [&](const int i) {
             PRAGMA_OMP_SIMD()
             for (int j = 0; j < rnn.dlc; j++)
                 scratch_diff_ht_[i * rnn.scratch_diff_ht_ld + j]
@@ -760,13 +762,13 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
 rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         acc_type>::cell_execution_brgemm_bwd)) {
 
+#if DNNL_X64
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             dst_layer_, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
             diff_src_iter_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
             diff_dst_iter_c_, weights_peephole_, bias_[0], ws_grid_,
             scratch_cell_, dst_iter_, nullptr, 0);
 
-#if DNNL_X64
     using brgemm_diff_src_calc_t = x64::brgemm_diff_src_layer_iter_t<weights_t,
             scratch_t, gemm_acc_t>;
     using brgemm_diff_weights_calc_t
@@ -801,6 +803,16 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     // performs gates reductions
     // diff_bias = scratch reduction over mb
     diff_weights_calc.execute();
+
+    if (rnn.is_lstm_peephole) {
+        using brgemm_diff_wei_peep_t = x64::brgemm_diff_wei_peep_t<scratch_t>;
+        const brgemm_diff_wei_peep_t diff_wei_peep_calc(rnn_brgemm_, rnn,
+                cell_position, scratch_gates_, src_iter_c_, dst_iter_c_,
+                diff_weights_peephole_);
+
+        diff_wei_peep_calc.execute();
+    }
+
 #endif
 
     return dnnl_success;

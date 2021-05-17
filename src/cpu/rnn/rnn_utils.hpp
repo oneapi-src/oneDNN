@@ -494,6 +494,7 @@ struct rnn_conf_t {
 
     dim_t Nproj, Nproj_blocks, nproj_tail;
     dim_t LDAproj, LDBproj, LDCproj[4];
+    int dhc_block_peephole, dhc_tail_peephole, dhc_blocks_peephole;
 
     dim_t nthr;
 #if DNNL_X64
@@ -509,6 +510,7 @@ bool is_ldoi(const memory_desc_wrapper &md);
 bool is_ldigo_blocked(const memory_desc_wrapper &md);
 bool is_ldgoi_blocked(const memory_desc_wrapper &md);
 bool is_ldio_blocked(const memory_desc_wrapper &md);
+bool is_ldoi_blocked(const memory_desc_wrapper &md);
 
 int get_good_ld(int dim, int sizeof_dt);
 

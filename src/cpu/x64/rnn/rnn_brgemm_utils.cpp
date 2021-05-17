@@ -397,9 +397,8 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     return status::success;
 }
 
-status_t init_brgemm_kernel(const cpu::rnn_utils::rnn_conf_t &rnn,
-        x64::brgemm_t *desc, x64::cpu_isa_t isa, impl::data_type_t src_type,
-        impl::data_type_t weights_type,
+status_t init_brgemm_kernel(x64::brgemm_t *desc, x64::cpu_isa_t isa,
+        impl::data_type_t src_type, impl::data_type_t weights_type,
         std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M, dim_t N, dim_t K,
         dim_t LDA, dim_t LDB, dim_t LDC, float beta, dim_t max_bs,
         dim_t hint_expected_A_size = LLONG_MAX,
@@ -437,8 +436,8 @@ void rnn_brgemm_t<prop_kind::forward>::init_kernels(
                       std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
                       dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
                       float beta, dim_t max_bs) {
-                  init_brgemm_kernel(rnn, desc, isa, src_type, weights_type,
-                          ker, M, N, K, LDA, LDB, LDC, beta, max_bs);
+                  init_brgemm_kernel(desc, isa, src_type, weights_type, ker, M,
+                          N, K, LDA, LDB, LDC, beta, max_bs);
               };
 
     const int brgemm_n = nstl::min(rnn.N, rnn.n_block);
@@ -716,6 +715,8 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
             || diff_wei_conf.LDA_iter < diff_wei_conf.k_block)
         return status::unimplemented;
 
+    if (rnn.is_lstm_peephole) { configure_brgemm_peephole(rnn); }
+
     rnn.M = nstl::max(diff_wei_conf.M, diff_src_conf.M);
     rnn.N = nstl::max(diff_wei_conf.N, diff_src_conf.N);
     rnn.K1 = nstl::max(diff_wei_conf.K, diff_src_conf.K);
@@ -745,25 +746,91 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
     return status::success;
 }
 
+static dim_t divide_block_to_improve_thread_balance(
+        const dim_t initial_work_amount, const dim_t division_block,
+        const dim_t nthr) {
+
+    const float nthr_f = static_cast<float>(nthr);
+    const float initial_work = static_cast<float>(initial_work_amount) / nthr_f;
+    const float decimal_initial_factor
+            = initial_work - std::floor(initial_work);
+    static constexpr float thread_balance_threashold = 0.8;
+    static constexpr float tolerance = 0.01;
+
+    float max_decimal_factor = -1.0;
+    dim_t best_candidate = -1.0;
+    bool found_best_solution = false;
+
+    if (decimal_initial_factor < thread_balance_threashold
+            && decimal_initial_factor != 0.0f) {
+
+        for (const int block_size : {4096, 2048, 1024, 512, 256, 128, 64, 32}) {
+
+            if (division_block <= block_size) continue;
+
+            const auto blocks = utils::div_up(division_block, block_size);
+
+            const float work
+                    = static_cast<float>(initial_work_amount * blocks) / nthr_f;
+            const float work_decimal = work - std::floor(work);
+
+            if (work_decimal == 0.0f
+                    || (max_decimal_factor != 0.0f
+                                    ? work_decimal
+                                            > (max_decimal_factor + tolerance)
+                                    : work_decimal >= thread_balance_threashold)
+
+            ) {
+                best_candidate = block_size;
+                max_decimal_factor = work_decimal;
+            }
+
+            if (work >= nthr_f
+                    && (work_decimal >= thread_balance_threashold
+                            || work_decimal == 0.0f)) {
+                found_best_solution = true;
+                break;
+            }
+        }
+    }
+
+    if (found_best_solution
+            || (!found_best_solution
+                    && max_decimal_factor
+                            > decimal_initial_factor + tolerance)) {
+        return best_candidate;
+    }
+
+    return division_block;
+}
+
+void rnn_brgemm_t<prop_kind::backward>::configure_brgemm_peephole(
+        cpu::rnn_utils::rnn_conf_t &rnn) {
+    static constexpr dim_t n_gates = 3;
+    rnn.dhc_block_peephole = divide_block_to_improve_thread_balance(
+            n_gates, rnn.dhc, rnn.nthr);
+    rnn.dhc_blocks_peephole = utils::div_up(rnn.dhc, rnn.dhc_block_peephole);
+    rnn.dhc_tail_peephole = rnn.dhc % rnn.dhc_block_peephole;
+}
+
 static void init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
         const cpu::rnn_utils::rnn_conf_t &rnn, data_type_t src_type,
         data_type_t weights_type) {
 
-    const auto init_brgemm_diff_src
-            = [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
-                      std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
-                      dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
-                      float beta, dim_t max_bs) {
-                  const dim_t A_size
-                          = rnn.diff_src_brgemm.M * rnn.diff_src_brgemm.Kpadded;
-                  const dim_t B_size
-                          = rnn.diff_src_brgemm.Kpadded * rnn.diff_src_brgemm.N;
-                  const dim_t C_size
-                          = rnn.diff_src_brgemm.M * rnn.diff_src_brgemm.N;
-                  init_brgemm_kernel(rnn, desc, isa, src_type, weights_type,
-                          ker, M, N, K, LDA, LDB, LDC, beta, max_bs, A_size,
-                          B_size, C_size);
-              };
+    const auto init_brgemm_diff_src =
+            [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
+                    std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
+                    dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
+                    float beta, dim_t max_bs) {
+                const dim_t A_size
+                        = rnn.diff_src_brgemm.M * rnn.diff_src_brgemm.Kpadded;
+                const dim_t B_size
+                        = rnn.diff_src_brgemm.Kpadded * rnn.diff_src_brgemm.N;
+                const dim_t C_size
+                        = rnn.diff_src_brgemm.M * rnn.diff_src_brgemm.N;
+                init_brgemm_kernel(desc, isa, src_type, weights_type, ker, M, N,
+                        K, LDA, LDB, LDC, beta, max_bs, A_size, B_size, C_size);
+            };
 
     const auto &diff_src_conf = rnn.diff_src_brgemm;
     const int n_diff_src = nstl::min(diff_src_conf.N, diff_src_conf.n_block);
@@ -850,21 +917,20 @@ static void init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
         const cpu::rnn_utils::rnn_conf_t &rnn, data_type_t src_type,
         data_type_t weights_type) {
 
-    const auto init_brgemm_diff_wei
-            = [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
-                      std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
-                      dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
-                      float beta, dim_t max_bs) {
-                  const dim_t A_size
-                          = rnn.diff_wei_brgemm.M * rnn.diff_wei_brgemm.Kpadded;
-                  const dim_t B_size
-                          = rnn.diff_wei_brgemm.Kpadded * rnn.diff_wei_brgemm.N;
-                  const dim_t C_size
-                          = rnn.diff_wei_brgemm.M * rnn.diff_wei_brgemm.N;
-                  init_brgemm_kernel(rnn, desc, isa, src_type, weights_type,
-                          ker, M, N, K, LDA, LDB, LDC, beta, max_bs, A_size,
-                          B_size, C_size);
-              };
+    const auto init_brgemm_diff_wei =
+            [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
+                    std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
+                    dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
+                    float beta, dim_t max_bs) {
+                const dim_t A_size
+                        = rnn.diff_wei_brgemm.M * rnn.diff_wei_brgemm.Kpadded;
+                const dim_t B_size
+                        = rnn.diff_wei_brgemm.Kpadded * rnn.diff_wei_brgemm.N;
+                const dim_t C_size
+                        = rnn.diff_wei_brgemm.M * rnn.diff_wei_brgemm.N;
+                init_brgemm_kernel(desc, isa, src_type, weights_type, ker, M, N,
+                        K, LDA, LDB, LDC, beta, max_bs, A_size, B_size, C_size);
+            };
 
     const auto &diff_wei_conf = rnn.diff_wei_brgemm;
     const bool is_m_block_equal = rnn.slc == rnn.sic;
@@ -961,6 +1027,7 @@ void rnn_brgemm_t<prop_kind::backward>::init_kernels(
 
     init_kernels_diff_src(diff_src_, rnn, src_type, weights_type);
     init_kernels_diff_wei(diff_wei_, rnn, src_type, weights_type);
+    if (rnn.is_lstm_peephole) init_peephole_kernels(rnn);
 
     const auto n_diff_wei_tail
             = nstl::min(rnn.diff_wei_brgemm.N, rnn.diff_wei_brgemm.n_tail);
@@ -992,6 +1059,22 @@ void rnn_brgemm_t<prop_kind::backward>::init_kernels(
                     = utils::make_unique<jit_brgemm_transpose_t>(m_block_layer);
             kernel_transpose_layer_->create_kernel();
         }
+    }
+}
+
+void rnn_brgemm_t<prop_kind::backward>::init_peephole_kernels(
+        const cpu::rnn_utils::rnn_conf_t &rnn) {
+
+    if (rnn.dhc_blocks_peephole) {
+        kernel_peephole_ = utils::make_unique<jit_diff_weights_peephole_t>(
+                rnn, rnn.dhc_block_peephole);
+        kernel_peephole_->create_kernel();
+    }
+
+    if (rnn.dhc_tail_peephole) {
+        kernel_peephole_tail_ = utils::make_unique<jit_diff_weights_peephole_t>(
+                rnn, rnn.dhc_tail_peephole);
+        kernel_peephole_tail_->create_kernel();
     }
 }
 

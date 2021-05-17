@@ -262,10 +262,10 @@ struct _ref_rnn_common_t : public primitive_t {
                 return status::unimplemented;
 
             if (!(IMPLICATION((cell_kind == alg_kind::vanilla_lstm
-                                      && (rnn_.is_lstm_peephole
-                                              || rnn_.is_lstm_projection)),
+                                      && rnn_.is_lstm_projection),
                         this->desc()->prop_kind == forward_inference)))
                 return status::unimplemented;
+
             if (rnn_.is_bf16() && !mayiuse(avx512_core_bf16))
                 return status::unimplemented;
             if (rnn_.is_signed_int8() && !mayiuse(avx512_core_bf16_amx_int8))
