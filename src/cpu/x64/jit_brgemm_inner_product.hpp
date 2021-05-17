@@ -38,28 +38,6 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-namespace {
-static const int max_num_brg_kernels_ip = 2 * 2 * 2 * 2;
-
-inline int get_brg_kernel_index(const jit_brgemm_primitive_conf_t &jbgp,
-        bool do_initialization, bool is_M_tail, bool is_N_tail,
-        bool is_K_tail) {
-    auto vM = (is_M_tail) ? jbgp.M_tail : jbgp.M;
-    auto vN = (is_N_tail) ? jbgp.N_tail : jbgp.N;
-    auto vK = (is_K_tail) ? jbgp.K_tail : jbgp.K;
-    if (vM == 0 || vN == 0 || vK == 0 || jbgp.LDA < vK || jbgp.LDB < vN
-            || jbgp.LDC < vN)
-        return -1;
-
-    int idx = 8 * (int)do_initialization + 4 * (int)is_M_tail
-            + 2 * (int)is_N_tail + (int)is_K_tail;
-
-    assert(idx < max_num_brg_kernels_ip);
-    return idx;
-}
-
-} // namespace
-
 template <cpu_isa_t isa>
 struct brgemm_inner_product_fwd_t : public primitive_t {
     struct pd_t : public cpu_inner_product_fwd_pd_t {
@@ -158,11 +136,17 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
 
         int get_brg_kernel_idx(bool do_initialization, bool is_M_tail,
                 bool is_N_tail, bool is_K_tail) const {
-            return get_brg_kernel_index(
+            auto vM = (is_M_tail) ? jbgp_.M_tail : jbgp_.M;
+            auto vN = (is_N_tail) ? jbgp_.N_tail : jbgp_.N;
+            auto vK = (is_K_tail) ? jbgp_.K_tail : jbgp_.K;
+            if (vM == 0 || vN == 0 || vK == 0 || jbgp_.LDA < vK
+                    || jbgp_.LDB < vN || jbgp_.LDC < vN)
+                return -1;
+            return brgemm_inner_product_utils::get_brg_kernel_index(
                     jbgp_, do_initialization, is_M_tail, is_N_tail, is_K_tail);
         }
 
-        brgemm_t brg_descs_[max_num_brg_kernels_ip];
+        brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
         jit_brgemm_primitive_conf_t jbgp_;
     };
 
@@ -200,9 +184,11 @@ private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_ip];
+    std::unique_ptr<brgemm_kernel_t>
+            brg_kernels_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
     std::unique_ptr<jit_brgemm_copy_src_t> copy_src_kernel_;
-    char brg_kernel_palettes_[max_num_brg_kernels_ip][64];
+    char brg_kernel_palettes_
+            [brgemm_inner_product_utils::max_num_brg_kernels_ip][64];
 };
 
 template <cpu_isa_t isa>
@@ -284,11 +270,17 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
 
         int get_brg_kernel_idx(bool do_initialization, bool is_M_tail,
                 bool is_N_tail, bool is_K_tail) const {
-            return get_brg_kernel_index(
+            auto vM = (is_M_tail) ? jbgp_.M_tail : jbgp_.M;
+            auto vN = (is_N_tail) ? jbgp_.N_tail : jbgp_.N;
+            auto vK = (is_K_tail) ? jbgp_.K_tail : jbgp_.K;
+            if (vM == 0 || vN == 0 || vK == 0 || jbgp_.LDA < vK
+                    || jbgp_.LDB < vN || jbgp_.LDC < vN)
+                return -1;
+            return brgemm_inner_product_utils::get_brg_kernel_index(
                     jbgp_, do_initialization, is_M_tail, is_N_tail, is_K_tail);
         }
 
-        brgemm_t brg_descs_[max_num_brg_kernels_ip];
+        brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
         jit_brgemm_primitive_conf_t jbgp_;
     };
 
@@ -332,10 +324,12 @@ private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_ip];
+    std::unique_ptr<brgemm_kernel_t>
+            brg_kernels_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
     std::unique_ptr<jit_brgemm_trans_wei_t> trans_B_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
-    char brg_kernel_palettes_[max_num_brg_kernels_ip][64];
+    char brg_kernel_palettes_
+            [brgemm_inner_product_utils::max_num_brg_kernels_ip][64];
 };
 
 template <cpu_isa_t isa>
@@ -409,11 +403,17 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
 
         int get_brg_kernel_idx(bool do_initialization, bool is_M_tail,
                 bool is_N_tail, bool is_K_tail) const {
-            return get_brg_kernel_index(
+            auto vM = (is_M_tail) ? jbgp_.M_tail : jbgp_.M;
+            auto vN = (is_N_tail) ? jbgp_.N_tail : jbgp_.N;
+            auto vK = (is_K_tail) ? jbgp_.K_tail : jbgp_.K;
+            if (vM == 0 || vN == 0 || vK == 0 || jbgp_.LDA < vK
+                    || jbgp_.LDB < vN || jbgp_.LDC < vN)
+                return -1;
+            return brgemm_inner_product_utils::get_brg_kernel_index(
                     jbgp_, do_initialization, is_M_tail, is_N_tail, is_K_tail);
         }
 
-        brgemm_t brg_descs_[max_num_brg_kernels_ip];
+        brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
         jit_brgemm_primitive_conf_t jbgp_;
     };
 
@@ -483,7 +483,8 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
 private:
     struct thread_info_t;
     std::unique_ptr<jit_brgemm_kernel_diff_bias_t> kernels_db_[2][2];
-    std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_ip];
+    std::unique_ptr<brgemm_kernel_t>
+            brg_kernels_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
     std::unique_ptr<jit_brgemm_trans_src_t> trans_A_kernel_;
     std::unique_ptr<jit_brgemm_trans_to_vnni_t> trans_B_kernel_;
     std::unique_ptr<jit_brgemm_trans_to_vnni_t> trans_C_kernel_;
@@ -503,7 +504,8 @@ private:
             const int icb, int oc_size, int ic_size,
             bool is_reduction = false) const;
 
-    char brg_kernel_palettes_[max_num_brg_kernels_ip][64];
+    char brg_kernel_palettes_
+            [brgemm_inner_product_utils::max_num_brg_kernels_ip][64];
     dim_t get_wei_offset(int ocb, int icb) const;
     char *get_wei_acc_ptr(const thread_info_t *ti, int ocb, int icb) const;
 

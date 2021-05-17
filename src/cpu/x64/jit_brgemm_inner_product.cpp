@@ -104,9 +104,9 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
 
     bool is_os_tail = (jbgp.mb < jbgp.os_block);
     bool is_oc_tail = (jbgp.oc < jbgp.oc_block);
-    int base_brg_ker_idx
-            = pd()->get_brg_kernel_idx( // TODO: Can be calculated on initialization stage
-                    false, is_os_tail, is_oc_tail, false);
+    int base_brg_ker_idx = brgemm_inner_product_utils::
+            get_brg_kernel_index( // TODO: Can be calculated on initialization stage
+                    jbgp, false, is_os_tail, is_oc_tail, false);
 
     const auto ker = [&](const int ithr, int n, int ocb, int icc,
                              int buffer_a_osb, bool copy_buffer_a) {
@@ -141,8 +141,8 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
                 : nstl::min(
                         jbgp.gemm_batch_size, (jbgp.ic - ic) / jbgp.ic_block);
 
-        int brg_ker_idx = pd()->get_brg_kernel_idx(
-                kernel_init, is_os_tail, is_oc_tail, false);
+        int brg_ker_idx = brgemm_inner_product_utils::get_brg_kernel_index(
+                jbgp, kernel_init, is_os_tail, is_oc_tail, false);
         auto brg_kernel = brg_kernels_[brg_ker_idx].get();
         auto ptr_bias = jbgp.with_bias ? bias + bia_dt_size * oc : nullptr;
 
@@ -202,8 +202,8 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
                     + get_blk_off(weights_d, jbgp.wei_dt, ocb, icb + ic_block);
 
             auto use_init_ker = (kernel_init && gemm_batch == 0);
-            int brg_ker_idx = pd()->get_brg_kernel_idx(
-                    use_init_ker, is_os_tail, is_oc_tail, true);
+            int brg_ker_idx = brgemm_inner_product_utils::get_brg_kernel_index(
+                    jbgp, use_init_ker, is_os_tail, is_oc_tail, true);
             auto brg_kernel_ic_tail = brg_kernels_[brg_ker_idx].get();
             if (is_amx)
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
@@ -349,9 +349,9 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
     const dim_t acc_dt_sz = types::data_type_size(jbgp.acc_dt);
     const dim_t src_dt_sz = types::data_type_size(jbgp.src_dt);
 
-    const int base_brg_ker_idx
-            = pd()->get_brg_kernel_idx( // TODO: Can be calculated on initialization stage
-                    false, is_os_tail, is_ic_tail, is_oc_tail);
+    const int base_brg_ker_idx = brgemm_inner_product_utils::
+            get_brg_kernel_index( // TODO: Can be calculated on initialization stage
+                    jbgp, false, is_os_tail, is_ic_tail, is_oc_tail);
 
     const auto get_weights_ptr = [&](int icb, int ocb) {
         int fwd_ic_block = (is_amx) ? 2 * jbgp.simd_w : jbgp.simd_w;
@@ -452,8 +452,9 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         const int nb_oc_b = nstl::min(
                 (jbgp.oc - oc) / jbgp.oc_block, jbgp.nb_oc_blocking);
 
-        const int brg_ker_idx = pd()->get_brg_kernel_idx(
-                kernel_init, is_os_tail, is_ic_tail, false);
+        const int brg_ker_idx
+                = brgemm_inner_product_utils::get_brg_kernel_index(
+                        jbgp, kernel_init, is_os_tail, is_ic_tail, false);
         auto brg_kernel = brg_kernels_[brg_ker_idx].get();
 
         const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
@@ -515,8 +516,9 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             }
 
             auto use_init_ker = (kernel_init && nb_oc_b == 0);
-            const int brg_kernel_oc_tail_idx = pd()->get_brg_kernel_idx(
-                    use_init_ker, is_os_tail, is_ic_tail, true);
+            const int brg_kernel_oc_tail_idx
+                    = brgemm_inner_product_utils::get_brg_kernel_index(
+                            jbgp, use_init_ker, is_os_tail, is_ic_tail, true);
             auto brg_kernel_oc_tail
                     = brg_kernels_[brg_kernel_oc_tail_idx].get();
             if (is_amx)
@@ -977,8 +979,9 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
         auto nb_os_b = is_os_tail ? (jbgp.mb - n) / jbgp.os_block
                                   : jbgp.nb_os_blocking;
 
-        const int brg_ker_idx = pd()->get_brg_kernel_idx(
-                kernel_init, is_ic_tail, is_oc_tail, false);
+        const int brg_ker_idx
+                = brgemm_inner_product_utils::get_brg_kernel_index(
+                        jbgp, kernel_init, is_ic_tail, is_oc_tail, false);
         auto brg_kernel = brg_kernels_[brg_ker_idx].get();
 
         if (kernel_init && (is_ic_tail || is_oc_tail))
@@ -1093,8 +1096,9 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
             }
 
             auto use_init_ker = (kernel_init && nb_os_b == 0);
-            const int brg_ker_idx_os_tail = pd()->get_brg_kernel_idx(
-                    use_init_ker, is_ic_tail, is_oc_tail, true);
+            const int brg_ker_idx_os_tail
+                    = brgemm_inner_product_utils::get_brg_kernel_index(
+                            jbgp, use_init_ker, is_ic_tail, is_oc_tail, true);
             auto brg_kernel_os_tail = brg_kernels_[brg_ker_idx_os_tail].get();
             if (brg_kernel_os_tail != nullptr) {
                 if (is_amx_bf16)

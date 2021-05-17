@@ -41,6 +41,11 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_primitive_conf_t &jbgp);
 
+static const int max_num_brg_kernels_ip = 2 * 2 * 2 * 2;
+
+int get_brg_kernel_index(const jit_brgemm_primitive_conf_t &jbgp,
+        bool do_initialization, bool is_M_tail, bool is_N_tail, bool is_K_tail);
+
 } // namespace brgemm_inner_product_utils
 
 } // namespace x64

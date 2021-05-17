@@ -44,6 +44,16 @@ using namespace data_type;
 
 namespace brgemm_inner_product_utils {
 
+int get_brg_kernel_index(const jit_brgemm_primitive_conf_t &jbgp,
+        bool do_initialization, bool is_M_tail, bool is_N_tail,
+        bool is_K_tail) {
+    int idx = 8 * (int)do_initialization + 4 * (int)is_M_tail
+            + 2 * (int)is_N_tail + (int)is_K_tail;
+
+    assert(idx < max_num_brg_kernels_ip);
+    return idx;
+}
+
 format_tag_t get_brgemm_ip_weights_tag(
         cpu_isa_t isa, dim_t oc, data_type_t wei_dt, int n_sp_dims) {
     using namespace format_tag;
