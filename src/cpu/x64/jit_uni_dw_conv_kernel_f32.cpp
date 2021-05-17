@@ -776,14 +776,13 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_filter(
                         size_t ch_offset = ch * ch_block_step;
                         size_t ddst_off = sp_offset + ch_offset + i * 4;
 
-                        Vmm vmm_src = get_src_reg(0);
-                        load_vmm(vmm_src,
-                                ptr[aux1_reg_ddst + ddst_off * sizeof(float)],
+                        Vmm vmm_ddst = get_ddst_reg(0);
+                        load_vmm(vmm_ddst, ptr[aux1_reg_ddst + ddst_off],
                                 masked_load);
 
                         Vmm vmm_acc = get_acc_reg(i * ur_ch_blocks * ur_str_w
                                 + ch * ur_str_w + w);
-                        uni_vfmadd231ps(vmm_acc, vmm_src, vmm_ker);
+                        uni_vfmadd231ps(vmm_acc, vmm_ddst, vmm_ker);
                     }
                 }
             }

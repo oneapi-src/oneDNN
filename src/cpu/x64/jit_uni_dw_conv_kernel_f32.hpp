@@ -138,7 +138,7 @@ private:
     using reg64_t = const Xbyak::Reg64;
 
     inline Vmm get_ker_reg(int idx) { return Vmm(idx + 0); }
-    inline Vmm get_src_reg(int idx) { return Vmm(idx + 1); }
+    inline Vmm get_ddst_reg(int idx) { return Vmm(idx + 1); }
     inline Vmm get_acc_reg(int idx) { return Vmm(idx + 4); }
 
     reg64_t reg_ddst = rax;
