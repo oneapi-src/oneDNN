@@ -247,6 +247,11 @@ struct logical_tensor_wrapper {
         return cweight;
     }
 
+    bool has_same_shape_as(const logical_tensor_wrapper &rhs) const {
+        if (ndims() != rhs.ndims()) return false;
+        return std::equal(dims(), dims() + ndims(), rhs.dims());
+    }
+
 private:
     bool is_identical(const logical_tensor_t &lhs, const logical_tensor_t &rhs,
             bool check_id = true) const;

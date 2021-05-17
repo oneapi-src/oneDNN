@@ -21,6 +21,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/legacy.hpp"
@@ -97,20 +98,20 @@ struct convolution_op_set {
     }
 
     /**
-     * Check if convolution operator fuses sum
+     * Check if convolution operator fuses add
      *
      * @param kind operator kind
-     * @return whether the operator fused sum
+     * @return whether the operator fused add
      */
-    static bool fuse_sum(op_kind_t kind) {
-        static const std::set<op_kind_t> with_sum_set {op_kind::conv_add,
+    static bool fuse_add(op_kind_t kind) {
+        static const std::set<op_kind_t> with_add_set {op_kind::conv_add,
                 op_kind::conv_add_elu, op_kind::conv_add_relu,
                 op_kind::conv_add_relu6, op_kind::conv_bias_add,
                 op_kind::conv_bias_add_elu, op_kind::conv_bias_add_relu,
                 op_kind::conv_bias_add_relu6, op_kind::conv_bias_bn_add,
                 op_kind::conv_bias_bn_add_relu, op_kind::conv_bn_add,
                 op_kind::conv_bn_add_relu};
-        return with_sum_set.count(kind);
+        return with_add_set.count(kind);
     }
 
     /**
@@ -179,7 +180,9 @@ private:
     attr_t attr_;
 
     bool with_bias_;
-    bool with_sum_;
+    bool with_add_;
+    bool with_post_sum_;
+    bool with_post_binary_add_;
     bool with_eltwise_;
     bool with_bn_;
 
@@ -230,25 +233,25 @@ public:
         }
 
         // Check fused post_ops
-        with_sum_ = convolution_op_set::fuse_sum(conv_kind);
+        with_add_ = convolution_op_set::fuse_add(conv_kind);
         with_eltwise_ = convolution_op_set::fuse_eltwise(conv_kind);
         with_bn_ = convolution_op_set::fuse_batchnorm(conv_kind);
         // A convolution operator has bias if
         // - Op name has bias
-        // - W/O fused batchnorm and post-op sum, there are 3 inputs:
+        // - W/O fused batchnorm and add, there are 3 inputs:
         //  conv_src, conv_wei, *conv_bias*
-        // - W/ fused batchnorm and W/O post-op sum, there are 7 inputs:
+        // - W/ fused batchnorm and W/O add, there are 7 inputs:
         //  conv_src, conv_wei, *conv_bias*, bn_scale, bn_shift, bn_mean, bn_var
-        // - W/O fused batachnorm and W/ post-op sum, there are 4 inputs:
+        // - W/O fused batachnorm and W/ add, there are 4 inputs:
         //  conv_src, conv_wei, *conv_bias*, post-src
-        // - W/ fused batchnorm and W/ post-op sum, there are 8 inputs:
+        // - W/ fused batchnorm and W/ add, there are 8 inputs:
         //  conv_src, conv_wei, *conv_bias*, bn_scale, bn_shift, bn_mean, bn_var
         //  , post-src
         with_bias_ = convolution_op_set::with_bias(conv_kind)
-                || (!with_bn_ && !with_sum_ && inputs.size() == 3)
-                || (with_bn_ && !with_sum_ && inputs.size() == 7)
-                || (!with_bn_ && with_sum_ && inputs.size() == 4)
-                || (with_bn_ && with_sum_ && inputs.size() == 8);
+                || (!with_bn_ && !with_add_ && inputs.size() == 3)
+                || (with_bn_ && !with_add_ && inputs.size() == 7)
+                || (!with_bn_ && with_add_ && inputs.size() == 4)
+                || (with_bn_ && with_add_ && inputs.size() == 8);
 
         // set attrs of eltwise
         if (op->has_attr("alpha")) {
@@ -281,11 +284,41 @@ public:
         if (with_bn_) epsilon_ = op->get_attr<float>("epsilon");
 
         // append post_ops to attrs
-        if (with_sum_) {
-            attr_ = attr_t::fuse_sum();
-            if (with_eltwise_) {
-                attr_ = attr_t::residual(
-                        get_eltwise_algo(conv_kind), 1.f, 1.f, alpha_, beta_);
+        if (with_add_) {
+            impl::logical_tensor_t post_src_lt = inputs.back();
+            auto post_src_ndims
+                    = impl::logical_tensor_wrapper(post_src_lt).ndims();
+            auto dst_ndims = impl::logical_tensor_wrapper(dst_lt).ndims();
+            if ((post_src_ndims == dst_ndims) && data_format_ == "NXC") {
+                post_src_lt = impl::logical_tensor_wrapper(post_src_lt)
+                                      .reorder_data_dims_strides();
+            }
+
+            if (impl::logical_tensor_wrapper(post_src_lt)
+                            .has_same_shape_as(dst_lt)) {
+                // if post src has the same shape of dst
+                // set post sum attribute
+                attr_ = attr_t::fuse_sum();
+                if (with_eltwise_) {
+                    attr_ = attr_t::residual(get_eltwise_algo(conv_kind), 1.f,
+                            1.f, alpha_, beta_);
+                }
+                with_post_sum_ = true;
+            } else {
+                desc post_src {post_src_lt};
+                post_src = expand(post_src, dst.get_ndims());
+                // post binary only supports per tensor and per channel
+                // broadcast, which means the expand shape of post src should
+                // be all one or the post_src_dim[1]==dst_dim[1]
+                for (int i = dst.get_ndims() - 1; i >= 0; i--) {
+                    if (post_src.get_dim(i) == 1) continue;
+
+                    if (i != 1 || dst.get_dim(i) != post_src.get_dim(i)) {
+                        return impl::status::compile_fail;
+                    }
+                }
+                attr_ = attr_t::fuse_binary(post_src, algorithm::binary_add);
+                with_post_binary_add_ = true;
             }
         } else if (with_eltwise_) {
             attr_ = attr_t::fuse_eltwise(
@@ -352,7 +385,7 @@ public:
                 = with_bias_ ? inputs.at(conv::kBias) : impl::tensor_t {};
 
         impl::logical_tensor_t post_src_lt;
-        if (with_sum_) {
+        if (with_add_) {
             post_src_lt = const_cast<impl::logical_tensor_t &>(
                     inputs.back().get_logical_tensor());
         }
@@ -369,7 +402,7 @@ public:
                              .reorder_data_dims_strides();
             dst_lt = impl::logical_tensor_wrapper(dst_lt)
                              .reorder_data_dims_strides();
-            if (with_sum_) {
+            if (with_add_) {
                 post_src_lt = impl::logical_tensor_wrapper(post_src_lt)
                                       .reorder_data_dims_strides();
             }
@@ -384,7 +417,7 @@ public:
                 inputs.at(conv::kSrc).get_data_handle()};
         const tensor weight {weight_lt, p_engine_, alc,
                 inputs.at(conv::kWeight).get_data_handle()};
-        const tensor post_src = with_sum_ ? tensor {post_src_lt, p_engine_, alc,
+        const tensor post_src = with_add_ ? tensor {post_src_lt, p_engine_, alc,
                                         inputs.back().get_data_handle()}
                                           : tensor {};
         const tensor bias
@@ -480,26 +513,27 @@ public:
         } else
             expected_dst_ = dst;
 
-        if (with_sum_
+        if (with_post_sum_
                 && post_src.get_data_handle()
                         != expected_dst_.get_data_handle()) {
             post_src.reorder_to(p_stream_, expected_dst_);
         }
 
+        std::unordered_map<int, memory> conv_args;
+        conv_args.insert({DNNL_ARG_SRC, expected_src_});
+        conv_args.insert({DNNL_ARG_WEIGHTS, expected_weights_});
+        conv_args.insert({DNNL_ARG_DST, expected_dst_});
+        conv_args.insert({DNNL_ARG_SCRATCHPAD, scratchpad});
+
         if (with_bias_ || with_bn_) {
-            super(pd).execute(p_stream_,
-                    {{DNNL_ARG_SRC, expected_src_},
-                            {DNNL_ARG_WEIGHTS, expected_weights_},
-                            {DNNL_ARG_BIAS, expected_bias_},
-                            {DNNL_ARG_DST, expected_dst_},
-                            {DNNL_ARG_SCRATCHPAD, scratchpad}});
-        } else {
-            super(pd).execute(p_stream_,
-                    {{DNNL_ARG_SRC, expected_src_},
-                            {DNNL_ARG_WEIGHTS, expected_weights_},
-                            {DNNL_ARG_DST, expected_dst_},
-                            {DNNL_ARG_SCRATCHPAD, scratchpad}});
+            conv_args.insert({DNNL_ARG_BIAS, expected_bias_});
         }
+        if (with_post_binary_add_) {
+            conv_args.insert(
+                    {(DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1),
+                            post_src});
+        }
+        super(pd).execute(p_stream_, conv_args);
 
         if (expected_dst_ != dst) expected_dst_.reorder_to(p_stream_, dst);
         return impl::status::success;
@@ -658,7 +692,7 @@ private:
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         UNUSED(g_engine);
-        if (with_sum_) {
+        if (with_post_sum_) {
             size_t input_idx = with_bias_ ? conv::kBias + 1 : conv::kWeight + 1;
             if (with_bn_) input_idx = bn_input_offset_ + conv::kVariance + 1;
             constexpr size_t output_idx = 0;
