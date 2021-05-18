@@ -168,7 +168,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
             case alg_kind::vanilla_lstm:
                 param6_ = is_projection() ? src_iter_c_ : &src_iter_c(m, 0);
                 param7_ = &dst_iter_c(m, 0);
-                param8_ = (void *)&weights_peephole(0, 0);
+                param8_ = weights_peephole_ ? (void *)&weights_peephole(0, 0)
+                                            : nullptr;
                 break;
             case alg_kind::lbr_gru:
                 param6_ = &src_iter(m, 0);
@@ -244,7 +245,9 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     param6_ = &diff_dst_iter_c(i, 0);
                     param7_ = (float *)&src_iter_c(i, 0);
                     param8_ = &dst_iter_c(i, 0);
-                    param9_ = (void *)&weights_peephole(0, 0);
+                    param9_ = weights_peephole_
+                            ? (void *)&weights_peephole(0, 0)
+                            : nullptr;
                     break;
                 case alg_kind::lbr_gru:
                     param1_ = &ws_gates(i, 0, 0);
