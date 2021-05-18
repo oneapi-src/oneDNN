@@ -10,7 +10,10 @@
 --cfg=f32,bf16bf16bf16,f16
 --stag=any,axb
 --dtag=any,axb
---attr-post-ops=,sum:0.5,linear:2:1,add:f32,\
+--attr-post-ops=, \
+                sum:0.5, \
+                linear:2:1, \
+                add:f32, \
                 mul:s8:per_oc+sum:0.25+relu:0.5
 --batch=shapes_basic
 ### Wino
@@ -46,7 +49,11 @@
 --cfg=u8s8s32
 --stag=any,axb
 --dtag=any,axb
---attr-post-ops=,sum:0.5,linear:2:1,add:f32,sum:0.5+add:f32:per_oc
+--attr-post-ops=, \
+                sum:0.5, \
+                linear:2:1, \
+                add:f32, \
+                sum:0.5+add:f32:per_oc
 --attr-zero-points=
 --batch=shapes_basic
 --attr-post-ops=
@@ -56,7 +63,11 @@
 --cfg=s8s8s8
 --stag=any
 --dtag=any
---attr-post-ops=,sum:0.5,linear:2:1,add:f32,sum:0.5+add:f32:per_oc
+--attr-post-ops=, \
+                sum:0.5, \
+                linear:2:1, \
+                add:f32, \
+                sum:0.5+add:f32:per_oc
 --attr-zero-points=
 --batch=shapes_basic
 --attr-post-ops=
