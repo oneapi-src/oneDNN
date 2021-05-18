@@ -1744,11 +1744,11 @@ void jit_brgemm_trans_wei_bf16_t::generate() {
     postamble();
 }
 
-struct jit_amx_ip_trans_diff_wei_to_vnni : public jit_amx_ip_trans_diff_wei,
-                                           public jit_generator {
+struct jit_amx_ip_trans_diff_wei_to_vnni_t : public jit_amx_ip_trans_diff_wei,
+                                             public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_amx_ip_trans_diff_wei_to_vnni)
 
-    jit_amx_ip_trans_diff_wei_to_vnni(const jit_brgemm_primitive_conf_t *jbgp,
+    jit_amx_ip_trans_diff_wei_to_vnni_t(const jit_brgemm_primitive_conf_t *jbgp,
             const int ext_ic_block, const int ext_oc_block)
         : jit_amx_ip_trans_diff_wei(jbgp, ext_ic_block, ext_oc_block) {}
 
@@ -1759,7 +1759,7 @@ private:
     void generate() override;
 };
 
-void jit_amx_ip_trans_diff_wei_to_vnni::generate() {
+void jit_amx_ip_trans_diff_wei_to_vnni_t::generate() {
     const int typesize_out = 2;
     const int typesize_acc = 4;
     const int simd_w = 16;
@@ -2029,7 +2029,7 @@ status_t create_brgemm_amx_ip_trans_wei(
     if (conf->prop_kind == dnnl_backward_weights
             && conf->wei_dt == data_type::bf16) {
         CHECK(safe_ptr_assign(trans_ker,
-                new jit_amx_ip_trans_diff_wei_to_vnni(
+                new jit_amx_ip_trans_diff_wei_to_vnni_t(
                         conf, ext_ic_block, ext_oc_block)));
     } else
         return status::invalid_arguments;
