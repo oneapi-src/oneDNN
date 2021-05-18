@@ -80,10 +80,9 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
                          const_attr_po, idx, nullptr, &po_md),
                 WARN);
 
-        const auto tag = tag::abx;
         // Following call can not be executed if po_md has runtime dimension due
         // to undefined size.
-        mem_fp.emplace_back(*po_md, dnnl_f32, tag, get_test_engine());
+        mem_fp.emplace_back(*po_md, dnnl_f32, tag::abx, get_test_engine());
         mem_dt.emplace_back(*po_md, get_test_engine());
         args.push_back((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
 
