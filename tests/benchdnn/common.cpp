@@ -507,10 +507,14 @@ std::string locate_batch_file(const std::string &fname) {
     int length = readlink("/proc/self/exe", &fdir[0], PATH_MAX);
     if (length) {
         std::string s_fdir = std::string(dirname(&fdir[0]));
-        for (int i_try = 0; i_try < 2; ++i_try) {
+        for (int i_try = 0; i_try < 3; ++i_try) {
             fdir = s_fdir + std::string("/inputs/") + std::string(driver_name);
             if (i_try == 1) { // Windows has different folder structure
                 fdir = s_fdir + std::string("/../inputs/")
+                        + std::string(driver_name);
+            }
+            if (i_try == 2) { // This is for the onednn-graph
+                fdir = s_fdir + std::string("/inputs_graph/")
                         + std::string(driver_name);
             }
             // NOLINTNEXTLINE(performance-inefficient-string-concatenation)

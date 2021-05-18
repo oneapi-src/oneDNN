@@ -17,11 +17,18 @@
 #ifndef DNNL_GRAPH_COMMON_HPP
 #define DNNL_GRAPH_COMMON_HPP
 
+#include <cstddef>
+#include <map>
+#include <numeric>
+#include <string>
+#include <vector>
+
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
 #include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 
-namespace benchgraph {
+namespace benchdnnext {
 
 using dims_t = dnnl::graph::logical_tensor::dims_t;
 using dim_t = dims_t::value_type;
@@ -29,7 +36,24 @@ using dim_t = dims_t::value_type;
 using input_list_t = std::vector<dnnl::graph::logical_tensor>;
 using output_list_t = std::vector<dnnl::graph::logical_tensor>;
 
-#define BENCHGRAPH_SAFE(f, s) \
+enum class fill_status {
+    DONE, // everything was fine
+    UNHANDLED_CONFIG_OPTIONS, // conversion done, but too much options was provided
+    UNSUPPORTED_OP,
+    UNKNOWN_ERROR
+};
+typedef fill_status fill_status_t;
+
+dnnl::graph::logical_tensor::data_type convert_dt(const dnnl_data_type_t dt);
+dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind);
+std::string convert_tag(const std::string &tag, bool activation_tag = true);
+dims_t convert_bin_policy(const dims_t &lhs_dims, const attr_t::policy_t policy,
+        const std::string &data_format);
+std::map<std::string, float> convert_eltw_entry(
+        const dnnl::graph::op::kind kind,
+        const attr_t::post_ops_t::entry_t &entry);
+
+#define BENCHDNNEXT_SAFE(f, s) \
     do { \
         try { \
             f; \
@@ -44,8 +68,8 @@ using output_list_t = std::vector<dnnl::graph::logical_tensor>;
         } \
     } while (0)
 
-struct id_manager {
-    id_manager() : frozen_(false) {};
+struct id_manager_t {
+    id_manager_t() : frozen_(false) {};
 
     size_t operator[](const std::string &arg) {
         const auto &it = knots_.find(arg);
@@ -72,6 +96,36 @@ private:
     bool frozen_;
 };
 
+struct tensor_descs_t {
+    tensor_descs_t() = default;
+
+    template <typename... Args>
+    void emplace(std::string str, Args... args) {
+        dnnl::graph::logical_tensor t(idmgr_[str], std::forward<Args>(args)...);
+        map_.emplace(str, t);
+    }
+
+    dnnl::graph::logical_tensor operator[](const std::string &str) {
+        return map_.at(str);
+    }
+
+private:
+    std::map<std::string, dnnl::graph::logical_tensor> map_;
+    id_manager_t idmgr_;
+};
+
+dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
+        const dnnl::graph::logical_tensor::data_type &graph_dt,
+        const char *tag = nullptr);
+
+dnn_mem_t make_dnn_mem(
+        const dnnl::graph::logical_tensor &lt, const char *tag = nullptr);
+
+template <typename T, std::size_t N>
+constexpr T *end(T (&arr)[N]) noexcept {
+    return arr + N;
+}
+
 typedef std::function<void(dnnl::graph::stream &,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs)>
@@ -87,6 +141,15 @@ inline dnnl::graph::engine &get_test_engine() {
     return instance;
 }
 
+int execute_and_wait(perf_function_t &exec_func,
+        const dnnl::graph::engine &engine,
+        const std::vector<dnnl::graph::tensor> &inputs,
+        const std::vector<dnnl::graph::tensor> &outputs);
+
+int execute_and_wait(dnnl::graph::compiled_partition &cp,
+        const std::vector<dnnl::graph::tensor> &inputs,
+        const std::vector<dnnl::graph::tensor> &outputs);
+
 int measure_perf(benchdnn_timer_t &t, perf_function_t &perf_func,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs);
@@ -95,6 +158,61 @@ int measure_perf(benchdnn_timer_t &t, dnnl::graph::compiled_partition &cp,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs);
 
-} // namespace benchgraph
+struct graph_prb_t {
+    using dt = dnnl::graph::logical_tensor::data_type;
+    using lt = dnnl::graph::logical_tensor::layout_type;
+
+    dnnl::graph::graph to_graph() {
+        dnnl::graph::engine &engine = benchdnnext::get_test_engine();
+        dnnl::graph::graph graph(engine.get_kind());
+        for (auto &&op : ops_)
+            graph.add_op(op);
+        return graph;
+    }
+
+protected:
+    std::vector<dnnl::graph::op> ops_;
+    tensor_descs_t tensor_descs_;
+
+    std::vector<std::string> curr_out_map_ids_;
+
+    friend struct po_handlers_t;
+};
+
+struct po_handlers_t {
+    using dt = dnnl::graph::logical_tensor::data_type;
+    using lt = dnnl::graph::logical_tensor::layout_type;
+
+private:
+    struct bias_po_handler_t {
+        fill_status_t operator()(graph_prb_t &p, const std::string &dst_dataf,
+                const dnnl::graph::logical_tensor::data_type bia_dt);
+    };
+
+    struct eltwise_po_handler_t {
+        fill_status_t operator()(
+                graph_prb_t &p, const attr_t::post_ops_t::entry_t &po_entry);
+    };
+
+    struct binary_po_handler_t {
+        fill_status_t operator()(graph_prb_t &p, const std::string &dst_dataf,
+                const attr_t::post_ops_t::entry_t &po_entry);
+    };
+
+    struct sum_po_handler_t {
+        fill_status_t operator()(graph_prb_t &p);
+    };
+
+public:
+    union {
+        struct {
+            bias_po_handler_t bias_handler;
+            eltwise_po_handler_t eltw_handler;
+            sum_po_handler_t sum_handler;
+        } matmul;
+    };
+};
+
+} // namespace benchdnnext
 
 #endif

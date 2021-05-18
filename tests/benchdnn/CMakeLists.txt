@@ -46,6 +46,7 @@ endif()
 register_exe(benchdnn "${SOURCES}" "" "${LIBRT}")
 
 file(COPY inputs DESTINATION .)
+file(COPY inputs_graph DESTINATION .)
 
 if(WIN32 AND (NOT DNNL_BUILD_FOR_CI))
     string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
