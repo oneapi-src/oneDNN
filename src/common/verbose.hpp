@@ -70,6 +70,9 @@ private:
     std::once_flag initialization_flag_;
 };
 
+std::string md2fmt_str(const dnnl_memory_desc_t *md);
+std::string md2dim_str(const dnnl_memory_desc_t *md);
+
 } // namespace impl
 } // namespace dnnl
 

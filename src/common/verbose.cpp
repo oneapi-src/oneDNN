@@ -142,9 +142,6 @@ void pd_info_t::init(
 
 #else
 
-/* init_info section */
-namespace {
-
 std::ostream &operator<<(std::ostream &ss, engine_kind_t eng_kind) {
     ss << dnnl_engine_kind2str(eng_kind);
     return ss;
@@ -210,31 +207,8 @@ std::ostream &operator<<(std::ostream &ss, const memory_extra_desc_t &extra) {
     return ss;
 }
 
-// TODO: remove duplication from dnnl_debug.cpp
-std::string md2fmt_str(const memory_desc_t *md) {
-    std::stringstream ss;
-    if (!md) {
-        ss << data_type::undef << "::" << format_kind::undef << "::";
-        return ss.str();
-    }
-
+std::string md2fmt_tag_str(const dnnl_memory_desc_t *md) {
     memory_desc_wrapper mdw(md);
-    ss << mdw.data_type() << ":";
-
-    bool padded_dims = false, padded_offsets = false;
-    for (int d = 0; d < mdw.ndims(); ++d) {
-        if (mdw.dims()[d] != mdw.padded_dims()[d]) padded_dims = true;
-        if (mdw.padded_offsets()[d] != 0) padded_offsets = true;
-    }
-    bool offset0 = mdw.offset0();
-    ss << (padded_dims ? "p" : "") << (padded_offsets ? "o" : "");
-    ss << (offset0 ? "0" : "") << ":" << mdw.format_kind() << ":";
-
-    // TODO: extend
-    if (!mdw.is_blocking_desc()) {
-        ss << mdw.extra();
-        return ss.str();
-    }
 
     const auto &blk = mdw.blocking_desc();
 
@@ -260,14 +234,49 @@ std::string md2fmt_str(const memory_desc_t *md) {
             [](dim_t a, dim_t b) { return b - a; });
 
     dim_chars[mdw.ndims()] = '\0';
-    ss << dim_chars;
+
+    std::string s(dim_chars);
 
     if (!plain) {
         for (int iblk = 0; iblk < blk.inner_nblks; ++iblk) {
             char c = ('a' + (char)blk.inner_idxs[iblk]);
-            ss << blk.inner_blks[iblk] << c;
+            s += (std::to_string(blk.inner_blks[iblk]) + c);
         }
     }
+    return s;
+}
+
+// Forms a format string for a given memory descriptor.
+//
+// The format is defined as: 'dt:[p|o|0]:fmt_kind:fmt:extra'.
+// Here:
+//  - dt       -- data type
+//  - p        -- indicates there is non-trivial padding
+//  - o        -- indicates there is non-trivial padding offset
+//  - 0        -- indicates there is non-trivial offset0
+//  - fmt_kind -- format kind (blocked, wino, etc...)
+//  - fmt      -- extended format string (format_kind specific)
+//  - extra    -- shows extra fields (underspecified)
+std::string md2fmt_str(const dnnl_memory_desc_t *md) {
+    std::stringstream ss;
+    if (!md) {
+        ss << data_type::undef << "::" << format_kind::undef << "::";
+        return ss.str();
+    }
+
+    memory_desc_wrapper mdw(md);
+    ss << mdw.data_type() << ":";
+
+    bool padded_dims = false, padded_offsets = false;
+    for (int d = 0; d < mdw.ndims(); ++d) {
+        if (mdw.dims()[d] != mdw.padded_dims()[d]) padded_dims = true;
+        if (mdw.padded_offsets()[d] != 0) padded_offsets = true;
+    }
+    bool offset0 = mdw.offset0();
+    ss << (padded_dims ? "p" : "") << (padded_offsets ? "o" : "");
+    ss << (offset0 ? "0" : "") << ":" << mdw.format_kind() << ":";
+
+    if (mdw.is_blocking_desc()) ss << md2fmt_tag_str(md);
 
     ss << mdw.extra();
 
@@ -280,9 +289,9 @@ std::ostream &operator<<(std::ostream &ss, const memory_desc_t *md) {
     return ss;
 }
 
-// Returns string with dimension style from memory_desc since there's an
-// operator<< for memory_desc.
-std::string md2dim_str(const memory_desc_t *md) {
+// Returns string with dimensions from a given memory descriptor.
+// The format is defined as: dim0xdim1x...xdimN, with RT values signed as `*`.
+std::string md2dim_str(const dnnl_memory_desc_t *md) {
     if (md == nullptr || md->ndims == 0) return "";
 
     memory_desc_wrapper mdw(md);
@@ -413,11 +422,11 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                 } break;
                 case primitive_kind::binary: {
                     const post_ops_t::entry_t::binary_t &eb = e.binary;
+                    const auto &md = eb.src1_desc;
                     int mask = 0;
-                    for (int d = 0; d < eb.src1_desc.ndims; ++d)
-                        mask += eb.src1_desc.dims[d] != 1 ? (1 << d) : 0;
-                    ss << delim << eb.alg << ":" << eb.src1_desc.data_type
-                       << ":" << mask;
+                    for (int d = 0; d < md.ndims; ++d)
+                        mask += md.dims[d] != 1 ? (1 << d) : 0;
+                    ss << delim << eb.alg << ":" << md.data_type << ":" << mask;
                 } break;
                 default: assert(!"unsupported post op primitive kind!"); break;
             }
@@ -434,6 +443,9 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
 
     return ss;
 }
+
+/* init_info section */
+namespace {
 
 template <typename pd_t>
 static std::string init_info_batch_normalization(

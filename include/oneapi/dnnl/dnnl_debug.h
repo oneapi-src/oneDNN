@@ -47,26 +47,6 @@ const char DNNL_API *dnnl_cpu_isa_hints2str(dnnl_cpu_isa_hints_t v);
 
 const char DNNL_API *dnnl_runtime2str(unsigned v);
 
-/// Forms a format string for a given memory descriptor.
-///
-/// The format is defined as: 'dt:[p|o|0]:fmt_kind:fmt:extra'.
-/// Here:
-///  - dt       -- data type
-///  - p        -- indicates there is non-trivial padding
-///  - o        -- indicates there is non-trivial padding offset
-///  - 0        -- indicates there is non-trivial offset0
-///  - fmt_kind -- format kind (blocked, wino, etc...)
-///  - fmt      -- extended format string (format_kind specific)
-///  - extra    -- shows extra fields (underspecified)
-int DNNL_API dnnl_md2fmt_str(char *fmt_str, size_t fmt_str_len,
-        const dnnl_memory_desc_t *md);
-
-/// Forms a dimension string for a given memory descriptor.
-///
-/// The format is defined as: 'dim0xdim1x...xdimN
-int DNNL_API dnnl_md2dim_str(char *dim_str, size_t dim_str_len,
-        const dnnl_memory_desc_t *md);
-
 #ifdef __cplusplus
 }
 #endif
