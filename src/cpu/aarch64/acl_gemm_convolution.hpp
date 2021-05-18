@@ -117,8 +117,11 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
 
             // Number of threads in Compute Library is set by OMP_NUM_THREADS
             // dnnl_get_max_threads() == OMP_NUM_THREADS
-            arm_compute::Scheduler::get().set_num_threads(
-                    dnnl_get_max_threads());
+
+            arm_compute::IScheduler::BindFunc linear
+                    = [](int i, int max_cores) { return i % max_cores; };
+            arm_compute::Scheduler::get().set_num_threads_with_affinity(
+                    dnnl_get_max_threads(), linear);
 
             // TODO: remove dependence on scratchpad memory
             // Using user provided memory for the biases currently segfaults
