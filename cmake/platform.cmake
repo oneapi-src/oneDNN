@@ -181,7 +181,6 @@ elseif(UNIX OR MINGW)
             append(CMAKE_CCXX_SANITIZER_FLAGS "-fsanitize=undefined")
             append(CMAKE_CCXX_SANITIZER_FLAGS
                 "-fno-sanitize=function,vptr")  # work around linking problems
-            append(CMAKE_CCXX_SANITIZER_FLAGS "-fno-omit-frame-pointer")
             set(DNNL_ENABLED_CLANG_SANITIZER "${DNNL_USE_CLANG_SANITIZER}")
         elseif(DNNL_USE_CLANG_SANITIZER STREQUAL "Address")
             append(CMAKE_CCXX_SANITIZER_FLAGS "-fsanitize=address")
@@ -201,6 +200,10 @@ elseif(UNIX OR MINGW)
                 "Using Clang ${DNNL_ENABLED_CLANG_SANITIZER} "
                 "sanitizer (experimental!)")
             append(CMAKE_CCXX_SANITIZER_FLAGS "-g -fno-omit-frame-pointer")
+            # Blacklist to ignore false-positive cases. Each case may be
+            # assigned to a specific sanitizer. See online doc for help.
+            append(CMAKE_CCXX_SANITIZER_FLAGS
+                   "-fsanitize-blacklist=${PROJECT_SOURCE_DIR}/.clang-ignorelist")
         endif()
 
         if (DNNL_USE_CLANG_TIDY MATCHES "(CHECK|FIX)" AND ${CMAKE_VERSION} VERSION_LESS "3.6.0")
