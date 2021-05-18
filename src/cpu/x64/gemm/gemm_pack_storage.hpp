@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,6 +44,10 @@ struct gemm_pack_storage_t {
 
     size_t size() const { return header->size; }
     void *get() const { return static_cast<void *>(base); }
+    void set(void *data) {
+        base = static_cast<char *>(data);
+        header = static_cast<header_t *>(data);
+    }
 
     bool single_nocopy() const {
         return (threading().copy == copy_type::no_copy);
@@ -343,8 +347,7 @@ protected:
     bool col_major() const { return (which() == matrix_id::a); }
 
     void reset(void *data) {
-        base = static_cast<char *>(data);
-        header = static_cast<header_t *>(data);
+        set(data);
 
         matrix_header = reinterpret_cast<matrix_header_t *>(
                 base + header->off_matrix);
@@ -359,7 +362,7 @@ struct gemm_pack_storage_shell_t : public gemm_pack_storage_t {
             bool has_col_sums = false) {
         void *ptr = malloc(shell_size(max_nthr), 64);
         if (ptr) {
-            reset(ptr);
+            set(ptr);
             setup(max_nthr, has_row_sums, has_col_sums);
         }
     }

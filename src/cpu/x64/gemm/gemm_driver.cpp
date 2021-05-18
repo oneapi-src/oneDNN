@@ -1331,9 +1331,12 @@ decompose_matrices(const gemm_slice_t &slice,
     dim_t stride_bn = (arg->transb != no_trans) ? 1 : arg->ldb;
     dim_t stride_bk = (arg->transb == no_trans) ? 1 : arg->ldb;
 
-    auto a = arg->a + slice.off_m * stride_am + slice.off_k * stride_ak;
-    auto b = arg->b + slice.off_n * stride_bn + slice.off_k * stride_bk;
-    auto c = arg->c + slice.off_m + slice.off_n * arg->ldc;
+    auto a = arg->a;
+    auto b = arg->b;
+    auto c = arg->c;
+    if (a) a += slice.off_m * stride_am + slice.off_k * stride_ak;
+    if (b) b += slice.off_n * stride_bn + slice.off_k * stride_bk;
+    if (c) c += slice.off_m + slice.off_n * arg->ldc;
 
     dim_t co_stride;
     switch (arg->offsetc) {
@@ -1341,7 +1344,8 @@ decompose_matrices(const gemm_slice_t &slice,
         case offset_type::column: co_stride = slice.off_m; break;
         default: co_stride = 0; break;
     }
-    auto co = arg->co + co_stride;
+    auto co = arg->co;
+    if (co) co += co_stride;
 
     return std::make_tuple(a, b, c, co);
 }
