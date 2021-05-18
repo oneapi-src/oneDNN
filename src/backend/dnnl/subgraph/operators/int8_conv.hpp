@@ -208,10 +208,13 @@ public:
                 : false;
 
         if (with_sum) {
-            // post_src should always be the second last one input of conv op
-            auto post_src_val
-                    = conv_op->get_input_value(conv_op->num_inputs() - 2);
-            size_t post_src_id = post_src_val->get_logical_tensor().id;
+            // post_src should always be the last one input of conv op
+            auto val = conv_op->get_input_value(conv_op->num_inputs() - 1);
+            if (val->has_producer()
+                    && val->get_producer().get_kind() == op_kind::permute) {
+                val = val->get_producer().get_input_value(0);
+            }
+            size_t post_src_id = val->get_logical_tensor().id;
 
             // find the given post src index
             size_t idx = 0;

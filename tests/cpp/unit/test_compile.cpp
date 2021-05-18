@@ -7505,3 +7505,201 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
                 /*atol*/ 1.f));
     }
 }
+
+TEST(int8_subgraph_mode, int8_conv2d_sum_relu_get_inplace_pair) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    if (engine.kind() == impl::engine_kind::gpu) return;
+
+    std::vector<int64_t> groups = {1, 4};
+    std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
+
+    for_(const auto &g : groups)
+    for (const auto &wei_qtype : weight_qtypes) {
+        int64_t in_channel = 8, out_channel = 8;
+        int64_t kernel_size = 3;
+        std::vector<int64_t> src_shape {1, in_channel, 112, 112};
+        std::vector<int64_t> weight_shape {
+                out_channel, in_channel / g, kernel_size, kernel_size};
+        std::vector<int64_t> dst_shape {1, out_channel, 110, 110};
+
+        float scale_src = 1 / 255.f; // map to 0~255
+        float scale_other = 1 / 127.f;
+        float scale_out = 1;
+        int64_t zp_src = 0;
+        int64_t zp_other = 0;
+        int64_t zp_out = 78;
+
+        size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
+
+        std::vector<float> scale_wei(scale_size, 1 / 127.f);
+        std::vector<int64_t> zp_wei(scale_size, 0);
+
+        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        SET_Q_DQ_DATA_ATTR(dqdata_node)
+
+        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+
+        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        SET_CONV_ATTR(conv_node, 2)
+
+        impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
+
+        impl::op_t qout_node(6, impl::op_kind::Quantize, "qout_node");
+        SET_Q_DQ_OUT_ATTR(qout_node)
+
+        impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
+        dqother_node.set_attr<std::string>("qtype", "per_tensor");
+        dqother_node.set_attr<std::string>("in_type", "int8");
+        dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
+        dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
+        dqother_node.set_attr<int64_t>("axis", 0);
+
+        impl::op_t add_node(9, impl::op_kind::Add, "add_node");
+
+        impl::op_t dqdata_node2(10, impl::op_kind::Dequantize, "dqdata_node");
+        SET_Q_DQ_DATA_ATTR(dqdata_node2)
+
+        impl::op_t dqweight_node2(
+                11, impl::op_kind::Dequantize, "dqweight_node");
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node2)
+
+        impl::op_t conv_node2(12, impl::op_kind::Convolution, "conv_node");
+        SET_CONV_ATTR(conv_node2, 2)
+
+        impl::op_t relu_node2(13, impl::op_kind::ReLU, "relu_node");
+
+        impl::op_t qout_node2(14, impl::op_kind::Quantize, "qout_node");
+        SET_Q_DQ_OUT_ATTR(qout_node2)
+
+        // prepare logical tensor
+        impl::logical_tensor_t src_u8
+                = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                2, src_shape, impl::data_type::f32);
+        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                4, weight_shape, impl::data_type::s8);
+        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                5, weight_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_f32 = utils::logical_tensor_init(
+                7, dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_relu_f32 = utils::logical_tensor_init(
+                8, dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_s8
+                = utils::logical_tensor_init(9, dst_shape, impl::data_type::s8);
+        impl::logical_tensor_t other_f32_dq = utils::logical_tensor_init(
+                12, dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_add_f32 = utils::logical_tensor_init(
+                13, dst_shape, impl::data_type::f32);
+
+        impl::logical_tensor_t src_u8_2 = utils::logical_tensor_init(
+                14, src_shape, impl::data_type::u8);
+        impl::logical_tensor_t src_f32_dq_2 = utils::logical_tensor_init(
+                15, src_shape, impl::data_type::f32);
+        impl::logical_tensor_t weight_s8_2 = utils::logical_tensor_init(
+                16, weight_shape, impl::data_type::s8);
+        impl::logical_tensor_t weight_f32_dq_2 = utils::logical_tensor_init(
+                17, weight_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_f32_2 = utils::logical_tensor_init(
+                18, dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_s8_2 = utils::logical_tensor_init(
+                19, dst_shape, impl::data_type::s8);
+
+        dqdata_node.add_input(src_u8);
+        dqdata_node.add_output(src_f32_dq);
+
+        dqweight_node.add_input(weight_s8);
+        dqweight_node.add_output(weight_f32_dq);
+
+        conv_node.add_input(src_f32_dq);
+        conv_node.add_input(weight_f32_dq);
+        conv_node.add_output(dst_f32);
+
+        dqother_node.add_input(dst_s8_2);
+        dqother_node.add_output(other_f32_dq);
+
+        add_node.add_input(dst_f32);
+        add_node.add_input(other_f32_dq);
+        add_node.add_output(dst_add_f32);
+
+        relu_node.add_input(dst_add_f32);
+        relu_node.add_output(dst_relu_f32);
+
+        qout_node.add_input(dst_relu_f32);
+        qout_node.add_output(dst_s8);
+
+        dqdata_node2.add_input(src_u8_2);
+        dqdata_node2.add_output(src_f32_dq_2);
+
+        dqweight_node2.add_input(weight_s8_2);
+        dqweight_node2.add_output(weight_f32_dq_2);
+
+        conv_node2.add_input(src_f32_dq_2);
+        conv_node2.add_input(weight_f32_dq_2);
+        conv_node2.add_output(dst_f32_2);
+
+        qout_node2.add_input(dst_f32_2);
+        qout_node2.add_output(dst_s8_2);
+
+        impl::graph_t g;
+        g.add_op(&dqdata_node);
+        g.add_op(&dqweight_node);
+        g.add_op(&conv_node);
+        g.add_op(&dqother_node);
+        g.add_op(&add_node);
+        g.add_op(&relu_node);
+        g.add_op(&qout_node);
+        g.add_op(&dqdata_node2);
+        g.add_op(&dqweight_node2);
+        g.add_op(&conv_node2);
+        g.add_op(&qout_node2);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass1 = get_pass("int8_conv_fusion");
+        impl::pass::pass_base_ptr apass2
+                = get_pass("int8_conv_add_relu_fusion");
+
+        apass1->run(g);
+        apass2->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 2);
+        auto part1 = g.get_partitions()[0]; // int8_conv
+        auto part2 = g.get_partitions()[1]; // int8_conv_sum_elu
+
+        // compile
+        impl::partition_t p1, p2;
+        p1.init(part1);
+        p2.init(part2);
+
+        impl::compiled_partition_t cp1(p1);
+        impl::compiled_partition_t cp2(p2);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins1;
+        lt_ins1 = {&src_u8_2, &weight_s8_2};
+
+        dst_s8_2.layout_type = impl::layout_type::any;
+        std::vector<const impl::logical_tensor_t *> lt_outs1 {&dst_s8_2};
+
+        p1.compile(&cp1, lt_ins1, lt_outs1, &engine);
+
+        cp1.query_logical_tensor(dst_s8_2.id, &dst_s8_2);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins;
+        lt_ins = {&src_u8, &weight_s8, &dst_s8_2};
+
+        dst_s8.layout_type = impl::layout_type::any;
+        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+
+        p2.compile(&cp2, lt_ins, lt_outs, &engine);
+
+        std::vector<impl::inplace_pair_t> inplace_pairs
+                = cp2.get_inplace_pairs();
+
+        ASSERT_EQ(inplace_pairs.size(), 1);
+        ASSERT_EQ(inplace_pairs[0].input, dst_s8_2.id);
+        ASSERT_EQ(inplace_pairs[0].output, dst_s8.id);
+    }
+}
