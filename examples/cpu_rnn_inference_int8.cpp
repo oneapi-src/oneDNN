@@ -142,9 +142,24 @@ void compute_attention(float *context_vectors, dim_t src_seq_length_max,
     for (dim_t i = 0; i < batch; i++)
         exp_sums[i] = 0.0f;
 
+    // For each batch j, in the expression: exp(A_i) / \sum_i exp(A_i)
+    // we calculate max_idx t so that A_i <= A_t and calculate the expression as
+    //         exp(A_i - A_t) / \sum_i exp(A_i - A_t)
+    // which mitigates the overflow errors
+    std::vector<int> max_idx(batch, 0);
     PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(1)
     for (dim_t j = 0; j < batch; j++) {
+        for (dim_t i = 1; i < src_seq_length_max; i++) {
+            if (alignments[i * batch + j] > alignments[(i - 1) * batch + j])
+                max_idx[j] = i;
+        }
+    }
+
+    PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(1)
+    for (dim_t j = 0; j < batch; j++) {
+        auto max_idx_val = alignments[max_idx[j] * batch + j];
         for (dim_t i = 0; i < src_seq_length_max; i++) {
+            alignments[i * batch + j] -= max_idx_val;
             alignments[i * batch + j] = expf(alignments[i * batch + j]);
             exp_sums[j] += alignments[i * batch + j];
         }
