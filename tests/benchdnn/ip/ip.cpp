@@ -322,7 +322,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_fwd(test_engine, prb, src_fp, wei_fp, bia_fp,
                     binary_po_fp, dst_fp);
             compare::compare_t cmp;
@@ -339,7 +339,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd_d(prb, src_fp, wei_fp, dst_fp);
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[SRC].eps);
@@ -356,7 +356,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd_w(prb, src_fp, wei_fp, bia_fp, dst_fp);
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[WEI].eps);

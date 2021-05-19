@@ -61,8 +61,13 @@ function(register_benchdnn_test engine driver test_file)
         message(ERROR "Incorrect use of function")
     endif()
 
+    set(test_mode "C")
+    if(DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI_NO_CORR)
+        set(test_mode "R")
+    endif()
+
     string(REPLACE "test_" "test_benchdnn_" target_name ${test_file})
-    set(cmd "-v1 --engine=${engine} --${driver} --batch=${test_file}")
+    set(cmd "--mode=${test_mode} -v1 --engine=${engine} --${driver} --batch=${test_file}")
     set(benchdnn_target ${target_name}_${engine})
 
     if(DNNL_BUILD_FOR_CI)
@@ -121,7 +126,7 @@ foreach(driver ${all_drivers})
     file(GLOB test_files_cpu RELATIVE ${driver_dir} inputs/${driver}/test_*)
 
     # Register ci input files for ci only
-    if(DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI)
+    if((DNNL_TEST_SET LESS DNNL_TEST_SET_CI) OR (DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI))
         # gpu_ci files may happen if cpu coverage can not be used on gpu
         # Filter out gpu_ci inputs from ci
         foreach(test_file ${test_files_gpu_ci})

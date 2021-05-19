@@ -62,13 +62,15 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             = get_runtime_dims(prb->dst_dims(), prb->dst_runtime_dim_mask());
 
     SAFE(init_md(&src_d, prb->ndims, src_rt_dims.data(), prb->cfg[SRC].dt,
-                 prb->stag),
+                 prb->stag, prb->strides[STRIDES_SRC]),
             CRIT);
+
     SAFE(init_md(&wei_d, prb->ndims, weights_rt_dims.data(), prb->cfg[WEI].dt,
-                 prb->wtag),
+                 prb->wtag, prb->strides[STRIDES_WEI]),
             CRIT);
+
     SAFE(init_md(&dst_d, prb->ndims, dst_rt_dims.data(), prb->cfg[DST].dt,
-                 prb->dtag),
+                 prb->dtag, prb->strides[STRIDES_DST]),
             CRIT);
 
     if (prb->bia_dt != dnnl_data_type_undef) {
@@ -295,15 +297,15 @@ int doit(const prb_t *prb, res_t *res) {
     if (dnnl_memory_desc_equal(&src_md, &def_md)) {
         assert(prb->stag != tag::any);
         SAFE(init_md(&src_md, prb->ndims, src_dims.data(), prb->cfg[SRC].dt,
-                     prb->stag),
+                     prb->stag, prb->strides[STRIDES_SRC]),
                 WARN);
     }
 
     const auto &weights_dims = prb->weights_dims();
     if (dnnl_memory_desc_equal(&wei_md, &def_md)) {
-        assert(prb->wtag != "any");
+        assert(prb->wtag != tag::any);
         SAFE(init_md(&wei_md, prb->ndims, weights_dims.data(), prb->cfg[WEI].dt,
-                     prb->wtag),
+                     prb->wtag, prb->strides[STRIDES_WEI]),
                 WARN);
     }
 
@@ -311,7 +313,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (dnnl_memory_desc_equal(&dst_md, &def_md)) {
         assert(prb->dtag != tag::any);
         SAFE(init_md(&dst_md, prb->ndims, dst_dims.data(), prb->cfg[DST].dt,
-                     prb->dtag),
+                     prb->dtag, prb->strides[STRIDES_DST]),
                 WARN);
     }
     if (prb->bia_dt != dnnl_data_type_undef) {
@@ -381,7 +383,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(prim, args), WARN);
 
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         compute_ref(
                 test_engine, prb, src_fp, wei_fp, bia_fp, binary_po_fp, dst_fp);
         compare::compare_t cmp;

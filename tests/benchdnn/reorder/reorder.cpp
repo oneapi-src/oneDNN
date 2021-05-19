@@ -395,7 +395,7 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(prim, args), WARN);
 
     /* Step 6: check correctness */
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         if (prb->is_reorder_with_compensation()) {
             /* "bootstrap" algorithm: compare to another oneDNN reorder. use
              * this when benchdnn does not know about all details of the data
@@ -420,7 +420,8 @@ int doit(const prb_t *prb, res_t *res) {
             SAFE(ref_reorder(prb, dst_dt_out_fmt_ref, src_dt_in_fmt_ref), WARN);
 
             /* Step 5c: compare benchdnn and oneDNN output */
-            compare::compare_t cmp;
+            using cmp_t = compare::compare_t;
+            cmp_t cmp;
             const bool has_s32 = src_md.data_type == dnnl_s32
                     || dst_md.data_type == dnnl_s32;
             const bool has_s8 = src_md.data_type == dnnl_s8
@@ -435,16 +436,16 @@ int doit(const prb_t *prb, res_t *res) {
             // A hack to avoid false-positive result from f32->s32 conversion
             // in case of sum post-op on GPU happening when two max_dt values
             // are summed together.
-            const auto reorder_add_check
-                    = [&](int64_t i, float got, float diff) {
-                          if (has_sum && dst_dt == dnnl_s32
-                                  && got == max_dt(dnnl_s32) && is_gpu()) {
-                              // 128.f = float(INT_MAX)
-                              //                - BENCHDNN_S32_TO_F32_SAT_CONST;
-                              return diff == 128.f;
-                          }
-                          return false;
-                      };
+            using cmp_args_t = compare::compare_t::driver_check_func_args_t;
+            const auto reorder_add_check = [&](const cmp_args_t &args) {
+                if (has_sum && args.dt == dnnl_s32
+                        && args.got == max_dt(args.dt) && is_gpu()) {
+                    // 128.f = float(INT_MAX)
+                    //                - BENCHDNN_S32_TO_F32_SAT_CONST;
+                    return args.diff == 128.f;
+                }
+                return false;
+            };
             cmp.set_driver_check_function(reorder_add_check);
 
             // TODO: enable additional checks for border values validity.

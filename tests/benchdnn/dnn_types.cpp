@@ -58,7 +58,7 @@ dims_t off2dims_idx(const dims_t &dims, int64_t off) {
 }
 
 std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
-    s << dims[0];
+    if (!dims.empty()) s << dims[0];
     for (size_t d = 1; d < dims.size(); ++d)
         s << "x" << dims[d];
     return s;
@@ -700,6 +700,15 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s, bench_mode_t mode) {
+    if (is_bench_mode(RUN) && !(is_bench_mode(CORR) || is_bench_mode(PERF)))
+        s << "R";
+    if (is_bench_mode(CORR)) s << "C";
+    if (is_bench_mode(PERF)) s << "P";
+    if (is_bench_mode(LIST)) s << "L";
+    return s;
+}
+
 std::ostream &dump_global_params(std::ostream &s) {
     s << "--" << driver_name << " ";
     if (canonical) s << "--canonical=" << bool2str(canonical) << " ";
@@ -717,6 +726,7 @@ std::ostream &dump_global_params(std::ostream &s) {
         s << "--allow-enum-tags-only=" << bool2str(allow_enum_tags_only) << " ";
     if (canonical || hints.get() != isa_hints_t::none)
         s << "--cpu-isa-hints=" << isa_hints_t::hints2str(hints) << " ";
+    if (canonical || bench_mode != CORR) s << "--mode=" << bench_mode << " ";
 
     return s;
 }

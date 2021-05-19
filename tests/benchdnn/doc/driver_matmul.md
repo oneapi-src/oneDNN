@@ -15,6 +15,17 @@ where *matmul-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--dtag={ab [default], any, ...}` -- memory format of the destination memory.
             Refer to [tags](knobs_tag.md) for details.
+ - `--strides=S0xS1x..xS_mxS_k:W_0xW_1x..xW_kxW_n:D_0xD_1x..xD_mxD_n` -- direct
+            stride specification for `src`, `weights`, and `dst` tensors that
+            can be specified as an alternative to memory formats. The syntax
+            matches with problem descriptor where `x` is the delimiter for
+            dimensions within a tensor and `:` is the delimiter for tensors in
+            the order `src`, `weights`, and `dst` respectively. The stride for
+            either of the tensors can be skipped and moreover if a separate tag
+            is not provided for the skipped tensor, trivial strides based on the
+            default format of the skipped tensor will be used. As long as
+            `--strides` and `--*tag` options refer to different tensors, they
+            can be specified together.
  - `--runtime_mb=BOOL` -- specify whether `mb` dimension is a run-time
             parameter (will be deprecated soon. See `--runtime_dims_masks`).
  - `--runtime_m=BOOL` -- specify whether `m` dimension is a run-time parameter
@@ -107,6 +118,18 @@ full dimension is along the `n`-axis:
     ./benchdnn --matmul \
                --bia_dt=f32 --bia_mask=4 \
                2x10x30:2x30x20 # or mb2m10n20k30 with deprecated matmul desc
+```
+
+Run single precision batched matrix multiplication with strides so that `dst` tensor
+has non-dense memory layout:
+``` sh
+    ./benchdnn --matmul \
+               --strides=8x4x1:24x6x1:21x7x1 \
+               3x2x4:3x4x6:3x2x6 # or mb3m2n6k4 with deprecated matmul desc
+
+    ./benchdnn --matmul \
+               --stag=bax --wtag=abx --strides=::8x4x1 \
+               2x2x3:2x3x2:2x2x2 # --dtag cannot be specified here
 ```
 
 More examples with different driver options can be found at

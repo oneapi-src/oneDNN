@@ -164,7 +164,7 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(cp, input_ts, output_ts), WARN);
 
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         const auto &dnnl_test_engine = ::get_test_engine();
         ::matmul::compute_ref(dnnl_test_engine, prb, src_fp, wei_fp, bia_fp,
                 binary_po_fp, dst_fp);

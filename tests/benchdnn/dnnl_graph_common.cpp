@@ -212,7 +212,7 @@ int measure_perf(benchdnn_timer_t &t, perf_function_t &perf_func,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs) {
     int ret = OK;
-    if (bench_mode & PERF) {
+    if (is_bench_mode(PERF)) {
         dnnl::graph::stream stream(::benchdnnext::get_test_engine());
         ret = measure_perf_individual(t, stream, perf_func, inputs, outputs);
     }

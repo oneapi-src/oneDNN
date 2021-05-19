@@ -8,7 +8,7 @@
                 mul:s8:per_oc+sum:0.25+relu:0.5
 
 # 2D
---stag=ab,ba --wtag=ab,ba
+--stag=ab,ba --wtag=ab,ba --dtag=ab
 --bia_mask=1,2,3
 ## Defined
 --runtime_m=0 --runtime_n=0 --runtime_k=0
@@ -22,7 +22,7 @@ m16n7k12
 m16n7k13
 
 # 3D (batched)
---stag=abc,acb --wtag=abc,acb
+--stag=abc,acb --wtag=abc,acb --dtag=abc
 --bia_mask=4,6
 ## Defined
 --runtime_mb=0 --runtime_m=0 --runtime_n=0 --runtime_k=0

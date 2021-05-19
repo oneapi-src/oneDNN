@@ -32,40 +32,50 @@ tests/benchdnn/inputs/<primitive_name>/test_<test-name>.
 
 ## Modes
 
-**benchdnn** supports several execution flows ("modes"):
-* Correctness mode: In this flow the driver performs a correctness validation of
-  the library functionality by calling the library API, filling the input data
-  according to a certain strategy solely defined by the driver, executing the
-  library call and a reference path available in the driver. Then it compares
-  the output of both, per element or based on norm, depending on the problem
-  setup. In case of results mismatch, the driver will usually report a point
-  order, its position in tensor, a reference float value, a reference value
-  casted to input data type, a library value, absolute and relative errors. If
-  norm check was performed, it reports norm values of reference and library
-  results. In addition to result validation, the driver checks that padded area,
-  if present in destination memories, remained filling with zeros. In case of
-  results mismatch, the driver will report a point order, argument affected,
-  expected value (which is always zero) and value got.
-* Performance mode: In this flow the driver collects and reports the performance
-  statistics of given problems. To collect performance numbers, the driver uses
-  a time criterion - runs a problem several rounds accumulating the execution
-  time of each round until the sum exceeds the limit border. Once the limit is
-  reached, reports numbers and processes the next problem. The limit is
-  controlled by a `--max-ms-per-prb=N` option. Instead of time, the number of
-  rounds can be set as a criterion, which is controlled by a
-  `--fix-times-per-prb=N` option. Refer to
-  [performance options](knobs_common.md) for details.
-* Correctness & Performance mode: This is a combination of two modes running
-  consecutively, first correctness, then performance.
-* Listing mode: In this flow the driver constructs the problem, prints its
-  reproducer line, and then moves to the next problem. It is also known as a
-  dry run. This mode is useful to extract the full list of problems from an
-  input file.
+**benchdnn** supports several execution flows ("modes"). Driver takes the
+following steps to execute any flow:
+1. Parse user input.
+2. Iterate over multiple selected options for each problem descriptor and create
+   a driver problem object for each setup. Each setup continues doing next
+   steps.
+3. Call backend API to create backend objects to execute.
+4. Create memory objects for backend and reference paths and fill them with
+   reasonable data.
+5. Execute backend path.
+6. Correctness validation:
+   * Execute reference path.
+   * Setup compare object.
+   * Compare outputs of backend and reference.
+   * Check that padded area, if any, is properly zeroed.
+   * Report a test case status and repro line.
+7. Performance validation:
+   * If correctness was requested, proceed only if it passed.
+   * Execute backend path in a loop until one of selected criterion to stop is
+     triggered. Refer to [performance options](knobs_common.md) for details.
+   * Print a performance report output based on selected options and collected
+     statistics during the previous step.
+8. Repeat steps 2-7 until all setups are validated.
+9. Report the summary and return the status.
+
+The following modes are supported:
+* Correctness mode: This is the default driver flow. It executes steps above
+  skipping step 7.
+* Performance mode: This flow executes steps above skipping step 6.
+* Correctness & performance mode: This flow executes all step above.
+* Run mode: This flow executes steps 1-5 above. It allows to save time from
+  running correctness when it is not needed. This mode is compatible with
+  correctness or performance mode, though it will no longer be a run mode, but
+  correctness or performance one.
+* Listing mode: This flow executes steps 1-2 above. It allows to validate input
+  files by parsing syntax and check if all problem repro lines are expected.
+  This mode is standalone and is not compatible with other modes.
 
 ## Problem Statuses
 
 Each problem in **benchdnn** has its status indicating the result of running a
 problem in the correctness mode. Following statuses are supported:
+* `EXECUTED`. It means that a problem was run but did not utilize correctness
+  validation. This reflects that `Run` mode was used.
 * `PASSED`. It means that a problem passed the validation, and a library output
   coincides with a reference path from the driver.
 * `SKIPPED`. It means that a problem was not run and a brief reason is reported.

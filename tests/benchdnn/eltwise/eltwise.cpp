@@ -366,18 +366,20 @@ int doit(const prb_t *prb, res_t *res) {
     // is invoked due to removed from stack.
     const float trh = get_eltwise_threshold(prb->dt, prb->alg, is_fwd);
     compare::compare_t cmp;
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         cmp.set_threshold(trh);
         cmp.set_zero_trust_percent(get_eltwise_zero_trust_percent(prb));
 
-        const auto eltwise_add_check = [&](int64_t i, float got, float diff) {
-            // Some algorithms require absolute value comparison for inputs
-            // where catastrophic cancellation may happen.
-            const float src = arg_fp.get_elem(i);
-            if (check_abs_err(prb, src, trh)) return diff <= trh;
-            if (prb->attr.post_ops.binary_index() != -1) return diff <= trh;
-            return false;
-        };
+        const auto eltwise_add_check =
+                [&](const compare::compare_t::driver_check_func_args_t &args) {
+                    // Some algorithms require absolute value comparison for inputs
+                    // where catastrophic cancellation may happen.
+                    const float src = arg_fp.get_elem(args.idx);
+                    if (check_abs_err(prb, src, trh)) return args.diff <= trh;
+                    if (prb->attr.post_ops.binary_index() != -1)
+                        return args.diff <= trh;
+                    return false;
+                };
         cmp.set_driver_check_function(eltwise_add_check);
     }
 
@@ -389,7 +391,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp);
             SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
@@ -413,7 +415,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         if (prb->use_dst()) {
-            if (bench_mode & CORR)
+            if (is_bench_mode(CORR))
                 compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp);
             SAFE(dst_dt.reorder(dst_fp), WARN);
             // make dst_fp of same values as for bf16, otherwise there are high
@@ -426,7 +428,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd(prb, arg_fp, d_dst_fp, d_src_fp);
             SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
         }

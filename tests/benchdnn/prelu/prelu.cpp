@@ -195,7 +195,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DST, dst_dt);
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_fwd(prb, src_fp, weights_fp, dst_fp);
             compare::compare_t cmp;
             cmp.set_threshold(2 * epsilon_dt(prb->sdt[0]));
@@ -222,7 +222,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_WEIGHTS, d_weights_dt);
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd(
                     prb, src_fp, weights_fp, d_src_fp, d_dst_fp, d_weights_fp);
 

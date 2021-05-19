@@ -165,6 +165,39 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+/* The following issue takes place for integer data types:
+ * Sometimes there are differences in the order of operations between
+ * the version of the algorithm implemented in the kernel and the reference
+ * algorithm. Therefore, this function is especially important if the
+ * destination data type is an integer, because when the floating-point
+ * type is used to compute the algorithm and if the returned value is very
+ * close to x.5, there may be a difference between the output value of
+ * reference and the kernel, as one version may round up and the other down.
+ * Therefore, we can assume that two values are equal to each other when:
+ * - there is a difference in the order of operations,
+ * - and the output value of the algorithm is very close to x.5,
+ * - and the difference between the output value of reference and expected is 1,
+ * - and the output type is an integer type */
+void add_additional_check_to_compare(compare::compare_t &cmp) {
+    using cmp_args_t = compare::compare_t::driver_check_func_args_t;
+    cmp.set_driver_check_function([&](const cmp_args_t &args) -> bool {
+        if (!is_integral_dt(args.dt)) return false;
+        // Check that original value is close to x.5f
+        static constexpr float small_eps = 9e-6;
+        if (fabsf((floorf(args.exp_f32) + 0.5f) - args.exp_f32) >= small_eps)
+            return false;
+        // If it was, check that exp and got values reside on opposite sides of it.
+        if (args.exp == floorf(args.exp_f32))
+            return args.got == ceilf(args.exp_f32);
+        else if (args.exp == ceilf(args.exp_f32))
+            return args.got == floorf(args.exp_f32);
+        else {
+            assert(!"unexpected scenario");
+            return false;
+        }
+    });
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -208,13 +241,27 @@ int doit(const prb_t *prb, res_t *res) {
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
-    SAFE(binary::setup_binary_po(
-                 const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+    // When post-ops occur, the relative difference can change
+    // between the output from reference and the kernel. The compare
+    // function usually uses to compare a relative difference.
+    // Therefore, we should not lead to a situation where the
+    // relative difference is very small after executing a
+    // post-ops operation. Therefore, all values for binary post_ops
+    // are positive when the linear algorithm is present. This is
+    // important because there may be small differences in the result
+    // between the expected value and the gotten value with this algorithm.
+    const bool only_positive_values = prb->alg == linear;
+    SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
+                 binary_po_fp, only_positive_values),
             WARN);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     args_t args;
+
+    compare::compare_t cmp;
+    const bool operations_order_can_be_different = prb->alg == linear;
+    if (operations_order_can_be_different) add_additional_check_to_compare(cmp);
 
     if (prb->dir & FLAG_FWD) {
         SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
@@ -226,7 +273,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_fwd(prb, src_fp, dst_fp, binary_po_fp);
             float trh = prb->alg == nearest ? 0.f : 3 * epsilon_dt(prb->ddt);
 
@@ -236,7 +283,6 @@ int doit(const prb_t *prb, res_t *res) {
                 trh = prb->ddt == dnnl_f16 ? 4e-2 : 2e-5;
             }
 
-            compare::compare_t cmp;
             cmp.set_threshold(trh);
             // No sense to test zero trust for upsampling since it produces
             // valid zeros.
@@ -252,14 +298,13 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd(prb, src_fp, dst_fp);
             float trh = prb->alg == nearest ? 0.f : 6 * epsilon_dt(prb->sdt);
             // cuDNN precision is different from ref one due to different
             // computation algorithm used for resampling.
             if (is_nvidia_gpu()) trh = 2e-5;
 
-            compare::compare_t cmp;
             cmp.set_threshold(trh);
             // No sense to test zero trust for upsampling since it produces
             // valid zeros.

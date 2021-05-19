@@ -148,7 +148,7 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
 
     execute_map_args(args);
 
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         for (int i = 0; i < args.size(); ++i) {
             SAFE(check_zero_padding(args.dnn_mem(i), args.arg(i)), WARN);
         }
@@ -245,7 +245,7 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
 int measure_perf(
         benchdnn_timer_t &t, perf_function_t &perf_func, args_t &args) {
     int ret = OK;
-    if (bench_mode & PERF) {
+    if (is_bench_mode(PERF)) {
         stream_t stream(get_test_engine());
         std::vector<dnnl_exec_arg_t> dnnl_args;
         execute_unmap_args(args, dnnl_args);
@@ -409,7 +409,17 @@ bool is_nvidia_eltwise_ok(
 }
 
 int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
-        dnnl_data_type_t data_type, const std::string &tag_) {
+        dnnl_data_type_t data_type, const std::string &tag_,
+        const dims_t &strides_) {
+    const bool use_strides = !strides_.empty();
+    // Ignore tag_ in case strides_ are explicitly provided
+    if (use_strides) {
+        std::vector<dnnl_dim_t> strides(strides_);
+        DNN_SAFE(dnnl_memory_desc_init_by_strides(
+                         md, ndims, dims, data_type, strides.data()),
+                CRIT);
+        return OK;
+    }
     auto tag = normalize_tag(tag_, ndims);
     if (tag == tag::undef || tag == tag::any || ndims == 0) {
         dnnl_format_tag_t enum_tag = (tag == tag::undef || ndims == 0)

@@ -277,7 +277,7 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(prim, args), WARN);
 
     // want this pass on backward to get ws_fp filled properly
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp, ws_fp);
         if (prb->dir & FLAG_FWD) {
             compare::compare_t cmp;
@@ -286,14 +286,14 @@ int doit(const prb_t *prb, res_t *res) {
             cmp.set_zero_trust_percent(100.f); // TODO: consider enabling
 
             const auto pooling_add_check
-                    = [&](int64_t i, float got, float diff) {
+                    = [&](const compare::compare_t::driver_check_func_args_t
+                                      &args) {
                           // cuDNN bug: it spits fp16 min value as -inf,
                           // not -65504.
-                          if (is_nvidia_gpu() && prb->cfg[DST].dt == dnnl_f16) {
-                              const float exp = round_to_nearest_representable(
-                                      prb->cfg[DST].dt, dst_fp.get_elem(i));
-                              return exp == lowest_dt(prb->cfg[DST].dt)
-                                      && std::isinf(got) && std::signbit(got);
+                          if (is_nvidia_gpu() && args.dt == dnnl_f16) {
+                              return args.exp == lowest_dt(args.dt)
+                                      && std::isinf(args.got)
+                                      && std::signbit(args.got);
                           }
                           return false;
                       };
@@ -338,7 +338,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd(prb, d_src_fp, d_dst_fp, ws_fp);
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[SRC].eps);

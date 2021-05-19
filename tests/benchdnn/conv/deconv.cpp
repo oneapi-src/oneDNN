@@ -334,7 +334,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd_d(&p_tr, nullptr, dst_fp, wei_tr_fp, bia_fp,
                     binary_po_fp, src_fp);
             dnn_mem_t dst(dst_dt, fp, src_tag, test_engine);
@@ -348,7 +348,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             dnn_mem_t zero_fp;
             compute_ref_fwd(&p_tr, nullptr, dst_fp, wei_tr_fp, zero_fp,
                     std::vector<dnn_mem_t>(), src_fp);
@@ -364,7 +364,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd_weights(&p_tr, dst_fp, wei_tr_fp, src_fp);
             transpose_data_wei(&p_tr, wei_tr_fp, wei_fp);
             dnn_mem_t wei(wei_dt, fp, wei_tag, test_engine);

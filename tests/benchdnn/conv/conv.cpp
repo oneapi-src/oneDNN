@@ -323,7 +323,7 @@ int compare_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 int fill_src(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
     const bool check_reorder
-            = (bench_mode & CORR) && (mem_dt.dt() != mem_fp.dt());
+            = (is_bench_mode(CORR)) && (mem_dt.dt() != mem_fp.dt());
     dnn_mem_t extra_mem;
     if (check_reorder) {
         extra_mem
@@ -384,8 +384,8 @@ int fill_wei(
 
     const bool wei_x8x8
             = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dt_check;
-    const bool check_reorder = (bench_mode & CORR) && diff_data_type && !wino_s8
-            && !wei_x8x8 && is_def_zp;
+    const bool check_reorder = (is_bench_mode(CORR)) && diff_data_type
+            && !wino_s8 && !wei_x8x8 && is_def_zp;
 
     dnn_mem_t extra_mem;
     if (check_reorder) {
@@ -433,7 +433,7 @@ int fill_wei(
 int fill_bia(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
     const bool check_reorder
-            = (bench_mode & CORR) && (mem_dt.dt() != mem_fp.dt());
+            = (is_bench_mode(CORR)) && (mem_dt.dt() != mem_fp.dt());
     dnn_mem_t extra_mem;
     if (check_reorder)
         extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::x, get_test_engine());
@@ -466,7 +466,7 @@ int fill_dst_with_params(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         dnnl_data_type_t dt, double sparsity, int min, int max, int base,
         int step, res_t *res) {
     const bool check_reorder
-            = (bench_mode & CORR) && (mem_dt.dt() != mem_fp.dt());
+            = (is_bench_mode(CORR)) && (mem_dt.dt() != mem_fp.dt());
     dnn_mem_t extra_mem;
     if (check_reorder) {
         extra_mem
@@ -856,7 +856,7 @@ int doit(const prb_t *prb, res_t *res) {
     // Try to use CPU primitive as the reference in GPU testing to reduce
     // testing time
     dnnl_primitive_t prim_ref_ {};
-    if (bench_mode & CORR && is_gpu() && fast_ref_gpu &&
+    if (is_bench_mode(CORR) && is_gpu() && fast_ref_gpu &&
             // TODO: temporary disable cpu as ref for testcases with binary post-ops
             prb->attr.post_ops.binary_index() == -1) {
         // Create a new copy of prb to avoid potentially corrupting the test by
@@ -925,7 +925,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_fwd(prb, prim_ref, src_fp, wei_fp, bia_fp, binary_po_fp,
                     dst_fp);
             dnn_mem_t dst(dst_dt, fp, src_tag, test_engine);
@@ -939,7 +939,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd_d(prb, prim_ref, src_fp, wei_fp, bia_fp,
                     std::vector<dnn_mem_t>(), dst_fp);
             dnn_mem_t src(src_dt, fp, src_tag, test_engine);
@@ -954,7 +954,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd_w(prb, prim_ref, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t wei(wei_dt, fp, wei_tag, test_engine);
             SAFE(compare_wei(prb, wei, wei_fp, res, true), WARN);

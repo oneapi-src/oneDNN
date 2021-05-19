@@ -43,29 +43,13 @@
 #include <sys/mman.h>
 #endif
 
-const char *bench_mode2str(bench_mode_t mode) {
-    const char *modes[] = {"MODE_UNDEF", "CORR", "PERF", "CORR+PERF", "LIST"};
-    assert((int)mode < sizeof(modes) / sizeof(*modes));
-    return modes[(int)mode];
-}
+bench_mode_t RUN {0x1}; // Run mode.
+bench_mode_t CORR {0x2}; // Correctness mode. The default one.
+bench_mode_t PERF {0x4}; // Performance mode. May be combined with CORR.
+bench_mode_t LIST {0x8}; // Listing mode. Standalone mode to only create prb.
 
-bench_mode_t str2bench_mode(const char *str) {
-    bench_mode_t mode = MODE_UNDEF;
-    if (strchr(str, 'c') || strchr(str, 'C'))
-        mode = (bench_mode_t)((int)mode | (int)CORR);
-    if (strchr(str, 'p') || strchr(str, 'P'))
-        mode = (bench_mode_t)((int)mode | (int)PERF);
-    if (strchr(str, 'l') || strchr(str, 'L')) {
-        // list mode is exclusive
-        assert(mode == MODE_UNDEF);
-        mode = (bench_mode_t)((int)mode | (int)LIST);
-    }
-    if (mode == MODE_UNDEF)
-        []() {
-            SAFE(FAIL, CRIT);
-            return 0;
-        }();
-    return mode;
+bool is_bench_mode(bench_mode_t user_mode) {
+    return !(bench_mode & user_mode).none();
 }
 
 const char *api_mode2str(api_mode_t mode) {
@@ -208,12 +192,17 @@ void parse_result(
 
     switch (res.state) {
         case UNTESTED:
-            if (!(bench_mode & CORR)) {
+            if (is_bench_mode(PERF)) {
                 want_perf_report = true;
                 if (status == FAIL)
                     bs.failed++;
                 else
                     bs.passed++;
+                break;
+            } else if (is_bench_mode(RUN)) {
+                assert(status == OK);
+                BENCHDNN_PRINT(0, "%d:EXECUTED __REPRO: %s\n", bs.tests, pstr);
+                want_perf_report = false;
                 break;
             }
         case FAILED:
@@ -263,7 +252,7 @@ void parse_result(
             }
     }
 
-    if (bench_mode & PERF) {
+    if (is_bench_mode(PERF)) {
         using bt = benchdnn_timer_t;
         for (int mode = 0; mode < (int)bt::n_modes; ++mode)
             bs.ms[mode] += res.timer.ms((bt::mode_t)mode);
@@ -332,7 +321,7 @@ static void zfree_protect(void *ptr) {
 
 void *zmalloc(size_t size, size_t align) {
 #ifdef BENCHDNN_MEMORY_CHECK
-    if (bench_mode & CORR) { return zmalloc_protect(size); }
+    if (is_bench_mode(CORR)) { return zmalloc_protect(size); }
 #endif
 
     void *ptr;
@@ -347,7 +336,7 @@ void *zmalloc(size_t size, size_t align) {
 
     // TODO. Heuristics: Increasing the size to alignment increases
     // the stability of performance results.
-    if ((bench_mode & PERF) && (size < align)) size = align;
+    if ((is_bench_mode(PERF)) && (size < align)) size = align;
     int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
     return rc == 0 ? ptr : nullptr;
@@ -355,7 +344,7 @@ void *zmalloc(size_t size, size_t align) {
 
 void zfree(void *ptr) {
 #ifdef BENCHDNN_MEMORY_CHECK
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         zfree_protect(ptr);
         return;
     }

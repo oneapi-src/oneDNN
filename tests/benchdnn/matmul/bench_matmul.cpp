@@ -28,7 +28,7 @@
 
 namespace matmul {
 
-void check_correctness(const settings_t &s) {
+void check_correctness(const settings_t &s, const settings_t &def) {
     std::vector<std::pair<dnnl_data_type_t, int>> bia_cfg;
     for (const auto &i_bia_dt : s.bia_dt) {
         if (i_bia_dt == dnnl_data_type_undef) {
@@ -43,9 +43,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_wtag : s.wtag)
     for_(const auto &i_dtag : s.dtag)
-    for_(const auto &i_ld_src : s.ld_src)
-    for_(const auto &i_ld_wei : s.ld_wei)
-    for_(const auto &i_ld_dst : s.ld_dst)
+    for_(const auto &i_strides : s.strides)
     for_(auto i_runtime_mb : s.runtime_mb)
     for_(auto i_runtime_m : s.runtime_m)
     for_(auto i_runtime_n : s.runtime_n)
@@ -71,10 +69,31 @@ void check_correctness(const settings_t &s) {
             SAFE_V(FAIL);
         }
 
-        const prb_t prb(s.desc, i_cfg, i_stag, i_wtag, i_dtag, i_ld_src,
-                i_ld_wei, i_ld_dst, i_runtime_mb, i_runtime_m, i_runtime_n,
-                i_runtime_k, i_bia_cfg.first, i_bia_cfg.second, i_rt_dims_masks,
-                attr);
+        const bool strided_input = !i_strides[STRIDES_SRC].empty()
+                || !i_strides[STRIDES_WEI].empty()
+                || !i_strides[STRIDES_DST].empty();
+        if (strided_input) {
+            const bool no_stride_with_tag
+                    = IMPLICATION(i_stag != def.stag[0],
+                              i_strides[STRIDES_SRC].empty())
+                    && IMPLICATION(i_wtag != def.wtag[0],
+                            i_strides[STRIDES_WEI].empty())
+                    && IMPLICATION(i_dtag != def.dtag[0],
+                            i_strides[STRIDES_DST].empty());
+
+            if (!no_stride_with_tag) {
+                fprintf(stderr,
+                        "ERROR: matmul driver: both `strides` and `tag` knobs "
+                        "can not be used with either of `src`, `wei`, and `dst`"
+                        " tensors.\n"),
+                        fflush(stderr);
+                SAFE_V(FAIL);
+            }
+        }
+
+        const prb_t prb(s.desc, i_cfg, i_stag, i_wtag, i_dtag, i_strides,
+                i_runtime_mb, i_runtime_m, i_runtime_n, i_runtime_k,
+                i_bia_cfg.first, i_bia_cfg.second, i_rt_dims_masks, attr);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -94,7 +113,7 @@ void check_correctness(const settings_t &s) {
         bool want_perf_report = false;
         parse_result(res, want_perf_report, status, pstr);
 
-        if (want_perf_report && bench_mode & PERF) {
+        if (want_perf_report && is_bench_mode(PERF)) {
             perf_report_t pr(s.perf_template);
             pr.report(&prb, &res, pstr);
         }
@@ -115,12 +134,7 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.wtag, def.wtag, argv[0], "wtag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
-                || parse_vector_option(
-                        s.ld_src, def.ld_src, atoi, argv[0], "ld_src")
-                || parse_vector_option(
-                        s.ld_wei, def.ld_wei, atoi, argv[0], "ld_wei")
-                || parse_vector_option(
-                        s.ld_dst, def.ld_dst, atoi, argv[0], "ld_dst")
+                || parse_strides(s.strides, def.strides, argv[0], "strides")
                 || parse_vector_option(s.runtime_mb, def.runtime_mb, str2bool,
                         argv[0], "runtime_mb")
                 || parse_vector_option(s.runtime_m, def.runtime_m, str2bool,
@@ -147,7 +161,7 @@ int bench(int argc, char **argv) {
             catch_unknown_options(argv[0]);
 
             SAFE(str2desc(&s.desc, argv[0]), CRIT);
-            check_correctness(s);
+            check_correctness(s, def);
         }
     }
 
