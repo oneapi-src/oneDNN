@@ -90,7 +90,7 @@ int fill_src(int input_idx, dnnl_data_type_t dt, dnn_mem_t &mem_dt,
         min_val = lowest_dt(dnnl_u8);
     }
 
-    dnnl::impl::parallel_nd(n_chunks, [&](int idx_chunk) {
+    dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         // See eltwise.cpp for implementation details.

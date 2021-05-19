@@ -338,8 +338,8 @@ int fill_src(
     const int range = c.f_max - c.f_min + 1;
 
     dnnl::impl::parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
-            [&](int mb, int ic, int id, int ih, int iw) {
-                const int gen
+            [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
+                const int64_t gen
                         = 101 * id + 103 * ih + 107 * iw + 109 * mb + 113 * ic;
                 const bool non_base = flip_coin(gen, c.f_sparsity);
                 float value = non_base ? c.f_min + gen * c.f_step % range
@@ -402,8 +402,9 @@ int fill_wei(
 
     dnnl::impl::parallel_nd(prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kd,
             prb->kh, prb->kw,
-            [&](int g, int oc, int ic, int kd, int kh, int kw) {
-                const int gen
+            [&](int64_t g, int64_t oc, int64_t ic, int64_t kd, int64_t kh,
+                    int64_t kw) {
+                const int64_t gen
                         = 127 * kd + 131 * kh + 137 * kw + 139 * oc + 149 * ic;
                 const bool non_base = flip_coin(gen, c.f_sparsity);
                 const float value = non_base ? c.f_min + gen * c.f_step % range
@@ -480,8 +481,8 @@ int fill_dst_with_params(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     const int range = max - min + 1;
 
     dnnl::impl::parallel_nd(prb->mb, prb->oc, prb->od, prb->oh, prb->ow,
-            [&](int mb, int oc, int od, int oh, int ow) {
-                const int gen
+            [&](int64_t mb, int64_t oc, int64_t od, int64_t oh, int64_t ow) {
+                const int64_t gen
                         = 157 * od + 163 * oh + 167 * ow + 173 * mb + 179 * oc;
                 const bool non_base = flip_coin(gen, sparsity);
                 const float value = non_base ? min + gen * step % range : base;

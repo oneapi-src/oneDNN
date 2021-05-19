@@ -134,7 +134,7 @@ int fill_src(
     const int range = c.f_max - c.f_min + 1;
 
     dnnl::impl::parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
-            [&](int mb, int ic, int id, int ih, int iw) {
+            [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
                 const int gen
                         = 101 * id + 103 * ih + 107 * iw + 109 * mb + 113 * ic;
                 const float sparsity = prb->ic < 5 ? 1.f : c.f_sparsity;
@@ -158,7 +158,7 @@ int fill_wei(
     const int range = c.f_max - c.f_min + 1;
 
     dnnl::impl::parallel_nd(prb->oc, prb->ic, prb->id, prb->ih, prb->iw,
-            [&](int oc, int ic, int kd, int kh, int kw) {
+            [&](int64_t oc, int64_t ic, int64_t kd, int64_t kh, int64_t kw) {
                 const int gen = 127 * kd + 131 * kh + 137 * kw + 139 * oc
                         + 149 * ic + 7;
                 const float sparsity = prb->ic < 5 ? 1.f : c.f_sparsity;
@@ -208,7 +208,7 @@ int fill_dst(
     const auto &c = prb->cfg[DST];
     const int range = c.f_max - c.f_min + 1;
 
-    dnnl::impl::parallel_nd(prb->mb, prb->oc, [&](int mb, int oc) {
+    dnnl::impl::parallel_nd(prb->mb, prb->oc, [&](int64_t mb, int64_t oc) {
         const int gen = 173 * mb + 179 * oc;
         const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value = non_base ? c.f_min + gen * 1 % range : c.f_base;

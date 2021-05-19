@@ -207,18 +207,18 @@ int check_s8s8_reorder(const prb_t &prb, data_kind_t kind,
     switch (kind) {
         case WEIGHTS_LAYER:
         case WEIGHTS_ITER:
-            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+            dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx) {
                 quantize(prb.wei_scales, prb.wei_nscales, 0, idx);
             });
             break;
         case WEIGHTS_PROJECTION:
-            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+            dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx) {
                 quantize(prb.wei_proj_scales, prb.wei_proj_nscales, 0, idx);
             });
             break;
         case SRC_LAYER:
         case SRC_ITER:
-            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+            dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx) {
                 quantize(&(prb.data_scale), 1, prb.data_shift, idx);
             });
         default: assert(!"unsupported kind");
@@ -299,25 +299,25 @@ int fill_memory(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
     };
     switch (kind) {
         case WEIGHTS_PROJECTION:
-            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+            dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx) {
                 fill_chunk(
                         prb.wei_proj_scales, prb.wei_proj_nscales, 0.0f, idx);
             });
             break;
         case WEIGHTS_LAYER:
         case WEIGHTS_ITER:
-            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+            dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx) {
                 fill_chunk(prb.wei_scales, prb.wei_nscales, 0.0f, idx);
             });
             break;
         case SRC_LAYER:
         case SRC_ITER:
-            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+            dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx) {
                 fill_chunk(&(prb.data_scale), 1, prb.data_shift, idx);
             });
             break;
         default: // we do no scale/shift
-            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+            dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx) {
                 fill_chunk(default_scales, 1, default_shift, idx);
             });
     }
@@ -347,12 +347,12 @@ int fill_memory(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
         switch (kind) {
             case WEIGHTS_LAYER:
             case WEIGHTS_ITER:
-                dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+                dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx) {
                     quantize_chunk(prb.wei_scales, prb.wei_nscales, idx);
                 });
                 break;
             case WEIGHTS_PROJECTION:
-                dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+                dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx) {
                     quantize_chunk(
                             prb.wei_proj_scales, prb.wei_proj_nscales, idx);
                 });

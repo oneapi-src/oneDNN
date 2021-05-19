@@ -139,7 +139,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
     const int64_t n_chunks = 16;
     const int64_t chunk_size = div_up(nelems, n_chunks);
 
-    dnnl::impl::parallel_nd(n_chunks, [&](int idx_chunk) {
+    dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         // Note: we use a different seed for each chunk to avoid
