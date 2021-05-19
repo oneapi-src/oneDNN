@@ -204,7 +204,7 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 #endif
         }
 #if DST_D1 != DST_PD1
-        for (int ic = 0; ic < DST_PD1 - DST_D1; ic++) {
+        for (int ic = 0; ic < min(DST_PD1 - DST_D1, block_size); ic++) {
             dst[dst_off] = DATA_ZERO;
             dst_off++;
         }
