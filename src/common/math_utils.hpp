@@ -51,12 +51,16 @@ inline int gcd(int a, int b) {
 }
 
 inline int lcm(int a, int b) {
+    a = impl::nstl::abs(a);
+    b = impl::nstl::abs(b);
+    assert(a > 0 && b > 0);
+
     return a * b / gcd(a, b);
 }
 
 template <typename T>
 inline bool is_pow2(const T &v) {
-    return (v != 0) && ((v & (v - 1)) == 0);
+    return (v > 0) && ((v & (v - 1)) == 0);
 }
 
 /** returns floor(log2(v)), aka the position of the leftmost non-0 bit */
