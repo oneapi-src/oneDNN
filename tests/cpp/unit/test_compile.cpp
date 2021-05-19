@@ -1783,6 +1783,137 @@ TEST(operator_kernel, matmul_bias_add_fusion) {
     }
 }
 
+TEST(operator_kernel, matmul_bias_per_tensor_broadcast_add_fusion) {
+    impl::op_t matmul_op(impl::op_kind::matmul_bias_add);
+    impl::engine_t &engine = get_engine();
+
+    test::vector<float> src_data {-2.0, -1.5};
+    test::vector<float> weight_data {2.0, -1.5};
+    test::vector<float> bias_data {1.0, 2.0};
+    test::vector<float> post_src_data {-2.0};
+    test::vector<float> ref_dst_data {-5.0, 3.0, -4.0, 2.25};
+    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+
+    std::vector<impl::dims> post_src_shapes = {{1}, {1, 1}};
+
+    for (auto &post_src_shape : post_src_shapes) {
+        // prepare logical tensor
+        impl::logical_tensor_t src
+                = utils::logical_tensor_init(0, {2, 1}, impl::data_type::f32);
+        impl::logical_tensor_t weight
+                = utils::logical_tensor_init(1, {1, 2}, impl::data_type::f32);
+        impl::logical_tensor_t bias
+                = utils::logical_tensor_init(2, {1, 2}, impl::data_type::f32);
+        impl::logical_tensor_t post_src = utils::logical_tensor_init(
+                3, post_src_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst
+                = utils::logical_tensor_init(4, {2, 2}, impl::data_type::f32);
+
+        std::vector<impl::logical_tensor_t> inputs {
+                src, weight, bias, post_src};
+        std::vector<impl::logical_tensor_t> outputs {dst};
+
+        auto &op_factory = get_dnnl_kernel_registry();
+        auto matmul_kernel = op_factory.create_kernel(matmul_op);
+        matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
+
+        impl::tensor_t src_ts(src, src_data.data());
+        impl::tensor_t weight_ts(weight, weight_data.data());
+        impl::tensor_t bias_ts(bias, bias_data.data());
+        impl::tensor_t post_src_ts(post_src, post_src_data.data());
+        impl::tensor_t dst_ts(outputs[0], dst_data.data());
+
+        impl::stream_t &strm = get_stream();
+        matmul_kernel->execute(&matmul_op, &strm,
+                {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
+        strm.wait();
+        for (size_t i = 0; i < ref_dst_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+        }
+    }
+}
+
+TEST(operator_kernel, matmul_bias_per_channel_broadcast_add_fusion) {
+    impl::op_t matmul_op(impl::op_kind::matmul_bias_add);
+    impl::engine_t &engine = get_engine();
+
+    test::vector<float> src_data {-2.0, -1.5};
+    test::vector<float> weight_data {2.0, -1.5};
+    test::vector<float> bias_data {1.0, 2.0};
+    test::vector<float> post_src_data {-2.0, -1.0};
+    test::vector<float> ref_dst_data {-5.0, 4.0, -4.0, 3.25};
+    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+
+    std::vector<impl::dims> post_src_shapes = {{2}, {1, 2}};
+
+    for (auto &post_src_shape : post_src_shapes) {
+        // prepare logical tensor
+        impl::logical_tensor_t src
+                = utils::logical_tensor_init(0, {2, 1}, impl::data_type::f32);
+        impl::logical_tensor_t weight
+                = utils::logical_tensor_init(1, {1, 2}, impl::data_type::f32);
+        impl::logical_tensor_t bias
+                = utils::logical_tensor_init(2, {1, 2}, impl::data_type::f32);
+        impl::logical_tensor_t post_src = utils::logical_tensor_init(
+                3, post_src_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst
+                = utils::logical_tensor_init(4, {2, 2}, impl::data_type::f32);
+
+        std::vector<impl::logical_tensor_t> inputs {
+                src, weight, bias, post_src};
+        std::vector<impl::logical_tensor_t> outputs {dst};
+
+        auto &op_factory = get_dnnl_kernel_registry();
+        auto matmul_kernel = op_factory.create_kernel(matmul_op);
+        ASSERT_EQ(matmul_kernel->compile(&matmul_op, &engine, inputs, outputs),
+                impl::status::success);
+
+        impl::tensor_t src_ts(src, src_data.data());
+        impl::tensor_t weight_ts(weight, weight_data.data());
+        impl::tensor_t bias_ts(bias, bias_data.data());
+        impl::tensor_t post_src_ts(post_src, post_src_data.data());
+        impl::tensor_t dst_ts(outputs[0], dst_data.data());
+
+        impl::stream_t &strm = get_stream();
+        matmul_kernel->execute(&matmul_op, &strm,
+                {src_ts, weight_ts, bias_ts, post_src_ts}, {dst_ts});
+        strm.wait();
+        for (size_t i = 0; i < ref_dst_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+        }
+    }
+}
+
+TEST(operator_kernel, matmul_bias_unsupported_broadcast_add_fusion) {
+    impl::op_t matmul_op(impl::op_kind::matmul_bias_add);
+    impl::engine_t &engine = get_engine();
+
+    std::vector<impl::dims> post_src_shapes = {{3}, {1, 3}, {2, 1}};
+
+    for (auto &post_src_shape : post_src_shapes) {
+        // prepare logical tensor
+        impl::logical_tensor_t src
+                = utils::logical_tensor_init(0, {2, 1}, impl::data_type::f32);
+        impl::logical_tensor_t weight
+                = utils::logical_tensor_init(1, {1, 2}, impl::data_type::f32);
+        impl::logical_tensor_t bias
+                = utils::logical_tensor_init(2, {1, 2}, impl::data_type::f32);
+        impl::logical_tensor_t post_src = utils::logical_tensor_init(
+                3, post_src_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst
+                = utils::logical_tensor_init(4, {2, 2}, impl::data_type::f32);
+
+        std::vector<impl::logical_tensor_t> inputs {
+                src, weight, bias, post_src};
+        std::vector<impl::logical_tensor_t> outputs {dst};
+
+        auto &op_factory = get_dnnl_kernel_registry();
+        auto matmul_kernel = op_factory.create_kernel(matmul_op);
+        ASSERT_EQ(matmul_kernel->compile(&matmul_op, &engine, inputs, outputs),
+                impl::status::compile_fail);
+    }
+}
+
 TEST(operator_kernel, matmul_bias_add_relu_fusion) {
     impl::op_t matmul_op(impl::op_kind::matmul_bias_add_relu);
     impl::engine_t &engine = get_engine();

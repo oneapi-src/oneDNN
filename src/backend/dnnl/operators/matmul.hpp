@@ -21,6 +21,7 @@
 #include <set>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 
 #include "backend/dnnl/tensor.hpp"
 #include "bn_fusion.hpp"
@@ -64,18 +65,18 @@ struct matmul_op_set {
     }
 
     /**
-     * Check if matmul operator fuses sum
+     * Check if matmul operator fuses add
      *
      * @param kind operator kind
-     * @return whether the operator fused sum
+     * @return whether the operator fused add
      */
 
-    static bool fuse_sum(op_kind_t kind) {
-        static const std::set<op_kind_t> with_sum_set {op_kind::matmul_bias_add,
+    static bool fuse_add(op_kind_t kind) {
+        static const std::set<op_kind_t> with_add_set {op_kind::matmul_bias_add,
                 op_kind::matmul_bias_add_relu, op_kind::matmul_add,
                 op_kind::matmul_add_gelu, op_kind::matmul_add_relu,
                 op_kind::matmul_add_sigmoid};
-        return with_sum_set.count(kind);
+        return with_add_set.count(kind);
     }
 
     /**
@@ -113,13 +114,15 @@ private:
     tensor updated_weights_;
     tensor updated_bias_;
 
-    bool transpose_a_ = false;
-    bool transpose_b_ = false;
+    bool transpose_a_ {false};
+    bool transpose_b_ {false};
 
-    bool with_bias_;
-    bool with_sum_;
-    bool with_eltwise_;
-    bool with_bn_;
+    bool with_bias_ {false};
+    bool with_add_ {false};
+    bool with_post_sum_ {false};
+    bool with_post_binary_add_ {false};
+    bool with_eltwise_ {false};
+    bool with_bn_ {false};
     op_kind_t kind_;
     float alpha_ = 0.f;
     float beta_ = 0.f;
@@ -158,18 +161,18 @@ public:
         using desc = tensor::desc;
         kind_ = op->get_kind();
         with_bias_ = matmul_op_set::with_bias(kind_);
-        with_sum_ = matmul_op_set::fuse_sum(kind_);
+        with_add_ = matmul_op_set::fuse_add(kind_);
         with_eltwise_ = matmul_op_set::fuse_eltwise(kind_);
         with_bn_ = matmul_op_set::fuse_batchnorm(kind_);
 
         // deal with 1D add
-        bool add_1d = (with_bias_ == false) && (with_sum_ == true)
+        bool add_1d = (with_bias_ == false) && (with_add_ == true)
                 && (impl::logical_tensor_wrapper(inputs[matmul_fwd::kBias])
                                 .ndims()
                         == 1);
         if (add_1d) {
             with_bias_ = true;
-            with_sum_ = false;
+            with_add_ = false;
         }
 
         // set attrs of eltwise
@@ -273,11 +276,35 @@ public:
         if (with_bn_) epsilon_ = op->get_attr<float>("epsilon");
 
         // append post_ops to attrs
-        if (with_sum_) {
-            attr_ = attr_t::fuse_sum();
-            if (with_eltwise_) {
-                attr_ = attr_t::residual(
-                        get_eltwise_algo(kind_), 1.f, 1.f, alpha_, beta_);
+        if (with_add_) {
+            impl::logical_tensor_t post_src_lt = inputs.back();
+            if (impl::logical_tensor_wrapper(post_src_lt)
+                            .has_same_shape_as(dst_lt)) {
+                // if post src has the same shape of dst
+                // set post sum attribute
+                attr_ = attr_t::fuse_sum();
+                if (with_eltwise_) {
+                    attr_ = attr_t::residual(
+                            get_eltwise_algo(kind_), 1.f, 1.f, alpha_, beta_);
+                }
+                with_post_sum_ = true;
+            } else {
+                desc post_src {post_src_lt};
+                post_src = expand(post_src, dst.get_ndims());
+
+                // post binary only supports per tensor and per channel
+                // broadcast, which means the expand shape of post src should
+                // be all one or the post_src_dim[1]==dst_dim[1]
+                for (int i = dst.get_ndims() - 1; i >= 0; i--) {
+                    if (post_src.get_dim(i) == 1) continue;
+
+                    if (i != 1 || dst.get_dim(i) != post_src.get_dim(i)) {
+                        return impl::status::compile_fail;
+                    }
+                }
+
+                attr_ = attr_t::fuse_binary(post_src, algorithm::binary_add);
+                with_post_binary_add_ = true;
             }
         } else if (with_eltwise_) {
             attr_ = attr_t::fuse_eltwise(
@@ -349,7 +376,7 @@ public:
                               inputs.at(matmul_fwd::kBias).get_data_handle()}
                                  : tensor {};
 
-        tensor post_src = with_sum_ ? tensor {inputs.back(), p_engine_, alc}
+        tensor post_src = with_add_ ? tensor {inputs.back(), p_engine_, alc}
                                     : tensor {};
         tensor dst {outputs.at(matmul_fwd::kDst), p_engine_, alc};
         if (with_bn_) {
@@ -434,9 +461,22 @@ public:
             expected_dst_ = dst;
         }
 
-        if (with_sum_) { post_src.reorder_to(p_stream_, expected_dst_); }
+        if (with_post_sum_) { post_src.reorder_to(p_stream_, expected_dst_); }
 
-        compute(p_stream_);
+        std::unordered_map<int, memory> matmul_args;
+        matmul_args.insert({DNNL_ARG_SRC, expected_src_});
+        matmul_args.insert({DNNL_ARG_WEIGHTS, expected_weights_});
+        matmul_args.insert({DNNL_ARG_DST, expected_dst_});
+
+        if (with_bias_) { matmul_args.insert({DNNL_ARG_BIAS, expected_bias_}); }
+
+        if (with_post_binary_add_) {
+            matmul_args.insert(
+                    {(DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1),
+                            post_src});
+        }
+
+        super(pd_).execute(p_stream_, matmul_args);
 
         if (expected_dst_ != dst) expected_dst_.reorder_to(p_stream_, dst);
         return impl::status::success;
