@@ -336,8 +336,6 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
     if (!mayiuse(isa) || (is_bf16 && !mayiuse(avx512_core)))
         return status::unimplemented;
 
-    const int simd_w = one_of(isa, avx512_common, avx512_core) ? 16 : 8;
-
     const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
     if (!with_groups) return status::unimplemented;
 
@@ -418,17 +416,21 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
             || jcp.wei_tag != wei_tag)
         return status::unimplemented;
 
+    // note: sse41 uses 'ch_block = 8' where the value is derived
+    // from: 'simd_w_ * reg_repeats_ = 4 * 2'
+    jcp.ch_block = one_of(isa, avx512_common, avx512_core) ? 16 : 8;
+
     bool ok_to_pad_channels = !is_data_layout_nxc && jcp.oc == jcp.ngroups
             && jcp.ic == jcp.ngroups
             && one_of(isa, avx512_common, avx512_core, avx2);
     if (ok_to_pad_channels) {
-        jcp.oc = rnd_up(jcp.oc, simd_w);
-        jcp.ic = rnd_up(jcp.oc, simd_w);
-        jcp.ngroups = rnd_up(jcp.ngroups, simd_w);
+        jcp.oc = rnd_up(jcp.oc, jcp.ch_block);
+        jcp.ic = rnd_up(jcp.oc, jcp.ch_block);
+        jcp.ngroups = rnd_up(jcp.ngroups, jcp.ch_block);
     }
 
     bool args_ok = true && jcp.oc == jcp.ngroups && jcp.ic == jcp.ngroups
-            && IMPLICATION(!is_data_layout_nxc, jcp.ngroups % simd_w == 0)
+            && IMPLICATION(!is_data_layout_nxc, jcp.ngroups % jcp.ch_block == 0)
             && jcp.dilate_h == 0 && jcp.dilate_w == 0
             && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
             && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1
@@ -448,7 +450,6 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
 
     jcp.loop_order = is_data_layout_nxc ? loop_nhwcg : loop_ngcw;
 
-    jcp.ch_block = simd_w;
     jcp.ch_tail = jcp.ngroups % jcp.ch_block;
     jcp.nb_ch = div_up(jcp.ic, jcp.ch_block);
     jcp.nb_ch_blocking
