@@ -366,7 +366,7 @@ DNNL_GRAPH_OP_SCHEMA(Exp, 1,
                 .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_identity_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(GELU, 2,
+DNNL_GRAPH_OP_SCHEMA(GELU, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
@@ -374,7 +374,7 @@ DNNL_GRAPH_OP_SCHEMA(GELU, 2,
                 .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_identity_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(GELUBackprop, 2,
+DNNL_GRAPH_OP_SCHEMA(GELUBackprop, 1,
         op_schema()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
@@ -421,7 +421,7 @@ DNNL_GRAPH_OP_SCHEMA(Index, 1,
                         "a tensor with selected data from input tensor")
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(Interpolate, 4,
+DNNL_GRAPH_OP_SCHEMA(Interpolate, 1,
         op_schema()
                 .set_inputs_option(op_schema::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({3, 4}))
@@ -468,7 +468,7 @@ DNNL_GRAPH_OP_SCHEMA(Interpolate, 4,
                 //todo(jihui):need to set real infer function
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 4,
+DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 1,
         op_schema()
                 .set_inputs_option(op_schema::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({4, 5}))
