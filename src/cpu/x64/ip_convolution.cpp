@@ -36,6 +36,32 @@ status_t ip_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     return ip_p_->execute(conv_ctx);
 }
 
+status_t ip_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
+
+    exec_args_t ip_args = ctx.args();
+
+    exec_ctx_t conv_ctx(ctx, std::move(ip_args));
+
+    nested_scratchpad_t ns(ctx, key_nested, ip_p_);
+    conv_ctx.set_scratchpad_grantor(ns.grantor());
+
+    return ip_p_->execute(conv_ctx);
+}
+
+status_t ip_convolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
+
+    exec_args_t ip_args = ctx.args();
+
+    exec_ctx_t conv_ctx(ctx, std::move(ip_args));
+
+    nested_scratchpad_t ns(ctx, key_nested, ip_p_);
+    conv_ctx.set_scratchpad_grantor(ns.grantor());
+
+    return ip_p_->execute(conv_ctx);
+}
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl
