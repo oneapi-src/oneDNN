@@ -120,10 +120,10 @@ The kind of this post-op is #dnnl::primitive::kind::sum.
 
 This feature might improve performance for cases like residual learning
 blocks, where the result of a convolution is accumulated to the previously
-computed activations. The scale parameter can be used in [INT8](@ref
-dev_guide_attributes_quantization) inference only when the result and previous
-activations have different magnitudes. For all other cases the scale must be
-`1.0`.
+computed activations. The scale parameter can be used in
+[INT8](@ref dev_guide_attributes_quantization) inference only when the result
+and previous activations have different magnitudes. For all other cases the
+scale must be `1.0`.
 
 The sum post-op replaces
 \f[
@@ -136,20 +136,19 @@ with
     \dst[:] = scale \cdot \dst[:] + \operatorname{Op}(...)
 \f]
 
-
 If the data type parameter is specified, the original destination tensor will be
 reinterpreted as a tensor with the provided data type. Because it is a
 reinterpretation, data_type and the destination data type must have the same size. As a
 result, the computation will be:
 
 \f[
-    \dst(:) = scale \cdot \operatorname{as_data_type}(\dst(:)) + \operatorname{Op}(...)
+    \dst(:) = scale \cdot \operatorname{as\_data\_type}(\dst[:]) + \operatorname{Op}(...)
 \f]
 
 @note
 * Currently only a u8/s8 data type parameter is supported.
-**CPU**
-    - No support for different destination and sum data type.
+* **CPU**
+    * No support for different destination and sum data type.
 
 @anchor dev_guide_attributes_post_ops_depthwise
 ### Depthwise Post-op
