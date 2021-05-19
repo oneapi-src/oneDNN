@@ -16,8 +16,9 @@
 
 #include <algorithm>
 #include <iterator>
+
 #include "interface/logger.hpp"
-#include "pm/nested_matcher.hpp"
+#include "utils/pm/nested_matcher.hpp"
 
 namespace dnnl {
 namespace graph {

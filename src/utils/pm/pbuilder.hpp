@@ -14,17 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef PM_PBUILDER_HPP
-#define PM_PBUILDER_HPP
+#ifndef UTILS_PM_PBUILDER_HPP
+#define UTILS_PM_PBUILDER_HPP
 
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_set>
+
 #include "interface/c_types_map.hpp"
 #include "interface/opset.hpp"
-#include <unordered_set>
 
 using std::make_shared;
 using std::pair;

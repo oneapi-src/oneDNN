@@ -15,8 +15,9 @@
 *******************************************************************************/
 
 #include <memory>
+
 #include "interface/op.hpp"
-#include "pbuilder.hpp"
+#include "utils/pm/pbuilder.hpp"
 
 using namespace dnnl::graph::impl::pm;
 using std::dynamic_pointer_cast;
