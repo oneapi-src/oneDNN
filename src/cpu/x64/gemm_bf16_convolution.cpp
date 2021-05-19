@@ -431,17 +431,17 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_thr_nspc(
     const bool do_sum = post_ops.contain(primitive_kind::sum, 0);
     const float sum_scale = do_sum ? post_ops.entry_[0].sum.scale : 0;
 
-    int g {0}, n {0}, ohb {0}, owb {0};
-    size_t start = 0, end = 0;
+    dim_t g {0}, n {0}, ohb {0}, owb {0};
+    dim_t start = 0, end = 0;
 
     const bool is_problem_3d = pd()->ndims() == 5;
     assert(IMPLICATION(is_problem_3d,
             jcp.oh_block == jcp.oh && jcp.ow_block == jcp.ow
                     && jcp.ic_block == jcp.ic));
 
-    const int nb_oh = div_up(jcp.oh, jcp.oh_block);
-    const int nb_ow = div_up(jcp.ow, jcp.ow_block);
-    const size_t work_amount = (size_t)jcp.ngroups * jcp.mb * nb_oh * nb_ow;
+    const dim_t nb_oh = div_up(jcp.oh, jcp.oh_block);
+    const dim_t nb_ow = div_up(jcp.ow, jcp.ow_block);
+    const dim_t work_amount = jcp.ngroups * jcp.mb * nb_oh * nb_ow;
     balance211(work_amount, nthr, ithr, start, end);
     nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, ohb, nb_oh, owb, nb_ow);
 
@@ -457,7 +457,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_thr_nspc(
         for (ptrdiff_t i = 0; i < jcp.im2col_sz; i++)
             col_r[i] = zero_val;
     }
-    for (size_t iwork = start; iwork < end; ++iwork) {
+    for (dim_t iwork = start; iwork < end; ++iwork) {
         int oh = ohb * jcp.oh_block;
         int ow = owb * jcp.ow_block;
         const src_data_t *__restrict src
@@ -570,7 +570,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
     const size_t weights_oc_size = jcp.ic * jcp.ks;
 
     const dim_t LDB = weights_oc_size;
-    const size_t work_amount
+    const dim_t work_amount
             = (size_t)jcp.ngroups * jcp.mb * jcp.od * jcp.os_nb_block;
     const bool is_problem_3d = pd()->ndims() == 5;
     std::atomic<status_t> st(status::success);
@@ -631,19 +631,20 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
             for (ptrdiff_t i = 0; i < jcp.im2col_sz; i++)
                 _col[i] = (src_data_t)0;
         }
-        int g {0}, n {0}, od {0}, nb_os {0};
-        size_t start = 0, end = 0;
-        size_t oc_start = 0, oc_end = 0;
+        dim_t g {0}, n {0}, od {0}, nb_os {0};
+        dim_t start = 0, end = 0;
+        dim_t oc_start = 0, oc_end = 0;
 
         assert(jcp.loop_order == gemm_loop_lbr);
-        balance2D(nthr, ithr, work_amount, start, end, (size_t)jcp.oc, oc_start,
-                oc_end, (size_t)jcp.nthr_oc);
+        balance2D(nthr, ithr, work_amount, start, end, jcp.oc, oc_start, oc_end,
+                dim_t(jcp.nthr_oc));
 
         nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, od, jcp.od, nb_os,
                 jcp.os_nb_block);
-        for (size_t iwork = start; iwork < end; ++iwork) {
-            for_(int oc = (int)oc_start; oc < (int)oc_end; oc += jcp.oc_block)
-            for (int ic = 0; ic < jcp.ic; ic += jcp.ic_block) {
+        for (dim_t iwork = start; iwork < end; ++iwork) {
+            for_(dim_t oc = (dim_t)oc_start; oc < (dim_t)oc_end;
+                    oc += jcp.oc_block)
+            for (dim_t ic = 0; ic < jcp.ic; ic += jcp.ic_block) {
                 const src_data_t *_src = src + (n * jcp.ngroups + g) * src_step;
                 const wei_data_t *_weights = weights + g * weights_g_size
                         + oc * weights_oc_size + ic * jcp.ks;
@@ -651,15 +652,16 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
                         = dst + (n * jcp.ngroups + g) * dst_step + oc * M;
                 auto out_off = nb_os * jcp.os_block + od * jcp.os;
                 dst_data_t *dst_local = _dst_im + out_off;
-                const int sizeof_cacheline_float = 16;
+                const dim_t sizeof_cacheline_float = 16;
                 acc_data_t *_acc = is_bf16_dst ? acc_base
                                 + ithr
                                         * rnd_up(jcp.oc_block * jcp.os_block,
                                                 sizeof_cacheline_float)
                                                : (acc_data_t *)dst_local;
 
-                const int ic_block = nstl::min(jcp.ic - ic, jcp.ic_block);
-                const int oc_block = nstl::min(int(oc_end) - oc, jcp.oc_block);
+                const dim_t ic_block = nstl::min(jcp.ic - ic, jcp.ic_block);
+                const dim_t oc_block
+                        = nstl::min(dim_t(oc_end) - oc, jcp.oc_block);
 
                 inner_ker(ic, oc, g, od, nb_os, _src, _weights, _col, _dst_im,
                         _acc, ic_block, oc_block);
@@ -717,20 +719,20 @@ status_t gemm_bf16_convolution_bwd_data_t<
     const size_t diff_src_os_stride = jcp.ngroups * jcp.ic;
 
     // threads share work across mini-batch and groups
-    const size_t work_amount = jcp.ngroups * jcp.mb;
+    const dim_t work_amount = jcp.ngroups * jcp.mb;
 
     acc_data_t *__restrict col = scratchpad.get<acc_data_t>(key_conv_gemm_col)
             + (ptrdiff_t)ithr * jcp.im2col_sz;
     acc_data_t *__restrict acc = scratchpad.get<acc_data_t>(key_conv_gemm_acc)
             + (ptrdiff_t)ithr * jcp.is * jcp.id * jcp.ic;
 
-    int n {0}, g {0};
-    size_t start = 0, end = 0;
+    dim_t n {0}, g {0};
+    dim_t start = 0, end = 0;
 
     balance211(work_amount, nthr, ithr, start, end);
     nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups);
 
-    for (size_t iwork = start; iwork < end; ++iwork) {
+    for (dim_t iwork = start; iwork < end; ++iwork) {
         const diff_dst_data_t *__restrict diff_dst = diff_dst_base
                 + n * diff_dst_mb_stride + g * diff_dst_g_stride;
         const wei_data_t *__restrict wei = wei_base + g * wei_g_stride;
@@ -811,7 +813,7 @@ status_t gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
     const dim_t K = jcp.oc;
     const dim_t N = jcp.ic * jcp.ks;
 
-    const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
+    const dim_t work_amount = (size_t)jcp.ngroups * jcp.mb;
     const bool is_problem_3d = pd()->ndims() == 5;
 
     std::atomic<status_t> st(status::success);
@@ -819,11 +821,11 @@ status_t gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         acc_data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
 
-        int g {0}, n {0};
-        size_t start = 0, end = 0;
+        dim_t g {0}, n {0};
+        dim_t start = 0, end = 0;
         balance211(work_amount, nthr, ithr, start, end);
         nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb);
-        for (size_t iwork = start; iwork < end; ++iwork) {
+        for (dim_t iwork = start; iwork < end; ++iwork) {
 
             diff_src_data_t *diff_src_local
                     = diff_src + (n * jcp.ngroups + g) * src_step;
@@ -889,10 +891,9 @@ void gemm_bf16_convolution_bwd_weights_t<
     assert(nthr_mb > 1); // no reduction for nthr_mb == 1
 
     const bool is_bf16_out = diff_wei_data_type == data_type::bf16;
-    const size_t weights_g_size = jcp.oc;
-    size_t weights_start {0}, weights_end {0};
-    balance211(size_t(jcp.ks) * jcp.ic, nthr_mb, ithr_mb, weights_start,
-            weights_end);
+    const dim_t weights_g_size = jcp.oc;
+    dim_t weights_start {0}, weights_end {0};
+    balance211(jcp.ks * jcp.ic, nthr_mb, ithr_mb, weights_start, weights_end);
 
     for (auto tidx = 1; tidx < nthr_mb; ++tidx) {
         const acc_data_t *ws_base
@@ -1135,20 +1136,20 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
     }
 
     if (jcp.with_bias) {
-        parallel_nd(jcp.ngroups, jcp.oc, [&](int g, int oc) {
+        parallel_nd(jcp.ngroups, jcp.oc, [&](dim_t g, dim_t oc) {
             acc_data_t db = 0;
-            const size_t offset_base = g * jcp.oc + oc;
-            for_(int mb = 0; mb < jcp.mb; ++mb)
-            for_(int od = 0; od < jcp.od; ++od)
-            for (int oh = 0; oh < jcp.oh; ++oh) {
-                const int width_stride = jcp.ngroups * jcp.oc;
+            const dim_t offset_base = g * jcp.oc + oc;
+            for_(dim_t mb = 0; mb < jcp.mb; ++mb)
+            for_(dim_t od = 0; od < jcp.od; ++od)
+            for (dim_t oh = 0; oh < jcp.oh; ++oh) {
+                const dim_t width_stride = jcp.ngroups * jcp.oc;
                 const diff_dst_data_t *__restrict diff_dst_arr = diff_dst
                         + offset_base
                         + ((mb * jcp.od + od) * jcp.oh + oh) * jcp.ow
                                 * width_stride;
 
                 PRAGMA_OMP_SIMD(reduction(+ : db))
-                for (int ow = 0; ow < jcp.ow; ++ow) {
+                for (dim_t ow = 0; ow < jcp.ow; ++ow) {
                     db += diff_dst_arr[ow * width_stride];
                 }
             }
@@ -1337,17 +1338,18 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
     }
 
     if (jcp.with_bias) {
-        parallel_nd(jcp.ngroups, jcp.oc, [&](int g, int oc) {
+        parallel_nd(jcp.ngroups, jcp.oc, [&](size_t g, size_t oc) {
             acc_data_t db = 0;
-            size_t offset_ = (size_t)g * dst_step + (size_t)oc * K;
-            for (int mb = 0; mb < jcp.mb; ++mb) {
-                size_t offset = offset_ + (size_t)mb * jcp.ngroups * dst_step;
-                for_(int od = 0; od < jcp.od; ++od)
-                for (int oh = 0; oh < jcp.oh; ++oh)
+            dim_t offset_ = g * dst_step + oc * K;
+            for (dim_t mb = 0; mb < jcp.mb; ++mb) {
+                dim_t offset = offset_ + mb * jcp.ngroups * dst_step;
+                for_(dim_t od = 0; od < jcp.od; ++od)
+                for (dim_t oh = 0; oh < jcp.oh; ++oh) {
                     PRAGMA_OMP_SIMD(reduction(+ : db))
-                for (int ow = 0; ow < jcp.ow; ++ow) {
-                    db += diff_dst[offset];
-                    offset++;
+                    for (dim_t ow = 0; ow < jcp.ow; ++ow) {
+                        db += diff_dst[offset];
+                        offset++;
+                    }
                 }
             }
             diff_bias[g * jcp.oc + oc] = db;

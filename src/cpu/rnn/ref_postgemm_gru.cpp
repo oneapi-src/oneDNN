@@ -55,7 +55,7 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
     ws_states_iter_aoc<src_data_t> dst_iter(rnn, dst_iter_, dst_iter_ld);
     ws_states_iter_aoc<const src_data_t> src_iter(rnn, src_iter_, src_iter_ld);
 
-    parallel_nd(rnn.mb, [&](int i) {
+    parallel_nd(rnn.mb, [&](dim_t i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dhc; j++) {
             auto G0 // default func1 is sigmoid
@@ -99,7 +99,7 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
     ws_states_iter_aoc<src_data_t> dst_iter(rnn, dst_iter_, dst_iter_ld);
     ws_states_iter_aoc<const src_data_t> src_iter(rnn, src_iter_, src_iter_ld);
 
-    parallel_nd(rnn.mb, [&](int i) {
+    parallel_nd(rnn.mb, [&](dim_t i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dhc; j++) {
             auto G0 = reinterpret_as_float(scratch_gates(i, 0, j));
@@ -319,7 +319,7 @@ void gru_bwd_part1_postgemm_template(T to_src, const rnn_utils::rnn_conf_t &rnn,
     // dG2^ = dh * (1 - G0) * (1 - G2^2)
     // dG0^ = dh * (ht-1 - G2) * u * (1 - G0)
     // dht-1 (part) = dh * G0
-    parallel_nd(rnn.mb, [&](int i) {
+    parallel_nd(rnn.mb, [&](dim_t i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dhc; j++) {
             float h = src_iter(i, j);
@@ -361,7 +361,7 @@ void gru_bwd_part2_postgemm_template(T to_src, const rnn_utils::rnn_conf_t &rnn,
     // dG1^ = d(hG1) * h * G1 * (1 - G1)
     // dht-1 (part) += d(hG1) * G1
     // h * G1 (required for dWh)
-    parallel_nd(rnn.mb, [&](int i) {
+    parallel_nd(rnn.mb, [&](dim_t i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dhc; j++) {
             float h = src_iter(i, j);

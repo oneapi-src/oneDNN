@@ -107,7 +107,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         } else {
             // Todo: add parallelization on dhc for the batch 1 case
             // Assumption: the kernel runs a loop on dhc elements
-            parallel_nd(rnn.mb, [&](int i) {
+            parallel_nd(rnn.mb, [&](dim_t i) {
                 postgemm_fwd_call(i, rnn, cell_position, ws_gates_,
                         scratch_gates_, dst_layer_, dst_iter_c_, src_iter_,
                         src_iter_c_, weights_peephole_, bias_, ws_grid_,
@@ -236,7 +236,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
 #define SAFE_PTR(F, ...) (CONCAT2(F, _) ? &(F(__VA_ARGS__)) : nullptr)
         // Todo: add parallelization on dhc for the batch 1 case
         // Assumption: the kernel runs a loop on dhc elements
-        parallel_nd(rnn.mb, [&](int i) {
+        parallel_nd(rnn.mb, [&](dim_t i) {
             void *param1_, *param2_, *param4_, *param5_, *param7_, *param8_,
                     *param9_;
             const void *param3_, *param6_;

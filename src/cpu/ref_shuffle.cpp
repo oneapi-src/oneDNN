@@ -121,7 +121,7 @@ status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
         const dim_t dim = axis_size * inner_size;
 
         parallel_nd(outer_size, axis_size, inner_size,
-                [&](dim_t ou, int a, dim_t in) {
+                [&](dim_t ou, dim_t a, dim_t in) {
                     const dim_t off = ou * dim + in;
                     auto &o = output[data_d.off_l(off + a * inner_size)];
                     o = input[data_d.off_l(

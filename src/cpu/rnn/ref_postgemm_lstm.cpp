@@ -116,7 +116,7 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src_dt, T4 to_float,
         for (int i = 0; i < rnn.m_block; i++)
             postgemm_call(i);
     } else {
-        parallel_nd(rnn.mb, [&](int i) { postgemm_call(i); });
+        parallel_nd(rnn.mb, [&](dim_t i) { postgemm_call(i); });
     }
 }
 
@@ -279,7 +279,7 @@ void lstm_bwd_postgemm_template(T1 func1, T2 to_src_dt, const float *cscale,
     ws_diff_states_iter_c_aoc<acc_data_t> diff_dst_iter_c(
             rnn, diff_dst_iter_c_);
 
-    parallel_nd(rnn.mb, [&](int i) {
+    parallel_nd(rnn.mb, [&](dim_t i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dhc; j++) {
             float Ct = dst_iter_c(i, j);

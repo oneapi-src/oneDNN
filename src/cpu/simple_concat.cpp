@@ -93,7 +93,7 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
 
     parallel_nd(phys_dims[0], phys_dims[1], phys_dims[2], phys_dims[3],
             phys_dims[4], num_arrs,
-            [&](dim_t n0, dim_t n1, dim_t n2, dim_t n3, dim_t n4, int a) {
+            [&](dim_t n0, dim_t n1, dim_t n2, dim_t n3, dim_t n4, dim_t a) {
                 // check if zero memory
                 if (iptrs[a] == nullptr) return;
 

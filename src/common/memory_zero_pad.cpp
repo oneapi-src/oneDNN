@@ -63,13 +63,13 @@ void typed_zero_pad_blk(const memory_desc_wrapper &m_d, void *data_handle) {
 
     const int ndims = m_d.ndims();
     assert(1 <= ndims && ndims <= 6);
-    const int A = A_blocked ? pdims[0] / blksize : dims[0];
-    const int B = ndims <= 1 ? 1 : B_blocked ? pdims[1] / blksize : dims[1];
-    const int C = ndims <= 2 ? 1 : C_blocked ? pdims[2] / blksize : dims[2];
-    const int D = ndims <= 3 ? 1 : dims[3];
-    const int E = ndims <= 4 ? 1 : dims[4];
-    const int F = ndims <= 5 ? 1 : dims[5];
-    const int inner_blk = blk.inner_nblks == 3 ? blk.inner_blks[2] : 1;
+    const dim_t A = A_blocked ? pdims[0] / blksize : dims[0];
+    const dim_t B = ndims <= 1 ? 1 : B_blocked ? pdims[1] / blksize : dims[1];
+    const dim_t C = ndims <= 2 ? 1 : C_blocked ? pdims[2] / blksize : dims[2];
+    const dim_t D = ndims <= 3 ? 1 : dims[3];
+    const dim_t E = ndims <= 4 ? 1 : dims[4];
+    const dim_t F = ndims <= 5 ? 1 : dims[5];
+    const dim_t inner_blk = blk.inner_nblks == 3 ? blk.inner_blks[2] : 1;
 
     auto zeroize_tail = [&](data_t *d, const int tail_s) {
         for (int b = tail_s; b < blksize; ++b)
@@ -91,39 +91,42 @@ void typed_zero_pad_blk(const memory_desc_wrapper &m_d, void *data_handle) {
     };
 
     if (c_tail_s) {
-        parallel_nd(A, B, D, E, F, [&](int a, int b, int d, int e, int f) {
-            auto x = &data[m_d.blk_off(a, b, C - 1, d, e, f)];
-            if (blk_kind == c)
-                zeroize_tail(x, c_tail_s);
-            else if (blk_kind == bc)
-                zeroize_tail_inner(x, c_tail_s);
-            else if (blk_kind == cb)
-                zeroize_tail_outer(x, c_tail_s);
-        });
+        parallel_nd(A, B, D, E, F,
+                [&](dim_t a, dim_t b, dim_t d, dim_t e, dim_t f) {
+                    auto x = &data[m_d.blk_off(a, b, C - 1, d, e, f)];
+                    if (blk_kind == c)
+                        zeroize_tail(x, c_tail_s);
+                    else if (blk_kind == bc)
+                        zeroize_tail_inner(x, c_tail_s);
+                    else if (blk_kind == cb)
+                        zeroize_tail_outer(x, c_tail_s);
+                });
     }
 
     if (b_tail_s) {
-        parallel_nd(A, C, D, E, F, [&](int a, int c, int d, int e, int f) {
-            auto x = &data[m_d.blk_off(a, B - 1, c, d, e, f)];
-            if (blk_kind == b)
-                zeroize_tail(x, b_tail_s);
-            else if (blk_kind == ab || blk_kind == cb)
-                zeroize_tail_inner(x, b_tail_s);
-            else if (blk_kind == ba || blk_kind == bc)
-                zeroize_tail_outer(x, b_tail_s);
-        });
+        parallel_nd(A, C, D, E, F,
+                [&](dim_t a, dim_t c, dim_t d, dim_t e, dim_t f) {
+                    auto x = &data[m_d.blk_off(a, B - 1, c, d, e, f)];
+                    if (blk_kind == b)
+                        zeroize_tail(x, b_tail_s);
+                    else if (blk_kind == ab || blk_kind == cb)
+                        zeroize_tail_inner(x, b_tail_s);
+                    else if (blk_kind == ba || blk_kind == bc)
+                        zeroize_tail_outer(x, b_tail_s);
+                });
     }
 
     if (a_tail_s) {
-        parallel_nd(B, C, D, E, F, [&](int b, int c, int d, int e, int f) {
-            auto x = &data[m_d.blk_off(A - 1, b, c, d, e, f)];
-            if (blk_kind == a)
-                zeroize_tail(x, a_tail_s);
-            else if (blk_kind == ba)
-                zeroize_tail_inner(x, a_tail_s);
-            else if (blk_kind == ab)
-                zeroize_tail_outer(x, a_tail_s);
-        });
+        parallel_nd(B, C, D, E, F,
+                [&](dim_t b, dim_t c, dim_t d, dim_t e, dim_t f) {
+                    auto x = &data[m_d.blk_off(A - 1, b, c, d, e, f)];
+                    if (blk_kind == a)
+                        zeroize_tail(x, a_tail_s);
+                    else if (blk_kind == ba)
+                        zeroize_tail_inner(x, a_tail_s);
+                    else if (blk_kind == ab)
+                        zeroize_tail_outer(x, a_tail_s);
+                });
     }
 }
 

@@ -41,14 +41,14 @@ status_t ref_softmax_fwd_t<data_type>::execute_forward_dense(
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->dst_md());
-    const auto ou_stride = pd()->outer_stride();
+    const dim_t ou_stride = pd()->outer_stride();
     const auto is_inplace = (src == dst);
     const auto has_padding = is_padding(data_d);
     const auto zero_padding = has_padding && !is_inplace;
     const auto axis = pd()->axis();
     const auto axis_blk_size = data_d.padded_dims()[axis] - data_d.dims()[axis];
 
-    parallel_nd(outer_size_, [&](int ou) {
+    parallel_nd(outer_size_, [&](dim_t ou) {
         const data_t *src_data = src + ou * ou_stride;
         data_t *dst_data = dst + ou * ou_stride;
         float space_max = -FLT_MAX;
@@ -171,7 +171,7 @@ status_t ref_softmax_fwd_t<data_type>::execute_forward_generic(
             ctx.zero_pad_output(DNNL_ARG_DST);
     }
 
-    parallel_nd(outer_size_, [&](int ou) {
+    parallel_nd(outer_size_, [&](dim_t ou) {
         float space_max_val = 0, space_denom_val = 0;
         float *space_max = &space_max_val, *space_denom = &space_denom_val;
         if (inner_size_ > 1) {
@@ -236,7 +236,7 @@ status_t ref_softmax_bwd_t<data_type>::execute_backward_dense(
 
     const auto ou_stride = pd()->outer_stride();
 
-    parallel_nd(outer_size_, [&](int ou) {
+    parallel_nd(outer_size_, [&](dim_t ou) {
         float sbr = 0;
         size_t off = ou * ou_stride;
         if (pd()->is_softmax()) {
@@ -284,7 +284,7 @@ status_t ref_softmax_bwd_t<data_type>::execute_backward_generic(
             ctx.zero_pad_output(DNNL_ARG_DIFF_SRC);
     }
 
-    parallel_nd(outer_size_, inner_size_, [&](int ou, int in) {
+    parallel_nd(outer_size_, inner_size_, [&](dim_t ou, dim_t in) {
         dim_t ou_in_offset = ou * channels_ * inner_size_ + in;
         float sbr = 0;
         for (int c = 0; c < channels_; ++c) {

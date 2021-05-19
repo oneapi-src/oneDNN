@@ -1448,33 +1448,33 @@ status_t jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
             reinterpret_cast<ptrdiff_t>(dst_i8 + dst_d.size() - 1)
             - (cpu_isa_traits<isa>::vlen - 1));
 
-    parallel_nd(
-            jpp.mb, jpp.od, jpp.oh, jpp.ow, [&](int n, int od, int oh, int ow) {
-                const int id = nstl::max(od * jpp.stride_d - jpp.f_pad, 0);
-                const int ih = nstl::max(oh * jpp.stride_h - jpp.t_pad, 0);
-                const int iw = nstl::max(ow * jpp.stride_w - jpp.l_pad, 0);
+    parallel_nd(jpp.mb, jpp.od, jpp.oh, jpp.ow,
+            [&](dim_t n, dim_t od, dim_t oh, dim_t ow) {
+                dim_t id = nstl::max(od * jpp.stride_d - jpp.f_pad, dim_t(0));
+                dim_t ih = nstl::max(oh * jpp.stride_h - jpp.t_pad, dim_t(0));
+                dim_t iw = nstl::max(ow * jpp.stride_w - jpp.l_pad, dim_t(0));
 
-                const int kd_start
-                        = nstl::max(0, jpp.f_pad - od * jpp.stride_d);
-                const int kd_end = nstl::min(
-                        jpp.kd, jpp.id + jpp.f_pad - od * jpp.stride_d);
-                const int kh_start
-                        = nstl::max(0, jpp.t_pad - oh * jpp.stride_h);
-                const int kh_end = nstl::min(
-                        jpp.kh, jpp.ih + jpp.t_pad - oh * jpp.stride_h);
-                const int kw_start
-                        = nstl::max(0, jpp.l_pad - ow * jpp.stride_w);
-                const int kw_end = nstl::min(
-                        jpp.kw, jpp.iw + jpp.l_pad - ow * jpp.stride_w);
+                dim_t kd_start
+                        = nstl::max(dim_t(0), jpp.f_pad - od * jpp.stride_d);
+                dim_t kd_end = nstl::min(
+                        dim_t(jpp.kd), jpp.id + jpp.f_pad - od * jpp.stride_d);
+                dim_t kh_start
+                        = nstl::max(dim_t(0), jpp.t_pad - oh * jpp.stride_h);
+                dim_t kh_end = nstl::min(
+                        dim_t(jpp.kh), jpp.ih + jpp.t_pad - oh * jpp.stride_h);
+                dim_t kw_start
+                        = nstl::max(dim_t(0), jpp.l_pad - ow * jpp.stride_w);
+                dim_t kw_end = nstl::min(
+                        dim_t(jpp.kw), jpp.iw + jpp.l_pad - ow * jpp.stride_w);
 
                 auto p = call_params_t();
                 p.src_i8 = &src_i8[get_offset(src_d, n, 0, id, ih, iw)
                         * src_d.data_type_size()];
                 p.dst_i8 = &dst_i8[get_offset(dst_d, n, 0, od, oh, ow)
                         * dst_d.data_type_size()];
-                p.kd_range = (size_t)(kd_end - kd_start);
-                p.kh_range = (size_t)(kh_end - kh_start);
-                p.kw_range = (size_t)(kw_end - kw_start);
+                p.kd_range = kd_end - kd_start;
+                p.kh_range = kh_end - kh_start;
+                p.kw_range = kw_end - kw_start;
                 p.idivider = 1.0f
                         / ((jpp.alg == pooling_avg_exclude_padding)
                                         ? p.kd_range * p.kh_range * p.kw_range

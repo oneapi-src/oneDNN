@@ -116,7 +116,7 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     // db4 += e * (r * dG2)
     gates_reduction(rnn, scratch_gates_, diff_bias_);
 
-    parallel_nd(rnn.dhc, [&](int j) {
+    parallel_nd(rnn.dhc, [&](dim_t j) {
         for (int i = 0; i < rnn.mb; i++) {
             diff_bias_[3 * rnn.dhc + j] += scratch_gates_r(i, 2, j);
         }

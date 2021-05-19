@@ -414,7 +414,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
     int group_block = jcp.ch_block;
 
     parallel_nd(jcp.mb, jcp.oh, jcp.nb_ow, nb_groups,
-            [&](int n, int oh_s, int owb, int gg) {
+            [&](dim_t n, dim_t oh_s, dim_t owb, dim_t gg) {
                 auto p = jit_conv_call_s();
 
                 size_t src_h_stride = src_d.blk_off(0, 0, 1);

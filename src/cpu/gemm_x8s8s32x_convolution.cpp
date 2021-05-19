@@ -45,7 +45,7 @@ const int32_t *mul_zp_src_comp_from_wei_by_zp_src(const int zp_comp_size,
     const auto res = std::div(zp_comp_size, cache_line_size);
 
     if (res.quot) {
-        parallel_nd(res.quot, [&](const int shift_factor) {
+        parallel_nd(res.quot, [&](size_t shift_factor) {
             const auto shift = shift_factor * cache_line_size;
             const int32_t *__restrict const src = zp_src_comp_from_wei + shift;
             int32_t *__restrict dst = zp_src_comp_scratch_dst + shift;
@@ -197,17 +197,17 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
             = should_apply_zp_src_comp_pad
             && !gemm_x8s8s32x_convolution_utils::mayiuse_jit_pp_kernel();
 
-    int g {0}, n {0}, ohb {0}, owb {0};
-    size_t start = 0, end = 0;
+    dim_t g {0}, n {0}, ohb {0}, owb {0};
+    dim_t start = 0, end = 0;
 
     const bool is_problem_3d = pd()->ndims() == 5;
     assert(IMPLICATION(is_problem_3d,
             jcp.oh_block == jcp.oh && jcp.ow_block == jcp.ow
                     && jcp.ic_block == jcp.ic));
 
-    const int nb_oh = div_up(jcp.oh, jcp.oh_block);
-    const int nb_ow = div_up(jcp.ow, jcp.ow_block);
-    const size_t work_amount = (size_t)jcp.ngroups * jcp.mb * nb_oh * nb_ow;
+    const dim_t nb_oh = div_up(jcp.oh, jcp.oh_block);
+    const dim_t nb_ow = div_up(jcp.ow, jcp.ow_block);
+    const dim_t work_amount = jcp.ngroups * jcp.mb * nb_oh * nb_ow;
     balance211(work_amount, nthr, ithr, start, end);
     nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, ohb, nb_oh, owb, nb_ow);
     const uint8_t shift = jcp.signed_input ? 128 : 0;
@@ -215,7 +215,7 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
 
     status_t st = status::success;
 
-    for (size_t iwork = start; iwork < end; ++iwork) {
+    for (dim_t iwork = start; iwork < end; ++iwork) {
         const int oh = ohb * jcp.oh_block;
         const int ow = owb * jcp.ow_block;
         const src_data_t *__restrict src
@@ -277,8 +277,8 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
                     : single_gemm_conv_chunk_desc_t {};
 
             parallel(0, [&](int ithr, int nthr) {
-                size_t _start, _end;
-                balance211((size_t)N * jcp.oc, nthr, ithr, _start, _end);
+                dim_t _start, _end;
+                balance211(N * jcp.oc, nthr, ithr, _start, _end);
 
                 (*pp_ker_)(dst, acc, bia_base, scales, sum_scale,
                         1.f / wei_adj_scale, g, _start, _end, zp,
@@ -341,7 +341,7 @@ _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
     /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
     const int scale_idx_mult = pd()->attr()->output_scales_.mask_ == (1 << 1);
     const float *__restrict scales = pd()->attr()->output_scales_.scales_;
-    const size_t work_amount = jcp.ngroups * jcp.mb;
+    const dim_t work_amount = jcp.ngroups * jcp.mb;
 
     acc_data_t *__restrict col = scratchpad.get<acc_data_t>(key_conv_gemm_col)
             + (ptrdiff_t)ithr * jcp.im2col_sz;
@@ -349,13 +349,13 @@ _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
             = scratchpad.get<acc_data_t>(key_conv_int_dat_in_acc_dt)
             + (ptrdiff_t)ithr * jcp.is * jcp.id * jcp.ic;
 
-    int n {0}, g {0};
-    size_t start = 0, end = 0;
+    dim_t n {0}, g {0};
+    dim_t start = 0, end = 0;
 
     balance211(work_amount, nthr, ithr, start, end);
     nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups);
 
-    for (size_t iwork = start; iwork < end; ++iwork) {
+    for (dim_t iwork = start; iwork < end; ++iwork) {
         const diff_dst_data_t *__restrict diff_dst = diff_dst_base
                 + n * diff_dst_mb_stride + g * diff_dst_g_stride;
         const wei_data_t *__restrict wei = wei_base + g * wei_g_stride;
@@ -381,7 +381,7 @@ _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
             jit_gemm_convolution_utils::col2im_dt<int32_t>(jcp, col, acc);
 
         // TODO: the code below is not tested and broken anyway.
-        parallel_nd(jcp.is * jcp.id, [&](int is) {
+        parallel_nd(jcp.is * jcp.id, [&](dim_t is) {
             diff_src_data_t *__restrict diff_src_loc
                     = diff_src + is * diff_src_os_stride;
             const acc_data_t *__restrict acc_loc = acc + is * jcp.ic;

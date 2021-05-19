@@ -225,13 +225,13 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
     const int aux_w
             = nstl::min(jcp.iw, jcp.iw - jcp.kw + jcp.r_pad + jcp.stride_w);
     const int chb_work = utils::div_up(jcp.nb_ch, jcp.nb_ch_blocking);
-    const int work_amount = jcp.mb * chb_work * jcp.ih;
+    const dim_t work_amount = jcp.mb * chb_work * jcp.ih;
     const auto nthr = jcp.nthr;
 
     parallel(nthr, [&](const int ithr, const int nthr) {
-        int start {0}, end {0};
+        dim_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
-        int n {0}, chb {0}, ih {0};
+        dim_t n {0}, chb {0}, ih {0};
         if (jcp.loop_order == loop_ngcw)
             utils::nd_iterator_init(
                     start, n, jcp.mb, chb, chb_work, ih, jcp.ih);
@@ -246,10 +246,10 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
             int ch = chb * jcp.nb_ch_blocking;
 
             const int work_rem = end - iwork;
-            const int i_t_overflow
-                    = nstl::max(0, (int)(jcp.kh - 1 - ih - jcp.t_pad));
-            const int i_b_overflow = nstl::max(
-                    0, (int)(jcp.kh - 1 - (jcp.ih - 1 - ih) - jcp.b_pad));
+            const dim_t i_t_overflow
+                    = nstl::max(dim_t(0), jcp.kh - 1 - ih - jcp.t_pad);
+            const dim_t i_b_overflow = nstl::max(
+                    dim_t(0), jcp.kh - 1 - (jcp.ih - 1 - ih) - jcp.b_pad);
 
             int oh = ih + jcp.t_pad - i_b_overflow;
             int stride_off_h = oh % jcp.stride_h;

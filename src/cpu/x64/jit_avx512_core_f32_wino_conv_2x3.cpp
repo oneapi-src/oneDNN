@@ -863,7 +863,8 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
 
     parallel_nd_ext(jcp.nthr, jcp.mb, div_up(jcp.oh, jcp.yb),
             div_up(jcp.ow, jcp.xb),
-            [&](int ithr, int nthr, int mb, int tile_y_b, int tile_x_b) {
+            [&](dim_t ithr, dim_t nthr, dim_t mb, dim_t tile_y_b,
+                    dim_t tile_x_b) {
                 assert(nthr <= jcp.nthr);
                 MAYBE_UNUSED(nthr);
 
@@ -990,7 +991,7 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
     for (int tile_x = 0; tile_x < jcp.ow; tile_x += jcp.xb) {
         /* transformation of input tensor to winograd domain */
         parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2),
-                [&](int y_in_block_b, int x_in_block_b) {
+                [&](dim_t y_in_block_b, dim_t x_in_block_b) {
                     int y_in_block = y_in_block_b * 2;
                     int x_in_block = x_in_block_b * 2;
 
@@ -1032,7 +1033,7 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
                 });
 
         /* gemms */
-        parallel_nd(16, jcp.n_chunks, [&](int tile_ij, int nnb) {
+        parallel_nd(16, jcp.n_chunks, [&](dim_t tile_ij, dim_t nnb) {
             auto gemm_p = jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::
                     call_params_t();
 
@@ -1048,7 +1049,7 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
         /* transformation from winograd domain to output tensor */
 
         parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2),
-                [&](int y_in_block_b, int x_in_block_b) {
+                [&](dim_t y_in_block_b, dim_t x_in_block_b) {
                     int y_in_block = y_in_block_b * 2;
                     int x_in_block = x_in_block_b * 2;
 

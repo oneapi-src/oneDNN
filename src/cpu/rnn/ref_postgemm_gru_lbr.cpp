@@ -54,7 +54,7 @@ void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src,
     ws_gates_aoc<scratch_data_t> scratch_cell(rnn, scratch_cell_);
     AOC<src_data_t, 2> ws_Wh_b(ws_grid_, rnn.mb, rnn.dhc);
 
-    parallel_nd(rnn.mb, [&](int i) {
+    parallel_nd(rnn.mb, [&](dim_t i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dhc; j++) {
             float Wh_b = scratch_cell(i, 2, j) + bias(3, j);
@@ -155,7 +155,7 @@ void gru_lbr_bwd_postgemm_template(T1 to_src, const rnn_utils::rnn_conf_t &rnn,
     // dG0 = (dht - G2) * dht * (1 - G0) * G0
     // dG1 = (W*h + b) * dG2 * (1 - G1) * G1
     // dG2 = (1 - G0) * dht * (1 - G2*G2)
-    parallel_nd(rnn.mb, [&](int i) {
+    parallel_nd(rnn.mb, [&](dim_t i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dhc; j++) {
             float h = src_iter(i, j);

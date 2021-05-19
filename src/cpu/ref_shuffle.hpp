@@ -67,15 +67,15 @@ struct ref_shuffle_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         const int axis_size = pd()->axis_size();
-        const int group_size = pd()->group_size();
-        const int transpose_row
+        const dim_t group_size = pd()->group_size();
+        const dim_t transpose_row
                 = pd()->is_fwd() ? group_size : axis_size / group_size;
-        const int transpose_col
+        const dim_t transpose_col
                 = pd()->is_fwd() ? axis_size / group_size : group_size;
         rev_transposed_ = (int *)malloc(
                 axis_size * sizeof(int), platform::get_cache_line_size());
         if (rev_transposed_ == nullptr) return dnnl_out_of_memory;
-        parallel_nd(transpose_col, transpose_row, [&](int i, int j) {
+        parallel_nd(transpose_col, transpose_row, [&](dim_t i, dim_t j) {
             rev_transposed_[j * transpose_col + i] = i * transpose_row + j;
         });
         return dnnl_success;

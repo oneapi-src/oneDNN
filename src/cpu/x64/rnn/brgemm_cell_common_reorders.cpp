@@ -73,7 +73,7 @@ void src_layer_iter_transpose_t::execute(const Dt *src, Dt *dst) const {
     const auto cols_tail = cols_div.rem;
     const auto cols_blks = cols_div.quot + (cols_tail > 0 ? 1 : 0);
 
-    parallel_nd(cols_blks, rows_blks, [&](const int c, const int r) {
+    parallel_nd(cols_blks, rows_blks, [&](dim_t c, dim_t r) {
         const auto current_rows
                 = (rows_tail && r == rows_blks - 1) ? rows_tail : block_size;
         const auto current_cols

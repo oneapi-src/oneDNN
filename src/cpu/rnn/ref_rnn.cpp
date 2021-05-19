@@ -471,7 +471,7 @@ void copy_init_layer_fwd_template(const rnn_conf_t &rnn,
     AOC<src_data_t, 4> ws_states_layer(ws_states_layer_, rnn.n_dir,
             rnn.n_iter + 1, rnn.mb, rnn.ws_states_layer_ld);
 
-    parallel_nd(rnn.n_iter, rnn.mb, [&](int it, int b) {
+    parallel_nd(rnn.n_iter, rnn.mb, [&](dim_t it, dim_t b) {
         auto xxt = xt_ + xt_d.blk_off(it, b);
         src_data_t *ws_l2r_ptr = &(ws_states_layer(0, it + 1, b, 0));
         src_data_t *ws_r2l_ptr
@@ -499,7 +499,7 @@ void copy_init_layer_bwd_template(const rnn_conf_t &rnn,
 
     switch (rnn.exec_dir) {
         case bi_concat:
-            parallel_nd(rnn.n_iter, rnn.mb, [&](int it, int b) {
+            parallel_nd(rnn.n_iter, rnn.mb, [&](dim_t it, dim_t b) {
                 auto diff_dst_layer_x
                         = diff_dst_layer_ + diff_dst_layer_d.blk_off(it, b);
                 for (int s = 0; s < rnn.dlc; s++) {
@@ -512,7 +512,7 @@ void copy_init_layer_bwd_template(const rnn_conf_t &rnn,
             });
             break;
         case bi_sum:
-            parallel_nd(rnn.n_iter, rnn.mb, [&](int it, int b) {
+            parallel_nd(rnn.n_iter, rnn.mb, [&](dim_t it, dim_t b) {
                 auto diff_dst_layer_x
                         = diff_dst_layer_ + diff_dst_layer_d.blk_off(it, b);
                 for (int s = 0; s < rnn.dlc; s++) {
@@ -525,7 +525,7 @@ void copy_init_layer_bwd_template(const rnn_conf_t &rnn,
             });
             break;
         case l2r:
-            parallel_nd(rnn.n_iter, rnn.mb, [&](int it, int b) {
+            parallel_nd(rnn.n_iter, rnn.mb, [&](dim_t it, dim_t b) {
                 auto diff_dst_layer_x
                         = diff_dst_layer_ + diff_dst_layer_d.blk_off(it, b);
                 for (int s = 0; s < rnn.dlc; s++) {
@@ -535,7 +535,7 @@ void copy_init_layer_bwd_template(const rnn_conf_t &rnn,
             });
             break;
         case r2l:
-            parallel_nd(rnn.n_iter, rnn.mb, [&](int it, int b) {
+            parallel_nd(rnn.n_iter, rnn.mb, [&](dim_t it, dim_t b) {
                 auto diff_dst_layer_x = diff_dst_layer_
                         + diff_dst_layer_d.blk_off(rnn.n_iter - it - 1, b);
                 for (int s = 0; s < rnn.dlc; s++) {
@@ -607,8 +607,8 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     const src_data_t zero = maybe_q(0.f);
 
     if (src_iter_) {
-        parallel_nd(
-                rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
+        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb,
+                [&](dim_t lay, dim_t dir, dim_t b) {
                     const auto *ss
                             = &src_iter_[src_iter_d.blk_off(lay, dir, b, 0)];
                     auto *dd = &ws_states_iter(lay + 1, dir, 0, b, 0);
@@ -617,8 +617,8 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
                         dd[s] = maybe_q(ss[s]);
                 });
     } else {
-        parallel_nd(
-                rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
+        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb,
+                [&](dim_t lay, dim_t dir, dim_t b) {
                     for (int j = 0; j < rnn.sic; j++)
                         ws_states_iter(lay + 1, dir, 0, b, j) = zero;
                     if (pd->cell_kind() == alg_kind::vanilla_lstm)
@@ -642,8 +642,8 @@ void copy_init_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
             rnn.n_layer + 1, rnn.n_dir, rnn.n_iter + 1, rnn.mb,
             rnn.ws_diff_states_iter_c_ld);
     if (diff_dst_iter_) {
-        parallel_nd(
-                rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
+        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb,
+                [&](dim_t lay, dim_t dir, dim_t b) {
                     array_copy(
                             &(ws_diff_states_iter(lay, dir, rnn.n_iter, b, 0)),
                             diff_dst_iter_
@@ -658,8 +658,8 @@ void copy_init_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
                                 rnn.dhc);
                 });
     } else {
-        parallel_nd(
-                rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int i) {
+        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb,
+                [&](dim_t lay, dim_t dir, dim_t i) {
                     for (int j = 0; j < rnn.dic; j++)
                         ws_diff_states_iter(lay, dir, rnn.n_iter, i, j) = 0.0f;
                     if (pd->cell_kind() == alg_kind::vanilla_lstm)
@@ -772,7 +772,7 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     // if skip_dst_iter_copy, then the data for the last iteration is
     // in dst_iter, not in workspace
     parallel_nd(rnn.n_iter - (rnn.skip_dst_iter_copy() ? 1 : 0), rnn.mb,
-            [&](int it, int b) {
+            [&](dim_t it, dim_t b) {
                 int dir = 0;
                 if (rnn.exec_dir != r2l) {
                     const auto *ss
@@ -796,7 +796,7 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
                 }
             });
     if (rnn.skip_dst_iter_copy()) {
-        parallel_nd(rnn.mb, [&](int b) {
+        parallel_nd(rnn.mb, [&](dim_t b) {
             const int it = rnn.n_iter - 1;
             int dir = 0;
             if (rnn.exec_dir != r2l) {
@@ -831,7 +831,7 @@ void copy_res_layer_bwd_template(const rnn_conf_t &rnn,
             rnn.n_layer + 1, rnn.n_dir, rnn.n_iter + 1, rnn.mb,
             rnn.ws_diff_states_layer_ld);
 
-    parallel_nd(rnn.n_iter, rnn.mb, [&](int it, int b) {
+    parallel_nd(rnn.n_iter, rnn.mb, [&](dim_t it, dim_t b) {
         int dir = 0;
         for (int s = 0; s < rnn.slc; s++) {
             acc_data_t *dst_addr = diff_src_layer_
@@ -913,14 +913,16 @@ void copy_res_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     // layer is in dst_layer, not in workspace.
     auto n_layer_in_ws = rnn.n_layer - rnn.skip_dst_layer_copy();
 
-    parallel_nd(n_layer_in_ws, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
-        const auto *ss = &ws_states_iter(lay + 1, dir, rnn.n_iter, b, 0);
-        auto *dd = dst_iter_ + dst_iter_d.blk_off(lay, dir, b, 0);
-        copy_vec(dd, ss);
-    });
+    parallel_nd(n_layer_in_ws, rnn.n_dir, rnn.mb,
+            [&](dim_t lay, dim_t dir, dim_t b) {
+                const auto *ss
+                        = &ws_states_iter(lay + 1, dir, rnn.n_iter, b, 0);
+                auto *dd = dst_iter_ + dst_iter_d.blk_off(lay, dir, b, 0);
+                copy_vec(dd, ss);
+            });
 
     if (rnn.skip_dst_layer_copy()) {
-        parallel_nd(rnn.n_dir, rnn.mb, [&](int dir, int b) {
+        parallel_nd(rnn.n_dir, rnn.mb, [&](dim_t dir, dim_t b) {
             const auto *ss
                     = &dst_layer_[dst_layer_d.blk_off(rnn.n_iter - 1, b, dir)];
             auto *dd = &dst_iter_[dst_iter_d.blk_off(
@@ -943,8 +945,8 @@ void copy_res_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
             rnn.n_layer + 1, rnn.n_dir, rnn.n_iter + 1, rnn.mb,
             rnn.ws_diff_states_iter_c_ld);
     if (diff_src_iter_) {
-        parallel_nd(
-                rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
+        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb,
+                [&](dim_t lay, dim_t dir, dim_t b) {
                     for (int s = 0; s < rnn.sic; s++) {
                         diff_src_iter_[diff_src_iter_d.blk_off(lay, dir, b, s)]
                                 = ws_diff_states_iter(lay, dir, 0, b, s);
@@ -1014,7 +1016,7 @@ rnn_bias_prepare_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             scratch_bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dhc);
 
     if (rnn.copy_bias) {
-        parallel_nd(rnn.n_layer * rnn.n_dir, [&](int i) {
+        parallel_nd(rnn.n_layer * rnn.n_dir, [&](dim_t i) {
             int off = i * rnn.n_bias * rnn.dhc;
             PRAGMA_OMP_SIMD()
             for (int j = 0; j < rnn.n_bias * rnn.dhc; j++)

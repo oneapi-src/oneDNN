@@ -51,7 +51,7 @@ void proj_dst_copy(const rnn_utils::rnn_conf_t &rnn,
                 std::memcpy(dst_iter_ + i * dst_iter_ld,
                         dst_layer_ + i * dst_layer_ld, block_step);
         } else {
-            parallel_nd(rnn.mb, [&](int i) {
+            parallel_nd(rnn.mb, [&](dim_t i) {
                 std::memcpy(dst_iter_ + i * dst_iter_ld,
                         dst_layer_ + i * dst_layer_ld, block_step);
             });
@@ -126,7 +126,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_projection_postgemm) {
         for (int i = 0; i < rnn.m_block; i++)
             postgemm_call(i);
     } else {
-        parallel_nd(rnn.mb, [&](int i) { postgemm_call(i); });
+        parallel_nd(rnn.mb, [&](dim_t i) { postgemm_call(i); });
     }
     proj_dst_copy(rnn, cell_position, dst_iter_, dst_layer_, block_step);
 }
@@ -154,7 +154,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::lstm_projection_postgemm) {
         return (saturate<float>(s)) / (wscale * data_scale);
     };
 
-    auto postgemm_call = [&](int i) {
+    auto postgemm_call = [&](dim_t i) {
         int n_elem = block_step / (int)sizeof(dst_layer_t);
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < n_elem; j++) {
@@ -168,7 +168,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::lstm_projection_postgemm) {
         for (int i = 0; i < rnn.m_block; i++)
             postgemm_call(i);
     } else {
-        parallel_nd(rnn.mb, [&](int i) { postgemm_call(i); });
+        parallel_nd(rnn.mb, [&](dim_t i) { postgemm_call(i); });
     }
     proj_dst_copy(rnn, cell_position, dst_iter_, dst_layer_, block_step);
 }

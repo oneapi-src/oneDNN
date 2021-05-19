@@ -92,7 +92,7 @@ void rnn_fwd_postgemm_template(T func1, const float *scales, float alpha,
 
     const int n_elem = block_step / sizeof(scratch_data_t);
 
-    const auto postgemm_call = [&](int i) {
+    const auto postgemm_call = [&](dim_t i) {
         for (int j = 0; j < n_elem; j++) {
             const float h
                     = func1(scratch_gates(i, 0, j) + bias(0, j), alpha, 0);
@@ -171,7 +171,7 @@ void rnn_bwd_postgemm_template(T1 func1, T2 to_src, const float *scales,
     ws_diff_states_layer_aoc<acc_data_t> diff_dst_layer(rnn, diff_dst_layer_);
     if (scales != nullptr) alpha = scales[0];
 
-    parallel_nd(rnn.mb, [&](int i) {
+    parallel_nd(rnn.mb, [&](dim_t i) {
         for (int j = 0; j < rnn.dhc; ++j) {
             const float dH = diff_dst_layer(i, j) + diff_dst_iter(i, j);
             auto g = (float)ws_gates(i, 0, j);

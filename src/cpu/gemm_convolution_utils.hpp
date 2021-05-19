@@ -33,13 +33,13 @@ enum conv_gemm_loop_order_t { gemm_loop_rlb, gemm_loop_lrb, gemm_loop_lbr };
 struct conv_gemm_conf_t {
     prop_kind_t prop_kind;
 
-    int mb;
-    int ngroups, ic, oc;
-    int iw, ih, id, ow, oh, od;
-    int l_pad, t_pad, f_pad, e_pad, b_pad, r_pad;
-    int kh, kw, kd;
-    int stride_h, stride_w, stride_d;
-    int dilate_h, dilate_w, dilate_d;
+    dim_t mb;
+    dim_t ngroups, ic, oc;
+    dim_t iw, ih, id, ow, oh, od;
+    dim_t l_pad, t_pad, f_pad, e_pad, b_pad, r_pad;
+    dim_t kh, kw, kd;
+    dim_t stride_h, stride_w, stride_d;
+    dim_t dilate_h, dilate_w, dilate_d;
     bool with_bias;
     bool with_eltwise;
     bool with_binary;
@@ -47,16 +47,16 @@ struct conv_gemm_conf_t {
     post_ops_t post_ops;
     bool is_nspc;
 
-    int is, os, ks;
-    int ic_block, oc_block;
+    dim_t is, os, ks;
+    dim_t ic_block, oc_block;
 
     int nthr;
     ptrdiff_t im2col_sz;
     bool need_wei_reduction;
     bool signed_input;
-    int oh_block;
-    int ow_block;
-    int os_block, os_nb_block;
+    dim_t oh_block;
+    dim_t ow_block;
+    dim_t os_block, os_nb_block;
     bool outer_threading;
     conv_gemm_loop_order_t loop_order;
     int nthr_oc;
@@ -85,7 +85,7 @@ struct single_gemm_conv_chunk_desc_t {
 namespace jit_gemm_convolution_utils {
 template <typename data_type_t>
 void im2col_3d(const conv_gemm_conf_t &jcp, const data_type_t *im,
-        data_type_t *col, int od, int spatial_step, int spatial_block);
+        data_type_t *col, dim_t od, int spatial_step, int spatial_block);
 
 template <typename T>
 void transpose_dt(const conv_gemm_conf_t &jcp, const T *__restrict im,
@@ -93,22 +93,22 @@ void transpose_dt(const conv_gemm_conf_t &jcp, const T *__restrict im,
 
 template <typename im_dt, typename col_dt>
 void im2col_dt_3d(const conv_gemm_conf_t &jcp, const im_dt *__restrict im,
-        col_dt *__restrict col, int od);
+        col_dt *__restrict col, dim_t od);
 
 template <typename data_type_t>
 void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
-        data_type_t *__restrict col, int ss, int sb, int cs, int cb);
+        data_type_t *__restrict col, dim_t ss, dim_t sb, dim_t cs, dim_t cb);
 
 template <typename im_dt, typename col_dt>
 void im2col_dt(const conv_gemm_conf_t &jcp, const im_dt *__restrict im,
-        im_dt *__restrict imtr, col_dt *__restrict col, int hs, int hb, int ws,
-        int wb);
+        im_dt *__restrict imtr, col_dt *__restrict col, dim_t hs, dim_t hb,
+        dim_t ws, dim_t wb);
 
 template <typename T>
 void col2im_dt(
         const conv_gemm_conf_t &jcp, const T *__restrict col, T *__restrict im);
-void col2im_3d(const conv_gemm_conf_t &jcp, const float *col, float *im, int od,
-        int spatial_step, int spatial_block);
+void col2im_3d(const conv_gemm_conf_t &jcp, const float *col, float *im,
+        dim_t od, int spatial_step, int spatial_block);
 void col2im(const conv_gemm_conf_t &jcp, const float *col, float *im,
         int spatial_step, int spatial_block);
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -966,7 +966,7 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
     }
 
     parallel_nd(jcp.mb, jcp.dimK_nb_block, jcp.dimK_block,
-            [&](int img, int K_blk1, int K_blk2) {
+            [&](dim_t img, dim_t K_blk1, dim_t K_blk2) {
                 input_transform_data<is_fwd>(img, jcp,
                         &(input(img, K_blk1 * jcp.dimK_block + K_blk2, 0, 0,
                                 0)),
@@ -974,7 +974,7 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
             });
 
     parallel_nd(jcp.nb_oc, jcp.nb_ic, jcp.oc_block, jcp.ic_block,
-            [&](int ofm1, int ifm1, int ofm2, int ifm2) {
+            [&](dim_t ofm1, dim_t ifm1, dim_t ofm2, dim_t ifm2) {
                 float *U_base_ptr = is_fwd
                         ? &(U(ofm1, 0, 0, ifm1, ofm2, ifm2, 0, 0))
                         : &(U(ifm1, 0, 0, ofm1, ifm2, ofm2, 0, 0));
@@ -986,13 +986,13 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
 
     parallel_nd(jcp.dimN_nb_block, alpha, alpha, jcp.dimM_nb_block,
             jcp.dimN_block,
-            [&](int N_blk1, int oj, int oi, int M_blk1, int N_blk2) {
+            [&](dim_t N_blk1, dim_t oj, dim_t oi, dim_t M_blk1, dim_t N_blk2) {
                 kernel_->gemm_loop_ker_first_iter(
                         (float *)&(M(N_blk1, M_blk1, oj, oi, N_blk2, 0, 0, 0)),
                         (const float *)&(U(M_blk1, oj, oi, 0, 0, 0, 0, 0)),
                         (const float *)&(
                                 V(N_blk1, oj, oi, N_blk2, 0, 0, 0, 0)));
-                for (int K_blk1 = 1; K_blk1 < jcp.dimK_nb_block; K_blk1++) {
+                for (dim_t K_blk1 = 1; K_blk1 < jcp.dimK_nb_block; K_blk1++) {
                     kernel_->gemm_loop_ker((float *)&(M(N_blk1, M_blk1, oj, oi,
                                                    N_blk2, 0, 0, 0)),
                             (const float *)&(
@@ -1003,8 +1003,8 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
             });
 
     parallel_nd(jcp.mb, jcp.dimM_nb_block, jcp.dimM_block,
-            [&](int img, int M_blk1, int M_blk2) {
-                const int M_blk = M_blk1 * jcp.dimM_block + M_blk2;
+            [&](dim_t img, dim_t M_blk1, dim_t M_blk2) {
+                const dim_t M_blk = M_blk1 * jcp.dimM_block + M_blk2;
 
                 float *bias_ptr = wants_padded_bias
                                 && M_blk == jcp.dimM / jcp.dimM_simd_block - 1
@@ -1085,7 +1085,7 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
     PRAGMA_OMP(parallel num_threads(nthreads))
     {
         if (jcp.with_bias) {
-            parallel_nd_in_omp(nthreads, jcp.oc, [&](int ithr, int ofm) {
+            parallel_nd_in_omp(nthreads, jcp.oc, [&](dim_t ithr, dim_t ofm) {
                 diff_bias_prv(ithr, ofm) = 0.0f;
             });
 
@@ -1100,7 +1100,7 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
         const int ithr = OMP_GET_THREAD_NUM();
 
         parallel_nd_in_omp(jcp.mb, jcp.nb_ic, jcp.ic_block,
-                [&](int img, int ifm1, int ifm2) {
+                [&](dim_t img, dim_t ifm1, dim_t ifm2) {
                     float *transb = jcp.ver == ver_4fma
                             ? &(trans_buffer(ithr, 0))
                             : nullptr;
@@ -1111,7 +1111,7 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
                 });
 
         parallel_nd_in_omp(jcp.mb, jcp.nb_oc, jcp.oc_block,
-                [&](int img, int ofm1, int ofm2) {
+                [&](dim_t img, dim_t ofm1, dim_t ofm2) {
                     float *dbias = jcp.with_bias
                             ? &(diff_bias_prv(ithr,
                                     simd_w * (ofm1 * jcp.oc_block + ofm2)))
@@ -1125,8 +1125,8 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
         PRAGMA_OMP(barrier)
 
         for (int ifm1 = 0; ifm1 < jcp.nb_ic; ifm1++) {
-            parallel_nd_in_omp(
-                    alpha, alpha, jcp.nb_oc, [&](int oj, int oi, int ofm1) {
+            parallel_nd_in_omp(alpha, alpha, jcp.nb_oc,
+                    [&](dim_t oj, dim_t oi, dim_t ofm1) {
                         kernel_->gemm_loop_ker_first_iter(
                                 (float *)&(U(ifm1, ofm1, oj, oi, 0, 0, 0, 0)),
                                 (const float *)&(
@@ -1148,7 +1148,7 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
         PRAGMA_OMP(barrier)
 
         parallel_nd_in_omp(jcp.nb_ic, jcp.nb_oc, jcp.oc_block, jcp.ic_block,
-                [&](int ifm1, int ofm1, int ofm2, int ifm2) {
+                [&](dim_t ifm1, dim_t ofm1, dim_t ofm2, dim_t ifm2) {
                     diff_weights_transform_bwd_weights(jcp,
                             &(diff_weights(ofm1 * jcp.oc_block + ofm2,
                                     ifm1 * jcp.ic_block + ifm2, 0, 0, 0, 0)),

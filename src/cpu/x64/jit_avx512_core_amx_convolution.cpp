@@ -161,8 +161,8 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
         const int dilate_h = jcp.dilate_h + 1;
         const int gen_kh = (jcp.kh - 1) * dilate_h + 1;
         const int oh_work = jcp.oh_pad;
-        parallel_nd(ngroups, oc_chunks, oh_work,
-                [&](const int g, const int occ, const int oh) {
+        parallel_nd(
+                ngroups, oc_chunks, oh_work, [&](dim_t g, dim_t occ, dim_t oh) {
                     auto p = jit_conv_call_s();
 
                     const int oh_ = oh >= zp_buff_b_pad_start
@@ -510,7 +510,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
         const int od_work = jcp.od_pad;
         const int oh_work = jcp.oh_pad;
         parallel_nd(ngroups, oc_chunks, od_work, oh_work,
-                [&](const int g, const int occ, const int od, const int oh) {
+                [&](dim_t g, dim_t occ, dim_t od, dim_t oh) {
                     auto p = jit_conv_call_s();
 
                     const int od_ = od >= zp_buff_back_pad_start

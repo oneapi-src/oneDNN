@@ -165,7 +165,7 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
         scratch_data_t *scratch_cell_, src_data_t *dst_iter_) {
 
     if (rnn.is_lstm_projection) {
-        parallel_nd(rnn.mb, [&](const int i) {
+        parallel_nd(rnn.mb, [&](dim_t i) {
             PRAGMA_OMP_SIMD()
             for (int j = 0; j < rnn.dlc; j++)
                 scratch_diff_ht_[i * rnn.scratch_diff_ht_ld + j]

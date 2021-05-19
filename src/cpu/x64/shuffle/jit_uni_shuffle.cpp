@@ -106,7 +106,7 @@ status_t jit_uni_shuffle_t<isa>::precompute_offsets() {
     std::vector<int> rev_transposed_(axis_size);
 
     // Precompute transposed axis helper array
-    parallel_nd(transpose_col, transpose_row, [&](int i, int j) {
+    parallel_nd(transpose_col, transpose_row, [&](dim_t i, dim_t j) {
         rev_transposed_[j * transpose_col + i] = i * transpose_row + j;
     });
 
@@ -121,7 +121,7 @@ status_t jit_uni_shuffle_t<isa>::precompute_offsets() {
         const dim_t SP = conf.sp;
 
         // Precompute input offsets using transposed axis
-        parallel_nd(CB, [&](int cb) {
+        parallel_nd(CB, [&](dim_t cb) {
             const int blk_end = nstl::min(blk_size, C - cb * blk_size);
             PRAGMA_OMP_SIMD()
             for (int cc = 0; cc < blk_end; ++cc) {
