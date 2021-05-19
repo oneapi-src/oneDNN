@@ -30,7 +30,7 @@ namespace dnnl_impl {
 
 void insert_reorder(std::vector<std::shared_ptr<op_t>> &subgraph);
 
-void insert_permute_for_conv(std::vector<std::shared_ptr<op_t>> &subgraph);
+void insert_permute(std::vector<std::shared_ptr<op_t>> &subgraph);
 
 void insert_to_group_for_conv(std::vector<std::shared_ptr<op_t>> &subgraph);
 

@@ -20,3 +20,4 @@
 | matmul+relu                          | CPU      | FP32      | @ref cpu_matmul_relu_pattern_cpp           |                                   |
 | int8 conv+relu                       | CPU      | INT8      | @ref cpu_int8_conv_relu_pattern_cpp        |                                   |
 | int8 matmul+relu                     | CPU      | INT8      | @ref cpu_int8_matmul_relu_pattern_cpp      |                                   |
+| int8 maxpooling                      | CPU      | INT8      | @ref cpu_int8_maxpool_pattern_cpp          |                                   |

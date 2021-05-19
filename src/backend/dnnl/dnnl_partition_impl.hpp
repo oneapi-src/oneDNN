@@ -302,7 +302,7 @@ public:
                 op_kind::int8_matmul_bias_relu, op_kind::int8_matmul_sigmoid,
                 op_kind::int8_matmul_bias_sigmoid, op_kind::int8_matmul_gelu,
                 op_kind::int8_matmul_bias_gelu, op_kind::int8_matmul_add,
-                op_kind::int8_matmul_bias_add};
+                op_kind::int8_matmul_bias_add, op_kind::int8_maxpool};
 
         const dnnl_partition_impl_t *part
                 = dynamic_cast<const dnnl_partition_impl_t *>(

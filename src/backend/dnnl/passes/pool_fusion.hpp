@@ -44,7 +44,25 @@ using FCreateOptPattern = impl::pass::FCreateOptPattern;
  *          3. replace the pattern with a fused op, update the graph
  */
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(pool_fusion)
-// TODO(xxx) add int8 maxpooling fusion patterns
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_maxpool_fusion)
+        .set_priority(9.9f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *pool = apattern->create_op(op_kind::MaxPool);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    pool->fill_and_connect_input(0, *dequant_data, 0);
+                    quant->fill_and_connect_input(0, *pool, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_maxpool);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass

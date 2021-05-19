@@ -63,6 +63,8 @@ void fuse_to_int8_conv(std::vector<std::shared_ptr<op_t>> &subgraph);
 
 void fuse_to_int8_matmul(std::vector<std::shared_ptr<op_t>> &subgraph);
 
+void fuse_to_int8_pool(std::vector<std::shared_ptr<op_t>> &subgraph);
+
 void fuse_output_scales(std::vector<std::shared_ptr<op_t>> &subgraph,
         primitive_attr_mgr &prm_attr_mgr);
 

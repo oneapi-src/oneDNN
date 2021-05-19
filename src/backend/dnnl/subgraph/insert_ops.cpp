@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -30,16 +31,47 @@ namespace dnnl_impl {
 using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
 
+// TODO(xxx): extend to support other ops
+static bool need_insert_reorder(op_kind_t kind) {
+    std::set<op_kind_t> ops {op_kind::dnnl_convolution, op_kind::Convolution,
+            op_kind::MatMul, op_kind::MaxPool};
+    return ops.count(kind) != 0;
+}
+
+// TODO(xxx): extend to support other ops
+// for those ops with data_format/filter_format attributes
+static bool need_insert_permute(op_kind_t kind) {
+    std::set<op_kind_t> ops {
+            op_kind::dnnl_convolution, op_kind::Convolution, op_kind::MaxPool};
+    return ops.count(kind) != 0;
+}
+
+// TODO(xxx): extend to support other ops
+// for those ops whose input's format must be defined, such as pool, eltwise,...
+static bool require_input_format(op_kind_t kind) {
+    std::set<op_kind_t> ops {op_kind::MaxPool};
+    return ops.count(kind) != 0;
+}
+
 void insert_reorder(std::vector<op_ptr> &subgraph) {
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
-        // TODO(wuxun): extend to support other ops
-        if (cur_op->get_kind() != op_kind::dnnl_convolution
-                && cur_op->get_kind() != op_kind::MatMul)
-            continue;
+        if (!need_insert_reorder(cur_op->get_kind())) continue;
 
-        bool with_bias = cur_op->get_attr<bool>("with_bias");
+        bool with_bias = cur_op->has_attr("with_bias")
+                ? cur_op->get_attr<bool>("with_bias")
+                : false;
         size_t in_bound = with_bias ? 3 : 2;
+
+        for (size_t i = 0; i < cur_op->num_outputs(); i++) {
+            op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::convert);
+            insert_op_after(reorder_op, cur_op, i);
+            to_be_inserted_ops.emplace_back(reorder_op);
+        }
+
+        // for those primitive whose input's format must be defined (not any),
+        // we don't need to insert reorder
+        if (require_input_format(cur_op->get_kind())) continue;
 
         for (size_t i = 0; i < cur_op->num_inputs(); i++) {
             if (i >= in_bound) break;
@@ -48,22 +80,16 @@ void insert_reorder(std::vector<op_ptr> &subgraph) {
             insert_op_before(reorder_op, cur_op, i);
             to_be_inserted_ops.emplace_back(reorder_op);
         }
-
-        for (size_t i = 0; i < cur_op->num_outputs(); i++) {
-            op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::convert);
-            insert_op_after(reorder_op, cur_op, i);
-            to_be_inserted_ops.emplace_back(reorder_op);
-        }
     }
 
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(std::move(op));
 }
 
-void insert_permute_for_conv(std::vector<op_ptr> &subgraph) {
+void insert_permute(std::vector<op_ptr> &subgraph) {
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::dnnl_convolution) continue;
+        if (!need_insert_permute(cur_op->get_kind())) continue;
 
         bool need_permute_0 = cur_op->has_attr("data_format")
                 ? (cur_op->get_attr<std::string>("data_format") == "NXC")

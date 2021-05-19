@@ -34,13 +34,23 @@ namespace impl {
 namespace dnnl_impl {
 using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
+using value_ptr = std::shared_ptr<impl::value_t>;
 using ltw = impl::logical_tensor_wrapper;
 
-static std::shared_ptr<value_t> insert_scratchpad(op_ptr &op) {
-    auto lt = impl::empty_logical_tensor_with_default_id();
-    auto scratchpad_val = std::make_shared<value_t>(*op, op->num_outputs(), lt);
+static value_ptr insert_scratchpad(op_ptr &op) {
+    logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
+    value_ptr scratchpad_val
+            = std::make_shared<value_t>(*op, op->num_outputs(), lt);
     op->add_output(scratchpad_val);
     return scratchpad_val;
+}
+
+static value_ptr insert_workspace(op_ptr &op) {
+    logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
+    value_ptr workspace_val
+            = std::make_shared<value_t>(*op, op->num_outputs(), lt);
+    op->add_output(workspace_val);
+    return workspace_val;
 }
 
 static bool layout_propagation_for_conv(op_ptr &op,
@@ -110,6 +120,42 @@ static bool layout_propagation_for_matmul(op_ptr &op,
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 
     return true;
+}
+
+static bool layout_propagation_for_pool(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+    bool changed = true;
+    value_ptr src = op->get_input_value(0);
+    value_ptr dst = op->get_output_value(0);
+
+    // for pooling primitive, src's format must be defined. dst's format should
+    // be any to obtain better performance
+    if ((ltw(src->get_logical_tensor()).is_strided()
+                || ltw(src->get_logical_tensor()).is_opaque())
+            && ltw(dst->get_logical_tensor()).is_any()) {
+        auto pd = create_pool_pd(op, p_engine, prm_attr_mgr);
+
+        fill_layout_info(src, pd.src_desc());
+        if (op->has_attr("output_format")
+                && op->get_attr<std::string>("output_format") == "NXC") {
+            fill_layout_info(dst, permute_NCX2NXC(pd.dst_desc()));
+        } else {
+            fill_layout_info(dst, pd.dst_desc());
+        }
+
+        // make scratchpad as pool's last output
+        value_ptr scratchpad_val = insert_scratchpad(op);
+        fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+        // if pooling's prop_kind id forward_training or backward
+        if (op->has_attr("is_training") && op->get_attr<bool>("is_training")) {
+            value_ptr workspace_val = insert_workspace(op);
+            fill_layout_info(workspace_val, pd.workspace_desc());
+        }
+    } else {
+        changed = false;
+    }
+
+    return changed;
 }
 
 static bool layout_propagation_for_permute(op_ptr &op) {
@@ -298,7 +344,10 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
                     || cur_op->get_kind() == op_kind::convert)
                 continue;
 
-            if (cur_op->get_kind() == op_kind::permute) {
+            if (cur_op->get_kind() == op_kind::MaxPool) {
+                changed |= layout_propagation_for_pool(
+                        cur_op, p_engine, prm_attr_mgr);
+            } else if (cur_op->get_kind() == op_kind::permute) {
                 changed |= layout_propagation_for_permute(cur_op);
             } else if (cur_op->get_kind() == op_kind::mul_scales) {
                 changed |= layout_propagation_for_reorder(cur_op);

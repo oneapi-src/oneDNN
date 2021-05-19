@@ -494,7 +494,7 @@ TEST(pass_test, subgraph_passes) {
     }
 
     // insert preprocess and reorder ops
-    dnnl_impl::insert_permute_for_conv(subgraph);
+    dnnl_impl::insert_permute(subgraph);
     ASSERT_EQ(subgraph.size(), 5);
 
     dnnl_impl::insert_to_group_for_conv(subgraph);

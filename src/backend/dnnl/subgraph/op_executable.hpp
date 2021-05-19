@@ -42,8 +42,11 @@ inline dnnl::convolution_forward::primitive_desc create_conv_pd(
     auto pads_end = op->get_attr<dims>("pads_end");
     dilates = get_compatible_dilates(dilates);
 
-    int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-    dnnl::primitive_attr prm_attr = prm_attr_mgr.get_attr(key);
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
     auto src = make_dnnl_memory_desc(
@@ -79,8 +82,11 @@ inline dnnl::convolution_forward::primitive_desc create_conv_pd(
 inline dnnl::matmul::primitive_desc create_matmul_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         primitive_attr_mgr &prm_attr_mgr) {
-    int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-    dnnl::primitive_attr prm_attr = prm_attr_mgr.get_attr(key);
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
     auto src = make_dnnl_memory_desc(
@@ -99,6 +105,47 @@ inline dnnl::matmul::primitive_desc create_matmul_pd(
     } else {
         pd = dnnl::matmul::primitive_desc({src, wei, dst}, prm_attr, p_engine);
     }
+    return pd;
+}
+
+inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
+        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+        primitive_attr_mgr &prm_attr_mgr) {
+    dims strides = op->get_attr<dims>("strides");
+    dims kernel = op->get_attr<dims>("kernel");
+    dims pads_begin = op->get_attr<dims>("pads_begin");
+    dims pads_end = op->get_attr<dims>("pads_end");
+    dims dilations = op->get_attr<dims>("dilations");
+    dilations = get_compatible_dilates(dilations);
+    std::string data_format = op->get_attr<std::string>("data_format");
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto src = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+
+    if (op->has_attr("output_format")
+            && op->get_attr<std::string>("output_format") == "NXC") {
+        dst = permute_NXC2NCX(dst);
+    }
+    algorithm algo = algorithm::undef;
+    if (op->get_kind() == op_kind::MaxPool)
+        algo = algorithm::pooling_max;
+    else {
+        BACKEND_DNNL_ENFORCE(0, "Currently only int8 MaxPool is supported.");
+    }
+
+    dnnl::pooling_v2_forward::primitive_desc pd(
+            {prop_kind::forward_inference, algo, src, dst, strides, kernel,
+                    dilations, pads_begin, pads_end},
+            prm_attr, p_engine);
     return pd;
 }
 
@@ -231,6 +278,50 @@ private:
     memory dst_mem_;
     dnnl::reorder::primitive_desc psrc_reorder_pd_;
     bool reorder_psrc_ {false};
+};
+
+struct pool_executable : public op_executable {
+    pool_executable(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
+        pd_ = create_pool_pd(op, p_engine, prm_attr_mgr);
+        if (op->has_attr("output_format"))
+            output_format_ = op->get_attr<std::string>("output_format");
+    }
+
+    virtual void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) override {
+        // only first iteration
+        if (first_iteration_) {
+            cached_args_ = args;
+
+            if (output_format_ == "NXC") {
+                org_dst_mem_ = args.find(DNNL_ARG_DST)->second;
+                dst_mem_ = make_dnnl_memory(pd_.dst_desc(), pd_.get_engine(),
+                        org_dst_mem_.get_data_handle());
+                cached_args_[DNNL_ARG_DST] = dst_mem_;
+                perm_dst_ = true;
+            } else {
+                dst_mem_ = cached_args_.find(DNNL_ARG_DST)->second;
+            }
+        }
+
+        // every iteration
+        if (perm_dst_) {
+            dst_mem_.set_data_handle(org_dst_mem_.get_data_handle());
+        }
+
+        dnnl::pooling_v2_forward(pd_).execute(stream, cached_args_);
+        first_iteration_ = false;
+    }
+
+private:
+    dnnl::pooling_v2_forward::primitive_desc pd_;
+    std::string output_format_ {"NCX"};
+    std::unordered_map<int, memory> cached_args_;
+    bool first_iteration_ {true};
+    bool perm_dst_ {false};
+    memory dst_mem_;
+    memory org_dst_mem_;
 };
 
 struct reorder_executable : public op_executable {

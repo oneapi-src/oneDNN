@@ -32,5 +32,6 @@
 
 #include "subgraph/operators/int8_conv.hpp"
 #include "subgraph/operators/int8_matmul.hpp"
+#include "subgraph/operators/int8_pool.hpp"
 
 #endif

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef BACKEND_DNNL_SUBGRAPH_OPERATORS_INT8_CONV_HPP
-#define BACKEND_DNNL_SUBGRAPH_OPERATORS_INT8_CONV_HPP
+#ifndef BACKEND_DNNL_SUBGRAPH_OPERATORS_INT8_POOL_HPP
+#define BACKEND_DNNL_SUBGRAPH_OPERATORS_INT8_POOL_HPP
 
 #include <algorithm>
 #include <memory>
@@ -24,10 +24,8 @@
 #include <utility>
 #include <vector>
 
-#include "interface/backend.hpp"
-#include "interface/graph.hpp"
-
 #include "backend/dnnl/common.hpp"
+#include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/legacy.hpp"
 #include "backend/dnnl/subgraph/compile_ops.hpp"
@@ -42,14 +40,20 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-struct quantized_conv : public kernel_base {
-    using super = dnnl::convolution_forward;
-    using dims_t = std::vector<dnnl::graph::impl::dim_t>;
-
+struct quantized_pooling : public kernel_base {
 private:
     dnnl::engine p_engine_;
     dnnl::stream p_stream_;
     impl::allocator_t *g_alloc_;
+
+    std::vector<impl::op_t *> subgraph_;
+
+    primitive_attr_mgr prm_attr_mgr_;
+    execution_args_mgr exec_arg_mgr_;
+    executable_mgr exec_mgr_;
+
+    std::vector<op_executable *> execs_;
+    std::vector<exec_args> exec_args_;
 
     char *val2 = std::getenv("DNNL_GRAPH_HOLD_MEMORY");
     bool enable_hold_memory_ = (val2 != nullptr && std::strcmp(val2, "1") == 0);
@@ -58,17 +62,10 @@ private:
 
     std::vector<std::shared_ptr<impl::op_t>> opt_subgraph_;
 
-    primitive_attr_mgr prm_attr_mgr_;
-    executable_mgr exec_mgr_;
-    execution_args_mgr exec_arg_mgr_;
-
-    std::vector<op_executable *> execs_;
-    std::vector<exec_args> exec_args_;
-
     char *internal_buf_ {nullptr};
 
 public:
-    virtual ~quantized_conv() {
+    virtual ~quantized_pooling() {
         if (!enable_hold_memory_ || !internal_buf_) return;
         allocator::free(internal_buf_, p_engine_, g_alloc_);
     }
@@ -77,34 +74,31 @@ public:
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
+        // TODO(wuxun): since oneDNN pooling primitive only support u8u8 or
+        // s8s8 on CPU device for now, we need to check whether the data types
+        // between input and output are compatible. If we enable this check in
+        // op schema or primitive supports u8s8/s8u8, then this check can be
+        // safely removed.
+        if (inputs[0].data_type != outputs[0].data_type)
+            return status::unsupported;
+
         p_engine_ = make_dnnl_engine(*g_engine);
         g_alloc_ = g_engine->get_allocator();
 
-        // get subgraph from the deep copied partition
-        std::vector<std::shared_ptr<impl::op_t>> subgraph = part->get_ops();
+        std::vector<std::shared_ptr<op_t>> subgraph = part->get_ops();
 
-        fuse_bias_add(subgraph);
-
-        check_with_bias(subgraph);
-
-        // run pass to tranform the subgraph
-        split_quant_dequant(subgraph);
-        fuse_to_int8_conv(subgraph);
-        folding_mul_scales(subgraph);
-
-        // construct fused conv attr
-        fuse_output_scales(subgraph, prm_attr_mgr_);
-        BACKEND_DNNL_CHECK(fuse_post_ops(subgraph, prm_attr_mgr_));
-        fuse_zero_points(subgraph, prm_attr_mgr_);
+        // for those primitive ops like pooling, it requires the scales and zps
+        // between input tensor and output tensor are the same. So here, we
+        // don't need to split Dequant and Quant ops firstly, it should be okay
+        // to directly fuse Dequant and Quant into int8 pool op.
+        fuse_to_int8_pool(subgraph);
 
         insert_permute(subgraph);
-        insert_to_group_for_conv(subgraph);
         insert_reorder(subgraph);
 
         // have to set the given inputs and outputs before infer shape and
         // compile
         set_given_inputs_outputs(subgraph, inputs, outputs);
-
         impl::graph_t agraph(subgraph);
         BACKEND_DNNL_CHECK(agraph.infer_shape());
         BACKEND_DNNL_CHECK(infer_type(agraph));
@@ -185,52 +179,6 @@ public:
         }
 
         first_iter_ = false;
-        return impl::status::success;
-    }
-
-    virtual impl::status_t prepare_inplace_pairs_impl(
-            const impl::engine_t *g_engine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
-        UNUSED(g_engine);
-
-        op_t *conv_op = nullptr;
-        for (auto &op : opt_subgraph_) {
-            if (op->get_kind() == op_kind::Convolution
-                    || op->get_kind() == op_kind::dnnl_convolution) {
-                conv_op = op.get();
-                break;
-            }
-        }
-
-        bool with_sum = conv_op->has_attr("with_sum")
-                ? conv_op->get_attr<bool>("with_sum")
-                : false;
-
-        if (with_sum) {
-            // post_src should always be the last one input of conv op
-            auto val = conv_op->get_input_value(conv_op->num_inputs() - 1);
-            if (val->has_producer()
-                    && val->get_producer().get_kind() == op_kind::permute) {
-                val = val->get_producer().get_input_value(0);
-            }
-            size_t post_src_id = val->get_logical_tensor().id;
-
-            // find the given post src index
-            size_t idx = 0;
-            for (size_t i = 0; i < inputs.size(); i++) {
-                if (inputs[i].id == post_src_id) {
-                    idx = i;
-                    break;
-                }
-            }
-
-            const logical_tensor_wrapper post_src_lt(inputs[idx]);
-            const logical_tensor_wrapper dst_lt(outputs[0]);
-            if (post_src_lt.is_opaque() && dst_lt.is_opaque()
-                    && post_src_lt.is_similar(dst_lt))
-                inplace_pairs_.push_back({post_src_id, outputs[0].id});
-        }
         return impl::status::success;
     }
 };

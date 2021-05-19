@@ -33,6 +33,7 @@ namespace impl {
 namespace dnnl_impl {
 using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
+using value_ptr = std::shared_ptr<impl::value_t>;
 using ltw = impl::logical_tensor_wrapper;
 
 // define epsilon to avoid divide-by-zero when computing the inverse of scales
@@ -483,6 +484,53 @@ void fuse_to_int8_matmul(std::vector<op_ptr> &subgraph) {
 
         subgraph.emplace_back(q_matmul_op);
         subgraph.emplace_back(mul_scales_op);
+    }
+}
+
+void fuse_to_int8_pool(std::vector<op_ptr> &subgraph) {
+    std::vector<op_t *> fusion_ops;
+    for (const auto &cur_op : subgraph) {
+        // currently only support int8 MaxPooling
+        if (cur_op->get_kind() != op_kind::MaxPool) continue;
+        fusion_ops.emplace_back(cur_op.get());
+    }
+
+    if (fusion_ops.empty()) return;
+    for (auto &pool_op : fusion_ops) {
+        op_ptr q_pool_op = std::make_shared<op_t>(pool_op->get_kind());
+        q_pool_op->merge_attributes(pool_op->get_attributes());
+
+        // oneDNN int8 pooling primitive doesn't require scales and zps, so we
+        // just fuse the Quantize and Dequantize op into this newly created pool
+        // op
+        op_t &dequant_op = pool_op->get_input_value(0)->get_producer();
+        assertm(dequant_op.get_kind() == op_kind::Dequantize,
+                "the predecessor op of pool should be a Dequant op.");
+        value_ptr in_value = dequant_op.get_input_value(0);
+        q_pool_op->connect_input(0, in_value);
+        in_value->remove_consumer(dequant_op, 0);
+
+        assertm(pool_op->get_output_value(0)->get_consumers().size() == 1,
+                "pooling's successor Quant op should only have one consumer.");
+        const op_t &quant_op
+                = pool_op->get_output_value(0)->get_consumers()[0].get_op();
+        assertm(quant_op.get_kind() == op_kind::Quantize,
+                "the successor op of pool should be a Quantize op.");
+        value_ptr out_value = quant_op.get_output_value(0);
+        q_pool_op->add_output(out_value);
+        out_value->set_producer(*q_pool_op);
+
+        // delete original pool and Quant/Dequant ops
+        std::vector<const op_t *> deleted_ops {pool_op, &dequant_op, &quant_op};
+        for (const auto &del_op : deleted_ops) {
+            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                    [del_op](const op_ptr &f_op) {
+                        return del_op == f_op.get();
+                    });
+            if (pos != subgraph.end()) subgraph.erase(pos);
+        }
+
+        subgraph.emplace_back(q_pool_op);
     }
 }
 

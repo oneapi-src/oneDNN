@@ -195,6 +195,9 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(int8_matmul_add, quantized_matmul);
     DNNL_REGISTER_KERNEL(int8_matmul_bias_add, quantized_matmul);
 
+    // quantized pooling
+    DNNL_REGISTER_KERNEL(int8_maxpool, quantized_pooling);
+
 #undef DNNL_REGISTER_KERNEL
 
     return true;

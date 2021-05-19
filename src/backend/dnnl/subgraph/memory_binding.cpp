@@ -101,7 +101,8 @@ static void bind_memory_for_conv_and_matmul(op_ptr &op,
 
 // for single-input-single-output op
 static void bind_memory_for_siso_op(op_ptr &op, const dnnl::engine &p_engine,
-        execution_args_mgr &exec_arg_mgr, bool need_output_buf) {
+        execution_args_mgr &exec_arg_mgr, bool need_output_buf,
+        bool need_scratchpad = false, bool need_workspace = false) {
     int64_t key = exec_arg_mgr.init_args();
     op->set_attr<int64_t>("execution_args_key", key);
     auto &args = exec_arg_mgr.get_args(key);
@@ -115,6 +116,18 @@ static void bind_memory_for_siso_op(op_ptr &op, const dnnl::engine &p_engine,
     memory out_mem = bind_memory_for_value(
             out_val.get(), p_engine, exec_arg_mgr, need_output_buf);
     args.insert({DNNL_ARG_TO, out_mem});
+
+    if (need_scratchpad && op->num_outputs() > 1) {
+        dnnl::memory mem = bind_memory_for_value(
+                op->get_output_value(1).get(), p_engine, exec_arg_mgr, true);
+        args.insert({DNNL_ARG_SCRATCHPAD, mem});
+    }
+
+    if (need_workspace && op->num_outputs() > 2) {
+        dnnl::memory mem = bind_memory_for_value(
+                op->get_output_value(2).get(), p_engine, exec_arg_mgr, true);
+        args.insert({DNNL_ARG_WORKSPACE, mem});
+    }
 }
 
 /// After doing infer shape, infer type and layout propagation passes, the
@@ -181,6 +194,12 @@ impl::status_t memory_binding(std::vector<op_ptr> &subgraph,
                 || cur_op->get_kind() == op_kind::MatMul) {
             bind_memory_for_conv_and_matmul(
                     cur_op, p_engine, exec_arg_mgr, prm_attr_mgr);
+        } else if (cur_op->get_kind() == op_kind::MaxPool) {
+            bool is_training = cur_op->has_attr("is_training")
+                    ? cur_op->get_attr<bool>("is_training")
+                    : false;
+            bind_memory_for_siso_op(
+                    cur_op, p_engine, exec_arg_mgr, true, true, is_training);
         } else if (cur_op->get_kind() == op_kind::convert
                 || cur_op->get_kind() == op_kind::mul_scales) {
             bind_memory_for_siso_op(cur_op, p_engine, exec_arg_mgr, true);
