@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace graph {
 namespace impl {
+namespace utils {
 namespace pm {
 
 using std::find;
@@ -1590,6 +1591,7 @@ bool match_repetition(const binding &bind_arg, match_context_ptr parent_ctx) {
 }
 
 } // namespace pm
+} // namespace utils
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

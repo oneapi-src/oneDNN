@@ -19,7 +19,7 @@
 #include "interface/op.hpp"
 #include "utils/pm/pbuilder.hpp"
 
-using namespace dnnl::graph::impl::pm;
+using namespace dnnl::graph::impl::utils::pm;
 using std::dynamic_pointer_cast;
 
 shared_ptr<consumers_t> pb_node::get_consumers(oport_t p_port) {
@@ -98,29 +98,29 @@ bool pb_node::add_consumer(
     return true;
 }
 
-shared_ptr<consumer_t> dnnl::graph::impl::pm::consumer(
+shared_ptr<consumer_t> dnnl::graph::impl::utils::pm::consumer(
         const pb_node_ptr &p_node, iport_t i_t) {
     return make_shared<consumer_t>(p_node, i_t);
 }
 
-shared_ptr<consumer_t> dnnl::graph::impl::pm::producer(
+shared_ptr<consumer_t> dnnl::graph::impl::utils::pm::producer(
         const pb_node_ptr &p_node, oport_t o_t) {
     return make_shared<producer_t>(p_node, o_t);
 }
 
-shared_ptr<in_edge_t> dnnl::graph::impl::pm::in_edge(
+shared_ptr<in_edge_t> dnnl::graph::impl::utils::pm::in_edge(
         iport_t i_t, const pb_node_ptr &p_node, oport_t o_t) {
     auto prod = make_shared<producer_t>(p_node, o_t);
     auto edge = make_shared<in_edge_t>(i_t, prod);
     return edge;
 }
 
-decision_function dnnl::graph::impl::pm::kind(
+decision_function dnnl::graph::impl::utils::pm::kind(
         dnnl::graph::impl::op_kind_t okind) {
     return [okind](op_t *p_op) -> bool { return okind == p_op->get_kind(); };
 }
 
-decision_function dnnl::graph::impl::pm::one_of_kind(
+decision_function dnnl::graph::impl::utils::pm::one_of_kind(
         const vector<dnnl::graph::impl::op_kind_t> &okind) {
     return [okind](op_t *p_op) -> bool {
         for (auto k : okind) {

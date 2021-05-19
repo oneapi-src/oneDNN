@@ -39,6 +39,7 @@ namespace graph {
 namespace impl {
 // Declaration to refer to dnnl graph op in function signature
 class pb_op;
+namespace utils {
 namespace pm {
 class pb_node;
 class pb_graph;
@@ -285,6 +286,7 @@ protected:
 };
 
 } // namespace pm
+} // namespace utils
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

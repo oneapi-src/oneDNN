@@ -16,14 +16,14 @@
 
 #include <memory>
 #include "interface/graph.hpp"
-#include "pm/nested_matcher.hpp"
+#include "utils/pm/nested_matcher.hpp"
 #include "gtest/gtest.h"
 
 #include "utils.hpp"
 
 using namespace dnnl::graph::impl;
 using namespace dnnl::graph::impl::op_kind;
-using namespace dnnl::graph::impl::pm;
+using namespace dnnl::graph::impl::utils::pm;
 
 const iport_t IN0 = 0;
 const iport_t IN1 = 1;

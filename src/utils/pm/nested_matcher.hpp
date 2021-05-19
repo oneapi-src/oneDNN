@@ -38,6 +38,7 @@ using std::vector;
 namespace dnnl {
 namespace graph {
 namespace impl {
+namespace utils {
 namespace pm {
 
 //
@@ -361,6 +362,7 @@ bool match_pattern(op_ptr first_op, const shared_ptr<pb_graph> &pattern,
         bool match_forward = true);
 
 } // namespace pm
+} // namespace utils
 } // namespace impl
 } // namespace graph
 } // namespace dnnl
