@@ -46,13 +46,13 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(EluBackprop, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(End, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Erf, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Exp, 1);
-class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(GELU, 2);
-class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(GELUBackprop, 2);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(GELU, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(GELUBackprop, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(HardTanh, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(HardTanhBackprop, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Index, 1);
-class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Interpolate, 4);
-class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(InterpolateBackprop, 4);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Interpolate, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(InterpolateBackprop, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(LayerNorm, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(LayerNormBackprop, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Log, 1);
@@ -187,10 +187,15 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(End, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Erf, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Exp, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(GELU, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(GELUBackprop, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(HardTanh, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         HardTanhBackprop, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Index, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Interpolate, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        InterpolateBackprop, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(LayerNorm, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         LayerNormBackprop, 1)>());
@@ -334,27 +339,8 @@ public:
     }
 };
 
-class opset_v2 {
-public:
-    static void for_each_schema(std::function<void(op_schema &&)> fn) {
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(GELU, 2)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(GELUBackprop, 2)>());
-    }
-};
-
-class opset_v4 {
-public:
-    static void for_each_schema(std::function<void(op_schema &&)> fn) {
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Interpolate, 4)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        InterpolateBackprop, 4)>());
-    }
-};
-
 inline void register_opset_schema() {
     register_opset_schema<opset_v1>();
-    register_opset_schema<opset_v2>();
-    register_opset_schema<opset_v4>();
 }
 
 } // namespace impl
