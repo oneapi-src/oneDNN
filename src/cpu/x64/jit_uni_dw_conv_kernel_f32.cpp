@@ -921,7 +921,7 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::ch_loop_body(
             L(ch_tail_label);
             cmp(aux_reg_ch_blocks, 0);
             jle(skip_ch_tail_label, T_NEAR);
-            call_compute_body(ch_block_tail, unroll_w, jcp.ch_tail);
+            call_compute_body(ch_block_tail, unroll_w, jcp.ch_tail > 0);
             L(skip_ch_tail_label);
         }
 
@@ -930,7 +930,7 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::ch_loop_body(
         pop(reg_dsrc);
 
     } else {
-        call_compute_body(ur_ch_blocks, unroll_w, jcp.ch_tail);
+        call_compute_body(ur_ch_blocks, unroll_w, jcp.ch_tail > 0);
     }
 }
 
@@ -977,7 +977,7 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
     mov(reg_ur_str_w, ptr[this->param1 + GET_OFF(ur_str_w)]);
 
     if (is_dsrc_layout_nxc()) {
-        if (isa > avx2 && jcp.ch_tail) {
+        if (isa == avx512_common && (jcp.ch_tail > 0)) {
             Label masking_done;
             const size_t channel_step = jcp.nb_ch_blocking * jcp.ch_block;
             kxnorw(k_ch_tail_mask, k_ch_tail_mask,
