@@ -123,6 +123,6 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
 
 ## Examples
 
-| Engine  | Name                     | Comments
-| :--     | :--                      | :--
-| CPU/GPU | @ref softmax_example_cpp | @copydetails softmax_example_cpp_short
+### @ref softmax_example_cpp - CPU/GPU
+
+@copydetails softmax_example_cpp_short

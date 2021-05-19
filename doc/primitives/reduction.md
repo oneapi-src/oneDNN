@@ -102,6 +102,6 @@ meaning associated with any of the dimensions of a tensor.
 
 ## Examples
 
-| Engine  | Name                       | Comments
-| :--     | :--                        | :--
-| CPU/GPU | @ref reduction_example_cpp | @copydetails reduction_example_cpp_short
+### @ref reduction_example_cpp - CPU/GPU
+
+@copydetails reduction_example_cpp_short

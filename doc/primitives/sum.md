@@ -85,6 +85,6 @@ meaning associated with any logical dimensions.
 
 ## Examples
 
-| Engine  | Name                 | Comments
-| :--     | :--                  | :--
-| CPU/GPU | @ref sum_example_cpp | @copydetails sum_example_cpp_short
+### @ref sum_example_cpp - CPU/GPU
+
+@copydetails sum_example_cpp_short

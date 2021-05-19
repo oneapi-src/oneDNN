@@ -82,7 +82,7 @@ argument index as specified by the following table.
 4. Multiple batch dimensions and broadcasting of batch dimensions of `src` and
    `weights` are supported for both CPU and GPU engines.
 
-   @sa Please check tutorials below to see #DNNL_RUNTIME_DIM_VAL support in use.
+   Please check tutorials below to see #DNNL_RUNTIME_DIM_VAL support in use.
 
 ### Data Types
 
@@ -157,7 +157,7 @@ in the argument with index set to
 - For instance, source tensor zero points memory argument would be passed with
   index (`DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC`).
 
-@sa Please check tutorials below to see run-time attributes in use.
+@note Please check tutorials below to see run-time attributes in use.
 
 ## Implementation Limitations
 
@@ -181,9 +181,18 @@ in the argument with index set to
 
 ## Examples
 
-| Engine  | Name                             | Comments
-| :--     | :--                              | :--
-| CPU/GPU | @ref matmul_example_cpp          | @copydetails matmul_example_cpp_short
-| CPU     | @ref cpu_sgemm_and_matmul_cpp    | @copydetails cpu_sgemm_and_matmul_cpp_short
-| CPU/GPU | @ref inference_int8_matmul_cpp   | @copydetails inference_int8_matmul_cpp_short
-| CPU     | @ref cpu_matmul_quantization_cpp | @copydetails cpu_matmul_quantization_cpp_short
+### @ref matmul_example_cpp - CPU/GPU
+
+@copydetails matmul_example_cpp_short
+
+### @ref cpu_sgemm_and_matmul_cpp - CPU
+
+@copydetails cpu_sgemm_and_matmul_cpp_short
+
+### @ref inference_int8_matmul_cpp - CPU/GPU
+
+@copydetails inference_int8_matmul_cpp_short
+
+### @ref cpu_matmul_quantization_cpp - CPU
+
+@copydetails cpu_matmul_quantization_cpp_short

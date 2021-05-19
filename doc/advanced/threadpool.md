@@ -7,7 +7,7 @@ interface to enable the library to perform computations using multiple
 threads.
 
 The threadpool interface is defined in
-`include/oneapi/dnnl/dnnl_threadpool_iface.hpp`. Below is a sample
+``include/oneapi/dnnl/dnnl_threadpool_iface.hpp``. Below is a sample
 implementation based on Eigen threadpool that is also used for testing (see
 `tests/test_thread.cpp`).
 

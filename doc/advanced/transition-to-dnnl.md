@@ -47,7 +47,7 @@ conv.exec(stream, {{DNNL_ARGS_SRC, src}, ...});
 ~~~
 
 To API compatibility with Intel MKL-DNN is based on
-`include/mkldnn_dnnl_mangling.h` header file that maps all Intel MKL-DNN
+``include/mkldnn_dnnl_mangling.h`` header file that maps all Intel MKL-DNN
 symbols to DNNL ones using C preprocessor:
 
 ~~~ cpp

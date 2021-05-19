@@ -144,6 +144,6 @@ The following post-ops are supported by inner product primitives:
 
 ## Examples
 
-| Engine  | Name                           | Comments
-| :--     | :--                            | :--
-| CPU/GPU | @ref inner_product_example_cpp | @copydetails inner_product_example_cpp_short
+### @ref inner_product_example_cpp - CPU/GPU
+
+@copydetails inner_product_example_cpp_short

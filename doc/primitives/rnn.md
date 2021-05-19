@@ -404,6 +404,6 @@ details on how to use and set these quantization parameters.
 
 ## Examples
 
-| Engine  | Name                  | Comments
-| :--     | :--                   | :--
-| CPU/GPU | @ref lstm_example_cpp | @copydetails lstm_example_cpp_short
+### @ref lstm_example_cpp - CPU/GPU
+
+@copydetails lstm_example_cpp_short

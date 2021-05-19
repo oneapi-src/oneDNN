@@ -161,6 +161,6 @@ N/A
 
 ## Examples
 
-| Engine  | Name                     | Comments
-| :--     | :--                      | :--
-| CPU/GPU | @ref pooling_example_cpp | @copydetails pooling_example_cpp_short
+### @ref pooling_example_cpp - CPU/GPU
+
+@copydetails pooling_example_cpp_short

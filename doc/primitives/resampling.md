@@ -149,6 +149,6 @@ N/A
 
 ## Examples
 
-| Engine  | Name                        | Comments
-| :--     | :--                         | :--
-| CPU/GPU | @ref resampling_example_cpp | @copydetails resampling_example_cpp_short
+### @ref resampling_example_cpp - CPU/GPU
+
+@copydetails resampling_example_cpp_short

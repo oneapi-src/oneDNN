@@ -130,6 +130,6 @@ data memory format.
 
 ## Examples
 
-| Engine  | Name                     | Comments
-| :--     | :--                      | :--
-| CPU/GPU | @ref prelu_example_cpp   | @copydetails prelu_example_cpp_short
+### @ref prelu_example_cpp - CPU/GPU
+
+@copydetails prelu_example_cpp_short

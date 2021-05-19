@@ -1,6 +1,6 @@
-MathJax.Hub.Config({
-    TeX: {
-	Macros: {
+window.MathJax = {
+    tex: {
+	macros: {
 	    src: '\\operatorname{src}',
 	    srclayer: '\\operatorname{src\\_layer}',
 	    srciter: '\\operatorname{src\\_iter}',
@@ -34,6 +34,5 @@ MathJax.Hub.Config({
 	    workspace: '\\operatorname{workspace}'
 	}
     }
-});
+};
 
-MathJax.Ajax.loadComplete("[MathJax]/config/dnnl.js");

@@ -124,6 +124,6 @@ N/A
 
 ## Examples
 
-| Engine  | Name                     | Comments
-| :--     | :--                      | :--
-| CPU/GPU | @ref reorder_example_cpp | @copydetails reorder_example_cpp_short
+### @ref reorder_example_cpp - CPU/GPU
+
+@copydetails reorder_example_cpp_short

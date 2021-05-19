@@ -140,6 +140,6 @@ The LRN primitive does not support any post-ops or attributes.
 
 ## Examples
 
-| Engine  | Name                 | Comments
-| :--     | :--                  | :--
-| CPU/GPU | @ref lrn_example_cpp | @copydetails lrn_example_cpp_short
+### @ref lrn_example_cpp - CPU/GPU
+
+@copydetails lrn_example_cpp_short

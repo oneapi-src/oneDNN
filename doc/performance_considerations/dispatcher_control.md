@@ -26,16 +26,16 @@ otherwise disabled by default.
 | Environment variable | Value            | Description
 | :---                 | :---             | :---
 | DNNL_MAX_CPU_ISA     | SSE41            | Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)
-|                      | AVX              | Intel Advanced Vector Extensions (Intel AVX)
-|                      | AVX2             | Intel Advanced Vector Extensions 2 (Intel AVX2)
-|                      | AVX2_VNNI        | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost)
-|                      | AVX512_MIC       | Intel Advanced Vector Extensions 512 (Intel AVX-512) with AVX512CD, AVX512ER, and AVX512PF extensions
-|                      | AVX512_MIC_4OPS  | Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW extensions
-|                      | AVX512_CORE      | Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions
-|                      | AVX512_CORE_VNNI | Intel AVX-512 with Intel DL Boost
-|                      | AVX512_CORE_BF16 | Intel AVX-512 with Intel DL Boost and bfloat16 support
-|                      | **ALL**          | **No restrictions on the above ISAs, but excludes the below ISAs with initial support in the library (default)**
-|                      | AVX512_CORE_AMX  | Intel AVX-512 with Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer and bfloat16 support (**initial support**)
+| \                    | AVX              | Intel Advanced Vector Extensions (Intel AVX)
+| \                    | AVX2             | Intel Advanced Vector Extensions 2 (Intel AVX2)
+| \                    | AVX2_VNNI        | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost)
+| \                    | AVX512_MIC       | Intel Advanced Vector Extensions 512 (Intel AVX-512) with AVX512CD, AVX512ER, and AVX512PF extensions
+| \                    | AVX512_MIC_4OPS  | Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW extensions
+| \                    | AVX512_CORE      | Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions
+| \                    | AVX512_CORE_VNNI | Intel AVX-512 with Intel DL Boost
+| \                    | AVX512_CORE_BF16 | Intel AVX-512 with Intel DL Boost and bfloat16 support
+| \                    | **ALL**          | **No restrictions on the above ISAs, but excludes the below ISAs with initial support in the library (default)**
+| \                    | AVX512_CORE_AMX  | Intel AVX-512 with Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer and bfloat16 support (**initial support**)
 
 @note The ISAs are partially ordered:
 * SSE41 < AVX < AVX2,

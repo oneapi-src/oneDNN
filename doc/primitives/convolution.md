@@ -365,7 +365,7 @@ algorithms:
   algorithm that is dispatched automatically when other implementations are
   not available. GEMM convolution supports the int8, f32, and bf16 data types.
 
-#### Direct Algorithm
+### Direct Algorithm
 
 oneDNN supports the direct convolution algorithm on all supported
 platforms for the following conditions:
@@ -384,7 +384,7 @@ platforms for the following conditions:
 In case any of these constraints are not met, the implementation will silently
 fall back to an explicit GEMM algorithm.
 
-#### Winograd Convolution
+### Winograd Convolution
 
 oneDNN supports the Winograd convolution algorithm on systems with
 Intel(R) Advanced Vector Extensions 512 (Intel(R) AVX-512) support and
@@ -439,7 +439,7 @@ auto conv1_desc = convolution_forward::desc(
     conv1_strides, conv1_padding_l, conv1_padding_r);
 ~~~
 
-#### Automatic Algorithm Selection
+### Automatic Algorithm Selection
 
 oneDNN supports `dnnl::algorithm::convolution_auto` algorithm that
 instructs the library to automatically select the *best* algorithm based on
@@ -469,6 +469,6 @@ the convolution.)
 
 ## Examples
 
-| Engine  | Name                         | Comments
-| :--     | :--                          | :--
-| CPU/GPU | @ref convolution_example_cpp | @copydetails convolution_example_cpp_short
+### @ref convolution_example_cpp - CPU/GPU
+
+@copydetails convolution_example_cpp_short

@@ -247,6 +247,6 @@ directly.
 
 ## Examples
 
-| Engine  | Name                                 | Comments
-| :--     | :--                                  | :--
-| CPU/GPU | @ref batch_normalization_example_cpp | @copydetails batch_normalization_example_cpp_short
+### @ref batch_normalization_example_cpp - CPU/GPU
+
+@copydetails batch_normalization_example_cpp_short

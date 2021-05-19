@@ -114,7 +114,10 @@ meaning associated with any of tensors dimensions.
 
 ## Examples
 
-| Engine  | Name                                 | Comments
-| :--     | :--                                  | :--
-| CPU/GPU | @ref binary_example_cpp              | @copydetails binary_example_cpp_short
-| CPU/GPU | @ref bnorm_u8_via_binary_postops_cpp | @copydetails bnorm_u8_via_binary_postops_cpp_short
+### @ref binary_example_cpp - CPU/GPU
+
+@copydetails binary_example_cpp_short
+
+### @ref bnorm_u8_via_binary_postops_cpp - CPU/GPU
+
+@copydetails bnorm_u8_via_binary_postops_cpp_short
