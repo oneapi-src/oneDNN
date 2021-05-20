@@ -682,264 +682,6 @@ public:
     }
 };
 
-/// @} dnnl_graph_api_compiled_partition
-
-/// @addtogroup dnnl_graph_api_partition Partition
-///
-/// Partition represents a collection of OPs identified by oneDNN graph
-/// implementation as the basic unit for compilation and execution.
-///
-/// @{
-
-/// A partition contains a list of OP ids.
-class partition : public detail::partition_handle {
-public:
-    /// Policy specifications for partitioning
-    enum class policy {
-        /// Best optimization
-        /// for now, the `max` mode is just the same as `fusion` mode.
-        max = dnnl_graph_partition_policy_max,
-        /// Have fusion
-        fusion = dnnl_graph_partition_policy_fusion,
-        /// No optimization
-        debug = dnnl_graph_partition_policy_debug,
-    };
-
-    partition() = default;
-
-    /// Constructs a partition object
-    ///
-    /// @param p A raw pointer to the C API handle
-    partition(dnnl_graph_partition_t *p) { reset(p, false); }
-
-    /// Returns the number of dnnl graph ops in the partition
-    ///
-    /// @returns Number of ops
-    size_t get_ops_num() const {
-        size_t num {0};
-        error::check_succeed(dnnl_graph_partition_get_op_num(get(), &num),
-                "could not get number of ops from the partition");
-        return num;
-    }
-
-    /// Returns all op’s id of the partition
-    ///
-    /// @returns An unordered set of op ids
-    std::vector<size_t> get_ops() {
-        auto num = get_ops_num();
-        std::vector<size_t> ops(num);
-
-        error::check_succeed(
-                dnnl_graph_partition_get_ops(get(), num, ops.data()),
-                "could not get op ids from the partition");
-        return ops;
-    }
-
-    /// Returns the unique id of the partition
-    ///
-    /// @returns Unique id
-    size_t get_id() const {
-        size_t id {};
-        error::check_succeed(dnnl_graph_partition_get_id(get(), &id),
-                "could not get id of the partition");
-        return id;
-    }
-
-    /// Compile the partition to generate compiled partition based
-    /// on the input/output logical tensors. The order of these two lists
-    /// may have already been changed according to the fwk fused op.
-    ///
-    /// @param inputs A list of input logical tensors
-    /// @param outputs A list of output logical tensors
-    /// @param e The engine used to compile the partition
-    /// @returns A compiled partition
-    compiled_partition compile(const std::vector<logical_tensor> &inputs,
-            const std::vector<logical_tensor> &outputs, const engine &e) const {
-        return compile_(inputs, outputs, &e);
-    }
-
-    /// Infer the partition's output shape
-    ///
-    /// @param inputs A list of input logical tensors
-    /// @param outputs A list of output logical tensors
-    void infer_shape(const std::vector<logical_tensor> &inputs,
-            std::vector<logical_tensor> &outputs) const {
-        std::vector<const dnnl_graph_logical_tensor_t *> c_inputs;
-        std::vector<dnnl_graph_logical_tensor_t *> c_outputs;
-
-        c_inputs.reserve(inputs.size());
-        for (auto &&in : inputs) {
-            c_inputs.push_back(&(in.data));
-        }
-
-        c_outputs.reserve(outputs.size());
-        for (auto &&out : outputs) {
-            c_outputs.push_back(&(out.data));
-        }
-
-        error::check_succeed(
-                dnnl_graph_partition_infer_shape(get(),
-                        static_cast<uint64_t>(c_inputs.size()), c_inputs.data(),
-                        static_cast<uint64_t>(c_outputs.size()),
-                        c_outputs.data()),
-                "inferring output shape of the partition failed");
-    }
-
-    /// Returns the supporting status of the partition
-    ///
-    /// @returns @c true if this partition is supported by oneDNN Graph backend
-    ///     @c false if this partition isn't supported by oneDNN Graph backend
-    bool is_supported() const {
-        uint8_t supported {0};
-        error::check_succeed(
-                dnnl_graph_partition_is_supported(get(), &supported),
-                "could not get supporting status of the partition");
-        return static_cast<bool>(supported);
-    }
-
-    /// Returns a list of input logical tensors from the partition
-    ///
-    /// @returns A list of input logical tensors
-    std::vector<logical_tensor> get_in_ports() const {
-        uint64_t num;
-        error::check_succeed(dnnl_graph_partition_get_in_ports_num(get(), &num),
-                "could not get number of inputs of the partition");
-        if (num == 0) return {};
-
-        std::vector<dnnl_graph_logical_tensor_t> c_inputs(num);
-        error::check_succeed(
-                dnnl_graph_partition_get_in_ports(get(), num, c_inputs.data()),
-                "could not get input logical tensors of the partition");
-
-        std::vector<logical_tensor> inputs;
-        inputs.reserve(num);
-        for (auto &c_lt : c_inputs)
-            inputs.emplace_back(c_lt);
-        return inputs;
-    }
-
-    /// Returns a list of output logical tensors from the partition
-    ///
-    /// @returns A list of output logical tensor
-    std::vector<logical_tensor> get_out_ports() const {
-        uint64_t num;
-        error::check_succeed(
-                dnnl_graph_partition_get_out_ports_num(get(), &num),
-                "cannot get number of outputs of the partition");
-        if (num == 0) return {};
-
-        std::vector<dnnl_graph_logical_tensor_t> c_outputs(num);
-        error::check_succeed(dnnl_graph_partition_get_out_ports(
-                                     get(), num, c_outputs.data()),
-                "could not get output logical tensors of the partition");
-
-        std::vector<logical_tensor> outputs;
-        outputs.reserve(num);
-        for (auto &c_lt : c_outputs)
-            outputs.emplace_back(c_lt);
-        return outputs;
-    }
-
-    /// Returns the engine kind of the partition
-    ///
-    /// @returns The engine kind
-    engine::kind get_engine_kind() const {
-        dnnl_graph_engine_kind_t akind;
-        error::check_succeed(
-                dnnl_graph_partition_get_engine_kind(get(), &akind),
-                "cannot get the engine kind from the partition");
-
-        return static_cast<engine::kind>(akind);
-    }
-
-private:
-    compiled_partition compile_(const std::vector<logical_tensor> &inputs,
-            const std::vector<logical_tensor> &outputs, const engine *e) const {
-        std::vector<const dnnl_graph_logical_tensor_t *> c_inputs;
-        std::vector<const dnnl_graph_logical_tensor_t *> c_outputs;
-
-        c_inputs.reserve(inputs.size());
-        for (const auto &in : inputs) {
-            c_inputs.push_back(&(in.data));
-        }
-
-        c_outputs.reserve(outputs.size());
-        for (const auto &out : outputs) {
-            c_outputs.push_back(&(out.data));
-        }
-
-        dnnl_graph_compiled_partition_t *cpartitions;
-        error::check_succeed(
-                dnnl_graph_compiled_partition_create(&cpartitions, get()),
-                "could not create compiled_partition");
-        error::check_succeed(
-                dnnl_graph_partition_compile(get(), cpartitions,
-                        static_cast<uint64_t>(c_inputs.size()), c_inputs.data(),
-                        static_cast<uint64_t>(c_outputs.size()),
-                        c_outputs.data(), e->get()),
-                "partition compile failed");
-
-        return compiled_partition(cpartitions);
-    }
-};
-
-/// @} dnnl_graph_api_partition
-
-/// @addtogroup dnnl_graph_api_conversion Data conversion API
-///
-/// `conversion` is considered as a special partition which only accepts two
-/// input arguments.
-///
-/// @{
-
-/// Data conversion API
-class conversion : public detail::partition_handle {
-public:
-    /// Default constructor
-    conversion() {
-        dnnl_graph_partition_t *c_partition {nullptr};
-        error::check_succeed(dnnl_graph_partition_create(&c_partition),
-                "could not create a converison partition");
-        reset(c_partition);
-    }
-
-    /// Compile the conversion partition to generate compiled partition based
-    /// on the input/output logical tensor.
-    ///
-    /// @param input Input logical tensors
-    /// @param output Output logical tensors
-    /// @param aengine The engine used to compile the partition
-    /// @returns A compiled partition
-    compiled_partition compile(const logical_tensor &input,
-            const logical_tensor &output, const engine &aengine) {
-        std::vector<const dnnl_graph_logical_tensor_t *> c_inputs {&input.data};
-        std::vector<const dnnl_graph_logical_tensor_t *> c_outputs {
-                &output.data};
-
-        error::check_succeed(
-                dnnl_graph_conversion_init(get(), &input.data, &output.data,
-                        static_cast<dnnl_graph_engine_kind_t>(
-                                aengine.get_kind())),
-                "could not initialize a converison");
-
-        dnnl_graph_compiled_partition_t *cpartition {nullptr};
-        error::check_succeed(
-                dnnl_graph_compiled_partition_create(&cpartition, get()),
-                "could not create a compiled partition");
-
-        error::check_succeed(
-                dnnl_graph_partition_compile(get(), cpartition,
-                        static_cast<uint64_t>(c_inputs.size()), c_inputs.data(),
-                        static_cast<uint64_t>(c_outputs.size()),
-                        c_outputs.data(), aengine.get()),
-                "could not compile a conversion");
-
-        return compiled_partition(cpartition);
-    }
-};
-
-/// @} dnnl_graph_api_conversion
-
 /// @addtogroup dnnl_graph_api_op Op
 ///
 /// OP is an abstraction of compute logic for deep neural network operation.
@@ -1245,6 +987,277 @@ private:
 };
 
 /// @} dnnl_graph_api_op
+
+/// @} dnnl_graph_api_compiled_partition
+
+/// @addtogroup dnnl_graph_api_partition Partition
+///
+/// Partition represents a collection of OPs identified by oneDNN graph
+/// implementation as the basic unit for compilation and execution.
+///
+/// @{
+
+/// A partition contains a list of OP ids.
+class partition : public detail::partition_handle {
+public:
+    /// Policy specifications for partitioning
+    enum class policy {
+        /// Best optimization
+        /// for now, the `max` mode is just the same as `fusion` mode.
+        max = dnnl_graph_partition_policy_max,
+        /// Have fusion
+        fusion = dnnl_graph_partition_policy_fusion,
+        /// No optimization
+        debug = dnnl_graph_partition_policy_debug,
+    };
+
+    partition() = default;
+
+    /// Constructs a partition object
+    ///
+    /// @param p A raw pointer to the C API handle
+    partition(dnnl_graph_partition_t *p) { reset(p, false); }
+
+    /// Constructs a partition with a given op and engine kind
+    ///
+    /// @param aop An operator used to create the partition
+    /// @param ekind Engine kind
+    partition(const op &aop, engine::kind ekind) {
+        dnnl_graph_partition_t *p {};
+        error::check_succeed(
+                dnnl_graph_partition_create_with_op(&p, aop.get(),
+                        static_cast<dnnl_graph_engine_kind_t>(ekind)),
+                "could not create a partition with the op and engine kind");
+        reset(p);
+    }
+
+    /// Returns the number of dnnl graph ops in the partition
+    ///
+    /// @returns Number of ops
+    size_t get_ops_num() const {
+        size_t num {0};
+        error::check_succeed(dnnl_graph_partition_get_op_num(get(), &num),
+                "could not get number of ops from the partition");
+        return num;
+    }
+
+    /// Returns all op’s id of the partition
+    ///
+    /// @returns An unordered set of op ids
+    std::vector<size_t> get_ops() {
+        auto num = get_ops_num();
+        std::vector<size_t> ops(num);
+
+        error::check_succeed(
+                dnnl_graph_partition_get_ops(get(), num, ops.data()),
+                "could not get op ids from the partition");
+        return ops;
+    }
+
+    /// Returns the unique id of the partition
+    ///
+    /// @returns Unique id
+    size_t get_id() const {
+        size_t id {};
+        error::check_succeed(dnnl_graph_partition_get_id(get(), &id),
+                "could not get id of the partition");
+        return id;
+    }
+
+    /// Compile the partition to generate compiled partition based
+    /// on the input/output logical tensors. The order of these two lists
+    /// may have already been changed according to the fwk fused op.
+    ///
+    /// @param inputs A list of input logical tensors
+    /// @param outputs A list of output logical tensors
+    /// @param e The engine used to compile the partition
+    /// @returns A compiled partition
+    compiled_partition compile(const std::vector<logical_tensor> &inputs,
+            const std::vector<logical_tensor> &outputs, const engine &e) const {
+        return compile_(inputs, outputs, &e);
+    }
+
+    /// Infer the partition's output shape
+    ///
+    /// @param inputs A list of input logical tensors
+    /// @param outputs A list of output logical tensors
+    void infer_shape(const std::vector<logical_tensor> &inputs,
+            std::vector<logical_tensor> &outputs) const {
+        std::vector<const dnnl_graph_logical_tensor_t *> c_inputs;
+        std::vector<dnnl_graph_logical_tensor_t *> c_outputs;
+
+        c_inputs.reserve(inputs.size());
+        for (auto &&in : inputs) {
+            c_inputs.push_back(&(in.data));
+        }
+
+        c_outputs.reserve(outputs.size());
+        for (auto &&out : outputs) {
+            c_outputs.push_back(&(out.data));
+        }
+
+        error::check_succeed(
+                dnnl_graph_partition_infer_shape(get(),
+                        static_cast<uint64_t>(c_inputs.size()), c_inputs.data(),
+                        static_cast<uint64_t>(c_outputs.size()),
+                        c_outputs.data()),
+                "inferring output shape of the partition failed");
+    }
+
+    /// Returns the supporting status of the partition
+    ///
+    /// @returns @c true if this partition is supported by oneDNN Graph backend
+    ///     @c false if this partition isn't supported by oneDNN Graph backend
+    bool is_supported() const {
+        uint8_t supported {0};
+        error::check_succeed(
+                dnnl_graph_partition_is_supported(get(), &supported),
+                "could not get supporting status of the partition");
+        return static_cast<bool>(supported);
+    }
+
+    /// Returns a list of input logical tensors from the partition
+    ///
+    /// @returns A list of input logical tensors
+    std::vector<logical_tensor> get_in_ports() const {
+        uint64_t num;
+        error::check_succeed(dnnl_graph_partition_get_in_ports_num(get(), &num),
+                "could not get number of inputs of the partition");
+        if (num == 0) return {};
+
+        std::vector<dnnl_graph_logical_tensor_t> c_inputs(num);
+        error::check_succeed(
+                dnnl_graph_partition_get_in_ports(get(), num, c_inputs.data()),
+                "could not get input logical tensors of the partition");
+
+        std::vector<logical_tensor> inputs;
+        inputs.reserve(num);
+        for (auto &c_lt : c_inputs)
+            inputs.emplace_back(c_lt);
+        return inputs;
+    }
+
+    /// Returns a list of output logical tensors from the partition
+    ///
+    /// @returns A list of output logical tensor
+    std::vector<logical_tensor> get_out_ports() const {
+        uint64_t num;
+        error::check_succeed(
+                dnnl_graph_partition_get_out_ports_num(get(), &num),
+                "cannot get number of outputs of the partition");
+        if (num == 0) return {};
+
+        std::vector<dnnl_graph_logical_tensor_t> c_outputs(num);
+        error::check_succeed(dnnl_graph_partition_get_out_ports(
+                                     get(), num, c_outputs.data()),
+                "could not get output logical tensors of the partition");
+
+        std::vector<logical_tensor> outputs;
+        outputs.reserve(num);
+        for (auto &c_lt : c_outputs)
+            outputs.emplace_back(c_lt);
+        return outputs;
+    }
+
+    /// Returns the engine kind of the partition
+    ///
+    /// @returns The engine kind
+    engine::kind get_engine_kind() const {
+        dnnl_graph_engine_kind_t akind;
+        error::check_succeed(
+                dnnl_graph_partition_get_engine_kind(get(), &akind),
+                "cannot get the engine kind from the partition");
+
+        return static_cast<engine::kind>(akind);
+    }
+
+private:
+    compiled_partition compile_(const std::vector<logical_tensor> &inputs,
+            const std::vector<logical_tensor> &outputs, const engine *e) const {
+        std::vector<const dnnl_graph_logical_tensor_t *> c_inputs;
+        std::vector<const dnnl_graph_logical_tensor_t *> c_outputs;
+
+        c_inputs.reserve(inputs.size());
+        for (const auto &in : inputs) {
+            c_inputs.push_back(&(in.data));
+        }
+
+        c_outputs.reserve(outputs.size());
+        for (const auto &out : outputs) {
+            c_outputs.push_back(&(out.data));
+        }
+
+        dnnl_graph_compiled_partition_t *cpartitions;
+        error::check_succeed(
+                dnnl_graph_compiled_partition_create(&cpartitions, get()),
+                "could not create compiled_partition");
+        error::check_succeed(
+                dnnl_graph_partition_compile(get(), cpartitions,
+                        static_cast<uint64_t>(c_inputs.size()), c_inputs.data(),
+                        static_cast<uint64_t>(c_outputs.size()),
+                        c_outputs.data(), e->get()),
+                "partition compile failed");
+
+        return compiled_partition(cpartitions);
+    }
+};
+
+/// @} dnnl_graph_api_partition
+
+/// @addtogroup dnnl_graph_api_conversion Data conversion API
+///
+/// `conversion` is considered as a special partition which only accepts two
+/// input arguments.
+///
+/// @{
+
+/// Data conversion API
+class conversion : public detail::partition_handle {
+public:
+    /// Default constructor
+    conversion() {
+        dnnl_graph_partition_t *c_partition {nullptr};
+        error::check_succeed(dnnl_graph_partition_create(&c_partition),
+                "could not create a converison partition");
+        reset(c_partition);
+    }
+
+    /// Compile the conversion partition to generate compiled partition based
+    /// on the input/output logical tensor.
+    ///
+    /// @param input Input logical tensors
+    /// @param output Output logical tensors
+    /// @param aengine The engine used to compile the partition
+    /// @returns A compiled partition
+    compiled_partition compile(const logical_tensor &input,
+            const logical_tensor &output, const engine &aengine) {
+        std::vector<const dnnl_graph_logical_tensor_t *> c_inputs {&input.data};
+        std::vector<const dnnl_graph_logical_tensor_t *> c_outputs {
+                &output.data};
+
+        error::check_succeed(
+                dnnl_graph_conversion_init(get(), &input.data, &output.data,
+                        static_cast<dnnl_graph_engine_kind_t>(
+                                aengine.get_kind())),
+                "could not initialize a converison");
+
+        dnnl_graph_compiled_partition_t *cpartition {nullptr};
+        error::check_succeed(
+                dnnl_graph_compiled_partition_create(&cpartition, get()),
+                "could not create a compiled partition");
+
+        error::check_succeed(
+                dnnl_graph_partition_compile(get(), cpartition,
+                        static_cast<uint64_t>(c_inputs.size()), c_inputs.data(),
+                        static_cast<uint64_t>(c_outputs.size()),
+                        c_outputs.data(), aengine.get()),
+                "could not compile a conversion");
+
+        return compiled_partition(cpartition);
+    }
+};
+
+/// @} dnnl_graph_api_conversion
 
 /// @addtogroup dnnl_graph_api_graph Graph
 ///
