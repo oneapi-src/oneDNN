@@ -33,7 +33,8 @@
 #include "interface/backend.hpp"
 #include "interface/c_types_map.hpp"
 #include "interface/partition.hpp"
-#include "interface/utils.hpp"
+
+#include "utils/utils.hpp"
 
 #ifndef DNNL_GRAPH_VERSION_MAJOR
 #define DNNL_GRAPH_VERSION_MAJOR INT_MAX

@@ -17,9 +17,9 @@
 #include <limits>
 #include <memory>
 
-#include "op_schema.hpp"
-#include "opset.hpp"
-#include "utils.hpp"
+#include "interface/op_schema.hpp"
+#include "interface/opset.hpp"
+#include "utils/utils.hpp"
 
 namespace dnnl {
 namespace graph {

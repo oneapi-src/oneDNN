@@ -21,8 +21,8 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
-#include "c_types_map.hpp"
-#include "utils.hpp"
+#include "interface/c_types_map.hpp"
+#include "utils/utils.hpp"
 
 #if DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>

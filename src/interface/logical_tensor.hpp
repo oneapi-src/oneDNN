@@ -24,9 +24,8 @@
 #include <utility>
 #include <vector>
 
-#include "c_types_map.hpp"
-#include "common.hpp"
-#include "utils.hpp"
+#include "interface/c_types_map.hpp"
+#include "utils/utils.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -126,7 +125,7 @@ struct logical_tensor_wrapper {
     }
 
     // return the size of data type
-    size_t data_type_size() const { return size_of(data_type()); }
+    size_t data_type_size() const { return utils::size_of(data_type()); }
 
     // get memory size in byte
     size_t size() const;

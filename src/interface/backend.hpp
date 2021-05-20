@@ -26,7 +26,6 @@
 #include <vector>
 #include <unordered_map>
 
-#include "interface/common.hpp"
 #include "interface/engine.hpp"
 #include "interface/partition.hpp"
 #include "interface/stream.hpp"

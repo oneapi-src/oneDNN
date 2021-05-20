@@ -26,17 +26,16 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "c_types_map.hpp"
-#include "engine.hpp"
-#include "id.hpp"
-#include "logical_tensor.hpp"
-#include "op.hpp"
-#include "utils.hpp"
-
+#include "interface/c_types_map.hpp"
+#include "interface/engine.hpp"
+#include "interface/id.hpp"
+#include "interface/logical_tensor.hpp"
+#include "interface/op.hpp"
 #include "interface/partition_impl.hpp"
 #include "interface/stream.hpp"
 
 #include "utils/compatible.hpp"
+#include "utils/utils.hpp"
 #include "utils/verbose.hpp"
 
 namespace impl = dnnl::graph::impl;

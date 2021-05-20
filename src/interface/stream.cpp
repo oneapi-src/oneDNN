@@ -19,10 +19,11 @@
 #include "oneapi/dnnl/dnnl_graph.h"
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
 
-#include "c_types_map.hpp"
-#include "partition.hpp"
-#include "stream.hpp"
-#include "utils.hpp"
+#include "interface/c_types_map.hpp"
+#include "interface/partition.hpp"
+#include "interface/stream.hpp"
+
+#include "utils/utils.hpp"
 
 #if DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>

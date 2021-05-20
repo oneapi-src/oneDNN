@@ -28,6 +28,7 @@ namespace impl {
 
 using dim_t = dnnl_graph_dim_t;
 using dims_t = dnnl_graph_dims_t;
+using dims = std::vector<dim_t>;
 
 using status_t = dnnl_graph_result_t;
 namespace status {

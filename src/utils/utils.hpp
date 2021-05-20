@@ -14,14 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef INTERFACE_UTILS_HPP
-#define INTERFACE_UTILS_HPP
+#ifndef UTILS_UTILS_HPP
+#define UTILS_UTILS_HPP
 
 #include <cassert>
 #include <cstddef>
+#include <functional>
+#include <numeric>
+#include <vector>
 #include <type_traits>
 
-#include "oneapi/dnnl/dnnl_graph_types.h"
+#include "interface/c_types_map.hpp"
 
 #if DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
@@ -39,6 +42,32 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 namespace utils {
+
+inline static size_t size_of(data_type_t dtype) {
+    switch (dtype) {
+        case data_type::f32:
+        case data_type::s32: return 4U;
+        case data_type::s8:
+        case data_type::u8: return 1U;
+        case data_type::f16:
+        case data_type::bf16: return 2U;
+        default: return 0;
+    }
+}
+
+inline static size_t prod(const std::vector<dim_t> &shape) {
+    if (shape.size() == 0) return 0;
+
+    size_t p = (std::accumulate(
+            shape.begin(), shape.end(), size_t(1), std::multiplies<dim_t>()));
+
+    return p;
+}
+
+inline static size_t size_of(
+        const std::vector<dim_t> &shape, data_type_t dtype) {
+    return prod(shape) * size_of(dtype);
+}
 
 template <typename T, typename P>
 constexpr bool one_of(T val, P item) {

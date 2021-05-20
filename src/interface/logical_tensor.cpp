@@ -16,10 +16,8 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
-#include "backend.hpp"
-#include "c_types_map.hpp"
-#include "logical_tensor.hpp"
-#include "utils.hpp"
+#include "interface/backend.hpp"
+#include "interface/logical_tensor.hpp"
 
 using namespace dnnl::graph::impl;
 
