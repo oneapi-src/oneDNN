@@ -513,12 +513,18 @@ struct lnorm_conf_t {
     bool calculate_stats;
     bool save_stats;
     bool vectorize_calc_stats;
+    bool vectorize_bwd;
+    bool vectorize_bwd_scaleshift;
     float eps;
     int sub_group_size;
     int vect_dt_n;
     int shift_off;
+    int n_chunk_size;
+    int n_chunks;
+    int vector_size_scaleshift;
 
     compute::dispatch_t dispatch_scaleshift;
+    compute::dispatch_t dispatch_scaleshift_finalize;
     compute::dispatch_t dispatch;
 };
 
