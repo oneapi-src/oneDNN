@@ -331,6 +331,17 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_get_kind(
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_create(
         dnnl_graph_partition_t **partition);
 
+/// Creates a new partition with a given operator and engine kind.
+///
+/// @param partition The handle of output partition.
+/// @param op The operator used to create partition.
+/// @param ekind The engine kind used to create partition.
+/// @returns #dnnl_graph_result_success on success and a status describing the
+///     error otherwise.
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_create_with_op(
+        dnnl_graph_partition_t **partition, const dnnl_graph_op_t *op,
+        dnnl_graph_engine_kind_t ekind);
+
 /// Destroy the target partition.
 ///
 /// @param partition The partition to be destroyed.

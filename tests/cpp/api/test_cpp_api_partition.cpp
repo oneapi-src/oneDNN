@@ -247,3 +247,43 @@ TEST(api_partition, add_infer_shape) {
     ASSERT_EQ(out[0].get_dims()[2], 5);
     ASSERT_EQ(out[0].get_dims()[3], 7);
 }
+
+TEST(api_partition, single_conv_partition) {
+    using namespace dnnl::graph;
+    engine::kind engine_kind = static_cast<engine::kind>(api_test_engine_kind);
+
+    std::vector<int64_t> input_dims {8, 256, 56, 56};
+    std::vector<int64_t> conv_weight_dims {64, 256, 1, 1};
+    std::vector<int64_t> conv_dst_dims {8, 64, 56, 56};
+
+    logical_tensor lt1 {0, logical_tensor::data_type::f32, input_dims,
+            logical_tensor::layout_type::undef};
+    logical_tensor lt2 {1, logical_tensor::data_type::f32, conv_weight_dims,
+            logical_tensor::layout_type::undef};
+    logical_tensor lt3 {2, logical_tensor::data_type::f32, conv_dst_dims,
+            logical_tensor::layout_type::undef};
+
+    op conv(0, op::kind::Convolution, "conv");
+    conv.set_attr<std::vector<int64_t>>("strides", {1, 1});
+    conv.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
+    conv.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
+    conv.set_attr<std::vector<int64_t>>("dilations", {1, 1});
+    conv.set_attr<std::string>("data_format", "NCX");
+    conv.set_attr<std::string>("filter_format", "OIX");
+    conv.set_attr<int64_t>("groups", 1);
+
+    conv.add_inputs({lt1, lt2});
+    conv.add_output(lt3);
+
+    partition part {conv, engine_kind};
+
+    // check partition engine kind
+    ASSERT_EQ(part.get_engine_kind(), engine_kind);
+
+    // get_ops
+    std::vector<size_t> ops = part.get_ops();
+    ASSERT_EQ(ops.size(), 1);
+
+    // supported?
+    ASSERT_TRUE(part.is_supported());
+}

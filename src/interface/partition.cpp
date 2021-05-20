@@ -24,6 +24,7 @@
 
 #include "backend.hpp"
 #include "c_types_map.hpp"
+#include "graph.hpp"
 #include "op_schema.hpp"
 #include "partition.hpp"
 #include "stream.hpp"
@@ -37,6 +38,48 @@ using namespace dnnl::graph::impl;
 status_t DNNL_GRAPH_API dnnl_graph_partition_create(partition_t **partition) {
     *partition = new partition_t();
     return status::success;
+}
+
+/// This allows to create a partition directly with an op and an engine kind.
+/// In order to not break backend API and change the existing graph and
+/// partition implementation, we internally construct a temporal graph object,
+/// add the operator to it, and then do partitioning on the graph. The workflow
+/// should be the same as partitioning a normal user graph.
+status_t DNNL_GRAPH_API dnnl_graph_partition_create_with_op(
+        partition_t **partition, const op_t *op, engine_kind_t ekind) {
+    // new an empty partition
+    *partition = new partition_t();
+    if (utils::any_null(*partition, op)) return status::invalid_argument;
+
+    status_t ret = status::success;
+
+    // construct a single op graph
+    graph_t g {ekind};
+    ret = g.add_op(op);
+
+    if (ret != status::success) return ret;
+
+    // get partition impl. by calling each backends
+    std::vector<const backend *> &backends
+            = backend_registry::get_singleton().get_registered_backends();
+    for (auto cbkd : backends) {
+        backend *bkd = const_cast<backend *>(cbkd);
+        ret = bkd->get_partitions(g, partition_policy::fusion);
+        if (ret != status::success) return ret;
+    }
+
+    // check the partition impl.
+    auto &partition_vec = g.get_partitions();
+    assertm(partition_vec.size() == 1,
+            "single op graph should contain only one partition");
+    if (partition_vec[0]->get_assigned_backend() == nullptr) {
+        return status::invalid_graph;
+    }
+
+    // wrap into the partition
+    std::vector<partition_t *> parts {*partition};
+    g.get_ordered_partitions(parts);
+    return ret;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_destroy(partition_t *partition) {
