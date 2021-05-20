@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,36 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "id.hpp"
+#ifndef UTILS_ID_HPP
+#define UTILS_ID_HPP
 
-std::atomic<dnnl_graph_id::id_t> dnnl_graph_id::counter {100000};
+#include <atomic>
+#include <cstddef>
+
+namespace dnnl {
+namespace graph {
+namespace impl {
+namespace utils {
+
+struct id_t {
+public:
+    using value_type = size_t;
+    value_type id() const { return id_; }
+
+    id_t() : id_(++counter) {};
+    id_t(const id_t &other) : id_(other.id()) {};
+    id_t &operator=(const id_t &other) = delete;
+
+protected:
+    static std::atomic<value_type> counter;
+    ~id_t() = default;
+
+private:
+    const value_type id_;
+};
+} // namespace utils
+} // namespace impl
+} // namespace graph
+} // namespace dnnl
+
+#endif

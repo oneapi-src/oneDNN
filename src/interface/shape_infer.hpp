@@ -24,7 +24,8 @@
 #include <utility>
 #include <vector>
 
-#include "logical_tensor.hpp"
+#include "interface/logical_tensor.hpp"
+#include "interface/op.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -776,7 +777,8 @@ status_t infer_permute_output_shape(op_t *n,
         auto tmp = ltw(inputs[0]).reorder_weight_dims_strides();
         set_infered_shape_and_strides(outputs[0], ltw(tmp).vdims());
     } else {
-        throw std::runtime_error("not supported permutation");
+        assertm(false, "should not reach here");
+        return status::unsupported;
     }
 
     return status::success;

@@ -28,7 +28,6 @@
 
 #include "interface/c_types_map.hpp"
 #include "interface/engine.hpp"
-#include "interface/id.hpp"
 #include "interface/op.hpp"
 #include "interface/op_schema.hpp"
 #include "interface/partition.hpp"
@@ -36,38 +35,40 @@
 #include "interface/value.hpp"
 
 #include "utils/compatible.hpp"
+#include "utils/id.hpp"
 #include "utils/utils.hpp"
 
-struct dnnl_graph_graph : public dnnl_graph_id {
-    using op_t = dnnl::graph::impl::op_t;
-    using value_t = dnnl::graph::impl::value_t;
+namespace impl = dnnl::graph::impl;
+
+struct dnnl_graph_graph : public impl::utils::id_t {
+    using op_t = impl::op_t;
+    using value_t = impl::value_t;
     using op_ptr = std::shared_ptr<op_t>;
     using value_ptr = std::shared_ptr<value_t>;
-    using logical_tensor_t = dnnl::graph::impl::logical_tensor_t;
-    using logical_tensor_wrapper = dnnl::graph::impl::logical_tensor_wrapper;
-    using op_schema = dnnl::graph::impl::op_schema;
-    using op_schema_registry = dnnl::graph::impl::op_schema_registry;
+    using logical_tensor_t = impl::logical_tensor_t;
+    using logical_tensor_wrapper = impl::logical_tensor_wrapper;
+    using op_schema = impl::op_schema;
+    using op_schema_registry = impl::op_schema_registry;
+    using id_t = impl::utils::id_t;
 
 private:
     /*! \brief added ops*/
     std::vector<op_ptr> ops_ {};
 
     /*! \brief The engine kind on which the operator will be evaluated */
-    dnnl::graph::impl::engine_kind_t engine_kind_ {};
+    impl::engine_kind_t engine_kind_ {};
 
-    std::vector<std::shared_ptr<dnnl::graph::impl::partition_impl_t>>
-            partition_impls_;
+    std::vector<std::shared_ptr<impl::partition_impl_t>> partition_impls_;
 
     bool is_built_ {false};
 
 public:
-    dnnl_graph_graph(dnnl::graph::impl::engine_kind_t kind
-            = dnnl::graph::impl::engine_kind::cpu)
+    dnnl_graph_graph(impl::engine_kind_t kind = impl::engine_kind::cpu)
         : engine_kind_(kind) {};
 
     // deep copy (except that the partition_impls_ is shallow copy)
     dnnl_graph_graph(const dnnl_graph_graph &other)
-        : dnnl_graph_id(other)
+        : id_t(other)
         , ops_(deep_copy(other.ops_))
         , engine_kind_(other.engine_kind_)
         , partition_impls_(other.partition_impls_) {};
@@ -78,38 +79,33 @@ public:
 
     ~dnnl_graph_graph() = default;
 
-    dnnl::graph::impl::engine_kind_t get_engine_kind() const {
-        return engine_kind_;
-    }
+    impl::engine_kind_t get_engine_kind() const { return engine_kind_; }
 
     /*!
      * \brief Check whether an operator can be added
      * \param l_n An operator in frameworks' graph.
      * \return Whether the operator is supported
      */
-    dnnl::graph::impl::status_t add_op(const op_t *l_n) {
-        if (!l_n) return dnnl::graph::impl::status::invalid_op;
+    impl::status_t add_op(const op_t *l_n) {
+        if (!l_n) return impl::status::invalid_op;
 
         if (std::none_of(ops_.begin(), ops_.end(),
                     [&l_n](const std::vector<op_ptr>::value_type &op) {
                         return op->get_id() == l_n->get_id();
                     })) {
-            const dnnl::graph::impl::op_schema *opm
-                    = dnnl::graph::impl::op_schema_registry::get_op_schema(
-                            l_n->get_kind());
+            const impl::op_schema *opm
+                    = impl::op_schema_registry::get_op_schema(l_n->get_kind());
             op_t tmp_ln = *l_n;
             if (opm != nullptr) {
                 opm->set_default_attribute(&tmp_ln);
-                if (!opm->verify(&tmp_ln)) {
-                    return dnnl::graph::impl::status::invalid_op;
-                }
+                if (!opm->verify(&tmp_ln)) { return impl::status::invalid_op; }
             }
             ops_.push_back(std::make_shared<op_t>(tmp_ln));
             auto back_op = ops_.back().get();
             for (size_t i = 0; i < back_op->num_outputs(); i++)
                 back_op->get_output_value(i)->set_producer(*back_op);
         }
-        return dnnl::graph::impl::status::success;
+        return impl::status::success;
     }
 
     op_t *create_op(dnnl_graph_op_kind_t kind, std::string name = "") {
@@ -210,13 +206,11 @@ public:
         return out_vals;
     }
 
-    void add_partition(
-            const std::shared_ptr<dnnl::graph::impl::partition_impl_t> &pimpl) {
+    void add_partition(const std::shared_ptr<impl::partition_impl_t> &pimpl) {
         partition_impls_.push_back(pimpl);
     }
 
-    std::vector<std::shared_ptr<dnnl::graph::impl::partition_impl_t>> &
-    get_partitions() {
+    std::vector<std::shared_ptr<impl::partition_impl_t>> &get_partitions() {
         return partition_impls_;
     }
 
@@ -230,27 +224,26 @@ public:
      * \brief get list of partitions
      * \param list of partitions
      */
-    void get_ordered_partitions(
-            std::vector<dnnl::graph::impl::partition_t *> &partitions);
+    void get_ordered_partitions(std::vector<impl::partition_t *> &partitions);
 
     /*!
      * \brief Build backend graph after add op is done
      */
-    dnnl::graph::impl::status_t build_graph();
+    impl::status_t build_graph();
 
     void visualize(const std::string &filename);
 
     // This function is used to infer shape for all the ops in a graph.
     // Before calling this function, the inputs value of the graph should
     // have valid shape
-    dnnl::graph::impl::status_t infer_shape() {
+    impl::status_t infer_shape() {
         using value_ptr = std::shared_ptr<value_t>;
 
         // Check inputs shape
         for (value_t *in : get_input_values()) {
             logical_tensor_t lt = in->get_logical_tensor();
             if (logical_tensor_wrapper(lt).is_shape_unknown())
-                return dnnl::graph::impl::status::invalid_shape;
+                return impl::status::invalid_shape;
         }
 
         // call each op's infer shape function in topological order
@@ -277,9 +270,9 @@ public:
                     = op_schema_registry::get_op_schema(op->get_kind());
             assertm(opm, "can't infer shape for cur op: no schema");
 
-            dnnl::graph::impl::status_t ret
+            impl::status_t ret
                     = opm->shape_infer(op, tmp_inputs_ptr, tmp_outputs_ptr);
-            assertm(ret == dnnl::graph::impl::status::success,
+            assertm(ret == impl::status::success,
                     ("infer shape failed for op: " + op->get_name()));
 
             for (size_t i = 0; i < op->num_outputs(); i++) {
@@ -290,7 +283,7 @@ public:
             return ret;
         });
 
-        return dnnl::graph::impl::status::success;
+        return impl::status::success;
     }
 
     static std::vector<op_ptr> deep_copy(const std::vector<op_ptr> &ops);

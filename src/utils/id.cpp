@@ -14,35 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef INTERFACE_ID_HPP
-#define INTERFACE_ID_HPP
+#include "utils/id.hpp"
 
-#include <atomic>
-#include <cstddef>
+using namespace dnnl::graph::impl::utils;
 
-struct dnnl_graph_id {
-public:
-    using id_t = size_t;
-    id_t id() const { return id_; }
-
-    dnnl_graph_id() : id_(++counter) {};
-    dnnl_graph_id(const dnnl_graph_id &other) : id_(other.id()) {};
-    dnnl_graph_id &operator=(const dnnl_graph_id &other) = delete;
-
-protected:
-    static std::atomic<id_t> counter;
-    ~dnnl_graph_id() = default;
-
-private:
-    const id_t id_;
-};
-
-namespace dnnl {
-namespace graph {
-namespace impl {
-using id = ::dnnl_graph_id;
-} // namespace impl
-} // namespace graph
-} // namespace dnnl
-
-#endif
+std::atomic<id_t::value_type> id_t::counter {100000};

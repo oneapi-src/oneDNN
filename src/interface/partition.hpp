@@ -28,13 +28,13 @@
 
 #include "interface/c_types_map.hpp"
 #include "interface/engine.hpp"
-#include "interface/id.hpp"
 #include "interface/logical_tensor.hpp"
 #include "interface/op.hpp"
 #include "interface/partition_impl.hpp"
 #include "interface/stream.hpp"
 
 #include "utils/compatible.hpp"
+#include "utils/id.hpp"
 #include "utils/utils.hpp"
 #include "utils/verbose.hpp"
 
@@ -48,7 +48,7 @@ class backend;
 } // namespace graph
 } // namespace dnnl
 
-struct dnnl_graph_partition : public dnnl_graph_id {
+struct dnnl_graph_partition : public impl::utils::id_t {
 public:
     friend struct dnnl_graph_compiled_partition;
     friend struct impl::utils::partition_info_t;
@@ -57,7 +57,7 @@ public:
 
     // deep copy
     dnnl_graph_partition(const dnnl_graph_partition &other)
-        : dnnl_graph_id(other), pimpl_(other.pimpl_->clone()) {}
+        : impl::utils::id_t(other), pimpl_(other.pimpl_->clone()) {}
 
     // disable assign
     dnnl_graph_partition &operator=(const dnnl_graph_partition &other) = delete;
@@ -131,7 +131,7 @@ private:
 ///
 /// \brief dnnl_graph_compiled_partition_t
 ///
-struct dnnl_graph_compiled_partition : public dnnl_graph_id {
+struct dnnl_graph_compiled_partition : public impl::utils::id_t {
 public:
     friend struct dnnl_graph_partition;
     friend struct impl::utils::partition_info_t;
