@@ -5511,3 +5511,91 @@ TEST(operator_kernel, relu_add_fusion) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
+
+namespace {
+dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager(
+            backend_ptr.get_pass_registry());
+    auto &passes = pm.get_passes();
+    auto find = std::find_if(passes.begin(), passes.end(),
+            [&pass_name](const dnnl::graph::impl::pass::pass_base_ptr &p)
+                    -> bool { return p->get_pass_name() == pass_name; });
+
+    return *find;
+}
+} // namespace
+
+TEST(operator_compile, matmul_add_get_inplace_pair) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::graph_t agraph;
+    impl::op_t mm {0, impl::op_kind::MatMul, "matmul"};
+    impl::op_t add {1, impl::op_kind::Add, "add"};
+    impl::op_t mm2 {2, impl::op_kind::MatMul, "matmul2"};
+
+    impl::logical_tensor_t lt_mm_src = utils::logical_tensor_init(
+            1, {1, 16, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t lt_mm_weight
+            = utils::logical_tensor_init(2, {4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t lt_mm_out = utils::logical_tensor_init(
+            3, {3, 3}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t lt_mm_src2 = utils::logical_tensor_init(
+            4, {1, 16, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t lt_mm_weight2
+            = utils::logical_tensor_init(5, {4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t lt_mm_out2 = utils::logical_tensor_init(
+            6, {1, 16, 4, 4}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t lt_add_out = utils::logical_tensor_init(
+            7, {1, 16, 4, 4}, impl::data_type::f32, impl::layout_type::any);
+    mm.add_input(lt_mm_src);
+    mm.add_input(lt_mm_weight);
+    mm.add_output(lt_mm_out);
+    mm2.add_input(lt_mm_src2);
+    mm2.add_input(lt_mm_weight2);
+    mm2.add_output(lt_mm_out2);
+    add.add_input(lt_mm_out);
+    add.add_input(lt_mm_out2);
+    add.add_output(lt_add_out);
+
+    ASSERT_EQ(agraph.add_op(&mm), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&mm2), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&add), impl::status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
+
+    impl::pass::pass_base_ptr apass1 = get_pass("matmul_sum_fusion");
+    impl::pass::pass_base_ptr apass2 = get_pass("matmul_pass");
+
+    apass1->run(agraph);
+    apass2->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 2);
+    auto part1 = agraph.get_partitions()[0]; // matmul_add
+    auto part2 = agraph.get_partitions()[1]; // matmul
+    impl::partition_t p1, p2;
+    p1.init(part1);
+    p2.init(part2);
+
+    impl::compiled_partition_t cp1(p1), cp2(p2);
+    impl::engine_t &eng = get_engine();
+
+    // compile matmul partition
+    std::vector<const impl::logical_tensor_t *> inputs2 {
+            &lt_mm_src2, &lt_mm_weight2};
+    std::vector<const impl::logical_tensor_t *> outputs2 {&lt_mm_out2};
+    p2.compile(&cp2, inputs2, outputs2, &eng);
+    cp2.query_logical_tensor(lt_mm_out2.id, &lt_mm_out2);
+
+    // compile matmul_add partition
+    std::vector<const impl::logical_tensor_t *> inputs1 {
+            &lt_mm_src, &lt_mm_weight, &lt_mm_out2};
+    std::vector<const impl::logical_tensor_t *> outputs1 {&lt_add_out};
+    p1.compile(&cp1, inputs1, outputs1, &eng);
+
+    std::vector<impl::inplace_pair_t> inplace_pairs = cp1.get_inplace_pairs();
+
+    ASSERT_EQ(inplace_pairs.size(), 1);
+    ASSERT_EQ(inplace_pairs[0].input, lt_mm_out2.id);
+    ASSERT_EQ(inplace_pairs[0].output, lt_add_out.id);
+}
