@@ -210,6 +210,11 @@ public:
             eltwise_po_handler_t eltw_handler;
             sum_po_handler_t sum_handler;
         } matmul;
+
+        struct {
+            eltwise_po_handler_t eltw_handler;
+            sum_po_handler_t sum_handler;
+        } binary;
     };
 };
 
