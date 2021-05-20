@@ -100,7 +100,7 @@ struct jit_transpose4x16_src : public jit_generator {
 private:
     static const int typesize = sizeof(float);
 
-    int src_stride, tr_src_stride;
+    int src_stride = 0, tr_src_stride = 0;
 
     Xbyak::Reg64 imm_addr64 = rbx;
 
