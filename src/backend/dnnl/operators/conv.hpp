@@ -52,6 +52,7 @@ enum conv_bwd_outputs { kDiffweight, kDiffbias };
 
 struct convolution_forward_params {
     dnnl::convolution_forward::primitive_desc pd;
+    dnnl::convolution_forward prim;
     int64_t groups;
     tensor scratchpad;
 };
@@ -391,6 +392,7 @@ public:
         }
 
         auto &pd = params_.pd;
+        auto &prim = params_.prim;
         auto scratchpad = params_.scratchpad;
 
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
@@ -533,7 +535,7 @@ public:
                     {(DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1),
                             post_src});
         }
-        super(pd).execute(p_stream_, conv_args);
+        prim.execute(p_stream_, conv_args);
 
         if (expected_dst_ != dst) expected_dst_.reorder_to(p_stream_, dst);
         return impl::status::success;
@@ -681,11 +683,12 @@ private:
         auto pd = get_primitive_desc<with_bias>(src_desc, weights_desc,
                 bias_desc, dst, strides, com_dilates, pads_begin, pads_end,
                 p_engine, op_attr, aalgorithm, aprop_kind);
+        dnnl::convolution_forward prim = super(pd);
 
         // allocate scratchpad
         tensor scratchpad(pd.scratchpad_desc(), p_engine, alc);
 
-        return {pd, groups, scratchpad};
+        return {pd, prim, groups, scratchpad};
     }
 
     impl::status_t prepare_inplace_pairs_impl(const impl::engine_t *g_engine,
