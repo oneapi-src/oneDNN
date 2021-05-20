@@ -461,7 +461,11 @@ public:
             expected_dst_ = dst;
         }
 
-        if (with_post_sum_) { post_src.reorder_to(p_stream_, expected_dst_); }
+        if (with_post_sum_
+                && post_src.get_data_handle()
+                        != expected_dst_.get_data_handle()) {
+            post_src.reorder_to(p_stream_, expected_dst_);
+        }
 
         std::unordered_map<int, memory> matmul_args;
         matmul_args.insert({DNNL_ARG_SRC, expected_src_});
@@ -512,6 +516,27 @@ private:
                         0, "Unsupported fused_eltwise op for matmul.");
         }
         return algorithm::undef;
+    }
+
+    impl::status_t prepare_inplace_pairs_impl(const impl::engine_t *g_engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) override {
+        UNUSED(g_engine);
+        if (with_post_sum_) {
+            size_t input_idx = with_bias_ ? matmul_fwd::kBias + 1
+                                          : matmul_fwd::kWeight + 1;
+            if (with_bn_)
+                input_idx = bn_input_offset_ + matmul_fwd::kVariance + 1;
+            constexpr size_t output_idx = 0;
+
+            const logical_tensor_wrapper post_src_lt(inputs[input_idx]);
+            const logical_tensor_wrapper dst_lt(outputs[output_idx]);
+            if (post_src_lt.is_opaque() && dst_lt.is_opaque()
+                    && post_src_lt.is_similar(dst_lt))
+                inplace_pairs_.push_back(
+                        {inputs[input_idx].id, outputs[output_idx].id});
+        }
+        return impl::status::success;
     }
 };
 
