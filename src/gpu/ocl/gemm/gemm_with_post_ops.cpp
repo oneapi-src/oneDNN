@@ -30,7 +30,7 @@ namespace ocl {
 status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
 
     auto d = desc();
-    auto attributes_with_po = attr()->clone();
+    const primitive_attr_t *attributes_with_po = attr();
     attr_info_ = attr_info_t::create(attributes_with_po);
     bool ok = IMPLICATION(attr_info_.with_oscales,
                       attr_info_.with_common_oscales
@@ -39,9 +39,11 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
             && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k());
     if (!ok) return status::unimplemented;
 
-    auto attributes_without_po = attr()->clone();
-    attributes_without_po->post_ops_.entry_.clear();
-    dnnl_primitive_attr_set_output_scales(attributes_without_po, 1, 0, &scale_);
+    primitive_attr_t attributes_without_po(*attr());
+    if (!attributes_without_po.is_initialized()) return status::out_of_memory;
+    attributes_without_po.post_ops_.entry_.clear();
+    dnnl_primitive_attr_set_output_scales(
+            &attributes_without_po, 1, 0, &scale_);
 
     const auto impl_list = engine->get_implementation_list(op_desc());
     int current_impl_idx
@@ -63,7 +65,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     gemm_desc.bias_desc = glob_zero_md;
     dnnl_primitive_desc_iterator it_gemm_without_po(engine,
             reinterpret_cast<const op_desc_t *>(&gemm_desc),
-            attributes_without_po, nullptr,
+            &attributes_without_po, nullptr,
             current_impl_idx /* skip implementation */);
     if (!it_gemm_without_po.is_initialized()) return status::invalid_arguments;
     gemm_pd_ = *(++it_gemm_without_po);
