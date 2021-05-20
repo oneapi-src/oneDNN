@@ -25,7 +25,7 @@
 
 #include "interface/logical_tensor.hpp"
 #include "interface/tensor.hpp"
-#include "interface/utils.hpp"
+#include "utils/utils.hpp"
 
 #include "attributes.hpp"
 #include "common.hpp"

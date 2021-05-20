@@ -22,12 +22,10 @@
 #include "oneapi/dnnl/dnnl_graph.h"
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
 
-#include "backend.hpp"
-#include "c_types_map.hpp"
-#include "graph.hpp"
-#include "op_schema.hpp"
-#include "partition.hpp"
-#include "stream.hpp"
+#include "interface/backend.hpp"
+#include "interface/graph.hpp"
+#include "interface/op_schema.hpp"
+#include "interface/partition.hpp"
 
 #if DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>

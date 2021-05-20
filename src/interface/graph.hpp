@@ -26,17 +26,17 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
-#include "c_types_map.hpp"
-#include "common.hpp"
-#include "engine.hpp"
-#include "id.hpp"
-#include "op.hpp"
-#include "op_schema.hpp"
-#include "partition.hpp"
-#include "partition_impl.hpp"
-#include "utils.hpp"
+#include "interface/c_types_map.hpp"
+#include "interface/engine.hpp"
+#include "interface/id.hpp"
+#include "interface/op.hpp"
+#include "interface/op_schema.hpp"
+#include "interface/partition.hpp"
+#include "interface/partition_impl.hpp"
+#include "interface/value.hpp"
+
 #include "utils/compatible.hpp"
-#include "value.hpp"
+#include "utils/utils.hpp"
 
 struct dnnl_graph_graph : public dnnl_graph_id {
     using op_t = dnnl::graph::impl::op_t;

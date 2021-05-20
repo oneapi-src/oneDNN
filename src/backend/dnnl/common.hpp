@@ -24,7 +24,6 @@
 #include "oneapi/dnnl/dnnl_graph_types.h"
 
 #include "interface/allocator.hpp"
-#include "interface/common.hpp"
 #include "interface/logical_tensor.hpp"
 #include "utils/compatible.hpp"
 

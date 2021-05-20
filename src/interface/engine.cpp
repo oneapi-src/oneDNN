@@ -17,9 +17,9 @@
 #include "oneapi/dnnl/dnnl_graph.h"
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
 
-#include "c_types_map.hpp"
-#include "engine.hpp"
-#include "utils.hpp"
+#include "interface/c_types_map.hpp"
+#include "interface/engine.hpp"
+#include "utils/utils.hpp"
 
 #if DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
