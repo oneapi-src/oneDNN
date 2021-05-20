@@ -104,6 +104,7 @@ struct matmul_forward : public dnnl::matmul, public kernel_base {
 private:
     // cached pd is in this struct
     primitive_desc pd_;
+    dnnl::matmul prim_;
     // cache expected data to avoid creating memory in every iteration
     tensor expected_src_;
     tensor expected_weights_;
@@ -139,21 +140,6 @@ private:
     dnnl::stream p_stream_;
 
 public:
-    void compute(const dnnl::stream &p_stream) {
-        if (with_bias_) {
-            super(pd_).execute(p_stream,
-                    {{DNNL_ARG_SRC, expected_src_},
-                            {DNNL_ARG_WEIGHTS, expected_weights_},
-                            {DNNL_ARG_BIAS, expected_bias_},
-                            {DNNL_ARG_DST, expected_dst_}});
-        } else {
-            super(pd_).execute(p_stream,
-                    {{DNNL_ARG_SRC, expected_src_},
-                            {DNNL_ARG_WEIGHTS, expected_weights_},
-                            {DNNL_ARG_DST, expected_dst_}});
-        }
-    }
-
     impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
@@ -326,6 +312,7 @@ public:
         pd_ = with_bias_
                 ? primitive_desc({src, weight, bias, dst}, attr_, p_engine_)
                 : primitive_desc({src, weight, dst}, attr_, p_engine_);
+        prim_ = super(pd_);
 
         fill_layout_info(dst_lt, pd_.dst_desc());
 
@@ -480,7 +467,7 @@ public:
                             post_src});
         }
 
-        super(pd_).execute(p_stream_, matmul_args);
+        prim_.execute(p_stream_, matmul_args);
 
         if (expected_dst_ != dst) expected_dst_.reorder_to(p_stream_, dst);
         return impl::status::success;
