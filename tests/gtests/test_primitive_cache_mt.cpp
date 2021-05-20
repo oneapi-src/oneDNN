@@ -31,9 +31,9 @@ TEST(primitive_cache_mt_test, TestGeneralCase) {
     set_primitive_cache_capacity(0);
     set_primitive_cache_capacity(1024);
 
-    int n_primitives = 12;
+    memory::dim n_primitives = 12;
 
-    dnnl::impl::parallel_nd(n_primitives, [&](int np) {
+    dnnl::impl::parallel_nd(n_primitives, [&](memory::dim np) {
         auto relu_d = eltwise_forward::desc(prop_kind::forward_inference,
                 algorithm::eltwise_relu, {{np, 1, 1, 1}, dt::f32, tag::nchw},
                 0.f, 0.f);
@@ -54,14 +54,14 @@ TEST(primitive_cache_mt_test, TestNestedCase) {
     set_primitive_cache_capacity(0);
     set_primitive_cache_capacity(1024);
 
-    int n_primitives = 12;
-    int n_srcs = 32;
+    memory::dim n_primitives = 12;
+    memory::dim n_srcs = 32;
 
-    dnnl::impl::parallel_nd(n_primitives, [&](int np) {
+    dnnl::impl::parallel_nd(n_primitives, [&](memory::dim np) {
         std::vector<memory::desc> src_mds(n_srcs);
         std::vector<float> scales(n_srcs, 1.0);
 
-        for (int ns = 0; ns < n_srcs; ++ns) {
+        for (memory::dim ns = 0; ns < n_srcs; ++ns) {
             src_mds[ns] = memory::desc({{128, 128}, dt::f32, tag::nc});
         }
         auto sum_pd = sum::primitive_desc(scales, src_mds, eng);
