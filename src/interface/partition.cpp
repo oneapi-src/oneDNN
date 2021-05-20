@@ -126,7 +126,18 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile(partition_t *partition,
 
     std::vector<const logical_tensor_t *> in {inputs, inputs + in_num};
     std::vector<const logical_tensor_t *> out {outputs, outputs + out_num};
-    status_t ret = partition->compile(compiled_partition, in, out, engine);
+
+    status_t ret = status::unknown;
+    if (utils::get_verbose() >= 2) {
+        double ms = utils::get_msec();
+        ret = partition->compile(compiled_partition, in, out, engine);
+        ms = utils::get_msec() - ms;
+        printf("dnnl_graph_verbose,compile,%s,%g\n", compiled_partition->info(),
+                ms);
+        fflush(stdout);
+    } else {
+        ret = partition->compile(compiled_partition, in, out, engine);
+    }
     return ret;
 }
 
@@ -236,7 +247,19 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
         outs.emplace_back(**(outputs + i));
     }
 
-    return compiled_partition->execute(stream, ins, outs);
+    status_t ret = status::unknown;
+    if (utils::get_verbose()) {
+        double ms = utils::get_msec();
+        ret = compiled_partition->execute(stream, ins, outs);
+        ms = utils::get_msec() - ms;
+        printf("dnnl_graph_verbose,exec,%s,%g\n", compiled_partition->info(),
+                ms);
+        fflush(stdout);
+    } else {
+        ret = compiled_partition->execute(stream, ins, outs);
+    }
+
+    return ret;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_compiled_partition_execute(
@@ -429,8 +452,6 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
     if (!astream || !astream->get_engine()->match(pimpl_->get_engine()))
         return status::invalid_argument;
 
-    status_t ret;
-
     const backend *backend = src_partition_.get_assigned_backend();
     if (!backend) return status::compile_fail;
 
@@ -441,17 +462,7 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
     pre_process(processed_inputs, inputs, backend);
     pre_process(processed_outputs, outputs, backend);
 
-    if (utils::get_verbose()) {
-        double ms = utils::get_msec();
-        ret = pimpl_->execute(astream, processed_inputs, processed_outputs);
-        ms = utils::get_msec() - ms;
-        printf("dnnl_graph_verbose,exec,%s,%g\n", this->info(), ms);
-        fflush(stdout);
-    } else {
-        ret = pimpl_->execute(astream, processed_inputs, processed_outputs);
-    }
-
-    return ret;
+    return pimpl_->execute(astream, processed_inputs, processed_outputs);
 }
 
 #if DNNL_GRAPH_WITH_SYCL
