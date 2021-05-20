@@ -139,6 +139,9 @@ private:
     dnnl::engine p_engine_;
     dnnl::stream p_stream_;
 
+    exec_args matmul_args_;
+    bool first_iteration_ = true;
+
 public:
     impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
@@ -313,6 +316,8 @@ public:
                 ? primitive_desc({src, weight, bias, dst}, attr_, p_engine_)
                 : primitive_desc({src, weight, dst}, attr_, p_engine_);
         prim_ = super(pd_);
+        // set this flag = true every time compile is called
+        first_iteration_ = true;
 
         fill_layout_info(dst_lt, pd_.dst_desc());
 
@@ -454,20 +459,24 @@ public:
             post_src.reorder_to(p_stream_, expected_dst_);
         }
 
-        std::unordered_map<int, memory> matmul_args;
-        matmul_args.insert({DNNL_ARG_SRC, expected_src_});
-        matmul_args.insert({DNNL_ARG_WEIGHTS, expected_weights_});
-        matmul_args.insert({DNNL_ARG_DST, expected_dst_});
+        if (first_iteration_) {
+            first_iteration_ = false;
+            matmul_args_ = {{DNNL_ARG_SRC, expected_src_},
+                    {DNNL_ARG_WEIGHTS, expected_weights_},
+                    {DNNL_ARG_DST, expected_dst_}};
 
-        if (with_bias_) { matmul_args.insert({DNNL_ARG_BIAS, expected_bias_}); }
+            if (with_bias_) {
+                matmul_args_.insert({DNNL_ARG_BIAS, expected_bias_});
+            }
 
-        if (with_post_binary_add_) {
-            matmul_args.insert(
-                    {(DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1),
-                            post_src});
+            if (with_post_binary_add_) {
+                matmul_args_.insert(
+                        {(DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1),
+                                post_src});
+            }
         }
 
-        prim_.execute(p_stream_, matmul_args);
+        prim_.execute(p_stream_, matmul_args_);
 
         if (expected_dst_ != dst) expected_dst_.reorder_to(p_stream_, dst);
         return impl::status::success;

@@ -202,6 +202,9 @@ private:
     char *val = std::getenv("DNNL_GRAPH_WEIGHT_CACHE");
     bool enable_cache_data_ = (val != nullptr && std::strcmp(val, "1") == 0);
 
+    exec_args conv_args_;
+    bool first_iteration_ = true;
+
 public:
     impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
@@ -347,7 +350,8 @@ public:
                 : CONV_GET_CONFIG(
                         false, p_engine_, alc, conv_kind, alpha_, beta_);
 #undef CONV_GET_CONFIG
-
+        // set this flag = true every time compile is called
+        first_iteration_ = true;
         const dnnl::convolution_forward::primitive_desc &pd = params_.pd;
         const tensor::desc optimal_dst_desc {pd.dst_desc()};
         // fill_layout_info for not-copied input/outputs
@@ -525,21 +529,23 @@ public:
             post_src.reorder_to(p_stream_, expected_dst_);
         }
 
-        std::unordered_map<int, memory> conv_args;
-        conv_args.insert({DNNL_ARG_SRC, expected_src_});
-        conv_args.insert({DNNL_ARG_WEIGHTS, expected_weights_});
-        conv_args.insert({DNNL_ARG_DST, expected_dst_});
-        conv_args.insert({DNNL_ARG_SCRATCHPAD, scratchpad});
+        if (first_iteration_) {
+            first_iteration_ = false;
+            conv_args_ = {{DNNL_ARG_SRC, expected_src_},
+                    {DNNL_ARG_WEIGHTS, expected_weights_},
+                    {DNNL_ARG_DST, expected_dst_},
+                    {DNNL_ARG_SCRATCHPAD, scratchpad}};
 
-        if (with_bias_ || with_bn_) {
-            conv_args.insert({DNNL_ARG_BIAS, expected_bias_});
+            if (with_bias_ || with_bn_) {
+                conv_args_.insert({DNNL_ARG_BIAS, expected_bias_});
+            }
+            if (with_post_binary_add_) {
+                conv_args_.insert(
+                        {(DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1),
+                                post_src});
+            }
         }
-        if (with_post_binary_add_) {
-            conv_args.insert(
-                    {(DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1),
-                            post_src});
-        }
-        prim.execute(p_stream_, conv_args);
+        prim.execute(p_stream_, conv_args_);
 
         if (expected_dst_ != dst) expected_dst_.reorder_to(p_stream_, dst);
         return impl::status::success;
