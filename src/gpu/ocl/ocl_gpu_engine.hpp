@@ -88,8 +88,8 @@ public:
         return gpu_impl_list_t::get_implementation_list();
     }
 
-    virtual cl_device_id device() const { return device_; }
-    virtual cl_context context() const { return context_; }
+    cl_device_id device() const { return device_; }
+    cl_context context() const { return context_; }
 
     device_id_t device_id() const override {
         return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
