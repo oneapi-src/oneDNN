@@ -341,34 +341,36 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         status_t st = gemm_s8x8s32(&transB, &transA, "F", &N, &M, &K, &alpha,
                 weights, &ldb, &gemm_off_b, src, &lda, &gemm_off_a, &beta, acc,
                 &acc_ldc, &gemm_off_c);
-        if (st != status::success) return st;
 
-        std::vector<acc_data_t> src_compensation(M, 0);
-        std::vector<acc_data_t> weights_compensation(N, 0);
+        if (st == status::success) {
+            std::vector<acc_data_t> src_compensation(M, 0);
+            std::vector<acc_data_t> weights_compensation(N, 0);
 
-        // if igemm cannot handle src and weights zero points
-        if (post_process_src_and_weights_zero_points_outside_of_gemm) {
-            post_process_src_and_weights_zero_points(src_compensation,
-                    weights_compensation, M, N, K, src, src_strides[0],
-                    src_strides[1], weights, weights_strides[0],
-                    weights_strides[1], acc, acc_ldc, src_zero_point,
-                    weights_zero_point);
-        }
+            // if igemm cannot handle src and weights zero points
+            if (post_process_src_and_weights_zero_points_outside_of_gemm) {
+                post_process_src_and_weights_zero_points(src_compensation,
+                        weights_compensation, M, N, K, src, src_strides[0],
+                        src_strides[1], weights, weights_strides[0],
+                        weights_strides[1], acc, acc_ldc, src_zero_point,
+                        weights_zero_point);
+            }
 
-        bool postops_in_matmul = need_post_processing(pd(), dst_zero_point_f32);
-        assert(IMPLICATION(postops_in_matmul, params.has_pp_kernel_));
+            bool postops_in_matmul
+                    = need_post_processing(pd(), dst_zero_point_f32);
+            assert(IMPLICATION(postops_in_matmul, params.has_pp_kernel_));
 
-        if (postops_in_matmul) {
-            const bool force_sequential = pp_kernel_->sequential_kernel();
+            if (postops_in_matmul) {
+                const bool force_sequential = pp_kernel_->sequential_kernel();
 
-            parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
-                size_t start {}, end {};
-                balance211((size_t)(M * N), nthr, ithr, start, end);
-                (*pp_kernel_)(dst, acc, bias, scales, start, end, (size_t)N,
-                        ldc, &dst_zero_point_f32,
-                        post_ops_binary_rhs_arg_vec.data(), dst, ctx,
-                        *pd()->dst_md());
-            });
+                parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
+                    size_t start {}, end {};
+                    balance211((size_t)(M * N), nthr, ithr, start, end);
+                    (*pp_kernel_)(dst, acc, bias, scales, start, end, (size_t)N,
+                            ldc, &dst_zero_point_f32,
+                            post_ops_binary_rhs_arg_vec.data(), dst, ctx,
+                            *pd()->dst_md());
+                });
+            }
         }
     }
     if (need_free_acc) free(acc);
