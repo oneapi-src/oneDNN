@@ -417,8 +417,13 @@ struct array_offset_calculator {
     array_offset_calculator(Telem *base, Targs... Fargs) : _dims {Fargs...} {
         _base_ptr = base;
     }
+
+    template <typename... Targs>
+    array_offset_calculator(std::nullptr_t, Targs... Fargs) = delete;
+
     template <typename... Targs>
     inline Telem &operator()(Targs... Fargs) const {
+        assert(static_cast<bool>(_base_ptr));
         return *(_base_ptr + _offset(1, Fargs...));
     }
 
