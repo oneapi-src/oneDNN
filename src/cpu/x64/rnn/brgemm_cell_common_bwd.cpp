@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/x64/rnn/brgemm_cell_common.hpp"
+#include "cpu/x64/rnn/brgemm_cell_common_bwd.hpp"
 
 #include "common/dnnl_thread.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/rnn/brgemm_cell_common_reorders.hpp"
+#include "cpu/x64/rnn/brgemm_cell_common_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -28,18 +28,6 @@ namespace cpu {
 namespace x64 {
 
 using namespace dnnl::impl::utils;
-
-void amx_tile_configuration_loader_t::operator()(
-        const char *requested_cfg_addr) {
-    if (current_cfg_addr != requested_cfg_addr) {
-        amx_tile_configure(requested_cfg_addr);
-        current_cfg_addr = requested_cfg_addr;
-    }
-}
-
-amx_tile_configuration_loader_t::~amx_tile_configuration_loader_t() {
-    if (current_cfg_addr) { amx_tile_release(); }
-}
 
 template <typename weights_t, typename scratch_t, typename gemm_acc_t>
 brgemm_diff_src_layer_iter_t<weights_t, scratch_t,

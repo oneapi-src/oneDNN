@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_RNN_BRGEMM_CELL_COMMON_HPP
-#define CPU_X64_RNN_BRGEMM_CELL_COMMON_HPP
+#ifndef CPU_X64_RNN_BRGEMM_CELL_COMMON_BWD_HPP
+#define CPU_X64_RNN_BRGEMM_CELL_COMMON_BWD_HPP
 
 #include "common/bfloat16.hpp"
 #include "cpu/rnn/rnn_utils.hpp"
@@ -27,20 +27,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
-
-struct amx_tile_configuration_loader_t {
-    /*
-     * Tile configurations are prepared in init phase. In execute we must load
-     * proper configuration for given situation. Tile configure is an expensive
-     * performance operation. We should avoid multiple reconfigurations as well
-     * as loading same configuration if it is already loaded.
-     */
-    void operator()(const char *requested_cfg_addr);
-    ~amx_tile_configuration_loader_t();
-
-private:
-    const char *current_cfg_addr = nullptr;
-};
 
 /*
  * Calculations:
