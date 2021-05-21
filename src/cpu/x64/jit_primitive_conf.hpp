@@ -931,6 +931,29 @@ struct jit_binary_call_s {
     size_t src1_stride_range;
 };
 
+struct jit_reduction_conf_t {
+    data_type_t src_type = data_type::undef;
+    data_type_t dst_type = data_type::undef;
+    data_type_t acc_type = data_type::undef;
+
+    std::size_t src_dt_size = 0;
+    std::size_t dst_dt_size = 0;
+    std::size_t acc_dt_size = 0;
+
+    alg_kind_t alg = alg_kind::undef;
+    cpu_isa_t isa = isa_any;
+
+    dim_t idle_size = 0;
+    dim_t reduce_size = 0;
+
+    bool is_saturation_needed = false;
+};
+
+struct jit_reduction_call_s {
+    const void *src = nullptr;
+    void *dst = nullptr;
+};
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl

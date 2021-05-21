@@ -557,6 +557,16 @@ public:
         vdivps(x, op1, op2);
     }
 
+    void uni_vdivss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
+            const Xbyak::Operand &op2) {
+        if (is_valid_isa(avx))
+            vdivss(x, op1, op2);
+        else {
+            assert(x.isEqualIfNotInherited(op1));
+            divss(x, op2);
+        }
+    }
+
     void uni_vdivps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2, const Xbyak::Xmm &buf) {
         movups(buf, op1);
@@ -991,6 +1001,16 @@ public:
         vmaxps(x, op1, op2);
     }
 
+    void uni_vmaxss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
+            const Xbyak::Operand &op2) {
+        if (is_valid_isa(avx))
+            vmaxss(x, op1, op2);
+        else {
+            if (!x.isEqualIfNotInherited(op1)) movss(x, op1);
+            maxss(x, op2);
+        }
+    }
+
     void uni_vminps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
 
@@ -1005,6 +1025,17 @@ public:
     void uni_vminps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
         vminps(x, op1, op2);
+    }
+
+    void uni_vminss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
+            const Xbyak::Operand &op2) {
+
+        if (is_valid_isa(avx))
+            vminss(x, op1, op2);
+        else {
+            if (!x.isEqualIfNotInherited(op1)) movss(x, op1);
+            minss(x, op2);
+        }
     }
 
     void uni_vpmovsxbd(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
