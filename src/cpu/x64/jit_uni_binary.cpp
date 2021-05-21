@@ -59,7 +59,7 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
             && IMPLICATION(conf_.src0_type == bf16, mayiuse(avx512_core))
             && set_default_params() == status::success && !has_zero_dim_memory()
             && IMPLICATION(!conf_.is_i8, src0_md_ == dst_md_) && is_applicable()
-            && attr()->has_default_values(sm::post_ops | sm::scales)
+            && attr()->has_default_values(sm::post_ops | sm::scales_runtime)
             && post_ops_ok(attr(), src_md(0), dst_md())
             && (conf_.is_i8 || elt_idx == -1
                     || IMPLICATION(!dst_md_.is_dense(),

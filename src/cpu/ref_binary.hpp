@@ -52,7 +52,8 @@ struct ref_binary_t : public primitive_t {
                     && platform::has_data_type_support(src1_type)
                     && platform::has_data_type_support(dst_type)
                     && set_default_params() == status::success
-                    && attr()->has_default_values(sm::post_ops | sm::scales)
+                    && attr()->has_default_values(
+                            sm::post_ops | sm::scales_runtime)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask());
             if (!ok) return status::unimplemented;

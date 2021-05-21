@@ -122,6 +122,8 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
     smask_t defined_mask {};
     if ((mask & smask_t::oscale_runtime) == smask_t::oscale_runtime)
         defined_mask |= smask_t::oscale;
+    if ((mask & smask_t::scales_runtime) == smask_t::scales_runtime)
+        defined_mask |= smask_t::scales;
     if ((mask & smask_t::zero_points_runtime) == smask_t::zero_points_runtime)
         defined_mask |= smask_t::zero_points;
     bool ok = true;
@@ -153,6 +155,7 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
 #define CHECK_MASK(mask_name, mask_field) \
     CHECK_ARG(IMPLICATION((bool)(~mask & (mask_name)), (mask_field).defined()))
     CHECK_MASK(smask_t::oscale, output_scales_);
+    CHECK_MASK(smask_t::scales, scales_);
     CHECK_MASK(smask_t::zero_points, zero_points_);
     CHECK_MASK(smask_t::post_ops, post_ops_);
     CHECK_MASK(smask_t::rnn_data_qparams, rnn_data_qparams_);

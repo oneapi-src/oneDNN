@@ -200,6 +200,13 @@ struct arg_scales_t : public c_compatible {
         return true;
     }
 
+    bool defined() const {
+        for (const auto &s : scales_) {
+            if (!s.second.defined()) return false;
+        }
+        return true;
+    }
+
     status_t get(int arg, dim_t *count, int *mask, const float **scales) const;
     status_t set(int arg, dim_t count, int mask, const float *scales);
     status_t set(int arg, float single_scale) {
@@ -584,14 +591,15 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         oscale = 1u << 0,
         oscale_runtime = (unsigned)oscale | (1u << 1),
         scales = 1u << 2,
-        zero_points = 1u << 3,
-        zero_points_runtime = (unsigned)zero_points | (1u << 4),
-        post_ops = 1u << 5,
-        rnn_data_qparams = 1u << 6,
-        rnn_weights_qparams = 1u << 7,
-        rnn_tparams = 1u << 8,
-        sum_dt = 1 << 9,
-        rnn_weights_projection_qparams = 1u << 10
+        scales_runtime = (unsigned)scales | (1u << 3),
+        zero_points = 1u << 4,
+        zero_points_runtime = (unsigned)zero_points | (1u << 5),
+        post_ops = 1u << 6,
+        rnn_data_qparams = 1u << 7,
+        rnn_weights_qparams = 1u << 8,
+        rnn_tparams = 1u << 9,
+        sum_dt = 1 << 10,
+        rnn_weights_projection_qparams = 1u << 11
     };
 
     /** Returns true if the attributes have default values.
