@@ -381,6 +381,12 @@ int compare_bia(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *res, bool final_compare = false);
 int compare_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *res, bool final_compare = false);
+
+bool need_src_init(const prb_t *prb);
+bool need_wei_init(const prb_t *prb);
+bool need_bia_init(const prb_t *prb);
+bool need_dst_init(const prb_t *prb);
+
 int fill_src(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
 int fill_wei(

@@ -323,6 +323,23 @@ int compare_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     return compare_dat(prb, DST, mem_dt, mem_fp, res, final_compare);
 }
 
+bool need_src_init(const prb_t *prb) {
+    return !(prb->dir == BWD_D);
+}
+
+bool need_wei_init(const prb_t *prb) {
+    return !(prb->dir & FLAG_BWD && prb->dir & FLAG_WEI);
+}
+
+bool need_bia_init(const prb_t *prb) {
+    return need_wei_init(prb);
+}
+
+bool need_dst_init(const prb_t *prb) {
+    return !(prb->dir & FLAG_FWD)
+            || (prb->attr.post_ops.find(attr_t::post_ops_t::SUM) >= 0);
+}
+
 int fill_src(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
     const bool check_reorder
@@ -904,10 +921,11 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_fp(dst_md, fp, src_tag, test_engine);
     dnn_mem_t bia_fp(bia_md, fp, tag::x, test_engine);
 
-    SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
-    SAFE(fill_wei(prb, wei_dt, wei_fp, res), WARN);
-    SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
-    SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
+    if (need_src_init(prb)) SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
+    if (need_dst_init(prb)) SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
+    if (need_wei_init(prb)) SAFE(fill_wei(prb, wei_dt, wei_fp, res), WARN);
+    if (need_bia_init(prb)) SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
+
     maybe_prepare_runtime_scales(
             scales, prb->attr.oscale, prb->oc, prb->scales);
     maybe_prepare_runtime_zero_points(
