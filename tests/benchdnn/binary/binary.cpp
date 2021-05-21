@@ -180,6 +180,15 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         return;
     }
 
+    if (is_gpu()) { // this is valid for Nvidia GPU as well
+        for (const auto &s : prb->attr.scales.scales) {
+            if (s.second.runtime) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
+            }
+        }
+    }
+
     if (is_nvidia_gpu()) {
         const std::vector<alg_t> supported_algs
                 = {alg_t::ADD, alg_t::MUL, alg_t::MIN, alg_t::MAX};
