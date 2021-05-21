@@ -909,6 +909,9 @@ struct jit_binary_conf_t {
     bool postops_per_oc_broadcast_exists = false;
     bool is_i8 = false;
     bool is_bf16 = false;
+    bool is_src_different_layouts = false;
+    dim_t outer_dims = 1;
+    int src1_stride = 1;
 
     data_type_t src0_type = data_type::undef;
     data_type_t src1_type = data_type::undef;
@@ -917,11 +920,12 @@ struct jit_binary_conf_t {
 
 struct jit_binary_call_s {
     // keep all sizes at 8 bytes -- jit code expects this
-    const void *src0, *src1, *dst;
+    const void *src0, *src1, *dst, *indices;
     const float *scales_src0, *scales_src1;
     size_t spat_offt_count;
     const void *post_ops_binary_rhs_arg_vec;
     size_t oc_l_off;
+    size_t src1_stride_range;
 };
 
 } // namespace x64

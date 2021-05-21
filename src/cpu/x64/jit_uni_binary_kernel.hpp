@@ -60,6 +60,7 @@ protected:
     const binary_pd_t *pd_;
     const jit_binary_conf_t conf_;
     const bool is_tail_kernel_;
+    const bool is_src1_outer_dims_tail_;
     const size_t tail_size_;
     const size_t padding_tail_size_;
 };
@@ -77,16 +78,21 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     static constexpr bool is_avx512_core
             = utils::one_of(isa, avx512_core, avx512_core_bf16);
     static constexpr bool is_avx512_common = isa == avx512_common;
+    const bool is_avx512_not_mic
+            = is_avx512_core || (is_avx512_common && !conf_.is_i8);
 
     const Reg64 &reg_param_ = abi_param1;
     const Reg64 &reg_src0_ = r8;
     const Reg64 &reg_src1_ = r9;
     const Reg64 &reg_dst_ = r10;
     const Reg64 &reg_offt_src0_ = r11;
-    const Reg64 &reg_offt_src0_count_ = r12;
+    const Reg64 &reg_outer_dims_range_ = r12;
     const Reg64 &reg_offt_src1_ = rax;
+    const Reg64 &reg_src1_stride_range_ = r15;
+    const Reg64 &reg_reverse_src1_stride_range_ = rax;
     const Reg64 &reg_reverse_spat_offt_ = r13;
     const Reg64 &reg_tmp_ = r14;
+    const Reg64 &reg_tmp1_ = rcx;
     const Reg64 &reg_elt_inj_table_ = r15;
     const Reg64 &reg_off_rhs_postops_ = rdx;
     const Reg64 &reg_scales_src0_ = rbx;
@@ -94,14 +100,14 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const Reg64 &reg_offt_dst_ = rdx;
     const Opmask &tail_opmask_ = k2;
     const Opmask &cmp_mask = k3;
+    const Opmask &full_mask_ = k4;
     const Vmm vmm_tail_vmask_ = Vmm(0);
     const Vmm vreg_sum_scale_ = Vmm(is_avx512 ? 17 : 9);
     const Xmm xreg_sum_scale_ = Xmm(9);
     const Vmm vreg_zero_ = Vmm(is_avx512 ? 18 : 10);
     const Vmm vreg_one_ = Vmm(is_avx512 ? 19 : 11);
     const Vmm vreg_saturation_ubound_ = Vmm(is_avx512 ? 20 : 12);
-    const Vmm vreg_bcast_src1_ = Vmm(
-            is_avx512_core || (is_avx512_common && !conf_.is_i8) ? 21 : 13);
+    const Vmm vreg_bcast_src1_ = Vmm(is_avx512_not_mic ? 21 : 13);
     const Xmm xreg_bcast_src1_ = Xmm(13);
     const Vmm vreg_scales_src0_ = Vmm(is_avx512 ? 22 : 14);
     const Vmm vreg_scales_src1_ = Vmm(is_avx512 ? 23 : 15);
@@ -111,7 +117,16 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const Zmm vreg_bf16_emu_3_ = Zmm(28);
     const Zmm vreg_bf16_emu_4_ = Zmm(29);
 
-    static constexpr size_t unroll_regs_ = is_avx512 ? 8 : 4;
+    const Vmm vmm_full_mask_ = Vmm(is_avx512_not_mic ? 24 : 5);
+    const Vmm vmm_tmp_gather_ = Vmm(is_avx512_not_mic ? 25 : 6);
+    const Vmm vmm_indices_ = Vmm(is_avx512_not_mic ? 30 : 7);
+    const Vmm vmm_gathered_src_ = Vmm(is_avx512_not_mic ? 31 : 8);
+
+    const size_t unroll_regs_ = is_avx512
+                    && IMPLICATION(
+                            conf_.is_src_different_layouts, is_avx512_not_mic)
+            ? 8
+            : 4;
     const size_t offt_src0_;
     const size_t offt_src1_;
 
@@ -134,8 +149,10 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
             const Vmm &v0, const Vmm &v1, const Vmm &s_src0, const Vmm &s_src1);
     void prepare_isa_kernel();
     void compute_bcast(bool tail);
+    void load_src1(const Vmm &vreg_src1, const int offt, bool tail);
     void compute_dst(int unroll, bool tail);
     void forward();
+    void forward_over_outer_dims();
     void generate() override;
 
     jit_uni_binary_kernel_t(const binary_pd_t *pd, const jit_binary_conf_t conf,

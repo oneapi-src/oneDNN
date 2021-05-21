@@ -38,6 +38,8 @@ binary_kernel_t::binary_kernel_t(const size_t vlen, const binary_pd_t *pd,
     , pd_(pd)
     , conf_(conf)
     , is_tail_kernel_(tail_kernel)
+    , is_src1_outer_dims_tail_(
+              conf_.is_src_different_layouts && conf_.outer_dims % simd_w_)
     , tail_size_(get_tail_size())
     , padding_tail_size_(
               pd->src_md(0)->padded_dims[1] - pd->src_md(0)->dims[1]) {}
@@ -51,6 +53,8 @@ size_t binary_kernel_t::get_tail_size() const {
 
     if (ndims == 1)
         nelems = dims[0];
+    else if (is_src1_outer_dims_tail_)
+        nelems = conf_.outer_dims;
     else if (!conf_.is_i8 && conf_.op_type == op_t::c_blocked
             && (is_tail_kernel_ || conf_.bcast_type == bcast_t::per_w))
         nelems = dims[1];
@@ -81,7 +85,10 @@ jit_uni_binary_kernel_t<isa>::jit_uni_binary_kernel_t(
                       vmm_tail_vmask_.getIdx(), reg_tmp_},
               io::io_emu_bf16_conf_t {vreg_bf16_emu_1_, vreg_bf16_emu_2_,
                       vreg_bf16_emu_3_, reg_tmp_, vreg_bf16_emu_4_},
-              create_saturation_vmm_map()) {
+              create_saturation_vmm_map(),
+              io::io_gather_conf_t {simd_w_, full_mask_,
+                      vmm_full_mask_.getIdx(), reg_tmp_, reg_tmp1_,
+                      vmm_tmp_gather_.getIdx()}) {
     init();
 }
 
@@ -148,10 +155,23 @@ void jit_uni_binary_kernel_t<isa>::load_kernel_params() {
     mov(reg_tmp_, float2int(conf_.sum_scale));
     uni_vmovq(xreg_sum_scale_, reg_tmp_);
     uni_vbroadcastss(vreg_sum_scale_, xreg_sum_scale_);
-    mov(reg_offt_src0_count_, ptr[reg_param_ + PARAM_OFF(spat_offt_count)]);
+    if (is_src1_outer_dims_tail_)
+        mov(reg_outer_dims_range_,
+                ptr[reg_param_ + PARAM_OFF(spat_offt_count)]);
+    else
+        mov(reg_reverse_spat_offt_,
+                ptr[reg_param_ + PARAM_OFF(spat_offt_count)]);
     mov(reg_src0_, ptr[reg_param_ + PARAM_OFF(src0)]);
     mov(reg_src1_, ptr[reg_param_ + PARAM_OFF(src1)]);
     mov(reg_dst_, ptr[reg_param_ + PARAM_OFF(dst)]);
+    if (conf_.is_src_different_layouts) {
+        mov(reg_tmp_, ptr[reg_param_ + PARAM_OFF(indices)]);
+        uni_vmovdqu(vmm_indices_, ptr[reg_tmp_]);
+
+        mov(reg_src1_stride_range_,
+                ptr[reg_param_ + PARAM_OFF(src1_stride_range)]);
+        mov(reg_reverse_src1_stride_range_, reg_src1_stride_range_);
+    }
     if (conf_.do_scale_src0)
         mov(reg_scales_src0_, ptr[reg_param_ + PARAM_OFF(scales_src0)]);
     if (conf_.do_scale_src1)
@@ -231,6 +251,10 @@ template <cpu_isa_t isa>
 void jit_uni_binary_kernel_t<isa>::prepare_isa_kernel() {
     if (conf_.is_bf16) io_.init_bf16();
     if (tail_size_ > 0) io_.prepare_tail_mask();
+    if (conf_.is_src_different_layouts && is_superset(isa, avx2)) {
+        io_.init_full_mask();
+        io_.prepare_full_mask();
+    }
 }
 
 template <cpu_isa_t isa>
@@ -245,23 +269,59 @@ void jit_uni_binary_kernel_t<isa>::compute_bcast(bool tail) {
 }
 
 template <cpu_isa_t isa>
+void jit_uni_binary_kernel_t<isa>::load_src1(
+        const Vmm &vreg_src1, const int offt, bool tail) {
+    if (conf_.is_src_different_layouts) {
+        // if different layouts, gather data with strides
+        // after getting to stride range, offset is restored and
+        // increased
+        io_.at(conf_.src1_type)
+                ->gather(reg_src1_, vmm_indices_, vreg_src1, tail);
+        // gather is using register instead of operand to read address
+        // use reg_src1_ directly, without offset stored in second
+        // register
+        add(reg_src1_,
+                types::data_type_size(conf_.src1_type) * conf_.src1_stride
+                        * simd_w_);
+        sub(reg_reverse_src1_stride_range_,
+                types::data_type_size(conf_.src1_type) * conf_.src1_stride
+                        * simd_w_);
+
+        Label src1_stride_range_not_exceed, src1_C_tail_end;
+
+        cmp(reg_reverse_src1_stride_range_, 0);
+        jg(src1_stride_range_not_exceed, T_NEAR);
+        {
+            pop(reg_src1_);
+            add(reg_src1_, types::data_type_size(conf_.src1_type));
+            push(reg_src1_);
+            mov(reg_reverse_src1_stride_range_, reg_src1_stride_range_);
+        }
+        L(src1_stride_range_not_exceed);
+    } else
+        io_.at(conf_.src1_type)
+                ->load(src1_ptr(offt * types::data_type_size(conf_.src1_type)),
+                        vreg_src1, tail);
+}
+
+template <cpu_isa_t isa>
 void jit_uni_binary_kernel_t<isa>::compute_dst(int unroll, bool tail) {
     for (int i = 0; i < unroll; i++) {
         const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
-        const Vmm vreg_tmp = Vmm(unroll + i + vmm_start_idx_);
+        const Vmm vreg_tmp = conf_.is_src_different_layouts
+                ? vmm_gathered_src_
+                : Vmm(unroll + i + vmm_start_idx_);
         const Vmm vreg_tmp_src1 = offt_src1_ ? vreg_tmp : vreg_bcast_src1_;
         const int offt = simd_w_ * i;
         io_.at(conf_.src0_type)
                 ->load(src0_ptr(offt * types::data_type_size(conf_.src0_type)),
                         vreg_tmp_src0, tail);
-        if (offt_src1_)
-            io_.at(conf_.src1_type)
-                    ->load(src1_ptr(offt
-                                   * types::data_type_size(conf_.src1_type)),
-                            vreg_tmp_src1, tail);
+        if (offt_src1_) load_src1(vreg_tmp_src1, offt, tail);
 
         // avoid multiple multiplication on input scale for broadcasted vreg
-        uni_vmovups(vreg_tmp, vreg_tmp_src1);
+        // not needed for different layouts
+        if (!conf_.is_src_different_layouts)
+            uni_vmovups(vreg_tmp, vreg_tmp_src1);
         perform_op(
                 vreg_tmp_src0, vreg_tmp, vreg_scales_src0_, vreg_scales_src1_);
         if (conf_.do_sum) {
@@ -338,19 +398,24 @@ void jit_uni_binary_kernel_t<isa>::forward() {
     const auto src1_type_size = types::data_type_size(conf_.src1_type);
     const auto dst_type_size = types::data_type_size(conf_.dst_type);
 
-    if (conf_.is_i8) {
-        uni_vpxor(vreg_zero_, vreg_zero_, vreg_zero_);
-        io_.init_saturate_f32({conf_.dst_type});
-        xor_(reg_offt_dst_, reg_offt_dst_); // offt_dst to get addr of dst
-    }
+    if (conf_.is_src_different_layouts) push(reg_src1_);
 
-    // reverse spat_offt to dispatch between labels
-    mov(reg_reverse_spat_offt_, reg_offt_src0_count_);
-    xor_(reg_offt_src0_,
-            reg_offt_src0_); // offt_src0 to get addr of src0/dst
-    xor_(reg_offt_src1_, reg_offt_src1_); // offt_src1 to get addr of src1
-    if (conf_.use_stride_rhs_postops && !conf_.is_i8)
-        xor_(reg_off_rhs_postops_, reg_off_rhs_postops_);
+    // if outer dims tail, do it outside outer dims loop
+    if (!is_src1_outer_dims_tail_) {
+        if (conf_.is_i8) {
+            uni_vpxor(vreg_zero_, vreg_zero_, vreg_zero_);
+            io_.init_saturate_f32({conf_.dst_type});
+            xor_(reg_offt_dst_, reg_offt_dst_); // offt_dst to get addr of dst
+        }
+
+        xor_(reg_offt_src0_,
+                reg_offt_src0_); // offt_src0 to get addr of src0/dst
+        if (!conf_.is_src_different_layouts)
+            xor_(reg_offt_src1_,
+                    reg_offt_src1_); // offt_src1 to get addr of src1
+        if (conf_.use_stride_rhs_postops && !conf_.is_i8)
+            xor_(reg_off_rhs_postops_, reg_off_rhs_postops_);
+    }
     const auto alg = pd_->desc()->alg_kind;
 
     if (utils::one_of(alg, alg_kind::binary_ge, alg_kind::binary_gt,
@@ -386,11 +451,11 @@ void jit_uni_binary_kernel_t<isa>::forward() {
         sub(reg_reverse_spat_offt_, offt * dst_type_size);
         add(reg_offt_src0_, offt * src0_type_size);
         if (conf_.is_i8) {
-            if (!conf_.broadcast_src1_value)
+            if (!conf_.broadcast_src1_value && !conf_.is_src_different_layouts)
                 add(reg_offt_src1_, offt * src1_type_size);
             add(reg_offt_dst_, offt);
         } else {
-            if (conf_.use_stride_src1)
+            if (conf_.use_stride_src1 && !conf_.is_src_different_layouts)
                 add(reg_offt_src1_, offt * src1_type_size);
             if (conf_.use_stride_rhs_postops) add(reg_off_rhs_postops_, offt);
         }
@@ -406,11 +471,11 @@ void jit_uni_binary_kernel_t<isa>::forward() {
         sub(reg_reverse_spat_offt_, simd_w_ * dst_type_size);
         add(reg_offt_src0_, simd_w_ * src0_type_size);
         if (conf_.is_i8) {
-            if (!conf_.broadcast_src1_value)
+            if (!conf_.broadcast_src1_value && !conf_.is_src_different_layouts)
                 add(reg_offt_src1_, simd_w_ * src1_type_size);
             add(reg_offt_dst_, simd_w_);
         } else {
-            if (conf_.use_stride_src1)
+            if (conf_.use_stride_src1 && !conf_.is_src_different_layouts)
                 add(reg_offt_src1_, simd_w_ * src1_type_size);
             if (conf_.use_stride_rhs_postops)
                 add(reg_off_rhs_postops_, simd_w_);
@@ -425,9 +490,47 @@ void jit_uni_binary_kernel_t<isa>::forward() {
         jl(end, T_NEAR);
 
         compute_dst(1, true);
+        // need to increase if forward over outer dims
+        if (is_src1_outer_dims_tail_) {
+            add(reg_offt_src0_, tail_size_ * src0_type_size);
+            if (conf_.is_i8)
+                add(reg_offt_dst_, tail_size_);
+            else {
+                if (conf_.use_stride_rhs_postops)
+                    add(reg_off_rhs_postops_, tail_size_);
+            }
+        }
     }
 
     L(end);
+    if (conf_.is_src_different_layouts) pop(reg_src1_);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_binary_kernel_t<isa>::forward_over_outer_dims() {
+    const auto outer_dims_size
+            = conf_.outer_dims * types::data_type_size(conf_.dst_type);
+
+    if (conf_.is_i8) {
+        uni_vpxor(vreg_zero_, vreg_zero_, vreg_zero_);
+        io_.init_saturate_f32({conf_.dst_type});
+        xor_(reg_offt_dst_, reg_offt_dst_); // offt_dst to get addr of dst
+    }
+
+    xor_(reg_offt_src0_,
+            reg_offt_src0_); // offt_src0 to get addr of src0/dst
+    if (conf_.use_stride_rhs_postops && !conf_.is_i8)
+        xor_(reg_off_rhs_postops_, reg_off_rhs_postops_);
+
+    Label c_loop;
+    L(c_loop);
+    {
+        mov(reg_reverse_spat_offt_, outer_dims_size);
+        forward();
+        sub(reg_outer_dims_range_, outer_dims_size);
+        cmp(reg_outer_dims_range_, 0);
+        jg(c_loop);
+    }
 }
 
 template <cpu_isa_t isa>
@@ -435,7 +538,12 @@ void jit_uni_binary_kernel_t<isa>::generate() {
     preamble();
     load_kernel_params();
     prepare_isa_kernel();
-    forward();
+    // if outer dims is not aligned to simd_w, iterate over it to avoid
+    // modifying the gather indices
+    if (is_src1_outer_dims_tail_)
+        forward_over_outer_dims();
+    else
+        forward();
     postamble();
 
     if ((conf_.with_eltwise || conf_.is_i8) && postops_injector_)

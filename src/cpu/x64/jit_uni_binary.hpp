@@ -57,6 +57,8 @@ struct jit_uni_binary_t : public primitive_t {
         bool is_bcast_pattern(const dims_t &bcast_dims, const dim_t N_bcast,
                 const dim_t C_bcast) const;
         bool is_bcast_allowed(const int ndims) const;
+        bool is_different_layouts_allowed(const memory_desc_wrapper &src0_d,
+                const memory_desc_wrapper &src1_d) const;
         bool is_applicable();
 
         jit_binary_conf_t conf_;
@@ -88,8 +90,8 @@ struct jit_uni_binary_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     static bool post_ops_ok(const primitive_attr_t *attr,
-            const memory_desc_wrapper &src0_d,
-            const memory_desc_wrapper &dst_d);
+            const memory_desc_wrapper &src0_d, const memory_desc_wrapper &dst_d,
+            const bool is_src1_different_layouts);
 
     std::unique_ptr<binary_kernel_t> kernel_;
     // used only in bcast_c_blocked strategy if tail exists

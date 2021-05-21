@@ -29,6 +29,44 @@ static bcast_set_t get_supported_bcast_strategies() {
             broadcasting_strategy_t::per_oc_spatial};
 }
 
+static bool compare_layouts(const memory_desc_wrapper &src0_md,
+        const memory_desc_wrapper &src1_md) {
+    const strides_t &strides0 = src0_md.blocking_desc().strides;
+    const strides_t &strides1 = src1_md.blocking_desc().strides;
+    const dims_t &dims0 = src0_md.dims();
+    const dims_t &dims1 = src1_md.dims();
+    const int ndims = src0_md.ndims();
+
+    //different layouts are not allowed for bcast (allow 1 == 1)
+    bool is_bcast = false;
+    for (int d = 0; d < ndims; d++)
+        is_bcast = is_bcast || dims0[d] != dims1[d];
+    if (is_bcast) return true;
+
+    bool same_layouts = true;
+    for (int d = 0; d < ndims; d++)
+        same_layouts = same_layouts && strides0[d] == strides1[d];
+    return same_layouts;
+}
+
+static dim_t get_different_layout_stride(
+        const strides_t &strides0, const strides_t &strides1, const int ndims) {
+    for (int d = 0; d < ndims; d++)
+        if (strides0[d] == 1) return strides1[d];
+    return strides1[ndims - 1];
+}
+
+static dim_t get_outer_dims_product(
+        const strides_t &strides0, const dims_t &dims, const int ndims) {
+    // nchw:nhwc->nchw
+    if (strides0[1] == 1) return dims[1];
+    // nhwc:nchw->nhwc
+    else if (strides0[ndims - 1] == 1)
+        return utils::array_product(dims + 2, ndims - 2);
+    else
+        return dims[ndims - 1];
+}
+
 using namespace data_type;
 
 static bool data_type_supported(const data_type_t dtype) {
@@ -49,6 +87,7 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
     const auto &po = attr()->post_ops_;
     const int elt_idx = po.find(primitive_kind::eltwise);
     conf_.is_i8 = utils::one_of(conf_.dst_type, s8, u8);
+    conf_.is_src_different_layouts = !compare_layouts(src0_md_, src1_md_);
 
     const bool ok = data_type_supported(conf_.dst_type)
             && data_type_supported(conf_.src0_type)
@@ -60,7 +99,8 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
             && set_default_params() == status::success && !has_zero_dim_memory()
             && IMPLICATION(!conf_.is_i8, src0_md_ == dst_md_) && is_applicable()
             && attr()->has_default_values(sm::post_ops | sm::scales_runtime)
-            && post_ops_ok(attr(), src_md(0), dst_md())
+            && post_ops_ok(
+                    attr(), src_md(0), dst_md(), conf_.is_src_different_layouts)
             && (conf_.is_i8 || elt_idx == -1
                     || IMPLICATION(!dst_md_.is_dense(),
                             cpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
@@ -106,6 +146,16 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
                             && conf_.bcast_type == bcast_t::per_w));
     conf_.use_stride_rhs_postops = conf_.postops_per_oc_broadcast_exists
             && conf_.op_type == op_t::n_spatial_c;
+
+    if (conf_.is_src_different_layouts) {
+        const auto &strides0 = src0_md_.blocking_desc().strides;
+        const auto &strides1 = src1_md_.blocking_desc().strides;
+        const auto ndims = src0_md_.ndims();
+        conf_.src1_stride
+                = get_different_layout_stride(strides0, strides1, ndims);
+        conf_.outer_dims
+                = get_outer_dims_product(strides0, src0_md_.dims(), ndims);
+    }
 
     return status::success;
 }
@@ -174,6 +224,29 @@ bool jit_uni_binary_t::pd_t::is_bcast_allowed(const int ndims) const {
     return ok;
 }
 
+// check for different src formats with same dims
+// broadcast can be accepted if src_dim == src1_dims (1 == 1)
+bool jit_uni_binary_t::pd_t::is_different_layouts_allowed(
+        const memory_desc_wrapper &src0_d,
+        const memory_desc_wrapper &src1_d) const {
+    const dims_t &src0_dims = src0_d.dims();
+    const dims_t &src1_dims = src1_d.dims();
+    const int ndims = src0_d.ndims();
+    const auto &bd0 = src0_d.blocking_desc();
+    const auto &bd1 = src1_d.blocking_desc();
+
+    bool skippable = true;
+    for (int d = 0; d < ndims; d++)
+        skippable = skippable && src0_dims[d] == src1_dims[d];
+
+    // allow nchw:nhwc and nhwc:nchw
+    const bool aligned_batch = bd0.strides[0] > bd0.strides[1]
+            && bd1.strides[0] > bd1.strides[1];
+    //disable for blocked layouts
+    return skippable && utils::everyone_is(0, bd0.inner_nblks, bd1.inner_nblks)
+            && aligned_batch;
+}
+
 bool jit_uni_binary_t::pd_t::is_applicable() {
     const memory_desc_wrapper src0_d(src_md(0));
     const memory_desc_wrapper src1_d(src_md(1));
@@ -194,6 +267,8 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
             && (blk_d.inner_nblks > 1 || blk_d.inner_blks[0] > 16))
         return false;
 
+    const bool different_layouts_allowed
+            = is_different_layouts_allowed(src0_d, src1_d);
     if (!conf_.is_i8) {
         const bool has_padding = utils::one_of(true,
                 src0_d.nelems(true) != src0_d.nelems(false),
@@ -207,6 +282,10 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
     } else {
         const dim_t C = ndims >= 2 ? src0_d.dims()[1] : 1;
         const bool has_oc_tail = C != src0_d.padded_dims()[1];
+        const bool is_src_different_layouts = !compare_layouts(src0_d, src1_d);
+        const bool has_outer_dims_tail = is_src_different_layouts
+                && get_outer_dims_product(src0_d.blocking_desc().strides,
+                        src0_d.dims(), src0_d.ndims());
 
         // Disable compare operations when blocked tag with tail.
         // Tail processing is not supported and the vcmps instruction
@@ -215,16 +294,18 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
                     alg_kind::binary_gt, alg_kind::binary_le,
                     alg_kind::binary_lt, alg_kind::binary_eq,
                     alg_kind::binary_ne)
-                && has_oc_tail)
+                && (has_oc_tail || has_outer_dims_tail))
             return false;
 
         // full tensor operation
-        if (src0_d.similar_to(src1_d, true, false, 0)) return true;
+        if (src0_d.similar_to(src1_d, true, false, 0)
+                || different_layouts_allowed)
+            return true;
         // source0 broadcast not supported
         if (!src0_d.similar_to(dst_d, true, false, 0)) return false;
     }
     // broadcast operation
-    if (!is_bcast_allowed(ndims)) return false;
+    if (!(is_bcast_allowed(ndims) || different_layouts_allowed)) return false;
 
     if (!conf_.is_i8) {
         if (src0_d.is_plain() && src1_d.is_plain()) {
@@ -264,7 +345,8 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
 }
 
 bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
-        const memory_desc_wrapper &src0_d, const memory_desc_wrapper &dst_d) {
+        const memory_desc_wrapper &src0_d, const memory_desc_wrapper &dst_d,
+        const bool is_src_different_layouts) {
     using namespace primitive_kind;
 
     const auto &p = attr->post_ops_;
@@ -300,6 +382,8 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
                     p, src0_d, supported_strategies);
+    if (postops_per_oc_broadcast_exists && is_src_different_layouts)
+        return false;
     const int blksize = vlen / sizeof(float);
 
     const bool blocked_format = !src0_d.is_plain() && src0_d.is_blocking_desc();
@@ -399,7 +483,7 @@ void jit_uni_binary_t::execute_no_bcast_strategy(const data_t *src0,
         const std::vector<const void *> &post_ops_binary_rhs_arg_vec,
         const bcast_t bcast_type) const {
     const auto kernel = kernel_.get();
-    const auto &simd_w = kernel_->vlen();
+    const auto &simd_w = kernel_->simd_w();
 
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));
@@ -407,36 +491,106 @@ void jit_uni_binary_t::execute_no_bcast_strategy(const data_t *src0,
     const int src0_type_size = types::data_type_size(src0_d.data_type());
     const int src1_type_size = types::data_type_size(src1_d.data_type());
     const int dst_type_size = types::data_type_size(dst_d.data_type());
-    const dim_t nelems0 = src0_d.nelems(true);
-    const dim_t nelems0_simd = nelems0 / simd_w;
-    const dim_t nelems0_tail = nelems0 % simd_w;
-    const bool has_tail = nelems0_tail > 0;
 
-    const bool point_broadcast = bcast_type == bcast_t::scalar;
+    const auto &conf = pd()->get_conf();
+    const bool is_src_different_layouts = conf.is_src_different_layouts;
 
-    // Compute strategy:
-    // Compute number of vectors, divide it equally between all threads.
-    // Last one will also handle a tail if present.
-    parallel(0, [&](const int ithr, const int nthr) {
-        dim_t start = 0, end = 0;
-        balance211(nelems0_simd + has_tail, nthr, ithr, start, end);
-        if (start >= end) return;
+    if (is_src_different_layouts) {
+        std::vector<unsigned> indices;
 
-        const bool ithr_does_tail = has_tail && end == nelems0_simd + has_tail;
-        const dim_t n_simd_to_do = (end - start - ithr_does_tail) * simd_w;
-        const dim_t tail_to_do = ithr_does_tail * nelems0_tail;
+        const dim_t src1_different_layout_stride = conf.src1_stride;
+        for (size_t i = 0; i < simd_w; i++)
+            indices.push_back(
+                    i * src1_different_layout_stride * src1_type_size);
 
-        jit_binary_call_s p;
-        p.spat_offt_count = (n_simd_to_do + tail_to_do) * dst_type_size;
-        p.src0 = src0 + start * simd_w * src0_type_size;
-        p.src1 = src1
-                + (point_broadcast ? 0 : (start * simd_w * src1_type_size));
-        p.dst = dst + start * simd_w * dst_type_size;
-        p.scales_src0 = scale0;
-        p.scales_src1 = scale1;
-        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
-        (*kernel)(&p);
-    });
+        const dim_t batch = src0_d.dims()[0];
+        const dim_t batch_stride = src1_d.blocking_desc().strides[0];
+        const dim_t outer_dims = conf.outer_dims;
+        const size_t src1_stride_range
+                = outer_dims * src1_different_layout_stride * src1_type_size;
+
+        const dim_t nelems_per_aligned_dims
+                = src0_d.nelems(true) / (batch * outer_dims);
+        const dim_t nelems0_simd = nelems_per_aligned_dims / simd_w;
+        const dim_t nelems0_tail = nelems_per_aligned_dims % simd_w;
+        const bool has_tail = nelems0_tail > 0;
+
+        const int nthr = dnnl_get_current_num_threads();
+        const dim_t thr_per_nelems_group = nstl::min(
+                nstl::max(nthr / batch, (dim_t)1), nelems0_simd + has_tail);
+
+        // Compute strategy:
+        // Iterate over batch and over outer dims.
+        // Divide number of threads by batch size and limiting it by a number
+        // of outer_dims nelems to parallel over it when needed.
+        parallel_nd(
+                batch, thr_per_nelems_group, [&](dim_t b, dim_t nelems_group) {
+                    dim_t start = 0, end = 0;
+                    balance211(nelems0_simd + has_tail, thr_per_nelems_group,
+                            nelems_group, start, end);
+                    if (start >= end) return;
+
+                    const bool ithr_does_tail = has_tail
+                            && utils::one_of(nelems0_simd + has_tail, end, 0);
+                    const dim_t n_simd_to_do
+                            = (end - start - ithr_does_tail) * simd_w;
+                    const dim_t tail_to_do = ithr_does_tail * nelems0_tail;
+                    const size_t batch_off = batch_stride * b;
+
+                    if (nelems0_simd != 0) {
+                        start *= outer_dims;
+                        end *= outer_dims;
+                    }
+
+                    start *= simd_w;
+                    jit_binary_call_s p;
+                    p.spat_offt_count = (n_simd_to_do + tail_to_do) * outer_dims
+                            * dst_type_size;
+                    p.src0 = src0 + (start + batch_off) * src0_type_size;
+                    p.src1 = src1
+                            + (start / outer_dims + batch_off) * src1_type_size;
+                    p.dst = dst + (start + batch_off) * dst_type_size;
+                    p.indices = &indices[0];
+                    p.src1_stride_range = src1_stride_range;
+                    p.scales_src0 = scale0;
+                    p.scales_src1 = scale1;
+                    p.post_ops_binary_rhs_arg_vec
+                            = post_ops_binary_rhs_arg_vec.data();
+                    (*kernel)(&p);
+                });
+    } else {
+        const dim_t nelems0 = src0_d.nelems(true);
+        const dim_t nelems0_simd = nelems0 / simd_w;
+        const dim_t nelems0_tail = nelems0 % simd_w;
+        const bool has_tail = nelems0_tail > 0;
+
+        const bool point_broadcast = bcast_type == bcast_t::scalar;
+
+        // Compute strategy:
+        // Compute number of vectors, divide it equally between all threads.
+        // Last one will also handle a tail if present.
+        parallel(0, [&](const int ithr, const int nthr) {
+            dim_t start = 0, end = 0;
+            balance211(nelems0_simd + has_tail, nthr, ithr, start, end);
+            if (start >= end) return;
+
+            const bool ithr_does_tail
+                    = has_tail && end == nelems0_simd + has_tail;
+            const dim_t n_simd_to_do = (end - start - ithr_does_tail) * simd_w;
+            const dim_t tail_to_do = ithr_does_tail * nelems0_tail;
+
+            jit_binary_call_s p;
+            p.spat_offt_count = (n_simd_to_do + tail_to_do) * dst_type_size;
+            p.src0 = src0 + start * simd_w * src0_type_size;
+            p.src1 = src1
+                    + (point_broadcast ? 0 : (start * simd_w * src1_type_size));
+            p.dst = dst + start * simd_w * dst_type_size;
+            p.scales_src0 = scale0;
+            p.scales_src1 = scale1;
+            p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+            (*kernel)(&p);
+        });
+    }
 }
 
 void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
