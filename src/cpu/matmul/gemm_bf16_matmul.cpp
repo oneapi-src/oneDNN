@@ -312,9 +312,8 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
 
         st = gemm_bf16bf16f32(&transB, &transA, &N, &M, &K, &alpha, weights,
                 &ldb, src, &lda, &beta, acc, &acc_ldc);
-        if (st != status::success) return st;
 
-        if (params.has_pp_kernel_) {
+        if (st == status::success && params.has_pp_kernel_) {
             const bool force_sequential = pp_kernel_->sequential_kernel();
             const float *pp_scales = params.get_post_processing_scales(scales);
 
