@@ -347,7 +347,8 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(fill_data(SRC, prb, src_dt, src_fp, res), WARN);
     SAFE(fill_data(WEI, prb, wei_dt, wei_fp, res), WARN);
-    SAFE(fill_data(DST, prb, dst_dt, dst_fp, res), WARN);
+    if (prb->attr.post_ops.find(attr_t::post_ops_t::SUM) >= 0)
+        SAFE(fill_data(DST, prb, dst_dt, dst_fp, res), WARN);
     if (prb->bia_dt != dnnl_data_type_undef)
         SAFE(fill_data(BIA, prb, bia_dt, bia_fp, res), WARN);
 
