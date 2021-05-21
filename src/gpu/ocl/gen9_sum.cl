@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,12 +62,12 @@ float8 get_values(__global SRC_DATA_T *src, ptrdiff_t offset) {
     const uint max_sub_group_size = get_max_sub_group_size();
     __global BLOCK_DATA_T *read_pos = (__global BLOCK_DATA_T *)src + offset;
 
-    if (offset + VECT_DT_N * max_sub_group_size <= N_ELEMS) {
+    if (offset + VECT_DT_N * max_sub_group_size < N_ELEMS) {
         val = CONVERT_FLOAT8_T(AS_DATA8_T(BLOCK_READ8(read_pos)));
     } else {
         const uint sub_group_local_id = get_sub_group_local_id();
         uint pos = offset + sub_group_local_id;
-        for (uint i = 0; i + offset <= N_ELEMS && i < VECT_DT_N; i++) {
+        for (uint i = 0; pos < N_ELEMS && i < VECT_DT_N; i++) {
             val[i] = CONVERT_FLOAT_T(src[pos]);
             pos += max_sub_group_size;
         }
@@ -116,11 +116,11 @@ __kernel void gen9_sum(__global SRC_DATA_T *input0, __global SRC_DATA_T *input1,
     if (id < N_INPUTS) sum += get_values(input14, offset) * scales[id++];
     if (id < N_INPUTS) sum += get_values(input15, offset) * scales[id++];
 
-    if (offset + VECT_DT_N * max_sub_group_size <= N_ELEMS) {
+    if (offset + VECT_DT_N * max_sub_group_size < N_ELEMS) {
         DST_BLOCK_WRITE8(write_pos, TO_DST8(sum));
     } else {
         uint pos = offset + sub_group_local_id;
-        for (uint i = 0; i + offset <= N_ELEMS && i < VECT_DT_N; i++) {
+        for (uint i = 0; pos < N_ELEMS && i < VECT_DT_N; i++) {
             output[pos] = TO_DST(sum[i]);
             pos += max_sub_group_size;
         }
