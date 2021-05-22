@@ -37,7 +37,7 @@ using namespace bnorm;
 
 namespace lnorm {
 
-static int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
+int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh) {
     /** Idea: choose src[] values so that both mean and variance are computed
      * exactly (independently of the order of the computations).
@@ -133,7 +133,7 @@ static void decompose2(int64_t L, int64_t &k, int64_t &P) {
     for (k = 0; P % 2 == 0; ++k)
         P /= 2;
 }
-static int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
+int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
         dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh) {
     const int64_t exact_bits = 24;
 

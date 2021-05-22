@@ -144,6 +144,10 @@ private:
     std::string tag_, stat_tag_;
 };
 
+int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
+        dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh);
+int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
+        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh);
 void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, const dnn_mem_t &ss, const dnn_mem_t &sh,
         dnn_mem_t &dst);
