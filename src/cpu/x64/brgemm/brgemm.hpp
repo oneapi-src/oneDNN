@@ -147,7 +147,7 @@ void DNNL_API brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel);
 /// Execute BRGEMM kernel (brgemm_addr version)
 ///
 /// @note
-///     Only BRGEMM kernel will be execute even if post-ops are added to BRGEMM
+///     Only BRGEMM kernel will be executed even if post-ops are added to BRGEMM
 ///     descriptor
 /// @param brg_kernel BRGEMM kernel
 /// @param bs Specifies the size of batch
@@ -164,7 +164,7 @@ void DNNL_API brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 /// Execute BRGEMM kernel (brgemm_offs and brgemm_strd version)
 ///
 /// @note
-///     Only BRGEMM kernel will be execute even if post-ops are added to BRGEMM
+///     Only BRGEMM kernel will be executed even if post-ops are added to BRGEMM
 ///     descriptor
 /// @param brg_kernel BRGEMM kernel
 /// @param bs Specifies the size of batch
@@ -191,7 +191,8 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 ///     and virtual padding for matrices A
 /// @param ptr_C Pointer to matrix C
 /// @param ptr_D Pointer to destination matrix D
-/// @param post_ops_data Specifies tensors and data used in post processing phase
+/// @param post_ops_data Specifies tensors and data used in post processing
+///     phase
 /// @param scratch Scratchpad needed for AMX version, can be nullptr for
 ///     avx512 version
 ///
@@ -211,7 +212,8 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
 ///     and virtual padding for matrices A
 /// @param ptr_C Pointer to destination matrix C
 /// @param ptr_D Pointer to destination matrix D
-/// @param post_ops_data Specifies tensors and data used in post processing phase
+/// @param post_ops_data Specifies tensors and data used in post processing
+///     phase
 /// @param scratch Scratchpad needed for AMX version, can be nullptr for
 ///     avx512 version
 ///
