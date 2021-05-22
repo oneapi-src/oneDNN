@@ -5350,9 +5350,8 @@ dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
 } // namespace
 
 // FIXME(qun) If the atol and rtol in the following cases are too small, then
-// these cases may can't pass when using AVX2 or AVX512, because of the DNNL
-// issue: https://oneapi-src.github.io/oneDNN/dev_guide_int8_computations.html
-// Please use machine with DL Boost, such as clx or cpx, to avoid this issue.
+// these cases may can't pass when using AVX2 or AVX512, because of the issue
+// described in: https://oneapi-src.github.io/oneDNN/dev_guide_int8_computations.html
 
 #define for_ for
 #define SET_Q_DQ_DATA_ATTR(q_dq_data) \
@@ -5385,8 +5384,6 @@ dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     q_dq_out.set_attr<std::vector<float>>("scales", {scale_out}); \
     q_dq_out.set_attr<int64_t>("axis", 0);
 
-// For asymmetric quantization, the following case will only pass on machine
-// with DL Boost, such as clx or cpx,
 TEST(int8_subgraph_mode, int8_conv1d_conv2d_conv3d) {
     using dims = impl::dnnl_impl::dims;
 
@@ -5403,7 +5400,7 @@ TEST(int8_subgraph_mode, int8_conv1d_conv2d_conv3d) {
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core
                     && engine.kind() == impl::engine_kind::cpu,
-            "Skip bf16 examples for systems that do not support avx512_core.");
+            "Skip the test for systems that do not support avx512_core.");
 
     for_(const auto &nd : nds)
     for_(const auto &g : groups)
