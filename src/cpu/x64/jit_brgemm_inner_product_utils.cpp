@@ -601,20 +601,19 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
 status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
+    const bool has_weights_buffer = jbgp.wei_dt != jbgp.acc_dt;
 
-    const int amx_bf16_row
-            = (ip_fwd_get_adjusted_oc_block(jbgp) < get_oc_block(jbgp, false))
-            ? 128
-            : 64;
+    const int amx_bf16_row = 64;
     const bool big_ic_blk_ok
             = is_f32 && jbgp.ic % (4 * jbgp.simd_w) == 0 && jbgp.mb <= 128;
     jbgp.ic_block = big_ic_blk_ok && !is_amx_bf16
             ? 4 * jbgp.simd_w
-            : (is_amx_bf16 && jbgp.wei_dt != jbgp.acc_dt)
-                    ? (jbgp.ic > 256) ? amx_bf16_row : amx_bf16_row / 2
-                    : jbgp.simd_w;
+            : (is_amx_bf16 && has_weights_buffer) ? amx_bf16_row : jbgp.simd_w;
+    jbgp.ic_block_ext = (jbgp.wei_dt == dnnl::impl::data_type::bf16) ? 32 : 16;
 
-    jbgp.oc_block = ip_fwd_get_adjusted_oc_block(jbgp);
+    jbgp.oc_block = has_weights_buffer ? get_oc_block(jbgp)
+                                       : ip_fwd_get_adjusted_oc_block(jbgp);
+    jbgp.oc_block_ext = ip_fwd_get_adjusted_oc_block(jbgp);
 
     jbgp.os_block = get_os_block(jbgp, false, false);
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
@@ -662,7 +661,7 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.adjusted_batch_size
             = div_up(rnd_up(jbgp.gemm_batch_size * sc_size, 4096), sc_size);
 
-    jbgp.use_buffer = IMPLICATION(jbgp.wei_dt == jbgp.acc_dt, jbgp.nthr_mb > 1);
+    jbgp.use_buffer = IMPLICATION(!has_weights_buffer, jbgp.nthr_mb > 1);
     jbgp.use_buffer_a = true;
     const bool is_oc_big_2_pow = jbgp.oc >= 512 && math::is_pow2(jbgp.oc);
     const bool is_huge_oc = jbgp.oc >= 4 * 1024;

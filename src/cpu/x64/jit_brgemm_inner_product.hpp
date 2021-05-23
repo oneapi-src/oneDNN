@@ -447,9 +447,8 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             }
         }
         if (isa == avx512_core_bf16_amx_bf16) {
-            ext_ic_block_
-                    = (jbgp.wei_dt == dnnl::impl::data_type::bf16) ? 32 : 16;
-            ext_oc_block_ = jbgp.oc_block;
+            ext_ic_block_ = jbgp.ic_block_ext;
+            ext_oc_block_ = jbgp.oc_block_ext;
         }
         CHECK(create_brgemm_trans_src(trans_A_kernel_, &pd()->jbgp_));
 

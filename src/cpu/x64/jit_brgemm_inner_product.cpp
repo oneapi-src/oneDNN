@@ -801,8 +801,10 @@ void brgemm_inner_product_bwd_weights_t<isa>::transpose_matrix_c_chunk(
 
         const dim_t ext_nb_ic = div_up(jbgp.ic, ext_ic_block_);
         dim_t icb_shift = (icb * (jbgp.ic_block / ext_ic_block_))
-                * ext_ic_block_ * jbgp.oc_block;
-        dim_t ocb_shift = ocb * ext_nb_ic * ext_ic_block_ * jbgp.oc_block;
+                * ext_ic_block_ * ext_oc_block_;
+
+        dim_t ocb_shift = (ocb * (jbgp.oc_block / ext_oc_block_)) * ext_nb_ic
+                * ext_ic_block_ * ext_oc_block_;
         dim_t out_offset = ocb_shift + icb_shift;
 
         p.src = (void *)(ti->buffer_c + acc_dt_size * get_wei_offset(ocb, icb));
