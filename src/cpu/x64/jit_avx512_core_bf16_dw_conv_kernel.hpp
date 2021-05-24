@@ -221,6 +221,9 @@ private:
     using reg64_t = const Xbyak::Reg64;
     const Xbyak::AddressFrame &vmmword = zword;
 
+    const int max_unroll_w_ = 30;
+    const int block_size_ = 15;
+
     const int idx_start = 2;
     inline int get_max_regs() const { return isa_has_bf16(jcp.isa) ? 30 : 25; };
 
@@ -249,14 +252,18 @@ private:
     reg64_t reg_oh_worksize = r14;
     reg64_t reg_oh = rax;
     reg64_t reg_iter_ow_blk = r11;
-    reg64_t reg_kh = rsi;
-    reg64_t reg_kh_count = rdx;
+    reg64_t reg_kh_aux = rsi;
+    reg64_t reg_kh = rdx;
 
     /* Base addresses for convolution parameters. */
     reg64_t reg_input_baddr = r15;
     reg64_t reg_output_baddr = r12;
     reg64_t reg_filter_baddr = abi_not_param1;
     reg64_t reg_bias_baddr = r13;
+
+    reg64_t reg_tmp = r8;
+
+    Xbyak::Opmask k_ch_tail_mask = Xbyak::Opmask(1);
 
     /* Registers used for bfloat16 emulation */
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(26);
@@ -270,31 +277,51 @@ private:
 
     /* Micro-kernel JIT'ing, fusing 'kw' and 'ow_block' loops into unrolled FMAs
      */
-    inline void compute_ow_step_unroll(
-            int unroll_w, int l_pad, int pad_offset, int ow_block);
+    void compute_ow_step_unroll(int unroll_w, int l_pad, int pad_offset,
+            int ow_block, bool is_last_ch);
 
     /* JIT'ing the outer loops for the micro-kernel -> {kh, oh_block} */
-    inline void compute_h_step(
-            int unroll_w, int l_pad, int pad_offset, int ow_block);
-    inline void compute_h_loop(
-            int unroll_w, int l_pad, int pad_offset, int ow_block);
+    void compute_kh_step(int unroll_w, int l_pad, int pad_offset, int ow_block,
+            bool is_last_ch);
+    /* Channel loop for 'nxc' format */
+    void compute_ch_loop(int unroll_w, int l_pad, int pad_offset, int ow_block);
+    void compute_h_loop(int unroll_w, int l_pad, int pad_offset, int ow_block);
 
     /* Write 'width' micro-kernel JITs; depending on the padding and convolution
      * size, write a micro-kernel for the left ow-block, middle ow-block(s), and
      * right ow-block.*/
-    inline void compute_ow_block_unroll();
-
-    inline void compute_zero_filter();
-    inline void load_filter();
-    inline void zero_filter();
-    inline void load_bias();
-    inline void zero_bias();
-    inline void compute_bias_step_unroll(const int unroll_w);
-    inline void compute_bias_loop(const int block_size);
-    inline void store_filter();
-    inline void store_bias();
+    void compute_ow_block_unroll();
+    void deploy_zero_filter();
+    void zero_filter_kh_loop();
+    void load_filter(bool is_last_ch = false);
+    void zero_filter();
+    void load_bias(bool is_last_ch);
+    void zero_bias();
+    void compute_bias_step_unroll(const int unroll_w, bool is_last_ch);
+    void compute_ch_loop_bias(bool do_load_bias);
+    void deploy_ch_loop_bias();
+    void compute_single_ch_block_bias();
+    void compute_spatial_loop_bias(bool is_last_ch);
+    void store_filter(bool is_last_ch = false);
+    void store_bias(bool is_last_ch);
+    void compute_bias();
+    void calculate_w_unrolling(
+            int &unroll_trips, int &unroll_w, int &unroll_w_tail);
 
     void generate() override;
+
+    inline bool is_layout_nxc() {
+        return utils::everyone_is(
+                true, is_src_layout_nxc(), is_ddst_layout_nxc());
+    }
+    inline bool is_src_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+    inline bool is_ddst_layout_nxc() {
+        return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
 };
 
 } // namespace x64
