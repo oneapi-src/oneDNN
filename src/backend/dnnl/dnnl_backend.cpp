@@ -168,6 +168,10 @@ bool dnnl_backend::register_kernels() {
     // layernorm kernel
     DNNL_REGISTER_KERNEL(LayerNorm, layer_normalization_forward)
 
+    //interpolate kernel
+    DNNL_REGISTER_KERNEL(Interpolate, resampling_forward)
+    DNNL_REGISTER_KERNEL(InterpolateBackprop, resampling_backward)
+
     // reorder kernel
     DNNL_REGISTER_KERNEL(convert, reorder)
 

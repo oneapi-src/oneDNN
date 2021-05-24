@@ -28,6 +28,7 @@
 #include "operators/pool.hpp"
 #include "operators/quantize.hpp"
 #include "operators/reorder.hpp"
+#include "operators/resampling.hpp"
 #include "operators/softmax.hpp"
 
 #include "subgraph/operators/int8_conv.hpp"

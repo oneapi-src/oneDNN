@@ -472,7 +472,7 @@ DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 1,
         op_schema()
                 .set_inputs_option(op_schema::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({4, 5}))
-                .set_num_outputs(1)
+                .set_num_outputs(std::set<size_t>({1, 2}))
                 .set_input(
                         0, "data", "Input tensor with data for interpolation")
                 .set_input(1, "output_delta",
@@ -484,8 +484,12 @@ DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 1,
                 .set_input(4, "axes",
                         "1D tensor specifying dimension indices where "
                         "interpolation is applied")
-                .set_output(0, "output",
-                        "a tensor with selected data from input tensor")
+                .set_output(0, "input_delta",
+                        "the gradient tensor w.r.t. the input of Interpolate")
+                .set_output(1, "scales_delta",
+                        "the gradient tensor w.r.t. the input scales of "
+                        "Interpolate. Required only when "
+                        "shape_calculation_mode is scales.")
                 .set_attr("mode", "specifies type of interpolation", true,
                         attribute_kind::s)
                 .set_attr("shape_calculation_mode",
