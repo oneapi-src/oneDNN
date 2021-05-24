@@ -81,11 +81,11 @@ static bool prb_tail_friendly(const prb_t &prb) {
 
     int n = prb.nodes[0].is;
     for (int d = 1; d < prb.ndims; ++d) {
-        if (d != prb.blk_idx) n *= prb.nodes[d].n;
+        if (d != prb.blk_chunk_idx) n *= prb.nodes[d].n;
     }
     if (prb.ip_tail > 0
             && ((ndims == 0 && n != 1)
-                    || (ndims > 0 && prb.ndims > prb.blk_idx)))
+                    || (ndims > 0 && prb.ndims > prb.blk_chunk_idx)))
         return false;
 
     return true;
@@ -187,8 +187,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         return (int)prb_.nodes[d].ss;
     }
     int blk_cnt() {
-        assert(prb_.blk_idx < prb_.full_ndims);
-        return (int)prb_.nodes[prb_.blk_idx].n - 1;
+        assert(prb_.blk_chunk_idx < prb_.full_ndims);
+        return (int)prb_.nodes[prb_.blk_chunk_idx].n - 1;
     }
     int op_padding() { return prb_.op_tail ? prb_.iblock - prb_.op_tail : 0; }
     int ip_padding() { return prb_.ip_tail ? prb_.oblock - prb_.ip_tail : 0; }
@@ -1477,7 +1477,7 @@ static void prb_thread_kernel_balance(
      * innermost driver dimension into two, to increase sz_ker_cur. */
     bool want_borrow_ker_from_drv = true && kdims < prb.ndims
             && sz_ker_cur < tr::ker_prb_size_min && sz_drv_cur > sz_drv_min
-            && kdims != prb.blk_idx;
+            && kdims != prb.blk_chunk_idx;
     if (want_borrow_ker_from_drv) {
         /* sz_want_borrow is the minimal sz, so that:
          *  o) sz_ker_cur * sz_want_borrow >= tr::ker_prb_size_min
@@ -1501,7 +1501,7 @@ static void prb_thread_kernel_balance(
      * try to split the outermost kernel dimension into two, to increase
      * sz_drv_cur. */
     bool want_borrow_drv_from_ker = true && sz_ker_cur > tr::ker_prb_size_min
-            && sz_drv_cur < sz_drv_min && kdims != prb.blk_idx;
+            && sz_drv_cur < sz_drv_min && kdims != prb.blk_chunk_idx;
     if (want_borrow_drv_from_ker) {
         size_t sz_want_borrow = utils::div_up(sz_drv_min, sz_drv_cur);
         for (; prb.nodes[kdims - 1].n % sz_want_borrow; ++sz_want_borrow)
@@ -1554,6 +1554,8 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         printf("cache: ");
         prb_dump(prb);
     });
+
+    CHECK(prb_check_blk(prb, *dst_md));
 
     int ndims_ker_max;
     int nthr = dnnl_get_max_threads();
@@ -1609,7 +1611,7 @@ void jit_uni_reorder_t::omp_driver_1d(int ithr, int nthr, int off,
 void jit_uni_reorder_t::omp_driver_2d(int ithr, int nthr, int off,
         const char *in, char *out, const float *scale) const {
     const tr::node_t *ns = pd()->prb_.nodes + off;
-    const int blk_idx_off = pd()->prb_.blk_idx - off;
+    const int blk_idx_off = pd()->prb_.blk_chunk_idx - off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
             [&](ptrdiff_t d1, ptrdiff_t d0) {
                 auto c = tr::call_param_t();
@@ -1628,7 +1630,7 @@ void jit_uni_reorder_t::omp_driver_2d(int ithr, int nthr, int off,
 void jit_uni_reorder_t::omp_driver_3d(int ithr, int nthr, int off,
         const char *in, char *out, const float *scale) const {
     const tr::node_t *ns = pd()->prb_.nodes + off;
-    const int blk_idx_off = pd()->prb_.blk_idx - off;
+    const int blk_idx_off = pd()->prb_.blk_chunk_idx - off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[2].n, (ptrdiff_t)ns[1].n,
             (ptrdiff_t)ns[0].n, [&](ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
                 auto c = tr::call_param_t();
@@ -1647,7 +1649,7 @@ void jit_uni_reorder_t::omp_driver_3d(int ithr, int nthr, int off,
 void jit_uni_reorder_t::omp_driver_4d(int ithr, int nthr, int off,
         const char *in, char *out, const float *scale) const {
     const tr::node_t *ns = pd()->prb_.nodes + off;
-    const int blk_idx_off = pd()->prb_.blk_idx - off;
+    const int blk_idx_off = pd()->prb_.blk_chunk_idx - off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[3].n, (ptrdiff_t)ns[2].n,
             (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
             [&](ptrdiff_t d3, ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {

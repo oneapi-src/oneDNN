@@ -45,13 +45,22 @@ struct layout_desc_t {
     strides_t strides;
 };
 
-static bool check_inner_blks(const memory_desc_t &md_, const int idx) {
+static status_t compute_blk_and_tail(
+        const memory_desc_t &md_, const int idx, int &blk, int &tail) {
     const auto md = memory_desc_wrapper(md_);
     const auto &bd = md.blocking_desc();
+    if (tail == 0) return status::success;
 
-    // Only supports inconsistent padding when the tail in the last inner_blk
-    // and number of block <= 2
-    return bd.inner_nblks <= 2 && bd.inner_idxs[bd.inner_nblks - 1] == idx;
+    // Only supports inconsistent padding in single and double blocks
+    // and the total block size <= 256
+    for (int iblk = bd.inner_nblks - 1; iblk > 0; --iblk) {
+        if (bd.inner_idxs[iblk] == idx) break;
+        blk *= bd.inner_blks[iblk];
+        tail *= bd.inner_blks[iblk];
+    }
+    if (bd.inner_nblks > 2 || blk > 256) return status::unimplemented;
+
+    return status::success;
 }
 
 status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
@@ -132,6 +141,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     int op_tail = 0;
     int iblk_w_tail = 1;
     int oblk_w_tail = 1;
+    int blk_idx = 0;
 
     for (int d = 0; d < im_d.ndims(); ++d) {
         const int ip_tmp_dim = im_d.padded_dims()[d];
@@ -143,9 +153,10 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
                 && ip_tmp_tail == 0 && op_tmp_tail == 0;
         const bool pdim_tail = ip_tmp_tail > 0
                 && (ip_tmp_dim + oblocks[d] - ip_tmp_tail) == op_tmp_dim
-                && op_tmp_tail == 0 && check_inner_blks(omd, d);
+                && op_tmp_tail == 0 && ip_tail == 0;
         if (!pdim_consistent && !pdim_tail) return status::unimplemented;
         if (pdim_tail) {
+            blk_idx = d;
             ip_tail = ip_tmp_tail;
             op_tail = op_tmp_tail;
             iblk_w_tail = iblocks[d];
@@ -154,6 +165,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             op_padding[d] = iblocks[d] - op_tmp_tail;
         }
     }
+    CHECK(compute_blk_and_tail(omd, blk_idx, oblk_w_tail, ip_tail));
 
     layout_desc_t ild, old;
     status_t status
@@ -191,7 +203,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
     int i_pos = 0; /* state for input  -- current dimension */
     int o_pos = 0; /* state for output -- current dimension */
-    int blk_idx = 0;
+    int blk_chunk_idx = 0;
 
     while (i_pos < ild.ndims && o_pos < old.ndims) {
         assert(ild.id[i_pos] == old.id[o_pos]);
@@ -214,7 +226,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             p.nodes[ndims].is = ild.strides[i_pos];
             p.nodes[ndims].os = old.strides[o_pos] * factor;
             p.nodes[ndims].ss = ss[o_pos] * factor;
-            blk_idx = op_padding[o_pos] > 0 ? ndims : blk_idx;
+            blk_chunk_idx = op_padding[o_pos] > 0 ? ndims : blk_chunk_idx;
             ++ndims;
             ++i_pos;
             old.dims[o_pos] = factor;
@@ -225,7 +237,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             p.nodes[ndims].is = ild.strides[i_pos] * factor;
             p.nodes[ndims].os = old.strides[o_pos];
             p.nodes[ndims].ss = ss[o_pos];
-            blk_idx = ip_padding[i_pos] > 0 ? ndims : blk_idx;
+            blk_chunk_idx = ip_padding[i_pos] > 0 ? ndims : blk_chunk_idx;
             ++ndims;
             ++o_pos;
             ild.dims[i_pos] = factor;
@@ -233,7 +245,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     }
     p.ndims = ndims;
     p.full_ndims = ndims;
-    p.blk_idx = blk_idx;
+    p.blk_chunk_idx = blk_chunk_idx;
 
     p.ioff = memory_desc_wrapper(imd).offset0();
     p.ooff = memory_desc_wrapper(omd).offset0();
@@ -242,6 +254,22 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     p.beta = sum_idx == -1 ? 0.f : attr->post_ops_.entry_[sum_idx].sum.scale;
 
     return success;
+}
+
+status_t prb_check_blk(prb_t &p, const memory_desc_t &md_) {
+    const auto md = memory_desc_wrapper(md_);
+    const auto &bd = md.blocking_desc();
+    if (p.ip_tail == 0) return status::success;
+
+    // Check if the inner blocks and p.nodes[blk].n in the firsti nblks
+    // is equivalent in reverse order when has tail in block layout.
+    const int nblk = bd.inner_nblks;
+    for (int iblk = 0; iblk < nblk; ++iblk) {
+        if (bd.inner_blks[nblk - iblk - 1]
+                != static_cast<ptrdiff_t>(p.nodes[iblk].n))
+            return status::unimplemented;
+    }
+    return status::success;
 }
 
 void prb_normalize(prb_t &p) {
@@ -255,8 +283,8 @@ void prb_normalize(prb_t &p) {
         }
         if (min_pos != d) {
             nstl::swap(p.nodes[d], p.nodes[min_pos]);
-            if (p.blk_idx == min_pos || p.blk_idx == d)
-                p.blk_idx = p.blk_idx == min_pos ? d : min_pos;
+            if (p.blk_chunk_idx == min_pos || p.blk_chunk_idx == d)
+                p.blk_chunk_idx = p.blk_chunk_idx == min_pos ? d : min_pos;
         }
     }
 }
@@ -272,7 +300,7 @@ void prb_simplify(prb_t &p) {
         auto &this_node = p.nodes[d + 0];
         auto &next_node = p.nodes[d + 1];
         const bool skip_blk_idx = (p.ip_tail > 0 || p.op_tail > 0)
-                && (p.blk_idx == d || p.blk_idx == d + 1);
+                && (p.blk_chunk_idx == d || p.blk_chunk_idx == d + 1);
         const bool fold = false
                 || (next_node.n == static_cast<size_t>(1)
                         && !skip_blk_idx) // trivial case, just drop next node
@@ -291,7 +319,7 @@ void prb_simplify(prb_t &p) {
             this_node.n *= next_node.n;
             for (int j = d + 2; j < p.ndims; ++j)
                 p.nodes[j - 1] = p.nodes[j];
-            if (d < p.blk_idx) --p.blk_idx;
+            if (d < p.blk_chunk_idx) --p.blk_chunk_idx;
             --p.ndims;
             --p.full_ndims;
             --d; // make another try
@@ -309,7 +337,7 @@ void prb_node_split(prb_t &p, int dim, size_t n1) {
 
     p.ndims += 1;
     p.full_ndims += 1;
-    if (dim < p.blk_idx) p.blk_idx += 1;
+    if (dim < p.blk_chunk_idx) p.blk_chunk_idx += 1;
 
     for (int d = p.ndims; d > dim + 1; --d)
         p.nodes[d] = p.nodes[d - 1];
