@@ -80,6 +80,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(conv_bias_elu, convolution_forward)
     DNNL_REGISTER_KERNEL(conv_bias_relu, convolution_forward)
     DNNL_REGISTER_KERNEL(conv_bias_sigmoid, convolution_forward)
+    DNNL_REGISTER_KERNEL(conv_bias_swish, convolution_forward)
     DNNL_REGISTER_KERNEL(conv_bias_relu6, convolution_forward)
     DNNL_REGISTER_KERNEL(conv_bias_hardtanh, convolution_forward)
     DNNL_REGISTER_KERNEL(conv_bias_square, convolution_forward)

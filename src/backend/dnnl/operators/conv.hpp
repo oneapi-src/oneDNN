@@ -78,7 +78,7 @@ struct convolution_op_set {
                 op_kind::conv_bias_square, op_kind::conv_bias_tanh,
                 op_kind::conv_bias_abs, op_kind::conv_bias_sqrt,
                 op_kind::conv_bias_bn_relu, op_kind::conv_bias_bn_add,
-                op_kind::conv_bias_bn_add_relu,
+                op_kind::conv_bias_bn_add_relu, op_kind::conv_bias_swish,
                 op_kind::conv_bwd_f_biasadd_bwd};
         return with_bias_set.count(kind);
     }
@@ -137,6 +137,7 @@ struct convolution_op_set {
                 op_kind::conv_bias_hardtanh,
                 op_kind::conv_bias_relu6,
                 op_kind::conv_bias_sigmoid,
+                op_kind::conv_bias_swish,
                 op_kind::conv_bias_sqrt,
                 op_kind::conv_bias_square,
                 op_kind::conv_bias_tanh,
@@ -260,6 +261,9 @@ public:
         } else if (op->has_attr("min")) {
             alpha_ = op->get_attr<float>("min");
         }
+        // special handle for swish, spec doesn't support setting attr of alpha
+        // in sigmoid op (swish op is formed by sigmoid and multiply ops)
+        if (conv_kind == op_kind::conv_bias_swish) { alpha_ = 1.f; }
 
         if (op->has_attr("beta")) {
             beta_ = op->get_attr<float>("beta");
@@ -597,6 +601,7 @@ private:
             case op_kind::conv_bias_sqrt: return (algorithm::eltwise_sqrt);
             case op_kind::conv_bias_square: return (algorithm::eltwise_square);
             case op_kind::conv_bias_tanh: return (algorithm::eltwise_tanh);
+            case op_kind::conv_bias_swish: return (algorithm::eltwise_swish);
 
             default: BACKEND_DNNL_ENFORCE(0, "Unsupported fused_eltwise op.");
         }
