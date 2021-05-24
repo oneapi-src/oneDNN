@@ -4115,6 +4115,60 @@ TEST(operator_compile, conv_bias_sigmoid) {
     }
 }
 
+TEST(operator_compile, conv_bias_swish) {
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
+            2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
+    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+    test::vector<float> bias {-1.0};
+    test::vector<float> ref_dst {-2.0, 1.5, 4.0, 0.5};
+    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+    for (auto &rdst : ref_dst) {
+        rdst = static_cast<float>(rdst / (exp(-rdst) + 1));
+    }
+    impl::op_t op(impl::op_kind::conv_bias_swish);
+
+    op.set_attr<dims>("strides", {1, 1});
+    op.set_attr<dims>("dilations", {1, 1});
+    op.set_attr<dims>("pads_begin", {0, 0});
+    op.set_attr<dims>("pads_end", {0, 0});
+    op.set_attr<int64_t>("groups", 1);
+    op.set_attr<float>("alpha", 1.f);
+    op.set_attr<std::string>("data_format", "NCX");
+    op.set_attr<std::string>("filter_format", "OIX");
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt
+            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t bias_lt
+            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
+
+    std::vector<impl::logical_tensor_t> inputs {src_lt, weight_lt, bias_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto kernel = op_factory.create_kernel(op);
+    kernel->compile(&op, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t weight_ts(weight_lt, weight.data());
+    impl::tensor_t bias_ts(bias_lt, bias.data());
+    impl::tensor_t dst_ts(outputs[0], dst.data());
+    impl::stream_t &strm = get_stream();
+    kernel->execute(&op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
 TEST(operator_compile, conv_bias_sqrt) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
