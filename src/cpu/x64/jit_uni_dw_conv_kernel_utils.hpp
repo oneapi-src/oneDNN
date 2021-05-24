@@ -518,7 +518,6 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
     jcp.dwei_dt = cd.diff_weights_desc.data_type;
     const int ndims = src_d.ndims();
     const bool is_bf16 = src_d.data_type() == data_type::bf16;
-    const bool is_f32 = src_d.data_type() == data_type::f32;
     jcp.isa = (is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16 : isa;
 
     if (!mayiuse(isa) || (is_bf16 && !mayiuse(avx512_core)))
@@ -580,7 +579,6 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
 
     bool is_data_layout_nxc
             = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
-    if (is_data_layout_nxc && is_bf16) return status::unimplemented;
 
     auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_blocked;
 
@@ -621,13 +619,12 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
     jcp.ch_tail = jcp.oc_without_padding % jcp.ch_block;
 
     // note: bf16 to be supported in the next commit
-    bool ok_to_pad_channels = !is_data_layout_nxc && !is_bf16
+    bool ok_to_pad_channels = !is_data_layout_nxc
             && one_of(isa, avx512_common, avx512_core, avx2);
     if (ok_to_pad_channels) { jcp.ngroups = rnd_up(jcp.ngroups, jcp.ch_block); }
 
     bool args_ok = true
-            && IMPLICATION(!(is_data_layout_nxc && is_f32),
-                    jcp.ngroups % jcp.ch_block == 0)
+            && IMPLICATION(!is_data_layout_nxc, jcp.ngroups % jcp.ch_block == 0)
             && jcp.dilate_h == 0 && jcp.dilate_w == 0 && jcp.kw <= 3
             && jcp.stride_w <= jcp.kw // no gaps in kernel
             && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
@@ -700,9 +697,11 @@ void jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_scratchpad(
             scratchpad.book<float>(key_conv_wei_reduction, wei_size);
         }
     } else if (jcp.harness == harness_nxc) {
-        if (jcp.nthr_mb > 1 || jcp.nthr_oh > 1) {
+        if (jcp.nthr > 1 || jcp.dwei_dt == data_type::bf16) {
             assert(jcp.nthr > 0); // redundant check
-            const size_t buff_count = jcp.nthr - 1;
+            const size_t buff_count
+                    = jcp.dwei_dt == data_type::bf16 ? jcp.nthr : jcp.nthr - 1;
+
             // note: because of weights blocked format, buffer is padded
             // across ch_block
             const size_t wei_size = utils::rnd_up(jcp.ngroups, jcp.ch_block)
