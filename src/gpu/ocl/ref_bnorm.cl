@@ -164,10 +164,9 @@ __kernel void calculate_mean_variance(
     int local_id = get_sub_group_local_id();
     if (local_id == 0) {
         float calc_mean = total_sum / (MB * ID * IH * IW);
-        float calc_variance = total_pow_sum - 2 * calc_mean * total_sum
-                + calc_mean * calc_mean;
-        calc_variance /= (MB * ID * IH * IW);
-        mean[x[1]] = calc_mean < 0 ? 0 : calc_mean;
+        float calc_variance
+                = total_pow_sum / (MB * ID * IH * IW) - calc_mean * calc_mean;
+        mean[x[1]] = calc_mean;
         variance[x[1]] = calc_variance < 0 ? 0 : calc_variance;
     }
 #endif // SKIP_REDUCE_STATS == 1
