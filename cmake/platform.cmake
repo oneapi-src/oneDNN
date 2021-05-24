@@ -25,15 +25,15 @@ set(platform_cmake_included true)
 include("cmake/utils.cmake")
 
 if (DNNL_LIBRARY_TYPE STREQUAL "SHARED")
-    add_definitions(-DDNNL_DLL)
+    add_definitions_with_host_compiler(-DDNNL_DLL)
 endif()
 
 # Specify the target architecture
-add_definitions(-DDNNL_${DNNL_TARGET_ARCH}=1)
+add_definitions_with_host_compiler(-DDNNL_${DNNL_TARGET_ARCH}=1)
 
 # UNIT8_MAX-like macros are a part of the C99 standard and not a part of the
 # C++ standard (see C99 standard 7.18.2 and 7.18.4)
-add_definitions(-D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS)
+add_definitions_with_host_compiler(-D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS)
 
 set(CMAKE_CCXX_FLAGS)
 set(CMAKE_CCXX_NOWARN_FLAGS)

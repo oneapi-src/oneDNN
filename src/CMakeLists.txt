@@ -23,10 +23,10 @@ file(GLOB HEADERS_SUBDIR
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/*.hpp
     )
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories_with_host_compiler(${CMAKE_CURRENT_SOURCE_DIR})
 
 if (DNNL_LIBRARY_TYPE STREQUAL "SHARED")
-    add_definitions(-DDNNL_DLL_EXPORTS)
+    add_definitions_with_host_compiler(-DDNNL_DLL_EXPORTS)
 endif()
 
 # propagate SRC specific flags
@@ -42,17 +42,17 @@ append(CMAKE_C_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 
 if(NOT DNNL_VERBOSE)
-    add_definitions(-DDISABLE_VERBOSE)
+    add_definitions_with_host_compiler(-DDISABLE_VERBOSE)
 endif()
 
 if(DNNL_ENABLE_CONCURRENT_EXEC)
-    add_definitions(-DDNNL_ENABLE_CONCURRENT_EXEC)
+    add_definitions_with_host_compiler(-DDNNL_ENABLE_CONCURRENT_EXEC)
 endif()
 
 if(DNNL_ENABLE_PRIMITIVE_CACHE)
     message(STATUS "Primitive cache is enabled")
 else()
-    add_definitions(-DDNNL_DISABLE_PRIMITIVE_CACHE)
+    add_definitions_with_host_compiler(-DDNNL_DISABLE_PRIMITIVE_CACHE)
     message(STATUS "Primitive cache is disabled")
 endif()
 
@@ -67,28 +67,28 @@ endif()
 if(DNNL_ENABLE_ITT_TASKS AND NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
     # Only supported for certain architectures (see src/common/CMakeLists.txt)
     if(DNNL_TARGET_ARCH STREQUAL "AARCH64" OR DNNL_TARGET_ARCH STREQUAL "X64")
-        add_definitions(-DDNNL_ENABLE_ITT_TASKS)
+        add_definitions_with_host_compiler(-DDNNL_ENABLE_ITT_TASKS)
     endif()
 endif()
 
 if(DNNL_ENABLE_MAX_CPU_ISA)
-    add_definitions(-DDNNL_ENABLE_MAX_CPU_ISA)
+    add_definitions_with_host_compiler(-DDNNL_ENABLE_MAX_CPU_ISA)
 endif()
 
 if(DNNL_ENABLE_CPU_ISA_HINTS)
-    add_definitions(-DDNNL_ENABLE_CPU_ISA_HINTS)
+    add_definitions_with_host_compiler(-DDNNL_ENABLE_CPU_ISA_HINTS)
 endif()
 
 if(WIN32)
-    add_definitions(-D_WIN)
-    add_definitions(-DNOMINMAX)
+    add_definitions_with_host_compiler(-D_WIN)
+    add_definitions_with_host_compiler(-DNOMINMAX)
 endif()
 
 # Windows does not support weak/strong symbols and no guarrantees by the linker
 # for out_of_memory testing to work. Not tested on macOS
 if(UNIX)
     if(DNNL_ENABLE_MEM_DEBUG)
-        add_definitions(-DDNNL_ENABLE_MEM_DEBUG)
+        add_definitions_with_host_compiler(-DDNNL_ENABLE_MEM_DEBUG)
     endif()
 endif()
 

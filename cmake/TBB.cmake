@@ -26,7 +26,7 @@ include("cmake/Threading.cmake")
 macro(handle_tbb_target)
     if(TBB_FOUND)
         set_property(TARGET TBB::tbb PROPERTY "MAP_IMPORTED_CONFIG_RELWITHMDD" "DEBUG")
-        include_directories(${_tbb_include_dirs})
+        include_directories_with_host_compiler(${_tbb_include_dirs})
         list(APPEND EXTRA_SHARED_LIBS ${TBB_IMPORTED_TARGETS})
 
         # Print TBB location

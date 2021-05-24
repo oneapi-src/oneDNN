@@ -86,7 +86,7 @@ if(DPCPP_SUPPORTED)
 
     if(LevelZero_FOUND)
         set(DNNL_WITH_LEVEL_ZERO TRUE)
-        include_directories(${LevelZero_INCLUDE_DIRS})
+        include_directories_with_host_compiler(${LevelZero_INCLUDE_DIRS})
     endif()
 else()
     message(FATAL_ERROR "${CMAKE_CXX_COMPILER_ID} is not Intel oneAPI DPC++ Compiler")

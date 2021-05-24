@@ -22,12 +22,12 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 list(APPEND SOURCES ${TEST_THREAD})
-include_directories(
+include_directories_with_host_compiler(
     ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
 if(BENCHDNN_USE_RDPMC)
-    add_definitions(-DBENCHDNN_USE_RDPMC)
+    add_definitions_with_host_compiler(-DBENCHDNN_USE_RDPMC)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")

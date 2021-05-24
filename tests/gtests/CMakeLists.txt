@@ -29,17 +29,18 @@ list(APPEND MAIN_SRC_GTEST ${TEST_THREAD})
 # for out_of_memory testing to work. Not tested on macOS
 if(UNIX)
     if(DNNL_ENABLE_MEM_DEBUG)
-        add_definitions(-DDNNL_ENABLE_MEM_DEBUG)
+        add_definitions_with_host_compiler(-DDNNL_ENABLE_MEM_DEBUG)
         list(APPEND MAIN_SRC_GTEST ${CMAKE_CURRENT_SOURCE_DIR}/test_malloc.cpp)
     endif()
 endif()
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}
-                    ${CMAKE_CURRENT_SOURCE_DIR}/gtest
-                    ${CMAKE_CURRENT_SOURCE_DIR}/in
-                    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common
-                    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/cpu
-                    )
+include_directories_with_host_compiler(${CMAKE_CURRENT_SOURCE_DIR}
+                                       ${CMAKE_CURRENT_SOURCE_DIR}/gtest
+                                       ${CMAKE_CURRENT_SOURCE_DIR}/in
+                                       ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common
+                                       ${CMAKE_CURRENT_SOURCE_DIR}/../../src/cpu
+)
+
 if(WIN32)
     # Correct 'jnl' macro/jit issue
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel" AND ${CMAKE_CXX_COMPILER_VERSION} LESS 19.1)
@@ -172,19 +173,37 @@ set_source_files_properties(
 
 function(register_gtest exe src)
     add_executable(${exe} ${MAIN_SRC_GTEST} ${src})
-    add_definitions(-DNOMINMAX) # to allow std::max on Windows with parentheses
+    add_definitions_with_host_compiler(-DNOMINMAX) # to allow std::max on Windows with parentheses
     target_link_libraries(${exe} ${LIB_NAME} dnnl_gtest ${EXTRA_SHARED_LIBS})
 
     get_source_file_property(no_engine_param ${src} NO_ENGINE_PARAM)
 
-    if (NOT no_engine_param)
-        target_compile_definitions(${exe} PUBLIC
-                -DDNNL_TEST_WITH_ENGINE_PARAM)
+    set(DPCPP_HOST_COMPILER_FLAGS)
+    # Extract host compiler flags from CMAKE_CXX_FLAGS to DPCPP_HOST_COMPILER_FLAGS
+    string(REGEX MATCH "-fsycl-host-compiler-options=\".*\""  DPCPP_HOST_COMPILER_FLAGS ${CMAKE_CXX_FLAGS})
+    # Erase host compiler flags from CMAKE_CXX_FLAGS
+    string(REGEX REPLACE "-fsycl-host-compiler-options=\".*\""  "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+
+    if(${exe} MATCHES "_buffer")
+        target_compile_definitions(${exe} PUBLIC -DTEST_DNNL_DPCPP_BUFFER)
+        # Add a flag to build gtest with buffer support
+        append_host_compiler_options(DPCPP_HOST_COMPILER_FLAGS "-DTEST_DNNL_DPCPP_BUFFER")
     endif()
 
+    if (NOT no_engine_param)
+        target_compile_definitions(${exe} PUBLIC -DDNNL_TEST_WITH_ENGINE_PARAM)
+        # Add a flag to enable gtest engine parameter
+        append_host_compiler_options(DPCPP_HOST_COMPILER_FLAGS "-DDNNL_TEST_WITH_ENGINE_PARAM")
+    endif()
+
+    # Set flags for each target separately
+    set_target_properties(${exe} PROPERTIES COMPILE_FLAGS "${DPCPP_HOST_COMPILER_FLAGS}")
+
     if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE" AND NOT no_engine_param AND NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
-        add_dnnl_test(${exe}_cpu ${exe} COMMAND ${exe} --engine=cpu)
-        maybe_configure_windows_test(${exe}_cpu TEST)
+        if(NOT ${exe} MATCHES "_buffer" OR (${exe} MATCHES "_buffer" AND DNNL_CPU_SYCL))
+            add_dnnl_test(${exe}_cpu ${exe} COMMAND ${exe} --engine=cpu)
+            maybe_configure_windows_test(${exe}_cpu TEST)
+        endif()
 
         add_dnnl_test(${exe}_gpu ${exe} COMMAND ${exe} --engine=gpu)
         maybe_configure_windows_test(${exe}_gpu TEST)
@@ -214,7 +233,6 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     # Create additional buffer targets for SYCL.
     if(DNNL_WITH_SYCL)
         register_gtest(${exe}_buffer ${TEST_FILE})
-        target_compile_definitions(${exe}_buffer PUBLIC -DTEST_DNNL_DPCPP_BUFFER)
     endif()
 endforeach()
 

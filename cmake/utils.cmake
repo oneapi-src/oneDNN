@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2018-2020 Intel Corporation
+# Copyright 2018-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -90,6 +90,33 @@ macro(append_if condition var value)
     if (${condition})
         append(${var} "${value}")
     endif()
+endmacro()
+
+# Append options for sycl host compiler
+macro(append_host_compiler_options var opts)
+    if(NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT")
+        if(${var} MATCHES "-fsycl-host-compiler-options")
+            string(REGEX REPLACE
+                "(.*)(-fsycl-host-compiler-options=)\"(.*)\"(.*)"
+                "\\1\\2\"\\3 ${opts}\"\\4" ${var} ${${var}})
+        else()
+            append(${var} "-fsycl-host-compiler-options=\"${opts}\"")
+        endif()
+    endif()
+endmacro()
+
+macro(include_directories_with_host_compiler)
+    foreach(inc_dir ${ARGV})
+        include_directories(${inc_dir})
+        append_host_compiler_options(CMAKE_CXX_FLAGS "-I${inc_dir}")
+    endforeach()
+endmacro()
+
+macro(add_definitions_with_host_compiler)
+    foreach(def ${ARGV})
+        add_definitions(${def})
+        append_host_compiler_options(CMAKE_CXX_FLAGS "${def}")
+    endforeach()
 endmacro()
 
 # Append a path to path_list variable (Windows-only version)

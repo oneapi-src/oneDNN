@@ -3,9 +3,10 @@
 set(TARGET_NAME dnnl_gtest)
 set(MAIN_SRC "src/gtest-all.cc")
 source_group("" FILES ${MAIN_SRC})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}
-                    ${CMAKE_CURRENT_SOURCE_DIR}/..
-  )
+include_directories_with_host_compiler(${CMAKE_CURRENT_SOURCE_DIR}
+                                       ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+
 find_package(Threads REQUIRED)
 add_library(${TARGET_NAME} STATIC ${MAIN_SRC})
 

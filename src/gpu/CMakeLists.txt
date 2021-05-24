@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020 Intel Corporation
+# Copyright 2020-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@ file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-add_definitions(-DNGEN_CPP11)
-add_definitions(-DNGEN_SAFE)
-add_definitions(-DNGEN_NEO_INTERFACE)
-add_definitions(-DNGEN_NO_OP_NAMES)
-add_definitions(-DNGEN_WINDOWS_COMPAT)
+add_definitions_with_host_compiler(-DNGEN_CPP11)
+add_definitions_with_host_compiler(-DNGEN_SAFE)
+add_definitions_with_host_compiler(-DNGEN_NEO_INTERFACE)
+add_definitions_with_host_compiler(-DNGEN_NO_OP_NAMES)
+add_definitions_with_host_compiler(-DNGEN_WINDOWS_COMPAT)
 
 set(OBJ_LIB ${LIB_NAME}_gpu)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})

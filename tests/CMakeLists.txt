@@ -37,10 +37,10 @@ append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 
 # allow tests to include internal header files with, e.g.
 # include "src/common/dnnl_thread.hpp" ...
-include_directories(${PROJECT_SOURCE_DIR})
+include_directories_with_host_compiler(${PROJECT_SOURCE_DIR})
 # ... and allow the included files transitively include other headers files
 # e.g. include "common/dnnl_thread_parallel_nd.hpp" from "dnnl_thread.hpp"
-include_directories(${PROJECT_SOURCE_DIR}/src)
+include_directories_with_host_compiler(${PROJECT_SOURCE_DIR}/src)
 
 if(WIN32 AND NOT MINGW)
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
@@ -77,10 +77,10 @@ if(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND (UNIX OR MINGW))
 # No Windows support for: test_c_symbols.c
 endif()
 
-add_definitions(-DNOMINMAX) # to allow std::max on Windows with parentheses
+add_definitions_with_host_compiler(-DNOMINMAX) # to allow std::max on Windows with parentheses
 
 if(NOT DNNL_ENABLE_PRIMITIVE_CACHE)
-    add_definitions(-DDNNL_DISABLE_PRIMITIVE_CACHE)
+    add_definitions_with_host_compiler(-DDNNL_DISABLE_PRIMITIVE_CACHE)
 endif()
 
 if ("${DNNL_CPU_THREADING_RUNTIME}" STREQUAL "THREADPOOL")

@@ -30,8 +30,8 @@ append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 append(CMAKE_C_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
-include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_SOURCE_DIR}/examples)
+include_directories_with_host_compiler(${PROJECT_SOURCE_DIR}/include)
+include_directories_with_host_compiler(${PROJECT_SOURCE_DIR}/examples)
 
 if(UNIX)
     find_library(LIBM m REQUIRED)
