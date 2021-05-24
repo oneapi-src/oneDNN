@@ -549,7 +549,7 @@ enum class algorithm {
     /// Max pooling
     pooling_max = dnnl_pooling_max,
     /// Average pooling exclude padding,
-    /// alias for #dnnl::algorithm::pooling_avg_include_padding
+    /// alias for #dnnl::algorithm::pooling_avg_exclude_padding
     pooling_avg = dnnl_pooling_avg,
     /// Average pooling include padding
     pooling_avg_include_padding = dnnl_pooling_avg_include_padding,
