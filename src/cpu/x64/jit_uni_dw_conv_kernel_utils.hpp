@@ -439,9 +439,6 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
             && jcp.ngroups <= weights_d.padded_dims()[0];
     if (!args_ok) return status::unimplemented;
 
-    // TODO: support 'NXC' for BF16 in upcoming commit
-    if (is_data_layout_nxc && is_bf16) return status::unimplemented;
-
     jcp.typesize_out = types::data_type_size(diff_src_d.data_type());
     jcp.typesize_in = types::data_type_size(diff_dst_d.data_type());
 
