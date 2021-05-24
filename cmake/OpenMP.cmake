@@ -57,9 +57,20 @@ macro(set_openmp_values_for_old_cmake)
         set(OpenMP_CXX_FOUND true)
     endif()
 endmacro()
-return()
-find_package(OpenMP)
-set_openmp_values_for_old_cmake()
+
+if(DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT")
+    # XXX: workaround: when -fsycl is specified the compiler doesn't define
+    # _OPENMP macro causing `find_package(OpenMP)` to fail.
+    # Use -fno-sycl option to disable SYCL. The rationale: dpcpp driver sets
+    # the -fsycl option by default so it has to be explicitly disabled.
+    set(_omp_original_cmake_cxx_flags "${CMAKE_CXX_FLAGS}")
+    string(REGEX REPLACE "-fsycl" "-fno-sycl" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+
+    find_package(OpenMP)
+    set_openmp_values_for_old_cmake()
+
+    set(CMAKE_CXX_FLAGS "${_omp_original_cmake_cxx_flags}")
+endif()
 
 # special case for clang-cl (not recognized by cmake up to 3.17)
 if(NOT OpenMP_CXX_FOUND AND MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND NOT DNNL_WITH_SYCL)
