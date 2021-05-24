@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dnnl_memory.hpp"
 #include "parser.hpp"
 
+#include "softmax/graph_softmax.hpp"
 #include "softmax/softmax.hpp"
 
 namespace softmax {
@@ -48,7 +49,14 @@ void check_correctness(const settings_t &s) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
-        const int status = doit(&prb, &res);
+        const int status = [&prb, &res](api_mode_t mode) {
+            if (api_mode == PRIMITIVE)
+                return doit(&prb, &res);
+            else if (api_mode == GRAPH)
+                return benchdnnext::softmax::doit(&prb, &res);
+            else
+                return FAIL;
+        }(api_mode);
 
         bool want_perf_report = false;
         parse_result(res, want_perf_report, status, pstr);
