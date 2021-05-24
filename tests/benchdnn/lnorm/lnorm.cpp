@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ using namespace bnorm;
 
 namespace lnorm {
 
-static int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
+int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, dnn_mem_t &ss) {
     /** Idea: choose src[] values so that both mean and variance are computed
      * exactly (independently of the order of the computations).
@@ -127,7 +127,7 @@ static void decompose2(int64_t L, int64_t &k, int64_t &P) {
     for (k = 0; P % 2 == 0; ++k)
         P /= 2;
 }
-static int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
+int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
         dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss) {
     const int64_t exact_bits = 24;
 
@@ -271,8 +271,8 @@ static int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
     return OK;
 }
 
-static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
-        const dnn_mem_t &dt_mem, res_t *res, const dnn_mem_t *ss = nullptr) {
+int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
+        const dnn_mem_t &dt_mem, res_t *res, const dnn_mem_t *ss) {
     const char *skind = data_kind2str(kind);
     const int f32_mant_digits = 24;
     const float eps_coeff = (1 << (f32_mant_digits - digits_dt(prb->dt)));
