@@ -4010,3 +4010,17 @@ TEST(op_schema_test, softmax_bf16) {
     softmax.set_attr<int64_t>("axis", 1);
     EXPECT_TRUE(schema->verify(&softmax));
 }
+
+TEST(op_schema_test, logsoftmax_bf16) {
+    const op_schema *schema = op_schema_registry::get_op_schema(kLogSoftmax);
+
+    op_t logsoftmax {0, kLogSoftmax, std::string("logsoftmax")};
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
+    logical_tensor_t lt_output = logical_tensor_init(1, data_type::bf16);
+
+    logsoftmax.add_input(lt_data);
+    logsoftmax.add_output(lt_output);
+
+    logsoftmax.set_attr<int64_t>("axis", 1);
+    EXPECT_TRUE(schema->verify(&logsoftmax));
+}

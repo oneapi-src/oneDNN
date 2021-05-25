@@ -610,8 +610,10 @@ DNNL_GRAPH_OP_SCHEMA(LogSoftmax, 1,
         op_schema()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16})
                 .set_attr("axis",
                         "the axis of which the LogSoftmax is calculated", false,
                         attribute_kind::i, int64_t(-1))
