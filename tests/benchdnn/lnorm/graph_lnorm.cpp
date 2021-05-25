@@ -204,7 +204,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
     }
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         ::lnorm::compute_ref_fwd(
                 prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp, dst_fp);
 
@@ -222,32 +222,35 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
          * Then large error in `a * X` could result in a final
          * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
          * which has no meaningful digits left in mantissa.*/
-        const auto lnorm_add_check = [&prb, &ss_fp, &sh_fp, &dst_fp, &eps](
-                                             int64_t i, float got, float diff) {
-            bool scale_or_shift
-                    = prb->use_ss() || prb->use_sc() || prb->use_sh();
-            if (!scale_or_shift) return false;
+        const auto lnorm_add_check =
+                [&](const compare::compare_t::driver_check_func_args_t &args) {
+                    bool scale_or_shift
+                            = prb->use_ss() || prb->use_sc() || prb->use_sh();
+                    if (!scale_or_shift) return false;
 
-            ::dims_t l_dims(dst_fp.md_);
-            ::dims_t dims_idx = off2dims_idx(l_dims, i);
-            int64_t c = dims_idx[prb->ndims - 1];
-            const float beta = prb->use_sh()
-                    ? ((const float *)sh_fp)[c]
-                    : ((const float *)ss_fp)[prb->c + c];
-            /* Using an empirically derived threshold,
-                 * check if cancellation error
-                 * in `|Y| = |a*X - (-b)|` is huge.*/
-            bool maybe_cancellation_error
-                    = (fabsf(got - beta)
-                              / (fabsf(got) > FLT_MIN ? fabsf(got) : 1))
-                    > 1.0f;
-            if (maybe_cancellation_error) {
-                /* Check for error in `a * X` */
-                float diff_aX = fabsf((got - beta) - (got + diff - beta));
-                return diff_aX <= eps;
-            }
-            return false;
-        };
+                    ::dims_t l_dims(dst_fp.md_);
+                    ::dims_t dims_idx = off2dims_idx(l_dims, args.idx);
+                    int64_t c = dims_idx[prb->ndims - 1];
+                    const float beta = prb->use_sh()
+                            ? ((const float *)sh_fp)[c]
+                            : ((const float *)ss_fp)[prb->c + c];
+                    /* Using an empirically derived threshold,
+         * check if cancellation error
+         * in `|Y| = |a*X - (-b)|` is huge.*/
+                    bool maybe_cancellation_error
+                            = (fabsf(args.got - beta)
+                                      / (fabsf(args.got) > FLT_MIN
+                                                      ? fabsf(args.got)
+                                                      : 1))
+                            > 1.0f;
+                    if (maybe_cancellation_error) {
+                        /* Check for error in `a * X` */
+                        float diff_aX = fabsf((args.got - beta)
+                                - (args.got + args.diff - beta));
+                        return diff_aX <= eps;
+                    }
+                    return false;
+                };
         cmp_data.set_driver_check_function(lnorm_add_check);
         SAFE(cmp_data.compare(dst_fp, dst_dt, prb->attr, res), WARN);
 

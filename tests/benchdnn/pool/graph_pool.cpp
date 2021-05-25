@@ -174,7 +174,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(cp, input_ts, output_ts), WARN);
 
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         // currently we run benchmark only with dir equal FWD_I
         ::pool::compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp, ws_fp);
         compare::compare_t cmp;
