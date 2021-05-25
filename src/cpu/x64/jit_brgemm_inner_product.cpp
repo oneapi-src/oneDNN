@@ -655,8 +655,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             float *out_buffer = (is_f32 || is_bf16_f32_out)
                     ? (float *)dsrc_reduced
                     : (float *)c_buffer_start;
-            int oc_buf_idx = (is_bf16_bf16_out) ? 1 : 0;
-            int oc_buf_end = (is_bf16_bf16_out) ? 0 : 1;
+            int oc_buf_idx = is_bf16_bf16_out;
+            int oc_buf_end = !is_bf16_bf16_out;
             for (int oc_buf = oc_buf_idx; oc_buf < nthr_oc - oc_buf_end;
                     oc_buf++) {
                 const dim_t c_buf_offt = acc_dt_sz
