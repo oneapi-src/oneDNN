@@ -150,6 +150,8 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_gelu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_bias_gelu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_add, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_bias_add, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_MatMul_add, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_MatMul_bias_add, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Mul_scales, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add_zps, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Convert, 1);
@@ -338,6 +340,10 @@ public:
                         INT8_MatMul_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_MatMul_bias_add, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_MatMul_add, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_MatMul_bias_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Mul_scales, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add_zps, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Convert, 1)>());

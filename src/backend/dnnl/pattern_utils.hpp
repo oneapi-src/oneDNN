@@ -141,7 +141,8 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
     std::deque<op_t *> op_queue;
     //if a op have been visited
     std::unordered_set<hashtype> visited;
-    std::set<std::string> excepted {"num_inputs", "symmetric_check"};
+    std::set<std::string> excepted {
+            "num_inputs", "symmetric_check", "s8_check"};
     bool pattern_is_graph = graph_op == pattern_op;
     hashtype pattern_starter_hash = hash_func(pattern_op);
     pattern_queue.push_back(std::make_pair(pattern_op,
@@ -183,6 +184,15 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
             if (!zeros) return false;
         }
         /**/
+
+        if (!pattern_is_graph && pfront.first->has_attr("s8_check")
+                && pfront.first->get_attr<bool>("s8_check") == true) {
+            for (size_t i = 0; i < in_degree(nfront); ++i) {
+                logical_tensor_t inport
+                        = nfront->get_input_value(i)->get_logical_tensor();
+                if (inport.data_type != impl::data_type::s8) return false;
+            }
+        }
 
         // handle the case that "Add" op's input tensor's order
         // is different from it in graph
