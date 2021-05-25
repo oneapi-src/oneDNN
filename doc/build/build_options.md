@@ -20,12 +20,36 @@ oneDNN supports the following build-time options.
 | DNNL_AARCH64_USE_ACL        | ON, **OFF**                                | Enables integration with Arm Compute Library for AArch64 builds
 | DNNL_BLAS_VENDOR            | **NONE**, ARMPL                            | Defines an external BLAS library to link to for GEMM-like operations
 | DNNL_GPU_VENDOR             | **INTEL**, NVIDIA                          | Defines GPU vendor for GPU engines
+| DNNL_DPCPP_HOST_COMPILER    | **DEFAULT**, *GNU C++ compiler executable* | Specifies host compiler executable for DPCPP runtimes
 
 All other building options or values that can be found in CMake files are intended for
 development/debug purposes and are subject to change without notice.
 Please avoid using them.
 
 ## Common options
+
+## Host compiler
+
+When building oneDNN with oneAPI DPC++/C++ Compiler user can specify a custom
+host compiler. The host compiler is a compiler that will be used by the main
+compiler driver to perform host compilation step.
+
+The host compiler can be specified with `DNNL_DPCPP_HOST_COMPILER` CMake
+option. It should be specified either by name (in this case, the standard system
+environment variables will be used to discover it) or an absolute path to the
+compiler executable.
+
+The default value of `DNNL_DPCPP_HOST_COMPILER` is `DEFAULT`, which is the
+default host compiler used by the compiler specified with `CMAKE_CXX_COMPILER`.
+
+The `DEFAULT` host compiler is the only supported option on Windows.
+On Linux, user can specify a GNU C++ compiler as the host compiler.
+
+@warning
+oneAPI DPC++/C++ Compiler requires host compiler to be compatible. The minimum
+allowed GNU C++ compiler version is 7.4.0. See [GCC* Compatibility and Interoperability]
+(https://software.intel.com/content/www/us/en/develop/documentation/oneapi-dpcpp-cpp-compiler-dev-guide-and-reference/top/compatibility-and-portability/gcc-compatibility-and-interoperability.html)
+section in oneAPI DPC++/C++ Compiler Developer Guide.
 
 ## CPU Options
 Intel Architecture Processors and compatible devices are supported by
@@ -75,6 +99,10 @@ is controlled by the `DNNL_CPU_RUNTIME` CMake option.
 
 #### OpenMP
 oneDNN uses OpenMP runtime library provided by the compiler.
+
+When building oneDNN with oneAPI DPC++/C++ Compiler the library will link
+to Intel OpenMP runtime. This behavior can be changed by changing the host
+compiler with `DNNL_DPCPP_HOST_COMPILER` option.
 
 @warning
 Because different OpenMP runtimes may not be binary-compatible, it's important
