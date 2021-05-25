@@ -110,7 +110,7 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             ::softmax::compute_ref_fwd(prb, src_fp, dst_fp);
 
             compare::compare_t cmp;
@@ -125,10 +125,11 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
             cmp.set_zero_trust_percent(axis_size < 10 ? 100.f : 60.f);
 
             const auto softmax_add_check
-                    = [&](int64_t i, float got, float diff) {
+                    = [&](const compare::compare_t::driver_check_func_args_t
+                                      &args) {
                           // SSE4.1 and OpenCL rdiff tolerance is too high for
                           // certain scenarios.
-                          return diff < epsilon_dt(prb->dt);
+                          return args.diff < epsilon_dt(args.dt);
                       };
             cmp.set_driver_check_function(softmax_add_check);
 
