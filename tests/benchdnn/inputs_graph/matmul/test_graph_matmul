@@ -20,3 +20,11 @@
 # enable the following shapes when accuracy issue of elu is addressed.
 # --batch=shapes_2d
 1x2048:2048x1000:1x1000
+
+# matmul + binary-add
+--reset
+--bia_dt=undef,f32
+--attr-post-ops='add:f32:common','add:f32:per_oc'
+16x1024:1024x1024:16x1024
+384x4096:4096x1024:384x1024
+

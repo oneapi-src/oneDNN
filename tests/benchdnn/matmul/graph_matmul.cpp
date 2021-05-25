@@ -17,8 +17,11 @@
 #include <algorithm>
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "dnnl_graph_common.hpp"
+
+#include "binary/binary.hpp"
 
 #include "compare.hpp"
 #include "graph_matmul.hpp"
@@ -76,6 +79,11 @@ fill_status_t matmul_graph_prb_t::handle_elt_(
     return po_handler.matmul.eltw_handler(*this, po_entry);
 }
 
+fill_status_t matmul_graph_prb_t::handle_bin_(
+        const attr_t::post_ops_t::entry_t &po_entry) {
+    return po_handler.matmul.bin_handler(*this, spec_.dst_tag, po_entry);
+}
+
 fill_status_t matmul_graph_prb_t::handle_sum_() {
     return po_handler.matmul.sum_handler(*this);
 }
@@ -129,8 +137,6 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     dnn_mem_t dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
     dnn_mem_t bia_fp;
     if (apply_bias) bia_fp = make_dnn_mem(ins[2], dt::f32, tag::x);
-    // matmul operator doesn't support binary post-ops yet
-    std::vector<dnn_mem_t> binary_po_fp;
 
     dnn_mem_t src_dt = make_dnn_mem(ins[0], tag::abx);
     dnn_mem_t wei_dt = make_dnn_mem(ins[1], tag::abx);
@@ -143,10 +149,21 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     SAFE(fill_data(DST, prb, dst_dt, dst_fp, res), WARN);
     if (apply_bias) SAFE(fill_data(BIA, prb, bia_dt, bia_fp, res), WARN);
 
+    // matmul operator supports only binary-add (single binary post-op)
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    if (graph_prb.has_post_bin()) {
+        binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
+        binary_po_dt.emplace_back(make_dnn_mem(ins.back(), tag::abx));
+        const int idx = 0;
+        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
+                binary_po_dt.back(), binary_po_fp.back());
+    }
+
     dnnl::graph::tensor src_tensor(ins[0], static_cast<void *>(src_dt));
     dnnl::graph::tensor wei_tensor(ins[1], static_cast<void *>(wei_dt));
     dnnl::graph::tensor dst_tensor(outs[0], static_cast<void *>(dst_dt));
     dnnl::graph::tensor bia_tensor;
+    dnnl::graph::tensor bin_tensor;
     dnnl::graph::tensor sum_src1_tensor;
 
     std::vector<dnnl::graph::tensor> input_ts {src_tensor, wei_tensor};
@@ -156,7 +173,12 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
         bia_tensor = dnnl::graph::tensor(ins[2], static_cast<void *>(bia_dt));
         input_ts.push_back(bia_tensor);
     }
-    if (graph_prb.has_post_sum()) {
+    // we can't have fuse with both sum and binary-add at the same time
+    if (graph_prb.has_post_bin()) {
+        bin_tensor = dnnl::graph::tensor(
+                ins.back(), static_cast<void *>(binary_po_dt.back()));
+        input_ts.push_back(bin_tensor);
+    } else if (graph_prb.has_post_sum()) {
         sum_src1_tensor
                 = dnnl::graph::tensor(ins.back(), static_cast<void *>(dst_dt));
         input_ts.push_back(sum_src1_tensor);

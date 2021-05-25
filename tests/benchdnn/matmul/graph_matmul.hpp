@@ -42,6 +42,10 @@ struct matmul_graph_prb_t : public graph_prb_t {
             if (po.is_eltwise_kind()) {
                 ctor_status = handle_elt_(po);
                 if (stop_work(ctor_status)) return;
+            } else if (po.is_binary_kind()) {
+                has_post_bin_ = true;
+                ctor_status = handle_bin_(po);
+                if (stop_work(ctor_status)) return;
             } else if (po.is_sum_kind()) {
                 has_post_sum_ = true;
                 ctor_status = handle_sum_();
@@ -52,6 +56,7 @@ struct matmul_graph_prb_t : public graph_prb_t {
         ctor_status = fill_status::DONE;
     };
 
+    bool has_post_bin() const { return has_post_bin_; }
     bool has_post_sum() const { return has_post_sum_; }
 
     fill_status_t ctor_status;
@@ -77,6 +82,7 @@ private:
         std::string dst_tag;
     };
 
+    bool has_post_bin_ {false};
     bool has_post_sum_ {false};
 
     spec_t spec_;
@@ -86,6 +92,7 @@ private:
     fill_status_t handle_bia_();
     fill_status_t handle_sum_();
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
+    fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
 };
 
 dims_t get_runtime_dims(const dims_t &dims, const ::matmul::dims_mask_t &mask);
