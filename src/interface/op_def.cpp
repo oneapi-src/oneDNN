@@ -531,18 +531,18 @@ DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
                         {data_type::f32, data_type::bf16, data_type::f16})
                 .set_input(1, "gamma",
                         "(optional) gamma scaling for normalized value",
-                        {data_type::f32, data_type::bf16, data_type::f16})
+                        data_type::f32)
                 .set_input(2, "beta",
                         "(optional) bias added to the scaled normalized value",
-                        {data_type::f32, data_type::bf16, data_type::f16})
+                        data_type::f32)
                 .set_output(0, "output", "output tensor",
                         {data_type::f32, data_type::bf16, data_type::f16})
                 .set_output(1, "mean",
                         "(optional) the mean calculated along the given axis",
-                        {data_type::f32, data_type::bf16, data_type::f16})
+                        data_type::f32)
                 .set_output(2, "variance",
                         "(optional) the std calculated along the given axis",
-                        {data_type::f32, data_type::bf16, data_type::f16})
+                        data_type::f32)
                 .set_attr("keep_stats",
                         "used to indicate whether to output mean and variance",
                         false, attribute_kind::b, true)

@@ -3985,6 +3985,23 @@ TEST(op_schema_test, layernorm_bf16) {
 
     op_t lnorm {0, kLayerNorm, std::string("layer_norm")};
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
+    logical_tensor_t lt_gamma = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t lt_beta = logical_tensor_init(2, data_type::f32);
+    logical_tensor_t lt_output = logical_tensor_init(5, data_type::bf16);
+
+    lnorm.add_input(lt_data);
+    lnorm.add_input(lt_gamma);
+    lnorm.add_input(lt_beta);
+    lnorm.add_output(lt_output);
+
+    EXPECT_TRUE(schema->verify(&lnorm));
+}
+
+TEST(op_schema_test, layernorm_bf16_gamma) {
+    const op_schema *schema = op_schema_registry::get_op_schema(kLayerNorm);
+
+    op_t lnorm {0, kLayerNorm, std::string("layer_norm")};
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
     logical_tensor_t lt_gamma = logical_tensor_init(1, data_type::bf16);
     logical_tensor_t lt_beta = logical_tensor_init(2, data_type::bf16);
     logical_tensor_t lt_output = logical_tensor_init(5, data_type::bf16);
@@ -3994,7 +4011,8 @@ TEST(op_schema_test, layernorm_bf16) {
     lnorm.add_input(lt_beta);
     lnorm.add_output(lt_output);
 
-    EXPECT_TRUE(schema->verify(&lnorm));
+    // gamma/beta should always be f32. Here schema check should fail.
+    EXPECT_FALSE(schema->verify(&lnorm));
 }
 
 TEST(op_schema_test, softmax_bf16) {
