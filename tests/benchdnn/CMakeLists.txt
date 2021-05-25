@@ -110,7 +110,7 @@ if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
     set(has_cpu true)
 endif()
 
-# Very sad CMake 2.8.11 does not support continue() command.
+# Very sad CMake older then 3.2 does not support continue() command.
 file(GLOB all_drivers RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs inputs/*)
 foreach(driver ${all_drivers})
     set(driver_dir ${CMAKE_CURRENT_SOURCE_DIR}/inputs/${driver})

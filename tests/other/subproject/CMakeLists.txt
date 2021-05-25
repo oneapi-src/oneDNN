@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2018-2020 Intel Corporation
+# Copyright 2018-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 # To test run:
 # mkdir -p build && cd build && cmake .. && make -j && ./project_app
 
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 2.8.12)
 
 set(PROJECT_NAME "Project")
 

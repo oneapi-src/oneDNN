@@ -134,7 +134,7 @@ The library is optimized for the following GPUs:
 oneDNN supports systems meeting the following requirements:
 * Operating system with Intel 64 / Arm 64 / Power / IBMz architecture support
 * C++ compiler with C++11 standard support
-* [CMake](https://cmake.org/download/) 2.8.11 or later
+* [CMake](https://cmake.org/download/) 2.8.12 or later
 * [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
   to build the documentation
 * [Arm Compute Library](https://github.com/arm-software/ComputeLibrary)
