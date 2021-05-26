@@ -153,12 +153,15 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         utils::array_offset_calculator<gates_t, 2> ws_Wh_b(
                 ws_grid_, rnn.mb, rnn.dhc);
 
-        void *param1_ = &ws_gates(m, 0, 0); // RNN, LSTM, GRU
-        void *param2_ = &scratch_gates(m, 0, 0); // RNN, LSTM, GRU
-        const void *param3_ = &bias(0, 0); // RNN, LSTM, GRU
-        void *param4_ = &dst_layer(m, 0); // RNN, LSTM, GRU
-        void *param5_
-                = dst_iter_ ? &dst_iter(m, 0) : dst_iter_; // RNN, LSTM, GRU
+// Since the function F(...) returns by reference so an exception has
+// to be made for nullptr argument
+#define SAFE_PTR(F, ...) (CONCAT2(F, _) ? &(F(__VA_ARGS__)) : nullptr)
+
+        void *param1_ = SAFE_PTR(ws_gates, m, 0, 0); // RNN, LSTM, GRU
+        void *param2_ = SAFE_PTR(scratch_gates, m, 0, 0); // RNN, LSTM, GRU
+        const void *param3_ = SAFE_PTR(bias, 0, 0); // RNN, LSTM, GRU
+        void *param4_ = SAFE_PTR(dst_layer, m, 0); // RNN, LSTM, GRU
+        void *param5_ = SAFE_PTR(dst_iter, m, 0); // RNN, LSTM, GRU
         const void *param6_;
         void *param7_, *param8_;
         void *param9_ = (void *)weights_scales_;
@@ -166,18 +169,18 @@ struct jit_uni_rnn_postgemm : public jit_generator {
 
         switch (pd_->cell_kind()) {
             case alg_kind::vanilla_lstm:
-                param6_ = is_projection() ? src_iter_c_ : &src_iter_c(m, 0);
-                param7_ = &dst_iter_c(m, 0);
-                param8_ = weights_peephole_ ? (void *)&weights_peephole(0, 0)
-                                            : nullptr;
+                param6_ = is_projection() ? src_iter_c_
+                                          : SAFE_PTR(src_iter_c, m, 0);
+                param7_ = SAFE_PTR(dst_iter_c, m, 0);
+                param8_ = (void *)SAFE_PTR(weights_peephole, 0, 0);
                 break;
             case alg_kind::lbr_gru:
-                param6_ = &src_iter(m, 0);
-                param7_ = &scratch_cell(m, 0, 0);
-                param8_ = &ws_Wh_b(m, 0);
+                param6_ = SAFE_PTR(src_iter, m, 0);
+                param7_ = SAFE_PTR(scratch_cell, m, 0, 0);
+                param8_ = ws_grid_ ? &ws_Wh_b(m, 0) : nullptr;
                 break;
             case alg_kind::vanilla_gru:
-                param6_ = &src_iter(m, 0);
+                param6_ = SAFE_PTR(src_iter, m, 0);
                 param7_ = nullptr;
                 param8_ = nullptr;
                 break;
@@ -189,6 +192,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         }
         this->operator()(param1_, param2_, param3_, param4_, param5_, param6_,
                 param7_, param8_, param9_, param10_);
+#undef SAFE_PTR
     }
 
     template <typename dst_layer_t, typename dst_iter_t, typename src_iter_t,
@@ -227,7 +231,9 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                 scratch_cell_, rnn.ws_states_layer_nld, rnn.ws_states_layer_ld);
         utils::array_offset_calculator<gates_t, 2> ws_grid(
                 ws_grid_, rnn.mb, rnn.dhc);
-
+// Since the function F(...) returns by reference so an exception has
+// to be made for nullptr argument
+#define SAFE_PTR(F, ...) (CONCAT2(F, _) ? &(F(__VA_ARGS__)) : nullptr)
         // Todo: add parallelization on dhc for the batch 1 case
         // Assumption: the kernel runs a loop on dhc elements
         parallel_nd(rnn.mb, [&](int i) {
@@ -237,46 +243,44 @@ struct jit_uni_rnn_postgemm : public jit_generator {
             size_t param10_ = 0;
             switch (pd_->cell_kind()) {
                 case alg_kind::vanilla_lstm:
-                    param1_ = &ws_gates(i, 0, 0);
-                    param2_ = &scratch_gates(i, 0, 0); // RNN, LSTM, GRU
-                    param3_ = &diff_dst_layer(i, 0);
-                    param4_ = &diff_dst_iter(i, 0);
-                    param5_ = &diff_src_iter_c(i, 0);
-                    param6_ = &diff_dst_iter_c(i, 0);
-                    param7_ = (float *)&src_iter_c(i, 0);
-                    param8_ = &dst_iter_c(i, 0);
-                    param9_ = weights_peephole_
-                            ? (void *)&weights_peephole(0, 0)
-                            : nullptr;
+                    param1_ = SAFE_PTR(ws_gates, i, 0, 0);
+                    param2_ = SAFE_PTR(scratch_gates, i, 0, 0); //RNN, LSTM, GRU
+                    param3_ = SAFE_PTR(diff_dst_layer, i, 0);
+                    param4_ = SAFE_PTR(diff_dst_iter, i, 0);
+                    param5_ = SAFE_PTR(diff_src_iter_c, i, 0);
+                    param6_ = SAFE_PTR(diff_dst_iter_c, i, 0);
+                    param7_ = (float *)SAFE_PTR(src_iter_c, i, 0);
+                    param8_ = SAFE_PTR(dst_iter_c, i, 0);
+                    param9_ = (void *)SAFE_PTR(weights_peephole, 0, 0);
                     break;
                 case alg_kind::lbr_gru:
-                    param1_ = &ws_gates(i, 0, 0);
-                    param2_ = &scratch_gates(i, 0, 0);
-                    param3_ = &diff_dst_layer(i, 0);
-                    param4_ = &diff_dst_iter(i, 0);
-                    param5_ = &diff_src_iter(i, 0);
-                    param6_ = &src_iter(i, 0);
-                    param7_ = &scratch_cell(i, 0, 0);
-                    param8_ = &ws_grid(i, 0);
+                    param1_ = SAFE_PTR(ws_gates, i, 0, 0);
+                    param2_ = SAFE_PTR(scratch_gates, i, 0, 0);
+                    param3_ = SAFE_PTR(diff_dst_layer, i, 0);
+                    param4_ = SAFE_PTR(diff_dst_iter, i, 0);
+                    param5_ = SAFE_PTR(diff_src_iter, i, 0);
+                    param6_ = SAFE_PTR(src_iter, i, 0);
+                    param7_ = SAFE_PTR(scratch_cell, i, 0, 0);
+                    param8_ = SAFE_PTR(ws_grid, i, 0);
                     param9_ = nullptr;
                     break;
                 case alg_kind::vanilla_gru:
                     // TODO: split part 1 and part2 APIs/ABIs
-                    param1_ = &ws_gates(i, 0, 0);
-                    param2_ = &scratch_gates(i, 0, 0); // RNN, LSTM, GRU
-                    param3_ = &diff_dst_layer(i, 0); // not needed for part2
-                    param4_ = &diff_dst_iter(i, 0); // not needed for part2
-                    param5_ = &diff_src_iter(i, 0);
-                    param6_ = &src_iter(i, 0);
-                    param7_ = &hG1(i, 0); // not needed for part1
-                    param8_ = &ws_grid(i, 0); // not needed in part1
-                    param9_ = &diff_src_layer(i, 0); // not needed for part1
+                    param1_ = SAFE_PTR(ws_gates, i, 0, 0);
+                    param2_ = SAFE_PTR(scratch_gates, i, 0, 0); //RNN, LSTM, GRU
+                    param3_ = SAFE_PTR(diff_dst_layer, i, 0); // non part2
+                    param4_ = SAFE_PTR(diff_dst_iter, i, 0); // non part2
+                    param5_ = SAFE_PTR(diff_src_iter, i, 0);
+                    param6_ = SAFE_PTR(src_iter, i, 0);
+                    param7_ = scratch_cell_ ? &hG1(i, 0) : nullptr; // non part1
+                    param8_ = SAFE_PTR(ws_grid, i, 0); // non part1
+                    param9_ = SAFE_PTR(diff_src_layer, i, 0); // non part1
                     break;
                 case alg_kind::vanilla_rnn:
-                    param1_ = &ws_gates(i, 0, 0);
-                    param2_ = &scratch_gates(i, 0, 0);
-                    param3_ = &diff_dst_layer(i, 0);
-                    param4_ = &diff_dst_iter(i, 0);
+                    param1_ = SAFE_PTR(ws_gates, i, 0, 0);
+                    param2_ = SAFE_PTR(scratch_gates, i, 0, 0);
+                    param3_ = SAFE_PTR(diff_dst_layer, i, 0);
+                    param4_ = SAFE_PTR(diff_dst_iter, i, 0);
                     param5_ = nullptr;
                     param6_ = nullptr;
                     param7_ = nullptr;
@@ -299,6 +303,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
             this->operator()(param1_, param2_, param3_, param4_, param5_,
                     param6_, param7_, param8_, param9_, param10_);
         });
+#undef SAFE_PTR
     }
 
 protected:
