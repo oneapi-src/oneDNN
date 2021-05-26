@@ -313,9 +313,18 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         jbgp.gemm_batch_size = 1;
     } else {
         jbgp.nb_ic_blocking = max_div(jbgp.nb_ic, max_nb_ic_blocking);
-        if (jbgp.nb_ic_blocking == 1) jbgp.nb_ic_blocking = max_nb_ic_blocking;
-        jbgp.gemm_batch_size = jbgp.nb_ic_blocking;
+        const bool small_nb_ic = jbgp.nb_ic <= max_nb_ic_blocking;
+        if (small_nb_ic && jbgp.nb_ic_blocking == 1)
+            jbgp.nb_ic_blocking = max_nb_ic_blocking;
 
+        // For non small_nb_ic [i.e. that has nb_ic > 64] shape that has
+        // gcd(nb_ic, 64) < 16, we manually set nb_ic_blocking = 64
+        // the coefficients 64 [used in max_nb_ic_blocking] and 16 are empirical
+        const int min_nb_ic_blocking = small_nb_ic ? 1 : 16;
+        if (jbgp.nb_ic_blocking < min_nb_ic_blocking)
+            jbgp.nb_ic_blocking = max_nb_ic_blocking;
+
+        jbgp.gemm_batch_size = jbgp.nb_ic_blocking;
         jbgp.K = jbgp.ic_block;
     }
 
