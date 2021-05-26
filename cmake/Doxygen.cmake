@@ -29,23 +29,11 @@ endif()
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
     set(DOXYGEN_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/reference)
-    set(DOXYGEN_STAMP_FILE ${CMAKE_CURRENT_BINARY_DIR}/doc.stamp)
+    set(DOXYGEN_STAMP_FILE ${CMAKE_CURRENT_BINARY_DIR}/doxygen.stamp)
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/doc/Doxyfile.in
         ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
         @ONLY)
-    configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/doc/header.html.in
-        ${CMAKE_CURRENT_BINARY_DIR}/header.html
-        @ONLY)
-    file(COPY
-        ${CMAKE_CURRENT_SOURCE_DIR}/doc/footer.html
-        DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
-        )
-    file(COPY
-        ${CMAKE_CURRENT_SOURCE_DIR}/doc/dnnl.js
-        DESTINATION ${DOXYGEN_OUTPUT_DIR}/html/assets/mathjax/config/
-        )
     file(GLOB_RECURSE HEADERS
         ${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/*.h
         ${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/*.hpp
@@ -60,11 +48,10 @@ if(DOXYGEN_FOUND)
         OUTPUT ${DOXYGEN_STAMP_FILE}
         DEPENDS ${HEADERS} ${DOX} ${EXAMPLES}
         COMMAND ${DOXYGEN_EXECUTABLE} Doxyfile
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/doc/assets ${DOXYGEN_OUTPUT_DIR}/html/assets
         COMMAND ${CMAKE_COMMAND} -E touch ${DOXYGEN_STAMP_FILE}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        COMMENT "Generating API documentation with Doxygen" VERBATIM)
-    add_custom_target(doc DEPENDS ${DOXYGEN_STAMP_FILE})
+        COMMENT "Generating API documentation in .xml format with Doxygen" VERBATIM)
+    add_custom_target(doc_doxygen DEPENDS ${DOXYGEN_STAMP_FILE})
 
     if(NOT DNNL_INSTALL_MODE STREQUAL "BUNDLE")
         install(

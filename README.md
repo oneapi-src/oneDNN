@@ -135,10 +135,14 @@ oneDNN supports systems meeting the following requirements:
 * Operating system with Intel 64 / Arm 64 / Power / IBMz architecture support
 * C++ compiler with C++11 standard support
 * [CMake](https://cmake.org/download/) 2.8.12 or later
-* [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
-  to build the documentation
 * [Arm Compute Library](https://github.com/arm-software/ComputeLibrary)
   for builds using Compute Library on AArch64.
+
+The following tools are required to build oneDNN documentation:
+* [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
+* [Doxyrest](https://github.com/vovkos/doxyrest) 2.1.2 or later
+* [Sphinx](https://www.sphinx-doc.org/en/master/usage/installation.html) 4.0.2 or later
+* [sphinx-book-theme](https://sphinx-book-theme.readthedocs.io/en/latest) 0.0.41 or later
 
 Configurations of CPU and GPU engines may introduce additional build time
 dependencies.

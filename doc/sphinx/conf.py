@@ -12,18 +12,28 @@
 #
 import os
 import sys
-# sys.path.insert(0, os.path.abspath('.'))
-sys.path.insert(1, os.path.abspath('../doxyrest/share/doxyrest/sphinx'))
+import subprocess
+
+def whereis(binary):
+    command = 'which' if os.name != 'nt' else 'where'
+    try:
+        sub = subprocess.run([command, binary], text=True, capture_output=True)
+        return sub.stdout
+    except BaseException as e:
+        print(f"Warning: {binary} is not found")
+        return ''
+
+doxyrest_bin_path = whereis('doxyrest')
+doxyrest_dir_path = os.path.dirname(doxyrest_bin_path)
+doxyrest_share_path = doxyrest_dir_path + "/../share/doxyrest/sphinx"
+sys.path.insert(1, os.path.abspath(doxyrest_share_path))
 
 
 # -- Project information -----------------------------------------------------
 
 project = 'oneDNN'
-copyright = '© Copyright 2014 - 2020, Intel Corporation'
+copyright = '© Copyright 2016 - 2021, Intel Corporation'
 author = 'Intel'
-
-release = 'v2.2.2'
-
 
 # -- General configuration ---------------------------------------------------
 
