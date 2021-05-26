@@ -41,10 +41,10 @@ struct jit_uni_resampling_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine);
 
-        const jit_resampling_conf_t &get_conf() const { return conf_; };
+        const jit_resampling_conf_t &get_conf() const { return conf_; }
 
     private:
-        bool fill_post_ops_conf();
+        void fill_format_tag_info();
 
         jit_resampling_conf_t conf_;
     };

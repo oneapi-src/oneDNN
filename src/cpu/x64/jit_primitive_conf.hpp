@@ -737,6 +737,8 @@ struct jit_resampling_conf_t {
     size_t output_data_size = 0;
     size_t el_size_of_indices = 0;
 
+    bool is_blocked_8_format = false;
+    format_tag_t src_tag = format_tag::undef;
     jit_memory_tag_kind_t tag_kind = jit_memory_tag_kind_t::undef;
     alg_kind_t alg = alg_kind::undef;
 

@@ -56,7 +56,6 @@ static cpu_isa_t get_supported_isa(bool is_blocked_8_format) {
 }
 
 status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
-    using namespace format_tag;
     using namespace data_type;
     using sm = primitive_attr_t::skip_mask_t;
 
@@ -66,12 +65,19 @@ status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
     conf_.src_data_type = src_md()->data_type;
     conf_.dst_data_type = dst_md()->data_type;
 
+    fill_format_tag_info();
+    conf_.isa = get_supported_isa(conf_.is_blocked_8_format);
+
     const bool ok = is_fwd() && !has_zero_dim_memory()
+            && conf_.src_tag != format_tag::undef
+            && set_default_params(conf_.src_tag) == status::success
             && platform::has_data_type_support(conf_.src_data_type)
             && platform::has_data_type_support(conf_.dst_data_type)
-            && set_default_params() == status::success
             && attr()->has_default_values(sm::post_ops, conf_.dst_data_type);
     if (!ok) return status::unimplemented;
+
+    if (!memory_desc_matches_tag(*dst_md(), conf_.src_tag))
+        return status::unimplemented;
 
     conf_.alg = desc()->alg_kind;
     conf_.c = C();
@@ -108,30 +114,6 @@ status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
     conf_.stride_h = IW() * conf_.inner_stride * conf_.src_dt_size;
     conf_.stride_w = conf_.inner_stride * conf_.src_dt_size;
 
-    const format_tag_t blocked_16_format = memory_desc_matches_one_of_tag(
-            *src_md(), nCw16c, nChw16c, nCdhw16c);
-    const bool is_blocked_16_format
-            = memory_desc_matches_tag(*dst_md(), blocked_16_format);
-    const format_tag_t blocked_8_format
-            = memory_desc_matches_one_of_tag(*src_md(), nCw8c, nChw8c, nCdhw8c);
-    const bool is_blocked_8_format
-            = memory_desc_matches_tag(*dst_md(), blocked_8_format);
-    const format_tag_t nspc_format
-            = memory_desc_matches_one_of_tag(*src_md(), nwc, nhwc, ndhwc);
-    const format_tag_t ncsp_format
-            = memory_desc_matches_one_of_tag(*src_md(), ncw, nchw, ncdhw);
-
-    if (is_blocked_16_format || is_blocked_8_format) {
-        conf_.tag_kind = jit_memory_tag_kind_t::blocked;
-    } else if (memory_desc_matches_tag(*dst_md(), nspc_format)) {
-        conf_.tag_kind = jit_memory_tag_kind_t::nspc;
-    } else if (memory_desc_matches_tag(*dst_md(), ncsp_format)) {
-        conf_.tag_kind = jit_memory_tag_kind_t::ncsp;
-    } else
-        return status::unimplemented;
-
-    conf_.isa = get_supported_isa(is_blocked_8_format);
-
     const std::vector<injector::post_op_type> accepted_post_ops
             = {injector::sum, injector::eltwise, injector::binary};
     static constexpr bool sum_at_0_pos_only = false;
@@ -162,6 +144,37 @@ status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
             = conf_.with_eltwise || conf_.with_binary || conf_.with_sum;
 
     return status::success;
+}
+
+void jit_uni_resampling_fwd_t::pd_t::fill_format_tag_info() {
+    using namespace format_tag;
+
+    const format_tag_t blocked_16_format = memory_desc_matches_one_of_tag(
+            *src_md(), nCw16c, nChw16c, nCdhw16c);
+    const format_tag_t blocked_8_format
+            = memory_desc_matches_one_of_tag(*src_md(), nCw8c, nChw8c, nCdhw8c);
+    const format_tag_t nspc_format
+            = memory_desc_matches_one_of_tag(*src_md(), nwc, nhwc, ndhwc);
+    const format_tag_t ncsp_format
+            = memory_desc_matches_one_of_tag(*src_md(), ncw, nchw, ncdhw);
+
+    if (blocked_16_format != undef) {
+        conf_.tag_kind = jit_memory_tag_kind_t::blocked;
+        conf_.src_tag = blocked_16_format;
+    } else if (blocked_8_format != undef) {
+        conf_.is_blocked_8_format = true;
+        conf_.tag_kind = jit_memory_tag_kind_t::blocked;
+        conf_.src_tag = blocked_8_format;
+    } else if (nspc_format != undef) {
+        conf_.tag_kind = jit_memory_tag_kind_t::nspc;
+        conf_.src_tag = nspc_format;
+    } else if (ncsp_format != undef) {
+        conf_.tag_kind = jit_memory_tag_kind_t::ncsp;
+        conf_.src_tag = ncsp_format;
+    } else {
+        conf_.tag_kind = jit_memory_tag_kind_t::undef;
+        conf_.src_tag = undef;
+    }
 }
 
 status_t jit_uni_resampling_fwd_t::get_proper_kernel_for_avx512(
