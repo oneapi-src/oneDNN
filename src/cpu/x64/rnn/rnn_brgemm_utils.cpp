@@ -167,7 +167,7 @@ dim_t brgemm_calc_m_block_vanilla_rnn(dim_t nthr, dim_t M, dim_t N_blocks,
             && decimal_n_factor != 0.0f) {
 
         const dim_t m_block_start = M / 2;
-        const dim_t m_block_end = 4;
+        const dim_t m_block_end = 8;
 
         float max_decimal_mn = 0.0;
         dim_t best_candidate = 0.0;
