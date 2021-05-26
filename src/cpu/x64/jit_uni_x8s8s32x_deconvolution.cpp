@@ -147,11 +147,10 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
         memory_desc_init_by_tag(want_wei_md, wei_tag);
         if (jcp.signed_input && !jcp.is_depthwise) {
             want_wei_md.extra.flags = 0
-                    | memory_extra_flags::compensation_conv_s8s8
-                    | memory_extra_flags::scale_adjust;
+                    | memory_extra_flags::compensation_conv_s8s8;
             want_wei_md.extra.compensation_mask = (1 << 0)
                     + (with_groups && !jcp.is_depthwise ? (1 << 1) : 0);
-            want_wei_md.extra.scale_adjust = jcp.has_vnni ? 1.f : 0.5f;
+            want_wei_md.extra.scale_adjust = 1.f;
         }
         if (jcp.src_zero_point) set_zp_src_comp_flags(want_wei_md, with_groups);
 

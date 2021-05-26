@@ -198,11 +198,10 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             memory_desc_init_by_tag(want_wei_md, wei_tag);
             if (is_src_s8) {
                 want_wei_md.extra.flags
-                        = 0 | compensation_conv_s8s8 | scale_adjust;
+                        = 0 | compensation_conv_s8s8;
                 want_wei_md.extra.compensation_mask
                         = with_groups() ? g_mask : c_mask;
-                want_wei_md.extra.scale_adjust
-                        = mayiuse(avx2_vnni) ? 1.0f : 0.5f;
+                want_wei_md.extra.scale_adjust = 1.0f;
             }
             if (is_src_zero_point) {
                 want_wei_md.extra.flags |= compensation_conv_asymmetric_src;

@@ -993,11 +993,10 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
         memory_desc_t want_wei_md = weights_md;
         memory_desc_init_by_tag(want_wei_md, wei_tag);
         if (jcp.signed_input) {
-            want_wei_md.extra.flags = 0 | compensation_conv_s8s8 | scale_adjust;
+            want_wei_md.extra.flags = 0 | compensation_conv_s8s8;
             want_wei_md.extra.compensation_mask
                     = (1 << 0) + (with_groups ? (1 << 1) : 0);
-            want_wei_md.extra.scale_adjust
-                    = mayiuse(avx512_core_vnni) ? 1.f : 0.5f;
+            want_wei_md.extra.scale_adjust = 1.f;
         }
         if (jcp.src_zero_point) {
             want_wei_md.extra.flags |= compensation_conv_asymmetric_src;
