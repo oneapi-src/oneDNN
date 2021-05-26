@@ -42,8 +42,7 @@ status_t jit_uni_shuffle_t<isa>::pd_t::init(engine_t *engine) {
             && attr()->has_default_values() && axis() == 1
             && IMPLICATION(!is_fwd(), set_default_formats_common());
 
-    if (!ok || (conf_.data_type == bf16 && isa != sse41))
-        return status::unimplemented;
+    if (!ok) return status::unimplemented;
 
     if (isa != avx512_common)
         conf_.isa = mayiuse(avx2) ? avx2 : isa;
