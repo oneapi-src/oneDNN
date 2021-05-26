@@ -115,12 +115,12 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
         // Xbyak does not allow k0 to be specified explicitly via the '|'
         // operator, so we have to do this via a method call (implicitly
         // EVEX encoding uses k0 to mean 'no mask')
-        bool partial_store = nrows < transpose_size;
-        auto k = partial_store ? kTail : k0;
+        const bool partial_store = nrows < transpose_size;
+        const auto k = partial_store ? kTail : k0;
         auto base = reg_tr_src_tmp;
         base.setOpmaskIdx(k.getIdx(), true);
 
-        auto addr = EVEX_compress_addr(base, i * tr_src_stride);
+        const auto addr = EVEX_compress_addr(base, i * tr_src_stride);
         vmovups(addr, r);
     };
 
@@ -129,12 +129,12 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
 
         // swap 1
         for (int i = 0; i < 4; i++) {
-            int src_idx0 = base_idx + i * 2;
-            int src_idx1 = src_idx0 + 1;
+            const int src_idx0 = base_idx + i * 2;
+            const int src_idx1 = src_idx0 + 1;
 
-            int next_src_idx0 = src_idx0 + 2;
-            int next_src_idx1 = src_idx1 + 2;
-            bool load_next = base_idx == 0 || i < 3;
+            const int next_src_idx0 = src_idx0 + 2;
+            const int next_src_idx1 = src_idx1 + 2;
+            const bool load_next = base_idx == 0 || i < 3;
 
             if (base_idx == 0 && i == 0) {
                 load(src_idx0);
@@ -145,10 +145,10 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
                             src_zmm(src_idx1));
             }
 
-            auto tmp0 = tmp_zmm(src_idx0);
-            auto tmp1 = tmp_zmm(src_idx1);
-            auto src0 = src_zmm(src_idx0);
-            auto src1 = src_zmm(src_idx1);
+            const auto tmp0 = tmp_zmm(src_idx0);
+            const auto tmp1 = tmp_zmm(src_idx1);
+            const auto src0 = src_zmm(src_idx0);
+            const auto src1 = src_zmm(src_idx1);
 
             if (next_src_idx0 < nrows && load_next) load(next_src_idx0);
             valignd(tmp0, src0, src0, 0x1);
@@ -161,14 +161,14 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
         }
         // swap 2
         for (int i = 0; i < 4; i++) {
-            int select_half = (i < 2) ? 0 : 2;
-            int src_idx0 = base_idx + i + select_half + 0;
-            int src_idx2 = src_idx0 + 2;
+            const int select_half = (i < 2) ? 0 : 2;
+            const int src_idx0 = base_idx + i + select_half + 0;
+            const int src_idx2 = src_idx0 + 2;
 
-            auto tmp0 = tmp_zmm(src_idx0);
-            auto tmp1 = tmp_zmm(src_idx2);
-            auto src0 = src_zmm(src_idx0);
-            auto src2 = src_zmm(src_idx2);
+            const auto tmp0 = tmp_zmm(src_idx0);
+            const auto tmp1 = tmp_zmm(src_idx2);
+            const auto src0 = src_zmm(src_idx0);
+            const auto src2 = src_zmm(src_idx2);
 
             valignd(tmp0, src0, src0, 0x2);
             valignd(tmp1, src2, src2, 0xe);
@@ -178,12 +178,12 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
 
         // swap 4
         for (int i = 0; i < 4; i++) {
-            int src_idx0 = base_idx + i;
-            int src_idx4 = src_idx0 + 4;
+            const int src_idx0 = base_idx + i;
+            const int src_idx4 = src_idx0 + 4;
 
-            auto tmp0 = tmp_zmm(src_idx0);
-            auto src0 = src_zmm(src_idx0);
-            auto src4 = src_zmm(src_idx4);
+            const auto tmp0 = tmp_zmm(src_idx0);
+            const auto src0 = src_zmm(src_idx0);
+            const auto src4 = src_zmm(src_idx4);
 
             vmovaps(tmp0, src0);
             vshuff32x4(src0 | kF0F0, src4, src4, 0xb1);
@@ -192,7 +192,6 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
     };
 
     auto fixup16x16 = [=]() {
-
         // swap 8
         const auto max_iters_phase_1 = std::min(ncolumns, 8);
         for (int i = 0; i < max_iters_phase_1; i++) {
@@ -221,16 +220,16 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
 void jit_brgemm_trans_m_k_f32_t::generate() {
     preamble();
     assert(conf_->ic_block % transpose_size == 0);
-    int os_block = conf_->os_block;
-    int last_os_block_tail = conf_->K_tail % transpose_size;
-    int ic_tail = conf_->M_tail % transpose_size;
+    const int os_block = conf_->os_block;
+    const int last_os_block_tail = conf_->K_tail % transpose_size;
+    const int ic_tail = conf_->M_tail % transpose_size;
     src_stride = conf_->ic * typesize;
     tr_src_stride = conf_->LDA * typesize;
-    dim_t m_src_shift = transpose_size * typesize;
-    dim_t m_tr_src_shift = tr_src_stride * transpose_size;
+    const dim_t m_src_shift = transpose_size * typesize;
+    const dim_t m_tr_src_shift = tr_src_stride * transpose_size;
 
-    dim_t batch_src_shift = src_stride * os_block;
-    dim_t batch_tr_src_shift = tr_src_stride * conf_->M;
+    const dim_t batch_src_shift = src_stride * os_block;
+    const dim_t batch_tr_src_shift = tr_src_stride * conf_->M;
 
     mov(reg_src_base, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src_base, ptr[param1 + GET_OFF(tr_src)]);
@@ -542,20 +541,20 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
             = {0, 16, 2, 18, 8, 24, 10, 26, 4, 20, 6, 22, 12, 28, 14, 30, 1, 17,
                     3, 19, 9, 25, 11, 27, 5, 21, 7, 23, 13, 29, 15, 31};
 
-    int os_block = conf_->os_block;
-    int last_os_block_tail = conf_->K_tail % transpose_size;
-    int ic_tail = conf_->M_tail % transpose_size;
+    const int os_block = conf_->os_block;
+    const int last_os_block_tail = conf_->K_tail % transpose_size;
+    const int ic_tail = conf_->M_tail % transpose_size;
     src_stride = conf_->ic * typesize;
     tr_src_stride = conf_->LDA * typesize;
 
-    dim_t batch_src_shift = src_stride * os_block;
-    dim_t batch_tr_src_shift = tr_src_stride * conf_->M;
+    const dim_t batch_src_shift = src_stride * os_block;
+    const dim_t batch_tr_src_shift = tr_src_stride * conf_->M;
 
-    dim_t M_src_shift = transpose_size * typesize;
-    dim_t M_tr_src_shift = transpose_size * conf_->LDA * typesize;
+    const dim_t M_src_shift = transpose_size * typesize;
+    const dim_t M_tr_src_shift = transpose_size * conf_->LDA * typesize;
 
-    dim_t K_src_shift = transpose_size * conf_->ic * typesize;
-    dim_t K_tr_src_shift = transpose_size * typesize;
+    const dim_t K_src_shift = transpose_size * conf_->ic * typesize;
+    const dim_t K_tr_src_shift = transpose_size * typesize;
 
     auto kmovw = [=](Opmask k, unsigned w) {
         mov(regw_tmp, w);
