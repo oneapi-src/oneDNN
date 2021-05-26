@@ -40,6 +40,7 @@ lnorm_graph_prb_t::spec_t::spec_t(const ::lnorm::prb_t *prb) {
 
 fill_status_t lnorm_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
+    using graph_dt = dnnl::graph::logical_tensor::data_type;
 
     const std::string SRC {"lnorm_src"};
     const std::string GAMMA {"lnorm_gamma"};
@@ -48,12 +49,13 @@ fill_status_t lnorm_graph_prb_t::handle_main_op_() {
     const std::string MEAN {"lnorm_mean"};
     const std::string VAR {"lnorm_mean"};
 
+    //NOTE: beta, gamma, mean and variance supports only f32
     tensor_descs_.emplace(SRC, spec_.lnorm_dt, spec_.dims, lt::strided);
-    tensor_descs_.emplace(GAMMA, spec_.lnorm_dt, spec_.ss_dims, lt::strided);
-    tensor_descs_.emplace(BETA, spec_.lnorm_dt, spec_.ss_dims, lt::strided);
+    tensor_descs_.emplace(GAMMA, graph_dt::f32, spec_.ss_dims, lt::strided);
+    tensor_descs_.emplace(BETA, graph_dt::f32, spec_.ss_dims, lt::strided);
     tensor_descs_.emplace(DST, spec_.lnorm_dt, spec_.dims, lt::strided);
-    tensor_descs_.emplace(MEAN, spec_.lnorm_dt, spec_.dims, lt::strided);
-    tensor_descs_.emplace(VAR, spec_.lnorm_dt, spec_.dims, lt::strided);
+    tensor_descs_.emplace(MEAN, graph_dt::f32, spec_.dims, lt::strided);
+    tensor_descs_.emplace(VAR, graph_dt::f32, spec_.dims, lt::strided);
 
     std::vector<dnnl::graph::logical_tensor> ltensors_in;
     std::vector<dnnl::graph::logical_tensor> ltensors_out;
