@@ -5255,3 +5255,157 @@ TEST(operator_kernel, dequantize_per_channel_symmetric) {
         ASSERT_EQ(dst[i], ref_dst[i]);
     }
 }
+
+TEST(operator_kernel, interpolate_forkward_nearest) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
+    test::vector<float> dst {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
+    test::vector<float> ref_dst {
+            -2.f, -1.5f, -1.5f, -1.f, -0.5f, -0.5f, -1.f, -0.5f, -0.5f};
+
+    impl::op_t op(impl::op_kind::Interpolate);
+    op.set_attr<std::string>("mode", "nearest");
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto kernel = op_factory.create_kernel(op);
+    ASSERT_TRUE(kernel);
+
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            1, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
+
+    // compile the relu backward operator
+    std::vector<impl::logical_tensor_t> inputs {src_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+    kernel->compile(&op, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t dst_ts(outputs[0], dst.data());
+
+    impl::stream_t &strm = get_stream();
+    kernel->execute(&op, &strm, {src_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, interpolate_forkward_linear) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
+    test::vector<float> dst {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
+    test::vector<float> ref_dst {
+            -2.f, -1.75f, -1.5f, -1.5f, -1.25f, -1.f, -1.f, -0.75f, -0.5f};
+
+    impl::op_t op(impl::op_kind::Interpolate);
+    op.set_attr<std::string>("mode", "linear");
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto kernel = op_factory.create_kernel(op);
+    ASSERT_TRUE(kernel);
+
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            1, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
+
+    // compile the relu backward operator
+    std::vector<impl::logical_tensor_t> inputs {src_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+    kernel->compile(&op, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t dst_ts(outputs[0], dst.data());
+
+    impl::stream_t &strm = get_stream();
+    kernel->execute(&op, &strm, {src_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, interpolate_backward_nearest) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
+    test::vector<float> diff_dst {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
+    test::vector<float> diff_src {0.0, 0.0, 0.0, 0.0};
+    test::vector<float> ref_diff_src {0.f, 3.f, 9.f, 24.f};
+
+    impl::op_t op(impl::op_kind::InterpolateBackprop);
+    op.set_attr<std::string>("mode", "nearest");
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto kernel = op_factory.create_kernel(op);
+    ASSERT_TRUE(kernel);
+
+    impl::logical_tensor_t diff_dst_lt
+            = utils::logical_tensor_init(0, {1, 1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(1, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+            2, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+
+    // compile the relu backward operator
+    std::vector<impl::logical_tensor_t> inputs {src_lt, diff_dst_lt};
+    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
+
+    kernel->compile(&op, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
+    impl::tensor_t diff_src_ts(outputs[0], diff_src.data());
+
+    impl::stream_t &strm = get_stream();
+    kernel->execute(&op, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    strm.wait();
+    for (size_t i = 0; i < diff_src.size(); ++i) {
+        ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
+    }
+}
+
+TEST(operator_kernel, interpolate_backward_linear) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
+    test::vector<float> diff_dst {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
+    test::vector<float> diff_src {0.0, 0.0, 0.0, 0.0};
+    test::vector<float> ref_diff_src {3.f, 6.f, 12.f, 15.f};
+
+    impl::op_t op(impl::op_kind::InterpolateBackprop);
+    op.set_attr<std::string>("mode", "linear");
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto kernel = op_factory.create_kernel(op);
+    ASSERT_TRUE(kernel);
+
+    impl::logical_tensor_t diff_dst_lt
+            = utils::logical_tensor_init(0, {1, 1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(1, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+            2, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+
+    // compile the relu backward operator
+    std::vector<impl::logical_tensor_t> inputs {src_lt, diff_dst_lt};
+    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
+
+    kernel->compile(&op, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, diff_dst.data());
+    impl::tensor_t diff_src_ts(outputs[0], diff_src.data());
+
+    impl::stream_t &strm = get_stream();
+    kernel->execute(&op, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    strm.wait();
+    for (size_t i = 0; i < diff_src.size(); ++i) {
+        ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
+    }
+}
