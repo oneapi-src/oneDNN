@@ -133,6 +133,8 @@ private:
     std::string dtag_;
 };
 
+int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+        bool only_positive_values = false);
 int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
         std::vector<dnn_mem_t> &mem_dt, std::vector<dnn_mem_t> &mem_fp,
         bool only_positive_values = false);

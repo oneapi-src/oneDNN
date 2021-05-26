@@ -209,6 +209,7 @@ public:
             bias_po_handler_t bias_handler;
             eltwise_po_handler_t eltw_handler;
             sum_po_handler_t sum_handler;
+            binary_po_handler_t bin_handler;
         } matmul;
     };
 };
