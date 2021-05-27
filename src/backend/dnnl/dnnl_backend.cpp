@@ -209,6 +209,8 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(int8_matmul_bias_gelu, quantized_matmul);
     DNNL_REGISTER_KERNEL(int8_matmul_add, quantized_matmul);
     DNNL_REGISTER_KERNEL(int8_matmul_bias_add, quantized_matmul);
+    DNNL_REGISTER_KERNEL(x8s8f32_matmul_add, quantized_matmul);
+    DNNL_REGISTER_KERNEL(x8s8f32_matmul_bias_add, quantized_matmul);
 
     //eltwise+binary ops
     DNNL_REGISTER_KERNEL(relu_add, eltwise_forward);

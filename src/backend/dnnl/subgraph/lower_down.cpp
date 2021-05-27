@@ -408,20 +408,15 @@ void fuse_to_int8_matmul(std::vector<op_ptr> &subgraph) {
                 fused_scales[i] = dq_src_scales[0] * dq_wei_scales[i];
             // FIXME(wuxun): if quantization is per-channel, need to set axis
             // to the last dimension of dst
-            // find the Quantize (mul_scales + add_zp) op to get the ndims
-            auto consumer = matmul_op->get_output_value(0)->get_consumers()[0];
-            while (consumer.get_op().get_kind() != op_kind::add_zps) {
-                consumer = consumer.get_op()
-                                   .get_output_value(0)
-                                   ->get_consumers()[0];
+            // find the output edge op to get the ndims
+            op_t begin_op = *matmul_op;
+            while (!begin_op.get_output_value(0)->get_consumers().empty()) {
+                begin_op = begin_op.get_output_value(0)
+                                   ->get_consumers()[0]
+                                   .get_op();
             }
-            assertm(consumer.get_op().get_kind() == op_kind::add_zps,
-                    "MatMul's consumer should be a Quantize op.");
             mul_scales_op->set_attr<int64_t>("axis",
-                    consumer.get_op()
-                                    .get_output_value(0)
-                                    ->get_logical_tensor()
-                                    .ndims
+                    begin_op.get_output_value(0)->get_logical_tensor().ndims
                             - 1);
             mul_scales_op->set_attr<std::string>(
                     "qtype", in1->get_attr<std::string>("qtype"));
@@ -446,7 +441,7 @@ void fuse_to_int8_matmul(std::vector<op_ptr> &subgraph) {
         // with bias
         if (matmul_op->num_inputs() == 3) {
             op_ptr bias_mul_op = std::make_shared<op_t>(op_kind::mul_scales);
-            std::vector<float> inv_scales(fused_scales.size());
+            std::vector<float> inv_scales(fused_scales.size(), 1.f);
             for (size_t i = 0; i < inv_scales.size(); ++i)
                 inv_scales[i] = 1.f / (fused_scales[i] + scale_eps);
             bias_mul_op->set_attr<std::vector<float>>("scales", inv_scales);
@@ -631,40 +626,49 @@ status_t fuse_post_ops(
                 pops.append_eltwise(scale, alg, alpha, beta);
             } else if (post_op->get_kind() == op_kind::Add) {
                 auto in_val1 = post_op->get_input_value(1);
-                auto &mul_scale_op = in_val1->get_producer();
-                auto scales
-                        = mul_scale_op.get_attr<std::vector<float>>("scales");
-                assert(scales.size() == 1); // per tensor
+                if (in_val1->has_producer()) {
+                    // for int8 cases
+                    auto &mul_scale_op = in_val1->get_producer();
+                    auto scales = mul_scale_op.get_attr<std::vector<float>>(
+                            "scales");
+                    assert(scales.size() == 1); // per tensor
 
-                auto tmp = mul_scale_op.get_input_value(0);
-                auto &add_zps_op = tmp->get_producer();
-                auto zps = add_zps_op.get_attr<std::vector<int64_t>>("zps");
-                assert(scales.size() == zps.size() && zps[0] == 0); // symmetric
+                    auto tmp = mul_scale_op.get_input_value(0);
+                    auto &add_zps_op = tmp->get_producer();
+                    auto zps = add_zps_op.get_attr<std::vector<int64_t>>("zps");
+                    assert(scales.size() == zps.size()
+                            && zps[0] == 0); // symmetric
 
-                fuse_op_to_successor(&add_zps_op, subgraph);
-                fuse_op_to_successor(&mul_scale_op, subgraph);
+                    fuse_op_to_successor(&add_zps_op, subgraph);
+                    fuse_op_to_successor(&mul_scale_op, subgraph);
 
-                auto out_val = post_op->get_output_values()[0];
-                auto consumers = out_val->get_consumers();
-                if (!consumers.empty()) {
-                    auto &next_op = consumers[0].get_op();
-                    // set sum post-ops' second input scale
-                    if (next_op.get_kind() == op_kind::mul_scales) {
-                        float tmp_scale = next_op.get_attr<std::vector<float>>(
-                                "scales")[0];
-                        scales[0] *= tmp_scale;
-                        fuse_op_to_predecessor(&next_op, subgraph);
+                    auto out_val = post_op->get_output_values()[0];
+                    auto consumers = out_val->get_consumers();
+                    if (!consumers.empty()) {
+                        auto &next_op = consumers[0].get_op();
+                        // set sum post-ops' second input scale
+                        if (next_op.get_kind() == op_kind::mul_scales) {
+                            float tmp_scale
+                                    = next_op.get_attr<std::vector<float>>(
+                                            "scales")[0];
+                            scales[0] *= tmp_scale;
+                            fuse_op_to_predecessor(&next_op, subgraph);
 
-                        scale_t ori_scales;
-                        int ori_mask;
-                        prm_attr.get_output_scales(ori_mask, ori_scales);
-                        for (auto &v : ori_scales)
-                            v *= tmp_scale;
-                        prm_attr.set_output_scales(ori_mask, ori_scales);
+                            scale_t ori_scales;
+                            int ori_mask;
+                            prm_attr.get_output_scales(ori_mask, ori_scales);
+                            for (auto &v : ori_scales)
+                                v *= tmp_scale;
+                            prm_attr.set_output_scales(ori_mask, ori_scales);
+                        }
                     }
+                    pops.append_sum(scales[0]);
+                } else {
+                    // for fp32 cases, the another input of sum op have no
+                    // producer
+                    pops.append_sum(1.f);
                 }
 
-                pops.append_sum(scales[0]);
                 base_op->set_attr<bool>("with_sum", true);
             } else {
                 // unsupported post ops

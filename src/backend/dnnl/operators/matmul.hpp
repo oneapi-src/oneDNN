@@ -149,10 +149,11 @@ public:
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using desc = tensor::desc;
         kind_ = op->get_kind();
-        with_bias_ = matmul_op_set::with_bias(kind_);
         with_add_ = matmul_op_set::fuse_add(kind_);
         with_eltwise_ = matmul_op_set::fuse_eltwise(kind_);
         with_bn_ = matmul_op_set::fuse_batchnorm(kind_);
+        with_bias_ = matmul_op_set::with_bias(kind_)
+                || (!with_add_ && inputs.size() == 3);
 
         // deal with 1D add
         bool add_1d = (with_bias_ == false) && (with_add_ == true)
