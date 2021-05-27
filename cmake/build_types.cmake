@@ -47,15 +47,21 @@ mark_as_advanced(
 
 
 # Release build with linking to the Debug Runtime
-string(REGEX REPLACE "msvcrt" "msvcrtd"
+string(REGEX REPLACE "--dependent-lib=msvcrt" "--dependent-lib=msvcrtd"
     _CMAKE_CXX_FLAGS_RELWITHMDD "${CMAKE_CXX_FLAGS_RELEASE}")
+string(REGEX REPLACE "--dependent-lib=msvcrt" "--dependent-lib=msvcrtd"
+    _CMAKE_C_FLAGS_RELWITHMDD "${CMAKE_C_FLAGS_RELEASE}")
+
 string(REGEX REPLACE "NDEBUG" "_DEBUG"
     _CMAKE_CXX_FLAGS_RELWITHMDD "${_CMAKE_CXX_FLAGS_RELWITHMDD}")
+string(REGEX REPLACE "NDEBUG" "_DEBUG"
+    _CMAKE_C_FLAGS_RELWITHMDD "${_CMAKE_C_FLAGS_RELWITHMDD}")
 
-set(CMAKE_C_FLAGS_RELWITHMDD "${CMAKE_C_FLAGS_RELEASE}" CACHE STRING
+set(CMAKE_C_FLAGS_RELWITHMDD "${_CMAKE_C_FLAGS_RELWITHMDD}" CACHE STRING
      "Flags used by the C compiler during RelWithMdd build" FORCE)
 set(CMAKE_CXX_FLAGS_RELWITHMDD "${_CMAKE_CXX_FLAGS_RELWITHMDD}"
      CACHE STRING "Flags used by the C++ compiler during RelWithMdd build." FORCE)
+
 set(CMAKE_EXE_LINKER_FLAGS_RELWITHMDD "${CMAKE_EXE_LINKER_FLAGS_RELEASE}"
      CACHE STRING "Flags used for linking binaries during RelWithMdd builds." FORCE)
 set(CMAKE_SHARED_LINKER_FLAGS_RELWITHMDD "${CMAKE_SHARED_LINKER_FLAGS_RELEASE}"
