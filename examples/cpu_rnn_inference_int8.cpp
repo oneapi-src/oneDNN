@@ -146,7 +146,7 @@ void compute_attention(float *context_vectors, dim_t src_seq_length_max,
     // we calculate max_idx t so that A_i <= A_t and calculate the expression as
     //         exp(A_i - A_t) / \sum_i exp(A_i - A_t)
     // which mitigates the overflow errors
-    std::vector<int> max_idx(batch, 0);
+    std::vector<dim_t> max_idx(batch, 0);
     PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(1)
     for (dim_t j = 0; j < batch; j++) {
         for (dim_t i = 1; i < src_seq_length_max; i++) {
