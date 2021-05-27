@@ -403,7 +403,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             bgmmc.N);
     bgmmc.M_chunk_size = bgmmc.N_chunk_size = 1;
 
-    // AMX BRGEMM kernel requires (K_brgemm % 64 == 0 || K_brgemm < 64) for
+    // AMX BRGEMM kernel requires (K_brgemm % 64 == 0 || K_brgemm < 64)
     // for K_brgemm reduction value to avoid AMX tiles re-configuration.
     // To satisfy this condition K_tail value is fixed to K % wei_k_blk here.
     const bool fixed_K_tail_size = bgmmc.is_amx && bgmmc.K % bgmmc.wei_k_blk > 0
