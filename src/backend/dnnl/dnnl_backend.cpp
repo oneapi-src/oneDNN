@@ -50,6 +50,7 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PASSES_CALL(matmul_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(single_op_pass, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(pool_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(eltwise_fusion, pass_registry_);
 
     return true;
 }
@@ -199,6 +200,9 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(int8_matmul_bias_gelu, quantized_matmul);
     DNNL_REGISTER_KERNEL(int8_matmul_add, quantized_matmul);
     DNNL_REGISTER_KERNEL(int8_matmul_bias_add, quantized_matmul);
+
+    //eltwise+binary ops
+    DNNL_REGISTER_KERNEL(relu_add, eltwise_forward);
 
     // quantized pooling
     DNNL_REGISTER_KERNEL(int8_maxpool, quantized_pooling);

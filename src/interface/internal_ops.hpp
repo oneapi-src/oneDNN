@@ -109,7 +109,8 @@ namespace op_kind {
     X(to_group, To_group) \
     X(expand, Expand) \
     X(dnnl_convolution, Dnnl_convolution) \
-    X(int8_maxpool, INT8_MaxPool)
+    X(int8_maxpool, INT8_MaxPool) \
+    X(relu_add, Relu_add)
 
 enum {
     kAny = 0x1234,
