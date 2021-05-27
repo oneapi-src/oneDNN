@@ -38,6 +38,8 @@ status_t jit_uni_shuffle_t<isa>::pd_t::init(engine_t *engine) {
 
     const bool ok = mayiuse(isa)
             && utils::one_of(conf_.data_type, f32, s32, bf16)
+            && IMPLICATION(
+                    conf_.data_type == bf16, is_superset(isa, avx512_core))
             && platform::has_data_type_support(conf_.data_type)
             && attr()->has_default_values() && axis() == 1
             && IMPLICATION(!is_fwd(), set_default_formats_common());

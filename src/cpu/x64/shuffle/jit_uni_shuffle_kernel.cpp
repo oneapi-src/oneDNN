@@ -133,18 +133,12 @@ void jit_uni_shuffle_kernel_t<avx>::emu_gather_data(const Reg64 &reg_src_addr,
         for (unsigned j = 0; j < number_of_values_to_load; j++) {
             vpextrd(reg_tmp_.cvt32(), xmm_tmp, j);
             add(reg_src_addr, reg_tmp_);
-            if (conf_.data_type == data_type::bf16)
-                vpinsrw(xmm_dst, xmm_dst, ptr[reg_src_addr], j * 2);
-            else
-                vpinsrd(xmm_dst, xmm_dst, ptr[reg_src_addr], j);
+            vpinsrd(xmm_dst, xmm_dst, ptr[reg_src_addr], j);
             mov(reg_src_addr, reg_tmp1_);
         }
 
         vinsertf128(Ymm(data_idx), Ymm(data_idx), xmm_dst, i);
     }
-
-    if (conf_.data_type == data_type::bf16)
-        uni_vpslld(Ymm(data_idx), Ymm(data_idx), 16);
 }
 
 template <>
@@ -160,10 +154,7 @@ void jit_uni_shuffle_kernel_t<sse41>::emu_gather_data(const Reg64 &reg_src_addr,
     for (unsigned j = 0; j < number_of_values_to_load; j++) {
         pextrd(reg_tmp_.cvt32(), Xmm(indices_idx), j);
         add(reg_src_addr, reg_tmp_);
-        if (conf_.data_type == data_type::bf16)
-            pinsrw(Xmm(data_idx), ptr[reg_src_addr], j);
-        else
-            pinsrd(Xmm(data_idx), ptr[reg_src_addr], j);
+        pinsrd(Xmm(data_idx), ptr[reg_src_addr], j);
         mov(reg_src_addr, reg_tmp1_);
     }
 }
@@ -270,39 +261,16 @@ void jit_uni_shuffle_kernel_t<avx>::store_data(const int data_idx,
     const auto extend_for_padding
             = is_tail && padding_size_ + conf_.simd_tail >= conf_.simd_w;
 
-    if (conf_.data_type == data_type::bf16) {
-        const Xmm to_store_data = Xmm(data_idx);
-        const Xmm xmm_tmp = Xmm(vmm_tmp_.getIdx());
-
-        if (bf16_emulation_)
-            bf16_emulation_->vcvtneps2bf16(to_store_data, Ymm(data_idx));
-        else
-            vcvtneps2bf16(to_store_data, Ymm(data_idx));
-
-        if (extend_for_padding) {
-            uni_vxorps(xmm_tmp, xmm_tmp, xmm_tmp);
-            uni_vblendvps(xmm_tmp, xmm_tmp, to_store_data, vmm_tail_mask_);
-            vmovups(ptr[reg_dst_addr + offset], xmm_tmp);
-        } else {
-            if (is_tail)
-                for (unsigned i = 0; i < conf_.simd_tail; i++)
-                    pextrw(ptr[reg_dst_addr + offset + i * conf_.dt_size],
-                            to_store_data, i);
-            else
-                vmovups(ptr[reg_dst_addr + offset], to_store_data);
-        }
+    if (extend_for_padding) {
+        uni_vxorps(vmm_tmp_, vmm_tmp_, vmm_tmp_);
+        uni_vblendvps(vmm_tmp_, vmm_tmp_, Vmm(data_idx), vmm_tail_mask_);
+        vmovups(ptr[reg_dst_addr + offset], vmm_tmp_);
     } else {
-        if (extend_for_padding) {
-            uni_vxorps(vmm_tmp_, vmm_tmp_, vmm_tmp_);
-            uni_vblendvps(vmm_tmp_, vmm_tmp_, Vmm(data_idx), vmm_tail_mask_);
-            vmovups(ptr[reg_dst_addr + offset], vmm_tmp_);
-        } else {
-            if (is_tail)
-                vmaskmovps(ptr[reg_dst_addr + offset], vmm_tail_mask_,
-                        Vmm(data_idx));
-            else
-                vmovups(ptr[reg_dst_addr + offset], Vmm(data_idx));
-        }
+        if (is_tail)
+            vmaskmovps(
+                    ptr[reg_dst_addr + offset], vmm_tail_mask_, Vmm(data_idx));
+        else
+            vmovups(ptr[reg_dst_addr + offset], Vmm(data_idx));
     }
     append_zero_padding(reg_dst_, extend_for_padding);
 }
@@ -310,21 +278,14 @@ void jit_uni_shuffle_kernel_t<avx>::store_data(const int data_idx,
 template <>
 void jit_uni_shuffle_kernel_t<sse41>::store_data(const int data_idx,
         const Reg64 &reg_dst_addr, const int offset, const bool is_tail) {
-    if (is_tail) {
+    if (is_tail)
         for (unsigned i = 0; i < conf_.simd_tail; i++) {
-            if (conf_.data_type == data_type::bf16)
-                pextrw(ptr[reg_dst_addr + offset + i * conf_.dt_size],
-                        Xmm(data_idx), i);
-            else
-                pextrd(ptr[reg_dst_addr + offset + i * conf_.dt_size],
-                        Xmm(data_idx), i);
+            pextrd(ptr[reg_dst_addr + offset + i * conf_.dt_size],
+                    Xmm(data_idx), i);
         }
-    } else {
-        if (conf_.data_type == data_type::bf16)
-            vmovsd(ptr[reg_dst_addr + offset], Vmm(data_idx));
-        else
-            movups(ptr[reg_dst_addr + offset], Vmm(data_idx));
-    }
+    else
+        movups(ptr[reg_dst_addr + offset], Vmm(data_idx));
+
     append_zero_padding(reg_dst_, false);
 }
 
