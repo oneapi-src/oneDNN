@@ -804,6 +804,18 @@ DNNL_GRAPH_OP_SCHEMA(ReLU, 1,
                         {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(Relu_add, 1,
+        op_schema()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_input(1, "other", "the second input tensor of add",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16})
+                .set_shape_inference_function(infer_identity_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(ReLUBackprop, 1,
         op_schema()
                 .set_num_inputs(2)

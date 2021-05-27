@@ -3453,3 +3453,27 @@ TEST(pass_test, int8_matmul_lower_down_pass) {
     auto post_ops = prm_attr.get_post_ops();
     ASSERT_EQ(post_ops.len(), 1);
 }
+
+TEST(pass_test, relu_add_fusion) {
+    graph_t agraph;
+
+    op_t relu {0, ReLU, "relu"};
+    op_t add {1, Add, "add"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    relu.add_input(lt_vec[0]);
+    relu.add_output(lt_vec[1]);
+    add.add_input(lt_vec[1]);
+    add.add_input(lt_vec[2]);
+    add.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 2);
+
+    pass::pass_base_ptr apass = get_pass("relu_add_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(), relu_add);
+}

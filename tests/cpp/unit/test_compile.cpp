@@ -5409,3 +5409,42 @@ TEST(operator_kernel, interpolate_backward_linear) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
 }
+
+TEST(operator_kernel, relu_add_fusion) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src {-2.0, -1.5, 1.0, 0.5};
+    test::vector<float> post_src {2.0};
+    test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+    test::vector<float> ref_dst {2.0, 2.0, 3.0, 2.5};
+
+    impl::op_t op(impl::op_kind::relu_add);
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto kernel = op_factory.create_kernel(op);
+    ASSERT_TRUE(kernel);
+
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+
+    // compile the relu backward operator
+    std::vector<impl::logical_tensor_t> inputs {src_lt, post_src_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+
+    kernel->compile(&op, &eng, inputs, outputs);
+    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+
+    impl::tensor_t src_ts(src_lt, src.data());
+    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+    impl::tensor_t dst_ts(outputs[0], dst.data());
+
+    impl::stream_t &strm = get_stream();
+    kernel->execute(&op, &strm, {src_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}

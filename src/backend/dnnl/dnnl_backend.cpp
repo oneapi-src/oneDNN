@@ -49,6 +49,7 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PASSES_CALL(gelu_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(matmul_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(single_op_pass, pass_registry_);
+    DNNL_BACKEND_REGISTER_PASSES_CALL(eltwise_fusion, pass_registry_);
 
     return true;
 }
@@ -177,6 +178,9 @@ bool dnnl_backend::register_kernels() {
     // quantize and dequantize kernel
     DNNL_REGISTER_KERNEL(Quantize, quantize_dequantize)
     DNNL_REGISTER_KERNEL(Dequantize, quantize_dequantize)
+
+    //eltwise+binary ops
+    DNNL_REGISTER_KERNEL(relu_add, eltwise_forward);
 
 #undef DNNL_REGISTER_KERNEL
 
