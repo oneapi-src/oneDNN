@@ -216,17 +216,17 @@ function(register_gtest exe src)
     endif()
 endfunction()
 
-set(skip_pattern "^$") # no skip by default
-if(DNNL_WITH_SYCL OR DNNL_CPU_RUNTIME STREQUAL "NONE")
+set(skip_usm_pattern "^$") # no skip by default
+if(DNNL_WITH_SYCL)
     # - cross_engine_reorder creates usm pointers on CPU and GPU that belong to
     #   the different context, which causes synchronization issues.
     #   FIXME: the library should handle this case gracefully.
-    set(skip_pattern "(test_cross_engine_reorder)")
+    set(skip_usm_pattern "(test_cross_engine_reorder)")
 endif()
 
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     get_filename_component(exe ${TEST_FILE} NAME_WE)
-    if(NOT ${exe} MATCHES "${skip_pattern}" AND NOT DNNL_SYCL_CUDA)
+    if(NOT ${exe} MATCHES "${skip_usm_pattern}" AND NOT DNNL_SYCL_CUDA)
         register_gtest(${exe} ${TEST_FILE})
     endif()
 

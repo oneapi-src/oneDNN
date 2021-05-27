@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ using cfg_f32 = test_simple_params<f32_f32>;
 
 using reorder_simple_test_f32_f32 = reorder_simple_test<f32_f32>;
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 TEST_P(reorder_simple_test_f32_f32, CPU_GPU) {
     SKIP_IF(engine::get_count(engine::kind::gpu) == 0,
             "GPU engines not found.");
@@ -51,6 +52,7 @@ TEST_P(reorder_simple_test_f32_f32, GPU_CPU) {
 
     Test(eng_gpu, eng_cpu);
 }
+#endif
 
 TEST_P(reorder_simple_test_f32_f32, GPU_GPU) {
     SKIP_IF(engine::get_count(engine::kind::gpu) == 0,
