@@ -5573,7 +5573,7 @@ TEST(operator_kernel, layernorm_inference_without_scale_shift) {
     }
 }
 
-TEST(operator_kernel, convert_data) {
+TEST(operator_kernel, reorder_data) {
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
@@ -5606,6 +5606,31 @@ TEST(operator_kernel, convert_data) {
     for (size_t i = 0; i < src.size(); ++i) {
         ASSERT_EQ(dst[i], ref_dst[i]);
     }
+}
+
+TEST(operator_compile, reorder_negative_test) {
+    impl::engine_t &engine = get_engine();
+
+    impl::op_t reorder_op(impl::op_kind::Reorder);
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto kernel = op_factory.create_kernel(reorder_op);
+
+    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {2, 3}, {3, 1}, impl::data_type::f32);
+
+    // failure case 1: different data type
+    impl::logical_tensor_t dst_lt_1 = utils::logical_tensor_init(
+            1, {2, 3}, {1, 2}, impl::data_type::s8);
+
+    ASSERT_EQ(kernel->compile(&reorder_op, &engine, {src_lt}, {dst_lt_1}),
+            impl::status::compile_fail);
+
+    // failure case 2: different shape (dims)
+    impl::logical_tensor_t dst_lt_2 = utils::logical_tensor_init(
+            1, {1, 2, 3}, {1, 1, 2}, impl::data_type::f32);
+
+    ASSERT_EQ(kernel->compile(&reorder_op, &engine, {src_lt}, {dst_lt_2}),
+            impl::status::compile_fail);
 }
 
 TEST(operator_kernel, quantize_per_tensor) {
