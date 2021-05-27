@@ -47,8 +47,7 @@ On Linux, user can specify a GNU C++ compiler as the host compiler.
 
 @warning
 oneAPI DPC++/C++ Compiler requires host compiler to be compatible. The minimum
-allowed GNU C++ compiler version is 7.4.0. See [GCC* Compatibility and Interoperability]
-(https://software.intel.com/content/www/us/en/develop/documentation/oneapi-dpcpp-cpp-compiler-dev-guide-and-reference/top/compatibility-and-portability/gcc-compatibility-and-interoperability.html)
+allowed GNU C++ compiler version is 7.4.0. See [GCC* Compatibility and Interoperability](https://software.intel.com/content/www/us/en/develop/documentation/oneapi-dpcpp-cpp-compiler-dev-guide-and-reference/top/compatibility-and-portability/gcc-compatibility-and-interoperability.html)
 section in oneAPI DPC++/C++ Compiler Developer Guide.
 
 ## CPU Options
