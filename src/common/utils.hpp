@@ -556,11 +556,17 @@ inline void yield_thread() {}
 int getenv(const char *name, char *buffer, int buffer_size);
 // Reads an integer from the environment
 int getenv_int(const char *name, int default_value = 0);
+// Various getter for profiling info
 bool get_jit_dump();
 unsigned get_jit_profiling_flags();
 std::string get_jit_profiling_jitdumpdir();
 FILE *fopen(const char *filename, const char *mode);
 int getpagesize();
+
+// return current library fpmath_mode
+fpmath_mode_t get_fpmath_mode();
+// checks if an fpmath_mode is valid
+status_t check_fpmath_mode(fpmath_mode_t mode);
 
 constexpr int msan_enabled = MSAN_ENABLED;
 inline void msan_unpoison(void *ptr, size_t size) {

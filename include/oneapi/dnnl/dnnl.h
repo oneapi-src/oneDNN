@@ -300,6 +300,28 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_clone(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_destroy(dnnl_primitive_attr_t attr);
 
+/// Returns the floating-point math mode primitive attribute.
+///
+/// @param attr Primitive attributes.
+/// @param mode Output FP math mode.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_fpmath_mode(
+        const_dnnl_primitive_attr_t attr, dnnl_fpmath_mode_t *mode);
+
+/// Sets the floating-point math mode primitive attributes.
+///
+/// @param attr Primitive attributes.
+/// @param mode FP math mode. The possible values are:
+///     #dnnl_fpmath_mode_strict (default),
+///     #dnnl_fpmath_mode_bf16,
+///     #dnnl_fpmath_mode_f16,
+///     #dnnl_fpmath_mode_any.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_fpmath_mode(
+        dnnl_primitive_attr_t attr, dnnl_fpmath_mode_t mode);
+
 /// Returns the primitive attributes scratchpad mode.
 ///
 /// @param attr Primitive attributes.
@@ -3442,6 +3464,31 @@ dnnl_status_t DNNL_API dnnl_get_primitive_cache_capacity(int *capacity);
 dnnl_status_t DNNL_API dnnl_set_primitive_cache_capacity(int capacity);
 
 /// @} dnnl_api_primitive_cache
+
+/// @addtogroup dnnl_api_mathmode
+/// @{
+
+/// Returns the floating-point math mode that will be used by default
+/// for all subsequently created primitives.
+///
+/// @param mode Output FP math mode.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_get_default_fpmath_mode(dnnl_fpmath_mode_t *mode);
+
+/// Sets the floating-point math mode that will be used by default
+/// for all subsequently created primitives.
+///
+/// @param mode FP math mode. The possible values are:
+///     #dnnl_fpmath_mode_strict,
+///     #dnnl_fpmath_mode_bf16,
+///     #dnnl_fpmath_mode_f16,
+///     #dnnl_fpmath_mode_any.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_set_default_fpmath_mode(dnnl_fpmath_mode_t mode);
+
+/// @} dnnl_api_mathmode
 
 /// @addtogroup dnnl_api_service
 /// @{

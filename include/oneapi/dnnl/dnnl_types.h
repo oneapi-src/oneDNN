@@ -2409,6 +2409,18 @@ typedef const struct dnnl_primitive_desc *const_dnnl_primitive_desc_t;
 /// @addtogroup dnnl_api_attributes
 /// @{
 
+/// Floating-point math mode
+typedef enum {
+    /// Default behavior, no downconversions allowed
+    dnnl_fpmath_mode_strict,
+    /// Implicit f32->bf16 conversions allowed
+    dnnl_fpmath_mode_bf16,
+    /// Implicit f32->f16 conversions allowed
+    dnnl_fpmath_mode_f16,
+    /// Implicit f32->f16 or f32->bf16 conversions allowed
+    dnnl_fpmath_mode_any,
+} dnnl_fpmath_mode_t;
+
 /// Scratchpad mode
 typedef enum {
     /// The library manages the scratchpad allocation according to the policy

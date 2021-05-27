@@ -152,6 +152,14 @@ const data_type_t s8 = dnnl_s8;
 const data_type_t u8 = dnnl_u8;
 } // namespace data_type
 
+using fpmath_mode_t = dnnl_fpmath_mode_t;
+namespace fpmath_mode {
+const fpmath_mode_t strict = dnnl_fpmath_mode_strict;
+const fpmath_mode_t bf16 = dnnl_fpmath_mode_bf16;
+const fpmath_mode_t f16 = dnnl_fpmath_mode_f16;
+const fpmath_mode_t any = dnnl_fpmath_mode_any;
+} // namespace fpmath_mode
+
 using scratchpad_mode_t = dnnl_scratchpad_mode_t;
 namespace scratchpad_mode {
 const scratchpad_mode_t library = dnnl_scratchpad_mode_library;

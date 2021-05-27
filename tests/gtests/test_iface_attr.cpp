@@ -30,6 +30,29 @@ protected:
     void SetUp() override {}
 };
 
+TEST_F(attr_test_t, TestFPMathMode) {
+    dnnl::primitive_attr attr;
+    ASSERT_EQ(attr.get_fpmath_mode(), fpmath_mode::strict);
+
+    for (auto m : {fpmath_mode::strict, fpmath_mode::bf16, fpmath_mode::f16,
+                 fpmath_mode::any}) {
+        attr.set_fpmath_mode(m);
+        ASSERT_EQ(m, attr.get_fpmath_mode());
+    }
+}
+
+TEST_F(attr_test_t, TestFPMathModeDefault) {
+    ASSERT_EQ(fpmath_mode::strict, get_default_fpmath_mode());
+
+    for (auto m : {fpmath_mode::strict, fpmath_mode::bf16, fpmath_mode::f16,
+                 fpmath_mode::any}) {
+        set_default_fpmath_mode(m);
+        ASSERT_EQ(m, get_default_fpmath_mode());
+        dnnl::primitive_attr attr;
+        ASSERT_EQ(m, attr.get_fpmath_mode());
+    }
+}
+
 TEST_F(attr_test_t, TestScratchpadMode) {
     dnnl::primitive_attr attr;
     for (auto m : {scratchpad_mode::library, scratchpad_mode::user}) {
@@ -55,9 +78,6 @@ TEST_F(attr_test_t, TestScratchpadModeEx) {
         auto scratchpad_size = (long)softmax_pd.scratchpad_desc().get_size();
         auto mem_consumption
                 = (long)softmax_pd.query_s64(query::memory_consumption_s64);
-
-        // printf("scratchpad_size: %ld\n", scratchpad_size);
-        // printf("mem consumption: %ld\n", mem_consumption);
 
         if (m == scratchpad_mode::library) {
             ASSERT_EQ(scratchpad_size, 0L);

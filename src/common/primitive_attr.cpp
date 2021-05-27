@@ -342,6 +342,12 @@ bool post_ops_t::check_sum_consistent_dt(
     return ok;
 }
 
+status_t primitive_attr_t::set_fpmath_mode(fpmath_mode_t fpmath_mode) {
+    auto st = check_fpmath_mode(fpmath_mode);
+    if (st == success) fpmath_mode_ = fpmath_mode;
+    return st;
+}
+
 status_t primitive_attr_t::set_scratchpad_mode(
         scratchpad_mode_t scratchpad_mode) {
     using namespace dnnl::impl::scratchpad_mode;
@@ -383,6 +389,19 @@ status_t dnnl_primitive_attr_destroy(primitive_attr_t *attr) {
     delete attr;
 
     return success;
+}
+
+status_t dnnl_primitive_attr_get_fpmath_mode(
+        const primitive_attr_t *attr, fpmath_mode_t *mode) {
+    if (any_null(attr, mode)) return invalid_arguments;
+    *mode = attr->fpmath_mode_;
+    return success;
+}
+
+status_t dnnl_primitive_attr_set_fpmath_mode(
+        primitive_attr_t *attr, fpmath_mode_t mode) {
+    if (any_null(attr)) return invalid_arguments;
+    return attr->set_fpmath_mode(mode);
 }
 
 status_t dnnl_primitive_attr_get_scratchpad_mode(
