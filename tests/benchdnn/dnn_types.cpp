@@ -458,6 +458,13 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
+            std::string zero_point_str = get_substr(subs, subs_pos);
+            // TODO: update this check to validate whole string for digits
+            if (!std::isdigit(zero_point_str[0])) return FAIL;
+            e.sum.zero_point = std::stoi(zero_point_str);
+            if (subs_pos == std::string::npos) continue;
+            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
+
             e.sum.dt = str2dt(get_substr(subs, subs_pos).c_str());
             // sum dt, if specified, should be defined
             if (e.sum.dt == dnnl_data_type_undef) return FAIL;
@@ -652,8 +659,11 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
         s << e.kind;
 
         if (e.is_sum_kind()) {
-            if (e.sum.scale != 1.0f || e.sum.dt != dnnl_data_type_undef)
+            if (e.sum.scale != 1.0f || e.sum.zero_point != 0
+                    || e.sum.dt != dnnl_data_type_undef)
                 s << ":" << e.sum.scale;
+            if (e.sum.zero_point != 0 || e.sum.dt != dnnl_data_type_undef)
+                s << ":" << e.sum.zero_point;
             if (e.sum.dt != dnnl_data_type_undef) s << ":" << e.sum.dt;
         } else if (e.is_convolution_kind()) {
             if (e.convolution.dst_dt != dnnl_f32)
@@ -860,8 +870,8 @@ dnnl_primitive_attr_t create_dnnl_attr(
         for (int idx = 0; idx < po.len(); ++idx) {
             const auto &e = po.entry[idx];
             if (e.is_sum_kind()) {
-                DNN_SAFE_V(dnnl_post_ops_append_sum_v2(
-                        ops, e.sum.scale, e.sum.dt));
+                DNN_SAFE_V(dnnl_post_ops_append_sum_v3(
+                        ops, e.sum.scale, e.sum.zero_point, e.sum.dt));
             } else if (e.is_convolution_kind()) {
                 const auto wei_dt = attr_args.get_dw_arg(DNNL_ARG_WEIGHTS);
                 const auto bia_dt = attr_args.get_dw_arg(DNNL_ARG_BIAS);
@@ -1296,7 +1306,7 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
         const auto &e = po.entry[idx];
 
         if (e.is_sum_kind()) {
-            val += e.sum.scale * sum_val;
+            val += e.sum.scale * (sum_val - e.sum.zero_point);
         } else if (e.is_convolution_kind()) {
             continue;
         } else if (e.is_eltwise_kind()) {

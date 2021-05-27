@@ -483,6 +483,7 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
+    check_sum_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return;
 
     if (prb->use_ss() && (prb->use_sc() || prb->use_sh()))

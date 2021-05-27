@@ -282,6 +282,7 @@ struct attr_t {
             entry_t(kind_t akind) : kind(akind) {
                 if (is_sum_kind()) {
                     sum.scale = 1.f;
+                    sum.zero_point = 0;
                     sum.dt = dnnl_data_type_undef;
                 } else if (is_eltwise_kind()) {
                     eltwise.alg = kind2dnnl_kind(kind);
@@ -303,6 +304,7 @@ struct attr_t {
             union {
                 struct {
                     float scale;
+                    int32_t zero_point;
                     dnnl_data_type_t dt;
                 } sum;
                 struct {

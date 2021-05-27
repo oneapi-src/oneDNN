@@ -367,6 +367,7 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
 
     for (int i = 0; i < p.len(); i++) {
         if (p.contain(primitive_kind::sum, i)) {
+            if (p.entry_[i].sum.zero_point != 0) return false;
             if (i > 0) return false;
             if (src0_d.data_type() != dst_d.data_type()) return false;
         } else if (!(is_eltwise(i) || is_binary(i))

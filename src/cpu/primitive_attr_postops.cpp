@@ -190,7 +190,9 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
         const auto &e = po_.entry_[idx];
         switch (e.kind) {
             case primitive_kind::sum:
-                if (!skip_sum_) { res += e.sum.scale * args.dst_val; }
+                if (!skip_sum_) {
+                    res += e.sum.scale * (args.dst_val - e.sum.zero_point);
+                }
                 break;
             case primitive_kind::eltwise:
                 res = it_eltwise_po->compute_scalar(res);

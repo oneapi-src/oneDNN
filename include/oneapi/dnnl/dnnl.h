@@ -580,8 +580,8 @@ dnnl_primitive_kind_t DNNL_API dnnl_post_ops_get_kind(
 /// integer-based computations when the result and previous activations have
 /// different logical scaling factors.
 ///
-/// In the simplest case when the accumulation is the only post-op, the
-/// computations would be:
+/// In the simplest case where the accumulation is the only post-op, the
+/// computations will be:
 ///
 ///     dst[:] <- scale * dst[:] + op(...) // instead of dst[:] <- op(...)
 ///
@@ -607,15 +607,15 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_sum(
 /// integer-based computations when the result and previous activations have
 /// different logical scaling factors.
 ///
-/// In the simplest case when the accumulation is the only post-op, the
-/// computations would be:
+/// In the simplest case where the accumulation is the only post-op, the
+/// computations will be:
 ///
 ///     dst[:] <- scale * dst[:] + op(...) // instead of dst[:] <- op(...)
 ///
 /// If @p data_type is specified, original dst tensor will be reinterpreted
 /// as a tensor with provided data type. Since it is reinterpretation,
-/// data_type and dst data type should have same size.
-/// As a result, computations would be:
+/// data_type and dst data type should have the same size.
+/// As a result, computations will be:
 ///
 ///     dst[:] <- scale * as_data_type(dst[:]) + op(...)
 ///                                        // instead of dst[:] <- op(...)
@@ -630,6 +630,42 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_sum(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_post_ops_append_sum_v2(
         dnnl_post_ops_t post_ops, float scale, dnnl_data_type_t data_type);
+
+/// Appends an accumulation v3 (sum) to post-ops. Prior to accumulating the
+/// result, a zero point is subtracted from the previous value and is
+/// multiplied by the scale.
+///
+/// The kind of this post-op is #dnnl_sum.
+///
+/// This feature may improve performance for cases like dequantize the
+/// asymmetrically quantized sum's src1 tensor to f32 domain before performing
+/// the sum operation by subtracting the @p zero_point before the scaling.
+///
+/// In the simplest case where accumulation is the only post-op, the
+/// computations will be:
+///
+///     dst[:] <- scale * (dst[:] - zero_point) + op(...)
+///                                             // instead of dst[:] <- op(...)
+///
+/// If @p data_type is specified, original dst tensor will be reinterpreted
+/// as a tensor with provided data type. Since it is reinterpretation,
+/// data_type and dst data type should have the same size.
+/// As a result, computations will be:
+///
+///     dst[:] <- scale * (as_data_type(dst[:]) - zero_point) + op(...)
+///                                        // instead of dst[:] <- op(...)
+/// @note
+///     This post-op executes in-place and does not change the
+///     destination layout.
+///
+/// @param post_ops Post-ops.
+/// @param scale Accumulation scaling factor.
+/// @param zero_point Single scalar int32_t value of zero point.
+/// @param data_type Accumulation data_type.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_post_ops_append_sum_v3(dnnl_post_ops_t post_ops,
+        float scale, int32_t zero_point, dnnl_data_type_t data_type);
 
 /// Returns the parameters of an accumulation (sum) post-op.
 ///
@@ -655,6 +691,20 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_sum(
 dnnl_status_t DNNL_API dnnl_post_ops_get_params_sum_v2(
         const_dnnl_post_ops_t post_ops, int index, float *scale,
         dnnl_data_type_t *data_type);
+
+/// Returns the parameters of an accumulation (sum) post-op with
+/// zero point and data type parameter.
+///
+/// @param post_ops Post-ops.
+/// @param index Index of the sum post-op.
+/// @param scale Output accumulation scaling factor.
+/// @param zero_point Zero point.
+/// @param data_type Data type for accumulation.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_post_ops_get_params_sum_v3(
+        const_dnnl_post_ops_t post_ops, int index, float *scale,
+        int32_t *zero_point, dnnl_data_type_t *data_type);
 
 /// Appends an elementwise post-op.
 ///

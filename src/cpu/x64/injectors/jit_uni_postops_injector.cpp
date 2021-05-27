@@ -222,6 +222,7 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
     const memory_desc_wrapper *dst_d = post_ops_ok_args.dst_d;
     const bool sum_at_pos_0_only = post_ops_ok_args.sum_at_pos_0_only;
     const bool sum_requires_scale_one = post_ops_ok_args.sum_requires_scale_one;
+    const bool sum_requires_zp_zero = post_ops_ok_args.sum_requires_zp_zero;
     const auto &enabled_bcast_strategy
             = post_ops_ok_args.enabled_bcast_strategy;
 
@@ -232,6 +233,8 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
                 case sum:
                     if (entry.is_sum(false)) {
                         if (sum_requires_scale_one && entry.sum.scale != 1)
+                            return false;
+                        if (sum_requires_zp_zero && entry.sum.zero_point != 0)
                             return false;
                         return IMPLICATION(sum_at_pos_0_only, idx == 0);
                     }

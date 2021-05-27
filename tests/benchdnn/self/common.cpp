@@ -146,9 +146,10 @@ static int check_str2attr() {
 using pk_t = attr_t::post_ops_t::kind_t;
 
 void append_sum(attr_t::post_ops_t &po, float ascale = 1.f,
-        dnnl_data_type_t adt = dnnl_data_type_undef) {
+        int32_t zero_point = 0, dnnl_data_type_t adt = dnnl_data_type_undef) {
     attr_t::post_ops_t::entry_t e(pk_t::SUM);
     e.sum.scale = ascale;
+    e.sum.zero_point = zero_point;
     e.sum.dt = adt;
     po.entry.push_back(e);
 }
@@ -186,22 +187,23 @@ static int check_post_ops2str() {
     CHECK_EQ(po.len(), 2);
     CHECK_PRINT_EQ(po, "sum+relu");
 
-    append_sum(po, 2.f, dnnl_s8);
+    append_sum(po, 2.f, 1, dnnl_s8);
     CHECK_EQ(po.len(), 3);
-    CHECK_PRINT_EQ(po, "sum+relu+sum:2:s8");
+    CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8");
 
     append_eltwise(po, pk_t::LINEAR, 5.f, 10.f, 2.f);
     CHECK_EQ(po.len(), 4);
-    CHECK_PRINT_EQ(po, "sum+relu+sum:2:s8+linear:5:10:2");
+    CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10:2");
 
     append_convolution(po, pk_t::DW_K3S1P1);
     CHECK_EQ(po.len(), 5);
-    CHECK_PRINT_EQ(po, "sum+relu+sum:2:s8+linear:5:10:2+dw_k3s1p1");
+    CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10:2+dw_k3s1p1");
 
     append_convolution(po, pk_t::DW_K3S2P1, dnnl_s32, policy_t::PER_OC, 2.f);
     CHECK_EQ(po.len(), 6);
     CHECK_PRINT_EQ(po,
-            "sum+relu+sum:2:s8+linear:5:10:2+dw_k3s1p1+dw_k3s2p1:s32:per_oc:2");
+            "sum+relu+sum:2:1:s8+linear:5:10:2+dw_k3s1p1+dw_k3s2p1:s32:per_oc:"
+            "2");
 
     return OK;
 }

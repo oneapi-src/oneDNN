@@ -113,8 +113,8 @@ cases the scale must be `1.0`.
 ### Sum Post-op
 
 The sum post-op accumulates the result of a primitive with the existing data.
-Prior to accumulating the result, the existing value would be multiplied by
-scale.
+Prior to accumulating the result, the existing value would be shifted by the
+zero point and multiplied by scale.
 
 The kind of this post-op is #dnnl::primitive::kind::sum.
 
@@ -133,7 +133,7 @@ The sum post-op replaces
 with
 
 \f[
-    \dst[:] = scale \cdot \dst[:] + \operatorname{Op}(...)
+    \dst[:] = scale \cdot (\dst[:] - zero\_point) + \operatorname{Op}(...)
 \f]
 
 If the data type parameter is specified, the original destination tensor will be
@@ -142,13 +142,15 @@ reinterpretation, data_type and the destination data type must have the same siz
 result, the computation will be:
 
 \f[
-    \dst(:) = scale \cdot \operatorname{as\_data\_type}(\dst[:]) + \operatorname{Op}(...)
+    \dst(:) = scale \cdot (\operatorname{as\_data\_type}(\dst[:]) - zero\_point) + \operatorname{Op}(...)
 \f]
 
 @note
 * Currently only a u8/s8 data type parameter is supported.
 * **CPU**
     * No support for different destination and sum data type.
+* **GPU**
+    * Zero point is not supported.
 
 @anchor dev_guide_attributes_post_ops_depthwise
 ### Depthwise Post-op

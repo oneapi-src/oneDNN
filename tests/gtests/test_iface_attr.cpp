@@ -306,17 +306,21 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestPostOps) {
 
     algorithm alg;
     float scale, alpha, beta;
+    int32_t sum_zp;
+    data_type dt;
 
     ASSERT_EQ(ops.len(), 0);
     ASSERT_EQ(attr.get_post_ops().len(), 0);
 
-    ops.append_sum(1.1f);
+    ops.append_sum(1.1f, 1, data_type::f32);
     attr.set_post_ops(ops);
 
     ASSERT_EQ(attr.get_post_ops().len(), 1);
     ASSERT_EQ(attr.get_post_ops().kind(0), primitive::kind::sum);
-    attr.get_post_ops().get_params_sum(0, scale);
+    attr.get_post_ops().get_params_sum(0, scale, sum_zp, dt);
     ASSERT_FLOAT_EQ(scale, 1.1f);
+    ASSERT_EQ(1, sum_zp);
+    ASSERT_EQ(data_type::f32, dt);
 
     ops.append_eltwise(2.2f, algorithm::eltwise_bounded_relu, 3.3f, 4.4f);
     attr.set_post_ops(ops);

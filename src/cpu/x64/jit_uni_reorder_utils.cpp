@@ -115,8 +115,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
     auto check_post_ops = [](const primitive_attr_t *attr) {
         const auto &po = attr->post_ops_;
-        return po.len() == 0
-                || (po.len() == 1 && po.contain(primitive_kind::sum, 0));
+        return po.len() == 0 || (po.len() == 1 && po.entry_[0].is_sum(false));
     };
 
     bool ok = im_d.is_blocking_desc() && om_d.is_blocking_desc()

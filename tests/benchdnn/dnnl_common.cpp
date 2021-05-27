@@ -364,6 +364,22 @@ void check_binary_post_ops(const attr_t &attr, res_t *res) {
     }
 }
 
+// Sum with zero-point is not supported on GPU
+void check_sum_post_ops(const attr_t &attr, res_t *res) {
+    if (!is_gpu()) return;
+
+    const auto &po = attr.post_ops;
+    if (!po.is_def()) {
+        for (int idx = 0; idx < po.len(); ++idx) {
+            const auto &e = po.entry[idx];
+            if (e.is_sum_kind() && e.sum.zero_point != 0) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                break;
+            }
+        }
+    }
+}
+
 bool is_cpu(const dnnl_engine_t &engine) {
     return get_engine_kind(engine) == dnnl_cpu;
 }

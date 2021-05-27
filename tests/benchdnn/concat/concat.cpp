@@ -109,6 +109,7 @@ int fill_src(int input_idx, dnnl_data_type_t dt, dnn_mem_t &mem_dt,
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->sdt, prb->ddt}, FWD_D, res);
+    check_sum_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return;
 
     // ref concat is reorder-based, hence, inherits some reorder limitations.

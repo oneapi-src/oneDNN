@@ -374,6 +374,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         union {
             struct {
                 float scale;
+                int32_t zero_point;
                 dnnl::impl::data_type_t dt;
             } sum;
             eltwise_t eltwise;
@@ -395,10 +396,12 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                     && IMPLICATION(require_nslope_zero, eltwise.alpha == 0.f);
         }
 
-        bool is_sum(bool require_scale_one = true) const {
+        bool is_sum(bool require_scale_one = true,
+                bool require_zp_zero = true) const {
             using namespace dnnl::impl;
             return kind == primitive_kind::sum
-                    && IMPLICATION(require_scale_one, sum.scale == 1.f);
+                    && IMPLICATION(require_scale_one, sum.scale == 1.f)
+                    && IMPLICATION(require_zp_zero, sum.zero_point == 0);
         }
 
         bool is_convolution() const {
@@ -487,8 +490,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
     dnnl_post_ops() : entry_() {}
 
-    dnnl::impl::status_t append_sum(
-            float scale, dnnl::impl::data_type_t dt = dnnl_data_type_undef);
+    dnnl::impl::status_t append_sum(float scale, int32_t zero_point = 0,
+            dnnl::impl::data_type_t dt = dnnl_data_type_undef);
     dnnl::impl::status_t append_eltwise(
             float scale, dnnl::impl::alg_kind_t alg, float alpha, float beta);
     dnnl::impl::status_t append_dw_k3s1p1(dnnl::impl::data_type_t wei_dt,

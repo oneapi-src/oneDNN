@@ -984,6 +984,7 @@ inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
             }
         }
         if (is_sum(po_idx)) {
+            if (p.entry_[po_idx].sum.zero_point != 0) return false;
             if (p.entry_[po_idx].sum.dt != dnnl_data_type_undef
                     && types::data_type_size(p.entry_[po_idx].sum.dt)
                             != types::data_type_size(dst_dt))

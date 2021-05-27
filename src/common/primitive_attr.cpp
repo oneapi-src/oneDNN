@@ -167,12 +167,14 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
 #undef CHECK_ARG
 }
 
-status_t post_ops_t::append_sum(float scale, data_type_t dt) {
+status_t post_ops_t::append_sum(
+        float scale, int32_t zero_point, data_type_t dt) {
     if (len() == post_ops_limit) return out_of_memory;
     entry_.emplace_back();
     auto &e = entry_.back();
     e.kind = primitive_kind::sum;
     e.sum.scale = scale;
+    e.sum.zero_point = zero_point;
     e.sum.dt = dt;
     return success;
 }
@@ -456,7 +458,14 @@ status_t dnnl_post_ops_append_sum_v2(
         post_ops_t *post_ops, float scale, data_type_t dt) {
     if (post_ops == nullptr) return invalid_arguments;
 
-    return post_ops->append_sum(scale, dt);
+    return post_ops->append_sum(scale, 0, dt);
+}
+
+status_t dnnl_post_ops_append_sum_v3(
+        post_ops_t *post_ops, float scale, int32_t zero_point, data_type_t dt) {
+    if (post_ops == nullptr) return invalid_arguments;
+
+    return post_ops->append_sum(scale, zero_point, dt);
 }
 
 namespace {
@@ -482,12 +491,23 @@ status_t dnnl_post_ops_get_params_sum(
 status_t dnnl_post_ops_get_params_sum_v2(
         const post_ops_t *post_ops, int index, float *scale, data_type_t *dt) {
     bool ok = true
-            && simple_get_params_check(post_ops, index, primitive_kind::sum)
-            && !any_null(scale);
+            && simple_get_params_check(post_ops, index, primitive_kind::sum);
     if (!ok) return invalid_arguments;
 
-    *scale = post_ops->entry_[index].sum.scale;
-    *dt = post_ops->entry_[index].sum.dt;
+    if (scale) *scale = post_ops->entry_[index].sum.scale;
+    if (dt) *dt = post_ops->entry_[index].sum.dt;
+    return success;
+}
+
+status_t dnnl_post_ops_get_params_sum_v3(const post_ops_t *post_ops, int index,
+        float *scale, int32_t *zero_point, data_type_t *dt) {
+    bool ok = true
+            && simple_get_params_check(post_ops, index, primitive_kind::sum);
+    if (!ok) return invalid_arguments;
+
+    if (scale) *scale = post_ops->entry_[index].sum.scale;
+    if (zero_point) *zero_point = post_ops->entry_[index].sum.zero_point;
+    if (dt) *dt = post_ops->entry_[index].sum.dt;
     return success;
 }
 

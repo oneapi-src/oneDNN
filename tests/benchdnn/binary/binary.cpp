@@ -142,6 +142,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     std::vector<dnnl_data_type_t> dts = prb->sdt;
     dts.push_back(prb->ddt);
     check_known_skipped_case_common(dts, FWD_D, res);
+    check_sum_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return;
 
     if (prb->alg == alg_t::DIV) {
