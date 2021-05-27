@@ -21,7 +21,7 @@ quantization and there is no needed to add support for selection of parameter.
 ### API extension
 
 1. Overload `append_sum(scale, dt)` by adding next `append_sum(scale, zp, dt)`
-function.
+function. (preferred)
     - API:
         ```cpp
         // include/oneapi/dnnl/dnnl.h
@@ -30,7 +30,7 @@ function.
                 dnnl_data_type_t data_type);
 
         // include/oneapi/dnnl/dnnl.hpp
-        void append_sum(float scale = 1.f, int32_t zero_point,
+        void append_sum(float scale, int32_t zero_point,
                  memory::data_type data_type = memory::data_type::undef) {
             if (data_type == memory::data_type::undef)
                 error::wrap_c_api(dnnl_post_ops_append_sum(get(), scale),
@@ -46,7 +46,6 @@ function.
         - It is backwards compatible.
         - Allows to use zero point without scale (scale == 1.0).
     - Cons:
-        - It is not the simplest solution
     - Example:
         ```cpp
         // Zero point is the last parameter to keep existing code working.
