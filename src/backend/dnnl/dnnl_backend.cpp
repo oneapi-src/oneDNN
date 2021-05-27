@@ -44,6 +44,7 @@ dnnl_backend::dnnl_backend(const std::string &name, float priority)
 }
 
 bool dnnl_backend::register_passes() {
+    DNNL_BACKEND_REGISTER_PASSES_CALL(binary_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(bn_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(conv_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PASSES_CALL(gelu_fusion, pass_registry_);
@@ -109,9 +110,17 @@ bool dnnl_backend::register_kernels() {
 
     // binary operators
     DNNL_REGISTER_KERNEL(Add, binary)
+    DNNL_REGISTER_KERNEL(add_relu, binary)
+    DNNL_REGISTER_KERNEL(add_sigmoid, binary)
     DNNL_REGISTER_KERNEL(Multiply, binary)
+    DNNL_REGISTER_KERNEL(multiply_relu, binary)
+    DNNL_REGISTER_KERNEL(multiply_sigmoid, binary)
     DNNL_REGISTER_KERNEL(Maximum, binary)
+    DNNL_REGISTER_KERNEL(maximum_relu, binary)
+    DNNL_REGISTER_KERNEL(maximum_sigmoid, binary)
     DNNL_REGISTER_KERNEL(Minimum, binary)
+    DNNL_REGISTER_KERNEL(minimum_relu, binary)
+    DNNL_REGISTER_KERNEL(minimum_sigmoid, binary)
 
     // bias_add
     DNNL_REGISTER_KERNEL(BiasAdd, bias_add)

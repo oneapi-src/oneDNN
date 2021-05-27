@@ -16,6 +16,7 @@
 #ifndef BACKEND_DNNL_PASSES_HPP
 #define BACKEND_DNNL_PASSES_HPP
 
+#include "passes/binary_fusion.hpp"
 #include "passes/bn_fusion.hpp"
 #include "passes/conv_fusion.hpp"
 #include "passes/eltwise_fusion.hpp"
