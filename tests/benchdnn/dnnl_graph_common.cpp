@@ -60,10 +60,14 @@ dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) {
     using graph_op = dnnl::graph::op::kind;
     // all options could be easily added later
     switch (kind) {
+        case dnnl_eltwise_abs: return graph_op::Abs;
         case dnnl_eltwise_clip: return graph_op::HardTanh;
         case dnnl_eltwise_elu: return graph_op::Elu;
         case dnnl_eltwise_exp: return graph_op::Exp;
         case dnnl_eltwise_gelu_erf: return graph_op::GELU;
+        case dnnl_eltwise_log: return graph_op::Log;
+        case dnnl_eltwise_logistic: return graph_op::Sigmoid;
+        case dnnl_eltwise_pow: return graph_op::Pow;
         case dnnl_eltwise_relu: return graph_op::ReLU;
         case dnnl_eltwise_round: return graph_op::Round;
         case dnnl_eltwise_sqrt: return graph_op::Sqrt;
@@ -75,6 +79,22 @@ dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) {
         case dnnl_binary_min: return graph_op::Minimum;
         case dnnl_binary_mul: return graph_op::Multiply;
         // TODO (damianszw): find nicer way to tell about unsupported type
+        case dnnl_eltwise_bounded_relu:
+        case dnnl_eltwise_clip_v2:
+        case dnnl_eltwise_clip_v2_use_dst_for_bwd:
+        case dnnl_eltwise_elu_use_dst_for_bwd:
+        case dnnl_eltwise_exp_use_dst_for_bwd:
+        case dnnl_eltwise_gelu_tanh:
+        case dnnl_eltwise_hardswish:
+        case dnnl_eltwise_linear:
+        case dnnl_eltwise_logistic_use_dst_for_bwd:
+        case dnnl_eltwise_logsigmoid:
+        case dnnl_eltwise_mish:
+        case dnnl_eltwise_relu_use_dst_for_bwd:
+        case dnnl_eltwise_sqrt_use_dst_for_bwd:
+        case dnnl_eltwise_soft_relu:
+        case dnnl_eltwise_swish:
+        case dnnl_eltwise_tanh_use_dst_for_bwd:
         default: return graph_op::LastSymbol;
     }
 }

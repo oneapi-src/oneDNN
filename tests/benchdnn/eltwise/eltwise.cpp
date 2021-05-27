@@ -87,7 +87,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     return OK;
 }
 
-static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
+bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
     const float approx_machine_eps = 2 * epsilon_dt(dnnl_f32);
     const float comp_err = approx_machine_eps / trh;
 
@@ -182,7 +182,7 @@ float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd) {
     return trh;
 }
 
-static float get_eltwise_zero_trust_percent(const prb_t *prb) {
+float get_eltwise_zero_trust_percent(const prb_t *prb) {
     float ztp = 60.f; // default for eltwise due to filling.
     switch (prb->alg) {
         case alg_t::LINEAR:
