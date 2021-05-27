@@ -29,15 +29,8 @@ protected:
     engine::kind eng_kind;
 };
 
-// FIXME: When Clang uses `thread` header from GNU 11.1.0 it causes
-// crash due to a compatibility problem (presumably because of a bug) between
-// Clang and GNU 11.1.0. This makes public CI red. Disable this test case for
-// Clang compiler until GNU 11 becomes stable.
-//
-// See https://github.com/actions/virtual-environments/issues/3454 for more
-// details. The request is to not install unstable GNU version by default.
-#ifndef __clang__
 HANDLE_EXCEPTIONS_FOR_TEST_P(engine_test_t, TestMultithreading) {
+
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
     if (eng_kind == engine::kind::cpu) {
         EXPECT_EQ((int)engine::get_count(eng_kind), 0);
@@ -80,7 +73,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(engine_test_t, TestMultithreading) {
 
     exe.join();
 }
-#endif
+
 
 INSTANTIATE_TEST_SUITE_P(AllEngineKinds, engine_test_t,
         ::testing::Values(engine::kind::cpu, engine::kind::gpu));

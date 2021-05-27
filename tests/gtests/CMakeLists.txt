@@ -224,17 +224,6 @@ if(DNNL_WITH_SYCL)
     set(skip_usm_pattern "(test_cross_engine_reorder)")
 endif()
 
-foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
-    get_filename_component(exe ${TEST_FILE} NAME_WE)
-    if(NOT ${exe} MATCHES "${skip_usm_pattern}" AND NOT DNNL_SYCL_CUDA)
-        register_gtest(${exe} ${TEST_FILE})
-    endif()
-
-    # Create additional buffer targets for SYCL.
-    if(DNNL_WITH_SYCL)
-        register_gtest(${exe}_buffer ${TEST_FILE})
-    endif()
-endforeach()
 
 add_subdirectory(api)
 add_subdirectory(internals)
