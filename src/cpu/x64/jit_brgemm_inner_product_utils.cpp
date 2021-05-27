@@ -634,7 +634,7 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
 
     jbgp.nb_os_blocking = 1;
     int os_blocking_max = (is_amx_bf16)
-            ? ((size_t)jbgp.src_dt * jbgp.mb * jbgp.ic
+            ? (types::data_type_size(jbgp.src_dt) * jbgp.mb * jbgp.ic
                       < platform::get_per_core_cache_size(2))
                     ? 8
                     : 4
