@@ -97,23 +97,12 @@ status_t gen9_eltwise_bwd_t::pd_t::init_conf(engine_t *engine) {
 
     const memory_desc_wrapper data_d(data_md());
     const memory_desc_wrapper diff_data_d(diff_src_md());
+
+    // This kernel supports only matching data and diff formats
+    if (data_d != diff_data_d) return status::unimplemented;
+
     conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
     conf.vector_size = 8;
-
-    //gen9_eltwise has not supported when formats data for src and diff_src are different
-    //In this case we return status unimplemented in order to exec ref kernel
-    //Below is the list when src data format is different from diff_src one.
-    bool format_src_and_diff_src_are_diff
-            = (data_d.matches_one_of_tag(abcde)
-                      && diff_data_d.matches_one_of_tag(aBcde8b))
-            || (data_d.matches_one_of_tag(aBcde8b)
-                    && diff_data_d.matches_one_of_tag(abcde))
-            || (data_d.matches_one_of_tag(acdeb)
-                    && diff_data_d.matches_one_of_tag(abcde))
-            || (data_d.matches_one_of_tag(abcde)
-                    && diff_data_d.matches_one_of_tag(acdeb));
-
-    if (format_src_and_diff_src_are_diff) return status::unimplemented;
 
     return status::success;
 }
