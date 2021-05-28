@@ -556,7 +556,8 @@ struct jit_softmax_t<avx2> : public jit_softmax_base_t<avx2> {
 
                     if (axis_is_blocked_) {
                         uni_vxorps(vzeropad, vzeropad, vzeropad);
-                        vpblendvb(vzeropad, vzeropad, vreg_tmp_src, tail_vmask);
+                        uni_vblendvps(
+                                vzeropad, vzeropad, vreg_tmp_src, tail_vmask);
                         uni_vmovups(dst_ptr(axis_stride_ * i), vzeropad);
                     } else {
                         uni_vmovups_tail(dst_ptr(axis_stride_ * i), tail_vmask,
