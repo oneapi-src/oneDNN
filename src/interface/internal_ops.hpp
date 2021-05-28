@@ -118,7 +118,15 @@ namespace op_kind {
     X(maximum_relu, Maximum_relu) \
     X(maximum_sigmoid, Maximum_sigmoid) \
     X(minimum_relu, Minimum_relu) \
-    X(minimum_sigmoid, Minimum_sigmoid)
+    X(minimum_sigmoid, Minimum_sigmoid) \
+    X(x8s8f32_matmul, X8S8F32_MatMul) \
+    X(x8s8f32_matmul_bias, X8S8F32_MatMul_bias) \
+    X(x8s8f32_matmul_relu, X8S8F32_MatMul_relu) \
+    X(x8s8f32_matmul_bias_relu, X8S8F32_MatMul_bias_relu) \
+    X(x8s8f32_matmul_sigmoid, X8S8F32_MatMul_sigmoid) \
+    X(x8s8f32_matmul_bias_sigmoid, X8S8F32_MatMul_bias_sigmoid) \
+    X(x8s8f32_matmul_gelu, X8S8F32_MatMul_gelu) \
+    X(x8s8f32_matmul_bias_gelu, X8S8F32_MatMul_bias_gelu)
 
 enum {
     kAny = 0x1234,

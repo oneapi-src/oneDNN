@@ -3339,6 +3339,245 @@ TEST(pass_test, int8_matmul_bias_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
 }
 
+TEST(pass_test, x8s8f32_matmul_fusion) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+           matmul
+             | (f32)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t matmul {2, MatMul, "matmul"};
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(4, data_type::f32);
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight);
+    matmul.add_output(fp32_matmul_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("x8s8f32_matmul_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            x8s8f32_matmul);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+}
+
+TEST(pass_test, x8s8f32_matmul_bias_fusion) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+        matmul (w/ bias)
+             | (f32)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t matmul {2, MatMul, "matmul"};
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_bias = logical_tensor_init(4, data_type::f32);
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(5, data_type::f32);
+
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight);
+    matmul.add_input(fp32_bias);
+    matmul.add_output(fp32_matmul_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("x8s8f32_matmul_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
+
+    pass::pass_base_ptr apass2 = get_pass("x8s8f32_matmul_bias_fusion");
+    apass2->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            x8s8f32_matmul_bias);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+}
+
+TEST(pass_test, x8s8f32_matmul_eltwise_fusion) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+           matmul
+             | (f32)
+           eltwise
+             | (f32)
+    */
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
+            {ReLU, x8s8f32_matmul_relu}, {Sigmoid, x8s8f32_matmul_sigmoid},
+            {GELU, x8s8f32_matmul_gelu}};
+    for (auto &p : opkind_pair) {
+        graph_t agraph;
+        std::vector<int64_t> zps = {0};
+        std::vector<float> scales = {3.1f};
+        op_t dequant1 {0, Dequantize, "dequant"};
+        dequant1.set_attr("scales", scales);
+        dequant1.set_attr("zps", zps);
+        op_t dequant2 {1, Dequantize, "dequant"};
+        dequant2.set_attr("scales", scales);
+        dequant2.set_attr("zps", zps);
+        op_t matmul {2, MatMul, "conv"};
+        op_t eltwise {3, p.first, "eltwise"};
+
+        logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+        logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+        dequant1.add_input(int8_data);
+        dequant1.add_output(fp32_data);
+
+        logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+        logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+        dequant2.add_input(s8_weight);
+        dequant2.add_output(fp32_weight);
+
+        logical_tensor_t fp32_matmul_out
+                = logical_tensor_init(4, data_type::f32);
+        matmul.add_input(fp32_data);
+        matmul.add_input(fp32_weight);
+        matmul.add_output(fp32_matmul_out);
+
+        logical_tensor_t fp32_eltwise_out
+                = logical_tensor_init(5, data_type::f32);
+        eltwise.add_input(fp32_matmul_out);
+        eltwise.add_output(fp32_eltwise_out);
+
+        ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+        ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+        ASSERT_EQ(agraph.add_op(&matmul), status::success);
+        ASSERT_EQ(agraph.add_op(&eltwise), status::success);
+
+        agraph.build_graph();
+
+        pm.run_passes(agraph, "no_config");
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+        ASSERT_EQ(
+                get_fused_op(agraph.get_partitions()[0])->get_kind(), p.second);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    }
+}
+
+TEST(pass_test, x8s8f32_matmul_bias_eltwise_fusion) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+        matmul (w/ bias)
+             | (f32)
+           eltwise
+             | (f32)
+    */
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
+            {ReLU, x8s8f32_matmul_bias_relu},
+            {Sigmoid, x8s8f32_matmul_bias_sigmoid},
+            {GELU, x8s8f32_matmul_bias_gelu}};
+    for (auto &p : opkind_pair) {
+        graph_t agraph;
+        std::vector<int64_t> zps = {0};
+        std::vector<float> scales = {3.1f};
+        op_t dequant1 {0, Dequantize, "dequant"};
+        dequant1.set_attr("scales", scales);
+        dequant1.set_attr("zps", zps);
+        op_t dequant2 {1, Dequantize, "dequant"};
+        dequant2.set_attr("scales", scales);
+        dequant2.set_attr("zps", zps);
+        op_t matmul {2, MatMul, "matmul"};
+        op_t eltwise {3, p.first, "eltwise"};
+
+        logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+        logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+        dequant1.add_input(int8_data);
+        dequant1.add_output(fp32_data);
+
+        logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+        logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+        dequant2.add_input(s8_weight);
+        dequant2.add_output(fp32_weight);
+
+        logical_tensor_t fp32_bias = logical_tensor_init(4, data_type::f32);
+        logical_tensor_t fp32_matmul_out
+                = logical_tensor_init(5, data_type::f32);
+        matmul.add_input(fp32_data);
+        matmul.add_input(fp32_weight);
+        matmul.add_input(fp32_bias);
+        matmul.add_output(fp32_matmul_out);
+
+        logical_tensor_t fp32_eltwise_out
+                = logical_tensor_init(6, data_type::f32);
+        eltwise.add_input(fp32_matmul_out);
+        eltwise.add_output(fp32_eltwise_out);
+
+        ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+        ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+        ASSERT_EQ(agraph.add_op(&matmul), status::success);
+        ASSERT_EQ(agraph.add_op(&eltwise), status::success);
+
+        agraph.build_graph();
+
+        pm.run_passes(agraph, "no_config");
+
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+        ASSERT_EQ(
+                get_fused_op(agraph.get_partitions()[0])->get_kind(), p.second);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+    }
+}
+
 TEST(pass_test, int8_maxpool_fusion) {
     /*
              | (u8/s8)
