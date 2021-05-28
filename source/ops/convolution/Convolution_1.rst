@@ -110,8 +110,9 @@ If the total padding needed is odd, *same_upper* makes :math:`p_e=p_b+1`,
 
 * *groups*
 
-  * **Description**: *groups* denotes the number of groups input and output
-    channels are divided into.
+  * **Description**: *groups* denotes the number of groups input channels and
+    output channels are divided into. In_channels and out_channels must both be
+    divisible by groups
   * **Range of values**: integer value greater than 0
   * **Type**: int
   * **Variable**: `g`
@@ -141,9 +142,10 @@ If the total padding needed is odd, *same_upper* makes :math:`p_e=p_b+1`,
 
 * **1**: ``input`` - the input tensor. The format is specified by *data_format*.
   **Required.**
-* **2**: ``filter`` - convolution kernel tensor. The format is specified by
-  *filter_format*. The size of the kernel is derived from the shape of this
-  input and not specified by any attribute. **Required.**
+* **2**: ``filter`` - convolution filter tensor. The format is specified by
+  *filter_format*. The shape of filter is (out_channels, in_channels // groups,
+  spatial_shape) for OIX format and (spatial_shape, in_channels // groups,
+  out_channels) for XIO format. **Required.**
 * **3**: ``bias`` - a 1-D tensor adds to channel dimension of input.
   Broadcasting is supported. **Optional.**
 

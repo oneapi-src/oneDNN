@@ -81,7 +81,8 @@ gradient and computes the weights gradient.
 * *groups*
 
   * **Description**: *groups* denotes the number of groups input channels and
-    output channels are divided into.
+    output channels are divided into. In_channels and out_channels must both be
+    divisible by groups
   * **Range of values**: integer value greater than 0
   * **Type**: int
   * **Default value**: 1
@@ -112,7 +113,9 @@ gradient and computes the weights gradient.
 * **1**: ``input`` - input tensor. **Required**.
 
 * **2**: ``filters_shape`` - 1D integer tensor that specifies spatial shape of
-  the filter. **Required**.
+  the filter. The shape of filter is (out_channels, in_channels // groups,
+  spatial_shape) for OIX format and (spatial_shape, in_channels // groups,
+  out_channels) for XIO format. **Required**
 
 * **3**: ``output_delta`` - gradients tensor w.r.t. the output of the
   convolution. **Required**.

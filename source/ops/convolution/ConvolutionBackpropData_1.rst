@@ -138,7 +138,8 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
 * *groups*
 
   * **Description**: *groups* denotes the number of groups input channels and
-    output channels are divided into.
+    output channels are divided into. In_channels and out_channels must both be
+    divisible by groups
   * **Range of values**: integer value greater than 0
   * **Type**: int
   * **Default value**: 1
@@ -167,9 +168,10 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
 
 * **1**: ``data`` -- input tensor of rank 3 or greater. **Required**.
 
-* **2**: ``filter`` -- convolution kernel tensor. The format is specified by
-  *filter_format*. Spatial size of the kernel is derived from the shape of this
-  input and aren't specified by any attribute. **Required**.
+* **2**: ``filter`` --  convolution filter tensor. The format is specified by
+  *filter_format*. The shape of filter is (out_channels, in_channels // groups,
+  spatial_shape) for OIX format and (spatial_shape, in_channels // groups,
+  out_channels)  for XIO format. **Required.**
 
 * **3**: ``output_shape`` is 1D integer tensor that specifies spatial shape of
   the output. **Optional**. If specified, *padding amount* is deduced from
