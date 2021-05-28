@@ -1,0 +1,82 @@
+--reset
+
+#all supported algs
+--inplace=true,false
+--dir=FWD_I
+--dt=f32
+--tag=abx,axb
+--alpha= --beta=
+--alg=abs,clip,elu,exp,gelu_erf,log,sqrt,square,tanh
+
+64x512x28x28
+
+#gelu shapes from bert_squad -TODO - add gelu_tanh???
+--inplace=true,false
+--dir=FWD_I
+--dt=f32
+--tag=abx
+--alpha= --beta=
+--alg=gelu_erf
+
+8x384x4096
+
+#relu input shapes
+--inplace=true,false
+--dir=FWD_I
+--dt=f32
+--tag=abx
+--alpha= --beta=
+--alg=relu
+
+64x2048x7x7
+64x1024x14x14
+64x512x28x28
+64x512x14x14
+64x512x7x7
+64x256x56x56
+64x256x28x28
+64x256x14x14
+64x128x56x56
+64x128x28x28
+64x64x112x112
+64x64x56x56
+1x4096x14x14
+1x4096x7x7
+1x1024x28x28
+1x2048x14x14
+1x2048x7x7
+1x1024x56x56
+1x1024x28x28
+1x1024x14x14
+1x512x56x56
+1x512x28x28
+1x256x56x56
+1x64x112x112
+1x512x75x75
+1x512x38x38
+1x256x150x150
+1x256x75x75
+1x256x19x19
+1x256x9x9
+1x256x7x7
+1x128x150x150
+1x128x38x38
+1x128x19x19
+1x128x9x9
+1x64x600x600
+1x64x300x300
+16x1024
+16x512
+16x256
+16x128
+
+#TODO --alg=sigmoid ???
+#16x1
+
+#POW op fails with core dump.
+#--dt=f32 --tag=abx --dir=FWD_I --alpha= --beta=-1,0,0.5,1,1.5,2 --alg=pow 64x512x28x28
+
+#alg only supported ones are added. TODO- extend to others
+#--alg=clip_v2,exp_dst,hardswish,logistic,logistic_dst,logsigmoid,mish,round,sqrt_dst,
+#--alg=soft_relu,tanh_dst,bounded_relu,elu_dst,relu_dst,swish
+#clip_v2_dst,linear

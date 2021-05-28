@@ -24,6 +24,7 @@
 #include "parser.hpp"
 
 #include "eltwise/eltwise.hpp"
+#include "eltwise/graph_eltwise.hpp"
 
 namespace eltwise {
 
@@ -95,7 +96,14 @@ void check_correctness(const settings_t &s) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
-        const int status = doit(&prb, &res);
+        const int status = [&prb, &res](api_mode_t mode) {
+            if (api_mode == PRIMITIVE)
+                return doit(&prb, &res);
+            else if (api_mode == GRAPH)
+                return benchdnnext::eltwise::doit(&prb, &res);
+            else
+                return FAIL;
+        }(api_mode);
 
         bool want_perf_report = false;
         parse_result(res, want_perf_report, status, pstr);
