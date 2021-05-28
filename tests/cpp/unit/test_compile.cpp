@@ -2482,69 +2482,6 @@ TEST(operator_kernel, matmul_bias_add_relu_fusion) {
     }
 }
 
-TEST(operator_kernel, matmul_bias_bn) {
-    impl::op_t matmul_op(impl::op_kind::matmul_bias_bn);
-    matmul_op.set_attr<float>("epsilon", 0.f);
-    matmul_op.set_attr<bool>("transpose_b", true);
-    impl::engine_t &engine = get_engine();
-
-    test::vector<float> src_data {-2.0, -1.5, -3.0, 0.5};
-    test::vector<float> weight_data {2.0, -1.5, 1.0, -1.0};
-    test::vector<float> bias_data {1.0, -0.5};
-    test::vector<float> scale_data {2.0, 1.0};
-    test::vector<float> shift_data {-1.5, 0.5};
-    test::vector<float> mean_data {1.0, -2.0};
-    test::vector<float> varience_data {1.0, 0.25};
-    test::vector<float> ref_dst_data {-5.0, -3.5};
-    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
-
-    // prepare logical tensor
-    impl::logical_tensor_t src
-            = utils::logical_tensor_init(0, {2, 1, 2}, impl::data_type::f32);
-    impl::logical_tensor_t weight
-            = utils::logical_tensor_init(1, {2, 1, 2}, impl::data_type::f32);
-    impl::logical_tensor_t bias
-            = utils::logical_tensor_init(2, {2, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t scale
-            = utils::logical_tensor_init(3, {2, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t shift
-            = utils::logical_tensor_init(4, {2, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t mean
-            = utils::logical_tensor_init(5, {2, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t varience
-            = utils::logical_tensor_init(6, {2, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            7, {2, 1, 1}, impl::data_type::f32, impl::layout_type::any);
-
-    std::vector<impl::logical_tensor_t> inputs {
-            src, weight, bias, scale, shift, mean, varience};
-    std::vector<impl::logical_tensor_t> outputs {dst};
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto matmul_kernel = op_factory.create_kernel(matmul_op);
-    matmul_kernel->compile(&matmul_op, &engine, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
-
-    impl::tensor_t src_ts(src, src_data.data());
-    impl::tensor_t weight_ts(weight, weight_data.data());
-    impl::tensor_t bias_ts(bias, bias_data.data());
-    impl::tensor_t scale_ts(scale, scale_data.data());
-    impl::tensor_t shift_ts(shift, shift_data.data());
-    impl::tensor_t mean_ts(mean, mean_data.data());
-    impl::tensor_t varience_ts(varience, varience_data.data());
-    impl::tensor_t dst_ts(outputs[0], dst_data.data());
-
-    impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(&matmul_op, &strm,
-            {src_ts, weight_ts, bias_ts, scale_ts, shift_ts, mean_ts,
-                    varience_ts},
-            {dst_ts});
-    strm.wait();
-    for (size_t i = 0; i < ref_dst_data.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
-    }
-}
-
 TEST(operator_kernel, max_pool) {
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
