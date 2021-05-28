@@ -80,3 +80,7 @@
 
 # Test different src and dst datatypes
 --batch=harness_pooling_different_dt
+
+# Test layers of some key GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu

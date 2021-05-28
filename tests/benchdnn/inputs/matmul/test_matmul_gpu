@@ -89,3 +89,7 @@ m2n3k4
 --attr-oscale=common:1.25
 --attr-post-ops=sum+add:f32+add:u8:per_dim_01+mul:f32:per_dim_0+add:s8:per_tensor+add:f32:per_dim_01+linear:2:-1
 1x5x4x3x30x2:6x1x4x3x2x20:6x5x4x3x30x20
+
+# Test layers of some key GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu
