@@ -281,7 +281,7 @@ void jit_uni_shuffle_kernel_t<avx>::store_data(const int data_idx,
 
         if (extend_for_padding) {
             uni_vxorps(xmm_tmp, xmm_tmp, xmm_tmp);
-            vpblendvb(xmm_tmp, xmm_tmp, to_store_data, vmm_tail_mask_);
+            uni_vblendvps(xmm_tmp, xmm_tmp, to_store_data, vmm_tail_mask_);
             vmovups(ptr[reg_dst_addr + offset], xmm_tmp);
         } else {
             if (is_tail)
@@ -294,7 +294,7 @@ void jit_uni_shuffle_kernel_t<avx>::store_data(const int data_idx,
     } else {
         if (extend_for_padding) {
             uni_vxorps(vmm_tmp_, vmm_tmp_, vmm_tmp_);
-            vpblendvb(vmm_tmp_, vmm_tmp_, Vmm(data_idx), vmm_tail_mask_);
+            uni_vblendvps(vmm_tmp_, vmm_tmp_, Vmm(data_idx), vmm_tail_mask_);
             vmovups(ptr[reg_dst_addr + offset], vmm_tmp_);
         } else {
             if (is_tail)
