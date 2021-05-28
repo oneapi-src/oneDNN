@@ -55,16 +55,6 @@ struct matmul_op_set {
     }
 
     /**
-     * Check if matmul operator fuses batchnorm
-     *
-     * @param kind operator kind
-     * @return whether the operator fuses batchnorm
-     */
-    static bool fuse_batchnorm(op_kind_t kind) {
-        return kind == op_kind::matmul_bias_bn;
-    }
-
-    /**
      * Check if matmul operator fuses add
      *
      * @param kind operator kind
@@ -123,14 +113,9 @@ private:
     bool with_post_sum_ {false};
     bool with_post_binary_add_ {false};
     bool with_eltwise_ {false};
-    bool with_bn_ {false};
     op_kind_t kind_;
     float alpha_ = 0.f;
     float beta_ = 0.f;
-
-    size_t bn_input_offset_;
-
-    float epsilon_; // bn epsilon
 
     tensor::desc ori_src_desc_ {};
     tensor::desc ori_weight_desc_ {};
@@ -151,7 +136,6 @@ public:
         kind_ = op->get_kind();
         with_add_ = matmul_op_set::fuse_add(kind_);
         with_eltwise_ = matmul_op_set::fuse_eltwise(kind_);
-        with_bn_ = matmul_op_set::fuse_batchnorm(kind_);
         with_bias_ = matmul_op_set::with_bias(kind_)
                 || (!with_add_ && inputs.size() == 3);
 
@@ -179,8 +163,6 @@ public:
                 beta_ = op->get_attr<float>("max");
             }
         }
-        // the bn inputs offset (if exist)
-        if (with_bn_) bn_input_offset_ = with_bias_ ? 3 : 2;
 
         // prepare the inputs and outputs tensors' descs
         desc src {inputs.at(matmul_fwd::kSrc)};
@@ -226,11 +208,7 @@ public:
                     {weight.get_dim(0), 1}, weight.get_data_type(), {1, 1}};
 
         // if with_bias, we use the bias_desc directly, otherwise
-        // if with_bn, we use bn's shift_desc as the bias_desc
-        desc bias = with_bias_ ? desc {inputs.at(matmul_fwd::kBias)}
-                               : (with_bn_ ? desc {inputs.at(bn_input_offset_
-                                          + matmul_fwd::kShift)}
-                                           : desc {});
+        desc bias = with_bias_ ? desc {inputs.at(matmul_fwd::kBias)} : desc {};
 
         dims old_bias_dims = with_bias_ ? bias.get_dims() : dims {};
 
@@ -262,8 +240,6 @@ public:
         ori_src_desc_ = src;
         ori_weight_desc_ = weight;
         ori_bias_desc_ = bias;
-
-        if (with_bn_) epsilon_ = op->get_attr<float>("epsilon");
 
         // append post_ops to attrs
         if (with_add_) {
@@ -322,26 +298,21 @@ public:
 
         fill_layout_info(dst_lt, pd_.dst_desc());
 
-        // TODO(wuxun): for prepacking, temporarily skip when `with_bn_` is True
-        // need to think about how to implement bn folding outside, maybe then
-        // we can also remove `with_bn_` flag.
-        if (!with_bn_) {
-            impl::logical_tensor_t *ori_weight_lt
+        impl::logical_tensor_t *ori_weight_lt
+                = const_cast<impl::logical_tensor_t *>(
+                        &inputs.at(matmul_fwd::kWeight));
+        // TODO(wuxun): here, we need to reshape the queried desc to the
+        // original shape. However, if there is a broadcast in one dim and
+        // DNNL also needs padding in this broadcast dim, reshaping will
+        // fail. A possible solution is that in conversion's reorder, we
+        // also add check for the broadcast-able dims.
+        fill_layout_info(ori_weight_lt, pd_.weights_desc());
+        if (with_bias_) {
+            impl::logical_tensor_t *ori_bias_lt
                     = const_cast<impl::logical_tensor_t *>(
-                            &inputs.at(matmul_fwd::kWeight));
-            // TODO(wuxun): here, we need to reshape the queried desc to the
-            // original shape. However, if there is a broadcast in one dim and
-            // DNNL also needs padding in this broadcast dim, reshaping will
-            // fail. A possible solution is that in conversion's reorder, we
-            // also add check for the broadcast-able dims.
-            fill_layout_info(ori_weight_lt, pd_.weights_desc());
-            if (with_bias_) {
-                impl::logical_tensor_t *ori_bias_lt
-                        = const_cast<impl::logical_tensor_t *>(
-                                &inputs.at(matmul_fwd::kBias));
-                fill_layout_info(
-                        ori_bias_lt, pd_.bias_desc().reshape(old_bias_dims));
-            }
+                            &inputs.at(matmul_fwd::kBias));
+            fill_layout_info(
+                    ori_bias_lt, pd_.bias_desc().reshape(old_bias_dims));
         }
         return impl::status::success;
     }
@@ -372,68 +343,24 @@ public:
         tensor post_src = with_add_ ? tensor {inputs.back(), p_engine_, alc}
                                     : tensor {};
         tensor dst {outputs.at(matmul_fwd::kDst), p_engine_, alc};
-        if (with_bn_) {
-            const tensor bn_scale {
-                    inputs.at(bn_input_offset_ + matmul_fwd::kScale), p_engine_,
-                    alc};
-            const tensor bn_shift {
-                    inputs.at(bn_input_offset_ + matmul_fwd::kShift), p_engine_,
-                    alc};
-            const tensor bn_mean {
-                    inputs.at(bn_input_offset_ + matmul_fwd::kMean), p_engine_,
-                    alc};
-            const tensor bn_var {
-                    inputs.at(bn_input_offset_ + matmul_fwd::kVariance),
-                    p_engine_, alc};
 
-            if (updated_weights_.is_empty()) {
-                updated_weights_ = tensor {weight.get_desc(), p_engine_, alc};
-                updated_bias_ = tensor {bn_shift.get_desc(), p_engine_, alc};
+        if (weight.get_desc() != pd_weights_desc) { //need to reorder
+            if (expected_weights_.is_empty()) {
+                expected_weights_ = tensor {pd_weights_desc, p_engine_, alc};
             }
+            weight.reorder_to(p_stream_, expected_weights_);
+        } else {
+            expected_weights_ = weight;
+        }
 
-            bn_fusion::folding(&updated_weights_, &updated_bias_, weight, bias,
-                    bn_mean, bn_var, bn_scale, bn_shift, epsilon_, *g_stream);
-
-            if (updated_weights_.get_desc()
-                    != pd_weights_desc) { //need to reorder
-                if (expected_weights_.is_empty()) {
-                    expected_weights_
-                            = tensor {pd_weights_desc, p_engine_, alc};
-                }
-                updated_weights_.reorder_to(p_stream_, expected_weights_);
-            } else {
-                expected_weights_ = updated_weights_;
-            }
-
-            if (updated_bias_.get_desc() != pd_bias_desc) {
+        if (with_bias_) {
+            if (bias.get_desc() != pd_bias_desc) {
                 if (expected_bias_.is_empty()) {
                     expected_bias_ = tensor {pd_bias_desc, p_engine_, alc};
                 }
-                updated_bias_.reorder_to(p_stream_, expected_bias_);
+                bias.reorder_to(p_stream_, expected_bias_);
             } else {
-                expected_bias_ = updated_bias_;
-            }
-
-        } else {
-            if (weight.get_desc() != pd_weights_desc) { //need to reorder
-                if (expected_weights_.is_empty()) {
-                    expected_weights_
-                            = tensor {pd_weights_desc, p_engine_, alc};
-                }
-                weight.reorder_to(p_stream_, expected_weights_);
-            } else {
-                expected_weights_ = weight;
-            }
-
-            if (with_bias_) {
-                if (bias.get_desc() != pd_bias_desc) {
-                    if (expected_bias_.is_empty()) {
-                        expected_bias_ = tensor {pd_bias_desc, p_engine_, alc};
-                    }
-                    bias.reorder_to(p_stream_, expected_bias_);
-                } else {
-                    expected_bias_ = bias;
-                }
+                expected_bias_ = bias;
             }
         }
 
@@ -522,8 +449,7 @@ private:
         if (with_post_sum_) {
             size_t input_idx = with_bias_ ? matmul_fwd::kBias + 1
                                           : matmul_fwd::kWeight + 1;
-            if (with_bn_)
-                input_idx = bn_input_offset_ + matmul_fwd::kVariance + 1;
+
             constexpr size_t output_idx = 0;
 
             const logical_tensor_wrapper post_src_lt(inputs[input_idx]);

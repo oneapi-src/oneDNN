@@ -2134,41 +2134,6 @@ TEST(pass_test, matmul_bias_swish_fusion) {
     ASSERT_EQ(fused_op->get_kind(), matmul_bias_swish);
 }
 
-TEST(pass_test, matmul_bias_bn_fusion) {
-    graph_t agraph;
-    op_t matmul {0, MatMul, "matmul"};
-    op_t bias {1, BiasAdd, "bias"};
-    op_t bn {2, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.9f);
-    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(10);
-    matmul.add_input(lt_vec[0]);
-    matmul.add_input(lt_vec[1]);
-    matmul.add_output(lt_vec[2]);
-    bias.add_input(lt_vec[2]);
-    bias.add_input(lt_vec[3]);
-    bias.add_output(lt_vec[4]);
-    bn.add_input(lt_vec[4]);
-    bn.add_input(lt_vec[5]);
-    bn.add_input(lt_vec[6]);
-    bn.add_input(lt_vec[7]);
-    bn.add_input(lt_vec[8]);
-    bn.add_output(lt_vec[9]);
-
-    ASSERT_EQ(agraph.add_op(&matmul), status::success);
-    ASSERT_EQ(agraph.add_op(&bias), status::success);
-    ASSERT_EQ(agraph.add_op(&bn), status::success);
-    agraph.build_graph();
-    ASSERT_EQ(agraph.num_ops(), 3);
-
-    pass::pass_base_ptr apass = get_pass("matmul_bias_bn_fusion");
-    apass->run(agraph);
-
-    ASSERT_EQ(agraph.get_num_partitions(), 1);
-
-    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_op->get_kind(), matmul_bias_bn);
-}
-
 TEST(pass_test, matmul_bias_relu6_fusion) {
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};

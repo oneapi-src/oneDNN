@@ -1078,31 +1078,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sum_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_bn_fusion)
-        .set_priority(9.0f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *matmul = apattern->create_op(op_kind::MatMul);
-                    matmul->set_attr<int64_t>("num_inputs", 2);
-                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
-                    bias->fill_and_connect_input(0, *matmul, 0);
-                    bn->fill_and_connect_input(0, *bias, 0);
-                })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *matmul = apattern->create_op(op_kind::MatMul);
-                    matmul->set_attr<int64_t>("num_inputs", 3);
-                    op_t *bn = apattern->create_op(op_kind::BatchNormInference);
-                    bn->fill_and_connect_input(0, *matmul, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::matmul_bias_bn);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_fusion)
         .set_priority(8.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
