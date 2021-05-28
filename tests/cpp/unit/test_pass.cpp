@@ -964,6 +964,36 @@ TEST(pass_test, conv_bias_sum_relu6_fusion) {
             conv_bias_add_relu6);
 }
 
+TEST(pass_test, binary_eltwise_fusion) {
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    std::vector<std::pair<std::pair<op_kind_t, op_kind_t>, op_kind_t>>
+            opkind_pair {{{Add, Sigmoid}, add_sigmoid}, {{Add, ReLU}, add_relu},
+                    {{Multiply, Sigmoid}, multiply_sigmoid},
+                    {{Multiply, ReLU}, multiply_relu},
+                    {{Maximum, Sigmoid}, maximum_sigmoid},
+                    {{Maximum, ReLU}, maximum_relu},
+                    {{Minimum, Sigmoid}, minimum_sigmoid},
+                    {{Minimum, ReLU}, minimum_relu}};
+
+    for (auto &p : opkind_pair) {
+        graph_t agraph;
+        auto binary_kind = p.first.first;
+        auto eltwise_kind = p.first.second;
+
+        op_t *op1 = agraph.create_op(binary_kind);
+        op_t *op2 = agraph.create_op(eltwise_kind);
+        op2->fill_and_connect_input(0, *op1, 0);
+
+        pm.run_passes(agraph, "no_config");
+
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+        auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+        ASSERT_EQ(fused_op->get_kind(), p.second);
+    }
+}
+
 TEST(pass_test, bn_relu_fusion) {
     graph_t agraph;
 

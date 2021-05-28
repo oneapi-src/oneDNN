@@ -155,6 +155,14 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Permute, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(To_group, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Broadcast, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Relu_add, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add_sigmoid, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Maximum_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Maximum_sigmoid, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Minimum_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Minimum_sigmoid, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Multiply_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Multiply_sigmoid, 1);
 
 class opset_v1 {
 public:
@@ -338,6 +346,17 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(To_group, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Broadcast, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Relu_add, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add_sigmoid, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Maximum_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        Maximum_sigmoid, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Minimum_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        Minimum_sigmoid, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Multiply_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        Multiply_sigmoid, 1)>());
     }
 };
 

@@ -105,7 +105,15 @@ namespace op_kind {
     X(to_group, To_group) \
     X(broadcast, Broadcast) \
     X(dnnl_convolution, Dnnl_convolution) \
-    X(relu_add, Relu_add)
+    X(relu_add, Relu_add) \
+    X(add_relu, Add_relu) \
+    X(add_sigmoid, Add_sigmoid) \
+    X(multiply_relu, Multiply_relu) \
+    X(multiply_sigmoid, Multiply_sigmoid) \
+    X(maximum_relu, Maximum_relu) \
+    X(maximum_sigmoid, Maximum_sigmoid) \
+    X(minimum_relu, Minimum_relu) \
+    X(minimum_sigmoid, Minimum_sigmoid)
 
 enum {
     kAny = 0x1234,

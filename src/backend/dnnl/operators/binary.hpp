@@ -52,6 +52,7 @@ enum binary_outputs { kDst };
 struct binary : public dnnl::binary, public kernel_base {
 private:
     primitive_desc pd_;
+    attr_t attr_;
 
     std::string auto_broadcast_ {"numpy"};
     algorithm alg_kind_;
@@ -75,6 +76,38 @@ private:
     bool require_broadcast(const dnnl::memory::desc &src0,
             const dnnl::memory::desc &src1, const dnnl::memory::desc &dst) {
         return !(src0.dims() == src1.dims() && src0.dims() == dst.dims());
+    }
+
+    static algorithm get_eltwise_algo(op_kind_t kind) {
+        switch (static_cast<int>(kind)) {
+            case op_kind::add_relu:
+            case op_kind::multiply_relu:
+            case op_kind::maximum_relu:
+            case op_kind::minimum_relu: return (algorithm::eltwise_relu);
+            case op_kind::add_sigmoid:
+            case op_kind::multiply_sigmoid:
+            case op_kind::maximum_sigmoid:
+            case op_kind::minimum_sigmoid: return (algorithm::eltwise_logistic);
+            default: return (algorithm::undef);
+        }
+    }
+
+    static algorithm get_binary_algo(op_kind_t kind) {
+        switch (static_cast<int>(kind)) {
+            case op_kind::Add:
+            case op_kind::add_relu:
+            case op_kind::add_sigmoid: return (algorithm::binary_add);
+            case op_kind::Multiply:
+            case op_kind::multiply_relu:
+            case op_kind::multiply_sigmoid: return (algorithm::binary_mul);
+            case op_kind::Maximum:
+            case op_kind::maximum_relu:
+            case op_kind::maximum_sigmoid: return (algorithm::binary_max);
+            case op_kind::Minimum:
+            case op_kind::minimum_relu:
+            case op_kind::minimum_sigmoid: return (algorithm::binary_min);
+            default: return (algorithm::undef);
+        }
     }
 
     // (3, 4) * (3, 4) is doable
@@ -117,13 +150,8 @@ public:
             auto_broadcast_ = op->get_attr<std::string>("auto_broadcast");
         }
 
-        switch (op->get_kind()) {
-            case op_kind::Add: alg_kind_ = algorithm::binary_add; break;
-            case op_kind::Multiply: alg_kind_ = algorithm::binary_mul; break;
-            case op_kind::Maximum: alg_kind_ = algorithm::binary_max; break;
-            case op_kind::Minimum: alg_kind_ = algorithm::binary_min; break;
-            default: return status::compile_fail;
-        }
+        alg_kind_ = get_binary_algo(op->get_kind());
+        if (alg_kind_ == algorithm::undef) return status::compile_fail;
 
         p_engine_ = make_dnnl_engine(*g_engine);
 
@@ -153,7 +181,15 @@ public:
 
         // to any for allowing dnnl choose optimal layout for dst
         desc dst_any(dst.dims(), dst.data_type(), format_tag::any);
-        pd_ = primitive_desc({alg_kind_, src0, src1, dst_any}, p_engine_);
+
+        // set eltwise post-op
+        const algorithm algo = get_eltwise_algo(op->get_kind());
+        if (algo != algorithm::undef) {
+            attr_ = attr_t::fuse_eltwise(algo, 1.f, 0.f, 0.f);
+        }
+
+        pd_ = primitive_desc(
+                {alg_kind_, src0, src1, dst_any}, attr_, p_engine_);
 
         impl::logical_tensor_t *orgi_dst_lt
                 = const_cast<impl::logical_tensor_t *>(&outputs.at(idx_dst_));

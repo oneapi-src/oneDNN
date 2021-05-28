@@ -43,6 +43,34 @@ DNNL_GRAPH_OP_SCHEMA(Add, 1,
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(Add_relu, 1,
+        op_schema()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "lhs", "first input tensor")
+                .set_input(1, "rhs", "second input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("auto_broadcast",
+                        "specifies rules used for auto-broadcasting of input "
+                        "tensors",
+                        false, attribute_kind::s, "numpy")
+                .set_shape_inference_function(
+                        infer_elemwise_arithmetic_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(Add_sigmoid, 1,
+        op_schema()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "lhs", "first input tensor")
+                .set_input(1, "rhs", "second input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("auto_broadcast",
+                        "specifies rules used for auto-broadcasting of input "
+                        "tensors",
+                        false, attribute_kind::s, "numpy")
+                .set_shape_inference_function(
+                        infer_elemwise_arithmetic_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(AvgPool, 1,
         op_schema()
                 .set_num_inputs(1)
@@ -651,6 +679,34 @@ DNNL_GRAPH_OP_SCHEMA(Maximum, 1,
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(Maximum_relu, 1,
+        op_schema()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "lhs", "first input tensor")
+                .set_input(1, "rhs", "second input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("auto_broadcast",
+                        "specifies rules used for auto-broadcasting "
+                        "of input tensors",
+                        false, attribute_kind::s, "numpy")
+                .set_shape_inference_function(
+                        infer_elemwise_arithmetic_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(Maximum_sigmoid, 1,
+        op_schema()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "lhs", "first input tensor")
+                .set_input(1, "rhs", "second input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("auto_broadcast",
+                        "specifies rules used for auto-broadcasting "
+                        "of input tensors",
+                        false, attribute_kind::s, "numpy")
+                .set_shape_inference_function(
+                        infer_elemwise_arithmetic_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
         op_schema()
                 .set_num_inputs(1)
@@ -727,12 +783,68 @@ DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(Minimum_relu, 1,
+        op_schema()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "lhs", "first input tensor")
+                .set_input(1, "rhs", "second input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("auto_broadcast",
+                        "specifies rules used for auto-broadcasting "
+                        "of input tensors",
+                        false, attribute_kind::s, "numpy")
+                .set_shape_inference_function(
+                        infer_elemwise_arithmetic_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(Minimum_sigmoid, 1,
+        op_schema()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "lhs", "first input tensor")
+                .set_input(1, "rhs", "second input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("auto_broadcast",
+                        "specifies rules used for auto-broadcasting "
+                        "of input tensors",
+                        false, attribute_kind::s, "numpy")
+                .set_shape_inference_function(
+                        infer_elemwise_arithmetic_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(Multiply, 1,
         op_schema()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
                 .set_input(1, "b", "second input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("auto_broadcast",
+                        "specifies rules used for auto-broadcasting of input "
+                        "tensors",
+                        false, attribute_kind::s, "numpy")
+                .set_shape_inference_function(
+                        infer_elemwise_arithmetic_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(Multiply_relu, 1,
+        op_schema()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "lhs", "first input tensor")
+                .set_input(1, "rhs", "second input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("auto_broadcast",
+                        "specifies rules used for auto-broadcasting of input "
+                        "tensors",
+                        false, attribute_kind::s, "numpy")
+                .set_shape_inference_function(
+                        infer_elemwise_arithmetic_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(Multiply_sigmoid, 1,
+        op_schema()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "lhs", "first input tensor")
+                .set_input(1, "rhs", "second input tensor")
                 .set_output(0, "output", "output tensor")
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting of input "
