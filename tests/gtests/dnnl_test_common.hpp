@@ -387,6 +387,15 @@ static void fill_data(const memory::dim size, const memory &mem,
 }
 
 template <typename data_t>
+static void remove_zeroes(const memory &mem) {
+    size_t nelems = mem.get_desc().get_size() / sizeof(data_t);
+    auto data_ptr = map_memory<data_t>(mem);
+    dnnl::impl::parallel_nd(nelems, [&](memory::dim n) {
+        if (data_ptr[n] == data_t(0)) data_ptr[n] += data_t(1);
+    });
+}
+
+template <typename data_t>
 static void compare_data(
         const memory &ref, const memory &dst, data_t threshold = (data_t)1e-4) {
     using data_type = memory::data_type;

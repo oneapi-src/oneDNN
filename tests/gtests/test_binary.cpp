@@ -178,11 +178,8 @@ protected:
                     src0_desc.get_size() / sizeof(src0_data_t), mem_A);
             fill_data<src1_data_t>(
                     src1_desc.get_size() / sizeof(src1_data_t), mem_B);
-
-            fill_data<src0_data_t>(
-                    src0_desc.get_size() / sizeof(src0_data_t), mem_A);
-            fill_data<src1_data_t>(
-                    src1_desc.get_size() / sizeof(src1_data_t), mem_B);
+            // Remove zeroes in src1 to avoid division by zero
+            remove_zeroes<src1_data_t>(mem_B);
 
             prim.execute(strm,
                     {{DNNL_ARG_SRC_0, mem_A}, {DNNL_ARG_SRC_1, mem_B},
