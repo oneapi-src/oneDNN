@@ -1128,6 +1128,57 @@ TEST(operator_kernel, mul_sigmoid) {
     }
 }
 
+TEST(operator_kernel, mul_add) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> src1 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> post_src {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
+    test::vector<float> dst(src0.size(), 0.0);
+
+    impl::op_t mul_op(impl::op_kind::multiply_add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto mul_kernel = op_factory.create_kernel(mul_op);
+    ASSERT_TRUE(mul_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 3, 3}, impl::data_type::f32);
+
+    // compile the add operator
+    mul_kernel->compile(
+            &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    mul_kernel->execute(
+            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+
+    mul_kernel->execute(
+            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {post_src_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(post_src[i], ref_dst[i]);
+    }
+}
+
 TEST(operator_kernel, min) {
     impl::engine_t &eng = get_engine();
 
@@ -1236,6 +1287,57 @@ TEST(operator_kernel, min_sigmoid) {
 
     for (size_t i = 0; i < src0.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, min_add) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    test::vector<float> src1 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> post_src {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> ref_dst {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
+    test::vector<float> dst(src0.size(), 0.0);
+
+    impl::op_t min_op(impl::op_kind::minimum_add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto min_kernel = op_factory.create_kernel(min_op);
+    ASSERT_TRUE(min_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 3, 3}, impl::data_type::f32);
+
+    // compile the add operator
+    min_kernel->compile(
+            &min_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    min_kernel->execute(
+            &min_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+
+    min_kernel->execute(
+            &min_op, &strm, {src0_ts, src1_ts, post_src_ts}, {post_src_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(post_src[i], ref_dst[i]);
     }
 }
 
@@ -1348,6 +1450,57 @@ TEST(operator_kernel, max_sigmoid) {
 
     for (size_t i = 0; i < src0.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, max_add) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    test::vector<float> src1 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> post_src {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> ref_dst {4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0};
+    test::vector<float> dst(src0.size(), 0.0);
+
+    impl::op_t max_op(impl::op_kind::maximum_add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto max_kernel = op_factory.create_kernel(max_op);
+    ASSERT_TRUE(max_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 3, 3}, impl::data_type::f32);
+
+    // compile the add operator
+    max_kernel->compile(
+            &max_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    max_kernel->execute(
+            &max_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+
+    max_kernel->execute(
+            &max_op, &strm, {src0_ts, src1_ts, post_src_ts}, {post_src_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(post_src[i], ref_dst[i]);
     }
 }
 

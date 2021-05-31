@@ -77,6 +77,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_add_sigmoid_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_multiply_add_fusion)
+        .set_priority(8.2f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *mul = apattern->create_op(op_kind::Multiply);
+                    op_t *any = apattern->create_op(op_kind::any);
+                    op_t *add = apattern->create_op(op_kind::Add);
+                    add->fill_and_connect_input(0, *mul, 0);
+                    add->fill_and_connect_input(1, *any, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::multiply_add);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_multiply_relu_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -107,6 +124,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_mul_sigmoid_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_maximum_add_fusion)
+        .set_priority(8.2f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *max = apattern->create_op(op_kind::Maximum);
+                    op_t *any = apattern->create_op(op_kind::any);
+                    op_t *add = apattern->create_op(op_kind::Add);
+                    add->fill_and_connect_input(0, *max, 0);
+                    add->fill_and_connect_input(1, *any, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::maximum_add);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_maximum_relu_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -134,6 +168,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_max_sigmoid_fusion)
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
                             op_kind::maximum_sigmoid);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_minimum_add_fusion)
+        .set_priority(8.2f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *min = apattern->create_op(op_kind::Minimum);
+                    op_t *any = apattern->create_op(op_kind::any);
+                    op_t *add = apattern->create_op(op_kind::Add);
+                    add->fill_and_connect_input(0, *min, 0);
+                    add->fill_and_connect_input(1, *any, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::minimum_add);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 

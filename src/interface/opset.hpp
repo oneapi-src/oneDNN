@@ -177,6 +177,9 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_MatMul_sigmoid, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_MatMul_bias_sigmoid, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_MatMul_gelu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_MatMul_bias_gelu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Maximum_add, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Minimum_add, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Multiply_add, 1);
 
 class opset_v1 {
 public:
@@ -397,6 +400,9 @@ public:
                         X8S8F32_MatMul_gelu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         X8S8F32_MatMul_bias_gelu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Maximum_add, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Minimum_add, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Multiply_add, 1)>());
     }
 };
 

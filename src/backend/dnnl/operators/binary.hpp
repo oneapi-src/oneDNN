@@ -23,6 +23,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_set>
 
 #include "interface/backend.hpp"
 
@@ -63,6 +64,7 @@ private:
 
     bool broadcast_ {false};
     bool unidirectional_ {false};
+    bool with_post_sum_ {false};
 
     dnnl::memory expected_src1_;
     dnnl::memory expected_dst_;
@@ -96,6 +98,19 @@ private:
         return true;
     }
 
+    /**
+     * Check if binary operator fuses add
+     *
+     * @param kind operator kind
+     * @return whether the operator fused add
+     */
+    static bool fuse_add(op_kind_t kind) {
+        static const std::unordered_set<op_kind_t, enum_hash> with_add_set {
+                op_kind::multiply_add, op_kind::maximum_add,
+                op_kind::minimum_add};
+        return with_add_set.find(kind) != with_add_set.end();
+    }
+
     static algorithm get_eltwise_algo(op_kind_t kind) {
         switch (static_cast<int>(kind)) {
             case op_kind::add_relu:
@@ -117,15 +132,36 @@ private:
             case op_kind::add_sigmoid: return (algorithm::binary_add);
             case op_kind::Multiply:
             case op_kind::multiply_relu:
-            case op_kind::multiply_sigmoid: return (algorithm::binary_mul);
+            case op_kind::multiply_sigmoid:
+            case op_kind::multiply_add: return (algorithm::binary_mul);
             case op_kind::Maximum:
             case op_kind::maximum_relu:
-            case op_kind::maximum_sigmoid: return (algorithm::binary_max);
+            case op_kind::maximum_sigmoid:
+            case op_kind::maximum_add: return (algorithm::binary_max);
             case op_kind::Minimum:
             case op_kind::minimum_relu:
-            case op_kind::minimum_sigmoid: return (algorithm::binary_min);
+            case op_kind::minimum_sigmoid:
+            case op_kind::minimum_add: return (algorithm::binary_min);
             default: return (algorithm::undef);
         }
+    }
+
+    impl::status_t prepare_inplace_pairs_impl(const impl::engine_t *g_engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) override {
+        UNUSED(g_engine);
+        if (with_post_sum_) {
+            size_t input_idx = idx_src1_ + 1;
+            constexpr size_t output_idx = 0;
+
+            const logical_tensor_wrapper post_src_lt(inputs[input_idx]);
+            const logical_tensor_wrapper dst_lt(outputs[output_idx]);
+            if (post_src_lt.is_opaque() && dst_lt.is_opaque()
+                    && post_src_lt.is_similar(dst_lt))
+                inplace_pairs_.push_back(
+                        {inputs[input_idx].id, outputs[output_idx].id});
+        }
+        return impl::status::success;
     }
 
 public:
@@ -182,6 +218,10 @@ public:
         // to any for allowing dnnl choose optimal layout for dst
         desc dst_any(dst.dims(), dst.data_type(), format_tag::any);
 
+        // set sum post-op
+        with_post_sum_ = fuse_add(op->get_kind());
+        if (with_post_sum_) { attr_ = attr_t::fuse_sum(); }
+
         // set eltwise post-op
         const algorithm algo = get_eltwise_algo(op->get_kind());
         if (algo != algorithm::undef) {
@@ -202,6 +242,7 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(op);
+        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
 
         memory src0 = make_dnnl_memory(inputs.at(idx_src0_), p_engine_);
         memory src1 = make_dnnl_memory(inputs.at(idx_src1_), p_engine_);
@@ -236,11 +277,21 @@ public:
             expected_dst_ = dst;
         }
 
+        memory post_src = with_post_sum_
+                ? make_dnnl_memory(inputs.back(), p_engine_)
+                : memory {};
+
+        if (with_post_sum_
+                && post_src.get_data_handle()
+                        != expected_dst_.get_data_handle()) {
+            dnnl::reorder(post_src, expected_dst_)
+                    .execute(p_stream_, post_src, expected_dst_);
+        }
+
         exec_args args {{DNNL_ARG_SRC_0, src0},
                 {DNNL_ARG_SRC_1, expected_src1_},
                 {DNNL_ARG_DST, expected_dst_}};
 
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         dnnl::binary(pd_).execute(p_stream_, args);
 
         if (expected_dst_ != dst) {
