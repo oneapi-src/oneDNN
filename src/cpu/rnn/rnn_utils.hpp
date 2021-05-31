@@ -495,6 +495,7 @@ struct rnn_conf_t {
     dim_t Nproj, Nproj_blocks, nproj_tail;
     dim_t LDAproj, LDBproj, LDCproj[4];
     int dhc_block_peephole, dhc_tail_peephole, dhc_blocks_peephole;
+    bool brgemm_fwd_iter_layer_fuse_possible = false;
 
     dim_t nthr;
 #if DNNL_X64

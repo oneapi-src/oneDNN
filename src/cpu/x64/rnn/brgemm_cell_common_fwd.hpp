@@ -45,6 +45,7 @@ public:
 
 private:
     void kernel(const int ithr, const int nthr) const;
+    void kernel_fused_iter_layer(const int ithr, const int nthr) const;
 
     const ref_rnn_brgemm_t &rnn_brgemm_;
     const rnn_utils::rnn_conf_t &rnn_;
@@ -96,6 +97,7 @@ private:
     gemm_acc_t *const amx_scratchpad_;
     brgemm_batch_element_t *const addr_batch_global_;
     const postgemm_fused_t fused_postgemm_;
+    const bool is_fused_layer_iter_brgemm_;
 };
 
 template <typename src_t, typename weights_t, typename gemm_acc_t>

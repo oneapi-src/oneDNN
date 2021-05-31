@@ -259,8 +259,10 @@ void rnn_brgemm_base_t::init_scratchpad(const cpu::rnn_utils::rnn_conf_t &rnn,
                 gemm_acc_type_size, gemm_acc_align);
     }
 
-    const int max_K_Block = nstl::max(rnn.KB1_blocks + 1,
-            nstl::max(rnn.KBproj_blocks + 1, rnn.KB2_blocks + 1));
+    const int max_K_Block
+            = nstl::max(rnn.KB1_blocks + 1,
+                      nstl::max(rnn.KBproj_blocks + 1, rnn.KB2_blocks + 1))
+            * (rnn.brgemm_fwd_iter_layer_fuse_possible ? 2 : 1);
     scratchpad.template book<x64::brgemm_batch_element_t>(
             key_brgemm_primitive_batch, max_K_Block * rnn.nthr);
 }
@@ -317,6 +319,8 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     rnn.LDA2[1] = rnn.dst_layer_ld_;
     rnn.LDA2[2] = rnn.ws_states_iter_ld;
 
+    rnn.brgemm_fwd_iter_layer_fuse_possible = rnn.slc == rnn.sic;
+
     rnn.LDB1 = rnn.n_block;
     rnn.LDB2 = rnn.n_block;
     rnn.LDC = rnn.scratch_gates_ld;
@@ -324,6 +328,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     auto get_dim = [&](dim_t block, dim_t tail) {
         return (block == 0) ? tail : block;
     };
+
     dim_t n_block = nstl::min(rnn.N, rnn.n_block);
     dim_t n_tail = nstl::min(rnn.N, rnn.nproj_tail);
     if (rnn.LDA1[0] < rnn.k1_block && rnn.LDA1[1] < rnn.k1_block
@@ -442,10 +447,12 @@ void rnn_brgemm_t<prop_kind::forward>::init_kernels(
 
     const int brgemm_n = nstl::min(rnn.N, rnn.n_block);
     const int brgemm_n_tail = nstl::min(rnn.N, rnn.n_tail);
+    const int max_bs_factor = rnn.brgemm_fwd_iter_layer_fuse_possible ? 2 : 1;
+
     for (int i = 0; i < num_base_kernels_; i++) {
         init_brgemm(&desc_layer_b0_[i], rnn.brgemm_isa, kernel_layer_b0_[i],
                 rnn.m_block, brgemm_n, rnn.k1_block, rnn.LDA1[i], rnn.LDB1,
-                rnn.LDC, 0.0, rnn.KB1_blocks);
+                rnn.LDC, 0.0, max_bs_factor * rnn.KB1_blocks);
         init_brgemm(&desc_iter_b0_[i], rnn.brgemm_isa, kernel_iter_b0_[i],
                 rnn.m_block, brgemm_n, rnn.k2_block, rnn.LDA2[i], rnn.LDB2,
                 rnn.LDC, 0.0, rnn.KB2_blocks);
@@ -456,7 +463,7 @@ void rnn_brgemm_t<prop_kind::forward>::init_kernels(
             init_brgemm(&desc_layer_N_tail_b0_[i], rnn.brgemm_isa,
                     kernel_layer_N_tail_b0_[i], rnn.m_block, brgemm_n_tail,
                     rnn.k1_block, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0,
-                    rnn.KB1_blocks);
+                    max_bs_factor * rnn.KB1_blocks);
             init_brgemm(&desc_iter_N_tail_b0_[i], rnn.brgemm_isa,
                     kernel_iter_N_tail_b0_[i], rnn.m_block, brgemm_n_tail,
                     rnn.k2_block, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 0.0,
@@ -469,7 +476,8 @@ void rnn_brgemm_t<prop_kind::forward>::init_kernels(
         if (rnn.k1_tail)
             init_brgemm(&desc_layer_K1_tail_b1_[i], rnn.brgemm_isa,
                     kernel_layer_K1_tail_b1_[i], rnn.m_block, brgemm_n,
-                    rnn.k1_tail, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0, 1);
+                    rnn.k1_tail, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0,
+                    max_bs_factor * 1);
         if (rnn.k2_tail)
             init_brgemm(&desc_iter_K2_tail_b1_[i], rnn.brgemm_isa,
                     kernel_iter_K2_tail_b1_[i], rnn.m_block, brgemm_n,
@@ -477,7 +485,8 @@ void rnn_brgemm_t<prop_kind::forward>::init_kernels(
         if (rnn.k1_tail && rnn.n_tail)
             init_brgemm(&desc_layer_NK1_tail_b1_[i], rnn.brgemm_isa,
                     kernel_layer_NK1_tail_b1_[i], rnn.m_block, brgemm_n_tail,
-                    rnn.k1_tail, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0, 1);
+                    rnn.k1_tail, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0,
+                    max_bs_factor * 1);
         if (rnn.k2_tail && rnn.n_tail)
             init_brgemm(&desc_iter_NK2_tail_b1_[i], rnn.brgemm_isa,
                     kernel_iter_NK2_tail_b1_[i], rnn.m_block, brgemm_n_tail,
