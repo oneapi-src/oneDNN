@@ -14,11 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gtest-param-test.h"
-#include "gtest.h"
 #include "test_gemm_data_preparation.hpp"
 #include "test_gemm_params.hpp"
 #include "test_gemm_validation.hpp"
+#include "gtest/gtest.h"
 
 #include "dnnl_test_common.hpp"
 
@@ -118,7 +117,7 @@ private:
     std::vector<brgemm_params_t> params;
 };
 
-class brgemm_test_t : public testing::TestWithParam<brgemm_params_t> {
+class brgemm_test_t : public ::testing::TestWithParam<brgemm_params_t> {
 protected:
     void SetUp() override {
         const auto &p = GetParam();
