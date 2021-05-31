@@ -18,6 +18,7 @@
 #define TEST_GEMM_DATA_H
 
 #include <cstdint>
+#include <utility>
 #include <type_traits>
 
 #include "oneapi/dnnl/dnnl_types.h"
