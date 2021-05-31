@@ -1,0 +1,92 @@
+# BERT bfloat16 training problems for parameter b = 28 incuding all the
+# relevant post-ops and data types propagation
+# 2D fwd problems have M = b * 384
+# 4D fwd roblems have batch = b x 16
+#
+# In total, there are 24 identical fragments in the topology:
+#         ____|____ -----.
+#        /    |    \     :
+#      MM_1  MM_2  MM_3  :
+#       |     |   /      :
+#       |    MM_4 -------:
+#        \   /           :
+#         MM_5           :
+#           |            :
+#         MM_6 ----------`
+#           |
+#     Layer_norm ---.
+#           |       :
+#         MM_7      :
+#           |       :
+#         MM_8 -----`
+#           |
+#     Layer_norm
+
+# FWD
+--reset
+--skip-impl=ref
+--cfg=bf16bf16bf16 --stag=ab --wtag=ab --dtag=ab
+--bia_dt=bf16 --bia_mask=2
+# MM_2 and MM_3 are the same
+10752x1024:1024x1024n"BERT:FWD,MM_1*3"
+
+--reset
+--skip-impl=ref
+--cfg=bf16bf16bf16 --stag=abcd --wtag=abdc --dtag=abcd
+--attr-post-ops=add:bf16:per_mb_spatial
+28x16x384x64:28x16x64x384n"BERT:FWD,MM_4"
+
+--reset
+--skip-impl=ref
+--cfg=bf16bf16bf16 --stag=abcd --wtag=abcd --dtag=abcd
+28x16x384x384:28x16x384x64n"BERT:FWD,MM_5"
+
+--reset
+--skip-impl=ref
+--cfg=bf16bf16bf16 --stag=ab --wtag=ab --dtag=ab
+--bia_dt=bf16 --bia_mask=2
+--attr-post-ops=add:bf16:per_tensor
+10752x1024:1024x1024n"BERT:FWD,MM_6"
+
+--reset
+--skip-impl=ref
+--cfg=bf16bf16bf16 --stag=ab --wtag=ab --dtag=ab
+--bia_dt=bf16 --bia_mask=2
+10752x1024:1024x4096n"BERT:FWD,MM_7"
+
+--reset
+--skip-impl=ref
+--cfg=bf16bf16bf16 --stag=ab --wtag=ab --dtag=ab
+--bia_dt=bf16 --bia_mask=2
+--attr-post-ops=add:bf16:per_tensor
+10752x4096:4096x1024n"BERT:FWD,MM_8"
+
+# BWD/D
+--reset
+--skip-impl=ref
+--cfg=bf16bf16bf16
+--stag=ab --wtag=ba --dtag=ab # A - plain, B - transformed
+# MM_2, MM_3 and MM_6 are the same
+10752x1024:1024x1024n"BERT:BWD_D,MM_1*4"
+
+--stag=abcd --wtag=abcd --dtag=abcd # A - plain, B - plain
+28x16x384x384:28x16x384x64n"BERT:BWD_D,MM_4_A"
+
+--stag=abdc --wtag=abcd --dtag=abcd # A - transformed, B - plain
+# MM_5 B gradient is the same
+28x16x384x384:28x16x384x64n"BERT:BWD_D,MM_4_B*2"
+
+--stag=abcd --wtag=abdc --dtag=abcd # A - plain, B - transformed
+28x16x384x64:28x16x64x384n"BERT:BWD_D,MM_5_A"
+
+--stag=ab --wtag=ba --dtag=ab # A - plain, B - transformed
+10752x4096:4096x1024n"BERT:BWD_D,MM_7"
+10752x1024:1024x4096n"BERT:BWD_D,MM_8"
+
+# BWD/W
+--cfg=bf16bf16f32
+--stag=ba --wtag=ab --dtag=ab # A - transformed, B - plain
+# MM_2, MM_3 and MM_6 are the same
+1024x10752:10752x1024n"BERT:BWD_W,MM_1*4"
+1024x10752:10752x4096n"BERT:BWD_W,MM_7"
+4096x10752:10752x1024n"BERT:BWD_W,MM_8"

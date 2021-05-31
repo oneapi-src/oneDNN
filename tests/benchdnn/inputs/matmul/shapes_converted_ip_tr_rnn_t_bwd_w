@@ -1,0 +1,7 @@
+# These problems are ported from corresponding inner product shapes for
+# training backward wrt weights mb=128
+
+240x128:128x4096n"RNNT_train:BWD_W,0*2"
+1024x128:128x4096n"RNNT_train:BWD_W,1*5"
+2048x128:128x4096n"RNNT_train:BWD_W,2*3"
+320x128:128x1280n"RNNT_train:BWD_W,3*4"

@@ -347,8 +347,18 @@ static bool parse_engine(
 
 static bool parse_fast_ref_gpu(
         const char *str, const std::string &option_name = "fast-ref-gpu") {
-    return parse_single_value_option(
+    bool parsed = parse_single_value_option(
             fast_ref_gpu, true, str2bool, str, option_name);
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+    if (parsed && fast_ref_gpu) {
+        fast_ref_gpu = false;
+        fprintf(stderr,
+                "%s driver: WARNING: option `fast_ref_gpu` is not supported "
+                "for GPU only configurations.\n",
+                driver_name);
+    }
+#endif
+    return parsed;
 }
 
 static bool parse_canonical(

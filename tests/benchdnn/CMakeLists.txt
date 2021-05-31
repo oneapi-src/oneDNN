@@ -21,7 +21,8 @@ file(GLOB_RECURSE HEADERS
 file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
-include_directories(
+list(APPEND SOURCES ${TEST_THREAD})
+include_directories_with_host_compiler(
     ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
@@ -32,7 +33,7 @@ include_directories(${PROJECT_SOURCE_DIR}/third_party/oneDNN/src)
 include_directories(${PROJECT_BINARY_DIR}/third_party/oneDNN/include)
 
 if(BENCHDNN_USE_RDPMC)
-    add_definitions(-DBENCHDNN_USE_RDPMC)
+    add_definitions_with_host_compiler(-DBENCHDNN_USE_RDPMC)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
@@ -46,7 +47,7 @@ endif()
 register_exe(benchdnn "${SOURCES}" "" "${LIBRT}")
 
 file(COPY inputs DESTINATION .)
-file(COPY inputs_graph DESTINATION .)
+
 
 if(WIN32 AND (NOT DNNL_BUILD_FOR_CI))
     string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
@@ -111,8 +112,12 @@ set(has_gpu false)
 if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
     set(has_gpu true)
 endif()
+set(has_cpu false)
+if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
+    set(has_cpu true)
+endif()
 
-# Very sad CMake 2.8.11 does not support continue() command.
+# Very sad CMake older then 3.2 does not support continue() command.
 file(GLOB all_drivers RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs inputs/*)
 foreach(driver ${all_drivers})
     set(driver_dir ${CMAKE_CURRENT_SOURCE_DIR}/inputs/${driver})
@@ -141,7 +146,9 @@ foreach(driver ${all_drivers})
                 register_all_tests(gpu "${driver}" "${test_files_ci}")
             endif()
         endif()
-        register_all_tests(cpu "${driver}" "${test_files_ci}")
+        if(has_cpu)
+            register_all_tests(cpu "${driver}" "${test_files_ci}")
+        endif()
     endif()
 
     # Register nightly input files
@@ -152,12 +159,14 @@ foreach(driver ${all_drivers})
             string(REPLACE "${test_file}" "" test_files_cpu "${test_files_cpu}")
         endforeach()
 
-        if(NOT DNNL_USE_CLANG_SANITIZER)
+        if(has_cpu AND NOT DNNL_USE_CLANG_SANITIZER)
             register_all_tests(cpu "${driver}" "${test_files_large_cpu}")
         endif()
         if(has_gpu)
             register_all_tests(gpu "${driver}" "${test_files_gpu}")
         endif()
-        register_all_tests(cpu "${driver}" "${test_files_cpu}")
+        if(has_cpu)
+            register_all_tests(cpu "${driver}" "${test_files_cpu}")
+        endif()
     endif()
 endforeach()

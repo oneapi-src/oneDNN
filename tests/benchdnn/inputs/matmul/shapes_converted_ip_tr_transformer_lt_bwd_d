@@ -1,0 +1,16 @@
+# These problems are ported from corresponding inner product shapes for
+# training backward wrt data
+
+# encoder
+5120x1024:1024x1024n"transformer_lt_train:BWD_D,encoder:SA*2"
+5120x4096:4096x1024n"transformer_lt_train:BWD_D,encoder:FF1*1"
+5120x1024:1024x4096n"transformer_lt_train:BWD_D,encoder:FF2*1"
+20480x1024:1024x1024n"transformer_lt_train:BWD_D,encoder:SA-precompute*1"
+# decoder
+512x1024:1024x1024n"transformer_lt_train:BWD_D,decoder:SA1*1"
+# mb5120ic1024oc1024n"transformer_lt:decoder:SA10"
+10240x1024:1024x1024n"transformer_lt_train:BWD_D,decoder:SA20*1"
+512x4096:4096x1024n"transformer_lt_train:BWD_D,decoder:FF1*1"
+512x1024:1024x4096n"transformer_lt_train:BWD_D,decoder:FF2*1"
+# vocabulary
+512x33945:33945x10246n"transformer_lt_train:BWD_D,output_logits*1"

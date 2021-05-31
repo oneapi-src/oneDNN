@@ -208,16 +208,15 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
         perf_function_t &perf_func, std::vector<dnnl_exec_arg_t> &dnnl_args) {
     const int max_batch_times = 10000;
 
-    // Warm-up run
-    t.reset();
+    // Warm-up run, this is not measured due to possibility the associated
+    // kernel has not been built and skews the results.
     DNN_SAFE(perf_func(stream, dnnl_args), WARN);
     DNN_SAFE(dnnl_stream_wait(stream), WARN);
-    t.stamp();
 
     int cur_batch_times
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
-    --cur_batch_times;
 
+    t.reset();
     while (true) {
         for (int i = 0; i < cur_batch_times; i++) {
             DNN_SAFE(perf_func(stream, dnnl_args), WARN);
@@ -308,10 +307,12 @@ void check_known_skipped_case_common(
         return;
     }
 
-    const bool has_bf16_support = is_gpu()
-            || (is_cpu()
-                    && dnnl::impl::cpu::platform::has_data_type_support(
-                            dnnl_bf16));
+    bool has_bf16_support = is_gpu();
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    using namespace dnnl::impl::cpu::platform;
+    has_bf16_support = has_bf16_support
+            || (is_cpu() && has_data_type_support(dnnl_bf16));
+#endif
 
     for (const auto &i_dt : v_dt) {
         // bf16 is supported on AVX512-CORE+

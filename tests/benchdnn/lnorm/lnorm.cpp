@@ -382,8 +382,8 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
  * Then large error in `a * X` could result in a final
  * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
  * which has no meaningful digits left in mantissa.*/
-void add_additional_fwd_lnorm_check(const prb_t *prb, const dnn_mem_t &ss_fp,
-        const dnn_mem_t &sh_fp, const dnn_mem_t &dst_fp, const float eps,
+void add_additional_fwd_lnorm_check(const prb_t *&prb, const dnn_mem_t &ss_fp,
+        const dnn_mem_t &sh_fp, const dnn_mem_t &dst_fp, const float &eps,
         compare::compare_t &cmp) {
     using cmp_args_t = compare::compare_t::driver_check_func_args_t;
     const auto lnorm_add_check = [&](const cmp_args_t &args) {
