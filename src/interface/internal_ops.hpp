@@ -113,7 +113,10 @@ namespace op_kind {
     X(maximum_relu, Maximum_relu) \
     X(maximum_sigmoid, Maximum_sigmoid) \
     X(minimum_relu, Minimum_relu) \
-    X(minimum_sigmoid, Minimum_sigmoid)
+    X(minimum_sigmoid, Minimum_sigmoid) \
+    X(multiply_add, Multiply_add) \
+    X(maximum_add, Maximum_add) \
+    X(minimum_add, Minimum_add)
 
 enum {
     kAny = 0x1234,
