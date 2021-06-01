@@ -183,6 +183,7 @@ private:
 
         //initialize brgemm kernel
         char palette[64];
+        char tile_buffer[1024];
         x64::brgemm_t desc;
         auto res = brgemm_desc_init(&desc, x64::cpu_isa_t::isa_any,
                 p.batch_kind, p.dt_a, p.dt_b, p.tr_a(), p.tr_b(), p.layout,
@@ -203,7 +204,8 @@ private:
         batch_element.vvpad.top = 0;
         batch_element.vvpad.bottom = 0;
         if (desc.is_amx) amx_tile_configure(palette);
-        brgemm_kernel_execute(_t_ptr, p.bs, &batch_element, C, nullptr);
+        brgemm_kernel_execute(_t_ptr, p.bs, &batch_element, C,
+                desc.is_amx ? tile_buffer : nullptr);
 
         brgemm_kernel_destroy(_t_ptr);
         if (desc.is_amx) amx_tile_release();
