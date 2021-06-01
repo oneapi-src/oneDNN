@@ -61,6 +61,9 @@ enum class inner_blk_t {
     _8b8c,
     _8c8b,
     _16a16b,
+    _16a32b,
+    _16a48b,
+    _16a64b,
     _16b64a,
     _16b32a,
     _16b16a,
@@ -137,14 +140,15 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
                     ib::_4b64a4b, ib::_4b32a4b, ib::_4b16a4b, ib::_2b8a4b,
                     ib::_8b64a2b, ib::_8b32a2b, ib::_8b16a2b, ib::_8b16c2b,
                     ib::_4c16b4c, ib::_8c16b2c, ib::_2b4c2b, ib::_2c4b2c,
-                    ib::_4b8c2b, ib::_4c8b2c, ib::_16a16b2a, ib::_16a32b2a,
-                    ib::_16a48b2a, ib::_16a64b2a, ib::_16a16b4a, ib::_16a32b4a,
-                    ib::_16a48b4a, ib::_16a64b4a, ib::_16b16a2b, ib::_16b16a4b,
-                    ib::_16b16c2b, ib::_16c16b2c, ib::_16c16b4c, ib::_2a8b8a2b,
-                    ib::_2b8c8b2c, ib::_4a8b8a4b, ib::_4b8c8b4c, ib::_16b32a2b,
-                    ib::_16b48a2b, ib::_16b64a2b, ib::_16b32a4b, ib::_16b48a4b,
-                    ib::_16b64a4b, ib::_16c32b2c, ib::_16c48b2c, ib::_16c64b2c,
-                    ib::_16c32b4c, ib::_16c48b4c, ib::_16c64b4c),
+                    ib::_4b8c2b, ib::_4c8b2c, ib::_16a32b, ib::_16a48b,
+                    ib::_16a64b, ib::_16a16b2a, ib::_16a32b2a, ib::_16a48b2a,
+                    ib::_16a64b2a, ib::_16a16b4a, ib::_16a32b4a, ib::_16a48b4a,
+                    ib::_16a64b4a, ib::_16b16a2b, ib::_16b16a4b, ib::_16b16c2b,
+                    ib::_16c16b2c, ib::_16c16b4c, ib::_2a8b8a2b, ib::_2b8c8b2c,
+                    ib::_4a8b8a4b, ib::_4b8c8b4c, ib::_16b32a2b, ib::_16b48a2b,
+                    ib::_16b64a2b, ib::_16b32a4b, ib::_16b48a4b, ib::_16b64a4b,
+                    ib::_16c32b2c, ib::_16c48b2c, ib::_16c64b2c, ib::_16c32b4c,
+                    ib::_16c48b4c, ib::_16c64b4c),
             "unexpected inner_blk format");
 
     // clang-format off
@@ -159,8 +163,10 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
         : (f == ib::_16b16a || f == ib::_16c16b) ? 16 * x1 + x0
         : (f == ib::_16a2b || f == ib::_16b2c) ? 2 * x0 + x1
         : (f == ib::_16a4b || f == ib::_16b4c) ? 4 * x0 + x1
-        : (f == ib::_32a32b) ? 32 * x0 + x1
+        : (f == ib::_32a32b || f == ib::_16a32b) ? 32 * x0 + x1
         : (utils::one_of(f, ib::_8a16b2a, ib::_8b16c2b, ib::_16a16b2a, ib::_16b16c2b)) ? (x0 / 2) * 32 + x1 * 2 + x0 % 2
+        : (f == ib::_16a48b) ? x0 * 48 + x1
+        : (f == ib::_16a64b) ? x0 * 64 + x1
         : (f == ib::_16a32b2a) ? (x0 / 2) * 64 + x1 * 2 + x0 % 2
         : (f == ib::_16a48b2a) ? (x0 / 2) * 96 + x1 * 2 + x0 % 2
         : (f == ib::_16a64b2a) ? (x0 / 2) * 128 + x1 * 2 + x0 % 2
@@ -316,6 +322,10 @@ DECL_TRAITS(AB16b32a2b, _AB, _16b32a2b, 2);
 DECL_TRAITS(AB16b48a2b, _AB, _16b48a2b, 2);
 DECL_TRAITS(AB16b64a2b, _AB, _16b64a2b, 2);
 
+DECL_TRAITS(BA16a16b, _AB, _16a16b, 2);
+DECL_TRAITS(BA16a32b, _AB, _16a32b, 2);
+DECL_TRAITS(BA16a48b, _AB, _16a48b, 2);
+DECL_TRAITS(BA16a64b, _AB, _16a64b, 2);
 DECL_TRAITS(BA16a16b2a, _AB, _16a16b2a, 2);
 DECL_TRAITS(BA16a32b2a, _AB, _16a32b2a, 2);
 DECL_TRAITS(BA16a48b2a, _AB, _16a48b2a, 2);
