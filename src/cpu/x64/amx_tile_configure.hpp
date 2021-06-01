@@ -17,13 +17,15 @@
 #ifndef CPU_X64_AMX_TILE_CONFIGURE_HPP
 #define CPU_X64_AMX_TILE_CONFIGURE_HPP
 
+#include "common/type_helpers.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
 
-void amx_tile_configure(const char palette[64]);
-void amx_tile_release();
+status_t DNNL_API amx_tile_configure(const char palette[64]);
+status_t DNNL_API amx_tile_release();
 
 } // namespace x64
 } // namespace cpu
