@@ -118,8 +118,19 @@ dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
         const dnnl::graph::logical_tensor::data_type &graph_dt,
         const char *tag = nullptr);
 
+dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
+        const dims_t &dims,
+        const dnnl::graph::logical_tensor::data_type &graph_dt,
+        const char *atag);
+
+dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
+        const dims_t &dims, const std::string &atag);
+
 dnn_mem_t make_dnn_mem(
         const dnnl::graph::logical_tensor &lt, const char *tag = nullptr);
+
+dnn_mem_t make_dnn_mem(
+        const dnnl::graph::logical_tensor &lt, const std::string &tag);
 
 template <typename T, std::size_t N>
 constexpr T *end(T (&arr)[N]) noexcept {
@@ -211,6 +222,11 @@ public:
             sum_po_handler_t sum_handler;
             binary_po_handler_t bin_handler;
         } matmul;
+
+        struct {
+            eltwise_po_handler_t eltw_handler;
+            sum_po_handler_t sum_handler;
+        } binary;
     };
 };
 

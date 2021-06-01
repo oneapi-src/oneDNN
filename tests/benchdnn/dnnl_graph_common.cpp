@@ -183,6 +183,27 @@ dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
     }
 }
 
+dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
+        const dims_t &dims,
+        const dnnl::graph::logical_tensor::data_type &graph_dt,
+        const char *atag) {
+    dnnl::graph::logical_tensor new_lt(
+            lt.get_id(), lt.get_data_type(), dims, lt.get_layout_type());
+    return make_dnn_mem(new_lt, graph_dt, atag);
+}
+
+dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
+        const dims_t &dims, const std::string &atag) {
+    dnnl::graph::logical_tensor new_lt(
+            lt.get_id(), lt.get_data_type(), dims, lt.get_layout_type());
+    return make_dnn_mem(new_lt, atag);
+}
+
+dnn_mem_t make_dnn_mem(
+        const dnnl::graph::logical_tensor &lt, const std::string &tag) {
+    return make_dnn_mem(lt, tag.empty() ? nullptr : tag.c_str());
+}
+
 dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt, const char *tag) {
     return make_dnn_mem(lt, lt.get_data_type(), tag);
 }

@@ -1,0 +1,8 @@
+# f32
+--reset
+
+--inplace=false
+--alg=ADD,MUL,MAX,MIN
+
+--ddt=f32 --sdt=f32:f32
+--batch=option_set_all
