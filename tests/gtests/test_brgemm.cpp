@@ -24,6 +24,7 @@
 
 #include "dnnl.hpp"
 
+#include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
 
 namespace dnnl {
@@ -175,6 +176,7 @@ private:
     template <typename a_dt, typename b_dt, typename c_dt>
     dnnl_status_t run_brgemm(const brgemm_params_t &p) {
         using namespace dnnl::impl::cpu;
+        using namespace impl::cpu::x64;
 
         mapped_ptr_t<a_dt> A = map_memory<a_dt>(*gemm_data_.a_mem);
         mapped_ptr_t<b_dt> B = get_B_mem<b_dt>(p);
@@ -201,9 +203,11 @@ private:
         batch_element.ptr.B = B;
         batch_element.vvpad.top = 0;
         batch_element.vvpad.bottom = 0;
+        if (desc.is_amx) amx_tile_configure(palette);
         brgemm_kernel_execute(_t_ptr, p.bs, &batch_element, C, nullptr);
 
         brgemm_kernel_destroy(_t_ptr);
+        if (desc.is_amx) amx_tile_release();
 
         return res;
     }
