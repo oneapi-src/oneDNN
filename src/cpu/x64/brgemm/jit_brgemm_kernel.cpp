@@ -947,12 +947,12 @@ void jit_brgemm_kernel_base_t::store_accumulators(
                                             reg_aux_zp_c_values);
                                 }
                             }
-                            mov(reg_buf, ptr[rsp + reg_buf_offs_]);
                             add(reg_aux_D, ldb_D_offset(1));
                         } else {
                             store_accumulators_without_post_ops(
                                     adj_bd_block, 1, is_ld_tail);
                         }
+                        mov(reg_buf, ptr[rsp + reg_buf_offs_]);
                     } else {
                         tilestored(ptr[reg_aux_C + reg_stride_ld_block],
                                 Tmm(brg.get_C_tensor(bdb, idx)));
