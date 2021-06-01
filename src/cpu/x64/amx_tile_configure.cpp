@@ -64,14 +64,16 @@ private:
     }
 };
 
-void amx_tile_configure(const char palette[64]) {
+status_t amx_tile_configure(const char palette[64]) {
     static const jit_amx_tilecfg_t tilecfg;
     tilecfg.tile_configure(palette);
+    return status::success;
 };
 
-void amx_tile_release() {
+status_t amx_tile_release() {
     static const jit_amx_tilerelease_t tilerls;
     tilerls.tile_release();
+    return status::success;
 };
 
 } // namespace x64
