@@ -66,6 +66,16 @@ void check_known_skipped_case(const ::softmax::prb_t *prb, res_t *res) {
     }
 }
 
+void add_additional_softmax_check(compare::compare_t &cmp) {
+    const auto softmax_add_check
+            = [&](const compare::compare_t::driver_check_func_args_t &args) {
+                  // SSE4.1 and OpenCL rdiff tolerance is too high for
+                  // certain scenarios.
+                  return args.diff < epsilon_dt(args.dt);
+              };
+    cmp.set_driver_check_function(softmax_add_check);
+}
+
 int doit(const ::softmax::prb_t *prb, res_t *res) {
     using dt = dnnl::graph::logical_tensor::data_type;
     if (bench_mode == LIST) return res->state = LISTED, OK;
@@ -124,14 +134,7 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
             const int64_t axis_size = prb->dims[prb->axis];
             cmp.set_zero_trust_percent(axis_size < 10 ? 100.f : 60.f);
 
-            const auto softmax_add_check
-                    = [&](const compare::compare_t::driver_check_func_args_t
-                                      &args) {
-                          // SSE4.1 and OpenCL rdiff tolerance is too high for
-                          // certain scenarios.
-                          return args.diff < epsilon_dt(args.dt);
-                      };
-            cmp.set_driver_check_function(softmax_add_check);
+            add_additional_softmax_check(cmp);
 
             SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
