@@ -169,7 +169,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                         pd()->brg_descs_[idx], &brg_kernel_palettes_[idx][0]));
         }
         if (pd()->jbgp_.use_buffer_a)
-            CHECK(create_brgemm_copy_src(copy_src_kernel_, &pd()->jbgp_));
+            CHECK(create_brgemm_copy_to_coarse(copy_src_kernel_, &pd()->jbgp_));
         return status::success;
     }
 
@@ -179,14 +179,12 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
     }
 
 private:
-    void copy_src_chunk(
-            char *tr_src, const char *src, int os_work, bool last_ic_blk) const;
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<brgemm_kernel_t>
             brg_kernels_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
-    std::unique_ptr<jit_brgemm_copy_src_t> copy_src_kernel_;
+    std::unique_ptr<jit_brgemm_copy_to_coarse_t> copy_src_kernel_;
     char brg_kernel_palettes_
             [brgemm_inner_product_utils::max_num_brg_kernels_ip][64];
 };
@@ -303,6 +301,9 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                         pd()->brg_descs_[idx], &brg_kernel_palettes_[idx][0]));
         }
 
+        if (pd()->jbgp_.use_buffer_a)
+            CHECK(create_brgemm_copy_to_coarse(
+                    copy_diff_dst_kernel_, &pd()->jbgp_));
         if (jbgp.use_buffer_b)
             CHECK(create_brgemm_trans_wei(trans_B_kernel_, &pd()->jbgp_));
 
@@ -326,6 +327,7 @@ private:
 
     std::unique_ptr<brgemm_kernel_t>
             brg_kernels_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
+    std::unique_ptr<jit_brgemm_copy_to_coarse_t> copy_diff_dst_kernel_;
     std::unique_ptr<jit_brgemm_trans_wei_t> trans_B_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
     char brg_kernel_palettes_

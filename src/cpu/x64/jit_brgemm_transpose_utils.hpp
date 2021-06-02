@@ -44,71 +44,83 @@ struct jit_brgemm_trans_src_t {
     const jit_brgemm_primitive_conf_t *conf_;
 };
 
-struct jit_brgemm_copy_src_t : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_copy_src_t)
+struct jit_brgemm_copy_to_coarse_t : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_copy_to_coarse_t)
 
     struct ctx_t {
-        const void *src;
-        const void *tr_src;
+        const void *data;
+        const void *tr_data;
 
         dim_t os_work;
-        dim_t last_ic_blk;
+        dim_t last_row_blk;
     };
 
     void operator()(ctx_t *ctx) { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
-    jit_brgemm_copy_src_t(const jit_brgemm_primitive_conf_t *conf)
+    jit_brgemm_copy_to_coarse_t(const jit_brgemm_primitive_conf_t *conf)
         : conf_(conf)
         , typesize_(conf_->isa == avx512_core_bf16_amx_int8
                           ? sizeof(int8_t)
                           : sizeof(bfloat16_t))
-        , ic_granularity_(granularity_in_bytes / typesize_)
-        , ic_step_(zmm_size_in_bytes / typesize_)
-        , src_stride_(conf_->ic_without_padding * typesize_)
-        , tr_src_stride_(conf_->LDA * typesize_) {
+        , is_fwd_dir_(utils::one_of(conf_->prop_kind,
+                  prop_kind::forward_training, prop_kind::forward_inference))
+        , row_block_size_(is_fwd_dir_ ? conf_->ic_block : conf_->oc_block)
+        , row_size_(is_fwd_dir_ ? conf_->ic_without_padding
+                                : conf_->oc_without_padding)
+        , tr_row_size_(conf_->LDA)
+        , row_granularity_(granularity_in_bytes / typesize_)
+        , row_step_(zmm_size_in_bytes / typesize_)
+        , data_stride_(row_size_ * typesize_)
+        , tr_data_stride_(tr_row_size_ * typesize_) {
 
-        // Kernel is supposed to be called under the following two conditions
+        // Kernel is supposed to be called under the following constraints
         assert(conf_->isa == avx512_core_bf16_amx_int8
                 || conf_->isa == avx512_core_bf16_amx_bf16);
-        assert(conf_->ic % ic_granularity_ != 0);
-        MAYBE_UNUSED(ic_granularity_);
+        assert(row_size_ % row_granularity_ != 0);
+
+        MAYBE_UNUSED(row_granularity_);
     }
-    ~jit_brgemm_copy_src_t() {}
+    ~jit_brgemm_copy_to_coarse_t() {}
 
 private:
-    static constexpr size_t full_mask = size_t {0xffffffffffffffff};
-    static constexpr int ic_loop_unroll = 16;
-    static constexpr int zmm_size_in_bytes = 64;
-    static constexpr int granularity_in_bytes = 4;
+    enum {
+        zmm_size_in_bytes = 64,
+        row_loop_unroll = 16,
+        granularity_in_bytes = 4,
+    };
 
     const jit_brgemm_primitive_conf_t *conf_;
     const int typesize_;
-    const int ic_granularity_, ic_step_;
-    const dim_t src_stride_, tr_src_stride_;
+    const bool is_fwd_dir_;
+    const int row_block_size_, row_size_, tr_row_size_, row_granularity_,
+            row_step_;
+    const dim_t data_stride_, tr_data_stride_;
 
-    inline size_t addr_offset(int ic_idx) {
-        return ic_idx * ic_step_ * typesize_;
+    inline size_t addr_offset(int row_idx) {
+        return row_idx * row_step_ * typesize_;
     }
 
-    inline Xbyak::Zmm get_zmm_copy(int i) const {
-        assert(i >= 0 && i < ic_loop_unroll);
-        return Xbyak::Zmm(i);
+    inline Xbyak::Zmm get_zmm_copy(int row_idx) const {
+        assert(row_idx >= 0 && row_idx < row_loop_unroll);
+        return Xbyak::Zmm(row_idx);
     }
 
-    const Xbyak::Opmask reg_m_ic_tail_load = k7;
+    const Xbyak::Zmm zmm_tail = Xbyak::Zmm(row_loop_unroll);
+    const Xbyak::Opmask reg_m_row_tail_store = k6;
+    const Xbyak::Opmask reg_m_row_tail_load = k7;
 
-    const Xbyak::Reg64 reg_src = rax;
-    const Xbyak::Reg64 reg_tr_src = rbx;
+    const Xbyak::Reg64 reg_data = rax;
+    const Xbyak::Reg64 reg_tr_data = rbx;
 
     const Xbyak::Reg64 reg_os_work = r11;
-    const Xbyak::Reg64 reg_last_ic_blk = r12;
+    const Xbyak::Reg64 reg_last_row_blk = r12;
     const Xbyak::Reg64 reg_tail_mask = r13;
 
-    void copy_ic_blk_loop(int copy_ic_iters);
-    void copy_ic_tail(int initial_offset);
+    void copy_row_loop();
+    void copy_row_blk_loop(int copy_row_iters);
+    void copy_row_tail(int initial_offset);
 
-    void copy_ic_loop();
     void copy_os_loop();
     void set_tail_mask();
     void generate() override;
@@ -188,8 +200,8 @@ struct jit_amx_ip_trans_diff_wei {
 status_t create_brgemm_trans_src(
         std::unique_ptr<jit_brgemm_trans_src_t> &trans_ker,
         const jit_brgemm_primitive_conf_t *conf);
-status_t create_brgemm_copy_src(
-        std::unique_ptr<jit_brgemm_copy_src_t> &copy_ker,
+status_t create_brgemm_copy_to_coarse(
+        std::unique_ptr<jit_brgemm_copy_to_coarse_t> &copy_ker,
         const jit_brgemm_primitive_conf_t *conf);
 status_t create_brgemm_trans_to_vnni(
         std::unique_ptr<jit_brgemm_trans_to_vnni_t> &trans_ker,

@@ -41,16 +41,18 @@ using namespace nstl;
 #define get_blk_off(d, dt, ...) \
     (types::data_type_size((dt)) * (d).blk_off(__VA_ARGS__))
 
-template <cpu_isa_t isa>
-void brgemm_inner_product_fwd_t<isa>::copy_src_chunk(
-        char *tr_src, const char *src, int os_work, bool last_ic_blk) const {
-    auto ctx = jit_brgemm_copy_src_t::ctx_t();
-    ctx.src = (void *)src;
-    ctx.tr_src = (void *)tr_src;
+namespace {
+template <typename ker_type>
+void copy_data_chunk(ker_type &ker, char *tr_data, const char *data,
+        int os_work, bool is_last_blk) {
+    auto ctx = jit_brgemm_copy_to_coarse_t::ctx_t();
+    ctx.data = (void *)data;
+    ctx.tr_data = (void *)tr_data;
     ctx.os_work = os_work;
-    ctx.last_ic_blk = last_ic_blk ? 1 : 0;
-    (*copy_src_kernel_)(&ctx);
+    ctx.last_row_blk = is_last_blk ? 1 : 0;
+    (*ker)(&ctx);
 }
+} // namespace
 
 template <cpu_isa_t isa>
 void brgemm_inner_product_fwd_t<isa>::execute_forward(
@@ -150,7 +152,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
 
         if (copy_buffer_a) {
             auto src_ptr = src + get_blk_off(src_d, jbgp.src_dt, n, ic);
-            copy_src_chunk(a_buffer, src_ptr,
+            copy_data_chunk(copy_src_kernel_, a_buffer, src_ptr,
                     is_os_tail ? jbgp.mb - n : jbgp.os_block, is_last_ic_chunk);
         }
         if (gemm_batch > 0 && brg_kernel != nullptr) {
@@ -338,6 +340,9 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
     char *b_buffer_global = jbgp.use_buffer_b
             ? scratchpad.template get<char>(key_brgemm_primitive_buffer_b)
             : nullptr;
+    char *a_buffer_global = jbgp.use_buffer_a
+            ? scratchpad.template get<char>(key_brgemm_primitive_buffer_a)
+            : nullptr;
     auto wsp_tile_base = is_amx
             ? ctx.get_scratchpad_grantor().template get<char>(
                     key_conv_amx_tile_buffer)
@@ -346,7 +351,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
     const int oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
     bool is_os_tail = (jbgp.mb < jbgp.os_block);
     bool is_ic_tail = (jbgp.ic < jbgp.ic_block);
-    bool is_oc_tail = (jbgp.oc < jbgp.oc_block);
+    bool is_oc_tail = (jbgp.oc < jbgp.oc_block) && !jbgp.use_buffer_a;
 
     const dim_t acc_dt_sz = types::data_type_size(jbgp.acc_dt);
     const dim_t src_dt_sz = types::data_type_size(jbgp.src_dt);
@@ -441,7 +446,12 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                 use_c_buf = (jbgp.nthr_oc_b == 1 || ithr_oc > 0);
         }
 
+        const size_t a_buffer_size_per_thr
+                = jbgp.os_block * jbgp.LDA * types::data_type_size(jbgp.dst_dt);
         char *c_buffer = use_c_buf ? c_buffer_global + c_buf_off : nullptr;
+        char *a_buffer = jbgp.use_buffer_a
+                ? a_buffer_global + ithr * a_buffer_size_per_thr
+                : diff_dst;
         char *wsp_tile = is_amx ? wsp_tile_base + ithr * 1024 : nullptr;
 
         bool kernel_init = do_init;
@@ -451,8 +461,10 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         const bool is_last_oc_chunk = occ == oc_chunks - 1;
         const bool is_oc_tail = is_last_oc_chunk && jbgp.K_tail > 0;
 
-        const int nb_oc_b = nstl::min(
-                (jbgp.oc - oc) / jbgp.oc_block, jbgp.nb_oc_blocking);
+        const int rnd_oc
+                = rnd_up(jbgp.oc, jbgp.use_buffer_a ? jbgp.oc_block : 1);
+        const int nb_oc_b
+                = nstl::min((rnd_oc - oc) / jbgp.oc_block, jbgp.nb_oc_blocking);
 
         const int brg_ker_idx
                 = brgemm_inner_product_utils::get_brg_kernel_index(
@@ -470,14 +482,22 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         char *ptr_D = diff_src + dsrc_off;
         char *ptr_C = use_c_buf ? c_buffer : ptr_D;
 
+        if (jbgp.use_buffer_a)
+            copy_data_chunk(copy_diff_dst_kernel_, a_buffer,
+                    diff_dst + get_blk_off(diff_dst_d, jbgp.dst_dt, n, oc),
+                    is_os_tail ? jbgp.os - n : jbgp.os_block, is_last_oc_chunk);
+
         if (nb_oc_b > 0 && brg_kernel != nullptr) {
             if (is_amx && (is_os_tail || is_ic_tail))
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
 
             for (int oc_block = 0; oc_block < nb_oc_b; oc_block++) {
-                addr_batch[oc_block].ptr.A = diff_dst
-                        + get_blk_off(diff_dst_d, jbgp.dst_dt, n,
-                                oc + oc_block * jbgp.oc_block);
+                addr_batch[oc_block].ptr.A = jbgp.use_buffer_a ? a_buffer
+                                + oc_block * jbgp.oc_block
+                                        * types::data_type_size(jbgp.dst_dt)
+                                                               : diff_dst
+                                + get_blk_off(diff_dst_d, jbgp.dst_dt, n,
+                                        oc + oc_block * jbgp.oc_block);
                 addr_batch[oc_block].ptr.B
                         = b_buffer + wei_dt_size * (oc_block * size_B);
                 if (!jbgp.ip_bwd_d_global_b_transpose && do_b_transpose)
@@ -505,6 +525,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                 amx_tile_configure(&brg_kernel_palettes_[base_brg_ker_idx][0]);
         }
         if (is_oc_tail) {
+            assert(!jbgp.use_buffer_a);
+
             const int oc_block = nb_oc_b;
             addr_batch[0].ptr.A = diff_dst
                     + get_blk_off(diff_dst_d, jbgp.dst_dt, n,

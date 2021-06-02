@@ -372,6 +372,8 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const bool is_bf16 = everyone_is(bf16, jbgp.wei_dt, jbgp.dst_dt);
 
+    constexpr int amx_bf16_granularity = 2;
+    jbgp.use_buffer_a = is_amx_bf16 && jbgp.oc % amx_bf16_granularity != 0;
     jbgp.use_buffer_b = true;
     jbgp.ip_bwd_d_global_b_transpose = false;
 
@@ -448,9 +450,10 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.K = jbgp.oc_block;
     jbgp.N = jbgp.ic_block;
     jbgp.N_tail = jbgp.ic % jbgp.ic_block;
-    jbgp.K_tail = jbgp.oc % jbgp.oc_block;
+    jbgp.K_tail = jbgp.use_buffer_a ? 0 : jbgp.oc % jbgp.oc_block;
 
-    jbgp.LDA = jbgp.oc_without_padding;
+    jbgp.LDA = jbgp.use_buffer_a ? jbgp.K * jbgp.nb_oc_blocking
+                                 : jbgp.oc_without_padding;
     jbgp.LDB = jbgp.N;
     jbgp.LDD = jbgp.ic_without_padding;
     jbgp.LDC = jbgp.use_buffer && jbgp.nthr_oc_b == 1 ? jbgp.N : jbgp.LDD;
@@ -868,6 +871,10 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 jbgp.nthr * ic_chunks * os_chunks * jbgp.gemm_batch_size
                         * jbgp.os_block * jbgp.ic_block * jbgp.nb_ic_blocking,
                 types::data_type_size(jbgp.src_dt));
+    } else if (jbgp.use_buffer_a && jbgp.prop_kind == dnnl_backward_data) {
+        scratchpad.book(key_brgemm_primitive_buffer_a,
+                jbgp.nthr * jbgp.os_block * jbgp.LDA,
+                types::data_type_size(jbgp.dst_dt));
     } else if (jbgp.use_buffer_a) { // FWD
         scratchpad.book(key_brgemm_primitive_buffer_a,
                 jbgp.nthr * jbgp.LDA * jbgp.os_block * jbgp.nb_os_blocking,
