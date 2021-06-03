@@ -155,7 +155,7 @@ mb1_ic1oc16_ih124kh3oh122n"jit_reads_past_end_of_src_buffer:2"
 mb1_ic1oc16_ih16kh3oh16ph1n"jit_reads_past_end_of_src_buffer:3"
 mb1_ic2oc16_ih16kh3oh16ph1n"jit_reads_past_end_of_src_buffer:4"
 mb1_ic1oc16_ih10oh10kh3ph1n"jit_reads_past_end_of_src_buffer:5"
- 
+
 # Test Input-channel blocking w/stride heuristic
 --reset --dir=BWD_D
 ic32oc1_id5ih1iw1_od2oh1ow1_kd3kh1kw1_sd2sh1sw1n"ic-blocking_stride-d_test"
@@ -240,3 +240,18 @@ mb1ic64ih1iw33oc1oh1ow33kh1kw24ph0pw23n"l_pad_exceeds_ow_block"
 --skip-impl='ref:gemm'
 --dir=BWD_WB
 ic3oc64_ih25oh18kh8sh1dh0ph0_iw20ow1kw20sw1dw0pw0n"1st_conv_hw-transpose"
+
+# MFDNN-4945 AMX bwd/wu large spatial cases
+--reset
+--skip-impl='ref:gemm'
+--dir=BWD_WB --cfg=bf16f32bf16
+g1ic32ih202iw202oc32oh202ow202kh7kw1ph3pw0
+g1ic32ih202iw202oc32oh202ow202kh7kw3ph3pw1
+g1ic32ih202oc32oh202kh5ph2
+g1ic32ih202oc32oh202kh7ph3
+
+# Strides along w-dimension but not along h-dimension
+--reset
+--skip-impl="ref:gemm"
+--dir=FWD_I --cfg=u8s8u8
+ic64ih28iw27oc64oh28ow14kh1kw1sh1sw2ph0pw0n"1x1_mixed_strides"
