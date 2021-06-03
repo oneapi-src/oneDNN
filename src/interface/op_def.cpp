@@ -1838,6 +1838,18 @@ DNNL_GRAPH_OP_SCHEMA(Dequantize, 1,
                         attribute_kind::is)
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(Reorder, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16,
+                                data_type::u8, data_type::s8})
+                .set_output(0, "output", "output tensor",
+                        {data_type::f32, data_type::bf16, data_type::f16,
+                                data_type::u8, data_type::s8})
+                .set_shape_inference_function(infer_identity_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(INT8_Conv, 1,
         op_schema()
                 .set_num_inputs(2)

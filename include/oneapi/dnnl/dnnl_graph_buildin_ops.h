@@ -88,7 +88,8 @@
     _(PowBackpropExponent) \
     _(End) \
     _(Quantize) \
-    _(Dequantize)
+    _(Dequantize) \
+    _(Reorder)
 
 #endif
 

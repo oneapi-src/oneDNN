@@ -1012,6 +1012,7 @@ public:
         End = kEnd,
         Quantize = kQuantize,
         Dequantize = kDequantize,
+        Reorder = kReorder,
         LastSymbol = kLastSymbol,
     };
 
