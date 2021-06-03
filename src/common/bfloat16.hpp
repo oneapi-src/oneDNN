@@ -38,7 +38,7 @@ bool DNNL_API try_cvt_float_to_bfloat16(bfloat16_t *out, const float *inp);
 #endif
 
 struct bfloat16_t {
-    uint16_t raw_bits_ = 0;
+    uint16_t raw_bits_;
     bfloat16_t() = default;
     constexpr bfloat16_t(uint16_t r, bool) : raw_bits_(r) {}
     bfloat16_t(float f) { (*this) = f; }
