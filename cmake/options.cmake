@@ -72,3 +72,18 @@ endif()
 # =========================
 
 option(DNNL_GRAPH_ENABLE_ASAN "builds oneDNN Graph with AddressSanitizer" OFF)
+
+# ===================
+# Testings properties
+# ===================
+
+option(DNNL_GRAPH_BUILD_FOR_CI
+    "specifies whether oneDNN Graph library will use special testing enviroment
+    for internal testing processes"
+    OFF)
+
+set(DNNL_GRAPH_TEST_SET "CI" CACHE STRING
+    "specifies testing targets coverage. Supports CI, NIGHTLY.
+    
+    When CI option is set, it enables a subset of test targets to run. When
+    NIGHTLY option is set, it enables a broader set of test targets to run.")

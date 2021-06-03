@@ -23,14 +23,8 @@ file(GLOB_RECURSE SOURCES
     )
 list(APPEND SOURCES ${TEST_THREAD})
 include_directories_with_host_compiler(
-    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/third_party/oneDNN ${PROJECT_SOURCE_DIR}/third_party/oneDNN/src
     )
-
-# include dnnl directories
-include_directories(${PROJECT_SOURCE_DIR}/third_party/oneDNN)
-include_directories(${PROJECT_SOURCE_DIR}/third_party/oneDNN/include)
-include_directories(${PROJECT_SOURCE_DIR}/third_party/oneDNN/src)
-include_directories(${PROJECT_BINARY_DIR}/third_party/oneDNN/include)
 
 if(BENCHDNN_USE_RDPMC)
     add_definitions_with_host_compiler(-DBENCHDNN_USE_RDPMC)
@@ -48,8 +42,7 @@ register_exe(benchdnn "${SOURCES}" "" "${LIBRT}")
 
 file(COPY inputs DESTINATION .)
 
-
-if(WIN32 AND (NOT DNNL_BUILD_FOR_CI))
+if(WIN32 AND (NOT DNNL_GRAPH_BUILD_FOR_CI))
     string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
     configure_file(
         "${PROJECT_SOURCE_DIR}/third_party/oneDNN/cmake/run_with_env.bat.in"
@@ -71,9 +64,9 @@ function(register_benchdnn_test engine driver test_file)
     set(cmd "--mode=${test_mode} -v1 --engine=${engine} --${driver} --batch=${test_file}")
     set(benchdnn_target ${target_name}_${engine})
 
-    if(DNNL_BUILD_FOR_CI)
+    if(DNNL_GRAPH_BUILD_FOR_CI)
         string(REPLACE " " ";" cmd "benchdnn ${cmd}")
-        add_dnnl_test(${benchdnn_target} ${cmd})
+        add_dnnl_graph_test(${benchdnn_target} ${cmd})
     else()
         string(REPLACE " " ";" cmd "$<TARGET_FILE:benchdnn> ${cmd}")
 
@@ -107,9 +100,9 @@ function(register_all_tests engine driver test_files)
 endfunction()
 
 # The following section is responsible to register test_benchdnn_ targets
-# depending on DNNL_TEST_SET value.
+# depending on DNNL_GRAPH_TEST_SET value.
 set(has_gpu false)
-if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+if(NOT DNNL_GRAPH_GPU_RUNTIME STREQUAL "NONE")
     set(has_gpu true)
 endif()
 set(has_cpu false)
@@ -117,8 +110,9 @@ if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
     set(has_cpu true)
 endif()
 
+
 # Very sad CMake older then 3.2 does not support continue() command.
-file(GLOB all_drivers RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs inputs/*)
+# file(GLOB all_drivers RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs inputs/*)  # TODO: open dnnl test
 foreach(driver ${all_drivers})
     set(driver_dir ${CMAKE_CURRENT_SOURCE_DIR}/inputs/${driver})
     # Collect input files in groups
@@ -131,7 +125,7 @@ foreach(driver ${all_drivers})
     file(GLOB test_files_cpu RELATIVE ${driver_dir} inputs/${driver}/test_*)
 
     # Register ci input files for ci only
-    if((DNNL_TEST_SET LESS DNNL_TEST_SET_CI) OR (DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI))
+    if(DNNL_GRAPH_TEST_SET EQUAL DNNL_GRAPH_TEST_SET_CI)
         # gpu_ci files may happen if cpu coverage can not be used on gpu
         # Filter out gpu_ci inputs from ci
         foreach(test_file ${test_files_gpu_ci})
@@ -152,7 +146,7 @@ foreach(driver ${all_drivers})
     endif()
 
     # Register nightly input files
-    if(DNNL_TEST_SET GREATER DNNL_TEST_SET_CI)
+    if(DNNL_GRAPH_TEST_SET GREATER DNNL_GRAPH_TEST_SET_CI)
         ## Filter out gpu, large cpu and invalid inputs from cpu
         foreach(test_file ${test_files_large_cpu} ${test_files_gpu_ci}
                 ${test_files_gpu} ${test_files_ci} "test_conv_all;")
@@ -168,5 +162,108 @@ foreach(driver ${all_drivers})
         if(has_cpu)
             register_all_tests(cpu "${driver}" "${test_files_cpu}")
         endif()
+    endif()
+endforeach()
+
+# process ctest configurations of benchdnn extension for Graph API
+file(COPY inputs_graph DESTINATION .)
+
+function(register_benchdnnext_test engine bench_mode api_mode driver
+        test_file)
+    if (ARGC GREATER 5)
+        message(FATAL_ERROR "Incorrect use of function")
+    endif()
+
+    if(bench_mode STREQUAL "P" OR bench_mode STREQUAL "p")
+        set(TEST_NAME_PREFIX "perf")
+    elseif(bench_mode STREQUAL "C" OR bench_mode STREQUAL "c")
+        set(TEST_NAME_PREFIX "test")
+    else()
+        message(FATAL_ERROR "Unkown bench mode - " ${bench_mode})
+    endif()
+
+    if(api_mode STREQUAL "P" OR api_mode STREQUAL "p")
+        set(TEST_NAME_PREFIX "${TEST_NAME_PREFIX}_benchdnn_")
+    elseif (api_mode STREQUAL "G" OR api_mode STREQUAL "g")
+        set(TEST_NAME_PREFIX "${TEST_NAME_PREFIX}_benchdnnext_")
+    else()
+        message(FATAL_ERROR "Unknown api mode - " ${api_mode})
+    endif()
+
+    string(REPLACE "test_" "${TEST_NAME_PREFIX}" target_name ${test_file})
+
+    set(cmd "-v1 --engine=${engine} --mode=${bench_mode} --api=${api_mode}"
+            "--${driver}"
+            "--perf-template=perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%"
+            "--batch=${test_file}")
+    set(benchdnn_target ${target_name}_${engine})
+
+    if(DNNL_GRAPH_BUILD_FOR_CI)
+        string(REPLACE " " ";" cmd "benchdnn ${cmd}")
+        add_dnnl_graph_test(${benchdnn_target} ${cmd})
+    else()
+        string(REPLACE " " ";" cmd "$<TARGET_FILE:benchdnn> ${cmd}")
+
+        if(WIN32)
+            set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
+            set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
+        endif()
+
+        add_custom_target(${benchdnn_target}
+            COMMAND ${cmd}
+            DEPENDS benchdnn
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        )
+
+        set_target_properties(${benchdnn_target} PROPERTIES
+            EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+        maybe_configure_windows_test(${benchdnn_target} TARGET)
+
+        # Create non-suffixed target for compatibility
+        if(engine STREQUAL "cpu")
+            add_custom_target(${target_name} DEPENDS ${benchdnn_target})
+            maybe_configure_windows_test(${target_name} TARGET)
+        endif()
+    endif()
+endfunction()
+
+function(register_all_graph_tests engine bench_mode api_mode driver test_files)
+    foreach(test_file ${test_files})
+        register_benchdnnext_test(${engine} ${bench_mode} ${api_mode}
+                ${driver} ${test_file})
+    endforeach()
+endfunction()
+
+# Register test_graph_benchdnn_ targets
+file(GLOB all_graph_drivers RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs_graph
+        inputs_graph/*)
+foreach(driver ${all_graph_drivers})
+    set(driver_dir ${CMAKE_CURRENT_SOURCE_DIR}/inputs_graph/${driver})
+    # Collect input files in groups.
+    # TODO: At present, we don't have many test cases that's in different
+    #   groups, like `large`, `ci`, `gpu`, and `cpu`.
+    file(GLOB test_files_large_cpu RELATIVE ${driver_dir}
+            inputs_graph/${driver}/test_*_large)
+    file(GLOB test_files_gpu_ci RELATIVE ${driver_dir}
+            inputs_graph/${driver}/test_*_gpu_ci)
+    file(GLOB test_files_gpu RELATIVE ${driver_dir}
+            inputs_graph/${driver}/test_*_gpu)
+    file(GLOB test_files_ci RELATIVE ${driver_dir}
+            inputs_graph/${driver}/test_*_ci)
+    # test_files_cpu contains all the test files
+    file(GLOB test_files_cpu RELATIVE ${driver_dir}
+            inputs_graph/${driver}/test_*)
+
+    # Register ci input files for ci only
+    if(DNNL_GRAPH_TEST_SET EQUAL DNNL_GRAPH_TEST_SET_CI)
+        # `test_files_cpu` contains all the ci test cases for graph at present.
+        # The status may be changed in future as the test cases are added.
+        register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_cpu}")
+    endif()
+
+    if(DNNL_GRAPH_TEST_SET GREATER DNNL_GRAPH_TEST_SET_CI)
+        register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_cpu}")
+        register_all_graph_tests(cpu "P" "P" "${driver}" "${test_files_cpu}")
+        register_all_graph_tests(cpu "P" "G" "${driver}" "${test_files_cpu}")
     endif()
 endforeach()

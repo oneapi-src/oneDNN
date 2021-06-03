@@ -162,6 +162,7 @@ include("cmake/OpenMP.cmake")
 include("cmake/platform.cmake")
 include("cmake/SDL.cmake")
 include("cmake/coverage.cmake")
+include("cmake/testing.cmake")
 
 enable_testing()
 
