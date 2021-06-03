@@ -1,0 +1,5 @@
+--batch=../../inputs/conv/shapes_resnet_50
+
+--attr-post-ops=relu --batch=../../inputs/conv/shapes_resnet_50
+
+--attr-post-ops=sum+relu --batch=../../inputs/conv/shapes_resnet_50

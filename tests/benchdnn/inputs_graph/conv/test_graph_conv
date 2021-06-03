@@ -1,0 +1,8 @@
+--reset
+
+--cfg=f32
+--dir=FWD_I,FWD_B
+--batch=harness_conv_resnet_50
+
+# --reset
+# --cfg=f32 --stag=axb --dtag=axb --batch=harness_conv_resnet_50

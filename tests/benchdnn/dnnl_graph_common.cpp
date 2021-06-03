@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <oneapi/dnnl/dnnl_debug.h>
+
 #include "dnnl_graph_common.hpp"
 
 namespace benchdnnext {
@@ -151,17 +153,55 @@ std::map<std::string, float> convert_eltw_entry(
     }
 }
 
+int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> scales) {
+    if (scales.empty()) {
+        dst = std::move(src);
+        return OK;
+    }
+    constexpr float eps = 1.e-9;
+    std::vector<float> bia_scales(scales.size(), 0.f);
+    std::transform(scales.begin(), scales.end(), bia_scales.begin(),
+            [eps](const float scale) { return 1.f / (scale + eps); });
+    const int bia_mask = bia_scales.size() == 1 ? 0 : 1;
+    dnnl_primitive_attr_t bia_attr = nullptr;
+    dnnl_primitive_attr_create(&bia_attr);
+    dnnl_primitive_attr_set_output_scales(
+            bia_attr, bia_scales.size(), bia_mask, bia_scales.data());
+    SAFE(dst.reorder(src, bia_attr), CRIT);
+
+    return OK;
+}
+
+dnnl_format_tag_t dnnl_fmt_str2tag(const std::string &fmt_str) {
+    dnnl_format_tag_t tag = dnnl_format_tag_undef;
+    for (int i = 0; i < dnnl_format_tag_last; ++i) {
+        tag = static_cast<dnnl_format_tag_t>(i);
+        if (dnnl_fmt_tag2str(tag) == fmt_str) break;
+    }
+    if (tag == dnnl_format_tag_undef)
+        []() {
+            SAFE(FAIL, CRIT);
+            return 0;
+        }();
+    return tag;
+};
+
 dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
         const dnnl::graph::logical_tensor::data_type &graph_dt,
-        const char *tag) {
+        const char *atag) {
     using graph_layout = dnnl::graph::logical_tensor::layout_type;
 
     const auto &dnnl_test_engine = ::get_test_engine();
     const auto dims = lt.get_dims();
     const int ndims = static_cast<int>(dims.size());
-    const std::string valid_tag = tag ? tag : "abx";
+    std::string valid_tag = atag ? normalize_tag(atag, ndims) : "abx";
 
-    dnnl_dims_t dnnl_dims;
+    // NOTE: oneDNN Graph cannot get the concrete format from any-format logical
+    //   tensor. Given that some tags in benchdnn is any by default, we should
+    //   consider any to be default plain format for oneDNN Graph.
+    if (valid_tag == tag::any) valid_tag = normalize_tag("abx", ndims);
+
+    dnnl_dims_t dnnl_dims = {0};
     std::copy(dims.begin(), dims.end(), dnnl_dims);
 
     auto ltype = lt.get_layout_type();
@@ -173,6 +213,9 @@ dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
         dnnl_dims_t dnnl_strides;
         std::copy(strides.begin(), strides.end(), dnnl_strides);
         return dnn_mem_t(ndims, dnnl_dims, convert_dt(graph_dt), dnnl_strides,
+                dnnl_test_engine);
+    } else if (ltype == graph_layout::opaque) {
+        return dnn_mem_t(ndims, dnnl_dims, convert_dt(graph_dt), valid_tag,
                 dnnl_test_engine);
     } else {
         []() {
