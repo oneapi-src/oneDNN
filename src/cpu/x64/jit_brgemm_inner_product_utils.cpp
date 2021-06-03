@@ -162,7 +162,7 @@ int ip_fwd_get_adjusted_oc_block(const jit_brgemm_primitive_conf_t &jbgp) {
 
     int oc_block = get_oc_block(jbgp, true);
     if (ip_fwd_adjust_thread_balance(jbgp)) {
-        return (jbgp.oc > 16) ? oc_block / 2 : oc_block;
+        return (oc_block > 16) ? oc_block / 2 : oc_block;
     } else {
         return oc_block;
     }
