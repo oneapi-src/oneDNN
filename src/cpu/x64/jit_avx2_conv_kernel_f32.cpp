@@ -434,7 +434,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
         for (int ii = 0; ii < oc_blocks; ii++)
             for (int jj = 0; jj < ur_w; jj++) {
                 Ymm reg_out = get_ymm(ur_w, ii, jj);
-                if (is_tail && ii == oc_blocks - 1)
+                if (is_tail && ii == oc_blocks - 1 && is_src_layout_nxc())
                     store_bytes(reg_out, reg_output, get_output_offset(ii, jj),
                             tail * sizeof(float));
                 else

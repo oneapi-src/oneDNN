@@ -289,7 +289,8 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_dst(int ur_w) {
                 size_t aux_dst_offset = get_dst_offset(j, k);
                 auto addr = EVEX_compress_addr(reg_dst, aux_dst_offset);
                 // mask only needed for last oc_block
-                bool mask_flag = oc_tail && k + 1 == jcp.nb_oc_blocking;
+                bool mask_flag = oc_tail && k + 1 == jcp.nb_oc_blocking
+                        && is_dst_layout_nxc();
                 vmovups(addr, may_be_mask_vmm(vmm, mask_flag, false));
             }
     } else if (jcp.dst_dt == data_type::bf16) {
@@ -341,7 +342,7 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_dst(int ur_w) {
                     auto vmm_down_str = vmm_src_down(j, jcp.nb_oc_blocking);
                     vcvtneps2bf16(vmm_down_str, vmm_dst(j, k));
                     // for xmm, upper half is zero after conversion to
-                    // bf16, so mask always & mask for tails
+                    // bf16, so mask always.
                     const bool mask_flag = jcp.simd_w == 4;
                     vmovdqu16(addr, may_be_mask_vmm(vmm_down_str, mask_flag));
                 }
@@ -355,7 +356,8 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_dst(int ur_w) {
                     auto vmm_down = vmm_src_down(0, jcp.nb_oc_blocking);
                     bf16_emu_->vcvtneps2bf16(
                             Ymm(vmm_down.getIdx()), Zmm(vmm.getIdx()));
-                    bool mask_flag = (oc_tail && k + 1 == jcp.nb_oc_blocking)
+                    bool mask_flag = (oc_tail && k + 1 == jcp.nb_oc_blocking
+                                             && is_dst_layout_nxc())
                             // for xmm, upper half is zero after conversion to
                             // bf16, so mask always & mask for tails
                             || jcp.simd_w == 4;
