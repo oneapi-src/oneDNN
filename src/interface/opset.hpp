@@ -71,6 +71,7 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Quantize, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ReduceSum, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ReLU, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ReLUBackprop, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Reorder, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Reshape, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Round, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Sigmoid, 1);
@@ -244,6 +245,7 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ReduceSum, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ReLU, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(ReLUBackprop, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Reorder, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Reshape, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Round, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Sigmoid, 1)>());

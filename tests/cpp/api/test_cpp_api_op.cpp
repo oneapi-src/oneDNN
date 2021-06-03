@@ -91,6 +91,7 @@ TEST(api_op, create_all_ops) {
             op::kind::End,
             op::kind::Quantize,
             op::kind::Dequantize,
+            op::kind::Reorder,
     };
 
     const auto num_ops = all_kind_enums.size();

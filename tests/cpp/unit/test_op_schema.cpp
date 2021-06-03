@@ -2398,6 +2398,23 @@ TEST(op_schema_test, End) {
     EXPECT_TRUE(op_schema->verify(&end_op));
 }
 
+TEST(op_schema_test, Reorder) {
+    const op_kind_t op_kind_ = op_kind::Reorder;
+    const size_t expected_in_size = 1;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 0;
+    const std::map<std::string, bool> attrs_data {};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(op_schema_test, Reorder_infer_shape) {
+    const op_kind_t op_kind_ = op_kind::Reorder;
+
+    verify_single_in_identity_shape_infer(op_kind_);
+}
+
 TEST(op_schema_test, Erf) {
     const op_kind_t op_kind_ = op_kind::Erf;
     const size_t expected_in_size = 1;
