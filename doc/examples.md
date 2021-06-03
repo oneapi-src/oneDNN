@@ -18,3 +18,4 @@
 | conv+bias+relu+conv+bias+relu (tiny) | CPU      | FP32      |                                            | @ref cpu_simple_pattern_tiny_c    |
 | add(conv+bias, conv+bias)            | CPU      | FP32      | @ref cpu_inplace_options_cpp               |                                   |
 | matmul+relu                          | CPU      | FP32      | @ref cpu_matmul_relu_pattern_cpp           |                                   |
+| Single operator partition            | CPU      | FP32      | @ref cpu_single_op_partition_matmul_cpp    |                                   |
