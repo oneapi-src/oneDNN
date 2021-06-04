@@ -61,16 +61,15 @@ struct jit_avx512_core_amx_int8_deconvolution_fwd_t : public primitive_t {
                     && is_int8_deconvolution && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_avx512_core_amx_bwd_data_kernel_t::init_conf(
-                    jcp_, *desc(), dst_md_, weights_md_, src_md_, &bias_md_,
-                    *attr(), dnnl_get_max_threads());
-            if (status != status::success) return status;
+            CHECK(jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jcp_,
+                    *desc(), dst_md_, weights_md_, src_md_, &bias_md_, *attr(),
+                    dnnl_get_max_threads()));
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx512_core_amx_bwd_data_kernel_t::init_scratchpad(
                     scratchpad, jcp_, *attr());
 
-            return status;
+            return status::success;
         }
 
         jit_conv_conf_t jcp_;

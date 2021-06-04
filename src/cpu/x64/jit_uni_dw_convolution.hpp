@@ -55,11 +55,10 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_t {
                     && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            status_t status
-                    = jit_uni_dw_conv_fwd_kernel<isa, src_type>::init_conf(jcp_,
-                            *desc(), src_md_, weights_md_, bias_md_, dst_md_,
-                            *attr());
-            if (status != status::success) return status;
+            auto status = jit_uni_dw_conv_fwd_kernel<isa, src_type>::init_conf(
+                    jcp_, *desc(), src_md_, weights_md_, bias_md_, dst_md_,
+                    *attr());
+            if (status != status::success) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_uni_dw_conv_fwd_kernel<isa, src_type>::init_scratchpad(

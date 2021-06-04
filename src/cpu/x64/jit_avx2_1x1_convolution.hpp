@@ -71,14 +71,9 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, dst_md(), weights_md());
 
-            status_t status = jit_avx2_1x1_conv_kernel_f32::init_conf(
-                    jcp_, *conv_d, *src_d, *weights_md(), *dst_md(), *attr());
-            if (status != status::success) return status;
-
-            if (jcp_.with_dw_conv) {
-                status = depthwise_po_init(engine);
-                if (status != status::success) return status;
-            }
+            CHECK(jit_avx2_1x1_conv_kernel_f32::init_conf(
+                    jcp_, *conv_d, *src_d, *weights_md(), *dst_md(), *attr()));
+            if (jcp_.with_dw_conv) CHECK(depthwise_po_init(engine));
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx2_1x1_conv_kernel_f32::init_scratchpad(scratchpad, jcp_);

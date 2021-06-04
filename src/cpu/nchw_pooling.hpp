@@ -52,13 +52,12 @@ struct nchw_pooling_fwd_t : public primitive_t {
                     && utils::everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(d_type)
-                    && !has_zero_dim_memory()
-                    && set_default_params() == status::success
+                    && !has_zero_dim_memory() && !is_dilated()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, d_type)
+                    && set_default_params() == status::success
                     && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
-                    && memory_desc_matches_tag(*dst_md(), desired_fmt_tag)
-                    && !is_dilated();
+                    && memory_desc_matches_tag(*dst_md(), desired_fmt_tag);
             if (!ok) return status::unimplemented;
 
             const bool is_training

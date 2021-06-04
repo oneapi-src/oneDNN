@@ -59,13 +59,12 @@ struct nhwc_pooling_fwd_t : public primitive_t {
                             pooling_avg_exclude_padding)
                     && utils::everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
-                    && platform::has_data_type_support(d_type)
-                    && set_default_params() == status::success
+                    && platform::has_data_type_support(d_type) && !is_dilated()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, d_type)
+                    && set_default_params() == status::success
                     && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
-                    && memory_desc_matches_tag(*dst_md(), desired_fmt_tag)
-                    && !is_dilated();
+                    && memory_desc_matches_tag(*dst_md(), desired_fmt_tag);
             if (!ok) return status::unimplemented;
 
             const bool is_training = desc_.prop_kind == forward_training;

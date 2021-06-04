@@ -52,7 +52,6 @@ struct _jit_uni_x8s8s32x_deconv_fwd_kernel : public jit_generator {
     ~_jit_uni_x8s8s32x_deconv_fwd_kernel();
 
     const jit_conv_conf_t jcp_;
-    const primitive_attr_t &attr_;
 
 private:
     std::unique_ptr<injector::jit_uni_postops_injector_t<isa, Vmm>>

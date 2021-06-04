@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,21 +51,19 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public primitive_t {
                 jit_avx512_core_f32_wino_conv_2x3_fwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && desc()->prop_kind == prop_kind::forward_inference
+            using namespace data_type;
+            bool ok = desc()->prop_kind == prop_kind::forward_inference
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::convolution_auto,
                             alg_kind::convolution_winograd)
-                    && expect_data_types(data_type::f32, data_type::f32,
-                            data_type::f32, data_type::f32, data_type::f32)
+                    && expect_data_types(f32, f32, f32, f32, f32)
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops,
-                            data_type::f32)
+                            primitive_attr_t::skip_mask_t::post_ops, f32)
                     && set_default_formats();
             if (!ok) return status::unimplemented;
 
             memory_desc_t expect_wei_md = *weights_md();
-            status_t jit_conf_result = jit_conf(expect_wei_md);
-            if (jit_conf_result != status::success) return jit_conf_result;
+            CHECK(jit_conf(expect_wei_md));
             set_default_alg_kind(alg_kind::convolution_winograd);
 
             if (weights_md_.format_kind == format_kind::any)

@@ -51,13 +51,12 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace utils;
 
-            const bool ok = true && set_default_params() == status::success
-                    && is_fwd() && !has_zero_dim_memory()
+            const bool ok = is_fwd() && !has_zero_dim_memory()
                     && everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, d_type)
-                    && !is_dilated();
+                    && !is_dilated() && set_default_params() == status::success;
             if (!ok) return status::unimplemented;
 
             const bool is_training
@@ -66,8 +65,10 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
                 init_default_ws();
 
             auto scratchpad = scratchpad_registry().registrar();
-            return jit_uni_pool_kernel<isa>::init_conf(
-                    jpp_, scratchpad, this, dnnl_get_max_threads());
+            CHECK(jit_uni_pool_kernel<isa>::init_conf(
+                    jpp_, scratchpad, this, dnnl_get_max_threads()));
+
+            return status::success;
         }
 
         jit_pool_conf_t jpp_;

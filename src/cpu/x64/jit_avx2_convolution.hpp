@@ -53,9 +53,8 @@ struct jit_avx2_convolution_fwd_t : public primitive_t {
                     && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_avx2_conv_fwd_kernel_f32::init_conf(
-                    jcp_, *desc(), src_md(), weights_md(), dst_md(), *attr());
-            if (status != status::success) return status;
+            CHECK(jit_avx2_conv_fwd_kernel_f32::init_conf(
+                    jcp_, *desc(), src_md(), weights_md(), dst_md(), *attr()));
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx2_conv_fwd_kernel_f32::init_scratchpad(scratchpad, jcp_);

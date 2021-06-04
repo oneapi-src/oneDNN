@@ -49,8 +49,9 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
 
-            const bool ok = true && is_fwd()
+            bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(
                             src_type, s8, data_type::undef, dst_type, s32)
@@ -58,27 +59,21 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                             utils::one_of(desc()->bias_desc.data_type, f32, s32,
                                     s8, u8))
                     && !has_zero_dim_memory()
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale
-                                    | primitive_attr_t::skip_mask_t::
-                                            zero_points_runtime
-                                    | primitive_attr_t::skip_mask_t::post_ops,
+                    && attr()->has_default_values(skip_mask_t::oscale
+                                    | skip_mask_t::zero_points_runtime
+                                    | skip_mask_t::post_ops,
                             dst_type)
                     && output_scales_mask_ok() && zero_points_valid(attr());
-
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
-            const auto status_ = jit_gemm_convolution_utils::init_conf(jcp_,
-                    scratchpad, *desc(), src_md_, weights_md_, dst_md_,
-                    bias_md_, *attr(), dnnl_get_max_threads());
-
-            if (status_ == status::success) {
-                if (!gemm_x8s8s32x_convolution_utils::post_ops_ok(
-                            attr()->post_ops_, &dst_md_))
-                    return status::unimplemented;
-            }
-            return status_;
+            CHECK(jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
+                    *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
+                    dnnl_get_max_threads()));
+            if (!gemm_x8s8s32x_convolution_utils::post_ops_ok(
+                        attr()->post_ops_, &dst_md_))
+                return status::unimplemented;
+            return status::success;
         }
 
         conv_gemm_conf_t jcp_;

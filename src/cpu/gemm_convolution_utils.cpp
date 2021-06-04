@@ -1048,25 +1048,6 @@ status_t init_conf(conv_gemm_conf_t &jcp,
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef
             || cd.diff_bias_desc.format_kind != format_kind::undef;
 
-    jcp.post_ops = attr.post_ops_;
-
-    const int eltwise_ind = jcp.post_ops.find(primitive_kind::eltwise);
-    jcp.with_eltwise = eltwise_ind != -1;
-    const int binary_ind = jcp.post_ops.find(primitive_kind::binary);
-    jcp.with_binary = binary_ind != -1;
-
-    if (jcp.with_binary) {
-        const bool is_binary_no_bcast
-                = binary_injector_utils::bcast_strategy_present(
-                        binary_injector_utils::extract_bcast_strategies(
-                                jcp.post_ops.entry_, dst_d),
-                        broadcasting_strategy_t::no_broadcast);
-        if (is_binary_no_bcast) return status::unimplemented;
-    }
-
-    const int sum_ind = jcp.post_ops.find(primitive_kind::sum);
-    jcp.with_sum = sum_ind != -1;
-
     jcp.is = jcp.ih * jcp.iw;
     jcp.os = jcp.oh * jcp.ow;
     jcp.ks = jcp.kh * jcp.kw * jcp.kd;
@@ -1170,14 +1151,31 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                     format_tag::ndhwc)
             : utils::pick(ndims - 3, format_tag::ncw, format_tag::nchw,
                     format_tag::ncdhw);
-    if (set_or_check_tags(default_dat_tag, default_dat_tag,
-                src_md.data_type == data_type::s8)
-            != status::success)
-        return status::unimplemented;
+    CHECK(set_or_check_tags(default_dat_tag, default_dat_tag,
+            src_md.data_type == data_type::s8));
 
     // Does int8 conv ever need to support ncsp input format
     if (is_int8_conv && !src_d.matches_one_of_tag(default_dat_tag))
         return status::unimplemented;
+
+    jcp.post_ops = attr.post_ops_;
+
+    const int eltwise_ind = jcp.post_ops.find(primitive_kind::eltwise);
+    jcp.with_eltwise = eltwise_ind != -1;
+    const int binary_ind = jcp.post_ops.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
+
+    if (jcp.with_binary) {
+        const bool is_binary_no_bcast
+                = binary_injector_utils::bcast_strategy_present(
+                        binary_injector_utils::extract_bcast_strategies(
+                                jcp.post_ops.entry_, dst_d),
+                        broadcasting_strategy_t::no_broadcast);
+        if (is_binary_no_bcast) return status::unimplemented;
+    }
+
+    const int sum_ind = jcp.post_ops.find(primitive_kind::sum);
+    jcp.with_sum = sum_ind != -1;
 
     bool is_bf16_conv = false
             || (is_fwd

@@ -43,8 +43,8 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_t {
                 jit_uni_i8i8_pooling_fwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && mayiuse(isa) && utils::one_of(ndims(), 3, 4, 5)
-                    && set_default_params() == status::success
+            using namespace format_tag;
+            bool ok = mayiuse(isa) && utils::one_of(ndims(), 3, 4, 5)
                     && desc()->prop_kind == prop_kind::forward_inference
                     && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
                             alg_kind::pooling_avg_include_padding,
@@ -52,20 +52,21 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_t {
                     && utils::one_of(src_md()->data_type, data_type::s32,
                             data_type::s8, data_type::u8)
                     && src_md()->data_type == dst_md()->data_type
+                    && !is_dilated()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops)
-                    && memory_desc_matches_one_of_tag(*src_md(),
-                               format_tag::nwc, format_tag::nhwc,
-                               format_tag::ndhwc)
+                    && set_default_params() == status::success
+                    && memory_desc_matches_one_of_tag(
+                               *src_md(), nwc, nhwc, ndhwc)
                             != format_tag::undef
-                    && memory_desc_matches_one_of_tag(*dst_md(),
-                               format_tag::nwc, format_tag::nhwc,
-                               format_tag::ndhwc)
-                            != format_tag::undef
-                    && !is_dilated();
+                    && memory_desc_matches_one_of_tag(
+                               *dst_md(), nwc, nhwc, ndhwc)
+                            != format_tag::undef;
             if (!ok) return status::unimplemented;
 
-            return jit_conf();
+            CHECK(jit_conf());
+
+            return status::success;
         }
 
         jit_pool_conf_t jpp_;

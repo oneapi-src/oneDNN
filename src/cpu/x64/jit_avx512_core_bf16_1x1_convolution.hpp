@@ -68,27 +68,21 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, dst_type)
                     && !has_zero_dim_memory() && set_default_formats();
-
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, dst_md(), weights_md());
 
-            status_t status = jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
-                    jcp_, *conv_d, *src_d, *weights_md(), *dst_md(), *attr(),
-                    dnnl_get_max_threads(), rtus_.reduce_src_);
-            if (status != status::success) return status;
+            CHECK(jit_avx512_core_bf16_1x1_conv_kernel::init_conf(jcp_, *conv_d,
+                    *src_d, *weights_md(), *dst_md(), *attr(),
+                    dnnl_get_max_threads(), rtus_.reduce_src_));
 
-            if (jcp_.with_dw_conv) {
-                status = depthwise_po_init(engine);
-                if (status != status::success) return status;
-            }
+            if (jcp_.with_dw_conv) CHECK(depthwise_po_init(engine));
 
             auto scratchpad = scratchpad_registry().registrar();
-            status = jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
-                    scratchpad, jcp_);
-            if (status != status::success) return status;
+            CHECK(jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
+                    scratchpad, jcp_));
 
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 

@@ -47,7 +47,6 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
-            , attr_(attr)
             , with_sum(false) {}
 
         ~pd_t() = default;
@@ -77,7 +76,6 @@ struct brgemm_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine);
 
-        const primitive_attr_t *attr_;
         int brgs_sz_;
         std::vector<brgemm_t> brgs_;
         bool with_sum;

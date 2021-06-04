@@ -1446,28 +1446,6 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                 jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0))
         return status::unimplemented;
 
-    const auto &post_ops = attr.post_ops_;
-    jcp.with_sum = post_ops.find(primitive_kind::sum) != -1;
-    const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
-    jcp.with_eltwise = eltwise_ind != -1;
-    if (jcp.with_eltwise) {
-        if (dst_d.data_type() == data_type::s32) return status::unimplemented;
-    }
-    const int binary_ind = post_ops.find(primitive_kind::binary);
-    jcp.with_binary = binary_ind != -1;
-
-    jcp.post_ops = post_ops;
-
-    using namespace injector;
-    static constexpr bool sum_at_pos_0_only = true;
-    static constexpr bool sum_requires_scale_one = true;
-    const bool post_ops_ok_
-            = post_ops_ok({avx512_common, {eltwise, binary, sum}, jcp.post_ops,
-                    &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
-                    {broadcasting_strategy_t::scalar,
-                            broadcasting_strategy_t::per_oc}});
-    if (!post_ops_ok_) return status::unimplemented;
-
     jcp.ic_tail = is_data_layout_nxc ? jcp.ic % jcp.simd_w : 0;
     if (is_data_layout_nxc)
         jcp.oc_tail = jcp.oc % jcp.simd_w;
@@ -1512,6 +1490,28 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         if (bias_d.format_kind() == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, x));
     }
+
+    const auto &post_ops = attr.post_ops_;
+    jcp.with_sum = post_ops.find(primitive_kind::sum) != -1;
+    const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
+    jcp.with_eltwise = eltwise_ind != -1;
+    if (jcp.with_eltwise) {
+        if (dst_d.data_type() == data_type::s32) return status::unimplemented;
+    }
+    const int binary_ind = post_ops.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
+
+    jcp.post_ops = post_ops;
+
+    using namespace injector;
+    static constexpr bool sum_at_pos_0_only = true;
+    static constexpr bool sum_requires_scale_one = true;
+    const bool post_ops_ok_
+            = post_ops_ok({avx512_common, {eltwise, binary, sum}, jcp.post_ops,
+                    &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
+                    {broadcasting_strategy_t::scalar,
+                            broadcasting_strategy_t::per_oc}});
+    if (!post_ops_ok_) return status::unimplemented;
 
     if (mayiuse(avx512_common) && src_d.data_type() == data_type::f32
             && weights_d.data_type() == data_type::f32

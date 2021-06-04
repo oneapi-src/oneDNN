@@ -56,35 +56,25 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             auto dst_dt = invariant_dst_md()->data_type;
             auto wei_dt = invariant_wei_md()->data_type;
 
-            auto check_attr = [=]() {
-                if (utils::one_of(src_dt, data_type::u8, data_type::s8)) {
-                    return attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale
-                            | primitive_attr_t::skip_mask_t::post_ops);
-                } else {
-                    return attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops);
-                }
-            };
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
+            auto skip_mask = skip_mask_t::post_ops;
+            if (one_of(src_dt, u8, s8)) skip_mask |= skip_mask_t::oscale;
 
-            bool ok = true && is_fwd() && mayiuse(isa)
+            bool ok = is_fwd() && mayiuse(isa)
                     && expect_data_types(src_dt, wei_dt, data_type::undef,
                             dst_dt, data_type::undef)
                     && IMPLICATION(with_bias(),
-                            ((utils::one_of(
-                                      src_dt, data_type::u8, data_type::s8)
-                                     && utils::one_of(bias_md_.data_type,
-                                             data_type::f32, data_type::s32,
-                                             data_type::s8, data_type::u8))
-                                    || (utils::one_of(src_dt, data_type::bf16)
-                                            && utils::one_of(bias_md_.data_type,
-                                                    data_type::f32,
-                                                    data_type::bf16))
-                                    || (utils::one_of(src_dt, data_type::f32)
-                                            && utils::one_of(bias_md_.data_type,
-                                                    data_type::f32))))
-                    && check_attr() && !has_zero_dim_memory();
-
+                            ((one_of(src_dt, u8, s8)
+                                     && one_of(bias_md_.data_type, f32, s32, s8,
+                                             u8))
+                                    || (one_of(src_dt, bf16)
+                                            && one_of(bias_md_.data_type, f32,
+                                                    bf16))
+                                    || (one_of(src_dt, f32)
+                                            && one_of(
+                                                    bias_md_.data_type, f32))))
+                    && attr()->has_default_values(skip_mask)
+                    && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             CHECK(brgemm_inner_product_utils::init_ip_conf(isa, jbgp_, *desc(),

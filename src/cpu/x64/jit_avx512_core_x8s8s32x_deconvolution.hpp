@@ -247,13 +247,9 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
                             | primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
 
-            status_t status
-                    = _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
-                            jcp_, *desc(), src_md_, weights_md_, dst_md_,
-                            with_bias(), bias_md_, *attr(),
-                            dnnl_get_max_threads());
-
-            if (status != status::success) return status;
+            CHECK(_jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(jcp_,
+                    *desc(), src_md_, weights_md_, dst_md_, with_bias(),
+                    bias_md_, *attr(), dnnl_get_max_threads()));
 
             auto scratchpad = scratchpad_registry().registrar();
             _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(

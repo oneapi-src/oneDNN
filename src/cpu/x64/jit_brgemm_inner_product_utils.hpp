@@ -77,12 +77,6 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         const primitive_attr_t &attr, const memory_desc_wrapper &dst_d);
 status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp);
 status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp);
-status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
-        const inner_product_desc_t &ipd, memory_desc_t &src_md,
-        memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads);
-void init_scratchpad(memory_tracking::registrar_t &scratchpad,
-        const jit_brgemm_primitive_conf_t &jbgp);
 
 } // namespace brgemm_inner_product_utils
 

@@ -56,16 +56,15 @@ struct jit_avx512_common_convolution_fwd_t : public primitive_t {
                     && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_avx512_common_conv_fwd_kernel::init_conf(jcp_,
-                    *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
-                    dnnl_get_max_threads());
-            if (status != status::success) return status;
+            CHECK(jit_avx512_common_conv_fwd_kernel::init_conf(jcp_, *desc(),
+                    src_md_, weights_md_, dst_md_, bias_md_, *attr(),
+                    dnnl_get_max_threads()));
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx512_common_conv_fwd_kernel::init_scratchpad(
                     scratchpad, jcp_);
 
-            return status;
+            return status::success;
         }
 
         jit_conv_conf_t jcp_;

@@ -52,27 +52,21 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
                 jit_sse41_1x1_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && is_fwd()
+            using namespace data_type;
+            bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(data_type::f32, data_type::f32,
-                            data_type::f32, data_type::f32, data_type::f32)
+                    && expect_data_types(f32, f32, f32, f32, f32)
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops,
-                            data_type::f32)
+                            primitive_attr_t::skip_mask_t::post_ops, f32)
                     && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_sse41_1x1_conv_kernel_f32::init_conf(jcp_,
-                    *desc(), *src_md(), *weights_md(), *dst_md(), *attr(),
-                    dnnl_get_max_threads());
-            if (status != status::success) return status;
+            CHECK(jit_sse41_1x1_conv_kernel_f32::init_conf(jcp_, *desc(),
+                    *src_md(), *weights_md(), *dst_md(), *attr(),
+                    dnnl_get_max_threads()));
+            if (jcp_.with_dw_conv) CHECK(depthwise_po_init(engine));
 
-            if (jcp_.with_dw_conv) {
-                status = depthwise_po_init(engine);
-                if (status != status::success) return status;
-            }
-
-            return status;
+            return status::success;
         }
 
         const memory_desc_t *dst_md(int index = 0) const override {

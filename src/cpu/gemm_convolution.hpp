@@ -40,16 +40,15 @@ struct gemm_convolution_fwd_t : public primitive_t {
                 GEMM_IMPL_STR, gemm_convolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
-            bool ok = true && is_fwd()
+            using namespace data_type;
+
+            bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(data_type::f32, data_type::f32,
-                            data_type::f32, data_type::f32, data_type::f32)
+                    && expect_data_types(f32, f32, f32, f32, f32)
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops,
-                            data_type::f32)
+                            primitive_attr_t::skip_mask_t::post_ops, f32)
                     && post_ops_ok();
-
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();

@@ -45,27 +45,24 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_t {
                 jit_avx512_core_bf16_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && mayiuse(avx512_core) && is_fwd()
+            using namespace data_type;
+            bool ok = mayiuse(avx512_core) && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && (expect_data_types(data_type::bf16, data_type::bf16,
-                                data_type::undef, data_type::bf16,
+                    && (expect_data_types(bf16, bf16, data_type::undef, bf16,
                                 data_type::undef)
-                            || expect_data_types(data_type::bf16,
-                                    data_type::bf16, data_type::undef,
-                                    data_type::f32, data_type::undef))
+                            || expect_data_types(bf16, bf16, data_type::undef,
+                                    f32, data_type::undef))
                     && IMPLICATION(with_bias(),
-                            utils::one_of(weights_md(1)->data_type,
-                                    data_type::f32, data_type::bf16))
+                            utils::one_of(weights_md(1)->data_type, f32, bf16))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops,
                             dst_md()->data_type)
                     && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_avx512_core_bf16_fwd_kernel::init_conf(jcp_,
-                    *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
-                    dnnl_get_max_threads());
-            if (status != status::success) return status::unimplemented;
+            CHECK(jit_avx512_core_bf16_fwd_kernel::init_conf(jcp_, *desc(),
+                    src_md_, weights_md_, dst_md_, bias_md_, *attr(),
+                    dnnl_get_max_threads()));
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx512_core_bf16_fwd_kernel::init_scratchpad(scratchpad, jcp_);

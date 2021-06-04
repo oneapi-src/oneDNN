@@ -63,34 +63,23 @@ template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
 status_t
 brgemm_convolution_fwd_t<isa, src_type, wei_type, dst_type>::pd_t::init(
         engine_t *engine) {
-    auto check_attr = [=]() {
-        if (utils::one_of(src_type, data_type::u8, data_type::s8)) {
-            return attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::oscale
-                    | primitive_attr_t::skip_mask_t::post_ops);
-        } else {
-            return attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::post_ops);
-        }
-    };
+    using namespace data_type;
+    using namespace utils;
+    using skip_mask_t = primitive_attr_t::skip_mask_t;
+    auto skip_mask = skip_mask_t::post_ops;
+    if (one_of(src_type, u8, s8)) skip_mask |= skip_mask_t::oscale;
 
-    bool ok = true && is_fwd()
-            && set_default_alg_kind(alg_kind::convolution_direct)
+    bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
             && expect_data_types(src_type, wei_type, data_type::undef, dst_type,
                     data_type::undef)
             && IMPLICATION(with_bias(),
-                    ((utils::one_of(src_type, data_type::u8, data_type::s8)
-                             && utils::one_of(bias_md_.data_type,
-                                     data_type::f32, data_type::s32,
-                                     data_type::s8, data_type::u8))
-                            || (utils::one_of(src_type, data_type::bf16)
-                                    && utils::one_of(bias_md_.data_type,
-                                            data_type::f32, data_type::bf16))
-                            || (utils::one_of(src_type, data_type::f32)
-                                    && utils::one_of(bias_md_.data_type,
-                                            data_type::f32))))
-            && check_attr() && !has_zero_dim_memory();
-
+                    ((one_of(src_type, u8, s8)
+                             && one_of(bias_md_.data_type, f32, s32, s8, u8))
+                            || (one_of(src_type, bf16)
+                                    && one_of(bias_md_.data_type, f32, bf16))
+                            || (one_of(src_type, f32)
+                                    && one_of(bias_md_.data_type, f32))))
+            && attr()->has_default_values(skip_mask) && !has_zero_dim_memory();
     if (!ok) return status::unimplemented;
 
     CHECK(brgemm_convolution_utils::init_conf(jcp_, isa, *desc(), src_md_,
@@ -104,14 +93,14 @@ brgemm_convolution_fwd_t<isa, src_type, wei_type, dst_type>::pd_t::init(
     const float alpha = 1.0;
     const float beta = 1.0;
 
-    const auto &p = attr_->post_ops_;
+    const auto &p = attr()->post_ops_;
     const int sum_idx = p.find(primitive_kind::sum);
     with_sum = (sum_idx != -1);
 
     for (int i = 0; i < jcp_.M; i++) {
         auto vM = i + 1;
         // init only needed brgemm descriptors
-        if (utils::one_of(jcp_.exec_type, exec_trans, exec_vpad) && vM != jcp_.M
+        if (one_of(jcp_.exec_type, exec_trans, exec_vpad) && vM != jcp_.M
                 && vM != jcp_.M_tail)
             continue;
         for_(int i_init = 0; i_init < 2; i_init++)

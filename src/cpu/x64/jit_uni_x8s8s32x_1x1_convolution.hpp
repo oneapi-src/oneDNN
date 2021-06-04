@@ -59,15 +59,15 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                 jit_uni_x8s8s32x_1x1_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
+            using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
-            bool ok = true && is_fwd()
+            bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(src_type, data_type::s8,
-                            data_type::undef, dst_type, data_type::s32)
+                    && expect_data_types(
+                            src_type, s8, data_type::undef, dst_type, s32)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type,
-                                    data_type::f32, data_type::s32,
-                                    data_type::s8, data_type::u8))
+                            utils::one_of(desc()->bias_desc.data_type, f32, s32,
+                                    s8, u8))
                     && attr()->has_default_values(smask_t::oscale
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops,
@@ -82,16 +82,11 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, dst_md(), weights_md());
 
-            status_t status = jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
-                    jcp_, *conv_d, *src_d, *weights_md(), *dst_md(),
+            CHECK(jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(jcp_,
+                    *conv_d, *src_d, *weights_md(), *dst_md(),
                     with_bias() ? *weights_md(1) : types::zero_md(), *attr(),
-                    dnnl_get_max_threads(), rtus_.reduce_src_);
-            if (status != status::success) return status;
-
-            if (jcp_.with_dw_conv) {
-                status = depthwise_po_init(engine);
-                if (status != status::success) return status;
-            }
+                    dnnl_get_max_threads(), rtus_.reduce_src_));
+            if (jcp_.with_dw_conv) CHECK(depthwise_po_init(engine));
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_scratchpad(

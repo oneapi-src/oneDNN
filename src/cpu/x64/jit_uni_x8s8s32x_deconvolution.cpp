@@ -393,7 +393,6 @@ _jit_uni_x8s8s32x_deconv_fwd_kernel<isa,
         const primitive_attr_t &attr, const memory_desc_wrapper &dst_d)
     : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
     , jcp_(ajcp)
-    , attr_(attr)
     , postops_injector_(nullptr) {
 
     if (jcp_.with_eltwise || jcp_.with_binary || jcp_.with_sum) {
@@ -1051,7 +1050,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::store_output(
         mov(reg_zp_compensation_, ptr[param1_ + GET_OFF(zp_compensation)]);
     }
 
-    const auto &p = attr_.post_ops_;
+    const auto &p = jcp_.post_ops;
     const int sum_idx = p.find(primitive_kind::sum);
     const float *p_sum_scale
             = (sum_idx != -1) ? &p.entry_[sum_idx].sum.scale : nullptr;
@@ -1359,25 +1358,23 @@ template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
 status_t
 _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type, dst_type>::pd_t::init(
         engine_t *engine) {
+    using namespace data_type;
     const bool ok = true && is_fwd()
             && (desc()->alg_kind & alg_kind::deconvolution_direct)
             && desc()->src_desc.data_type == src_type
             && desc()->dst_desc.data_type == dst_type
             && IMPLICATION(with_bias(),
-                    utils::one_of(desc()->bias_desc.data_type, data_type::f32,
-                            data_type::s32, data_type::s8, data_type::u8))
-            && desc()->accum_data_type == data_type::s32
+                    utils::one_of(
+                            desc()->bias_desc.data_type, f32, s32, s8, u8))
+            && desc()->accum_data_type == s32
             && attr()->has_default_values(primitive_attr_t::skip_mask_t::oscale
                     | primitive_attr_t::skip_mask_t::post_ops
                     | primitive_attr_t::skip_mask_t::zero_points_runtime);
-
     if (!ok) return status::unimplemented;
 
-    const status_t status = jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
-            jcp_, *desc(), src_md_, weights_md_, dst_md_, with_bias(), bias_md_,
-            *attr(), dnnl_get_max_threads());
-
-    if (status != status::success) return status;
+    CHECK(jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(jcp_, *desc(),
+            src_md_, weights_md_, dst_md_, with_bias(), bias_md_, *attr(),
+            dnnl_get_max_threads()));
 
     auto scratchpad = scratchpad_registry().registrar();
     jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_scratchpad(
@@ -1940,38 +1937,23 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
     return status::success;
 }
 
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, data_type::u8,
-        data_type::u8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, data_type::u8,
-        data_type::s8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, data_type::u8,
-        data_type::f32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, data_type::u8,
-        data_type::s32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, data_type::s8,
-        data_type::u8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, data_type::s8,
-        data_type::s8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, data_type::s8,
-        data_type::f32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, data_type::s8,
-        data_type::s32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, data_type::u8,
-        data_type::u8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, data_type::u8,
-        data_type::s8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, data_type::u8,
-        data_type::f32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, data_type::u8,
-        data_type::s32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, data_type::s8,
-        data_type::u8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, data_type::s8,
-        data_type::s8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, data_type::s8,
-        data_type::f32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, data_type::s8,
-        data_type::s32>;
+using namespace data_type;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, u8, u8>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, u8, s8>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, u8, f32>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, u8, s32>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, s8, u8>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, s8, s8>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, s8, f32>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, s8, s32>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, u8, u8>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, u8, s8>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, u8, f32>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, u8, s32>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, s8, u8>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, s8, s8>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, s8, f32>;
+template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, s8, s32>;
 template struct jit_uni_x8s8s32x_deconv_fwd_kernel<avx2>;
 template struct jit_uni_x8s8s32x_deconv_fwd_kernel<sse41>;
 template struct _jit_uni_x8s8s32x_deconv_fwd_kernel<avx2, Xbyak::Ymm>;

@@ -48,42 +48,37 @@ struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
                 jit_avx512_core_amx_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
+            using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
-            bool is_bf16_convolution = true
-                    && (src_md_.data_type == data_type::bf16
-                            && weights_md_.data_type == data_type::bf16
-                            && utils::one_of(dst_md_.data_type, data_type::f32,
-                                    data_type::bf16))
+            bool is_bf16_convolution
+                    = (src_md_.data_type == bf16
+                              && weights_md_.data_type == bf16
+                              && utils::one_of(dst_md_.data_type, f32, bf16))
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bias_md_.data_type, data_type::f32,
-                                    data_type::bf16))
+                            utils::one_of(bias_md_.data_type, f32, bf16))
                     && attr()->has_default_values(smask_t::post_ops);
-            bool is_int8_convolution = true
-                    && expect_data_types(src_type, data_type::s8,
-                            data_type::undef, dst_type, data_type::s32)
+            bool is_int8_convolution = expect_data_types(src_type, s8,
+                                               data_type::undef, dst_type, s32)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bias_md_.data_type, data_type::f32,
-                                    data_type::s32, data_type::s8,
-                                    data_type::u8))
+                            utils::one_of(bias_md_.data_type, f32, s32, s8, u8))
                     && attr()->has_default_values(smask_t::oscale
                             | smask_t::post_ops | smask_t::zero_points_runtime);
 
-            bool ok = true && is_fwd()
+            bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && (is_bf16_convolution || is_int8_convolution)
                     && !has_zero_dim_memory() && zero_points_ok();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_avx512_core_amx_fwd_kernel_t::init_conf(jcp_,
-                    *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
-                    dnnl_get_max_threads());
-            if (status != status::success) return status;
+            CHECK(jit_avx512_core_amx_fwd_kernel_t::init_conf(jcp_, *desc(),
+                    src_md_, weights_md_, dst_md_, bias_md_, *attr(),
+                    dnnl_get_max_threads()));
 
             auto scratchpad = scratchpad_registry().registrar();
-            status = jit_avx512_core_amx_fwd_kernel_t::init_scratchpad(
-                    scratchpad, jcp_, *attr());
+            CHECK(jit_avx512_core_amx_fwd_kernel_t::init_scratchpad(
+                    scratchpad, jcp_, *attr()));
 
-            return status;
+            return status::success;
         }
 
         jit_conv_conf_t jcp_;

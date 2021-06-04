@@ -1017,27 +1017,6 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
     }
 
-    const auto &p = attr.post_ops_;
-
-    const int sum_ind = p.find(primitive_kind::sum);
-    jcp.with_sum = sum_ind != -1;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
-    jcp.with_eltwise = eltwise_ind != -1;
-    const int binary_ind = p.find(primitive_kind::binary);
-    jcp.with_binary = binary_ind != -1;
-
-    jcp.post_ops = p;
-    jcp.is_fast_postops = is_fast_postops(jcp);
-
-    using namespace injector;
-    const bool sum_at_pos_0_only = (jcp.src_dt == data_type::bf16);
-    const bool sum_requires_scale_one = sum_at_pos_0_only;
-    const bool post_ops_ok_ = post_ops_ok({avx512_core, {eltwise, binary, sum},
-            jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
-            {broadcasting_strategy_t::scalar,
-                    broadcasting_strategy_t::per_oc}});
-    if (!post_ops_ok_) return status::unimplemented;
-
     auto set_or_check_wei_format = [&]() {
         using namespace format_tag;
         using namespace memory_extra_flags;
@@ -1089,6 +1068,27 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         if (bias_d.format_kind() == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, format_tag::x));
     }
+
+    const auto &p = attr.post_ops_;
+
+    const int sum_ind = p.find(primitive_kind::sum);
+    jcp.with_sum = sum_ind != -1;
+    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    jcp.with_eltwise = eltwise_ind != -1;
+    const int binary_ind = p.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
+
+    jcp.post_ops = p;
+    jcp.is_fast_postops = is_fast_postops(jcp);
+
+    using namespace injector;
+    const bool sum_at_pos_0_only = (jcp.src_dt == data_type::bf16);
+    const bool sum_requires_scale_one = sum_at_pos_0_only;
+    const bool post_ops_ok_ = post_ops_ok({avx512_core, {eltwise, binary, sum},
+            jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
+            {broadcasting_strategy_t::scalar,
+                    broadcasting_strategy_t::per_oc}});
+    if (!post_ops_ok_) return status::unimplemented;
 
     jcp.typesize_in = types::data_type_size(src_d.data_type());
     jcp.typesize_out = types::data_type_size(dst_d.data_type());

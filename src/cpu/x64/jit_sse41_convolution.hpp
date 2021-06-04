@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,19 +42,20 @@ struct jit_sse41_convolution_fwd_t : public primitive_t {
                 jit_sse41_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && is_fwd()
+            using namespace data_type;
+            bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(data_type::f32, data_type::f32,
-                            data_type::f32, data_type::f32, data_type::f32)
+                    && expect_data_types(f32, f32, f32, f32, f32)
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops,
-                            data_type::f32)
+                            primitive_attr_t::skip_mask_t::post_ops, f32)
                     && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
-            return jit_sse41_conv_fwd_kernel_f32::init_conf(jcp_, *desc(),
+            CHECK(jit_sse41_conv_fwd_kernel_f32::init_conf(jcp_, *desc(),
                     *src_md(), *weights_md(), *dst_md(), *attr(),
-                    dnnl_get_max_threads());
+                    dnnl_get_max_threads()));
+
+            return status::success;
         }
 
         jit_conv_conf_t jcp_;

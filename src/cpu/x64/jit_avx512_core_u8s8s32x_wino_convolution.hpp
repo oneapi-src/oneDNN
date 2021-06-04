@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,16 +53,16 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public primitive_t {
                 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && is_fwd()
+            using namespace data_type;
+            bool ok = is_fwd()
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::convolution_auto,
                             alg_kind::convolution_winograd)
-                    && expect_data_types(data_type::u8, data_type::s8,
-                            data_type::undef, dst_data_type, data_type::s32)
+                    && expect_data_types(
+                            u8, s8, data_type::undef, dst_data_type, s32)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type,
-                                    data_type::f32, data_type::s32,
-                                    data_type::s8, data_type::u8))
+                            utils::one_of(desc()->bias_desc.data_type, f32, s32,
+                                    s8, u8))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
                                     | primitive_attr_t::skip_mask_t::post_ops,
@@ -71,13 +71,12 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public primitive_t {
 
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_conf();
-            if (status != status::success) return status;
+            CHECK(jit_conf());
             set_default_alg_kind(alg_kind::convolution_winograd);
 
             init_scratchpad();
 
-            return status;
+            return status::success;
         }
 
         jit_conv_conf_2x3_wino_t jcp_;
