@@ -721,6 +721,29 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
 
     const bool is_ddst_layout_nxc = utils::one_of(
             jcp.dst_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+
+    auto maybe_zero_icpad = [&](const int g_start, const int g_end,
+                                    const int ocb_start, const int ocb_end) {
+        // write zeros to IC padded region.
+        const int ic_tail = jcp.ic_without_padding % jcp.ic_block;
+        if (ic_tail != 0) {
+            for_(int g = g_start; g < g_end; ++g)
+            for (int z_ocb = ocb_start; z_ocb < ocb_end; ++z_ocb) {
+                const int z_icb = jcp.nb_bcast - 1;
+                const size_t off = wht_blk_off(diff_weights_d, g, z_ocb, z_icb)
+                        + ic_tail * jcp.oc_block;
+                diff_wei_data_t *z_wei = diff_weights + off;
+                const int zero_work
+                        = (jcp.nb_bcast * jcp.ic_block - jcp.ic_without_padding)
+                        * jcp.oc_block;
+                PRAGMA_OMP_SIMD()
+                for (int o = 0; o < zero_work; ++o) {
+                    z_wei[o] = 0;
+                }
+            }
+        }
+    };
+
     auto ker = [&](const int ithr, const int nthr) {
         assert(nthr == jcp.nthr);
 
@@ -1080,6 +1103,9 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                     cvt_float_to_bfloat16(diff_bias_result, buffer, acc_size);
                 }
             }
+        }
+        if (ic_b_end >= jcp.nb_bcast) {
+            maybe_zero_icpad(g_start, g_end, oc_b_start, oc_b_end);
         }
     };
 
