@@ -345,6 +345,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
                 jmp(load_init_done);
 
                 L(load_init_tail);
+                vxorps(vreg_load(i), vreg_load(i), vreg_load(i));
                 load_bytes(vreg_load(i), aux_reg_load_data,
                         get_load_offset_bwd_w(0, i),
                         load_dim_tail * sizeof(float));
@@ -420,9 +421,8 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
                         lea(reg_tmp,
                                 ptr[aux_reg_output_data
                                         + reg_tmp_output_stride]);
-                        store_bytes(vreg_accum(load_loop_blk, i, j), reg_tmp,
-                                get_output_offset(i, j),
-                                load_dim_tail * sizeof(float));
+                        vmovups(output_ptr(i, j),
+                                vreg_accum(load_loop_blk, i, j));
                     } else {
                         store_bytes(vreg_accum(load_loop_blk, i, j),
                                 aux_reg_output_data, get_output_offset(i, j),
@@ -466,6 +466,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
                             jmp(fma_load_done);
 
                             L(fma_load_tail);
+                            vxorps(vreg_load(i), vreg_load(i), vreg_load(i));
                             load_bytes(vreg_load(i), aux_reg_load_data,
                                     get_load_offset_bwd_w(u + 1, i),
                                     load_dim_tail * sizeof(float));
