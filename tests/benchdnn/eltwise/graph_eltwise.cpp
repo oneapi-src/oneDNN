@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "eltwise/graph_eltwise.hpp"
+#include "binary/binary.hpp"
 #include "compare.hpp"
 
 namespace benchdnnext {
@@ -23,6 +24,7 @@ namespace eltwise {
 eltwise_graph_prb_t::spec_t::spec_t(const ::eltwise::prb_t *prb) {
     dims = prb->dims;
     eltwise_dt = convert_dt(prb->dt);
+    dst_tag = convert_tag(prb->tag);
 
     op_kind = convert_alg_kind(attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
 
@@ -45,7 +47,8 @@ fill_status_t eltwise_graph_prb_t::handle_main_op_() {
     ltensors_in.push_back({tensor_descs_[SRC]});
     ltensors_out.push_back({tensor_descs_[DST]});
 
-    op eltwise_op(1, spec_.op_kind, ltensors_in, ltensors_out, "eltwise");
+    op eltwise_op(
+            ops_.size(), spec_.op_kind, ltensors_in, ltensors_out, "eltwise");
 
     //Set alpha, beta, min and max for relevant ops
     switch (spec_.op_kind) {
@@ -63,6 +66,11 @@ fill_status_t eltwise_graph_prb_t::handle_main_op_() {
     curr_out_map_ids_.assign({"eltwise_dst"});
 
     return fill_status::DONE;
+}
+
+fill_status_t eltwise_graph_prb_t::handle_bin_(
+        const attr_t::post_ops_t::entry_t &po_entry) {
+    return po_handler.eltwise.bin_handler(*this, spec_.dst_tag, po_entry);
 }
 
 int doit(const ::eltwise::prb_t *prb, res_t *res) {
@@ -107,8 +115,16 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
 
     dnn_mem_t src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
     dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
-    //TODO: need to extend for post ops
+    // eltwise operator supports only relu-add (single binary post-op)
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    if (graph_prb.has_post_bin()) {
+        binary_po_fp.emplace_back(
+                make_dnn_mem(ins.back(), dt::f32, (prb->tag).c_str()));
+        binary_po_dt.emplace_back(make_dnn_mem(ins.back(), (prb->tag).c_str()));
+        const int idx = 0;
+        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
+                binary_po_dt.back(), binary_po_fp.back());
+    }
 
     SAFE(::eltwise::fill_data(prb, SRC, src_dt, src_fp), WARN);
 
@@ -142,6 +158,11 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
             dnnl::graph::tensor(ins[0], static_cast<void *>(src_dt)));
     tensors_out.push_back(
             dnnl::graph::tensor(outs[0], static_cast<void *>(dst_dt)));
+
+    if (graph_prb.has_post_bin()) {
+        tensors_in.push_back(dnnl::graph::tensor(
+                ins.back(), static_cast<void *>(binary_po_dt.back())));
+    }
 
     if (prb->dir & FLAG_FWD) {
         SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
