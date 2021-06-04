@@ -139,9 +139,10 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc(const exec_ctx_t &ctx,
                 const dim_t blk = nstl::min(blk_size, OC - oc);
 
                 PRAGMA_OMP_SIMD()
-                for (dim_t i = 0; i < blk; ++i) {
-                    float b = types::get_float_value(
-                            bias_d.data_type(), bias, oc + i);
+                for (dim_t i = 0; i < blk_size; ++i) {
+                    float b = i < blk ? types::get_float_value(
+                                      bias_d.data_type(), bias, oc + i)
+                                      : 0;
                     float d = conv_output[off + i];
                     dst[off + i] = cpu::saturate_and_round<dst_data_t>(d + b);
                 }
@@ -193,46 +194,49 @@ status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
 
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
-    const auto G = pd()->G();
     const auto MB = pd()->MB();
     const auto OH = pd()->OH();
     const auto OW = pd()->OW();
     const auto OD = pd()->OD();
-    const auto OC = pd()->OC() / G;
+    const auto OC = pd()->OC();
+    const auto OCP = dst_d.padded_dims()[1];
     const auto ndims = pd()->desc()->src_desc.ndims;
 
-    const auto maybe_oscale = [=](float &d, dim_t g, dim_t oc) {
+    const auto maybe_oscale = [=](float &d, dim_t oc) {
         // scale_idx_mult = 1 for per_oc scales and 0, otherwise
         const int scale_idx_mult
                 = pd()->attr()->output_scales_.mask_ == (1 << 1);
         const float *scales = pd()->attr()->output_scales_.scales_;
-        d *= scales[(g * OC + oc) * scale_idx_mult];
+        d *= scales[oc * scale_idx_mult];
     };
 
-    const auto maybe_dst_zero_point = [=](float &result, dim_t g, dim_t oc) {
+    const auto maybe_dst_zero_point = [=](float &result, dim_t oc) {
         if (is_dst_zp_common)
             result += dst_zero_point[0];
         else
-            result += dst_zero_point[g * OC + oc];
+            result += dst_zero_point[oc];
     };
 
-    parallel_nd(MB, G, OC, OD, OH, OW,
-            [&](dim_t mb, dim_t g, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
-                auto dst_off = get_data_off(
-                        dst_d, ndims, mb, g * OC + oc, od, oh, ow);
-                dim_t dst_l_off = (mb * OC * G + g * OC + oc) * OD * OH * OW
-                        + od * OH * OW + oh * OW + ow;
-                float tmp_result = conv_output[dst_off];
-                maybe_oscale(tmp_result, g, oc);
+    parallel_nd(MB, OCP, OD, OH, OW,
+            [&](dim_t mb, int ocp, dim_t od, dim_t oh, dim_t ow) {
+                auto dst_off = get_data_off(dst_d, ndims, mb, ocp, od, oh, ow);
+                float tmp_result = 0;
 
-                ref_post_ops_t::args_t args;
-                if (pd()->attr()->post_ops_.find(primitive_kind::sum) != -1)
-                    args.dst_val = (float)original_dst[dst_off];
-                args.ctx = &ctx;
-                args.l_offset = dst_l_off;
-                args.dst_md = pd()->dst_md();
-                ref_post_ops->execute(tmp_result, args);
-                maybe_dst_zero_point(tmp_result, g, oc);
+                if (ocp < OC) {
+                    dim_t dst_l_off = (mb * OC + ocp) * OD * OH * OW
+                            + od * OH * OW + oh * OW + ow;
+                    tmp_result = conv_output[dst_off];
+                    maybe_oscale(tmp_result, ocp);
+
+                    ref_post_ops_t::args_t args;
+                    if (pd()->attr()->post_ops_.find(primitive_kind::sum) != -1)
+                        args.dst_val = (float)original_dst[dst_off];
+                    args.ctx = &ctx;
+                    args.l_offset = dst_l_off;
+                    args.dst_md = pd()->dst_md();
+                    ref_post_ops->execute(tmp_result, args);
+                    maybe_dst_zero_point(tmp_result, ocp);
+                }
                 dst[dst_off] = cpu::saturate_and_round<dst_data_t>(tmp_result);
             });
 
