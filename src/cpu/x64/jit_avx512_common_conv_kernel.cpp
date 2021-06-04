@@ -1958,8 +1958,8 @@ void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::prepare_output(
 template <typename Vmm>
 void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::store_output(int ur_w) {
     Label no_update_label;
-    const int ic_tail = jcp.ic_tail;
-
+    const int ic_tail = jcp.ic_without_padding % jcp.simd_w;
+    const bool dsrc_layout_nxc = is_dsrc_layout_nxc();
     mov(reg_channel, ptr[param + GET_OFF(channel)]);
     cmp(reg_channel, 0);
     je(no_update_label, T_NEAR);
@@ -1978,7 +1978,7 @@ void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::store_output(int ur_w) {
         for (int j = 0; j < ur_w; j++) {
             Vmm vmm = vmm_out(j, k);
             // mask only needed for last oc_block
-            if (ic_tail && k + 1 == jcp.nb_ic_blocking)
+            if (ic_tail && k + 1 == jcp.nb_ic_blocking && dsrc_layout_nxc)
                 vmm = vmm | k_ic_tail_mask;
             size_t aux_src_offset = get_diff_src_offset(j, k);
             vmovups(EVEX_compress_addr_safe(
