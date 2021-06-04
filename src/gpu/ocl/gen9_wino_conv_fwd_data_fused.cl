@@ -558,7 +558,6 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
             }
         }
         OUT_BLOCK_DATA_T C[COMP_OC_COUNT][WINO_M];
-        DATA_T *C_dat = C;
 
         unroll_for(int i = 0; i < COMP_OC_COUNT; i++) {
             wino_m_transform(C[i], M[i]);
@@ -577,28 +576,25 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
                 for_(int oc_block = 0; oc_block < COMP_OC_COUNT; oc_block++)
                 for_(int oh_block = 0; oh_block < WINO_M; oh_block++)
                 for (int ow_block = 0; ow_block < OUT_TYPE_BLOCK; ow_block++) {
-                    const int c_off = oc_block * WINO_M * OUT_TYPE_BLOCK
-                            + oh_block * OUT_TYPE_BLOCK + ow_block;
                     const int oc_tmp = oc + COMP_OC_STRIDE * oc_block;
-                    C_dat[c_off] += (OC_WO_PADDING % OC_BLOCK == 0
-                                            || oc_tmp < OC_WO_PADDING)
+                    C[oc_block][oh_block][ow_block]
+                            += (OC_WO_PADDING % OC_BLOCK == 0
+                                       || oc_tmp < OC_WO_PADDING)
                             ? bias[oc_tmp]
                             : DATA_ZERO;
                 }
             }
 
-            DATA_T S[c_size];
+            DATA_T S[COMP_OC_COUNT][WINO_M][OUT_TYPE_BLOCK];
             if (WITH_SUM) {
                 for_(int oc_block = 0; oc_block < COMP_OC_COUNT; oc_block++)
                 for (int oh_block = 0; oh_block < WINO_M; oh_block++) {
                     bool valid_oh = OH % OH_BLOCK == 0 || oh + oh_block < OH;
                     for (int ow_block = 0; ow_block < OUT_TYPE_BLOCK;
                             ow_block++) {
-                        const int s_off = oc_block * WINO_M * OUT_TYPE_BLOCK
-                                + oh_block * OUT_TYPE_BLOCK + ow_block;
                         bool valid_ow
                                 = OW % OW_BLOCK == 0 || ow + ow_block < OW;
-                        S[s_off] = valid_oh && valid_ow
+                        S[oc_block][oh_block][ow_block] = valid_oh && valid_ow
                                 ? dst[dst_idx
                                         + dst_off(0, oc_block * COMP_OC_STRIDE,
                                                 0, oh_block, ow_block)]
@@ -607,28 +603,19 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
                 }
             }
 
-            for (int didx = 0; didx < c_size; ++didx) {
-                float accum = CONVERT_FLOAT_T(C_dat[didx]);
-                float sum = CONVERT_FLOAT_T(S[didx]);
-                int po_oc = oc;
-
-                APPLY_POST_OPS_SERIAL_BINARY_2D(
-                        C_dat, DATA_T, S, DATA_T, mb, 1, po_oc, 1);
-                C_dat[didx] = TO_DATA_T(accum);
-            }
+            APPLY_POST_OPS_SERIAL(C, DATA_T, S, DATA_T, mb, 1, oc,
+                    COMP_OC_COUNT, oh, WINO_M, ow, OUT_TYPE_BLOCK, 0, 1, 0, 1);
         }
 
         unroll_for(int oc_off = 0; oc_off < COMP_OC_COUNT; oc_off++) {
             unroll_for(int h_off = 0; h_off < WINO_M; h_off++) {
                 if (h_off == 0 || OH % OH_BLOCK == 0 || oh + h_off < OH) {
                     unroll_for(int w_off = 0; w_off < OUT_TYPE_BLOCK; w_off++) {
-                        int c_off = oc_off * WINO_M * OUT_TYPE_BLOCK
-                                + OUT_TYPE_BLOCK * h_off + w_off;
                         if (OW % OW_BLOCK == 0 || ow + w_off < OW)
                             dst[dst_idx
                                     + dst_off(0, oc_off * COMP_OC_STRIDE, 0,
                                             h_off, w_off)]
-                                    = C_dat[c_off];
+                                    = C[oc_off][h_off][w_off];
                     }
                 }
             }
