@@ -22,3 +22,10 @@
 --attr-oscale=,common:0.25,per_oc:5
 --attr-post-ops=,sum:0.25+add:f32:per_oc+relu:0.5:0:0.75
 --batch=shapes_basic_gpu
+
+### Wino with postops
+--reset --cfg=f16,f32 --stag=any,nhwc --alg=wino
+--match=.*[^k][^d][0-9]kh3[^0-9].*       # only 3x3 convolutions so far
+--mb=2,32
+--attr-post-ops=,sum:0.25+relu:0.5
+--batch=shapes_basic_gpu
