@@ -71,15 +71,11 @@ struct xe_lp_x8s8x_1x1_convolution_fwd_t : public gpu_primitive_t {
                                     attr()->output_scales_.mask_, 0, 1 << 1));
             if (!ok) return status::unimplemented;
 
-            status_t status = init_conf(engine);
-
-            attr_info_ = attr_info_t::create(attr());
-            if (status != status::success) return status;
+            CHECK(init_conf(engine));
 
             init_scratchpad();
 
-            auto scales_status = init_scales_md();
-            if (scales_status != status::success) return scales_status;
+            CHECK(init_scales_md());
 
             ok = set_default_formats_common(
                     conf.src_tag, conf.wei_tag, conf.dst_tag);
@@ -94,11 +90,9 @@ struct xe_lp_x8s8x_1x1_convolution_fwd_t : public gpu_primitive_t {
 
         conv_conf_t conf;
 
-        attr_info_t attr_info_ = {};
-
     private:
         status_t init_scales_md() {
-            if (!attr_info_.with_per_oc_oscales) return status::success;
+            if (!conf.attr_info.with_per_oc_oscales) return status::success;
 
             scales_md_.data_type = data_type::f32;
             scales_md_.ndims = 1;

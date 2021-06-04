@@ -71,16 +71,13 @@ struct xe_lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
                             utils::one_of(
                                     attr()->output_scales_.mask_, 0, 1 << 1));
-
             if (!ok) return status::unimplemented;
 
-            status_t status = init_conf();
-            if (status != status::success) return status;
+            CHECK(init_conf());
 
             init_scratchpad();
 
-            auto scales_status = init_scales_md();
-            if (scales_status != status::success) return scales_status;
+            CHECK(init_scales_md());
 
             ok = set_default_formats_common(
                     conf.src_tag, conf.wei_tag, conf.dst_tag);

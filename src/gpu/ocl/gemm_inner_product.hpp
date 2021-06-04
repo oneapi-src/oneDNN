@@ -54,17 +54,22 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             using namespace data_type;
             using namespace prop_kind;
             using namespace data_type;
-
             assert(engine->kind() == engine_kind::gpu);
 
-            attr_info_ = attr_info_t::create(attr());
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
+                    | primitive_attr_t::skip_mask_t::post_ops;
 
             bool ok = is_fwd() && set_default_params() == status::success
                     && !has_zero_dim_memory()
                     && dense_consistency_check(src_md(), weights_md(), dst_md())
                     && dense_gemm_consistency_check(
-                            src_md(), weights_md(), dst_md());
+                            src_md(), weights_md(), dst_md())
+                    && attr()->has_default_values(attr_skip_mask)
+                    && post_ops_with_binary_ok(
+                            attr(), desc()->dst_desc.data_type);
             if (!ok) return status::unimplemented;
+
+            attr_info_ = attr_info_t::create(attr());
 
             memory_desc_t a_md, b_md, c_md;
             init_2d_desc(&a_md, src_md());

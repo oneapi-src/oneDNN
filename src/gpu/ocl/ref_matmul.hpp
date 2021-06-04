@@ -56,9 +56,8 @@ struct ref_matmul_t : public gpu_primitive_t {
                             attr()->zero_points_.has_default_values())
                     && attr()->has_default_values(smask_t::oscale_runtime
                             | smask_t::zero_points_runtime | smask_t::post_ops)
-                    && attr_oscale_ok()
-                    && post_ops_with_binary_ok(attr(), dst_dt_, 6)
-                    && set_default_formats() && !has_blocks()
+                    && attr_oscale_ok() && set_default_formats()
+                    && !has_blocks()
                     && ((utils::one_of(src_dt_, u8, s8)
                                 && utils::one_of(wei_dt_, u8, s8)
                                 && utils::one_of(dst_dt_, f32, s8, u8, s32)
@@ -74,7 +73,8 @@ struct ref_matmul_t : public gpu_primitive_t {
                                                 && utils::one_of(
                                                         dst_dt_, bf16, f32)))
                                     && IMPLICATION(with_bias(),
-                                            utils::one_of(bia_dt_, f32))));
+                                            utils::one_of(bia_dt_, f32))))
+                    && post_ops_with_binary_ok(attr(), dst_dt_, 6);
 
             if (!ok) return status::unimplemented;
 

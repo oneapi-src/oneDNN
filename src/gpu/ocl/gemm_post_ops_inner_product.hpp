@@ -61,14 +61,12 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
             using namespace utils;
             using namespace data_type;
             using namespace primitive_kind;
-
             assert(engine->kind() == engine_kind::gpu);
 
-            attr_info_ = attr_info_t::create(attr());
-
-            primitive_attr_t::skip_mask_t attr_skip_mask
+            const primitive_attr_t::skip_mask_t attr_skip_mask
                     = primitive_attr_t::skip_mask_t::oscale
                     | primitive_attr_t::skip_mask_t::post_ops;
+
             bool ok = is_fwd() && set_default_params() == success
                     && dense_consistency_check(src_md(), weights_md(), dst_md())
                     && dense_gemm_consistency_check(
@@ -77,8 +75,9 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type)
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
                             one_of(attr()->output_scales_.mask_, 0, 1 << 1));
-
             if (!ok) return unimplemented;
+
+            attr_info_ = attr_info_t::create(attr());
 
             // XXX: Empty attributes increase chances of creating a gemm
             // primitive. Ideally gemm should be created multiple times with

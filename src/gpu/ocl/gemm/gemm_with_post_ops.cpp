@@ -29,21 +29,21 @@ namespace ocl {
 
 status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
 
-    auto d = desc();
-    const primitive_attr_t *attributes_with_po = attr();
-    attr_info_ = attr_info_t::create(attributes_with_po);
-    bool ok = IMPLICATION(attr_info_.with_oscales,
-                      attr_info_.with_common_oscales
-                              || attr_info_.with_per_oc_oscales)
-            && desc_.c_desc.ndims <= 2
-            && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k());
+    const auto &d = desc();
+    const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
+            | primitive_attr_t::skip_mask_t::post_ops
+            | primitive_attr_t::skip_mask_t::zero_points;
+
+    bool ok = d->c_desc.ndims <= 2
+            && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k())
+            && attr()->has_default_values(attr_skip_mask);
     if (!ok) return status::unimplemented;
 
-    primitive_attr_t attributes_without_po(*attr());
-    if (!attributes_without_po.is_initialized()) return status::out_of_memory;
-    attributes_without_po.post_ops_.entry_.clear();
-    dnnl_primitive_attr_set_output_scales(
-            &attributes_without_po, 1, 0, &scale_);
+    const primitive_attr_t *attributes_with_po = attr();
+    attr_info_ = attr_info_t::create(attributes_with_po);
+    ok = IMPLICATION(attr_info_.with_oscales,
+            attr_info_.with_common_oscales || attr_info_.with_per_oc_oscales);
+    if (!ok) return status::unimplemented;
 
     const auto impl_list = engine->get_implementation_list(op_desc());
     int current_impl_idx
@@ -63,6 +63,10 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     use_reorder = dst_md(0)->data_type != desc()->acc_type;
     gemm_desc.c_desc.data_type = gemm_desc.acc_type;
     gemm_desc.bias_desc = glob_zero_md;
+    // Setup empty attributes but keep zero points for gemm.
+    primitive_attr_t attributes_without_po;
+    attributes_without_po.zero_points_ = attributes_with_po->zero_points_;
+
     dnnl_primitive_desc_iterator it_gemm_without_po(engine,
             reinterpret_cast<const op_desc_t *>(&gemm_desc),
             &attributes_without_po, nullptr,
@@ -91,7 +95,6 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     dispatch_.define_dim("MB2", nstl::max(1, ndims - 2),
             ndims > 2 ? gemm_pd_->dst_md()->dims[2] : 1);
     dispatch_.generate();
-    attr_info_ = attr_info_t::create(attributes_with_po);
 
     init_scratchpad();
 

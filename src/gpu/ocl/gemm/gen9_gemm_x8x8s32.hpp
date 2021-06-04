@@ -60,7 +60,7 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
             bool ok = set_default_formats();
             if (!ok) return status::unimplemented;
 
-            const auto d = desc();
+            const auto &d = desc();
             // LIMITATIONS:
             // - blocked data formats not supported
             // - batch is not supported
