@@ -48,7 +48,8 @@ struct ref_pooling_fwd_t : public primitive_t {
                     && utils::everyone_is(
                             data_type, src_md()->data_type, dst_md()->data_type)
                     && desc()->accum_data_type == acc_type
-                    && attr()->has_default_values(sm::post_ops);
+                    && attr()->has_default_values(sm::post_ops)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == prop_kind::forward_training;

@@ -9,7 +9,7 @@
                 sum:0.5, \
                 linear:2:1, \
                 add:f32, \
-                mul:s8:per_oc+sum:0.25+relu:0.5
+                mul:s8:per_oc+sum:0.25+relu:0.5+add:f32:per_tensor
 --cfg=f32,bf16bf16bf16,f16
 --stag=any,axb
 --dtag=any,axb
@@ -26,7 +26,7 @@
                 sum:0.5, \
                 linear:2:1, \
                 add:f32, \
-                mul:s8:per_oc+sum:0.25+relu:0.5
+                mul:s8:per_oc+sum:0.25+relu:0.5+add:f32:per_tensor
 --cfg=u8s8s32
 --stag=any,axb
 --dtag=any,axb

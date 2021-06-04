@@ -108,12 +108,19 @@ class LogParser:
 
                 def convert_post_ops(value):
                     def convert_binary_post_op(value):
-                        alg, dt, mask = value.split(':')
+                        fields = value.split(':')
+                        alg = fields[0]
+                        dt = fields[1]
+                        mask = fields[2]
+                        tag = None
+                        if len(fields) > 3:
+                            tag = fields[3]
                         return {
                             'prim_kind': 'binary',
                             'alg': alg,
                             'dt': dt,
-                            'mask': mask
+                            'mask': mask,
+                            'tag': tag
                         }
 
                     def convert_dw_post_op(value):

@@ -57,7 +57,8 @@ struct ref_binary_t : public gpu_primitive_t {
                             check_scales_mask())
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(
-                            attr(), dst_md()->data_type, MAX_NDIMS);
+                            attr(), dst_md()->data_type, MAX_NDIMS)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
 
             if (!ok) return status::unimplemented;
 

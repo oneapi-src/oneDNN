@@ -73,8 +73,8 @@ jit_avx512_core_x8s8s32x_deconv_fwd_kernel<
 status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
         jit_conv_conf_t &jcp, const deconvolution_desc_t &cd,
         memory_desc_t &src_md, memory_desc_t &weights_md, memory_desc_t &dst_md,
-        const bool with_bias, memory_desc_t &bias_md,
-        const primitive_attr_t &attr, int nthreads) {
+        const bool with_bias, memory_desc_t &bias_md, primitive_attr_t &attr,
+        int nthreads) {
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper weights_d(&weights_md);
@@ -249,6 +249,7 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
             || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
     if (kernel_outside_src) return status::unimplemented;
 
+    CHECK(attr.set_default_formats(&dst_md));
     if (!post_ops_ok(jcp, attr, dst_d)) return status::unimplemented;
 
     const auto &p = attr.post_ops_;
@@ -346,7 +347,7 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
 }
 
 bool _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::post_ops_ok(
-        jit_conv_conf_t &jcp, const primitive_attr_t &attr,
+        jit_conv_conf_t &jcp, primitive_attr_t &attr,
         const memory_desc_wrapper &dst_d) {
 
     using namespace injector;

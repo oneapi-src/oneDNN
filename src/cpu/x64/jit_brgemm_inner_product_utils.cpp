@@ -686,7 +686,7 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
 status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
         const inner_product_desc_t &ipd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
     const memory_desc_wrapper dst_d(&dst_md);
@@ -821,6 +821,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     jbgp.nthr = nthreads;
 
     CHECK(set_or_check_tags());
+    CHECK(attr.set_default_formats(&dst_md));
 
     switch (jbgp.prop_kind) {
         case forward_training:

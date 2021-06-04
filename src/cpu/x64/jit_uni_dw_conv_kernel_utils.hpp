@@ -54,7 +54,7 @@ struct jit_uni_dw_conv_fwd_kernel {
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_md,
             memory_desc_t &weights_md, memory_desc_t &bias_md,
-            memory_desc_t &dst_md, const primitive_attr_t &attr);
+            memory_desc_t &dst_md, primitive_attr_t &attr);
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
@@ -75,8 +75,7 @@ template <cpu_isa_t isa, data_type_t kernel_dt>
 status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         memory_desc_t &src_md, memory_desc_t &weights_md,
-        memory_desc_t &bias_md, memory_desc_t &dst_md,
-        const primitive_attr_t &attr) {
+        memory_desc_t &bias_md, memory_desc_t &dst_md, primitive_attr_t &attr) {
 
     using namespace dnnl::impl::format_tag;
     using namespace dnnl::impl::utils;
@@ -224,6 +223,8 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
                     jcp.stride_w, ext_kw));
     if (jcp.l_pad > jcp.ur_w || r_pad_no_tail > jcp.ur_w)
         return status::unimplemented;
+
+    CHECK(attr.set_default_formats(&dst_md));
 
     const auto &post_ops = attr.post_ops_;
 

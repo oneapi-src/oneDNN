@@ -73,7 +73,8 @@ status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
             && set_default_params(conf_.src_tag) == status::success
             && platform::has_data_type_support(conf_.src_data_type)
             && platform::has_data_type_support(conf_.dst_data_type)
-            && attr()->has_default_values(sm::post_ops, conf_.dst_data_type);
+            && attr()->has_default_values(sm::post_ops, conf_.dst_data_type)
+            && attr_.set_default_formats(dst_md(0)) == status::success;
     if (!ok) return status::unimplemented;
 
     if (!memory_desc_matches_tag(*dst_md(), conf_.src_tag))

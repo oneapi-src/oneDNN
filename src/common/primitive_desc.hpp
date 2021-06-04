@@ -94,6 +94,22 @@ struct primitive_desc_t : public c_compatible {
     }
 
     virtual const memory_desc_t *arg_md(int arg) const {
+        // Separate binary post-ops sections due to inability to express inside
+        // switch statement.
+        if (arg >= DNNL_ARG_ATTR_MULTIPLE_POST_OP(0)
+                && arg < DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                           post_ops_t::post_ops_limit)) {
+            const auto &po = attr()->post_ops_;
+            for (int idx = 0; idx < po.len(); ++idx) {
+                if (arg
+                        != (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                | DNNL_ARG_SRC_1))
+                    continue;
+
+                return &po.entry_[idx].binary.src1_desc;
+            }
+        }
+
         switch (arg) {
             case DNNL_ARG_WORKSPACE: return workspace_md(0);
             case DNNL_ARG_SCRATCHPAD: return scratchpad_md(0);

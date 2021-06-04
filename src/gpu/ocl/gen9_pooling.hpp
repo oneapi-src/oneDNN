@@ -65,6 +65,7 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
                     && IMPLICATION(utils::one_of(src_data_t, f16, s8, u8),
                             desc()->prop_kind == forward_inference)
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type)
+                    && attr_.set_default_formats(dst_md(0)) == status::success
                     && !is_dilated()
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)

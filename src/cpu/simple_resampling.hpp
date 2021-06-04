@@ -68,7 +68,8 @@ struct simple_resampling_fwd_t : public primitive_t {
                     && platform::has_data_type_support(dst_md()->data_type)
                     && set_default_params() == status::success
                     && attr()->has_default_values(
-                            sm::post_ops, dst_md()->data_type);
+                            sm::post_ops, dst_md()->data_type)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             format_tag_t dat_tag = memory_desc_matches_one_of_tag(*src_md(),

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -149,7 +149,7 @@ struct jit_uni_x8s8s32x_1x1_conv_kernel {
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &dst_d, const memory_desc_wrapper &bias_d,
-            const primitive_attr_t &attr, int nthreads, bool reduce_src);
+            primitive_attr_t &attr, int nthreads, bool reduce_src);
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);

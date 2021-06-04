@@ -204,14 +204,14 @@ struct _jit_avx512_core_x8s8s32x_deconv_fwd_kernel {
 
     void operator()(const jit_deconv_call_s *p) const { (*kernel_)(p); }
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr,
+    static bool post_ops_ok(jit_conv_conf_t &jcp, primitive_attr_t &attr,
             const memory_desc_wrapper &dst_d);
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const deconvolution_desc_t &cd, memory_desc_t &src_md,
             memory_desc_t &weights_md, memory_desc_t &dst_md,
             const bool with_bias, memory_desc_t &bias_md,
-            const primitive_attr_t &attr, int nthreads);
+            primitive_attr_t &attr, int nthreads);
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
@@ -249,7 +249,7 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
 
             CHECK(_jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(jcp_,
                     *desc(), src_md_, weights_md_, dst_md_, with_bias(),
-                    bias_md_, *attr(), dnnl_get_max_threads()));
+                    bias_md_, attr_, dnnl_get_max_threads()));
 
             auto scratchpad = scratchpad_registry().registrar();
             _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(

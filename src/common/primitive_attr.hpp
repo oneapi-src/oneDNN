@@ -366,6 +366,12 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
         struct binary_t {
             dnnl::impl::alg_kind_t alg;
+            // This is an unmodifiable user copy of attributes which is used in
+            // caching mechanism. Not to be used internally.
+            dnnl::impl::memory_desc_t user_src1_desc;
+            // This is a modifiable copy of memory desc. It changes format kind
+            // and tag of md in case user passed format_kind::any. To be used
+            // everywhere internally.
             dnnl::impl::memory_desc_t src1_desc;
         };
 
@@ -454,7 +460,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                     break;
                 case primitive_kind::binary:
                     ret = binary.alg == rhs.binary.alg
-                            && binary.src1_desc == rhs.binary.src1_desc;
+                            && binary.user_src1_desc
+                                    == rhs.binary.user_src1_desc;
                     break;
                 default: assert(!"unsupported post_op");
             }
@@ -501,7 +508,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             dnnl::impl::data_type_t bias_dt, dnnl::impl::data_type_t dst_dt,
             dnnl::impl::dim_t count, int mask, const float *scales);
     dnnl::impl::status_t append_binary(dnnl::impl::alg_kind_t alg,
-            const dnnl::impl::memory_desc_t *src1_desc);
+            const dnnl::impl::memory_desc_t *user_src1_desc);
 
     int find(dnnl::impl::primitive_kind_t kind, int start = 0,
             int stop = -1) const {
@@ -515,6 +522,9 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
     bool defined() const;
     int len() const { return (int)entry_.size(); }
     bool has_default_values() const { return len() == 0; }
+
+    dnnl::impl::status_t set_default_formats(
+            const dnnl::impl::memory_desc_t *dst_md);
 
     bool sum_with_default_dt(
             dnnl::impl::data_type_t dst_dt = dnnl_data_type_undef) const {
@@ -551,7 +561,6 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
     std::vector<entry_t> entry_;
 
-private:
     // Since binary post op accepts no more than 32 memory arguments by
     // design, we limit the amount of post-ops to 32.
     static constexpr int post_ops_limit = 32;
@@ -630,6 +639,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::status_t set_scratchpad_mode(
             dnnl::impl::scratchpad_mode_t scratchpad_mode);
     dnnl::impl::status_t set_post_ops(const dnnl::impl::post_ops_t &post_ops);
+    dnnl::impl::status_t set_default_formats(
+            const dnnl::impl::memory_desc_t *dst_md);
 
     // NOTE: make sure that the types below have overloaded comparison operator
     dnnl::impl::scales_t output_scales_;

@@ -67,7 +67,8 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public primitive_t {
                             primitive_attr_t::skip_mask_t::oscale
                                     | primitive_attr_t::skip_mask_t::post_ops,
                             dst_data_type)
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && !has_zero_dim_memory() && set_default_formats()
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
 
             if (!ok) return status::unimplemented;
 

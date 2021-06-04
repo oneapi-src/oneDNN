@@ -55,7 +55,8 @@ struct ref_binary_t : public primitive_t {
                     && attr()->has_default_values(
                             sm::post_ops | sm::scales_runtime)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
-                            check_scales_mask());
+                            check_scales_mask())
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             return status::success;

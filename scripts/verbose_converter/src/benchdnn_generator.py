@@ -429,7 +429,10 @@ def convert_policy(value):
 def convert_post_ops(post_ops):
     def convert_binary_post_op(post_op):
         policy = convert_policy(post_op['mask'])
-        return post_op['alg'] + ':' + post_op['dt'] + ':' + policy
+        po = post_op['alg'] + ':' + post_op['dt'] + ':' + policy
+        if post_op['tag'] != None:
+            po += ':' + post_op['tag']
+        return po
 
     def convert_dw_post_op(post_op):
         policy = convert_policy(post_op['scales']['mask'])

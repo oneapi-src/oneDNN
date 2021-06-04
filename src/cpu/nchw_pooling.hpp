@@ -57,7 +57,8 @@ struct nchw_pooling_fwd_t : public primitive_t {
                             primitive_attr_t::skip_mask_t::post_ops, d_type)
                     && set_default_params() == status::success
                     && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
-                    && memory_desc_matches_tag(*dst_md(), desired_fmt_tag);
+                    && memory_desc_matches_tag(*dst_md(), desired_fmt_tag)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             const bool is_training

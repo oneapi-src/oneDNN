@@ -495,6 +495,11 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 
             e.binary.policy = str2policy(get_substr(subs, subs_pos));
             if (e.binary.policy == POLICY_TOTAL) return FAIL;
+            if (subs_pos == std::string::npos) continue;
+            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
+
+            e.binary.tag = get_substr(subs, subs_pos);
+            SAFE(check_tag(e.binary.tag), WARN);
         }
         if (subs_pos == std::string::npos) continue;
         if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
@@ -682,8 +687,11 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 s << ":" << e.eltwise.alpha;
         } else if (e.is_binary_kind()) {
             s << ":" << e.binary.src1_dt;
-            if (e.binary.policy != policy_t::COMMON)
+            if (e.binary.policy != policy_t::COMMON) {
                 s << ":" << e.binary.policy;
+                if (attr_t::get_default_mask(e.binary.policy) >= 4)
+                    s << ":" << e.binary.tag;
+            }
         } else {
             assert(!"unknown kind");
             s << "unknown_kind";
@@ -790,7 +798,7 @@ int attr_args_t::prepare_binary_post_op_mds(
             binary_dims[d] = (!(mask & (1 << d))) ? 1 : dims[d];
 
         dnnl_memory_desc_t src1_desc;
-        SAFE(init_md(&src1_desc, ndims, binary_dims, dt, tag::abx), WARN);
+        SAFE(init_md(&src1_desc, ndims, binary_dims, dt, e.binary.tag), WARN);
         mds.insert(std::make_pair(
                 (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1),
                 src1_desc));

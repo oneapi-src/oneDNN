@@ -83,7 +83,7 @@ brgemm_convolution_fwd_t<isa, src_type, wei_type, dst_type>::pd_t::init(
     if (!ok) return status::unimplemented;
 
     CHECK(brgemm_convolution_utils::init_conf(jcp_, isa, *desc(), src_md_,
-            weights_md_, dst_md_, bias_md_, *attr(), dnnl_get_max_threads()));
+            weights_md_, dst_md_, bias_md_, attr_, dnnl_get_max_threads()));
 
     brgs_sz_ = jcp_.ow_block * 2 * 2 * 2;
     brgs_.resize(brgs_sz_);

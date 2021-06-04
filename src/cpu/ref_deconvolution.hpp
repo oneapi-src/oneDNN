@@ -190,7 +190,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                     utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
 
             init_scratchpad();
-            return status::success;
+            return attr_.set_default_formats(dst_md(0));
         }
 
         std::shared_ptr<primitive_desc_t> conv_pd_;

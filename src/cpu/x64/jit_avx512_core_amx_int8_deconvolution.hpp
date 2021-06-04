@@ -62,7 +62,7 @@ struct jit_avx512_core_amx_int8_deconvolution_fwd_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             CHECK(jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jcp_,
-                    *desc(), dst_md_, weights_md_, src_md_, &bias_md_, *attr(),
+                    *desc(), dst_md_, weights_md_, src_md_, &bias_md_, attr_,
                     dnnl_get_max_threads()));
 
             auto scratchpad = scratchpad_registry().registrar();

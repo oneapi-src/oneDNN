@@ -1209,7 +1209,7 @@ template <cpu_isa_t isa>
 status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
     using namespace prop_kind;
 
     const memory_desc_wrapper src_d(&src_md);
@@ -1414,6 +1414,8 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
     }
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
     jcp.dst_dt = cd.dst_desc.data_type;
+
+    CHECK(attr.set_default_formats(&dst_md));
 
     const auto &post_ops = attr.post_ops_;
 

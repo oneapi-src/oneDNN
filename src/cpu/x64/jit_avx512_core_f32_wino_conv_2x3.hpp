@@ -59,7 +59,8 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public primitive_t {
                     && expect_data_types(f32, f32, f32, f32, f32)
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, f32)
-                    && set_default_formats();
+                    && set_default_formats()
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             memory_desc_t expect_wei_md = *weights_md();

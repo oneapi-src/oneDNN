@@ -66,7 +66,8 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
                             src_md(), weights_md(), dst_md())
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(
-                            attr(), desc()->dst_desc.data_type);
+                            attr(), desc()->dst_desc.data_type)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             attr_info_ = attr_info_t::create(attr());

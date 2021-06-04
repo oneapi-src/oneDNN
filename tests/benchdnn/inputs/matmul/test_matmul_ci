@@ -8,7 +8,7 @@
                 sum:0.5, \
                 linear:2:1, \
                 add:f32, \
-                mul:s8:per_oc+sum:0.25+relu:0.5
+                mul:s8:per_oc+sum:0.25+relu:0.5+add:f32:per_tensor
 
 # 2D
 --stag=ab,ba --wtag=ab,ba --dtag=ab

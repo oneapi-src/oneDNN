@@ -96,7 +96,8 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init(
                     | primitive_attr_t::skip_mask_t::post_ops)
             && check_attr_oscale() && check_attr_zero_points()
             && check_attr_post_ops() && set_default_formats()
-            && gemm_based::check_gemm_compatible_formats(*this);
+            && gemm_based::check_gemm_compatible_formats(*this)
+            && attr_.set_default_formats(dst_md(0)) == status::success;
     if (!ok) return status::unimplemented;
 
     // set states

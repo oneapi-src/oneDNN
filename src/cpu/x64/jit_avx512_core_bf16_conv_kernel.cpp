@@ -831,7 +831,7 @@ void jit_avx512_core_bf16_fwd_kernel::init_scratchpad(
 status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
 
     using namespace prop_kind;
 
@@ -1014,6 +1014,9 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         jcp.oc_tail = jcp.oc % jcp.simd_w;
     else
         jcp.oc_tail = jcp.with_binary ? jcp.oc_without_padding % jcp.simd_w : 0;
+
+    if (attr.set_default_formats(&dst_md) != status::success)
+        return status::unimplemented;
 
     jcp.post_ops = post_ops;
 

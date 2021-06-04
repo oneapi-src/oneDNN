@@ -73,6 +73,7 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
                             src_md(), weights_md(), dst_md())
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type)
+                    && attr_.set_default_formats(dst_md(0)) == status::success
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
                             one_of(attr()->output_scales_.mask_, 0, 1 << 1));
             if (!ok) return unimplemented;

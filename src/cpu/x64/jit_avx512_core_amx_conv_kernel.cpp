@@ -2196,7 +2196,7 @@ void jit_avx512_core_amx_fwd_kernel_t::set_ow_blk_limits(jit_conv_conf_t &jcp) {
 status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
     using namespace prop_kind;
 
     const memory_desc_wrapper src_d(&src_md);
@@ -2399,6 +2399,9 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.n_stride_sets
             = jcp.is_pbuffer_strided ? nstl::min(jcp.stride_w, jcp.kw) : 1;
     jcp.kw_step = jcp.is_pbuffer_strided ? jcp.stride_w : jcp.kw_per_tile;
+
+    if (attr.set_default_formats(&dst_md) != status::success)
+        return status::unimplemented;
 
     const auto &p = attr.post_ops_;
 
@@ -3394,7 +3397,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::generate() {
 }
 
 bool jit_avx512_core_amx_bwd_data_kernel_t::post_ops_ok(
-        const jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
+        const jit_conv_conf_t &jcp, primitive_attr_t &attr) {
     using namespace primitive_kind;
     const auto &p = attr.post_ops_;
     const bool is_bf16 = jcp.ddst_dt == data_type::bf16;
@@ -3455,7 +3458,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::tile_configure(char *tcfg_buff) {
 status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, memory_desc_t &diff_src_md,
         memory_desc_t &weights_md, memory_desc_t &diff_dst_md,
-        memory_desc_t *bias_md, const primitive_attr_t &attr, int nthreads) {
+        memory_desc_t *bias_md, primitive_attr_t &attr, int nthreads) {
     using namespace prop_kind;
 
     const memory_desc_wrapper diff_src_d(&diff_src_md);
@@ -3592,6 +3595,8 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     const int vnni_width = is_bf16_convolution ? 2 : 4;
     jcp.oc_block_int = jcp.oc_block * vnni_width; // 32 for bf16, 64 for int8
 
+    if (attr.set_default_formats(&diff_src_md) != status::success)
+        return status::unimplemented;
     if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
     const auto &p = attr.post_ops_;

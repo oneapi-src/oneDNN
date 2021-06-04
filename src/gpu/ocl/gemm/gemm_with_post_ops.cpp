@@ -36,7 +36,8 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
 
     bool ok = d->c_desc.ndims <= 2
             && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k())
-            && attr()->has_default_values(attr_skip_mask);
+            && attr()->has_default_values(attr_skip_mask)
+            && attr_.set_default_formats(dst_md(0)) == status::success;
     if (!ok) return status::unimplemented;
 
     const primitive_attr_t *attributes_with_po = attr();

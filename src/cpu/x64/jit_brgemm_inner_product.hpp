@@ -78,7 +78,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             CHECK(brgemm_inner_product_utils::init_ip_conf(isa, jbgp_, *desc(),
-                    src_md_, weights_md_, dst_md_, bias_md_, *attr(),
+                    src_md_, weights_md_, dst_md_, bias_md_, attr_,
                     dnnl_get_max_threads()));
 
             const float alpha = 1.0;
@@ -212,7 +212,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             memory_desc_t dummy_bias_md;
             CHECK(brgemm_inner_product_utils::init_ip_conf(isa, jbgp_, *desc(),
                     diff_src_md_, weights_md_, diff_dst_md_, dummy_bias_md,
-                    *attr(), dnnl_get_max_threads()));
+                    attr_, dnnl_get_max_threads()));
 
             const float alpha = 1.0;
             const float beta = 1.0;
@@ -352,7 +352,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
 
             CHECK(brgemm_inner_product_utils::init_ip_conf(isa, jbgp_, *desc(),
                     src_md_, diff_weights_md_, diff_dst_md_, diff_bias_md_,
-                    *attr(), dnnl_get_max_threads()));
+                    attr_, dnnl_get_max_threads()));
 
             const float alpha = 1.0;
             const float beta = 1.0;

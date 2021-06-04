@@ -46,7 +46,8 @@ struct ref_eltwise_fwd_t : public primitive_t {
 
             bool ok = is_fwd() && data_type == desc()->data_desc.data_type
                     && platform::has_data_type_support(data_type)
-                    && attr()->has_default_values(sm::post_ops);
+                    && attr()->has_default_values(sm::post_ops)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             auto src_d = memory_desc_wrapper(data_md());

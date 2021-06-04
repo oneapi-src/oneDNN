@@ -63,7 +63,7 @@ inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
     return status::success;
 }
 
-bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, const primitive_attr_t &attr,
+bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
         const memory_desc_wrapper &dst_d) {
     using namespace injector;
 
@@ -1283,7 +1283,7 @@ void brg_blocking_t::calc_blocks_1x1() {
 status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
     using namespace prop_kind;
 
     brg_blocking_t::L1 = platform::get_per_core_cache_size(1);
@@ -1410,7 +1410,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
 
     using namespace prop_kind;
 
@@ -1560,6 +1560,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.LDD = jcp.oc_without_padding;
 
     CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
+    CHECK(attr.set_default_formats(&dst_md));
 
     const auto &oscales = attr.output_scales_;
     jcp.is_oc_scale = oscales.mask_ == 1 << 1;
@@ -1589,7 +1590,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
 
     using namespace prop_kind;
 
@@ -1685,6 +1686,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.LDD = jcp.oc_without_padding;
 
     CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
+    CHECK(attr.set_default_formats(&dst_md));
 
     const auto &oscales = attr.output_scales_;
     jcp.is_oc_scale = oscales.mask_ == 1 << 1;

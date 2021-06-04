@@ -264,9 +264,14 @@ Currently the following scenarios are supported:
   \f$Source\_1\f$ coincides with a `dim[1]` value of
   \f$\operatorname{Op}(...)\f$, i.e. {1, C, 1, 1} for 2D spatial
   \f$\operatorname{Op}(...)\f$.
-
-Scenario when \f$Source\_1\f$ represents a full tensor as
-\f$\operatorname{Op}(...)\f$ is not supported yet.
+* Per element broadcast, when \f$Source\_1\f$ coincides with
+  \f$\operatorname{Op}(...)\f$. In this case user may create `src1` memory
+  descriptor with `format_tag::any` or set a specific tag. However, in later
+  case if tags mismatch with \f$\operatorname{Op}(...)\f$, it would result in
+  suboptimal performance. In case of using `format_tag::any`, a primitive
+  descriptor of the operation will initialize a memory descriptor for binary
+  post-operation which format may be queried from attributes using
+  `dnnl::post_ops::get_params_binary(...)` function call.
 
 ## Examples of Chained Post-ops
 

@@ -56,7 +56,8 @@ struct ref_matmul_t : public primitive_t {
                     && attr()->has_default_values(smask_t::oscale_runtime
                             | smask_t::zero_points_runtime | smask_t::post_ops)
                     && attr_oscale_ok() && attr_zero_points_ok()
-                    && set_default_formats();
+                    && set_default_formats()
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
 
             if (with_bias()) {
                 auto bia_dt = weights_md(1)->data_type;

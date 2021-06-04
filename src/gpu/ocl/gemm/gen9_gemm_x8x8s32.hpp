@@ -93,7 +93,8 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                                     || attr()->post_ops_.find(sum) != -1)
                     && IMPLICATION(attr()->post_ops_.len() == 2,
                             attr()->post_ops_.find(sum) == 0
-                                    && attr()->post_ops_.find(eltwise) == 1);
+                                    && attr()->post_ops_.find(eltwise) == 1)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
             init_scratchpad();
             attr_info = attr_info_t::create(attr());

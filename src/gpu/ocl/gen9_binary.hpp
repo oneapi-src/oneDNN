@@ -74,7 +74,8 @@ struct gen9_binary_t : public gpu_primitive_t {
                                             compute::device_ext_t::
                                                     intel_subgroups_short))
                     && post_ops_with_binary_ok(
-                            attr(), dst_md()->data_type, MAX_NDIMS);
+                            attr(), dst_md()->data_type, MAX_NDIMS)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
 
             if (!ok) return status::unimplemented;
 

@@ -71,6 +71,7 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(
                             attr(), dst_md()->data_type, MAX_NDIMS)
+                    && attr_.set_default_formats(dst_md(0)) == status::success
                     && IMPLICATION(
                             desc()->data_desc.data_type == data_type::f16,
                             compute_engine->mayiuse(

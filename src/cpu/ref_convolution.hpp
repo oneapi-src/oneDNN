@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,7 +63,8 @@ struct ref_convolution_fwd_t : public primitive_t {
                                     | smask_t::post_ops,
                             dst_type)
                     && output_scales_mask_ok() && zero_points_ok()
-                    && post_ops_ok();
+                    && post_ops_ok()
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
         }
 

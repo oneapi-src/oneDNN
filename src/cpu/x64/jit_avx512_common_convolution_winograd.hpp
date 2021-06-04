@@ -104,7 +104,8 @@ struct jit_avx512_common_convolution_winograd_fwd_t
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops,
                             data_type::f32)
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && !has_zero_dim_memory() && set_default_formats()
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             CHECK(jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(

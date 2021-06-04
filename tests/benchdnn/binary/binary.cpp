@@ -70,24 +70,24 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
     DNN_SAFE(
             dnnl_primitive_attr_get_post_ops(const_attr, &const_attr_po), WARN);
 
+    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(pd, dnnl_query_exec_arg_md, index);
+    };
+
     auto po_len = dnnl_post_ops_len(const_attr_po);
     for (int idx = 0; idx < po_len; ++idx) {
         auto kind = dnnl_post_ops_get_kind(const_attr_po, idx);
         if (kind != dnnl_binary) continue;
 
-        const dnnl_memory_desc_t *po_md;
-        DNN_SAFE(dnnl_post_ops_get_params_binary(
-                         const_attr_po, idx, nullptr, &po_md),
-                WARN);
+        int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1;
+        const auto &po_md = q(po_idx);
 
         // Following call can not be executed if po_md has runtime dimension due
         // to undefined size.
-        mem_fp.emplace_back(*po_md, dnnl_f32, tag::abx, get_test_engine());
-        mem_dt.emplace_back(*po_md, get_test_engine());
-        args.push_back((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
-
-        fill_mem((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1),
-                mem_dt.back(), mem_fp.back(), only_positive_values);
+        mem_fp.emplace_back(po_md, dnnl_f32, tag::abx, get_test_engine());
+        mem_dt.emplace_back(po_md, get_test_engine());
+        args.push_back(po_idx);
+        fill_mem(po_idx, mem_dt.back(), mem_fp.back(), only_positive_values);
     }
     return OK;
 }

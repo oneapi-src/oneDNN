@@ -61,7 +61,8 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_t {
                             != format_tag::undef
                     && memory_desc_matches_one_of_tag(
                                *dst_md(), nwc, nhwc, ndhwc)
-                            != format_tag::undef;
+                            != format_tag::undef
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             CHECK(jit_conf());

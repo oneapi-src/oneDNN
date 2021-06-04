@@ -1339,7 +1339,7 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::generate() {
 status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
     using namespace prop_kind;
 
     if (!mayiuse(avx512_common)) return status::unimplemented;
@@ -1490,6 +1490,8 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         if (bias_d.format_kind() == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, x));
     }
+
+    CHECK(attr.set_default_formats(&dst_md));
 
     const auto &post_ops = attr.post_ops_;
     jcp.with_sum = post_ops.find(primitive_kind::sum) != -1;

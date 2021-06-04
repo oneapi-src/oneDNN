@@ -75,7 +75,8 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                     && !has_zero_dim_memory() && zero_points_ok()
                     && set_default_formats_common(
                             dat_tag(), format_tag::any, dat_tag())
-                    && set_or_check_wei_format();
+                    && set_or_check_wei_format()
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();
@@ -84,7 +85,7 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
 
             CHECK(jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(jcp_,
                     *conv_d, *src_d, *weights_md(), *dst_md(),
-                    with_bias() ? *weights_md(1) : types::zero_md(), *attr(),
+                    with_bias() ? *weights_md(1) : types::zero_md(), attr_,
                     dnnl_get_max_threads(), rtus_.reduce_src_));
             if (jcp_.with_dw_conv) CHECK(depthwise_po_init(engine));
 

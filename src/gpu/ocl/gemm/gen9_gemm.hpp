@@ -117,7 +117,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
                                     || attr()->post_ops_.find(sum) != -1)
                     && IMPLICATION(attr()->post_ops_.len() == 2,
                             attr()->post_ops_.find(sum) == 0
-                                    && attr()->post_ops_.find(eltwise) == 1);
+                                    && attr()->post_ops_.find(eltwise) == 1)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             // The threshold values for m, n and k were obtained by collecting

@@ -62,7 +62,8 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
                             attr()->post_ops_, &dst_md_)
                     && set_default_params() == status::success
                     && dense_gemm_consitency_check(
-                            src_md(), weights_md(), dst_md());
+                            src_md(), weights_md(), dst_md())
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             dst_is_acc_ = dst_data_type == f32;

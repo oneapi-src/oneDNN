@@ -74,7 +74,8 @@ struct ref_matmul_t : public gpu_primitive_t {
                                                         dst_dt_, bf16, f32)))
                                     && IMPLICATION(with_bias(),
                                             utils::one_of(bia_dt_, f32))))
-                    && post_ops_with_binary_ok(attr(), dst_dt_, 6);
+                    && post_ops_with_binary_ok(attr(), dst_dt_, 6)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
 
             if (!ok) return status::unimplemented;
 

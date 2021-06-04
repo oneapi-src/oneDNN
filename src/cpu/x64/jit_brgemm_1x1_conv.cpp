@@ -62,7 +62,7 @@ brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::pd_t::init(
     if (!ok) return status::unimplemented;
 
     CHECK(brgemm_convolution_utils::init_1x1_conf(jcp_, isa, *desc(), src_md_,
-            weights_md_, dst_md_, bias_md_, *attr(), dnnl_get_max_threads()));
+            weights_md_, dst_md_, bias_md_, attr_, dnnl_get_max_threads()));
 
     for (int i = 0; i < 16; i++)
         brgs_[i].bcast_dim = brgs_[i].load_dim = brgs_[i].reduce_dim = 0;

@@ -68,7 +68,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
 
             auto scratchpad = scratchpad_registry().registrar();
             CHECK(jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
-                    *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
+                    *desc(), src_md_, weights_md_, dst_md_, bias_md_, attr_,
                     dnnl_get_max_threads()));
             if (!gemm_x8s8s32x_convolution_utils::post_ops_ok(
                         attr()->post_ops_, &dst_md_))
@@ -147,7 +147,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), diff_src_md_, weights_md_, diff_dst_md_, bias_md_,
-                    *attr(), dnnl_get_max_threads());
+                    attr_, dnnl_get_max_threads());
         }
 
         bool support_bias() const override { return true; }

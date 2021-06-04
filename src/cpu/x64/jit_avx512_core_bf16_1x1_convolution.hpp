@@ -67,7 +67,8 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
                                     data_type::f32, data_type::bf16))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, dst_type)
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && !has_zero_dim_memory() && set_default_formats()
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();
@@ -75,7 +76,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             rtus_prepare(this, conv_d, src_d, dst_md(), weights_md());
 
             CHECK(jit_avx512_core_bf16_1x1_conv_kernel::init_conf(jcp_, *conv_d,
-                    *src_d, *weights_md(), *dst_md(), *attr(),
+                    *src_d, *weights_md(), *dst_md(), attr_,
                     dnnl_get_max_threads(), rtus_.reduce_src_));
 
             if (jcp_.with_dw_conv) CHECK(depthwise_po_init(engine));
@@ -345,7 +346,7 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public primitive_t {
 
             status_t status = jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
                     jcp_, *conv_d, *diff_src_d, *weights_md(), *diff_dst_md(),
-                    *attr(), dnnl_get_max_threads(), rtus_.reduce_src_);
+                    attr_, dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -443,7 +444,7 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
 
             status_t status = jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
                     jcp_, *conv_d, *src_d, *diff_weights_md(0), *diff_dst_md(),
-                    *attr(), dnnl_get_max_threads(), rtus_.reduce_src_);
+                    attr_, dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();

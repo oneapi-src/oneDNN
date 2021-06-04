@@ -153,6 +153,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                 if (bias_md_.format_kind == format_kind::any)
                     CHECK(memory_desc_init_by_tag(bias_md_, x));
                 init_scratchpad();
+                CHECK(attr_.set_default_formats(dst_md(0)));
 
                 return status::success;
             }

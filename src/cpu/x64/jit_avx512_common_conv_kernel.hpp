@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -211,7 +211,7 @@ struct jit_avx512_common_conv_fwd_kernel {
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_pd,
             memory_desc_t &weights_pd, memory_desc_t &dst_pd,
-            memory_desc_t &bias_pd, const primitive_attr_t &attr, int nthreads);
+            memory_desc_t &bias_pd, primitive_attr_t &attr, int nthreads);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
 

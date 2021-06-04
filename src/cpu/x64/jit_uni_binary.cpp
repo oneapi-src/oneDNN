@@ -99,6 +99,7 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
             && set_default_params() == status::success && !has_zero_dim_memory()
             && IMPLICATION(!conf_.is_i8, src0_md_ == dst_md_) && is_applicable()
             && attr()->has_default_values(sm::post_ops | sm::scales_runtime)
+            && attr_.set_default_formats(dst_md(0)) == status::success
             && post_ops_ok(
                     attr(), src_md(0), dst_md(), conf_.is_src_different_layouts)
             && (conf_.is_i8 || elt_idx == -1

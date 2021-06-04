@@ -81,8 +81,11 @@ struct xe_lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
 
             ok = set_default_formats_common(
                     conf.src_tag, conf.wei_tag, conf.dst_tag);
+            if (!ok) return status::unimplemented;
 
-            return ok ? status::success : status::unimplemented;
+            CHECK(attr_.set_default_formats(dst_md(0)));
+
+            return status::success;
         }
 
         status_t init_conf();

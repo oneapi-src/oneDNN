@@ -312,6 +312,7 @@ struct attr_t {
                 dnnl_alg_kind_t alg = dnnl_alg_kind_undef;
                 dnnl_data_type_t src1_dt = dnnl_data_type_undef;
                 policy_t policy = policy_t::COMMON;
+                std::string tag = tag::any;
             } binary;
 
             bool is_sum_kind() const;

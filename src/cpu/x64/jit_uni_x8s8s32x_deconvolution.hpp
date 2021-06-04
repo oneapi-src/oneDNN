@@ -163,7 +163,7 @@ struct jit_uni_x8s8s32x_deconv_fwd_kernel {
             const deconvolution_desc_t &cd, memory_desc_t &src_md,
             memory_desc_t &weights_md, memory_desc_t &dst_md,
             const bool with_bias, memory_desc_t &bias_md,
-            const primitive_attr_t &attr, int nthreads);
+            primitive_attr_t &attr, int nthreads);
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);

@@ -189,6 +189,15 @@ struct memory_desc_wrapper : public c_compatible {
         return false;
     }
 
+    /** returns true if number of non unit dims is <= `n`. */
+    bool count_non_unit_dims(int n) const {
+        int non_unit_dims = 0;
+        for (int d = 0; d < ndims(); d++) {
+            if (dims()[d] != 1) non_unit_dims++;
+        }
+        return non_unit_dims <= n;
+    }
+
     /** returns true if data is dense in memory */
     bool is_dense(bool with_padding = false) const {
         if (utils::one_of(format_kind(), format_kind::undef, format_kind::any))

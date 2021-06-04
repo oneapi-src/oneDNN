@@ -128,7 +128,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
     params_.has_pp_kernel_ = !params_.dst_is_acc_ || with_bias()
             || !params_.pp_attr_.has_default_values();
 
-    return status::success;
+    return attr_.set_default_formats(dst_md(0));
 }
 
 template <impl::data_type_t dst_type>

@@ -56,7 +56,8 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
                             d_type, src_md()->data_type, dst_md()->data_type)
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, d_type)
-                    && !is_dilated() && set_default_params() == status::success;
+                    && !is_dilated() && set_default_params() == status::success
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             const bool is_training

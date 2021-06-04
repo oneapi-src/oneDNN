@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
+            const memory_desc_wrapper &dst_d, primitive_attr_t &attr,
             int nthreads, bool reduce_src);
 
     static status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,

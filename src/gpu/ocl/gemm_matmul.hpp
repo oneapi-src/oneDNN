@@ -77,7 +77,8 @@ struct gemm_matmul_t : public gpu_primitive_t {
                             == create_gemm_pd(gemm_pd_, engine, src_md(),
                                     weights_md(), dst_md(), weights_md(1),
                                     acc_dt, &gemm_attr)
-                    && status::success == set_default_params();
+                    && status::success == set_default_params()
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             init_scratchpad();

@@ -78,7 +78,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     if (!ok) return status::unimplemented;
 
     CHECK(init_brgemm_matmul_conf(isa, bgmmc_, *desc(), src_md_, weights_md_,
-            dst_md_, bias_md_, *attr()));
+            dst_md_, bias_md_, attr_));
 
     const float alpha = 1.0;
     const float beta = 1.0;

@@ -83,6 +83,7 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(
                             attr(), desc()->dst_desc.data_type)
+                    && attr_.set_default_formats(dst_md(0)) == status::success
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
                             utils::one_of(src_md_.data_type, s8, u8)
                                     && attr()->output_scales_.mask_ == 0)

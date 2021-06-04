@@ -45,8 +45,8 @@ template <cpu_isa_t isa>
 status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
         jit_conv_conf_t &jcp, const deconvolution_desc_t &cd,
         memory_desc_t &src_md, memory_desc_t &weights_md, memory_desc_t &dst_md,
-        const bool with_bias, memory_desc_t &bias_md,
-        const primitive_attr_t &attr, int nthreads) {
+        const bool with_bias, memory_desc_t &bias_md, primitive_attr_t &attr,
+        int nthreads) {
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper weights_d(&weights_md);
@@ -234,6 +234,7 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
             || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
     if (kernel_outside_src) return status::unimplemented;
 
+    CHECK(attr.set_default_formats(&dst_md));
     if (!post_ops_ok(jcp, dst_d, attr)) return status::unimplemented;
 
     const auto &p = attr.post_ops_;
@@ -1373,7 +1374,7 @@ _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type, dst_type>::pd_t::init(
     if (!ok) return status::unimplemented;
 
     CHECK(jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(jcp_, *desc(),
-            src_md_, weights_md_, dst_md_, with_bias(), bias_md_, *attr(),
+            src_md_, weights_md_, dst_md_, with_bias(), bias_md_, attr_,
             dnnl_get_max_threads()));
 
     auto scratchpad = scratchpad_registry().registrar();

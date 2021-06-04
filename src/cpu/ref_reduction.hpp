@@ -46,7 +46,8 @@ struct ref_reduction_t : public primitive_t {
                     && platform::has_data_type_support(src_type)
                     && platform::has_data_type_support(dst_type)
                     && set_default_params() == status::success
-                    && attr()->has_default_values(sm::post_ops);
+                    && attr()->has_default_values(sm::post_ops)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             return status::success;

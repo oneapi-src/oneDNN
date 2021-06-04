@@ -9,7 +9,7 @@
                     ELTWISE[:ALPHA[:BETA[:SCALE]]]
                     DW_K3S1P1[:DST_DT[:OUTPUTSCALE]]
                     DW_K3S2P1[:DST_DT[:OUTPUTSCALE]]
-                    BINARY:DT[:POLICY]
+                    BINARY:DT[:POLICY[:TAG]]
 ```
 
 `--attr-oscale` defines output scale primitive attribute. `POLICY` specifies the
@@ -111,7 +111,11 @@ argument `OUTPUTSCALE` defines the semantics of output scale as for
 `BINARY` post operation kind applies one of supported binary algorithms to the
 operation result and then stores it. It requires mandatory argument of `DT`
 specifying data type of second memory operand. It supports optional argument of
-`POLICY` giving a hint what are the dimensions for a second memory operand.
+`POLICY` giving a hint what are the dimensions for a second memory operand. In
+case `POLICY` value is `per_tensor`, additional optional argument `TAG` is
+supported, positioned after `POLICY`, to specify memory physical format. `TAG`
+values use same notation as in drivers. The default value of `TAG` is `any`.
+Refer to [tags](knobs_tag.md) for details.
 
 Operations may be called in any order, e.g. apply `SUM` at first and then apply
 `ELTWISE`, or vice versa - apply `ELTWISE` and then `SUM` it with destination.
@@ -201,7 +205,10 @@ bf16 convolutions respectively.
              ic16oc16ih4oh4kh1ph0
 ```
 
-Run a convolution problem with binary post operation:
+Run a convolution problem with binary post operation, first one adds single int
+value to the destination memory, second one adds a tensor of same size with
+`nhwc`-like physical memory layout with float values to the destination memory:
 ``` sh
-  ./benchdnn --conv --attr-post-ops=add:s32:common ic16oc16ih4oh4kh1ph0
+  ./benchdnn --conv --attr-post-ops=add:s32:common,add:f32:per_tensor:axb
+             ic16oc16ih4oh4kh1ph0
 ```

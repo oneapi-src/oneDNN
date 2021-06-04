@@ -71,7 +71,7 @@ struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             CHECK(jit_avx512_core_amx_fwd_kernel_t::init_conf(jcp_, *desc(),
-                    src_md_, weights_md_, dst_md_, bias_md_, *attr(),
+                    src_md_, weights_md_, dst_md_, bias_md_, attr_,
                     dnnl_get_max_threads()));
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -155,7 +155,7 @@ struct jit_avx512_core_amx_convolution_bwd_data_t : public primitive_t {
 
             status_t status = jit_avx512_core_amx_bwd_data_kernel_t::init_conf(
                     jcp_, *desc(), diff_src_md_, weights_md_, diff_dst_md_,
-                    nullptr /* no bias */, *attr(), dnnl_get_max_threads());
+                    nullptr /* no bias */, attr_, dnnl_get_max_threads());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();

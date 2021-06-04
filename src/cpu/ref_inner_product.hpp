@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,7 +59,8 @@ struct ref_inner_product_fwd_t : public primitive_t {
                     && set_default_params() == status::success
                     && attr()->has_default_values(
                             smask_t::oscale | smask_t::post_ops)
-                    && output_scales_mask_ok();
+                    && output_scales_mask_ok()
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
         }
 

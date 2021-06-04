@@ -62,14 +62,14 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
             if (!args_ok) return status::unimplemented;
 
             CHECK(jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jcp_, *desc(),
-                    src_md_, weights_md_, dst_md_, bias_md_, *attr(),
+                    src_md_, weights_md_, dst_md_, bias_md_, attr_,
                     dnnl_get_max_threads()));
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_uni_x8s8s32x_fwd_kernel<isa>::init_scratchpad(
                     scratchpad, jcp_, *attr());
 
-            return status::success;
+            return attr_.set_default_formats(dst_md(0));
         }
 
         jit_conv_conf_t jcp_;

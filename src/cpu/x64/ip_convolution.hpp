@@ -102,7 +102,7 @@ status_t check_tag(memory_desc_t &md, const format_tag_t tag) {
 
 status_t set_and_or_check_formats(const convolution_desc_t &desc,
         memory_desc_t &src_md, memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md) {
+        memory_desc_t &bias_md, primitive_attr_t &attr) {
     using namespace format_tag;
     auto atag = utils::pick(src_md.ndims - 3, nwc, nhwc, ndhwc);
     const bool is_fwd = utils::one_of(desc.prop_kind,
@@ -141,7 +141,7 @@ status_t set_and_or_check_formats(const convolution_desc_t &desc,
         else
             CHECK(check_tag(bias_md, btag));
     }
-    return status::success;
+    return attr.set_default_formats(&dst_md);
 }
 
 } // namespace
@@ -187,7 +187,7 @@ struct ip_convolution_fwd_t : public primitive_t {
             CHECK(check_conv_ip(this));
 
             CHECK(set_and_or_check_formats(
-                    *desc(), src_md_, weights_md_, dst_md_, bias_md_));
+                    *desc(), src_md_, weights_md_, dst_md_, bias_md_, attr_));
 
             CHECK(init_ip(engine));
 
@@ -283,7 +283,7 @@ struct ip_convolution_bwd_data_t : public primitive_t {
             CHECK(check_conv_ip(this));
 
             CHECK(set_and_or_check_formats(*desc(), diff_src_md_, weights_md_,
-                    diff_dst_md_, bias_md_));
+                    diff_dst_md_, bias_md_, attr_));
 
             CHECK(init_ip(engine));
 
@@ -380,7 +380,7 @@ struct ip_convolution_bwd_weights_t : public primitive_t {
             CHECK(check_conv_ip(this));
 
             CHECK(set_and_or_check_formats(*desc(), src_md_, diff_weights_md_,
-                    diff_dst_md_, diff_bias_md_));
+                    diff_dst_md_, diff_bias_md_, attr_));
 
             CHECK(init_ip(engine));
 

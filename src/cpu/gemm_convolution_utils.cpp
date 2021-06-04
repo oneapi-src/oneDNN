@@ -1005,7 +1005,7 @@ void col2im(const conv_gemm_conf_t &jcp, const float *col, float *im,
 status_t init_conf(conv_gemm_conf_t &jcp,
         memory_tracking::registrar_t &scratchpad, const convolution_desc_t &cd,
         memory_desc_t &src_md, memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int max_threads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int max_threads) {
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
     const memory_desc_wrapper dst_d(&dst_md);
@@ -1157,6 +1157,8 @@ status_t init_conf(conv_gemm_conf_t &jcp,
     // Does int8 conv ever need to support ncsp input format
     if (is_int8_conv && !src_d.matches_one_of_tag(default_dat_tag))
         return status::unimplemented;
+
+    CHECK(attr.set_default_formats(&dst_md));
 
     jcp.post_ops = attr.post_ops_;
 

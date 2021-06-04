@@ -621,7 +621,7 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
         jit_1x1_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, const memory_desc_wrapper &bias_d,
-        const primitive_attr_t &attr, int nthreads, bool reduce_src) {
+        primitive_attr_t &attr, int nthreads, bool reduce_src) {
     if (!mayiuse(isa)) return status::unimplemented;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;

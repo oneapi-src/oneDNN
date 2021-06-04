@@ -38,12 +38,12 @@ namespace brgemm_convolution_utils {
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads);
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads);
 
 status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads);
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads);
 
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_conv_conf_t &jcp);

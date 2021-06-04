@@ -14,7 +14,7 @@
                 sum:0.5, \
                 linear:2:1, \
                 add:f32, \
-                mul:s8:per_oc+sum:0.25+relu:0.5
+                mul:s8:per_oc+sum:0.25+relu:0.5+add:f32:per_tensor
 --batch=shapes_basic
 ### Wino
 --alg=wino
@@ -53,7 +53,7 @@
                 sum:0.5, \
                 linear:2:1, \
                 add:f32, \
-                sum:0.5+add:f32:per_oc
+                sum:0.5+add:f32:per_oc+add:f32:per_tensor
 --attr-zero-points=
 --batch=shapes_basic
 --attr-post-ops=
@@ -67,7 +67,7 @@
                 sum:0.5, \
                 linear:2:1, \
                 add:f32, \
-                sum:0.5+add:f32:per_oc
+                sum:0.5+add:f32:per_oc+add:f32:per_tensor
 --attr-zero-points=
 --batch=shapes_basic
 --attr-post-ops=

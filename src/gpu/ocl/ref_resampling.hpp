@@ -54,7 +54,8 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine);
             bool ok = is_fwd() && set_default_params() == status::success
                     && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5);
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             dispatch = compute_engine->create_dispatch(dst_md());

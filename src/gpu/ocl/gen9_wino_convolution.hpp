@@ -75,7 +75,8 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                                                     intel_subgroups_short))
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(attr_skip_mask, dst_data_t)
-                    && post_ops_with_binary_ok(attr(), dst_data_t);
+                    && post_ops_with_binary_ok(attr(), dst_data_t)
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             status_t status = init_conf(compute_engine);

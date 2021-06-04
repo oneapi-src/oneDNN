@@ -896,7 +896,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::tile_configure(char *tcfg_buff) {
 status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
     using namespace prop_kind;
 
     const memory_desc_wrapper src_d(&src_md);
@@ -1068,6 +1068,8 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         if (bias_d.format_kind() == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, format_tag::x));
     }
+
+    CHECK(attr.set_default_formats(&dst_md));
 
     const auto &p = attr.post_ops_;
 
