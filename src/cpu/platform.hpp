@@ -97,7 +97,7 @@ dnnl_cpu_isa_hints_t get_cpu_isa_hints();
 
 bool DNNL_API prefer_ymm_requested();
 bool DNNL_API has_data_type_support(data_type_t data_type);
-float s8s8_weights_scale_factor();
+float DNNL_API s8s8_weights_scale_factor();
 
 unsigned get_per_core_cache_size(int level);
 unsigned get_num_cores();

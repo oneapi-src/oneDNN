@@ -458,4 +458,6 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd);
 
 sycl_memory_kind_ext_t str2sycl_memory_kind(const char *str);
 
+float reorder_rescale_factor();
+
 #endif

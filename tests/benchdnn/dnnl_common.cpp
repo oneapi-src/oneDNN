@@ -779,3 +779,11 @@ stream_t::stream_t(dnnl_engine_t engine) {
 stream_t::~stream_t() {
     DNN_SAFE_V(dnnl_stream_destroy(stream_));
 }
+
+float reorder_rescale_factor() {
+    float factor = 1.f;
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    factor = dnnl::impl::cpu::platform::s8s8_weights_scale_factor();
+#endif
+    return factor;
+}
