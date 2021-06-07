@@ -19,7 +19,9 @@
 
 #include <algorithm>
 #include <cassert>
+#include <climits>
 #include <cstddef>
+#include <cstring>
 #include <functional>
 #include <numeric>
 #include <vector>
@@ -165,6 +167,40 @@ public:
     }
 };
 #endif
+
+// The following code is derived from Boost C++ library
+// Copyright 2005-2014 Daniel James.
+// Distributed under the Boost Software License, Version 1.0. (See accompanying
+// file LICENSE or copy at http://www.boost.org/LICENSE_1_0.txt)
+template <typename T>
+static size_t hash_combine(size_t seed, const T &v) {
+    return seed ^= std::hash<T> {}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
+
+// Returns a value of type T by reinterpretting the representation of the input
+// value (part of C++20).
+//
+// Provides a safe implementation of type punning.
+//
+// Constraints:
+// - U and T must have the same size
+// - U and T must be trivially copyable
+template <typename T, typename U>
+inline T bit_cast(const U &u) {
+    static_assert(sizeof(T) == sizeof(U), "Bit-casting must preserve size.");
+    // Use std::is_pod as older GNU versions do not support
+    // std::is_trivially_copyable.
+    static_assert(std::is_pod<T>::value, "T must be trivially copyable.");
+    static_assert(std::is_pod<U>::value, "U must be trivially copyable.");
+
+    T t;
+    std::memcpy(&t, &u, sizeof(U));
+    return t;
+}
+
+inline int float2int(float x) {
+    return bit_cast<int>(x);
+}
 
 int getenv(const char *name, char *buffer, int buffer_size);
 int getenv_int(const char *name, int default_value);

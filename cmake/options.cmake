@@ -36,6 +36,9 @@ option(DNNL_GRAPH_VERBOSE
 option(DNNL_GRAPH_LOGGER
     "allows oneDNN Graph library to output logging information" OFF)
 
+option(DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE
+    "enables compiled partition cache." ON) # enabled by default
+
 # =============================
 # Building properties and scope
 # =============================

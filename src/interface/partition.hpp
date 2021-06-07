@@ -18,6 +18,7 @@
 #define INTERFACE_PARTITION_HPP
 
 #include <cstring>
+#include <future>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -80,7 +81,9 @@ public:
         return pimpl_->get_assigned_backend();
     }
 
-    impl::engine_kind_t get_engine_kind() { return pimpl_->get_engine_kind(); }
+    impl::engine_kind_t get_engine_kind() const {
+        return pimpl_->get_engine_kind();
+    }
 
     const std::vector<std::shared_ptr<impl::op_t>> &get_ops() const {
         return pimpl_->get_ops();
@@ -112,7 +115,13 @@ public:
     impl::status_t compile(impl::compiled_partition_t *compiled_partition,
             std::vector<const impl::logical_tensor_t *> &inputs,
             std::vector<const impl::logical_tensor_t *> &outputs,
-            const impl::engine_t *e = nullptr);
+            const impl::engine_t *e = nullptr) const;
+
+    impl::status_t compile(
+            std::pair<impl::compiled_partition_t *, bool> &compiled_partition,
+            std::vector<const impl::logical_tensor_t *> &inputs,
+            std::vector<const impl::logical_tensor_t *> &outputs,
+            const impl::engine_t *aengine) const;
 
     impl::status_t infer_shape(
             std::vector<const impl::logical_tensor_t *> &inputs,
