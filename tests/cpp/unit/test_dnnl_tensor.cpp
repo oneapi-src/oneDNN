@@ -177,6 +177,32 @@ TEST(dnnl_tensor, to_public) {
     ASSERT_TRUE(t2.is_public_format());
 }
 
+TEST(dnnl_tensor_desc, to_grouped) {
+    tensor::desc td {dims {64, 8, 7, 7}, data_type::f32, format_tag::cdba};
+
+    dim groups = 4;
+    tensor::desc grouped_td = td.to_grouped(groups);
+
+    auto reserved_size = sizeof(((dnnl_memory_extra_desc_t *)0)->reserved);
+    auto offset = reserved_size / sizeof(dim) - 1;
+    ASSERT_EQ(groups,
+            reinterpret_cast<const dim *>(
+                    grouped_td.data.extra.reserved)[offset]);
+
+    ASSERT_EQ(grouped_td.data.ndims, 5);
+    ASSERT_EQ(grouped_td.data.dims[0], 4);
+    ASSERT_EQ(grouped_td.data.dims[1], 16);
+    ASSERT_EQ(grouped_td.data.dims[2], 8);
+    ASSERT_EQ(grouped_td.data.dims[3], 7);
+    ASSERT_EQ(grouped_td.data.dims[4], 7);
+
+    ASSERT_EQ(grouped_td.data.format_desc.blocking.strides[0], 16);
+    ASSERT_EQ(grouped_td.data.format_desc.blocking.strides[1], 1);
+    ASSERT_EQ(grouped_td.data.format_desc.blocking.strides[2], 64);
+    ASSERT_EQ(grouped_td.data.format_desc.blocking.strides[3], 3584);
+    ASSERT_EQ(grouped_td.data.format_desc.blocking.strides[4], 512);
+}
+
 // TODO(qun) seldom used methods (such as methods about
 // quantization and submemory) are not tested now. they
 // should be added if used later.

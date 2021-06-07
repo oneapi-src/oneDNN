@@ -316,8 +316,7 @@ public:
         desc to_grouped(dim groups, bool is_deconv = false) const {
             UNUSED(is_deconv);
             auto grouped_dims = group_dims(get_internal_dims(), groups);
-            auto grouped_desc = desc(grouped_dims, get_data_type());
-            grouped_desc.set_g(groups);
+            auto grouped_desc = desc(this->reshape(grouped_dims), groups);
             return grouped_desc;
         }
 
