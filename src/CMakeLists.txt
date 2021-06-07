@@ -76,6 +76,14 @@ if(NOT DNNL_GRAPH_VERBOSE)
     target_compile_definitions(${LIB_NAME}_objlib PRIVATE DNNL_GRAPH_DISABLE_VERBOSE)
 endif()
 
+if(DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE)
+    message(STATUS "Compiled partition cache is enabled")
+else()
+    target_compile_definitions(${LIB_NAME}_objlib
+        PRIVATE DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE)
+    message(STATUS "Compiled partition cache is disabled")
+endif()
+
 target_include_directories(${LIB_NAME}_objlib
     PRIVATE
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include

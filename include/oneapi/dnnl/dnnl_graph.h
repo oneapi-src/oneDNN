@@ -763,6 +763,34 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_destroy(
 
 /// @} dnnl_graph_api_stream
 
+/// @addtogroup dnnl_graph_compiled_partition_cache
+/// @{
+
+/// Returns the number of compiled partitions that can be held in the compiled
+/// partition cache at the same time.
+///
+/// @param capacity Compiled partition cache capacity to query. Concurrently
+/// accessing @p capacity is safe.
+/// @returns #dnnl_graph_result_error_invalid_argument if the @p capacity value
+///     is invalid, and #dnnl_graph_result_success on success.
+dnnl_graph_result_t DNNL_GRAPH_API
+dnnl_graph_get_compiled_partition_cache_capacity(int *capacity);
+
+/// Sets a number of compiled partitions that can be held in the compiled
+/// partition cache at the same time.
+///
+/// @param capacity Compiled partition cache capacity to set. The default cache
+/// capacity is 1024. If a new @p capacity is less than a number of compiled
+/// partition that the compiled partition cache already has, then the excess
+/// entries will be evicted. Setting the @p capacity to 0 clears the compiled
+/// partition cache and disables it. Cocurrently modifying @p capacity is safe.
+/// @returns #dnnl_graph_result_error_invalid_argument if the @p capacity value
+/// is invalid, and #dnnl_graph_result success on success.
+dnnl_graph_result_t DNNL_GRAPH_API
+dnnl_graph_set_compiled_partition_cache_capacity(int capacity);
+
+/// @} dnnl_graph_compiled_partition_cache
+
 /// @addtogroup dnnl_graph_api_service Service
 /// @{
 

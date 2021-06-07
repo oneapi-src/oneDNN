@@ -1274,6 +1274,31 @@ public:
 
 /// @} dnnl_graph_api_graph
 
+/// @addtogroup dnnl_graph_api_compiled_partition_cache Compiled Partition Cache
+///
+/// A set of functions that provide compiled partition cache control.
+///
+/// @{
+
+/// Returns the number of compiled partition that can be held in the compiled
+/// partition cache at the same time.
+inline int get_compiled_partition_cache_capacity() {
+    int result = 0;
+    error::check_succeed(
+            dnnl_graph_get_compiled_partition_cache_capacity(&result),
+            "could not get compiled partition cache capacity");
+    return result;
+}
+
+/// @copydoc dnnl_graph_set_compiled_partition_cache_capacity(int capacity)
+inline void set_compiled_partition_cache_capacity(int capacity) {
+    error::check_succeed(
+            dnnl_graph_set_compiled_partition_cache_capacity(capacity),
+            "could not set compiled partition cache capacity");
+}
+
+/// @} dnnl_graph_api_compiled_partition_cache
+
 /// @addtogroup dnnl_graph_api_service Service
 ///
 /// A set of functions that aid in oneDNN Graph debugging and profiling.

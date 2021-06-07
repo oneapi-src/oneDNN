@@ -26,6 +26,7 @@
 #include "interface/graph.hpp"
 #include "interface/op_schema.hpp"
 #include "interface/partition.hpp"
+#include "interface/partition_cache.hpp"
 
 #if DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
@@ -127,16 +128,24 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile(partition_t *partition,
     std::vector<const logical_tensor_t *> in {inputs, inputs + in_num};
     std::vector<const logical_tensor_t *> out {outputs, outputs + out_num};
 
+    // The boolean in the pair indicates whether the compiled partition is from
+    // global cache.
+    //   true - cache_hit, the compiled partition is in the cache
+    //   false - cache_miss, the compiled partition is not in the cache
+    std::pair<compiled_partition_t *, bool> cp {compiled_partition, false};
+
     status_t ret = status::unknown;
     if (utils::get_verbose() >= 2) {
         double ms = utils::get_msec();
-        ret = partition->compile(compiled_partition, in, out, engine);
+        ret = partition->compile(cp, in, out, engine);
         ms = utils::get_msec() - ms;
-        printf("dnnl_graph_verbose,compile,%s,%g\n", compiled_partition->info(),
-                ms);
+
+        const char *cache_status = cp.second ? "cache_hit" : "cache_miss";
+        printf("dnnl_graph_verbose,compile:%s,%s,%g\n", cache_status,
+                compiled_partition->info(), ms);
         fflush(stdout);
     } else {
-        ret = partition->compile(compiled_partition, in, out, engine);
+        ret = partition->compile(cp, in, out, engine);
     }
     return ret;
 }
@@ -409,7 +418,7 @@ bool dnnl_graph_partition::is_supported() const {
 status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
         std::vector<const impl::logical_tensor_t *> &inputs,
         std::vector<const impl::logical_tensor_t *> &outputs,
-        const engine_t *aengine) {
+        const engine_t *aengine) const {
     status_t ret;
 
     if (!aengine || aengine->kind() != pimpl_->get_engine_kind())
@@ -444,6 +453,80 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
     if (ret != status::success || !cp->is_initialized())
         return status::compile_fail;
     return status::success;
+}
+
+impl::status_t dnnl_graph_partition::compile(
+        std::pair<impl::compiled_partition_t *, bool> &compiled_partition,
+        std::vector<const impl::logical_tensor_t *> &inputs,
+        std::vector<const impl::logical_tensor_t *> &outputs,
+        const impl::engine_t *aengine) const {
+    namespace partition_hashing = impl::partition_hashing;
+    auto &global_compiled_partition_cache = impl::compiled_partition_cache();
+    partition_hashing::key_t key(this, inputs, outputs);
+
+    std::promise<impl::compiled_partition_cache_t::cache_value_t> cp_promise;
+    // Try to get the shared future from the cache, if it's missing then
+    // a shared future with no shared state is returned and the passed
+    // shared future is added, otherwise a valid shared future is returned
+    // and no insertion is performed.
+    auto cp_future = global_compiled_partition_cache.get_or_add(
+            key, cp_promise.get_future());
+
+    bool is_from_cache = cp_future.valid();
+
+    impl::status_t status = impl::status::success;
+    std::shared_ptr<impl::compiled_partition_t> cp;
+
+    if (is_from_cache) {
+        // The requested compiled partition is present in the cache or is being
+        // created by another thread.
+        cp = cp_future.get().compiled_partition;
+        if (!cp) return cp_future.get().status;
+        compiled_partition.first->init(cp->pimpl_);
+    } else {
+        // The requested compiled partition is NOT present in the cache
+        // therefore we have to create it and notify the waiting threads once
+        // the creation is done.
+        status = this->compile(
+                compiled_partition.first, inputs, outputs, aengine);
+        if (status != impl::status::success) {
+            // Communicate an error
+            cp_promise.set_value({nullptr, status});
+            // Remove the shared future from the cache because it's
+            // invalidated. An invalidated shared future is the one that
+            // stores a nullptr.
+            global_compiled_partition_cache.remove_if_invalidated(key);
+            return status;
+        } else {
+            // Store the created compiled partition in the shared future
+            // and notify the waiting threads.
+            std::shared_ptr<impl::compiled_partition_t> new_cp(
+                    new impl::compiled_partition_t(*this));
+            new_cp->init(compiled_partition.first->pimpl_);
+            cp_promise.set_value({new_cp, status});
+
+            // According to the doc of primitive cache, it says:
+            //
+            //   The key_t contains pointers to op_desc and attr objects
+            //   that reside in pd. When primitive_t is created it copies
+            //   the pd and hence contains a copy. Since the created
+            //   primitive_t is stored in the cache with the corresponding
+            //   key, the key must contain pointers to op_desc and attr that
+            //   reside in the coppied pd in the primitive_t. Therefore the
+            //   pointers in the key, which has already been put into the
+            //   cache, must be updated.
+            //
+            // In the scenario of compiled partition cache, pointers the
+            // key_t contains only engage the op_t, which are drived from
+            // the shared_ptr<op_t> of a partition. As the shared_ptr<op_t>
+            // also resides in a parition impl in cached compiled partition,
+            // it's not necessary to update the key_t.
+            //// global_compiled_partition_cache.update_entry(
+            ////         key, &(new_cp->src_partition()), inputs, outputs);
+        }
+    }
+    compiled_partition.second = is_from_cache;
+    return status;
 }
 
 status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
