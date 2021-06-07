@@ -255,11 +255,8 @@ private:
         exp_coeff1, // 0.6931473921 (0x3f31721c)
         exp_coeff2, // 0.2413862043 (0x3e772df2)
         exp_not_mask17, // ~((1u << 17) - 1)
-        tanh_idx_bias, // bias applied during index computation
-        tanh_idx_mask, // mask applied to extract index
-        tanh_linear_ubound, // arg below which tanh(x) = x
-        tanh_saturation_lbound, // arg after which tanh(x) = 1.f
-        tanh_pol_table, // table of polynomial coefficients
+        tanh_range, // tanh(x) = x - x^3/3 for |x| < tanh_range
+        tanh_m1d3, // -1/3
         soft_relu_one_twenty_six, // 126.f
         soft_relu_mantissa_sign_mask, // mask for mantissa bits and sign
         soft_relu_pol, // see correspondent table for float values
