@@ -125,12 +125,12 @@ public:
             }
         }
 
+        BACKEND_DNNL_CHECK(
+                compile_ops(subgraph, p_engine_, prm_attr_mgr_, exec_mgr_));
+
         // bind the memory for each op
         BACKEND_DNNL_CHECK(memory_binding(subgraph, inputs, outputs, p_engine_,
                 exec_arg_mgr_, prm_attr_mgr_));
-
-        BACKEND_DNNL_CHECK(
-                compile_ops(subgraph, p_engine_, prm_attr_mgr_, exec_mgr_));
 
         // topologically sort the prms and their args
         impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(),

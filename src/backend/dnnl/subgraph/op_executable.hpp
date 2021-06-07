@@ -23,6 +23,7 @@
 
 #include "dnnl.hpp"
 
+#include "backend/dnnl/legacy.hpp"
 #include "backend/dnnl/subgraph/passes.hpp"
 
 #define DNNL_GRAPH_ARG_POST_SRC -1
@@ -237,6 +238,19 @@ struct matmul_executable : public op_executable {
     matmul_executable(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
         pd_ = create_matmul_pd(op, p_engine, prm_attr_mgr);
+
+        // The scratchpad size of pd created by using any format tag may be
+        // different from the scratchpad size of pd created by using queried
+        // optimal format tag
+        dnnl::memory::desc stored = make_dnnl_memory_desc(
+                op->get_output_value(1)->get_logical_tensor());
+        dnnl::memory::desc real = pd_.scratchpad_desc();
+        if (stored != real) {
+            auto scratchpad_val = op->get_output_value(1);
+            scratchpad_val->set_layout_type(impl::layout_type::any);
+            fill_layout_info(scratchpad_val, real);
+        }
+
         if (op->has_attr("with_sum"))
             with_sum_ = op->get_attr<bool>("with_sum");
     }
