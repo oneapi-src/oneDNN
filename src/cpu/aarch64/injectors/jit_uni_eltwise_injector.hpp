@@ -275,6 +275,12 @@ private:
         log_five_bit_offset, // 5 bits off (31 = 2^5 - 1)
         log_pol, // see correspondent table for float values
         log_predefined_vals, // see correspondent table for float values
+        log_i127shl23,
+        log_x7fffff,
+        log_log2,
+        log_log1p5,
+        log_f2div3,
+        log_coeffTbl,
         undef_key,
     };
 
@@ -287,20 +293,6 @@ private:
         const auto &te = (*it).second;
         const auto scale = te.bcast ? vlen : sizeof(table_entry_val_t);
         return te.off + key_off_val_shift * scale;
-    }
-
-    TRegS table_val(key_t key, size_t key_off_val_shift = 0) {
-        Xbyak_aarch64::XReg x_addr(h->X_DEFAULT_ADDR);
-        auto off = table_off(key, key_off_val_shift);
-
-        if (off) {
-            h->add_imm(x_addr, x_table, off, h->X_TMP_0);
-        } else {
-            x_addr = x_table;
-        }
-
-        h->ldr(TReg(z_tmp.getIdx()), ptr(x_addr));
-        return z_tmp;
     }
 
     TRegS table_val(key_t key, TRegS zreg, size_t key_off_val_shift = 0) {
