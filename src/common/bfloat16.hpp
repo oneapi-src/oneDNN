@@ -50,7 +50,7 @@ struct bfloat16_t {
         : raw_bits_ {convert_bits_of_normal_or_zero(
                 utils::bit_cast<uint32_t>(static_cast<float>(i)))} {}
 
-    bfloat16_t &operator=(float f) {
+    bfloat16_t DNNL_API &operator=(float f) {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
         if (try_cvt_float_to_bfloat16(this, &f)) { return *this; }
 #endif
@@ -90,7 +90,7 @@ struct bfloat16_t {
         return (*this) = bfloat16_t {i};
     }
 
-    operator float() const {
+    DNNL_API operator float() const {
         std::array<uint16_t, 2> iraw = {{0, raw_bits_}};
         return utils::bit_cast<float>(iraw);
     }
