@@ -86,6 +86,9 @@ public:
 
         gpu::ocl::ocl_wrapper_t<cl_kernel> ocl_kernel = jitter.get_kernel(
                 ocl_engine->context(), ocl_engine->device());
+
+        gpu::ocl::dump_kernel_binary(ocl_kernel.get());
+
         std::vector<gpu::compute::scalar_type_t> arg_types;
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 

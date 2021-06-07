@@ -142,44 +142,47 @@ cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
 }
 
 #if DNNL_ENABLE_JIT_DUMP
-void dump_kernel_binary(
-        const engine_t *engine, const compute::kernel_t &binary_kernel) {
+
+void dump_kernel_binary(cl_kernel ocl_kernel) {
     if (!get_jit_dump()) return;
+
+    cl_int err;
+
+    size_t binary_size;
+    err = clGetKernelInfo(ocl_kernel, CL_KERNEL_BINARY_PROGRAM_INTEL, 0,
+            nullptr, &binary_size);
+    // Ignore error.
+    if (err != CL_SUCCESS) return;
+
+    std::vector<uint8_t> binary(binary_size);
+    err = clGetKernelInfo(ocl_kernel, CL_KERNEL_BINARY_PROGRAM_INTEL,
+            binary.size(), binary.data(), nullptr);
+    // Ignore error.
+    if (err != CL_SUCCESS) return;
+
+    size_t name_size;
+    err = clGetKernelInfo(
+            ocl_kernel, CL_KERNEL_FUNCTION_NAME, 0, nullptr, &name_size);
+    // Ignore error.
+    if (err != CL_SUCCESS) return;
+
+    // Include null terminator explicitly - to safely overwrite it in
+    // clGetKernelInfo
+    std::string name(name_size, 0);
+    err = clGetKernelInfo(
+            ocl_kernel, CL_KERNEL_FUNCTION_NAME, name_size, &name[0], nullptr);
+    // Ignore error.
+    if (err != CL_SUCCESS) return;
+
+    // Remove the null terminator as std::string already includes it
+    name.resize(name_size - 1);
 
     static std::mutex m;
     std::lock_guard<std::mutex> guard(m);
 
     static int counter = 0;
-    compute::kernel_t realized_kernel;
-    auto status = binary_kernel.realize(&realized_kernel, engine, nullptr);
-
-    // Ignore error.
-    if (status != status::success) return;
-
-    auto *kernel
-            = utils::downcast<const ocl_gpu_kernel_t *>(realized_kernel.impl());
-
-    cl_int err;
-
-    size_t binary_size;
-    err = clGetKernelInfo(kernel->ocl_kernel(), CL_KERNEL_BINARY_PROGRAM_INTEL,
-            0, nullptr, &binary_size);
-
-    // Ignore error.
-    if (err != CL_SUCCESS) return;
-
-    std::vector<uint8_t> binary(binary_size);
-    err = clGetKernelInfo(kernel->ocl_kernel(), CL_KERNEL_BINARY_PROGRAM_INTEL,
-            binary.size(), binary.data(), nullptr);
-
-    // Ignore error.
-    if (err != CL_SUCCESS) return;
-
     std::ostringstream fname;
-    auto *kernel_name
-            = utils::downcast<const ocl_gpu_kernel_t *>(binary_kernel.impl())
-                      ->name();
-    fname << "dnnl_dump_gpu_" << kernel_name << "." << counter << ".bin";
+    fname << "dnnl_dump_gpu_" << name << "." << counter << ".bin";
 
     FILE *fp = fopen(fname.str().c_str(), "wb+");
 
@@ -191,8 +194,24 @@ void dump_kernel_binary(
 
     counter++;
 }
+
+void dump_kernel_binary(
+        const engine_t *engine, const compute::kernel_t &binary_kernel) {
+    if (!get_jit_dump()) return;
+
+    compute::kernel_t realized_kernel;
+    auto status = binary_kernel.realize(&realized_kernel, engine, nullptr);
+
+    // Ignore error.
+    if (status != status::success) return;
+
+    auto *kernel
+            = utils::downcast<const ocl_gpu_kernel_t *>(realized_kernel.impl());
+    dump_kernel_binary(kernel->ocl_kernel());
+}
 #else
 void dump_kernel_binary(const engine_t *, const compute::kernel_t &) {}
+void dump_kernel_binary(cl_kernel) {}
 #endif
 
 status_t get_kernel_arg_types(cl_kernel ocl_kernel,
