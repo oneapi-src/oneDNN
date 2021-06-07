@@ -52,10 +52,10 @@ size_t logical_tensor_wrapper::size() const {
 }
 
 bool logical_tensor_wrapper::is_identical(const logical_tensor_t &lhs,
-        const logical_tensor_t &rhs, bool check_id) const {
+        const logical_tensor_t &rhs, bool check_id, bool check_dtype) const {
     bool equal = check_id ? lhs.id == rhs.id : true;
+    if (check_dtype) equal = equal && (lhs.data_type == rhs.data_type);
     equal = equal && (lhs.ndims == rhs.ndims)
-            && (lhs.data_type == rhs.data_type)
             && (lhs.layout_type == rhs.layout_type);
 
     if (!equal) return false;
@@ -79,8 +79,8 @@ bool logical_tensor_wrapper::is_identical(const logical_tensor_t &lhs,
 }
 
 bool logical_tensor_wrapper::is_equal(const logical_tensor_t &lhs,
-        const logical_tensor_t &rhs, bool check_id) const {
-    if (is_identical(lhs, rhs, check_id)) return true;
+        const logical_tensor_t &rhs, bool check_id, bool check_dtype) const {
+    if (is_identical(lhs, rhs, check_id, check_dtype)) return true;
 
     // need to ask backend
     if (lhs.layout_type != rhs.layout_type) {
@@ -204,7 +204,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_get_mem_size(
     return status::success;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_logical_tenosr_has_same_layout_and_dtype(
+status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_has_same_layout(
         const logical_tensor_t *lt1, const logical_tensor_t *lt2,
         uint8_t *is_same) {
     if (utils::any_null(lt1, lt2)) return status::invalid_argument;
@@ -222,7 +222,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tenosr_has_same_layout_and_dtype(
     // - when layout_type is different:
     //      - only one case: one of them has `strided` layout while another has
     //          `opaque` layout but with default format
-    if (ltw1 == ltw2) *is_same = 1;
+    if (ltw1.has_same_layout_as(ltw2)) *is_same = 1;
     return status::success;
 }
 

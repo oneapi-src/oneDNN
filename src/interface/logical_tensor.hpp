@@ -251,12 +251,17 @@ struct logical_tensor_wrapper {
         return std::equal(dims(), dims() + ndims(), rhs.dims());
     }
 
+    bool has_same_layout_as(const logical_tensor_wrapper &rhs) const {
+        return is_equal(*this->lt, *rhs.lt, /* check_id= */ true,
+                /*check_dtype=*/false);
+    }
+
 private:
     bool is_identical(const logical_tensor_t &lhs, const logical_tensor_t &rhs,
-            bool check_id = true) const;
+            bool check_id = true, bool check_dtype = true) const;
 
     bool is_equal(const logical_tensor_t &lhs, const logical_tensor_t &rhs,
-            bool check_id = true) const;
+            bool check_id = true, bool check_dtype = true) const;
 };
 
 } // namespace impl

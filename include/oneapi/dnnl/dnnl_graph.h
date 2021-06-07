@@ -133,14 +133,11 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_get_mem_size(
 ///
 /// @param lt1 The handle of first logical tensor
 /// @param lt2 The handle of second logical tensor
-/// @param is_same @c true if these two logical tensors have the same layout or
-///     data type
-///     @c false if these two logical tensors have different layouts or data
-///     types
+/// @param is_same 1 if these two logical tensors have the same layout
+///     0 if these two logical tensors have different layouts
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API
-dnnl_graph_logical_tenosr_has_same_layout_and_dtype(
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_has_same_layout(
         const dnnl_graph_logical_tensor_t *lt1,
         const dnnl_graph_logical_tensor_t *lt2, uint8_t *is_same);
 

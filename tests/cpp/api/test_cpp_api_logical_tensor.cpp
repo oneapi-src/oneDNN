@@ -175,17 +175,17 @@ TEST(api_logical_tensor, compare_layout_and_dtype) {
             layout_type::strided};
     logical_tensor lt1 {0, data_type::f32, logical_tensor::dims_t {1, 2, 3},
             layout_type::strided};
-    ASSERT_EQ(lt0.has_same_layout_and_dtype(lt1), true);
+    ASSERT_EQ(lt0.has_same_layout(lt1), true);
 
     logical_tensor lt4 {1, data_type::f32, logical_tensor::dims_t {1, 2, 3},
             layout_type::strided};
     logical_tensor lt5 {1, data_type::bf16, logical_tensor::dims_t {1, 2, 3},
             layout_type::strided};
-    ASSERT_EQ(lt4.has_same_layout_and_dtype(lt5), false);
+    ASSERT_EQ(lt4.has_same_layout(lt5), true);
 
     logical_tensor lt6 {2, data_type::f32, logical_tensor::dims_t {1, 2, 3},
             layout_type::strided};
     logical_tensor lt7 {2, data_type::f32, logical_tensor::dims_t {3, 2, 1},
             layout_type::strided};
-    ASSERT_EQ(lt6.has_same_layout_and_dtype(lt7), false);
+    ASSERT_EQ(lt6.has_same_layout(lt7), false);
 }
