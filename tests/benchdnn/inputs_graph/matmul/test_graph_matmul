@@ -28,3 +28,14 @@
 16x1024:1024x1024:16x1024
 384x4096:4096x1024:384x1024
 
+# matmul BERT Large SQuAD 4d
+--reset
+--batch=shapes_bert_large_squad_4d
+
+# matmul BERT Large SQuAD 3d
+--reset
+--bia_dt=f32
+# applying bias to 3rd dimension
+--bia_mask=4
+--batch=shapes_bert_large_squad_3d
+
