@@ -34,20 +34,24 @@ arguments. It consists of the following steps:
    ``transpose_b`` attributes. Only the two right-most dimensions are
    transposed, other dimensions remain the same. Transpose attributes are
    ignored for 1D tensors.
+
 2. One-dimensional tensors unsqueezing is applied for each input independently.
    The axes inserted in this step are not included in the output shape.
-      If rank of the first input is equal to 1, it is always unsqueezed to 2D
-      tensor row vector (regardless of ``transpose_a``) by adding axes with
-      size 1 at ROW_INDEX_DIM, to the left of the shape. For example [S] will
-      be reshaped to [1, S].
 
-      If rank of the second input is equal to 1, it is always unsqueezed to 2D
-      tensor column vector (regardless of ``transpose_b``) by adding axes with
-      size 1 at COL_INDEX_DIM, to the right of the shape. For example [S] will
-      be reshaped to [S, 1].
+   a. If rank of the first input is equal to 1, it is always unsqueezed to 2D
+   tensor row vector (regardless of ``transpose_a``) by adding axes with
+   size 1 at ROW_INDEX_DIM, to the left of the shape. For example [S] will
+   be reshaped to [1, S].
+
+   b. If rank of the second input is equal to 1, it is always unsqueezed to 2D
+   tensor column vector (regardless of ``transpose_b``) by adding axes with
+   size 1 at COL_INDEX_DIM, to the right of the shape. For example [S] will
+   be reshaped to [S, 1].
+
 3. If ranks of input arguments are different after steps 1 and 2, the tensor
    with a smaller rank is unsqueezed from the left side of the shape by
    necessary number of axes to make both shapes of the same rank.
+
 4. Usual rules of the broadcasting are applied for batch dimensions.
 
 Temporary axes inserted in step 2 are removed from the final output shape after

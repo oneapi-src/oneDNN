@@ -58,6 +58,7 @@ subset of the operation set.
    reduction/ReduceSum_1.rst   
    activation/ReLU_1.rst
    activation/ReLUBackprop_1.rst
+   movement/Reorder_1.rst
    shape/Reshape_1.rst
    arithmetic/Round_1.rst
    arithmetic/Rsqrt_1.rst
