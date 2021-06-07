@@ -252,6 +252,9 @@ private:
         exp_ln_flt_max_f, // logf(FLT_MAX) - max normal value
         exp_ln_flt_min_f, // logf(FLT_MIN) - min normal value
         exp_pol, // see correspondent table for float values
+        exp_coeff1, // 0.6931473921 (0x3f31721c)
+        exp_coeff2, // 0.2413862043 (0x3e772df2)
+        exp_not_mask17, // ~((1u << 17) - 1)
         tanh_idx_bias, // bias applied during index computation
         tanh_idx_mask, // mask applied to extract index
         tanh_linear_ubound, // arg below which tanh(x) = x
