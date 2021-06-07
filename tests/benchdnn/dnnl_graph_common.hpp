@@ -17,6 +17,7 @@
 #ifndef DNNL_GRAPH_COMMON_HPP
 #define DNNL_GRAPH_COMMON_HPP
 
+#include <algorithm>
 #include <cstddef>
 #include <map>
 #include <numeric>
@@ -33,8 +34,8 @@ namespace benchdnnext {
 using dims_t = dnnl::graph::logical_tensor::dims_t;
 using dim_t = dims_t::value_type;
 
-using input_list_t = std::vector<dnnl::graph::logical_tensor>;
-using output_list_t = std::vector<dnnl::graph::logical_tensor>;
+using dt = dnnl::graph::logical_tensor::data_type;
+using lt = dnnl::graph::logical_tensor::layout_type;
 
 enum class fill_status {
     DONE, // everything was fine
@@ -52,6 +53,73 @@ dims_t convert_bin_policy(const dims_t &lhs_dims, const attr_t::policy_t policy,
 std::map<std::string, float> convert_eltw_entry(
         const dnnl::graph::op::kind kind,
         const attr_t::post_ops_t::entry_t &entry);
+
+int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> scales);
+
+dnnl_format_tag_t dnnl_fmt_str2tag(const std::string &fmt_str);
+
+/**  Get the outer format string without blocking expression.
+ *     For example, AcdB16a8b -> acdb
+ */
+inline std::string get_ou_format(const std::string &fmt_tag) {
+    size_t pos = 0;
+    while (pos < fmt_tag.size() && !std::isdigit(fmt_tag[pos]))
+        pos++;
+    std::string fmt(fmt_tag.begin(), fmt_tag.begin() + pos);
+    // convert the string to lower case for the convenient of deriving
+    // permutation keys.
+    std::transform(fmt.begin(), fmt.end(), fmt.begin(),
+            [](char c) { return static_cast<char>(std::tolower(c)); });
+    return fmt;
+}
+
+inline std::string tag2data_format(const std::string &tag_) {
+    if (tag_ == tag::any) return "NCX";
+    std::string tag = normalize_tag(tag_);
+    tag = get_ou_format(tag);
+    std::string ret;
+    for (size_t i = 0; i < tag.size(); ++i) {
+        if (tag[i] == 'a') {
+            ret += "N";
+        } else if (tag[i] == 'b') {
+            ret += "C";
+        } else {
+            if (ret.back() == 'X') continue;
+            ret += "X";
+        }
+    }
+    if (!(ret == "NCX" || ret == "NXC")) {
+        []() {
+            SAFE(FAIL, CRIT);
+            return 0;
+        }();
+    }
+    return ret;
+}
+
+inline std::string tag2filter_format(const std::string &tag_) {
+    if (tag_ == tag::any) return "OIX";
+    std::string tag = normalize_tag(tag_);
+    tag = get_ou_format(tag);
+    std::string ret;
+    for (size_t i = 0; i < tag.size(); ++i) {
+        if (tag[i] == 'a') {
+            ret += "O";
+        } else if (tag[i] == 'b') {
+            ret += "I";
+        } else {
+            if (ret.back() == 'X') continue;
+            ret += "X";
+        }
+    }
+    if (!(ret == "XIO" || ret == "OIX")) {
+        []() {
+            SAFE(FAIL, CRIT);
+            return 0;
+        }();
+    }
+    return ret;
+}
 
 #define BENCHDNNEXT_SAFE(f, s) \
     do { \
@@ -96,6 +164,19 @@ private:
     bool frozen_;
 };
 
+inline size_t encode_dnnl_layout(size_t layout_idx) {
+    // NOTE: Follows the definitions in oneDNN Graph implementation. And there
+    //   is a assumption where the dnnl backend is registered in the first
+    //   place. Can we expose any API to fetch the information of backend
+    //   registry?
+    static constexpr int backend_id_length = 4;
+    static constexpr int dnnl_id = 1;
+
+    size_t layout_id = (layout_idx << backend_id_length)
+            | (dnnl_id & (size_t)((1 << backend_id_length) - 1));
+    return layout_id;
+}
+
 struct tensor_descs_t {
     tensor_descs_t() = default;
 
@@ -103,6 +184,57 @@ struct tensor_descs_t {
     void emplace(std::string str, Args... args) {
         dnnl::graph::logical_tensor t(idmgr_[str], std::forward<Args>(args)...);
         map_.emplace(str, t);
+    }
+
+    void emplace(std::string str, dt dtype, const dims_t &adims,
+            const std::string &atag) {
+        size_t ndims = adims.size();
+        const std::string dnnl_fmt_tag_str
+                = normalize_tag(atag, static_cast<int>(ndims));
+        const dnnl_format_tag_t fmt_tag = dnnl_fmt_str2tag(dnnl_fmt_tag_str);
+        if (fmt_tag == dnnl_format_tag_undef) {
+            []() {
+                SAFE(FAIL, CRIT);
+                return 0;
+            }();
+            return;
+        }
+
+        if (fmt_tag == dnnl_format_tag_any) {
+            emplace(str, dtype, adims, lt::strided);
+            return;
+        }
+
+        std::string ou_fmt_str = get_ou_format(dnnl_fmt_tag_str);
+
+        static_assert(DNNL_GRAPH_MAX_NDIMS == DNNL_MAX_NDIMS,
+                "Maximum number of dimensions of primitive and graph is not "
+                "the same.");
+        // The permutation keys is used to sort the order of graph dimensions
+        // according to the format tag specified by benchdnn command line in
+        // tag knob. If user makes a dnnl memory desc with a format tag, the
+        // order of dimensions is always `abcdefg...`. Different tag, for
+        // instance with `acdb` (comparing to `abcd`), logical tensor could be
+        // created with either
+        //     i) `acdb` order dimensions plus strided/opaque layout type, or
+        //    ii) `abcd` order with strides [b*c*d, 1, d*b, b].
+        //
+        // NOTE: Currently, only the first method is used.
+        dims_t permuted_dims(ndims, 0);
+        for (size_t d = 0; d < ndims; ++d) {
+            size_t coord = static_cast<size_t>(ou_fmt_str[d] - 'a');
+            permuted_dims[d] = adims[coord];
+        }
+
+        if (fmt_tag <= dnnl_abcdefghijkl) {
+            emplace(str, dtype, permuted_dims, lt::strided);
+        } else {
+            const int64_t dnnl_layout_id
+                    = encode_dnnl_layout(static_cast<size_t>(fmt_tag));
+            dnnl::graph::logical_tensor t(
+                    idmgr_[str], dtype, permuted_dims, dnnl_layout_id);
+            map_.emplace(str, t);
+        }
     }
 
     dnnl::graph::logical_tensor operator[](const std::string &str) {
@@ -118,8 +250,19 @@ dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
         const dnnl::graph::logical_tensor::data_type &graph_dt,
         const char *tag = nullptr);
 
+dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
+        const dims_t &dims,
+        const dnnl::graph::logical_tensor::data_type &graph_dt,
+        const char *atag);
+
+dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
+        const dims_t &dims, const std::string &atag);
+
 dnn_mem_t make_dnn_mem(
         const dnnl::graph::logical_tensor &lt, const char *tag = nullptr);
+
+dnn_mem_t make_dnn_mem(
+        const dnnl::graph::logical_tensor &lt, const std::string &tag);
 
 template <typename T, std::size_t N>
 constexpr T *end(T (&arr)[N]) noexcept {
@@ -205,6 +348,12 @@ private:
 
 public:
     union {
+        struct {
+            bias_po_handler_t bias_handler;
+            eltwise_po_handler_t eltw_handler;
+            sum_po_handler_t sum_handler;
+        } conv;
+
         struct {
             bias_po_handler_t bias_handler;
             eltwise_po_handler_t eltw_handler;

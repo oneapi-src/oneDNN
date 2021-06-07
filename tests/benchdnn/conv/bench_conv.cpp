@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@
 
 #include "conv/conv.hpp"
 #include "conv/conv_dw_fusion.hpp"
+#include "conv/graph_conv.hpp"
 
 namespace conv {
 
@@ -63,7 +64,14 @@ void check_correctness(const settings_t &s) {
         if (attr.post_ops.convolution_index() != -1)
             status = conv_dw_fusion::doit(&prb, &res);
         else
-            status = conv::doit(&prb, &res);
+            const int status = [&prb, &res](api_mode_t mode) {
+                if (mode == PRIMITIVE)
+                    return doit(&prb, &res);
+                else if (mode == GRAPH)
+                    return benchdnnext::conv::doit(&prb, &res);
+                else
+                    return FAIL;
+            }(api_mode);
 
         bool want_perf_report = false;
         parse_result(res, want_perf_report, status, pstr);
