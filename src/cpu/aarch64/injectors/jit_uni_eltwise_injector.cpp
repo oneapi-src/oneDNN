@@ -795,144 +795,82 @@ void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector_fwd(
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_fwd(
         const TRegS &vmm_src) {
-    // From J.-M. Muller and others, Handbook of Floating-Point Arithmetic, 2010
-    // Here is a brief mathematics to approximate log(x):
-    // log(x) = E * log(2) + log(y), where -log(2)/2 <= log(y) <= log(2)/2;
-    // log(y) = log(1 + z) - log(r_i), where z = y * r_i - 1, r_i approximates
-    //   1 / y, i is index of one of precomputed values;
-    // log(1 + z) ~~ polynomial(z), =>
-    // if (x is normal)
-    //     log(x) ~~ E * log(2) + polynomial(z) - log(r_i),
-    // where log(r_i) is table value.
-    //
-    // If (x == 0) result = -inf;
-    // If (x < 0) result = qnan;
 
-    // save source on stack to check neg and zero values at the end
-    h->sub_imm(h->X_SP, h->X_SP, vlen, h->X_TMP_0);
-    h->add_imm(h->X_TMP_0, h->X_SP, 0, h->X_TMP_1);
-    h->str(ZReg(IDX(vmm_src)), ptr(h->X_TMP_0));
-
-    // compute i
-    const int approx_order = 5;
-    h->lsr(vmm_aux1, vmm_src, n_mantissa_bits - approx_order);
-    h->and_(ZRegD(IDX(vmm_aux1)), ZRegD(IDX(vmm_aux1)),
-            ZRegD(IDX(table_val(log_five_bit_offset))));
-    h->lsl(vmm_aux1, vmm_aux1,
-            1); // multiply i by 2
-
-    // compute anticancellation i
-    h->lsr(vmm_aux2, vmm_aux1, approx_order);
-
-    // get E, don't care about sign as only positive numbers are considered
-    h->lsr(vmm_aux3, vmm_src, n_mantissa_bits);
-    h->add(vmm_aux3, vmm_aux3, vmm_aux2);
-    h->mov(PRegB(IDX(p_tmp0)), h->P_ALL_ONE.b);
-    h->scvtf(vmm_aux3, p_tmp0 / T_m, vmm_aux3);
-
-    // get m (mantissa)
-    h->eor(ZRegD(IDX(vmm_aux2)), ZRegD(IDX(vmm_aux2)),
-            ZRegD(IDX(table_val(exponent_bias))));
-    h->lsl(vmm_aux2, vmm_aux2, n_mantissa_bits);
-    h->and_(ZRegD(IDX(vmm_src)), ZRegD(IDX(vmm_src)),
-            ZRegD(IDX(table_val(log_mantissa_mask))));
-    h->orr(ZRegD(IDX(vmm_src)), ZRegD(IDX(vmm_src)), ZRegD(IDX(vmm_aux2)));
-
-    // At first, adjust indices for table structure which broadcasts elements
-    h->lsl(vmm_aux1, vmm_aux1,
-            4); // multiply by simd_w = 16
-
-    const auto it = entry_map_.find(log_predefined_vals);
-    assert(it != entry_map_.end());
-    const auto table_start_idx = (*it).second.off;
-
-    auto gather_table_values = [&](const TRegS &vmm_dst, const TRegS &vmm_idxs,
-                                       size_t offt = 0) {
-        h->ptrue(PRegS(IDX(p_mask)), VL16);
-        h->add_imm(
-                h->X_DEFAULT_ADDR, x_table, table_start_idx + offt, h->X_TMP_1);
-
-        h->mov(ZRegD(IDX(z_tmp)), ZRegD(IDX(vmm_idxs)));
-        h->mul(z_tmp, 4);
-
-        h->ld1w(z_tmp, p_mask / T_z, ptr(h->X_DEFAULT_ADDR, z_tmp, SXTW));
-        h->mov(vmm_dst, p_mask / T_m, z_tmp);
-        h->pfalse(PRegB(IDX(p_mask)));
+    const auto &t0 = ZRegS(IDX(vmm_src));
+    const auto &t1 = ZRegS(IDX(vmm_aux1));
+    const auto &t2 = ZRegS(IDX(vmm_aux2));
+    const auto &t3 = ZRegS(IDX(vmm_aux3));
+    const auto &t4 = ZRegS(IDX(vmm_aux4));
+    const auto &mask = p_tmp0.s;
+    const auto &wt0 = h->W_TMP_0;
+    const auto &xt0 = h->X_TMP_0;
+    auto set_imm = [&](const ZRegS &dst, uint32_t imm) {
+        h->mov_imm(wt0, imm);
+        h->cpy(dst, p_all, wt0);
+        return dst;
     };
+    Label tbl1L, tbl2L, exitL;
+    const size_t tblL = 5;
+    const size_t tblN = 1 << tblL;
+    union fi {
+        float f;
+        uint32_t i;
+    };
+    //h->brk(0);
+    h->mov(t4, p_all, t0);
+    h->fmul(t0, t0, set_imm(z_tmp, float2int(std::sqrt(2))));
+    set_imm(t3, 127 << 23);
+    h->sub(t1, t0, t3);
+    h->asr(t1, t1, 23); // n
+    h->scvtf(t1, p_all, t1); // int -> float
+    h->and_(t0, p_all, set_imm(z_tmp, 0x7fffff));
+    h->asr(t2, t0, 23 - tblL); // d
+    h->lsl(t2, t2, 2); // d *= 4
+    h->orr(t0, p_all, t3); // y
+    h->fmul(t0, t0, set_imm(z_tmp, float2int(1 / std::sqrt(2))));
+    h->adr(xt0, tbl1L);
+    h->ld1w(t3, p_all, ptr(xt0, t2, SXTW)); // f
+    h->fcpy(z_tmp, p_all, 1.0f);
+    h->fnmsb(t0, p_all, t3, z_tmp); // y = y * f - 1
+    h->adr(xt0, tbl2L);
+    h->ld1w(t2, p_all, ptr(xt0, t2, SXTW)); // h
+    h->fsub(t3, t4, z_tmp); // x-1
+    set_imm(z_tmp, float2int(1.0 / 32));
+    h->facge(mask, p_all, z_tmp, t3); // 1/32 >= abs(x-1)
+    h->mov(t0, mask, t3);
+    h->eor(t2, mask, t2);
+    h->fnmsb(t1, p_all, set_imm(z_tmp, float2int(std::log(2))),
+            t2); // x = n * log2 - h
+    h->movprfx(t2, p_all, set_imm(z_tmp, float2int(1.0f / 3)));
+    h->fcpy(z_tmp, p_all, -0.5f);
+    h->fmad(t2, p_all, t0, z_tmp); // f
+    h->fcpy(z_tmp, p_all, 1.0f);
+    h->fmad(t2, p_all, t0, z_tmp); // f * y + 1
+    h->fmad(t0, p_all, t2, t1); // y * f + x
+    // check nan/inf
+    h->fcmlt(mask, p_all, t4, 0.0f); // neg
+    h->mov(wt0, 0x7fc00000); // qnan
+    h->cpy(t0, mask, wt0);
+    h->fcmeq(mask, p_all, t4, 0.0f); // = 0
+    h->mov(wt0, 0xff800000); // -Inf
+    h->cpy(t0, mask, wt0);
 
-    // get r_i, same as table(i)
-    gather_table_values(vmm_aux2, vmm_aux1, 0);
-
-    // compute relative error (rel_err = m * r_i - 1)
-    /* [info]Expand from the content of the process, not from the instruction. */
-    h->fmul(vmm_aux2, vmm_aux2, vmm_src);
-    h->fsub(vmm_aux2, vmm_aux2, ZRegS(IDX(table_val(one))));
-
-    // compute polynomial(rel_err)
-    h->not_(p_tmp0.b, h->P_ALL_ONE / T_z, PRegB(IDX(p_all)));
-    h->mov(ZRegD(IDX(vmm_src)), ZRegD(IDX(table_val(log_pol, 3))));
-    h->mov(vmm_src, p_tmp0 / T_m, 0);
-    h->fmad(vmm_src, p_all / T_m, vmm_aux2, ZRegS(IDX(table_val(log_pol, 2))));
-    h->fmad(vmm_src, p_all / T_m, vmm_aux2, ZRegS(IDX(table_val(log_pol, 1))));
-    h->fmad(vmm_src, p_all / T_m, vmm_aux2, ZRegS(IDX(table_val(log_pol, 0))));
-    h->fmad(vmm_src, p_all / T_m, vmm_aux2, ZRegS(IDX(table_val(one))));
-    h->fmul(vmm_src, vmm_src, vmm_aux2);
-
-    // get log(r_i) = table(i+1)
-    gather_table_values(vmm_aux2, vmm_aux1, vlen);
-
-    // compute partial result (pres = E * ln(2) - log(r_i))
-    h->mov(PRegB(IDX(p_tmp0)), h->P_ALL_ONE.b);
-    h->fmla(vmm_aux2, p_tmp0 / T_m, vmm_aux3, ZRegS(IDX(table_val(ln2f))));
-
-    // compute (result = polynomial + pres) w/ TwoSum algorithm
-    // TODO: restore this instead of version below when asserts are gone
-    // h->uni_vaddps(vmm_aux1, vmm_src, vmm_aux2); // res_hi = pol + pres
-    // h->uni_vsubps(vmm_aux3, vmm_aux1, vmm_aux2); // res_lo = res_hi - pres
-    // h->uni_vsubps(vmm_aux3, vmm_aux3, vmm_src); // res_lo = res_lo - pol
-    // h->uni_vaddps(vmm_src, vmm_aux1, vmm_aux3); // res_hi = pol + pres
-
-    h->not_(p_tmp0.b, h->P_ALL_ONE / T_z, PRegB(IDX(p_all)));
-    h->mov(ZRegD(IDX(vmm_aux1)), ZRegD(IDX(vmm_src)));
-    h->mov(vmm_aux1, p_tmp0 / T_m, 0);
-    h->fadd(vmm_aux1, vmm_aux1, vmm_aux2);
-    h->not_(p_tmp0.b, h->P_ALL_ONE / T_z, PRegB(IDX(p_all)));
-    h->mov(ZRegD(IDX(vmm_aux3)), ZRegD(IDX(vmm_aux1)));
-    h->mov(vmm_aux3, p_tmp0 / T_m, 0);
-    h->fsub(vmm_aux3, vmm_aux3,
-            vmm_aux2); // res_lo = res_hi - pres
-    h->fsub(vmm_aux3, vmm_aux3,
-            vmm_src); // res_lo = res_lo - pol
-    h->not_(p_tmp0.b, h->P_ALL_ONE / T_z, PRegB(IDX(p_all)));
-    h->mov(ZRegD(IDX(vmm_src)), ZRegD(IDX(vmm_aux1)));
-    h->mov(vmm_src, p_tmp0 / T_m, 0);
-    h->fadd(vmm_src, vmm_src, vmm_aux3);
-
-    // Check original source for zero and neg values. skip blend w/ extreme
-    // values if all src values were positive.
-    h->add_imm(h->X_TMP_0, h->X_SP, 0, h->X_TMP_1);
-    h->ldr(ZReg(IDX(vmm_aux1)), ptr(h->X_TMP_0));
-    h->add_imm(h->X_SP, h->X_SP, vlen, h->X_TMP_0);
-
-    Label end_log_label;
-    compute_cmp_mask(vmm_aux1, table_val(zero), _cmp_le_os);
-
-    h->orrs(h->P_TMP_0.b, h->P_ALL_ONE / Xbyak_aarch64::T_z,
-            Xbyak_aarch64::PRegB(p_mask.getIdx()),
-            Xbyak_aarch64::PRegB(p_mask.getIdx()));
-
-    h->b(EQ, end_log_label);
-
-    // Blend extreme values into src if reach here.
-    // First zero for -inf values...
-    compute_cmp_mask(vmm_aux1, table_val(zero), _cmp_eq_oq);
-    blend_with_mask(vmm_src, table_val(log_minus_inf));
-
-    // ...then negative for qnan values.
-    compute_cmp_mask(vmm_aux1, table_val(zero), _cmp_lt_os);
-    blend_with_mask(vmm_src, table_val(log_qnan));
-
-    h->L(end_log_label);
+    h->b(exitL);
+    h->L(tbl1L);
+    const float *tbl1Addr = (const float *)h->getCurr();
+    for (size_t i = 0; i < tblN; i++) {
+        fi fi;
+        fi.i = (127 << 23) | (i << (23 - tblL));
+        fi.f = std::sqrt(2) / fi.f;
+        h->dd(fi.i);
+    }
+    h->L(tbl2L);
+    for (size_t i = 0; i < tblN; i++) {
+        fi fi;
+        fi.f = std::log(tbl1Addr[i]);
+        h->dd(fi.i);
+    }
+    h->L(exitL);
 }
 
 template <cpu_isa_t isa>
@@ -1196,16 +1134,11 @@ template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_bwd(
         const TRegS &vmm_src) {
     // res = 1 / s
-    h->not_(p_tmp0.b, h->P_ALL_ONE / T_z, PRegB(IDX(p_all)));
-    h->mov(ZRegD(IDX(vmm_aux0)), ZRegD(IDX(table_val(one))));
-    h->mov(vmm_aux0, p_tmp0 / T_m, 0);
-
-    h->mov(PRegB(IDX(p_tmp0)), h->P_ALL_ONE, h->P_ALL_ONE.b);
-    h->fdiv(vmm_aux0, p_tmp0, vmm_src);
-
-    h->not_(p_tmp0.b, h->P_ALL_ONE / T_z, PRegB(IDX(p_all)));
-    h->mov(ZRegD(IDX(vmm_src)), ZRegD(IDX(vmm_aux0)));
-    h->mov(vmm_src, p_tmp0 / T_m, 0);
+    /* Do not use 1.f, which is a float constant,
+       but 1., which is a double constant. */
+    h->fmov(z_tmp, 1.);
+    h->fdiv(z_tmp, p_all, vmm_src);
+    h->mov(ZRegD(IDX(vmm_src)), ZRegD(IDX(z_tmp)));
 }
 
 template <cpu_isa_t isa>
@@ -1343,7 +1276,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_exp: return 4;
             case eltwise_gelu_tanh: return 9; /* = tanh */
             case eltwise_swish: return 6; /* = logistic */
-            case eltwise_log: return 5;
+            case eltwise_log: return 6;
             case eltwise_clip: return 2;
             case eltwise_gelu_erf: return 6;
             case eltwise_round: return 0;
@@ -1352,7 +1285,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
     } else {
         switch (alg_) {
             case eltwise_relu_use_dst_for_bwd:
-            case eltwise_relu: return 2;
+            case eltwise_relu: return 1;
             case eltwise_elu_use_dst_for_bwd:
             case eltwise_elu: return 4; /* = exp */
             case eltwise_tanh_use_dst_for_bwd: return 2;
@@ -1370,7 +1303,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_exp: return 4; /* = exp */
             case eltwise_gelu_tanh: return 9; /* = tanh */
             case eltwise_swish: return 6; /* = logistic */
-            case eltwise_log: return 2;
+            case eltwise_log: return 1;
             case eltwise_clip: return 3;
             case eltwise_gelu_erf: return 6;
             default: assert(!"unsupported eltwise algorithm");
@@ -1633,123 +1566,6 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
             {gelu_erf_pol, {0x3f87dc22, true}}, // p5 = 1.061405429f
     };
 
-    // log(x) constants
-    static const table_t log_consts {
-            {log_minus_inf, {0xff800000, true}},
-            {log_qnan, {0x7fc00000, true}},
-            {log_mantissa_mask, {0x007fffff, true}},
-            {log_full_k_reg_mask, {0x0000ffff, true}},
-            {log_five_bit_offset, {0x0000001f, true}},
-    };
-
-    // log(x) polynomial approximation
-    static const table_t log_polynomial {
-            {log_pol, {0xbf000000, true}}, // p1 = -0.5f
-            {log_pol, {0x3eaaaaab, true}}, // p2 =  0.333333343f
-            {log_pol, {0xbe8004ab, true}}, // p3 = -0.250035613f
-            {log_pol, {0x3e4cc8a3, true}}, // p4 =  0.199984118f
-    };
-
-    // log(x) pre-defined values. First goes index}, then val[index].
-    static const table_t log_predefined_values {
-            {log_predefined_vals, {0x3f800000, true}}, //  0: 1
-            {log_predefined_vals,
-                    {0xc2b00f34, true}}, //  1: -88.029693603515625
-            {log_predefined_vals, {0x3f780000, true}}, //  2: 0.96875
-            {log_predefined_vals,
-                    {0xc2affef2, true}}, //  3: -87.9979400634765625
-            {log_predefined_vals, {0x3f700000, true}}, //  4: 0.9375
-            {log_predefined_vals,
-                    {0xc2afee29, true}}, //  5: -87.9651565551757812
-            {log_predefined_vals, {0x3f680000, true}}, //  6: 0.90625
-            {log_predefined_vals,
-                    {0xc2afdccd, true}}, //  7: -87.9312515258789062
-            {log_predefined_vals, {0x3f600000, true}}, //  8: 0.875
-            {log_predefined_vals,
-                    {0xc2afcad6, true}}, //  9: -87.8961639404296875
-            {log_predefined_vals, {0x3f580000, true}}, // 10: 0.84375
-            {log_predefined_vals,
-                    {0xc2afb837, true}}, // 11: -87.859794616699218
-            {log_predefined_vals, {0x3f580000, true}}, // 12: 0.84375
-            {log_predefined_vals,
-                    {0xc2afb837, true}}, // 13: -87.859794616699218
-            {log_predefined_vals, {0x3f500000, true}}, // 14: 0.8125
-            {log_predefined_vals,
-                    {0xc2afa4e4, true}}, // 15: -87.822052001953125
-            {log_predefined_vals, {0x3f480000, true}}, // 16: 0.78125
-            {log_predefined_vals,
-                    {0xc2af90cf, true}}, // 17: -87.782829284667968
-            {log_predefined_vals, {0x3f480000, true}}, // 18: 0.78125
-            {log_predefined_vals,
-                    {0xc2af90cf, true}}, // 19: -87.782829284667968
-            {log_predefined_vals, {0x3f400000, true}}, // 20: 0.75
-            {log_predefined_vals,
-                    {0xc2af7be9, true}}, // 21: -87.742012023925781
-            {log_predefined_vals, {0x3f400000, true}}, // 22: 0.75
-            {log_predefined_vals,
-                    {0xc2af7be9, true}}, // 23: -87.742012023925781
-            {log_predefined_vals, {0x3f380000, true}}, // 24: 0.71875
-            {log_predefined_vals,
-                    {0xc2af661e, true}}, // 25: -87.699447631835937
-            {log_predefined_vals, {0x3f380000, true}}, // 26: 0.71875
-            {log_predefined_vals,
-                    {0xc2af661e, true}}, // 27: -87.699447631835937
-            {log_predefined_vals, {0x3f300000, true}}, // 28: 0.6875
-            {log_predefined_vals,
-                    {0xc2af4f5c, true}}, // 29: -87.654998779296875
-            {log_predefined_vals, {0x3f300000, true}}, // 30: 0.6875
-            {log_predefined_vals,
-                    {0xc2af4f5c, true}}, // 31: -87.654998779296875
-            {log_predefined_vals, {0x3fa80000, true}}, // 32: 1.3125
-            {log_predefined_vals,
-                    {0xc2b09a6f, true}}, // 33: -88.301628112792968
-            {log_predefined_vals, {0x3fa80000, true}}, // 34: 1.3125
-            {log_predefined_vals,
-                    {0xc2b09a6f, true}}, // 35: -88.301628112792968
-            {log_predefined_vals, {0x3fa00000, true}}, // 36: 1.25
-            {log_predefined_vals,
-                    {0xc2b08174, true}}, // 37: -88.252838134765625
-            {log_predefined_vals, {0x3fa00000, true}}, // 38: 1.25
-            {log_predefined_vals,
-                    {0xc2b08174, true}}, // 39: -88.252838134765625
-            {log_predefined_vals, {0x3fa00000, true}}, // 40: 1.25
-            {log_predefined_vals,
-                    {0xc2b08174, true}}, // 41: -88.252838134765625
-            {log_predefined_vals, {0x3f980000, true}}, // 42: 1.1875
-            {log_predefined_vals,
-                    {0xc2b06731, true}}, // 43: -88.201545715332031
-            {log_predefined_vals, {0x3f980000, true}}, // 44: 1.1875
-            {log_predefined_vals,
-                    {0xc2b06731, true}}, // 45: -88.201545715332031
-            {log_predefined_vals, {0x3f900000, true}}, // 46: 1.125
-            {log_predefined_vals,
-                    {0xc2b04b82, true}}, // 47: -88.147476196289062
-            {log_predefined_vals, {0x3f900000, true}}, // 48: 1.125
-            {log_predefined_vals,
-                    {0xc2b04b82, true}}, // 49: -88.147476196289062
-            {log_predefined_vals, {0x3f900000, true}}, // 50: 1.125
-            {log_predefined_vals,
-                    {0xc2b04b82, true}}, // 51: -88.147476196289062
-            {log_predefined_vals, {0x3f900000, true}}, // 52: 1.125
-            {log_predefined_vals,
-                    {0xc2b04b82, true}}, // 53: -88.147476196289062
-            {log_predefined_vals, {0x3f880000, true}}, // 54: 1.0625
-            {log_predefined_vals,
-                    {0xc2b02e3e, true}}, // 55: -88.090316772460937
-            {log_predefined_vals, {0x3f880000, true}}, // 56: 1.0625
-            {log_predefined_vals,
-                    {0xc2b02e3e, true}}, // 57: -88.090316772460937
-            {log_predefined_vals, {0x3f880000, true}}, // 58: 1.0625
-            {log_predefined_vals,
-                    {0xc2b02e3e, true}}, // 59: -88.090316772460937
-            {log_predefined_vals, {0x3f800000, true}}, // 60: 1
-            {log_predefined_vals,
-                    {0xc2b00f34, true}}, // 61: -88.029693603515625
-            {log_predefined_vals, {0x3f800000, true}}, // 62: 1
-            {log_predefined_vals,
-                    {0xc2b00f34, true}}, // 63: -88.029693603515625
-    };
-
     // This object takes care about which constants and polynomials to include.
     struct need_t {
         need_t(alg_kind_t alg) {
@@ -1822,9 +1638,6 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     if (need.gelu_tanh()) push_entries_of(gelu_tanh_consts);
     if (need.gelu_erf()) push_entries_of(gelu_erf_consts);
     if (need.gelu_erf()) push_entries_of(gelu_erf_polynomial);
-    if (need.log()) push_entries_of(log_consts);
-    if (need.log()) push_entries_of(log_polynomial);
-    if (need.log()) push_entries_of(log_predefined_values);
 
     // Now that we registered the entries, we set the offsets.  No
     // entries should be registered after this point.  This allows to
