@@ -432,71 +432,27 @@ template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_fwd(
         const TRegS &vmm_src) {
 
-    // exp(x) =
-    // = exp(n * ln(2) + r) // divide x by ln(2) and get quot and rem
-    // = 2^n * exp(r) // simplify the exp(n*ln(2)) expression
-
-    // get mask of values lower than log(FLT_MIN) to zero them in the output
-    compute_cmp_mask(vmm_src, table_val(exp_ln_flt_min_f), _cmp_lt_os);
-
-    h->mov(PRegB(IDX(p_tmp0)), h->P_ALL_ONE.b);
-    h->mov(ZRegD(IDX(z_tmp)), ZRegD(IDX(table_val(exp_ln_flt_max_f))));
-    h->fminnm(z_tmp, p_tmp0, vmm_src);
-    h->fmin(z_tmp, p_tmp0, vmm_src);
-    h->mov(ZRegD(IDX(vmm_src)), ZRegD(IDX(z_tmp)));
-
-    h->mov(ZRegD(IDX(z_tmp)), ZRegD(IDX(table_val(exp_ln_flt_min_f))));
-    h->fmaxnm(z_tmp, p_tmp0, vmm_src);
-    h->fmax(z_tmp, p_tmp0, vmm_src);
-    h->mov(ZRegD(IDX(vmm_src)), ZRegD(IDX(z_tmp)));
-
-    h->mov(ZRegD(IDX(vmm_aux1)), ZRegD(IDX(vmm_src)));
-
-    // calculate exp(x)
-    // fx = x * log2ef + 0.5
-    h->fmul(vmm_src, vmm_src, ZRegS(IDX(table_val(exp_log2ef))));
-    h->fadd(vmm_src, vmm_src, ZRegS(IDX(table_val(half))));
-
-    // tmp = floorf(fx)
-
-    h->frintm(vmm_aux2, p_tmp0 / T_m, vmm_src);
-
-    // keep vmm_src = fx for further computations
-    h->mov(ZRegD(IDX(vmm_src)), ZRegD(IDX(vmm_aux2)));
-
-    // x = x - fx * ln2
-    h->fmls(vmm_aux1, p_tmp0 / T_m, vmm_aux2, ZRegS(IDX(table_val(ln2f))));
-
-    // We do not count 2^n here, because n can reach 128 and 2^128 is not
-    // representable by fp32, so to get around this problem, instead of computing
-    // 2^n * exp(r) will be counted 2*2^(n-1)*exp(r), because 2^127
-    // and 2 are numbers representable in fp32.
-
-    // compute 2^(n-1)
-    h->fsub(vmm_src, vmm_src, ZRegS(IDX(table_val(one))));
-    h->frinti(vmm_aux2, p_tmp0 / T_m, vmm_src);
-    h->fcvtzs(vmm_aux2, p_tmp0 / T_m, vmm_aux2);
-    h->add(vmm_aux2, vmm_aux2, ZRegS(IDX(table_val(exponent_bias))));
-    h->lsl(vmm_aux2, vmm_aux2,
-
-            n_mantissa_bits); //TRegS(6) = 2^-fx
-
-    // use vmm_src as tmp vmm_zero when applying mask
-    h->eor(ZRegD(IDX(vmm_src)), ZRegD(IDX(vmm_src)), ZRegD(IDX(vmm_src)));
-    // set zeroes at those points which were < log(FLT_MIN)
-    blend_with_mask(vmm_aux2, vmm_src);
-
-    // compute polynomial
-    h->mov(ZRegD(IDX(vmm_src)), ZRegD(IDX(table_val(exp_pol, 4))));
-    h->fmad(vmm_src, p_all / T_m, vmm_aux1, ZRegS(IDX(table_val(exp_pol, 3))));
-    h->fmad(vmm_src, p_all / T_m, vmm_aux1, ZRegS(IDX(table_val(exp_pol, 2))));
-    h->fmad(vmm_src, p_all / T_m, vmm_aux1, ZRegS(IDX(table_val(exp_pol, 1))));
-    h->fmad(vmm_src, p_all / T_m, vmm_aux1, ZRegS(IDX(table_val(exp_pol, 0))));
-    h->fmad(vmm_src, p_all / T_m, vmm_aux1, ZRegS(IDX(table_val(one))));
-
-    // y = y * 2^n
-    h->fmul(vmm_src, vmm_src, vmm_aux2);
-    h->fmul(vmm_src, vmm_src, ZRegS(IDX(table_val(two))));
+    const auto &t0 = ZRegS(IDX(vmm_src));
+    const auto &t1 = ZRegS(IDX(vmm_aux1));
+    const auto &t2 = ZRegS(IDX(vmm_aux2));
+    h->fmin(t0, p_all, ZRegS(IDX(table_val(exp_ln_flt_max_f, z_tmp))));
+    h->fmax(t0, p_all, ZRegS(IDX(table_val(exp_ln_flt_min_f, z_tmp))));
+    h->fmul(t0, t0, ZRegS(IDX(table_val(exp_log2ef, z_tmp))));
+    h->movprfx(t1, p_all, t0);
+    h->frintm(t1, p_all, t0);
+    h->fcvtzs(t2, p_all, t1);
+    h->fsub(t1, t0, t1);
+    h->fadd(t0, t1, ZRegS(IDX(table_val(one, z_tmp))));
+    h->lsr(t1, t0, 17);
+    h->fexpa(t1, t1);
+    h->fscale(t1, p_all, t2);
+    h->and_(ZRegD(t2.getIdx()), ZRegD(t0.getIdx()),
+            ZRegD(IDX(table_val(exp_not_mask17, z_tmp))));
+    h->fsub(t2, t0, t2);
+    h->movprfx(t0, p_all, ZRegS(IDX(table_val(exp_coeff2, z_tmp))));
+    h->fmad(t0, p_all, t2, ZRegS(IDX(table_val(exp_coeff1, z_tmp))));
+    h->fmad(t0, p_all, t2, ZRegS(IDX(table_val(one, z_tmp))));
+    h->fmul(t0, t1, t0);
 }
 
 template <cpu_isa_t isa>
@@ -1820,6 +1776,12 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
             {exp_pol, {0x3d2b9d0d, true}}, // p4 = 0.0418978221f
             {exp_pol, {0x3c07cfce, true}} // p5 = 0.00828929059f
     };
+    // exp(x) constants2
+    static const table_t exp_consts2 {
+            {exp_coeff1, {0x3f31721c, true}},
+            {exp_coeff2, {0x3e772df2, true}},
+            {exp_not_mask17, {~((1u << 17) - 1), true}},
+    };
 
     // tanh(x) constants for four interval approximation
     static const table_t tanh_consts {{tanh_idx_bias, {0x39800000, true}},
@@ -2281,6 +2243,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     push_entries_of(common_values);
     if (need.exp()) push_entries_of(exp_consts);
     if (need.exp()) push_entries_of(exp_polynomial);
+    if (need.exp()) push_entries_of(exp_consts2);
     if (need.tanh()) push_entries_of(tanh_consts);
     if (need.tanh()) push_entries_of(tanh_polynomial_table);
     if (need.soft_relu()) push_entries_of(soft_relu_consts);
