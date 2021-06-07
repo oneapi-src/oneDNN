@@ -73,7 +73,7 @@ std::tuple<dim_t, dim_t, x64::cpu_isa_t> brgemm_calc_k_block_with_isa(dim_t K1,
         const auto k2_block_tail = K2 % k2_block_amx;
         const bool amx_block_invalid = k1_block_tail % padding
                 || k2_block_tail % padding || k1_block_amx % padding
-                || k2_block_amx % padding || k1_block != k2_block;
+                || k2_block_amx % padding;
 
         if (!amx_block_invalid) {
             k1_block = k1_block_amx;
