@@ -186,7 +186,7 @@ For a debug build of oneDNN it is advisable to specify a Compute Library build
 which has also been built with debug enabled.
 
 @warning
-oneDNN is only compatible with Compute Library builds v21.02 or later.
+oneDNN is only compatible with Compute Library builds v21.05 or later.
 
 #### Vendor BLAS libraries
 oneDNN can use a standard BLAS library for GEMM operations.
