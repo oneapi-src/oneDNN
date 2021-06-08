@@ -127,6 +127,8 @@ notice.
 See Intel's [Security Center](https://www.intel.com/content/www/us/en/security-center/default.html)
 for information on how to report a potential security issue or vulnerability.
 
+See also: [Security Policy](SECURITY.md)
+
 ## Trademark Information
 
 Intel, the Intel logo, Intel Atom, Intel Core, Intel Xeon Phi, Iris, OpenVINO,
