@@ -184,8 +184,11 @@ private:
     std::string dtag_;
 };
 
+void check_known_skipped_case(const prb_t *prb, res_t *res);
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
+int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem);
+int ref_reorder(const prb_t *prb, dnn_mem_t &dst, const dnn_mem_t &src);
 
 } // namespace reorder
 

@@ -265,6 +265,8 @@ dnn_mem_t make_dnn_mem(
 dnn_mem_t make_dnn_mem(
         const dnnl::graph::logical_tensor &lt, const std::string &tag);
 
+dims_t calculate_strides(dims_t dims, dt dtype, std::string tag);
+
 template <typename T, std::size_t N>
 constexpr T *end(T (&arr)[N]) noexcept {
     return arr + N;
