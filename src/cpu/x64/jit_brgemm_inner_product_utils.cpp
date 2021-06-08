@@ -110,10 +110,12 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
 }
 
 int get_oc_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust) {
-    if (!try_to_adjust && jbgp.prop_kind == backward_data) {
+    const bool amx_bf16_bwd_d_noadjust = !try_to_adjust
+            && jbgp.prop_kind == backward_data
+            && jbgp.isa == avx512_core_bf16_amx_bf16;
+    if (amx_bf16_bwd_d_noadjust) {
         constexpr int amx_bf16_row = 64;
-        return (jbgp.isa == avx512_core_bf16_amx_bf16) ? amx_bf16_row
-                                                       : jbgp.simd_w;
+        return amx_bf16_row;
     } else {
         if (jbgp.oc >= 64) {
             return 64;

@@ -1222,6 +1222,9 @@ private:
     opmask_t kF0F0 = k6;
     opmask_t kTail = k7;
 
+    reg64_t reg_src_base = rax;
+    reg64_t reg_tr_src_base = rbx;
+
     reg64_t reg_src = r8;
     reg64_t reg_tr_src = r9;
     reg64_t reg_loop_N = r10;
@@ -1372,7 +1375,7 @@ void jit_brgemm_trans_wei_f32_t::transpose_16x16(int nrows, int ncolumns) {
 
 void jit_brgemm_trans_wei_f32_t::generate() {
     preamble();
-    assert(transpose_size == conf_->oc_block);
+    assert(conf_->oc_block % transpose_size == 0);
     int fwd_ic_block = conf_->simd_w;
     int fwd_oc_block = 0;
     switch (conf_->wei_tag) {
@@ -1411,12 +1414,13 @@ void jit_brgemm_trans_wei_f32_t::generate() {
     dim_t N_src_shift = conf_->kd * conf_->kh * conf_->kw * fwd_ic_block
             * fwd_oc_block * typesize;
     dim_t N_tr_src_shift = conf_->simd_w * typesize;
+    dim_t K_src_shift = conf_->simd_w * typesize;
+    dim_t K_tr_src_shift = conf_->ic_block * conf_->simd_w * typesize;
 
-    mov(reg_src, ptr[param1 + GET_OFF(src)]);
-    mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
+    mov(reg_src_base, ptr[param1 + GET_OFF(src)]);
+    mov(reg_tr_src_base, ptr[param1 + GET_OFF(tr_src)]);
     mov(reg_loop_batch, ptr[param1 + GET_OFF(current_gemm_batch)]);
     mov(reg_loop_K, ptr[param1 + GET_OFF(current_K)]);
-    mov(reg_loop_N, ptr[param1 + GET_OFF(current_N)]);
 
     auto kmovw = [=](Opmask k, unsigned w) {
         mov(regw_tmp, w);
@@ -1431,6 +1435,9 @@ void jit_brgemm_trans_wei_f32_t::generate() {
     kmovw(kF0F0, 0xf0f0); // 1111000011110000
 
     auto compute_N = [=](bool is_oc_tail) {
+        mov(reg_loop_N, ptr[param1 + GET_OFF(current_N)]);
+        mov(reg_src, reg_src_base);
+        mov(reg_tr_src, reg_tr_src_base);
         Label N_loop, N_loop_tail;
 
         cmp(reg_loop_N, transpose_size);
@@ -1456,21 +1463,29 @@ void jit_brgemm_trans_wei_f32_t::generate() {
         }
     };
 
-    Label K_tail;
+    Label K_loop, K_tail;
     if (oc_tail > 0) {
         cmp(reg_loop_K, transpose_size);
         jl(K_tail, T_NEAR);
     }
 
+    L(K_loop);
     compute_N(false);
+    add(reg_src_base, K_src_shift);
+    add(reg_tr_src_base, K_tr_src_shift);
 
+    sub(reg_loop_K, transpose_size);
+    cmp(reg_loop_K, transpose_size);
+    jge(K_loop, T_NEAR);
+
+    L(K_tail);
     if (oc_tail > 0) {
-        Label done;
-        jmp(done, T_NEAR);
+        Label K_loop_done;
+        cmp(reg_loop_K, 0);
+        jle(K_loop_done, T_NEAR);
 
-        L(K_tail);
         compute_N(true);
-        L(done);
+        L(K_loop_done);
     }
 
     postamble();
