@@ -204,6 +204,18 @@ dnnl_format_tag_t dnnl_fmt_str2tag(const std::string &fmt_str) {
     return tag;
 };
 
+dims_t calculate_strides(dims_t dims, dt dtype, std::string tag) {
+    dims_t strides(dims.size(), 0);
+    dnnl_memory_desc_t md;
+    dnnl_dims_t dnnl_dims = {0};
+    std::copy(dims.begin(), dims.end(), dnnl_dims);
+    ::init_md(&md, (int)dims.size(), dnnl_dims, convert_dt(dtype), tag);
+    std::copy(std::begin(md.format_desc.blocking.strides),
+            std::begin(md.format_desc.blocking.strides) + dims.size(),
+            std::begin(strides));
+    return strides;
+}
+
 dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
         const dnnl::graph::logical_tensor::data_type &graph_dt,
         const char *atag) {
