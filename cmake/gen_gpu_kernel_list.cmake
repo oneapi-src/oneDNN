@@ -35,7 +35,7 @@ function(parse_kernels ker_name ker_path)
     endforeach()
 
     set(KER_LIST_EXTERN
-        "${KER_LIST_EXTERN}\nextern const char *${ker_name}_kernel[];"
+        "${KER_LIST_EXTERN}\nextern const char *${ker_name}_kernel;"
         PARENT_SCOPE)
     set(KER_LIST_ENTRIES "${entries}" PARENT_SCOPE)
 
@@ -67,7 +67,7 @@ function(gen_gpu_kernel_list ker_list_templ ker_list_src ker_sources headers)
         )
         list(APPEND _sources "${gen_file}")
         set(KER_HEADERS_EXTERN
-            "${KER_HEADERS_EXTERN}\nextern const char *${header_name}_header[];")
+            "${KER_HEADERS_EXTERN}\nextern const char *${header_name}_header;")
         set(KER_HEADERS
             "${KER_HEADERS}\n        ${header_name}_header,")
         set(KER_HEADER_NAMES

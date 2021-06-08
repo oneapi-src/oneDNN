@@ -81,15 +81,6 @@ status_t ocl_gpu_engine_t::create_stream(
     return ocl_stream_t::create_stream(stream, this, queue);
 }
 
-cl_uint count_lines(const char **code) {
-    cl_uint i = 0;
-    while (*code) {
-        i++;
-        code++;
-    }
-    return i;
-}
-
 status_t ocl_gpu_engine_t::create_kernel(
         compute::kernel_t *kernel, jit::jit_generator_base &jitter) const {
 
@@ -148,8 +139,7 @@ static status_t get_program_binaries(
 
 status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
         std::vector<compute::kernel_t> *kernels,
-        const std::vector<const char *> &kernel_names,
-        const char **code_strings,
+        const std::vector<const char *> &kernel_names, const char *code_string,
         const compute::kernel_ctx_t &kernel_ctx) const {
     std::string options = kernel_ctx.options();
 
@@ -190,9 +180,9 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
     const cl_uint n_headers = static_cast<cl_uint>(get_kernel_headers().size());
     std::vector<cl_program> kernel_headers(n_headers);
     for (cl_uint i = 0; i < n_headers; i++) {
-        const auto &headers = get_kernel_headers();
+        const char *header = get_kernel_headers()[i];
         kernel_headers[i] = clCreateProgramWithSource(
-                context(), count_lines(headers[i]), headers[i], nullptr, &err);
+                context(), 1, &header, nullptr, &err);
         if (err != CL_SUCCESS) {
             CHECK(release_headers(kernel_headers));
             OCL_CHECK(err);
@@ -200,8 +190,7 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
     }
 
     cl_program program = clCreateProgramWithSource(
-            context(), count_lines(code_strings), code_strings, nullptr, &err);
-
+            context(), 1, &code_string, nullptr, &err);
     if (err != CL_SUCCESS) {
         CHECK(release_headers(kernel_headers));
         OCL_CHECK(err);

@@ -20,51 +20,23 @@
 #   GEN_FILE   -- path to the generated cpp file
 #===============================================================================
 
-# Read lines of kernel or header file and escape  recursively substitute 'include'
-# preprocessor directives.
-#   cl_file  -- path to the kernel or header file
-#   cl_file_lines -- list with code lines
-function(read_lines cl_file cl_file_lines)
-    file(STRINGS ${cl_file} contents NEWLINE_CONSUME)
-    # Replace square brackets as they have special meaning in CMake
-    string(REGEX REPLACE "\\[" "__BRACKET0__" contents "${contents}")
-    string(REGEX REPLACE "\\]" "__BRACKET1__" contents "${contents}")
-    # Escape backslash
-    string(REGEX REPLACE "\\\\([^\n;])" "\\\\\\\\\\1" contents "${contents}")
-    # Escape backslash (space is to avoid '\;' sequences after the split to a list)
-    string(REGEX REPLACE "\\\\\n" "\\\\\\\\ \n" contents "${contents}")
-    # Use EOL to split the contents to a list
-    string(REGEX REPLACE "\n" ";" contents "${contents}")
+file(READ ${CL_FILE} cl_file_lines)
 
-    set(pp_lines)
-    foreach(l ${contents})
-        string(REGEX REPLACE ";" "\\\\;" esc_line "${l}")
-        list(APPEND pp_lines "${esc_line}")
-    endforeach()
-    set(${cl_file_lines} "${pp_lines}" PARENT_SCOPE)
-endfunction()
-
-read_lines(${CL_FILE} cl_file_lines)
-
-# Replace unescaped semicolon by EOL
-string(REGEX REPLACE "([^\\]|^);" "\\1\n" cl_file_lines "${cl_file_lines}")
-# Unescape semicolon
-string (REGEX REPLACE "\\\\;" ";" cl_file_lines "${cl_file_lines}")
-# Escape quatation marks
-string(REGEX REPLACE "\"" "\\\\\"" cl_file_lines "${cl_file_lines}")
-# Add EOLs
-string(REGEX REPLACE " ?\n" "\\\\n\",\n\"" cl_file_lines "${cl_file_lines}")
-# Replace square brackets back
-string(REGEX REPLACE "__BRACKET0__" "[" cl_file_lines "${cl_file_lines}")
-string(REGEX REPLACE "__BRACKET1__" "]" cl_file_lines "${cl_file_lines}")
+string(LENGTH "${cl_file_lines}" len)
+if(len GREATER 65535)
+    message(WARNING "Windows requires string literals to fit in 65535 bytes. Please split ${CL_FILE}.")
+endif()
 
 get_filename_component(cl_file_name ${CL_FILE} NAME_WE)
 get_filename_component(cl_file_ext ${CL_FILE} EXT)
 
+# Split string into concatenated parts to circumvent the limitation on Windows
+string(REGEX REPLACE "\n" " )==\"\"\\\\n\"\nR\"==(" cl_file_lines "${cl_file_lines}")
+
 if(cl_file_ext STREQUAL ".cl")
-    set(cl_file_contents  "const char *${cl_file_name}_kernel[] ={ \"${cl_file_lines}\", nullptr };")
+    set(cl_file_contents  "const char *${cl_file_name}_kernel = R\"==(${cl_file_lines})==\";")
 elseif(cl_file_ext STREQUAL ".h")
-    set(cl_file_contents  "const char *${cl_file_name}_header[] ={ \"${cl_file_lines}\", nullptr };")
+    set(cl_file_contents  "const char *${cl_file_name}_header = R\"==(${cl_file_lines})==\";")
 else()
     message(FATAL_ERROR "Unknown file extensions: ${cl_file_ext}")
 endif()
@@ -73,4 +45,5 @@ set(cl_file_contents "namespace ocl {\n${cl_file_contents}\n}")
 set(cl_file_contents "namespace gpu {\n${cl_file_contents}\n}")
 set(cl_file_contents "namespace impl {\n${cl_file_contents}\n}")
 set(cl_file_contents "namespace dnnl {\n${cl_file_contents}\n}")
+
 file(WRITE ${GEN_FILE} "${cl_file_contents}")

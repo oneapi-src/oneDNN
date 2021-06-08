@@ -66,7 +66,7 @@ public:
     virtual status_t create_kernels_from_ocl_source(
             std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
-            const char **source_strings,
+            const char *source_string,
             const compute::kernel_ctx_t &kernel_ctx) const {
         assert(!"unexpected");
         return status::success;

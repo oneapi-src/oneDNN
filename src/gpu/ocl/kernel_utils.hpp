@@ -28,8 +28,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-const char **get_kernel_source(const char *name);
-const std::vector<const char **> &get_kernel_headers();
+const char *get_kernel_source(const char *name);
+const std::vector<const char *> &get_kernel_headers();
 const std::vector<const char *> &get_kernel_header_names();
 
 template <typename GetKernelSourceFunc>
@@ -40,11 +40,10 @@ status_t create_kernels(const compute::compute_engine_t *engine,
     auto *ocl_engine = utils::downcast<const ocl::ocl_gpu_engine_t *>(engine);
 
     // Group kernels by their source.
-    std::unordered_map<const char **, std::vector<const char *>>
-            source_to_names;
+    std::unordered_map<const char *, std::vector<const char *>> source_to_names;
     for (auto &kv : kernel_list.kernels()) {
         auto &name = kv.first;
-        const char **source = get_kernel_source_func(name.c_str());
+        const char *source = get_kernel_source_func(name.c_str());
         source_to_names[source].push_back(name.c_str());
     }
 
