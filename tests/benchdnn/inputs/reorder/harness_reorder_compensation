@@ -6,7 +6,7 @@
 
 # Non-grouped cases
 --oflag=,conv_s8s8,conv_zp_comp,conv_s8s8:conv_zp_comp
---stag=abx,xba
+--stag=abx,xba,bxa
 --dtag=xba,ABx2b8a4b,ABx4a4b,ABx4b16a4b,ABx4b32a4b,ABx4b64a4b
 32x32x3
 32x32x3x3 80x24x3x5
