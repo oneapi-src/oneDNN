@@ -159,31 +159,66 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
             = utils::downcast<const ocl_gpu_device_info_t *>(device_info());
     options += " " + dev_info->get_cl_ext_options();
 
-    cl_int err;
-    cl_program program = clCreateProgramWithSource(
-            context(), count_lines(code_strings), code_strings, nullptr, &err);
-    OCL_CHECK(err);
+    const auto release_headers = [](const std::vector<cl_program> &headers) {
+        for (auto &p : headers) {
+            if (p) OCL_CHECK(clReleaseProgram(p));
+        }
+        return status::success;
+    };
 
-    cl_device_id dev = device();
-    err = clBuildProgram(program, 1, &dev, options.c_str(), nullptr, nullptr);
-    if (err != CL_SUCCESS) {
+    const auto print_debug_info = [](cl_int err, cl_program p, cl_device_id d) {
         // Return error if verbose is not enabled.
-        if (get_verbose() == 0) OCL_CHECK(err);
+        if (err == CL_SUCCESS || get_verbose() == 0) return err;
 
         size_t log_length = 0;
         err = clGetProgramBuildInfo(
-                program, dev, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_length);
+                p, d, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_length);
         assert(err == CL_SUCCESS);
 
         std::vector<char> log_buf(log_length);
-        err = clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG,
-                log_length, log_buf.data(), nullptr);
+        err = clGetProgramBuildInfo(p, d, CL_PROGRAM_BUILD_LOG, log_length,
+                log_buf.data(), nullptr);
         assert(err == CL_SUCCESS);
         printf("Error during the build of OpenCL program.\nBuild "
                "log:\n%s\n",
                 log_buf.data());
+        return err;
+    };
+
+    cl_int err;
+    // Prepare kernel headers
+    const cl_uint n_headers = static_cast<cl_uint>(get_kernel_headers().size());
+    std::vector<cl_program> kernel_headers(n_headers);
+    for (cl_uint i = 0; i < n_headers; i++) {
+        const auto &headers = get_kernel_headers();
+        kernel_headers[i] = clCreateProgramWithSource(
+                context(), count_lines(headers[i]), headers[i], nullptr, &err);
+        if (err != CL_SUCCESS) {
+            CHECK(release_headers(kernel_headers));
+            OCL_CHECK(err);
+        }
+    }
+
+    cl_program program = clCreateProgramWithSource(
+            context(), count_lines(code_strings), code_strings, nullptr, &err);
+
+    if (err != CL_SUCCESS) {
+        CHECK(release_headers(kernel_headers));
         OCL_CHECK(err);
     }
+
+    cl_device_id dev = device();
+    auto kernel_header_names = get_kernel_header_names();
+    err = clCompileProgram(program, 1, &dev, options.c_str(), n_headers,
+            kernel_headers.data(), kernel_header_names.data(), nullptr,
+            nullptr);
+
+    CHECK(release_headers(kernel_headers));
+    OCL_CHECK(print_debug_info(err, program, dev));
+
+    program = clLinkProgram(context(), 1, &dev, options.c_str(), 1, &program,
+            nullptr, nullptr, &err);
+    OCL_CHECK(print_debug_info(err, program, dev));
 
     std::shared_ptr<compute::binary_t> shared_binary;
     CHECK(get_program_binaries(program, shared_binary));
