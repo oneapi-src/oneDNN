@@ -71,7 +71,9 @@ x64::cpu_isa_t brgemm_calc_isa(dim_t K1, dim_t K2, bool is_int8, bool is_bf16) {
             return is_amx_int8 ? x64::avx512_core_bf16_amx_int8
                                : x64::avx512_core_bf16_amx_bf16;
         }
-    } else if (is_int8) {
+    }
+
+    if (is_int8) {
         return x64::avx512_core_vnni;
     } else if (is_bf16) {
         return x64::avx512_core_bf16;
