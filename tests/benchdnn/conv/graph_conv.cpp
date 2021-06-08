@@ -150,6 +150,11 @@ fill_status_t conv_graph_prb_t::handle_bia_() {
             *this, spec_.data_format, spec_.bia_dtype);
 }
 
+fill_status_t conv_graph_prb_t::handle_bin_(
+        const attr_t::post_ops_t::entry_t &po_entry) {
+    return po_handler.conv.bin_handler(*this, spec_.data_format, po_entry);
+}
+
 fill_status_t conv_graph_prb_t::handle_elt_(
         const attr_t::post_ops_t::entry_t &po) {
     return po_handler.conv.eltw_handler(*this, po);
@@ -157,11 +162,6 @@ fill_status_t conv_graph_prb_t::handle_elt_(
 
 fill_status_t conv_graph_prb_t::handle_sum_() {
     return po_handler.conv.sum_handler(*this);
-}
-
-fill_status_t conv_graph_prb_t::handle_bin_(
-        const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.conv.bin_handler(*this, spec_.data_format, po_entry);
 }
 
 int doit(const ::conv::prb_t *prb, res_t *res) {

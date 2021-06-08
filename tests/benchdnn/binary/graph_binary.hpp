@@ -49,6 +49,9 @@ struct binary_graph_prb_t : public graph_prb_t {
         ctor_status = fill_status::DONE;
     };
 
+    dnnl::graph::op::kind get_main_op_kind() const override {
+        return spec_.alg;
+    }
     bool has_post_sum() const { return has_post_sum_; }
 
     fill_status_t ctor_status;

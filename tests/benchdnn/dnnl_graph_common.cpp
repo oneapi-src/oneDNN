@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
+#include <vector>
+
 #include <oneapi/dnnl/dnnl_debug.h>
 
 #include "dnnl_graph_common.hpp"
@@ -151,6 +154,21 @@ std::map<std::string, float> convert_eltw_entry(
             return attrs;
         default: return attrs;
     }
+}
+
+bool should_handle_swish(graph_prb_t &p, const dnnl_alg_kind_t kind) {
+    using op = dnnl::graph::op;
+    static const std::vector<op::kind> possible_base_ops
+            = {op::kind::Convolution};
+
+    const bool valid_base_op
+            = std::find(possible_base_ops.cbegin(), possible_base_ops.cend(),
+                      p.get_main_op_kind())
+            != possible_base_ops.cend();
+    const bool is_bias = p.has_post_bia();
+    const bool is_swish = kind == dnnl_eltwise_swish;
+
+    return valid_base_op && is_bias && is_swish;
 }
 
 int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> scales) {
@@ -348,9 +366,12 @@ fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(
         graph_prb_t &p, const attr_t::post_ops_t::entry_t &po_entry) {
     using op = dnnl::graph::op;
 
-    const auto post_op_kind = convert_alg_kind(po_entry.eltwise.alg);
-    if (post_op_kind == op::kind::LastSymbol)
+    const auto requested_post_op_kind = convert_alg_kind(po_entry.eltwise.alg);
+    const auto is_swish = should_handle_swish(p, po_entry.eltwise.alg);
+    if (requested_post_op_kind == op::kind::LastSymbol && !is_swish)
         return fill_status::UNSUPPORTED_OP;
+    const auto post_op_kind
+            = (is_swish) ? op::kind::Sigmoid : requested_post_op_kind;
 
     const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back()];
     const auto dst_dims = dst_lt.get_dims();
@@ -372,6 +393,18 @@ fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(
 
     p.ops_.emplace_back(eltwise);
     p.curr_out_map_ids_.assign({ELT_DST});
+
+    if (is_swish) {
+        const std::string BIA_DST {"bias_dst"};
+        const std::string BIN_DST {"bin_dst"};
+        const size_t new_op_id = p.ops_.size();
+        p.tensor_descs_.emplace(BIN_DST, dst_dt, dst_dims, lt::strided);
+        op binary(new_op_id, op::kind::Multiply,
+                {p.tensor_descs_[ELT_DST], p.tensor_descs_[BIA_DST]},
+                {p.tensor_descs_[BIN_DST]}, "binary");
+        p.ops_.emplace_back(binary);
+        p.curr_out_map_ids_.assign({BIN_DST});
+    }
 
     return fill_status::DONE;
 }

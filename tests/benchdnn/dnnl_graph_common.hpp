@@ -53,6 +53,7 @@ dims_t convert_bin_policy(const dims_t &lhs_dims, const attr_t::policy_t policy,
 std::map<std::string, float> convert_eltw_entry(
         const dnnl::graph::op::kind kind,
         const attr_t::post_ops_t::entry_t &entry);
+bool should_handle_swish(struct graph_prb_t &p, const dnnl_alg_kind_t kind);
 
 int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> scales);
 
@@ -313,11 +314,21 @@ struct graph_prb_t {
         return graph;
     }
 
+    virtual dnnl::graph::op::kind get_main_op_kind() const = 0;
+
+    bool has_post_bia() const { return has_post_bia_; }
+    bool has_post_bin() const { return has_post_bin_; }
+    bool has_post_sum() const { return has_post_sum_; }
+
 protected:
     std::vector<dnnl::graph::op> ops_;
     tensor_descs_t tensor_descs_;
 
     std::vector<std::string> curr_out_map_ids_;
+
+    bool has_post_bia_ {false};
+    bool has_post_bin_ {false};
+    bool has_post_sum_ {false};
 
     friend struct po_handlers_t;
 };

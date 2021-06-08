@@ -38,6 +38,11 @@ struct softmax_graph_prb_t : public graph_prb_t {
 
         ctor_status = fill_status::DONE;
     };
+
+    dnnl::graph::op::kind get_main_op_kind() const override {
+        return dnnl::graph::op::kind::SoftMax;
+    }
+
     fill_status_t ctor_status;
 
 private:
