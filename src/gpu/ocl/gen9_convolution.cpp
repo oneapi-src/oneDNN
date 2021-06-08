@@ -22,6 +22,7 @@
 #include "common/reorder.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
+#include "gpu/primitive_conf.hpp"
 
 using namespace dnnl::impl::memory_tracking::names;
 
@@ -113,20 +114,21 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     conf.is_nhwc = is_1stconv ? is_dst_nhwc : is_nhwc;
     conf.is_depthwise = is_depthwise;
 
+    const int out_block = int8_dst ? 32 : 16;
     if (is_1stconv || (conf.with_groups && conf.ngroups > 1)) {
         conf.ic = conf.ic_without_padding;
-        conf.oc = is_1stconv ? utils::rnd_up(conf.oc_without_padding, 16)
+        conf.oc = is_1stconv ? utils::rnd_up(conf.oc_without_padding, out_block)
                              : conf.oc_without_padding;
     } else {
         conf.ic = utils::rnd_up(conf.ic_without_padding, 16);
-        conf.oc = utils::rnd_up(conf.oc_without_padding, 16);
+        conf.oc = utils::rnd_up(conf.oc_without_padding, out_block);
     }
 
     conf.ngroups_without_padding = conf.ngroups;
     if (is_depthwise) conf.ngroups = utils::rnd_up(conf.ngroups, 16);
 
     const bool is_dw_16g = (conf.is_depthwise && conf.ngroups % 16 == 0);
-    const bool is_16oc = conf.oc % 16 == 0;
+    const bool is_16oc = conf.oc % out_block == 0;
     const bool is_16ic = conf.ic % 16 == 0;
 
     conf.mb_block = 1;
@@ -153,7 +155,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
         if (!is_16oc) return status::unimplemented;
         conf.ver = ver_1stconv;
     } else if ((is_16oc && is_16ic) || is_dw_16g) {
-        conf.ver = (conf.mb % 16 == 0) ? ver_16mb16c : ver_8ow16c;
+        conf.ver = (conf.mb % out_block == 0) ? ver_16mb16c : ver_8ow16c;
     } else {
         return status::unimplemented;
     }
@@ -286,7 +288,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     if (int8_dst) {
         if (is_1stconv && conf.ic_without_padding < 4) {
             dst_tag = utils::pick(conf.ndims - 3, ncw, nchw, ncdhw);
-        } else if (conf.mb % 16 == 0 || (conf.mb == 8 && !is_depthwise)) {
+        } else if (conf.ver == ver_16mb16c) {
             dst_tag = utils::pick(
                     conf.ndims - 3, NCw32n32c, NChw32n32c, NCdhw32n32c);
         } else {

@@ -130,6 +130,11 @@ conv_fwd_mb_block_x8s8x(const __global uchar *src, const __global char *wei,
     int8 C30 = 0, C31 = 0, C32 = 0, C33 = 0;
 
     for (int ic_chunk = 0; ic_chunk < IC_NCHUNK; ic_chunk++) {
+        // Do not calculate if mb block is all zero padded
+        if (MB % MB_BLOCK != 0
+                && (group_mb * MB_BLOCK + mb * MB_BLOCK / mb_blocks) >= MB) {
+            break;
+        }
 
         SRC_DATA_BLOCK_T S0, S1, S2, S3;
         int8 W0, W1, W2, W3;
@@ -347,16 +352,18 @@ conv_fwd_mb_block_x8s8x(const __global uchar *src, const __global char *wei,
     do { \
         for (int n_i = 0; n_i < 8; n_i++) { \
             PACK(C0, C1, C2, C3, n_i); \
-            QUANTIZE_ADD_BIAS(); \
             const int po_mb = (group_mb * MB_BLOCK + mb * MB_BLOCK / mb_blocks \
-                                      + mb_stride + n_i) \
-                    % MB; \
-            const int po_oc = (group_oc + oc) * OC_BLOCK; \
-            float4 dni = convert_float4(SUM_TO_REF(AS_SUM_DATA4_T(D[n_i]))); \
-            APPLY_POST_OPS_TRY_BURST(tmp, float, dni, float, po_mb, 1, po_oc, \
-                    4 * SUB_GROUP_SIZE, ocl_local_id); \
-            ADD_DST_COMPENSATION(); \
-            ZERO_PAD_DST(); \
+                    + mb_stride + n_i); \
+            if (MB % MB_BLOCK == 0 || po_mb < MB) { \
+                QUANTIZE_ADD_BIAS(); \
+                const int po_oc = (group_oc + oc) * OC_BLOCK; \
+                float4 dni \
+                        = convert_float4(SUM_TO_REF(AS_SUM_DATA4_T(D[n_i]))); \
+                APPLY_POST_OPS_TRY_BURST(tmp, float, dni, float, po_mb, 1, \
+                        po_oc, 4 * SUB_GROUP_SIZE, ocl_local_id); \
+                ADD_DST_COMPENSATION(); \
+                ZERO_PAD_DST(); \
+            } \
             CONVERT_PACK(n_i); \
         } \
         BLOCK_WRITE_DST16( \
@@ -366,11 +373,9 @@ conv_fwd_mb_block_x8s8x(const __global uchar *src, const __global char *wei,
     } while (0)
 
     STORE_DST(C00, C01, C02, C03, D0, 0);
-#if MB > 8
     STORE_DST(C10, C11, C12, C13, D1, 8);
 #ifdef MB_FULL_BLOCK
     STORE_DST(C20, C21, C22, C23, D2, 16);
     STORE_DST(C30, C31, C32, C33, D3, 24);
 #endif // MB_FULL_BLOCK
-#endif // MB > 8
 }
