@@ -244,7 +244,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<
-                (utils::one_of(tag_i, format_tag::oiw, format_tag::wio)
+                (utils::one_of(tag_i, format_tag::iwo, format_tag::oiw,
+                         format_tag::wio)
                         && utils::one_of(tag_o, format_tag::OIw4i16o4i,
                                 format_tag::OIw4i32o4i, format_tag::OIw4i64o4i,
                                 format_tag::OIw2i8o4i, format_tag::OIw4o4i))
@@ -257,15 +258,15 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                                 && utils::one_of(tag_o, format_tag::gOIw4i16o4i,
                                         format_tag::gOIw2i8o4i,
                                         format_tag::gOIw4o4i))
-                        || (utils::one_of(
-                                    tag_i, format_tag::hwio, format_tag::oihw)
+                        || (utils::one_of(tag_i, format_tag::ihwo,
+                                    format_tag::hwio, format_tag::oihw)
                                 && utils::one_of(tag_o, format_tag::OIhw4i16o4i,
                                         format_tag::OIhw4i32o4i,
                                         format_tag::OIhw4i64o4i,
                                         format_tag::OIhw2i8o4i,
                                         format_tag::OIhw4o4i))
-                        || (utils::one_of(
-                                    tag_i, format_tag::dhwio, format_tag::oidhw)
+                        || (utils::one_of(tag_i, format_tag::idhwo,
+                                    format_tag::dhwio, format_tag::oidhw)
                                 && utils::one_of(tag_o,
                                         format_tag::OIdhw4i16o4i,
                                         format_tag::OIdhw4i32o4i,
@@ -460,14 +461,15 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 /* Asymmetric Blocking */
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
-        typename utils::enable_if<
-                (utils::one_of(tag_i, format_tag::oiw, format_tag::wio)
-                        && utils::one_of(tag_o, format_tag::Owi16o))
+        typename utils::enable_if<(utils::one_of(tag_i, format_tag::iwo,
+                                           format_tag::oiw, format_tag::wio)
+                                          && utils::one_of(
+                                                  tag_o, format_tag::Owi16o))
                         || (utils::one_of(
                                     tag_i, format_tag::goiw, format_tag::wigo)
                                 && utils::one_of(tag_o, format_tag::gOwi16o))
-                        || (utils::one_of(
-                                    tag_i, format_tag::hwio, format_tag::oihw)
+                        || (utils::one_of(tag_i, format_tag::ihwo,
+                                    format_tag::hwio, format_tag::oihw)
                                 && utils::one_of(tag_o, format_tag::Owhi16o))
                         || (utils::one_of(
                                     tag_i, format_tag::goihw, format_tag::hwigo)
@@ -599,24 +601,25 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 /* Asymmetric Blocking */
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
-        typename utils::enable_if<
-                (utils::one_of(tag_i, format_tag::oiw, format_tag::wio)
-                        && utils::one_of(tag_o, format_tag::OwI16o4i,
-                                format_tag::OIw16i16o4i))
+        typename utils::enable_if<(utils::one_of(tag_i, format_tag::iwo,
+                                           format_tag::oiw, format_tag::wio)
+                                          && utils::one_of(tag_o,
+                                                  format_tag::OwI16o4i,
+                                                  format_tag::OIw16i16o4i))
                         || (utils::one_of(
                                     tag_i, format_tag::goiw, format_tag::wigo)
                                 && utils::one_of(tag_o, format_tag::gOwI16o4i,
                                         format_tag::gOIw16i16o4i))
-                        || (utils::one_of(
-                                    tag_i, format_tag::hwio, format_tag::oihw)
+                        || (utils::one_of(tag_i, format_tag::ihwo,
+                                    format_tag::hwio, format_tag::oihw)
                                 && utils::one_of(tag_o, format_tag::OhwI16o4i,
                                         format_tag::OIhw16i16o4i))
                         || (utils::one_of(
                                     tag_i, format_tag::goihw, format_tag::hwigo)
                                 && utils::one_of(tag_o, format_tag::gOhwI16o4i,
                                         format_tag::gOIhw16i16o4i))
-                        || (utils::one_of(
-                                    tag_i, format_tag::dhwio, format_tag::oidhw)
+                        || (utils::one_of(tag_i, format_tag::idhwo,
+                                    format_tag::dhwio, format_tag::oidhw)
                                 && utils::one_of(tag_o, format_tag::OdhwI16o4i,
                                         format_tag::OIdhw16i16o4i))
                         || (utils::one_of(tag_i, format_tag::goidhw)
