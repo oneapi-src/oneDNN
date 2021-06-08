@@ -397,6 +397,8 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
             push(aux_reg_bcast_data);
         }
 
+        const auto is_padding = jcp.oc_without_padding != jcp.oc;
+        if (is_padding) uni_vxorps(vtmp, vtmp, vtmp);
         for (int j = 0; j < ur; ++j)
             for (int i = 0; i < load_loop_blk; ++i) {
                 if (load_dim_tail > 0 && i == load_loop_blk - 1) {
@@ -424,6 +426,11 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
                         vmovups(output_ptr(i, j),
                                 vreg_accum(load_loop_blk, i, j));
                     } else {
+                        if (is_padding && jcp.with_binary) {
+                            vmovups(ptr[aux_reg_output_data
+                                            + get_output_offset(i, j)],
+                                    vtmp);
+                        }
                         store_bytes(vreg_accum(load_loop_blk, i, j),
                                 aux_reg_output_data, get_output_offset(i, j),
                                 load_dim_tail * sizeof(float));
