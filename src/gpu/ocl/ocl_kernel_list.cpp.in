@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include <cassert>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "gpu/ocl/kernel_utils.hpp"
 
@@ -26,6 +27,7 @@ namespace gpu {
 namespace ocl {
 
 @KER_LIST_EXTERN@
+@KER_HEADERS_EXTERN@
 
 const char **get_kernel_source(const char *name) {
     static const std::unordered_map<std::string, const char ** > kernel_list = {
@@ -36,6 +38,20 @@ const char **get_kernel_source(const char *name) {
 
     assert(kernel_list.count(name) == 1);
     return kernel_list.at(name);
+}
+
+const std::vector<const char **> &get_kernel_headers() {
+    static const std::vector<const char **> kernel_headers = {
+        @KER_HEADERS@
+    };
+    return kernel_headers;
+}
+
+const std::vector<const char *> &get_kernel_header_names() {
+    static const std::vector<const char *> kernel_header_names = {
+        @KER_HEADER_NAMES@
+    };
+    return kernel_header_names;
 }
 
 } // namespace ocl

@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2020 Intel Corporation
+# Copyright 2019-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ file(GLOB_RECURSE SOURCES
 include("${PROJECT_SOURCE_DIR}/cmake/gen_gpu_kernel_list.cmake")
 
 file(GLOB_RECURSE CL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.cl)
+file(GLOB_RECURSE CL_HEADERS ${PROJECT_SOURCE_DIR}/src/gpu/*.h)
 
 set(kernel_list_templ "${PROJECT_SOURCE_DIR}/src/gpu/ocl/ocl_kernel_list.cpp.in")
 set(kernel_list_src "${PROJECT_BINARY_DIR}/src/gpu/ocl/ocl_kernel_list.cpp")
@@ -31,7 +32,8 @@ set(kernel_list_src "${PROJECT_BINARY_DIR}/src/gpu/ocl/ocl_kernel_list.cpp")
 gen_gpu_kernel_list(
     "${kernel_list_templ}"
     "${kernel_list_src}"
-    "${CL_SOURCES}")
+    "${CL_SOURCES}"
+    "${CL_HEADERS}")
 
 list(APPEND SOURCES ${kernel_list_src})
 

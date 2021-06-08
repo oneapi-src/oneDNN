@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020 Intel Corporation
+# Copyright 2020-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,24 +43,46 @@ function(parse_kernels ker_name ker_path)
         PARENT_SCOPE)
 endfunction()
 
-function(gen_gpu_kernel_list ker_list_templ ker_list_src ker_sources)
+function(gen_gpu_kernel_list ker_list_templ ker_list_src ker_sources headers)
     set(_sources "${SOURCES}")
 
     set(KER_LIST_EXTERN)
     set(KER_LIST_ENTRIES)
+    set(KER_HEADERS_EXTERN)
+    set(KER_HEADERS)
+    set(KER_HEADER_NAMES)
 
-    set(unique_ker_names)
+    foreach(header_path ${headers})
+        get_filename_component(header_name ${header_path} NAME_WE)
+        string(REGEX REPLACE ".*\\/src\\/(.*)" "\\1" header_full_name ${header_path})
 
-    foreach(ker_path ${ker_sources})
-        get_filename_component(ker_name ${ker_path} NAME_WE)
-        set(gen_file "${CMAKE_CURRENT_BINARY_DIR}/${ker_name}_kernel.cpp")
-        # XXX: incremental build does not work with headers from kernel code
+        set(gen_file "${CMAKE_CURRENT_BINARY_DIR}/${header_name}_header.cpp")
         add_custom_command(
             OUTPUT ${gen_file}
             COMMAND ${CMAKE_COMMAND}
-                -DKER_FILE="${ker_path}"
+                -DCL_FILE="${header_path}"
                 -DGEN_FILE="${gen_file}"
-                -DKER_INC_DIR="${PROJECT_SOURCE_DIR}/src"
+                -P ${PROJECT_SOURCE_DIR}/cmake/gen_gpu_kernel.cmake
+            DEPENDS ${header_path}
+        )
+        list(APPEND _sources "${gen_file}")
+        set(KER_HEADERS_EXTERN
+            "${KER_HEADERS_EXTERN}\nextern const char *${header_name}_header[];")
+        set(KER_HEADERS
+            "${KER_HEADERS}\n        ${header_name}_header,")
+        set(KER_HEADER_NAMES
+            "${KER_HEADER_NAMES}\n        \"${header_full_name}\",")
+    endforeach()
+
+    set(unique_ker_names)
+    foreach(ker_path ${ker_sources})
+        get_filename_component(ker_name ${ker_path} NAME_WE)
+        set(gen_file "${CMAKE_CURRENT_BINARY_DIR}/${ker_name}_kernel.cpp")
+        add_custom_command(
+            OUTPUT ${gen_file}
+            COMMAND ${CMAKE_COMMAND}
+                -DCL_FILE="${ker_path}"
+                -DGEN_FILE="${gen_file}"
                 -P ${PROJECT_SOURCE_DIR}/cmake/gen_gpu_kernel.cmake
             DEPENDS ${ker_path}
         )
