@@ -431,13 +431,21 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
     apply_postops(oc_blocks, ur_w, oc_tail);
 
     auto store_output = [=](bool is_tail, int tail) {
+        const auto is_padding = jcp.oc_without_padding != jcp.oc;
+        if (is_padding) uni_vxorps(ytmp, ytmp, ytmp);
         for (int ii = 0; ii < oc_blocks; ii++)
             for (int jj = 0; jj < ur_w; jj++) {
                 Ymm reg_out = get_ymm(ur_w, ii, jj);
-                if (is_tail && ii == oc_blocks - 1 && is_src_layout_nxc())
+                if (is_tail && ii == oc_blocks - 1) {
+                    if (is_padding && jcp.with_binary) {
+                        vmovups(make_safe_addr(reg_output,
+                                        get_output_offset(ii, jj),
+                                        reg_long_offt),
+                                ytmp);
+                    }
                     store_bytes(reg_out, reg_output, get_output_offset(ii, jj),
                             tail * sizeof(float));
-                else
+                } else
                     vmovups(make_safe_addr(reg_output,
                                     get_output_offset(ii, jj), reg_long_offt),
                             reg_out);

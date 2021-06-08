@@ -284,13 +284,18 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::store_output(int ur_w) {
     }
 
     L(store_label);
-    const bool dst_layout_nxc = is_dst_layout_nxc();
+
+    const auto is_padding = jcp.oc_without_padding != jcp.oc;
     for (int k = 0; k < jcp.nb_oc_blocking; k++)
         for (int j = 0; j < ur_w; j++) {
             Vmm vmm = vmm_out(j, k);
             // mask only needed for last oc_block
-            if (oc_tail && k + 1 == jcp.nb_oc_blocking && dst_layout_nxc)
-                vmm = vmm | k_oc_tail_mask;
+            if (oc_tail && k + 1 == jcp.nb_oc_blocking) {
+                if (is_padding)
+                    vmovups(vmm | k_oc_tail_mask | T_z, vmm);
+                else
+                    vmm = vmm | k_oc_tail_mask;
+            }
             size_t aux_output_offset = get_output_offset(j, k);
 
             vmovups(EVEX_compress_addr_safe(
@@ -1447,10 +1452,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         return status::unimplemented;
 
     jcp.ic_tail = is_data_layout_nxc ? jcp.ic % jcp.simd_w : 0;
-    if (is_data_layout_nxc)
-        jcp.oc_tail = jcp.oc % jcp.simd_w;
-    else
-        jcp.oc_tail = jcp.with_binary ? jcp.oc_without_padding % jcp.simd_w : 0;
+    jcp.oc_tail = jcp.oc_without_padding % jcp.simd_w;
 
     format_tag_t src_tag, dst_tag, wei_tag;
 
