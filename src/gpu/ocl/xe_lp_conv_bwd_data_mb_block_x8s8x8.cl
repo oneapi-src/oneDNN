@@ -77,6 +77,12 @@ conv_bwd_data_mb_block_x8s8x8(const __global uchar *src,
 
     __attribute__((opencl_unroll_hint)) for (int oc_chunk = 0;
                                              oc_chunk < OC_NCHUNK; oc_chunk++) {
+        // Do not calculate if mb block is all zero padded
+        if (MB % MB_BLOCK != 0
+                && (group_mb * MB_BLOCK + mb * MB_BLOCK / mb_blocks) >= MB) {
+            break;
+        }
+
         INT8_T D0, D1;
         int8 W0, W1, W2, W3;
         for (int kd = 0; kd < KD; kd++) {
@@ -180,10 +186,8 @@ conv_bwd_data_mb_block_x8s8x8(const __global uchar *src,
             (__global uchar *)&src[0 * IC_BLOCK], as_uchar16(T0.s0123));
     intel_sub_group_block_write_uc16(
             (__global uchar *)&src[4 * IC_BLOCK], as_uchar16(T0.s4567));
-#if MB > 8
     intel_sub_group_block_write_uc16(
             (__global uchar *)&src[8 * IC_BLOCK], as_uchar16(T1.s0123));
     intel_sub_group_block_write_uc16(
             (__global uchar *)&src[12 * IC_BLOCK], as_uchar16(T1.s4567));
-#endif // MB > 8
 }

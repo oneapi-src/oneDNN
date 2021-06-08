@@ -158,7 +158,7 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
             conf.gws_d[1]
                     = conf.od * conf.oh * utils::rnd_up(ow_nchunk, ow_group);
             conf.gws_d[2] = is_1stconv
-                    ? conf.mb
+                    ? utils::rnd_up(conf.mb, conf.mb_block)
                     : utils::div_up(conf.mb, utils::div_up(conf.mb_block, 2));
         }
 
@@ -202,7 +202,7 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
 
         conf.gws_d[0] = utils::div_up(conf.ngroups, 32) * conf.lws_d[0];
         conf.gws_d[1] = spatial_global_size;
-        conf.gws_d[2] = utils::div_up(conf.mb, utils::div_up(conf.mb_block, 4));
+        conf.gws_d[2] = 4 * utils::div_up(conf.mb, conf.mb_block);
 
     } else {
         if (conf.mb == 8 || conf.mb % 16 == 0) {
@@ -266,10 +266,10 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
         conf.gws_d[1] = conf.od * conf.oh
                 * utils::rnd_up(
                         utils::div_up(conf.ow, conf.ow_block), ow_group);
-        conf.gws_d[2] = utils::div_up(conf.mb, utils::div_up(conf.mb_block, 2));
+        conf.gws_d[2] = 2 * utils::div_up(conf.mb, conf.mb_block);
 
         if (conf.ver == ver_1stconv) {
-            conf.gws_d[2] = conf.mb;
+            conf.gws_d[2] = utils::rnd_up(conf.mb, conf.mb_block);
             // Save opportunity to use this implementation with nchw formats,
             // which will result in worse performance, but prevent us using reorder.
             // That can be efficient in some cases.
@@ -642,7 +642,7 @@ status_t xe_lp_x8s8x_convolution_bwd_data_t::pd_t::init_conf() {
         conf.gws_d[0] = utils::rnd_up(conf.nchunk * 8, conf.lws_d[0]);
         conf.gws_d[1]
                 = conf.id * conf.ih * utils::rnd_up(conf.iw, conf.lws_d[1]);
-        conf.gws_d[2] = utils::div_up(conf.mb, utils::div_up(conf.mb_block, 2));
+        conf.gws_d[2] = 2 * utils::div_up(conf.mb, conf.mb_block);
     }
     conf.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 

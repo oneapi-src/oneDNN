@@ -75,6 +75,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
     const int group_oc = get_group_id(0) * OC_GROUP;
     const int group_sp = get_group_id(1) * SP_GROUP;
     const int group_mb = get_group_id(2) * MB_GROUP;
+    const int is_mb_padding = MB % MB_BLOCK != 0 && group_mb >= MB;
     const int sub_group_id = get_sub_group_id();
     const int sub_local_id = get_sub_group_local_id();
     const int oc = (sub_group_id % OC_GROUP);
@@ -145,6 +146,11 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 #endif
             /* KW */
             /* left tail */
+
+            // Variable depth loop break. Required for simplicity because of
+            // #if's above
+            if (is_mb_padding) { goto end_conv_calculate; }
+
 #if PW > 0 || OW != OWX
             if (left_tail) {
                 for (int i = -PW; i < 0; i += 8) {
@@ -305,6 +311,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
         src += IC_BLOCK * IW * IH * (1 + DD);
     }
 #endif
+end_conv_calculate:
     barrier(CLK_LOCAL_MEM_FENCE);
 
     SRC_MMAD_DATA8_T S;
@@ -755,11 +762,15 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 #define STORE_DST(C0, C1, C2, C3, i) \
     do { \
         PACK(C0, C1, C2, C3, i); \
-        QUANTIZE_ADD_BIAS(); \
-        DO_POST_OP(i); \
-        ADD_DST_COMPENSATION(); \
-        ZERO_PAD_DST(); \
-        CONVERT_PACK(); \
+        if (!is_mb_padding) { \
+            QUANTIZE_ADD_BIAS(); \
+            DO_POST_OP(i); \
+            ADD_DST_COMPENSATION(); \
+            ZERO_PAD_DST(); \
+            CONVERT_PACK(); \
+        } else { \
+            tmp_cvt = 0; \
+        } \
         BLOCK_WRITE_DST4(dst, tmp_cvt); \
         dst += OC_BLOCK * MB_BLOCK; \
     } while (0)

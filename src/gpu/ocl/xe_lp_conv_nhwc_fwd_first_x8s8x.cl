@@ -779,9 +779,13 @@ conv_nhwc_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 #define STORE_DST(C0, C1, C2, C3, i) \
     do { \
         PACK(C0, C1, C2, C3, i); \
-        QUANTIZE_ADD_BIAS(); \
-        DO_POST_OP(); \
-        CONVERT_PACK(); \
+        if (MB % MB_BLOCK == 0 || group_mb < MB) { \
+            QUANTIZE_ADD_BIAS(); \
+            DO_POST_OP(); \
+            CONVERT_PACK(); \
+        } else { \
+            tmp_cvt = 0; \
+        } \
         BLOCK_WRITE_DST4(dst, tmp_cvt); \
         dst += OC_BLOCK * MB_BLOCK; \
     } while (0)
