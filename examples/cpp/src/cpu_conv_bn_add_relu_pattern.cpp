@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
     std::cout << "Create logical tensor--------------------------";
 
     std::vector<int64_t> input_dims {8, 56, 56, 256};
-    std::vector<int64_t> conv0_weight_dims {1, 1, 256, 64};
+    std::vector<int64_t> conv0_weight_dims {64, 256, 1, 1};
     std::vector<int64_t> conv0_bias_dims {64};
     std::vector<int64_t> conv0_dst_dims {8, 56, 56, 64};
 
@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
     conv0.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
     conv0.set_attr<std::vector<int64_t>>("dilations", {1, 1});
     conv0.set_attr<std::string>("data_format", "NXC");
-    conv0.set_attr<std::string>("filter_format", "XIO");
+    conv0.set_attr<std::string>("filter_format", "OIX");
     conv0.set_attr<int64_t>("groups", 1);
     
     logical_tensor bn0_scale_desc {id_mgr["bn0_scale"], data_type::f32, conv0_bias_dims, layout_type::strided};
@@ -259,7 +259,6 @@ int main(int argc, char **argv) {
     std::vector<float> expected_output(num_elem, expected_result);
     compare_data(expected_output.data(), actual_output_ptr, num_elem);
     std::cout << "Success!\n";
-
     std::cout << "============Run Example Successfully===========\n";
 
     return 0;
