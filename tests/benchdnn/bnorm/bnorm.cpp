@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -209,8 +209,8 @@ static int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return OK;
 }
 
-static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
-        const dnn_mem_t &dt_mem, res_t *res, const dnn_mem_t *ss = nullptr) {
+int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
+        const dnn_mem_t &dt_mem, res_t *res, const dnn_mem_t *ss) {
     const char *skind = data_kind2str(kind);
 
     const int f32_mant_digits = 24;
