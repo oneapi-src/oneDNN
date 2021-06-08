@@ -53,9 +53,9 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     //
     // This optimization is skipped when testing reorder, sum and concat
     // primitives because they are used specifically to test GPU reorders.
-#if (DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL) \
-        || (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL) \
-                && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#if ((DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL) \
+        || (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL)) \
+        && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     std::string driver = std::string(driver_name);
     bool is_reorder_related_driver = (driver == std::string("reorder")
             || driver == std::string("sum") || driver == std::string("concat"));
