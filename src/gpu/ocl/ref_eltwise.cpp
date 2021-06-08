@@ -65,7 +65,8 @@ static status_t init_conf_common(eltwise_conf_t &conf, offsets_t &off,
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const eltwise_conf_t &conf, const offsets_t &off) {
+        const eltwise_conf_t &conf, const offsets_t &off,
+        const post_ops_t &post_ops) {
     kernel_ctx.set_data_type(conf.data_type);
 
     def_eltwise_alg_kinds(kernel_ctx);
@@ -79,8 +80,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("SUB_GROUP_SIZE", 32);
 
     bool with_binary_post_ops
-            = conf.attr_info.all_post_ops.find(primitive_kind_t::dnnl_binary)
-            != -1;
+            = post_ops.find(primitive_kind_t::dnnl_binary) != -1;
     kernel_ctx.define_int(
             "USE_GWS_GET", conf.with_zero_padding || with_binary_post_ops);
 
@@ -92,7 +92,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         kernel_ctx.define_int("IS_FWD", 1);
     }
 
-    def_attr_info(kernel_ctx, conf.attr_info);
+    def_attr_info(kernel_ctx, conf.attr_info, post_ops);
     def_dispatch(kernel_ctx, conf.dispatch);
 
     return status::success;
@@ -104,7 +104,7 @@ status_t ref_eltwise_fwd_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_eltwise_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off);
+    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
 }
 
 status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
@@ -123,7 +123,7 @@ status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
     arg_list.set(2, alpha);
     arg_list.set(3, beta);
 
-    append_post_ops_to_arg_list(ctx, arg_list, 4, conf.attr_info.all_post_ops);
+    append_post_ops_to_arg_list(ctx, arg_list, 4, pd()->attr()->post_ops_);
 
     auto nd_range = conf.dispatch.nd_range();
     return parallel_for(ctx, nd_range, kernel_, arg_list);
@@ -135,7 +135,7 @@ status_t ref_eltwise_bwd_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_eltwise_bwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off);
+    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
 }
 
 status_t ref_eltwise_bwd_t::execute_backward_dense(

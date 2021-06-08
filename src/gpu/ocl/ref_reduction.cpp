@@ -80,8 +80,8 @@ status_t ref_reduction_t::pd_t::init_conf(engine_t *engine) {
     return status::success;
 }
 
-static status_t init_kernel_ctx_common(
-        compute::kernel_ctx_t &kernel_ctx, const reduction_conf_t &conf) {
+static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
+        const reduction_conf_t &conf, const post_ops_t &post_ops) {
     using namespace alg_kind;
 
     kernel_ctx.set_data_type(conf.src_type);
@@ -141,7 +141,7 @@ static status_t init_kernel_ctx_common(
     def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
-    def_attr_info(kernel_ctx, conf.attr_info);
+    def_attr_info(kernel_ctx, conf.attr_info, post_ops);
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
@@ -150,7 +150,7 @@ static status_t init_kernel_ctx_common(
 
 status_t ref_reduction_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf);
+    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
 }
 
 status_t ref_reduction_t::execute_ref(const exec_ctx_t &ctx) const {
@@ -164,7 +164,7 @@ status_t ref_reduction_t::execute_ref(const exec_ctx_t &ctx) const {
     reduction_arg_list.set(0, src);
     reduction_arg_list.set(1, dst);
     append_post_ops_to_arg_list(
-            ctx, reduction_arg_list, 2, conf.attr_info.all_post_ops);
+            ctx, reduction_arg_list, 2, pd()->attr()->post_ops_);
 
     auto nd_range = conf.dispatch.nd_range();
 

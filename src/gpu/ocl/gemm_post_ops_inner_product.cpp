@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ status_t gemm_post_ops_inner_product_fwd_t::execute_forward(
         arg_list.set(1, CTX_IN_STORAGE(DNNL_ARG_BIAS));
         arg_list.set(2, CTX_OUT_STORAGE(DNNL_ARG_DST));
         unsigned arg_idx = append_post_ops_to_arg_list(
-                ctx, arg_list, 3, pd()->attr_info_.all_post_ops);
+                ctx, arg_list, 3, pd()->attr()->post_ops_);
         arg_list.set(arg_idx++,
                 pd()->use_scratchpad() ? *acc
                                        : memory_storage_t::empty_storage());

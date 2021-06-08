@@ -223,8 +223,9 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
 
             auto status = xe_lp_gemm_x8x8s32_kernel_t::init_kernel_ctx(
                     kernel_ctx, pd()->desc()->transa(), pd()->desc()->transb(),
-                    fixed_c, column_c, row_c, pd()->attr_info_, aligned,
-                    a_off_non_zero, b_off_non_zero, pd()->desc()->a_type(),
+                    fixed_c, column_c, row_c, pd()->attr_info_,
+                    pd()->attr()->post_ops_, aligned, a_off_non_zero,
+                    b_off_non_zero, pd()->desc()->a_type(),
                     pd()->desc()->b_type(), pd()->desc()->c_type());
             if (status != status::success) return status;
 
@@ -238,8 +239,9 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = xe_lp_gemm_scale_x8x8s32_kernel_t::init_kernel_ctx(
-                kernel_ctx, pd()->attr_info_, pd()->desc()->a_type(),
-                pd()->desc()->b_type(), pd()->desc()->c_type());
+                kernel_ctx, pd()->attr_info_, pd()->attr()->post_ops_,
+                pd()->desc()->a_type(), pd()->desc()->b_type(),
+                pd()->desc()->c_type());
         if (status != status::success) return status;
 
         create_kernel(compute_engine, &scale_x8x8s32_kernel_, kernel_name,

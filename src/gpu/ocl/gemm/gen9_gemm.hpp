@@ -403,9 +403,10 @@ struct gen9_gemm_t : public gpu_gemm_t {
             if (beta0 && pd()->beta() != 0) continue;
 
             compute::kernel_ctx_t kernel_ctx;
-            auto status = gen9_gemm_compute_kernel_t::init_kernel_ctx(
-                    kernel_ctx, beta0, pd()->attr_info_, pd()->desc()->acc_type,
-                    pd()->desc()->c_type());
+            auto status
+                    = gen9_gemm_compute_kernel_t::init_kernel_ctx(kernel_ctx,
+                            beta0, pd()->attr_info_, pd()->attr()->post_ops_,
+                            pd()->desc()->acc_type, pd()->desc()->c_type());
             if (status != status::success) return status;
 
             create_kernel(engine, &compute_kernel_[beta0], "gen9_gemm_compute",
@@ -464,7 +465,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
         auto status = gen9_gemm_nocopy_kernel_t::init_kernel_ctx(kernel_ctx,
                 pd()->desc()->transa(), pd()->desc()->transb(), with_k_unroll,
-                unroll_k, pd()->attr_info_, pd()->desc()->c_type());
+                unroll_k, pd()->attr_info_, pd()->attr()->post_ops_,
+                pd()->desc()->c_type());
         if (status != status::success) return status;
 
         create_kernel(engine, &nocopy_kernel_, kernel_name, kernel_ctx);
@@ -481,7 +483,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
         auto status = gen9_gemm_nocopy_superkernel_t::init_kernel_ctx(
                 kernel_ctx, pd()->desc()->transa(), pd()->desc()->transb(),
-                pd()->attr_info_, pd()->desc()->c_type());
+                pd()->attr_info_, pd()->attr()->post_ops_,
+                pd()->desc()->c_type());
         if (status != status::success) return status;
 
         create_kernel(engine, &nocopy_superkernel_,

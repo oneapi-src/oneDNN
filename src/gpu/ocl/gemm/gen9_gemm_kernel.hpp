@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,7 +99,8 @@ struct gen9_gemm_copy_kernel_t : public gen9_gemm_kernel_t {
 
 struct gen9_gemm_compute_kernel_t : public gen9_gemm_kernel_t {
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-            bool beta0, const attr_info_t &attr_info, impl::data_type_t type,
+            bool beta0, const attr_info_t &attr_info,
+            const post_ops_t &post_ops, impl::data_type_t type,
             impl::data_type_t dst_type = impl::data_type::undef) {
         if (dst_type == impl::data_type::undef) dst_type = type;
         auto status = init_cl_options(kernel_ctx, type, type, dst_type);
@@ -110,7 +111,7 @@ struct gen9_gemm_compute_kernel_t : public gen9_gemm_kernel_t {
         kernel_ctx.define_int("UNROLL_M", copy_params_t::unroll_m);
         kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
 
-        def_attr_info(kernel_ctx, attr_info);
+        def_attr_info(kernel_ctx, attr_info, post_ops);
 
         kernel_ctx.print_options();
         return status::success;
@@ -125,7 +126,8 @@ struct gen9_gemm_compute_kernel_t : public gen9_gemm_kernel_t {
 struct gen9_gemm_nocopy_kernel_t : public gen9_gemm_kernel_t {
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool with_k_unroll, int unroll_k,
-            const attr_info_t &attr_info, impl::data_type_t type) {
+            const attr_info_t &attr_info, const post_ops_t &post_ops,
+            impl::data_type_t type) {
 
         auto status = init_cl_options(kernel_ctx, type);
         if (status) return status;
@@ -136,7 +138,7 @@ struct gen9_gemm_nocopy_kernel_t : public gen9_gemm_kernel_t {
             kernel_ctx.add_option("-DWITH_K_UNROLL");
             kernel_ctx.define_int("UNROLL_K", unroll_k);
         }
-        def_attr_info(kernel_ctx, attr_info);
+        def_attr_info(kernel_ctx, attr_info, post_ops);
         kernel_ctx.print_options();
         return status::success;
     }
@@ -163,12 +165,12 @@ struct gen9_gemm_nocopy_kernel_t : public gen9_gemm_kernel_t {
 struct gen9_gemm_nocopy_superkernel_t : public gen9_gemm_kernel_t {
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, const attr_info_t &attr_info,
-            impl::data_type_t type) {
+            const post_ops_t &post_ops, impl::data_type_t type) {
 
         if (trans_a) return status::unimplemented;
 
-        return gen9_gemm_nocopy_kernel_t::init_kernel_ctx(
-                kernel_ctx, trans_a, trans_b, false, 32, attr_info, type);
+        return gen9_gemm_nocopy_kernel_t::init_kernel_ctx(kernel_ctx, trans_a,
+                trans_b, false, 32, attr_info, post_ops, type);
     }
 
     static void get_unrolls(

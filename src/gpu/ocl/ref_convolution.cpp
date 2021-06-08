@@ -92,7 +92,8 @@ static status_t init_conf_common(conv_conf_t &conf, offsets_t &off,
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const conv_conf_t &conf, const offsets_t &off) {
+        const conv_conf_t &conf, const offsets_t &off,
+        const post_ops_t &post_ops) {
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("G", conf.ngroups);
     kernel_ctx.define_int("WITH_GROUPS", conf.with_groups);
@@ -162,7 +163,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
                     : conf.attr_info.sum_data_type,
             "SUM");
 
-    def_attr_info(kernel_ctx, conf.attr_info);
+    def_attr_info(kernel_ctx, conf.attr_info, post_ops);
     return status::success;
 }
 
@@ -174,7 +175,7 @@ status_t ref_convolution_fwd_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_convolution_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off);
+    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
 }
 
 status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
@@ -199,7 +200,7 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(3, dst);
 
     unsigned arg_idx = append_post_ops_to_arg_list(
-            ctx, arg_list, 4, conf.attr_info.all_post_ops);
+            ctx, arg_list, 4, pd()->attr()->post_ops_);
 
     arg_list.set(arg_idx, common_oscales);
     if (conf.attr_info.with_per_oc_oscales) {
@@ -233,7 +234,7 @@ status_t ref_convolution_bwd_data_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_convolution_bwd_data_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off);
+    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
 }
 
 status_t ref_convolution_bwd_data_t::execute_backward_data(
@@ -250,8 +251,7 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
     arg_list.set(2, diff_dst);
     arg_list.set(3, bias);
 
-    append_post_ops_to_arg_list(
-            ctx, arg_list, 4, pd()->conf.attr_info.all_post_ops);
+    append_post_ops_to_arg_list(ctx, arg_list, 4, pd()->attr()->post_ops_);
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
@@ -266,7 +266,7 @@ status_t ref_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_convolution_bwd_weights_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off);
+    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
 }
 
 status_t ref_convolution_bwd_weights_t::execute_backward_weights(

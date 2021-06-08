@@ -414,7 +414,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("LWS_1", conf.lws_d[1]);
     kernel_ctx.define_int("LWS_2", conf.lws_d[2]);
 
-    def_attr_info(kernel_ctx, conf.attr_info);
+    def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_);
 
     kernel_ctx.print_options();
     return status::success;
@@ -1154,20 +1154,19 @@ status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     const auto &conf = pd()->conf;
-    const auto &attr_info = conf.attr_info;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, weights);
     arg_list.set(2, bias);
     arg_list.set(3, dst);
-    append_post_ops_to_arg_list(ctx, arg_list, 4, attr_info.all_post_ops);
+    append_post_ops_to_arg_list(ctx, arg_list, 4, pd()->attr()->post_ops_);
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
 
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
-    if (!post_ops_preserves_zeroes(ctx, attr_info.all_post_ops)) {
+    if (!post_ops_preserves_zeroes(ctx, pd()->attr()->post_ops_)) {
         ctx.zero_pad_output(DNNL_ARG_DST);
     }
     return status;

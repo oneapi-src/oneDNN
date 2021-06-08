@@ -60,9 +60,10 @@ struct xe_lp_gemm_kernel_t {
 struct xe_lp_gemm_x8x8s32_kernel_t : public xe_lp_gemm_kernel_t {
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool fixed_c, bool column_c, bool row_c,
-            const attr_info_t &attr_info, bool aligned, bool a_off_non_zero,
-            bool b_off_non_zero, impl::data_type_t a_type,
-            impl::data_type_t b_type, impl::data_type_t c_type) {
+            const attr_info_t &attr_info, const post_ops_t &post_ops,
+            bool aligned, bool a_off_non_zero, bool b_off_non_zero,
+            impl::data_type_t a_type, impl::data_type_t b_type,
+            impl::data_type_t c_type) {
 
         auto status = init_cl_options(kernel_ctx, a_type, b_type, c_type);
         if (status) return status;
@@ -106,7 +107,7 @@ struct xe_lp_gemm_x8x8s32_kernel_t : public xe_lp_gemm_kernel_t {
         kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
         kernel_ctx.define_int("UNROLL_K", copy_params_t::unroll_k);
 
-        def_attr_info(kernel_ctx, attr_info);
+        def_attr_info(kernel_ctx, attr_info, post_ops);
 
         kernel_ctx.add_option("-Dcl_intel_subgroups_char");
 
@@ -122,8 +123,9 @@ struct xe_lp_gemm_x8x8s32_kernel_t : public xe_lp_gemm_kernel_t {
 
 struct xe_lp_gemm_scale_x8x8s32_kernel_t : public xe_lp_gemm_kernel_t {
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-            const attr_info_t &attr_info, impl::data_type_t a_type,
-            impl::data_type_t b_type, impl::data_type_t c_type) {
+            const attr_info_t &attr_info, const post_ops_t &post_ops,
+            impl::data_type_t a_type, impl::data_type_t b_type,
+            impl::data_type_t c_type) {
 
         auto status = init_cl_options(kernel_ctx, a_type, b_type, c_type);
         if (status) return status;
@@ -132,7 +134,7 @@ struct xe_lp_gemm_scale_x8x8s32_kernel_t : public xe_lp_gemm_kernel_t {
         kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
         kernel_ctx.define_int("UNROLL_K", copy_params_t::unroll_k);
 
-        def_attr_info(kernel_ctx, attr_info);
+        def_attr_info(kernel_ctx, attr_info, post_ops);
 
         kernel_ctx.print_options();
         return status::success;

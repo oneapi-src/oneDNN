@@ -119,7 +119,7 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
         def_offsets(off.dst_off, kernel_ctx, "DST", ndims);
         def_data_type(kernel_ctx, dst_d.data_type(), "DST");
 
-        def_attr_info(kernel_ctx, pd()->attr_info);
+        def_attr_info(kernel_ctx, pd()->attr_info, pd()->attr()->post_ops_);
         def_dispatch(kernel_ctx, pd()->dispatch);
 
         create_kernel(engine, &kernel_, "ref_resampling_fwd", kernel_ctx);

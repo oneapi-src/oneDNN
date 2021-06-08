@@ -131,8 +131,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(37, c_stride[1]);
     arg_list.set(38, c_stride[0]);
 
-    append_post_ops_to_arg_list(
-            ctx, arg_list, 39, pd()->attr_info_.all_post_ops);
+    append_post_ops_to_arg_list(ctx, arg_list, 39, pd()->attr()->post_ops_);
 
     size_t gws[3] = {1, (size_t)N, (size_t)(D0 * D1 * D2 * D3)};
     auto nd_range = compute::nd_range_t(gws);

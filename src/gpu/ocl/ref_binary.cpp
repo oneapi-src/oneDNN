@@ -57,7 +57,7 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
     conf.attr_info = attr_info_t::create(attr());
     conf.with_binary_post_op
-            = conf.attr_info.all_post_ops.find(primitive_kind::binary) != -1;
+            = attr()->post_ops_.find(primitive_kind::binary) != -1;
     int ic_block_sz = 1;
     conf.use_unroll_16b = false;
     conf.src0_unroll_16b = false;
@@ -148,7 +148,7 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     def_memory_desc_info(kernel_ctx, conf.src1_md_info, "SRC1");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
-    def_attr_info(kernel_ctx, conf.attr_info);
+    def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_);
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
@@ -175,7 +175,7 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(2, dst);
 
     unsigned arg_idx = append_post_ops_to_arg_list(
-            ctx, arg_list, 3, conf.attr_info.all_post_ops);
+            ctx, arg_list, 3, pd()->attr()->post_ops_);
 
     arg_list.set(arg_idx++, src0_scale);
     arg_list.set(arg_idx, src1_scale);

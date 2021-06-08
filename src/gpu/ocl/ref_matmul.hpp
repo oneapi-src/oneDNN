@@ -158,7 +158,7 @@ struct ref_matmul_t : public gpu_primitive_t {
         kernel_ctx.define_int("NON_DEFAULT_ATTRS", pd()->non_default_attrs_);
 
         kernel_ctx.set_data_type(pd()->dst_dt_);
-        def_attr_info(kernel_ctx, pd()->attr_info_);
+        def_attr_info(kernel_ctx, pd()->attr_info_, pd()->attr()->post_ops_);
 
         def_data_type(kernel_ctx, pd()->src_dt_, "SRC");
         def_data_type(kernel_ctx, pd()->wei_dt_, "WEI");

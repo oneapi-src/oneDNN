@@ -131,7 +131,7 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("WITH_BIAS", with_bias);
     kernel_ctx.define_int("NDIMS", ndims);
     kernel_ctx.define_int("BIA_NDIMS", bia_d.md_->ndims);
-    def_attr_info(kernel_ctx, attr_info_);
+    def_attr_info(kernel_ctx, attr_info_, attr()->post_ops_);
     def_dispatch(kernel_ctx, dispatch_);
     return status::success;
 }
@@ -184,7 +184,7 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
     arg_list.set(2, GEMM_CTX_ARG_STORAGE(c));
     const auto &args = ctx.args();
     int idx = append_post_ops_to_arg_list_gemm(
-            args.exec_args, arg_list, 3, pd()->attr_info_.all_post_ops);
+            args.exec_args, arg_list, 3, pd()->attr()->post_ops_);
     arg_list.set(idx++,
             pd()->use_scratchpad() ? *c_mem_before_po_worker->memory_storage()
                                    : memory_storage_t::empty_storage());

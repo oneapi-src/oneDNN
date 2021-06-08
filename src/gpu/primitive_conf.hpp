@@ -88,8 +88,6 @@ struct attr_info_t {
 
         attr_info_t attr_info;
 
-        attr_info.all_post_ops.copy_from(po);
-
         int binary_idx = po.find(primitive_kind::binary);
         attr_info.with_binary = (binary_idx != -1);
 
@@ -171,8 +169,6 @@ struct attr_info_t {
     }
 
     bool initialized = false;
-
-    post_ops_t all_post_ops;
 
     bool with_binary;
     bool with_eltwise;
@@ -998,7 +994,7 @@ inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
 }
 
 inline void def_post_ops_cfg(
-        compute::kernel_ctx_t &kernel_ctx, const post_ops_t &all_post_ops) {
+        compute::kernel_ctx_t &kernel_ctx, const post_ops_t &post_ops) {
     const int po_nop_id = 0;
     const int po_binary_id = 1;
     const int po_eltwise_id = 2;
@@ -1071,22 +1067,20 @@ inline void def_post_ops_cfg(
         po_kernel_args += ", float po_" + std::to_string(idx) + "_sum_scale";
     };
 
-    for (int idx = 0; idx < all_post_ops.len();
-            ++idx, ++nof_supported_post_ops) {
+    for (int idx = 0; idx < post_ops.len(); ++idx, ++nof_supported_post_ops) {
         const std::string bin_arg_name
                 = "PO_" + std::to_string(idx) + "_BIN_ARG";
-        add_po_defines(bin_arg_name, all_post_ops.entry_[idx], idx);
+        add_po_defines(bin_arg_name, post_ops.entry_[idx], idx);
     }
     post_ops_t::entry_t empty_po = post_ops_t::entry_t();
-    for (int idx = all_post_ops.len(); idx < 10;
-            ++idx, ++nof_supported_post_ops) {
+    for (int idx = post_ops.len(); idx < 10; ++idx, ++nof_supported_post_ops) {
         const std::string bin_arg_name
                 = "PO_" + std::to_string(idx) + "_BIN_ARG";
         add_po_defines(bin_arg_name, empty_po, idx);
     }
 
     kernel_ctx.define_int("POST_OP_CHAIN_LENGTH", nof_supported_post_ops);
-    if (all_post_ops.len() > 0) {
+    if (post_ops.len() > 0) {
         // due to C macro limitations on which post op service is build always
         // load bf16 convertion functions
         kernel_ctx.define_int("POST_OP_USING_BF16", 1);
@@ -1097,7 +1091,7 @@ inline void def_post_ops_cfg(
 
 inline int append_post_ops_to_arg_list_base(const exec_args_t &args,
         compute::kernel_arg_list_t &arg_list, int post_op_idx,
-        const post_ops_t &all_post_ops) {
+        const post_ops_t &post_ops) {
     auto set_arg_entry = [&](const post_ops_t::entry_t &e, int po_idx) {
         if (e.is_binary()) {
             auto arg = args.at(
@@ -1130,34 +1124,34 @@ inline int append_post_ops_to_arg_list_base(const exec_args_t &args,
         }
     };
 
-    for (int idx = 0; idx < all_post_ops.len(); ++idx) {
-        set_arg_entry(all_post_ops.entry_[idx], idx);
+    for (int idx = 0; idx < post_ops.len(); ++idx) {
+        set_arg_entry(post_ops.entry_[idx], idx);
     }
     post_ops_t::entry_t empty_po = post_ops_t::entry_t();
-    for (int idx = all_post_ops.len(); idx < 10; ++idx) {
+    for (int idx = post_ops.len(); idx < 10; ++idx) {
         set_arg_entry(empty_po, 0);
     }
     return post_op_idx;
 }
 inline int append_post_ops_to_arg_list_gemm(const exec_args_t &args,
         compute::kernel_arg_list_t &arg_list, int post_op_idx,
-        const post_ops_t &all_post_ops) {
+        const post_ops_t &post_ops) {
     return append_post_ops_to_arg_list_base(
-            args, arg_list, post_op_idx, all_post_ops);
+            args, arg_list, post_op_idx, post_ops);
 }
 inline int append_post_ops_to_arg_list(const exec_ctx_t &ctx,
         compute::kernel_arg_list_t &arg_list, int post_op_idx,
-        const post_ops_t &all_post_ops) {
+        const post_ops_t &post_ops) {
     exec_args_t args;
     return append_post_ops_to_arg_list_base(
-            ctx.args(), arg_list, post_op_idx, all_post_ops);
+            ctx.args(), arg_list, post_op_idx, post_ops);
 }
 
 inline bool post_ops_preserves_zeroes(
-        const exec_ctx_t &ctx, const post_ops_t &all_post_ops) {
+        const exec_ctx_t &ctx, const post_ops_t &post_ops) {
     bool preserve_zeroes = true;
-    for (int idx = 0; idx < all_post_ops.len(); ++idx) {
-        const post_ops_t::entry_t &po_entry = all_post_ops.entry_[idx];
+    for (int idx = 0; idx < post_ops.len(); ++idx) {
+        const post_ops_t::entry_t &po_entry = post_ops.entry_[idx];
         if (po_entry.is_binary()) {
             // only binary mul is preserving zeroes
             preserve_zeroes &= po_entry.binary.alg
@@ -1172,11 +1166,11 @@ inline bool post_ops_preserves_zeroes(
     return preserve_zeroes;
 }
 
-inline void def_attr_info(
-        compute::kernel_ctx_t &kernel_ctx, const attr_info_t &attr_info) {
+inline void def_attr_info(compute::kernel_ctx_t &kernel_ctx,
+        const attr_info_t &attr_info, const post_ops_t &post_ops) {
     assert(attr_info.initialized);
 
-    kernel_ctx.define_int("WITH_POST_OP", attr_info.all_post_ops.len() > 0);
+    kernel_ctx.define_int("WITH_POST_OP", post_ops.len() > 0);
 
     kernel_ctx.define_int("WITH_ELTWISE", attr_info.with_eltwise);
     kernel_ctx.define_int("ELTWISE_IDX", attr_info.eltwise_idx);
@@ -1207,7 +1201,7 @@ inline void def_attr_info(
     def_binary_alg_kinds(kernel_ctx);
     def_eltwise_alg_kinds(kernel_ctx);
 
-    def_post_ops_cfg(kernel_ctx, attr_info.all_post_ops);
+    def_post_ops_cfg(kernel_ctx, post_ops);
 }
 
 inline void def_dispatch(compute::kernel_ctx_t &kernel_ctx,

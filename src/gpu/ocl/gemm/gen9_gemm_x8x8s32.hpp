@@ -173,8 +173,9 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
 
         auto status = gen9_gemm_x8x8s32_kernel_t::init_kernel_ctx(kernel_ctx,
                 pd()->desc()->transa(), pd()->desc()->transb(), fixed_c,
-                column_c, row_c, pd()->attr_info, pd()->desc()->a_type(),
-                pd()->desc()->b_type(), pd()->desc()->c_type());
+                column_c, row_c, pd()->attr_info, pd()->attr()->post_ops_,
+                pd()->desc()->a_type(), pd()->desc()->b_type(),
+                pd()->desc()->c_type());
         if (status != status::success) return status;
 
         create_kernel(
@@ -185,7 +186,8 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         kernel_name = "gen9_gemm_scale_x8x8s32";
 
         status = gen9_gemm_scale_x8x8s32_kernel_t::init_kernel_ctx(kernel_ctx,
-                pd()->attr_info, pd()->desc()->a_type(), pd()->desc()->b_type(),
+                pd()->attr_info, pd()->attr()->post_ops_,
+                pd()->desc()->a_type(), pd()->desc()->b_type(),
                 pd()->desc()->c_type());
         if (status != status::success) return status;
 

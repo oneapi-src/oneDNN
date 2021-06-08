@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,8 +56,9 @@ struct gen9_int8_gemm_kernel_t {
 struct gen9_gemm_x8x8s32_kernel_t : public gen9_int8_gemm_kernel_t {
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool fixed_c, bool column_c, bool row_c,
-            const attr_info_t &attr_info, impl::data_type_t a_type,
-            impl::data_type_t b_type, impl::data_type_t c_type) {
+            const attr_info_t &attr_info, const post_ops_t &post_ops,
+            impl::data_type_t a_type, impl::data_type_t b_type,
+            impl::data_type_t c_type) {
 
         auto status = init_cl_options(kernel_ctx, a_type, b_type, c_type);
         if (status) return status;
@@ -96,7 +97,7 @@ struct gen9_gemm_x8x8s32_kernel_t : public gen9_int8_gemm_kernel_t {
         kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
         kernel_ctx.define_int("UNROLL_K", copy_params_t::unroll_k);
 
-        def_attr_info(kernel_ctx, attr_info);
+        def_attr_info(kernel_ctx, attr_info, post_ops);
 
         kernel_ctx.print_options();
         return status::success;
@@ -110,8 +111,9 @@ struct gen9_gemm_x8x8s32_kernel_t : public gen9_int8_gemm_kernel_t {
 
 struct gen9_gemm_scale_x8x8s32_kernel_t : public gen9_int8_gemm_kernel_t {
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-            const attr_info_t &attr_info, impl::data_type_t a_type,
-            impl::data_type_t b_type, impl::data_type_t c_type) {
+            const attr_info_t &attr_info, const post_ops_t &post_ops,
+            impl::data_type_t a_type, impl::data_type_t b_type,
+            impl::data_type_t c_type) {
 
         auto status = init_cl_options(kernel_ctx, a_type, b_type, c_type);
         if (status) return status;
@@ -120,7 +122,7 @@ struct gen9_gemm_scale_x8x8s32_kernel_t : public gen9_int8_gemm_kernel_t {
         kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
         kernel_ctx.define_int("UNROLL_K", copy_params_t::unroll_k);
 
-        def_attr_info(kernel_ctx, attr_info);
+        def_attr_info(kernel_ctx, attr_info, post_ops);
 
         kernel_ctx.print_options();
         return status::success;

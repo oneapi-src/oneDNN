@@ -125,7 +125,7 @@ struct gen9_binary_t : public gpu_primitive_t {
         arg_list.set(2, dst);
 
         unsigned arg_idx = append_post_ops_to_arg_list(
-                ctx, arg_list, 3, conf.attr_info.all_post_ops);
+                ctx, arg_list, 3, pd()->attr()->post_ops_);
 
         arg_list.set(arg_idx++, src0_scale);
         arg_list.set(arg_idx, src1_scale);

@@ -358,7 +358,7 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
 
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
 
-    def_attr_info(kernel_ctx, conf.attr_info);
+    def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_);
 
     kernel_ctx.print_options();
     return status::success;
@@ -390,7 +390,7 @@ status_t gen9_wino_convolution_fwd_t::execute_forward(
         arg_list.set(1, src);
         arg_list.set(2, *wei_trans);
         arg_list.set(3, bias);
-        append_post_ops_to_arg_list(ctx, arg_list, 4, attr_info.all_post_ops);
+        append_post_ops_to_arg_list(ctx, arg_list, 4, pd()->attr()->post_ops_);
         auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
         status = parallel_for(ctx, nd_range, kernel_, arg_list);
     } else {
@@ -418,7 +418,7 @@ status_t gen9_wino_convolution_fwd_t::execute_forward(
         dst_transform_args.set(1, *M_buf);
         dst_transform_args.set(2, bias);
         append_post_ops_to_arg_list(
-                ctx, dst_transform_args, 3, attr_info.all_post_ops);
+                ctx, dst_transform_args, 3, pd()->attr()->post_ops_);
         auto dst_trans_nd_range
                 = compute::nd_range_t(conf.M_gws_d, conf.M_lws_d);
         status = parallel_for(
