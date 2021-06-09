@@ -186,7 +186,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(InterpolateBackprop, resampling_backward)
 
     // reorder kernel
-    DNNL_REGISTER_KERNEL(convert, reorder)
+    DNNL_REGISTER_KERNEL(Reorder, reorder)
 
     // quantize and dequantize kernel
     DNNL_REGISTER_KERNEL(Quantize, quantize_dequantize)
@@ -220,7 +220,7 @@ std::shared_ptr<partition_impl_t> dnnl_backend::create_conversion(
     assert(ltw.is_opaque());
 
     auto pimpl = std::make_shared<dnnl_partition_impl_t>(engine_kind);
-    pimpl->fused_op_ = impl::utils::make_unique<op_t>(op_kind::convert);
+    pimpl->fused_op_ = impl::utils::make_unique<op_t>(op_kind::Reorder);
     pimpl->inputs_.push_back(input);
     pimpl->outputs_.push_back(output);
 

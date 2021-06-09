@@ -44,7 +44,7 @@ void insert_reorder(std::vector<op_ptr> &subgraph) {
         for (size_t i = 0; i < cur_op->num_inputs(); i++) {
             if (i >= in_bound) break;
 
-            op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::convert);
+            op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::Reorder);
             insert_op_before(reorder_op, cur_op, i);
             to_be_inserted_ops.emplace_back(reorder_op);
             auto in_lt = reorder_op->get_input_value(0)->get_logical_tensor();
@@ -54,7 +54,7 @@ void insert_reorder(std::vector<op_ptr> &subgraph) {
         }
 
         for (size_t i = 0; i < cur_op->num_outputs(); i++) {
-            op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::convert);
+            op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::Reorder);
             insert_op_after(reorder_op, cur_op, i);
             to_be_inserted_ops.emplace_back(reorder_op);
             auto in_value = reorder_op->get_input_value(0);
