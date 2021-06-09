@@ -217,6 +217,8 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
 
     t.reset();
+
+    bool is_first_loop = true;
     while (true) {
         for (int i = 0; i < cur_batch_times; i++) {
             DNN_SAFE(perf_func(stream, dnnl_args), WARN);
@@ -227,7 +229,7 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
         if (should_stop(t)) break;
 
         // Adjust cur_batch_times after the first batch run
-        if (t.times() == cur_batch_times + 1) {
+        if (is_first_loop) {
             double ms_min = t.ms(benchdnn_timer_t::min);
             // Heuristic: try to use ~5 batch runs for the whole benchmark
             int batch_times_heuristic = (ms_min == 0.0)
@@ -236,6 +238,7 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
                             (int)((max_ms_per_prb - t.total_ms()) / ms_min
                                     / 5));
             cur_batch_times = MIN2(max_batch_times, batch_times_heuristic);
+            is_first_loop = false;
         }
     }
     return OK;
