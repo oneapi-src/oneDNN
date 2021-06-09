@@ -270,7 +270,11 @@ memory::desc permute_OIX2XIO(const memory::desc &adesc) {
 
 memory::desc to_grouped(const memory::desc &adesc, dim groups) {
     auto grouped_shape = group_dims(adesc.dims(), groups);
-    return adesc.reshape(grouped_shape);
+    memory::desc target_desc = adesc.reshape(grouped_shape);
+    auto reserved_size = sizeof(((dnnl_memory_extra_desc_t *)0)->reserved);
+    auto offset = reserved_size / sizeof(dim) - 1;
+    reinterpret_cast<dim *>(target_desc.data.extra.reserved)[offset] = groups;
+    return target_desc;
 }
 
 memory::desc to_format_any(const memory::desc &adesc) {

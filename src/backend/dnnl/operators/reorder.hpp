@@ -17,6 +17,7 @@
 #ifndef BACKEND_DNNL_OPERATORS_REORDER_HPP
 #define BACKEND_DNNL_OPERATORS_REORDER_HPP
 
+#include <algorithm>
 #include <vector>
 
 #include "backend/dnnl/tensor.hpp"
@@ -39,18 +40,71 @@ private:
     dnnl::engine p_engine_;
     dnnl::stream p_stream_;
 
+    // handle the case in which the src and dst's dims are different
+    bool need_reshape_ {false};
+    // only valid if need_reshape_ is true
+    bool reshape_first_ {false};
+    tensor::desc reshaped_desc_;
+
 public:
     impl::status_t compile_impl(const op_t *op, const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        UNUSED(op);
-        using desc = tensor::desc;
+        using ltw = logical_tensor_wrapper;
+        // check data types between input and output
+        // TODO(wuxun): in the future there will be fused with TypeCast op,
+        // then we can make this check more general
+        if (op->get_kind() == op_kind::Reorder
+                && ltw(inputs[reorder_input::kSrc]).data_type()
+                        != ltw(outputs[reorder_output::kDst]).data_type())
+            return status::compile_fail;
 
-        const desc src {inputs.at(reorder_input::kSrc)};
-        const desc dst {outputs.at(reorder_output::kDst)};
+        // check same shape between input and output
+        const dims &src_lt_dims = ltw(inputs[reorder_input::kSrc]).vdims();
+        const dims &dst_lt_dims = ltw(outputs[reorder_output::kDst]).vdims();
+        if (!std::equal(src_lt_dims.begin(), src_lt_dims.end(),
+                    dst_lt_dims.begin()))
+            return status::compile_fail;
+
+        tensor::desc src {inputs.at(reorder_input::kSrc)};
+        tensor::desc dst {outputs.at(reorder_output::kDst)};
+
+        bool has_group = src.is_grouped() || dst.is_grouped();
+        bool ok = src.has_same_shape_as(dst)
+                || (has_group
+                        && std::abs(src.get_ndims() - dst.get_ndims()) == 1);
+        if (!ok) return status::compile_fail;
+
+        // has group
+        if (!src.has_same_shape_as(dst)) {
+            need_reshape_ = true;
+            // Case 1: if src is blocked format with group while dst has plain
+            // format, perhaps for backward path
+            if (src.is_grouped() && src.get_ndims() > dst.get_ndims()) {
+                reshape_first_ = false;
+                reshaped_desc_ = src.is_plain()
+                        ? src
+                        : tensor::desc {src.get_dims(), src.get_data_type(),
+                                src.get_format_tag()};
+            } else if (dst.is_grouped() && src.get_ndims() < dst.get_ndims()) {
+                // Case 2: if src has plain format while dst has blocked format
+                // with group, typically for weight prepacking
+                reshape_first_ = true;
+                reshaped_desc_ = tensor::desc {
+                        src.reshape(dst.get_dims()), dst.get_dim(0)};
+            } else {
+                return status::compile_fail;
+            }
+        }
 
         p_engine_ = make_dnnl_engine(*g_engine);
-        // TODO(wuxun): consider reorder between different engines
+
+        if (need_reshape_) {
+            if (reshape_first_)
+                src = reshaped_desc_;
+            else
+                dst = reshaped_desc_;
+        }
         pd_ = primitive_desc(
                 /*src_engine=*/p_engine_, src, /*dst_engine=*/p_engine_, dst);
         return status::success;
@@ -62,11 +116,21 @@ public:
         UNUSED(op);
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
+
         tensor src_ts {inputs.at(reorder_input::kSrc), p_engine_, alc};
         tensor dst_ts {outputs.at(reorder_output::kDst), p_engine_, alc};
 
-        super(pd_).execute(p_stream_, src_ts, dst_ts);
+        if (need_reshape_) {
+            if (reshape_first_) {
+                src_ts = tensor {reshaped_desc_, p_engine_, alc,
+                        inputs[reorder_input::kSrc].get_data_handle()};
+            } else {
+                dst_ts = tensor {reshaped_desc_, p_engine_, alc,
+                        outputs[reorder_output::kDst].get_data_handle()};
+            }
+        }
 
+        super(pd_).execute(p_stream_, src_ts, dst_ts);
         return status::success;
     }
 };

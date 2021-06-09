@@ -92,6 +92,8 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(dequant_pass, dnnl, Dequantize, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(quant_pass, dnnl, Quantize, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(dequant_pass, dnnl, Dequantize, 8.f)
 
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, dnnl, Reorder, 8.f)
+
 #undef DNNL_BACKEND_SINGLE_OP_TRANSFORM
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_END

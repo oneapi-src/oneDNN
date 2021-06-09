@@ -453,6 +453,8 @@ public:
             return desc(md);
         }
 
+        inline bool is_grouped() const { return g() > 1; }
+
     private:
         /// Returns dimension vector
         inline dims get_internal_dims() const {
@@ -503,8 +505,6 @@ public:
             auto offset = reserved_size / sizeof(dim) - 1;
             return reinterpret_cast<const dim *>(data.extra.reserved)[offset];
         }
-
-        inline bool is_grouped() const { return g() > 1; }
     };
 
     desc get_desc() const {
