@@ -217,6 +217,10 @@ struct brgemm_matmul_conf_utils_t {
         return tag == transposed_tensor_layout_tag;
     }
 
+    inline bool check_is_plain(format_tag_t tag) const {
+        return tag == plain_tensor_layout_tag;
+    }
+
     inline bool is_f32() const { return f32_dt; }
 
     inline bool is_bf16() const { return bf16_dt; }

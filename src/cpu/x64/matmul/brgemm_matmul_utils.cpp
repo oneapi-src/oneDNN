@@ -482,7 +482,13 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.blocked_B = bm_conf_utils.get_blocked_B();
     if ((!bgmmc.is_amx) && bm_conf_utils.check_is_transposed(bgmmc.wei_tag))
         return status::unimplemented;
-    bgmmc.use_buffer_b = bgmmc.is_amx && !bgmmc.blocked_B;
+
+    const bool f32_use_buffer_b_for_plain = false; // TODO - heuristic
+    const bool f32_use_buffer_b = bm_conf_utils.is_f32()
+            && (bm_conf_utils.check_is_plain(bgmmc.wei_tag)
+                    && f32_use_buffer_b_for_plain);
+    bgmmc.use_buffer_b = (bgmmc.is_amx && !bgmmc.blocked_B)
+            || ((!bgmmc.is_amx) && f32_use_buffer_b);
 
     bgmmc.transposed_A = bm_conf_utils.check_is_transposed(bgmmc.src_tag);
     const bool lda_is_big_2pow = bm_conf_utils.is_bf16() && !bgmmc.transposed_A

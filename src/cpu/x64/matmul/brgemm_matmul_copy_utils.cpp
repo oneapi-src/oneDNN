@@ -1377,6 +1377,143 @@ void jit_brgemm_matmul_copy_b_bf16_t::generate() {
     postamble();
 }
 
+struct jit_brgemm_matmul_copy_b_f32_t : public jit_brgemm_matmul_copy_b_t,
+                                        public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_b_f32_t)
+
+    jit_brgemm_matmul_copy_b_f32_t(const brgemm_matmul_conf_t *conf)
+        : jit_brgemm_matmul_copy_b_t(conf)
+        , src_stride_(conf_->N * typesize)
+        , tr_src_stride_(conf_->LDB * typesize) {}
+
+    void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
+    using opmask_t = const Xbyak::Opmask;
+    using zmm = const Xbyak::Zmm;
+
+    enum { typesize = sizeof(float), n_blk_step = 16, max_regs_available = 30 };
+    dim_t src_stride_, tr_src_stride_;
+
+    opmask_t kTail = k7;
+    opmask_t kFFFF = k6;
+
+    reg64_t reg_src = rax;
+    reg64_t reg_tr_src = rbx;
+
+    reg64_t reg_K_iters = r8;
+    reg64_t reg_N_blk = r9;
+    reg64_t reg_K_start = r10;
+    reg32_t regw_tmp = r14d;
+    reg64_t imm_addr64 = r15;
+
+    zmm zmm_permw = zmm30;
+    zmm zmm_zero = zmm31;
+
+    inline void kmovw(Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovd(k, regw_tmp);
+    }
+    void copy_16_x_n_block(int nrows, int ncolumns);
+    void compute_k_loop(int ncolumns);
+    void generate() override;
+};
+
+void jit_brgemm_matmul_copy_b_f32_t::copy_16_x_n_block(
+        int nrows, int ncolumns) {
+
+    auto get_zmm = [=](int reg_idx) {
+        assert(reg_idx >= 0 && reg_idx < max_regs_available);
+        return zmm(reg_idx);
+    };
+
+    auto load = [=](int blk, int k, int n, opmask_t current_mask) {
+        auto src_zmm = get_zmm(blk);
+        auto src_zmm_m = src_zmm | current_mask | T_z;
+        vmovups(src_zmm_m,
+                EVEX_compress_addr(reg_src, k * src_stride_ + n * typesize));
+    };
+
+    const int columns_tail = ncolumns % n_blk_step;
+    const auto tail_mask = (1 << columns_tail) - 1;
+    if (columns_tail < n_blk_step) kmovw(kTail, tail_mask);
+
+    int iter = 0;
+    for_(int k = 0; k < nrows; k++)
+    for (int n = 0; n < conf_->wei_n_blk; n += n_blk_step) {
+        const dim_t tr_src_off = k * tr_src_stride_ + n * typesize;
+        const auto store_addr = EVEX_compress_addr(reg_tr_src, tr_src_off);
+
+        const int zero_padding = ncolumns - n;
+        if (zero_padding <= 0) {
+            vmovups(store_addr, zmm_zero);
+            continue;
+        }
+
+        const opmask_t curr_msk = zero_padding < n_blk_step ? kTail : kFFFF;
+        const int blk_idx = iter % max_regs_available;
+        load(blk_idx, k, n, curr_msk);
+
+        const auto src_zmm0 = get_zmm(blk_idx);
+        vmovups(store_addr, src_zmm0);
+        iter++;
+    }
+}
+
+void jit_brgemm_matmul_copy_b_f32_t::compute_k_loop(int ncolumns) {
+
+    auto compute_uni_k_loop = [&](int unroll) {
+        Label K_start_label, K_end_label;
+
+        L(K_start_label);
+        cmp(reg_K_iters, unroll);
+        jl(K_end_label, T_NEAR);
+
+        copy_16_x_n_block(unroll, ncolumns);
+        add(reg_src, unroll * src_stride_);
+        add(reg_tr_src, unroll * tr_src_stride_);
+
+        sub(reg_K_iters, unroll);
+        jmp(K_start_label, T_NEAR);
+
+        L(K_end_label);
+    };
+
+    constexpr int k_unroll = 16;
+    compute_uni_k_loop(k_unroll);
+    compute_uni_k_loop(1);
+}
+
+void jit_brgemm_matmul_copy_b_f32_t::generate() {
+    preamble();
+    vpxord(zmm_zero, zmm_zero, zmm_zero);
+
+    mov(reg_src, ptr[param1 + GET_OFF(src)]);
+    mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
+    mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
+    mov(reg_N_blk, ptr[param1 + GET_OFF(current_N_blk)]);
+    kmovw(kFFFF, 0xffff); // 1111111111111111
+
+    Label done;
+    if (conf_->N_tail > 0) {
+        Label not_N_tail;
+        cmp(reg_N_blk, conf_->N_tail);
+        jne(not_N_tail, T_NEAR);
+        compute_k_loop(conf_->N_tail);
+        jmp(done, T_NEAR);
+
+        L(not_N_tail);
+    }
+
+    compute_k_loop(conf_->N_blk);
+    L(done);
+
+    postamble();
+}
+
 struct jit_brgemm_matmul_copy_b_transposed_t
     : public jit_brgemm_matmul_copy_b_t,
       public jit_generator {
@@ -1765,6 +1902,7 @@ status_t create_brgemm_matmul_copy_b(
                     abcdefhg, abcdefgih, abcdefghji, abcdefghikj, abcdefghijlk);
     const bool is_bf16
             = everyone_is(data_type::bf16, conf->src_dt, conf->wei_dt);
+    const bool is_f32 = everyone_is(data_type::f32, conf->src_dt, conf->wei_dt);
     if (is_B_transposed) {
         CHECK(safe_ptr_assign(
                 copy_ker, new jit_brgemm_matmul_copy_b_transposed_t(conf)));
@@ -1772,6 +1910,9 @@ status_t create_brgemm_matmul_copy_b(
         if (is_bf16) {
             CHECK(safe_ptr_assign(
                     copy_ker, new jit_brgemm_matmul_copy_b_bf16_t(conf)));
+        } else if (is_f32) {
+            CHECK(safe_ptr_assign(
+                    copy_ker, new jit_brgemm_matmul_copy_b_f32_t(conf)));
         } else {
             CHECK(safe_ptr_assign(
                     copy_ker, new jit_brgemm_matmul_copy_b_int8_t(conf)));
