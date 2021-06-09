@@ -442,7 +442,7 @@ status_t init_brgemm_kernel(x64::brgemm_t *desc, x64::cpu_isa_t isa,
     return status::success;
 };
 
-void rnn_brgemm_t<prop_kind::forward>::init_kernels(
+status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
         const cpu::rnn_utils::rnn_conf_t &rnn, data_type_t src_type,
         data_type_t weights_type) {
 
@@ -451,8 +451,8 @@ void rnn_brgemm_t<prop_kind::forward>::init_kernels(
                       std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
                       dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
                       float beta, dim_t max_bs) {
-                  init_brgemm_kernel(desc, isa, src_type, weights_type, ker, M,
-                          N, K, LDA, LDB, LDC, beta, max_bs);
+                  return init_brgemm_kernel(desc, isa, src_type, weights_type,
+                          ker, M, N, K, LDA, LDB, LDC, beta, max_bs);
               };
 
     const int brgemm_n = nstl::min(rnn.N, rnn.n_block);
@@ -537,38 +537,42 @@ void rnn_brgemm_t<prop_kind::forward>::init_kernels(
         }
     }
     if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
-        brgemm_init_tiles(desc_layer_b0_[0], pallete_buff_layer_);
-        brgemm_init_tiles(desc_iter_b0_[0], pallete_buff_iter_);
+        CHECK(brgemm_init_tiles(desc_layer_b0_[0], pallete_buff_layer_));
+        CHECK(brgemm_init_tiles(desc_iter_b0_[0], pallete_buff_iter_));
 
         if (rnn.n_tail) {
-            brgemm_init_tiles(
-                    desc_layer_N_tail_b0_[0], pallete_buff_layer_n_tail_);
-            brgemm_init_tiles(
-                    desc_iter_N_tail_b0_[0], pallete_buff_iter_n_tail_);
+            CHECK(brgemm_init_tiles(
+                    desc_layer_N_tail_b0_[0], pallete_buff_layer_n_tail_));
+            CHECK(brgemm_init_tiles(
+                    desc_iter_N_tail_b0_[0], pallete_buff_iter_n_tail_));
         }
         if (rnn.k1_tail)
-            brgemm_init_tiles(desc_layer_K1_tail_b1_[0], pallete_buff_k1_tail_);
+            CHECK(brgemm_init_tiles(
+                    desc_layer_K1_tail_b1_[0], pallete_buff_k1_tail_));
         if (rnn.k2_tail)
-            brgemm_init_tiles(desc_iter_K2_tail_b1_[0], pallete_buff_k2_tail_);
+            CHECK(brgemm_init_tiles(
+                    desc_iter_K2_tail_b1_[0], pallete_buff_k2_tail_));
         if (rnn.k1_tail && rnn.n_tail)
-            brgemm_init_tiles(
-                    desc_layer_NK1_tail_b1_[0], pallete_buff_nk1_tail_);
+            CHECK(brgemm_init_tiles(
+                    desc_layer_NK1_tail_b1_[0], pallete_buff_nk1_tail_));
         if (rnn.k2_tail && rnn.n_tail)
-            brgemm_init_tiles(
-                    desc_iter_NK2_tail_b1_[0], pallete_buff_nk2_tail_);
+            CHECK(brgemm_init_tiles(
+                    desc_iter_NK2_tail_b1_[0], pallete_buff_nk2_tail_));
         if (rnn.is_lstm_projection) {
-            brgemm_init_tiles(desc_proj_b0_[0], pallete_buff_proj_);
+            CHECK(brgemm_init_tiles(desc_proj_b0_[0], pallete_buff_proj_));
             if (rnn.nproj_tail)
-                brgemm_init_tiles(
-                        desc_proj_N_tail_b0_[0], pallete_buff_nproj_tail_);
+                CHECK(brgemm_init_tiles(
+                        desc_proj_N_tail_b0_[0], pallete_buff_nproj_tail_));
             if (rnn.kproj_tail)
-                brgemm_init_tiles(
-                        desc_proj_K_tail_b1_[0], pallete_buff_kproj_tail_);
+                CHECK(brgemm_init_tiles(
+                        desc_proj_K_tail_b1_[0], pallete_buff_kproj_tail_));
             if (rnn.kproj_tail && rnn.nproj_tail)
-                brgemm_init_tiles(
-                        desc_proj_NK_tail_b1_[0], pallete_buff_nkproj_tail_);
+                CHECK(brgemm_init_tiles(
+                        desc_proj_NK_tail_b1_[0], pallete_buff_nkproj_tail_));
         }
     }
+
+    return status::success;
 }
 
 void rnn_brgemm_t<prop_kind::backward>::init_scratchpad(
@@ -840,24 +844,25 @@ void rnn_brgemm_t<prop_kind::backward>::configure_brgemm_peephole(
     rnn.dhc_tail_peephole = rnn.dhc % rnn.dhc_block_peephole;
 }
 
-static void init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
+static status_t init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
         const cpu::rnn_utils::rnn_conf_t &rnn, data_type_t src_type,
         data_type_t weights_type) {
 
-    const auto init_brgemm_diff_src =
-            [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
-                    std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
-                    dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
-                    float beta, dim_t max_bs) {
-                const dim_t A_size
-                        = rnn.diff_src_brgemm.M * rnn.diff_src_brgemm.Kpadded;
-                const dim_t B_size
-                        = rnn.diff_src_brgemm.Kpadded * rnn.diff_src_brgemm.N;
-                const dim_t C_size
-                        = rnn.diff_src_brgemm.M * rnn.diff_src_brgemm.N;
-                init_brgemm_kernel(desc, isa, src_type, weights_type, ker, M, N,
-                        K, LDA, LDB, LDC, beta, max_bs, A_size, B_size, C_size);
-            };
+    const auto init_brgemm_diff_src
+            = [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
+                      std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
+                      dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
+                      float beta, dim_t max_bs) {
+                  const dim_t A_size
+                          = rnn.diff_src_brgemm.M * rnn.diff_src_brgemm.Kpadded;
+                  const dim_t B_size
+                          = rnn.diff_src_brgemm.Kpadded * rnn.diff_src_brgemm.N;
+                  const dim_t C_size
+                          = rnn.diff_src_brgemm.M * rnn.diff_src_brgemm.N;
+                  return init_brgemm_kernel(desc, isa, src_type, weights_type,
+                          ker, M, N, K, LDA, LDB, LDC, beta, max_bs, A_size,
+                          B_size, C_size);
+              };
 
     const auto &diff_src_conf = rnn.diff_src_brgemm;
     const int n_diff_src = nstl::min(diff_src_conf.N, diff_src_conf.n_block);
@@ -914,50 +919,53 @@ static void init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
             && diff_src_conf.isa == x64::avx512_core_bf16_amx_bf16;
 
     if (is_bf16_amx) {
-        brgemm_init_tiles(diff_src.desc_iter_layer_beta0_,
-                diff_src.pallete_buff_iter_layer_);
+        CHECK(brgemm_init_tiles(diff_src.desc_iter_layer_beta0_,
+                diff_src.pallete_buff_iter_layer_));
 
         if (n_diff_src_layer_tail)
-            brgemm_init_tiles(diff_src.desc_layer_N_tail_beta0_,
-                    diff_src.pallete_buff_layer_n_tail_);
+            CHECK(brgemm_init_tiles(diff_src.desc_layer_N_tail_beta0_,
+                    diff_src.pallete_buff_layer_n_tail_));
 
         if (n_diff_src_iter_tail)
-            brgemm_init_tiles(diff_src.desc_iter_N_tail_beta0_,
-                    diff_src.pallete_buff_iter_n_tail_);
+            CHECK(brgemm_init_tiles(diff_src.desc_iter_N_tail_beta0_,
+                    diff_src.pallete_buff_iter_n_tail_));
 
         if (diff_src_conf.k_tail) {
-            brgemm_init_tiles(diff_src.desc_iter_layer_K_tail_beta1_,
-                    diff_src.pallete_buff_iter_layer_k_tail_);
+            CHECK(brgemm_init_tiles(diff_src.desc_iter_layer_K_tail_beta1_,
+                    diff_src.pallete_buff_iter_layer_k_tail_));
 
             if (n_diff_src_layer_tail)
-                brgemm_init_tiles(diff_src.desc_layer_NK_tail_beta1_,
-                        diff_src.pallete_buff_layer_nk_tail_);
+                CHECK(brgemm_init_tiles(diff_src.desc_layer_NK_tail_beta1_,
+                        diff_src.pallete_buff_layer_nk_tail_));
 
             if (n_diff_src_iter_tail)
-                brgemm_init_tiles(diff_src.desc_iter_NK_tail_beta1_,
-                        diff_src.pallete_buff_iter_nk_tail_);
+                CHECK(brgemm_init_tiles(diff_src.desc_iter_NK_tail_beta1_,
+                        diff_src.pallete_buff_iter_nk_tail_));
         }
     }
+
+    return status::success;
 }
 
-static void init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
+static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
         const cpu::rnn_utils::rnn_conf_t &rnn, data_type_t src_type,
         data_type_t weights_type) {
 
-    const auto init_brgemm_diff_wei =
-            [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
-                    std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
-                    dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
-                    float beta, dim_t max_bs) {
-                const dim_t A_size
-                        = rnn.diff_wei_brgemm.M * rnn.diff_wei_brgemm.Kpadded;
-                const dim_t B_size
-                        = rnn.diff_wei_brgemm.Kpadded * rnn.diff_wei_brgemm.N;
-                const dim_t C_size
-                        = rnn.diff_wei_brgemm.M * rnn.diff_wei_brgemm.N;
-                init_brgemm_kernel(desc, isa, src_type, weights_type, ker, M, N,
-                        K, LDA, LDB, LDC, beta, max_bs, A_size, B_size, C_size);
-            };
+    const auto init_brgemm_diff_wei
+            = [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
+                      std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
+                      dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
+                      float beta, dim_t max_bs) {
+                  const dim_t A_size
+                          = rnn.diff_wei_brgemm.M * rnn.diff_wei_brgemm.Kpadded;
+                  const dim_t B_size
+                          = rnn.diff_wei_brgemm.Kpadded * rnn.diff_wei_brgemm.N;
+                  const dim_t C_size
+                          = rnn.diff_wei_brgemm.M * rnn.diff_wei_brgemm.N;
+                  return init_brgemm_kernel(desc, isa, src_type, weights_type,
+                          ker, M, N, K, LDA, LDB, LDC, beta, max_bs, A_size,
+                          B_size, C_size);
+              };
 
     const auto &diff_wei_conf = rnn.diff_wei_brgemm;
     const bool is_m_block_equal = rnn.slc == rnn.sic;
@@ -1021,40 +1029,42 @@ static void init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
             && diff_wei_conf.isa == x64::avx512_core_bf16_amx_bf16;
 
     if (is_bf16_amx_wei) {
-        brgemm_init_tiles(
-                diff_wei.desc_iter_beta1_, diff_wei.pallete_buff_iter_);
-        brgemm_init_tiles(
-                diff_wei.desc_layer_beta1_, diff_wei.pallete_buff_layer_);
+        CHECK(brgemm_init_tiles(
+                diff_wei.desc_iter_beta1_, diff_wei.pallete_buff_iter_));
+        CHECK(brgemm_init_tiles(
+                diff_wei.desc_layer_beta1_, diff_wei.pallete_buff_layer_));
         if (n_diff_wei_tail) {
-            brgemm_init_tiles(diff_wei.desc_iter_N_tail_beta1_,
-                    diff_wei.pallete_buff_iter_n_tail_);
-            brgemm_init_tiles(diff_wei.desc_layer_N_tail_beta1_,
-                    diff_wei.pallete_buff_layer_n_tail_);
+            CHECK(brgemm_init_tiles(diff_wei.desc_iter_N_tail_beta1_,
+                    diff_wei.pallete_buff_iter_n_tail_));
+            CHECK(brgemm_init_tiles(diff_wei.desc_layer_N_tail_beta1_,
+                    diff_wei.pallete_buff_layer_n_tail_));
 
             if (diff_wei_conf.k_tail) {
-                brgemm_init_tiles(diff_wei.desc_iter_NK_tail_beta1_,
-                        diff_wei.pallete_buff_iter_nk_tail_);
-                brgemm_init_tiles(diff_wei.desc_layer_NK_tail_beta1_,
-                        diff_wei.pallete_buff_layer_nk_tail_);
+                CHECK(brgemm_init_tiles(diff_wei.desc_iter_NK_tail_beta1_,
+                        diff_wei.pallete_buff_iter_nk_tail_));
+                CHECK(brgemm_init_tiles(diff_wei.desc_layer_NK_tail_beta1_,
+                        diff_wei.pallete_buff_layer_nk_tail_));
             }
         }
 
         if (diff_wei_conf.k_tail) {
-            brgemm_init_tiles(diff_wei.desc_iter_K_tail_beta1_,
-                    diff_wei.pallete_buff_iter_k_tail_);
-            brgemm_init_tiles(diff_wei.desc_layer_K_tail_beta1_,
-                    diff_wei.pallete_buff_layer_k_tail_);
+            CHECK(brgemm_init_tiles(diff_wei.desc_iter_K_tail_beta1_,
+                    diff_wei.pallete_buff_iter_k_tail_));
+            CHECK(brgemm_init_tiles(diff_wei.desc_layer_K_tail_beta1_,
+                    diff_wei.pallete_buff_layer_k_tail_));
         }
     }
+
+    return status::success;
 }
 
-void rnn_brgemm_t<prop_kind::backward>::init_kernels(
+status_t rnn_brgemm_t<prop_kind::backward>::init_kernels(
         const cpu::rnn_utils::rnn_conf_t &rnn, data_type_t src_type,
         data_type_t weights_type) {
 
     init_kernels_diff_src(diff_src_, rnn, src_type, weights_type);
     init_kernels_diff_wei(diff_wei_, rnn, src_type, weights_type);
-    if (rnn.is_lstm_peephole) init_peephole_kernels(rnn);
+    if (rnn.is_lstm_peephole) CHECK(init_peephole_kernels(rnn));
 
     const auto n_diff_wei_tail
             = nstl::min(rnn.diff_wei_brgemm.N, rnn.diff_wei_brgemm.n_tail);
@@ -1079,7 +1089,7 @@ void rnn_brgemm_t<prop_kind::backward>::init_kernels(
             kernel_transpose_single_row_iter_
                     = utils::make_unique<jit_brgemm_transpose_single_row_t>(
                             m_block_iter);
-            kernel_transpose_single_row_iter_->create_kernel();
+            CHECK(kernel_transpose_single_row_iter_->create_kernel());
 
             if (!is_m_block_equal) {
                 const auto m_block_layer = is_m_block_equal
@@ -1088,7 +1098,7 @@ void rnn_brgemm_t<prop_kind::backward>::init_kernels(
                 kernel_transpose_single_row_layer_
                         = utils::make_unique<jit_brgemm_transpose_single_row_t>(
                                 m_block_layer);
-                kernel_transpose_single_row_layer_->create_kernel();
+                CHECK(kernel_transpose_single_row_layer_->create_kernel());
             }
         }
     } else {
@@ -1109,11 +1119,8 @@ void rnn_brgemm_t<prop_kind::backward>::init_kernels(
         trans_conf.M_tail = rnn.sic % blk_size; // src's cols tail
         for (int i = 0; i < num_base_kernels_; i++) {
             trans_conf.ic = LDA_iter[i];
-            const auto status = create_brgemm_trans_src(
-                    kernel_transpose_iter_[i], &trans_conf);
-            MAYBE_UNUSED(status);
-            assert(status == dnnl_success
-                    && "Failed to create brgemm transpose kernel!");
+            CHECK(create_brgemm_trans_src(
+                    kernel_transpose_iter_[i], &trans_conf));
         }
 
         const int LDA_layer[]
@@ -1121,29 +1128,30 @@ void rnn_brgemm_t<prop_kind::backward>::init_kernels(
         trans_conf.M_tail = rnn.slc % blk_size; // src's cols tail
         for (int i = 0; i < num_base_kernels_; i++) {
             trans_conf.ic = LDA_layer[i];
-            const auto status = create_brgemm_trans_src(
-                    kernel_transpose_layer_[i], &trans_conf);
-            MAYBE_UNUSED(status);
-            assert(status == dnnl_success
-                    && "Failed to create brgemm transpose kernel!");
+            CHECK(create_brgemm_trans_src(
+                    kernel_transpose_layer_[i], &trans_conf));
         }
     }
+
+    return status::success;
 }
 
-void rnn_brgemm_t<prop_kind::backward>::init_peephole_kernels(
+status_t rnn_brgemm_t<prop_kind::backward>::init_peephole_kernels(
         const cpu::rnn_utils::rnn_conf_t &rnn) {
 
     if (rnn.dhc_blocks_peephole) {
         kernel_peephole_ = utils::make_unique<jit_diff_weights_peephole_t>(
                 rnn, rnn.dhc_block_peephole);
-        kernel_peephole_->create_kernel();
+        CHECK(kernel_peephole_->create_kernel());
     }
 
     if (rnn.dhc_tail_peephole) {
         kernel_peephole_tail_ = utils::make_unique<jit_diff_weights_peephole_t>(
                 rnn, rnn.dhc_tail_peephole);
-        kernel_peephole_tail_->create_kernel();
+        CHECK(kernel_peephole_tail_->create_kernel());
     }
+
+    return status::success;
 }
 
 } // namespace rnn_brgemm_utils

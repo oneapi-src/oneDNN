@@ -61,7 +61,7 @@ struct rnn_brgemm_t<prop_kind::forward> : public rnn_brgemm_base_t {
     static status_t configure_brgemm(cpu::rnn_utils::rnn_conf_t &rnn,
             alg_kind_t cell_kind, dim_t src_layer_type_size,
             dim_t scratch_type_size);
-    void init_kernels(const cpu::rnn_utils::rnn_conf_t &rnn,
+    status_t init_kernels(const cpu::rnn_utils::rnn_conf_t &rnn,
             data_type_t src_type, data_type_t weights_type);
 
     brgemm_t desc_layer_b0_[num_base_kernels_];
@@ -177,7 +177,7 @@ public:
             alg_kind_t cell_kind, dim_t src_layer_type_size,
             dim_t scratch_type_size);
 
-    void init_kernels(const cpu::rnn_utils::rnn_conf_t &rnn,
+    status_t init_kernels(const cpu::rnn_utils::rnn_conf_t &rnn,
             data_type_t src_type, data_type_t weights_type);
 
     rnn_diff_src_brgemm_t diff_src_;
@@ -202,7 +202,7 @@ public:
 private:
     static void configure_brgemm_peephole(cpu::rnn_utils::rnn_conf_t &rnn);
 
-    void init_peephole_kernels(const cpu::rnn_utils::rnn_conf_t &rnn);
+    status_t init_peephole_kernels(const cpu::rnn_utils::rnn_conf_t &rnn);
 };
 
 } // namespace rnn_brgemm_utils

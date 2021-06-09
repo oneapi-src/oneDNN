@@ -496,9 +496,8 @@ struct _ref_rnn_common_t : public primitive_t {
                 scratch_cell_offset_, scratchpad_size, workspace_size);
 #if DNNL_X64
         const auto rnn = pd()->rnn_;
-        if (rnn.is_brgemm) {
-            rnn_brgemm_.init_kernels(rnn, src_type, weights_type);
-        }
+        if (rnn.is_brgemm)
+            return rnn_brgemm_.init_kernels(rnn, src_type, weights_type);
 #endif
         return status::success;
     }
