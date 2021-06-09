@@ -199,10 +199,12 @@ public:
             buffer = malloc(queried_lt.get_mem_size());
 #endif
             // create a conversion partition
-            dnnl::graph::conversion convert {};
+            dnnl::graph::op reorder_op {0, dnnl::graph::op::kind::Reorder,
+                    {ori_lt}, {queried_lt}, "reorder"};
+            dnnl::graph::partition convert {reorder_op, eng.get_kind()};
             // compile to compiled partition
             dnnl::graph::compiled_partition convert_executable
-                    = convert.compile(ori_lt, queried_lt, eng);
+                    = convert.compile({ori_lt}, {queried_lt}, eng);
             // real tensor with queried layout
             dnnl::graph::tensor tensor_r {queried_lt, buffer};
             // execute the conversion

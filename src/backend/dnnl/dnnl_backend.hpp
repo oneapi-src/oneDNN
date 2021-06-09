@@ -258,11 +258,6 @@ public:
         return status::success;
     }
 
-    virtual std::shared_ptr<impl::partition_impl_t> create_conversion(
-            const impl::engine_kind_t engine_kind,
-            const impl::logical_tensor_t &input,
-            const impl::logical_tensor_t &output) override;
-
 private:
     dnnl_backend(const std::string &name, float priority);
 

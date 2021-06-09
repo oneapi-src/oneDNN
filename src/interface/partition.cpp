@@ -210,22 +210,6 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_engine_kind(
     return status::success;
 }
 
-/// Initializes a conversion partition
-status_t DNNL_GRAPH_API dnnl_graph_conversion_init(partition_t *conversion,
-        const logical_tensor_t *input, const logical_tensor_t *output,
-        engine_kind_t engine_kind) {
-    logical_tensor_wrapper ltw {output};
-    assert(ltw.is_opaque());
-    auto backend_ptr = const_cast<backend *>(
-            backend_registry::get_singleton().get_registered_backend(
-                    static_cast<size_t>(ltw.layout_id())));
-
-    auto cvs_impl
-            = backend_ptr->create_conversion(engine_kind, *input, *output);
-    conversion->init(cvs_impl);
-    return status::success;
-}
-
 ///
 /// dnnl_graph_compiled_partition_t
 ///

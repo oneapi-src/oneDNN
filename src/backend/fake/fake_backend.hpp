@@ -59,16 +59,6 @@ public:
         return status::success;
     }
 
-    virtual std::shared_ptr<impl::partition_impl_t> create_conversion(
-            const impl::engine_kind_t engine_kind,
-            const impl::logical_tensor_t &input,
-            const impl::logical_tensor_t &output) override {
-        UNUSED(engine_kind);
-        UNUSED(input);
-        UNUSED(output);
-        return {};
-    }
-
 private:
     fake_backend(const std::string &name, float priority);
     bool register_passes();
