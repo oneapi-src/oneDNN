@@ -23,6 +23,8 @@
 
 #include "dnnl_graph_common.hpp"
 
+#include "binary/binary.hpp"
+
 #include "graph_conv.hpp"
 
 #define CONV_3D_NDIMS 5
@@ -157,6 +159,11 @@ fill_status_t conv_graph_prb_t::handle_sum_() {
     return po_handler.conv.sum_handler(*this);
 }
 
+fill_status_t conv_graph_prb_t::handle_bin_(
+        const attr_t::post_ops_t::entry_t &po_entry) {
+    return po_handler.conv.bin_handler(*this, spec_.data_format, po_entry);
+}
+
 int doit(const ::conv::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
     if (bench_mode == LIST) return res->state = LISTED, OK;
@@ -192,7 +199,6 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     if (prb->dir == FWD_B) bia_fp = make_dnn_mem(inputs[2], dt::f32, tag::x);
     dnn_mem_t dst_fp
             = make_dnn_mem(outputs[0], spec.dst_dim, dt::f32, tag::abx);
-    std::vector<dnn_mem_t> binary_po_fp;
 
     dnn_mem_t src_dt = make_dnn_mem(inputs[0], spec.src_dim, prb->stag);
     dnn_mem_t wei_dt = make_dnn_mem(inputs[1], spec.wei_dim, prb->wtag);
@@ -205,6 +211,16 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
     SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
 
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    if (graph_prb.has_post_bin()) {
+        binary_po_fp.emplace_back(
+                make_dnn_mem(inputs.back(), dt::f32, tag::abx));
+        binary_po_dt.emplace_back(make_dnn_mem(inputs.back(), tag::abx));
+        const int idx = 0;
+        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
+                binary_po_dt.back(), binary_po_fp.back());
+    }
+
     graph::tensor src_tensor(inputs[0], static_cast<float *>(src_dt));
     graph::tensor wei_tensor(inputs[1], static_cast<float *>(wei_dt));
     graph::tensor bia_tensor;
@@ -216,11 +232,16 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     if (prb->dir == FWD_B) input_ts.push_back(bia_tensor);
 
     graph::tensor sum_src1_tensor;
+    graph::tensor bin_tensor;
     if (graph_prb.has_post_sum()) { // Always use in-place operation.
         size_t idx = prb->dir == FWD_B ? 3 : 2;
         sum_src1_tensor
                 = graph::tensor(inputs[idx], static_cast<float *>(dst_dt));
         input_ts.push_back(sum_src1_tensor);
+    } else if (graph_prb.has_post_bin()) {
+        bin_tensor = graph::tensor(
+                inputs.back(), static_cast<void *>(binary_po_dt.back()));
+        input_ts.push_back(bin_tensor);
     }
     std::vector<graph::tensor> output_ts {dst_tensor};
 
