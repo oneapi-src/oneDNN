@@ -47,6 +47,9 @@ struct eltwise_graph_prb_t : public graph_prb_t {
     };
     spec_t spec_;
     fill_status_t handle_main_op_();
+    dnnl::graph::op::kind get_main_op_kind() const override {
+        return spec_.op_kind;
+    }
 };
 
 int doit(const ::eltwise::prb_t *prb, res_t *res);

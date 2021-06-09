@@ -12,3 +12,7 @@
 
 # --reset
 # --cfg=f32 --stag=axb --dtag=axb --batch=harness_conv_resnet_50
+
+--reset
+--batch=test_graph_conv_bias_swish
+

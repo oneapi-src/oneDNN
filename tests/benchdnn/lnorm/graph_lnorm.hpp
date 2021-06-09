@@ -51,6 +51,9 @@ struct lnorm_graph_prb_t : public graph_prb_t {
     };
     spec_t spec_;
     fill_status_t handle_main_op_();
+    dnnl::graph::op::kind get_main_op_kind() const override {
+        return dnnl::graph::op::kind::LayerNorm;
+    }
 };
 
 int doit(const ::lnorm::prb_t *prb, res_t *res);

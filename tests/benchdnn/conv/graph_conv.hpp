@@ -62,6 +62,7 @@ struct conv_graph_prb_t : public graph_prb_t {
         ctor_status = handle_main_op_();
         if (stop_work(ctor_status)) return;
         if (prb->dir == FWD_B) {
+            has_post_bia_ = true;
             ctor_status = handle_bia_();
             if (stop_work(ctor_status)) return;
         }
@@ -90,8 +91,9 @@ struct conv_graph_prb_t : public graph_prb_t {
         ctor_status = fill_status::DONE;
     };
 
-    bool has_post_sum() const { return has_post_sum_; }
-    bool has_post_bin() const { return has_post_bin_; }
+    dnnl::graph::op::kind get_main_op_kind() const override {
+        return dnnl::graph::op::kind::Convolution;
+    }
     const spec_t spec() const { return spec_; }
 
     std::vector<float> oscales;
@@ -101,9 +103,6 @@ private:
     const ::conv::prb_t *prb;
     spec_t spec_;
     po_handlers_t po_handler;
-
-    bool has_post_sum_ {false};
-    bool has_post_bin_ {false};
 
     fill_status_t handle_main_op_();
     fill_status_t handle_bia_();

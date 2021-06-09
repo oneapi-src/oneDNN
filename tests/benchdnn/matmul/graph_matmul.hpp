@@ -34,6 +34,7 @@ struct matmul_graph_prb_t : public graph_prb_t {
         ctor_status = handle_main_op_();
         if (stop_work(ctor_status)) return;
         if (spec_.bia_dt != dt::undef) {
+            has_post_bia_ = true;
             ctor_status = handle_bia_();
             if (stop_work(ctor_status)) return;
         }
@@ -56,8 +57,9 @@ struct matmul_graph_prb_t : public graph_prb_t {
         ctor_status = fill_status::DONE;
     };
 
-    bool has_post_bin() const { return has_post_bin_; }
-    bool has_post_sum() const { return has_post_sum_; }
+    dnnl::graph::op::kind get_main_op_kind() const override {
+        return dnnl::graph::op::kind::MatMul;
+    }
 
     fill_status_t ctor_status;
 
@@ -81,9 +83,6 @@ private:
         std::string wei_tag;
         std::string dst_tag;
     };
-
-    bool has_post_bin_ {false};
-    bool has_post_sum_ {false};
 
     spec_t spec_;
     po_handlers_t po_handler;
