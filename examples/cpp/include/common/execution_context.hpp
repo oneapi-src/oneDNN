@@ -191,7 +191,7 @@ public:
                 lid, ori_dtype, ori_dims, layout_type::strided};
 
         void *buffer = nullptr;
-        if (!queried_lt.has_same_layout_and_dtype(lts[idx])) {
+        if (!queried_lt.has_same_layout(lts[idx])) {
 #ifdef DNNL_GRAPH_WITH_SYCL
             buffer = cl::sycl::malloc_shared(queried_lt.get_mem_size(),
                     q_.get_device(), q_.get_context());

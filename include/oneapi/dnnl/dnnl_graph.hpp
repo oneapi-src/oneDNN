@@ -509,11 +509,10 @@ public:
     /// @param lt The input logical tensor to be compared
     /// @returns @c true if they have the same layout
     ///        @c false if they have different layout
-    bool has_same_layout_and_dtype(const logical_tensor &lt) const {
+    bool has_same_layout(const logical_tensor &lt) const {
         uint8_t is_same {0};
-        error::check_succeed(
-                dnnl_graph_logical_tenosr_has_same_layout_and_dtype(
-                        &data, &lt.data, &is_same),
+        error::check_succeed(dnnl_graph_logical_tensor_has_same_layout(
+                                     &data, &lt.data, &is_same),
                 "could not compare the layout between these logical tensors");
         return static_cast<bool>(is_same);
     }
