@@ -200,7 +200,7 @@ impl::status_t memory_binding(std::vector<op_ptr> &subgraph,
                     : false;
             bind_memory_for_siso_op(
                     cur_op, p_engine, exec_arg_mgr, true, true, is_training);
-        } else if (cur_op->get_kind() == op_kind::convert
+        } else if (cur_op->get_kind() == op_kind::Reorder
                 || cur_op->get_kind() == op_kind::mul_scales) {
             bind_memory_for_siso_op(cur_op, p_engine, exec_arg_mgr, true);
         } else if (cur_op->get_kind() == op_kind::permute

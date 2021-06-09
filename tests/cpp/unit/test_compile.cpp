@@ -5513,28 +5513,33 @@ TEST(operator_kernel, layernorm_inference_without_scale_shift) {
 TEST(operator_kernel, convert_data) {
     impl::engine_t &engine = get_engine();
 
-    test::vector<int8_t> src {1, 2, 3, 4, 5, 6};
-    test::vector<int32_t> ref_dst {1, 2, 3, 4, 5, 6};
-    test::vector<int32_t> dst(src.size(), 0);
+    test::vector<float> src {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+    test::vector<float> ref_dst {1.0, 4.0, 2.0, 5.0, 3.0, 6.0};
+    test::vector<float> dst(src.size(), 10);
 
-    impl::op_t convert_op(impl::op_kind::convert);
+    impl::op_t reorder_op(impl::op_kind::Reorder);
 
     // prepare input/output logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 2, 3}, impl::data_type::s8);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(1, {1, 2, 3}, impl::data_type::s32);
+    // [[1, 2, 3],
+    //  [4, 5, 6]]
+    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {2, 3}, {3, 1}, impl::data_type::f32);
+    // [[1, 4],
+    //  [2, 5],
+    //  [3, 6]]
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            1, {2, 3}, {1, 2}, impl::data_type::f32);
 
     auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(convert_op);
+    auto kernel = op_factory.create_kernel(reorder_op);
 
-    kernel->compile(&convert_op, &engine, {src_lt}, {dst_lt});
+    kernel->compile(&reorder_op, &engine, {src_lt}, {dst_lt});
 
     impl::stream_t &stream = get_stream();
     impl::tensor_t src_ts(src_lt, src.data());
     impl::tensor_t dst_ts(dst_lt, dst.data());
 
-    kernel->execute(&convert_op, &stream, {src_ts}, {dst_ts});
+    kernel->execute(&reorder_op, &stream, {src_ts}, {dst_ts});
     stream.wait();
     for (size_t i = 0; i < src.size(); ++i) {
         ASSERT_EQ(dst[i], ref_dst[i]);

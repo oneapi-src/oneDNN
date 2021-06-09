@@ -2568,16 +2568,6 @@ DNNL_GRAPH_OP_SCHEMA(Add_zps, 1,
                 .set_attr("zps", "input zero_point", true, attribute_kind::is)
                 .set_shape_inference_function(infer_identity_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(Convert, 1,
-        op_schema()
-                .set_num_inputs(1)
-                .set_num_outputs(1)
-                .set_input(0, "x", "input tensor",
-                        {data_type::s8, data_type::u8, data_type::f32})
-                .set_output(0, "y", "output tensor",
-                        {data_type::s8, data_type::u8, data_type::f32})
-                .set_shape_inference_function(infer_identity_output_shape))
-
 DNNL_GRAPH_OP_SCHEMA(Permute, 1,
         op_schema()
                 .set_num_inputs(1)

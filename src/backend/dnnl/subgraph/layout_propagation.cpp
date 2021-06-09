@@ -284,7 +284,7 @@ static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
     std::vector<op_t *> fuse_to_precursor;
     std::vector<op_t *> fuse_to_successor;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::convert) continue;
+        if (cur_op->get_kind() != op_kind::Reorder) continue;
 
         auto in_lt = cur_op->get_input_value(0)->get_logical_tensor();
         auto out_lt = cur_op->get_output_value(0)->get_logical_tensor();
@@ -341,7 +341,7 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
             if (cur_op->get_kind() == op_kind::Convolution
                     || cur_op->get_kind() == op_kind::dnnl_convolution
                     || cur_op->get_kind() == op_kind::MatMul
-                    || cur_op->get_kind() == op_kind::convert)
+                    || cur_op->get_kind() == op_kind::Reorder)
                 continue;
 
             if (cur_op->get_kind() == op_kind::MaxPool) {
@@ -384,7 +384,7 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
 
         // layout propagation for layout reorder op
         for (auto &cur_op : subgraph) {
-            if (cur_op->get_kind() != op_kind::convert) continue;
+            if (cur_op->get_kind() != op_kind::Reorder) continue;
             changed |= layout_propagation_for_reorder(cur_op);
         }
         cnt++;

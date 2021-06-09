@@ -64,7 +64,7 @@ void insert_reorder(std::vector<op_ptr> &subgraph) {
         size_t in_bound = with_bias ? 3 : 2;
 
         for (size_t i = 0; i < cur_op->num_outputs(); i++) {
-            op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::convert);
+            op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::Reorder);
             insert_op_after(reorder_op, cur_op, i);
             to_be_inserted_ops.emplace_back(reorder_op);
         }
@@ -76,7 +76,7 @@ void insert_reorder(std::vector<op_ptr> &subgraph) {
         for (size_t i = 0; i < cur_op->num_inputs(); i++) {
             if (i >= in_bound) break;
 
-            op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::convert);
+            op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::Reorder);
             insert_op_before(reorder_op, cur_op, i);
             to_be_inserted_ops.emplace_back(reorder_op);
         }
