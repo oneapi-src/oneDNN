@@ -59,6 +59,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_iface_handle.cpp
                               test_iface_runtime_dims.cpp
                               test_iface_runtime_attr.cpp
+                              test_iface_weights_format.cpp
                               test_iface_wino_convolution.cpp
                               test_dnnl_threading.cpp
                               test_memory.cpp
