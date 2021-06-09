@@ -112,13 +112,6 @@ int fill_memory_extra(const prb_t *prb, dnnl_memory_extra_desc_t &extra) {
             if (i_oflag.first & FLAG_S8S8_COMP) {
                 extra.flags |= dnnl_memory_extra_flag_compensation_conv_s8s8;
                 extra.compensation_mask = i_oflag.second;
-
-                const float s8_scale_factor = reorder_rescale_factor();
-                const bool need_rescale = s8_scale_factor != 1.f;
-                if (need_rescale) {
-                    extra.flags |= dnnl_memory_extra_flag_scale_adjust;
-                    extra.scale_adjust = s8_scale_factor;
-                }
             }
             if (i_oflag.first & FLAG_ZP_COMP) {
                 extra.flags
@@ -193,7 +186,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                  rc.tag_out),
             CRIT);
 
-    // Prepare and assign extra for dst_md.
+    // assign extra for dst_md
     dnnl_memory_extra_desc_t dst_md_extra {};
     fill_memory_extra(prb, dst_md_extra);
     dst_d.extra = dst_md_extra;
@@ -254,15 +247,9 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 
     if (prb->is_reorder_with_compensation()) {
         // compensation is supported for dst_dt = s8 so far
-        const bool dt_ok = ddt == dnnl_s8;
-        // compensation does not support any attributes but oscale
-        const bool attr_ok = prb->attr.scales.is_def()
-                && prb->attr.zero_points.is_def() && prb->attr.post_ops.is_def()
-                && prb->attr.oscale.runtime == false;
-        // compensation does not support runtime dims
-        const bool rt_ok = prb->runtime_dim_mask == 0;
-
-        if (!dt_ok || !attr_ok || !rt_ok) {
+        // compensation does not support any attributes or runtime dims
+        if (ddt != dnnl_s8 || !prb->attr.is_def()
+                || prb->runtime_dim_mask != 0) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
@@ -427,11 +414,7 @@ int doit(const prb_t *prb, res_t *res) {
             dnn_mem_t ref_dst_dt_out_fmt_out(dst_md, dst_engine);
             ref_dst_dt_out_fmt_out.md_.extra = dst_extra;
 
-            const_dnnl_primitive_attr_t const_attr;
-            DNN_SAFE(dnnl_primitive_desc_get_attr(const_pd, &const_attr), WARN);
-
-            SAFE(ref_dst_dt_out_fmt_out.reorder(src_dt_in_fmt_ref, const_attr),
-                    WARN);
+            SAFE(ref_dst_dt_out_fmt_out.reorder(src_dt_in_fmt_ref), WARN);
 
             /* Step 5b: compare results (expect bit-wise exactness) */
             SAFE(compare_bootstrap(

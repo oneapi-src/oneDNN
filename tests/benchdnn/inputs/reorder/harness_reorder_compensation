@@ -4,7 +4,6 @@
 --ddt=s8
 
 # Non-grouped cases
---attr-oscale=,common:2
 --oflag=,s8s8_comp:1,zp_comp:1,s8s8_comp:1+zp_comp:1
 --stag=abx,xba
 --dtag=xba,ABx2b8a4b,ABx4a4b,ABx4b16a4b,ABx4b32a4b,ABx4b64a4b
@@ -16,7 +15,6 @@
 80x24
 
 # Following tags have no s8s8 compensation support.
---attr-oscale=
 --oflag=,zp_comp:1
 ## Special case: no general 3D-spatial support
 --dtag=AxB16a4b,ABx16b16a4b
@@ -27,7 +25,6 @@
 --dtag=Adcb16a 32x32x3x3
 
 # Grouped cases
---attr-oscale=,common:2
 --oflag=,s8s8_comp:3,zp_comp:3,s8s8_comp:3+zp_comp:3
 --stag=abx,xcab
 --dtag=xcab        2x32x32x3 2x32x32x3x3 16x32x32x3x3x3
@@ -38,7 +35,6 @@
 --dtag=Abcx16a,Abcx8a,Abcx4a 64x1x1x3 512x1x1x3x3
 
 # Following tags have no s8s8 compensation support.
---attr-oscale=
 --oflag=,zp_comp:3
 ## Special case: no general 3D support for AMX and depthwise
 --dtag=aBxC16b4c,aBCx16c16b4c 2x32x32x3 2x32x32x3x3
