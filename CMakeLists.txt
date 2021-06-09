@@ -74,7 +74,19 @@ set(PROJECT_NAME "oneDNN")
 set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library (oneDNN)")
 set(PROJECT_VERSION "2.3.0")
 
-set(LIB_NAME dnnl)
+function(set_lib_name LIB_NAME)
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
+    if(WIN32 AND DNNL_INSTALL_MODE STREQUAL "BUNDLE"
+             AND UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "RELWITHMDD"
+             AND DNNL_CPU_RUNTIME MATCHES "(DPCPP|SYCL)"
+             AND DNNL_GPU_RUNTIME MATCHES "(DPCPP|SYCL)")
+        set(LIB_NAME "dnnld" PARENT_SCOPE)
+    else()
+        set(LIB_NAME "dnnl" PARENT_SCOPE)
+    endif()
+endfunction()
+
+set_lib_name(LIB_NAME)
 
 if (CMAKE_VERSION VERSION_LESS 3.0)
     project(${PROJECT_NAME} C CXX)
