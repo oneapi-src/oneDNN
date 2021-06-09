@@ -20,12 +20,12 @@
 
 8x384x4096
 
-#relu input shapes
+#relu input shapes - TODO add different alpha cases.. 
 --inplace=true,false
 --dir=FWD_I
 --dt=f32
 --tag=abx
---alpha= --beta=
+--alpha=0 --beta=
 --alg=relu
 
 64x2048x7x7
