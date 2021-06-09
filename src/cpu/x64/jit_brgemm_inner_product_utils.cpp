@@ -381,8 +381,18 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
 
     jbgp.oc_block = ip_fwd_get_adjusted_oc_block(jbgp);
 
-    jbgp.ic_block
-            = (jbgp.ic >= (is_f32 ? 512 : 64)) ? 64 : jbgp.ic >= 32 ? 32 : 16;
+    // Optimization: for small shape we avoid large ic_block
+    // Thinking of os, ic, and oc as three dimensions, the boundary for small
+    // shapes is heuristically chosen via the following constraints:
+    //   os <= 128 && max(ic, oc) <= 2048 && min(ic, oc) <= 1000
+    //
+    // TODO: Will the optimization be useful for bf16 data type
+    const bool avoid_max_ic_block = is_f32 && jbgp.os <= 128
+            && nstl::max(jbgp.ic, jbgp.oc) <= 2048
+            && nstl::min(jbgp.ic, jbgp.oc) <= 1000;
+    jbgp.ic_block = !avoid_max_ic_block && jbgp.ic >= (is_f32 ? 512 : 64)
+            ? 64
+            : jbgp.ic >= 32 ? 32 : 16;
 
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
     jbgp.nb_ic_blocking = 1;
