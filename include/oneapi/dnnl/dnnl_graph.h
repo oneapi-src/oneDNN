@@ -474,25 +474,6 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_engine_kind(
 
 /// @} dnnl_graph_api_partition
 
-/// @addtogroup dnnl_graph_api_conversion
-/// @{
-
-/// Initializes a conversion
-///
-/// @param conversion The target conversion
-/// @param input The input logical tensor
-/// @param output The output logical tensor
-/// @param engine_kind The kind of engine
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_conversion_init(
-        dnnl_graph_partition_t *conversion,
-        const dnnl_graph_logical_tensor_t *input,
-        const dnnl_graph_logical_tensor_t *output,
-        dnnl_graph_engine_kind_t engine_kind);
-
-/// @} dnnl_graph_api_conversion
-
 /// @addtogroup dnnl_graph_api_compiled_partition
 /// @{
 

@@ -246,21 +246,6 @@ bool dnnl_backend::compare_logical_tensor(const impl::logical_tensor_t &lhs,
     return md1 == md2;
 }
 
-std::shared_ptr<partition_impl_t> dnnl_backend::create_conversion(
-        const impl::engine_kind_t engine_kind,
-        const impl::logical_tensor_t &input,
-        const impl::logical_tensor_t &output) {
-    logical_tensor_wrapper ltw {&output};
-    assert(ltw.is_opaque());
-
-    auto pimpl = std::make_shared<dnnl_partition_impl_t>(engine_kind);
-    pimpl->fused_op_ = impl::utils::make_unique<op_t>(op_kind::Reorder);
-    pimpl->inputs_.push_back(input);
-    pimpl->outputs_.push_back(output);
-
-    return pimpl;
-}
-
 impl::utils::optional<size_t> dnnl_backend::set_mem_desc(
         const impl::utils::any &mem_desc) {
     return layout_id_manager_.set_mem_desc(mem_desc);

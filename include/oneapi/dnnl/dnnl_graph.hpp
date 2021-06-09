@@ -291,7 +291,6 @@ class logical_tensor {
     friend class op;
     friend class tensor;
     friend class partition;
-    friend class conversion;
     friend class compiled_partition;
 
     dnnl_graph_logical_tensor_t data;
@@ -1202,61 +1201,6 @@ private:
 };
 
 /// @} dnnl_graph_api_partition
-
-/// @addtogroup dnnl_graph_api_conversion Data conversion API
-///
-/// `conversion` is considered as a special partition which only accepts two
-/// input arguments.
-///
-/// @{
-
-/// Data conversion API
-class conversion : public detail::partition_handle {
-public:
-    /// Default constructor
-    conversion() {
-        dnnl_graph_partition_t *c_partition {nullptr};
-        error::check_succeed(dnnl_graph_partition_create(&c_partition),
-                "could not create a converison partition");
-        reset(c_partition);
-    }
-
-    /// Compile the conversion partition to generate compiled partition based
-    /// on the input/output logical tensor.
-    ///
-    /// @param input Input logical tensors
-    /// @param output Output logical tensors
-    /// @param aengine The engine used to compile the partition
-    /// @returns A compiled partition
-    compiled_partition compile(const logical_tensor &input,
-            const logical_tensor &output, const engine &aengine) {
-        std::vector<const dnnl_graph_logical_tensor_t *> c_inputs {&input.data};
-        std::vector<const dnnl_graph_logical_tensor_t *> c_outputs {
-                &output.data};
-
-        error::check_succeed(
-                dnnl_graph_conversion_init(get(), &input.data, &output.data,
-                        static_cast<dnnl_graph_engine_kind_t>(
-                                aengine.get_kind())),
-                "could not initialize a converison");
-
-        dnnl_graph_compiled_partition_t *cpartition {nullptr};
-        error::check_succeed(
-                dnnl_graph_compiled_partition_create(&cpartition, get()),
-                "could not create a compiled partition");
-
-        error::check_succeed(
-                dnnl_graph_partition_compile(get(), cpartition,
-                        static_cast<uint64_t>(c_inputs.size()), c_inputs.data(),
-                        static_cast<uint64_t>(c_outputs.size()),
-                        c_outputs.data(), aengine.get()),
-                "could not compile a conversion");
-
-        return compiled_partition(cpartition);
-    }
-};
-
-/// @} dnnl_graph_api_conversion
 
 /// @addtogroup dnnl_graph_api_graph Graph
 ///

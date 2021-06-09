@@ -103,22 +103,6 @@ public:
             partition_policy_t policy = partition_policy::fusion)
             = 0;
 
-    /// Create a specific partition_impl_t instace, which can be
-    /// used to convert a tensor from one layout to another layout
-    /// @param engine_kind The kind of engine that the conversion will
-    ///     perform on
-    /// @param input The logical tensor used to indicate input layout
-    /// @param output The logical tensor used to indicate output layout
-    /// @return The smart pointer of created partition_impl_t instance
-    /// @note This is a legacy API, which is used to support the
-    ///     conversion API in frontend. Will be removed when the constant
-    ///     semantics design is ready
-    virtual std::shared_ptr<partition_impl_t> create_conversion(
-            const impl::engine_kind_t engine_kind,
-            const impl::logical_tensor_t &input,
-            const impl::logical_tensor_t &output)
-            = 0;
-
     /// Register the pointer of created backend instance to oneDNN Graph
     static backend *register_backend(const backend *abackend);
 
