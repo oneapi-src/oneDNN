@@ -76,16 +76,18 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
                                                     intel_subgroups_short))
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(attr_skip_mask, dst_data_t)
-                    && post_ops_with_binary_ok(attr(), dst_md()->data_type)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type);
             if (!ok) return status::unimplemented;
 
-            status_t status = init_conf();
-            if (status != status::success) return status;
+            CHECK(init_conf());
 
             ok = set_default_formats_common(
                     conf.src_tag, conf.wei_tag, conf.dst_tag);
-            return ok ? status::success : status::unimplemented;
+            if (!ok) return status::unimplemented;
+
+            CHECK(attr_.set_default_formats(dst_md(0)));
+
+            return status::success;
         }
 
         status_t init_conf();
