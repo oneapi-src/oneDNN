@@ -109,7 +109,7 @@ get_filename_component(DNNL_CONFIGURATION "${DNNL_CONFIGURATION}" NAME)
 # The hint can be used to find CMake config in oneAPI directory layout.
 set(ONEAPI_CMAKE_CONFIG_HINT "../..")
 
-find_package(dnnl @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${DNNLROOT} ${ONEAPI_CMAKE_CONFIG_HINT})
+find_package(@LIB_NAME@ @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${DNNLROOT} ${ONEAPI_CMAKE_CONFIG_HINT})
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DNNL_COMPILE_FLAGS}")
 
@@ -144,7 +144,8 @@ endfunction()
 #   test -- "test" to mark executable as a test, "" otherwise
 function(register_example name srcs test)
     add_executable(${name} ${srcs})
-    target_link_libraries(${name} DNNL::dnnl ${LIBM})
+    string(TOUPPER "@LIB_NAME@" LIB_NAMESPACE)
+    target_link_libraries(${name} ${LIB_NAMESPACE}::@LIB_NAME@ ${LIBM})
     if("x${test}" STREQUAL "xtest")
         add_test(${name} ${name})
         maybe_configure_test("${example_name}" TEST)
