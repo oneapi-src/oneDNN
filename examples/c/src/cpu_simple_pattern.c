@@ -241,6 +241,7 @@ int main(int argc, char **argv) {
     if (partitions_num != 2) {
         printf("Error: partitions number is not equal to %llu\n",
                 (unsigned long long)partitions_num);
+        example_graph_destroy(example_graph);
         return -1;
     }
     dnnl_graph_partition_t *partitions[2];
