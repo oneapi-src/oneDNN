@@ -48,7 +48,7 @@ using FCreateOptPattern = impl::pass::FCreateOptPattern;
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(eltwise_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, relu_add_fusion)
-        .set_priority(8.f)
+        .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](pattern *apattern) -> void {
                     op_t *relu = apattern->create_op(op_kind::ReLU);
