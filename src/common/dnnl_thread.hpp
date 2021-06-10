@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #define COMMON_DNNL_THREAD_HPP
 
 #include <algorithm>
+#include <mutex>
 
 #include "utils.hpp"
 #include "z_magic.hpp"
@@ -100,10 +101,13 @@ inline int dnnl_get_max_threads() {
     // 4 or 8) depending on the configuration of the cpuid mask. It is expected
     // that the number of threads in user's threadpool will not exceed this
     // value.
-    if (def_max_threads == 0)
+    static std::once_flag initialization_flag_;
+    std::call_once(initialization_flag_, [&] {
         def_max_threads
                 = (int)dnnl::impl::cpu::platform::get_max_threads_to_use();
-    assert(def_max_threads > 0);
+        assert(def_max_threads > 0);
+    });
+
     // Use the default value if the threadpool-provided is outside the range
     // [1, def_max_threads]
     return tp ? std::min(std::max(1, tp->get_num_threads()), def_max_threads)
