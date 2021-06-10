@@ -838,7 +838,7 @@ private:
 
     std::shared_ptr<tensor> workspace_;
     std::shared_ptr<void> buffer_;
-    const impl::allocator_t *alc_;
+    const impl::allocator_t *alc_ {};
 };
 
 } // namespace dnnl_impl
