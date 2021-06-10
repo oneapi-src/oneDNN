@@ -186,6 +186,7 @@ int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> scales) {
     dnnl_primitive_attr_set_output_scales(
             bia_attr, bia_scales.size(), bia_mask, bia_scales.data());
     SAFE(dst.reorder(src, bia_attr), CRIT);
+    dnnl_primitive_attr_destroy(bia_attr);
 
     return OK;
 }
