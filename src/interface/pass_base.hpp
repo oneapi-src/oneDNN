@@ -190,11 +190,11 @@ protected:
     std::unordered_multimap<std::string, std::function<void(pattern *)>> attrs_;
 
 private:
-    pass_type type_;
-    std::string backend_;
-    std::string name_;
+    pass_type type_ {};
+    std::string backend_ {};
+    std::string name_ {};
     float priority_ {5.0f};
-    bool enable_ = true;
+    bool enable_ {true};
 };
 
 } // namespace pass
