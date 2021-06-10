@@ -3747,8 +3747,13 @@ TEST(pass_test, relu_add_fusion) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 2);
 
-    pass::pass_base_ptr apass = get_pass("relu_add_fusion");
-    apass->run(agraph);
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager(
+            backend_ptr.get_pass_registry());
+
+    pm.run_passes(agraph, "no_config");
+
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(), relu_add);
 }
