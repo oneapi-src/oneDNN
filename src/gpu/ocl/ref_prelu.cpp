@@ -162,10 +162,9 @@ status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     if (conf.reduce_diff_weights) {
         auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                 memory_tracking::names::key_prelu_reduction);
-        auto wspace_ptr = scratchpad->data_handle();
         CHECK(safe_ptr_assign(diff_weights_to_reduce,
                 new memory_t(ctx.stream()->engine(), pd()->dst_md(0),
-                        memory_flags_t::use_runtime_ptr, wspace_ptr)));
+                        std::move(scratchpad))));
     }
 
     const auto &diff_weight_arg = conf.reduce_diff_weights

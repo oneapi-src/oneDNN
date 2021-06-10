@@ -107,8 +107,7 @@ struct ref_sum_t : public gpu_primitive_t {
                     key_sum_reduction);
             CHECK(safe_ptr_assign(p_temp_dst_acc,
                     new memory_t(ctx.stream()->engine(), pd()->dst_acc_md(),
-                            memory_flags_t::use_runtime_ptr,
-                            scratchpad->data_handle())));
+                            std::move(scratchpad))));
         }
 
         auto dst = ctx.args().at(DNNL_ARG_DST);
