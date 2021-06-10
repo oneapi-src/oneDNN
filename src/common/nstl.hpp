@@ -21,6 +21,7 @@
 #include <limits.h>
 #include <stdint.h>
 
+#include <cassert>
 #include <cstdlib>
 #include <map>
 #include <vector>
