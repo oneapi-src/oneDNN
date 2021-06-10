@@ -89,10 +89,9 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
         auto wspace_md = src_engine_kind == reorder_engine_kind
                 ? pd()->dst_md()
                 : pd()->src_md();
-        auto wspace_ptr = scratchpad->data_handle();
         CHECK(safe_ptr_assign(wspace,
                 new memory_t(ctx.stream()->engine(), wspace_md,
-                        memory_flags_t::use_runtime_ptr, wspace_ptr)));
+                        std::move(scratchpad))));
     }
 
     auto exec_reorder = [&](const memory_t *src_mem, const memory_t *dst_mem) {
