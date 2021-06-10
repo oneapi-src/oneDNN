@@ -24,7 +24,7 @@ namespace benchdnnext {
 namespace matmul {
 
 struct matmul_graph_prb_t : public graph_prb_t {
-    matmul_graph_prb_t(const ::matmul::prb_t *prb) : spec_(prb) {
+    matmul_graph_prb_t(const ::matmul::prb_t *prb) : prb_(prb), spec_(prb) {
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
@@ -53,8 +53,20 @@ struct matmul_graph_prb_t : public graph_prb_t {
             }
         }
 
+        if (is_low_precision(get_dtypes())) {
+            ctor_status = handle_low_precision_();
+            if (stop_work(ctor_status)) return;
+        }
+
         ctor_status = fill_status::DONE;
     };
+
+    const std::vector<float> &get_oscales() const { return oscales_; }
+
+    std::vector<dt> get_dtypes() const {
+        return {spec_.src_dt, spec_.wei_dt, spec_.dst_dt};
+    }
+
     fill_status_t ctor_status;
 
 private:
@@ -79,11 +91,15 @@ private:
     };
 
     spec_t spec_;
+    std::vector<float> oscales_;
+    const ::matmul::prb_t *prb_;
+
     po_handlers_t po_handler;
 
     fill_status_t handle_main_op_();
     fill_status_t handle_bia_();
     fill_status_t handle_sum_();
+    fill_status_t handle_low_precision_();
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
 

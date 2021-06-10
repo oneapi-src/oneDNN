@@ -1,0 +1,16 @@
+# cases from DLRM-TeraByte
+--reset
+--cfg=s8s8s8
+--bia_dt=f32
+--attr-oscale=per_oc:2.25,common:2.25
+--attr-post-ops=relu
+--batch=shapes_int8_2d
+
+--attr-post-ops=logistic
+16x256:256x1:16x1
+
+# other supported cases
+--bia_dt=undef,f32
+--attr-post-ops=sum
+--batch=shapes_int8_2d
+

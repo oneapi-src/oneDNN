@@ -51,9 +51,13 @@ fill_status_t matmul_graph_prb_t::handle_main_op_() {
     const std::string WEI {"matmul_wei"};
     const std::string DST {"matmul_dst"};
 
-    tensor_descs_.emplace(SRC, spec_.src_dt, spec_.src_dims, lt::strided);
-    tensor_descs_.emplace(WEI, spec_.wei_dt, spec_.wei_dims, lt::strided);
-    tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, lt::strided);
+    const auto is_lprec = is_low_precision(get_dtypes());
+    dt src_dt = (is_lprec) ? dt::f32 : spec_.src_dt;
+    dt wei_dt = (is_lprec) ? dt::f32 : spec_.wei_dt;
+    dt dst_dt = (is_lprec) ? dt::f32 : spec_.dst_dt;
+    tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, lt::strided);
+    tensor_descs_.emplace(WEI, wei_dt, spec_.wei_dims, lt::strided);
+    tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, lt::strided);
 
     const size_t new_op_id = ops_.size();
     op matmul(new_op_id, op::kind::MatMul,
@@ -85,6 +89,78 @@ fill_status_t matmul_graph_prb_t::handle_bin_(
 
 fill_status_t matmul_graph_prb_t::handle_sum_() {
     return po_handler.matmul.sum_handler(*this);
+}
+
+fill_status_t matmul_graph_prb_t::handle_low_precision_() {
+    using op = dnnl::graph::op;
+
+    const std::string SRC {"matmul_src"};
+    const std::string WEI {"matmul_wei"};
+    const std::string DST = curr_out_map_ids_.back();
+    const std::string QSRC = "q" + SRC;
+    const std::string QWEI = "q" + WEI;
+    const std::string QDST = "q" + DST;
+
+    const std::string qsrc_type = spec_.src_dt == dt::u8 ? "uint8" : "int8";
+    const std::string qwei_type = spec_.wei_dt == dt::u8 ? "uint8" : "int8";
+    const std::string qdst_type = spec_.dst_dt == dt::u8 ? "uint8" : "int8";
+
+    tensor_descs_.emplace(QSRC, spec_.src_dt, spec_.src_dims, lt::strided);
+    tensor_descs_.emplace(QWEI, spec_.wei_dt, spec_.wei_dims, lt::strided);
+    tensor_descs_.emplace(QDST, spec_.dst_dt, spec_.dst_dims, lt::strided);
+
+    const std::string qtype = prb_->attr.oscale.policy == policy_t::COMMON
+            ? "per_tensor"
+            : "per_channel";
+    const int64_t count
+            = prb_->attr.oscale.policy == policy_t::COMMON ? 1 : prb_->n;
+
+    oscales_.resize(count, 1.f);
+    for (int64_t c = 0; c < count; ++c) {
+        oscales_[c] = prb_->scales[c];
+    }
+
+    op dequant_src(ops_.size(), op::kind::Dequantize, {tensor_descs_[QSRC]},
+            {tensor_descs_[SRC]}, "dequant_src");
+    dequant_src.set_attr("scales", std::vector<float> {1.f})
+            .set_attr("zps", std::vector<int64_t> {0})
+            .set_attr("qtype", std::string("per_tensor"))
+            .set_attr("in_type", qsrc_type)
+            .set_attr("axis", static_cast<int64_t>(0));
+    ops_.emplace_back(dequant_src);
+
+    op dequant_wei(ops_.size(), op::kind::Dequantize, {tensor_descs_[QWEI]},
+            {tensor_descs_[WEI]}, "dequant_wei");
+    dequant_wei.set_attr("scales", oscales_)
+            .set_attr("zps", std::vector<int64_t>(count, 0))
+            .set_attr("qtype", qtype)
+            .set_attr("in_type", qwei_type)
+            .set_attr("axis", static_cast<int64_t>(0));
+    ops_.emplace_back(dequant_wei);
+
+    op quant_dst(ops_.size(), op::kind::Quantize, {tensor_descs_[DST]},
+            {tensor_descs_[QDST]}, "quant");
+    quant_dst.set_attr("scales", std::vector<float> {1.f})
+            .set_attr("zps", std::vector<int64_t> {0})
+            .set_attr("qtype", std::string("per_tensor"))
+            .set_attr("out_type", qdst_type)
+            .set_attr("axis", static_cast<int64_t>(0));
+    ops_.emplace_back(quant_dst);
+
+    if (has_post_sum()) {
+        tensor_descs_.emplace(
+                "qsum_src1", spec_.dst_dt, spec_.dst_dims, lt::strided);
+        op dequant_sum(ops_.size(), op::kind::Dequantize,
+                {tensor_descs_["qsum_src1"]}, {tensor_descs_["sum_src1"]},
+                "dequant_sum");
+        dequant_sum.set_attr("scales", std::vector<float> {1.f})
+                .set_attr("zps", std::vector<int64_t> {0});
+        ops_.emplace_back(dequant_sum);
+    }
+
+    curr_out_map_ids_.assign({QDST});
+
+    return fill_status_t::DONE;
 }
 
 dims_t get_runtime_dims(const dims_t &dims, const ::matmul::dims_mask_t &mask) {
@@ -186,8 +262,18 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
 
     if (is_bench_mode(CORR)) {
         const auto &dnnl_test_engine = ::get_test_engine();
-        ::matmul::compute_ref(dnnl_test_engine, prb, src_fp, wei_fp, bia_fp,
-                binary_po_fp, dst_fp);
+
+        if (apply_bias && is_low_precision(graph_prb.get_dtypes())) {
+            dnn_mem_t bia_fp_scaled;
+            bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
+            scale_bia(bia_fp_scaled, bia_fp, graph_prb.get_oscales());
+            ::matmul::compute_ref(dnnl_test_engine, prb, src_fp, wei_fp,
+                    bia_fp_scaled, binary_po_fp, dst_fp);
+        } else {
+            ::matmul::compute_ref(dnnl_test_engine, prb, src_fp, wei_fp, bia_fp,
+                    binary_po_fp, dst_fp);
+        }
+
         compare::compare_t cmp;
         cmp.set_threshold(prb->cfg[DST].eps);
         cmp.set_data_kind(DST);

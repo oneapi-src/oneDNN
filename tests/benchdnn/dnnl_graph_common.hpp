@@ -53,6 +53,7 @@ dims_t convert_bin_policy(const dims_t &lhs_dims, const attr_t::policy_t policy,
 std::map<std::string, float> convert_eltw_entry(
         const dnnl::graph::op::kind op_kind,
         const attr_t::post_ops_t::entry_t &entry);
+bool is_low_precision(const std::vector<dt> &dtypes);
 bool should_handle_swish(struct graph_prb_t &p, const dnnl_alg_kind_t kind);
 
 int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> scales);
