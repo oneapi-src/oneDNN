@@ -34,7 +34,7 @@ namespace impl {
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 struct bfloat16_t;
-bool DNNL_API try_cvt_float_to_bfloat16(bfloat16_t *out, const float *inp);
+bool try_cvt_float_to_bfloat16(bfloat16_t *out, const float *inp);
 #endif
 
 struct bfloat16_t {
@@ -50,36 +50,7 @@ struct bfloat16_t {
         : raw_bits_ {convert_bits_of_normal_or_zero(
                 utils::bit_cast<uint32_t>(static_cast<float>(i)))} {}
 
-    bfloat16_t DNNL_API &operator=(float f) {
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-        if (try_cvt_float_to_bfloat16(this, &f)) { return *this; }
-#endif
-        auto iraw = utils::bit_cast<std::array<uint16_t, 2>>(f);
-        switch (std::fpclassify(f)) {
-            case FP_SUBNORMAL:
-            case FP_ZERO:
-                // sign preserving zero (denormal go to zero)
-                raw_bits_ = iraw[1];
-                raw_bits_ &= 0x8000;
-                break;
-            case FP_INFINITE: raw_bits_ = iraw[1]; break;
-            case FP_NAN:
-                // truncate and set MSB of the mantissa force QNAN
-                raw_bits_ = iraw[1];
-                raw_bits_ |= 1 << 6;
-                break;
-            case FP_NORMAL:
-                // round to nearest even and truncate
-                const uint32_t rounding_bias = 0x00007FFF + (iraw[1] & 0x1);
-                const uint32_t int_raw
-                        = utils::bit_cast<uint32_t>(f) + rounding_bias;
-                iraw = utils::bit_cast<std::array<uint16_t, 2>>(int_raw);
-                raw_bits_ = iraw[1];
-                break;
-        }
-
-        return *this;
-    }
+    bfloat16_t DNNL_API &operator=(float f);
 
     template <typename IntegerType,
             typename SFINAE = typename std::enable_if<
@@ -90,10 +61,7 @@ struct bfloat16_t {
         return (*this) = bfloat16_t {i};
     }
 
-    DNNL_API operator float() const {
-        std::array<uint16_t, 2> iraw = {{0, raw_bits_}};
-        return utils::bit_cast<float>(iraw);
-    }
+    DNNL_API operator float() const;
 
     bfloat16_t &operator+=(const float a) {
         (*this) = float {*this} + a;
