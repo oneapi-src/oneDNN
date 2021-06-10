@@ -96,7 +96,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.ndims = dst_d.ndims();
 
     const bool is_int8 = one_of(bgmmc.src_dt, u8, s8) && bgmmc.wei_dt == s8
-            && one_of(bgmmc.dst_dt, u8, s8, s32, f32);
+            && one_of(bgmmc.dst_dt, u8, s8, s32, f32, bf16);
     const bool is_bf16 = everyone_is(bf16, bgmmc.src_dt, bgmmc.wei_dt)
             && one_of(bgmmc.dst_dt, bf16, f32);
     const bool is_amx_int8 = isa == avx512_core_bf16_amx_int8;

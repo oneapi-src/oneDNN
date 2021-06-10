@@ -430,7 +430,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
             && (!one_of(dt_d, data_type::u8, data_type::s8, data_type::s32,
                     data_type::f32))
             && (!one_of(dt_bias, data_type::undef, data_type::u8, data_type::s8,
-                    data_type::s32, data_type::f32)))
+                    data_type::s32, data_type::f32, data_type::bf16)))
         return status::unimplemented;
     if ((brg->dt_a == data_type::bf16 && brg->dt_b == data_type::bf16)
             && (!one_of(dt_d, data_type::bf16, data_type::f32))

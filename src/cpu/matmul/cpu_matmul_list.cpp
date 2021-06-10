@@ -61,6 +61,8 @@ const impl_list_item_t impl_list[] = {
         CPU_INSTANCE(ref_matmul_t<u8, s8, s32, s32>)
         CPU_INSTANCE(ref_matmul_t<u8, s8, s8, s32>)
         CPU_INSTANCE(ref_matmul_t<u8, s8, u8, s32>)
+        CPU_INSTANCE(ref_matmul_t<s8, s8, bf16, s32>)
+        CPU_INSTANCE(ref_matmul_t<u8, s8, bf16, s32>)
         /* eol */
         nullptr,
 };

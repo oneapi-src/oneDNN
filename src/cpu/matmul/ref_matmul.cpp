@@ -157,6 +157,8 @@ template struct ref_matmul_t<u8, s8, f32, s32>;
 template struct ref_matmul_t<u8, s8, s32, s32>;
 template struct ref_matmul_t<u8, s8, s8, s32>;
 template struct ref_matmul_t<u8, s8, u8, s32>;
+template struct ref_matmul_t<s8, s8, bf16, s32>;
+template struct ref_matmul_t<u8, s8, bf16, s32>;
 
 } // namespace matmul
 } // namespace cpu

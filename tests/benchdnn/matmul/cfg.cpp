@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -172,6 +172,22 @@ const _dt_conf_t conf_s8s8u8 = {
         {dnnl_s32},
 };
 
+const _dt_conf_t conf_u8s8bf16 = {
+        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, .35, 1, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -255, 255, 0, .35, 1, 0.},
+        {dnnl_s32},
+};
+
+const _dt_conf_t conf_s8s8bf16 = {
+        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -255, 255, 0, .35, 1, 0.},
+        {dnnl_s32},
+};
+
 const dt_conf_t *str2cfg(const char *str) {
 #define CASE(cfg) \
     if (!strcasecmp(STRINGIFY(cfg), str)) return CONCAT2(conf_, cfg)
@@ -185,6 +201,8 @@ const dt_conf_t *str2cfg(const char *str) {
     CASE(s8s8s32);
     CASE(s8s8s8);
     CASE(s8s8u8);
+    CASE(s8s8bf16);
+    CASE(u8s8bf16);
     CASE(bf16bf16f32);
     CASE(bf16bf16bf16);
     CASE(f32bf16bf16);
@@ -207,6 +225,8 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     CASE(s8s8s32);
     CASE(s8s8s8);
     CASE(s8s8u8);
+    CASE(s8s8bf16);
+    CASE(u8s8bf16);
     CASE(bf16bf16f32);
     CASE(bf16bf16bf16);
     CASE(f32bf16bf16);

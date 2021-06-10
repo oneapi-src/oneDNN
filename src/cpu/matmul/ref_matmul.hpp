@@ -64,7 +64,7 @@ struct ref_matmul_t : public primitive_t {
                 if (acc_type == f32)
                     ok = ok && utils::one_of(bia_dt, f32);
                 else if (acc_type == s32)
-                    ok = ok && utils::one_of(bia_dt, f32, s32, s8, u8);
+                    ok = ok && utils::one_of(bia_dt, f32, s32, s8, u8, bf16);
             }
             return ok ? status::success : status::unimplemented;
         }
