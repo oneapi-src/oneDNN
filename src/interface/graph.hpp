@@ -53,7 +53,7 @@ private:
     std::vector<op_ptr> ops_ {};
 
     /*! \brief The engine kind on which the operator will be evaluated */
-    dnnl::graph::impl::engine_kind_t engine_kind_;
+    dnnl::graph::impl::engine_kind_t engine_kind_ {};
 
     std::vector<std::shared_ptr<dnnl::graph::impl::partition_impl_t>>
             partition_impls_;
