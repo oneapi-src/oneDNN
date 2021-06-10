@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -29,6 +30,22 @@
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
+
+struct deletor {
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::context ctx_;
+    deletor() = delete;
+    deletor(const cl::sycl::context &ctx) : ctx_(ctx) {}
+    void operator()(void *ptr) {
+        if (ptr) cl::sycl::free(ptr, ctx_);
+    }
+#else
+    deletor() = default;
+    void operator()(void *ptr) {
+        if (ptr) free(ptr);
+    }
+#endif
+};
 
 /// A mapping from id to tensor is used to manage the lifecycle of all created
 /// tensors since these tensors need to be held until all compiled partitions'
@@ -41,10 +58,7 @@ class tensor_map {
 private:
     /// mapping from id to tensor
     std::unordered_map<size_t, dnnl::graph::tensor> data_;
-
-    /// workaround: need to know the data type of tensor's handle
-    /// need to further enhance tensor.get_data_handle() API
-    std::unordered_map<size_t, data_type> id_to_dtypes_;
+    std::unordered_map<size_t, std::shared_ptr<void>> buffer_map_;
 
     /// containing ids of in-placed tensors
     std::unordered_set<size_t> inplace_tensor_ids_;
@@ -61,25 +75,7 @@ public:
 #endif
 
     /// destructor - free all of allocated memory buffer
-    ~tensor_map() {
-        for (const auto &v : data_) {
-            // address double-free issue for inplace scenario
-            // if two tensors share the same memory buffer, need skip the second
-            // time of freeing memory
-            if (inplace_tensor_ids_.find(v.first) != inplace_tensor_ids_.end())
-                continue;
-
-            void *mem_ptr
-                    = get_handle_from_tensor(v.second, id_to_dtypes_[v.first]);
-            if (mem_ptr) {
-#ifdef DNNL_GRAPH_WITH_SYCL
-                cl::sycl::free(mem_ptr, q_.get_context());
-#else
-                free(mem_ptr);
-#endif
-            }
-        }
-    }
+    ~tensor_map() = default;
 
     /// Add or insert a new tensor into the tensor map
     ///
@@ -90,16 +86,6 @@ public:
         if (iter != data_.end()) {
             std::cout << "Warning: inserting the same tensor twice time, is it "
                          "intended?\n";
-            // since this will replace old tensor with a new one, so here need
-            // to free the memory buffer of the old tensor
-            void *old_mem_ptr
-                    = get_handle_from_tensor(iter->second, id_to_dtypes_[id]);
-            if (old_mem_ptr)
-#ifdef DNNL_GRAPH_WITH_SYCL
-                cl::sycl::free(old_mem_ptr, q_.get_context());
-#else
-                free(old_mem_ptr);
-#endif
         }
         data_[id] = ts;
     }
@@ -144,6 +130,8 @@ public:
 #ifdef DNNL_GRAPH_WITH_SYCL
                 void *mem_ptr = cl::sycl::malloc_shared(new_lt.get_mem_size(),
                         q_.get_device(), q_.get_context());
+                buffer_map_[new_lt.get_id()].reset(
+                        mem_ptr, deletor {q_.get_context()});
                 EXAMPLE_SWITCH_TYPE(new_lt.get_data_type(), dtype, {
                     fill_buffer<dtype>(q_, mem_ptr,
                             static_cast<size_t>(
@@ -152,13 +140,13 @@ public:
                 });
 #else
                 void *mem_ptr = malloc(new_lt.get_mem_size());
+                buffer_map_[new_lt.get_id()].reset(mem_ptr, deletor {});
                 EXAMPLE_SWITCH_TYPE(new_lt.get_data_type(), dtype, {
                     fill_buffer<dtype>(mem_ptr, new_lt.get_mem_size(), value);
                 });
 #endif
                 ret.emplace_back(dnnl::graph::tensor {new_lt, mem_ptr});
                 this->insert_or_replace(new_lt.get_id(), ret.back());
-                id_to_dtypes_[new_lt.get_id()] = new_lt.get_data_type();
             }
         }
         return ret;
@@ -190,13 +178,17 @@ public:
         dnnl::graph::logical_tensor ori_lt {
                 lid, ori_dtype, ori_dims, layout_type::strided};
 
-        void *buffer = nullptr;
         if (!queried_lt.has_same_layout_and_dtype(lts[idx])) {
 #ifdef DNNL_GRAPH_WITH_SYCL
-            buffer = cl::sycl::malloc_shared(queried_lt.get_mem_size(),
-                    q_.get_device(), q_.get_context());
+            std::unique_ptr<char, deletor> buffer {
+                    nullptr, deletor {q_.get_context()}};
+            buffer.reset(static_cast<char *>(
+                    cl::sycl::malloc_shared(queried_lt.get_mem_size(),
+                            q_.get_device(), q_.get_context())));
 #else
-            buffer = malloc(queried_lt.get_mem_size());
+            std::unique_ptr<char, deletor> buffer {nullptr, deletor {}};
+            buffer.reset(
+                    static_cast<char *>(malloc(queried_lt.get_mem_size())));
 #endif
             // create a conversion partition
             dnnl::graph::conversion convert {};
@@ -204,13 +196,18 @@ public:
             dnnl::graph::compiled_partition convert_executable
                     = convert.compile(ori_lt, queried_lt, eng);
             // real tensor with queried layout
-            dnnl::graph::tensor tensor_r {queried_lt, buffer};
+            dnnl::graph::tensor tensor_r {queried_lt, buffer.get()};
             // execute the conversion
             convert_executable.execute(strm, {ts[idx]}, {tensor_r});
             // replace the original tensor with the new one
             ts[idx] = tensor_r;
             this->insert_or_replace(lid, tensor_r);
-            id_to_dtypes_[lid] = ori_dtype;
+#ifdef DNNL_GRAPH_WITH_SYCL
+            buffer_map_[lid].reset(
+                    buffer.release(), deletor {q_.get_context()});
+#else
+            buffer_map_[lid].reset(buffer.release(), deletor {});
+#endif
         }
     }
 
@@ -248,15 +245,7 @@ public:
                     std::distance(output_lts.begin(), output_lt_iter));
 
             // free original output buffer if it can be in-placed.
-            void *ori_mem_ptr = get_handle_from_tensor(outputs[output_lt_idx],
-                    output_lts[output_lt_idx].get_data_type());
-            if (ori_mem_ptr) {
-#ifdef DNNL_GRAPH_WITH_SYCL
-                cl::sycl::free(ori_mem_ptr, q_.get_context());
-#else
-                free(ori_mem_ptr);
-#endif
-            }
+            buffer_map_[output_lts[output_lt_idx].get_id()].reset();
             void *new_mem_ptr = get_handle_from_tensor(inputs[input_lt_idx],
                     input_lts[input_lt_idx].get_data_type());
             outputs[output_lt_idx].set_data_handle(new_mem_ptr);
