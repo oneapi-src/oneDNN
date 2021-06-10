@@ -83,16 +83,17 @@ TEST(c_api_test, op_attr) {
     ASSERT_EQ_SAFE(*new_strides, 4, OP_ATTR_DESTROY);
     ASSERT_EQ_SAFE(*(new_strides + 1), 4, OP_ATTR_DESTROY);
 
-    ASSERT_EQ(
+    ASSERT_EQ_SAFE(
             dnnl_graph_op_get_attr(op, "auto_pad", dnnl_graph_attribute_kind_s,
                     &got_auto_pad, &auto_pad_num),
-            dnnl_graph_result_success);
+            dnnl_graph_result_success, OP_ATTR_DESTROY);
     const auto new_auto_pad = reinterpret_cast<const char *>(got_auto_pad);
     ASSERT_EQ(std::string(new_auto_pad), "same_upper");
 
-    ASSERT_EQ(dnnl_graph_op_get_attr(op, "groups", dnnl_graph_attribute_kind_i,
-                      &got_groups, &groups_num),
-            dnnl_graph_result_success);
+    ASSERT_EQ_SAFE(
+            dnnl_graph_op_get_attr(op, "groups", dnnl_graph_attribute_kind_i,
+                    &got_groups, &groups_num),
+            dnnl_graph_result_success, OP_ATTR_DESTROY);
     const auto new_groups = reinterpret_cast<const int64_t *>(got_groups);
     ASSERT_EQ_SAFE(*new_groups, 2, OP_ATTR_DESTROY);
 

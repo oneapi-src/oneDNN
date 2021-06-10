@@ -24,7 +24,10 @@
 #define ASSERT_EQ_SAFE(val1, val2, ...) \
     do { \
         auto result = (val1); \
-        if (result != (val2)) { {__VA_ARGS__} ASSERT_EQ(result, val2); } \
+        if (result != (val2)) { \
+            {__VA_ARGS__} ASSERT_EQ(result, val2); \
+            return; \
+        } \
     } while (0)
 
 #endif
