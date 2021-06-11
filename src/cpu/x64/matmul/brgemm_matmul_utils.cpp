@@ -320,7 +320,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             return status::unimplemented;
 
         if (bgmmc.with_bias && bias_md.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_tag(bias_md, x));
+            CHECK(memory_desc_init_by_tag(bias_md, plain_tensor_layout_tag));
 
         return set_or_check_B_tag(true);
     };
