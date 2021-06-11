@@ -30,7 +30,7 @@ namespace ocl {
 status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
 
     const auto &d = desc();
-    const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
+    const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale_runtime
             | primitive_attr_t::skip_mask_t::post_ops
             | primitive_attr_t::skip_mask_t::zero_points;
 

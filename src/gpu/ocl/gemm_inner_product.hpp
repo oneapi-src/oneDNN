@@ -56,7 +56,8 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
 
-            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
+            const auto attr_skip_mask
+                    = primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops;
 
             bool ok = is_fwd() && set_default_params() == status::success
