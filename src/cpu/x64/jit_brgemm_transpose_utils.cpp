@@ -1680,13 +1680,13 @@ void jit_brgemm_trans_wei_bf16_t::generate() {
     cmp(reg_loop_K, transpose_size);
     jge(K_loop, T_NEAR);
 
+    L(K_tail);
     if (oc_tail > 0) {
-        Label done;
-        jmp(done, T_NEAR);
-
-        L(K_tail);
+        Label K_loop_done;
+        cmp(reg_loop_K, 0);
+        jle(K_loop_done, T_NEAR);
         compute_N(true);
-        L(done);
+        L(K_loop_done);
     }
 
     postamble();
