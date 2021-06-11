@@ -206,9 +206,10 @@ void jit_avx2_kernel_sgemm_kern::generate() {
     int LDC_off = is_windows ? 64 : 16;
     int sepload = 0;
 
-    Xbyak::Label unroll_x_label[MAX_UNROLL_M],
-            unroll_y_label[(MAX_UNROLL_N_BIN + 1) * MAX_UNROLL_M];
-    Xbyak::Label end_n_loop_label[MAX_UNROLL_M], end_m_loop_label;
+    std::vector<Xbyak::Label> unroll_x_label(MAX_UNROLL_M),
+            unroll_y_label((MAX_UNROLL_N_BIN + 1) * MAX_UNROLL_M);
+    std::vector<Xbyak::Label> end_n_loop_label(MAX_UNROLL_M);
+    Xbyak::Label end_m_loop_label;
 
     preamble();
 

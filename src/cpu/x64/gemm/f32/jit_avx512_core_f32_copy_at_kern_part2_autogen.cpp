@@ -26,71 +26,10 @@ namespace x64 {
 
 void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
         Xbyak::Label l2a5c, Xbyak::Label l22b8, Xbyak::Label l1f80) {
-    Xbyak::Label l3ffc;
-    Xbyak::Label l3fd4;
-    Xbyak::Label l3fa0;
-    Xbyak::Label l3f5c;
-    Xbyak::Label l3f3c;
-    Xbyak::Label l3f38;
-    Xbyak::Label l3f04;
-    Xbyak::Label l3ecc;
-    Xbyak::Label l3e84;
-    Xbyak::Label l3e64;
-    Xbyak::Label l3e60;
-    Xbyak::Label l3e18;
-    Xbyak::Label l3dc4;
-    Xbyak::Label l3d54;
-    Xbyak::Label l3d34;
-    Xbyak::Label l3d30;
-    Xbyak::Label l3cbc;
-    Xbyak::Label l3c40;
-    Xbyak::Label l3b90;
-    Xbyak::Label l3b6c;
-    Xbyak::Label l3b68;
-    Xbyak::Label l3a94;
-    Xbyak::Label l39b8;
-    Xbyak::Label l3888;
-    Xbyak::Label l3864;
-    Xbyak::Label l3860;
-    Xbyak::Label l36d0;
-    Xbyak::Label l352c;
-    Xbyak::Label l32dc;
-    Xbyak::Label l32b8;
-    Xbyak::Label l32a8;
-    Xbyak::Label l3058;
-    Xbyak::Label l2df0;
-    Xbyak::Label l2a84;
-    Xbyak::Label l2a68;
-    Xbyak::Label l2a54;
-    Xbyak::Label l2a50;
-    Xbyak::Label l2a28;
-    Xbyak::Label l29f4;
-    Xbyak::Label l29b0;
-    Xbyak::Label l2990;
-    Xbyak::Label l298c;
-    Xbyak::Label l2958;
-    Xbyak::Label l2920;
-    Xbyak::Label l28d8;
-    Xbyak::Label l28b8;
-    Xbyak::Label l28b4;
-    Xbyak::Label l286c;
-    Xbyak::Label l2818;
-    Xbyak::Label l27a8;
-    Xbyak::Label l2788;
-    Xbyak::Label l2784;
-    Xbyak::Label l2710;
-    Xbyak::Label l2694;
-    Xbyak::Label l25e4;
-    Xbyak::Label l25c0;
-    Xbyak::Label l25bc;
-    Xbyak::Label l24e8;
-    Xbyak::Label l240c;
-    Xbyak::Label l22dc;
-    Xbyak::Label l22b4;
-    Xbyak::Label l2124;
+    std::vector<Xbyak::Label> labels(62);
     L(l1f80);
     test(M, 0x2);
-    jle(l2124, T_NEAR);
+    jle(labels[61], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vmovsd(xmm1, qword[A1 + LDA * 1]);
     vmovhps(xmm0, xmm0, qword[A1 + LDA * 2]);
@@ -163,9 +102,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -256);
     align(4);
 
-    L(l2124);
+    L(labels[61]);
     test(M, 0x1);
-    jle(l22b4, T_NEAR);
+    jle(labels[60], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vmovss(xmm1, dword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -246,23 +185,23 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -128);
     align(4);
 
-    L(l22b4);
+    L(labels[60]);
     sub(N, 0x20);
     align(4);
 
     L(l22b8);
     cmp(N, 0x10);
-    jl(l25c0, T_NEAR);
+    jl(labels[55], T_NEAR);
     mov(A1, A);
     mov(I, LDA);
     imul(I, I, 0x10);
     add(A, I);
     mov(I, M);
     sar(I, 0x2);
-    jle(l240c, T_NEAR);
+    jle(labels[58], T_NEAR);
     align(4);
 
-    L(l22dc);
+    L(labels[59]);
     vmovups(xmm4, xword[A1]);
     vmovups(xmm5, xword[A1 + LDA * 4]);
     vperm2f128(ymm0, ymm4, ymm5, 0x20);
@@ -315,12 +254,12 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(A1, -16);
     sub(B, -256);
     dec(I);
-    jg(l22dc, T_NEAR);
+    jg(labels[59], T_NEAR);
     align(4);
 
-    L(l240c);
+    L(labels[58]);
     test(M, 0x2);
-    jle(l24e8, T_NEAR);
+    jle(labels[57], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vmovsd(xmm1, qword[A1 + LDA * 1]);
     vmovhps(xmm0, xmm0, qword[A1 + LDA * 2]);
@@ -359,9 +298,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -128);
     align(4);
 
-    L(l24e8);
+    L(labels[57]);
     test(M, 0x1);
-    jle(l25bc, T_NEAR);
+    jle(labels[56], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vmovss(xmm1, dword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -404,23 +343,23 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -64);
     align(4);
 
-    L(l25bc);
+    L(labels[56]);
     sub(N, 0x10);
     align(4);
 
-    L(l25c0);
+    L(labels[55]);
     cmp(N, 0x8);
-    jl(l2788, T_NEAR);
+    jl(labels[50], T_NEAR);
     mov(A1, A);
     mov(I, LDA);
     imul(I, I, 0x8);
     add(A, I);
     mov(I, M);
     sar(I, 0x2);
-    jle(l2694, T_NEAR);
+    jle(labels[53], T_NEAR);
     align(4);
 
-    L(l25e4);
+    L(labels[54]);
     vmovups(xmm0, xword[A1]);
     vmovups(xmm4, xword[A1 + LDA * 4]);
     vperm2f128(ymm0, ymm0, ymm4, 0x20);
@@ -457,12 +396,12 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(A1, -16);
     sub(B, -128);
     dec(I);
-    jg(l25e4, T_NEAR);
+    jg(labels[54], T_NEAR);
     align(4);
 
-    L(l2694);
+    L(labels[53]);
     test(M, 0x2);
-    jle(l2710, T_NEAR);
+    jle(labels[52], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vmovsd(xmm1, qword[A1 + LDA * 1]);
     vmovhps(xmm0, xmm0, qword[A1 + LDA * 2]);
@@ -487,9 +426,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -64);
     align(4);
 
-    L(l2710);
+    L(labels[52]);
     test(M, 0x1);
-    jle(l2784, T_NEAR);
+    jle(labels[51], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vmovss(xmm1, dword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -513,23 +452,23 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -32);
     align(4);
 
-    L(l2784);
+    L(labels[51]);
     sub(N, 0x8);
     align(4);
 
-    L(l2788);
+    L(labels[50]);
     cmp(N, 0x4);
-    jl(l28b8, T_NEAR);
+    jl(labels[45], T_NEAR);
     mov(A1, A);
     mov(I, LDA);
     imul(I, I, 0x4);
     add(A, I);
     mov(I, M);
     sar(I, 0x2);
-    jle(l2818, T_NEAR);
+    jle(labels[48], T_NEAR);
     align(4);
 
-    L(l27a8);
+    L(labels[49]);
     vmovups(xmm0, xword[A1]);
     vmovups(xmm1, xword[A1 + LDA * 1]);
     vmovups(xmm2, xword[A1 + LDA * 2]);
@@ -554,12 +493,12 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(A1, -16);
     sub(B, -64);
     dec(I);
-    jg(l27a8, T_NEAR);
+    jg(labels[49], T_NEAR);
     align(4);
 
-    L(l2818);
+    L(labels[48]);
     test(M, 0x2);
-    jle(l286c, T_NEAR);
+    jle(labels[47], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vmovsd(xmm1, qword[A1 + LDA * 1]);
     vmovhps(xmm0, xmm0, qword[A1 + LDA * 2]);
@@ -577,9 +516,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -32);
     align(4);
 
-    L(l286c);
+    L(labels[47]);
     test(M, 0x1);
-    jle(l28b4, T_NEAR);
+    jle(labels[46], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vmovss(xmm1, dword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -594,23 +533,23 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -16);
     align(4);
 
-    L(l28b4);
+    L(labels[46]);
     sub(N, 0x4);
     align(4);
 
-    L(l28b8);
+    L(labels[45]);
     cmp(N, 0x2);
-    jl(l2990, T_NEAR);
+    jl(labels[40], T_NEAR);
     mov(A1, A);
     mov(I, LDA);
     imul(I, I, 0x2);
     add(A, I);
     mov(I, M);
     sar(I, 0x2);
-    jle(l2920, T_NEAR);
+    jle(labels[43], T_NEAR);
     align(4);
 
-    L(l28d8);
+    L(labels[44]);
     vmovups(xmm0, xword[A1]);
     vmovups(xmm1, xword[A1 + LDA * 1]);
     vunpcklps(xmm4, xmm0, xmm1);
@@ -626,12 +565,12 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(A1, -16);
     sub(B, -32);
     dec(I);
-    jg(l28d8, T_NEAR);
+    jg(labels[44], T_NEAR);
     align(4);
 
-    L(l2920);
+    L(labels[43]);
     test(M, 0x2);
-    jle(l2958, T_NEAR);
+    jle(labels[42], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vmovsd(xmm1, qword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -643,9 +582,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -16);
     align(4);
 
-    L(l2958);
+    L(labels[42]);
     test(M, 0x1);
-    jle(l298c, T_NEAR);
+    jle(labels[41], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vmovss(xmm1, dword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -656,23 +595,23 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -8);
     align(4);
 
-    L(l298c);
+    L(labels[41]);
     sub(N, 0x2);
     align(4);
 
-    L(l2990);
+    L(labels[40]);
     cmp(N, 0x1);
-    jl(l2a54, T_NEAR);
+    jl(labels[35], T_NEAR);
     mov(A1, A);
     mov(I, LDA);
     imul(I, I, 0x1);
     add(A, I);
     mov(I, M);
     sar(I, 0x2);
-    jle(l29f4, T_NEAR);
+    jle(labels[38], T_NEAR);
     align(4);
 
-    L(l29b0);
+    L(labels[39]);
     vmovups(xmm0, xword[A1]);
     vxorps(xmm0, xmm6, xmm0);
     vpshufd(xmm1, xmm0, 0x55);
@@ -686,12 +625,12 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(A1, -16);
     sub(B, -16);
     dec(I);
-    jg(l29b0, T_NEAR);
+    jg(labels[39], T_NEAR);
     align(4);
 
-    L(l29f4);
+    L(labels[38]);
     test(M, 0x2);
-    jle(l2a28, T_NEAR);
+    jle(labels[37], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vxorps(xmm0, xmm6, xmm0);
     vpshufd(xmm1, xmm0, 0x55);
@@ -702,9 +641,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -8);
     align(4);
 
-    L(l2a28);
+    L(labels[37]);
     test(M, 0x1);
-    jle(l2a50, T_NEAR);
+    jle(labels[36], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vxorps(xmm0, xmm6, xmm0);
     vmovss(dword[B - 0x80], xmm0);
@@ -713,30 +652,30 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -4);
     align(4);
 
-    L(l2a50);
+    L(labels[36]);
     sub(N, 0x1);
     align(4);
 
-    L(l2a54);
+    L(labels[35]);
     jmp(l4000, T_NEAR);
     align(4);
 
     L(l2a5c);
     cmp(N, 0x30);
-    jl(l32b8, T_NEAR);
+    jl(labels[29], T_NEAR);
     align(4);
 
-    L(l2a68);
+    L(labels[34]);
     mov(A1, A);
     mov(I, LDA);
     imul(I, I, 0x30);
     add(A, I);
     mov(I, M);
     sar(I, 0x2);
-    jle(l2df0, T_NEAR);
+    jle(labels[32], T_NEAR);
     align(4);
 
-    L(l2a84);
+    L(labels[33]);
     vmovups(xmm4, xword[A1]);
     vmovups(xmm5, xword[A1 + LDA * 4]);
     vperm2f128(ymm0, ymm4, ymm5, 0x20);
@@ -887,12 +826,12 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(A1, -16);
     sub(B, -768);
     dec(I);
-    jg(l2a84, T_NEAR);
+    jg(labels[33], T_NEAR);
     align(4);
 
-    L(l2df0);
+    L(labels[32]);
     test(M, 0x2);
-    jle(l3058, T_NEAR);
+    jle(labels[31], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vmovsd(xmm1, qword[A1 + LDA * 1]);
     vmovhps(xmm0, xmm0, qword[A1 + LDA * 2]);
@@ -999,9 +938,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -384);
     align(4);
 
-    L(l3058);
+    L(labels[31]);
     test(M, 0x1);
-    jle(l32a8, T_NEAR);
+    jle(labels[30], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vmovss(xmm1, dword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -1120,25 +1059,25 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -192);
     align(4);
 
-    L(l32a8);
+    L(labels[30]);
     sub(N, 0x30);
     cmp(N, 0x30);
-    jge(l2a68, T_NEAR);
+    jge(labels[34], T_NEAR);
     align(4);
 
-    L(l32b8);
+    L(labels[29]);
     cmp(N, 0x20);
-    jl(l3864, T_NEAR);
+    jl(labels[24], T_NEAR);
     mov(A1, A);
     mov(I, LDA);
     imul(I, I, 0x20);
     add(A, I);
     mov(I, M);
     sar(I, 0x2);
-    jle(l352c, T_NEAR);
+    jle(labels[27], T_NEAR);
     align(4);
 
-    L(l32dc);
+    L(labels[28]);
     vmovups(xmm4, xword[A1]);
     vmovups(xmm5, xword[A1 + LDA * 4]);
     vperm2f128(ymm0, ymm4, ymm5, 0x20);
@@ -1240,12 +1179,12 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(A1, -16);
     sub(B, -512);
     dec(I);
-    jg(l32dc, T_NEAR);
+    jg(labels[28], T_NEAR);
     align(4);
 
-    L(l352c);
+    L(labels[27]);
     test(M, 0x2);
-    jle(l36d0, T_NEAR);
+    jle(labels[26], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vmovsd(xmm1, qword[A1 + LDA * 1]);
     vmovhps(xmm0, xmm0, qword[A1 + LDA * 2]);
@@ -1318,9 +1257,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -256);
     align(4);
 
-    L(l36d0);
+    L(labels[26]);
     test(M, 0x1);
-    jle(l3860, T_NEAR);
+    jle(labels[25], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vmovss(xmm1, dword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -1401,23 +1340,23 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -128);
     align(4);
 
-    L(l3860);
+    L(labels[25]);
     sub(N, 0x20);
     align(4);
 
-    L(l3864);
+    L(labels[24]);
     cmp(N, 0x10);
-    jl(l3b6c, T_NEAR);
+    jl(labels[19], T_NEAR);
     mov(A1, A);
     mov(I, LDA);
     imul(I, I, 0x10);
     add(A, I);
     mov(I, M);
     sar(I, 0x2);
-    jle(l39b8, T_NEAR);
+    jle(labels[22], T_NEAR);
     align(4);
 
-    L(l3888);
+    L(labels[23]);
     vmovups(xmm4, xword[A1]);
     vmovups(xmm5, xword[A1 + LDA * 4]);
     vperm2f128(ymm0, ymm4, ymm5, 0x20);
@@ -1470,12 +1409,12 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(A1, -16);
     sub(B, -256);
     dec(I);
-    jg(l3888, T_NEAR);
+    jg(labels[23], T_NEAR);
     align(4);
 
-    L(l39b8);
+    L(labels[22]);
     test(M, 0x2);
-    jle(l3a94, T_NEAR);
+    jle(labels[21], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vmovsd(xmm1, qword[A1 + LDA * 1]);
     vmovhps(xmm0, xmm0, qword[A1 + LDA * 2]);
@@ -1514,9 +1453,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -128);
     align(4);
 
-    L(l3a94);
+    L(labels[21]);
     test(M, 0x1);
-    jle(l3b68, T_NEAR);
+    jle(labels[20], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vmovss(xmm1, dword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -1559,23 +1498,23 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -64);
     align(4);
 
-    L(l3b68);
+    L(labels[20]);
     sub(N, 0x10);
     align(4);
 
-    L(l3b6c);
+    L(labels[19]);
     cmp(N, 0x8);
-    jl(l3d34, T_NEAR);
+    jl(labels[14], T_NEAR);
     mov(A1, A);
     mov(I, LDA);
     imul(I, I, 0x8);
     add(A, I);
     mov(I, M);
     sar(I, 0x2);
-    jle(l3c40, T_NEAR);
+    jle(labels[17], T_NEAR);
     align(4);
 
-    L(l3b90);
+    L(labels[18]);
     vmovups(xmm0, xword[A1]);
     vmovups(xmm4, xword[A1 + LDA * 4]);
     vperm2f128(ymm0, ymm0, ymm4, 0x20);
@@ -1612,12 +1551,12 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(A1, -16);
     sub(B, -128);
     dec(I);
-    jg(l3b90, T_NEAR);
+    jg(labels[18], T_NEAR);
     align(4);
 
-    L(l3c40);
+    L(labels[17]);
     test(M, 0x2);
-    jle(l3cbc, T_NEAR);
+    jle(labels[16], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vmovsd(xmm1, qword[A1 + LDA * 1]);
     vmovhps(xmm0, xmm0, qword[A1 + LDA * 2]);
@@ -1642,9 +1581,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -64);
     align(4);
 
-    L(l3cbc);
+    L(labels[16]);
     test(M, 0x1);
-    jle(l3d30, T_NEAR);
+    jle(labels[15], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vmovss(xmm1, dword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -1668,23 +1607,23 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -32);
     align(4);
 
-    L(l3d30);
+    L(labels[15]);
     sub(N, 0x8);
     align(4);
 
-    L(l3d34);
+    L(labels[14]);
     cmp(N, 0x4);
-    jl(l3e64, T_NEAR);
+    jl(labels[9], T_NEAR);
     mov(A1, A);
     mov(I, LDA);
     imul(I, I, 0x4);
     add(A, I);
     mov(I, M);
     sar(I, 0x2);
-    jle(l3dc4, T_NEAR);
+    jle(labels[12], T_NEAR);
     align(4);
 
-    L(l3d54);
+    L(labels[13]);
     vmovups(xmm0, xword[A1]);
     vmovups(xmm1, xword[A1 + LDA * 1]);
     vmovups(xmm2, xword[A1 + LDA * 2]);
@@ -1709,12 +1648,12 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(A1, -16);
     sub(B, -64);
     dec(I);
-    jg(l3d54, T_NEAR);
+    jg(labels[13], T_NEAR);
     align(4);
 
-    L(l3dc4);
+    L(labels[12]);
     test(M, 0x2);
-    jle(l3e18, T_NEAR);
+    jle(labels[11], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vmovsd(xmm1, qword[A1 + LDA * 1]);
     vmovhps(xmm0, xmm0, qword[A1 + LDA * 2]);
@@ -1732,9 +1671,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -32);
     align(4);
 
-    L(l3e18);
+    L(labels[11]);
     test(M, 0x1);
-    jle(l3e60, T_NEAR);
+    jle(labels[10], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vmovss(xmm1, dword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -1749,23 +1688,23 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -16);
     align(4);
 
-    L(l3e60);
+    L(labels[10]);
     sub(N, 0x4);
     align(4);
 
-    L(l3e64);
+    L(labels[9]);
     cmp(N, 0x2);
-    jl(l3f3c, T_NEAR);
+    jl(labels[4], T_NEAR);
     mov(A1, A);
     mov(I, LDA);
     imul(I, I, 0x2);
     add(A, I);
     mov(I, M);
     sar(I, 0x2);
-    jle(l3ecc, T_NEAR);
+    jle(labels[7], T_NEAR);
     align(4);
 
-    L(l3e84);
+    L(labels[8]);
     vmovups(xmm0, xword[A1]);
     vmovups(xmm1, xword[A1 + LDA * 1]);
     vunpcklps(xmm4, xmm0, xmm1);
@@ -1781,12 +1720,12 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(A1, -16);
     sub(B, -32);
     dec(I);
-    jg(l3e84, T_NEAR);
+    jg(labels[8], T_NEAR);
     align(4);
 
-    L(l3ecc);
+    L(labels[7]);
     test(M, 0x2);
-    jle(l3f04, T_NEAR);
+    jle(labels[6], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vmovsd(xmm1, qword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -1798,9 +1737,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -16);
     align(4);
 
-    L(l3f04);
+    L(labels[6]);
     test(M, 0x1);
-    jle(l3f38, T_NEAR);
+    jle(labels[5], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vmovss(xmm1, dword[A1 + LDA * 1]);
     vunpcklps(xmm0, xmm0, xmm1);
@@ -1811,11 +1750,11 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -8);
     align(4);
 
-    L(l3f38);
+    L(labels[5]);
     sub(N, 0x2);
     align(4);
 
-    L(l3f3c);
+    L(labels[4]);
     cmp(N, 0x1);
     jl(l4000, T_NEAR);
     mov(A1, A);
@@ -1824,10 +1763,10 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     add(A, I);
     mov(I, M);
     sar(I, 0x2);
-    jle(l3fa0, T_NEAR);
+    jle(labels[2], T_NEAR);
     align(4);
 
-    L(l3f5c);
+    L(labels[3]);
     vmovups(xmm0, xword[A1]);
     vmulps(xmm0, xmm6, xmm0);
     vpshufd(xmm1, xmm0, 0x55);
@@ -1841,12 +1780,12 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(A1, -16);
     sub(B, -16);
     dec(I);
-    jg(l3f5c, T_NEAR);
+    jg(labels[3], T_NEAR);
     align(4);
 
-    L(l3fa0);
+    L(labels[2]);
     test(M, 0x2);
-    jle(l3fd4, T_NEAR);
+    jle(labels[1], T_NEAR);
     vmovsd(xmm0, qword[A1]);
     vmulps(xmm0, xmm6, xmm0);
     vpshufd(xmm1, xmm0, 0x55);
@@ -1857,9 +1796,9 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -8);
     align(4);
 
-    L(l3fd4);
+    L(labels[1]);
     test(M, 0x1);
-    jle(l3ffc, T_NEAR);
+    jle(labels[0], T_NEAR);
     vmovss(xmm0, dword[A1]);
     vmulps(xmm0, xmm6, xmm0);
     vmovss(dword[B - 0x80], xmm0);
@@ -1868,7 +1807,7 @@ void jit_avx512_core_f32_copy_at_kern::generate_part2(Xbyak::Label l4000,
     sub(B, -4);
     align(4);
 
-    L(l3ffc);
+    L(labels[0]);
     sub(N, 0x1);
     align(4);
 

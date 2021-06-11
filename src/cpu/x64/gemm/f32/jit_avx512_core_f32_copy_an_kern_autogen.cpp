@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,139 +60,7 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
 
     inLocalLabel();
     {
-
-        Xbyak::Label l115c;
-        Xbyak::Label l121c;
-        Xbyak::Label l1284;
-        Xbyak::Label l12bc;
-        Xbyak::Label l12c0;
-        Xbyak::Label l12e4;
-        Xbyak::Label l13a4;
-        Xbyak::Label l140c;
-        Xbyak::Label l1448;
-        Xbyak::Label l146c;
-        Xbyak::Label l1470;
-        Xbyak::Label l1494;
-        Xbyak::Label l1534;
-        Xbyak::Label l1588;
-        Xbyak::Label l15bc;
-        Xbyak::Label l15dc;
-        Xbyak::Label l15e0;
-        Xbyak::Label l1604;
-        Xbyak::Label l16a0;
-        Xbyak::Label l16f4;
-        Xbyak::Label l1728;
-        Xbyak::Label l1748;
-        Xbyak::Label l174c;
-        Xbyak::Label l1770;
-        Xbyak::Label l180c;
-        Xbyak::Label l1860;
-        Xbyak::Label l1894;
-        Xbyak::Label l18b4;
-        Xbyak::Label l18b8;
-        Xbyak::Label l18dc;
-        Xbyak::Label l1978;
-        Xbyak::Label l19cc;
-        Xbyak::Label l1a00;
-        Xbyak::Label l1a20;
-        Xbyak::Label l1a24;
-        Xbyak::Label l1a2c;
-        Xbyak::Label l1a38;
-        Xbyak::Label l1a54;
-        Xbyak::Label l1c58;
-        Xbyak::Label l1d64;
-        Xbyak::Label l1df4;
-        Xbyak::Label l1e40;
-        Xbyak::Label l1e50;
-        Xbyak::Label l1e78;
-        Xbyak::Label l1e8;
-        Xbyak::Label l1fdc;
-        Xbyak::Label l209c;
-        Xbyak::Label l2104;
-        Xbyak::Label l213c;
-        Xbyak::Label l2140;
-        Xbyak::Label l2164;
-        Xbyak::Label l2224;
-        Xbyak::Label l228c;
-        Xbyak::Label l22c8;
-        Xbyak::Label l22ec;
-        Xbyak::Label l22f0;
-        Xbyak::Label l2314;
-        Xbyak::Label l23b4;
-        Xbyak::Label l2408;
-        Xbyak::Label l243c;
-        Xbyak::Label l245c;
-        Xbyak::Label l2460;
-        Xbyak::Label l2484;
-        Xbyak::Label l2520;
-        Xbyak::Label l2574;
-        Xbyak::Label l25a8;
-        Xbyak::Label l25c8;
-        Xbyak::Label l25cc;
-        Xbyak::Label l25f0;
-        Xbyak::Label l268c;
-        Xbyak::Label l26e0;
-        Xbyak::Label l2714;
-        Xbyak::Label l2734;
-        Xbyak::Label l2738;
-        Xbyak::Label l275c;
-        Xbyak::Label l27f8;
-        Xbyak::Label l284c;
-        Xbyak::Label l2880;
-        Xbyak::Label l28a0;
-        Xbyak::Label l28a4;
-        Xbyak::Label l2ac;
-        Xbyak::Label l314;
-        Xbyak::Label l34c;
-        Xbyak::Label l35c;
-        Xbyak::Label l384;
-        Xbyak::Label l488;
-        Xbyak::Label l518;
-        Xbyak::Label l568;
-        Xbyak::Label l58;
-        Xbyak::Label l594;
-        Xbyak::Label l598;
-        Xbyak::Label l5bc;
-        Xbyak::Label l64c;
-        Xbyak::Label l69c;
-        Xbyak::Label l6cc;
-        Xbyak::Label l6e8;
-        Xbyak::Label l6ec;
-        Xbyak::Label l70c;
-        Xbyak::Label l74;
-        Xbyak::Label l788;
-        Xbyak::Label l7cc;
-        Xbyak::Label l7f8;
-        Xbyak::Label l814;
-        Xbyak::Label l818;
-        Xbyak::Label l838;
-        Xbyak::Label l8b0;
-        Xbyak::Label l8f4;
-        Xbyak::Label l920;
-        Xbyak::Label l93c;
-        Xbyak::Label l940;
-        Xbyak::Label l960;
-        Xbyak::Label l9d8;
-        Xbyak::Label la1c;
-        Xbyak::Label la48;
-        Xbyak::Label la64;
-        Xbyak::Label la68;
-        Xbyak::Label la88;
-        Xbyak::Label lb00;
-        Xbyak::Label lb44;
-        Xbyak::Label lb70;
-        Xbyak::Label lb8c;
-        Xbyak::Label lb90;
-        Xbyak::Label lb98;
-        Xbyak::Label lbb8;
-        Xbyak::Label lbd4;
-        Xbyak::Label ldd8;
-        Xbyak::Label lee4;
-        Xbyak::Label lf74;
-        Xbyak::Label lfc0;
-        Xbyak::Label lfd0;
-        Xbyak::Label lff8;
-
+        std::vector<Xbyak::Label> labels(131);
         preamble();
 #ifdef _WIN32
         auto stacksize = get_size_of_abi_save_regs();
@@ -216,21 +84,21 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         vpslld(xmm4, xmm4, 0x1f);
         vbroadcastss(zmm4, xmm4);
         vucomiss(xmm6, xmm3);
-        jne(lb98, T_NEAR);
+        jne(labels[122], T_NEAR);
         cmp(N, 0x30);
-        jl(l35c, T_NEAR);
+        jl(labels[83], T_NEAR);
         align(4);
 
-        L(l58);
+        L(labels[88]);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0xc0);
         mov(I, M);
         sar(I, 0x3);
-        jle(l1e8, T_NEAR);
+        jle(labels[44], T_NEAR);
         align(4);
 
-        L(l74);
+        L(labels[98]);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmovups(zword[B - 0x80], zmm0);
         vmovups(zmm0, zword[A1 - 0x40]);
@@ -283,12 +151,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -1536);
         dec(I);
-        jg(l74, T_NEAR);
+        jg(labels[98], T_NEAR);
         align(4);
 
-        L(l1e8);
+        L(labels[44]);
         test(M, 0x4);
-        jle(l2ac, T_NEAR);
+        jle(labels[80], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmovups(zword[B - 0x80], zmm0);
         vmovups(zmm0, zword[A1 - 0x40]);
@@ -317,9 +185,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -768);
         align(4);
 
-        L(l2ac);
+        L(labels[80]);
         test(M, 0x2);
-        jle(l314, T_NEAR);
+        jle(labels[81], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmovups(zword[B - 0x80], zmm0);
         vmovups(zmm0, zword[A1 - 0x40]);
@@ -336,9 +204,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -384);
         align(4);
 
-        L(l314);
+        L(labels[81]);
         test(M, 0x1);
-        jle(l34c, T_NEAR);
+        jle(labels[82], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmovups(zword[B - 0x80], zmm0);
         vmovups(zmm0, zword[A1 - 0x40]);
@@ -348,24 +216,24 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -192);
         align(4);
 
-        L(l34c);
+        L(labels[82]);
         sub(N, 0x30);
         cmp(N, 0x30);
-        jge(l58, T_NEAR);
+        jge(labels[88], T_NEAR);
         align(4);
 
-        L(l35c);
+        L(labels[83]);
         cmp(N, 0x20);
-        jl(l598, T_NEAR);
+        jl(labels[90], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x80);
         mov(I, M);
         sar(I, 0x3);
-        jle(l488, T_NEAR);
+        jle(labels[85], T_NEAR);
         align(4);
 
-        L(l384);
+        L(labels[84]);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmovups(zword[B - 0x80], zmm0);
         vmovups(zmm0, zword[A1 - 0x40]);
@@ -402,12 +270,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -1024);
         dec(I);
-        jg(l384, T_NEAR);
+        jg(labels[84], T_NEAR);
         align(4);
 
-        L(l488);
+        L(labels[85]);
         test(M, 0x4);
-        jle(l518, T_NEAR);
+        jle(labels[86], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmovups(zword[B - 0x80], zmm0);
         vmovups(zmm0, zword[A1 - 0x40]);
@@ -428,9 +296,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -512);
         align(4);
 
-        L(l518);
+        L(labels[86]);
         test(M, 0x2);
-        jle(l568, T_NEAR);
+        jle(labels[87], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmovups(zword[B - 0x80], zmm0);
         vmovups(zmm0, zword[A1 - 0x40]);
@@ -443,9 +311,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -256);
         align(4);
 
-        L(l568);
+        L(labels[87]);
         test(M, 0x1);
-        jle(l594, T_NEAR);
+        jle(labels[89], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmovups(zword[B - 0x80], zmm0);
         vmovups(zmm0, zword[A1 - 0x40]);
@@ -453,22 +321,22 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -128);
         align(4);
 
-        L(l594);
+        L(labels[89]);
         sub(N, 0x20);
         align(4);
 
-        L(l598);
+        L(labels[90]);
         cmp(N, 0x10);
-        jl(l6ec, T_NEAR);
+        jl(labels[96], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x40);
         mov(I, M);
         sar(I, 0x3);
-        jle(l64c, T_NEAR);
+        jle(labels[92], T_NEAR);
         align(4);
 
-        L(l5bc);
+        L(labels[91]);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmovups(zword[B - 0x80], zmm0);
         vmovups(zmm0, zword[A1 + LDA * 1 - 0x80]);
@@ -489,12 +357,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -512);
         dec(I);
-        jg(l5bc, T_NEAR);
+        jg(labels[91], T_NEAR);
         align(4);
 
-        L(l64c);
+        L(labels[92]);
         test(M, 0x4);
-        jle(l69c, T_NEAR);
+        jle(labels[93], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmovups(zword[B - 0x80], zmm0);
         vmovups(zmm0, zword[A1 + LDA * 1 - 0x80]);
@@ -507,9 +375,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -256);
         align(4);
 
-        L(l69c);
+        L(labels[93]);
         test(M, 0x2);
-        jle(l6cc, T_NEAR);
+        jle(labels[94], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmovups(zword[B - 0x80], zmm0);
         vmovups(zmm0, zword[A1 + LDA * 1 - 0x80]);
@@ -518,30 +386,30 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -128);
         align(4);
 
-        L(l6cc);
+        L(labels[94]);
         test(M, 0x1);
-        jle(l6e8, T_NEAR);
+        jle(labels[95], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmovups(zword[B - 0x80], zmm0);
         sub(B, -64);
         align(4);
 
-        L(l6e8);
+        L(labels[95]);
         sub(N, 0x10);
         align(4);
 
-        L(l6ec);
+        L(labels[96]);
         cmp(N, 0x8);
-        jl(l818, T_NEAR);
+        jl(labels[103], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x20);
         mov(I, M);
         sar(I, 0x3);
-        jle(l788, T_NEAR);
+        jle(labels[99], T_NEAR);
         align(4);
 
-        L(l70c);
+        L(labels[97]);
         vmovups(ymm0, yword[A1 - 0x80]);
         vmovups(yword[B - 0x80], ymm0);
         vmovups(ymm0, yword[A1 + LDA * 1 - 0x80]);
@@ -562,12 +430,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -256);
         dec(I);
-        jg(l70c, T_NEAR);
+        jg(labels[97], T_NEAR);
         align(4);
 
-        L(l788);
+        L(labels[99]);
         test(M, 0x4);
-        jle(l7cc, T_NEAR);
+        jle(labels[100], T_NEAR);
         vmovups(ymm0, yword[A1 - 0x80]);
         vmovups(yword[B - 0x80], ymm0);
         vmovups(ymm0, yword[A1 + LDA * 1 - 0x80]);
@@ -580,9 +448,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -128);
         align(4);
 
-        L(l7cc);
+        L(labels[100]);
         test(M, 0x2);
-        jle(l7f8, T_NEAR);
+        jle(labels[101], T_NEAR);
         vmovups(ymm0, yword[A1 - 0x80]);
         vmovups(yword[B - 0x80], ymm0);
         vmovups(ymm0, yword[A1 + LDA * 1 - 0x80]);
@@ -591,30 +459,30 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -64);
         align(4);
 
-        L(l7f8);
+        L(labels[101]);
         test(M, 0x1);
-        jle(l814, T_NEAR);
+        jle(labels[102], T_NEAR);
         vmovups(ymm0, yword[A1 - 0x80]);
         vmovups(yword[B - 0x80], ymm0);
         sub(B, -32);
         align(4);
 
-        L(l814);
+        L(labels[102]);
         sub(N, 0x8);
         align(4);
 
-        L(l818);
+        L(labels[103]);
         cmp(N, 0x4);
-        jl(l940, T_NEAR);
+        jl(labels[109], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x10);
         mov(I, M);
         sar(I, 0x3);
-        jle(l8b0, T_NEAR);
+        jle(labels[105], T_NEAR);
         align(4);
 
-        L(l838);
+        L(labels[104]);
         vmovups(xmm0, xword[A1 - 0x80]);
         vmovups(xword[B - 0x80], xmm0);
         vmovups(xmm0, xword[A1 + LDA * 1 - 0x80]);
@@ -635,12 +503,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -128);
         dec(I);
-        jg(l838, T_NEAR);
+        jg(labels[104], T_NEAR);
         align(4);
 
-        L(l8b0);
+        L(labels[105]);
         test(M, 0x4);
-        jle(l8f4, T_NEAR);
+        jle(labels[106], T_NEAR);
         vmovups(xmm0, xword[A1 - 0x80]);
         vmovups(xword[B - 0x80], xmm0);
         vmovups(xmm0, xword[A1 + LDA * 1 - 0x80]);
@@ -653,9 +521,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -64);
         align(4);
 
-        L(l8f4);
+        L(labels[106]);
         test(M, 0x2);
-        jle(l920, T_NEAR);
+        jle(labels[107], T_NEAR);
         vmovups(xmm0, xword[A1 - 0x80]);
         vmovups(xword[B - 0x80], xmm0);
         vmovups(xmm0, xword[A1 + LDA * 1 - 0x80]);
@@ -664,30 +532,30 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -32);
         align(4);
 
-        L(l920);
+        L(labels[107]);
         test(M, 0x1);
-        jle(l93c, T_NEAR);
+        jle(labels[108], T_NEAR);
         vmovups(xmm0, xword[A1 - 0x80]);
         vmovups(xword[B - 0x80], xmm0);
         sub(B, -16);
         align(4);
 
-        L(l93c);
+        L(labels[108]);
         sub(N, 0x4);
         align(4);
 
-        L(l940);
+        L(labels[109]);
         cmp(N, 0x2);
-        jl(la68, T_NEAR);
+        jl(labels[115], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x8);
         mov(I, M);
         sar(I, 0x3);
-        jle(l9d8, T_NEAR);
+        jle(labels[111], T_NEAR);
         align(4);
 
-        L(l960);
+        L(labels[110]);
         vmovsd(xmm0, qword[A1 - 0x80]);
         vmovlps(qword[B - 0x80], xmm0);
         vmovsd(xmm0, qword[A1 + LDA * 1 - 0x80]);
@@ -708,12 +576,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -64);
         dec(I);
-        jg(l960, T_NEAR);
+        jg(labels[110], T_NEAR);
         align(4);
 
-        L(l9d8);
+        L(labels[111]);
         test(M, 0x4);
-        jle(la1c, T_NEAR);
+        jle(labels[112], T_NEAR);
         vmovsd(xmm0, qword[A1 - 0x80]);
         vmovlps(qword[B - 0x80], xmm0);
         vmovsd(xmm0, qword[A1 + LDA * 1 - 0x80]);
@@ -726,9 +594,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -32);
         align(4);
 
-        L(la1c);
+        L(labels[112]);
         test(M, 0x2);
-        jle(la48, T_NEAR);
+        jle(labels[113], T_NEAR);
         vmovsd(xmm0, qword[A1 - 0x80]);
         vmovlps(qword[B - 0x80], xmm0);
         vmovsd(xmm0, qword[A1 + LDA * 1 - 0x80]);
@@ -737,30 +605,30 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -16);
         align(4);
 
-        L(la48);
+        L(labels[113]);
         test(M, 0x1);
-        jle(la64, T_NEAR);
+        jle(labels[114], T_NEAR);
         vmovsd(xmm0, qword[A1 - 0x80]);
         vmovlps(qword[B - 0x80], xmm0);
         sub(B, -8);
         align(4);
 
-        L(la64);
+        L(labels[114]);
         sub(N, 0x2);
         align(4);
 
-        L(la68);
+        L(labels[115]);
         cmp(N, 0x1);
-        jl(lb90, T_NEAR);
+        jl(labels[121], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x4);
         mov(I, M);
         sar(I, 0x3);
-        jle(lb00, T_NEAR);
+        jle(labels[117], T_NEAR);
         align(4);
 
-        L(la88);
+        L(labels[116]);
         vmovss(xmm0, dword[A1 - 0x80]);
         vmovss(dword[B - 0x80], xmm0);
         vmovss(xmm0, dword[A1 + LDA * 1 - 0x80]);
@@ -781,12 +649,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -32);
         dec(I);
-        jg(la88, T_NEAR);
+        jg(labels[116], T_NEAR);
         align(4);
 
-        L(lb00);
+        L(labels[117]);
         test(M, 0x4);
-        jle(lb44, T_NEAR);
+        jle(labels[118], T_NEAR);
         vmovss(xmm0, dword[A1 - 0x80]);
         vmovss(dword[B - 0x80], xmm0);
         vmovss(xmm0, dword[A1 + LDA * 1 - 0x80]);
@@ -799,9 +667,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -16);
         align(4);
 
-        L(lb44);
+        L(labels[118]);
         test(M, 0x2);
-        jle(lb70, T_NEAR);
+        jle(labels[119], T_NEAR);
         vmovss(xmm0, dword[A1 - 0x80]);
         vmovss(dword[B - 0x80], xmm0);
         vmovss(xmm0, dword[A1 + LDA * 1 - 0x80]);
@@ -810,41 +678,41 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -8);
         align(4);
 
-        L(lb70);
+        L(labels[119]);
         test(M, 0x1);
-        jle(lb8c, T_NEAR);
+        jle(labels[120], T_NEAR);
         vmovss(xmm0, dword[A1 - 0x80]);
         vmovss(dword[B - 0x80], xmm0);
         sub(B, -4);
         align(4);
 
-        L(lb8c);
+        L(labels[120]);
         sub(N, 0x1);
         align(4);
 
-        L(lb90);
-        jmp(l28a4, T_NEAR);
+        L(labels[121]);
+        jmp(labels[79], T_NEAR);
         align(4);
 
-        L(lb98);
+        L(labels[122]);
         vxorps(xmm3, xmm3, xmm4);
         vucomiss(xmm6, xmm3);
-        jne(l1a2c, T_NEAR);
+        jne(labels[35], T_NEAR);
         vmovaps(zmm6, zmm4);
         cmp(N, 0x30);
-        jl(lfd0, T_NEAR);
+        jl(labels[129], T_NEAR);
         align(4);
 
-        L(lbb8);
+        L(labels[123]);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0xc0);
         mov(I, M);
         sar(I, 0x3);
-        jle(ldd8, T_NEAR);
+        jle(labels[125], T_NEAR);
         align(4);
 
-        L(lbd4);
+        L(labels[124]);
         vmovups(zmm0, zword[A1 - 0x80]);
         vpxorq(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -921,12 +789,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -1536);
         dec(I);
-        jg(lbd4, T_NEAR);
+        jg(labels[124], T_NEAR);
         align(4);
 
-        L(ldd8);
+        L(labels[125]);
         test(M, 0x4);
-        jle(lee4, T_NEAR);
+        jle(labels[126], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vpxorq(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -967,9 +835,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -768);
         align(4);
 
-        L(lee4);
+        L(labels[126]);
         test(M, 0x2);
-        jle(lf74, T_NEAR);
+        jle(labels[127], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vpxorq(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -992,9 +860,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -384);
         align(4);
 
-        L(lf74);
+        L(labels[127]);
         test(M, 0x1);
-        jle(lfc0, T_NEAR);
+        jle(labels[128], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vpxorq(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1007,24 +875,24 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -192);
         align(4);
 
-        L(lfc0);
+        L(labels[128]);
         sub(N, 0x30);
         cmp(N, 0x30);
-        jge(lbb8, T_NEAR);
+        jge(labels[123], T_NEAR);
         align(4);
 
-        L(lfd0);
+        L(labels[129]);
         cmp(N, 0x20);
-        jl(l12c0, T_NEAR);
+        jl(labels[4], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x80);
         mov(I, M);
         sar(I, 0x3);
-        jle(l115c, T_NEAR);
+        jle(labels[0], T_NEAR);
         align(4);
 
-        L(lff8);
+        L(labels[130]);
         vmovups(zmm0, zword[A1 - 0x80]);
         vpxorq(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1077,12 +945,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -1024);
         dec(I);
-        jg(lff8, T_NEAR);
+        jg(labels[130], T_NEAR);
         align(4);
 
-        L(l115c);
+        L(labels[0]);
         test(M, 0x4);
-        jle(l121c, T_NEAR);
+        jle(labels[1], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vpxorq(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1111,9 +979,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -512);
         align(4);
 
-        L(l121c);
+        L(labels[1]);
         test(M, 0x2);
-        jle(l1284, T_NEAR);
+        jle(labels[2], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vpxorq(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1130,9 +998,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -256);
         align(4);
 
-        L(l1284);
+        L(labels[2]);
         test(M, 0x1);
-        jle(l12bc, T_NEAR);
+        jle(labels[3], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vpxorq(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1142,22 +1010,22 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -128);
         align(4);
 
-        L(l12bc);
+        L(labels[3]);
         sub(N, 0x20);
         align(4);
 
-        L(l12c0);
+        L(labels[4]);
         cmp(N, 0x10);
-        jl(l1470, T_NEAR);
+        jl(labels[10], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x40);
         mov(I, M);
         sar(I, 0x3);
-        jle(l13a4, T_NEAR);
+        jle(labels[6], T_NEAR);
         align(4);
 
-        L(l12e4);
+        L(labels[5]);
         vmovups(zmm0, zword[A1 - 0x80]);
         vpxorq(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1186,12 +1054,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -512);
         dec(I);
-        jg(l12e4, T_NEAR);
+        jg(labels[5], T_NEAR);
         align(4);
 
-        L(l13a4);
+        L(labels[6]);
         test(M, 0x4);
-        jle(l140c, T_NEAR);
+        jle(labels[7], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vpxorq(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1208,9 +1076,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -256);
         align(4);
 
-        L(l140c);
+        L(labels[7]);
         test(M, 0x2);
-        jle(l1448, T_NEAR);
+        jle(labels[8], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vpxorq(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1221,31 +1089,31 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -128);
         align(4);
 
-        L(l1448);
+        L(labels[8]);
         test(M, 0x1);
-        jle(l146c, T_NEAR);
+        jle(labels[9], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vpxorq(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
         sub(B, -64);
         align(4);
 
-        L(l146c);
+        L(labels[9]);
         sub(N, 0x10);
         align(4);
 
-        L(l1470);
+        L(labels[10]);
         cmp(N, 0x8);
-        jl(l15e0, T_NEAR);
+        jl(labels[16], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x20);
         mov(I, M);
         sar(I, 0x3);
-        jle(l1534, T_NEAR);
+        jle(labels[12], T_NEAR);
         align(4);
 
-        L(l1494);
+        L(labels[11]);
         vmovups(ymm0, yword[A1 - 0x80]);
         vxorps(ymm0, ymm6, ymm0);
         vmovups(yword[B - 0x80], ymm0);
@@ -1274,12 +1142,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -256);
         dec(I);
-        jg(l1494, T_NEAR);
+        jg(labels[11], T_NEAR);
         align(4);
 
-        L(l1534);
+        L(labels[12]);
         test(M, 0x4);
-        jle(l1588, T_NEAR);
+        jle(labels[13], T_NEAR);
         vmovups(ymm0, yword[A1 - 0x80]);
         vxorps(ymm0, ymm6, ymm0);
         vmovups(yword[B - 0x80], ymm0);
@@ -1296,9 +1164,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -128);
         align(4);
 
-        L(l1588);
+        L(labels[13]);
         test(M, 0x2);
-        jle(l15bc, T_NEAR);
+        jle(labels[14], T_NEAR);
         vmovups(ymm0, yword[A1 - 0x80]);
         vxorps(ymm0, ymm6, ymm0);
         vmovups(yword[B - 0x80], ymm0);
@@ -1309,31 +1177,31 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -64);
         align(4);
 
-        L(l15bc);
+        L(labels[14]);
         test(M, 0x1);
-        jle(l15dc, T_NEAR);
+        jle(labels[15], T_NEAR);
         vmovups(ymm0, yword[A1 - 0x80]);
         vxorps(ymm0, ymm6, ymm0);
         vmovups(yword[B - 0x80], ymm0);
         sub(B, -32);
         align(4);
 
-        L(l15dc);
+        L(labels[15]);
         sub(N, 0x8);
         align(4);
 
-        L(l15e0);
+        L(labels[16]);
         cmp(N, 0x4);
-        jl(l174c, T_NEAR);
+        jl(labels[22], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x10);
         mov(I, M);
         sar(I, 0x3);
-        jle(l16a0, T_NEAR);
+        jle(labels[18], T_NEAR);
         align(4);
 
-        L(l1604);
+        L(labels[17]);
         vmovups(xmm0, xword[A1 - 0x80]);
         vxorps(xmm0, xmm6, xmm0);
         vmovups(xword[B - 0x80], xmm0);
@@ -1362,12 +1230,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -128);
         dec(I);
-        jg(l1604, T_NEAR);
+        jg(labels[17], T_NEAR);
         align(4);
 
-        L(l16a0);
+        L(labels[18]);
         test(M, 0x4);
-        jle(l16f4, T_NEAR);
+        jle(labels[19], T_NEAR);
         vmovups(xmm0, xword[A1 - 0x80]);
         vxorps(xmm0, xmm6, xmm0);
         vmovups(xword[B - 0x80], xmm0);
@@ -1384,9 +1252,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -64);
         align(4);
 
-        L(l16f4);
+        L(labels[19]);
         test(M, 0x2);
-        jle(l1728, T_NEAR);
+        jle(labels[20], T_NEAR);
         vmovups(xmm0, xword[A1 - 0x80]);
         vxorps(xmm0, xmm6, xmm0);
         vmovups(xword[B - 0x80], xmm0);
@@ -1397,31 +1265,31 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -32);
         align(4);
 
-        L(l1728);
+        L(labels[20]);
         test(M, 0x1);
-        jle(l1748, T_NEAR);
+        jle(labels[21], T_NEAR);
         vmovups(xmm0, xword[A1 - 0x80]);
         vxorps(xmm0, xmm6, xmm0);
         vmovups(xword[B - 0x80], xmm0);
         sub(B, -16);
         align(4);
 
-        L(l1748);
+        L(labels[21]);
         sub(N, 0x4);
         align(4);
 
-        L(l174c);
+        L(labels[22]);
         cmp(N, 0x2);
-        jl(l18b8, T_NEAR);
+        jl(labels[28], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x8);
         mov(I, M);
         sar(I, 0x3);
-        jle(l180c, T_NEAR);
+        jle(labels[24], T_NEAR);
         align(4);
 
-        L(l1770);
+        L(labels[23]);
         vmovsd(xmm0, qword[A1 - 0x80]);
         vxorps(xmm0, xmm6, xmm0);
         vmovlps(qword[B - 0x80], xmm0);
@@ -1450,12 +1318,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -64);
         dec(I);
-        jg(l1770, T_NEAR);
+        jg(labels[23], T_NEAR);
         align(4);
 
-        L(l180c);
+        L(labels[24]);
         test(M, 0x4);
-        jle(l1860, T_NEAR);
+        jle(labels[25], T_NEAR);
         vmovsd(xmm0, qword[A1 - 0x80]);
         vxorps(xmm0, xmm6, xmm0);
         vmovlps(qword[B - 0x80], xmm0);
@@ -1472,9 +1340,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -32);
         align(4);
 
-        L(l1860);
+        L(labels[25]);
         test(M, 0x2);
-        jle(l1894, T_NEAR);
+        jle(labels[26], T_NEAR);
         vmovsd(xmm0, qword[A1 - 0x80]);
         vxorps(xmm0, xmm6, xmm0);
         vmovlps(qword[B - 0x80], xmm0);
@@ -1485,31 +1353,31 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -16);
         align(4);
 
-        L(l1894);
+        L(labels[26]);
         test(M, 0x1);
-        jle(l18b4, T_NEAR);
+        jle(labels[27], T_NEAR);
         vmovsd(xmm0, qword[A1 - 0x80]);
         vxorps(xmm0, xmm6, xmm0);
         vmovlps(qword[B - 0x80], xmm0);
         sub(B, -8);
         align(4);
 
-        L(l18b4);
+        L(labels[27]);
         sub(N, 0x2);
         align(4);
 
-        L(l18b8);
+        L(labels[28]);
         cmp(N, 0x1);
-        jl(l1a24, T_NEAR);
+        jl(labels[34], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x4);
         mov(I, M);
         sar(I, 0x3);
-        jle(l1978, T_NEAR);
+        jle(labels[30], T_NEAR);
         align(4);
 
-        L(l18dc);
+        L(labels[29]);
         vmovss(xmm0, dword[A1 - 0x80]);
         vxorps(xmm0, xmm6, xmm0);
         vmovss(dword[B - 0x80], xmm0);
@@ -1538,12 +1406,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -32);
         dec(I);
-        jg(l18dc, T_NEAR);
+        jg(labels[29], T_NEAR);
         align(4);
 
-        L(l1978);
+        L(labels[30]);
         test(M, 0x4);
-        jle(l19cc, T_NEAR);
+        jle(labels[31], T_NEAR);
         vmovss(xmm0, dword[A1 - 0x80]);
         vxorps(xmm0, xmm6, xmm0);
         vmovss(dword[B - 0x80], xmm0);
@@ -1560,9 +1428,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -16);
         align(4);
 
-        L(l19cc);
+        L(labels[31]);
         test(M, 0x2);
-        jle(l1a00, T_NEAR);
+        jle(labels[32], T_NEAR);
         vmovss(xmm0, dword[A1 - 0x80]);
         vxorps(xmm0, xmm6, xmm0);
         vmovss(dword[B - 0x80], xmm0);
@@ -1573,38 +1441,38 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -8);
         align(4);
 
-        L(l1a00);
+        L(labels[32]);
         test(M, 0x1);
-        jle(l1a20, T_NEAR);
+        jle(labels[33], T_NEAR);
         vmovss(xmm0, dword[A1 - 0x80]);
         vxorps(xmm0, xmm6, xmm0);
         vmovss(dword[B - 0x80], xmm0);
         sub(B, -4);
         align(4);
 
-        L(l1a20);
+        L(labels[33]);
         sub(N, 0x1);
         align(4);
 
-        L(l1a24);
-        jmp(l28a4, T_NEAR);
+        L(labels[34]);
+        jmp(labels[79], T_NEAR);
         align(4);
 
-        L(l1a2c);
+        L(labels[35]);
         cmp(N, 0x30);
-        jl(l1e50, T_NEAR);
+        jl(labels[42], T_NEAR);
         align(4);
 
-        L(l1a38);
+        L(labels[36]);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0xc0);
         mov(I, M);
         sar(I, 0x3);
-        jle(l1c58, T_NEAR);
+        jle(labels[38], T_NEAR);
         align(4);
 
-        L(l1a54);
+        L(labels[37]);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmulps(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1681,12 +1549,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -1536);
         dec(I);
-        jg(l1a54, T_NEAR);
+        jg(labels[37], T_NEAR);
         align(4);
 
-        L(l1c58);
+        L(labels[38]);
         test(M, 0x4);
-        jle(l1d64, T_NEAR);
+        jle(labels[39], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmulps(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1727,9 +1595,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -768);
         align(4);
 
-        L(l1d64);
+        L(labels[39]);
         test(M, 0x2);
-        jle(l1df4, T_NEAR);
+        jle(labels[40], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmulps(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1752,9 +1620,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -384);
         align(4);
 
-        L(l1df4);
+        L(labels[40]);
         test(M, 0x1);
-        jle(l1e40, T_NEAR);
+        jle(labels[41], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmulps(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1767,24 +1635,24 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -192);
         align(4);
 
-        L(l1e40);
+        L(labels[41]);
         sub(N, 0x30);
         cmp(N, 0x30);
-        jge(l1a38, T_NEAR);
+        jge(labels[36], T_NEAR);
         align(4);
 
-        L(l1e50);
+        L(labels[42]);
         cmp(N, 0x20);
-        jl(l2140, T_NEAR);
+        jl(labels[49], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x80);
         mov(I, M);
         sar(I, 0x3);
-        jle(l1fdc, T_NEAR);
+        jle(labels[45], T_NEAR);
         align(4);
 
-        L(l1e78);
+        L(labels[43]);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmulps(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1837,12 +1705,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -1024);
         dec(I);
-        jg(l1e78, T_NEAR);
+        jg(labels[43], T_NEAR);
         align(4);
 
-        L(l1fdc);
+        L(labels[45]);
         test(M, 0x4);
-        jle(l209c, T_NEAR);
+        jle(labels[46], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmulps(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1871,9 +1739,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -512);
         align(4);
 
-        L(l209c);
+        L(labels[46]);
         test(M, 0x2);
-        jle(l2104, T_NEAR);
+        jle(labels[47], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmulps(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1890,9 +1758,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -256);
         align(4);
 
-        L(l2104);
+        L(labels[47]);
         test(M, 0x1);
-        jle(l213c, T_NEAR);
+        jle(labels[48], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmulps(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1902,22 +1770,22 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -128);
         align(4);
 
-        L(l213c);
+        L(labels[48]);
         sub(N, 0x20);
         align(4);
 
-        L(l2140);
+        L(labels[49]);
         cmp(N, 0x10);
-        jl(l22f0, T_NEAR);
+        jl(labels[55], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x40);
         mov(I, M);
         sar(I, 0x3);
-        jle(l2224, T_NEAR);
+        jle(labels[51], T_NEAR);
         align(4);
 
-        L(l2164);
+        L(labels[50]);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmulps(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1946,12 +1814,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -512);
         dec(I);
-        jg(l2164, T_NEAR);
+        jg(labels[50], T_NEAR);
         align(4);
 
-        L(l2224);
+        L(labels[51]);
         test(M, 0x4);
-        jle(l228c, T_NEAR);
+        jle(labels[52], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmulps(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1968,9 +1836,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -256);
         align(4);
 
-        L(l228c);
+        L(labels[52]);
         test(M, 0x2);
-        jle(l22c8, T_NEAR);
+        jle(labels[53], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmulps(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
@@ -1981,31 +1849,31 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -128);
         align(4);
 
-        L(l22c8);
+        L(labels[53]);
         test(M, 0x1);
-        jle(l22ec, T_NEAR);
+        jle(labels[54], T_NEAR);
         vmovups(zmm0, zword[A1 - 0x80]);
         vmulps(zmm0, zmm6, zmm0);
         vmovups(zword[B - 0x80], zmm0);
         sub(B, -64);
         align(4);
 
-        L(l22ec);
+        L(labels[54]);
         sub(N, 0x10);
         align(4);
 
-        L(l22f0);
+        L(labels[55]);
         cmp(N, 0x8);
-        jl(l2460, T_NEAR);
+        jl(labels[61], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x20);
         mov(I, M);
         sar(I, 0x3);
-        jle(l23b4, T_NEAR);
+        jle(labels[57], T_NEAR);
         align(4);
 
-        L(l2314);
+        L(labels[56]);
         vmovups(ymm0, yword[A1 - 0x80]);
         vmulps(ymm0, ymm6, ymm0);
         vmovups(yword[B - 0x80], ymm0);
@@ -2034,12 +1902,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -256);
         dec(I);
-        jg(l2314, T_NEAR);
+        jg(labels[56], T_NEAR);
         align(4);
 
-        L(l23b4);
+        L(labels[57]);
         test(M, 0x4);
-        jle(l2408, T_NEAR);
+        jle(labels[58], T_NEAR);
         vmovups(ymm0, yword[A1 - 0x80]);
         vmulps(ymm0, ymm6, ymm0);
         vmovups(yword[B - 0x80], ymm0);
@@ -2056,9 +1924,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -128);
         align(4);
 
-        L(l2408);
+        L(labels[58]);
         test(M, 0x2);
-        jle(l243c, T_NEAR);
+        jle(labels[59], T_NEAR);
         vmovups(ymm0, yword[A1 - 0x80]);
         vmulps(ymm0, ymm6, ymm0);
         vmovups(yword[B - 0x80], ymm0);
@@ -2069,31 +1937,31 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -64);
         align(4);
 
-        L(l243c);
+        L(labels[59]);
         test(M, 0x1);
-        jle(l245c, T_NEAR);
+        jle(labels[60], T_NEAR);
         vmovups(ymm0, yword[A1 - 0x80]);
         vmulps(ymm0, ymm6, ymm0);
         vmovups(yword[B - 0x80], ymm0);
         sub(B, -32);
         align(4);
 
-        L(l245c);
+        L(labels[60]);
         sub(N, 0x8);
         align(4);
 
-        L(l2460);
+        L(labels[61]);
         cmp(N, 0x4);
-        jl(l25cc, T_NEAR);
+        jl(labels[67], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x10);
         mov(I, M);
         sar(I, 0x3);
-        jle(l2520, T_NEAR);
+        jle(labels[63], T_NEAR);
         align(4);
 
-        L(l2484);
+        L(labels[62]);
         vmovups(xmm0, xword[A1 - 0x80]);
         vmulps(xmm0, xmm6, xmm0);
         vmovups(xword[B - 0x80], xmm0);
@@ -2122,12 +1990,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -128);
         dec(I);
-        jg(l2484, T_NEAR);
+        jg(labels[62], T_NEAR);
         align(4);
 
-        L(l2520);
+        L(labels[63]);
         test(M, 0x4);
-        jle(l2574, T_NEAR);
+        jle(labels[64], T_NEAR);
         vmovups(xmm0, xword[A1 - 0x80]);
         vmulps(xmm0, xmm6, xmm0);
         vmovups(xword[B - 0x80], xmm0);
@@ -2144,9 +2012,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -64);
         align(4);
 
-        L(l2574);
+        L(labels[64]);
         test(M, 0x2);
-        jle(l25a8, T_NEAR);
+        jle(labels[65], T_NEAR);
         vmovups(xmm0, xword[A1 - 0x80]);
         vmulps(xmm0, xmm6, xmm0);
         vmovups(xword[B - 0x80], xmm0);
@@ -2157,31 +2025,31 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -32);
         align(4);
 
-        L(l25a8);
+        L(labels[65]);
         test(M, 0x1);
-        jle(l25c8, T_NEAR);
+        jle(labels[66], T_NEAR);
         vmovups(xmm0, xword[A1 - 0x80]);
         vmulps(xmm0, xmm6, xmm0);
         vmovups(xword[B - 0x80], xmm0);
         sub(B, -16);
         align(4);
 
-        L(l25c8);
+        L(labels[66]);
         sub(N, 0x4);
         align(4);
 
-        L(l25cc);
+        L(labels[67]);
         cmp(N, 0x2);
-        jl(l2738, T_NEAR);
+        jl(labels[73], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x8);
         mov(I, M);
         sar(I, 0x3);
-        jle(l268c, T_NEAR);
+        jle(labels[69], T_NEAR);
         align(4);
 
-        L(l25f0);
+        L(labels[68]);
         vmovsd(xmm0, qword[A1 - 0x80]);
         vmulps(xmm0, xmm6, xmm0);
         vmovlps(qword[B - 0x80], xmm0);
@@ -2210,12 +2078,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -64);
         dec(I);
-        jg(l25f0, T_NEAR);
+        jg(labels[68], T_NEAR);
         align(4);
 
-        L(l268c);
+        L(labels[69]);
         test(M, 0x4);
-        jle(l26e0, T_NEAR);
+        jle(labels[70], T_NEAR);
         vmovsd(xmm0, qword[A1 - 0x80]);
         vmulps(xmm0, xmm6, xmm0);
         vmovlps(qword[B - 0x80], xmm0);
@@ -2232,9 +2100,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -32);
         align(4);
 
-        L(l26e0);
+        L(labels[70]);
         test(M, 0x2);
-        jle(l2714, T_NEAR);
+        jle(labels[71], T_NEAR);
         vmovsd(xmm0, qword[A1 - 0x80]);
         vmulps(xmm0, xmm6, xmm0);
         vmovlps(qword[B - 0x80], xmm0);
@@ -2245,31 +2113,31 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -16);
         align(4);
 
-        L(l2714);
+        L(labels[71]);
         test(M, 0x1);
-        jle(l2734, T_NEAR);
+        jle(labels[72], T_NEAR);
         vmovsd(xmm0, qword[A1 - 0x80]);
         vmulps(xmm0, xmm6, xmm0);
         vmovlps(qword[B - 0x80], xmm0);
         sub(B, -8);
         align(4);
 
-        L(l2734);
+        L(labels[72]);
         sub(N, 0x2);
         align(4);
 
-        L(l2738);
+        L(labels[73]);
         cmp(N, 0x1);
-        jl(l28a4, T_NEAR);
+        jl(labels[79], T_NEAR);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 4]);
         add(A, 0x4);
         mov(I, M);
         sar(I, 0x3);
-        jle(l27f8, T_NEAR);
+        jle(labels[75], T_NEAR);
         align(4);
 
-        L(l275c);
+        L(labels[74]);
         vmovss(xmm0, dword[A1 - 0x80]);
         vmulps(xmm0, xmm6, xmm0);
         vmovss(dword[B - 0x80], xmm0);
@@ -2298,12 +2166,12 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         lea(A2, ptr[A2 + LDA * 8]);
         sub(B, -32);
         dec(I);
-        jg(l275c, T_NEAR);
+        jg(labels[74], T_NEAR);
         align(4);
 
-        L(l27f8);
+        L(labels[75]);
         test(M, 0x4);
-        jle(l284c, T_NEAR);
+        jle(labels[76], T_NEAR);
         vmovss(xmm0, dword[A1 - 0x80]);
         vmulps(xmm0, xmm6, xmm0);
         vmovss(dword[B - 0x80], xmm0);
@@ -2320,9 +2188,9 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -16);
         align(4);
 
-        L(l284c);
+        L(labels[76]);
         test(M, 0x2);
-        jle(l2880, T_NEAR);
+        jle(labels[77], T_NEAR);
         vmovss(xmm0, dword[A1 - 0x80]);
         vmulps(xmm0, xmm6, xmm0);
         vmovss(dword[B - 0x80], xmm0);
@@ -2333,20 +2201,20 @@ void jit_avx512_core_f32_copy_an_kern::generate() {
         sub(B, -8);
         align(4);
 
-        L(l2880);
+        L(labels[77]);
         test(M, 0x1);
-        jle(l28a0, T_NEAR);
+        jle(labels[78], T_NEAR);
         vmovss(xmm0, dword[A1 - 0x80]);
         vmulps(xmm0, xmm6, xmm0);
         vmovss(dword[B - 0x80], xmm0);
         sub(B, -4);
         align(4);
 
-        L(l28a0);
+        L(labels[78]);
         sub(N, 0x1);
         align(4);
 
-        L(l28a4);
+        L(labels[79]);
 
         postamble();
     }
