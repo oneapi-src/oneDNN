@@ -99,19 +99,26 @@ fill_status_t binary_graph_prb_t::handle_sum_() {
 }
 
 void check_known_skipped_case_graph(const ::binary::prb_t *prb, res_t *res) {
+    using p = attr_t::post_ops_t;
     // TODO (kgajdamo):
     // Divide op is not supported at the moment.
     // Remove below when divide will be enabled.
-    if (prb->alg == attr_t::post_ops_t::kind_t::DIV) {
+    if (prb->alg == p::kind_t::DIV) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
-    // TODO (kgajdamo):
-    // Post ops are not supported at the moment.
-    // Remove below when post ops will be enabled.
-    if (!prb->attr.post_ops.entry.empty()) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
+
+    // MAX, MUL, MIN supports relu, sigmoid, sum post-ops.
+    // ADD supports relu and sigmoid post-ops.
+    // Other cases are being skipped.
+    for (const auto &po : prb->attr.post_ops.entry) {
+        if (po.kind == p::RELU || po.kind == p::LOGISTIC
+                || (po.is_sum_kind() && prb->alg != p::kind_t::ADD)) {
+            continue;
+        } else {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
     }
 }
 

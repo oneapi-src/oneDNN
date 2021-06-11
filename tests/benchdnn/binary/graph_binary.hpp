@@ -18,7 +18,6 @@
 #define GRAPH_BINARY_HPP
 
 #include "binary/binary.hpp"
-#include "binary/graph_binary.hpp"
 
 #include "dnnl_graph_common.hpp"
 
