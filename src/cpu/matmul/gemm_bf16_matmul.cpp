@@ -73,7 +73,8 @@ static bool should_gemm_execute_sum_po(const gemm_based::params_t &params,
     const auto &po = params.pp_attr_.post_ops_;
     static constexpr int sum_idx = 0;
     return po.len() > 0 && po.contain(primitive_kind::sum, sum_idx)
-            && dst_type == data_type::f32 && params.gemm_applies_output_scales_;
+            && dst_type == data_type::f32 && params.gemm_applies_output_scales_
+            && po.entry_[sum_idx].sum.zero_point == 0;
 }
 
 template <impl::data_type_t dst_type>

@@ -77,6 +77,7 @@ protected:
     bool do_sum_ = false;
     bool do_dst_zero_points_ = false;
     float sum_scale_ = 0.f;
+    int32_t sum_zp_ = 0;
     bool mb_blk_kernel_ = false;
     post_ops_t post_ops_;
     int ndims_;

@@ -156,7 +156,10 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC, size_t MB,
 
     const int sum_ind = post_ops_.find(primitive_kind::sum);
     do_sum_ = sum_ind != -1 && !skip_sum;
-    if (do_sum_) sum_scale_ = post_ops_.entry_[sum_ind].sum.scale;
+    if (do_sum_) {
+        sum_scale_ = post_ops_.entry_[sum_ind].sum.scale;
+        sum_zp_ = post_ops_.entry_[sum_ind].sum.zero_point;
+    }
 
     if (do_bias())
         bias_data_type_size_ = types::data_type_size(bias_data_type_);
@@ -197,7 +200,7 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
         using namespace x64::injector;
         static constexpr bool sum_at_pos_0_only = true;
         static constexpr bool sum_requires_scale_one = false;
-        static constexpr bool sum_requires_zp_zero = true;
+        static constexpr bool sum_requires_zp_zero = false;
 
         const bool is_binary_po_channel_bcast
                 = binary_injector_utils::bcast_strategy_present(

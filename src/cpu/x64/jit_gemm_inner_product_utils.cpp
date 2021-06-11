@@ -162,7 +162,7 @@ private:
 
     // Will be assigned in constructor
     Vmm vreg_zero, vreg_saturation_ubound, vreg_scale, vreg_sum_scale,
-            vreg_dst_zero_points;
+            vreg_sum_zp, vreg_dst_zero_points;
 
     const Xbyak::Reg64 &eltwise_reserved_gpr_ = r11;
     const Xbyak::Opmask &eltwise_reserved_opmask_ = k2;
@@ -279,8 +279,10 @@ jit_pp_kernel_t<isa, acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
         vreg_saturation_ubound = Vmm(idx_compute_vreg_start_++);
 
     if (this->do_sum_) {
-        vreg_sum_scale = Vmm(idx_compute_vreg_start_++);
         compute_vreg_prev_dst_shift_ = compute_vregs_per_iter_++;
+        if (this->sum_scale_ != 1.f)
+            vreg_sum_scale = Vmm(idx_compute_vreg_start_++);
+        if (this->sum_zp_ != 0) vreg_sum_zp = Vmm(idx_compute_vreg_start_++);
     }
 
     if (this->do_bias()) compute_vreg_bias_shift_ = compute_vregs_per_iter_++;
@@ -792,7 +794,12 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
             auto vreg_prev_dst_ = vreg_prev_dst(idx);
             data_copy(vreg_prev_dst_, arg_t::dst, offset * sizeof(dst_data_t),
                     data_op_t::load, tail, is_needed_runtime_tail_process);
-            uni_vfmadd231ps(vreg_dst_, vreg_prev_dst_, vreg_sum_scale);
+            if (this->sum_zp_ != 0)
+                uni_vsubps(vreg_prev_dst_, vreg_prev_dst_, vreg_sum_zp);
+            if (this->sum_scale_ != 1.f)
+                uni_vfmadd231ps(vreg_dst_, vreg_prev_dst_, vreg_sum_scale);
+            else
+                uni_vaddps(vreg_dst_, vreg_dst_, vreg_prev_dst_);
         }
 
         apply_postops(!!tail, dst_idx, offset, is_needed_runtime_tail_process);
@@ -1156,10 +1163,19 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::generate() {
 #undef PARAM_OFF
 
     if (this->do_sum_) {
-        mov(reg_tmp, float2int(this->sum_scale_));
-        auto xreg_sum_scale = Xmm(vreg_sum_scale.getIdx());
-        uni_vmovq(xreg_sum_scale, reg_tmp);
-        uni_vbroadcastss(vreg_sum_scale, xreg_sum_scale);
+        if (this->sum_scale_ != 1.f) {
+            mov(reg_tmp, float2int(this->sum_scale_));
+            auto xreg_sum_scale = Xmm(vreg_sum_scale.getIdx());
+            uni_vmovq(xreg_sum_scale, reg_tmp);
+            uni_vbroadcastss(vreg_sum_scale, xreg_sum_scale);
+        }
+        if (this->sum_zp_ != 0) {
+            mov(reg_tmp, this->sum_zp_);
+            auto xreg_sum_zp = Xmm(vreg_sum_zp.getIdx());
+            uni_vmovq(xreg_sum_zp, reg_tmp);
+            uni_vbroadcastss(vreg_sum_zp, xreg_sum_zp);
+            uni_vcvtdq2ps(vreg_sum_zp, vreg_sum_zp);
+        }
     }
 
     init_saturate_f32(vreg_zero, vreg_saturation_ubound, reg_tmp_comp,

@@ -75,7 +75,8 @@ static bool should_gemm_execute_sum_po(
     const auto &po = params.pp_attr_.post_ops_;
     static constexpr int sum_idx = 0;
     return po.len() > 0 && po.contain(primitive_kind::sum, sum_idx)
-            && params.gemm_applies_output_scales_;
+            && params.gemm_applies_output_scales_
+            && po.entry_[sum_idx].sum.zero_point == 0;
 }
 
 status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
