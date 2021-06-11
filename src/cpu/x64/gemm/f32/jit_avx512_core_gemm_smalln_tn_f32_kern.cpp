@@ -139,8 +139,8 @@ struct xbyak_gemm_smalln_tn_t : public jit_generator {
                 ptr[rsp + tempzmm_offset + 64 * 7]};
 
         int numMREM = (numN == 1) ? 16 : 8;
-        Label label_mremT[17], label_kremT[16], label_k_loopT[16],
-                label_no_k_remT[16];
+        std::vector<Label> label_mremT(17), label_kremT(16), label_k_loopT(16),
+                label_no_k_remT(16);
 
         zmm_reg = zmmreg;
         TEMPZMM = TEMPZMM_;

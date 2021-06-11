@@ -296,7 +296,7 @@ void jit_sse41_gemv_n_f32_kern::generate() {
     lea(INCX_, ptr[INCX_ * size_]);
     lea(LDA3_, ptr[LDA_ + LDA_ * 2]);
 
-    Label outerloop_labels[max_unroll_n_];
+    std::vector<Label> outerloop_labels(max_unroll_n_);
     Label *cur_outerloop_label = &outerloop_labels[0];
     Label *outerloop_end_label = &outerloop_labels[unroll_n_ - 1];
 

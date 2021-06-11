@@ -55,71 +55,17 @@ void jit_avx_kernel_b0_sgemm_kern::generate() {
 void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
         const Xbyak::Label &l2834, const Xbyak::Label &l2774,
         const Xbyak::Label &l259c) {
-    Xbyak::Label l236c;
-    Xbyak::Label l2310;
-    Xbyak::Label l22a0;
-    Xbyak::Label l2294;
-    Xbyak::Label l20cc;
-    Xbyak::Label l20b0;
-    Xbyak::Label l1ee8;
-    Xbyak::Label l1e8c;
-    Xbyak::Label l1e5c;
-    Xbyak::Label l1e58;
-    Xbyak::Label l1e1c;
-    Xbyak::Label l1dac;
-    Xbyak::Label l1da0;
-    Xbyak::Label l1bdc;
-    Xbyak::Label l1bd0;
-    Xbyak::Label l1a0c;
-    Xbyak::Label l19a4;
-    Xbyak::Label l1960;
-    Xbyak::Label l18f0;
-    Xbyak::Label l18e4;
-    Xbyak::Label l1720;
-    Xbyak::Label l1710;
-    Xbyak::Label l154c;
-    Xbyak::Label l14e4;
-    Xbyak::Label l1488;
-    Xbyak::Label l1418;
-    Xbyak::Label l140c;
-    Xbyak::Label l1248;
-    Xbyak::Label l122c;
-    Xbyak::Label l1068;
-    Xbyak::Label l100c;
-    Xbyak::Label lfdc;
-    Xbyak::Label lfc8;
-    Xbyak::Label lf54;
-    Xbyak::Label lee4;
-    Xbyak::Label led8;
-    Xbyak::Label ld08;
-    Xbyak::Label lcfc;
-    Xbyak::Label lb2c;
-    Xbyak::Label lac4;
-    Xbyak::Label la44;
-    Xbyak::Label l9d4;
-    Xbyak::Label l9c8;
-    Xbyak::Label l7f8;
-    Xbyak::Label l7e8;
-    Xbyak::Label l618;
-    Xbyak::Label l5b0;
-    Xbyak::Label l508;
-    Xbyak::Label l498;
-    Xbyak::Label l48c;
-    Xbyak::Label l2bc;
-    Xbyak::Label l2a0;
-    Xbyak::Label ld0;
-    Xbyak::Label l74;
-    Xbyak::Label l50;
+    std::vector<Xbyak::Label> labels(55);
 
     shl(LDC, 0x2);
     sub(A, -128);
     sub(B, -128);
     mov(J, M);
     cmp(J, 0x10);
-    jl(lfdc, T_NEAR);
+    jl(labels[0], T_NEAR);
     align(4);
 
-    L(l50);
+    L(labels[19]);
     mov(AA, K);
     imul(AA, AA, 0x40);
     add(AA, A);
@@ -128,10 +74,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     mov(BO, B);
     mov(I, N);
     cmp(I, 0x4);
-    jl(l5b0, T_NEAR);
+    jl(labels[17], T_NEAR);
     align(4);
 
-    L(l74);
+    L(labels[15]);
     vxorps(ymm8, ymm8, ymm8);
     vbroadcastf128(ymm2, xword[BO - 0x80]);
     vxorps(ymm9, ymm9, ymm9);
@@ -147,12 +93,12 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     mov(AO, A);
     mov(H, K);
     sar(H, 0x2);
-    jle(l48c, T_NEAR);
+    jle(labels[21], T_NEAR);
     sub(H, 0x1e);
-    jle(l2a0, T_NEAR);
+    jle(labels[23], T_NEAR);
     align(4);
 
-    L(ld0);
+    L(labels[6]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -251,10 +197,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(ld0, T_NEAR);
+    jg(labels[6], T_NEAR);
     align(4);
 
-    L(l2a0);
+    L(labels[23]);
     prefetcht0(byte[CO1 + 0x3c]);
     prefetcht0(byte[CO1 + LDC * 1 + 0x3c]);
     prefetcht0(byte[CO2 + 0x3c]);
@@ -262,7 +208,7 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     add(H, 0x1e);
     align(4);
 
-    L(l2bc);
+    L(labels[22]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -361,16 +307,16 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(l2bc, T_NEAR);
+    jg(labels[22], T_NEAR);
     align(4);
 
-    L(l48c);
+    L(labels[21]);
     mov(H, K);
     and_(H, 0x3);
-    je(l508, T_NEAR);
+    je(labels[18], T_NEAR);
     align(4);
 
-    L(l498);
+    L(labels[20]);
     vmulps(ymm7, ymm2, ymm0);
     vaddps(ymm8, ymm8, ymm7);
     vmulps(ymm7, ymm2, ymm1);
@@ -396,10 +342,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     sub(AO, -64);
     sub(BO, -16);
     dec(H);
-    jg(l498, T_NEAR);
+    jg(labels[20], T_NEAR);
     align(4);
 
-    L(l508);
+    L(labels[18]);
     vblendps(ymm0, ymm8, ymm9, 0xaa);
     vblendps(ymm1, ymm8, ymm9, 0x55);
     vblendps(ymm2, ymm10, ymm11, 0xaa);
@@ -427,12 +373,12 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     lea(CO1, ptr[CO1 + LDC * 4 + 0x0]);
     sub(I, 0x4);
     cmp(I, 0x4);
-    jge(l74, T_NEAR);
+    jge(labels[15], T_NEAR);
     align(4);
 
-    L(l5b0);
+    L(labels[17]);
     test(I, 0x2);
-    jle(lac4, T_NEAR);
+    jle(labels[9], T_NEAR);
     vxorps(ymm8, ymm8, ymm8);
     vbroadcastf128(ymm2, xword[BO - 0x80]);
     vxorps(ymm9, ymm9, ymm9);
@@ -448,12 +394,12 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     mov(AO, A);
     mov(H, K);
     sar(H, 0x2);
-    jle(l9c8, T_NEAR);
+    jle(labels[12], T_NEAR);
     sub(H, 0x1e);
-    jle(l7e8, T_NEAR);
+    jle(labels[14], T_NEAR);
     align(4);
 
-    L(l618);
+    L(labels[16]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -552,16 +498,16 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(l618, T_NEAR);
+    jg(labels[16], T_NEAR);
     align(4);
 
-    L(l7e8);
+    L(labels[14]);
     prefetcht0(byte[CO1 + 0x3c]);
     prefetcht0(byte[CO1 + LDC * 1 + 0x3c]);
     add(H, 0x1e);
     align(4);
 
-    L(l7f8);
+    L(labels[13]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -660,16 +606,16 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(l7f8, T_NEAR);
+    jg(labels[13], T_NEAR);
     align(4);
 
-    L(l9c8);
+    L(labels[12]);
     mov(H, K);
     and_(H, 0x3);
-    je(la44, T_NEAR);
+    je(labels[10], T_NEAR);
     align(4);
 
-    L(l9d4);
+    L(labels[11]);
     vmulps(ymm7, ymm2, ymm0);
     vaddps(ymm8, ymm8, ymm7);
     vmulps(ymm7, ymm2, ymm1);
@@ -695,10 +641,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     sub(AO, -64);
     sub(BO, -8);
     dec(H);
-    jg(l9d4, T_NEAR);
+    jg(labels[11], T_NEAR);
     align(4);
 
-    L(la44);
+    L(labels[10]);
     vblendps(ymm0, ymm8, ymm9, 0xaa);
     vblendps(ymm1, ymm8, ymm9, 0x55);
     vblendps(ymm2, ymm10, ymm11, 0xaa);
@@ -722,9 +668,9 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     lea(CO1, ptr[CO1 + LDC * 2 + 0x0]);
     align(4);
 
-    L(lac4);
+    L(labels[9]);
     test(I, 0x1);
-    jle(lfc8, T_NEAR);
+    jle(labels[1], T_NEAR);
     vxorps(ymm8, ymm8, ymm8);
     vbroadcastf128(ymm2, xword[BO - 0x80]);
     vxorps(ymm9, ymm9, ymm9);
@@ -740,12 +686,12 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     mov(AO, A);
     mov(H, K);
     sar(H, 0x2);
-    jle(led8, T_NEAR);
+    jle(labels[4], T_NEAR);
     sub(H, 0x1e);
-    jle(lcfc, T_NEAR);
+    jle(labels[7], T_NEAR);
     align(4);
 
-    L(lb2c);
+    L(labels[8]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -844,15 +790,15 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(lb2c, T_NEAR);
+    jg(labels[8], T_NEAR);
     align(4);
 
-    L(lcfc);
+    L(labels[7]);
     prefetcht0(byte[CO1 + 0x3c]);
     add(H, 0x1e);
     align(4);
 
-    L(ld08);
+    L(labels[5]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -951,16 +897,16 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(ld08, T_NEAR);
+    jg(labels[5], T_NEAR);
     align(4);
 
-    L(led8);
+    L(labels[4]);
     mov(H, K);
     and_(H, 0x3);
-    je(lf54, T_NEAR);
+    je(labels[2], T_NEAR);
     align(4);
 
-    L(lee4);
+    L(labels[3]);
     vmulps(ymm7, ymm2, ymm0);
     vaddps(ymm8, ymm8, ymm7);
     vmulps(ymm7, ymm2, ymm1);
@@ -986,10 +932,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     sub(AO, -64);
     sub(BO, -4);
     dec(H);
-    jg(lee4, T_NEAR);
+    jg(labels[3], T_NEAR);
     align(4);
 
-    L(lf54);
+    L(labels[2]);
     vblendps(ymm0, ymm8, ymm9, 0xaa);
     vblendps(ymm1, ymm8, ymm9, 0x55);
     vblendps(ymm2, ymm10, ymm11, 0xaa);
@@ -1011,16 +957,16 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     lea(CO1, ptr[CO1 + LDC * 1 + 0x0]);
     align(4);
 
-    L(lfc8);
+    L(labels[1]);
     mov(A, AO);
     sub(J, 0x10);
     cmp(J, 0x10);
-    jge(l50, T_NEAR);
+    jge(labels[19], T_NEAR);
     align(4);
 
-    L(lfdc);
+    L(labels[0]);
     test(J, 0x8);
-    jle(l1e5c, T_NEAR);
+    jle(labels[32], T_NEAR);
     mov(AA, K);
     imul(AA, AA, 0x20);
     add(AA, A);
@@ -1029,10 +975,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     mov(BO, B);
     mov(I, N);
     cmp(I, 0x4);
-    jl(l14e4, T_NEAR);
+    jl(labels[47], T_NEAR);
     align(4);
 
-    L(l100c);
+    L(labels[54]);
     vxorps(ymm8, ymm8, ymm8);
     vbroadcastf128(ymm2, xword[BO - 0x80]);
     vxorps(ymm9, ymm9, ymm9);
@@ -1048,12 +994,12 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     mov(AO, A);
     mov(H, K);
     sar(H, 0x2);
-    jle(l140c, T_NEAR);
+    jle(labels[50], T_NEAR);
     sub(H, 0x1e);
-    jle(l122c, T_NEAR);
+    jle(labels[52], T_NEAR);
     align(4);
 
-    L(l1068);
+    L(labels[53]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -1152,10 +1098,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(l1068, T_NEAR);
+    jg(labels[53], T_NEAR);
     align(4);
 
-    L(l122c);
+    L(labels[52]);
     prefetcht0(byte[CO1 + 0x1c]);
     prefetcht0(byte[CO1 + LDC * 1 + 0x1c]);
     prefetcht0(byte[CO2 + 0x1c]);
@@ -1163,7 +1109,7 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     add(H, 0x1e);
     align(4);
 
-    L(l1248);
+    L(labels[51]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -1262,16 +1208,16 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(l1248, T_NEAR);
+    jg(labels[51], T_NEAR);
     align(4);
 
-    L(l140c);
+    L(labels[50]);
     mov(H, K);
     and_(H, 0x3);
-    je(l1488, T_NEAR);
+    je(labels[48], T_NEAR);
     align(4);
 
-    L(l1418);
+    L(labels[49]);
     vmulps(ymm7, ymm2, ymm0);
     vaddps(ymm8, ymm8, ymm7);
     vmulps(ymm7, ymm2, ymm1);
@@ -1297,10 +1243,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     sub(AO, -32);
     sub(BO, -16);
     dec(H);
-    jg(l1418, T_NEAR);
+    jg(labels[49], T_NEAR);
     align(4);
 
-    L(l1488);
+    L(labels[48]);
     vblendps(ymm0, ymm8, ymm9, 0xaa);
     vblendps(ymm1, ymm8, ymm9, 0x55);
     vblendps(ymm2, ymm10, ymm11, 0xaa);
@@ -1316,12 +1262,12 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     lea(CO1, ptr[CO1 + LDC * 4 + 0x0]);
     sub(I, 0x4);
     cmp(I, 0x4);
-    jge(l100c, T_NEAR);
+    jge(labels[54], T_NEAR);
     align(4);
 
-    L(l14e4);
+    L(labels[47]);
     test(I, 0x2);
-    jle(l19a4, T_NEAR);
+    jle(labels[40], T_NEAR);
     vxorps(ymm8, ymm8, ymm8);
     vbroadcastf128(ymm2, xword[BO - 0x80]);
     vxorps(ymm9, ymm9, ymm9);
@@ -1337,12 +1283,12 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     mov(AO, A);
     mov(H, K);
     sar(H, 0x2);
-    jle(l18e4, T_NEAR);
+    jle(labels[43], T_NEAR);
     sub(H, 0x1e);
-    jle(l1710, T_NEAR);
+    jle(labels[45], T_NEAR);
     align(4);
 
-    L(l154c);
+    L(labels[46]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -1441,16 +1387,16 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(l154c, T_NEAR);
+    jg(labels[46], T_NEAR);
     align(4);
 
-    L(l1710);
+    L(labels[45]);
     prefetcht0(byte[CO1 + 0x1c]);
     prefetcht0(byte[CO1 + LDC * 1 + 0x1c]);
     add(H, 0x1e);
     align(4);
 
-    L(l1720);
+    L(labels[44]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -1549,16 +1495,16 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(l1720, T_NEAR);
+    jg(labels[44], T_NEAR);
     align(4);
 
-    L(l18e4);
+    L(labels[43]);
     mov(H, K);
     and_(H, 0x3);
-    je(l1960, T_NEAR);
+    je(labels[41], T_NEAR);
     align(4);
 
-    L(l18f0);
+    L(labels[42]);
     vmulps(ymm7, ymm2, ymm0);
     vaddps(ymm8, ymm8, ymm7);
     vmulps(ymm7, ymm2, ymm1);
@@ -1584,10 +1530,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     sub(AO, -32);
     sub(BO, -8);
     dec(H);
-    jg(l18f0, T_NEAR);
+    jg(labels[42], T_NEAR);
     align(4);
 
-    L(l1960);
+    L(labels[41]);
     vblendps(ymm0, ymm8, ymm9, 0xaa);
     vblendps(ymm1, ymm8, ymm9, 0x55);
     vblendps(ymm2, ymm10, ymm11, 0xaa);
@@ -1601,9 +1547,9 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     lea(CO1, ptr[CO1 + LDC * 2 + 0x0]);
     align(4);
 
-    L(l19a4);
+    L(labels[40]);
     test(I, 0x1);
-    jle(l1e58, T_NEAR);
+    jle(labels[33], T_NEAR);
     vxorps(ymm8, ymm8, ymm8);
     vbroadcastf128(ymm2, xword[BO - 0x80]);
     vxorps(ymm9, ymm9, ymm9);
@@ -1619,12 +1565,12 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     mov(AO, A);
     mov(H, K);
     sar(H, 0x2);
-    jle(l1da0, T_NEAR);
+    jle(labels[36], T_NEAR);
     sub(H, 0x1e);
-    jle(l1bd0, T_NEAR);
+    jle(labels[38], T_NEAR);
     align(4);
 
-    L(l1a0c);
+    L(labels[39]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -1723,15 +1669,15 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(l1a0c, T_NEAR);
+    jg(labels[39], T_NEAR);
     align(4);
 
-    L(l1bd0);
+    L(labels[38]);
     prefetcht0(byte[CO1 + 0x1c]);
     add(H, 0x1e);
     align(4);
 
-    L(l1bdc);
+    L(labels[37]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -1830,16 +1776,16 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(l1bdc, T_NEAR);
+    jg(labels[37], T_NEAR);
     align(4);
 
-    L(l1da0);
+    L(labels[36]);
     mov(H, K);
     and_(H, 0x3);
-    je(l1e1c, T_NEAR);
+    je(labels[34], T_NEAR);
     align(4);
 
-    L(l1dac);
+    L(labels[35]);
     vmulps(ymm7, ymm2, ymm0);
     vaddps(ymm8, ymm8, ymm7);
     vmulps(ymm7, ymm2, ymm1);
@@ -1865,10 +1811,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     sub(AO, -32);
     sub(BO, -4);
     dec(H);
-    jg(l1dac, T_NEAR);
+    jg(labels[35], T_NEAR);
     align(4);
 
-    L(l1e1c);
+    L(labels[34]);
     vblendps(ymm0, ymm8, ymm9, 0xaa);
     vblendps(ymm1, ymm8, ymm9, 0x55);
     vblendps(ymm2, ymm10, ymm11, 0xaa);
@@ -1881,11 +1827,11 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     lea(CO1, ptr[CO1 + LDC * 1 + 0x0]);
     align(4);
 
-    L(l1e58);
+    L(labels[33]);
     mov(A, AO);
     align(4);
 
-    L(l1e5c);
+    L(labels[32]);
     test(J, 0x4);
     jle(l2cf4, T_NEAR);
     mov(AA, K);
@@ -1896,10 +1842,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     mov(BO, B);
     mov(I, N);
     cmp(I, 0x4);
-    jl(l236c, T_NEAR);
+    jl(labels[24], T_NEAR);
     align(4);
 
-    L(l1e8c);
+    L(labels[31]);
     vxorps(ymm8, ymm8, ymm8);
     vbroadcastf128(ymm2, xword[BO - 0x80]);
     vxorps(ymm9, ymm9, ymm9);
@@ -1915,12 +1861,12 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     mov(AO, A);
     mov(H, K);
     sar(H, 0x2);
-    jle(l2294, T_NEAR);
+    jle(labels[27], T_NEAR);
     sub(H, 0x1e);
-    jle(l20b0, T_NEAR);
+    jle(labels[29], T_NEAR);
     align(4);
 
-    L(l1ee8);
+    L(labels[30]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -2019,10 +1965,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(l1ee8, T_NEAR);
+    jg(labels[30], T_NEAR);
     align(4);
 
-    L(l20b0);
+    L(labels[29]);
     prefetcht0(byte[CO1 + 0xc]);
     prefetcht0(byte[CO1 + LDC * 1 + 0xc]);
     prefetcht0(byte[CO2 + 0xc]);
@@ -2030,7 +1976,7 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     add(H, 0x1e);
     align(4);
 
-    L(l20cc);
+    L(labels[28]);
     vmulps(ymm6, ymm2, ymm0);
     prefetcht0(byte[AO + 0x180]);
     vmulps(ymm7, ymm2, ymm1);
@@ -2129,16 +2075,16 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     vaddps(ymm11, ymm11, ymm6);
     vaddps(ymm15, ymm15, ymm7);
     sub(H, 0x1);
-    jg(l20cc, T_NEAR);
+    jg(labels[28], T_NEAR);
     align(4);
 
-    L(l2294);
+    L(labels[27]);
     mov(H, K);
     and_(H, 0x3);
-    je(l2310, T_NEAR);
+    je(labels[25], T_NEAR);
     align(4);
 
-    L(l22a0);
+    L(labels[26]);
     vmulps(ymm7, ymm2, ymm0);
     vaddps(ymm8, ymm8, ymm7);
     vmulps(ymm7, ymm2, ymm1);
@@ -2164,10 +2110,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     sub(AO, -16);
     sub(BO, -16);
     dec(H);
-    jg(l22a0, T_NEAR);
+    jg(labels[26], T_NEAR);
     align(4);
 
-    L(l2310);
+    L(labels[25]);
     vblendps(ymm0, ymm8, ymm9, 0xaa);
     vblendps(ymm1, ymm8, ymm9, 0x55);
     vblendps(ymm2, ymm10, ymm11, 0xaa);
@@ -2183,10 +2129,10 @@ void jit_avx_kernel_b0_sgemm_kern::generate_part1(const Xbyak::Label &l2cf4,
     lea(CO1, ptr[CO1 + LDC * 4 + 0x0]);
     sub(I, 0x4);
     cmp(I, 0x4);
-    jge(l1e8c, T_NEAR);
+    jge(labels[31], T_NEAR);
     align(4);
 
-    L(l236c);
+    L(labels[24]);
     test(I, 0x2);
     jle(l2834, T_NEAR);
     vxorps(ymm8, ymm8, ymm8);
