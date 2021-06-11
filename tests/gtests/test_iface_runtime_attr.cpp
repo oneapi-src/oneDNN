@@ -223,22 +223,10 @@ TEST_F(runtime_attr_test_t, TestInnerProduct) {
 
     for (auto arg :
             {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
-        if (get_test_engine_kind() == engine::kind::gpu
-                && (arg == DNNL_ARG_SRC || arg == DNNL_ARG_WEIGHTS)) {
-            CHECK_OK(inner_product_forward::primitive_desc(
-                    op_d, gen_attr_with_zp(false, arg), eng));
-        } else {
-            CHECK_UNIMPL(inner_product_forward::primitive_desc(
-                    op_d, gen_attr_with_zp(false, arg), eng));
-        }
-        if (get_test_engine_kind() == engine::kind::gpu
-                && (arg == DNNL_ARG_DST)) {
-            CHECK_OK(inner_product_forward::primitive_desc(
-                    op_d, gen_attr_with_zp(true, arg), eng));
-        } else {
-            CHECK_UNIMPL(inner_product_forward::primitive_desc(
-                    op_d, gen_attr_with_zp(true, arg), eng));
-        }
+        CHECK_UNIMPL(inner_product_forward::primitive_desc(
+                op_d, gen_attr_with_zp(false, arg), eng));
+        CHECK_UNIMPL(inner_product_forward::primitive_desc(
+                op_d, gen_attr_with_zp(true, arg), eng));
     }
 }
 
