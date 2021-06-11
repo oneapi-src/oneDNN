@@ -383,7 +383,7 @@ bool jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::post_ops_ok(jit_conv_conf_t &jcp,
 
     return injector::post_ops_ok(post_ops_ok_args_t(isa, {sum, eltwise, binary},
             attr.post_ops_, &dst_d, false /*sum_at_pos_0_only*/,
-            false /*sum_requires_scale_one*/,
+            false /*sum_requires_scale_one*/, false /*sum_requires_zp_zero*/,
             {broadcasting_strategy_t::per_oc,
                     broadcasting_strategy_t::scalar}));
 }
@@ -985,8 +985,8 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::cvt2ps(data_type_t type_in,
 }
 
 template <cpu_isa_t isa, typename Vmm>
-void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::apply_postops(
-        int ur_w, bool last_oc_block, const float *p_sum_scale) {
+void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::apply_postops(int ur_w,
+        bool last_oc_block, const float *p_sum_scale, const int32_t *p_sum_zp) {
     const auto sum_injector = [=]() {
         if (p_sum_scale) { // post_op: sum
             for (int k = 0; k < jcp_.nb_oc_blocking; k++) {
@@ -1000,6 +1000,11 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::apply_postops(
                     cvt2ps(jcp_.dst_dt, vmm_prev_dst_, reg_dst_,
                             aux_output_offset,
                             mask_flag ? get_tail_size() : get_blocking_size());
+                    if (*p_sum_zp != 0) {
+                        uni_vbroadcastss(vmm_sum_zp_, ptr[reg_ptr_sum_zp_]);
+                        uni_vcvtdq2ps(vmm_sum_zp_, vmm_sum_zp_);
+                        uni_vsubps(vmm_prev_dst_, vmm_prev_dst_, vmm_sum_zp_);
+                    }
                     const Vmm vmm = vmm_out(j, k);
                     if (*p_sum_scale == 1.f)
                         uni_vaddps(vmm, vmm, vmm_prev_dst_);
@@ -1055,6 +1060,8 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::store_output(
     const int sum_idx = p.find(primitive_kind::sum);
     const float *p_sum_scale
             = (sum_idx != -1) ? &p.entry_[sum_idx].sum.scale : nullptr;
+    const int32_t *p_sum_zp
+            = (sum_idx != -1) ? &p.entry_[sum_idx].sum.zero_point : nullptr;
 
     if (jcp_.with_bias && jcp_.signed_input && jcp_.ver != ver_vnni) {
         mov(reg_bias_alpha_, float2int(jcp_.wei_adj_scale));
@@ -1115,11 +1122,12 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::store_output(
     }
 
     if (p_sum_scale && *p_sum_scale != 1.f)
-        mov(reg_ptr_sum_scale_, (size_t)p_sum_scale);
-
+        mov(reg_ptr_sum_scale_, reinterpret_cast<size_t>(p_sum_scale));
+    if (p_sum_zp && *p_sum_zp != 0) {
+        mov(reg_ptr_sum_zp_, reinterpret_cast<size_t>(p_sum_zp));
+    }
     if (jcp_.with_eltwise || jcp_.with_binary || jcp_.with_sum)
-        apply_postops(ur_w, last_oc_block, p_sum_scale);
-
+        apply_postops(ur_w, last_oc_block, p_sum_scale, p_sum_zp);
     if (jcp_.dst_zero_point) {
         mov(reg_zp_dst_, ptr[param1_ + GET_OFF(dst_zero_point)]);
         const auto &vmm_zp_dst = vmm_tmp_;

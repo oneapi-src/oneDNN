@@ -91,6 +91,7 @@ private:
     const reg64_t &reg_compensation_ = r14;
     const reg64_t &reg_scratch_ = r14;
     const reg64_t &reg_ptr_sum_scale_ = r11;
+    const reg64_t &reg_ptr_sum_zp_ = r15;
     const reg64_t &reg_bias_alpha_ = abi_not_param1;
     const reg64_t &reg_overflow_ = rax;
     const reg64_t &reg_comp_strides_ = reg_overflow_;
@@ -114,6 +115,7 @@ private:
     const Vmm vmm_comp_ = Vmm(1);
     const Vmm &vmm_bias_ = vmm_zero_;
     const Vmm &vmm_prev_dst_ = vmm_zero_;
+    const Vmm &vmm_sum_zp_ = vmm_tmp_;
 
     Vmm vmm_out(int i_ur, int i_oc) const;
     Vmm vmm_inp(int i_ic, int nb_x_blocking) const;
@@ -126,7 +128,8 @@ private:
     int get_tail_size() const noexcept;
 
     void prepare_output(int ur_w);
-    void apply_postops(int ur_w, bool last_oc_block, const float *p_sum_scale);
+    void apply_postops(int ur_w, bool last_oc_block, const float *p_sum_scale,
+            const int32_t *p_sum_zp);
     void store_output(int ur_w, bool last_oc_block);
     void compute_ker(int ur_w, int l_overflow, int r_overflow,
             ker_block_t last_ic_block_flag, bool h_padded = false);

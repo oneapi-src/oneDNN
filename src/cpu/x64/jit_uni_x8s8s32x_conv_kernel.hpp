@@ -66,6 +66,7 @@ private:
     const Xbyak::Reg64 reg_out = r10;
     const Xbyak::Reg64 aux_reg_inp = r11;
     const Xbyak::Reg64 reg_ptr_sum_scale = r11;
+    const Xbyak::Reg64 reg_ptr_sum_zp = rdx;
     const Xbyak::Reg64 aux_reg_ker = r12;
     const Xbyak::Reg64 aux_reg_inp_d = r13;
     const Xbyak::Reg64 reg_compensation = r14;
@@ -184,10 +185,10 @@ private:
             int offset, int load_size);
     void apply_sum(const int nb_oc_block, const int ur_w,
             const bool last_oc_block_flag, const int oc_block,
-            const float *p_sum_scale);
+            const float *p_sum_scale, const int32_t *p_sum_zp);
     void apply_postops(const int nb_oc_block, const int ur_w,
             const bool last_oc_block_flag, const int oc_block,
-            const float *p_sum_scale);
+            const float *p_sum_scale, const int32_t *p_sum_zp);
 };
 
 template <cpu_isa_t isa>

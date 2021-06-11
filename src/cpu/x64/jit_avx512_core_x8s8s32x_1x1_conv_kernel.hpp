@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,13 +96,14 @@ private:
     constexpr static int reg_bcast_data_off = 2 * reg64_size_;
     constexpr static int reg_load_data_off = 3 * reg64_size_;
     constexpr static int reg_ptr_sum_scale_off = 4 * reg64_size_;
-    constexpr static int reg_comp_data_off = 5 * reg64_size_;
-    constexpr static int reg_zp_compensation_off = 6 * reg64_size_;
-    constexpr static int reg_src_zero_point_off = 7 * reg64_size_;
-    constexpr static int reg_dst_zero_point_off = 8 * reg64_size_;
-    constexpr static int reg_binary_post_op_acc_off = 9 * reg64_size_;
-    constexpr static int reg_abi_param1_backup = 10 * reg64_size_;
-    constexpr static int stack_space_needed = 11 * reg64_size_;
+    constexpr static int reg_ptr_sum_zp_off = 5 * reg64_size_;
+    constexpr static int reg_comp_data_off = 6 * reg64_size_;
+    constexpr static int reg_zp_compensation_off = 7 * reg64_size_;
+    constexpr static int reg_src_zero_point_off = 8 * reg64_size_;
+    constexpr static int reg_dst_zero_point_off = 9 * reg64_size_;
+    constexpr static int reg_binary_post_op_acc_off = 10 * reg64_size_;
+    constexpr static int reg_abi_param1_backup = 11 * reg64_size_;
+    constexpr static int stack_space_needed = 12 * reg64_size_;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
@@ -111,9 +112,11 @@ private:
     int vreg_accum_idx(const int load_loop_blk, int i_load, int i_ur) const;
     Vmm vreg_accum(const int load_loop_blk, int i_load, int i_ur) const;
     void apply_sum(const int load_loop_blk, const int ur,
-            const bool mask_flag_in, const float *p_sum_scale);
+            const bool mask_flag_in, const float *p_sum_scale,
+            const int32_t *p_sum_zp);
     void apply_postops(const int load_loop_blk, const int ur,
-            const bool mask_flag_in, const float *p_sum_scale);
+            const bool mask_flag_in, const float *p_sum_scale,
+            const int32_t *p_sum_zp);
     void generate() override;
     void cvt2ps(data_type_t type_in, const Vmm vmm_in, const Xbyak::Operand &op,
             bool mask_flag);

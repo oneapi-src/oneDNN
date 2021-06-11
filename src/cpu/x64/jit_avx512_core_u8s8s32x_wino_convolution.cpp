@@ -300,6 +300,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t : public jit_generator {
     Zmm zmm_bias_alpha = Zmm(2);
     Xmm xmm_bias_alpha = Xmm(2);
     Zmm vreg_saturation_ubound = Zmm(3);
+    Zmm vreg_sum_zp = Zmm(4);
 
     Opmask y_mask = Opmask(1);
     Opmask r_mask = Opmask(2);
@@ -324,6 +325,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t : public jit_generator {
     Reg64 reg_ptr_bias = rbx;
     Reg64 reg_ptr_scales = abi_not_param1;
     Reg64 reg_ptr_sum_scale = rdx;
+    Reg64 reg_ptr_sum_zp = rdx;
     Reg64 reg_ptr_saturation_ubound = rax;
 };
 
@@ -356,9 +358,16 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
         const int sum_idx = p.find(primitive_kind::sum);
         const float *p_sum_scale
                 = (sum_idx != -1) ? &p.entry_[sum_idx].sum.scale : nullptr;
-        if (p_sum_scale && *p_sum_scale != 1.f)
-            mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
-
+        const int32_t *p_sum_zp
+                = (sum_idx != -1) ? &p.entry_[sum_idx].sum.zero_point : nullptr;
+        if (p_sum_scale) {
+            if (*p_sum_zp != 0) {
+                mov(reg_ptr_sum_zp, reinterpret_cast<size_t>(p_sum_zp));
+                vcvtdq2ps(vreg_sum_zp, ptr_b[reg_ptr_sum_zp]);
+            }
+            if (*p_sum_scale != 1.f)
+                mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
+        }
         for (int i = 0; i < 16; i++) {
             int internal_offset = sizeof(int32_t) * jcp.out_stride * i;
             vmovups(vreg_inp(i),
@@ -430,6 +439,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
                     }
                     if (jcp.dst_dt != data_type::f32)
                         vcvtdq2ps(vreg_prev_dst, vreg_prev_dst);
+                    if (*p_sum_zp != 0) vsubps(vreg_prev_dst, vreg_sum_zp);
                     if (*p_sum_scale == 1.f)
                         vaddps(zmm, vreg_prev_dst);
                     else

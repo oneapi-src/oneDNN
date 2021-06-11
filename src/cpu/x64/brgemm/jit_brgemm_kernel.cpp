@@ -148,6 +148,7 @@ private:
     const reg64_t reg_do_post_ops = reg_rdb_loop;
     const reg64_t reg_tmp_gpr = reg_rdb_loop;
     const reg64_t reg_ptr_sum_scale = reg_rdb_loop;
+    const reg64_t reg_ptr_sum_zp = reg_bdb_loop;
 
     const reg64_t reg_buf = reg_rdb_loop;
     const reg64_t reg_compensation = reg_bias;
@@ -624,7 +625,9 @@ void jit_brgemm_kernel_base_t::apply_post_ops(
     const int D_shift_val = std::log2(brg.typesize_D);
     const auto sum_injector = [&] {
         const float *p_sum_scale = &brg.sum_scale;
+        const int32_t *p_sum_zp = &brg.sum_zp;
         const bool p_sum_scale_reg_set = *p_sum_scale != 1.f;
+        const bool p_sum_zp_reg_set = *p_sum_zp != 0;
 
         // if needed, restore reg_aux_D before sum logic
         if (with_binary_no_bcast_) {
@@ -635,11 +638,20 @@ void jit_brgemm_kernel_base_t::apply_post_ops(
         }
 
         const injector_utils::conditional_register_preserve_guard_t
-                register_guard(
+                register_guard_sum_scale(
                         (handle_binary_po_offset_) && p_sum_scale_reg_set, this,
                         {reg_ptr_sum_scale});
+        const injector_utils::conditional_register_preserve_guard_t
+                register_guard_sum_zp(p_sum_zp_reg_set, this, {reg_ptr_sum_zp});
 
-        if (p_sum_scale_reg_set) mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
+        if (p_sum_scale_reg_set)
+            mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
+
+        const auto &zmm_sum_zp = zmm_tmp_2();
+        if (p_sum_zp_reg_set) {
+            mov(reg_ptr_sum_zp, reinterpret_cast<size_t>(p_sum_zp));
+            vcvtdq2ps(zmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
+        }
 
         const auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
 
@@ -649,6 +661,7 @@ void jit_brgemm_kernel_base_t::apply_post_ops(
                 const auto addr = ptr[reg_aux_D + D_offset(bd, ld)];
                 const auto zmm_prev_dst = Xbyak::Zmm(0);
                 cvt2ps(brg.dt_d, zmm_prev_dst, addr, true, false, k_mask);
+                if (p_sum_zp_reg_set) vsubps(zmm_prev_dst, zmm_sum_zp);
                 if (!p_sum_scale_reg_set)
                     vaddps(zmm, zmm_prev_dst);
                 else

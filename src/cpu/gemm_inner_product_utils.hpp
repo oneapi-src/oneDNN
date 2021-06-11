@@ -89,15 +89,15 @@ protected:
     bool runtime_mb() const { return MB_ == (size_t)DNNL_RUNTIME_DIM_VAL; }
 };
 
-static const bcast_set_t default_strategies {broadcasting_strategy_t::scalar,
-        broadcasting_strategy_t::per_oc,
+static const bcast_set_t gemm_default_strategies {
+        broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
         broadcasting_strategy_t::per_oc_spatial,
         broadcasting_strategy_t::no_broadcast};
 
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
-        const bcast_set_t &enabled_bcast_strategy = default_strategies);
+        const bcast_set_t &enabled_bcast_strategy = gemm_default_strategies);
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d,
-        const bcast_set_t &enabled_bcast_strategy = default_strategies);
+        const bcast_set_t &enabled_bcast_strategy = gemm_default_strategies);
 
 } // namespace inner_product_utils
 } // namespace cpu

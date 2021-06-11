@@ -197,6 +197,7 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
         using namespace x64::injector;
         static constexpr bool sum_at_pos_0_only = true;
         static constexpr bool sum_requires_scale_one = false;
+        static constexpr bool sum_requires_zp_zero = true;
 
         const bool is_binary_po_channel_bcast
                 = binary_injector_utils::bcast_strategy_present(
@@ -209,7 +210,7 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
         return supported_channel_bcast
                 && injector::post_ops_ok({isa, {binary, eltwise, sum}, post_ops,
                         dst_d, sum_at_pos_0_only, sum_requires_scale_one,
-                        enabled_bcast_strategy});
+                        sum_requires_zp_zero, enabled_bcast_strategy});
     }
 #endif
     for (size_t i = 0; i < post_ops.entry_.size(); i++) {

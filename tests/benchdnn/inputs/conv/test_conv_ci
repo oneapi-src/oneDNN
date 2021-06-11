@@ -53,7 +53,7 @@
                 sum:0.5, \
                 linear:2:1, \
                 add:f32, \
-                sum:0.5+add:f32:per_oc+add:f32:per_tensor
+                sum:0.5:3+add:f32:per_oc+add:f32:per_tensor
 --attr-zero-points=
 --batch=shapes_basic
 --attr-post-ops=
@@ -67,7 +67,7 @@
                 sum:0.5, \
                 linear:2:1, \
                 add:f32, \
-                sum:0.5+add:f32:per_oc+add:f32:per_tensor
+                sum:0.5:2+add:f32:per_oc+add:f32:per_tensor
 --attr-zero-points=
 --batch=shapes_basic
 --attr-post-ops=
@@ -80,6 +80,6 @@
 --dtag=any
 # TODO: non-relu and non-unit relu scale is not supported by wino
 # TODO: binary post op is not supported by wino
---attr-post-ops=,sum:0.5,relu,sum:0.25+relu:0:0:0.75
+--attr-post-ops=,sum:0.5,relu,sum:0.25:1+relu:0:0:0.75
 --attr-zero-points=
 --batch=shapes_basic

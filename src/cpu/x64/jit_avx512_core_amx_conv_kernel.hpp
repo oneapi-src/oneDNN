@@ -305,6 +305,7 @@ private:
     const Xbyak::Reg64 &reg_bias = r11;
     const Xbyak::Reg64 &reg_ptr_scales = r10;
     const Xbyak::Reg64 &reg_ptr_sum_scale = r9;
+    const Xbyak::Reg64 &reg_ptr_sum_zp = abi_not_param1;
     const Xbyak::Reg64 &reg_aux_saturation = reg_ptr_sum_scale;
 
     const Xbyak::Reg64 &reg_inp_stride = rbx;
@@ -329,6 +330,7 @@ private:
     const Xbyak::Zmm &zmm_saturation = zmm_bias;
     const Xbyak::Zmm &zmm_zero = zmm30;
     const Xbyak::Zmm &zmm_prev_dst = zmm29;
+    const Xbyak::Zmm &zmm_sum_zp = zmm26;
     /* zero-point */
     const Xbyak::Zmm &zmm_zp = zmm29;
     const Xbyak::Zmm &zmm_src_zp = zmm28;
@@ -381,10 +383,11 @@ private:
     Xbyak::Zmm zmm_mask(
             const Xbyak::Zmm &zmm_in, bool mask_flag, bool store = false);
     void apply_sum(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
-            const Xbyak::Address &addr, const bool mask_flag);
+            const int32_t *p_sum_zp, const Xbyak::Address &addr,
+            const bool mask_flag);
     void apply_postops(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
-            const Xbyak::Address &addr, const bool mask_flag, const size_t off,
-            const int ocb);
+            const int32_t *p_sum_zp, const Xbyak::Address &addr,
+            const bool mask_flag, const size_t off, const int ocb);
     void store_output_vector_bf16(
             const Xbyak::Zmm &zmm_out, int ocb, int h, int w);
     void store_output_vector_int8(const Xbyak::Zmm &zmm_out, int ocb, int h,
@@ -519,6 +522,7 @@ private:
     const Xbyak::Reg64 &reg_bias = r11;
     const Xbyak::Reg64 &reg_ptr_scales = r10;
     const Xbyak::Reg64 &reg_ptr_sum_scale = r9;
+    const Xbyak::Reg64 &reg_ptr_sum_zp = abi_not_param1;
     const Xbyak::Reg64 &reg_aux_saturation = reg_ptr_sum_scale;
 
     const Xbyak::Reg64 &reg_aux_inp_ptr = r8;
@@ -539,6 +543,7 @@ private:
     const Xbyak::Zmm &zmm_saturation = zmm_bias;
     const Xbyak::Zmm &zmm_zero = zmm30;
     const Xbyak::Zmm &zmm_prev_dst = zmm29;
+    const Xbyak::Zmm &zmm_sum_zp = zmm28;
 
     // AUX: Steps, shifts and offsets
     size_t get_inp_kh_step() const;

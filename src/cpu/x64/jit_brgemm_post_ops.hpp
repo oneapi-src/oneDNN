@@ -356,6 +356,7 @@ private:
     const reg64_t aux_reg_scales = r8;
 
     const reg64_t reg_ptr_sum_scale = rdx;
+    const reg64_t reg_ptr_sum_zp = rsi;
 
     const reg64_t reg_oc_l_offset_ = abi_not_param1;
     const reg64_t aux_reg_oc_l_offset_ = rbx;
@@ -409,8 +410,14 @@ private:
 
         const auto sum_injector = [&] {
             const float *p_sum_scale = &p.entry_[sum_idx].sum.scale;
+            const int32_t *p_sum_zp = &p.entry_[sum_idx].sum.zero_point;
             if (*p_sum_scale != 1.f)
                 mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
+            auto zmm_sum_zp = Xbyak::Zmm(30);
+            if (*p_sum_zp != 0) {
+                mov(reg_ptr_sum_zp, (size_t)p_sum_zp);
+                vcvtdq2ps(zmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
+            }
 
             for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
@@ -420,6 +427,7 @@ private:
 
                 const auto zmm_prev_dst = Xbyak::Zmm(31);
                 cvt2ps(out_dt_, zmm_prev_dst, addr, true, false, k_mask);
+                if (*p_sum_zp != 0) vsubps(zmm_prev_dst, zmm_sum_zp);
                 if (*p_sum_scale == 1.f)
                     vaddps(zmm, zmm_prev_dst);
                 else

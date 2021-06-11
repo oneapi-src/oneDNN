@@ -214,6 +214,7 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     brg->with_eltwise = false;
     brg->with_sum = false;
     brg->sum_scale = 0;
+    brg->sum_zp = 0;
     brg->with_scales = false;
 
     brg->beta = beta;
@@ -460,6 +461,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
                     post_ops_ok_args_t(isa, {sum, eltwise, binary}, post_ops,
                             &dst_d, false /*sum_at_pos_0_only*/,
                             false /*sum_requires_scale_one*/,
+                            false /*sum_requires_zp_zero*/,
                             {broadcasting_strategy_t::per_oc,
                                     broadcasting_strategy_t::scalar,
                                     broadcasting_strategy_t::per_mb_spatial,
@@ -469,6 +471,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     const int sum_idx = post_ops.find(primitive_kind::sum);
     brg->with_sum = sum_idx != -1;
     brg->sum_scale = (sum_idx != -1) ? post_ops.entry_[sum_idx].sum.scale : 0;
+    brg->sum_zp = (sum_idx != -1) ? post_ops.entry_[sum_idx].sum.zero_point : 0;
 
     const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     brg->with_eltwise = eltwise_ind != -1;

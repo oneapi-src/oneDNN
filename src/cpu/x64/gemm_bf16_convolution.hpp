@@ -60,10 +60,11 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
                 using namespace x64::injector;
                 static constexpr bool sum_at_pos_0_only = true;
                 static constexpr bool sum_requires_scale_one = true;
+                static constexpr bool sum_requires_zp_zero = true;
                 const auto dst_md = memory_desc_wrapper(dst_md_);
                 ok &= post_ops_ok({avx512_core, {binary, eltwise, sum},
                         attr()->post_ops_, &dst_md, sum_at_pos_0_only,
-                        sum_requires_scale_one,
+                        sum_requires_scale_one, sum_requires_zp_zero,
                         {broadcasting_strategy_t::scalar,
                                 broadcasting_strategy_t::per_oc}});
             }

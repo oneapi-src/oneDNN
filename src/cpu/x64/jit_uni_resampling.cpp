@@ -119,12 +119,13 @@ status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
             = {injector::sum, injector::eltwise, injector::binary};
     static constexpr bool sum_at_0_pos_only = false;
     static constexpr bool sum_requires_scale_one = false;
+    static constexpr bool sum_requires_zp_zero = true;
     const bcast_set_t accepted_broadcasts
             = {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
                     broadcasting_strategy_t::per_oc_spatial};
     injector::post_ops_ok_args_t post_ops_args(conf_.isa, accepted_post_ops,
             attr()->post_ops_, &dst_d, sum_at_0_pos_only,
-            sum_requires_scale_one, accepted_broadcasts);
+            sum_requires_scale_one, sum_requires_zp_zero, accepted_broadcasts);
     if (!post_ops_ok(post_ops_args)) return status::unimplemented;
 
     conf_.post_ops = attr()->post_ops_;

@@ -77,6 +77,7 @@ private:
     const Xbyak::Reg64 &reg_bias = r11;
     const Xbyak::Reg64 &reg_ptr_scales = r10;
     const Xbyak::Reg64 &reg_ptr_sum_scale = r9;
+    const Xbyak::Reg64 &reg_ptr_sum_zp = rax;
     const Xbyak::Reg64 &aux_reg_saturation = reg_ptr_sum_scale;
     const Xbyak::Reg64 &reg_last_h = r8;
 
@@ -98,6 +99,7 @@ private:
     const Xbyak::Zmm &zmm_saturation = zmm_bias;
     const Xbyak::Zmm &zmm_zero = zmm30;
     const Xbyak::Zmm &zmm_prev_dst = zmm29;
+    const Xbyak::Zmm &zmm_sum_zp = zmm26;
     /* zero-point */
     const Xbyak::Zmm &zmm_zp = zmm29;
     const Xbyak::Zmm &zmm_src_zp = zmm28;
@@ -141,10 +143,11 @@ private:
     void update_buffer_pointers();
     void interleave_store();
     void apply_sum(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
-            const Xbyak::Address &addr, const bool mask_flag);
+            const int32_t *p_sum_zp, const Xbyak::Address &addr,
+            const bool mask_flag);
     void apply_postops(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
-            const Xbyak::Address &addr, const bool mask_flag, const size_t off,
-            const int ocb);
+            const int32_t *p_sum_zp, const Xbyak::Address &addr,
+            const bool mask_flag, const size_t off, const int ocb);
     static bool is_fast_postops(const jit_conv_conf_t &jcp);
     void store_output_vectors_int8(int ocb, int osb);
     void store_output_vector_int8(

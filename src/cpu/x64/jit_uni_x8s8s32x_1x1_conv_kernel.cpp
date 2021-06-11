@@ -142,13 +142,15 @@ void iterate(const int ur, const int load_loop_blk, const F &f) {
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_sum(const int ur,
         const int load_loop_blk, const bool mask_flag_in,
-        const float *p_sum_scale) {
+        const float *p_sum_scale, const int32_t *p_sum_zp) {
 
     if (jcp.with_sum) {
-        assert(p_sum_scale != nullptr && "p_sum_scale = nullptr");
+        assert(!utils::any_null(p_sum_scale, p_sum_zp)
+                && "p_sum_scale or p_sum_zp = nullptr");
         const float sum_scale = *p_sum_scale;
+        const int32_t sum_zp = *p_sum_zp;
         const auto sum_injector_lam = [this, mask_flag_in, load_loop_blk,
-                                              sum_scale](const int i_ur,
+                                              sum_scale, sum_zp](const int i_ur,
                                               const int i_load) {
             const bool mask_flag = mask_flag_in && i_load == load_loop_blk - 1;
             const auto ymm_prev_dst = vmm_zero;
@@ -158,6 +160,11 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_sum(const int ur,
                     output_ptr(i_load, i_ur),
                     mask_flag ? get_tail_size() : simd_w);
 
+            if (sum_zp != 0) {
+                uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_zp]);
+                uni_vcvtdq2ps(vmm_tmp, vmm_tmp);
+                uni_vsubps(vmm_prev_dst, vmm_prev_dst, vmm_tmp);
+            }
             if (sum_scale == 1.f)
                 uni_vaddps(r, r, ymm_prev_dst);
             else {
@@ -167,6 +174,8 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_sum(const int ur,
         };
         const auto sum_injector
                 = [=]() { iterate(ur, load_loop_blk, sum_injector_lam); };
+        if (sum_zp != 0)
+            mov(reg_ptr_sum_zp, reinterpret_cast<size_t>(p_sum_zp));
         postops_injector_->set_lambda_injector(
                 primitive_kind::sum, sum_injector);
     }
@@ -175,10 +184,12 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_sum(const int ur,
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_postops(const int ur,
         const int load_loop_blk, const bool mask_flag_in,
-        const float *p_sum_scale) {
+        const float *p_sum_scale, const int32_t *p_sum_zp) {
 
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
-        apply_sum(ur, load_loop_blk, mask_flag_in, p_sum_scale);
+        if (jcp.with_sum && *p_sum_zp != 0)
+            mov(ptr[rsp + reg_bcast_loop_iter_off], reg_ptr_sum_zp);
+        apply_sum(ur, load_loop_blk, mask_flag_in, p_sum_scale, p_sum_zp);
 
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
         vmm_index_set_t vmm_idxs;
@@ -215,6 +226,8 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_postops(const int ur,
             });
             postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
         }
+        if (jcp.with_sum && *p_sum_zp != 0)
+            mov(reg_ptr_sum_zp, ptr[rsp + reg_bcast_loop_iter_off]);
     }
 }
 
@@ -287,11 +300,13 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
         const int sum_idx = p.find(primitive_kind::sum);
         const float *p_sum_scale
                 = (sum_idx != -1) ? &p.entry_[sum_idx].sum.scale : nullptr;
+        const int32_t *p_sum_zp
+                = (sum_idx != -1) ? &p.entry_[sum_idx].sum.zero_point : nullptr;
         mov(ptr[rsp + reg_bcast_data_off], reg_bcast_data);
         mov(reg_ptr_scales, ptr[rsp + reg_ptr_sum_scale_off]);
         if (p_sum_scale && *p_sum_scale != 1.f) {
             mov(ptr[rsp + reg_load_data_off], reg_load_data);
-            mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
+            mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
         }
         if (jcp.signed_input && jcp.ver != ver_vnni) {
             mov(reg_store_bcast, float2int(jcp.wei_adj_scale));
@@ -352,7 +367,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
             }
         }
 
-        apply_postops(ur, load_loop_blk, mask_flag_in, p_sum_scale);
+        apply_postops(ur, load_loop_blk, mask_flag_in, p_sum_scale, p_sum_zp);
 
         if (jcp.dst_zero_point) {
             mov(reg_dst_zero_point, ptr[rsp + reg_dst_zero_point_off]);
@@ -715,10 +730,10 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
         }
 
     using namespace injector;
-    const bool post_ops_ok_ = post_ops_ok(
-            {isa, {eltwise, binary, sum}, jcp.post_ops, &dst_d, false, false,
-                    {broadcasting_strategy_t::scalar,
-                            broadcasting_strategy_t::per_oc}});
+    const bool post_ops_ok_ = post_ops_ok({isa, {eltwise, binary, sum},
+            jcp.post_ops, &dst_d, false, false, false,
+            {broadcasting_strategy_t::scalar,
+                    broadcasting_strategy_t::per_oc}});
     if (!post_ops_ok_) return status::unimplemented;
 
     args_ok = true && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0

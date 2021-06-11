@@ -200,12 +200,17 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::cvt2ps(data_type_t type_in,
 }
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_sum(const Zmm &zmm_out,
-        const float *p_sum_scale, const Xbyak::Address &addr,
-        const bool mask_flag) {
+        const float *p_sum_scale, const int32_t *p_sum_zp,
+        const Xbyak::Address &addr, const bool mask_flag) {
     if (p_sum_scale) {
         const auto p_sum_scale_val = *p_sum_scale;
+        const auto p_sum_zp_val = *p_sum_zp;
         const auto sum_injector = [&, p_sum_scale_val, mask_flag]() {
             cvt2ps(jcp.dst_dt, zmm_prev_dst, addr, mask_flag);
+            if (p_sum_zp_val != 0) {
+                vcvtdq2ps(zmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
+                vsubps(zmm_prev_dst, zmm_sum_zp);
+            }
             if (p_sum_scale_val == 1.f)
                 vaddps(zmm_out, zmm_prev_dst);
             else
@@ -217,13 +222,14 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_sum(const Zmm &zmm_out,
 }
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_postops(const Zmm &zmm_out,
-        const float *p_sum_scale, const Xbyak::Address &addr,
-        const bool mask_flag, const size_t off, const int ocb) {
+        const float *p_sum_scale, const int32_t *p_sum_zp,
+        const Xbyak::Address &addr, const bool mask_flag, const size_t off,
+        const int ocb) {
     if (jcp.with_eltwise || jcp.with_binary
             || (jcp.with_sum && p_sum_scale != nullptr)) {
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
 
-        apply_sum(zmm_out, p_sum_scale, addr, mask_flag);
+        apply_sum(zmm_out, p_sum_scale, p_sum_zp, addr, mask_flag);
 
         const auto vmm_idx = zmm_out.getIdx();
         if (jcp.with_binary) {
@@ -265,12 +271,18 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vectors_int8(
     const auto &p = attr_.post_ops_;
     const int sum_idx = p.find(primitive_kind::sum);
     const float *p_sum_scale = nullptr;
+    const int32_t *p_sum_zp = nullptr;
     if (sum_idx != -1) {
         const auto &p_entry = p.entry_[sum_idx];
         p_sum_scale = &p_entry.sum.scale;
+        p_sum_zp = &p_entry.sum.zero_point;
     }
-    if (p_sum_scale && *p_sum_scale != 1.f)
-        mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
+    if (p_sum_scale) {
+        if (*p_sum_scale != 1.f)
+            mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
+        if (*p_sum_zp != 0)
+            mov(reg_ptr_sum_zp, reinterpret_cast<size_t>(p_sum_zp));
+    }
 
     if (jcp.src_zero_point) {
         const int zp_offset = sizeof(int32_t) * ocb * jcp.oc_block;
@@ -309,8 +321,11 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vectors_int8(
                 EVEX_compress_addr(reg_ptr_scales, scale_offset));
     }
 
+    if (p_sum_zp && *p_sum_zp != 0)
+        vcvtdq2ps(zmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
     if (jcp.with_sum && p_sum_scale != nullptr) {
         const auto p_sum_scale_val = *p_sum_scale;
+        const auto p_sum_zp_val = *p_sum_zp;
         for (int j = 0; j < jcp.tile_width; j++) {
             int h = ((osb * jcp.tile_width + j) / jcp.ow);
             int w = ((osb * jcp.tile_width + j) % jcp.ow);
@@ -320,6 +335,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vectors_int8(
 
             const Zmm zmm_r = zmm_out(j);
             cvt2ps(jcp.dst_dt, zmm_prev_dst, addr, mask_flag);
+            if (p_sum_zp_val != 0) vsubps(zmm_prev_dst, zmm_sum_zp);
             if (p_sum_scale_val == 1.f)
                 vaddps(zmm_r, zmm_prev_dst);
             else
@@ -380,13 +396,19 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_int8(
     const auto &p = attr_.post_ops_;
     const int sum_idx = p.find(primitive_kind::sum);
     const float *p_sum_scale = nullptr;
+    const int32_t *p_sum_zp = nullptr;
     if (sum_idx != -1) {
         const auto &p_entry = p.entry_[sum_idx];
         p_sum_scale = &p_entry.sum.scale;
+        p_sum_zp = &p_entry.sum.zero_point;
     }
 
-    if (p_sum_scale && *p_sum_scale != 1.f)
-        mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
+    if (p_sum_scale) {
+        if (*p_sum_scale != 1.f)
+            mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
+        if (*p_sum_zp != 0)
+            mov(reg_ptr_sum_zp, reinterpret_cast<size_t>(p_sum_zp));
+    }
 
     mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
     mov(reg_ptr_scales, ptr[param1 + GET_OFF(scales)]);
@@ -412,7 +434,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_int8(
     vmulps(zmm_out_msk, zmm_out,
             EVEX_compress_addr(reg_ptr_scales, scale_offset));
 
-    apply_postops(zmm_out, p_sum_scale, addr, mask_flag, off, ocb);
+    apply_postops(zmm_out, p_sum_scale, p_sum_zp, addr, mask_flag, off, ocb);
 
     if (jcp.dst_zero_point) { vaddps(zmm_out, zmm_out, zmm_dst_zp); }
 
@@ -520,7 +542,8 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_bf16(
     }
 
     static constexpr auto skip_sum_in_injection = nullptr;
-    apply_postops(zmm_out, skip_sum_in_injection, addr, mask_flag, off, ocb);
+    apply_postops(zmm_out, skip_sum_in_injection, skip_sum_in_injection, addr,
+            mask_flag, off, ocb);
 
     if (jcp.dst_dt == data_type::bf16) {
         Ymm ymm_out = Ymm(zmm_out.getIdx());
@@ -1086,8 +1109,10 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     using namespace injector;
     const bool sum_at_pos_0_only = (jcp.src_dt == data_type::bf16);
     const bool sum_requires_scale_one = sum_at_pos_0_only;
+    const bool sum_requires_zp_zero = sum_at_pos_0_only;
     const bool post_ops_ok_ = post_ops_ok({avx512_core, {eltwise, binary, sum},
             jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
+            sum_requires_zp_zero,
             {broadcasting_strategy_t::scalar,
                     broadcasting_strategy_t::per_oc}});
     if (!post_ops_ok_) return status::unimplemented;

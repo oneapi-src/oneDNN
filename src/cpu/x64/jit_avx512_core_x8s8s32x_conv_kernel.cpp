@@ -151,10 +151,11 @@ static void iterate(const int nb_oc_block, const int ur_w, const F &f) {
 template <typename Vmm>
 void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::apply_sum(int ur_w,
         bool last_oc_block_flag, const int nb_oc_block, const int oc_block,
-        const float *p_sum_scale) {
+        const float *p_sum_scale, const int32_t *p_sum_zp) {
     if (jcp.with_sum) {
         const float sum_scale = *p_sum_scale;
-        const auto sum_injector_lam = [this, oc_block, sum_scale](
+        const int32_t sum_zp = *p_sum_zp;
+        const auto sum_injector_lam = [this, oc_block, sum_scale, sum_zp](
                                               const bool mask_flag, const int k,
                                               const int j) {
             int aux_output_offset = jcp.typesize_out
@@ -162,6 +163,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::apply_sum(int ur_w,
             auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
             Vmm vmm = vmm_out(j, k);
             cvt2ps(jcp.dst_dt, vmm_prev_dst, addr, mask_flag);
+            if (sum_zp != 0) vsubps(vmm_prev_dst, vmm_sum_zp);
             if (sum_scale == 1.f)
                 vaddps(vmm, vmm_prev_dst);
             else
@@ -170,7 +172,12 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::apply_sum(int ur_w,
         const auto sum_injector = [=]() {
             iterate(nb_oc_block, ur_w, last_oc_block_flag, sum_injector_lam);
         };
-        if (sum_scale != 1.f) mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
+        if (sum_scale != 1.f)
+            mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
+        if (sum_zp != 0) {
+            mov(reg_ptr_sum_zp, reinterpret_cast<size_t>(p_sum_zp));
+            vcvtdq2ps(vmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
+        }
         postops_injector_->set_lambda_injector(
                 primitive_kind::sum, sum_injector);
     }
@@ -179,9 +186,10 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::apply_sum(int ur_w,
 template <typename Vmm>
 void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::apply_postops(int ur_w,
         bool last_oc_block_flag, const int nb_oc_block, const int oc_block,
-        const float *p_sum_scale) {
+        const float *p_sum_scale, const int32_t *p_sum_zp) {
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
-        apply_sum(ur_w, last_oc_block_flag, nb_oc_block, oc_block, p_sum_scale);
+        apply_sum(ur_w, last_oc_block_flag, nb_oc_block, oc_block, p_sum_scale,
+                p_sum_zp);
 
         injector_utils::vmm_index_set_t vmm_idxs;
         if (jcp.with_binary) {
@@ -245,9 +253,11 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
     const auto &p = attr_.post_ops_;
     const int sum_idx = p.find(primitive_kind::sum);
     const float *p_sum_scale = nullptr;
+    const int32_t *p_sum_zp = nullptr;
     if (sum_idx != -1) {
         const auto &p_entry = p.entry_[sum_idx];
         p_sum_scale = &p_entry.sum.scale;
+        p_sum_zp = &p_entry.sum.zero_point;
     }
 
     if (jcp.signed_input && jcp.ver != ver_vnni) {
@@ -304,7 +314,8 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
         }
     }
 
-    apply_postops(ur_w, last_oc_block_flag, nb_oc_block, oc_block, p_sum_scale);
+    apply_postops(ur_w, last_oc_block_flag, nb_oc_block, oc_block, p_sum_scale,
+            p_sum_zp);
 
     if (jcp.dst_zero_point) {
         mov(reg_dst_zero_point, ptr[param1 + GET_OFF(dst_zero_point)]);
@@ -1490,8 +1501,10 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     using namespace injector;
     static constexpr bool sum_at_pos_0_only = false;
     static constexpr bool sum_requires_scale_one = false;
+    static constexpr bool sum_requires_zp_zero = false;
     const bool post_ops_ok_ = post_ops_ok({avx512_core, {eltwise, binary, sum},
             jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
+            sum_requires_zp_zero,
             {broadcasting_strategy_t::scalar,
                     broadcasting_strategy_t::per_oc}});
     if (!post_ops_ok_) return status::unimplemented;

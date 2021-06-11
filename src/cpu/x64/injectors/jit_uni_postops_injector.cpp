@@ -177,26 +177,9 @@ void jit_uni_postops_injector_t<isa, Vmm>::set_lambda_injector(
 
 post_ops_ok_args_t::post_ops_ok_args_t(const cpu_isa_t isa,
         const std::vector<post_op_type> &accepted_post_op_types,
-        const post_ops_t &post_ops)
-    : isa(isa)
-    , accepted_post_op_types(accepted_post_op_types)
-    , post_ops(post_ops) {}
-
-post_ops_ok_args_t::post_ops_ok_args_t(const cpu_isa_t isa,
-        const std::vector<post_op_type> &accepted_post_op_types,
-        const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
-        const bool sum_at_pos_0_only, const bool sum_requires_scale_one)
-    : isa(isa)
-    , accepted_post_op_types(accepted_post_op_types)
-    , post_ops(post_ops)
-    , dst_d(dst_d)
-    , sum_at_pos_0_only(sum_at_pos_0_only)
-    , sum_requires_scale_one(sum_requires_scale_one) {};
-
-post_ops_ok_args_t::post_ops_ok_args_t(const cpu_isa_t isa,
-        const std::vector<post_op_type> &accepted_post_op_types,
         const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
         const bool sum_at_pos_0_only, const bool sum_requires_scale_one,
+        const bool sum_requires_zp_zero,
         const bcast_set_t &enabled_bcast_strategy)
     : isa(isa)
     , accepted_post_op_types(accepted_post_op_types)
@@ -204,15 +187,8 @@ post_ops_ok_args_t::post_ops_ok_args_t(const cpu_isa_t isa,
     , dst_d(dst_d)
     , sum_at_pos_0_only(sum_at_pos_0_only)
     , sum_requires_scale_one(sum_requires_scale_one)
+    , sum_requires_zp_zero(sum_requires_zp_zero)
     , enabled_bcast_strategy(enabled_bcast_strategy) {};
-
-post_ops_ok_args_t::post_ops_ok_args_t(const cpu_isa_t isa,
-        const std::vector<post_op_type> &accepted_post_op_types,
-        const post_ops_t &post_ops, const memory_desc_wrapper *dst_d)
-    : isa(isa)
-    , accepted_post_op_types(accepted_post_op_types)
-    , post_ops(post_ops)
-    , dst_d(dst_d) {}
 
 bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
     const cpu_isa_t isa = post_ops_ok_args.isa;
@@ -231,7 +207,7 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
             const auto &entry = post_ops.entry_[idx];
             switch (post_op) {
                 case sum:
-                    if (entry.is_sum(false)) {
+                    if (entry.is_sum(false, false)) {
                         if (sum_requires_scale_one && entry.sum.scale != 1)
                             return false;
                         if (sum_requires_zp_zero && entry.sum.zero_point != 0)

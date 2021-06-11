@@ -138,33 +138,21 @@ enum post_op_type { sum = 0, eltwise, binary };
 struct post_ops_ok_args_t {
     post_ops_ok_args_t(const cpu_isa_t isa,
             const std::vector<post_op_type> &accepted_post_op_types,
-            const post_ops_t &post_ops);
-
-    post_ops_ok_args_t(const cpu_isa_t isa,
-            const std::vector<post_op_type> &accepted_post_op_types,
-            const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
-            const bool sum_at_pos_0_only, const bool sum_requires_scale_one);
-
-    post_ops_ok_args_t(const cpu_isa_t isa,
-            const std::vector<post_op_type> &accepted_post_op_types,
-            const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
-            const bool sum_at_pos_0_only, const bool sum_requires_scale_one,
-            const bcast_set_t &enabled_bcast_strategy);
-
-    post_ops_ok_args_t(const cpu_isa_t isa,
-            const std::vector<post_op_type> &accepted_post_op_types,
-            const post_ops_t &post_ops, const memory_desc_wrapper *dst_d);
+            const post_ops_t &post_ops,
+            const memory_desc_wrapper *dst_d = nullptr,
+            const bool sum_at_pos_0_only = false,
+            const bool sum_requires_scale_one = false,
+            const bool sum_requires_zp_zero = true,
+            const bcast_set_t &enabled_bcast_strategy = default_strategies);
 
     const cpu_isa_t isa;
     const std::vector<post_op_type> &accepted_post_op_types;
     const post_ops_t &post_ops;
-    const memory_desc_wrapper *dst_d = nullptr;
-    const bool sum_at_pos_0_only = false;
-    const bool sum_requires_scale_one = false;
-    const bool sum_requires_zp_zero = true;
-    const bcast_set_t enabled_bcast_strategy
-            = {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
-                    broadcasting_strategy_t::no_broadcast};
+    const memory_desc_wrapper *dst_d;
+    const bool sum_at_pos_0_only;
+    const bool sum_requires_scale_one;
+    const bool sum_requires_zp_zero;
+    const bcast_set_t enabled_bcast_strategy;
 };
 
 bool post_ops_ok(const post_ops_ok_args_t &args);
