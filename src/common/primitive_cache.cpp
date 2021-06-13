@@ -209,7 +209,7 @@ void lru_primitive_cache_t::update_entry(
     //    by another thread
     // 2. After the requested entry had been evicted it was inserted again
     //    by another thread
-    if (it == cache_mapper_.end() || it->first.thread_id() != key.thread_id())
+    if (it == cache_mapper_.end() || !(it->first.thread_id() == key.thread_id()))
         return;
 
     const auto *op_desc = pd->op_desc();
