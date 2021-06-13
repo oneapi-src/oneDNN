@@ -16,14 +16,34 @@
 
 #include "primitive_cache.hpp"
 #include "c_types_map.hpp"
+#include "primitive.hpp"
 #include "primitive_desc.hpp"
 #include "rw_mutex.hpp"
+#include "z_magic.hpp"
 
-#include <list>
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#include "cpu/platform.hpp"
+#else
+#include <chrono>
+#endif
+
+#include <algorithm>
 #include <unordered_map>
 
 namespace dnnl {
 namespace impl {
+
+namespace {
+
+size_t get_timestamp() {
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+  return cpu::platform::get_timestamp();
+#else
+  return std::chrono::steady_clock::now().time_since_epoch().count();
+#endif
+}
+
+} // namespace
 
 primitive_cache_t &primitive_cache() {
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
@@ -46,13 +66,24 @@ status_t get_primitive_cache_size(int *size) {
   return dnnl::impl::status::success;
 }
 
+bool is_pd_in_cache(const primitive_desc_iface_t *pd_iface) {
+  const auto *pd = pd_iface->impl().get();
+  const auto *engine = pd_iface->engine();
+  primitive_hashing::key_t key(pd, engine);
+  return bool(primitive_cache().get_pd(key));
+}
+
+bool is_primitive_in_cache(const primitive_iface_t *p_iface) {
+  return is_pd_in_cache(p_iface->pd());
+}
+
 status_t lru_primitive_cache_t::set_capacity(int capacity) {
   utils::lock_write_t lock_w(rw_mutex());
   capacity_ = (size_t)capacity;
   // Check if number of entries exceeds the new capacity
-  if (cache_list_.size() > capacity_) {
+  if (cache_mapper_.size() > capacity_) {
     // Evict excess entries
-    size_t n_excess_entries = cache_list_.size() - capacity_;
+    size_t n_excess_entries = cache_mapper_.size() - capacity_;
     evict(n_excess_entries);
   }
   return status::success;
@@ -66,31 +97,44 @@ int lru_primitive_cache_t::get_capacity() const {
 // For undocumented API
 int lru_primitive_cache_t::get_size() const {
   utils::lock_read_t lock_r(rw_mutex());
-  return (int)cache_list_.size();
+  return (int)cache_mapper_.size();
 }
 
 lru_primitive_cache_t::value_t
 lru_primitive_cache_t::get_or_add(const key_t &key, const value_t &value) {
-  // Cache is disabled
+  // 1. Section with shared access (read lock)
   lock_read();
+  // Check if the cache is enabled.
   if (capacity_ == 0) {
     unlock_read();
     return value_t();
   }
+  // Check if the requested entry is present in the cache (likely cache_hit)
+  auto e = get(key);
+  if (e.valid()) {
+    unlock_read();
+    return e;
+  }
 
   unlock_read();
-  lock_write();
 
+  // 2. Section with exclusive access (write lock).
+  // In a multithreaded scenario, in the context of one thread the cache
+  // may have changed by another thread between releasing the read lock and
+  // acquiring the write lock (a.k.a. ABA problem), therefore additional
+  // checks have to be performed for correctness.
   // Double check the capacity due to possible race condition
+  lock_write();
   if (capacity_ == 0) {
     unlock_write();
     return value_t();
   }
 
-  // Check if the requested entry is present in the cache
-  auto e = get(key);
+  // Double check if the requested entry is present in the cache (unlikely
+  // cache_hit).
+  e = get(key);
   if (!e.valid()) {
-    // If the entry is missing in the cache then add it
+    // If the entry is missing in the cache then add it (cache_miss)
     add(key, value);
   }
   unlock_write();
@@ -104,21 +148,36 @@ void lru_primitive_cache_t::add(const key_t &key, const value_t &value) {
     // Evict the least recently used entry
     evict(1);
   }
-  // Place a new entry to cache_list_ and update cache_mapper_
-  cache_list_.emplace_front(key, value);
-  cache_mapper_.insert(std::make_pair(key, cache_list_.begin()));
-  assert(cache_list_.size() == cache_mapper_.size());
+
+  size_t timestamp = get_timestamp();
+
+  auto res = cache_mapper_.emplace(std::piecewise_construct,
+                                   std::forward_as_tuple(key),
+                                   std::forward_as_tuple(value, timestamp));
+  MAYBE_UNUSED(res);
+  assert(res.second);
 }
 
 lru_primitive_cache_t::value_t lru_primitive_cache_t::get(const key_t &key) {
   auto it = cache_mapper_.find(key);
-  if (it == cache_mapper_.end()) {
+  if (it == cache_mapper_.end())
     return value_t();
-  }
 
-  // Move 1 cache_list_ node to the front of the cache_list_
-  cache_list_.splice(cache_list_.begin(), cache_list_, it->second);
-  return cache_list_.front().second;
+  size_t timestamp = get_timestamp();
+  it->second.timestamp_.store(timestamp);
+  // Return the entry
+  return it->second.value_;
+}
+
+std::shared_ptr<primitive_desc_t>
+lru_primitive_cache_t::get_pd(const key_t &key) {
+  lock_read();
+  auto e = get(key);
+  unlock_read();
+
+  if (e.valid())
+    return e.get().primitive->pd();
+  return nullptr;
 }
 
 void lru_primitive_cache_t::remove_if_invalidated(const key_t &key) {
@@ -130,7 +189,7 @@ void lru_primitive_cache_t::remove_if_invalidated(const key_t &key) {
     return;
   }
 
-  const auto &value = it->second->second;
+  const auto &value = it->second.value_;
   if (value.get().primitive) {
     // If the entry is not invalidated
     unlock_write();
@@ -138,9 +197,7 @@ void lru_primitive_cache_t::remove_if_invalidated(const key_t &key) {
   }
 
   // Remove the invalidated entry
-  cache_list_.erase(it->second);
   cache_mapper_.erase(it);
-  assert(cache_list_.size() == cache_mapper_.size());
   unlock_write();
 }
 
@@ -163,17 +220,38 @@ void lru_primitive_cache_t::update_entry(const key_t &key,
   // Update key in cache_mapper_
   it->first.op_desc_ = op_desc;
   it->first.attr_ = attr;
-
-  // Update key in cache_list_
-  it->second->first.op_desc_ = op_desc;
-  it->second->first.attr_ = attr;
 }
 
 // Evicts n the least recently used entries
 void lru_primitive_cache_t::evict(size_t n) {
+  if (n == capacity_) {
+    cache_mapper_.clear();
+    return;
+  }
+
   for (size_t e = 0; e < n; e++) {
-    cache_mapper_.erase(cache_list_.back().first);
-    cache_list_.pop_back();
+    // Find the smallest timestamp
+    // TODO: revisit the eviction algorithm due to O(n) complexity, E.g.
+    // maybe evict multiple entries at once.
+    auto it = std::min_element(
+        cache_mapper_.begin(), cache_mapper_.end(),
+        [&](const decltype(cache_mapper_)::value_type &left,
+            const decltype(cache_mapper_)::value_type &right) {
+          // By default, load() and operator T use sequentially
+          // consistent memory ordering, which enforces writing the
+          // timestamps into registers in the same exact order they
+          // are read from the CPU cache line. Since eviction is
+          // performed under a write lock, this order is not
+          // important, therefore we can safely use the weakest memory
+          // ordering (relaxed). This brings about a few microseconds
+          // performance improvement for default primitive cache
+          // capacity.
+          return left.second.timestamp_.load(std::memory_order_relaxed) <
+                 right.second.timestamp_.load(std::memory_order_relaxed);
+        });
+    auto res = cache_mapper_.erase(it->first);
+    MAYBE_UNUSED(res);
+    assert(res);
   }
 }
 
