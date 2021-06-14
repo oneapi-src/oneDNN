@@ -32,6 +32,9 @@
 --attr-post-ops=sum:0.5:0:s8+relu:1.5+add:f32+add:u8:per_dim_01+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_tensor
 --cfg=u8s8u8 --batch=shapes_resnet_50
 
+--attr-post-ops=sum:0.5:0:s8+relu:1.5
+--cfg=u8s8u8 --batch=shapes_mobilenet_dw
+
 # f32
 --reset --cfg=f32,f16
 --mb=2,16

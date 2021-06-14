@@ -45,10 +45,10 @@
 --dtag=axb
 --axis=1 2x16x3x4:2x16x3x4
 
-# additional tests for gen9 concat kernel
---reset
---batch=option_set_gen9_gpu
-
 # Test layers of some key GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
+
+# additional tests for gen9 concat kernel
+--reset
+--batch=option_set_gen9_gpu
