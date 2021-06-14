@@ -153,9 +153,6 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
                 = memory_desc_matches_one_of_tag(C_md, plain_tensor_layout_tag);
     }
 
-    if ((!bgmmc.is_amx) && one_of(transposed_tensor_layout_tag, bgmmc.src_tag))
-        return status::unimplemented;
-
     if (one_of(format_tag::undef, bgmmc.src_tag, bgmmc.dst_tag))
         return status::unimplemented;
 
@@ -480,23 +477,27 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     CHECK(attr.set_default_formats(&dst_md));
 
     bgmmc.blocked_B = bm_conf_utils.get_blocked_B();
-    if ((!bgmmc.is_amx) && bm_conf_utils.check_is_transposed(bgmmc.wei_tag))
-        return status::unimplemented;
 
     const bool f32_use_buffer_b_for_plain = false; // TODO - heuristic
     const bool f32_use_buffer_b = bm_conf_utils.is_f32()
-            && (bm_conf_utils.check_is_plain(bgmmc.wei_tag)
-                    && f32_use_buffer_b_for_plain);
+            && ((bm_conf_utils.check_is_plain(bgmmc.wei_tag)
+                        && f32_use_buffer_b_for_plain)
+                    || bm_conf_utils.check_is_transposed(bgmmc.wei_tag));
     bgmmc.use_buffer_b = (bgmmc.is_amx && !bgmmc.blocked_B)
             || ((!bgmmc.is_amx) && f32_use_buffer_b);
 
     bgmmc.transposed_A = bm_conf_utils.check_is_transposed(bgmmc.src_tag);
     const bool lda_is_big_2pow = bm_conf_utils.is_bf16() && !bgmmc.transposed_A
             && math::is_pow2(bgmmc.K) && bgmmc.K >= 4096 && bgmmc.M >= 1024;
-    const bool is_copy_a_required = bgmmc.K % bgmmc.required_k_granularity != 0
-            || bgmmc.wei_zp_type != brgemm_broadcast_t::none
+    const bool is_copy_a_required
+            = (bgmmc.is_amx
+                      && (bgmmc.K % bgmmc.required_k_granularity != 0
+                              || bgmmc.wei_zp_type != brgemm_broadcast_t::none))
             || bgmmc.transposed_A || lda_is_big_2pow;
     bgmmc.use_buffer_a = is_copy_a_required;
+
+    if ((!bgmmc.is_amx) && bgmmc.wei_zp_type != brgemm_broadcast_t::none)
+        return status::unimplemented; // TODO
 
     // Supported computation with copy only part of A related to K_tail if
     // is_copy_a_required == true, but the current performance measurements
