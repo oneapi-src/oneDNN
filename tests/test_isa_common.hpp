@@ -28,6 +28,9 @@
 
 #include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl.hpp"
+
+#include "src/cpu/platform.hpp"
+
 #if DNNL_X64
 #include "src/cpu/x64/cpu_isa_traits.hpp"
 #endif

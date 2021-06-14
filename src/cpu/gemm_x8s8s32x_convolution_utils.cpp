@@ -20,6 +20,7 @@
 
 #include "common/math_utils.hpp"
 
+#include "cpu/platform.hpp"
 #include "cpu/primitive_attr_postops.hpp"
 #include "cpu/simple_q10n.hpp"
 
