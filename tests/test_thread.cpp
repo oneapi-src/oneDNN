@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -206,6 +206,7 @@ public:
 private:
     int num_threads_;
     std::mutex master_mutex_;
+    std::mutex master_submit_mutex_;
 
     struct worker_data {
         int thread_id;
@@ -242,6 +243,7 @@ private:
     void barrier_notify(int worker_sense) { barrier_.notify(); }
 
     void task_submit(const task_func *fn, int n) {
+        std::lock_guard<std::mutex> l(master_submit_mutex_);
         tasks_[master_sense_].fn = fn;
         tasks_[master_sense_].n = n;
         tasks_[master_sense_].go_flag.store(1);
@@ -266,8 +268,7 @@ private:
         wd->tp->barrier_notify(worker_sense);
 
         bool time_to_exit = false;
-        std::mutex m;
-        std::unique_lock<std::mutex> l(m);
+        std::unique_lock<std::mutex> l(wd->tp->master_submit_mutex_);
 
         do {
             worker_sense = !worker_sense;
