@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,31 +65,7 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
 
     inLocalLabel();
     {
-
-        Xbyak::Label l138;
-        Xbyak::Label l1cc;
-        Xbyak::Label l20;
-        Xbyak::Label l230;
-        Xbyak::Label l288;
-        Xbyak::Label l2d0;
-        Xbyak::Label l2f0;
-        Xbyak::Label l2fc;
-        Xbyak::Label l31c;
-        Xbyak::Label l3ac;
-        Xbyak::Label l40;
-        Xbyak::Label l404;
-        Xbyak::Label l448;
-        Xbyak::Label l48c;
-        Xbyak::Label l4c0;
-        Xbyak::Label l4de;
-        Xbyak::Label l4e8;
-        Xbyak::Label l4fc;
-        Xbyak::Label l540;
-        Xbyak::Label l57c;
-        Xbyak::Label l5b4;
-        Xbyak::Label l5e8;
-        Xbyak::Label l60c;
-        Xbyak::Label l62c;
+        std::vector<Xbyak::Label> labels(24);
 
         preamble();
         auto stacksize = get_size_of_abi_save_regs();
@@ -105,10 +81,10 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         sub(B, -128);
         lea(LDA3, ptr[LDA + LDA * 2]);
         cmp(N, 0x4);
-        jl(l2f0, T_NEAR);
+        jl(labels[6], T_NEAR);
         align(4);
 
-        L(l20);
+        L(labels[2]);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 2]);
         lea(I, ptr[A1 + LDA * 4]);
@@ -116,10 +92,10 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         pxor(xmm7, xmm7);
         mov(I, M);
         sar(I, 0x4);
-        jle(l138, T_NEAR);
+        jle(labels[0], T_NEAR);
         align(4);
 
-        L(l40);
+        L(labels[11]);
         movdqu(xmm0, xword[A1 - 0x80]);
         movdqu(xmm1, xword[A1 + LDA * 1 - 0x80]);
         sub(A1, -16);
@@ -172,12 +148,12 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         movdqu(xword[B - 0x50], xmm3);
         sub(B, -64);
         dec(I);
-        jg(l40, T_NEAR);
+        jg(labels[11], T_NEAR);
         align(4);
 
-        L(l138);
+        L(labels[0]);
         test(M, 0x8);
-        jle(l1cc, T_NEAR);
+        jle(labels[1], T_NEAR);
         movq(xmm0, qword[A1 - 0x80]);
         movq(xmm1, qword[A1 + LDA * 1 - 0x80]);
         sub(A1, -8);
@@ -208,9 +184,9 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         sub(B, -32);
         align(4);
 
-        L(l1cc);
+        L(labels[1]);
         test(M, 0x4);
-        jle(l230, T_NEAR);
+        jle(labels[3], T_NEAR);
         movd(xmm0, dword[A1 - 0x80]);
         movd(xmm1, dword[A1 + LDA * 1 - 0x80]);
         sub(A1, -4);
@@ -231,9 +207,9 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         sub(B, -16);
         align(4);
 
-        L(l230);
+        L(labels[3]);
         test(M, 0x2);
-        jle(l288, T_NEAR);
+        jle(labels[4], T_NEAR);
         mov(ax, word[A1 - 0x80]);
         pinsrw(xmm0, eax, 0x0);
         mov(ax, word[A1 + LDA * 1 - 0x80]);
@@ -252,9 +228,9 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         sub(B, -8);
         align(4);
 
-        L(l288);
+        L(labels[4]);
         test(M, 0x1);
-        jle(l2d0, T_NEAR);
+        jle(labels[5], T_NEAR);
         mov(al, byte[A1 - 0x80]);
         pinsrb(xmm0, eax, 0x0);
         mov(al, byte[A1 + LDA * 1 - 0x80]);
@@ -269,21 +245,21 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         sub(B, -4);
         align(4);
 
-        L(l2d0);
+        L(labels[5]);
         mov(A1, qword[ARG_BIAS]);
         movdqu(xword[A1], xmm7);
         add(qword[ARG_BIAS], 0x10);
         sub(N, 0x4);
         cmp(N, 0x4);
-        jge(l20, T_NEAR);
+        jge(labels[2], T_NEAR);
         align(4);
 
-        L(l2f0);
+        L(labels[6]);
         cmp(N, 0x2);
-        jl(l4de, T_NEAR);
+        jl(labels[15], T_NEAR);
         align(4);
 
-        L(l2fc);
+        L(labels[7]);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 1]);
         lea(I, ptr[A1 + LDA * 2]);
@@ -291,10 +267,10 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         pxor(xmm7, xmm7);
         mov(I, M);
         sar(I, 0x4);
-        jle(l3ac, T_NEAR);
+        jle(labels[9], T_NEAR);
         align(4);
 
-        L(l31c);
+        L(labels[8]);
         movdqu(xmm0, xword[A1 - 0x80]);
         sub(A1, -16);
         movdqu(xmm1, xword[A2 - 0x80]);
@@ -324,12 +300,12 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         movdqu(xword[B - 0x70], xmm2);
         sub(B, -32);
         dec(I);
-        jg(l31c, T_NEAR);
+        jg(labels[8], T_NEAR);
         align(4);
 
-        L(l3ac);
+        L(labels[9]);
         test(M, 0x8);
-        jle(l404, T_NEAR);
+        jle(labels[10], T_NEAR);
         movq(xmm0, qword[A1 - 0x80]);
         sub(A1, -8);
         movq(xmm1, qword[A2 - 0x80]);
@@ -348,9 +324,9 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         sub(B, -16);
         align(4);
 
-        L(l404);
+        L(labels[10]);
         test(M, 0x4);
-        jle(l448, T_NEAR);
+        jle(labels[12], T_NEAR);
         movd(xmm0, dword[A1 - 0x80]);
         sub(A1, -4);
         movd(xmm1, dword[A2 - 0x80]);
@@ -365,9 +341,9 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         sub(B, -8);
         align(4);
 
-        L(l448);
+        L(labels[12]);
         test(M, 0x2);
-        jle(l48c, T_NEAR);
+        jle(labels[13], T_NEAR);
         mov(ax, word[A1 - 0x80]);
         sub(A1, -2);
         pinsrw(xmm0, eax, 0x0);
@@ -382,9 +358,9 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         sub(B, -4);
         align(4);
 
-        L(l48c);
+        L(labels[13]);
         test(M, 0x1);
-        jle(l4c0, T_NEAR);
+        jle(labels[14], T_NEAR);
         mov(al, byte[A1 - 0x80]);
         pinsrb(xmm0, eax, 0x0);
         mov(byte[B - 0x80], al);
@@ -396,30 +372,30 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         paddd(xmm7, xmm5);
         align(4);
 
-        L(l4c0);
+        L(labels[14]);
         mov(A1, qword[ARG_BIAS]);
         movq(qword[A1], xmm7);
         add(qword[ARG_BIAS], 0x8);
         sub(N, 0x2);
         cmp(N, 0x2);
-        jge(l2fc, T_NEAR);
+        jge(labels[7], T_NEAR);
         align(4);
 
-        L(l4de);
+        L(labels[15]);
         cmp(N, 0x1);
-        jl(l62c, T_NEAR);
+        jl(labels[23], T_NEAR);
         align(4);
 
-        L(l4e8);
+        L(labels[16]);
         mov(A1, A);
         add(A, LDA);
         pxor(xmm7, xmm7);
         mov(I, M);
         sar(I, 0x4);
-        jle(l540, T_NEAR);
+        jle(labels[18], T_NEAR);
         align(4);
 
-        L(l4fc);
+        L(labels[17]);
         movdqu(xmm0, xword[A1 - 0x80]);
         sub(A1, -16);
         pmovzxbw(xmm5, xmm0);
@@ -434,12 +410,12 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         movdqu(xword[B - 0x80], xmm0);
         sub(B, -16);
         dec(I);
-        jg(l4fc, T_NEAR);
+        jg(labels[17], T_NEAR);
         align(4);
 
-        L(l540);
+        L(labels[18]);
         test(M, 0x8);
-        jle(l57c, T_NEAR);
+        jle(labels[19], T_NEAR);
         movq(xmm0, qword[A1 - 0x80]);
         sub(A1, -8);
         pmovzxbw(xmm5, xmm0);
@@ -452,9 +428,9 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         sub(B, -8);
         align(4);
 
-        L(l57c);
+        L(labels[19]);
         test(M, 0x4);
-        jle(l5b4, T_NEAR);
+        jle(labels[20], T_NEAR);
         movd(xmm0, dword[A1 - 0x80]);
         sub(A1, -4);
         pmovzxbw(xmm5, xmm0);
@@ -466,9 +442,9 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         sub(B, -4);
         align(4);
 
-        L(l5b4);
+        L(labels[20]);
         test(M, 0x2);
-        jle(l5e8, T_NEAR);
+        jle(labels[21], T_NEAR);
         mov(ax, word[A1 - 0x80]);
         pinsrw(xmm0, eax, 0x0);
         pmovzxbw(xmm5, xmm0);
@@ -480,9 +456,9 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         sub(B, -2);
         align(4);
 
-        L(l5e8);
+        L(labels[21]);
         test(M, 0x1);
-        jle(l60c, T_NEAR);
+        jle(labels[22], T_NEAR);
         mov(al, byte[A1 - 0x80]);
         pinsrb(xmm0, eax, 0x0);
         pmovzxbd(xmm5, xmm0);
@@ -491,16 +467,16 @@ void jit_avx2_u8_copy_sum_bn_kern::generate() {
         sub(B, -1);
         align(4);
 
-        L(l60c);
+        L(labels[22]);
         mov(A1, qword[ARG_BIAS]);
         movd(dword[A1], xmm7);
         add(qword[ARG_BIAS], 0x4);
         sub(N, 0x1);
         cmp(N, 0x1);
-        jge(l4e8, T_NEAR);
+        jge(labels[16], T_NEAR);
         align(4);
 
-        L(l62c);
+        L(labels[23]);
         postamble();
     }
     outLocalLabel();

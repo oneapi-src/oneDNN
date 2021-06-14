@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,98 +77,7 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
 
     inLocalLabel();
     {
-
-        Xbyak::Label l1024;
-        Xbyak::Label l1034;
-        Xbyak::Label l10c8;
-        Xbyak::Label l1100;
-        Xbyak::Label l1158;
-        Xbyak::Label l11c0;
-        Xbyak::Label l11ec;
-        Xbyak::Label l11f0;
-        Xbyak::Label l1228;
-        Xbyak::Label l1250;
-        Xbyak::Label l12dc;
-        Xbyak::Label l12f0;
-        Xbyak::Label l137c;
-        Xbyak::Label l13b8;
-        Xbyak::Label l140c;
-        Xbyak::Label l146c;
-        Xbyak::Label l14a8;
-        Xbyak::Label l14d8;
-        Xbyak::Label l153c;
-        Xbyak::Label l1548;
-        Xbyak::Label l15ac;
-        Xbyak::Label l15d4;
-        Xbyak::Label l1614;
-        Xbyak::Label l1660;
-        Xbyak::Label l1678;
-        Xbyak::Label l167c;
-        Xbyak::Label l16b4;
-        Xbyak::Label l16dc;
-        Xbyak::Label l1768;
-        Xbyak::Label l177c;
-        Xbyak::Label l1808;
-        Xbyak::Label l1844;
-        Xbyak::Label l1898;
-        Xbyak::Label l18f8;
-        Xbyak::Label l1930;
-        Xbyak::Label l1960;
-        Xbyak::Label l19c4;
-        Xbyak::Label l19d0;
-        Xbyak::Label l1a34;
-        Xbyak::Label l1a5c;
-        Xbyak::Label l1a9c;
-        Xbyak::Label l1ae8;
-        Xbyak::Label l1b00;
-        Xbyak::Label l1b04;
-        Xbyak::Label l1b3c;
-        Xbyak::Label l1b64;
-        Xbyak::Label l1bf0;
-        Xbyak::Label l1c04;
-        Xbyak::Label l1c90;
-        Xbyak::Label l1ccc;
-        Xbyak::Label l1d20;
-        Xbyak::Label l1d80;
-        Xbyak::Label l1dbc;
-        Xbyak::Label l1dec;
-        Xbyak::Label l1e50;
-        Xbyak::Label l1e5c;
-        Xbyak::Label l1ec0;
-        Xbyak::Label l1ee8;
-        Xbyak::Label l1f28;
-        Xbyak::Label l1f74;
-        Xbyak::Label l1f8c;
-        Xbyak::Label l1f90;
-        Xbyak::Label l26c;
-        Xbyak::Label l280;
-        Xbyak::Label l400;
-        Xbyak::Label l4a4;
-        Xbyak::Label l578;
-        Xbyak::Label l668;
-        Xbyak::Label l724;
-        Xbyak::Label l76c;
-        Xbyak::Label l860;
-        Xbyak::Label l870;
-        Xbyak::Label l8c;
-        Xbyak::Label l964;
-        Xbyak::Label l9c0;
-        Xbyak::Label la48;
-        Xbyak::Label laf0;
-        Xbyak::Label lb4;
-        Xbyak::Label lb44;
-        Xbyak::Label lb58;
-        Xbyak::Label lb90;
-        Xbyak::Label lbbc;
-        Xbyak::Label lc98;
-        Xbyak::Label lcac;
-        Xbyak::Label ld88;
-        Xbyak::Label lde4;
-        Xbyak::Label le60;
-        Xbyak::Label lec;
-        Xbyak::Label lef0;
-        Xbyak::Label lf54;
-        Xbyak::Label lf90;
+        std::vector<Xbyak::Label> labels(91);
 
         auto stack_alloc_size = 32;
         auto args_offset = stack_alloc_size + get_size_of_abi_save_regs() + 8;
@@ -203,10 +112,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         pshufd(xmm7, xmm7, 0x0);
         mov(J, M);
         cmp(J, 0x10);
-        jl(lb58, T_NEAR);
+        jl(labels[79], T_NEAR);
         align(4);
 
-        L(l8c);
+        L(labels[72]);
         mov(CO1, C);
         add(C, 0x40);
         mov(BO, B);
@@ -215,10 +124,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(AA, ptr[A + AA * 1 + 0x200]);
         mov(I, N);
         cmp(I, 0x2);
-        jl(l724, T_NEAR);
+        jl(labels[68], T_NEAR);
         align(4);
 
-        L(lb4);
+        L(labels[78]);
         mov(AO, A);
         movdqu(xmm0, xword[AO - 0x80]);
         movdqu(xmm1, xword[AO - 0x70]);
@@ -227,12 +136,12 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         movdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l400, T_NEAR);
+        jle(labels[64], T_NEAR);
         sub(H, 0x8);
-        jle(l26c, T_NEAR);
+        jle(labels[62], T_NEAR);
         align(4);
 
-        L(lec);
+        L(labels[87]);
         pshufd(xmm4, xmm5, 0x0);
         movaps(xmm6, xmm4);
         pmaddubsw(xmm6, xmm0);
@@ -314,17 +223,17 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x80);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(lec, T_NEAR);
+        jg(labels[87], T_NEAR);
         align(4);
 
-        L(l26c);
+        L(labels[62]);
         prefetcht0(byte[CO1 + 0x3c]);
         prefetcht0(byte[CO1 + LDC * 1 + 0x3c]);
         add(H, 0x8);
-        jle(l400, T_NEAR);
+        jle(labels[64], T_NEAR);
         align(4);
 
-        L(l280);
+        L(labels[63]);
         pshufd(xmm4, xmm5, 0x0);
         movaps(xmm6, xmm4);
         pmaddubsw(xmm6, xmm0);
@@ -406,13 +315,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x80);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l280, T_NEAR);
+        jg(labels[63], T_NEAR);
         align(4);
 
-        L(l400);
+        L(labels[64]);
         mov(H, K);
         test(H, 0x4);
-        je(l4a4, T_NEAR);
+        je(labels[65], T_NEAR);
         pshufd(xmm4, xmm5, 0x0);
         movaps(xmm6, xmm4);
         pmaddubsw(xmm6, xmm0);
@@ -449,10 +358,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x8);
         align(4);
 
-        L(l4a4);
+        L(labels[65]);
         mov(H, K);
         test(H, 0x2);
-        je(l578, T_NEAR);
+        je(labels[66], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm0, xword[AO - 0x80]);
         movaps(xmm1, xmm0);
@@ -500,10 +409,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l578);
+        L(labels[66]);
         mov(H, K);
         test(H, 0x1);
-        je(l668, T_NEAR);
+        je(labels[67], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm3, xword[AO - 0x80]);
         pshufd(xmm0, xmm3, 0x0);
@@ -557,7 +466,7 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l668);
+        L(labels[67]);
         movdqu(xmm0, xword[CO1]);
         paddd(xmm8, xmm0);
         movdqu(xword[CO1], xmm8);
@@ -593,12 +502,12 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 2]);
         sub(I, 0x2);
         cmp(I, 0x2);
-        jge(lb4, T_NEAR);
+        jge(labels[78], T_NEAR);
         align(4);
 
-        L(l724);
+        L(labels[68]);
         test(I, 0x1);
-        jle(lb44, T_NEAR);
+        jle(labels[77], T_NEAR);
         mov(AO, A);
         movdqu(xmm0, xword[AO - 0x80]);
         movdqu(xmm1, xword[AO - 0x70]);
@@ -607,12 +516,12 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         movdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l964, T_NEAR);
+        jle(labels[73], T_NEAR);
         sub(H, 0x8);
-        jle(l860, T_NEAR);
+        jle(labels[70], T_NEAR);
         align(4);
 
-        L(l76c);
+        L(labels[69]);
         pshufd(xmm4, xmm5, 0x0);
         movaps(xmm6, xmm4);
         pmaddubsw(xmm6, xmm0);
@@ -662,16 +571,16 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x80);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l76c, T_NEAR);
+        jg(labels[69], T_NEAR);
         align(4);
 
-        L(l860);
+        L(labels[70]);
         prefetcht0(byte[CO1 + 0x3c]);
         add(H, 0x8);
-        jle(l964, T_NEAR);
+        jle(labels[73], T_NEAR);
         align(4);
 
-        L(l870);
+        L(labels[71]);
         pshufd(xmm4, xmm5, 0x0);
         movaps(xmm6, xmm4);
         pmaddubsw(xmm6, xmm0);
@@ -721,13 +630,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x80);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l870, T_NEAR);
+        jg(labels[71], T_NEAR);
         align(4);
 
-        L(l964);
+        L(labels[73]);
         mov(H, K);
         test(H, 0x4);
-        je(l9c0, T_NEAR);
+        je(labels[74], T_NEAR);
         pshufd(xmm4, xmm5, 0x0);
         movaps(xmm6, xmm4);
         pmaddubsw(xmm6, xmm0);
@@ -748,10 +657,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l9c0);
+        L(labels[74]);
         mov(H, K);
         test(H, 0x2);
-        je(la48, T_NEAR);
+        je(labels[75], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm0, xword[AO - 0x80]);
         movaps(xmm1, xmm0);
@@ -783,10 +692,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(la48);
+        L(labels[75]);
         mov(H, K);
         test(H, 0x1);
-        je(laf0, T_NEAR);
+        je(labels[76], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm3, xword[AO - 0x80]);
         pshufd(xmm0, xmm3, 0x0);
@@ -824,7 +733,7 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x1);
         align(4);
 
-        L(laf0);
+        L(labels[76]);
         movdqu(xmm0, xword[CO1]);
         paddd(xmm8, xmm0);
         movdqu(xword[CO1], xmm8);
@@ -844,16 +753,16 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 1]);
         align(4);
 
-        L(lb44);
+        L(labels[77]);
         mov(A, AO);
         sub(J, 0x10);
         cmp(J, 0x10);
-        jge(l8c, T_NEAR);
+        jge(labels[72], T_NEAR);
         align(4);
 
-        L(lb58);
+        L(labels[79]);
         test(J, 0x8);
-        jle(l11f0, T_NEAR);
+        jle(labels[7], T_NEAR);
         mov(CO1, C);
         add(C, 0x20);
         mov(BO, B);
@@ -862,22 +771,22 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(AA, ptr[A + AA * 1 + 0x200]);
         mov(I, N);
         cmp(I, 0x2);
-        jl(lf54, T_NEAR);
+        jl(labels[89], T_NEAR);
         align(4);
 
-        L(lb90);
+        L(labels[80]);
         mov(AO, A);
         movdqu(xmm0, xword[AO - 0x80]);
         movdqu(xmm1, xword[AO - 0x70]);
         movdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(ld88, T_NEAR);
+        jle(labels[84], T_NEAR);
         sub(H, 0x8);
-        jle(lc98, T_NEAR);
+        jle(labels[82], T_NEAR);
         align(4);
 
-        L(lbbc);
+        L(labels[81]);
         pshufd(xmm4, xmm5, 0x0);
         movaps(xmm6, xmm4);
         pmaddubsw(xmm6, xmm0);
@@ -923,17 +832,17 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x40);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(lbbc, T_NEAR);
+        jg(labels[81], T_NEAR);
         align(4);
 
-        L(lc98);
+        L(labels[82]);
         prefetcht0(byte[CO1 + 0x3c]);
         prefetcht0(byte[CO1 + LDC * 1 + 0x3c]);
         add(H, 0x8);
-        jle(ld88, T_NEAR);
+        jle(labels[84], T_NEAR);
         align(4);
 
-        L(lcac);
+        L(labels[83]);
         pshufd(xmm4, xmm5, 0x0);
         movaps(xmm6, xmm4);
         pmaddubsw(xmm6, xmm0);
@@ -979,13 +888,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x40);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(lcac, T_NEAR);
+        jg(labels[83], T_NEAR);
         align(4);
 
-        L(ld88);
+        L(labels[84]);
         mov(H, K);
         test(H, 0x4);
-        je(lde4, T_NEAR);
+        je(labels[85], T_NEAR);
         pshufd(xmm4, xmm5, 0x0);
         movaps(xmm6, xmm4);
         pmaddubsw(xmm6, xmm0);
@@ -1006,10 +915,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x8);
         align(4);
 
-        L(lde4);
+        L(labels[85]);
         mov(H, K);
         test(H, 0x2);
-        je(le60, T_NEAR);
+        je(labels[86], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm0, xword[AO - 0x80]);
         movaps(xmm1, xmm0);
@@ -1037,10 +946,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(le60);
+        L(labels[86]);
         mov(H, K);
         test(H, 0x1);
-        je(lef0, T_NEAR);
+        je(labels[88], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm3, xword[AO - 0x80]);
         pshufd(xmm0, xmm3, 0x0);
@@ -1072,7 +981,7 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(lef0);
+        L(labels[88]);
         movdqu(xmm0, xword[CO1]);
         paddd(xmm8, xmm0);
         movdqu(xword[CO1], xmm8);
@@ -1092,24 +1001,24 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 2]);
         sub(I, 0x2);
         cmp(I, 0x2);
-        jge(lb90, T_NEAR);
+        jge(labels[80], T_NEAR);
         align(4);
 
-        L(lf54);
+        L(labels[89]);
         test(I, 0x1);
-        jle(l11ec, T_NEAR);
+        jle(labels[6], T_NEAR);
         mov(AO, A);
         movdqu(xmm0, xword[AO - 0x80]);
         movdqu(xmm1, xword[AO - 0x70]);
         movdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l10c8, T_NEAR);
+        jle(labels[2], T_NEAR);
         sub(H, 0x8);
-        jle(l1024, T_NEAR);
+        jle(labels[0], T_NEAR);
         align(4);
 
-        L(lf90);
+        L(labels[90]);
         pshufd(xmm4, xmm5, 0x0);
         movaps(xmm6, xmm4);
         pmaddubsw(xmm6, xmm0);
@@ -1139,16 +1048,16 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x40);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(lf90, T_NEAR);
+        jg(labels[90], T_NEAR);
         align(4);
 
-        L(l1024);
+        L(labels[0]);
         prefetcht0(byte[CO1 + 0x3c]);
         add(H, 0x8);
-        jle(l10c8, T_NEAR);
+        jle(labels[2], T_NEAR);
         align(4);
 
-        L(l1034);
+        L(labels[1]);
         pshufd(xmm4, xmm5, 0x0);
         movaps(xmm6, xmm4);
         pmaddubsw(xmm6, xmm0);
@@ -1178,13 +1087,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x40);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l1034, T_NEAR);
+        jg(labels[1], T_NEAR);
         align(4);
 
-        L(l10c8);
+        L(labels[2]);
         mov(H, K);
         test(H, 0x4);
-        je(l1100, T_NEAR);
+        je(labels[3], T_NEAR);
         pshufd(xmm4, xmm5, 0x0);
         movaps(xmm6, xmm4);
         pmaddubsw(xmm6, xmm0);
@@ -1197,10 +1106,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l1100);
+        L(labels[3]);
         mov(H, K);
         test(H, 0x2);
-        je(l1158, T_NEAR);
+        je(labels[4], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm0, xword[AO - 0x80]);
         movaps(xmm1, xmm0);
@@ -1220,10 +1129,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l1158);
+        L(labels[4]);
         mov(H, K);
         test(H, 0x1);
-        je(l11c0, T_NEAR);
+        je(labels[5], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm3, xword[AO - 0x80]);
         pshufd(xmm0, xmm3, 0x0);
@@ -1247,7 +1156,7 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x1);
         align(4);
 
-        L(l11c0);
+        L(labels[5]);
         movdqu(xmm0, xword[CO1]);
         paddd(xmm8, xmm0);
         movdqu(xword[CO1], xmm8);
@@ -1259,13 +1168,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 1]);
         align(4);
 
-        L(l11ec);
+        L(labels[6]);
         mov(A, AO);
         align(4);
 
-        L(l11f0);
+        L(labels[7]);
         test(J, 0x4);
-        jle(l167c, T_NEAR);
+        jle(labels[25], T_NEAR);
         mov(CO1, C);
         add(C, 0x10);
         mov(BO, B);
@@ -1274,21 +1183,21 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(AA, ptr[A + AA * 1 + 0x200]);
         mov(I, N);
         cmp(I, 0x2);
-        jl(l14a8, T_NEAR);
+        jl(labels[16], T_NEAR);
         align(4);
 
-        L(l1228);
+        L(labels[8]);
         mov(AO, A);
         movdqu(xmm0, xword[AO - 0x80]);
         movdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l137c, T_NEAR);
+        jle(labels[12], T_NEAR);
         sub(H, 0x8);
-        jle(l12dc, T_NEAR);
+        jle(labels[10], T_NEAR);
         align(4);
 
-        L(l1250);
+        L(labels[9]);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1316,17 +1225,17 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x20);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l1250, T_NEAR);
+        jg(labels[9], T_NEAR);
         align(4);
 
-        L(l12dc);
+        L(labels[10]);
         prefetcht0(byte[CO1 + 0x3c]);
         prefetcht0(byte[CO1 + LDC * 1 + 0x3c]);
         add(H, 0x8);
-        jle(l137c, T_NEAR);
+        jle(labels[12], T_NEAR);
         align(4);
 
-        L(l12f0);
+        L(labels[11]);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1354,13 +1263,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x20);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l12f0, T_NEAR);
+        jg(labels[11], T_NEAR);
         align(4);
 
-        L(l137c);
+        L(labels[12]);
         mov(H, K);
         test(H, 0x4);
-        je(l13b8, T_NEAR);
+        je(labels[13], T_NEAR);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1373,10 +1282,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x8);
         align(4);
 
-        L(l13b8);
+        L(labels[13]);
         mov(H, K);
         test(H, 0x2);
-        je(l140c, T_NEAR);
+        je(labels[14], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm0, xword[AO - 0x80]);
         movaps(xmm1, xmm0);
@@ -1395,10 +1304,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l140c);
+        L(labels[14]);
         mov(H, K);
         test(H, 0x1);
-        je(l146c, T_NEAR);
+        je(labels[15], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm3, xword[AO - 0x80]);
         pshufd(xmm0, xmm3, 0x0);
@@ -1419,7 +1328,7 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l146c);
+        L(labels[15]);
         movdqu(xmm0, xword[CO1]);
         paddd(xmm8, xmm0);
         movdqu(xword[CO1], xmm8);
@@ -1431,23 +1340,23 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 2]);
         sub(I, 0x2);
         cmp(I, 0x2);
-        jge(l1228, T_NEAR);
+        jge(labels[8], T_NEAR);
         align(4);
 
-        L(l14a8);
+        L(labels[16]);
         test(I, 0x1);
-        jle(l1678, T_NEAR);
+        jle(labels[24], T_NEAR);
         mov(AO, A);
         movdqu(xmm0, xword[AO - 0x80]);
         movdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l15ac, T_NEAR);
+        jle(labels[20], T_NEAR);
         sub(H, 0x8);
-        jle(l153c, T_NEAR);
+        jle(labels[18], T_NEAR);
         align(4);
 
-        L(l14d8);
+        L(labels[17]);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1467,16 +1376,16 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x20);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l14d8, T_NEAR);
+        jg(labels[17], T_NEAR);
         align(4);
 
-        L(l153c);
+        L(labels[18]);
         prefetcht0(byte[CO1 + 0x3c]);
         add(H, 0x8);
-        jle(l15ac, T_NEAR);
+        jle(labels[20], T_NEAR);
         align(4);
 
-        L(l1548);
+        L(labels[19]);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1496,13 +1405,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x20);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l1548, T_NEAR);
+        jg(labels[19], T_NEAR);
         align(4);
 
-        L(l15ac);
+        L(labels[20]);
         mov(H, K);
         test(H, 0x4);
-        je(l15d4, T_NEAR);
+        je(labels[21], T_NEAR);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1511,10 +1420,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l15d4);
+        L(labels[21]);
         mov(H, K);
         test(H, 0x2);
-        je(l1614, T_NEAR);
+        je(labels[22], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm0, xword[AO - 0x80]);
         movaps(xmm1, xmm0);
@@ -1529,10 +1438,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l1614);
+        L(labels[22]);
         mov(H, K);
         test(H, 0x1);
-        je(l1660, T_NEAR);
+        je(labels[23], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm3, xword[AO - 0x80]);
         pshufd(xmm0, xmm3, 0x0);
@@ -1549,7 +1458,7 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x1);
         align(4);
 
-        L(l1660);
+        L(labels[23]);
         movdqu(xmm0, xword[CO1]);
         paddd(xmm8, xmm0);
         movdqu(xword[CO1], xmm8);
@@ -1557,13 +1466,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 1]);
         align(4);
 
-        L(l1678);
+        L(labels[24]);
         mov(A, AO);
         align(4);
 
-        L(l167c);
+        L(labels[25]);
         test(J, 0x2);
-        jle(l1b04, T_NEAR);
+        jle(labels[43], T_NEAR);
         mov(CO1, C);
         add(C, 0x8);
         mov(BO, B);
@@ -1572,21 +1481,21 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(AA, ptr[A + AA * 1 + 0x200]);
         mov(I, N);
         cmp(I, 0x2);
-        jl(l1930, T_NEAR);
+        jl(labels[34], T_NEAR);
         align(4);
 
-        L(l16b4);
+        L(labels[26]);
         mov(AO, A);
         movdqu(xmm0, xword[AO - 0x80]);
         movdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l1808, T_NEAR);
+        jle(labels[30], T_NEAR);
         sub(H, 0x8);
-        jle(l1768, T_NEAR);
+        jle(labels[28], T_NEAR);
         align(4);
 
-        L(l16dc);
+        L(labels[27]);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1614,17 +1523,17 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x10);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l16dc, T_NEAR);
+        jg(labels[27], T_NEAR);
         align(4);
 
-        L(l1768);
+        L(labels[28]);
         prefetcht0(byte[CO1 + 0x3c]);
         prefetcht0(byte[CO1 + LDC * 1 + 0x3c]);
         add(H, 0x8);
-        jle(l1808, T_NEAR);
+        jle(labels[30], T_NEAR);
         align(4);
 
-        L(l177c);
+        L(labels[29]);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1652,13 +1561,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x10);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l177c, T_NEAR);
+        jg(labels[29], T_NEAR);
         align(4);
 
-        L(l1808);
+        L(labels[30]);
         mov(H, K);
         test(H, 0x4);
-        je(l1844, T_NEAR);
+        je(labels[31], T_NEAR);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1671,10 +1580,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x8);
         align(4);
 
-        L(l1844);
+        L(labels[31]);
         mov(H, K);
         test(H, 0x2);
-        je(l1898, T_NEAR);
+        je(labels[32], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm0, xword[AO - 0x80]);
         movaps(xmm1, xmm0);
@@ -1693,10 +1602,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l1898);
+        L(labels[32]);
         mov(H, K);
         test(H, 0x1);
-        je(l18f8, T_NEAR);
+        je(labels[33], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm3, xword[AO - 0x80]);
         pshufd(xmm0, xmm3, 0x0);
@@ -1717,7 +1626,7 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l18f8);
+        L(labels[33]);
         movsd(xmm0, qword[CO1]);
         paddd(xmm8, xmm0);
         movlps(qword[CO1], xmm8);
@@ -1729,23 +1638,23 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 2]);
         sub(I, 0x2);
         cmp(I, 0x2);
-        jge(l16b4, T_NEAR);
+        jge(labels[26], T_NEAR);
         align(4);
 
-        L(l1930);
+        L(labels[34]);
         test(I, 0x1);
-        jle(l1b00, T_NEAR);
+        jle(labels[42], T_NEAR);
         mov(AO, A);
         movdqu(xmm0, xword[AO - 0x80]);
         movdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l1a34, T_NEAR);
+        jle(labels[38], T_NEAR);
         sub(H, 0x8);
-        jle(l19c4, T_NEAR);
+        jle(labels[36], T_NEAR);
         align(4);
 
-        L(l1960);
+        L(labels[35]);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1765,16 +1674,16 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x10);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l1960, T_NEAR);
+        jg(labels[35], T_NEAR);
         align(4);
 
-        L(l19c4);
+        L(labels[36]);
         prefetcht0(byte[CO1 + 0x3c]);
         add(H, 0x8);
-        jle(l1a34, T_NEAR);
+        jle(labels[38], T_NEAR);
         align(4);
 
-        L(l19d0);
+        L(labels[37]);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1794,13 +1703,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x10);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l19d0, T_NEAR);
+        jg(labels[37], T_NEAR);
         align(4);
 
-        L(l1a34);
+        L(labels[38]);
         mov(H, K);
         test(H, 0x4);
-        je(l1a5c, T_NEAR);
+        je(labels[39], T_NEAR);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1809,10 +1718,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l1a5c);
+        L(labels[39]);
         mov(H, K);
         test(H, 0x2);
-        je(l1a9c, T_NEAR);
+        je(labels[40], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm0, xword[AO - 0x80]);
         movaps(xmm1, xmm0);
@@ -1827,10 +1736,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l1a9c);
+        L(labels[40]);
         mov(H, K);
         test(H, 0x1);
-        je(l1ae8, T_NEAR);
+        je(labels[41], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm3, xword[AO - 0x80]);
         pshufd(xmm0, xmm3, 0x0);
@@ -1847,7 +1756,7 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x1);
         align(4);
 
-        L(l1ae8);
+        L(labels[41]);
         movsd(xmm0, qword[CO1]);
         paddd(xmm8, xmm0);
         movlps(qword[CO1], xmm8);
@@ -1855,13 +1764,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 1]);
         align(4);
 
-        L(l1b00);
+        L(labels[42]);
         mov(A, AO);
         align(4);
 
-        L(l1b04);
+        L(labels[43]);
         test(J, 0x1);
-        jle(l1f90, T_NEAR);
+        jle(labels[61], T_NEAR);
         mov(CO1, C);
         add(C, 0x4);
         mov(BO, B);
@@ -1870,21 +1779,21 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(AA, ptr[A + AA * 1 + 0x200]);
         mov(I, N);
         cmp(I, 0x2);
-        jl(l1dbc, T_NEAR);
+        jl(labels[52], T_NEAR);
         align(4);
 
-        L(l1b3c);
+        L(labels[44]);
         mov(AO, A);
         movdqu(xmm0, xword[AO - 0x80]);
         movdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l1c90, T_NEAR);
+        jle(labels[48], T_NEAR);
         sub(H, 0x8);
-        jle(l1bf0, T_NEAR);
+        jle(labels[46], T_NEAR);
         align(4);
 
-        L(l1b64);
+        L(labels[45]);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1912,17 +1821,17 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x8);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l1b64, T_NEAR);
+        jg(labels[45], T_NEAR);
         align(4);
 
-        L(l1bf0);
+        L(labels[46]);
         prefetcht0(byte[CO1 + 0x3c]);
         prefetcht0(byte[CO1 + LDC * 1 + 0x3c]);
         add(H, 0x8);
-        jle(l1c90, T_NEAR);
+        jle(labels[48], T_NEAR);
         align(4);
 
-        L(l1c04);
+        L(labels[47]);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1950,13 +1859,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x8);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l1c04, T_NEAR);
+        jg(labels[47], T_NEAR);
         align(4);
 
-        L(l1c90);
+        L(labels[48]);
         mov(H, K);
         test(H, 0x4);
-        je(l1ccc, T_NEAR);
+        je(labels[49], T_NEAR);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -1969,10 +1878,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x8);
         align(4);
 
-        L(l1ccc);
+        L(labels[49]);
         mov(H, K);
         test(H, 0x2);
-        je(l1d20, T_NEAR);
+        je(labels[50], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm0, xword[AO - 0x80]);
         movaps(xmm1, xmm0);
@@ -1991,10 +1900,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l1d20);
+        L(labels[50]);
         mov(H, K);
         test(H, 0x1);
-        je(l1d80, T_NEAR);
+        je(labels[51], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm3, xword[AO - 0x80]);
         pshufd(xmm0, xmm3, 0x0);
@@ -2015,7 +1924,7 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l1d80);
+        L(labels[51]);
         movss(xmm0, dword[CO1]);
         paddd(xmm8, xmm0);
         movss(dword[CO1], xmm8);
@@ -2027,23 +1936,23 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 2]);
         sub(I, 0x2);
         cmp(I, 0x2);
-        jge(l1b3c, T_NEAR);
+        jge(labels[44], T_NEAR);
         align(4);
 
-        L(l1dbc);
+        L(labels[52]);
         test(I, 0x1);
-        jle(l1f8c, T_NEAR);
+        jle(labels[60], T_NEAR);
         mov(AO, A);
         movdqu(xmm0, xword[AO - 0x80]);
         movdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l1ec0, T_NEAR);
+        jle(labels[56], T_NEAR);
         sub(H, 0x8);
-        jle(l1e50, T_NEAR);
+        jle(labels[54], T_NEAR);
         align(4);
 
-        L(l1dec);
+        L(labels[53]);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -2063,16 +1972,16 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x8);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l1dec, T_NEAR);
+        jg(labels[53], T_NEAR);
         align(4);
 
-        L(l1e50);
+        L(labels[54]);
         prefetcht0(byte[CO1 + 0x3c]);
         add(H, 0x8);
-        jle(l1ec0, T_NEAR);
+        jle(labels[56], T_NEAR);
         align(4);
 
-        L(l1e5c);
+        L(labels[55]);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -2092,13 +2001,13 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(AO, 0x8);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l1e5c, T_NEAR);
+        jg(labels[55], T_NEAR);
         align(4);
 
-        L(l1ec0);
+        L(labels[56]);
         mov(H, K);
         test(H, 0x4);
-        je(l1ee8, T_NEAR);
+        je(labels[57], T_NEAR);
         pshufd(xmm4, xmm5, 0x0);
         pmaddubsw(xmm4, xmm0);
         pmaddwd(xmm4, xmm7);
@@ -2107,10 +2016,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l1ee8);
+        L(labels[57]);
         mov(H, K);
         test(H, 0x2);
-        je(l1f28, T_NEAR);
+        je(labels[58], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm0, xword[AO - 0x80]);
         movaps(xmm1, xmm0);
@@ -2125,10 +2034,10 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l1f28);
+        L(labels[58]);
         mov(H, K);
         test(H, 0x1);
-        je(l1f74, T_NEAR);
+        je(labels[59], T_NEAR);
         xorps(xmm6, xmm6);
         movdqu(xmm3, xword[AO - 0x80]);
         pshufd(xmm0, xmm3, 0x0);
@@ -2145,7 +2054,7 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         add(BO, 0x1);
         align(4);
 
-        L(l1f74);
+        L(labels[59]);
         movss(xmm0, dword[CO1]);
         paddd(xmm8, xmm0);
         movss(dword[CO1], xmm8);
@@ -2153,11 +2062,11 @@ void jit_sse41_kernel_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 1]);
         align(4);
 
-        L(l1f8c);
+        L(labels[60]);
         mov(A, AO);
         align(4);
 
-        L(l1f90);
+        L(labels[61]);
         add(rsp, stack_alloc_size);
         postamble();
     }

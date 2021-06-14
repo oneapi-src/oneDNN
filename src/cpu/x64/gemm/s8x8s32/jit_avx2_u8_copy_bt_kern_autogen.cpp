@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,28 +62,7 @@ void jit_avx2_u8_copy_bt_kern::generate() {
 
     inLocalLabel();
     {
-
-        Xbyak::Label l118;
-        Xbyak::Label l134;
-        Xbyak::Label l144;
-        Xbyak::Label l150;
-        Xbyak::Label l164;
-        Xbyak::Label l1fc;
-        Xbyak::Label l20;
-        Xbyak::Label l250;
-        Xbyak::Label l284;
-        Xbyak::Label l29c;
-        Xbyak::Label l2aa;
-        Xbyak::Label l2b4;
-        Xbyak::Label l2c4;
-        Xbyak::Label l30;
-        Xbyak::Label l33c;
-        Xbyak::Label l384;
-        Xbyak::Label l3a8;
-        Xbyak::Label l3c0;
-        Xbyak::Label l3d0;
-        Xbyak::Label la8;
-        Xbyak::Label lec;
+        std::vector<Xbyak::Label> labels(21);
 
         preamble();
 #ifdef _WIN32
@@ -99,18 +78,18 @@ void jit_avx2_u8_copy_bt_kern::generate() {
         sub(A, -128);
         sub(B, -128);
         cmp(N, 0x4);
-        jl(l144, T_NEAR);
+        jl(labels[2], T_NEAR);
         align(4);
 
-        L(l20);
+        L(labels[6]);
         mov(A1, A);
         add(A, 0x4);
         mov(I, M);
         sar(I, 0x3);
-        jle(la8, T_NEAR);
+        jle(labels[19], T_NEAR);
         align(4);
 
-        L(l30);
+        L(labels[13]);
         movd(xmm0, dword[A1 - 0x80]);
         add(A1, LDA);
         movd(xmm1, dword[A1 - 0x80]);
@@ -137,12 +116,12 @@ void jit_avx2_u8_copy_bt_kern::generate() {
         movdqu(xword[B - 0x70], xmm0);
         sub(B, -32);
         dec(I);
-        jg(l30, T_NEAR);
+        jg(labels[13], T_NEAR);
         align(4);
 
-        L(la8);
+        L(labels[19]);
         test(M, 0x4);
-        jle(lec, T_NEAR);
+        jle(labels[20], T_NEAR);
         movd(xmm0, dword[A1 - 0x80]);
         add(A1, LDA);
         movd(xmm1, dword[A1 - 0x80]);
@@ -158,9 +137,9 @@ void jit_avx2_u8_copy_bt_kern::generate() {
         sub(B, -16);
         align(4);
 
-        L(lec);
+        L(labels[20]);
         test(M, 0x2);
-        jle(l118, T_NEAR);
+        jle(labels[0], T_NEAR);
         movd(xmm0, dword[A1 - 0x80]);
         add(A1, LDA);
         movd(xmm1, dword[A1 - 0x80]);
@@ -170,34 +149,34 @@ void jit_avx2_u8_copy_bt_kern::generate() {
         sub(B, -8);
         align(4);
 
-        L(l118);
+        L(labels[0]);
         test(M, 0x1);
-        jle(l134, T_NEAR);
+        jle(labels[1], T_NEAR);
         movd(xmm0, dword[A1 - 0x80]);
         movd(dword[B - 0x80], xmm0);
         sub(B, -4);
         align(4);
 
-        L(l134);
+        L(labels[1]);
         sub(N, 0x4);
         cmp(N, 0x4);
-        jge(l20, T_NEAR);
+        jge(labels[6], T_NEAR);
         align(4);
 
-        L(l144);
+        L(labels[2]);
         cmp(N, 0x2);
-        jl(l2aa, T_NEAR);
+        jl(labels[10], T_NEAR);
         align(4);
 
-        L(l150);
+        L(labels[3]);
         mov(A1, A);
         add(A, 0x2);
         mov(LDA3, M);
         sar(LDA3, 0x3);
-        jle(l1fc, T_NEAR);
+        jle(labels[5], T_NEAR);
         align(4);
 
-        L(l164);
+        L(labels[4]);
         mov(ax, word[A1 - 0x80]);
         add(A1, LDA);
         pinsrw(xmm0, eax, 0x0);
@@ -232,12 +211,12 @@ void jit_avx2_u8_copy_bt_kern::generate() {
         movdqu(xword[B - 0x80], xmm0);
         sub(B, -16);
         dec(LDA3);
-        jg(l164, T_NEAR);
+        jg(labels[4], T_NEAR);
         align(4);
 
-        L(l1fc);
+        L(labels[5]);
         test(M, 0x4);
-        jle(l250, T_NEAR);
+        jle(labels[7], T_NEAR);
         mov(ax, word[A1 - 0x80]);
         add(A1, LDA);
         pinsrw(xmm0, eax, 0x0);
@@ -257,9 +236,9 @@ void jit_avx2_u8_copy_bt_kern::generate() {
         sub(B, -8);
         align(4);
 
-        L(l250);
+        L(labels[7]);
         test(M, 0x2);
-        jle(l284, T_NEAR);
+        jle(labels[8], T_NEAR);
         mov(ax, word[A1 - 0x80]);
         add(A1, LDA);
         pinsrw(xmm0, eax, 0x0);
@@ -271,34 +250,34 @@ void jit_avx2_u8_copy_bt_kern::generate() {
         sub(B, -4);
         align(4);
 
-        L(l284);
+        L(labels[8]);
         test(M, 0x1);
-        jle(l29c, T_NEAR);
+        jle(labels[9], T_NEAR);
         mov(ax, word[A1 - 0x80]);
         mov(word[B - 0x80], ax);
         sub(B, -2);
         align(4);
 
-        L(l29c);
+        L(labels[9]);
         sub(N, 0x2);
         cmp(N, 0x2);
-        jge(l150, T_NEAR);
+        jge(labels[3], T_NEAR);
         align(4);
 
-        L(l2aa);
+        L(labels[10]);
         cmp(N, 0x1);
-        jl(l3d0, T_NEAR);
+        jl(labels[18], T_NEAR);
         align(4);
 
-        L(l2b4);
+        L(labels[11]);
         mov(A1, A);
         add(A, 0x1);
         mov(LDA3, M);
         sar(LDA3, 0x3);
-        jle(l33c, T_NEAR);
+        jle(labels[14], T_NEAR);
         align(4);
 
-        L(l2c4);
+        L(labels[12]);
         mov(al, byte[A1 - 0x80]);
         add(A1, LDA);
         pinsrb(xmm0, eax, 0x0);
@@ -326,12 +305,12 @@ void jit_avx2_u8_copy_bt_kern::generate() {
         movq(qword[B - 0x80], xmm0);
         sub(B, -8);
         dec(LDA3);
-        jg(l2c4, T_NEAR);
+        jg(labels[12], T_NEAR);
         align(4);
 
-        L(l33c);
+        L(labels[14]);
         test(M, 0x4);
-        jle(l384, T_NEAR);
+        jle(labels[15], T_NEAR);
         mov(al, byte[A1 - 0x80]);
         add(A1, LDA);
         pinsrb(xmm0, eax, 0x0);
@@ -348,9 +327,9 @@ void jit_avx2_u8_copy_bt_kern::generate() {
         sub(B, -4);
         align(4);
 
-        L(l384);
+        L(labels[15]);
         test(M, 0x2);
-        jle(l3a8, T_NEAR);
+        jle(labels[16], T_NEAR);
         mov(al, byte[A1 - 0x80]);
         add(A1, LDA);
         mov(byte[B - 0x80], al);
@@ -360,21 +339,21 @@ void jit_avx2_u8_copy_bt_kern::generate() {
         sub(B, -2);
         align(4);
 
-        L(l3a8);
+        L(labels[16]);
         test(M, 0x1);
-        jle(l3c0, T_NEAR);
+        jle(labels[17], T_NEAR);
         mov(al, byte[A1 - 0x80]);
         mov(byte[B - 0x80], al);
         sub(B, -1);
         align(4);
 
-        L(l3c0);
+        L(labels[17]);
         sub(N, 0x1);
         cmp(N, 0x1);
-        jge(l2b4, T_NEAR);
+        jge(labels[11], T_NEAR);
         align(4);
 
-        L(l3d0);
+        L(labels[18]);
 
         postamble();
     }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,98 +81,7 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
 
     inLocalLabel();
     {
-
-        Xbyak::Label l1044;
-        Xbyak::Label l1074;
-        Xbyak::Label l1078;
-        Xbyak::Label l10c4;
-        Xbyak::Label l10ec;
-        Xbyak::Label l114;
-        Xbyak::Label l1174;
-        Xbyak::Label l1188;
-        Xbyak::Label l1210;
-        Xbyak::Label l1248;
-        Xbyak::Label l1298;
-        Xbyak::Label l12f0;
-        Xbyak::Label l1328;
-        Xbyak::Label l1358;
-        Xbyak::Label l13b8;
-        Xbyak::Label l13c4;
-        Xbyak::Label l1424;
-        Xbyak::Label l144c;
-        Xbyak::Label l148c;
-        Xbyak::Label l14d4;
-        Xbyak::Label l14f0;
-        Xbyak::Label l14f4;
-        Xbyak::Label l1540;
-        Xbyak::Label l1568;
-        Xbyak::Label l15f0;
-        Xbyak::Label l1604;
-        Xbyak::Label l168c;
-        Xbyak::Label l16c4;
-        Xbyak::Label l1714;
-        Xbyak::Label l176c;
-        Xbyak::Label l17a4;
-        Xbyak::Label l17d4;
-        Xbyak::Label l1834;
-        Xbyak::Label l1840;
-        Xbyak::Label l18a0;
-        Xbyak::Label l18c8;
-        Xbyak::Label l1908;
-        Xbyak::Label l1950;
-        Xbyak::Label l196c;
-        Xbyak::Label l1970;
-        Xbyak::Label l19bc;
-        Xbyak::Label l19e4;
-        Xbyak::Label l1a6c;
-        Xbyak::Label l1a80;
-        Xbyak::Label l1b08;
-        Xbyak::Label l1b40;
-        Xbyak::Label l1b90;
-        Xbyak::Label l1be8;
-        Xbyak::Label l1c20;
-        Xbyak::Label l1c50;
-        Xbyak::Label l1cb0;
-        Xbyak::Label l1cbc;
-        Xbyak::Label l1d1c;
-        Xbyak::Label l1d44;
-        Xbyak::Label l1d84;
-        Xbyak::Label l1dcc;
-        Xbyak::Label l1de8;
-        Xbyak::Label l1dec;
-        Xbyak::Label l260;
-        Xbyak::Label l274;
-        Xbyak::Label l3c0;
-        Xbyak::Label l448;
-        Xbyak::Label l4fc;
-        Xbyak::Label l5d0;
-        Xbyak::Label l670;
-        Xbyak::Label l6b8;
-        Xbyak::Label l790;
-        Xbyak::Label l7a0;
-        Xbyak::Label l878;
-        Xbyak::Label l8c4;
-        Xbyak::Label l93c;
-        Xbyak::Label l9d8;
-        Xbyak::Label la0;
-        Xbyak::Label la2c;
-        Xbyak::Label la40;
-        Xbyak::Label la8c;
-        Xbyak::Label lab8;
-        Xbyak::Label lb80;
-        Xbyak::Label lb94;
-        Xbyak::Label lc5c;
-        Xbyak::Label lcb0;
-        Xbyak::Label ld20;
-        Xbyak::Label lda0;
-        Xbyak::Label ldc;
-        Xbyak::Label ldfc;
-        Xbyak::Label le38;
-        Xbyak::Label lec4;
-        Xbyak::Label led4;
-        Xbyak::Label lf60;
-        Xbyak::Label lf94;
-        Xbyak::Label lfe4;
+        std::vector<Xbyak::Label> labels(91);
 
         auto stack_alloc_size = 32;
         auto args_offset = stack_alloc_size + get_size_of_abi_save_regs() + 8;
@@ -209,10 +118,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         vpshufd(xmm7, xmm7, 0x0);
         mov(J, M);
         cmp(J, 0x10);
-        jl(la40, T_NEAR);
+        jl(labels[74], T_NEAR);
         align(4);
 
-        L(la0);
+        L(labels[72]);
         mov(CO1, C);
         add(C, 0x40);
         mov(BO, B);
@@ -225,10 +134,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         mov(qword[COFFSET_CX], H);
         mov(I, N);
         cmp(I, 0x2);
-        jl(l670, T_NEAR);
+        jl(labels[64], T_NEAR);
         align(4);
 
-        L(ldc);
+        L(labels[83]);
         mov(AO, A);
         vmovdqu(xmm0, xword[AO - 0x80]);
         vmovdqu(xmm1, xword[AO - 0x70]);
@@ -237,12 +146,12 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         vmovdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l3c0, T_NEAR);
+        jle(labels[60], T_NEAR);
         sub(H, 0x8);
-        jle(l260, T_NEAR);
+        jle(labels[58], T_NEAR);
         align(4);
 
-        L(l114);
+        L(labels[5]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -312,17 +221,17 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x80);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l114, T_NEAR);
+        jg(labels[5], T_NEAR);
         align(4);
 
-        L(l260);
+        L(labels[58]);
         prefetcht0(byte[CO1 + 0x3c]);
         prefetcht0(byte[CO1 + LDC * 1 + 0x3c]);
         add(H, 0x8);
-        jle(l3c0, T_NEAR);
+        jle(labels[60], T_NEAR);
         align(4);
 
-        L(l274);
+        L(labels[59]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -392,13 +301,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x80);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l274, T_NEAR);
+        jg(labels[59], T_NEAR);
         align(4);
 
-        L(l3c0);
+        L(labels[60]);
         mov(H, K);
         test(H, 0x4);
-        je(l448, T_NEAR);
+        je(labels[61], T_NEAR);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -429,10 +338,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x8);
         align(4);
 
-        L(l448);
+        L(labels[61]);
         mov(H, K);
         test(H, 0x2);
-        je(l4fc, T_NEAR);
+        je(labels[62], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vmovdqu(xmm1, xword[AO - 0x80]);
         vpunpcklwd(xmm0, xmm1, xmm6);
@@ -472,10 +381,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l4fc);
+        L(labels[62]);
         mov(H, K);
         test(H, 0x1);
-        je(l5d0, T_NEAR);
+        je(labels[63], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vbroadcastss(xmm0, dword[AO - 0x80]);
         vpunpcklbw(xmm0, xmm0, xmm6);
@@ -522,7 +431,7 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l5d0);
+        L(labels[63]);
         mov(H, qword[COFFSET_CY]);
         vmovdqu(xmm0, xword[H]);
         vpaddd(xmm8, xmm8, xmm0);
@@ -555,12 +464,12 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 2]);
         sub(I, 0x2);
         cmp(I, 0x2);
-        jge(ldc, T_NEAR);
+        jge(labels[83], T_NEAR);
         align(4);
 
-        L(l670);
+        L(labels[64]);
         test(I, 0x1);
-        jle(la2c, T_NEAR);
+        jle(labels[73], T_NEAR);
         mov(AO, A);
         vmovdqu(xmm0, xword[AO - 0x80]);
         vmovdqu(xmm1, xword[AO - 0x70]);
@@ -569,12 +478,12 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         vmovdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l878, T_NEAR);
+        jle(labels[68], T_NEAR);
         sub(H, 0x8);
-        jle(l790, T_NEAR);
+        jle(labels[66], T_NEAR);
         align(4);
 
-        L(l6b8);
+        L(labels[65]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -618,16 +527,16 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x80);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l6b8, T_NEAR);
+        jg(labels[65], T_NEAR);
         align(4);
 
-        L(l790);
+        L(labels[66]);
         prefetcht0(byte[CO1 + 0x3c]);
         add(H, 0x8);
-        jle(l878, T_NEAR);
+        jle(labels[68], T_NEAR);
         align(4);
 
-        L(l7a0);
+        L(labels[67]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -671,13 +580,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x80);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l7a0, T_NEAR);
+        jg(labels[67], T_NEAR);
         align(4);
 
-        L(l878);
+        L(labels[68]);
         mov(H, K);
         test(H, 0x4);
-        je(l8c4, T_NEAR);
+        je(labels[69], T_NEAR);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -695,10 +604,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l8c4);
+        L(labels[69]);
         mov(H, K);
         test(H, 0x2);
-        je(l93c, T_NEAR);
+        je(labels[70], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vmovdqu(xmm1, xword[AO - 0x80]);
         vpunpcklwd(xmm0, xmm1, xmm6);
@@ -725,10 +634,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l93c);
+        L(labels[70]);
         mov(H, K);
         test(H, 0x1);
-        je(l9d8, T_NEAR);
+        je(labels[71], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vbroadcastss(xmm0, dword[AO - 0x80]);
         vpunpcklbw(xmm0, xmm0, xmm6);
@@ -762,7 +671,7 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x1);
         align(4);
 
-        L(l9d8);
+        L(labels[71]);
         mov(H, qword[COFFSET_CY]);
         vmovdqu(xmm0, xword[H]);
         vpaddd(xmm8, xmm8, xmm0);
@@ -783,16 +692,16 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 1]);
         align(4);
 
-        L(la2c);
+        L(labels[73]);
         mov(A, AO);
         sub(J, 0x10);
         cmp(J, 0x10);
-        jge(la0, T_NEAR);
+        jge(labels[72], T_NEAR);
         align(4);
 
-        L(la40);
+        L(labels[74]);
         test(J, 0x8);
-        jle(l1078, T_NEAR);
+        jle(labels[2], T_NEAR);
         mov(CO1, C);
         add(C, 0x20);
         mov(BO, B);
@@ -805,22 +714,22 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         mov(qword[COFFSET_CX], H);
         mov(I, N);
         cmp(I, 0x2);
-        jl(ldfc, T_NEAR);
+        jl(labels[84], T_NEAR);
         align(4);
 
-        L(la8c);
+        L(labels[75]);
         mov(AO, A);
         vmovdqu(xmm0, xword[AO - 0x80]);
         vmovdqu(xmm1, xword[AO - 0x70]);
         vmovdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(lc5c, T_NEAR);
+        jle(labels[79], T_NEAR);
         sub(H, 0x8);
-        jle(lb80, T_NEAR);
+        jle(labels[77], T_NEAR);
         align(4);
 
-        L(lab8);
+        L(labels[76]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -862,17 +771,17 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x40);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(lab8, T_NEAR);
+        jg(labels[76], T_NEAR);
         align(4);
 
-        L(lb80);
+        L(labels[77]);
         prefetcht0(byte[CO1 + 0x3c]);
         prefetcht0(byte[CO1 + LDC * 1 + 0x3c]);
         add(H, 0x8);
-        jle(lc5c, T_NEAR);
+        jle(labels[79], T_NEAR);
         align(4);
 
-        L(lb94);
+        L(labels[78]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -914,13 +823,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x40);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(lb94, T_NEAR);
+        jg(labels[78], T_NEAR);
         align(4);
 
-        L(lc5c);
+        L(labels[79]);
         mov(H, K);
         test(H, 0x4);
-        je(lcb0, T_NEAR);
+        je(labels[80], T_NEAR);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -939,10 +848,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x8);
         align(4);
 
-        L(lcb0);
+        L(labels[80]);
         mov(H, K);
         test(H, 0x2);
-        je(ld20, T_NEAR);
+        je(labels[81], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vmovdqu(xmm1, xword[AO - 0x80]);
         vpunpcklwd(xmm0, xmm1, xmm6);
@@ -967,10 +876,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(ld20);
+        L(labels[81]);
         mov(H, K);
         test(H, 0x1);
-        je(lda0, T_NEAR);
+        je(labels[82], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vbroadcastss(xmm0, dword[AO - 0x80]);
         vpunpcklbw(xmm0, xmm0, xmm6);
@@ -999,7 +908,7 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(lda0);
+        L(labels[82]);
         mov(H, qword[COFFSET_CY]);
         vmovdqu(xmm0, xword[H]);
         vpaddd(xmm8, xmm8, xmm0);
@@ -1018,24 +927,24 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 2]);
         sub(I, 0x2);
         cmp(I, 0x2);
-        jge(la8c, T_NEAR);
+        jge(labels[75], T_NEAR);
         align(4);
 
-        L(ldfc);
+        L(labels[84]);
         test(I, 0x1);
-        jle(l1074, T_NEAR);
+        jle(labels[1], T_NEAR);
         mov(AO, A);
         vmovdqu(xmm0, xword[AO - 0x80]);
         vmovdqu(xmm1, xword[AO - 0x70]);
         vmovdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(lf60, T_NEAR);
+        jle(labels[88], T_NEAR);
         sub(H, 0x8);
-        jle(lec4, T_NEAR);
+        jle(labels[86], T_NEAR);
         align(4);
 
-        L(le38);
+        L(labels[85]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1063,16 +972,16 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x40);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(le38, T_NEAR);
+        jg(labels[85], T_NEAR);
         align(4);
 
-        L(lec4);
+        L(labels[86]);
         prefetcht0(byte[CO1 + 0x3c]);
         add(H, 0x8);
-        jle(lf60, T_NEAR);
+        jle(labels[88], T_NEAR);
         align(4);
 
-        L(led4);
+        L(labels[87]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1100,13 +1009,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x40);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(led4, T_NEAR);
+        jg(labels[87], T_NEAR);
         align(4);
 
-        L(lf60);
+        L(labels[88]);
         mov(H, K);
         test(H, 0x4);
-        je(lf94, T_NEAR);
+        je(labels[89], T_NEAR);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1118,10 +1027,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(lf94);
+        L(labels[89]);
         mov(H, K);
         test(H, 0x2);
-        je(lfe4, T_NEAR);
+        je(labels[90], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vmovdqu(xmm1, xword[AO - 0x80]);
         vpunpcklwd(xmm0, xmm1, xmm6);
@@ -1139,10 +1048,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(lfe4);
+        L(labels[90]);
         mov(H, K);
         test(H, 0x1);
-        je(l1044, T_NEAR);
+        je(labels[0], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vbroadcastss(xmm0, dword[AO - 0x80]);
         vpunpcklbw(xmm0, xmm0, xmm6);
@@ -1164,7 +1073,7 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x1);
         align(4);
 
-        L(l1044);
+        L(labels[0]);
         mov(H, qword[COFFSET_CY]);
         vmovdqu(xmm0, xword[H]);
         vpaddd(xmm8, xmm8, xmm0);
@@ -1177,13 +1086,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 1]);
         align(4);
 
-        L(l1074);
+        L(labels[1]);
         mov(A, AO);
         align(4);
 
-        L(l1078);
+        L(labels[2]);
         test(J, 0x4);
-        jle(l14f4, T_NEAR);
+        jle(labels[21], T_NEAR);
         mov(CO1, C);
         add(C, 0x10);
         mov(BO, B);
@@ -1196,21 +1105,21 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         mov(qword[COFFSET_CX], H);
         mov(I, N);
         cmp(I, 0x2);
-        jl(l1328, T_NEAR);
+        jl(labels[12], T_NEAR);
         align(4);
 
-        L(l10c4);
+        L(labels[3]);
         mov(AO, A);
         vmovdqu(xmm0, xword[AO - 0x80]);
         vmovdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l1210, T_NEAR);
+        jle(labels[8], T_NEAR);
         sub(H, 0x8);
-        jle(l1174, T_NEAR);
+        jle(labels[6], T_NEAR);
         align(4);
 
-        L(l10ec);
+        L(labels[4]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1238,17 +1147,17 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x20);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l10ec, T_NEAR);
+        jg(labels[4], T_NEAR);
         align(4);
 
-        L(l1174);
+        L(labels[6]);
         prefetcht0(byte[CO1 + 0x3c]);
         prefetcht0(byte[CO1 + LDC * 1 + 0x3c]);
         add(H, 0x8);
-        jle(l1210, T_NEAR);
+        jle(labels[8], T_NEAR);
         align(4);
 
-        L(l1188);
+        L(labels[7]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1276,13 +1185,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x20);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l1188, T_NEAR);
+        jg(labels[7], T_NEAR);
         align(4);
 
-        L(l1210);
+        L(labels[8]);
         mov(H, K);
         test(H, 0x4);
-        je(l1248, T_NEAR);
+        je(labels[9], T_NEAR);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1295,10 +1204,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x8);
         align(4);
 
-        L(l1248);
+        L(labels[9]);
         mov(H, K);
         test(H, 0x2);
-        je(l1298, T_NEAR);
+        je(labels[10], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vmovdqu(xmm1, xword[AO - 0x80]);
         vpunpcklwd(xmm0, xmm1, xmm6);
@@ -1316,10 +1225,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l1298);
+        L(labels[10]);
         mov(H, K);
         test(H, 0x1);
-        je(l12f0, T_NEAR);
+        je(labels[11], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vbroadcastss(xmm0, dword[AO - 0x80]);
         vpunpcklbw(xmm0, xmm0, xmm6);
@@ -1339,7 +1248,7 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l12f0);
+        L(labels[11]);
         mov(H, qword[COFFSET_CY]);
         vmovdqu(xmm0, xword[H]);
         vpaddd(xmm8, xmm8, xmm0);
@@ -1351,23 +1260,23 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 2]);
         sub(I, 0x2);
         cmp(I, 0x2);
-        jge(l10c4, T_NEAR);
+        jge(labels[3], T_NEAR);
         align(4);
 
-        L(l1328);
+        L(labels[12]);
         test(I, 0x1);
-        jle(l14f0, T_NEAR);
+        jle(labels[20], T_NEAR);
         mov(AO, A);
         vmovdqu(xmm0, xword[AO - 0x80]);
         vmovdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l1424, T_NEAR);
+        jle(labels[16], T_NEAR);
         sub(H, 0x8);
-        jle(l13b8, T_NEAR);
+        jle(labels[14], T_NEAR);
         align(4);
 
-        L(l1358);
+        L(labels[13]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1387,16 +1296,16 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x20);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l1358, T_NEAR);
+        jg(labels[13], T_NEAR);
         align(4);
 
-        L(l13b8);
+        L(labels[14]);
         prefetcht0(byte[CO1 + 0x3c]);
         add(H, 0x8);
-        jle(l1424, T_NEAR);
+        jle(labels[16], T_NEAR);
         align(4);
 
-        L(l13c4);
+        L(labels[15]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1416,13 +1325,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x20);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l13c4, T_NEAR);
+        jg(labels[15], T_NEAR);
         align(4);
 
-        L(l1424);
+        L(labels[16]);
         mov(H, K);
         test(H, 0x4);
-        je(l144c, T_NEAR);
+        je(labels[17], T_NEAR);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1431,10 +1340,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l144c);
+        L(labels[17]);
         mov(H, K);
         test(H, 0x2);
-        je(l148c, T_NEAR);
+        je(labels[18], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vmovdqu(xmm1, xword[AO - 0x80]);
         vpunpcklwd(xmm0, xmm1, xmm6);
@@ -1448,10 +1357,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l148c);
+        L(labels[18]);
         mov(H, K);
         test(H, 0x1);
-        je(l14d4, T_NEAR);
+        je(labels[19], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vbroadcastss(xmm0, dword[AO - 0x80]);
         vpunpcklbw(xmm0, xmm0, xmm6);
@@ -1467,7 +1376,7 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x1);
         align(4);
 
-        L(l14d4);
+        L(labels[19]);
         mov(H, qword[COFFSET_CY]);
         vmovdqu(xmm0, xword[H]);
         vpaddd(xmm8, xmm8, xmm0);
@@ -1476,13 +1385,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 1]);
         align(4);
 
-        L(l14f0);
+        L(labels[20]);
         mov(A, AO);
         align(4);
 
-        L(l14f4);
+        L(labels[21]);
         test(J, 0x2);
-        jle(l1970, T_NEAR);
+        jle(labels[39], T_NEAR);
         mov(CO1, C);
         add(C, 0x8);
         mov(BO, B);
@@ -1495,21 +1404,21 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         mov(qword[COFFSET_CX], H);
         mov(I, N);
         cmp(I, 0x2);
-        jl(l17a4, T_NEAR);
+        jl(labels[30], T_NEAR);
         align(4);
 
-        L(l1540);
+        L(labels[22]);
         mov(AO, A);
         vmovdqu(xmm0, xword[AO - 0x80]);
         vmovdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l168c, T_NEAR);
+        jle(labels[26], T_NEAR);
         sub(H, 0x8);
-        jle(l15f0, T_NEAR);
+        jle(labels[24], T_NEAR);
         align(4);
 
-        L(l1568);
+        L(labels[23]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1537,17 +1446,17 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x10);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l1568, T_NEAR);
+        jg(labels[23], T_NEAR);
         align(4);
 
-        L(l15f0);
+        L(labels[24]);
         prefetcht0(byte[CO1 + 0x3c]);
         prefetcht0(byte[CO1 + LDC * 1 + 0x3c]);
         add(H, 0x8);
-        jle(l168c, T_NEAR);
+        jle(labels[26], T_NEAR);
         align(4);
 
-        L(l1604);
+        L(labels[25]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1575,13 +1484,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x10);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l1604, T_NEAR);
+        jg(labels[25], T_NEAR);
         align(4);
 
-        L(l168c);
+        L(labels[26]);
         mov(H, K);
         test(H, 0x4);
-        je(l16c4, T_NEAR);
+        je(labels[27], T_NEAR);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1594,10 +1503,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x8);
         align(4);
 
-        L(l16c4);
+        L(labels[27]);
         mov(H, K);
         test(H, 0x2);
-        je(l1714, T_NEAR);
+        je(labels[28], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vmovdqu(xmm1, xword[AO - 0x80]);
         vpunpcklwd(xmm0, xmm1, xmm6);
@@ -1615,10 +1524,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l1714);
+        L(labels[28]);
         mov(H, K);
         test(H, 0x1);
-        je(l176c, T_NEAR);
+        je(labels[29], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vbroadcastss(xmm0, dword[AO - 0x80]);
         vpunpcklbw(xmm0, xmm0, xmm6);
@@ -1638,7 +1547,7 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l176c);
+        L(labels[29]);
         mov(H, qword[COFFSET_CY]);
         vmovsd(xmm0, qword[H]);
         vpaddd(xmm8, xmm8, xmm0);
@@ -1650,23 +1559,23 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 2]);
         sub(I, 0x2);
         cmp(I, 0x2);
-        jge(l1540, T_NEAR);
+        jge(labels[22], T_NEAR);
         align(4);
 
-        L(l17a4);
+        L(labels[30]);
         test(I, 0x1);
-        jle(l196c, T_NEAR);
+        jle(labels[38], T_NEAR);
         mov(AO, A);
         vmovdqu(xmm0, xword[AO - 0x80]);
         vmovdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l18a0, T_NEAR);
+        jle(labels[34], T_NEAR);
         sub(H, 0x8);
-        jle(l1834, T_NEAR);
+        jle(labels[32], T_NEAR);
         align(4);
 
-        L(l17d4);
+        L(labels[31]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1686,16 +1595,16 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x10);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l17d4, T_NEAR);
+        jg(labels[31], T_NEAR);
         align(4);
 
-        L(l1834);
+        L(labels[32]);
         prefetcht0(byte[CO1 + 0x3c]);
         add(H, 0x8);
-        jle(l18a0, T_NEAR);
+        jle(labels[34], T_NEAR);
         align(4);
 
-        L(l1840);
+        L(labels[33]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1715,13 +1624,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x10);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l1840, T_NEAR);
+        jg(labels[33], T_NEAR);
         align(4);
 
-        L(l18a0);
+        L(labels[34]);
         mov(H, K);
         test(H, 0x4);
-        je(l18c8, T_NEAR);
+        je(labels[35], T_NEAR);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1730,10 +1639,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l18c8);
+        L(labels[35]);
         mov(H, K);
         test(H, 0x2);
-        je(l1908, T_NEAR);
+        je(labels[36], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vmovdqu(xmm1, xword[AO - 0x80]);
         vpunpcklwd(xmm0, xmm1, xmm6);
@@ -1747,10 +1656,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l1908);
+        L(labels[36]);
         mov(H, K);
         test(H, 0x1);
-        je(l1950, T_NEAR);
+        je(labels[37], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vbroadcastss(xmm0, dword[AO - 0x80]);
         vpunpcklbw(xmm0, xmm0, xmm6);
@@ -1766,7 +1675,7 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x1);
         align(4);
 
-        L(l1950);
+        L(labels[37]);
         mov(H, qword[COFFSET_CY]);
         vmovsd(xmm0, qword[H]);
         vpaddd(xmm8, xmm8, xmm0);
@@ -1775,13 +1684,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 1]);
         align(4);
 
-        L(l196c);
+        L(labels[38]);
         mov(A, AO);
         align(4);
 
-        L(l1970);
+        L(labels[39]);
         test(J, 0x1);
-        jle(l1dec, T_NEAR);
+        jle(labels[57], T_NEAR);
         mov(CO1, C);
         add(C, 0x4);
         mov(BO, B);
@@ -1794,21 +1703,21 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         mov(qword[COFFSET_CX], H);
         mov(I, N);
         cmp(I, 0x2);
-        jl(l1c20, T_NEAR);
+        jl(labels[48], T_NEAR);
         align(4);
 
-        L(l19bc);
+        L(labels[40]);
         mov(AO, A);
         vmovdqu(xmm0, xword[AO - 0x80]);
         vmovdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l1b08, T_NEAR);
+        jle(labels[44], T_NEAR);
         sub(H, 0x8);
-        jle(l1a6c, T_NEAR);
+        jle(labels[42], T_NEAR);
         align(4);
 
-        L(l19e4);
+        L(labels[41]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1836,17 +1745,17 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x8);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l19e4, T_NEAR);
+        jg(labels[41], T_NEAR);
         align(4);
 
-        L(l1a6c);
+        L(labels[42]);
         prefetcht0(byte[CO1 + 0x3c]);
         prefetcht0(byte[CO1 + LDC * 1 + 0x3c]);
         add(H, 0x8);
-        jle(l1b08, T_NEAR);
+        jle(labels[44], T_NEAR);
         align(4);
 
-        L(l1a80);
+        L(labels[43]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1874,13 +1783,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x8);
         add(BO, 0x10);
         sub(H, 0x1);
-        jg(l1a80, T_NEAR);
+        jg(labels[43], T_NEAR);
         align(4);
 
-        L(l1b08);
+        L(labels[44]);
         mov(H, K);
         test(H, 0x4);
-        je(l1b40, T_NEAR);
+        je(labels[45], T_NEAR);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1893,10 +1802,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x8);
         align(4);
 
-        L(l1b40);
+        L(labels[45]);
         mov(H, K);
         test(H, 0x2);
-        je(l1b90, T_NEAR);
+        je(labels[46], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vmovdqu(xmm1, xword[AO - 0x80]);
         vpunpcklwd(xmm0, xmm1, xmm6);
@@ -1914,10 +1823,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l1b90);
+        L(labels[46]);
         mov(H, K);
         test(H, 0x1);
-        je(l1be8, T_NEAR);
+        je(labels[47], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vbroadcastss(xmm0, dword[AO - 0x80]);
         vpunpcklbw(xmm0, xmm0, xmm6);
@@ -1937,7 +1846,7 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l1be8);
+        L(labels[47]);
         mov(H, qword[COFFSET_CY]);
         vmovss(xmm0, dword[H]);
         vpaddd(xmm8, xmm8, xmm0);
@@ -1949,23 +1858,23 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 2]);
         sub(I, 0x2);
         cmp(I, 0x2);
-        jge(l19bc, T_NEAR);
+        jge(labels[40], T_NEAR);
         align(4);
 
-        L(l1c20);
+        L(labels[48]);
         test(I, 0x1);
-        jle(l1de8, T_NEAR);
+        jle(labels[56], T_NEAR);
         mov(AO, A);
         vmovdqu(xmm0, xword[AO - 0x80]);
         vmovdqu(xmm5, xword[BO - 0x80]);
         mov(H, K);
         sar(H, 0x3);
-        jle(l1d1c, T_NEAR);
+        jle(labels[52], T_NEAR);
         sub(H, 0x8);
-        jle(l1cb0, T_NEAR);
+        jle(labels[50], T_NEAR);
         align(4);
 
-        L(l1c50);
+        L(labels[49]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -1985,16 +1894,16 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x8);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l1c50, T_NEAR);
+        jg(labels[49], T_NEAR);
         align(4);
 
-        L(l1cb0);
+        L(labels[50]);
         prefetcht0(byte[CO1 + 0x3c]);
         add(H, 0x8);
-        jle(l1d1c, T_NEAR);
+        jle(labels[52], T_NEAR);
         align(4);
 
-        L(l1cbc);
+        L(labels[51]);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -2014,13 +1923,13 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(AO, 0x8);
         add(BO, 0x8);
         sub(H, 0x1);
-        jg(l1cbc, T_NEAR);
+        jg(labels[51], T_NEAR);
         align(4);
 
-        L(l1d1c);
+        L(labels[52]);
         mov(H, K);
         test(H, 0x4);
-        je(l1d44, T_NEAR);
+        je(labels[53], T_NEAR);
         vpshufd(xmm4, xmm5, 0x0);
         vpmaddubsw(xmm6, xmm4, xmm0);
         vpmaddwd(xmm6, xmm7, xmm6);
@@ -2029,10 +1938,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x4);
         align(4);
 
-        L(l1d44);
+        L(labels[53]);
         mov(H, K);
         test(H, 0x2);
-        je(l1d84, T_NEAR);
+        je(labels[54], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vmovdqu(xmm1, xword[AO - 0x80]);
         vpunpcklwd(xmm0, xmm1, xmm6);
@@ -2046,10 +1955,10 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x2);
         align(4);
 
-        L(l1d84);
+        L(labels[54]);
         mov(H, K);
         test(H, 0x1);
-        je(l1dcc, T_NEAR);
+        je(labels[55], T_NEAR);
         vxorps(xmm6, xmm6, xmm6);
         vbroadcastss(xmm0, dword[AO - 0x80]);
         vpunpcklbw(xmm0, xmm0, xmm6);
@@ -2065,7 +1974,7 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         add(BO, 0x1);
         align(4);
 
-        L(l1dcc);
+        L(labels[55]);
         mov(H, qword[COFFSET_CY]);
         vmovss(xmm0, dword[H]);
         vpaddd(xmm8, xmm8, xmm0);
@@ -2074,11 +1983,11 @@ void jit_avx_kernel_b0_c_gemm_s8u8s32_kern::generate() {
         lea(CO1, ptr[CO1 + LDC * 1]);
         align(4);
 
-        L(l1de8);
+        L(labels[56]);
         mov(A, AO);
         align(4);
 
-        L(l1dec);
+        L(labels[57]);
         add(rsp, stack_alloc_size);
         postamble();
     }

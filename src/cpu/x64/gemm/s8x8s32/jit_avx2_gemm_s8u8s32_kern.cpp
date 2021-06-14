@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -290,7 +290,8 @@ void jit_avx2_gemm_s8u8s32_kern::innerloop(int unroll_m, int unroll_n) {
 // Outer loop.
 void jit_avx2_gemm_s8u8s32_kern::outerloop(
         int unroll_x, int unroll_y, Label *&cur_outerloop_label) {
-    Label label_m_loop, label_n_loop, label_n_remainder_loops[6];
+    Label label_m_loop, label_n_loop;
+    std::vector<Label> label_n_remainder_loops(6);
 
     L(*cur_outerloop_label);
     cur_outerloop_label++;
@@ -414,7 +415,7 @@ void jit_avx2_gemm_s8u8s32_kern::generate() {
         }
     }
 
-    Label outerloop_labels[8];
+    std::vector<Label> outerloop_labels(8);
     Label *cur_outerloop_label = &outerloop_labels[0];
 
     // Main m loop.

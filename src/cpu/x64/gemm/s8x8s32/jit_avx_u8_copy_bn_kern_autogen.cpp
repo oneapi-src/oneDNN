@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,23 +62,7 @@ void jit_avx_u8_copy_bn_kern::generate() {
 
     inLocalLabel();
     {
-
-        Xbyak::Label l118;
-        Xbyak::Label l126;
-        Xbyak::Label l130;
-        Xbyak::Label l140;
-        Xbyak::Label l15c;
-        Xbyak::Label l17c;
-        Xbyak::Label l19c;
-        Xbyak::Label l1b8;
-        Xbyak::Label l1d0;
-        Xbyak::Label l1e0;
-        Xbyak::Label l20;
-        Xbyak::Label l38;
-        Xbyak::Label l70;
-        Xbyak::Label l9c;
-        Xbyak::Label lc8;
-        Xbyak::Label lf8;
+        std::vector<Xbyak::Label> labels(16);
 
         preamble();
 #ifdef _WIN32
@@ -94,20 +78,20 @@ void jit_avx_u8_copy_bn_kern::generate() {
         sub(B, -128);
         lea(LDA3, ptr[LDA + LDA * 2]);
         cmp(N, 0x2);
-        jl(l126, T_NEAR);
+        jl(labels[1], T_NEAR);
         align(4);
 
-        L(l20);
+        L(labels[10]);
         mov(A1, A);
         lea(A2, ptr[A1 + LDA * 1]);
         lea(I, ptr[A1 + LDA * 2]);
         mov(A, I);
         mov(I, M);
         sar(I, 0x4);
-        jle(l70, T_NEAR);
+        jle(labels[12], T_NEAR);
         align(4);
 
-        L(l38);
+        L(labels[11]);
         movdqu(xmm0, xword[A1 - 0x80]);
         sub(A1, -16);
         movdqu(xmm1, xword[A2 - 0x80]);
@@ -119,12 +103,12 @@ void jit_avx_u8_copy_bn_kern::generate() {
         movdqu(xword[B - 0x70], xmm2);
         sub(B, -32);
         dec(I);
-        jg(l38, T_NEAR);
+        jg(labels[11], T_NEAR);
         align(4);
 
-        L(l70);
+        L(labels[12]);
         test(M, 0x8);
-        jle(l9c, T_NEAR);
+        jle(labels[13], T_NEAR);
         movq(xmm0, qword[A1 - 0x80]);
         sub(A1, -8);
         movq(xmm1, qword[A2 - 0x80]);
@@ -134,9 +118,9 @@ void jit_avx_u8_copy_bn_kern::generate() {
         sub(B, -16);
         align(4);
 
-        L(l9c);
+        L(labels[13]);
         test(M, 0x4);
-        jle(lc8, T_NEAR);
+        jle(labels[14], T_NEAR);
         movd(xmm0, dword[A1 - 0x80]);
         sub(A1, -4);
         movd(xmm1, dword[A2 - 0x80]);
@@ -146,9 +130,9 @@ void jit_avx_u8_copy_bn_kern::generate() {
         sub(B, -8);
         align(4);
 
-        L(lc8);
+        L(labels[14]);
         test(M, 0x2);
-        jle(lf8, T_NEAR);
+        jle(labels[15], T_NEAR);
         mov(ax, word[A1 - 0x80]);
         sub(A1, -2);
         pinsrw(xmm0, eax, 0x0);
@@ -159,9 +143,9 @@ void jit_avx_u8_copy_bn_kern::generate() {
         sub(B, -4);
         align(4);
 
-        L(lf8);
+        L(labels[15]);
         test(M, 0x1);
-        jle(l118, T_NEAR);
+        jle(labels[0], T_NEAR);
         mov(al, byte[A1 - 0x80]);
         mov(byte[B - 0x80], al);
         mov(al, byte[A2 - 0x80]);
@@ -169,76 +153,76 @@ void jit_avx_u8_copy_bn_kern::generate() {
         sub(B, -2);
         align(4);
 
-        L(l118);
+        L(labels[0]);
         sub(N, 0x2);
         cmp(N, 0x2);
-        jge(l20, T_NEAR);
+        jge(labels[10], T_NEAR);
         align(4);
 
-        L(l126);
+        L(labels[1]);
         cmp(N, 0x1);
-        jl(l1e0, T_NEAR);
+        jl(labels[9], T_NEAR);
         align(4);
 
-        L(l130);
+        L(labels[2]);
         mov(A1, A);
         add(A, LDA);
         mov(I, M);
         sar(I, 0x4);
-        jle(l15c, T_NEAR);
+        jle(labels[4], T_NEAR);
         align(4);
 
-        L(l140);
+        L(labels[3]);
         movdqu(xmm0, xword[A1 - 0x80]);
         sub(A1, -16);
         movdqu(xword[B - 0x80], xmm0);
         sub(B, -16);
         dec(I);
-        jg(l140, T_NEAR);
+        jg(labels[3], T_NEAR);
         align(4);
 
-        L(l15c);
+        L(labels[4]);
         test(M, 0x8);
-        jle(l17c, T_NEAR);
+        jle(labels[5], T_NEAR);
         movq(xmm0, qword[A1 - 0x80]);
         sub(A1, -8);
         movq(qword[B - 0x80], xmm0);
         sub(B, -8);
         align(4);
 
-        L(l17c);
+        L(labels[5]);
         test(M, 0x4);
-        jle(l19c, T_NEAR);
+        jle(labels[6], T_NEAR);
         movd(xmm0, dword[A1 - 0x80]);
         sub(A1, -4);
         movd(dword[B - 0x80], xmm0);
         sub(B, -4);
         align(4);
 
-        L(l19c);
+        L(labels[6]);
         test(M, 0x2);
-        jle(l1b8, T_NEAR);
+        jle(labels[7], T_NEAR);
         mov(ax, word[A1 - 0x80]);
         mov(word[B - 0x80], ax);
         sub(A1, -2);
         sub(B, -2);
         align(4);
 
-        L(l1b8);
+        L(labels[7]);
         test(M, 0x1);
-        jle(l1d0, T_NEAR);
+        jle(labels[8], T_NEAR);
         mov(al, byte[A1 - 0x80]);
         mov(byte[B - 0x80], al);
         sub(B, -1);
         align(4);
 
-        L(l1d0);
+        L(labels[8]);
         sub(N, 0x1);
         cmp(N, 0x1);
-        jge(l130, T_NEAR);
+        jge(labels[2], T_NEAR);
         align(4);
 
-        L(l1e0);
+        L(labels[9]);
         postamble();
     }
     outLocalLabel();
