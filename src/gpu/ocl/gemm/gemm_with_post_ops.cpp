@@ -81,6 +81,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     desc_.b_desc = *gemm_pd_->arg_md(DNNL_ARG_SRC_1);
     desc_.c_desc = *gemm_pd_->arg_md(DNNL_ARG_DST);
     desc_.c_desc.data_type = dst_type;
+    if (!set_default_formats()) return status::unimplemented;
 
     compute::kernel_ctx_t kernel_ctx;
     use_scratchpad_with_post_op_worker = use_reorder
