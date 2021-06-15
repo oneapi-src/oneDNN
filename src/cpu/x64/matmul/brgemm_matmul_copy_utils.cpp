@@ -236,7 +236,7 @@ void jit_brgemm_matmul_copy_a_impl_t::copy_K_loop(
 
         // step 2: add -K * zp_a_val as mixed ab_compensation component
         if (conf_->src_zp_type != brgemm_broadcast_t::none) {
-            assert(conf_->src_zp_type != brgemm_broadcast_t::per_tensor);
+            assert(conf_->src_zp_type == brgemm_broadcast_t::per_tensor);
             reg64_t reg_zp_ab_comp_ptr = imm_addr64;
             mov(reg_zp_ab_comp_ptr, ptr[param1 + GET_OFF(zp_ab_comp_ptr)]);
 
