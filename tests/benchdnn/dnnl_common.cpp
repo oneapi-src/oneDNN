@@ -248,13 +248,15 @@ int measure_perf(
         benchdnn_timer_t &t, perf_function_t &perf_func, args_t &args) {
     int ret = OK;
     if (is_bench_mode(PERF)) {
-        stream_t stream(get_test_engine());
+        const auto &engine = get_test_engine();
+        stream_t stream(engine);
         std::vector<dnnl_exec_arg_t> dnnl_args;
         execute_unmap_args(args, dnnl_args);
 
-        // For CPU: measure individual iterations
-        // For GPU: measure iterations in batches to hide driver overhead
-        if (is_cpu())
+        // For non-DPCPP CPU: measure individual iterations.
+        // For DPCPP CPU and GPU: measure iterations in batches to hide driver
+        // overhead. DPCPP CPU follows the model of GPU, thus, handled similar.
+        if (is_cpu() && !is_sycl_engine(engine))
             ret = measure_perf_individual(t, stream, perf_func, dnnl_args);
         else
             ret = measure_perf_aggregate(t, stream, perf_func, dnnl_args);
