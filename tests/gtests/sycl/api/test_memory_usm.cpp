@@ -36,7 +36,7 @@ protected:
         auto alloc_kind = cl::sycl::get_pointer_type(
                 usm_ptr, sycl_interop::get_context(eng));
         if (alloc_kind == cl::sycl::usm::alloc::host
-                && alloc_kind == cl::sycl::usm::alloc::shared) {
+                || alloc_kind == cl::sycl::usm::alloc::shared) {
             for (int i = 0; i < n; i++)
                 ((float *)usm_ptr)[i] = float(i);
         } else {
