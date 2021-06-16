@@ -74,30 +74,23 @@ macro(platform_gnu_nowarn_ccxx_flags var)
     append(${var} "-Wno-strict-overflow")
 endmacro()
 
-if(WIN32 AND DNNL_WITH_SYCL)
-    # XXX: Intel oneAPI DPC++ Compiler defines __GNUC__ and __STDC__ macros on
-    # Windows. It is not aligned with clang behavior so manually undefine them.
-    add_definitions(-U__GNUC__ -U__STDC__)
-    # XXX: workaround for 'unknown type name IUnknown' from combaseapi.h
-    add_definitions(-DCINTERFACE)
-    # XXX: Intel oneAPI DPC++ Compiler generates a lot of warnings
-    append(CMAKE_CCXX_FLAGS "-w")
-    # XXX: ignore __declspec warning
-    append(CMAKE_CCXX_FLAGS "-Wno-ignored-attributes")
-    # XXX: ignore 'XXX is deprecated' coming from Intel TBB headers
+if(DNNL_WITH_SYCL)
+    # XXX: SYCL deprecated some API, suppress warnings for now.
     append(CMAKE_CCXX_FLAGS "-Wno-deprecated-declarations")
-    # Ignore warning LNK4078: multiple '__CLANG_OFFLOAD_BUNDLE__sycl-spi'
-    # sections found with different attributes
-    append(CMAKE_EXE_LINKER_FLAGS "-Xlinker /IGNORE:4078")
-    append(CMAKE_SHARED_LINKER_FLAGS "-Xlinker /IGNORE:4078")
+    # Clang cannot vectorize some loops with #pragma omp simd and gets
+    # very upset. Tell it that it's okay and that we love it
+    # unconditionally.
+    append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
 
-    # XXX: compiler always pulls in release C++ runtime by default, until
-    # this is fixed we have to explicitly drop release C++ runtime for
-    # debug build types.
-    string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
-    if(UPPERCASE_CMAKE_BUILD_TYPE MATCHES "(DEBUG|RELWITHMDD)")
-        append(CMAKE_EXE_LINKER_FLAGS "-Xlinker /NODEFAULTLIB:msvcrt")
-        append(CMAKE_SHARED_LINKER_FLAGS "-Xlinker /NODEFAULTLIB:msvcrt")
+    if(WIN32)
+        # XXX: compiler always pulls in release C++ runtime by default, until
+        # this is fixed we have to explicitly drop release C++ runtime for
+        # debug build types.
+        string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
+        if(UPPERCASE_CMAKE_BUILD_TYPE MATCHES "(DEBUG|RELWITHMDD)")
+            append(CMAKE_EXE_LINKER_FLAGS "-Xlinker /NODEFAULTLIB:msvcrt")
+            append(CMAKE_SHARED_LINKER_FLAGS "-Xlinker /NODEFAULTLIB:msvcrt")
+        endif()
     endif()
 endif()
 
@@ -151,10 +144,6 @@ if(MSVC)
         append(CMAKE_CCXX_FLAGS "/fp:precise")
     endif()
 elseif(UNIX OR MINGW)
-    if(DNNL_WITH_SYCL)
-        # XXX: Intel oneAPI DPC++ Compiler generates a lot of warnings
-        append(CMAKE_CCXX_FLAGS "-w")
-    endif()
     if(DNNL_WITH_SYCL OR CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
         # Default fp-model in icx and dpcpp (unlike clang) may be precise or
         # fast=1 depending on the version.
