@@ -717,11 +717,15 @@ void jit_brgemm_copy_to_coarse_t::copy_row_loop() {
         if (row_iters_tail != 0) copy_row_tail(/* row_offset = */ row_iters);
     };
 
-    cmp(reg_last_row_blk, 0);
-    jne(label_row_tail, T_NEAR);
+    const bool only_row_tail = row_size_ < tr_row_size_;
 
-    copy_row(/* is_last_blk = */ false);
-    jmp(label_row_exit, T_NEAR);
+    if (!only_row_tail) {
+        cmp(reg_last_row_blk, 0);
+        jne(label_row_tail, T_NEAR);
+
+        copy_row(/* is_last_blk = */ false);
+        jmp(label_row_exit, T_NEAR);
+    }
 
     L(label_row_tail);
     copy_row(/* is_last_blk = */ true);
