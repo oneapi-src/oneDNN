@@ -435,6 +435,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                     break;
                 case primitive_kind::sum:
                     ret = equal_with_nan(sum.scale, rhs.sum.scale)
+                            && sum.zero_point == rhs.sum.zero_point
                             && sum.dt == rhs.sum.dt;
                     break;
                 case primitive_kind::convolution:
