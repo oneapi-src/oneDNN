@@ -80,6 +80,7 @@ struct DNNL_API brgemm_attr_t {
     brgemm_kernel_loop_order_t hint_loop_order;
     brgemm_kernel_prefetching_t hint_prefetching;
     bool wary_tail_read;
+    bool generate_skip_accumulation;
 };
 
 struct brgemm_batch_element_t {
@@ -219,6 +220,7 @@ struct brgemm_kernel_params_t {
     const void *a_zp_compensations = nullptr;
     const void *b_zp_compensations = nullptr;
     const void *c_zp_values = nullptr;
+    size_t skip_accm = 0;
 };
 
 struct jit_brgemm_kernel_base_t;
@@ -249,7 +251,9 @@ private:
 ///     point values.
 /// @param b_zp_compensations - Pre-computed compensations for B matrix zero
 ///     point values.
-/// @param b_zp_compensations - C matrix zero point values.
+/// @param c_zp_values - C matrix zero point values.
+/// @param skip_accumulation - specifies whether to skip accumulation when
+///    computing post-ops.
 ///
 struct brgemm_post_ops_data_t {
     brgemm_post_ops_data_t() = default;
@@ -259,7 +263,7 @@ struct brgemm_post_ops_data_t {
             const size_t first_mb_matrix_addr_off = 0,
             const void *a_zp_compensations = nullptr,
             const void *b_zp_compensations = nullptr,
-            const void *c_zp_values = nullptr)
+            const void *c_zp_values = nullptr, bool skip_accumulation = false)
         : bias(bias)
         , scales(scales)
         , binary_post_ops_rhs(binary_post_ops_rhs)
@@ -269,7 +273,8 @@ struct brgemm_post_ops_data_t {
         , first_mb_matrix_addr_off(first_mb_matrix_addr_off)
         , a_zp_compensations(a_zp_compensations)
         , b_zp_compensations(b_zp_compensations)
-        , c_zp_values(c_zp_values) {}
+        , c_zp_values(c_zp_values)
+        , skip_accumulation(skip_accumulation) {}
 
     const void *bias = nullptr;
     const float *scales = nullptr;
@@ -281,6 +286,7 @@ struct brgemm_post_ops_data_t {
     const void *a_zp_compensations = nullptr;
     const void *b_zp_compensations = nullptr;
     const void *c_zp_values = nullptr;
+    const bool skip_accumulation = false;
 };
 
 } // namespace x64
