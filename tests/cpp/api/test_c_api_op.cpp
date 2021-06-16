@@ -88,7 +88,7 @@ TEST(c_api_test, op_attr) {
                     &got_auto_pad, &auto_pad_num),
             dnnl_graph_result_success, OP_ATTR_DESTROY);
     const auto new_auto_pad = reinterpret_cast<const char *>(got_auto_pad);
-    ASSERT_EQ(std::string(new_auto_pad), "same_upper");
+    ASSERT_EQ_SAFE(std::string(new_auto_pad), "same_upper", OP_ATTR_DESTROY);
 
     ASSERT_EQ_SAFE(
             dnnl_graph_op_get_attr(op, "groups", dnnl_graph_attribute_kind_i,
