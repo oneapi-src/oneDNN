@@ -64,8 +64,6 @@ private:
         dims_t src1_dims;
         dims_t dst_dims;
 
-        int dst_ndims;
-
         dt src0_dt;
         dt src1_dt;
         dt dst_dt;
