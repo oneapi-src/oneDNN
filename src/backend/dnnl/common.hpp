@@ -100,6 +100,14 @@ memory::desc permute_NXC2NCX(const memory::desc &adesc);
 
 memory::desc permute_XIO2OIX(const memory::desc &adesc);
 
+memory::desc to_grouped(const memory::desc &adesc, dim groups);
+
+memory::desc to_format_any(const memory::desc &adesc);
+
+memory::desc permute_NCX2NXC(const memory::desc &adesc);
+
+memory::desc permute_OIX2XIO(const memory::desc &adesc);
+
 #ifndef NDEBUG
 #define BACKEND_DNNL_ENFORCE(condition, message) \
     do { \

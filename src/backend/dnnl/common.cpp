@@ -196,6 +196,17 @@ memory::desc permute_NXC2NCX(const memory::desc &adesc) {
     return ret;
 }
 
+memory::desc permute_NCX2NXC(const memory::desc &adesc) {
+    assert(adesc.data.ndims > 2);
+    int count = 0;
+    std::vector<int> axes(adesc.data.ndims);
+    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+    axes.insert(axes.begin() + 1, axes.back());
+    axes.pop_back();
+    memory::desc ret = adesc.permute_axes(axes);
+    return ret;
+}
+
 // permute the XIO format adesc to OIX format
 /// \note
 /// The logical axes will be permuted in the following manner:
@@ -215,6 +226,37 @@ memory::desc permute_XIO2OIX(const memory::desc &adesc) {
     axes.erase(axes.begin());
     axes.erase(axes.begin());
     return adesc.permute_axes(axes);
+}
+
+// permute the OIX format adesc to XIO format
+/// \note
+/// The logical axes will be permuted in the following manner:
+/// for (i = 0; i < ndims(); i++)
+///     new_desc.dims()[permutation[i]] = dims()[i];
+/// if we want to permute oihw to hwio, we need:
+///     permutation[0] = 3
+///     permutation[1] = 2
+///     permutation[2] = 0
+///     permutation[3] = 1
+memory::desc permute_OIX2XIO(const memory::desc &adesc) {
+    int count = 0;
+    std::vector<int> axes(adesc.data.ndims);
+    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+    axes.insert(axes.begin(), axes[axes.size() - 2]);
+    axes.insert(axes.begin(), axes[axes.size() - 1]);
+    axes.pop_back();
+    axes.pop_back();
+    return adesc.permute_axes(axes);
+}
+
+memory::desc to_grouped(const memory::desc &adesc, dim groups) {
+    auto grouped_shape = group_dims(adesc.dims(), groups);
+    return adesc.reshape(grouped_shape);
+}
+
+memory::desc to_format_any(const memory::desc &adesc) {
+    return memory::desc(
+            adesc.dims(), adesc.data_type(), memory::format_tag::any);
 }
 
 } // namespace dnnl_impl
