@@ -651,8 +651,18 @@ TEST(c_api_test, compile_conv2d_sum_conv2d) {
 
     partition = (dnnl_graph_partition_t **)malloc(
             part_num * sizeof(dnnl_graph_partition_t *));
+    if (partition == NULL) {
+        COMPILE_CONV2D_SUM_CONV2D_DESTROY;
+        return;
+    }
     compiled_partition = (dnnl_graph_compiled_partition_t **)malloc(
             part_num * sizeof(dnnl_graph_compiled_partition_t *));
+    if (compiled_partition == NULL) {
+        COMPILE_CONV2D_SUM_CONV2D_DESTROY;
+        free(partition);
+        partition = NULL;
+        return;
+    }
 
 #define COMPILE_CONV2D_SUM_CONV2D_DESTROY_PLUS \
     do { \
