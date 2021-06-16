@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <assert.h>
+#include <cassert>
+#include <set>
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -51,6 +52,24 @@ static status_t compute_blk_and_tail(
     const auto &bd = md.blocking_desc();
     if (tail == 0) return status::success;
 
+    // find dims that have multiple inner blocks
+    const std::set<dim_t> unique_inner_idxs(
+            bd.inner_idxs, bd.inner_idxs + bd.inner_nblks);
+    std::set<dim_t> dims_with_multiple_blks;
+    for (dim_t dim : unique_inner_idxs) {
+        if (std::count(bd.inner_idxs, bd.inner_idxs + bd.inner_nblks, dim) > 1)
+            dims_with_multiple_blks.insert(dim);
+    }
+
+    // Dims that have a tail and have multiple blocks are not supported by the jit kernel yet.
+    // For example:
+    // src_tag = abcd
+    // dst_tag = ABcd16b16a4b
+    // 16x15x3x3
+    // In this case, 'b' dim has two blocks and has a tail. It is not a supported case.
+    if (dims_with_multiple_blks.find(idx) != dims_with_multiple_blks.end())
+        return status::unimplemented;
+
     // Only supports inconsistent padding in single and double blocks
     // and the total block size <= 256
     for (int iblk = bd.inner_nblks - 1; iblk > 0; --iblk) {
@@ -58,7 +77,7 @@ static status_t compute_blk_and_tail(
         blk *= bd.inner_blks[iblk];
         tail *= bd.inner_blks[iblk];
     }
-    if (bd.inner_nblks > 2 || blk > 256) return status::unimplemented;
+    if (unique_inner_idxs.size() > 2 || blk > 256) return status::unimplemented;
 
     return status::success;
 }
@@ -133,7 +152,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     utils::array_set(ip_padding, 0, im_d.ndims());
     utils::array_set(op_padding, 0, om_d.ndims());
 
-    /* padding_dim consistency check 
+    /* padding_dim consistency check
      * only supports inconsitent padding for src
      * TODO: Add inconsistent padding support for dst */
     int ip_tail = 0;
