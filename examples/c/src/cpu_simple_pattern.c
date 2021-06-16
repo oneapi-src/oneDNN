@@ -196,6 +196,14 @@ int main(int argc, char **argv) {
 
         // convert example op to dnnl graph op and merge attrs
         dnnl_graph_op_t *l_op = convert_op(e_op);
+        if (l_op == NULL) {
+            example_graph_destroy(example_graph);
+            example_tensor_destroy_all();
+            DNNL_GRAPH_CHECK(dnnl_graph_graph_destroy(graph));
+            DNNL_GRAPH_CHECK(dnnl_graph_engine_destroy(engine));
+            DNNL_GRAPH_CHECK(dnnl_graph_allocator_destroy(allocator));
+            return -1;
+        }
         op_map_add(e_op, l_op);
 
         // add in/outputs
