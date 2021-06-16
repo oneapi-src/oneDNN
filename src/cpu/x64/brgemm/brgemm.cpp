@@ -54,6 +54,7 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_buf = scratch;
     brgemm_p.ptr_bias = nullptr;
     brgemm_p.do_post_ops = 0;
+    brgemm_p.skip_accm = 0;
     brgemm_p.BS = bs;
     (*brg_kernel)(&brgemm_p);
 }
@@ -71,6 +72,7 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_buf = scratch;
     brgemm_p.ptr_bias = nullptr;
     brgemm_p.do_post_ops = 0;
+    brgemm_p.skip_accm = 0;
     brgemm_p.BS = bs;
     (*brg_kernel)(&brgemm_p);
 }
@@ -89,6 +91,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_bias = post_ops_data.bias;
     brgemm_p.ptr_scales = post_ops_data.scales;
     brgemm_p.do_post_ops = 1;
+    brgemm_p.skip_accm = post_ops_data.skip_accumulation ? 1 : 0;
     brgemm_p.BS = bs;
     brgemm_p.post_ops_binary_rhs_arg_vec = post_ops_data.binary_post_ops_rhs;
     brgemm_p.oc_logical_off = post_ops_data.oc_logical_off;
@@ -117,6 +120,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_bias = post_ops_data.bias;
     brgemm_p.ptr_scales = post_ops_data.scales;
     brgemm_p.do_post_ops = 1;
+    brgemm_p.skip_accm = post_ops_data.skip_accumulation ? 1 : 0;
     brgemm_p.BS = bs;
     brgemm_p.post_ops_binary_rhs_arg_vec = post_ops_data.binary_post_ops_rhs;
     brgemm_p.oc_logical_off = post_ops_data.oc_logical_off;
