@@ -295,14 +295,22 @@ int partition2fmt_str(
                 data_filled = true;
             }
             const auto data_format = op->get_attr<std::string>("data_format");
-            DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written_len,
-                    (i == num_operator - 1) ? "%s " : "%s;",
-                    data_format.c_str());
+            if (i == num_operator - 1) {
+                DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written_len, "%s ",
+                        data_format.c_str());
+            } else {
+                DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written_len, "%s;",
+                        data_format.c_str());
+            }
         } else if (data_filled) {
             // If at least one op have data format, op without format spec
             // should give `;` except the last one of data which should give
             // ` `.
-            PUTS((i == num_operator - 1) ? " " : ";");
+            if (i == num_operator - 1) {
+                PUTS(" ");
+            } else {
+                PUTS(";");
+            }
         }
     }
     for (size_t i = 0; i < num_operator; ++i) {
@@ -316,9 +324,13 @@ int partition2fmt_str(
             }
             const auto filter_format
                     = op->get_attr<std::string>("filter_format");
-            DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written_len,
-                    (i == num_operator - 1) ? "%s" : "%s;",
-                    filter_format.c_str());
+            if (i == num_operator - 1) {
+                DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written_len, "%s",
+                        filter_format.c_str());
+            } else {
+                DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written_len, "%s;",
+                        filter_format.c_str());
+            }
         } else if (filter_filled) {
             PUTS(";");
         }
