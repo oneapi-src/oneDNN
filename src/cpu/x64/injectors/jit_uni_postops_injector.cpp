@@ -244,6 +244,8 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
 
 template class jit_uni_postops_injector_t<avx512_core_bf16>;
 template class jit_uni_postops_injector_t<avx512_core>;
+template class jit_uni_postops_injector_t<avx512_core, Xbyak::Ymm>;
+template class jit_uni_postops_injector_t<avx512_core, Xbyak::Xmm>;
 template class jit_uni_postops_injector_t<avx512_common>;
 template class jit_uni_postops_injector_t<avx512_common, Xbyak::Ymm>;
 template class jit_uni_postops_injector_t<avx2>;

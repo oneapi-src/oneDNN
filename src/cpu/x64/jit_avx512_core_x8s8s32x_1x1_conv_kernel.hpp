@@ -41,7 +41,7 @@ struct _jit_avx512_core_x8s8s32x_1x1_conv_kernel : public jit_generator {
 private:
     constexpr static int isa_simd_width_
             = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
-    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core, Vmm>>
             postops_injector_;
 
     /* register mapping */

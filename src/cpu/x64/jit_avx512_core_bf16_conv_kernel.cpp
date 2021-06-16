@@ -121,7 +121,7 @@ _jit_avx512_core_bf16_fwd_kernel<Vmm>::_jit_avx512_core_bf16_fwd_kernel(
                 this->param1, rhs_arg_static_params};
 
         postops_injector_ = utils::make_unique<
-                injector::jit_uni_postops_injector_t<avx512_core>>(
+                injector::jit_uni_postops_injector_t<avx512_core, Vmm>>(
                 this, jcp.post_ops, static_params);
     }
     if (!isa_has_bf16(jcp.isa))

@@ -1511,6 +1511,8 @@ void jit_uni_binary_injector_t<isa, Vmm>::compute_vector(size_t idx,
 
 template class jit_uni_binary_injector_t<avx512_core_bf16>;
 template class jit_uni_binary_injector_t<avx512_core>;
+template class jit_uni_binary_injector_t<avx512_core, Xbyak::Ymm>;
+template class jit_uni_binary_injector_t<avx512_core, Xbyak::Xmm>;
 template class jit_uni_binary_injector_t<avx512_common>;
 template class jit_uni_binary_injector_t<avx512_common, Xbyak::Ymm>;
 template class jit_uni_binary_injector_t<avx2, Xbyak::Ymm>;

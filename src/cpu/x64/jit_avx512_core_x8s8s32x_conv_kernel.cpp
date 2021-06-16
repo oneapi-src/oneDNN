@@ -77,7 +77,7 @@ _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::_jit_avx512_core_x8s8s32x_fwd_kernel(
                 this->param1, rhs_arg_static_params};
 
         postops_injector_ = utils::make_unique<
-                injector::jit_uni_postops_injector_t<avx512_core>>(
+                injector::jit_uni_postops_injector_t<avx512_core, Vmm>>(
                 this, jcp.post_ops, static_params);
     }
 }

@@ -124,7 +124,7 @@ private:
     constexpr static int off_reg_ker_ = 8;
     constexpr static int stack_space_needed_ = 16;
 
-    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core, Vmm>>
             postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
 

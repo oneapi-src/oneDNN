@@ -549,8 +549,12 @@ public:
 
     void uni_vdivps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
-        assert(x.isEqualIfNotInherited(op1));
-        divps(x, op2);
+        if (is_valid_isa(avx))
+            vdivps(x, op1, op2);
+        else {
+            assert(x.isEqualIfNotInherited(op1));
+            divps(x, op2);
+        }
     }
     void uni_vdivps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
@@ -648,8 +652,12 @@ public:
 
     void uni_vsubps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
-        assert(x.isEqualIfNotInherited(op1));
-        subps(x, op2);
+        if (is_valid_isa(avx))
+            vsubps(x, op1, op2);
+        else {
+            assert(x.isEqualIfNotInherited(op1));
+            subps(x, op2);
+        }
     }
     void uni_vsubps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
