@@ -45,6 +45,14 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         PROPERTIES COMPILE_FLAGS "-prec-div")
 endif()
 
+if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STREQUAL "Intel"))
+    file(GLOB FILES_REQUIRED_BIGOBJ
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/dnnl/dnnl_backend.cpp
+        )
+    set_source_files_properties(${FILES_REQUIRED_BIGOBJ}
+        PROPERTIES COMPILE_FLAGS "/bigobj")
+endif()
+
 # propagate common compilation flags
 append(CMAKE_C_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
 append(CMAKE_CXX_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
