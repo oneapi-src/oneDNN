@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,13 +42,6 @@
         } \
     } while (0)
 
-static size_t product(dnnl_dim_t *arr, size_t size) {
-    size_t prod = 1;
-    for (size_t i = 0; i < size; ++i)
-        prod *= arr[i];
-    return prod;
-}
-
 typedef float real_t;
 
 #define LENGTH_100 100
@@ -89,6 +82,14 @@ void test1() {
 }
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+
+static size_t product(dnnl_dim_t *arr, size_t size) {
+    size_t prod = 1;
+    for (size_t i = 0; i < size; ++i)
+        prod *= arr[i];
+    return prod;
+}
+
 void test2() {
     /* AlexNet: c3
      * {2, 256, 13, 13} (x) {384, 256, 3, 3} -> {2, 384, 13, 13}
