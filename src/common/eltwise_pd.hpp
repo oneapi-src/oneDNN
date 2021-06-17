@@ -30,13 +30,6 @@ struct eltwise_fwd_pd_t;
 struct eltwise_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::eltwise;
 
-    eltwise_pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
-            const eltwise_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
-        , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc) {}
-
     const eltwise_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
@@ -92,6 +85,13 @@ protected:
 
     memory_desc_t data_md_;
 
+    eltwise_pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
+            const eltwise_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*adesc)
+        , hint_fwd_pd_(hint_fwd_pd)
+        , data_md_(desc_.data_desc) {}
+
 private:
     const memory_desc_t &data_desc() const { return desc_.data_desc; }
 };
@@ -99,10 +99,6 @@ private:
 struct eltwise_fwd_pd_t : public eltwise_pd_t {
     typedef eltwise_fwd_pd_t base_class;
     typedef eltwise_fwd_pd_t hint_class;
-
-    eltwise_fwd_pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
-            const eltwise_fwd_pd_t *hint_fwd_pd)
-        : eltwise_pd_t(adesc, attr, hint_fwd_pd) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
@@ -160,16 +156,16 @@ struct eltwise_fwd_pd_t : public eltwise_pd_t {
     bool is_zero_preserved() const {
         return eltwise_preserves_zero(desc_.alg_kind, desc_.alpha, desc_.beta);
     }
+
+protected:
+    eltwise_fwd_pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
+            const eltwise_fwd_pd_t *hint_fwd_pd)
+        : eltwise_pd_t(adesc, attr, hint_fwd_pd) {}
 };
 
 struct eltwise_bwd_pd_t : public eltwise_pd_t {
     typedef eltwise_bwd_pd_t base_class;
     typedef eltwise_fwd_pd_t hint_class;
-
-    eltwise_bwd_pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
-            const eltwise_fwd_pd_t *hint_fwd_pd)
-        : eltwise_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_data_md_(desc_.diff_data_desc) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (use_dst() ? arg == DNNL_ARG_DST : arg == DNNL_ARG_SRC)
@@ -244,6 +240,11 @@ struct eltwise_bwd_pd_t : public eltwise_pd_t {
 
 protected:
     memory_desc_t diff_data_md_;
+
+    eltwise_bwd_pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
+            const eltwise_fwd_pd_t *hint_fwd_pd)
+        : eltwise_pd_t(adesc, attr, hint_fwd_pd)
+        , diff_data_md_(desc_.diff_data_desc) {}
 
     bool set_default_formats_common() {
         if (diff_data_md_.format_kind != format_kind::any) return true;
