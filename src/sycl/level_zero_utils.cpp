@@ -80,9 +80,9 @@ void *find_ze_symbol(const char *symbol) {
     }
 
 #if defined(__linux__)
-    void *f = dlsym(handle, symbol);
+    void *f = reinterpret_cast<void *>(dlsym(handle, symbol));
 #elif defined(_WIN32)
-    void *f = GetProcAddress(handle, symbol);
+    void *f = reinterpret_cast<void *>(GetProcAddress(handle, symbol));
 #endif
     if (!f) {
         if (get_verbose())
