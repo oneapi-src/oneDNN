@@ -344,7 +344,7 @@ struct cudnn_matmul_impl_t {
             act_desc_ = nullptr;
         }
         if ((reorder_required_ && !bias_dt_mismatch_)
-                || (with_bias_ && bias_dt_mismatch_) && temp_mem_desc_) {
+                || ((with_bias_ && bias_dt_mismatch_) && temp_mem_desc_)) {
             CUDNN_EXECUTE_FUNC_V(cudnnDestroyTensorDescriptor, temp_mem_desc_);
             temp_mem_desc_ = nullptr;
         }
