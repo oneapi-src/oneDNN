@@ -39,8 +39,8 @@ if(OpenCL_VERSION_STRING VERSION_LESS "1.2")
         "OpenCL version ${OpenCL_VERSION_STRING} is not supported, must be 1.2 or greater.")
 endif()
 
-add_definitions_with_host_compiler(-DCL_TARGET_OPENCL_VERSION=120)
+add_definitions(-DCL_TARGET_OPENCL_VERSION=120)
 
 set(DNNL_GPU_RUNTIME_CURRENT ${DNNL_GPU_RUNTIME})
-include_directories_with_host_compiler(${OpenCL_INCLUDE_DIRS})
+include_directories(${OpenCL_INCLUDE_DIRS})
 list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
