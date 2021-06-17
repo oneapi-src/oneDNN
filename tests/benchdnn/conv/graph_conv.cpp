@@ -332,7 +332,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     if (is_bench_mode(CORR)) {
         const auto fp = dnnl_f32;
         const auto src_tag = tag::abx;
-        dnnl_primitive_t c_ref {};
+        dnnl_primitive_t c_ref = nullptr;
 
         // re-scale bias
         dnn_mem_t bia_fp_scaled;
