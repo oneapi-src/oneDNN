@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -277,7 +277,7 @@ struct rtus_driver_t : public jit_generator {
             Label skip_h_step;
             add(reg_cur_iw, stride_w_);
             cmp(reg_cur_iw, iw_);
-            jl(skip_h_step);
+            jl(skip_h_step, T_NEAR);
 
             if (src_to_ws_) {
                 add(reg_cur_src, (src_step_h_ - iw_) * vlen_);
@@ -292,14 +292,14 @@ struct rtus_driver_t : public jit_generator {
 
                 add(reg_cur_src, stride_w_ * vlen_);
                 cmp(reg_cur_src, reg_cur_src_fin);
-                jl(ih_loop);
+                jl(ih_loop, T_NEAR);
             }
             xor_(reg_cur_iw, reg_cur_iw);
             L(skip_h_step);
         }
 
         sub(reg_cur_os, vlen_);
-        jnz(is_loop);
+        jnz(is_loop, T_NEAR);
 
         /* restore dst */
         sub(reg_ws, reg_os);
@@ -395,7 +395,7 @@ struct rtus_driver_t : public jit_generator {
             L(ic_loop);
             {
                 cmp(reg_cur_icb, load_store_size);
-                jl(ic_loop_tail);
+                jl(ic_loop_tail, T_NEAR);
 
                 if (src_to_ws_) {
                     load_reg(reg_v, reg_cur_src, 0, load_store_size);
@@ -411,13 +411,13 @@ struct rtus_driver_t : public jit_generator {
                 add(reg_cur_src, load_store_size);
 
                 sub(reg_cur_icb, load_store_size);
-                jmp(ic_loop);
+                jmp(ic_loop, T_NEAR);
             }
 
             L(ic_loop_tail);
             {
                 cmp(reg_cur_icb, 0);
-                je(ic_loop_finish);
+                je(ic_loop_finish, T_NEAR);
 
                 if (src_to_ws_) {
                     load_reg(reg_v | tail_mask, reg_cur_src, 0,
@@ -460,7 +460,7 @@ struct rtus_driver_t : public jit_generator {
                     mov(reg_cur_icb, reg_icb);
                     L(ic_ih_loop_nhwc);
                     cmp(reg_cur_icb, load_store_size);
-                    jl(ic_tail_ih_loop_nhwc);
+                    jl(ic_tail_ih_loop_nhwc, T_NEAR);
 
                     for (int w = 0; w < stride_w_; ++w)
                         store_reg(reg_cur_src, reg_zero, w * w_step_factor,
@@ -468,11 +468,11 @@ struct rtus_driver_t : public jit_generator {
 
                     add(reg_cur_src, load_store_size);
                     sub(reg_cur_icb, load_store_size);
-                    jnz(ic_ih_loop_nhwc);
+                    jnz(ic_ih_loop_nhwc, T_NEAR);
 
                     L(ic_tail_ih_loop_nhwc);
                     cmp(reg_cur_icb, 0);
-                    jle(ic_finish_ih_loop_nhwc);
+                    jle(ic_finish_ih_loop_nhwc, T_NEAR);
 
                     for (int w = 0; w < stride_w_; ++w)
                         store_reg(reg_cur_src, reg_zero | tail_mask,
@@ -482,14 +482,14 @@ struct rtus_driver_t : public jit_generator {
 
                     add(reg_src, stride_w_ * w_step_factor);
                     cmp(reg_src, reg_cur_src_fin);
-                    jl(ih_loop_nhwc);
+                    jl(ih_loop_nhwc, T_NEAR);
                 }
                 xor_(reg_cur_iw, reg_cur_iw);
                 L(skip_h_step);
             }
 
             sub(reg_os, 1);
-            jnz(is_loop);
+            jnz(is_loop, T_NEAR);
         }
     }
 
