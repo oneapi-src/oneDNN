@@ -100,10 +100,9 @@ protected:
                         {2, 512, 512}, {2, 512, 1024}, {2, 1024, 512}});
 
         // inner product zero dimension shapes with channel tails
-        // TODO: Add mini batch tails once its support is complete
         for (auto sz : {1, 3, 15, 17, 31, 33, 63, 65, 127, 129})
             inner_product_shapes.emplace_back(
-                    inner_product_shape_t {2, sz, sz});
+                    inner_product_shape_t {sz, sz, sz});
 
         // inner product shapes of higher dimensions
         // dims format: either of {mb, ic, oc, kw}, {mb, ic, oc, kw, kh},
@@ -151,7 +150,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(weights_format_test_t, InnerProductWeightsCheck) {
         bool fwd_brgemm_ker_found = false, bwdd_brgemm_ker_found = false,
              bwdw_brgemm_ker_found = false;
         // Currently only brgemm kernel supports same weight tags
-        // for forward and backward_data inner product, therefore
+        // for forward and backward data/weight inner product, therefore
         // skip if the forward impl kernel is not brgemm
         ASSERT_NO_THROW(fwd_brgemm_ker_found = seek_brgemm_impl(fwd_pd));
         if (!fwd_brgemm_ker_found) continue;
