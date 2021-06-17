@@ -160,6 +160,7 @@ static setting_t<unsigned> jit_profiling_flags {DNNL_JIT_PROFILE_LINUX_PERFMAP};
 static setting_t<unsigned> jit_profiling_flags {DNNL_JIT_PROFILE_VTUNE};
 #endif
 unsigned get_jit_profiling_flags() {
+    MAYBE_UNUSED(jit_profiling_flags);
     unsigned flag = 0;
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     if (!jit_profiling_flags.initialized()) {
