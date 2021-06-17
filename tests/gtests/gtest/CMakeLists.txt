@@ -1,5 +1,11 @@
 # Do not modify this file
 
+# XXX: DPCPP issues a warning when WINAPI is used:
+# warning: '__stdcall' calling convention is not supported for this target
+if(WIN32 AND DNNL_WITH_SYCL)
+    append(CMAKE_CXX_FLAGS "-Wno-ignored-attributes")
+endif()
+
 set(TARGET_NAME dnnl_gtest)
 set(MAIN_SRC "src/gtest-all.cc")
 source_group("" FILES ${MAIN_SRC})
