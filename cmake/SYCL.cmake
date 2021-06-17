@@ -55,6 +55,11 @@ if(DPCPP_SUPPORTED)
     endif()
 
     if(DNNL_SYCL_CUDA)
+        # XXX: Suppress warning coming from SYCL headers:
+        #   error: use of function template name with no prior declaration in
+        #   function call with eplicit template arguments is a C++20 extension
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++20-extensions")
+
         # Explicitly linking against OpenCL without finding the right one can
         # end up linking the tests against Nvidia OpenCL. This can be
         # problematic as Intel OpenCL CPU backend will not work. When multiple
@@ -82,6 +87,21 @@ if(DPCPP_SUPPORTED)
             list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
         endif()
     endif()
+
+    # XXX: Suppress warning coming from SYCL headers:
+    #   #pragma message("The Intel extensions have been moved into cl_ext.h.
+    #   Please include cl_ext.h directly.")
+    if(NOT WIN32)
+        if(${CMAKE_VERSION} VERSION_LESS "3.1.0")
+            # Prior to CMake 3.1 the Makefile generators did not escape # correctly
+            # inside make variable assignments used in generated makefiles, causing
+            # them to be treated as comments. This is a workaround.
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-\\#pragma-messages")
+        else()
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-#pragma-messages")
+        endif()
+    endif()
+
     add_definitions_with_host_compiler("-DCL_TARGET_OPENCL_VERSION=300")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
 
