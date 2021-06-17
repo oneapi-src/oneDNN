@@ -51,9 +51,12 @@ enum binary_outputs { kDst };
 ///             satisfy property 2.
 /// \note src0 and src1 in the above description can be swapped
 struct binary : public dnnl::binary, public kernel_base {
+    using super = dnnl::binary;
+
 private:
     primitive_desc pd_;
     attr_t attr_;
+    dnnl::binary prim_;
 
     std::string auto_broadcast_ {"numpy"};
     algorithm alg_kind_;
@@ -69,11 +72,20 @@ private:
     dnnl::memory expected_src1_;
     dnnl::memory expected_dst_;
 
+    dnnl::memory src0_;
+    dnnl::memory src1_;
+    dnnl::memory dst_;
+
     void *expected_dst_buf_ {nullptr};
 
     dnnl::engine p_engine_;
     dnnl::stream p_stream_;
     impl::allocator_t *g_alloc_;
+
+    bool first_iteration_ {true};
+    exec_args binary_args_;
+
+    dnnl::reorder::primitive_desc dst_reorder_pd_;
 
     bool require_broadcast(const dnnl::memory::desc &src0,
             const dnnl::memory::desc &src1, const dnnl::memory::desc &dst) {
@@ -231,6 +243,9 @@ public:
         pd_ = primitive_desc(
                 {alg_kind_, src0, src1, dst_any}, attr_, p_engine_);
 
+        prim_ = super(pd_);
+        first_iteration_ = true;
+
         impl::logical_tensor_t *orgi_dst_lt
                 = const_cast<impl::logical_tensor_t *>(&outputs.at(idx_dst_));
         fill_layout_info(orgi_dst_lt, pd_.dst_desc());
@@ -244,20 +259,30 @@ public:
         UNUSED(op);
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
 
-        memory src0 = make_dnnl_memory(inputs.at(idx_src0_), p_engine_);
-        memory src1 = make_dnnl_memory(inputs.at(idx_src1_), p_engine_);
-        memory dst = make_dnnl_memory(outputs.at(idx_dst_), p_engine_);
+        if (first_iteration_) {
+            src0_ = make_dnnl_memory(inputs.at(idx_src0_), p_engine_);
+            src1_ = make_dnnl_memory(inputs.at(idx_src1_), p_engine_);
+            dst_ = make_dnnl_memory(outputs.at(idx_dst_), p_engine_);
+        }
+
+        src0_.set_data_handle(inputs.at(idx_src0_).get_data_handle());
+        src1_.set_data_handle(inputs.at(idx_src1_).get_data_handle());
+        dst_.set_data_handle(outputs.at(idx_dst_).get_data_handle());
 
         // Deal with src1; If it's:
         // broadcasted: parse its buffer with the reshaped desc
         // not broadcasted:use the origin memory object directly
         if (broadcast_) {
             if (unidirectional_) {
-                expected_src1_ = memory(
-                        pd_.src1_desc(), p_engine_, src1.get_data_handle());
+                if (first_iteration_) {
+                    expected_src1_ = memory(pd_.src1_desc(), p_engine_,
+                            src1_.get_data_handle());
+                }
+                expected_src1_.set_data_handle(src1_.get_data_handle());
             }
         } else {
-            expected_src1_ = src1;
+            if (first_iteration_) expected_src1_ = src1_;
+            expected_src1_.set_data_handle(src1_.get_data_handle());
         }
 
         g_alloc_ = g_stream->get_engine()->get_allocator();
@@ -266,15 +291,18 @@ public:
         // when create the primitive, we use any format for dst, so the
         // optiminal layout may be different from the original. we need
         // to check this and alloc new memory for optiminal dst
-        if (pd_.dst_desc() != dst.get_desc()) {
-            if (!expected_dst_) {
+        if (pd_.dst_desc() != dst_.get_desc()) {
+            if (first_iteration_) {
                 expected_dst_buf_ = allocator::malloc(
                         pd_.dst_desc().get_size(), p_engine_, g_alloc_);
                 expected_dst_
                         = memory(pd_.dst_desc(), p_engine_, expected_dst_buf_);
+                dst_reorder_pd_ = dnnl::reorder::primitive_desc(
+                        p_engine_, pd_.dst_desc(), p_engine_, dst_.get_desc());
             }
         } else {
-            expected_dst_ = dst;
+            if (first_iteration_) expected_dst_ = dst_;
+            expected_dst_.set_data_handle(dst_.get_data_handle());
         }
 
         memory post_src = with_post_sum_
@@ -288,16 +316,20 @@ public:
                     .execute(p_stream_, post_src, expected_dst_);
         }
 
-        exec_args args {{DNNL_ARG_SRC_0, src0},
-                {DNNL_ARG_SRC_1, expected_src1_},
-                {DNNL_ARG_DST, expected_dst_}};
-
-        dnnl::binary(pd_).execute(p_stream_, args);
-
-        if (expected_dst_ != dst) {
-            dnnl::reorder(expected_dst_, dst)
-                    .execute(p_stream_, expected_dst_, dst);
+        if (first_iteration_) {
+            binary_args_ = {{DNNL_ARG_SRC_0, src0_},
+                    {DNNL_ARG_SRC_1, expected_src1_},
+                    {DNNL_ARG_DST, expected_dst_}};
         }
+
+        prim_.execute(p_stream_, binary_args_);
+
+        if (expected_dst_ != dst_) {
+            dnnl::reorder(dst_reorder_pd_)
+                    .execute(p_stream_, expected_dst_, dst_);
+        }
+
+        first_iteration_ = false;
         return impl::status::success;
     }
 };

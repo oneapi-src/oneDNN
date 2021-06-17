@@ -768,6 +768,25 @@ TEST(operator_kernel, broadcast_add) {
     for (size_t i = 0; i < src0.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
+
+    // the second iteration
+    test::vector<float> src0_2nd {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    test::vector<float> src1_2nd {1.0, 1.0, 1.0};
+    test::vector<float> ref_dst_2nd {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+            2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> dst_2nd(src0_2nd.size(), 0.0);
+
+    impl::tensor_t src0_2nd_ts(src0_lt, src0_2nd.data());
+    impl::tensor_t src1_2nd_ts(src1_lt, src1_2nd.data());
+    impl::tensor_t dst_2nd_ts(dst_lt, dst_2nd.data());
+    broadcast_add_kernel->execute(
+            &broadcast_add_op, &strm, {src0_2nd_ts, src1_2nd_ts}, {dst_2nd_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0_2nd.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst_2nd[i], ref_dst_2nd[i]);
+    }
 }
 
 TEST(operator_kernel, add_shape_mismatch_0) {
