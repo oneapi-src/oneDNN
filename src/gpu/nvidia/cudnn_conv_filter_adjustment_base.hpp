@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,7 +37,7 @@ public:
     // for filter in convolution, cuDNN only support nchw and nhwc.
     // the hwio and dhwio is not supported and should be converted
     // to either of the above format.
-    virtual bool supported_filter_format(const memory_desc_t *md) {
+    virtual bool supported_filter_format(const memory_desc_t *md) const {
         const memory_desc_wrapper mem_wrapper(md);
         /// NOTE: the transformation for oidhw to oihwd is disabled until cuDNN
         // fixes the the current bug for oihwd format. the transformation for
