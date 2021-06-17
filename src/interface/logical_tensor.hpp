@@ -101,12 +101,14 @@ struct logical_tensor_wrapper {
 
     // every bit should be same
     bool is_identical(const logical_tensor_wrapper &rhs) const {
-        return is_identical(*(this->lt), *(rhs.lt), /* check_id */ true);
+        return is_identical(*(this->lt), *(rhs.lt));
     }
 
     // layout info may implicit same in backend's perspective
+    // other info should be the same like id, data type
     bool operator==(const logical_tensor_wrapper &rhs) const {
-        return is_equal(*(this->lt), *(rhs.lt), /* check_id */ true);
+        return is_similar(*(this->lt), *(rhs.lt), /* check_id = */ true,
+                /* check_dtype = */ true);
     }
 
     bool operator!=(const logical_tensor_wrapper &rhs) const {
@@ -121,9 +123,10 @@ struct logical_tensor_wrapper {
         return !operator==(rhs);
     }
 
-    // equal, but have different id
+    // equal, but may have different id
     bool is_similar(const logical_tensor_wrapper &rhs) const {
-        return is_equal(*(this->lt), *(rhs.lt), /* check_id */ false);
+        return is_similar(*(this->lt), *(rhs.lt), /* check_id = */ false,
+                /* check_dtype = */ true);
     }
 
     // return the size of data type
@@ -252,16 +255,17 @@ struct logical_tensor_wrapper {
         return std::equal(dims(), dims() + ndims(), rhs.dims());
     }
 
+    // layout info is same while data type maybe not the same
     bool has_same_layout_as(const logical_tensor_wrapper &rhs) const {
-        return is_equal(*this->lt, *rhs.lt, /* check_id= */ true,
-                /*check_dtype=*/false);
+        return is_similar(*(this->lt), *(rhs.lt), /* check_id = */ true,
+                /* check_dtype = */ false);
     }
 
 private:
-    bool is_identical(const logical_tensor_t &lhs, const logical_tensor_t &rhs,
-            bool check_id = true, bool check_dtype = true) const;
+    bool is_identical(
+            const logical_tensor_t &lhs, const logical_tensor_t &rhs) const;
 
-    bool is_equal(const logical_tensor_t &lhs, const logical_tensor_t &rhs,
+    bool is_similar(const logical_tensor_t &lhs, const logical_tensor_t &rhs,
             bool check_id = true, bool check_dtype = true) const;
 };
 

@@ -51,11 +51,11 @@ size_t logical_tensor_wrapper::size() const {
     }
 }
 
-bool logical_tensor_wrapper::is_identical(const logical_tensor_t &lhs,
-        const logical_tensor_t &rhs, bool check_id, bool check_dtype) const {
-    bool equal = check_id ? lhs.id == rhs.id : true;
-    if (check_dtype) equal = equal && (lhs.data_type == rhs.data_type);
-    equal = equal && (lhs.ndims == rhs.ndims)
+// Every bit should be same
+bool logical_tensor_wrapper::is_identical(
+        const logical_tensor_t &lhs, const logical_tensor_t &rhs) const {
+    bool equal = (lhs.id == rhs.id) && (lhs.ndims == rhs.ndims)
+            && (lhs.data_type == rhs.data_type)
             && (lhs.layout_type == rhs.layout_type);
 
     if (!equal) return false;
@@ -78,12 +78,35 @@ bool logical_tensor_wrapper::is_identical(const logical_tensor_t &lhs,
     }
 }
 
-bool logical_tensor_wrapper::is_equal(const logical_tensor_t &lhs,
+// Check if underlying layouts of two logical tensors are the same. Need to
+// involve backend. By default it will check id and data type since `check_id`
+// and `check_dtype` are set to true.
+bool logical_tensor_wrapper::is_similar(const logical_tensor_t &lhs,
         const logical_tensor_t &rhs, bool check_id, bool check_dtype) const {
-    if (is_identical(lhs, rhs, check_id, check_dtype)) return true;
+    bool equal = check_id ? (lhs.id == rhs.id) : true;
+    equal = equal && (check_dtype ? lhs.data_type == rhs.data_type : true);
+    equal = equal && (lhs.ndims == rhs.ndims);
+    if (!equal) return false;
 
-    // need to ask backend
-    if (lhs.layout_type != rhs.layout_type) {
+    if (lhs.layout_type == rhs.layout_type) {
+        if (lhs.ndims == 0 || lhs.ndims == -1) return true;
+
+        // check dims
+        if (!std::equal(std::begin(lhs.dims), std::begin(lhs.dims) + lhs.ndims,
+                    std::begin(rhs.dims)))
+            return false;
+
+        // check layout information
+        if (lhs.layout_type == layout_type::strided) {
+            return std::equal(std::begin(lhs.layout.strides),
+                    std::begin(lhs.layout.strides) + lhs.ndims,
+                    std::begin(rhs.layout.strides));
+        } else if (lhs.layout_type == layout_type::opaque) {
+            return lhs.layout.layout_id == rhs.layout.layout_id;
+        } else {
+            return true;
+        }
+    } else { // need to ask backend
         // two logical_tensors' layout may be implicitly equal, only when
         // both of their layout types are opaque or strided
         bool layout_may_implicit_equal
@@ -104,7 +127,7 @@ bool logical_tensor_wrapper::is_equal(const logical_tensor_t &lhs,
 
         // Before pass a logical tensor to specific backend, we should remove
         // the encoded backend id from the layout id. Because each backend is
-        // invisble about backend id for simplifing the backend integration
+        // invisble about backend id for simplifying the backend integration
         logical_tensor_t new_lt
                 = lhs.layout_type == layout_type::opaque ? lhs : rhs;
         new_lt.layout.layout_id = static_cast<int64_t>(
