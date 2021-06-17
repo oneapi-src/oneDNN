@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -74,7 +74,9 @@ struct cudnn_gemm_inner_product_fwd_impl_t
     bool need_reorder_;
 
     bool ip_using_scratchpad() const override { return (use_acc_dst_ > 0); }
-    virtual bool need_to_transform_filter() const { return need_reorder_; }
+    virtual bool need_to_transform_filter() const override {
+        return need_reorder_;
+    }
 
     virtual status_t init(engine_t *, inner_product_pd_t *pd, bool with_relu,
             bool with_eltwise, bool with_sum, bool need_reorder) override {
@@ -246,7 +248,9 @@ struct cudnn_gemm_inner_product_bwd_data_impl_t
       public cudnn_conv_filter_adjustment_base_t {
     bool need_reorder_;
 
-    virtual bool need_to_transform_filter() const { return need_reorder_; }
+    virtual bool need_to_transform_filter() const override {
+        return need_reorder_;
+    }
 
     virtual status_t init(engine_t *, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
@@ -318,7 +322,9 @@ struct cudnn_gemm_inner_product_bwd_weights_impl_t
     bool wie_tr_;
     bool need_reorder_;
 
-    virtual bool need_to_transform_filter() const { return need_reorder_; }
+    virtual bool need_to_transform_filter() const override {
+        return need_reorder_;
+    }
 
     virtual ~cudnn_gemm_inner_product_bwd_weights_impl_t() {
         if (reduceTensorDesc_) {

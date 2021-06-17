@@ -73,7 +73,8 @@ public:
     }
     virtual status_t configure_alg_kind(engine_t *, convolution_pd_t *pd) = 0;
 
-    virtual bool supported_filter_format(const memory_desc_t *md) const {
+    virtual bool supported_filter_format(
+            const memory_desc_t *md) const override {
         const memory_desc_wrapper mem_wrapper(md);
 
         return (mem_wrapper.matches_one_of_tag(format_tag::ab, format_tag::abc,
@@ -500,7 +501,7 @@ public:
             execute_reorder(handle, post_op_scratch, y, false);
         }
     }
-    status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) {
+    status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
         stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
@@ -792,7 +793,7 @@ public:
         return status::success;
     }
     virtual status_t configure_alg_kind(
-            engine_t *engine, convolution_pd_t *pd) {
+            engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
         cuda_sycl_scoped_context_handler_t sc(sycl_engine);
         stream_t *service_stream;

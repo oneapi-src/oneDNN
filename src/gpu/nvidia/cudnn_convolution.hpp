@@ -166,7 +166,7 @@ struct cudnn_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    virtual status_t init(engine_t *engine) {
+    virtual status_t init(engine_t *engine) override {
         if (pd()->use_temp_dst_) { init_temp_dst(engine); }
         return status::success;
     }
