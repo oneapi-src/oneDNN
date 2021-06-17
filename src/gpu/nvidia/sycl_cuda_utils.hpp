@@ -374,7 +374,7 @@ static status_t cublas_to_dnnl_status(cublasStatus_t cu_status) {
 
 static status_t cuda_to_dnnl_status(CUresult cu_result) {
     switch (cu_result) {
-        case CUDNN_STATUS_SUCCESS: return status::success;
+        case CUDA_SUCCESS: return status::success;
         default: return status::runtime_error;
     }
 }
