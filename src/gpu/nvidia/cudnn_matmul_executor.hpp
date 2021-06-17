@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,6 +36,7 @@ struct cudnn_matmul_exec_base_t {
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
             float output_scale, std::size_t scratchpad_size)
             = 0;
+    virtual ~cudnn_matmul_exec_base_t() = default;
 
 protected:
     template <typename read_acc_t, typename write_acc_t, typename scratch_acc_t,
@@ -83,6 +84,7 @@ struct cudnn_matmul_scratch_runtime_args_base_exec_t
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
             float output_scale, std::size_t scratchpad_size)
             = 0;
+    virtual ~cudnn_matmul_scratch_runtime_args_base_exec_t() = default;
 
 protected:
     void init_scratch_buffer(std::size_t scratch_size) {

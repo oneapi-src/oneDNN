@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,6 +37,7 @@ struct bnorm_exec_base_t {
     virtual status_t execute(const exec_ctx_t &ctx, engine_t *engine,
             const std::shared_ptr<cudnn_batch_normalization_impl_base_t>
                     bnorm_impl) const = 0;
+    virtual ~bnorm_exec_base_t() = default;
 
 protected:
     template <typename T, cl::sycl::access::mode md, typename sc_t>
