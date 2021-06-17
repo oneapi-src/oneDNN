@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -216,6 +216,7 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                     return bias_match && acc_match && bias_may_use_type == f16;
                 case s8:
                     return src_wei_match && acc_match && weights_type == s8;
+                default: return false;
             }
             return false;
         }

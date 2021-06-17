@@ -100,6 +100,7 @@ struct cudnn_binary_t : public primitive_t {
                 case s8:
                     return inputs_same
                             && (input_type == f32 || input_type == s8);
+                default: return false;
             }
             return false;
         }

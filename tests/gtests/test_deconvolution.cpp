@@ -170,6 +170,7 @@ protected:
             return wei
                     != (is_grouped ? memory::format_tag::abcde
                                    : memory::format_tag::abcd);
+        return false;
     }
 
     void Test() {

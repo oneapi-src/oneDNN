@@ -492,6 +492,7 @@ public:
                 case dnnl_eltwise:
                     execute_eltwise(handle, post_op_scratch, output);
                     break;
+                default: assert(!"unsupported post op");
             }
         }
 
