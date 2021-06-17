@@ -56,9 +56,6 @@ if(DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
         append(DPCPP_HOST_COMPILER_OPTS "${CMAKE_CXX_FLAGS_DEBUG}")
     endif()
 
-    # SYCL defines OpenCL verson 3.0 automatically, but for host compiler
-    # we have to do it manually
-    append(DPCPP_HOST_COMPILER_OPTS "-DCL_TARGET_OPENCL_VERSION=300")
     # SYCL headers contain some comments that trigger warning with GNU compiler
     append(DPCPP_HOST_COMPILER_OPTS "-Wno-comment")
     # SYCL deprecated some API, suppress warnings

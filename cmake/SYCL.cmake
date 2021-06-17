@@ -82,6 +82,7 @@ if(DPCPP_SUPPORTED)
             list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
         endif()
     endif()
+    add_definitions_with_host_compiler("-DCL_TARGET_OPENCL_VERSION=300")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
 
     if(LevelZero_FOUND)
