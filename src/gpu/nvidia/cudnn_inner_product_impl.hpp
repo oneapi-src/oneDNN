@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,8 +51,6 @@ inline void get_4d_tensor_descriptor(
             mem_desc.padded_dims[2] = 1;
         }
     };
-    auto &stride = mem_desc.format_desc.blocking.strides;
-    auto &dim = mem_desc.dims;
     // Forcing strides < 4 to be 4
     if (memory_desc_matches_tag(mem_desc, nwc)) {
         set_dim();

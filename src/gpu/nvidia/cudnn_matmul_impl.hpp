@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -329,7 +329,7 @@ struct cudnn_matmul_impl_t {
         }
         if (reorder_required_) {
             // Reorder from scratchpad to destination if required
-            float reorder_alpha = 1, reorder_beta = 0;
+            float reorder_alpha = 1;
             CUDNN_EXECUTE_FUNC(cudnnTransformTensor, cudnn_handle,
                     &reorder_alpha, temp_mem_desc_, scratch, &post_op_sum_,
                     tensor_descs_[io::dst], c);
@@ -384,7 +384,7 @@ private:
     bool with_scratchpad_ = false, has_runtime_params_ = false;
     dnnl_data_type_t scratchpad_type_;
     cudaDataType_t src_type_, weights_type_, dst_type_;
-    cudaDataType_t acc_type_ = cudaDataType_t::CUDA_R_32F, bias_type_;
+    cudaDataType_t acc_type_ = cudaDataType_t::CUDA_R_32F;
     cublasGemmAlgo_t gemm_algo_
             = cublasGemmAlgo_t::CUBLAS_GEMM_DEFAULT_TENSOR_OP;
     int batch_count_;

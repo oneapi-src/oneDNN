@@ -68,9 +68,9 @@ status_t sycl_cuda_stream_t::init() {
     } else {
         auto queue_streamId = get_underlying_stream();
         auto sycl_dev = queue().get_device();
-        bool args_ok = IMPLICATION(
-                engine()->kind() == engine_kind::gpu, sycl_dev.is_gpu());
-        if (!sycl_dev.is_gpu()) return status::invalid_arguments;
+        bool args_ok
+                = engine()->kind() == engine_kind::gpu && sycl_dev.is_gpu();
+        if (!args_ok) return status::invalid_arguments;
 
         auto queue_context = get_underlying_context();
         CUdevice queue_device
