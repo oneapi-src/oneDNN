@@ -662,8 +662,14 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
 
     jbgp.N = jbgp.oc_block;
     jbgp.N_tail = jbgp.oc % jbgp.oc_block;
+
+    constexpr int amx_bf16_granularity = 2;
+    // sanity check, must hold for transpose routines to work fine
+    assert(IMPLICATION(is_amx_bf16, jbgp.os_block % amx_bf16_granularity == 0));
+    const bool do_rnd_os = is_amx_bf16 && jbgp.os % amx_bf16_granularity != 0;
+
     jbgp.K = jbgp.os_block;
-    jbgp.K_tail = jbgp.os % jbgp.os_block;
+    jbgp.K_tail = (jbgp.os % jbgp.os_block) + (do_rnd_os ? 1 : 0);
 
     jbgp.nb_os_blocking = 1;
     int os_blocking_max = (is_amx_bf16)
