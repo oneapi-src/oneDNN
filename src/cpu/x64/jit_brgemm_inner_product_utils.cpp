@@ -92,7 +92,13 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
         min_os_block = is_amx_bf16 ? 16 : 6;
     } else if (jbgp.prop_kind == backward_weights) {
         constexpr int amx_bf16_row = 64;
-        return (is_amx_bf16) ? amx_bf16_row : 16;
+        constexpr int amx_bf16_half_row = amx_bf16_row / 2;
+        // ensure that os_tail <= amx_bf16_half_row
+        const bool use_large_os_block = (jbgp.os >= amx_bf16_row)
+                && (jbgp.os % amx_bf16_row) <= amx_bf16_half_row;
+        return is_amx_bf16
+                ? (use_large_os_block ? amx_bf16_row : amx_bf16_half_row)
+                : 16;
     } else
         assert(!"unsupported case");
 
