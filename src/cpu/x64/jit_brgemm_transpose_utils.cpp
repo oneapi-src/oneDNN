@@ -541,8 +541,13 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
             = {0, 16, 2, 18, 8, 24, 10, 26, 4, 20, 6, 22, 12, 28, 14, 30, 1, 17,
                     3, 19, 9, 25, 11, 27, 5, 21, 7, 23, 13, 29, 15, 31};
 
+    constexpr int amx_bf16_granularity = 2;
+    const bool last_row_padded = conf_->isa == avx512_core_bf16_amx_bf16
+            && conf_->os % amx_bf16_granularity != 0;
+    const int eff_K_tail = conf_->K_tail - (last_row_padded ? 1 : 0);
+
     const int os_block = conf_->os_block;
-    const int last_os_block_tail = conf_->K_tail % transpose_size;
+    const int last_os_block_tail = eff_K_tail % transpose_size;
     const int ic_tail = conf_->M_tail % transpose_size;
     src_stride = conf_->ic * typesize;
     tr_src_stride = conf_->LDA * typesize;
@@ -924,7 +929,13 @@ void jit_trans_to_vnni_t::generate() {
 
     if (matrix_to_transform_ == matrix_B) {
         int row_block = conf_->os_block;
-        last_row_block_tail = conf_->K_tail % transpose_size;
+
+        constexpr int amx_bf16_granularity = 2;
+        const bool last_row_padded = conf_->isa == avx512_core_bf16_amx_bf16
+                && conf_->os % amx_bf16_granularity != 0;
+        const int eff_K_tail = conf_->K_tail - (last_row_padded ? 1 : 0);
+
+        last_row_block_tail = eff_K_tail % transpose_size;
         col_tail = conf_->oc % transpose_size;
         src_stride = conf_->oc * typesize_data;
         tr_src_stride = conf_->LDB * typesize_data;
