@@ -485,14 +485,15 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
                 || jbgp.oc > (is_bf16 ? 4096 : 1024))) {
         const int min_chunck_sz = (is_avx512_bf16) ? 32 : 16;
         const int num_min_chunk_sz = div_up(jbgp.nb_oc, min_chunck_sz);
-        float ratio = 0.5f * num_min_chunk_sz * jbgp.nb_os
+        float reduce_work = 0.5f * num_min_chunk_sz * jbgp.nb_os
                 + (float)num_min_chunk_sz / jbgp.nb_ic + 0.5f;
 
         // optimization for transformer_lt on CPX/SKX
         const int max_nthr_oc_b
                 = (!is_amx_bf16 && jbgp.oc > 32000) ? jbgp.nthr / 2 : 4;
-        jbgp.nthr_oc_b = saturate(
-                1, nstl::min(max_nthr_oc_b, num_min_chunk_sz), int(ratio));
+        jbgp.nthr_oc_b = saturate(1, nstl::min(max_nthr_oc_b, num_min_chunk_sz),
+                int(reduce_work));
+        jbgp.nthr_oc_b = nstl::min(jbgp.nthr_oc_b, jbgp.nthr);
         if (jbgp.nthr_oc_b > 1) {
             jbgp.nb_oc_blocking = div_up(jbgp.nb_oc, jbgp.nthr_oc_b);
             jbgp.nb_oc_blocking
