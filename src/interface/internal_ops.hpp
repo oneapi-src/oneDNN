@@ -128,7 +128,13 @@ namespace op_kind {
     X(x8s8f32_matmul_bias_gelu, X8S8F32_MatMul_bias_gelu) \
     X(multiply_add, Multiply_add) \
     X(maximum_add, Maximum_add) \
-    X(minimum_add, Minimum_add)
+    X(minimum_add, Minimum_add) \
+    X(x8s8f32_conv, X8S8F32_Conv) \
+    X(x8s8f32_conv_bias, X8S8F32_Conv_bias) \
+    X(x8s8f32_conv_relu, X8S8F32_Conv_relu) \
+    X(x8s8f32_conv_bias_relu, X8S8F32_Conv_bias_relu) \
+    X(x8s8f32_conv_add_relu, X8S8F32_Conv_add_relu) \
+    X(x8s8f32_conv_bias_add_relu, X8S8F32_Conv_bias_add_relu)
 
 enum {
     kAny = 0x1234,

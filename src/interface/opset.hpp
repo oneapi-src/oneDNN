@@ -180,6 +180,12 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_MatMul_bias_gelu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Maximum_add, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Minimum_add, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Multiply_add, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Conv, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Conv_bias, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Conv_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Conv_bias_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Conv_add_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Conv_bias_add_relu, 1);
 
 class opset_v1 {
 public:
@@ -403,6 +409,17 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Maximum_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Minimum_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Multiply_add, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Conv, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Conv_bias, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Conv_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Conv_bias_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Conv_add_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Conv_bias_add_relu, 1)>());
     }
 };
 
