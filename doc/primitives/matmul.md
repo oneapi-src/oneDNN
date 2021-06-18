@@ -13,7 +13,7 @@ dev_guide_conventions):
 
 \f[
     \dst(m, n) =
-        \sum_{k=0}^{K} \left(
+        \sum_{k=0}^{K - 1} \left(
             \src(m, k) \cdot \weights(k, n)
         \right) +
         \bias(m, n)
@@ -23,12 +23,10 @@ The MatMul primitive also supports batching multiple independent matrix
 multiplication operations, in which case the tensors can be up to 12D:
 
 \f[
-    \dst(bs_0, bs_1, bs_2, \ldots, m, n) =
-        \sum_{k=0}^{K} \left(
-            \src(bs_0, bs_1, bs_2, \ldots, m, k) \cdot
-            \weights(bs_0, bs_1, bs_2, \ldots, k, n)
-        \right) +
-        \bias(bs_0, bs_1, bs_2, \ldots, m, n)
+    \dst(bs_0, bs_1, \ldots, m, n) =
+        \sum_{k=0}^{K - 1} \left(
+            \src(bs_0, bs_1, \ldots, m, k) \cdot
+            \weights(bs_0, bs_1, \ldots, k, n) \right) + \bias(bs_0, bs_1, \ldots, m, n)
 \f]
 
 MatMul also supports implicit broadcast semantics i.e., \src can be broadcasted
@@ -104,8 +102,15 @@ The MatMul primitive expects the following tensors:
 
 | Dims | Source                                                        | Weights                                                           | Destination                                                   | Bias                                                     |
 | :--  | :--                                                           | :--                                                               | :--                                                           | :--                                                      |
-| 2D   | \f$M \times K\f$                                              | \f$K \times N\f$                                                  | \f$M \times N\f$                                              | None or \f$(M \text{ or } 1) \times (N  \text{ or } 1)\f$|
-| ND   | \f$(\prod_{i=0}^{ND - 2} src{\_}dims[i]) \times M \times K\f$ | \f$(\prod_{i=0}^{ND - 2} weights{\_}dims[i]) \times K \times N\f$ | \f$(\prod_{i=0}^{ND - 2} dst{\_}dims[i]) \times M \times N\f$ | None or \f$\prod_{i=0}^{ND} (dst{\_}dims[i] { or } 1)\f$ |
+| 2D   | M \f$\times\f$ K                                              | K \f$\times\f$ N                                                  | M \f$\times\f$ N                                              | None or \f$(M \text{ or } 1) \times (N  \text{ or } 1)\f$|
+| ND   | S \f$\times\f$ M \f$\times\f$ K | W \f$\times\f$ K \f$\times\f$ N | D \f$\times\f$ M \f$\times\f$ N | None or B |
+
+where for the sake of notational convenience, we have
+
+\f[
+S = \prod_{i = 0}^{ND - 3} \mathrm{src\_dims}[i], \; W = \prod_{i = 0}^{ND - 3} \mathrm{weights\_dims}[i] \\
+D = \prod_{i = 0}^{ND - 3} \mathrm{\dst\_dims}[i], \; B = \prod_{i = 0}^{ND - 1} \left( \mathrm{\dst\_dims}[i] \mbox{ or } 1 \right)
+\f]
 
 The MatMul primitive is generally optimized for the case in which memory objects
 use plain memory formats. Additionally, the \src and \weights must have at least
