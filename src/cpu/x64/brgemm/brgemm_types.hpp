@@ -29,9 +29,9 @@ namespace x64 {
 typedef enum {
     // A and B arrays of pointers
     brgemm_addr = 1,
-    // Based address and fixed offset between matrices
+    // Base address and array of offsets from base address.
     brgemm_offs = 2,
-    // Base addresses and arrays of strides between matrices.
+    // Base address and fixed stride between matrices.
     brgemm_strd = 3,
 } brgemm_batch_kind_t;
 
