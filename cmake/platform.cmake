@@ -99,6 +99,8 @@ if(MSVC)
     append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "/WX")
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
         append(CMAKE_CCXX_FLAGS "/MP")
+        # increase number of sections in obj file
+        append(CMAKE_CCXX_FLAGS "/bigobj")
         # int -> bool
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4800")
         # unknown pragma
@@ -112,6 +114,8 @@ if(MSVC)
     endif()
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         append(CMAKE_CCXX_FLAGS "/MP")
+        # increase number of sections in obj file
+        append(CMAKE_CCXX_FLAGS "/bigobj")
         set(DEF_ARCH_OPT_FLAGS "-QxSSE4.1")
         # disable: loop was not vectorized with "simd"
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:13379")
