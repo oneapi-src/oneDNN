@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -75,6 +75,7 @@ private:
             : (isa == avx || isa == avx2) ? yword : zword;
 
     Xmm vmm_mask = Xmm(0);
+    Xmm xmm_tmp_1 = Xmm(0);
     Ymm ymm_tmp_1 = Ymm(0);
     Vmm vmm_tmp_1 = Vmm(0);
 

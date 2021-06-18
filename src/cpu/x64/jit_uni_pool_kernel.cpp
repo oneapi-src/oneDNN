@@ -15,9 +15,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/x64/jit_uni_pool_kernel.hpp"
+#include <bitset>
+
 #include "cpu/cpu_pooling_pd.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/jit_uni_pool_kernel.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -382,28 +384,66 @@ inline void jit_uni_pool_kernel<isa>::store(const int idx,
         const reg64_t &reg_ptr, const int offset,
         const bool is_c_tail_proccessing) {
     if (jpp.is_bf16) {
-        if (is_c_tail_proccessing && !jpp.is_c_padded) {
-            vmovdqu16(ptr[reg_ptr + offset] | k_c_tail_mask, Ymm(idx));
-        } else {
+        if (is_c_tail_proccessing) {
+            if (jpp.is_c_padded) {
+                vmovdqu16(Ymm(idx) | k_c_tail_mask | T_z, Ymm(idx));
+                vmovups(yword[reg_ptr + offset], Ymm(idx));
+            } else
+                vmovdqu16(ptr[reg_ptr + offset] | k_c_tail_mask, Ymm(idx));
+        } else
             vmovups(yword[reg_ptr + offset], Ymm(idx));
-        }
     } else {
-        if (is_c_tail_proccessing && !jpp.is_c_padded) {
-            if (isa == sse41) {
-                for (int i = 0; i < jpp.c_tail % (jpp.c_block / 2); i++) {
-                    pextrd(ptr[reg_ptr + offset + i * jpp.dt_size], Xmm(idx),
-                            i);
-                }
-            } else if (isa == avx || isa == avx2) {
-                vmaskmovps(ptr[reg_ptr + offset], vmm_c_tail_mask, Vmm(idx));
+        if (is_c_tail_proccessing) {
+            if (!jpp.is_c_padded) {
+                if (isa == sse41)
+                    for (int i = 0; i < jpp.c_tail % (jpp.c_block / 2); i++)
+                        pextrd(ptr[reg_ptr + offset + i * jpp.dt_size],
+                                Xmm(idx), i);
+                else if (isa == avx || isa == avx2)
+                    vmaskmovps(
+                            ptr[reg_ptr + offset], vmm_c_tail_mask, Vmm(idx));
+                else
+                    vmovups(ptr[reg_ptr + offset] | k_c_tail_mask, Zmm(idx));
             } else {
-                vmovups(ptr[reg_ptr + offset] | k_c_tail_mask, Zmm(idx));
+                if (jpp.with_postops) {
+                    if (isa == sse41) {
+                        static constexpr auto xmm_half = 4;
+                        const auto tail_size
+                                = (jpp.c_without_padding > jpp.c_block)
+                                ? jpp.c_without_padding % (jpp.c - jpp.c_block)
+                                : jpp.c_without_padding;
+                        const auto tail_size_real = (tail_size >= xmm_half)
+                                ? tail_size - xmm_half
+                                : tail_size;
+                        uni_vxorps(xmm_tmp_1, xmm_tmp_1, xmm_tmp_1);
+                        if (tail_size <= xmm_half && sse_high_half) {
+                            // just zero out upper half padding and don't write anything else
+                            uni_vmovups(vmmword[reg_ptr + offset], xmm_tmp_1);
+                            return;
+                        }
+
+                        if ((tail_size < xmm_half && !sse_high_half)
+                                || (tail_size > xmm_half && sse_high_half)) {
+                            std::bitset<8> tail_mask((1 << tail_size_real) - 1);
+                            tail_mask.flip();
+                            uni_vblendps(Vmm(idx), Vmm(idx), xmm_tmp_1,
+                                    tail_mask.to_ulong());
+                        }
+
+                    } else if (isa == avx || isa == avx2) {
+                        uni_vxorps(ymm_tmp_1, ymm_tmp_1, ymm_tmp_1);
+                        uni_vblendvps(
+                                Vmm(idx), ymm_tmp_1, Vmm(idx), vmm_c_tail_mask);
+                    } else
+                        uni_vmovups(Vmm(idx) | k_c_tail_mask | T_z, Vmm(idx));
+                }
+                uni_vmovups(vmmword[reg_ptr + offset], Vmm(idx));
             }
-        } else {
+        } else
             uni_vmovups(vmmword[reg_ptr + offset], Vmm(idx));
-        }
     }
 }
+
 template <cpu_isa_t isa>
 bool jit_uni_pool_kernel<isa>::post_ops_ok(jit_pool_conf_t &jpp,
         const primitive_attr_t &attr, const memory_desc_wrapper &dst_d) {
