@@ -123,15 +123,6 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
             arm_compute::Scheduler::get().set_num_threads_with_affinity(
                     dnnl_get_max_threads(), linear);
 
-            // TODO: remove dependence on scratchpad memory
-            // Using user provided memory for the biases currently segfaults
-            if (acp_.with_bias) {
-                auto scratchpad = scratchpad_registry().registrar();
-                const size_t bia_mem_sz_ = acp_.bia_info.tensor_shape()[0];
-                scratchpad.template book<bia_data_t>(
-                        memory_tracking::names::key_none, bia_mem_sz_);
-            }
-
             return status::success;
         }
 
