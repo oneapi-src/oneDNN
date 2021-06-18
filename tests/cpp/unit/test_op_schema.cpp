@@ -557,6 +557,35 @@ TEST(op_schema_test, conv_bias_infer_shape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
+TEST(op_schema_test, conv_bias_infer_shape_auto_pad) {
+    const op_schema *a_op_schema
+            = op_schema_registry::get_op_schema(op_kind::conv_bias);
+    EXPECT_TRUE(nullptr != a_op_schema);
+    op_t a_op {op_kind::conv_bias, op_t::kind2str(op_kind::conv_bias)};
+    std::vector<int64_t> strides = {1, 1};
+    std::vector<int64_t> pads_begin = {}; // empty pads_begin
+    std::vector<int64_t> pads_end = {}; // empty pads_end
+    std::vector<int64_t> dilations = {1, 1};
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    int64_t groups = 1;
+
+    set_conv_common_attr(a_op, strides, pads_begin, pads_end, dilations,
+            "SAME_UPPER", data_format, filter_format, groups);
+
+    auto lt_data = logical_tensor_init(0, {1, 1, 5, 5}, data_type::f32);
+    auto lt_weight = logical_tensor_init(1, {1, 1, 3, 3}, data_type::f32);
+    auto lt_bias = logical_tensor_init(2, {1}, data_type::f32);
+    auto lt_o = logical_tensor_init(3, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight, &lt_bias};
+    std::vector<logical_tensor_t *> lt_out {&lt_o};
+    a_op_schema->shape_infer(&a_op, lt_in, lt_out);
+
+    const auto infered_out_shape = logical_tensor_wrapper(lt_o).vdims();
+    const std::vector<int64_t> expected_out_shape {1, 1, 5, 5};
+    ASSERT_EQ(infered_out_shape, expected_out_shape);
+}
+
 TEST(op_schema_test, conv3d_bias_infer_shape) {
     const op_schema *a_op_schema
             = op_schema_registry::get_op_schema(op_kind::conv_bias);

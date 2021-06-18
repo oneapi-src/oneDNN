@@ -223,15 +223,17 @@ void infer_auto_pad(const std::vector<int64_t> &weight_spatial_dims,
         new_pads_begin.assign(rank, 0);
         new_pads_end.assign(rank, 0);
     } else if (auto_pad == "SAME_UPPER" || auto_pad == "SAME_LOWER") {
+        new_pads_begin.clear();
+        new_pads_end.clear();
         for (size_t i = 0; i < weight_spatial_dims.size(); ++i) {
             int64_t padding_needed
                     = (weight_spatial_dims[i] - strides[i]) * dilations[i];
             int64_t padding_lhs = padding_needed / 2;
             int64_t padding_rhs = padding_needed - padding_lhs;
-            new_pads_begin[i]
-                    = (auto_pad == "SAME_UPPER" ? padding_lhs : padding_rhs);
-            new_pads_end[i]
-                    = (auto_pad == "SAME_UPPER" ? padding_rhs : padding_lhs);
+            new_pads_begin.emplace_back(
+                    (auto_pad == "SAME_UPPER" ? padding_lhs : padding_rhs));
+            new_pads_end.emplace_back(
+                    (auto_pad == "SAME_UPPER" ? padding_rhs : padding_lhs));
         }
     }
 }
