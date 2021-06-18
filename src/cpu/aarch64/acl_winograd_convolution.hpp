@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Arm Ltd. and affiliates
+* Copyright 2020-2021 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -109,15 +109,6 @@ struct acl_wino_convolution_fwd_t : public primitive_t {
                     = [](int i, int max_cores) { return i % max_cores; };
             arm_compute::Scheduler::get().set_num_threads_with_affinity(
                     dnnl_get_max_threads(), linear);
-
-            // TODO: remove dependence on scratchpad memory
-            // Using user provided memory for the biases currently segfaults
-            if (acp_.with_bias) {
-                auto scratchpad = scratchpad_registry().registrar();
-                const size_t bia_mem_sz_ = acp_.bia_info.tensor_shape()[0];
-                scratchpad.template book<data_t>(
-                        memory_tracking::names::key_none, bia_mem_sz_);
-            }
 
             return status::success;
         }

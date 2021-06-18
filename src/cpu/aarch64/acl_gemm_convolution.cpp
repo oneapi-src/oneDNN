@@ -56,15 +56,9 @@ status_t acl_gemm_convolution_fwd_t<src_type, wei_type, dst_type,
     acl_obj.wei_tensor.allocator()->import_memory(
             const_cast<wei_data_t *>(wei_base));
     acl_obj.dst_tensor.allocator()->import_memory(dst_base);
-
-    // Retrieve extra bias memory from the scratchpad and copy from user memory
     if (with_bias) {
-        const auto scratchpad = ctx.get_scratchpad_grantor();
-        auto *bia_memory = scratchpad.template get<bia_data_t>(
-                memory_tracking::names::key_none);
-        size_t oc = acl_obj.bia_tensor.info()->tensor_shape()[0];
-        std::memcpy(bia_memory, bia_base, oc * sizeof(bia_data_t));
-        acl_obj.bia_tensor.allocator()->import_memory(bia_memory);
+        acl_obj.bia_tensor.allocator()->import_memory(
+                const_cast<bia_data_t *>(bia_base));
     }
 
     acl_obj.conv.run();
