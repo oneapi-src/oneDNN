@@ -69,7 +69,8 @@ fill_status_t bnorm_graph_prb_t::handle_main_op_() {
     tensor_descs_.emplace(VAR, spec_.bnorm_dt, spec_.s_dims, lt::strided);
     tensor_descs_.emplace(DST, spec_.bnorm_dt, spec_.dims, lt::strided);
 
-    op bnorm_op(1, dnnl::graph::op::kind::BatchNormInference,
+    const size_t new_op_id = ops_.size();
+    op bnorm_op(new_op_id, dnnl::graph::op::kind::BatchNormInference,
             {tensor_descs_[SRC], tensor_descs_[SCALE], tensor_descs_[SHIFT],
                     tensor_descs_[MEAN], tensor_descs_[VAR]},
             {tensor_descs_[DST]}, "bnorm");
@@ -83,9 +84,23 @@ fill_status_t bnorm_graph_prb_t::handle_main_op_() {
     return fill_status::DONE;
 }
 
+fill_status_t bnorm_graph_prb_t::handle_elt_(
+        const attr_t::post_ops_t::entry_t &po_entry) {
+    return po_handler.bnorm.eltw_handler(*this, po_entry);
+}
+
 void check_known_skipped_case(const ::bnorm::prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
     if (res->state == SKIPPED) return;
+
+    for (const auto &po : prb->attr.post_ops.entry) {
+        if (po.kind == attr_t::post_ops_t::RELU) {
+            continue;
+        } else {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
 }
 
 int doit(const ::bnorm::prb_t *prb, res_t *res) {

@@ -383,6 +383,10 @@ public:
         struct {
             binary_po_handler_t bin_handler;
         } eltwise;
+
+        struct {
+            eltwise_po_handler_t eltw_handler;
+        } bnorm;
     };
 };
 
