@@ -33,6 +33,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <limits>
 
 #if defined(__GNUC__) || defined(__APPLE__)
 #ifndef XBYAK_USE_MMAP_ALLOCATOR
