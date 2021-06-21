@@ -113,6 +113,13 @@ struct rnn_brgemm_t<prop_kind::forward> : public rnn_brgemm_base_t {
     brgemm_pallete_t pallete_buff_nproj_tail_;
     brgemm_pallete_t pallete_buff_kproj_tail_;
     brgemm_pallete_t pallete_buff_nkproj_tail_;
+
+private:
+    status_t brgemm_rnn_init_tiles(brgemm_t *desc, brgemm_pallete_t pallete);
+    status_t brgemm_rnn_init_tiles_proj(
+            brgemm_t *desc, brgemm_pallete_t pallete);
+    status_t brgemm_rnn_init_tiles(
+            brgemm_t *desc, dim_t size, brgemm_pallete_t pallete);
 };
 
 struct rnn_diff_src_brgemm_t {

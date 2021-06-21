@@ -442,6 +442,28 @@ status_t init_brgemm_kernel(x64::brgemm_t *desc, x64::cpu_isa_t isa,
     return status::success;
 };
 
+status_t rnn_brgemm_t<prop_kind::forward>::brgemm_rnn_init_tiles(
+        brgemm_t *desc_array, dim_t size, brgemm_pallete_t pallete) {
+
+    for (dim_t it = 0; it < size; ++it) {
+        const auto &desc = desc_array[it];
+        const bool desc_empty
+                = utils::everyone_is(0, desc.LDA, desc.LDB, desc.LDC);
+        if (!desc_empty) return brgemm_init_tiles(desc, pallete);
+    }
+
+    return status::unimplemented;
+}
+
+status_t rnn_brgemm_t<prop_kind::forward>::brgemm_rnn_init_tiles(
+        brgemm_t *desc_array, brgemm_pallete_t pallete) {
+    return brgemm_rnn_init_tiles(desc_array, num_base_kernels_, pallete);
+}
+status_t rnn_brgemm_t<prop_kind::forward>::brgemm_rnn_init_tiles_proj(
+        brgemm_t *desc_array, brgemm_pallete_t pallete) {
+    return brgemm_rnn_init_tiles(desc_array, num_proj_kernels_, pallete);
+}
+
 status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
         const cpu::rnn_utils::rnn_conf_t &rnn, data_type_t src_type,
         data_type_t weights_type) {
@@ -537,38 +559,39 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
         }
     }
     if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
-        CHECK(brgemm_init_tiles(desc_layer_b0_[0], pallete_buff_layer_));
-        CHECK(brgemm_init_tiles(desc_iter_b0_[0], pallete_buff_iter_));
+        CHECK(brgemm_rnn_init_tiles(desc_layer_b0_, pallete_buff_layer_));
+        CHECK(brgemm_rnn_init_tiles(desc_iter_b0_, pallete_buff_iter_));
 
         if (rnn.n_tail) {
-            CHECK(brgemm_init_tiles(
-                    desc_layer_N_tail_b0_[0], pallete_buff_layer_n_tail_));
-            CHECK(brgemm_init_tiles(
-                    desc_iter_N_tail_b0_[0], pallete_buff_iter_n_tail_));
+            CHECK(brgemm_rnn_init_tiles(
+                    desc_layer_N_tail_b0_, pallete_buff_layer_n_tail_));
+            CHECK(brgemm_rnn_init_tiles(
+                    desc_iter_N_tail_b0_, pallete_buff_iter_n_tail_));
         }
         if (rnn.k1_tail)
-            CHECK(brgemm_init_tiles(
-                    desc_layer_K1_tail_b1_[0], pallete_buff_k1_tail_));
+            CHECK(brgemm_rnn_init_tiles(
+                    desc_layer_K1_tail_b1_, pallete_buff_k1_tail_));
         if (rnn.k2_tail)
-            CHECK(brgemm_init_tiles(
-                    desc_iter_K2_tail_b1_[0], pallete_buff_k2_tail_));
+            CHECK(brgemm_rnn_init_tiles(
+                    desc_iter_K2_tail_b1_, pallete_buff_k2_tail_));
         if (rnn.k1_tail && rnn.n_tail)
-            CHECK(brgemm_init_tiles(
-                    desc_layer_NK1_tail_b1_[0], pallete_buff_nk1_tail_));
+            CHECK(brgemm_rnn_init_tiles(
+                    desc_layer_NK1_tail_b1_, pallete_buff_nk1_tail_));
         if (rnn.k2_tail && rnn.n_tail)
-            CHECK(brgemm_init_tiles(
-                    desc_iter_NK2_tail_b1_[0], pallete_buff_nk2_tail_));
+            CHECK(brgemm_rnn_init_tiles(
+                    desc_iter_NK2_tail_b1_, pallete_buff_nk2_tail_));
         if (rnn.is_lstm_projection) {
-            CHECK(brgemm_init_tiles(desc_proj_b0_[0], pallete_buff_proj_));
+            CHECK(brgemm_rnn_init_tiles_proj(
+                    desc_proj_b0_, pallete_buff_proj_));
             if (rnn.nproj_tail)
-                CHECK(brgemm_init_tiles(
-                        desc_proj_N_tail_b0_[0], pallete_buff_nproj_tail_));
+                CHECK(brgemm_rnn_init_tiles_proj(
+                        desc_proj_N_tail_b0_, pallete_buff_nproj_tail_));
             if (rnn.kproj_tail)
-                CHECK(brgemm_init_tiles(
-                        desc_proj_K_tail_b1_[0], pallete_buff_kproj_tail_));
+                CHECK(brgemm_rnn_init_tiles_proj(
+                        desc_proj_K_tail_b1_, pallete_buff_kproj_tail_));
             if (rnn.kproj_tail && rnn.nproj_tail)
-                CHECK(brgemm_init_tiles(
-                        desc_proj_NK_tail_b1_[0], pallete_buff_nkproj_tail_));
+                CHECK(brgemm_rnn_init_tiles_proj(
+                        desc_proj_NK_tail_b1_, pallete_buff_nkproj_tail_));
         }
     }
 
