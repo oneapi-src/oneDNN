@@ -732,7 +732,14 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
             break;
         }
 
+    jbgp.use_buffer_a = true;
+    const bool is_oc_big_2_pow = jbgp.oc >= 512 && math::is_pow2(jbgp.oc);
+    const bool is_huge_oc = jbgp.oc >= 4 * 1024;
+    jbgp.use_buffer_b = jbgp.dst_dt == bf16 || is_oc_big_2_pow || is_huge_oc;
+
     int nb_os_blocking, nthr, nthr_mb, nthr_oc, nthr_ic;
+    // Caution: thread_balance requires `use_buffer_a` and `use_buffer_b`
+    // fields of jbgp to be properly set
     thread_balance(jbgp, nb_os_blocking, nthr, nthr_mb, nthr_oc, nthr_ic);
 
     jbgp.nb_os_blocking = nb_os_blocking;
@@ -748,10 +755,6 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
             = div_up(rnd_up(jbgp.gemm_batch_size * sc_size, 4096), sc_size);
 
     jbgp.use_buffer = IMPLICATION(!has_weights_buffer, jbgp.nthr_mb > 1);
-    jbgp.use_buffer_a = true;
-    const bool is_oc_big_2_pow = jbgp.oc >= 512 && math::is_pow2(jbgp.oc);
-    const bool is_huge_oc = jbgp.oc >= 4 * 1024;
-    jbgp.use_buffer_b = jbgp.dst_dt == bf16 || is_oc_big_2_pow || is_huge_oc;
 
     jbgp.LDA = jbgp.K;
     jbgp.LDB = (jbgp.use_buffer_b) ? jbgp.N * jbgp.nb_oc_blocking
