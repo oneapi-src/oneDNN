@@ -350,6 +350,8 @@ void cpu_get_started_tutorial(engine::kind engine_kind) {
     //[Check results]
     std::cout << "Success!\n";
 
+    set_compiled_partition_cache_capacity(0);
+
     std::cout << "============Run Example Successfully===========\n";
     /// @page cpu_get_started_cpp Getting started on CPU
     // clang-format on
