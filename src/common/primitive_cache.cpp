@@ -30,6 +30,10 @@
 #include <algorithm>
 #include <unordered_map>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace dnnl {
 namespace impl {
 
@@ -253,6 +257,66 @@ void lru_primitive_cache_t::evict(size_t n) {
         MAYBE_UNUSED(res);
         assert(res);
     }
+}
+
+lru_primitive_cache_t::~lru_primitive_cache_t() {
+    if (cache_mapper().empty()) return;
+
+// The library unloading issue affects only Windows and
+// DPCPP and OpenCL runtimes when DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE is ON.
+#ifndef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    return;
+#endif
+
+#if defined(_WIN32) \
+        && (defined(DNNL_WITH_SYCL) || DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL)
+    // The ntdll.dll library is located in system32 therefore setting additional
+    // environment is not required.
+    HMODULE handle = LoadLibraryA("ntdll.dll");
+    assert(handle);
+
+    // RtlDllShutdownInProgress returns TRUE if the whole process terminates and
+    // FALSE if DLL is being unloaded dynamically or if it’s called from an
+    // executable.
+    auto f = reinterpret_cast<BOOLEAN (*)(void)>(
+            GetProcAddress(handle, "RtlDllShutdownInProgress"));
+    assert(f);
+    bool is_process_termination_in_progress = f();
+
+    auto ret = FreeLibrary(handle);
+    assert(ret);
+
+    if (is_process_termination_in_progress) {
+        // The whole process is being terminated hence destroying content of
+        // the primitive cache cannot be done safely. However we can check
+        // all entries and remove those that are not affected e.g. native CPU.
+        for (auto it = cache_mapper().begin(); it != cache_mapper().end();) {
+            const auto &engine_id = it->first.engine_id_;
+            if (engine_id.kind() == engine_kind::cpu
+                    && is_native_runtime(engine_id.runtime_kind())) {
+                it = cache_mapper().erase(it);
+            } else {
+                ++it;
+            }
+        }
+        cache_mapper_.release();
+    } else {
+        // Three scenarios possible:
+        // 1. oneDNN is being dynamically unloaded
+        // 2. Another dynamic library that contains statically linked oneDNN is
+        //    dynamically unloaded
+        // 3. oneDNN is statically linked in an executable which is done and now
+        //    the process terminates
+        // In all these scenarios content of the primitive cache can be safely
+        // destroyed.
+        cache_mapper_.reset();
+    }
+#else
+    // Always destroy the content of the primitive cache for non-Windows OSes,
+    // and non-sycl and non-ocl runtimes because there is no a problem with
+    // library unloading order in such cases.
+    cache_mapper_.reset();
+#endif
 }
 
 } // namespace impl

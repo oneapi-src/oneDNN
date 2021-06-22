@@ -72,7 +72,7 @@ struct lru_primitive_cache_t : public primitive_cache_t {
                 std::unordered_map<key_t, timed_entry_t>>();
     }
 
-    ~lru_primitive_cache_t() override = default;
+    ~lru_primitive_cache_t() override;
 
     status_t set_capacity(int capacity) override;
     int get_capacity() const override;

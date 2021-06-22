@@ -38,6 +38,8 @@ struct engine_id_t {
 
     bool operator==(const engine_id_t &other) const;
     size_t hash() const;
+    engine_kind_t kind() const;
+    runtime_kind_t runtime_kind() const;
 
     operator bool() const { return bool(impl_); }
 
@@ -69,6 +71,9 @@ struct engine_id_impl_t {
         return hash_combine(seed, hash_resource());
     }
 
+    engine_kind_t kind() const { return kind_; }
+    runtime_kind_t runtime_kind() const { return runtime_kind_; }
+
 private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(engine_id_impl_t);
 
@@ -93,6 +98,16 @@ inline size_t engine_id_t::hash() const {
     // because the hash will always be the same.
     if (!impl_) return 0;
     return impl_->hash();
+}
+
+inline engine_kind_t engine_id_t::kind() const {
+    if (!impl_) return engine_kind::any_engine;
+    return impl_->kind();
+}
+
+inline runtime_kind_t engine_id_t::runtime_kind() const {
+    if (!impl_) return runtime_kind::none;
+    return impl_->runtime_kind();
 }
 
 } // namespace impl
