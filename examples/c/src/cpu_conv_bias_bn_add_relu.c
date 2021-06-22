@@ -239,63 +239,83 @@ int main(int argc, char **argv) {
                 batch_norm1_mean_desc, batch_norm1_variance_desc,
                 batch_norm1_dst_desc, add0_dst_desc, relu0_dst_desc;
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&conv0_src_desc,
-                CONV0_SRC_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef));
+                CONV0_SRC_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&conv0_weight_desc,
-                CONV0_WEI_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef));
+                CONV0_WEI_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&conv0_dst_desc,
-                CONV0_DST_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef));
-        DNNL_GRAPH_CHECK(
-                dnnl_graph_logical_tensor_init(&conv0_bias_desc, CONV0_BIAS_ID,
-                        dnnl_graph_f32, 0, dnnl_graph_layout_type_undef));
+                CONV0_DST_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
+        DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&conv0_bias_desc,
+                CONV0_BIAS_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&bias_add0_dst_desc,
                 BIAS_ADD0_DST_ID, dnnl_graph_f32, 0,
-                dnnl_graph_layout_type_undef));
+                dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&batch_norm0_scale_desc,
                 BATCH_NORM0_SCALE_ID, dnnl_graph_f32, 0,
-                dnnl_graph_layout_type_undef));
+                dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&batch_norm0_shift_desc,
                 BATCH_NORM0_SHIFT_ID, dnnl_graph_f32, 0,
-                dnnl_graph_layout_type_undef));
+                dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&batch_norm0_mean_desc,
                 BATCH_NORM0_MEAN_ID, dnnl_graph_f32, 0,
-                dnnl_graph_layout_type_undef));
+                dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(
                 &batch_norm0_variance_desc, BATCH_NORM0_VARIANCE_ID,
-                dnnl_graph_f32, 0, dnnl_graph_layout_type_undef));
+                dnnl_graph_f32, 0, dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&batch_norm0_dst_desc,
                 BATCH_NORM0_DST_ID, dnnl_graph_f32, 0,
-                dnnl_graph_layout_type_undef));
+                dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&conv1_src_desc,
-                CONV1_SRC_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef));
+                CONV1_SRC_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&conv1_weight_desc,
-                CONV1_WEI_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef));
+                CONV1_WEI_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&conv1_dst_desc,
-                CONV1_DST_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef));
-        DNNL_GRAPH_CHECK(
-                dnnl_graph_logical_tensor_init(&conv1_bias_desc, CONV1_BIAS_ID,
-                        dnnl_graph_f32, 0, dnnl_graph_layout_type_undef));
+                CONV1_DST_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
+        DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&conv1_bias_desc,
+                CONV1_BIAS_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&bias_add1_dst_desc,
                 BIAS_ADD1_DST_ID, dnnl_graph_f32, 0,
-                dnnl_graph_layout_type_undef));
+                dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&batch_norm1_scale_desc,
                 BATCH_NORM1_SCALE_ID, dnnl_graph_f32, 0,
-                dnnl_graph_layout_type_undef));
+                dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&batch_norm1_shift_desc,
                 BATCH_NORM1_SHIFT_ID, dnnl_graph_f32, 0,
-                dnnl_graph_layout_type_undef));
+                dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&batch_norm1_mean_desc,
                 BATCH_NORM1_MEAN_ID, dnnl_graph_f32, 0,
-                dnnl_graph_layout_type_undef));
+                dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(
                 &batch_norm1_variance_desc, BATCH_NORM1_VARIANCE_ID,
-                dnnl_graph_f32, 0, dnnl_graph_layout_type_undef));
+                dnnl_graph_f32, 0, dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&batch_norm1_dst_desc,
                 BATCH_NORM1_DST_ID, dnnl_graph_f32, 0,
-                dnnl_graph_layout_type_undef));
+                dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&add0_dst_desc,
-                ADD0_DST_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef));
+                ADD0_DST_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
         DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init(&relu0_dst_desc,
-                RELU0_DST_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef));
+                RELU0_DST_ID, dnnl_graph_f32, 0, dnnl_graph_layout_type_undef,
+                dnnl_graph_tensor_property_undef));
 
         DNNL_GRAPH_CHECK(dnnl_graph_op_add_input(conv0, &conv0_src_desc));
         DNNL_GRAPH_CHECK(dnnl_graph_op_add_input(conv0, &conv0_weight_desc));
@@ -405,30 +425,36 @@ int main(int argc, char **argv) {
             batch_norm1_dst_desc;
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(&conv1_src_desc,
             CONV1_SRC_ID, dnnl_graph_f32, 4, conv1_src_dims,
-            dnnl_graph_layout_type_strided));
+            dnnl_graph_layout_type_strided, dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
             &conv1_weight_desc, CONV1_WEI_ID, dnnl_graph_f32, 4,
-            conv1_weight_dims, dnnl_graph_layout_type_strided));
+            conv1_weight_dims, dnnl_graph_layout_type_strided,
+            dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(&conv1_bias_desc,
             CONV1_BIAS_ID, dnnl_graph_f32, 1, conv1_bias_dims,
-            dnnl_graph_layout_type_strided));
+            dnnl_graph_layout_type_strided, dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
             &batch_norm1_scale_desc, BATCH_NORM1_SCALE_ID, dnnl_graph_f32, 1,
-            batch_norm1_scale_dims, dnnl_graph_layout_type_strided));
+            batch_norm1_scale_dims, dnnl_graph_layout_type_strided,
+            dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
             &batch_norm1_shift_desc, BATCH_NORM1_SHIFT_ID, dnnl_graph_f32, 1,
-            batch_norm1_shift_dims, dnnl_graph_layout_type_strided));
+            batch_norm1_shift_dims, dnnl_graph_layout_type_strided,
+            dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
             &batch_norm1_mean_desc, BATCH_NORM1_MEAN_ID, dnnl_graph_f32, 1,
-            batch_norm1_mean_dims, dnnl_graph_layout_type_strided));
+            batch_norm1_mean_dims, dnnl_graph_layout_type_strided,
+            dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
             &batch_norm1_variance_desc, BATCH_NORM1_VARIANCE_ID, dnnl_graph_f32,
-            1, batch_norm1_variance_dims, dnnl_graph_layout_type_strided));
+            1, batch_norm1_variance_dims, dnnl_graph_layout_type_strided,
+            dnnl_graph_tensor_property_undef));
     /// \note we set the output layout id to dnnl_graph_any to tell dnnl graph backend that the logical tensor's
     /// layout is allowed to be reset to optimal layout by itself in compilation
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
             &batch_norm1_dst_desc, BATCH_NORM1_DST_ID, dnnl_graph_f32, 4,
-            batch_norm1_dst_dims, dnnl_graph_layout_type_any));
+            batch_norm1_dst_dims, dnnl_graph_layout_type_any,
+            dnnl_graph_tensor_property_undef));
 
     /// The inputs have to contain all logical tensors required by the partition, while
     /// the outputs have to contain all logical tensors generated by the partition
@@ -467,31 +493,36 @@ int main(int argc, char **argv) {
             relu0_dst_desc;
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(&conv0_src_desc,
             CONV0_SRC_ID, dnnl_graph_f32, 4, conv0_src_dims,
-            dnnl_graph_layout_type_strided));
+            dnnl_graph_layout_type_strided, dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
             &conv0_weight_desc, CONV0_WEI_ID, dnnl_graph_f32, 4,
-            conv0_weight_dims, dnnl_graph_layout_type_strided));
+            conv0_weight_dims, dnnl_graph_layout_type_strided,
+            dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(&conv0_bias_desc,
             CONV0_BIAS_ID, dnnl_graph_f32, 1, conv0_bias_dims,
-            dnnl_graph_layout_type_strided));
+            dnnl_graph_layout_type_strided, dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
             &batch_norm0_scale_desc, BATCH_NORM0_SCALE_ID, dnnl_graph_f32, 1,
-            batch_norm0_scale_dims, dnnl_graph_layout_type_strided));
+            batch_norm0_scale_dims, dnnl_graph_layout_type_strided,
+            dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
             &batch_norm0_shift_desc, BATCH_NORM0_SHIFT_ID, dnnl_graph_f32, 1,
-            batch_norm0_shift_dims, dnnl_graph_layout_type_strided));
+            batch_norm0_shift_dims, dnnl_graph_layout_type_strided,
+            dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
             &batch_norm0_mean_desc, BATCH_NORM0_MEAN_ID, dnnl_graph_f32, 1,
-            batch_norm0_mean_dims, dnnl_graph_layout_type_strided));
+            batch_norm0_mean_dims, dnnl_graph_layout_type_strided,
+            dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
             &batch_norm0_variance_desc, BATCH_NORM0_VARIANCE_ID, dnnl_graph_f32,
-            1, batch_norm0_variance_dims, dnnl_graph_layout_type_strided));
+            1, batch_norm0_variance_dims, dnnl_graph_layout_type_strided,
+            dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(&add0_src1_desc,
             ADD0_SRC1_ID, dnnl_graph_f32, 4, batch_norm1_dst_dims,
-            dnnl_graph_layout_type_strided));
+            dnnl_graph_layout_type_strided, dnnl_graph_tensor_property_undef));
     DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(&relu0_dst_desc,
             RELU0_DST_ID, dnnl_graph_f32, 4, relu0_dst_dims,
-            dnnl_graph_layout_type_strided));
+            dnnl_graph_layout_type_strided, dnnl_graph_tensor_property_undef));
 
     /// Reset the input data's layout id, since it's the output of cpartition[1] and its
     /// layout id has been set to optimal by cpartition[1], so cpartition[0] can directly

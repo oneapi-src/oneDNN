@@ -58,6 +58,7 @@ struct logical_tensor_wrapper {
     data_type_t data_type() const { return lt->data_type; }
     layout_type_t layout_type() const { return lt->layout_type; }
     int64_t layout_id() const { return lt->layout.layout_id; }
+    property_type_t property_type() const { return lt->property; }
 
     const dims_t &dims() const { return lt->dims; }
     const dims_t &strides() const { return lt->layout.strides; };
@@ -76,6 +77,7 @@ struct logical_tensor_wrapper {
     bool is_any() const { return lt->layout_type == layout_type::any; }
     bool is_strided() const { return lt->layout_type == layout_type::strided; }
     bool is_opaque() const { return lt->layout_type == layout_type::opaque; }
+    bool is_constant() const { return lt->property == property_type::constant; }
 
     bool is_zero() const { return ndims() == 0; }
 

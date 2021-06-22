@@ -54,7 +54,8 @@ bool logical_tensor_wrapper::is_identical(
         const logical_tensor_t &lhs, const logical_tensor_t &rhs) const {
     bool equal = (lhs.id == rhs.id) && (lhs.ndims == rhs.ndims)
             && (lhs.data_type == rhs.data_type)
-            && (lhs.layout_type == rhs.layout_type);
+            && (lhs.layout_type == rhs.layout_type)
+            && (lhs.property == rhs.property);
 
     if (!equal) return false;
     if (lhs.ndims == 0 || lhs.ndims == -1) return true;
@@ -84,6 +85,7 @@ bool logical_tensor_wrapper::is_similar(const logical_tensor_t &lhs,
     bool equal = check_id ? (lhs.id == rhs.id) : true;
     equal = equal && (check_dtype ? lhs.data_type == rhs.data_type : true);
     equal = equal && (lhs.ndims == rhs.ndims);
+    equal = equal && (lhs.property == rhs.property);
     if (!equal) return false;
 
     if (lhs.layout_type == rhs.layout_type) {
@@ -141,7 +143,7 @@ bool logical_tensor_wrapper::is_similar(const logical_tensor_t &lhs,
 
 status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init(
         logical_tensor_t *logical_tensor, size_t tid, data_type_t dtype,
-        int32_t ndims, layout_type_t ltype) {
+        int32_t ndims, layout_type_t ltype, property_type_t ptype) {
     if (logical_tensor == nullptr || ndims > DNNL_GRAPH_MAX_NDIMS) {
         return status::invalid_argument;
     }
@@ -151,6 +153,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init(
     val.ndims = ndims;
     val.data_type = dtype;
     val.layout_type = ltype;
+    val.property = ptype;
 
     // dims and strides are undefined.
     *logical_tensor = val;
@@ -160,7 +163,8 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init(
 
 status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_dims(
         logical_tensor_t *logical_tensor, size_t tid, data_type_t dtype,
-        int32_t ndims, const dims_t dims, layout_type_t ltype) {
+        int32_t ndims, const dims_t dims, layout_type_t ltype,
+        property_type_t ptype) {
     if (!logical_tensor || ndims < 0) return status::invalid_argument;
 
     auto val = logical_tensor_t();
@@ -168,6 +172,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_dims(
     val.ndims = ndims;
     val.data_type = dtype;
     val.layout_type = ltype;
+    val.property = ptype;
 
     if (ndims == 0) {
         val.dims[0] = 0;
@@ -194,7 +199,8 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_dims(
 
 status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_strides(
         logical_tensor_t *logical_tensor, size_t tid, data_type_t dtype,
-        int32_t ndims, const dims_t dims, const dims_t strides) {
+        int32_t ndims, const dims_t dims, const dims_t strides,
+        property_type_t ptype) {
     if (!logical_tensor || ndims < 0) return status::invalid_argument;
 
     auto val = logical_tensor_t();
@@ -202,6 +208,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_strides(
     val.ndims = ndims;
     val.data_type = dtype;
     val.layout_type = layout_type::strided;
+    val.property = ptype;
 
     if (ndims == 0) {
         val.dims[0] = 0;

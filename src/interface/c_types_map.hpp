@@ -154,6 +154,13 @@ const layout_type_t strided = dnnl_graph_layout_type_strided;
 const layout_type_t opaque = dnnl_graph_layout_type_opaque;
 } // namespace layout_type
 
+using property_type_t = dnnl_graph_tensor_property_t;
+namespace property_type {
+const property_type_t undef = dnnl_graph_tensor_property_undef;
+const property_type_t variable = dnnl_graph_tensor_property_variable;
+const property_type_t constant = dnnl_graph_tensor_property_constant;
+} // namespace property_type
+
 using allocator_lifetime_t = dnnl_graph_allocator_lifetime_t;
 namespace allocator_lifetime {
 const allocator_lifetime_t persistent = dnnl_graph_allocator_persistent;

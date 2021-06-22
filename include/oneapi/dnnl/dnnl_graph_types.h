@@ -244,6 +244,16 @@ typedef enum {
     dnnl_graph_layout_type_opaque = 3,
 } dnnl_graph_layout_type_t;
 
+/// Logical tensor property
+typedef enum {
+    /// undefined tensor property
+    dnnl_graph_tensor_property_undef = 0,
+    /// variable means the tensor can be changed among iterations
+    dnnl_graph_tensor_property_variable = 1,
+    /// constant means the tensor will keep unchanged among iterations
+    dnnl_graph_tensor_property_constant = 2,
+} dnnl_graph_tensor_property_t;
+
 /// @brief logical tensor definition
 typedef struct {
     /// Unique id of each logical tensor. Provided by framework.
@@ -257,6 +267,9 @@ typedef struct {
 
     /// Data type of the tensor elements.
     dnnl_graph_data_type_t data_type;
+
+    /// Tensor property: undef, variable, or constant.
+    dnnl_graph_tensor_property_t property;
 
     /// Layout type of the tensor: any, strided, or opaque.
     dnnl_graph_layout_type_t layout_type;

@@ -189,3 +189,17 @@ TEST(api_logical_tensor, compare_layout_and_dtype) {
             layout_type::strided};
     ASSERT_EQ(lt6.has_same_layout(lt7), false);
 }
+
+TEST(api_logical_tensor, test_property) {
+    using namespace dnnl::graph;
+    using data_type = logical_tensor::data_type;
+    using layout_type = logical_tensor::layout_type;
+    using property_type = logical_tensor::property_type;
+
+    logical_tensor lt0 {0, data_type::f32, {1, 2, 3}, layout_type::strided};
+    ASSERT_EQ(lt0.get_property_type(), property_type::undef);
+
+    logical_tensor lt1 {1, data_type::f32, {1, 2, 3}, layout_type::strided,
+            property_type::constant};
+    ASSERT_EQ(lt1.get_property_type(), property_type::constant);
+}

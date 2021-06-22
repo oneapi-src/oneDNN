@@ -215,7 +215,8 @@ int main(int argc, char **argv) {
             dnnl_graph_logical_tensor_t l_lt;
             DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(&l_lt,
                     e_t->id_, (dnnl_graph_data_type_t)e_t->dtype_, e_t->ndims_,
-                    e_t->dims_, dnnl_graph_layout_type_any));
+                    e_t->dims_, dnnl_graph_layout_type_any,
+                    dnnl_graph_tensor_property_undef));
             DNNL_GRAPH_CHECK(
                     dnnl_graph_op_add_input(l_op, &l_lt)); // value copy
         }
@@ -225,7 +226,8 @@ int main(int argc, char **argv) {
             dnnl_graph_logical_tensor_t l_lt;
             DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(&l_lt,
                     e_t->id_, (dnnl_graph_data_type_t)e_t->dtype_, e_t->ndims_,
-                    e_t->dims_, dnnl_graph_layout_type_any));
+                    e_t->dims_, dnnl_graph_layout_type_any,
+                    dnnl_graph_tensor_property_undef));
             DNNL_GRAPH_CHECK(dnnl_graph_op_add_output(l_op, &l_lt));
         }
 
@@ -376,7 +378,8 @@ int main(int argc, char **argv) {
                 DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
                         l_lts_in + j, e_t->id_,
                         (dnnl_graph_data_type_t)e_t->dtype_, e_t->ndims_,
-                        e_t->dims_, dnnl_graph_layout_type_strided));
+                        e_t->dims_, dnnl_graph_layout_type_strided,
+                        dnnl_graph_tensor_property_undef));
 
             } else {
                 // we need to query logical tensor id from the producer compiled partition
@@ -399,10 +402,10 @@ int main(int argc, char **argv) {
             } else {
                 layout_type = dnnl_graph_layout_type_any;
             }
-            DNNL_GRAPH_CHECK(
-                    dnnl_graph_logical_tensor_init_with_dims(l_lts_out + j,
-                            e_t->id_, (dnnl_graph_data_type_t)e_t->dtype_,
-                            e_t->ndims_, e_t->dims_, layout_type));
+            DNNL_GRAPH_CHECK(dnnl_graph_logical_tensor_init_with_dims(
+                    l_lts_out + j, e_t->id_,
+                    (dnnl_graph_data_type_t)e_t->dtype_, e_t->ndims_,
+                    e_t->dims_, layout_type, dnnl_graph_tensor_property_undef));
         }
 
         // compile the partition

@@ -31,7 +31,8 @@ private:
             dnnl_graph_data_type_t data_type, dnnl_graph_layout_type_t ltype,
             uint64_t tid) {
         return dnnl_graph_logical_tensor_init_with_dims(tensor, tid, data_type,
-                (int32_t)dims.size(), dims.data(), ltype);
+                (int32_t)dims.size(), dims.data(), ltype,
+                dnnl_graph_tensor_property_undef);
     }
 
 public:

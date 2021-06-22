@@ -58,25 +58,27 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_allocator_destroy(
 /// @addtogroup dnnl_graph_api_logical_tensor
 /// @{
 
-/// Initializes a logical tensor with id, data type, ndims, and layout type.
+/// Initializes a logical tensor with id, data type, ndims, layout type, and
+/// property.
 ///
 /// @param created_logical_tensor Output logical tensor.
 /// @param tid The unique id of output logical tensor.
 /// @param dtype Elements data type.
 /// @param ndims Number of dimensions, -1 means unknown.
 /// @param ltype Layout type of target memory.
+/// @param ptype Tensor property type: undef, variable, or constant
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init(
         dnnl_graph_logical_tensor_t *created_logical_tensor, size_t tid,
         dnnl_graph_data_type_t dtype, int32_t ndims,
-        dnnl_graph_layout_type_t ltype);
+        dnnl_graph_layout_type_t ltype, dnnl_graph_tensor_property_t ptype);
 
-/// Initializes a logical tensor with basic information and dims.
+/// Initializes a logical tensor with basic information, dims, and property.
 ///
 /// @note
 ///     If dims contains all valid values and ltype is dnnl_graph_strided. The
-///     strides field in dnnl_graph_logical_tensor_t wil be inferred in a row
+///     strides field in dnnl_graph_logical_tensor_t will be inferred in a row
 ///     major and contiguous way. Otherwise, Accessing the strides field will
 ///     be undefined behavior.
 ///
@@ -88,14 +90,16 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init(
 /// @param ndims Number of dimensions, -1 means unknown.
 /// @param dims Array of dimensions.
 /// @param ltype Layout type of target memory.
+/// @param ptype Tensor property type: undef, variable, or constant
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_dims(
         dnnl_graph_logical_tensor_t *created_logical_tensor, size_t tid,
         dnnl_graph_data_type_t dtype, int32_t ndims,
-        const dnnl_graph_dims_t dims, dnnl_graph_layout_type_t ltype);
+        const dnnl_graph_dims_t dims, dnnl_graph_layout_type_t ltype,
+        dnnl_graph_tensor_property_t ptype);
 
-/// Initializes a logical tensor with basic information, dims, and strides.
+/// Initializes a logical tensor with full information.
 ///
 /// @note
 ///     Once strides are explicitly provided through API, the layout_type
@@ -108,12 +112,14 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_dims(
 /// @param ndims Number of dimensions, -1 means unknown.
 /// @param dims Array of dimensions.
 /// @param strides Array of strides
+/// @param ptype Tensor property type: undef, variable, or constant
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_strides(
         dnnl_graph_logical_tensor_t *created_logical_tensor, size_t tid,
         dnnl_graph_data_type_t dtype, int32_t ndims,
-        const dnnl_graph_dims_t dims, const dnnl_graph_dims_t strides);
+        const dnnl_graph_dims_t dims, const dnnl_graph_dims_t strides,
+        dnnl_graph_tensor_property_t ptype);
 
 /// Returns the memory size described by the logical tensor
 ///

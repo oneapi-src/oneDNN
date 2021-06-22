@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,13 +68,16 @@ TEST(c_api_test, add_op) {
 
     dnnl_graph_logical_tensor_t op0_src_desc, op0_weight_desc, op0_dst_desc;
     ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&op0_src_desc, 0,
-                           dnnl_graph_f32, 4, dnnl_graph_layout_type_strided),
+                           dnnl_graph_f32, 4, dnnl_graph_layout_type_strided,
+                           dnnl_graph_tensor_property_undef),
             dnnl_graph_result_success, ADD_OP_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&op0_weight_desc, 1,
-                           dnnl_graph_f32, 4, dnnl_graph_layout_type_strided),
+                           dnnl_graph_f32, 4, dnnl_graph_layout_type_strided,
+                           dnnl_graph_tensor_property_undef),
             dnnl_graph_result_success, ADD_OP_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&op0_dst_desc, 2,
-                           dnnl_graph_f32, 0, dnnl_graph_layout_type_strided),
+                           dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
+                           dnnl_graph_tensor_property_undef),
             dnnl_graph_result_success, ADD_OP_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_add_input(op0, &op0_src_desc),
             dnnl_graph_result_success, ADD_OP_DESTROY);
@@ -88,10 +91,12 @@ TEST(c_api_test, add_op) {
 
     dnnl_graph_logical_tensor_t op1_src_desc, op1_dst_desc;
     ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&op1_src_desc, 0,
-                           dnnl_graph_f32, 4, dnnl_graph_layout_type_any),
+                           dnnl_graph_f32, 4, dnnl_graph_layout_type_any,
+                           dnnl_graph_tensor_property_undef),
             dnnl_graph_result_success, ADD_OP_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&op1_dst_desc, 1,
-                           dnnl_graph_f32, 4, dnnl_graph_layout_type_any),
+                           dnnl_graph_f32, 4, dnnl_graph_layout_type_any,
+                           dnnl_graph_tensor_property_undef),
             dnnl_graph_result_success, ADD_OP_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_add_input(op1, &op1_src_desc),
             dnnl_graph_result_success, ADD_OP_DESTROY);

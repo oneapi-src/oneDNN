@@ -47,6 +47,7 @@ static inline dnnl::graph::impl::logical_tensor_t logical_tensor_init(size_t id,
     val.data_type = dtype;
     val.layout_type = ltype;
     val.ndims = -1;
+    val.property = dnnl::graph::impl::property_type::undef;
 
     return val;
 }
@@ -61,6 +62,7 @@ static inline dnnl::graph::impl::logical_tensor_t logical_tensor_init(size_t id,
     val.id = id;
     val.data_type = dtype;
     val.ndims = static_cast<int>(dims.size());
+    val.property = dnnl::graph::impl::property_type::undef;
 
     // dims
     for (size_t d = 0; d < dims.size(); ++d) {
@@ -96,6 +98,8 @@ static inline dnnl::graph::impl::logical_tensor_t logical_tensor_init(size_t id,
     }
 
     val.layout_type = dnnl::graph::impl::layout_type::strided;
+    val.property = dnnl::graph::impl::property_type::undef;
+
     return val;
 }
 

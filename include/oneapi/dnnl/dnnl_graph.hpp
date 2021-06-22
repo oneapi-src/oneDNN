@@ -329,6 +329,16 @@ public:
         opaque = dnnl_graph_layout_type_opaque,
     };
 
+    /// Tensor property
+    enum class property_type {
+        /// undefined tensor property
+        undef = dnnl_graph_tensor_property_undef,
+        /// variable means the tensor will be changed during iterations
+        variable = dnnl_graph_tensor_property_variable,
+        /// constant means the tensor will keep unchanged during iterations
+        constant = dnnl_graph_tensor_property_constant,
+    };
+
     /// default constructor
     /// construct an empty object
     logical_tensor() = default;
@@ -349,17 +359,18 @@ public:
     /// @param dtype Data type
     /// @param ndims Number of dimension, -1 means it's unknown, 0 means scalar
     /// @param ltype Layout type
-    logical_tensor(
-            size_t tid, data_type dtype, int32_t ndims, layout_type ltype) {
+    /// @param ptype Property type
+    logical_tensor(size_t tid, data_type dtype, int32_t ndims,
+            layout_type ltype, property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
         error::check_succeed(
                 dnnl_graph_logical_tensor_init(&val, tid, convert_to_c(dtype),
-                        ndims, convert_to_c(ltype)),
-                "could not create logical_tensor");
+                        ndims, convert_to_c(ltype), convert_to_c(ptype)),
+                "could not create logical_tensor with property");
         data = val;
     }
 
-    /// Delegated construtor
+    /// Delegated constructor
     ///
     /// @param tid Tensor id
     /// @param dtype Data type
@@ -375,21 +386,24 @@ public:
     /// @param adims Tensor dimensions, -1 means a particular axis of dims is
     ///        unknown, or the axis can be deduced by its size and other axis.
     /// @param ltype Layout type
+    /// @param ptype Tensor property type
     logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
-            layout_type ltype) {
+            layout_type ltype, property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
         // if dimension size equals to 0, it's a scalar
         if (adims.size() == 0)
             error::check_succeed(
                     dnnl_graph_logical_tensor_init(&val, tid,
-                            convert_to_c(dtype), 0, convert_to_c(ltype)),
-                    "could not create logical_tensor");
+                            convert_to_c(dtype), 0, convert_to_c(ltype),
+                            convert_to_c(ptype)),
+                    "could not create logical_tensor with property");
         else
-            error::check_succeed(dnnl_graph_logical_tensor_init_with_dims(&val,
-                                         tid, convert_to_c(dtype),
-                                         static_cast<int32_t>(adims.size()),
-                                         adims.data(), convert_to_c(ltype)),
-                    "could not create logical_tensor with dims");
+            error::check_succeed(
+                    dnnl_graph_logical_tensor_init_with_dims(&val, tid,
+                            convert_to_c(dtype),
+                            static_cast<int32_t>(adims.size()), adims.data(),
+                            convert_to_c(ltype), convert_to_c(ptype)),
+                    "could not create logical_tensor with dims and property");
         data = val;
     }
 
@@ -401,16 +415,17 @@ public:
     /// @param dtype Data type
     /// @param adims Tensor dimensions, -1 means a particular axis of dims is
     /// @param strides Tensor strides
+    /// @param ptype Tensor property type
     logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
-            const dims_t &strides) {
+            const dims_t &strides, property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
         // TODO(lvtao): check the size of adims and strides.
         // They should be same.
         error::check_succeed(
                 dnnl_graph_logical_tensor_init_with_strides(&val, tid,
                         convert_to_c(dtype), static_cast<int32_t>(adims.size()),
-                        adims.data(), strides.data()),
-                "could not create logical_tensor with strides");
+                        adims.data(), strides.data(), convert_to_c(ptype)),
+                "could not create logical_tensor with strides and property");
         data = val;
     }
 
@@ -422,21 +437,24 @@ public:
     /// @param dtype Data type
     /// @param adims Tensor dimensions, -1 means a particular axis of dims is
     /// @param lid Layout id
-    logical_tensor(
-            size_t tid, data_type dtype, const dims_t &adims, int64_t lid) {
+    /// @param ptype Tensor property type
+    logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
+            int64_t lid, property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
 
         if (adims.size() == 0) {
             error::check_succeed(dnnl_graph_logical_tensor_init(&val, tid,
                                          convert_to_c(dtype), 0,
-                                         convert_to_c(layout_type::opaque)),
+                                         convert_to_c(layout_type::opaque),
+                                         convert_to_c(ptype)),
                     "could not create logical_tensor");
         } else {
             error::check_succeed(
                     dnnl_graph_logical_tensor_init_with_dims(&val, tid,
                             convert_to_c(dtype),
                             static_cast<int32_t>(adims.size()), adims.data(),
-                            convert_to_c(layout_type::opaque)),
+                            convert_to_c(layout_type::opaque),
+                            convert_to_c(ptype)),
                     "could not create logical_tensor with dims");
         }
 
@@ -459,6 +477,13 @@ public:
     /// @returns The data type
     data_type get_data_type() const {
         return static_cast<data_type>(data.data_type);
+    }
+
+    /// Returns property type of the logical tensor
+    ///
+    /// @returns The property type
+    property_type get_property_type() const {
+        return static_cast<property_type>(data.property);
     }
 
     /// Returns layout type of the logical tensor
@@ -523,6 +548,10 @@ private:
 
     static dnnl_graph_layout_type_t convert_to_c(layout_type ltype) {
         return static_cast<dnnl_graph_layout_type_t>(ltype);
+    }
+
+    static dnnl_graph_tensor_property_t convert_to_c(property_type ptype) {
+        return static_cast<dnnl_graph_tensor_property_t>(ptype);
     }
 };
 
