@@ -39,7 +39,7 @@ inline logical_tensor_t zero_logical_tensor() {
 
 inline logical_tensor_t empty_logical_tensor_with_default_id() {
     auto empty = logical_tensor_t();
-    empty.id = (std::numeric_limits<size_t>::max)();
+    empty.id = std::numeric_limits<size_t>::max();
     empty.ndims = -1;
     return empty;
 }

@@ -45,6 +45,11 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         PROPERTIES COMPILE_FLAGS "-prec-div")
 endif()
 
+if(WIN32)
+    append(CMAKE_CXX_FLAGS "-D_WIN")
+    append(CMAKE_CXX_FLAGS "-DNOMINMAX") # to allow std::max on Windows with parentheses
+endif()
+
 # propagate common compilation flags
 append(CMAKE_C_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
 append(CMAKE_CXX_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
