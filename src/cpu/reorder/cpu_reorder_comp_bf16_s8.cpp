@@ -25,6 +25,7 @@ namespace cpu {
 const impl_list_map_t comp_bf16_s8_impl_list_map {
     // bf16 -> s8
     {{bf16, s8, 2}, {
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
         REG_SR(bf16, oi, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp)
         REG_SR(bf16, io, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp)
         REG_SR(bf16, oi, s8, OI4i32o4i, fmt_order::keep, spec::conv_req_comp)
@@ -44,6 +45,7 @@ const impl_list_map_t comp_bf16_s8_impl_list_map {
     }},
     // bf16 -> s8
     {{bf16, s8, 3}, {
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
         REG_SR(bf16, any, s8, wio, fmt_order::keep, spec::conv_req_comp)
         REG_SR(bf16, iwo, s8, OIw4i16o4i, fmt_order::keep, spec::conv_req_comp)
         REG_SR(bf16, iwo, s8, OIw4i32o4i, fmt_order::keep, spec::conv_req_comp)
@@ -73,6 +75,7 @@ const impl_list_map_t comp_bf16_s8_impl_list_map {
         nullptr,
     }},
     {{bf16, s8, 4}, {
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
         REG_SR(bf16, any, s8, hwio, fmt_order::keep, spec::conv_req_comp)
         REG_SR(bf16, any, s8, wigo, fmt_order::keep, spec::conv_req_comp)
         REG_SR(bf16, goiw, s8, gOIw4i16o4i, fmt_order::keep, spec::conv_req_comp)
@@ -121,6 +124,7 @@ const impl_list_map_t comp_bf16_s8_impl_list_map {
         nullptr,
     }},
     {{bf16, s8, 5}, {
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
         REG_SR(bf16, any, s8, hwigo, fmt_order::keep, spec::conv_req_comp)
         REG_SR(bf16, any, s8, dhwio, fmt_order::keep, spec::conv_req_comp)
         REG_SR(bf16, goihw, s8, gOIhw4i16o4i, fmt_order::keep, spec::conv_req_comp)
@@ -166,6 +170,7 @@ const impl_list_map_t comp_bf16_s8_impl_list_map {
         nullptr,
     }},
     {{bf16, s8, 6}, {
+        DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
         REG_SR(bf16, any, s8, dhwigo, fmt_order::keep, spec::conv_req_comp)
         REG_SR(bf16, goidhw, s8, gOIdhw4i16o4i, fmt_order::keep, spec::conv_req_comp)
         REG_SR(bf16, goidhw, s8, gOIdhw2i8o4i, fmt_order::keep, spec::conv_req_comp)

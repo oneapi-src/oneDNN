@@ -20,6 +20,7 @@
 #include "oneapi/dnnl/dnnl_debug.h"
 
 #include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "common/nstl.hpp"
 #include "common/primitive.hpp"
@@ -75,7 +76,7 @@ static bool prb_has_small_strides(const prb_t &prb) {
 }
 
 static bool prb_tail_friendly(const prb_t &prb) {
-    /* find optimal ndims to makes it easier to 
+    /* find optimal ndims to makes it easier to
      * identify the blk_chunk in the loop*/
     int ndims = prb.full_ndims - prb.ndims;
 
@@ -186,6 +187,12 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         assert(d < prb_.ndims);
         return (int)prb_.nodes[d].ss;
     }
+
+    int cs(int d) {
+        assert(d < prb_.ndims);
+        return static_cast<int>(prb_.nodes[d].cs);
+    }
+
     int blk_cnt() {
         assert(prb_.blk_chunk_idx < prb_.full_ndims);
         return (int)prb_.nodes[prb_.blk_chunk_idx].n - 1;
@@ -205,11 +212,17 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         return ptr[reg_ptr_scale + reg_off_scale + s_off * stype_sz];
     }
 
+    Address c_addr(int c_off) {
+        return ptr[reg_ptr_comp + reg_off_comp + c_off * sizeof(int32_t)];
+    }
+
     void step(int off, int prev_i_off, int prev_o_off, int prev_s_off,
-            int &i_off, int &o_off, int &s_off, int step_size = 1) {
+            int prev_c_off, int &i_off, int &o_off, int &s_off, int &c_off,
+            int step_size = 1) {
         i_off = prev_i_off;
         o_off = prev_o_off;
         s_off = prev_s_off;
+        c_off = prev_c_off;
 
         if (off == 0) return;
 
@@ -223,12 +236,15 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             i_off += is(d);
             o_off += os(d);
             s_off += ss(d);
+            c_off += cs(d);
 
             if (off % n(d)) break;
 
             i_off += -n(d) * is(d);
             o_off += -n(d) * os(d);
             s_off += -n(d) * ss(d);
+            c_off += -n(d) * cs(d);
+
             off /= n(d);
 
             if (off == 0) break; /* FIXME: is it really required? */
@@ -238,8 +254,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     void step(int off, int prev_i_off, int prev_o_off, int &i_off, int &o_off,
             int step_size = 1) {
         int dummy = 0;
-        step(off, prev_i_off, prev_o_off, dummy, i_off, o_off, dummy,
-                step_size);
+        step(off, prev_i_off, prev_o_off, dummy, dummy, i_off, o_off, dummy,
+                dummy, step_size);
     }
 
     void tr8x8_avx2(int i_off, int o_off, const bool h_padded) {
@@ -354,8 +370,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 = (utils::one_of(prb_.otype, u8, s8, s32) && interim_f32);
 
         for (int i = 0; i < unroll; i++) {
-            using namespace data_type;
-
             load(Ymm(i), i_addr(i_off + i * is(0)), unroll * itype_sz);
 
             if (interim_f32) cvt2ps(Ymm(i), Ymm(i), prb_.itype);
@@ -431,9 +445,14 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         using Vmm = typename cpu_isa_traits<isa>::Vmm;
         const int simd_w = cpu_isa_traits<isa>::vlen / itype_sz;
 
-        bool can_do = true && mayiuse(isa)
+        const bool do_src_zp = prb_.req_src_zp;
+        const bool do_dst_zp = prb_.req_dst_zp;
+        const bool zp_applicable = IMPLICATION(
+                (do_src_zp || do_dst_zp), utils::one_of(prb_.itype, s32, f32));
+        const bool can_do = true && mayiuse(isa)
+                && compensation_needed_ == false
                 && utils::everyone_is(1, os(0), is(0))
-                && (false || prb_.itype == prb_.otype
+                && (false || (prb_.itype == prb_.otype ? zp_applicable : false)
                         || (prb_.itype == s32 && prb_.otype == f32)
                         || (prb_.itype == f32 && prb_.otype == s32))
                 && len % simd_w == 0 && n(0) % len == 0
@@ -441,30 +460,75 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 && prb_.scale_type == scale_type_t::NONE && prb_.beta == 0.f;
         if (!can_do) return false;
 
+#define PARAM(x) ptr[abi_param1 + offsetof(call_param_t, x)]
+        static constexpr int vmm_zp_last_idx = 15;
+        const auto vmm_src_zp
+                = Vmm(do_dst_zp ? vmm_zp_last_idx - 1 : vmm_zp_last_idx);
+        const bool do_zp_to_f32_cast
+                = utils::one_of(f32, prb_.itype, prb_.otype);
+        if (do_src_zp) {
+            uni_vpbroadcastd(vmm_src_zp, PARAM(src_zp));
+            if (do_zp_to_f32_cast) uni_vcvtdq2ps(vmm_src_zp, vmm_src_zp);
+        }
+        const auto vmm_dst_zp = Vmm(vmm_zp_last_idx);
+        if (do_dst_zp) {
+            uni_vpbroadcastd(vmm_dst_zp, PARAM(dst_zp));
+            if (do_zp_to_f32_cast) uni_vcvtdq2ps(vmm_dst_zp, vmm_dst_zp);
+        }
+#undef PARAM
+
+        const auto apply_zp_ps = [&](const Vmm vmm) {
+            if (do_src_zp) uni_vsubps(vmm, vmm, vmm_src_zp);
+            if (do_dst_zp) uni_vaddps(vmm, vmm, vmm_dst_zp);
+        };
+        const auto apply_zp_d = [&](const Vmm vmm) {
+            if (do_src_zp) uni_vpsubd(vmm, vmm, vmm_src_zp);
+            if (do_dst_zp) uni_vpaddd(vmm, vmm, vmm_dst_zp);
+        };
+
         for (int off = 0; off < len;) {
             // TODO: we need extra reg for proper saturation if otype == s32
-            const int unroll
+            int unroll
                     = nstl::min(16 - (prb_.otype == s32), (len - off) / simd_w);
+            unroll = (do_src_zp || do_dst_zp)
+                    ? nstl::min(unroll, 16 - do_src_zp - do_dst_zp)
+                    : unroll;
 
-            for (int ur = 0; ur < unroll; ++ur)
+            for (int ur = 0; ur < unroll; ++ur) {
+                const auto vmm = Vmm(ur);
                 if (h_padded && (ur * simd_w + off >= len - ip_padding()))
-                    uni_vpxor(Vmm(ur), Vmm(ur), Vmm(ur));
+                    uni_vpxor(vmm, vmm, vmm);
                 else
-                    uni_vmovups(Vmm(ur), i_addr(off + ur * simd_w));
+                    uni_vmovups(vmm, i_addr(off + ur * simd_w));
+            }
 
             if (prb_.itype != prb_.otype) {
                 for (int ur = 0; ur < unroll; ++ur) {
-                    if (prb_.itype == s32 && prb_.otype == f32)
-                        uni_vcvtdq2ps(Vmm(ur), Vmm(ur));
-                    else if (prb_.itype == f32 && prb_.otype == s32)
-                        uni_vcvtps2dq(Vmm(ur), Vmm(ur));
-                    else
+                    const auto vmm = Vmm(ur);
+                    if (prb_.itype == s32 && prb_.otype == f32) {
+                        uni_vcvtdq2ps(vmm, vmm);
+                        apply_zp_ps(vmm);
+                    } else if (prb_.itype == f32 && prb_.otype == s32) {
+                        apply_zp_ps(vmm);
+                        uni_vcvtps2dq(vmm, vmm);
+                    } else
                         assert(!"unreachable");
+                }
+            } else if (do_src_zp || do_dst_zp) {
+                for (int ur = 0; ur < unroll; ++ur) {
+                    const auto vmm = Vmm(ur);
+                    if (prb_.otype == f32) {
+                        apply_zp_ps(vmm);
+                    } else if (prb_.otype == s32) {
+                        apply_zp_d(vmm);
+                    }
                 }
             }
 
-            for (int ur = 0; ur < unroll; ++ur)
-                uni_vmovups(o_addr(off + ur * simd_w), Vmm(ur));
+            for (int ur = 0; ur < unroll; ++ur) {
+                const auto vmm = Vmm(ur);
+                uni_vmovups(o_addr(off + ur * simd_w), vmm);
+            }
 
             off += unroll * simd_w;
         }
@@ -473,8 +537,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     }
 
     void process_unroll_generic_step(int reg_unroll, const int *i_off,
-            const int *o_off, const int *s_off, const int *ip_padding,
-            const bool h_padded) {
+            const int *o_off, const int *s_off, const int *c_off,
+            const int *ip_padding, const bool h_padded) {
         using namespace data_type;
 
         const auto cvt2ps
@@ -595,29 +659,36 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         static constexpr int xmm_vlen = 4;
         bool can_load_xmm = reg_unroll % xmm_vlen == 0;
         for (int ur = 1; ur < reg_unroll; ++ur)
-            if (i_off[ur] != i_off[ur - 1] + 1) can_load_xmm = false;
+            if (i_off[ur] != i_off[ur - 1] + 1) {
+                can_load_xmm = false;
+                break;
+            }
         const int load_step = can_load_xmm ? xmm_vlen : 1;
 
         /* check whether storing 4 values at once is possible */
         bool can_store_xmm = reg_unroll % xmm_vlen == 0;
         for (int ur = 1; ur < reg_unroll; ++ur)
-            if (o_off[ur] != o_off[ur - 1] + 1) can_store_xmm = false;
+            if (o_off[ur] != o_off[ur - 1] + 1) {
+                can_store_xmm = false;
+                break;
+            }
         const int ur_step = can_store_xmm ? 4 : 1;
         const int load_tail_step
                 = !can_load_xmm && can_store_xmm ? ur_step : load_step;
 
-        const bool interim_f32 = false
-                || utils::one_of(f32, prb_.itype, prb_.otype)
-                || prb_.scale_type != scale_type_t::NONE || prb_.beta != 0.f;
+        const bool interim_f32 = interim_f32_needed();
 
         const bool need_saturation
                 = (utils::one_of(prb_.otype, u8, s8, s32) && interim_f32);
 
+        std::vector<int> store_masks;
         if (h_padded) {
             for (int ur = 0; ur < reg_unroll; ur += load_tail_step) {
                 uni_vpxor(Xmm(ur), Xmm(ur), Xmm(ur));
+                store_masks.push_back(0);
                 for (int r = 0; r < load_tail_step; ++r) {
                     if (ip_padding[ur + r] == 0) {
+                        store_masks.back() += 1 << r;
                         load_bytes(Xmm(ur), i_addr(i_off[ur + r]), itype_sz, r);
                     }
                 }
@@ -694,6 +765,18 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                             palignr(Xmm(ur + r), Xmm(ur), itype_sz * r);
                         }
                     }
+            }
+        }
+
+        /* src zero point application */
+#define PARAM(x) ptr[abi_param1 + offsetof(call_param_t, x)]
+        if (prb_.req_src_zp) {
+            for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                const auto xmm = Xmm(ur);
+                if (interim_f32)
+                    uni_vsubps(xmm, xmm, xmm_src_zp);
+                else
+                    uni_vpsubd(xmm, xmm, xmm_src_zp);
             }
         }
 
@@ -801,6 +884,18 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             }
         }
 
+        /* dst zero point application */
+        if (prb_.req_dst_zp) {
+            for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                const auto xmm = Xmm(ur);
+                if (interim_f32)
+                    uni_vaddps(xmm, xmm, xmm_dst_zp);
+                else
+                    uni_vpaddd(xmm, xmm, xmm_dst_zp);
+            }
+        }
+#undef PARAM
+
         if (need_saturation) {
             init_saturate_f32(
                     xmm_zero, xmm_saturation_ubound, reg_tmp, f32, prb_.otype);
@@ -810,9 +905,115 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             }
         }
 
+        if (compensation_needed_) {
+            const int xmm_begin = 9;
+            const int xmm_end = 11;
+            int xmm_id = xmm_begin;
+            const auto get_temp_xmm = [&] {
+                const Xbyak::Xmm temp {xmm_id++};
+
+                if (xmm_id > xmm_end) { xmm_id = xmm_begin; }
+
+                return temp;
+            };
+            const bool mayiuse_avx2 = mayiuse(avx2);
+            const auto uni_vpaddd_wrapper
+                    = [&](const Xmm &xmm, const Address &addr) {
+                          if (mayiuse_avx2)
+                              uni_vpaddd(xmm, xmm, addr);
+                          else {
+                              //isas < avx2 demand paddd instruction addr to be aligned
+                              uni_vmovups(xmm_tmp, addr);
+                              paddd(xmm, xmm_tmp);
+                          }
+                      };
+
+            if (can_store_xmm) {
+                enum class comp_load_type_t { bcast, load, gather };
+
+                for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                    comp_load_type_t comp_load_type = comp_load_type_t::bcast;
+
+                    for (int r = ur + 1; r < ur + ur_step; ++r)
+                        if (c_off[r] != c_off[r - 1] + 0) {
+                            comp_load_type = comp_load_type_t::load;
+                            break;
+                        }
+
+                    if (comp_load_type == comp_load_type_t::bcast
+                            && !h_padded) {
+                        const auto reduction_xmm = get_temp_xmm();
+                        const auto xmm_reorder_result = Xmm(ur);
+                        uni_vcvttps2dq(reduction_xmm, xmm_reorder_result);
+                        uni_vphaddd(
+                                reduction_xmm, reduction_xmm, reduction_xmm);
+                        uni_vphaddd(
+                                reduction_xmm, reduction_xmm, reduction_xmm);
+                        const auto comp_addr = c_addr(c_off[ur]);
+                        const auto xmm_tmp = get_temp_xmm();
+                        uni_vmovss(xmm_tmp, comp_addr);
+                        uni_vpaddd(xmm_tmp, xmm_tmp, reduction_xmm);
+                        uni_vmovss(comp_addr, xmm_tmp);
+                        continue;
+                    }
+
+                    for (int r = ur + 1; r < ur + ur_step; ++r)
+                        if (c_off[r] != c_off[r - 1] + 1) {
+                            comp_load_type = comp_load_type_t::gather;
+                            break;
+                        }
+
+                    if (comp_load_type == comp_load_type_t::load && !h_padded) {
+                        const auto xmm_reorder_result_dq = get_temp_xmm();
+                        const auto xmm_reorder_result = Xmm(ur);
+                        const auto comp_addr = c_addr(c_off[ur]);
+                        uni_vcvttps2dq(
+                                xmm_reorder_result_dq, xmm_reorder_result);
+                        uni_vpaddd_wrapper(xmm_reorder_result_dq, comp_addr);
+                        uni_vmovups(comp_addr, xmm_reorder_result_dq);
+                        continue;
+                    }
+
+                    for (int r = ur; r < ur + ur_step; ++r) {
+                        if (ip_padding[r] == 0 || !h_padded) {
+                            const auto xmm_reorder_result_dq = get_temp_xmm();
+                            const auto xmm_reorder_result = Xmm(ur);
+                            const auto comp_addr = c_addr(c_off[r]);
+                            uni_vcvttps2dq(
+                                    xmm_reorder_result_dq, xmm_reorder_result);
+                            uni_vpaddd_wrapper(
+                                    xmm_reorder_result_dq, comp_addr);
+                            uni_vmovss(comp_addr, xmm_reorder_result_dq);
+                        }
+                    }
+                }
+            } else {
+                for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                    if (ip_padding[ur] == 0 || !h_padded) {
+                        const auto xmm_reorder_result_dq = get_temp_xmm();
+                        const auto xmm_reorder_result = Xmm(ur);
+                        const auto comp_addr = c_addr(c_off[ur]);
+                        uni_vcvttps2dq(
+                                xmm_reorder_result_dq, xmm_reorder_result);
+                        uni_vpaddd_wrapper(xmm_reorder_result_dq, comp_addr);
+                        uni_vmovss(comp_addr, xmm_reorder_result_dq);
+                    }
+                }
+            }
+        }
+
         for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+            if (prb_.req_src_zp || prb_.req_dst_zp) {
+                const bool use_store_masks = !store_masks.empty();
+                if (use_store_masks) {
+                    const auto mask = ~store_masks[ur / ur_step];
+                    uni_vblendps(Xmm(ur), Xmm(ur), xmm_zero, mask);
+                }
+            }
+
             if (prb_.otype != f32)
                 cvt2odt(Xmm(ur), prb_.otype, interim_f32 ? f32 : prb_.itype);
+
             store(o_addr(o_off[ur]), Xmm(ur), ur_step * otype_sz);
         }
     }
@@ -825,32 +1026,59 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             i_tail = 1;
     }
 
+    bool interim_f32_needed() {
+        using namespace data_type;
+
+        return utils::one_of(f32, prb_.itype, prb_.otype)
+                || prb_.scale_type != scale_type_t::NONE || prb_.beta != 0.f
+                || ((prb_.req_src_zp || prb_.req_dst_zp)
+                                ? !(prb_.itype == s32 && prb_.otype == s32)
+                                : false)
+                || (prb_.itype != f32 && compensation_needed_);
+    }
+
     void process_unroll_generic(const int ndims, int len, const bool h_padded) {
         const int blk = 8;
 
         int i_off[2 * blk] = {0};
         int o_off[2 * blk] = {0};
         int s_off[2 * blk] = {0};
+        int c_off[2 * blk] = {0};
 
         int curr = 0; // will switch between 0 and 1
+
+#define PARAM(x) ptr[abi_param1 + offsetof(call_param_t, x)]
+        const bool interim_f32 = interim_f32_needed();
+
+        if (prb_.req_src_zp) {
+            uni_vbroadcastss(xmm_src_zp, PARAM(src_zp));
+            if (interim_f32) uni_vcvtdq2ps(xmm_src_zp, xmm_src_zp);
+        }
+        if (prb_.req_dst_zp) {
+            uni_vbroadcastss(xmm_dst_zp, PARAM(dst_zp));
+            if (interim_f32) uni_vcvtdq2ps(xmm_dst_zp, xmm_dst_zp);
+        }
+#undef PARAM
 
         for (int off = 0; off < len; off += blk) {
             const int reg_unroll = nstl::min(off + blk, len) - off;
             int ip_padding[blk] = {0};
+            const auto curr_blk = curr * blk;
 
             /* compute offsets and tail*/
             for (int ur = off != 0 ? 0 : 1; ur < reg_unroll; ++ur) {
-                const int ur_c = curr * blk + ur;
+                const int ur_c = curr_blk + ur;
                 const int ur_p = (ur_c - 1 + 2 * blk) % (2 * blk); // prev ur
                 step(off + ur, i_off[ur_p], o_off[ur_p], s_off[ur_p],
-                        i_off[ur_c], o_off[ur_c], s_off[ur_c]);
+                        c_off[ur_p], i_off[ur_c], o_off[ur_c], s_off[ur_c],
+                        c_off[ur_c]);
                 if (h_padded)
                     comp_padding_flag(ndims, off + ur, len, ip_padding[ur]);
             }
 
-            process_unroll_generic_step(reg_unroll, i_off + curr * blk,
-                    o_off + curr * blk, s_off + curr * blk, ip_padding,
-                    h_padded);
+            process_unroll_generic_step(reg_unroll, i_off + curr_blk,
+                    o_off + curr_blk, s_off + curr_blk, c_off + curr_blk,
+                    ip_padding, h_padded);
 
             curr = 1 - curr;
         }
@@ -872,11 +1100,13 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     }
 
     void loop_end(Label &l, Reg64 reg_cnt, int len, int i_step, int o_step,
-            int s_step) {
+            int s_step, int c_step) {
         add(reg_off_in, i_step * itype_sz);
         add(reg_off_out, o_step * otype_sz);
         if (prb_.scale_type == scale_type_t::MANY)
             add(reg_off_scale, s_step * stype_sz);
+        if (compensation_needed_) add(reg_off_comp, c_step * sizeof(int32_t));
+
         dec(reg_cnt);
         jnz(l);
 
@@ -884,6 +1114,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         sub(reg_off_out, len * o_step * otype_sz);
         if (prb_.scale_type == scale_type_t::MANY)
             sub(reg_off_scale, len * s_step * stype_sz);
+        if (compensation_needed_)
+            sub(reg_off_comp, len * c_step * sizeof(int32_t));
     }
 
     void compute_blk_ker(const int len_unroll) {
@@ -921,6 +1153,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         xor_(reg_off_out, reg_off_out);
         if (prb_.scale_type == scale_type_t::MANY)
             xor_(reg_off_scale, reg_off_scale);
+        if (compensation_needed_) xor_(reg_off_comp, reg_off_comp);
 
         Label l_loop[3];
         Reg64 reg_cnt[3] = {r15, r14, r13};
@@ -936,15 +1169,15 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         if (n_jit_loops > 0)
             loop_end(l_loop[0], reg_cnt[0], n(nfu + 0) / ldu, is(nfu + 0) * ldu,
-                    os(nfu + 0) * ldu, ss(nfu + 0) * ldu);
+                    os(nfu + 0) * ldu, ss(nfu + 0) * ldu, cs(nfu + 0) * ldu);
 
         if (n_jit_loops > 1)
             loop_end(l_loop[1], reg_cnt[1], n(nfu + 1), is(nfu + 1),
-                    os(nfu + 1), ss(nfu + 1));
+                    os(nfu + 1), ss(nfu + 1), cs(nfu + 1));
 
         if (n_jit_loops > 2)
             loop_end(l_loop[2], reg_cnt[2], n(nfu + 2), is(nfu + 2),
-                    os(nfu + 2), ss(nfu + 2));
+                    os(nfu + 2), ss(nfu + 2), cs(nfu + 2));
 
         return true;
     }
@@ -977,9 +1210,12 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         } else if (prb_.scale_type == scale_type_t::MANY) {
             mov(reg_ptr_scale, PARAM(scale));
         }
+        if (compensation_needed_)
+            mov(reg_ptr_comp, PARAM(compensation_scratch));
         mov(reg_ptr_in, PARAM(in));
         mov(reg_ptr_out, PARAM(out));
         mov(reg_blk_chunks, PARAM(blk_chunks));
+
 #undef PARAM
 
         mov(reg_last_loop_cnt, 1);
@@ -1012,10 +1248,13 @@ private:
     Reg64 reg_ptr_in = rsi;
     Reg64 reg_ptr_out = rdx;
     Reg64 reg_ptr_scale = abi_not_param1;
+    Reg64 reg_ptr_comp = rbx;
 
     Reg64 reg_off_in = r8;
     Reg64 reg_off_out = r9;
     Reg64 reg_off_scale = r10;
+    Reg64 reg_off_comp = r11;
+
     Reg64 reg_blk_chunks = r12;
     Reg64 reg_last_loop_cnt = r15;
 
@@ -1027,6 +1266,8 @@ private:
     Ymm ymm_zero = ymm14;
     Ymm ymm_8x127b = ymm13;
     Xmm xmm_tmp = xmm12;
+    Xmm xmm_src_zp = xmm9;
+    Xmm xmm_dst_zp = xmm11;
     Xmm xmm_saturation_ubound = xmm12;
     Ymm ymm_saturation_ubound = ymm12;
 
@@ -1098,7 +1339,19 @@ struct jit_single_blk_kernel_t : public jit_generator {
 
         Label tail_processing;
 
+        const auto load_zp = [&](const Ymm ymm_zp, const Reg64 reg_zp) {
+            const Xmm xmm_zp = Xmm(ymm_zp.getIdx());
+            uni_vmovq(xmm_zp, reg_zp);
+            uni_vpbroadcastd(ymm_zp, xmm_zp);
+            uni_vcvtdq2ps(ymm_zp, ymm_zp);
+        };
+
         preamble();
+
+        if (prb_.req_src_zp) load_zp(ymm_src_zp, reg_src_zp);
+
+        if (prb_.req_dst_zp) load_zp(ymm_dst_zp, reg_dst_zp);
+
         cmp(reg_ptr_tail, true);
         je(tail_processing, T_NEAR);
 
@@ -1239,11 +1492,13 @@ struct jit_single_blk_kernel_t : public jit_generator {
                         ptr[reg_ptr_in + i_off + i * input_stride * itype_sz],
                         lane * itype_sz);
             }
+            if (prb_.req_src_zp) { vsubps(Ymm(i), Ymm(i), ymm_src_zp); }
         }
 
         gen_transpose_8x8();
 
         for (int i = 0; i < in_tail; ++i) {
+            if (prb_.req_dst_zp) { vaddps(Ymm(i), Ymm(i), ymm_dst_zp); }
             if (out_tail == lane) {
                 gen_storeu(
                         ptr[reg_ptr_out + o_off + i * output_stride * otype_sz],
@@ -1315,6 +1570,9 @@ private:
 
     void preamble() {
         if (is_windows) {
+            // retrieve 5th function call argument from call stack
+            static constexpr int param5 = 0x8;
+            mov(reg_dst_zp, ptr[rsp + param5]);
             sub(rsp, xmm_save_for_windows * xmm_width);
             for (int i = 0; i < xmm_save_for_windows; ++i) {
                 uni_vmovdqu(ptr[rsp + i * xmm_width],
@@ -1344,9 +1602,13 @@ private:
     Reg64 reg_ptr_out = abi_param2;
     // Windows bool is 1-byte in register
     Reg8 reg_ptr_tail = is_windows ? r8b : dl;
+    Reg64 reg_src_zp = abi_param4;
+    Reg64 reg_dst_zp = is_windows ? r10 : r8;
 
     Ymm ymm_mask = ymm12;
     Ymm ymm_tmp = ymm0;
+    Ymm ymm_src_zp = ymm14;
+    Ymm ymm_dst_zp = ymm15;
 };
 
 status_t kernel_t::desc_init(
@@ -1522,13 +1784,66 @@ static void prb_thread_kernel_balance(
     }
 }
 
+status_t jit_uni_reorder_t::pd_t::init(
+        engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+    CHECK(cpu_reorder_pd_t::init(engine, src_engine, dst_engine));
+
+    const bool compensation_needed
+            = prb_.req_s8s8_comp || prb_.req_asymmetric_comp;
+    if (compensation_needed) init_scratchpad();
+
+    return status::success;
+}
+
+void jit_uni_reorder_t::pd_t::init_scratchpad() {
+    const memory_desc_wrapper id(src_md());
+    const auto N = id.dims()[0];
+    static constexpr int cache_line_size = 16;
+    const auto wspace_per_thr_size
+            = utils::rnd_up(N, cache_line_size) * sizeof(int32_t);
+
+    auto scratchpad = scratchpad_registry().registrar();
+    const auto compensation_reduce_size = wspace_per_thr_size * nthr_;
+
+    //every thread gets its own scratchpad space for each N
+    scratchpad.template book<int32_t>(memory_tracking::names::key_reorder_space,
+            compensation_reduce_size);
+}
+
+static bool is_with_groups(
+        const memory_desc_t &src_md, const memory_desc_t &dst_md) {
+    using namespace format_tag;
+    switch (src_md.ndims) {
+        case 4:
+            return memory_desc_matches_one_of_tag(src_md, goiw, wigo)
+                    && memory_desc_matches_one_of_tag(dst_md, gOIw4i16o4i,
+                            gOIw2i8o4i, gOIw4o4i, Goiw16g, Goiw8g, Goiw4g,
+                            gOwi16o, gOwI16o4i, gOIw16i16o4i);
+        case 5:
+            return memory_desc_matches_one_of_tag(src_md, goihw, hwigo)
+                    && memory_desc_matches_one_of_tag(dst_md, gOIhw4i16o4i,
+                            gOIhw2i8o4i, gOIhw4o4i, Goihw16g, Goihw8g, Goihw4g,
+                            gOwhi16o, gOhwI16o4i, gOIhw16i16o4i);
+        case 6:
+            return memory_desc_matches_one_of_tag(src_md, goidhw)
+                    && memory_desc_matches_one_of_tag(dst_md, gOIdhw4i16o4i,
+                            gOIdhw2i8o4i, gOIdhw4o4i, gOdhwI16o4i,
+                            gOIdhw16i16o4i);
+    };
+
+    return false;
+}
+
 status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         engine_t *engine, const primitive_attr_t *attr, engine_t *src_engine,
         const memory_desc_t *src_md, engine_t *dst_engine,
         const memory_desc_t *dst_md) {
     auto prb = tr::prb_t();
 
-    status_t prb_init_status = prb_init(prb, *src_md, *dst_md, attr);
+    const bool with_groups = is_with_groups(*src_md, *dst_md);
+
+    status_t prb_init_status
+            = prb_init(prb, *src_md, *dst_md, attr, with_groups);
     if (prb_init_status != status::success) return prb_init_status;
 
     DEBUG({
@@ -1578,25 +1893,37 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
     auto _pd = new pd_t(
             attr, src_engine->kind(), src_md, dst_engine->kind(), dst_md);
     if (_pd == nullptr) return status::out_of_memory;
+
+    _pd->nthr_ = nthr;
+    _pd->prb_ = prb;
     if (_pd->init(engine, src_engine, dst_engine) != status::success) {
         delete _pd;
         return status::unimplemented;
     }
-    _pd->prb_ = prb;
     _pd->ker_desc_ = ker_desc;
     _pd->init_scratchpad_md();
-    _pd->nthr_ = nthr;
+    _pd->with_groups_ = with_groups;
+
     return safe_ptr_assign(*reorder_pd, _pd);
 }
 
-void jit_uni_reorder_t::omp_driver_0d(
-        int off, const char *in, char *out, const float *scale) const {
-    tr::call_param_t c {in, out, scale, 0};
+void jit_uni_reorder_t::omp_driver_0d(int off, const char *in, char *out,
+        const float *scale, int src_zp, int dst_zp,
+        int32_t *compensation_scratch) const {
+    auto c = tr::call_param_t();
+    c.in = in;
+    c.out = out;
+    c.scale = scale;
+    c.src_zp = src_zp;
+    c.dst_zp = dst_zp;
+    c.blk_chunks = 0;
+    c.compensation_scratch = compensation_scratch;
     (*kernel_)(&c);
 }
 
 void jit_uni_reorder_t::omp_driver_1d(int ithr, int nthr, int off,
-        const char *in, char *out, const float *scale) const {
+        const char *in, char *out, const float *scale, int src_zp, int dst_zp,
+        int32_t *compensation_scratch) const {
     const tr::node_t *ns = pd()->prb_.nodes + off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[0].n, [&](ptrdiff_t d0) {
         auto c = tr::call_param_t();
@@ -1604,12 +1931,16 @@ void jit_uni_reorder_t::omp_driver_1d(int ithr, int nthr, int off,
         c.out = out + d0 * ns[0].os * data_type_size(pd()->prb_.otype);
         c.scale = scale + d0 * ns[0].ss;
         c.blk_chunks = d0;
+        c.compensation_scratch = compensation_scratch + d0 * ns[0].cs;
+        c.src_zp = src_zp;
+        c.dst_zp = dst_zp;
         (*kernel_)(&c);
     });
 }
 
 void jit_uni_reorder_t::omp_driver_2d(int ithr, int nthr, int off,
-        const char *in, char *out, const float *scale) const {
+        const char *in, char *out, const float *scale, int src_zp, int dst_zp,
+        int32_t *compensation_scratch) const {
     const tr::node_t *ns = pd()->prb_.nodes + off;
     const int blk_idx_off = pd()->prb_.blk_chunk_idx - off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
@@ -1623,12 +1954,17 @@ void jit_uni_reorder_t::omp_driver_2d(int ithr, int nthr, int off,
                                 * data_type_size(pd()->prb_.otype);
                 c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss;
                 c.blk_chunks = utils::pick(blk_idx_off, d0, d1);
+                c.compensation_scratch
+                        = compensation_scratch + d0 * ns[0].cs + d1 * ns[1].cs;
+                c.src_zp = src_zp;
+                c.dst_zp = dst_zp;
                 (*kernel_)(&c);
             });
 }
 
 void jit_uni_reorder_t::omp_driver_3d(int ithr, int nthr, int off,
-        const char *in, char *out, const float *scale) const {
+        const char *in, char *out, const float *scale, int src_zp, int dst_zp,
+        int32_t *compensation_scratch) const {
     const tr::node_t *ns = pd()->prb_.nodes + off;
     const int blk_idx_off = pd()->prb_.blk_chunk_idx - off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[2].n, (ptrdiff_t)ns[1].n,
@@ -1642,12 +1978,17 @@ void jit_uni_reorder_t::omp_driver_3d(int ithr, int nthr, int off,
                                 * data_type_size(pd()->prb_.otype);
                 c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss;
                 c.blk_chunks = utils::pick(blk_idx_off, d0, d1, d2);
+                c.compensation_scratch = compensation_scratch + d0 * ns[0].cs
+                        + d1 * ns[1].cs + d2 * ns[2].cs;
+                c.src_zp = src_zp;
+                c.dst_zp = dst_zp;
                 (*kernel_)(&c);
             });
 }
 
 void jit_uni_reorder_t::omp_driver_4d(int ithr, int nthr, int off,
-        const char *in, char *out, const float *scale) const {
+        const char *in, char *out, const float *scale, int src_zp, int dst_zp,
+        int32_t *compensation_scratch) const {
     const tr::node_t *ns = pd()->prb_.nodes + off;
     const int blk_idx_off = pd()->prb_.blk_chunk_idx - off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[3].n, (ptrdiff_t)ns[2].n,
@@ -1665,12 +2006,17 @@ void jit_uni_reorder_t::omp_driver_4d(int ithr, int nthr, int off,
                 c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss
                         + d3 * ns[3].ss;
                 c.blk_chunks = utils::pick(blk_idx_off, d0, d1, d2, d3);
+                c.compensation_scratch = compensation_scratch + d0 * ns[0].cs
+                        + d1 * ns[1].cs + d2 * ns[2].cs + d3 * ns[3].cs;
+                c.src_zp = src_zp;
+                c.dst_zp = dst_zp;
                 (*kernel_)(&c);
             });
 }
 
-void jit_uni_reorder_t::omp_driver(
-        const char *in, char *out, const float *scale) const {
+void jit_uni_reorder_t::omp_driver(const char *in, char *out,
+        const float *scale, int src_zp, int dst_zp,
+        const memory_tracking::grantor_t &scratchpad) const {
     in += pd()->prb_.ioff * data_type_size(pd()->prb_.itype);
     out += pd()->prb_.ooff * data_type_size(pd()->prb_.otype);
 
@@ -1685,29 +2031,94 @@ void jit_uni_reorder_t::omp_driver(
 
     int ndims = pd()->prb_.ndims;
     int ndims_ker = pd()->ker_desc_.prb.ndims;
+    const bool req_s8s8_comp = pd()->prb_.req_s8s8_comp;
+    const bool req_asymmetric_comp = pd()->prb_.req_asymmetric_comp;
+    const bool req_compensation = req_s8s8_comp || req_asymmetric_comp;
     assert(ndims - ndims_ker <= ndims_driver_max);
 
+    int32_t *compensation_reduce_scratch = scratchpad.template get<int32_t>(
+            memory_tracking::names::key_reorder_space);
+
+    const memory_desc_wrapper id(pd()->src_md());
+    const auto N = id.dims()[pd()->with_groups_ ? 1 : 0];
+    static constexpr int cache_line_size = 16;
+    const auto wspace_per_thr_size = utils::rnd_up(N, cache_line_size);
+    const auto wspace_per_thr_bytes = wspace_per_thr_size * sizeof(int32_t);
+
     if (ndims - ndims_ker == 0) {
-        omp_driver_0d(ndims_ker, in, out, scale);
+        if (req_compensation)
+            std::memset(compensation_reduce_scratch, 0, wspace_per_thr_bytes);
+
+        omp_driver_0d(ndims_ker, in, out, scale, src_zp, dst_zp,
+                compensation_reduce_scratch);
     } else {
         parallel(pd()->nthr_, [&](const int ithr, const int nthr) {
+            int32_t *compensation_scratch = nullptr;
+            if (req_compensation) {
+                compensation_scratch = &compensation_reduce_scratch[ithr
+                        * wspace_per_thr_size];
+                std::memset(compensation_scratch, 0, wspace_per_thr_bytes);
+            }
+
             switch (ndims - ndims_ker) {
                 case 1:
-                    omp_driver_1d(ithr, nthr, ndims_ker, in, out, scale);
+                    omp_driver_1d(ithr, nthr, ndims_ker, in, out, scale, src_zp,
+                            dst_zp, compensation_scratch);
                     break;
                 case 2:
-                    omp_driver_2d(ithr, nthr, ndims_ker, in, out, scale);
+                    omp_driver_2d(ithr, nthr, ndims_ker, in, out, scale, src_zp,
+                            dst_zp, compensation_scratch);
                     break;
                 case 3:
-                    omp_driver_3d(ithr, nthr, ndims_ker, in, out, scale);
+                    omp_driver_3d(ithr, nthr, ndims_ker, in, out, scale, src_zp,
+                            dst_zp, compensation_scratch);
                     break;
                 case 4:
-                    omp_driver_4d(ithr, nthr, ndims_ker, in, out, scale);
+                    omp_driver_4d(ithr, nthr, ndims_ker, in, out, scale, src_zp,
+                            dst_zp, compensation_scratch);
                     break;
                 default: assert(!"unimplemented");
             }
         });
     }
+
+    //reduction of intermediate compensation results to the final output
+    if (req_compensation) {
+        const int nthr = ndims - ndims_ker == 0 ? 1 : pd()->nthr_;
+        reduce_compensation(
+                out, compensation_reduce_scratch, nthr, N, wspace_per_thr_size);
+    }
+}
+
+void jit_uni_reorder_t::reduce_compensation(char *out,
+        const int32_t *compensation_reduce_scratch, const int nthr, const int N,
+        const dim_t wspace_per_thr_size) const {
+
+    const memory_desc_wrapper od(pd()->dst_md());
+    size_t offset = od.padded_dims()[0];
+    for (int dim = 1; dim < od.ndims(); dim++)
+        offset *= od.padded_dims()[dim];
+    const size_t zp_offset
+            = offset + (pd()->prb_.req_s8s8_comp ? N * sizeof(int32_t) : 0);
+    static constexpr int32_t comp_s8s8_shift = 128;
+
+    const bool req_s8s8_comp = pd()->prb_.req_s8s8_comp;
+    const bool req_asymmetric_comp = pd()->prb_.req_asymmetric_comp;
+    parallel_nd(N, [&](int n) {
+        int32_t acc = 0;
+        for (int ithr = 0; ithr < nthr; ithr++) {
+            acc -= compensation_reduce_scratch[ithr * wspace_per_thr_size + n];
+        }
+        if (req_s8s8_comp) {
+            int32_t *out_comp = reinterpret_cast<int32_t *>(&out[offset]);
+            out_comp[n] = comp_s8s8_shift * acc;
+        }
+        if (req_asymmetric_comp) {
+            int32_t *out_asym_comp
+                    = reinterpret_cast<int32_t *>(&out[zp_offset]);
+            out_asym_comp[n] = acc;
+        }
+    });
 }
 
 status_t jit_uni_reorder_t::init(engine_t *engine) {
@@ -1719,8 +2130,11 @@ status_t jit_uni_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto in = CTX_IN_MEM(const char *, DNNL_ARG_FROM);
     auto out = CTX_OUT_MEM(char *, DNNL_ARG_TO);
     DEFINE_SCALES_BUFFER(scales);
+    DEFINE_ZERO_POINT_VALUE(src_zp, DNNL_ARG_FROM);
+    DEFINE_ZERO_POINT_VALUE(dst_zp, DNNL_ARG_TO);
+    const auto &scratchpad = ctx.get_scratchpad_grantor();
 
-    omp_driver(in, out, scales);
+    omp_driver(in, out, scales, src_zp, dst_zp, scratchpad);
 
     return status::success;
 }
@@ -1767,12 +2181,13 @@ status_t jit_blk_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
     auto _pd = new pd_t(
             attr, src_engine->kind(), src_md, dst_engine->kind(), dst_md);
     if (_pd == nullptr) return status::out_of_memory;
+    _pd->prb_ = prb;
     if (_pd->init(engine, src_engine, dst_engine) != status::success) {
         delete _pd;
         return status::unimplemented;
     }
-    _pd->prb_ = prb;
     _pd->init_scratchpad_md();
+
     return safe_ptr_assign(*reorder_pd, _pd);
 }
 
@@ -1805,8 +2220,10 @@ status_t jit_blk_reorder_t::init(engine_t *engine) {
 }
 
 status_t jit_blk_reorder_t::execute(const exec_ctx_t &ctx) const {
-    auto in = CTX_IN_MEM(const char *, DNNL_ARG_FROM);
+    const auto in = CTX_IN_MEM(const char *, DNNL_ARG_FROM);
     auto out = CTX_OUT_MEM(char *, DNNL_ARG_TO);
+    DEFINE_ZERO_POINT_VALUE(src_zp, DNNL_ARG_FROM);
+    DEFINE_ZERO_POINT_VALUE(dst_zp, DNNL_ARG_TO);
 
     // kernel handle 2-dimension tiles, a tail is possible
     auto &prb = this->pd()->prb_;
@@ -1830,7 +2247,7 @@ status_t jit_blk_reorder_t::execute(const exec_ctx_t &ctx) const {
         auto bh_b = bh_stride * bh;
         auto *i = in + (bh_b + fl_b * i1) * itype_sz;
         auto *o = out + (bh_b + fl_b * o1) * otype_sz;
-        (*kernel_)(i, o, n1 - fl_b < block_sz);
+        (*kernel_)(i, o, n1 - fl_b < block_sz, src_zp, dst_zp);
     });
 
     return status::success;

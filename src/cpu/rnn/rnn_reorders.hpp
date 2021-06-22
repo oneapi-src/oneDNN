@@ -878,7 +878,7 @@ private:
                           .template get<void>(memory_tracking::names::
                                           key_reorder_rnn_weights_reduction);
         float *comp = reinterpret_cast<float *>(dst + compensation_offset);
-        const bool req_comp = dst_d.extra().flags
+        const bool req_s8s8_comp = dst_d.extra().flags
                 & memory_extra_flags::rnn_u8s8_compensation;
         const auto mask_ok = [&](int mask) {
             return mask
@@ -902,7 +902,7 @@ private:
         } else
             scratch_quantized = (int8_t * __restrict) src;
 
-        if (req_comp && mask_ok(dst_d.extra().compensation_mask))
+        if (req_s8s8_comp && mask_ok(dst_d.extra().compensation_mask))
             compensate_igo(comp, src_d, scratch_quantized, scratch_compensation,
                     pd()->thr_scratch_comp_sz_);
 

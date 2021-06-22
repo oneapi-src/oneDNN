@@ -610,6 +610,26 @@ public:
         vaddss(x, op1, op2);
     }
 
+    void uni_vphaddd(const Xbyak::Xmm &x, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        if (is_valid_isa(avx)) {
+            vphaddd(x, x2, op);
+        } else {
+            assert(x.isEqualIfNotInherited(op));
+            phaddd(x, op);
+        }
+    }
+
+    void uni_vhaddps(const Xbyak::Xmm &x, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        if (is_valid_isa(avx)) {
+            vhaddps(x, x2, op);
+        } else {
+            assert(x.isEqualIfNotInherited(op));
+            haddps(x, op);
+        }
+    }
+
     void uni_vpsignd(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
         assert(x1.getIdx() == x2.getIdx());
@@ -1173,6 +1193,13 @@ public:
         vcvtps2dq(x, op);
     }
 
+    void uni_vcvttps2dq(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
+        if (is_valid_isa(avx))
+            vcvttps2dq(x, op);
+        else
+            cvttps2dq(x, op);
+    }
+
     void uni_vcvtdq2ps(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
         if (is_valid_isa(avx))
             vcvtdq2ps(x, op);
@@ -1202,6 +1229,13 @@ public:
             vmovd(addr, x);
         else
             movd(addr, x);
+    }
+
+    void uni_vmovd(const Xbyak::Xmm &x, const Xbyak::Address &addr) {
+        if (is_valid_isa(avx))
+            vmovd(x, addr);
+        else
+            movd(x, addr);
     }
 
     void uni_vmovq(const Xbyak::Xmm &x, const Xbyak::Reg64 &r) {

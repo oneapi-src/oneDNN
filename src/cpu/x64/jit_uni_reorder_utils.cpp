@@ -108,8 +108,7 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
         layout_desc_t &ld, const dims_t &blocks, const dims_t &ext_padding) {
     const auto md = memory_desc_wrapper(md_);
 
-    bool ok = true && md.is_blocking_desc() && md.extra().flags == 0;
-    if (!ok) return invalid_arguments;
+    if (!md.is_blocking_desc()) return invalid_arguments;
 
     const auto &bd = md.blocking_desc();
 
@@ -150,7 +149,7 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
 }
 
 status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
-        const primitive_attr_t *attr) {
+        const primitive_attr_t *attr, bool with_groups) {
     auto im_d = memory_desc_wrapper(imd);
     auto om_d = memory_desc_wrapper(omd);
 
@@ -164,6 +163,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             && !om_d.has_runtime_dims_or_strides() && !om_d.has_zero_dim()
             && attr->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
+                    | primitive_attr_t::skip_mask_t::zero_points_runtime
                     | primitive_attr_t::skip_mask_t::post_ops)
             && check_post_ops(attr);
     if (!ok) return unimplemented;
@@ -220,22 +220,54 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     p.op_tail = op_tail;
     p.iblock = iblk_w_tail;
     p.oblock = oblk_w_tail;
-
+    p.req_src_zp = *attr->zero_points_.get(DNNL_ARG_SRC);
+    p.req_dst_zp = *attr->zero_points_.get(DNNL_ARG_DST);
     p.scale_type = attr->output_scales_.has_default_values()
             ? scale_type_t::NONE
             : (attr->output_scales_.mask_ == 0 ? scale_type_t::COMMON
                                                : scale_type_t::MANY);
+    p.req_s8s8_comp
+            = om_d.extra().flags & memory_extra_flags::compensation_conv_s8s8;
+    p.req_asymmetric_comp = om_d.extra().flags
+            & memory_extra_flags::compensation_conv_asymmetric_src;
+    const auto compensation_needed = p.req_s8s8_comp || p.req_asymmetric_comp;
 
-    ptrdiff_t ss[max_ndims] = {0};
-    if (p.scale_type == scale_type_t::MANY) {
-        ptrdiff_t last_ss = 1;
-        for (int d = old.ndims - 1; d >= 0; --d) {
-            assert((d == 0 || old.id[d - 1] <= old.id[d])
+    auto mask_ok = [&](bool check, int mask) {
+        return IMPLICATION(check, mask == (with_groups ? 0x3 : 0x1));
+    };
+
+    if (!mask_ok(p.req_s8s8_comp, om_d.extra().compensation_mask)
+            || !mask_ok(p.req_asymmetric_comp,
+                    om_d.extra().asymm_compensation_mask))
+        return status::unimplemented;
+
+    const auto compute_strides
+            = [&](ptrdiff_t *strides, const int mask) {
+                  ptrdiff_t last_stride = 1;
+                  for (int d = old.ndims - 1; d >= 0; --d) {
+                      assert((d == 0 || old.id[d - 1] <= old.id[d])
                     && "logical dimensions should be in ascending order");
-            if (attr->output_scales_.mask_ & (1 << old.id[d])) {
-                ss[d] = last_ss;
-                last_ss *= old.dims[d];
-            }
+                      if (mask & (1 << old.id[d])) {
+                          strides[d] = last_stride;
+                          last_stride *= old.dims[d];
+                      }
+                  }
+              };
+
+    ptrdiff_t ss[max_ndims] = {0}; // scales strides
+    if (p.scale_type == scale_type_t::MANY)
+        compute_strides(ss, attr->output_scales_.mask_);
+
+    ptrdiff_t cs_[max_ndims] = {0}; // compensation strides
+    ptrdiff_t *cs = cs_;
+    if (compensation_needed) {
+        const int compensation_mask = with_groups ? 0x2 : 0x1;
+        if (p.scale_type == scale_type_t::MANY
+                && attr->output_scales_.mask_ == compensation_mask)
+            cs = ss;
+        else {
+            compute_strides(cs_, compensation_mask);
+            cs = cs_;
         }
     }
 
@@ -255,6 +287,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             p.nodes[ndims].is = ild.strides[i_pos];
             p.nodes[ndims].os = old.strides[o_pos];
             p.nodes[ndims].ss = ss[o_pos];
+            p.nodes[ndims].cs = cs[o_pos];
             ++ndims;
             ++i_pos;
             ++o_pos;
@@ -265,6 +298,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             p.nodes[ndims].is = ild.strides[i_pos];
             p.nodes[ndims].os = old.strides[o_pos] * factor;
             p.nodes[ndims].ss = ss[o_pos] * factor;
+            p.nodes[ndims].cs = cs[o_pos] * factor;
             ++ndims;
             ++i_pos;
             old.dims[o_pos] = factor;
@@ -275,6 +309,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             p.nodes[ndims].is = ild.strides[i_pos] * factor;
             p.nodes[ndims].os = old.strides[o_pos];
             p.nodes[ndims].ss = ss[o_pos];
+            p.nodes[ndims].cs = cs[o_pos];
             ++ndims;
             ++o_pos;
             ild.dims[i_pos] = factor;
@@ -292,6 +327,24 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
     const int sum_idx = attr->post_ops_.find(primitive_kind::sum);
     p.beta = sum_idx == -1 ? 0.f : attr->post_ops_.entry_[sum_idx].sum.scale;
+
+    if (!attr->zero_points_.has_default_values()) {
+        int new_ip_tail = 0;
+        int d = 0;
+        for (; d < im_d.ndims(); ++d) {
+            const auto curr_ip_tail = im_d.dims()[d] % oblocks[d];
+            if (curr_ip_tail > 0) {
+                new_ip_tail = curr_ip_tail;
+                break;
+            }
+        }
+
+        if (new_ip_tail > 0) {
+            p.ip_tail = new_ip_tail;
+            p.iblock = iblocks[d];
+            p.oblock = oblocks[d];
+        }
+    }
 
     return success;
 }
@@ -354,7 +407,10 @@ void prb_simplify(prb_t &p) {
                                         this_node.n * this_node.os)
                         && next_node.ss
                                 == static_cast<ptrdiff_t>(
-                                        this_node.n * this_node.ss));
+                                        this_node.n * this_node.ss)
+                        && next_node.cs
+                                == static_cast<ptrdiff_t>(
+                                        this_node.n * this_node.cs));
         if (fold) {
             this_node.n *= next_node.n;
             for (int j = d + 2; j < p.ndims; ++j)
@@ -386,6 +442,7 @@ void prb_node_split(prb_t &p, int dim, size_t n1) {
     p.nodes[dim + 1].is = p.nodes[dim].is * n1;
     p.nodes[dim + 1].os = p.nodes[dim].os * n1;
     p.nodes[dim + 1].ss = p.nodes[dim].ss * n1;
+    p.nodes[dim + 1].cs = p.nodes[dim].cs * n1;
 
     p.nodes[dim].n = n1;
 }
@@ -423,8 +480,8 @@ void prb_dump(const prb_t &p) {
     printf("@@@ type:%s:%s ndims:%d ", dnnl_dt2str(p.itype),
             dnnl_dt2str(p.otype), p.ndims);
     for (int d = 0; d < p.ndims; ++d)
-        printf("[%zu:%td:%td:%td]", p.nodes[d].n, p.nodes[d].is, p.nodes[d].os,
-                p.nodes[d].ss);
+        printf("[%zu:%td:%td:%td:%td]", p.nodes[d].n, p.nodes[d].is,
+                p.nodes[d].os, p.nodes[d].ss, p.nodes[d].cs);
     printf(" off:%zu:%zu\n", p.ioff, p.ooff);
 }
 
