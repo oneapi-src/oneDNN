@@ -847,10 +847,25 @@ private:
 
     reg64_t imm_addr64 = abi_not_param1; // lnx -> rcx
 
+    void maybe_zero_pad_col(reg64_t dst);
     void transpose(reg64_t dst, reg64_t src, int nrows,
             int ncolumns = transpose_size, bool pad_by_zeroes = false);
     void generate() override;
 };
+
+void jit_trans_to_vnni_t::maybe_zero_pad_col(reg64_t dst) {
+    auto zmm_zero = Xbyak::Zmm(0);
+    vpxord(zmm_zero, zmm_zero, zmm_zero);
+    const int oc_utilized = rnd_up(conf_->oc % conf_->oc_block, transpose_size);
+    const int iters = (conf_->oc_block - oc_utilized) / transpose_size;
+    for (int n = 0; n < iters; ++n) {
+        for (int i = 0; i < transpose_size; i += 2) {
+            auto addr = EVEX_compress_addr(dst, i * tr_src_stride);
+            vmovups(addr, zmm_zero);
+        }
+        add(reg_col_tr_src, tr_src_col_shift);
+    }
+}
 
 void jit_trans_to_vnni_t::transpose(
         reg64_t dst, reg64_t src, int nrows, int ncolumns, bool pad_by_zeroes) {
@@ -1017,6 +1032,20 @@ void jit_trans_to_vnni_t::generate() {
             transpose(reg_col_tr_src, reg_col_src, nrows, col_tail,
                     pad_by_zeroes);
             L(col_loop_done);
+        }
+        const int oc_block_tail = conf_->oc % conf_->oc_block;
+        const bool full_oc_block_utilized = oc_block_tail == 0
+                || rnd_up(oc_block_tail, transpose_size) == conf_->oc_block;
+        const bool col_pad_required = pad_by_zeroes && !full_oc_block_utilized;
+
+        if (col_pad_required) {
+            Label col_pad_done;
+            mov(reg_loop_col, ptr[param1 + GET_OFF(current_col_size)]);
+            cmp(reg_loop_col, conf_->oc_block);
+            je(col_pad_done, T_NEAR);
+            if (col_tail > 0) add(reg_col_tr_src, tr_src_col_shift);
+            maybe_zero_pad_col(reg_col_tr_src);
+            L(col_pad_done);
         }
     };
 
