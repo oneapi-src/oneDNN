@@ -253,6 +253,8 @@ int main(int argc, char **argv) {
     }
     std::cout << "Success!\n";
 
+    set_compiled_partition_cache_capacity(0);
+
     std::cout << "============Run Example Successfully===========\n";
     return 0;
 }

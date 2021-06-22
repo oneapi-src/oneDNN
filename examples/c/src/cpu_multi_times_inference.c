@@ -550,6 +550,7 @@ int main(int argc, char **argv) {
     DNNL_GRAPH_CHECK(dnnl_graph_partition_destroy(partitions[0]));
     DNNL_GRAPH_CHECK(dnnl_graph_partition_destroy(partitions[1]));
 
+    DNNL_GRAPH_CHECK(dnnl_graph_set_compiled_partition_cache_capacity(0));
     DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_destroy(cpartitions[0]));
     DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_destroy(cpartitions[1]));
 
