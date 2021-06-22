@@ -33,6 +33,13 @@ struct bnorm_graph_prb_t : public graph_prb_t {
         ctor_status = handle_main_op_();
         if (stop_work(ctor_status)) return;
 
+        for (const auto &po : prb->attr.post_ops.entry) {
+            if (po.is_eltwise_kind()) {
+                ctor_status = handle_elt_(po);
+                if (stop_work(ctor_status)) return;
+            }
+        }
+
         ctor_status = fill_status::DONE;
     };
     fill_status_t ctor_status;
@@ -48,7 +55,9 @@ struct bnorm_graph_prb_t : public graph_prb_t {
         std::string tag;
     };
     spec_t spec_;
+    po_handlers_t po_handler;
     fill_status_t handle_main_op_();
+    fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
     dnnl::graph::op::kind get_main_op_kind() const override {
         return dnnl::graph::op::kind::BatchNormInference;
     }
