@@ -76,7 +76,7 @@ public:
     using value_t = dnnl::graph::impl::value_t;
     using pair_t = std::pair<size_t, size_t>; // <op_id, input/output offset>
 
-    const static size_t DEFAULT_ID = (std::numeric_limits<size_t>::max)();
+    const static size_t DEFAULT_ID = std::numeric_limits<size_t>::max();
 
     // create dnnl_graph_op with explicit id, kind, and string
     dnnl_graph_op(

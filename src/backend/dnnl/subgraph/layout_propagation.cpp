@@ -292,7 +292,7 @@ static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
         auto in_md = make_dnnl_memory_desc(in_lt);
         auto out_md = make_dnnl_memory_desc(out_lt);
         if (in_md == out_md) {
-            if (out_lt.id != (std::numeric_limits<size_t>::max)()) {
+            if (out_lt.id != std::numeric_limits<size_t>::max()) {
                 // the out_lt is given by user, it should be reserved
                 fuse_to_precursor.emplace_back(cur_op.get());
             } else {

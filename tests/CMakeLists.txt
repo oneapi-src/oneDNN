@@ -53,5 +53,9 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     append(CMAKE_C_FLAGS "-Wno-unknown-pragmas")
 endif()
 
+if(WIN32)
+    append(CMAKE_CXX_FLAGS "-DNOMINMAX") # to allow std::max on Windows with parentheses
+endif()
+
 add_subdirectory(cpp)
 add_subdirectory(benchdnn)

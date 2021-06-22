@@ -53,6 +53,11 @@ if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STRE
         PROPERTIES COMPILE_FLAGS "/bigobj")
 endif()
 
+if(WIN32)
+    append(CMAKE_CXX_FLAGS "-D_WIN")
+    append(CMAKE_CXX_FLAGS "-DNOMINMAX") # to allow std::max on Windows with parentheses
+endif()
+
 # propagate common compilation flags
 append(CMAKE_C_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")
 append(CMAKE_CXX_FLAGS "${DNNL_GRAPH_COMMON_COMPILATION_FLAGS}")

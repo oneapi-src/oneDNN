@@ -140,7 +140,7 @@ private:
     logical_tensor_t val_;
 
     op_t *producer_ {nullptr};
-    size_t offset_ {(std::numeric_limits<size_t>::max)()};
+    size_t offset_ {std::numeric_limits<size_t>::max()};
     std::vector<consumer_t> consumers_;
     bool internal_ {false};
 };
