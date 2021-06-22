@@ -48,7 +48,8 @@
 #endif
 __kernel void gemm_post_ops(__global SRC_DATA_T *src,
         __global BIAS_DATA_T *bias, __global DST_DATA_T *dst POST_OP_ARGS,
-        __global SPAD_DATA_T *scratchpad, global float *scales) {
+        __global SPAD_DATA_T *scratchpad, global float *scales,
+        int scale_stride) {
     const uint mb = GWS_GET_MB();
     const uint oc = GWS_GET_OC();
     const uint mb2 = GWS_GET_MB2();
@@ -68,13 +69,7 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src,
 #endif
 
 #if WITH_SCALES
-#if SCALES_COMMON
-    const float scale = scales[0];
-#elif SCALES_PER_OC
-    const float scale = scales[oc];
-#else
-#error "Unsupported scale type"
-#endif
+    const float scale = scales[scale_stride * oc];
     acc *= scale;
 #endif
 

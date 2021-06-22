@@ -36,8 +36,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
 
     bool ok = d->c_desc.ndims <= 2
             && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k())
-            && attr()->has_default_values(attr_skip_mask)
-            && attr_.set_default_formats(dst_md(0)) == status::success;
+            && attr()->has_default_values(attr_skip_mask);
     if (!ok) return status::unimplemented;
 
     const primitive_attr_t *attributes_with_po = attr();
@@ -82,6 +81,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     desc_.c_desc = *gemm_pd_->arg_md(DNNL_ARG_DST);
     desc_.c_desc.data_type = dst_type;
     if (!set_default_formats()) return status::unimplemented;
+    CHECK(attr_.set_default_formats(dst_md(0)));
 
     compute::kernel_ctx_t kernel_ctx;
     use_scratchpad_with_post_op_worker = use_reorder
@@ -190,10 +190,11 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
     arg_list.set(idx++,
             pd()->use_scratchpad() ? *c_mem_before_po_worker->memory_storage()
                                    : memory_storage_t::empty_storage());
-    arg_list.set(idx,
+    arg_list.set(idx++,
             !pd()->attr()->output_scales_.defined()
                     ? GEMM_CTX_ARG_STORAGE(output_scales)
                     : CTX_GPU_RES_STORAGE(SCALES_));
+    arg_list.set(idx, pd()->attr()->output_scales_.mask_ != 0 ? 1 : 0);
     auto nd_range = pd()->dispatch_.nd_range();
     exec_status = parallel_for(ctx, nd_range, post_process_kernel_, arg_list);
     return exec_status;
