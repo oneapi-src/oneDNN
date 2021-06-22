@@ -218,6 +218,8 @@ int logical_tensor2layout_str(char *str, size_t str_len,
         PUTS(DFMT "d", strides[ndim - 1]);
     } else if (lt.layout_type() == impl::layout_type::opaque) {
         PUTS(DFMT "d", lt.layout_id());
+    } else if (lt.layout_type() == impl::layout_type::any) {
+        PUTS("%s", "any");
     } else {
         assert(!"layout type must be any, strided or opaque.");
     }
