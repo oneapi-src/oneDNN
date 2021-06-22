@@ -33,6 +33,7 @@ set(API_TEST_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile_parametrized.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_version.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_api_common.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition_cache_mt.cpp
     )
 
 add_executable(${LIB_NAME}_api_test ${API_TEST_SRCS})
@@ -51,9 +52,16 @@ target_include_directories(${LIB_NAME}_api_test
     ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
     ${PROJECT_SOURCE_DIR}/tests # gtest related headers
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/
     PRIVATE
     ${PROJECT_SOURCE_DIR}/include
     )
+
+if(NOT DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE)
+    target_compile_definitions(${LIB_NAME}_api_test
+        PRIVATE DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE)
+endif()
 
 set(TEST_FILES_NEED_VERSION ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_version.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_version.cpp)
