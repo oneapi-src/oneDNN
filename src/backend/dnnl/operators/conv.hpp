@@ -403,7 +403,7 @@ public:
             cvt_dst_desc_ = pd_.dst_desc();
         }
         if ((with_bias_ || with_bn_)
-                && impl::logical_tensor_wrapper(inputs.at(conv::kWeight))
+                && impl::logical_tensor_wrapper(inputs.at(conv::kBias))
                            .is_any()) {
             cvt_bias_desc_ = pd_.bias_desc();
         }
