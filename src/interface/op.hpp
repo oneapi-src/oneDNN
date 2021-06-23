@@ -27,12 +27,12 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "attribute_value.hpp"
-#include "c_types_map.hpp"
-#include "internal_ops.hpp"
-#include "logical_tensor.hpp"
-#include "value.hpp"
+#include "interface/c_types_map.hpp"
+#include "interface/internal_ops.hpp"
+#include "interface/logical_tensor.hpp"
+#include "interface/value.hpp"
 
+#include "utils/attribute_value.hpp"
 #include "utils/compatible.hpp"
 
 namespace dnnl {
@@ -72,7 +72,7 @@ public:
     using logical_tensor_t = dnnl::graph::impl::logical_tensor_t;
     using attribute_kind_t = dnnl::graph::impl::attribute_kind_t;
     using status_t = dnnl::graph::impl::status_t;
-    using attribute_value_t = dnnl::graph::impl::attribute_value;
+    using attribute_value_t = dnnl::graph::impl::utils::attribute_value;
     using value_t = dnnl::graph::impl::value_t;
     using pair_t = std::pair<size_t, size_t>; // <op_id, input/output offset>
 

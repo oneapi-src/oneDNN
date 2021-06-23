@@ -27,9 +27,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "attribute_value.hpp"
-#include "c_types_map.hpp"
-#include "op.hpp"
+#include "interface/c_types_map.hpp"
+#include "interface/op.hpp"
+
+#include "utils/attribute_value.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -85,7 +86,7 @@ public:
         // constructor for optional attributes which need to have default value
         attribute(const std::string &name, std::string &&description,
                 bool required, attribute_kind_t attr_kind,
-                attribute_value value)
+                utils::attribute_value value)
             : name_(name)
             , description_(std::move(description))
             , required_(false)
@@ -126,7 +127,7 @@ public:
         attribute_kind_t attr_kind_;
 
         // default value for the attribute
-        attribute_value attr_;
+        utils::attribute_value attr_;
     };
 
     enum class param_num_option { fixed, optional, variadic };
@@ -251,7 +252,7 @@ private:
             const std::vector<op_parameter> &expected_params,
             param_num_option option) const;
     bool verify_attributes(
-            const std::unordered_map<std::string, attribute_value>
+            const std::unordered_map<std::string, utils::attribute_value>
                     &actual_attrs,
             const std::unordered_map<std::string, attribute> &expected_attrs)
             const;

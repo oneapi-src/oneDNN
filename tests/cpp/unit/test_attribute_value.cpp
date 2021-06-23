@@ -16,12 +16,13 @@
 
 #include <gtest/gtest.h>
 
-#include "interface/attribute_value.hpp"
+#include "utils/attribute_value.hpp"
 
 #include <vector>
 
 TEST(attribute_value_test, int64_value) {
     using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::utils;
 
     const int64_t i = 1234;
     attribute_value v1 {i};
@@ -31,6 +32,7 @@ TEST(attribute_value_test, int64_value) {
 
 TEST(attribute_value_test, int64_vector_value) {
     using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::utils;
 
     const std::vector<int64_t> is {1234, 5678};
     attribute_value v1 {is};
@@ -40,6 +42,7 @@ TEST(attribute_value_test, int64_vector_value) {
 
 TEST(attribute_value_test, float_value) {
     using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::utils;
 
     const float f = 0.5;
     attribute_value v1 {f};
@@ -49,6 +52,7 @@ TEST(attribute_value_test, float_value) {
 
 TEST(attribute_value_test, float_vector_value) {
     using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::utils;
 
     const std::vector<float> fs {0.5, 0.25};
     attribute_value v1 {fs};
@@ -58,6 +62,7 @@ TEST(attribute_value_test, float_vector_value) {
 
 TEST(attribute_value_test, bool_value) {
     using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::utils;
 
     const bool b = true;
     attribute_value v1 {b};
@@ -67,6 +72,7 @@ TEST(attribute_value_test, bool_value) {
 
 TEST(attribute_value_test, string_value) {
     using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::utils;
 
     const std::string s = "string attribute";
     attribute_value v1 {s};
@@ -76,6 +82,7 @@ TEST(attribute_value_test, string_value) {
 
 TEST(attribute_value_test, copy) {
     using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::utils;
 
     const std::vector<float> fs {0.5, 0.25};
     attribute_value v1 {fs};
@@ -89,6 +96,7 @@ TEST(attribute_value_test, copy) {
 
 TEST(attribute_value_test, equal) {
     using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::utils;
 
     const std::vector<float> fs1 {0.5, 0.25};
     attribute_value v1 {fs1};

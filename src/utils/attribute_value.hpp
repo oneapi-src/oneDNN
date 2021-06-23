@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef INTERFACE_ATTRIBUTE_VALUE_HPP
-#define INTERFACE_ATTRIBUTE_VALUE_HPP
+#ifndef UTILS_ATTRIBUTE_VALUE_HPP
+#define UTILS_ATTRIBUTE_VALUE_HPP
 
 #include <memory>
 #include <stdexcept>
@@ -23,11 +23,12 @@
 #include <utility>
 #include <vector>
 
-#include "c_types_map.hpp"
+#include "interface/c_types_map.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
+namespace utils {
 // Add new attribute types by specializing on the C++ type and
 // defining an enum value below
 template <typename value_type>
@@ -218,7 +219,7 @@ public:
 private:
     std::unique_ptr<attribute_value_cell> value_cell_;
 };
-
+} // namespace utils
 } // namespace impl
 } // namespace graph
 } // namespace dnnl
