@@ -205,7 +205,8 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_sum(const Zmm &zmm_out,
     if (p_sum_scale) {
         const auto p_sum_scale_val = *p_sum_scale;
         const auto p_sum_zp_val = *p_sum_zp;
-        const auto sum_injector = [&, p_sum_scale_val, mask_flag]() {
+        const auto sum_injector = [&, p_sum_scale_val, p_sum_zp_val,
+                                          mask_flag]() {
             cvt2ps(jcp.dst_dt, zmm_prev_dst, addr, mask_flag);
             if (p_sum_zp_val != 0) {
                 vcvtdq2ps(zmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
