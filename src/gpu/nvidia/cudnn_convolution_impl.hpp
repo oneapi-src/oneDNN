@@ -214,6 +214,9 @@ public:
 
     status_t create_and_set_convolution_desc(const convolution_pd_t *pd) {
         CUDNN_EXECUTE_FUNC_V(cudnnCreateConvolutionDescriptor, &conv_desc);
+        // Allow cuDNN to dispatch into Tensor Core implementations
+        CHECK(CUDNN_EXECUTE_FUNC_S(
+                cudnnSetConvolutionMathType, conv_desc, CUDNN_TENSOR_OP_MATH));
         CUDNN_EXECUTE_FUNC_V(cudnnSetConvolutionNdDescriptor, conv_desc,
                 ndims[x] - 2, padding, filter_strides, dilation,
                 cudnnConvolutionMode_t::CUDNN_CROSS_CORRELATION,
