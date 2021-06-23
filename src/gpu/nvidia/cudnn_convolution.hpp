@@ -41,7 +41,6 @@ struct cudnn_convolution_fwd_t : public primitive_t {
         pd_t(const pd_t &other)
             : cudnn_convolution_fwd_pd_t(other)
             , impl_(other.impl_)
-            , use_temp_dst_(other.use_temp_dst_)
             , dst_md_temp_(other.dst_md_temp_) {}
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_convolution_fwd_t);
@@ -85,18 +84,23 @@ struct cudnn_convolution_fwd_t : public primitive_t {
 
             if (check_for_zero_dims()) return status::success;
 
-            if (use_temp_dst_) {
+            const bool use_temp_dst = attr()->post_ops_.len() > 0;
+            if (use_temp_dst) {
                 dst_md_temp_ = dst_md_;
                 if (dst_md_.data_type == s8) { dst_md_temp_.data_type = f32; }
             }
 
             impl_.reset(new cudnn_convolution_impl_fwd_t());
-            return impl_->init(engine, this, use_temp_dst_);
+            return impl_->init(engine, this, use_temp_dst);
         }
         bool with_scratchpad() const { return impl_->with_scratchpad(); }
         std::shared_ptr<cudnn_convolution_impl_base_t> impl_;
-        bool use_temp_dst_ = attr()->post_ops_.len() > 0;
         memory_desc_t dst_md_temp_;
+
+        bool use_temp_dst() const {
+            if (impl_.get()) return impl_->use_temp_dst();
+            return false;
+        }
 
     private:
         bool set_default_formats() {
@@ -167,7 +171,8 @@ struct cudnn_convolution_fwd_t : public primitive_t {
     }
 
     virtual status_t init(engine_t *engine) override {
-        if (pd()->use_temp_dst_) { init_temp_dst(engine); }
+        const auto impl = pd()->impl_.get();
+        if (impl && impl->use_temp_dst()) { init_temp_dst(engine); }
         return status::success;
     }
 

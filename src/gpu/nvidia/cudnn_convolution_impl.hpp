@@ -22,6 +22,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/convolution_pd.hpp"
+#include "common/utils.hpp"
 #include "gpu/nvidia/cudnn_conv_filter_adjustment_base.hpp"
 #include "gpu/nvidia/cudnn_convolution_pd.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
@@ -60,6 +61,7 @@ protected:
 
     bool do_scaling = false;
     float output_scaling = 1.0f;
+    bool use_temp_dst_ = false;
     cudnnDataType_t computation_data_type = CUDNN_DATA_FLOAT;
     cudnnDataType_t reorder_type = CUDNN_DATA_INT8;
 
@@ -92,7 +94,7 @@ public:
 
     virtual status_t init(engine_t *engine, convolution_pd_t *pd,
             bool use_scratch_dst = false) {
-        CHECK(configure_parameters(pd, use_scratch_dst));
+        CHECK(configure_parameters(pd));
         CHECK(create_cudnn_descs(pd));
         CHECK(check_output_dims());
         CHECK(configure_alg_kind(engine, pd));
@@ -121,8 +123,7 @@ public:
                     strides[io], dnnl_descs[io].ndims, ndims[io]);
         }
     }
-    status_t configure_parameters(
-            const convolution_pd_t *pd, bool use_scratch_dst) {
+    status_t configure_parameters(const convolution_pd_t *pd) {
         if (pd->ndims() > CUDNN_DIM_MAX) { return status::invalid_arguments; }
         CHECK(set_padding_and_dilation(pd));
         with_groups = pd->with_groups();
@@ -356,6 +357,8 @@ public:
                     filter_ndims, transform_filter_strides, filter_dims);
         }
     }
+
+    bool use_temp_dst() const { return use_temp_dst_; }
 };
 
 struct cudnn_convolution_impl_fwd_t : public cudnn_convolution_impl_base_t {
@@ -370,8 +373,9 @@ protected:
     int num_post_ops = 0;
     primitive_kind_t post_ops[2];
     bool need_reorder = false;
-    bool use_temp_dst = false;
     float sum_scale = 1.0f;
+    bool conv_bias_eltwise = false;
+    bool conv_bias = false;
 
 public:
     virtual ~cudnn_convolution_impl_fwd_t() {
@@ -389,32 +393,51 @@ public:
     status_t configure_post_ops(convolution_pd_t *pd) {
         auto &p = pd->attr()->post_ops_;
         num_post_ops = p.len();
-        if (data_types[y] == CUDNN_DATA_INT8 && p.len() > 0) {
-            data_types[y] = CUDNN_DATA_FLOAT;
-            need_reorder = true;
-        }
         for (size_t i = 0; i < p.len(); i++) {
             post_ops[i] = p.entry_[i].kind;
             if (post_ops[i] == dnnl_eltwise) {
-                create_and_set_eltwise_descriptor(pd);
+                CHECK(create_and_set_eltwise_descriptor(pd));
             }
             if (post_ops[i] == dnnl_sum) { sum_scale = p.entry_[i].sum.scale; }
         }
 
-        if (need_reorder)
+        // Try to fuse kernels
+        // pattern 1: conv + bias + eltwise
+        conv_bias_eltwise = num_post_ops > 0 && post_ops[0] == dnnl_eltwise
+                && with_bias && !do_scaling
+                && data_types[y] != CUDNN_DATA_INT8
+                // XXX: cuDNN has a correctness issue for fusion of group conv
+                && pd->G() == 1
+                && eltwise_algorithm_kind(pd) == alg_kind::eltwise_relu;
+        // pattern 2: conv + bias
+        conv_bias = with_bias && !conv_bias_eltwise
+                && !do_scaling
+                // XXX: cuDNN limitation on algorithm support when activation is
+                // equal to CUDNN_ACTIVATION_IDENTITY.
+                && fwd_alg_kind
+                        == CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM
+                // XXX: cuDNN has a correctness issue for fusion of group conv
+                && pd->G() == 1;
+        // If the only post-op is fused then there is no need for temp dst
+        if (conv_bias_eltwise && num_post_ops == 1) use_temp_dst_ = false;
+
+        if (data_types[y] == CUDNN_DATA_INT8 && use_temp_dst_) {
+            data_types[y] = CUDNN_DATA_FLOAT;
+            need_reorder = true;
             CHECK(create_and_set_tensor_descriptor_ex(&reorder_dst_desc,
                     formats[y], reorder_type, ndims[y], dims[y]));
+        }
 
         return status::success;
     }
 
     status_t init(engine_t *engine, convolution_pd_t *pd,
             bool use_scratch_dst) override {
-        use_temp_dst = use_scratch_dst;
-        CHECK(configure_parameters(pd, use_temp_dst));
-        CHECK(configure_post_ops(pd));
+        use_temp_dst_ = use_scratch_dst;
+        CHECK(configure_parameters(pd));
         CHECK(create_cudnn_descs(pd));
         CHECK(configure_alg_kind(engine, pd));
+        CHECK(configure_post_ops(pd));
         CHECK(init_scratchpad(engine, pd));
 
         return status::success;
@@ -445,19 +468,29 @@ public:
         auto x = args[0], weights = args[1], y = args[2], bias = args[3],
              scratchpad = args[4], post_op_scratch = args[6],
              post_op_reorder = args[7];
-        void *output = use_temp_dst ? post_op_scratch : y;
+        void *output = use_temp_dst_ ? post_op_scratch : y;
         if (using_transformed_filter()) {
             auto w_scratch = args[5];
             transform_filter(handle, weights, w_scratch);
             weights = w_scratch;
         }
-        if (computation_data_type == CUDNN_DATA_INT32 && bias) {
-            CUDNN_EXECUTE_FUNC_V(cudnnConvolutionBiasActivationForward, handle,
-                    &alpha, descs[io::x], x, weights_desc, weights, conv_desc,
+        bool fused = conv_bias || conv_bias_eltwise;
+        if (fused) {
+            auto err = cudnnConvolutionBiasActivationForward(handle, &alpha,
+                    descs[io::x], x, weights_desc, weights, conv_desc,
                     fwd_alg_kind, scratchpad, scratchpad_size, &beta,
                     descs[io::y], output, descs[io::bias], bias,
-                    activation_desc, descs[io::y], output);
-        } else {
+                    conv_bias_eltwise ? eltwise_desc : activation_desc,
+                    descs[io::y], output);
+            // try to fallback into standalone convolution
+            if (err == CUDNN_STATUS_NOT_SUPPORTED) {
+                fused = false;
+            } else {
+                CUDNN_CHECK_V(err);
+            }
+        }
+
+        if (!fused) {
             const float bias_alpha = 1.0f;
             const float bias_beta = 1.0f;
             CUDNN_EXECUTE_FUNC_V(cudnnConvolutionForward, handle, &alpha,
@@ -471,9 +504,10 @@ public:
             }
         }
         execute_scale(handle, output);
-        for (int i = 0; i < num_post_ops; i++) {
+        // skip first eltwise in case it is fused into convolution
+        const int post_ops_start_pos = fused && conv_bias_eltwise;
+        for (int i = post_ops_start_pos; i < num_post_ops; i++) {
             bool last_op = i == num_post_ops - 1 && !need_reorder;
-            if (last_op) output = y;
             switch (post_ops[i]) {
                 case dnnl_sum:
                     if (need_reorder) {
@@ -491,7 +525,11 @@ public:
                     break;
 
                 case dnnl_eltwise:
-                    execute_eltwise(handle, post_op_scratch, output);
+                    if (last_op) {
+                        execute_eltwise(handle, output, y);
+                    } else {
+                        execute_eltwise(handle, output, post_op_scratch);
+                    }
                     break;
                 default: assert(!"unsupported post op");
             }
@@ -588,14 +626,12 @@ public:
 
         if (submit_status != CUDNN_STATUS_SUCCESS) return status::unimplemented;
 
-        if (fwd_alg_kind == CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM) {
-            CHECK(CUDNN_EXECUTE_FUNC_S(
-                    cudnnCreateActivationDescriptor, &activation_desc));
-            CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetActivationDescriptor,
-                    activation_desc,
-                    cudnnActivationMode_t::CUDNN_ACTIVATION_IDENTITY,
-                    CUDNN_NOT_PROPAGATE_NAN, 1.0));
-        }
+        CHECK(CUDNN_EXECUTE_FUNC_S(
+                cudnnCreateActivationDescriptor, &activation_desc));
+        CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetActivationDescriptor,
+                activation_desc,
+                cudnnActivationMode_t::CUDNN_ACTIVATION_IDENTITY,
+                CUDNN_NOT_PROPAGATE_NAN, 1.0));
 
         return status::success;
     }

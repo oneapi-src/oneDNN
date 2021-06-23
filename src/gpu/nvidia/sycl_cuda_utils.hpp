@@ -453,6 +453,19 @@ static status_t cuda_to_dnnl_status(CUresult cu_result) {
         } \
     }
 
+#define CUDNN_CHECK_V(e) \
+    { \
+        auto status = (e); \
+        if (status != CUDNN_STATUS_SUCCESS) { \
+            std::cout << cudnn_error(std::string("At :") \
+                            + std::string(CUDA_ERROR_LOCATION) \
+                            + std::string(" : "), \
+                    status) \
+                                 .what() \
+                      << std::endl; \
+        } \
+    }
+
 #define CUDA_EXECUTE_FUNC_S(name, ...) \
     [&]() { \
         auto err = name(__VA_ARGS__); \
