@@ -1530,7 +1530,8 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
 
     test::vector<float> src_data {-2.0, -1.5};
     test::vector<float> weight_data {-2.0, -1.5};
-    test::vector<float> ref_dst_data {6.25};
+    test::vector<float> bias_data {3.75};
+    test::vector<float> ref_dst_data {10};
     test::vector<float> dst_data(ref_dst_data.size(), 0.0);
 
     // prepare logical tensor
@@ -1538,10 +1539,12 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
             = utils::logical_tensor_init(0, {2}, impl::data_type::f32);
     impl::logical_tensor_t weight
             = utils::logical_tensor_init(1, {2}, impl::data_type::f32);
+    impl::logical_tensor_t bias
+            = utils::logical_tensor_init(2, {1, 1}, impl::data_type::f32);
     impl::logical_tensor_t dst = utils::logical_tensor_init(
             2, {1, 1}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src, weight};
+    std::vector<impl::logical_tensor_t> inputs {src, weight, bias};
     std::vector<impl::logical_tensor_t> outputs {dst};
 
     auto &op_factory = get_dnnl_kernel_registry();
@@ -1551,13 +1554,35 @@ TEST(operator_kernel, matmul_compile_fwd_fp32) {
 
     impl::tensor_t src_ts(src, src_data.data());
     impl::tensor_t weight_ts(weight, weight_data.data());
+    impl::tensor_t bias_ts(bias, bias_data.data());
     impl::tensor_t dst_ts(outputs[0], dst_data.data());
 
     impl::stream_t &strm = get_stream();
-    matmul_kernel->execute(&matmul_op, &strm, {src_ts, weight_ts}, {dst_ts});
+    matmul_kernel->execute(
+            &matmul_op, &strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
     strm.wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+    }
+
+    // test with second iteration to see
+    // if memory cache works correctly
+    test::vector<float> src_data2 {-2.0, -1.5};
+    test::vector<float> weight_data2 {-1.0, -1.0};
+    test::vector<float> bias_data2 {1.5};
+    test::vector<float> ref_dst_data2 {5};
+    test::vector<float> dst_data2(ref_dst_data2.size(), 0.0);
+
+    impl::tensor_t src_ts2(src, src_data2.data());
+    impl::tensor_t weight_ts2(weight, weight_data2.data());
+    impl::tensor_t bias_ts2(bias, bias_data2.data());
+    impl::tensor_t dst_ts2(outputs[0], dst_data2.data());
+
+    matmul_kernel->execute(
+            &matmul_op, &strm, {src_ts2, weight_ts2, bias_ts2}, {dst_ts2});
+    strm.wait();
+    for (size_t i = 0; i < ref_dst_data2.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst_data2[i], ref_dst_data2[i]);
     }
 }
 
