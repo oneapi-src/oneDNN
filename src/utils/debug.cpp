@@ -16,9 +16,9 @@
 
 // clang-format off
 
-#include <assert.h>
+#include <cassert>
 
-#include "debug.hpp"
+#include "utils/debug.hpp"
 
 namespace dnnl {
 namespace graph {
