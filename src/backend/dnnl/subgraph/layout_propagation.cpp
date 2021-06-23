@@ -90,22 +90,37 @@ static bool layout_propagation_for_conv(op_ptr &op,
     return true;
 }
 
+static void get_expected_input_layout(
+        std::shared_ptr<impl::value_t> &input_value) {
+    if (input_value->has_producer()
+            && input_value->get_producer().get_kind() == op_kind::Reorder) {
+        op_t &producer = input_value->get_producer();
+        std::shared_ptr<value_t> producer_input_value
+                = producer.get_input_value(0);
+        logical_tensor_t producer_input_lt
+                = producer_input_value->get_logical_tensor();
+        if (producer_input_lt.layout_type != layout_type::any
+                && producer_input_lt.layout_type != layout_type::undef) {
+            input_value->set_logical_tensor(
+                    producer_input_value->get_logical_tensor());
+        }
+    }
+}
+
 static bool layout_propagation_for_matmul(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
     std::shared_ptr<impl::value_t> src, wei, bias, dst;
     src = op->get_input_value(0);
+    // get reorder's input value as matmul's input value
+    get_expected_input_layout(src);
     wei = op->get_input_value(1);
+    get_expected_input_layout(wei);
+
     dst = op->get_output_value(0);
     if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
         bias = op->get_input_value(2);
+        get_expected_input_layout(bias);
     }
-
-    // previously, we have inserted reorder around the matmul, the input and
-    // output's layout type should be ANY
-    assertm(ltw(src->get_logical_tensor()).is_any()
-                    && ltw(wei->get_logical_tensor()).is_any()
-                    && ltw(dst->get_logical_tensor()).is_any(),
-            "conv's src, weight, dst should be any layout_type");
 
     auto pd = create_matmul_pd(op, p_engine, prm_attr_mgr);
 
@@ -119,7 +134,7 @@ static bool layout_propagation_for_matmul(op_ptr &op,
     auto scratchpad_val = insert_scratchpad(op);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 
-    return true;
+    return false;
 }
 
 static bool layout_propagation_for_pool(op_ptr &op,
@@ -345,16 +360,17 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
                 continue;
 
             if (cur_op->get_kind() == op_kind::MaxPool) {
-                changed |= layout_propagation_for_pool(
-                        cur_op, p_engine, prm_attr_mgr);
+                changed = layout_propagation_for_pool(
+                                  cur_op, p_engine, prm_attr_mgr)
+                        || changed;
             } else if (cur_op->get_kind() == op_kind::permute) {
-                changed |= layout_propagation_for_permute(cur_op);
+                changed = layout_propagation_for_permute(cur_op) || changed;
             } else if (cur_op->get_kind() == op_kind::mul_scales) {
-                changed |= layout_propagation_for_reorder(cur_op);
+                changed = layout_propagation_for_reorder(cur_op) || changed;
             } else if (cur_op->get_kind() == op_kind::to_group) {
-                changed |= layout_propagation_for_to_group(cur_op);
+                changed = layout_propagation_for_to_group(cur_op) || changed;
             } else if (cur_op->get_kind() == op_kind::expand) {
-                changed |= layout_propagation_for_expand(cur_op);
+                changed = layout_propagation_for_expand(cur_op) || changed;
             } else {
                 assertm(false,
                         "none layout propagation function for current op");
@@ -368,8 +384,6 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
         if (cur_op->get_kind() == op_kind::Convolution
                 || cur_op->get_kind() == op_kind::dnnl_convolution) {
             layout_propagation_for_conv(cur_op, p_engine, prm_attr_mgr);
-        } else if (cur_op->get_kind() == op_kind::MatMul) {
-            layout_propagation_for_matmul(cur_op, p_engine, prm_attr_mgr);
         }
     }
 
@@ -382,10 +396,17 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
     do {
         changed = layout_propagation_func(subgraph);
 
+        // layout propagation for matmul
+        for (auto &cur_op : subgraph) {
+            if (cur_op->get_kind() != op_kind::MatMul) continue;
+            changed = layout_propagation_for_matmul(
+                              cur_op, p_engine, prm_attr_mgr)
+                    || changed;
+        }
         // layout propagation for layout reorder op
         for (auto &cur_op : subgraph) {
             if (cur_op->get_kind() != op_kind::Reorder) continue;
-            changed |= layout_propagation_for_reorder(cur_op);
+            changed = layout_propagation_for_reorder(cur_op) || changed;
         }
         cnt++;
     } while (changed && cnt <= max_num_limit);
