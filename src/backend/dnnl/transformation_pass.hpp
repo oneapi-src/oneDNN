@@ -22,7 +22,7 @@
 #include <utility>
 #include <vector>
 
-#include "interface/pass_base.hpp"
+#include "utils/pm/pass_base.hpp"
 
 #include "pattern_utils.hpp"
 

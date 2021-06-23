@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef INTERFACE_PASS_BASE_HPP
-#define INTERFACE_PASS_BASE_HPP
+#ifndef UTILS_PM_PASS_BASE_HPP
+#define UTILS_PM_PASS_BASE_HPP
 
 #include <functional>
 #include <list>

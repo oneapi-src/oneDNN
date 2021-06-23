@@ -21,8 +21,9 @@
 
 #include "interface/graph.hpp"
 #include "interface/partition.hpp"
-#include "interface/pass_base.hpp"
-#include "interface/pass_manager.hpp"
+
+#include "utils/pm/pass_base.hpp"
+#include "utils/pm/pass_manager.hpp"
 
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"

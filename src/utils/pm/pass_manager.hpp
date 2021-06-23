@@ -14,17 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef INTERFACE_PASS_MANAGER_HPP
-#define INTERFACE_PASS_MANAGER_HPP
+#ifndef UTILS_PM_PASS_MANAGER_HPP
+#define UTILS_PM_PASS_MANAGER_HPP
 
 #include <list>
 #include <string>
 #include <unordered_map>
 
 #include "interface/c_types_map.hpp"
-#include "interface/pass_base.hpp"
 
 #include "utils/json.hpp"
+#include "utils/pm/pass_base.hpp"
 
 namespace dnnl {
 namespace graph {

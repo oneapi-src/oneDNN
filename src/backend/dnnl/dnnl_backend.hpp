@@ -25,9 +25,9 @@
 #include "interface/backend.hpp"
 #include "interface/c_types_map.hpp"
 #include "interface/logical_tensor.hpp"
-#include "interface/pass_manager.hpp"
 
 #include "utils/compatible.hpp"
+#include "utils/pm/pass_manager.hpp"
 
 #include "common.hpp"
 

@@ -18,6 +18,7 @@
 #define UTILS_JSON_HPP
 
 #include <algorithm>
+#include <cassert>
 #include <cctype>
 #include <fstream>
 #include <iostream>
