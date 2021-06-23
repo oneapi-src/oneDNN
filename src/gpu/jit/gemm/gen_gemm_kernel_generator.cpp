@@ -8519,9 +8519,8 @@ bool gemm_kernel_generator_t<hw>::gemmUpdateC(
     // Prepare postop injector if configured.
     GRFRange postOpScratch;
     if (problem.hasPostOp()) {
-        postOpInjector.reset(new Injector(this, problem.postOp,
-                problem.eltwiseAlpha, problem.eltwiseBeta, problem.eltwiseScale,
-                GRFRange(), problem.postOpFwd));
+        postOpInjector.reset(new Injector(this, problem.Ts.get_dnnl_type(),
+                problem.post_ops, GRFRange(), problem.postOpFwd));
         if (!postOpInjector) stub();
 
         postOpScratch = state.ra.try_alloc_range(

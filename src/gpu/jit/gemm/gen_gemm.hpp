@@ -99,14 +99,16 @@ struct gen_gemm_t : public gpu_gemm_t {
                                             bias_cmask(), 0, 1 << 0, 1 << 1))
                     && compute_engine->mayiuse_ngen_kernels()
                     && attr()->has_default_values(attr_skip_mask)
-                    && attr()->output_scales_.mask_ == 0
-                    && attr()->post_ops_.len() <= 2
-                    && IMPLICATION(attr()->post_ops_.len() == 1,
-                            attr()->post_ops_.find(eltwise) != -1
-                                    || attr()->post_ops_.find(sum) != -1)
-                    && IMPLICATION(attr()->post_ops_.len() == 2,
-                            attr()->post_ops_.find(sum) == 0
-                                    && attr()->post_ops_.find(eltwise) == 1);
+                    && attr()->output_scales_.mask_ == 0;
+
+            // check if there is sum post op and only at first place
+            ok &= IMPLICATION(attr()->post_ops_.find(sum) != -1,
+                    attr()->post_ops_.find(sum) == 0
+                            && attr()->post_ops_.find(sum, 1) == -1);
+
+            // check if post ops are supported
+            ok &= IMPLICATION(attr()->post_ops_.len() > 0,
+                    jit_post_op_injector_is_supported(attr()->post_ops_, true));
 
             if (!ok) return status::unimplemented;
 
@@ -121,12 +123,6 @@ struct gen_gemm_t : public gpu_gemm_t {
             eu_count_ = dev_info->eu_count();
             hw_threads_ = dev_info->hw_threads();
 
-            attr_info_ = attr_info_t::create(attr());
-
-            ok &= IMPLICATION(with_eltwise(),
-                    jit_eltwise_injector_f32_is_supported(
-                            attr_info()->eltwise_alg));
-
             if (!ok) return status::unimplemented;
 
             return status::success;
@@ -139,18 +135,6 @@ struct gen_gemm_t : public gpu_gemm_t {
         bool with_c_offset() const {
             return !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
         }
-
-        bool with_eltwise() const {
-            return attr_info()->eltwise_alg != alg_kind::undef;
-        }
-
-        alg_kind_t eltwise_alg() const { return attr_info()->eltwise_alg; }
-
-        float eltwise_alpha() const { return attr_info()->eltwise_alpha; }
-
-        float eltwise_beta() const { return attr_info()->eltwise_beta; }
-
-        float eltwise_scale() const { return attr_info()->eltwise_scale; }
 
         float alpha() const { return attr()->output_scales_.scales_[0]; }
 
@@ -173,8 +157,6 @@ struct gen_gemm_t : public gpu_gemm_t {
             return nstl::max(desc()->c_desc.ndims - 2, 0);
         }
 
-        const attr_info_t *attr_info() const { return &attr_info_; }
-
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;
         size_t dyn_offset_c = 0;
@@ -182,8 +164,6 @@ struct gen_gemm_t : public gpu_gemm_t {
         int hw_threads_ = 0;
         int eu_count_ = 0;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
-
-        attr_info_t attr_info_ = {};
     };
 
     status_t init(engine_t *engine) override { return init_nocopy(engine); }
@@ -199,10 +179,6 @@ struct gen_gemm_t : public gpu_gemm_t {
         auto a_type = pd()->desc()->a_type();
         auto b_type = pd()->desc()->b_type();
         auto c_type = pd()->desc()->c_type();
-        auto eltwise_alg = pd()->eltwise_alg();
-        auto eltwise_alpha = pd()->eltwise_alpha();
-        auto eltwise_beta = pd()->eltwise_beta();
-        auto eltwise_scale = pd()->eltwise_scale();
 
         kernel_t::choose_unrolls(pd()->arch_, pd()->hw_threads_, transa, transb,
                 a_type, b_type, c_type, pd()->desc()->m(), pd()->desc()->n(),
@@ -211,9 +187,9 @@ struct gen_gemm_t : public gpu_gemm_t {
         kernel_t kernel;
 
         auto status = kernel.init(pd()->arch_, batch_dims, transa, transb,
-                pd()->with_c_offset(), pd()->with_bias(), eltwise_alg,
-                eltwise_alpha, eltwise_beta, eltwise_scale, a_type, b_type,
-                c_type, unroll_m, unroll_n);
+                pd()->with_c_offset(), pd()->with_bias(),
+                pd()->attr()->post_ops_, a_type, b_type, c_type, unroll_m,
+                unroll_n);
         if (status != status::success) return status;
 
         create_kernel(engine, &nocopy_kernel_, kernel);

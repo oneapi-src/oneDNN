@@ -24,8 +24,8 @@
 #include "common/utils.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel_common.hpp"
 #include "gpu/jit/gemm/utils.hpp"
-#include "gpu/jit/jit_eltwise_injector.hpp"
 #include "gpu/jit/jit_generator.hpp"
+#include "gpu/jit/jit_post_op_injector.hpp"
 
 #include "../ngen/ngen_opencl.hpp"
 #include "../ngen/ngen_register_allocator.hpp"
@@ -79,6 +79,16 @@ public:
     constexpr int log2Size() const { return uint32_t(val) & 0xFF; }
     constexpr int size() const { return (uint32_t(val) >> 8) & 0xFF; }
     constexpr int components() const { return isComplex() ? 2 : 1; }
+    data_type_t get_dnnl_type() const {
+        switch (val) {
+            case Type::f32: return data_type::f32;
+            case Type::f16: return data_type::f16;
+            case Type::s32: return data_type::s32;
+            case Type::u8: return data_type::u8;
+            case Type::s8: return data_type::s8;
+            default: assert(!"Unsupported type"); return data_type::undef;
+        }
+    }
 
     template <typename U>
     constexpr friend int operator*(U a, Type t) {
@@ -620,12 +630,10 @@ struct GEMMProblem : public CommonProblem {
     COffset cOffset = COffset::None; // C offset mode.
     BatchMode batch = BatchMode::None; // Batch mode.
     int batchDims = 0; // # of batch dimensions (strided batch only).
-    alg_kind_t postOp = alg_kind::undef; // Fused eltwise post-op to apply
+    post_ops_t post_ops;
     bool postOpFwd = true; // Eltwise parameters
-    float eltwiseAlpha, eltwiseBeta;
-    float eltwiseScale;
 
-    bool hasPostOp() const { return postOp != alg_kind::undef; }
+    bool hasPostOp() const { return post_ops.len() > 0; }
 
     bool beta0() const {
         return (beta_real == 0) && (!Tc.isComplex() || (beta_imag == 0));
@@ -960,7 +968,7 @@ public:
 
     NGEN_FORWARD_OPENCL(hw);
 
-    using Injector = jit_eltwise_injector_f32<hw>;
+    using Injector = jit_post_op_injector<hw>;
     std::unique_ptr<Injector> postOpInjector;
 
     void gemm(GEMMProblem problem, GEMMStrategy strategy,
