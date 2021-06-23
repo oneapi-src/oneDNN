@@ -144,7 +144,7 @@ public:
 
     ~dnnl_graph_compiled_partition() = default;
 
-    const impl::partition_t &src_partition() { return src_partition_; }
+    const impl::partition_t &src_partition() const { return src_partition_; }
 
     void init(const std::shared_ptr<impl::compiled_partition_impl_t> &pimpl) {
         pimpl_ = pimpl;
@@ -203,10 +203,6 @@ public:
         if (!info_.is_initialized()) info_.init(&eng, this);
         return info_.c_str();
     }
-
-    friend void init_info_partition(const impl::engine_t *engine,
-            const dnnl_graph_compiled_partition *compiled_partition,
-            char *buffer);
 
 private:
     std::shared_ptr<impl::compiled_partition_impl_t> pimpl_;

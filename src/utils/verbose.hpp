@@ -22,8 +22,6 @@
 #include <mutex>
 #include <string>
 
-#include "oneapi/dnnl/dnnl_graph_types.h"
-
 #include "interface/c_types_map.hpp"
 
 namespace dnnl {
@@ -74,8 +72,7 @@ struct partition_info_t {
     const char *c_str() const { return str_.c_str(); }
     bool is_initialized() const { return is_initialized_; }
 
-    void init(const engine_t *engine,
-            const ::dnnl_graph_compiled_partition *partition);
+    void init(const engine_t *engine, const compiled_partition_t *partition);
 
 private:
     std::string str_;

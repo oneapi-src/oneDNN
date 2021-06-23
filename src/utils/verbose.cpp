@@ -27,14 +27,13 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
-#include "debug.hpp"
-#include "verbose.hpp"
-
 #include "interface/backend.hpp"
 #include "interface/c_types_map.hpp"
 #include "interface/partition.hpp"
 
+#include "utils/debug.hpp"
 #include "utils/utils.hpp"
+#include "utils/verbose.hpp"
 
 #ifndef DNNL_GRAPH_VERSION_MAJOR
 #define DNNL_GRAPH_VERSION_MAJOR INT_MAX
@@ -350,40 +349,11 @@ void verbose_templ(char *buffer, const impl::engine_t *engine,
             data_str, backend_str, written);
 }
 
-} // namespace
-
-void partition_info_t::init(const engine_t *engine,
-        const compiled_partition_t *compiled_partition) {
-    if (is_initialized_) return;
-
-    std::call_once(initialization_flag_, [&] {
-        str_.resize(DNNL_GRAPH_VERBOSE_BUF_LEN, '\0');
-        init_info_partition(engine, compiled_partition, &str_[0]);
-        is_initialized_ = true;
-    });
-}
-
-#endif
-
-} // namespace utils
-} // namespace impl
-} // namespace graph
-} // namespace dnnl
-
-namespace graph = dnnl::graph;
-
-void init_info_partition(const graph::impl::engine_t *engine,
-        const graph::impl::compiled_partition_t *compiled_partition,
-        char *buffer) {
-#if defined(DNNL_GRAPH_DISABLE_VERBOSE)
-    UNUSED(engine);
-    UNUSED(compiled_partition);
-    UNUSED(buffer);
-#else
-    using namespace graph::impl::utils;
+void init_info_partition(const impl::engine_t *engine,
+        const impl::compiled_partition_t *compiled_partition, char *buffer) {
     DECL_DAT_STRS();
 
-    const auto &partition = compiled_partition->src_partition_;
+    const auto &partition = compiled_partition->src_partition();
     FMT2STR(fmt_str, DNNL_GRAPH_VERBOSE_FMT_LEN, fmt_written, partition);
     {
         const auto &inputs = compiled_partition->get_inputs();
@@ -433,8 +403,27 @@ void init_info_partition(const graph::impl::engine_t *engine,
     verbose_templ(buffer, engine, partition.id(),
             operators.empty() ? "N/A" : operator_names.str().c_str(), fmt_str,
             dat_str, partition.get_assigned_backend()->get_name().c_str());
-#endif
 }
+
+} // namespace
+
+void partition_info_t::init(const engine_t *engine,
+        const compiled_partition_t *compiled_partition) {
+    if (is_initialized_) return;
+
+    std::call_once(initialization_flag_, [&] {
+        str_.resize(DNNL_GRAPH_VERBOSE_BUF_LEN, '\0');
+        init_info_partition(engine, compiled_partition, &str_[0]);
+        is_initialized_ = true;
+    });
+}
+
+#endif
+
+} // namespace utils
+} // namespace impl
+} // namespace graph
+} // namespace dnnl
 
 const dnnl_graph_version_t *dnnl_graph_version(void) {
     static const dnnl_graph_version_t ver
