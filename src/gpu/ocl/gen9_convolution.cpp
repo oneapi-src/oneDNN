@@ -114,7 +114,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     conf.is_nhwc = is_1stconv ? is_dst_nhwc : is_nhwc;
     conf.is_depthwise = is_depthwise;
 
-    const int out_block = int8_dst ? 32 : 16;
+    const int out_block = int8_dst && !is_1stconv ? 32 : 16;
     if (is_1stconv || (conf.with_groups && conf.ngroups > 1)) {
         conf.ic = conf.ic_without_padding;
         conf.oc = is_1stconv ? utils::rnd_up(conf.oc_without_padding, out_block)
