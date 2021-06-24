@@ -14,22 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "oneapi/dnnl/dnnl_types.h"
-
-#include "common/c_types_map.hpp"
-#include "common/dnnl_thread.hpp"
-#include "common/type_helpers.hpp"
-#include "common/utils.hpp"
-
-#include "common/bfloat16.hpp"
 #include "cpu/aarch64/acl_convolution_utils.hpp"
-
-#include "cpu/platform.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace aarch64 {
+
+namespace acl_convolution_utils {
 
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
@@ -37,8 +29,6 @@ using namespace dnnl::impl::alg_kind;
 using namespace prop_kind;
 using namespace data_type;
 using uint = unsigned int;
-
-namespace acl_convolution_utils {
 
 status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
@@ -162,14 +152,10 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     const auto acl_layout = is_nspc ? arm_compute::DataLayout::NHWC
                                     : arm_compute::DataLayout::NCHW;
 
-    auto acl_src_data_t
-            = acl_convolution_utils::get_acl_data_t(src_d.data_type());
-    auto acl_wei_data_t
-            = acl_convolution_utils::get_acl_data_t(wei_d.data_type());
-    auto acl_dst_data_t
-            = acl_convolution_utils::get_acl_data_t(dst_d.data_type());
-    auto acl_bia_data_t
-            = acl_convolution_utils::get_acl_data_t(bia_d.data_type());
+    auto acl_src_data_t = acl_common_utils::get_acl_data_t(src_d.data_type());
+    auto acl_wei_data_t = acl_common_utils::get_acl_data_t(wei_d.data_type());
+    auto acl_dst_data_t = acl_common_utils::get_acl_data_t(dst_d.data_type());
+    auto acl_bia_data_t = acl_common_utils::get_acl_data_t(bia_d.data_type());
 
     if (acl_bia_data_t == arm_compute::DataType::UNKNOWN)
         acl_bia_data_t = arm_compute::DataType::F32;
@@ -221,7 +207,7 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     const auto &post_ops = attr.post_ops_;
     acp.sum_with_eltwise = (post_ops.len() == 2) && post_ops.entry_[0].is_sum()
             && post_ops.entry_[1].is_eltwise();
-    acp.act_info = acl_convolution_utils::get_acl_act(attr);
+    acp.act_info = acl_common_utils::get_acl_act(attr);
 
     return status::success;
 }
@@ -236,8 +222,7 @@ status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     // clang-format off
     // Validate convolution manually to check for return status
-    arm_compute::NEGEMMConvolutionLayer acl_gemm_conv;
-    auto acl_st = acl_gemm_conv.validate(
+    auto acl_st = arm_compute::NEGEMMConvolutionLayer::validate(
         &acp.src_info,
         &acp.wei_info,
         acp.with_bias ? &acp.bia_info : nullptr,
@@ -316,8 +301,7 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     // clang-format off
     // Validate convolution manually to check for return status
-    arm_compute::NEWinogradConvolutionLayer acl_wino_conv;
-    auto acl_st = acl_wino_conv.validate(
+    auto acl_st = arm_compute::NEWinogradConvolutionLayer::validate(
         &acp.src_info,
         &acp.wei_info,
         acp.with_bias ? &acp.bia_info : nullptr,
@@ -331,69 +315,6 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
     }
 
     return status::success;
-}
-
-arm_compute::DataType get_acl_data_t(const dnnl_data_type_t dt) {
-    switch (dt) {
-        case bf16: return arm_compute::DataType::BFLOAT16; break;
-        case f32: return arm_compute::DataType::F32; break;
-        case s32: return arm_compute::DataType::S32; break;
-        case f16: return arm_compute::DataType::F16; break;
-        case s8: return arm_compute::DataType::QASYMM8_SIGNED; break;
-        case u8: return arm_compute::DataType::QASYMM8; break;
-        default: return arm_compute::DataType::UNKNOWN;
-    }
-}
-
-arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr) {
-    const auto &post_ops = attr.post_ops_;
-    const int entry_idx = post_ops.find(primitive_kind::eltwise);
-    if (entry_idx == -1) { return arm_compute::ActivationLayerInfo(); }
-
-    const auto eltwise_alg = post_ops.entry_[entry_idx].eltwise.alg;
-    float alpha = post_ops.entry_[entry_idx].eltwise.alpha;
-    float beta = post_ops.entry_[entry_idx].eltwise.beta;
-
-    using acl_act_t = arm_compute::ActivationLayerInfo::ActivationFunction;
-    acl_act_t acl_act_alg;
-    switch (eltwise_alg) {
-        case eltwise_relu:
-            // oneDNN defines RELU: f(x) = (x > 0) ? x : a*x
-            // Compute Library defines LEAKY_RELU: f(x) = (x > 0) ? x : a*x
-            // whilst Compute Library RELU is defined as: f(x) = max(0,x)
-            if (alpha == 0) {
-                acl_act_alg = acl_act_t::RELU;
-            } else {
-                acl_act_alg = acl_act_t::LEAKY_RELU;
-            }
-            break;
-        case eltwise_tanh:
-            // oneDNN defines TANH activation as:          f(x) = tanh(x)
-            // Compute Library defines TANH activation as: f(x) = a*tanh(b*x)
-            // Setting a=b=1 makes the two equivalent
-            alpha = 1.f;
-            beta = 1.f;
-            acl_act_alg = acl_act_t::TANH;
-            break;
-        case eltwise_elu: acl_act_alg = acl_act_t::ELU; break;
-        case eltwise_square: acl_act_alg = acl_act_t::SQUARE; break;
-        case eltwise_abs: acl_act_alg = acl_act_t::ABS; break;
-        case eltwise_sqrt: acl_act_alg = acl_act_t::SQRT; break;
-        case eltwise_linear: acl_act_alg = acl_act_t::LINEAR; break;
-        case eltwise_bounded_relu: acl_act_alg = acl_act_t::BOUNDED_RELU; break;
-        case eltwise_soft_relu: acl_act_alg = acl_act_t::SOFT_RELU; break;
-        case eltwise_logistic: acl_act_alg = acl_act_t::LOGISTIC; break;
-        default: return arm_compute::ActivationLayerInfo();
-    }
-
-    return arm_compute::ActivationLayerInfo(acl_act_alg, alpha, beta);
-}
-
-bool acl_act_ok(alg_kind_t eltwise_activation) {
-    return utils::one_of(eltwise_activation, eltwise_relu, eltwise_tanh,
-            eltwise_elu, eltwise_square, eltwise_abs, eltwise_sqrt,
-            eltwise_linear, eltwise_bounded_relu, eltwise_soft_relu,
-            eltwise_logistic);
 }
 
 } // namespace acl_convolution_utils

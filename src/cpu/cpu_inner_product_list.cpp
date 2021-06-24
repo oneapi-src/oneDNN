@@ -26,6 +26,11 @@
 using namespace dnnl::impl::cpu::x64;
 #endif
 
+#if DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
+#include "cpu/aarch64/acl_inner_product.hpp"
+using namespace dnnl::impl::cpu::aarch64;
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -39,6 +44,7 @@ const impl_list_item_t impl_list[] = {
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core>)
         CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core>)
         CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core>)
+        CPU_INSTANCE_AARCH64_ACL(acl_inner_product_fwd_t)
         CPU_INSTANCE(gemm_inner_product_fwd_t<f32>)
         CPU_INSTANCE(gemm_inner_product_bwd_data_t<f32>)
         CPU_INSTANCE(gemm_inner_product_bwd_weights_t<f32>)
