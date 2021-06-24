@@ -17,6 +17,7 @@
 #ifndef UTILS_UTILS_HPP
 #define UTILS_UTILS_HPP
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <functional>
@@ -82,6 +83,11 @@ constexpr bool one_of(T val, P item, Args... item_others) {
 template <typename... Args>
 inline bool any_null(Args... ptrs) {
     return one_of(nullptr, ptrs...);
+}
+
+template <typename T>
+inline bool any_le(const std::vector<T> &v, T i) {
+    return std::any_of(v.begin(), v.end(), [i](T k) { return k <= i; });
 }
 
 template <typename T, typename R = T>
@@ -159,6 +165,9 @@ public:
     }
 };
 #endif
+
+int getenv(const char *name, char *buffer, int buffer_size);
+int getenv_int(const char *name, int default_value);
 
 } // namespace utils
 } // namespace impl

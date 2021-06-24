@@ -697,8 +697,9 @@ private:
                 = groups <= 1 ? weights : to_grouped(weights, groups);
         auto com_dilates = get_compatible_dilates(dilates);
 
-        BACKEND_DNNL_ENFORCE(utils::one_of(weights.data_type(), data_type::f32,
-                                     data_type::f16, data_type::bf16),
+        BACKEND_DNNL_ENFORCE(
+                impl::utils::one_of(weights.data_type(), data_type::f32,
+                        data_type::f16, data_type::bf16),
                 "Incorrect data type in weights");
 
         memory::desc src_desc = to_format_any(src);
@@ -711,8 +712,9 @@ private:
         primitive_desc pd;
         if (with_bias) {
             memory::desc bias_desc = bias;
-            BACKEND_DNNL_ENFORCE(utils::one_of(bias.data_type(), data_type::f32,
-                                         data_type::f16, data_type::bf16),
+            BACKEND_DNNL_ENFORCE(
+                    impl::utils::one_of(bias.data_type(), data_type::f32,
+                            data_type::f16, data_type::bf16),
                     "Incorrect data type in bias");
             pd = primitive_desc({aprop_kind, aalgorithm, src_desc, weights_desc,
                                         bias_desc, dst_desc, strides,

@@ -17,6 +17,7 @@
 #ifndef BACKEND_DNNL_OPERATORS_BN_FUSION_HPP
 #define BACKEND_DNNL_OPERATORS_BN_FUSION_HPP
 
+#include <cmath>
 #include <functional>
 
 #include "backend/dnnl/utils.hpp"

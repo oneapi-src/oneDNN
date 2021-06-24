@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <climits>
-#include <cstring>
 #include <memory>
 #include <stdlib.h>
 #include <vector>
@@ -72,35 +70,6 @@ double get_msec() {
     return 1e+3 * static_cast<double>(time.tv_sec)
             + 1e-3 * static_cast<double>(time.tv_usec);
 #endif
-}
-
-int getenv(const char *name, char *buffer, int buffer_size) {
-    if (name == nullptr || buffer_size < 0
-            || (buffer == nullptr && buffer_size > 0))
-        return INT_MIN;
-
-    int result = 0;
-    int term_zero_idx = 0;
-    size_t value_length = 0;
-
-    const char *value = ::getenv(name);
-    value_length = value == nullptr ? 0 : strlen(value);
-
-    if (value_length > INT_MAX)
-        result = INT_MIN;
-    else {
-        int int_value_length = (int)value_length;
-        if (int_value_length >= buffer_size) {
-            result = -int_value_length;
-        } else {
-            term_zero_idx = int_value_length;
-            result = int_value_length;
-            if (value) strncpy(buffer, value, (size_t)buffer_size - 1);
-        }
-    }
-
-    if (buffer != nullptr) buffer[term_zero_idx] = '\0';
-    return result;
 }
 
 static setting_t<int> verbose {0};

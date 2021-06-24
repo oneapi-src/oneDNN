@@ -56,8 +56,7 @@ public:
         pu.match(agraph, fusion_ops);
         if (!fusion_ops.empty()) {
             // temporary solution here for showing which pattern matched
-            char *val = std::getenv("DNNL_GRAPH_DUMP");
-            if (val != nullptr && std::strcmp(val, "1") == 0) {
+            if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
                 std::cout << "hit pass " << get_pass_name() << "\n";
             }
 
