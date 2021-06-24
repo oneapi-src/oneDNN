@@ -334,22 +334,13 @@ inline const char *ConvertErrorToString(int err)
 #ifdef XBYAK_NO_EXCEPTION
 namespace local {
 
-inline int& GetErrorRef() {
-	static XBYAK_TLS int err = 0;
-	return err;
-}
-
-inline void SetError(int err) {
-	if (local::GetErrorRef()) return; // keep the first err code
-	local::GetErrorRef() = err;
-}
+static XBYAK_TLS int l_err = 0;
+inline void SetError(int err) { if (err) l_err = err; } // keep the first err code
 
 } // local
 
-inline void ClearError() {
-	local::GetErrorRef() = 0;
-}
-inline int GetError() { return Xbyak::local::GetErrorRef(); }
+inline void ClearError() { local::l_err = 0; }
+inline int GetError() { return local::l_err; }
 
 #define XBYAK_THROW(err) { Xbyak::local::SetError(err); return; }
 #define XBYAK_THROW_RET(err, r) { Xbyak::local::SetError(err); return r; }
