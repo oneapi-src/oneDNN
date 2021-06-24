@@ -314,8 +314,9 @@ public:
         p_engine_ = make_dnnl_engine(*g_engine);
 
         if (with_bias_) {
-            BACKEND_DNNL_ENFORCE(utils::one_of(bias.data_type(), data_type::f32,
-                                         data_type::f16, data_type::bf16),
+            BACKEND_DNNL_ENFORCE(
+                    impl::utils::one_of(bias.data_type(), data_type::f32,
+                            data_type::f16, data_type::bf16),
                     "Incorrect data type in bias");
         }
 

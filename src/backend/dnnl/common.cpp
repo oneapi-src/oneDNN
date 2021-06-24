@@ -19,11 +19,11 @@
 #include <vector>
 
 #include "interface/backend.hpp"
+#include "utils/utils.hpp"
 
 #include "common.hpp"
 #include "dnnl_backend.hpp"
 #include "tensor.hpp"
-#include "utils.hpp"
 
 const size_t DNNL_CPU_MEMALIGNMENT = 4096;
 
@@ -81,7 +81,7 @@ format_tag get_default_format(const dims &adims) {
 }
 
 dims get_compatible_dilates(const dims &dilates, size_t input_size) {
-    if (!dilates.empty() && !utils::any_le(dilates, static_cast<dim>(0)))
+    if (!dilates.empty() && !impl::utils::any_le(dilates, static_cast<dim>(0)))
         return utils::fmap(dilates, [](dim x) { return x - 1; });
     if (4 == input_size) {
         return {0, 0};

@@ -319,8 +319,7 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_filter(
     auto status = graph->build_graph();
     if (status != status::success) return status::invalid_graph;
 
-    char *val = std::getenv("DNNL_GRAPH_DUMP");
-    if (val != nullptr && std::strcmp(val, "1") == 0) {
+    if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
         std::cout << "visualize un-fused graph to a dot file" << std::endl;
         graph->visualize("_backend.dot");
     }
@@ -342,7 +341,7 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_filter(
         }
     }
 
-    if (val != nullptr && std::strcmp(val, "1") == 0) {
+    if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
         std::cout << "visualize fused graph to a dot file" << std::endl;
         graph->visualize("_backend_opt.dot");
     }

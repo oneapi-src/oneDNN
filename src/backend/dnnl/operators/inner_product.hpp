@@ -71,7 +71,7 @@ public:
         // prepare the operator attributes
         attr_ = with_relu ? attr_t::fuse_eltwise() : attr_t {};
 
-        BACKEND_DNNL_ENFORCE(utils::one_of(weight.get_data_type(),
+        BACKEND_DNNL_ENFORCE(impl::utils::one_of(weight.get_data_type(),
                                      data_type::f32, data_type::bf16),
                 "Incorrect data type in weight");
 
@@ -82,7 +82,7 @@ public:
         src = src.to_type(dst_data_type);
         weight = weight.to_type(dst_data_type);
         if (with_bias) {
-            BACKEND_DNNL_ENFORCE(utils::one_of(bias.get_data_type(),
+            BACKEND_DNNL_ENFORCE(impl::utils::one_of(bias.get_data_type(),
                                          data_type::f32, data_type::bf16),
                     "Incorrect data type in bias");
             bias = bias.to_format_any();

@@ -18,15 +18,6 @@
 #define BACKEND_DNNL_UTILS_HPP
 
 #include <algorithm>
-#include <atomic>
-#include <chrono>
-#include <climits>
-#include <cstring>
-#include <iterator>
-#include <memory>
-#include <numeric>
-#include <random>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -41,21 +32,6 @@ std::vector<U> fmap(const std::vector<T> &vec, const F &f) {
     std::vector<U> result;
     std::transform(vec.begin(), vec.end(), std::back_inserter(result), f);
     return result;
-}
-
-template <typename T, typename P>
-constexpr bool one_of(T val, P item) {
-    return val == item;
-}
-
-template <typename T, typename P, typename... Args>
-constexpr bool one_of(T val, P item, Args... item_others) {
-    return val == item || one_of(val, item_others...);
-}
-
-template <typename T>
-inline bool any_le(const std::vector<T> &v, T i) {
-    return std::any_of(v.begin(), v.end(), [i](T k) { return k <= i; });
 }
 
 /** sorts an array of values using @p comparator. While sorting the array
