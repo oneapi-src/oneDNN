@@ -50,7 +50,10 @@ const int f32_max_exact = 1 << 24;
 dt_conf_t::entry_t F32_ENTRY {dnnl_f32, -f32_max_exact, f32_max_exact, MIN_F32,
         MAX_F32, MEAN_F32, STDDEV_F32, EPS_F32};
 
+#define UNUSED_REG_VAR(name) UNUSED(__reg_##name)
+
 CFG(f32) {
+    UNUSED_REG_VAR(f32);
     return F32_ENTRY;
 }
 
@@ -66,6 +69,7 @@ dt_conf_t::entry_t BF16_ENTRY_F32 {dnnl_f32, -f32_max_exact, f32_max_exact,
         MIN_F32, MAX_F32, MEAN_F32, STDDEV_F32, EPS_BF16};
 
 CFG(bf16) {
+    UNUSED_REG_VAR(bf16);
     CASE(SRC_LAYER, BF16_ENTRY_BF16);
     CASE(SRC_ITER, BF16_ENTRY_BF16);
     CASE(WEIGHTS_LAYER, BF16_ENTRY_BF16);
@@ -81,6 +85,7 @@ dt_conf_t::entry_t F16_ENTRY {dnnl_f16, -f16_max_exact, f16_max_exact, 0.0f,
         0.999999f, 0.5f, 0.01f, epsilon_dt(dnnl_f16)};
 
 CFG(f16) {
+    UNUSED_REG_VAR(f16);
     return F16_ENTRY;
 }
 
@@ -118,6 +123,7 @@ dt_conf_t::entry_t S8_ENTRY_F32 {dnnl_f32, -f32_max_exact, f32_max_exact,
         MIN_F32, MAX_F32, MEAN_F32, STDDEV_F32, EPS_F32};
 
 CFG(u8u8u8u8) {
+    UNUSED_REG_VAR(u8u8u8u8);
     CASE(SRC_LAYER, U8_ENTRY_U8);
     CASE(SRC_ITER, U8_ENTRY_U8);
     CASE(SRC_ITER_C, U8_ENTRY_F32);
@@ -133,6 +139,7 @@ CFG(u8u8u8u8) {
 }
 
 CFG(u8u8u8f32) {
+    UNUSED_REG_VAR(u8u8u8f32);
     CASE(SRC_LAYER, U8_ENTRY_U8);
     CASE(SRC_ITER, U8_ENTRY_U8);
     CASE(SRC_ITER_C, U8_ENTRY_F32);
@@ -148,6 +155,7 @@ CFG(u8u8u8f32) {
 }
 
 CFG(f32u8f32u8) {
+    UNUSED_REG_VAR(f32u8f32u8);
     CASE(SRC_LAYER, U8_ENTRY_U8);
     CASE(SRC_ITER, U8_ENTRY_F32);
     CASE(SRC_ITER_C, U8_ENTRY_F32);
@@ -163,6 +171,7 @@ CFG(f32u8f32u8) {
 }
 
 CFG(f32u8f32f32) {
+    UNUSED_REG_VAR(f32u8f32f32);
     CASE(SRC_LAYER, U8_ENTRY_U8);
     CASE(SRC_ITER, U8_ENTRY_F32);
     CASE(SRC_ITER_C, U8_ENTRY_F32);
@@ -178,6 +187,7 @@ CFG(f32u8f32f32) {
 }
 
 CFG(s8s8s8s8) {
+    UNUSED_REG_VAR(s8s8s8s8);
     CASE(SRC_LAYER, S8_ENTRY_S8);
     CASE(SRC_ITER, S8_ENTRY_S8);
     CASE(SRC_ITER_C, S8_ENTRY_F32);
@@ -193,6 +203,7 @@ CFG(s8s8s8s8) {
 }
 
 CFG(s8s8s8f32) {
+    UNUSED_REG_VAR(s8s8s8f32);
     CASE(SRC_LAYER, S8_ENTRY_S8);
     CASE(SRC_ITER, S8_ENTRY_S8);
     CASE(SRC_ITER_C, S8_ENTRY_F32);
@@ -208,6 +219,7 @@ CFG(s8s8s8f32) {
 }
 
 CFG(f32s8f32s8) {
+    UNUSED_REG_VAR(f32s8f32s8);
     CASE(SRC_LAYER, S8_ENTRY_S8);
     CASE(SRC_ITER, S8_ENTRY_F32);
     CASE(SRC_ITER_C, S8_ENTRY_F32);
@@ -223,6 +235,7 @@ CFG(f32s8f32s8) {
 }
 
 CFG(f32s8f32f32) {
+    UNUSED_REG_VAR(f32s8f32f32);
     CASE(SRC_LAYER, S8_ENTRY_S8);
     CASE(SRC_ITER, S8_ENTRY_F32);
     CASE(SRC_ITER_C, S8_ENTRY_F32);

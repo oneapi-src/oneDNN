@@ -139,7 +139,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
     const int64_t n_chunks = 16;
     const int64_t chunk_size = div_up(nelems, n_chunks);
 
-    dnnl::impl::parallel_nd(n_chunks, [&](int idx_chunk) {
+    dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         // Note: we use a different seed for each chunk to avoid
@@ -265,6 +265,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     check_known_skipped_case(prb, res);
+    check_sum_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
@@ -346,7 +347,8 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(fill_data(SRC, prb, src_dt, src_fp, res), WARN);
     SAFE(fill_data(WEI, prb, wei_dt, wei_fp, res), WARN);
-    SAFE(fill_data(DST, prb, dst_dt, dst_fp, res), WARN);
+    if (prb->attr.post_ops.find(attr_t::post_ops_t::SUM) >= 0)
+        SAFE(fill_data(DST, prb, dst_dt, dst_fp, res), WARN);
     if (prb->bia_dt != dnnl_data_type_undef)
         SAFE(fill_data(BIA, prb, bia_dt, bia_fp, res), WARN);
 

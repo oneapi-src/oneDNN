@@ -21,13 +21,17 @@
 --reset
 
 --dt=f32,bf16
---dir=FWD_D
+--dir=FWD_D,BWD_DW
 --inplace=true
---flags=,GS,S
+--flags=,GS,S,CH,C,H
 --tag=AB48a16b
---stat_tag=abx 
+--stat_tag=abx
 30x300
 256x768
 128x1024
+2048x1024
 5120x1024
 24576x1024
+
+--tag=abx
+1x2048x1024

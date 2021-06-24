@@ -128,13 +128,30 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     return OK;
 }
 
+bool need_src_init(const prb_t *prb) {
+    return !(prb->dir == BWD_D);
+}
+
+bool need_wei_init(const prb_t *prb) {
+    return !(prb->dir & FLAG_BWD && prb->dir & FLAG_WEI);
+}
+
+bool need_bia_init(const prb_t *prb) {
+    return need_wei_init(prb);
+}
+
+bool need_dst_init(const prb_t *prb) {
+    return !(prb->dir & FLAG_FWD)
+            || (prb->attr.post_ops.find(attr_t::post_ops_t::SUM) >= 0);
+}
+
 int fill_src(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
     const auto &c = prb->cfg[SRC];
     const int range = c.f_max - c.f_min + 1;
 
     dnnl::impl::parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
-            [&](int mb, int ic, int id, int ih, int iw) {
+            [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
                 const int gen
                         = 101 * id + 103 * ih + 107 * iw + 109 * mb + 113 * ic;
                 const float sparsity = prb->ic < 5 ? 1.f : c.f_sparsity;
@@ -158,7 +175,7 @@ int fill_wei(
     const int range = c.f_max - c.f_min + 1;
 
     dnnl::impl::parallel_nd(prb->oc, prb->ic, prb->id, prb->ih, prb->iw,
-            [&](int oc, int ic, int kd, int kh, int kw) {
+            [&](int64_t oc, int64_t ic, int64_t kd, int64_t kh, int64_t kw) {
                 const int gen = 127 * kd + 131 * kh + 137 * kw + 139 * oc
                         + 149 * ic + 7;
                 const float sparsity = prb->ic < 5 ? 1.f : c.f_sparsity;
@@ -208,7 +225,7 @@ int fill_dst(
     const auto &c = prb->cfg[DST];
     const int range = c.f_max - c.f_min + 1;
 
-    dnnl::impl::parallel_nd(prb->mb, prb->oc, [&](int mb, int oc) {
+    dnnl::impl::parallel_nd(prb->mb, prb->oc, [&](int64_t mb, int64_t oc) {
         const int gen = 173 * mb + 179 * oc;
         const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value = non_base ? c.f_min + gen * 1 % range : c.f_base;
@@ -255,6 +272,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     check_known_skipped_case(prb, res);
+    check_sum_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
@@ -305,10 +323,10 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t bia_fp(bia_md, fp, tag::x, test_engine);
     dnn_mem_t dst_fp(dst_md, fp, tag::abx, test_engine);
 
-    SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
-    SAFE(fill_wei(prb, wei_dt, wei_fp, res), WARN);
-    SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
-    SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
+    if (need_src_init(prb)) SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
+    if (need_wei_init(prb)) SAFE(fill_wei(prb, wei_dt, wei_fp, res), WARN);
+    if (need_bia_init(prb)) SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
+    if (need_dst_init(prb)) SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
 
     args_t args;
 

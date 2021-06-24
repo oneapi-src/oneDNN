@@ -458,6 +458,13 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
+            std::string zero_point_str = get_substr(subs, subs_pos);
+            // TODO: update this check to validate whole string for digits
+            if (!std::isdigit(zero_point_str[0])) return FAIL;
+            e.sum.zero_point = std::stoi(zero_point_str);
+            if (subs_pos == std::string::npos) continue;
+            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
+
             e.sum.dt = str2dt(get_substr(subs, subs_pos).c_str());
             // sum dt, if specified, should be defined
             if (e.sum.dt == dnnl_data_type_undef) return FAIL;
@@ -468,8 +475,7 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 
             auto policy_str = get_substr(subs, subs_pos);
             auto scale_str = policy_str + ":" + get_substr(subs, subs_pos);
-            auto status = e.convolution.oscale.from_str(scale_str);
-            if (status != OK) return status;
+            SAFE(e.convolution.oscale.from_str(scale_str), WARN);
         } else if (e.is_eltwise_kind()) {
             e.eltwise.alpha = std::stof(get_substr(subs, subs_pos));
             if (subs_pos == std::string::npos) continue;
@@ -488,7 +494,15 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
             e.binary.policy = str2policy(get_substr(subs, subs_pos));
+            if (e.binary.policy == POLICY_TOTAL) return FAIL;
+            if (subs_pos == std::string::npos) continue;
+            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
+
+            e.binary.tag = get_substr(subs, subs_pos);
+            SAFE(check_tag(e.binary.tag), WARN);
         }
+        if (subs_pos == std::string::npos) continue;
+        if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
     }
     return OK;
 }
@@ -652,8 +666,11 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
         s << e.kind;
 
         if (e.is_sum_kind()) {
-            if (e.sum.scale != 1.0f || e.sum.dt != dnnl_data_type_undef)
+            if (e.sum.scale != 1.0f || e.sum.zero_point != 0
+                    || e.sum.dt != dnnl_data_type_undef)
                 s << ":" << e.sum.scale;
+            if (e.sum.zero_point != 0 || e.sum.dt != dnnl_data_type_undef)
+                s << ":" << e.sum.zero_point;
             if (e.sum.dt != dnnl_data_type_undef) s << ":" << e.sum.dt;
         } else if (e.is_convolution_kind()) {
             if (e.convolution.dst_dt != dnnl_f32)
@@ -670,8 +687,11 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 s << ":" << e.eltwise.alpha;
         } else if (e.is_binary_kind()) {
             s << ":" << e.binary.src1_dt;
-            if (e.binary.policy != policy_t::COMMON)
+            if (e.binary.policy != policy_t::COMMON) {
                 s << ":" << e.binary.policy;
+                if (attr_t::get_default_mask(e.binary.policy) >= 4)
+                    s << ":" << e.binary.tag;
+            }
         } else {
             assert(!"unknown kind");
             s << "unknown_kind";
@@ -778,7 +798,7 @@ int attr_args_t::prepare_binary_post_op_mds(
             binary_dims[d] = (!(mask & (1 << d))) ? 1 : dims[d];
 
         dnnl_memory_desc_t src1_desc;
-        SAFE(init_md(&src1_desc, ndims, binary_dims, dt, tag::abx), WARN);
+        SAFE(init_md(&src1_desc, ndims, binary_dims, dt, e.binary.tag), WARN);
         mds.insert(std::make_pair(
                 (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1),
                 src1_desc));
@@ -860,8 +880,8 @@ dnnl_primitive_attr_t create_dnnl_attr(
         for (int idx = 0; idx < po.len(); ++idx) {
             const auto &e = po.entry[idx];
             if (e.is_sum_kind()) {
-                DNN_SAFE_V(dnnl_post_ops_append_sum_v2(
-                        ops, e.sum.scale, e.sum.dt));
+                DNN_SAFE_V(dnnl_post_ops_append_sum_v3(
+                        ops, e.sum.scale, e.sum.zero_point, e.sum.dt));
             } else if (e.is_convolution_kind()) {
                 const auto wei_dt = attr_args.get_dw_arg(DNNL_ARG_WEIGHTS);
                 const auto bia_dt = attr_args.get_dw_arg(DNNL_ARG_BIAS);
@@ -1296,7 +1316,7 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
         const auto &e = po.entry[idx];
 
         if (e.is_sum_kind()) {
-            val += e.sum.scale * sum_val;
+            val += e.sum.scale * (sum_val - e.sum.zero_point);
         } else if (e.is_convolution_kind()) {
             continue;
         } else if (e.is_eltwise_kind()) {

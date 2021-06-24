@@ -22,7 +22,7 @@
 
 --attr-oscale=common:2.25*
 --attr-zero-points=src:common:1+wei:common:-1+dst:common:2
---attr-post-ops=sum
+--attr-post-ops=sum,sum:1.5:2
 --batch=shapes_2d
 
 --skip-impl= # TODO: remove when optimized version is added

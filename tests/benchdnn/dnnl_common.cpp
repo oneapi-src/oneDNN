@@ -217,6 +217,8 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
 
     t.reset();
+
+    bool is_first_loop = true;
     while (true) {
         for (int i = 0; i < cur_batch_times; i++) {
             DNN_SAFE(perf_func(stream, dnnl_args), WARN);
@@ -227,7 +229,7 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
         if (should_stop(t)) break;
 
         // Adjust cur_batch_times after the first batch run
-        if (t.times() == cur_batch_times + 1) {
+        if (is_first_loop) {
             double ms_min = t.ms(benchdnn_timer_t::min);
             // Heuristic: try to use ~5 batch runs for the whole benchmark
             int batch_times_heuristic = (ms_min == 0.0)
@@ -236,6 +238,7 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
                             (int)((max_ms_per_prb - t.total_ms()) / ms_min
                                     / 5));
             cur_batch_times = MIN2(max_batch_times, batch_times_heuristic);
+            is_first_loop = false;
         }
     }
     return OK;
@@ -245,13 +248,15 @@ int measure_perf(
         benchdnn_timer_t &t, perf_function_t &perf_func, args_t &args) {
     int ret = OK;
     if (is_bench_mode(PERF)) {
-        stream_t stream(get_test_engine());
+        const auto &engine = get_test_engine();
+        stream_t stream(engine);
         std::vector<dnnl_exec_arg_t> dnnl_args;
         execute_unmap_args(args, dnnl_args);
 
-        // For CPU: measure individual iterations
-        // For GPU: measure iterations in batches to hide driver overhead
-        if (is_cpu())
+        // For non-DPCPP CPU: measure individual iterations.
+        // For DPCPP CPU and GPU: measure iterations in batches to hide driver
+        // overhead. DPCPP CPU follows the model of GPU, thus, handled similar.
+        if (is_cpu() && !is_sycl_engine(engine))
             ret = measure_perf_individual(t, stream, perf_func, dnnl_args);
         else
             ret = measure_perf_aggregate(t, stream, perf_func, dnnl_args);
@@ -358,6 +363,22 @@ void check_binary_post_ops(const attr_t &attr, res_t *res) {
                     || e.kind == pk_t::LT || e.kind == pk_t::EQ
                     || e.kind == pk_t::NE) {
                 res->state = SKIPPED, res->reason = KNOWN_LIMITATION;
+                break;
+            }
+        }
+    }
+}
+
+// Sum with zero-point is not supported on GPU
+void check_sum_post_ops(const attr_t &attr, res_t *res) {
+    if (!is_gpu()) return;
+
+    const auto &po = attr.post_ops;
+    if (!po.is_def()) {
+        for (int idx = 0; idx < po.len(); ++idx) {
+            const auto &e = po.entry[idx];
+            if (e.is_sum_kind() && e.sum.zero_point != 0) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
                 break;
             }
         }

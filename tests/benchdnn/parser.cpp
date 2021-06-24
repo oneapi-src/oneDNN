@@ -337,8 +337,8 @@ static bool parse_engine(
     auto n_devices = dnnl_engine_get_count(engine_tgt_kind);
     if (engine_index >= n_devices) {
         fprintf(stderr,
-                "ERROR: requested engine with index %ld is not registred in "
-                "the system. Number of devices registred is %ld.\n",
+                "ERROR: requested engine with index %ld is not registered in "
+                "the system. Number of devices registered is %ld.\n",
                 (long)engine_index, (long)n_devices);
         exit(2);
     }

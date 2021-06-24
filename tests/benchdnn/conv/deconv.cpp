@@ -244,6 +244,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     check_known_skipped_case(prb, res);
+    check_sum_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return OK;
 
     prb_t p_tr((desc_t)*prb, prb->dir, prb->cfg, prb->stag, prb->wtag,
@@ -309,11 +310,13 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_zero_points_m;
 
     /* fill memory + reorders <-> */
-    SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
-    SAFE(fill_wei(prb, wei_dt, wei_fp, res), WARN);
-    SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
-    SAFE(transpose_data_wei(prb, wei_fp, wei_tr_fp), WARN);
-    SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
+    if (need_dst_init(prb)) SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
+    if (need_src_init(prb)) SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
+    if (need_wei_init(prb)) {
+        SAFE(fill_wei(prb, wei_dt, wei_fp, res), WARN);
+        SAFE(transpose_data_wei(prb, wei_fp, wei_tr_fp), WARN);
+    }
+    if (need_bia_init(prb)) SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
 
     args_t args;
 

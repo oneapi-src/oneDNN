@@ -36,7 +36,7 @@
 
 --runtime_dims_masks=2:4,6:6,3:5,7:7
 --attr-oscale=common:2.25
---attr-post-ops=sum+relu+add:u8,add:f32:per_tensor
+--attr-post-ops=sum+relu+add:u8,add:f32:per_tensor+sub:f32:per_oc
 --batch=shapes_3d
 
 # batch size smaller than num_threads
