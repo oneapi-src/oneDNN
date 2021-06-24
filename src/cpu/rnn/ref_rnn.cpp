@@ -1229,26 +1229,6 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
 
     // Fetching extra buffers from scratchpad
     float *ws_bias = (float *)(scratch_ptr + ws_bias_offset_);
-
-    // initialize diff_states to 0
-    if (aprop == prop_kind::backward) {
-        // TODO: parallelize across layer, iter and iter_c
-        auto zero_ws = [](int ithr, int nthr, gemm_acc_t *ws, size_t size) {
-            size_t start = 0, end = 0;
-            balance211(size, nthr, ithr, start, end);
-            array_set(ws + start, 0.f, end - start);
-        };
-        parallel(0, [&](const int ithr, const int nthr) {
-            zero_ws(ithr, nthr, ws_diff_states_layer,
-                    rnn.ws_diff_states_layer_size / sizeof(gemm_acc_t));
-            zero_ws(ithr, nthr, ws_diff_states_iter,
-                    rnn.ws_diff_states_iter_size / sizeof(gemm_acc_t));
-            if (this->pd()->cell_kind() == alg_kind::vanilla_lstm)
-                zero_ws(ithr, nthr, ws_diff_states_iter_c,
-                        rnn.ws_diff_states_iter_c_size / sizeof(gemm_acc_t));
-        });
-    }
-
     /* Pack(if using packed gemm API) or copy(if input arrays have bad leading
      * dimension */
     (this->*bias_preparation_func)(rnn, ptr_bias, bias, ws_bias);
