@@ -674,7 +674,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             : dst_iter_c_d.blocking_desc().strides[2];
 
     /* Set the correct number of weights parts */
-    bool is_orig_gru = rd.cell_kind == alg_kind::vanilla_gru;
+    const bool is_orig_gru = rd.cell_kind == alg_kind::vanilla_gru;
     rnn.n_parts_weights_layer = 1;
     rnn.parts_weights_layer[0] = rnn.n_gates;
     rnn.parts_weights_layer[1] = 0;
@@ -692,16 +692,19 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     /* Decide wich gemm implementation to use: packed/nonpacked jit/cblas
      * and if to mergre gemm across iterations */
-    bool is_f32 = rnn.dt_conf == all_f32, is_bf16 = rnn.dt_conf == all_bf16;
-    bool is_gru = utils::one_of(
+    const bool is_f32 = rnn.dt_conf == all_f32,
+               is_bf16 = rnn.dt_conf == all_bf16;
+    const bool is_gru = utils::one_of(
             rd.cell_kind, alg_kind::vanilla_gru, alg_kind::lbr_gru);
-    bool is_inference = !rnn.is_training;
+    const bool is_inference = !rnn.is_training;
 
     // To be able to merge the GEMM on the layer input when not
     // copying, we need to have a trivial stride for the T dimension
-    auto src_layer_is_trivial_stride = src_layer_d.blocking_desc().strides[0]
+    const auto src_layer_is_trivial_stride
+            = src_layer_d.blocking_desc().strides[0]
             == (rnn.src_layer_ld_ * rnn.mb);
-    auto dst_layer_is_trivial_stride = dst_layer_d.blocking_desc().strides[0]
+    const auto dst_layer_is_trivial_stride
+            = dst_layer_d.blocking_desc().strides[0]
             == (rnn.dst_layer_ld_ * rnn.mb);
 
     rnn.merge_gemm_layer = (!rnn.is_brgemm)
@@ -748,7 +751,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     /* Set packed gemm sizes */
     /* TODO: investigate the benefit of mixing packed and non-packed weights parts */
-    auto set_pack_sizes
+    const auto set_pack_sizes
             = [&](bool merge, bool &do_pack, size_t &weights_pack_size,
                       int &n_parts, int *parts, size_t *parts_pack_size,
                       size_t &comp_offset, int ic, int oc, int weights_oc,
@@ -756,9 +759,9 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         bool pack = true;
         weights_pack_size = 0;
         for (int p = 0; p < n_parts; p++) {
-            dim_t m_p = rnn.is_fwd ? (parts[p] * oc) : ic;
-            dim_t k_p = rnn.is_fwd ? ic : (parts[p] * oc);
-            dim_t n_p = merge ? rnn.mb * rnn.n_iter : rnn.mb;
+            const dim_t m_p = rnn.is_fwd ? (parts[p] * oc) : ic;
+            const dim_t k_p = rnn.is_fwd ? ic : (parts[p] * oc);
+            const dim_t n_p = merge ? rnn.mb * rnn.n_iter : rnn.mb;
             bool pack_part = true;
 
             dnnl_status_t st = dnnl_success;
@@ -848,26 +851,27 @@ void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &diff_weights_projection_d) {
 
     // Set leading dimensions for input weights arrays depending on input format
-    auto set_dims = [&](const memory_desc_wrapper &md, int &ld, int &nld) {
-        ld = 0;
-        nld = 0;
-        if (md.is_blocking_desc()) {
-            if (is_ldigo(md)) {
-                ld = (int)md.blocking_desc().strides[2];
-                nld = md.dims()[2];
-            } else if (is_ldgoi(md)) {
-                ld = (int)md.blocking_desc().strides[4];
-                nld = md.dims()[3] * md.dims()[4];
-            } else if (is_ldoi(md)) {
-                ld = (int)md.blocking_desc().strides[3];
-                nld = md.dims()[3];
-            } else if (is_ldio(md)) {
-                ld = (int)md.blocking_desc().strides[2];
-                nld = md.dims()[2];
-            } else
-                assert(!"unsupported weights format");
-        }
-    };
+    const auto set_dims
+            = [&](const memory_desc_wrapper &md, int &ld, int &nld) {
+                  ld = 0;
+                  nld = 0;
+                  if (md.is_blocking_desc()) {
+                      if (is_ldigo(md)) {
+                          ld = (int)md.blocking_desc().strides[2];
+                          nld = md.dims()[2];
+                      } else if (is_ldgoi(md)) {
+                          ld = (int)md.blocking_desc().strides[4];
+                          nld = md.dims()[3] * md.dims()[4];
+                      } else if (is_ldoi(md)) {
+                          ld = (int)md.blocking_desc().strides[3];
+                          nld = md.dims()[3];
+                      } else if (is_ldio(md)) {
+                          ld = (int)md.blocking_desc().strides[2];
+                          nld = md.dims()[2];
+                      } else
+                          assert(!"unsupported weights format");
+                  }
+              };
     set_dims(weights_layer_d, rnn.weights_layer_ld, rnn.weights_layer_nld);
     set_dims(weights_iter_d, rnn.weights_iter_ld, rnn.weights_iter_nld);
     set_dims(weights_projection_d, rnn.weights_projection_ld,

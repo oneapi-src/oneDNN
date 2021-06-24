@@ -70,9 +70,9 @@ struct rnn_postgemm_dispatcher {
         : pd_(pd) {
         // add check if in testing mode
         if (pd->attr()->rnn_tparams_.test_mode_) {
-            auto ngates = utils::map(pd->cell_kind(), 0, alg_kind::vanilla_rnn,
-                    1, alg_kind::vanilla_lstm, 4, alg_kind::vanilla_gru, 3,
-                    alg_kind::lbr_gru, 3);
+            const auto ngates = utils::map(pd->cell_kind(), 0,
+                    alg_kind::vanilla_rnn, 1, alg_kind::vanilla_lstm, 4,
+                    alg_kind::vanilla_gru, 3, alg_kind::lbr_gru, 3);
             assert(pd->attr()->rnn_tparams_.ngates_ == ngates);
             MAYBE_UNUSED(ngates);
         }
@@ -125,8 +125,10 @@ struct rnn_postgemm_dispatcher {
         // versions of unpoisoning code. This must be removed alongside with
         // the big unpoison_outputs() hammer in common/primitive.cpp.
 
-        size_t states_nelems = rnn.ws_states_layer_nld * rnn.ws_states_layer_ld;
-        size_t gates_nelems = rnn.scratch_gates_nld * rnn.scratch_gates_ld;
+        const size_t states_nelems
+                = rnn.ws_states_layer_nld * rnn.ws_states_layer_ld;
+        const size_t gates_nelems
+                = rnn.scratch_gates_nld * rnn.scratch_gates_ld;
 
         if (pd_->is_fwd()) {
             msan_unpoison(dst_layer_, sizeof(*dst_layer_) * states_nelems);

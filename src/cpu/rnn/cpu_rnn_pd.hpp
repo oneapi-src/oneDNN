@@ -65,8 +65,8 @@ protected:
         using namespace data_type;
         using namespace types;
 
-        auto is_blocked = [&](const memory_desc_t &md, int ndims,
-                                  bool require_last_dim_contiguous) {
+        const auto is_blocked = [&](const memory_desc_t &md, int ndims,
+                                        bool require_last_dim_contiguous) {
             return md.format_kind == format_kind::blocked && md.ndims == ndims
                     && IMPLICATION(require_last_dim_contiguous,
                             md.format_desc.blocking.strides[md.ndims - 1] == 1);
@@ -125,8 +125,8 @@ protected:
                         with_bias(), memory_desc_matches_tag(bias_md_, ldgo));
 
         /* Int8 is supported only for packed weights, if not BRGEMM version */
-        data_type_t weights_iter_dt = weights_iter_md_.data_type;
-        data_type_t weights_layer_dt = weights_layer_md_.data_type;
+        const data_type_t weights_iter_dt = weights_iter_md_.data_type;
+        const data_type_t weights_layer_dt = weights_layer_md_.data_type;
         if (!rnn_utils::is_ldigo_blocked(&weights_iter_md_))
             ok = ok
                     && IMPLICATION(weights_iter_dt == s8,
@@ -211,8 +211,8 @@ protected:
         using namespace format_tag;
         using namespace types;
 
-        auto is_blocked = [&](const memory_desc_t &md, int ndims,
-                                  bool require_last_dim_contiguous) {
+        const auto is_blocked = [&](const memory_desc_t &md, int ndims,
+                                        bool require_last_dim_contiguous) {
             return md.format_kind == format_kind::blocked && md.ndims == ndims
                     && IMPLICATION(require_last_dim_contiguous,
                             md.format_desc.blocking.strides[md.ndims - 1] == 1);

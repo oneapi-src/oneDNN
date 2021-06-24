@@ -118,10 +118,11 @@ struct _ref_rnn_common_t : public primitive_t {
             using namespace rnn_utils;
             const alg_kind_t cell_kind = this->desc()->cell_kind;
 
-            data_type_t src_layer_dt = this->desc()->src_layer_desc.data_type;
-            data_type_t weights_iter_dt
+            const data_type_t src_layer_dt
+                    = this->desc()->src_layer_desc.data_type;
+            const data_type_t weights_iter_dt
                     = this->desc()->weights_iter_desc.data_type;
-            data_type_t weights_layer_dt
+            const data_type_t weights_layer_dt
                     = this->desc()->weights_layer_desc.data_type;
 
             bool ok = true
@@ -223,10 +224,11 @@ struct _ref_rnn_common_t : public primitive_t {
             using namespace x64;
             const alg_kind_t cell_kind = this->desc()->cell_kind;
 
-            data_type_t src_layer_dt = this->desc()->src_layer_desc.data_type;
-            data_type_t weights_iter_dt
+            const data_type_t src_layer_dt
+                    = this->desc()->src_layer_desc.data_type;
+            const data_type_t weights_iter_dt
                     = this->desc()->weights_iter_desc.data_type;
-            data_type_t weights_layer_dt
+            const data_type_t weights_layer_dt
                     = this->desc()->weights_layer_desc.data_type;
 
             bool ok = one_of(cell_kind, alg_kind::vanilla_rnn,
@@ -396,15 +398,18 @@ struct _ref_rnn_common_t : public primitive_t {
             auto scratchpad = this->scratchpad_registry().registrar();
 
             {
-                size_t data_size = 1; // "true" data size already incorporated
-                size_t data_align = alignof(float); // "worst" case scenario
-                size_t perf_align = 4096;
+                static constexpr size_t data_size
+                        = 1; // "true" data size already incorporated
+                static constexpr size_t data_align
+                        = alignof(float); // "worst" case scenario
+                static constexpr size_t perf_align = 4096;
                 scratchpad.book(key_rnn_space, scratchpad_sz, data_size,
                         data_align, perf_align);
             }
 
-            int max_nparts = this->cell_kind() == alg_kind::vanilla_gru ? 2 : 1;
-            int ptr_wei_sz = rnn_.n_layer * rnn_.n_dir * max_nparts;
+            const int max_nparts
+                    = this->cell_kind() == alg_kind::vanilla_gru ? 2 : 1;
+            const int ptr_wei_sz = rnn_.n_layer * rnn_.n_dir * max_nparts;
             scratchpad.template book<float *>(
                     key_rnn_ptrs_wei_layer, ptr_wei_sz);
             scratchpad.template book<float *>(

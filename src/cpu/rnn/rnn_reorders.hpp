@@ -37,8 +37,8 @@ namespace cpu {
 
 static inline void init_dims(dim_t &L, dim_t &D, dim_t &I, dim_t &G, dim_t &O,
         const memory_desc_wrapper &mdw) {
-    auto dims = mdw.dims();
-    auto ndims = mdw.ndims();
+    const auto dims = mdw.dims();
+    const auto ndims = mdw.ndims();
     L = dims[0];
     D = dims[1];
     I = dims[2];
@@ -116,9 +116,9 @@ static inline void compensate_igo(float *compensation,
     // We parallelize on LD and GO
     // TODO: maybe restrict parallelism as we might have large
     // parallelisation overhead if dimensions are small
-    int nthr = dnnl_get_max_threads();
-    int LD_nthr = nstl::min(L * D, dim_t(nthr));
-    int GO_nthr = nstl::min(G * O, dim_t(nthr / LD_nthr));
+    const int nthr = dnnl_get_max_threads();
+    const int LD_nthr = nstl::min(L * D, dim_t(nthr));
+    const int GO_nthr = nstl::min(G * O, dim_t(nthr / LD_nthr));
     parallel(nthr, [&](const int ithr, const int nthr) {
         int LD_ithr = -1;
         int GO_ithr = -1;
@@ -400,7 +400,7 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
 
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
-            size_t quantization_size = nelems;
+            const size_t quantization_size = nelems;
             // we do not use GO directly, as this can cause false
             // sharing when parallelizing on I (2 threads writing to
             // the same cache line)
@@ -494,10 +494,10 @@ private:
         }
 
         /* Step 3: we pack the matrix */
-        auto off_igo = [&](dim_t l, dim_t d, dim_t i, dim_t g, dim_t o) {
+        const auto off_igo = [&](dim_t l, dim_t d, dim_t i, dim_t g, dim_t o) {
             return o + O * (g + G * (i + I * (d + D * l)));
         };
-        int n_parts = dst_d.rnn_packed_desc().n_parts;
+        const int n_parts = dst_d.rnn_packed_desc().n_parts;
         const size_t *size_packed_cell = dst_d.rnn_packed_desc().part_pack_size;
         const int *parts = dst_d.rnn_packed_desc().parts;
         const dim_t n = dst_d.rnn_packed_desc().n;
@@ -589,13 +589,13 @@ struct rnn_weights_reorder_t : public primitive_t {
             const rnn_packed_desc_t &rnn_pdata = od.rnn_packed_desc();
 
             format_tag_t itag = id.matches_one_of_tag(ldigo, ldgoi, ldio);
-            bool layout_cross_case
+            const bool layout_cross_case
                     = (itag == ldigo && rnn_pdata.format == ldgoi_p)
                     || (itag == ldgoi && rnn_pdata.format == ldigo_p)
                     || (itag == ldio && rnn_pdata.format == ldio_p),
                     dt_cross_case
                     = type_i == data_type::f32 && type_o == data_type::bf16;
-            size_t sz = id.nelems();
+            const size_t sz = id.nelems();
 
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
@@ -637,7 +637,7 @@ private:
         /* Pack */
         const bool from_igo = utils::one_of(pd()->itag_, ldigo, ldio);
         const bool to_igo = utils::one_of(rnn_pdata.format, ldigo_p, ldio_p);
-        int n_parts = rnn_pdata.n_parts;
+        const int n_parts = rnn_pdata.n_parts;
         const size_t *size_packed_cell = rnn_pdata.part_pack_size;
         const int *parts = rnn_pdata.parts;
         const dim_t n = rnn_pdata.n;
@@ -673,10 +673,10 @@ private:
             });
         }
 
-        auto off_igo = [&](dim_t l, dim_t d, dim_t i, dim_t g, dim_t o) {
+        const auto off_igo = [&](dim_t l, dim_t d, dim_t i, dim_t g, dim_t o) {
             return l * D * I * G * O + d * I * G * O + i * G * O + g * O + o;
         };
-        auto off_goi = [&](dim_t l, dim_t d, dim_t i, dim_t g, dim_t o) {
+        const auto off_goi = [&](dim_t l, dim_t d, dim_t i, dim_t g, dim_t o) {
             return l * D * G * O * I + d * G * O * I + g * O * I + o * I + i;
         };
         const dim_t lda = to_igo ? G * O : I;
@@ -684,9 +684,9 @@ private:
         for (dim_t l = 0; l < L; l++) {
             for (dim_t d = 0; d < D; d++) {
                 for (dim_t p = 0; p < n_parts; p++) {
-                    dim_t g = (p > 0) ? parts[p - 1] : 0;
-                    dim_t m_p = to_igo ? parts[p] * O : I;
-                    dim_t k_p = to_igo ? I : parts[p] * O;
+                    const dim_t g = (p > 0) ? parts[p - 1] : 0;
+                    const dim_t m_p = to_igo ? parts[p] * O : I;
+                    const dim_t k_p = to_igo ? I : parts[p] * O;
                     if (type_o == data_type::bf16) {
                         CHECK(gemm_bf16bf16f32_pack("A", "N", "N", &m_p, &n,
                                 &k_p, &lda, &ldb,
@@ -745,11 +745,12 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
 
             const memory_desc_wrapper id(src_md), od(dst_md);
 
-            bool args_ok = true && id.data_type() == type_i
+            const bool args_ok = true && id.data_type() == type_i
                     && od.data_type() == data_type::s8 && id.is_dense();
             if (!args_ok) return invalid_arguments;
 
-            auto skip_mask = primitive_attr_t::skip_mask_t::rnn_data_qparams
+            const auto skip_mask
+                    = primitive_attr_t::skip_mask_t::rnn_data_qparams
                     | primitive_attr_t::skip_mask_t::rnn_weights_qparams
                     | primitive_attr_t::skip_mask_t::
                             rnn_weights_projection_qparams;
@@ -814,14 +815,14 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
 
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
-            size_t quantization_size = nelems;
+            const size_t quantization_size = nelems;
             // we do not use GO directly, as this can cause false
             // sharing when parallelizing on I (2 threads writing to
             // the same cache line)
             thr_scratch_comp_sz_ = (ndims == 5) ? dims[3] * dims[4] : dims[3];
             thr_scratch_comp_sz_ = utils::rnd_up(thr_scratch_comp_sz_, 16);
-            size_t reduction_size = 0;
-            reduction_size = dnnl_get_max_threads() * thr_scratch_comp_sz_;
+            const size_t reduction_size
+                    = dnnl_get_max_threads() * thr_scratch_comp_sz_;
 
             scratchpad.template book<int8_t>(
                     key_reorder_rnn_weights_quantization, quantization_size);
@@ -854,14 +855,14 @@ private:
         const auto &blocked_d = dst_d;
         const auto &pdims = blocked_d.padded_dims();
 
-        int o_block = 32;
-        int i_block = 4;
+        static constexpr int o_block = 32;
+        static constexpr int i_block = 4;
 
         dim_t L, D, I, G, O;
         init_dims(L, D, I, G, O, src_d);
 
-        dim_t pI = pdims[2];
-        dim_t pO = (src_d.ndims() == 5) ? pdims[4] : pdims[3];
+        const dim_t pI = pdims[2];
+        const dim_t pO = (src_d.ndims() == 5) ? pdims[4] : pdims[3];
         const dim_t IB = pI / i_block;
         const dim_t OB = pO / o_block;
 
@@ -879,7 +880,7 @@ private:
         float *comp = reinterpret_cast<float *>(dst + compensation_offset);
         const bool req_comp = dst_d.extra().flags
                 & memory_extra_flags::rnn_u8s8_compensation;
-        auto mask_ok = [&](int mask) {
+        const auto mask_ok = [&](int mask) {
             return mask
                     == ((src_d.ndims() == 5) ? 27 /* 11011 */
                                              : 13 /* 1101 */);
@@ -905,20 +906,23 @@ private:
             compensate_igo(comp, src_d, scratch_quantized, scratch_compensation,
                     pd()->thr_scratch_comp_sz_);
 
-        auto off_plain = [&](dim_t l, dim_t d, dim_t i, dim_t g, dim_t o) {
-            return ((((dim_t)l * D + d) * I + i) * G + g) * O + o;
-        };
+        const auto off_plain
+                = [&](dim_t l, dim_t d, dim_t i, dim_t g, dim_t o) {
+                      return ((((dim_t)l * D + d) * I + i) * G + g) * O + o;
+                  };
 
-        auto off_blk = [&](dim_t l, dim_t d, dim_t g, dim_t ob, dim_t ib) {
+        const auto off_blk = [&](dim_t l, dim_t d, dim_t g, dim_t ob,
+                                     dim_t ib) {
             return (((((dim_t)l * D + d) * G + g) * OB + ob) * IB + ib)
                     * i_block * o_block;
         };
-        auto off_inner_blk = [&](int xdim, int y, int x, int folding_factor) {
-            int row = (xdim) * (y / folding_factor) * folding_factor;
-            int col = x * folding_factor + (y % folding_factor);
+        const auto off_inner_blk = [&](int xdim, int y, int x,
+                                           int folding_factor) {
+            const int row = (xdim) * (y / folding_factor) * folding_factor;
+            const int col = x * folding_factor + (y % folding_factor);
             return row + col;
         };
-        auto kernel_plain_to_blocked
+        const auto kernel_plain_to_blocked
                 = [&](const out_data_t *inp, out_data_t *out, int ib, int ob) {
                       PRAGMA_OMP_SIMD()
                       for (int i = 0; i < i_block * o_block; i++)

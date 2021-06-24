@@ -126,31 +126,33 @@ struct jit_uni_rnn_postgemm : public jit_generator {
             float *bias_, gates_t *ws_grid_, scratch_t *scratch_cell_,
             dst_iter_t *dst_iter_, float *weights_scales_,
             int block_step) const {
-        rnn_utils::ws_gates_aoc<gates_t> ws_gates(rnn, ws_gates_);
-        rnn_utils::scratch_gates_aoc<scratch_t> scratch_gates(
+        const rnn_utils::ws_gates_aoc<gates_t> ws_gates(rnn, ws_gates_);
+        const rnn_utils::scratch_gates_aoc<scratch_t> scratch_gates(
                 rnn, scratch_gates_);
-        rnn_utils::weights_peephole_aoc_t<const float> weights_peephole(
+        const rnn_utils::weights_peephole_aoc_t<const float> weights_peephole(
                 rnn, weights_peephole_);
-        rnn_utils::bias_aoc_t bias(rnn, bias_);
+        const rnn_utils::bias_aoc_t bias(rnn, bias_);
 
-        auto src_iter_ld = rnn.src_iter_ld(cell_position);
-        auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
-        auto dst_layer_ld = rnn.dst_layer_ld(cell_position, is_projection());
-        auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
-        auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
+        const auto src_iter_ld = rnn.src_iter_ld(cell_position);
+        const auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
+        const auto dst_layer_ld
+                = rnn.dst_layer_ld(cell_position, is_projection());
+        const auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
+        const auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
 
-        rnn_utils::ws_states_layer_aoc<dst_layer_t> dst_layer(
+        const rnn_utils::ws_states_layer_aoc<dst_layer_t> dst_layer(
                 rnn, dst_layer_, dst_layer_ld);
-        rnn_utils::ws_states_iter_aoc<dst_iter_t> dst_iter(
+        const rnn_utils::ws_states_iter_aoc<dst_iter_t> dst_iter(
                 rnn, dst_iter_, dst_iter_ld);
-        rnn_utils::ws_states_iter_aoc<const src_iter_t> src_iter(
+        const rnn_utils::ws_states_iter_aoc<const src_iter_t> src_iter(
                 rnn, src_iter_, src_iter_ld);
-        rnn_utils::ws_states_iter_c_aoc<float> dst_iter_c(
+        const rnn_utils::ws_states_iter_c_aoc<float> dst_iter_c(
                 rnn, dst_iter_c_, dst_iter_c_ld);
-        rnn_utils::ws_states_iter_c_aoc<const float> src_iter_c(
+        const rnn_utils::ws_states_iter_c_aoc<const float> src_iter_c(
                 rnn, src_iter_c_, src_iter_c_ld);
-        rnn_utils::ws_gates_aoc<scratch_t> scratch_cell(rnn, scratch_cell_);
-        utils::array_offset_calculator<gates_t, 2> ws_Wh_b(
+        const rnn_utils::ws_gates_aoc<scratch_t> scratch_cell(
+                rnn, scratch_cell_);
+        const utils::array_offset_calculator<gates_t, 2> ws_Wh_b(
                 ws_grid_, rnn.mb, rnn.dhc);
 
 // Since the function F(...) returns by reference so an exception has
@@ -165,7 +167,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         const void *param6_;
         void *param7_, *param8_;
         void *param9_ = (void *)weights_scales_;
-        size_t param10_ = block_step;
+        const size_t param10_ = block_step;
 
         switch (pd_->cell_kind()) {
             case alg_kind::vanilla_lstm:
@@ -199,37 +201,38 @@ struct jit_uni_rnn_postgemm : public jit_generator {
             typename gemm_acc_t, typename gates_t, typename scratch_t>
     rnn_postgemm_sig(execute_bwd) {
         using namespace rnn_utils;
-        auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
-        auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
-        auto src_iter_ld = rnn.src_iter_ld(cell_position);
+        const auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
+        const auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
+        const auto src_iter_ld = rnn.src_iter_ld(cell_position);
 
-        rnn_utils::weights_peephole_aoc_t<const float> weights_peephole(
+        const rnn_utils::weights_peephole_aoc_t<const float> weights_peephole(
                 rnn, weights_peephole_);
-        rnn_utils::ws_gates_aoc<gates_t> ws_gates(rnn, ws_gates_);
-        rnn_utils::ws_gates_aoc<scratch_t> scratch_gates(rnn, scratch_gates_);
-        rnn_utils::ws_diff_states_layer_aoc<gemm_acc_t> diff_src_layer(
+        const rnn_utils::ws_gates_aoc<gates_t> ws_gates(rnn, ws_gates_);
+        const rnn_utils::ws_gates_aoc<scratch_t> scratch_gates(
+                rnn, scratch_gates_);
+        const rnn_utils::ws_diff_states_layer_aoc<gemm_acc_t> diff_src_layer(
                 rnn, diff_src_layer_);
-        rnn_utils::ws_diff_states_iter_aoc<gemm_acc_t> diff_src_iter(
+        const rnn_utils::ws_diff_states_iter_aoc<gemm_acc_t> diff_src_iter(
                 rnn, diff_src_iter_);
-        rnn_utils::ws_diff_states_iter_c_aoc<gemm_acc_t> diff_src_iter_c(
+        const rnn_utils::ws_diff_states_iter_c_aoc<gemm_acc_t> diff_src_iter_c(
                 rnn, diff_src_iter_c_);
-        rnn_utils::ws_diff_states_layer_aoc<gemm_acc_t> diff_dst_layer(
+        const rnn_utils::ws_diff_states_layer_aoc<gemm_acc_t> diff_dst_layer(
                 rnn, diff_dst_layer_);
-        rnn_utils::ws_diff_states_iter_aoc<gemm_acc_t> diff_dst_iter(
+        const rnn_utils::ws_diff_states_iter_aoc<gemm_acc_t> diff_dst_iter(
                 rnn, diff_dst_iter_);
-        rnn_utils::ws_diff_states_iter_c_aoc<gemm_acc_t> diff_dst_iter_c(
+        const rnn_utils::ws_diff_states_iter_c_aoc<gemm_acc_t> diff_dst_iter_c(
                 rnn, diff_dst_iter_c_);
-        rnn_utils::ws_states_iter_c_aoc<float> dst_iter_c(
+        const rnn_utils::ws_states_iter_c_aoc<float> dst_iter_c(
                 rnn, dst_iter_c_, dst_iter_c_ld);
-        rnn_utils::ws_states_iter_c_aoc<const float> src_iter_c(
+        const rnn_utils::ws_states_iter_c_aoc<const float> src_iter_c(
                 rnn, src_iter_c_, src_iter_c_ld);
 
-        ws_states_iter_aoc<const src_iter_t> src_iter(
+        const ws_states_iter_aoc<const src_iter_t> src_iter(
                 rnn, src_iter_, src_iter_ld);
-        ws_gates_aoc<scratch_t> scratch_cell(rnn, scratch_cell_);
-        utils::array_offset_calculator<scratch_t, 2> hG1(
+        const ws_gates_aoc<scratch_t> scratch_cell(rnn, scratch_cell_);
+        const utils::array_offset_calculator<scratch_t, 2> hG1(
                 scratch_cell_, rnn.ws_states_layer_nld, rnn.ws_states_layer_ld);
-        utils::array_offset_calculator<gates_t, 2> ws_grid(
+        const utils::array_offset_calculator<gates_t, 2> ws_grid(
                 ws_grid_, rnn.mb, rnn.dhc);
 // Since the function F(...) returns by reference so an exception has
 // to be made for nullptr argument
@@ -240,7 +243,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
             void *param1_, *param2_, *param4_, *param5_, *param7_, *param8_,
                     *param9_;
             const void *param3_, *param6_;
-            size_t param10_ = 0;
+            static constexpr size_t param10_ = 0;
             switch (pd_->cell_kind()) {
                 case alg_kind::vanilla_lstm:
                     param1_ = SAFE_PTR(ws_gates, i, 0, 0);

@@ -33,13 +33,13 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
         data_type_t acc_type>
 rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         acc_type>::cell_execution_ref)) {
-    auto weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
-    auto weights_projection_scales = rnn.is_lstm_projection
+    const auto weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
+    const auto weights_projection_scales = rnn.is_lstm_projection
             ? pd_->attr()->rnn_weights_projection_qparams_.scales_
             : nullptr;
 
-    auto src_layer_ld = rnn.src_layer_ld(cell_position);
-    auto src_iter_ld = rnn.src_iter_ld(cell_position);
+    const auto src_layer_ld = rnn.src_layer_ld(cell_position);
+    const auto src_iter_ld = rnn.src_iter_ld(cell_position);
 
     if (rnn.need_gemm_layer(cell_position)) {
         CHECK((this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc, rnn.mb,
@@ -51,9 +51,9 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             src_iter_ld, 1.0f, scratch_gates_, rnn.scratch_gates_ld));
 
     // Note: here proj_ht is scratchpad if inference or workspace if training
-    auto dst_postgemm = rnn.is_lstm_projection ? proj_ht_ : dst_layer_;
+    const auto dst_postgemm = rnn.is_lstm_projection ? proj_ht_ : dst_layer_;
     // for lstmp, the copy to dst_iter happens after the projection
-    auto dst_iter_postgemm = rnn.is_lstm_projection ? nullptr : dst_iter_;
+    const auto dst_iter_postgemm = rnn.is_lstm_projection ? nullptr : dst_iter_;
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             dst_postgemm, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
             diff_src_iter_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
@@ -62,7 +62,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             rnn.dhc * sizeof(scratch_t));
 
     if (rnn.is_lstm_projection) {
-        auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
+        const auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
 
         // Here, because the accumulation type is different
         // than dst_layer, we have to use scratch to hold temporary
@@ -70,7 +70,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         assert(rnn.scratch_gates_ld >= rnn.dlc);
         gemm_acc_t *dst_proj = rnn.dt_conf == all_f32 ? (gemm_acc_t *)dst_layer_
                                                       : scratch_gates_;
-        int dst_proj_ld
+        const int dst_proj_ld
                 = rnn.dt_conf == all_f32 ? dst_layer_ld : rnn.scratch_gates_ld;
 
         CHECK((this->*gemm_projection_func)('N', 'N', rnn.dic, rnn.mb, rnn.dhc,
@@ -98,15 +98,15 @@ void lstm_bwd_weights_peephole_and_bias(const rnn_utils::rnn_conf_t &rnn,
         cell_position_t cell_position, const float *src_iter_c_,
         const float *dst_iter_c_, const scratch_data_t *scratch_gates_,
         float *diff_weights_peephole_, acc_data_t *diff_bias_) {
-    auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
-    auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
+    const auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
+    const auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
 
-    ws_states_iter_c_aoc<const float> dst_iter_c(
+    const ws_states_iter_c_aoc<const float> dst_iter_c(
             rnn, dst_iter_c_, dst_iter_c_ld);
-    ws_states_iter_c_aoc<const float> src_iter_c(
+    const ws_states_iter_c_aoc<const float> src_iter_c(
             rnn, src_iter_c_, src_iter_c_ld);
-    ws_gates_aoc<const scratch_data_t> scratch_gates(rnn, scratch_gates_);
-    weights_peephole_aoc_t<float> diff_weights_peephole(
+    const ws_gates_aoc<const scratch_data_t> scratch_gates(rnn, scratch_gates_);
+    const weights_peephole_aoc_t<float> diff_weights_peephole(
             rnn, diff_weights_peephole_);
 
     parallel(0, [&](int ithr, int nthr) {
@@ -211,38 +211,41 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
 
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref) {
-    auto gemm_layer = [&](const float *A, const float *B, float *C) {
+    const auto gemm_layer = [&](const float *A, const float *B, float *C) {
         return (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
                 rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_layer_ld, B,
                 rnn.scratch_gates_ld, 0.0, C, rnn.ws_diff_states_layer_ld);
     };
-    auto gemm_iter = [&](const float *A, const float *B, float *C) {
+    const auto gemm_iter = [&](const float *A, const float *B, float *C) {
         return (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb,
                 rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_iter_ld, B,
                 rnn.scratch_gates_ld, 0.0, C, rnn.ws_diff_states_iter_ld);
     };
-    auto gemm_proj = [&](const float *A, const float *B, float *C) {
+    const auto gemm_proj = [&](const float *A, const float *B, float *C) {
         return (this->*gemm_projection_func)('N', 'N', rnn.dhc, rnn.mb, rnn.dic,
                 1.0, A, rnn.weights_projection_ld, B, rnn.scratch_diff_ht_ld,
                 0.0f, C, rnn.ws_diff_states_layer_ld);
     };
-    auto gemm_weights_layer = [&](const float *A, const float *B, float *C) {
-        auto src_layer_ld = rnn.src_layer_ld(cell_position);
-        return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb, 1.0, A,
-                rnn.scratch_gates_ld, B, src_layer_ld, 1.0, C,
-                rnn.diff_weights_layer_ld);
-    };
-    auto gemm_weights_iter = [&](const float *A, const float *B, float *C) {
-        auto src_iter_ld = rnn.src_iter_ld(cell_position);
-        return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb, 1.0, A,
-                rnn.scratch_gates_ld, B, src_iter_ld, 1.0, C,
-                rnn.diff_weights_iter_ld);
-    };
-    auto gemm_weights_proj = [&](const float *A, const float *B, float *C) {
-        return gemm('N', 'T', rnn.dlc, rnn.dhc, rnn.mb, 1.0f, A,
-                rnn.scratch_diff_ht_ld, B, rnn.ws_ht_ld, 1.0f, C,
-                rnn.diff_weights_projection_ld);
-    };
+    const auto gemm_weights_layer
+            = [&](const float *A, const float *B, float *C) {
+                  auto src_layer_ld = rnn.src_layer_ld(cell_position);
+                  return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb,
+                          1.0, A, rnn.scratch_gates_ld, B, src_layer_ld, 1.0, C,
+                          rnn.diff_weights_layer_ld);
+              };
+    const auto gemm_weights_iter
+            = [&](const float *A, const float *B, float *C) {
+                  auto src_iter_ld = rnn.src_iter_ld(cell_position);
+                  return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb,
+                          1.0, A, rnn.scratch_gates_ld, B, src_iter_ld, 1.0, C,
+                          rnn.diff_weights_iter_ld);
+              };
+    const auto gemm_weights_proj
+            = [&](const float *A, const float *B, float *C) {
+                  return gemm('N', 'T', rnn.dlc, rnn.dhc, rnn.mb, 1.0f, A,
+                          rnn.scratch_diff_ht_ld, B, rnn.ws_ht_ld, 1.0f, C,
+                          rnn.diff_weights_projection_ld);
+              };
     return common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_proj,
             gemm_weights_layer, gemm_weights_iter, gemm_weights_proj,
             rnn_postgemm_, rnn, cell_position, dst_layer_, dst_iter_c_,
@@ -257,38 +260,41 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref) {
 
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_ref) {
-    auto gemm_layer = [&](const bfloat16_t *A, const bfloat16_t *B, float *C) {
+    const auto gemm_layer = [&](const bfloat16_t *A, const bfloat16_t *B,
+                                    float *C) {
         return (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
                 rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_layer_ld, B,
                 rnn.scratch_gates_ld, 0.0, C, rnn.ws_diff_states_layer_ld);
     };
-    auto gemm_iter = [&](const bfloat16_t *A, const bfloat16_t *B, float *C) {
+    const auto gemm_iter = [&](const bfloat16_t *A, const bfloat16_t *B,
+                                   float *C) {
         return (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb,
                 rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_iter_ld, B,
                 rnn.scratch_gates_ld, 0.0, C, rnn.ws_diff_states_iter_ld);
     };
-    auto gemm_proj = [&](const bfloat16_t *, const float *, float *) {
+    const auto gemm_proj = [&](const bfloat16_t *, const float *, float *) {
         assert(!"unimplemented");
         return dnnl_unimplemented;
     };
-    auto gemm_weights_layer
+    const auto gemm_weights_layer
             = [&](const bfloat16_t *A, const bfloat16_t *B, float *C) {
                   auto src_layer_ld = rnn.src_layer_ld(cell_position);
                   return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb,
                           1.0, A, rnn.scratch_gates_ld, B, src_layer_ld, 1.0, C,
                           rnn.diff_weights_layer_ld);
               };
-    auto gemm_weights_iter
+    const auto gemm_weights_iter
             = [&](const bfloat16_t *A, const bfloat16_t *B, float *C) {
                   auto src_iter_ld = rnn.src_iter_ld(cell_position);
                   return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb,
                           1.0, A, rnn.scratch_gates_ld, B, src_iter_ld, 1.0, C,
                           rnn.diff_weights_iter_ld);
               };
-    auto gemm_weights_proj = [&](const float *, const bfloat16_t *, float *) {
-        assert(!"unimplemented");
-        return dnnl_unimplemented;
-    };
+    const auto gemm_weights_proj
+            = [&](const float *, const bfloat16_t *, float *) {
+                  assert(!"unimplemented");
+                  return dnnl_unimplemented;
+              };
     return common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_proj,
             gemm_weights_layer, gemm_weights_iter, gemm_weights_proj,
             rnn_postgemm_, rnn, cell_position, dst_layer_, dst_iter_c_,

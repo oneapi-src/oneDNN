@@ -67,7 +67,7 @@ float activation<alg_kind::eltwise_logistic, prop_kind::backward>(
     return x_m_square<float>(s);
 }
 
-float linear(float s, float alpha, float clipping) {
+constexpr float linear(float s, float alpha, float clipping) {
     return alpha * s;
 }
 
@@ -79,14 +79,15 @@ void rnn_fwd_postgemm_template(T func1, const float *scales, float alpha,
         src_data_t *dst_iter_, const src_data_t *src_iter_, float *bias_,
         int block_step) {
 
-    ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
-    scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
-    bias_aoc_t bias(rnn, bias_);
+    const ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
+    const scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
+    const bias_aoc_t bias(rnn, bias_);
 
     const auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
     const auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
-    ws_states_layer_aoc<src_data_t> dst_layer(rnn, dst_layer_, dst_layer_ld);
-    ws_states_iter_aoc<src_data_t> dst_iter(rnn, dst_iter_, dst_iter_ld);
+    const ws_states_layer_aoc<src_data_t> dst_layer(
+            rnn, dst_layer_, dst_layer_ld);
+    const ws_states_iter_aoc<src_data_t> dst_iter(rnn, dst_iter_, dst_iter_ld);
 
     if (scales != nullptr) alpha = scales[0];
 
@@ -112,13 +113,13 @@ void rnn_fwd_postgemm_template(T func1, const float *scales, float alpha,
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::rnn_postgemm) {
     const float *scales = pd_->attr()->rnn_tparams_.scales_;
-    auto act_f = [this](float a, float alpha, float clipping) {
+    const auto act_f = [this](float a, float alpha, float clipping) {
         return this->activation_func(a, alpha, clipping);
     };
-    auto linear_f = [](float a, float alpha, float clipping) {
+    const auto linear_f = [](float a, float alpha, float clipping) {
         return linear(a, alpha, clipping);
     };
-    auto alpha = pd_->desc()->alpha;
+    const auto alpha = pd_->desc()->alpha;
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         rnn_fwd_postgemm_template(act_f, nullptr, alpha, rnn, cell_position,
                 ws_gates_, scratch_gates_, dst_layer_, dst_iter_, src_iter_,
@@ -132,13 +133,13 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::rnn_postgemm) {
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::rnn_postgemm) {
     const float *scales = pd_->attr()->rnn_tparams_.scales_;
-    auto act_f = [this](float a, float alpha, float clipping) {
+    const auto act_f = [this](float a, float alpha, float clipping) {
         return bfloat16_t(this->activation_func(a, alpha, clipping));
     };
-    auto linear_f = [](float a, float alpha, float clipping) {
+    const auto linear_f = [](float a, float alpha, float clipping) {
         return bfloat16_t(linear(a, alpha, clipping));
     };
-    auto alpha = pd_->desc()->alpha;
+    const auto alpha = pd_->desc()->alpha;
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         rnn_fwd_postgemm_template(act_f, nullptr, alpha, rnn, cell_position,
                 ws_gates_, scratch_gates_, dst_layer_, dst_iter_, src_iter_,
@@ -165,17 +166,19 @@ void rnn_bwd_postgemm_template(T1 func1, T2 to_src, const float *scales,
         float alpha, const rnn_utils::rnn_conf_t &rnn, src_data_t *ws_gates_,
         scratch_data_t *scratch_gates_, acc_data_t *diff_dst_iter_,
         acc_data_t *diff_dst_layer_) {
-    ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
-    ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
-    ws_diff_states_iter_aoc<acc_data_t> diff_dst_iter(rnn, diff_dst_iter_);
-    ws_diff_states_layer_aoc<acc_data_t> diff_dst_layer(rnn, diff_dst_layer_);
+    const ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
+    const ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
+    const ws_diff_states_iter_aoc<acc_data_t> diff_dst_iter(
+            rnn, diff_dst_iter_);
+    const ws_diff_states_layer_aoc<acc_data_t> diff_dst_layer(
+            rnn, diff_dst_layer_);
     if (scales != nullptr) alpha = scales[0];
 
     parallel_nd(rnn.mb, [&](dim_t i) {
         for (int j = 0; j < rnn.dhc; ++j) {
             const float dH = diff_dst_layer(i, j) + diff_dst_iter(i, j);
-            auto g = (float)ws_gates(i, 0, j);
-            float res = dH * func1(g, alpha, 0);
+            const auto g = (float)ws_gates(i, 0, j);
+            const float res = dH * func1(g, alpha, 0);
             src_data_t res_converted = to_src(res);
             scratch_gates(i, 0, j) = res_converted;
         }
@@ -185,14 +188,14 @@ void rnn_bwd_postgemm_template(T1 func1, T2 to_src, const float *scales,
 template <>
 rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::rnn_postgemm) {
     const float *scales = pd_->attr()->rnn_tparams_.scales_;
-    auto act_f = [this](float a, float alpha, float clipping) {
+    const auto act_f = [this](float a, float alpha, float clipping) {
         return this->activation_func(a, alpha, 0);
     };
-    auto linear_f = [](float a, float alpha, float clipping) {
+    const auto linear_f = [](float a, float alpha, float clipping) {
         return linear(a, alpha, 0);
     };
-    auto to_src = [&](float a) { return a; };
-    auto alpha = pd_->desc()->alpha;
+    const auto to_src = [&](float a) { return a; };
+    const auto alpha = pd_->desc()->alpha;
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         rnn_bwd_postgemm_template(act_f, to_src, nullptr, alpha, rnn, ws_gates_,
                 scratch_gates_, diff_dst_iter_, diff_dst_layer_);
@@ -204,14 +207,14 @@ rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::rnn_postgemm) {
 template <>
 rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::rnn_postgemm) {
     const float *scales = pd_->attr()->rnn_tparams_.scales_;
-    auto act_f = [this](float a, float alpha, float clipping) {
+    const auto act_f = [this](float a, float alpha, float clipping) {
         return this->activation_func(a, alpha, 0);
     };
-    auto linear_f = [](float a, float alpha, float clipping) {
+    const auto linear_f = [](float a, float alpha, float clipping) {
         return linear(a, alpha, 0);
     };
-    auto to_src = [&](float a) { return bfloat16_t(a); };
-    auto alpha = pd_->desc()->alpha;
+    const auto to_src = [&](float a) { return bfloat16_t(a); };
+    const auto alpha = pd_->desc()->alpha;
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         rnn_bwd_postgemm_template(act_f, to_src, nullptr, alpha, rnn, ws_gates_,
                 scratch_gates_, diff_dst_iter_, diff_dst_layer_);
