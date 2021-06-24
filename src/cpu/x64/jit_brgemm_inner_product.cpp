@@ -236,9 +236,9 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
             auto brg_kernel_ic_tail = brg_kernels_[brg_ker_idx].get();
             if (is_amx)
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
-            auto ptr_D = dst + get_blk_off(dst_d, jbgp.dst_dt, n, oc);
-            auto ptr_C = (jbgp.use_buffer) ? c_buffer : ptr_D;
-            if (are_post_ops_applicable && is_last_ic_chunk) {
+            auto ptr_D = dst + dst_off;
+            auto ptr_C = use_c_buffer ? c_buffer : ptr_D;
+            if (jbgp.nthr_ic_b == 1 && are_post_ops_applicable) {
                 void *scratch = is_amx
                         ? static_cast<void *>(wsp_tile)
                         : (jbgp.signed_input ? static_cast<void *>(
