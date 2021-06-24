@@ -18,9 +18,9 @@
 #include <windows.h>
 #endif
 
-#include <cstring>
 #include <climits>
 #include <cstdlib>
+#include <cstring>
 
 #include "utils/utils.hpp"
 
@@ -68,7 +68,7 @@ int getenv_int(const char *name, int default_value) {
     int value = default_value;
     // # of digits in the longest 32-bit signed int + sign + terminating null
     const int len = 12;
-    char value_str[len];
+    char value_str[len]; // NOLINT
     if (getenv(name, value_str, len) > 0) value = std::atoi(value_str);
     return value;
 }
