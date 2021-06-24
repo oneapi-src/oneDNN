@@ -10,6 +10,8 @@
 --strides=4x1:4x1:4x1,4x1:4x1:8x1,13x1:7x1:9x1
 2x4:4x4:2x4
 
+--strides=::13x1 114x21:21x12:114x12
+
 # 3d input
 --reset
 --cfg=u8s8s32,bf16bf16f32
