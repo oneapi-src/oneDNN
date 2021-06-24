@@ -267,6 +267,7 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
     auto dst_last = get_Nth_last_dim_or_block(dst_mdw);
     auto inner_dim = dst_last.idx;
     if (!has_padding_or_scale_quant && src_last.idx == dst_last.idx
+            && (src_last.size <= 16 || dst_last.size <= 16)
             && src_last.size % 8 == 0 && dst_last.size % 8 == 0
             && conf.ndims <= MAX_NDIMS
             && (src_last.size % (2 * dst_last.size) == 0
@@ -804,6 +805,7 @@ status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
     arg_list.set(4, scales ? *scales : memory_storage_t::empty_storage());
 
     auto nd_range = conf.dispatch.nd_range();
+
     status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;
