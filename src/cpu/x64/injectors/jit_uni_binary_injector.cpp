@@ -48,10 +48,15 @@ static bool src1_desc_layout_same_as_dst_d(
     const auto &rhs = *(dst_d.md_);
 
     using namespace dnnl::impl::utils;
+    const bool is_format_any
+            = one_of(format_kind::any, lhs.format_kind, rhs.format_kind);
+
     return lhs.ndims == rhs.ndims
-            && (lhs.format_kind == rhs.format_kind
-                    || one_of(
-                            format_kind::any, lhs.format_kind, rhs.format_kind))
+            && (is_format_any
+                    || (lhs.format_kind == rhs.format_kind
+                            && array_cmp(lhs.format_desc.blocking.strides,
+                                    rhs.format_desc.blocking.strides,
+                                    lhs.ndims)))
             && array_cmp(lhs.dims, rhs.dims, lhs.ndims)
             && array_cmp(lhs.padded_dims, rhs.padded_dims, lhs.ndims)
             && array_cmp(lhs.padded_offsets, rhs.padded_offsets, lhs.ndims)

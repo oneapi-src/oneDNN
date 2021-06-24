@@ -64,7 +64,7 @@ private:
 template <data_type_t acc_type, data_type_t dst_type>
 void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         const acc_data_t *acc, const char *bias, const float *scales,
-        size_t start, size_t dim1_off, size_t dst_logical_off, size_t end,
+        size_t start, size_t dst_logical_off, size_t dim1_off, size_t end,
         size_t runtime_oc, dim_t dst_mb_stride, const float *dst_zero_points,
         const void * /* post_ops_binary_rhs_arg_vec */,
         const void * /* dst_orig */, size_t /* first_mb_matrix_addr_off */,
@@ -99,30 +99,32 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
               };
 
     size_t oc = start % OC;
-    dim_t offt = (start / OC) * dst_mb_stride + oc;
+    dim_t src1_bin_po_offt = dst_logical_off;
     if (this->has_trivial_mb_stride()) {
         // keep separate code path to avoid performance degradations
         for (size_t i = start; i < end; i++) {
-            calculate_dst_value_and_increment_oc(acc[i], dst[i], oc, offt);
-            ++offt;
+            calculate_dst_value_and_increment_oc(
+                    acc[i], dst[i], oc, src1_bin_po_offt);
+            ++src1_bin_po_offt;
         }
     } else {
+        const dim_t offt = (start / OC) * dst_mb_stride + oc;
         const bool acc_is_dst = dst == (dst_data_t *)acc;
         dst = dst + offt;
         // if dst and acc point to same address (inplace), then strides
         // must be similar, else assume acc buffer is dense.
         acc = acc + (acc_is_dst ? offt : start);
         while (start < end) {
-            calculate_dst_value_and_increment_oc(*acc, *dst, oc, offt);
+            calculate_dst_value_and_increment_oc(
+                    *acc, *dst, oc, src1_bin_po_offt);
             if (oc == 0) {
                 dst = dst + dst_mb_stride - OC;
-                offt += dst_mb_stride - OC;
                 // if dst and acc point to same address (inplace), then strides
                 // must be similar, else assume acc buffer is dense.
                 if (acc_is_dst) acc = acc + dst_mb_stride - OC;
             }
             ++dst;
-            ++offt;
+            ++src1_bin_po_offt;
             ++acc;
             ++start;
         }

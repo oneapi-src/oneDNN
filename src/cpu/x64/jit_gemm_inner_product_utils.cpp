@@ -99,8 +99,7 @@ private:
     template <typename T>
     void advance_binary_postops_per_oc_off(const T &offset);
 
-    template <typename T>
-    void advance_binary_postops_per_tensor_off(const T &offset);
+    void update_binary_postops_per_tensor_off();
 
     template <typename T>
     void advance_binary_postops_channel_bcast_off(const T &offset);
@@ -186,7 +185,8 @@ private:
     static constexpr int reg_binary_post_op_oc_off_ = 0;
     static constexpr int reg_binary_post_op_offset_ = 1 * reg64_size_;
     static constexpr int reg_binary_post_op_sp_off_ = 2 * reg64_size_;
-    static constexpr int stack_space_needed_ = 3 * reg64_size_;
+    static constexpr int reg_origin_dst_ptr_ = 3 * reg64_size_;
+    static constexpr int stack_space_needed_ = 4 * reg64_size_;
 
     bool any_binary_postop_is_no_bcast_type_ = false;
     bool any_binary_postop_is_per_oc_bcast_type_ = false;
@@ -383,15 +383,17 @@ void jit_pp_kernel_t<isa, acc_type,
 }
 
 template <cpu_isa_t isa, data_type_t acc_type, data_type_t dst_type>
-template <typename T>
 void jit_pp_kernel_t<isa, acc_type,
-        dst_type>::advance_binary_postops_per_tensor_off(const T &offset) {
-
+        dst_type>::update_binary_postops_per_tensor_off() {
+    // substract dst_origin from current dst and divide it by dst data type
+    // size to get the correct offset
     const auto binary_post_op_offset_reg = reg_tmp_comp;
     const auto binary_post_op_current_offset_on_stack
             = ptr[rsp + reg_binary_post_op_offset_];
-    mov(binary_post_op_offset_reg, binary_post_op_current_offset_on_stack);
-    add(binary_post_op_offset_reg, offset);
+    mov(binary_post_op_offset_reg, reg_dst);
+    sub(binary_post_op_offset_reg, ptr[rsp + reg_origin_dst_ptr_]);
+    sar(binary_post_op_offset_reg,
+            std::log2(types::data_type_size(get_data_type(arg_t::dst))));
     mov(binary_post_op_current_offset_on_stack, binary_post_op_offset_reg);
 }
 
@@ -419,7 +421,7 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::advance_binary_postops_off(
         if (any_binary_postop_is_per_oc_bcast_type_)
             advance_binary_postops_per_oc_off(offset);
         if (any_binary_postop_is_no_bcast_type_)
-            advance_binary_postops_per_tensor_off(offset);
+            update_binary_postops_per_tensor_off();
         if (any_binary_postop_is_oc_bcast_type_)
             advance_binary_postops_channel_bcast_off(offset);
     }
@@ -434,7 +436,7 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::advance_binary_postops_off(
     if (any_binary_postop_is_per_oc_bcast_type_)
         advance_binary_postops_per_oc_off(reg_offset);
     if (any_binary_postop_is_no_bcast_type_)
-        advance_binary_postops_per_tensor_off(reg_offset);
+        update_binary_postops_per_tensor_off();
     if (any_binary_postop_is_oc_bcast_type_)
         advance_binary_postops_channel_bcast_off(reg_offset);
 }
@@ -838,6 +840,8 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
             lea(reg_dst, ptr[reg_dst + reg_dst_mb_stride * sizeof(dst_data_t)]);
             lea(reg_acc, ptr[reg_acc + reg_acc_mb_stride * sizeof(acc_data_t)]);
         }
+        if (this->do_binary_ && any_binary_postop_is_no_bcast_type_)
+            update_binary_postops_per_tensor_off();
     };
 
     // Rewind pointers that point to data that is indexed by output channel
@@ -1139,9 +1143,11 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::generate() {
             mov(ptr[rsp + reg_binary_post_op_oc_off_], reg_tmp_comp);
         }
         if (any_binary_postop_is_no_bcast_type_) {
-            // initialize binary post_ops no bcast offset accumulator
-            mov(reg_tmp_comp, ptr[reg_param + PARAM_OFF(dst_logical_off)]);
-            mov(ptr[rsp + reg_binary_post_op_offset_], reg_tmp_comp);
+            // store origin dst pointer to calculate proper binary src1 offset
+            mov(reg_tmp_comp, ptr[reg_param + PARAM_OFF(dst_orig)]);
+            mov(ptr[rsp + reg_origin_dst_ptr_], reg_tmp_comp);
+            // init offset
+            update_binary_postops_per_tensor_off();
         }
         if (any_binary_postop_is_oc_bcast_type_) {
             // initialize binary post_ops no bcast offset accumulator

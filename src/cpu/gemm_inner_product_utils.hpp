@@ -51,7 +51,7 @@ struct pp_kernel_t {
 
     virtual void operator()(dst_data_t *dst, const acc_data_t *acc,
             const char *bias, const float *scales, size_t start,
-            size_t dim1_off, size_t dst_logical_off, size_t end,
+            size_t dst_logical_off, size_t dim1_off, size_t end,
             size_t runtime_oc, dim_t dst_mb_stride,
             const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
