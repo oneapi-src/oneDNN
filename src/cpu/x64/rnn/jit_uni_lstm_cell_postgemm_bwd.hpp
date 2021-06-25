@@ -17,6 +17,8 @@
 #ifndef CPU_X64_RNN_JIT_UNI_LSTM_CELL_POSTGEMM_BWD_HPP
 #define CPU_X64_RNN_JIT_UNI_LSTM_CELL_POSTGEMM_BWD_HPP
 
+#include <memory>
+#include "common/utils.hpp"
 #include "cpu/x64/rnn/jit_uni_rnn_common_postgemm.hpp"
 
 namespace dnnl {
@@ -29,41 +31,43 @@ template <cpu_isa_t isa, impl::data_type_t src_data_t,
 struct jit_uni_lstm_cell_postgemm_bwd : public jit_uni_rnn_postgemm {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lstm_cell_postgemm_bwd)
 
-    typedef typename utils::conditional<isa == avx512_core,
-            jit_uni_eltwise_injector_f32<avx512_common>,
-            jit_uni_eltwise_injector_f32<isa>>::type injector_t;
-
     jit_uni_lstm_cell_postgemm_bwd(
             const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
-        : jit_uni_rnn_postgemm(rnn, pd) {}
-
-    ~jit_uni_lstm_cell_postgemm_bwd() { delete tanh_injector_; }
+        : jit_uni_rnn_postgemm(rnn, pd), tanh_injector_(nullptr) {}
+    ~jit_uni_lstm_cell_postgemm_bwd() = default;
 
     status_t init(data_type_t sdt) override {
         jit_uni_rnn_postgemm::init(src_data_t);
         // we use rax for both constant tables as they use the same table
-        tanh_injector_ = new injector_t(
+        tanh_injector_ = utils::make_unique<injector_t>(
                 this, alg_kind::eltwise_tanh, 0.0f, 0.0f, 1.0f, true, rax);
         return create_kernel();
     }
 
 protected:
-    injector_t *tanh_injector_;
+    using injector_t = typename utils::conditional<isa == avx512_core,
+            jit_uni_eltwise_injector_f32<avx512_common>,
+            jit_uni_eltwise_injector_f32<isa>>::type;
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
+
+    std::unique_ptr<injector_t> tanh_injector_;
 
     // register size in bytes
-    using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    size_t vlen = cpu_isa_traits<isa>::vlen;
-    size_t vlen_scratch
-            = vlen / (sizeof(float) / types::data_type_size(scratch_data_t));
-    size_t cstate_dt_size = sizeof(float);
-    size_t hstate_dt_size = sizeof(float);
-    size_t gate_dt_size = types::data_type_size(scratch_data_t);
-    size_t scratch_dt_size = types::data_type_size(scratch_data_t);
-    size_t weights_peephole_dt_size = sizeof(float);
+    static constexpr size_t vlen_ = cpu_isa_traits<isa>::vlen;
+    static constexpr size_t cstate_dt_size_ = sizeof(float);
+    static constexpr size_t hstate_dt_size_ = sizeof(float);
+    static constexpr size_t weights_peephole_dt_size_ = sizeof(float);
     static constexpr int tmp_id_begin_ = 11;
-    static constexpr int tmp_id_end_ = cpu_isa_traits<isa>::n_vregs;
+    const int tmp_id_end_ = cpu_isa_traits<isa>::n_vregs
+            - ((bf16_emu_ && is_superset(isa, avx512_common)) ? 4 : 0);
+
+    const size_t vlen_scratch_
+            = vlen_ / (sizeof(float) / types::data_type_size(scratch_data_t));
+    const size_t gate_dt_size_ = types::data_type_size(scratch_data_t);
+    const size_t scratch_dt_size_ = types::data_type_size(scratch_data_t);
+
     int current_tmp_id_ = tmp_id_begin_;
-    const bool avx2_available = is_superset(isa, avx2);
+    const bool avx2_available_ = is_superset(isa, avx2);
 
     Vmm get_next_tmp_vmm() {
         const Vmm vmm {current_tmp_id_++};
@@ -80,7 +84,7 @@ protected:
     void vaddps_rhs_op_mem(
             const Vmm &dst, const Vmm &lhs, const Xbyak::Address &rhs_addr) {
 
-        if (avx2_available)
+        if (avx2_available_)
             uni_vaddps(dst, lhs, rhs_addr);
         else {
             const auto rhs = get_next_tmp_vmm();
@@ -91,7 +95,7 @@ protected:
 
     void vfmadd231ps_rhs_op_mem(
             const Vmm &dst, const Vmm &lhs, const Xbyak::Address &rhs_addr) {
-        if (avx2_available)
+        if (avx2_available_)
             uni_vfmadd231ps(dst, lhs, rhs_addr);
         else {
             const auto rhs = get_next_tmp_vmm();
@@ -102,7 +106,7 @@ protected:
 
     void vmulps_rhs_op_mem(
             const Vmm &dst, const Vmm &lhs, const Xbyak::Address &rhs_addr) {
-        if (avx2_available)
+        if (avx2_available_)
             uni_vmulps(dst, lhs, rhs_addr);
         else {
             const auto rhs = get_next_tmp_vmm();
@@ -113,7 +117,7 @@ protected:
 
     void vaddss_rhs_op_mem(const Xbyak::Xmm &dst, const Xbyak::Xmm &lhs,
             const Xbyak::Address &rhs_addr) {
-        if (avx2_available)
+        if (avx2_available_)
             uni_vaddss(dst, lhs, rhs_addr);
         else {
             const auto rhs = get_next_tmp_xmm();
@@ -124,7 +128,7 @@ protected:
 
     void vfmadd231ss_rhs_op_mem(const Xbyak::Xmm &dst, const Xbyak::Xmm &lhs,
             const Xbyak::Address &rhs_addr) {
-        if (avx2_available)
+        if (avx2_available_)
             uni_vfmadd231ss(dst, lhs, rhs_addr);
         else {
             const auto rhs = get_next_tmp_xmm();
@@ -135,7 +139,7 @@ protected:
 
     void vmulss_rhs_op_mem(const Xbyak::Xmm &dst, const Xbyak::Xmm &lhs,
             const Xbyak::Address &rhs_addr) {
-        if (avx2_available)
+        if (avx2_available_)
             uni_vmulss(dst, lhs, rhs_addr);
         else {
             const auto rhs = get_next_tmp_xmm();
@@ -153,8 +157,9 @@ protected:
         Label table_label;
 
         // Register map
-        Reg64 table_reg(rbx); // used to load ones before the loop
-        Reg64 loop_cnt(rbx); // loop counter, can be aliased with table_reg
+        const Reg64 table_reg(rbx); // used to load ones before the loop
+        const Reg64 loop_cnt(
+                rbx); // loop counter, can be aliased with table_reg
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
         const int dG0_idx = 1, dG1_idx = 2, dG2_idx = 3, dG3_idx = 4,
                   tanhCt_idx = 5, dHt_idx = 6, dCt_idx = 7, G0_idx = 8,
@@ -163,63 +168,64 @@ protected:
         const Xmm one_xmm(one_idx);
 
         // Adress maping
-        Address one_addr = ptr[table_reg];
+        const Address one_addr = ptr[table_reg];
         // We start code generations here
         preamble();
 
         // extract addresses passed as parameter
-        auto addr_ws_gates_reg = abi_param1;
-        auto addr_scratch_gates_reg = abi_param2;
-        auto addr_diff_states_t_lp1_reg = abi_param3;
-        auto addr_diff_states_tp1_l_reg = abi_param4;
-        auto addr_weights_peephole_reg = r12;
+        const auto addr_ws_gates_reg = abi_param1;
+        const auto addr_scratch_gates_reg = abi_param2;
+        const auto addr_diff_states_t_lp1_reg = abi_param3;
+        const auto addr_diff_states_tp1_l_reg = abi_param4;
+        const auto addr_weights_peephole_reg = r12;
 #ifdef _WIN32
-        auto addr_diff_c_states_t_l_reg = r10;
-        auto addr_diff_c_states_tp1_l_reg = r11;
-        auto addr_c_states_tm1_l_reg = rdi;
-        auto addr_c_states_t_l_reg = rsi;
-        auto base_args = get_stack_params_address();
+        const auto addr_diff_c_states_t_l_reg = r10;
+        const auto addr_diff_c_states_tp1_l_reg = r11;
+        const auto addr_c_states_tm1_l_reg = rdi;
+        const auto addr_c_states_t_l_reg = rsi;
+        const auto base_args = get_stack_params_address();
         mov(addr_diff_c_states_t_l_reg, ptr[base_args]);
         mov(addr_diff_c_states_tp1_l_reg, ptr[base_args + 8]);
         mov(addr_c_states_tm1_l_reg, ptr[base_args + 16]);
         mov(addr_c_states_t_l_reg, ptr[base_args + 24]);
         mov(addr_weights_peephole_reg, ptr[base_args + 32]);
 #else
-        auto addr_diff_c_states_t_l_reg = abi_param5;
-        auto addr_diff_c_states_tp1_l_reg = abi_param6;
-        auto addr_c_states_tm1_l_reg = r10;
-        auto addr_c_states_t_l_reg = r11;
-        auto base_args = get_stack_params_address();
+        const auto addr_diff_c_states_t_l_reg = abi_param5;
+        const auto addr_diff_c_states_tp1_l_reg = abi_param6;
+        const auto addr_c_states_tm1_l_reg = r10;
+        const auto addr_c_states_t_l_reg = r11;
+        const auto base_args = get_stack_params_address();
         mov(addr_c_states_tm1_l_reg, ptr[base_args]);
         mov(addr_c_states_t_l_reg, ptr[base_args + 8]);
         mov(addr_weights_peephole_reg, ptr[base_args + 16]);
 #endif
 
         // helper lambda to address the gates and biases
-        auto sg_addr = [&](int i) {
-            return ptr[addr_scratch_gates_reg + i * rnn_.dhc * scratch_dt_size];
+        const auto sg_addr = [&](int i) {
+            return ptr[addr_scratch_gates_reg
+                    + i * rnn_.dhc * scratch_dt_size_];
         };
-        auto weights_peephole_addr = [&](int i) {
+        const auto weights_peephole_addr = [&](int i) {
             return ptr[addr_weights_peephole_reg
-                    + i * rnn_.dhc * weights_peephole_dt_size];
+                    + i * rnn_.dhc * weights_peephole_dt_size_];
         };
-        auto wg_addr = [&](int i) {
-            return ptr[addr_ws_gates_reg + i * rnn_.dhc * gate_dt_size];
+        const auto wg_addr = [&](int i) {
+            return ptr[addr_ws_gates_reg + i * rnn_.dhc * gate_dt_size_];
         };
 
         // initialize registers with addresses and constants
         mov(table_reg, table_label);
-        init_regs(vlen);
+        init_regs(vlen_);
         uni_vmovups(one_vmm, one_addr);
         tanh_injector_->load_table_addr();
 
-        mov(loop_cnt, rnn_.dhc * scratch_dt_size);
-        cmp(loop_cnt, vlen_scratch);
+        mov(loop_cnt, rnn_.dhc * scratch_dt_size_);
+        cmp(loop_cnt, vlen_scratch_);
         jl(vector_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
 
         L(vector_loop_start_label);
         {
-            Vmm dG0(dG0_idx), dG1(dG1_idx), dG2(dG2_idx), dG3(dG3_idx),
+            const Vmm dG0(dG0_idx), dG1(dG1_idx), dG2(dG2_idx), dG3(dG3_idx),
                     tanhCt(tanhCt_idx), dHt(dHt_idx), dCt(dCt_idx), G0(G0_idx),
                     G1(G1_idx);
 
@@ -250,7 +256,7 @@ protected:
             uni_vmovups(tmp_dCt2, tanhCt);
             uni_vfnmadd231ps(tmp_dCt1, tmp_dCt2, tmp_dCt2);
             uni_vmulps(tmp_dCt1, tmp_dCt1, dHt);
-            to_float<src_data_t>(dG3, wg_addr(3), vlen);
+            to_float<src_data_t>(dG3, wg_addr(3), vlen_);
             uni_vmulps(tmp_dCt1, tmp_dCt1, dG3);
             uni_vmovups(dCt, ptr[addr_diff_c_states_tp1_l_reg]);
             uni_vaddps(dCt, dCt, tmp_dCt1);
@@ -268,15 +274,15 @@ protected:
 
             // compute dG0
             // we will reuse G0 and G2 later for dG2
-            to_float<src_data_t>(G0, wg_addr(0), vlen);
-            to_float<src_data_t>(dG2, wg_addr(2), vlen);
+            to_float<src_data_t>(G0, wg_addr(0), vlen_);
+            to_float<src_data_t>(dG2, wg_addr(2), vlen_);
             uni_vmovups(dG0, G0);
             uni_vfnmadd231ps(dG0, G0, G0);
             uni_vmulps(dG0, dG0, dCt);
             uni_vmulps(dG0, dG0, dG2);
 
             // compute dG1
-            to_float<src_data_t>(G1, wg_addr(1), vlen);
+            to_float<src_data_t>(G1, wg_addr(1), vlen_);
             uni_vmovups(dG1, G1);
             uni_vfnmadd231ps(dG1, G1, G1);
             uni_vmulps(dG1, dG1, dCt);
@@ -298,26 +304,26 @@ protected:
             }
             uni_vmovups(ptr[addr_diff_c_states_t_l_reg], dCt);
 
-            to_src<scratch_data_t>(sg_addr(0), dG0, vlen);
-            to_src<scratch_data_t>(sg_addr(1), dG1, vlen);
-            to_src<scratch_data_t>(sg_addr(2), dG2, vlen);
-            to_src<scratch_data_t>(sg_addr(3), dG3, vlen);
+            to_src<scratch_data_t>(sg_addr(0), dG0, vlen_);
+            to_src<scratch_data_t>(sg_addr(1), dG1, vlen_);
+            to_src<scratch_data_t>(sg_addr(2), dG2, vlen_);
+            to_src<scratch_data_t>(sg_addr(3), dG3, vlen_);
 
             // increment address pointers
-            add(addr_ws_gates_reg, vlen_scratch);
-            add(addr_scratch_gates_reg, vlen_scratch);
-            add(addr_diff_states_t_lp1_reg, vlen);
-            add(addr_diff_states_tp1_l_reg, vlen);
-            add(addr_diff_c_states_t_l_reg, vlen);
-            add(addr_diff_c_states_tp1_l_reg, vlen);
-            add(addr_c_states_tm1_l_reg, vlen);
-            add(addr_c_states_t_l_reg, vlen);
-            if (rnn_.is_lstm_peephole) add(addr_weights_peephole_reg, vlen);
-            inc_regs(vlen);
+            add(addr_ws_gates_reg, vlen_scratch_);
+            add(addr_scratch_gates_reg, vlen_scratch_);
+            add(addr_diff_states_t_lp1_reg, vlen_);
+            add(addr_diff_states_tp1_l_reg, vlen_);
+            add(addr_diff_c_states_t_l_reg, vlen_);
+            add(addr_diff_c_states_tp1_l_reg, vlen_);
+            add(addr_c_states_tm1_l_reg, vlen_);
+            add(addr_c_states_t_l_reg, vlen_);
+            if (rnn_.is_lstm_peephole) add(addr_weights_peephole_reg, vlen_);
+            inc_regs(vlen_);
 
             // increment loop counter
-            sub(loop_cnt, vlen_scratch);
-            cmp(loop_cnt, vlen_scratch);
+            sub(loop_cnt, vlen_scratch_);
+            cmp(loop_cnt, vlen_scratch_);
             jge(vector_loop_start_label);
         }
         L(vector_loop_end_label);
@@ -350,7 +356,7 @@ protected:
             uni_vmovss(tmp_dCt2, tanhCt);
             uni_vfnmadd231ss(tmp_dCt1, tmp_dCt2, tmp_dCt2);
             uni_vmulss(tmp_dCt1, tmp_dCt1, dHt);
-            to_float<src_data_t>(dG3, wg_addr(3), hstate_dt_size);
+            to_float<src_data_t>(dG3, wg_addr(3), hstate_dt_size_);
             uni_vmulss(tmp_dCt1, tmp_dCt1, dG3);
             uni_vmovss(dCt, ptr[addr_diff_c_states_tp1_l_reg]);
             uni_vaddss(dCt, dCt, tmp_dCt1);
@@ -369,14 +375,16 @@ protected:
 
             // compute dG0
             // we will reuse G0 and G2 later for dG2
-            to_float<src_data_t>(G0, wg_addr(0), hstate_dt_size);
-            to_float<src_data_t>(dG2, wg_addr(2), hstate_dt_size);
+            to_float<src_data_t>(G0, wg_addr(0), hstate_dt_size_);
+            to_float<src_data_t>(dG2, wg_addr(2), hstate_dt_size_);
+
             uni_vmovss(dG0, G0);
             uni_vfnmadd231ss(dG0, G0, G0);
             uni_vmulss(dG0, dG0, dCt);
             uni_vmulss(dG0, dG0, dG2);
 
-            to_float<src_data_t>(G1, wg_addr(1), hstate_dt_size);
+            // compute dG1
+            to_float<src_data_t>(G1, wg_addr(1), hstate_dt_size_);
             uni_vmovss(dG1, G1);
             uni_vfnmadd231ss(dG1, G1, G1);
             uni_vmulss(dG1, dG1, dCt);
@@ -398,26 +406,26 @@ protected:
             }
             uni_vmovss(ptr[addr_diff_c_states_t_l_reg], dCt);
 
-            to_src<scratch_data_t>(sg_addr(0), dG0, hstate_dt_size);
-            to_src<scratch_data_t>(sg_addr(1), dG1, hstate_dt_size);
-            to_src<scratch_data_t>(sg_addr(2), dG2, hstate_dt_size);
-            to_src<scratch_data_t>(sg_addr(3), dG3, hstate_dt_size);
+            to_src<scratch_data_t>(sg_addr(0), dG0, hstate_dt_size_);
+            to_src<scratch_data_t>(sg_addr(1), dG1, hstate_dt_size_);
+            to_src<scratch_data_t>(sg_addr(2), dG2, hstate_dt_size_);
+            to_src<scratch_data_t>(sg_addr(3), dG3, hstate_dt_size_);
 
             // increment address pointers
-            add(addr_ws_gates_reg, scratch_dt_size);
-            add(addr_scratch_gates_reg, scratch_dt_size);
-            add(addr_diff_states_t_lp1_reg, hstate_dt_size);
-            add(addr_diff_states_tp1_l_reg, hstate_dt_size);
-            add(addr_diff_c_states_t_l_reg, cstate_dt_size);
-            add(addr_diff_c_states_tp1_l_reg, cstate_dt_size);
-            add(addr_c_states_tm1_l_reg, cstate_dt_size);
-            add(addr_c_states_t_l_reg, cstate_dt_size);
+            add(addr_ws_gates_reg, scratch_dt_size_);
+            add(addr_scratch_gates_reg, scratch_dt_size_);
+            add(addr_diff_states_t_lp1_reg, hstate_dt_size_);
+            add(addr_diff_states_tp1_l_reg, hstate_dt_size_);
+            add(addr_diff_c_states_t_l_reg, cstate_dt_size_);
+            add(addr_diff_c_states_tp1_l_reg, cstate_dt_size_);
+            add(addr_c_states_tm1_l_reg, cstate_dt_size_);
+            add(addr_c_states_t_l_reg, cstate_dt_size_);
             if (rnn_.is_lstm_peephole)
-                add(addr_weights_peephole_reg, weights_peephole_dt_size);
-            inc_regs(hstate_dt_size);
+                add(addr_weights_peephole_reg, weights_peephole_dt_size_);
+            inc_regs(hstate_dt_size_);
 
             // increment loop counter
-            sub(loop_cnt, scratch_dt_size);
+            sub(loop_cnt, scratch_dt_size_);
             cmp(loop_cnt, 0);
             jg(rem_loop_start_label);
         }
@@ -426,10 +434,10 @@ protected:
         postamble();
 
         tanh_injector_->prepare_table();
-        init_table(vlen);
+        init_table(vlen_);
         L(table_label);
         {
-            for (size_t i = 0; i < vlen / sizeof(float); i++)
+            for (size_t i = 0; i < vlen_ / sizeof(float); ++i)
                 dd(float2int(1.0f));
         }
     }
