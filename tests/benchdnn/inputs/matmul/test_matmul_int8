@@ -30,7 +30,7 @@
 --reset
 
 --cfg=u8s8s8,s8s8f32
---stag=abc,acb --wtag=abc,acb --dtag=abc # ,bac # FIXME: per_tensor is broken with dtag=bac
+--stag=abc,acb --wtag=abc,acb --dtag=abc,bac
 --bia_dt=undef,f32 --bia_mask=4,6
 
 --runtime_dims_masks=0,1:1
