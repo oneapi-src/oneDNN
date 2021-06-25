@@ -809,9 +809,16 @@ public:
             const Xbyak::Operand &op) {
         // Note: x2 gets overriden by x2*op
         // This is incorrect if x1 == x2
-        assert(x1.getIdx() != x2.getIdx());
-        mulss(x2, op);
-        addss(x1, x2);
+        if (is_valid_isa(avx2))
+            vfmadd231ss(x1, x2, op);
+        else if (is_valid_isa(avx)) {
+            vmulss(x2, x2, op);
+            vaddss(x1, x1, x2);
+        } else {
+            assert(x1.getIdx() != x2.getIdx());
+            mulss(x2, op);
+            addss(x1, x2);
+        }
     }
     void uni_vfmadd231ss(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
@@ -830,9 +837,16 @@ public:
             const Xbyak::Operand &op) {
         // Note: x2 gets overriden by x2*op
         // This is incorrect if x1 == x2
-        assert(x1.getIdx() != x2.getIdx());
-        mulps(x2, op);
-        subps(x1, x2);
+        if (is_valid_isa(avx2))
+            vfnmadd231ps(x1, x2, op);
+        else if (is_valid_isa(avx)) {
+            vmulps(x2, x2, op);
+            vsubps(x1, x1, x2);
+        } else {
+            assert(x1.getIdx() != x2.getIdx());
+            mulps(x2, op);
+            subps(x1, x2);
+        }
     }
 
     void uni_vfnmadd231ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
@@ -845,6 +859,35 @@ public:
             assert(x1.getIdx() != x2.getIdx());
             vmulps(x2, x2, op);
             vsubps(x1, x1, x2);
+        }
+    }
+
+    void uni_vfnmadd231ss(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        // Note: x2 gets overriden by x2*op
+        // This is incorrect if x1 == x2
+        if (is_valid_isa(avx2))
+            vfnmadd231ss(x1, x2, op);
+        else if (is_valid_isa(avx)) {
+            vmulss(x2, x2, op);
+            vsubss(x1, x1, x2);
+        } else {
+            assert(x1.getIdx() != x2.getIdx());
+            mulss(x2, op);
+            subss(x1, x2);
+        }
+    }
+
+    void uni_vfnmadd231ss(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op) {
+        if (is_valid_isa(avx2))
+            vfnmadd231ss(x1, x2, op);
+        else {
+            // Note: x2 gets overriden by x2*op
+            // This is incorrect if x1 == x2
+            assert(x1.getIdx() != x2.getIdx());
+            vmulss(x2, x2, op);
+            vsubss(x1, x1, x2);
         }
     }
 
