@@ -42,9 +42,11 @@ on Intel CPUs and GPUs. Deep learning practitioners should use one of the
 
 # Installation
 
-Binary distribution of this software is available as
-[Intel oneAPI Deep Neural Network Library](https://software.intel.com/en-us/oneapi/onednn)
-in [Intel oneAPI]( https://software.intel.com/en-us/oneapi).
+Binary distribution of this software is available as:
+* [Intel oneAPI Deep Neural Network Library](https://software.intel.com/en-us/oneapi/onednn)
+  in [Intel oneAPI]( https://software.intel.com/en-us/oneapi).
+* [oneAPI Deep Neural Network Library](https://anaconda.org/conda-forge/onednn)
+  in [Anaconda](https://anaconda.org).
 
 Pre-built binaries for Linux\*, Windows\*, and macOS\* are available
 for download in the
