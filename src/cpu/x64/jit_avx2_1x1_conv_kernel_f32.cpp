@@ -16,6 +16,7 @@
 *******************************************************************************/
 
 #include <assert.h>
+#include <limits>
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
@@ -997,6 +998,14 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.nb_bcast = div_up(jcp.bcast_dim, jcp.bcast_block);
     jcp.nb_load = div_up(jcp.load_dim, jcp.load_block);
     jcp.nb_reduce = div_up(jcp.reduce_dim, jcp.reduce_block);
+
+    if (jcp.prop_kind == backward_weights) {
+        const auto mb_with_nb_reduce
+                = static_cast<dim_t>(jcp.mb) * jcp.nb_reduce;
+        // prevent too large argument to cpu reducer
+        if (mb_with_nb_reduce > std::numeric_limits<int>::max())
+            return status::unimplemented;
+    }
 
     return status::success;
 }
