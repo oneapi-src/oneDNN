@@ -89,8 +89,8 @@ struct acl_inner_product_fwd_t : public primitive_t {
 
             auto conf_status = acl_inner_product_utils::init_conf_ip(aip_,
                     src_md_, weights_md_, dst_md_, bias_md_, *desc(), *attr());
-
-            if (conf_status != status::success) return status::unimplemented;
+            // conf_status here can be either status::success or status::unimplemented
+            if (conf_status != status::success) return conf_status;
 
             acl_common_utils::acl_thread_bind();
 
