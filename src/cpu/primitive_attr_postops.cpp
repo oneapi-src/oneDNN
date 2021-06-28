@@ -16,7 +16,8 @@
 
 #include <cmath>
 
-#include "primitive_attr_postops.hpp"
+#include "cpu/primitive_attr_postops.hpp"
+#include "cpu/ref_io_helper.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -221,7 +222,7 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
                 const auto off = src1_binary_po_d.off_v(l_dims_binary_po);
                 const auto src1_binary_po = CTX_IN_MEM(const void *,
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
-                float val_po = types::get_float_value(
+                float val_po = io::load_float_value(
                         src1_binary_po_d.data_type(), src1_binary_po, off);
                 res = it_binary_po->compute_scalar(res, val_po);
                 ++it_binary_po;

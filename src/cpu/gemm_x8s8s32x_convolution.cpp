@@ -27,6 +27,7 @@
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm_x8s8s32x_conv_zp_src_pad_comp.hpp"
 #include "cpu/gemm_x8s8s32x_convolution.hpp"
+#include "cpu/ref_io_helper.hpp"
 #include "cpu/simple_q10n.hpp"
 
 namespace dnnl {
@@ -34,7 +35,6 @@ namespace impl {
 namespace cpu {
 
 using namespace dnnl::impl::utils;
-using namespace dnnl::impl::math;
 using namespace dnnl::impl::memory_tracking::names;
 
 const int32_t *mul_zp_src_comp_from_wei_by_zp_src(const int zp_comp_size,
@@ -389,9 +389,12 @@ _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
                     = scales + g * jcp.ic * scale_idx_mult;
             for (int ic = 0; ic < jcp.ic; ic++) {
                 acc_data_t d = acc_loc[ic];
-                if (jcp.with_bias)
-                    d += get_bias(bia_base, g * jcp.ic + ic,
-                            pd()->desc()->bias_desc.data_type);
+                if (jcp.with_bias) {
+                    const float b = io::load_float_value(
+                            pd()->desc()->bias_desc.data_type, bia_base,
+                            g * jcp.ic + ic);
+                    d += b;
+                }
                 d *= scales_loc[ic * scale_idx_mult];
                 diff_src_loc[ic] = qz_a1b0<acc_data_t, diff_src_data_t>()(d);
             }

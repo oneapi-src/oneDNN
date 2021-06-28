@@ -144,26 +144,6 @@ inline float max_value(data_type_t data_type) {
 #undef CASE
 }
 
-inline float get_float_value(data_type_t dt, const void *ptr, dim_t idx) {
-#define CASE(dt) \
-    case dt: \
-        return static_cast<float>(((typename prec_traits<dt>::type *)ptr)[idx]);
-
-    using namespace data_type;
-    switch (dt) {
-        CASE(bf16);
-        CASE(f16);
-        CASE(f32);
-        CASE(s32);
-        CASE(s8);
-        CASE(u8);
-        default: assert(!"bad data_type");
-    }
-
-#undef CASE
-    return NAN;
-}
-
 inline format_kind_t format_tag_to_kind(format_tag_t tag) {
     switch (tag) {
         case format_tag::undef: return format_kind::undef;

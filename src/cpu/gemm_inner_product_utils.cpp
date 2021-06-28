@@ -20,6 +20,7 @@
 
 #include "cpu/platform.hpp"
 #include "cpu/primitive_attr_postops.hpp"
+#include "cpu/ref_io_helper.hpp"
 #include "cpu/simple_q10n.hpp"
 
 #if DNNL_X64
@@ -69,8 +70,6 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         const void * /* post_ops_binary_rhs_arg_vec */,
         const void * /* dst_orig */, size_t /* first_mb_matrix_addr_off */,
         const exec_ctx_t &ctx, const memory_desc_t &dst_md) const {
-    using math::get_bias;
-
     if (end <= start) return;
 
     const size_t OC = this->runtime_oc() ? runtime_oc : this->OC_;
@@ -84,8 +83,11 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
             = [&](const acc_data_t &acc_value, dst_data_t &dst_value,
                       size_t &oc_value, const size_t dst_offset) {
                   float d = (float)acc_value;
-                  if (this->do_bias())
-                      d += get_bias(bias, oc_value, this->bias_data_type_);
+                  if (this->do_bias()) {
+                      const float b = io::load_float_value(
+                              this->bias_data_type_, bias, oc_value);
+                      d += b;
+                  }
                   if (this->do_scale_)
                       d *= scales[oc_value * this->scale_idx_mult_];
                   if (apply_postops) {

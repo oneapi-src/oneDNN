@@ -22,6 +22,7 @@
 
 #include "cpu/platform.hpp"
 #include "cpu/primitive_attr_postops.hpp"
+#include "cpu/ref_io_helper.hpp"
 #include "cpu/simple_q10n.hpp"
 
 #if DNNL_X64
@@ -102,9 +103,11 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
 
             if (jcp_.signed_input) data *= signed_scale;
 
-            if (jcp_.with_bias)
-                data += math::get_bias(
-                        bias, g * jcp_.oc + oc, jcp_.bias_data_type);
+            if (jcp_.with_bias) {
+                const float b = io::load_float_value(
+                        jcp_.bias_data_type, bias, g * jcp_.oc + oc);
+                data += b;
+            }
 
             data *= scales[(g * jcp_.oc + oc) * jcp_.scale_idx_mult];
             if (jcp_.with_sum) data += sum_scale * dst[dst_off];

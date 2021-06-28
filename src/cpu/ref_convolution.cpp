@@ -21,6 +21,7 @@
 #include "common/type_helpers.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/ref_io_helper.hpp"
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/ref_convolution.hpp"
@@ -28,8 +29,6 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
-
-using math::get_bias;
 
 namespace {
 inline dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb,
@@ -237,9 +236,13 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
 
     parallel_nd(G, MB, OC, OD, OH, OW,
             [&](dim_t g, dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
-                float a = bias ? get_bias(bias, bias_d.off(g * OC + oc),
-                                  pd()->desc()->bias_desc.data_type)
-                               : 0;
+                float b = 0;
+                if (bias) {
+                    const auto bias_off = bias_d.off(g * OC + oc);
+                    b = io::load_float_value(
+                            bias_d.data_type(), bias, bias_off);
+                }
+                float a = b;
 
                 if (src_d.is_plain() && weights_d.is_plain()
                         && src_ic_stride == 1 && weights_kw_stride == 1)

@@ -25,6 +25,7 @@
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/ref_deconvolution.hpp"
+#include "cpu/ref_io_helper.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -64,7 +65,7 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_common(const exec_ctx_t &ctx,
             [&](dim_t mb, dim_t g, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
                 const dim_t c = g * OC + oc;
                 const dim_t off = get_data_off(dst_d, ndims, mb, c, od, oh, ow);
-                float b = types::get_float_value(bias_d.data_type(), bias, c);
+                float b = io::load_float_value(bias_d.data_type(), bias, c);
                 float d = conv_output[off];
                 dst[off] = cpu::saturate_and_round<dst_data_t>(d + b);
             });
@@ -85,7 +86,7 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw(const exec_ctx_t &ctx,
 
     parallel_nd(MB, OC, [&](dim_t mb, dim_t oc) {
         const dim_t off = (mb * OC + oc) * SP;
-        float b = types::get_float_value(bias_d.data_type(), bias, oc);
+        float b = io::load_float_value(bias_d.data_type(), bias, oc);
         PRAGMA_OMP_SIMD()
         for (dim_t sp = 0; sp < SP; ++sp) {
             float d = conv_output[off + sp];
@@ -111,7 +112,7 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ndhwc(const exec_ctx_t &ctx,
         const dim_t off = (mb * SP + sp) * OC;
         PRAGMA_OMP_SIMD()
         for (dim_t oc = 0; oc < OC; ++oc) {
-            float b = types::get_float_value(bias_d.data_type(), bias, oc);
+            float b = io::load_float_value(bias_d.data_type(), bias, oc);
             float d = conv_output[off + oc];
             dst[off + oc] = cpu::saturate_and_round<dst_data_t>(d + b);
         }
@@ -140,7 +141,7 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc(const exec_ctx_t &ctx,
 
                 PRAGMA_OMP_SIMD()
                 for (dim_t i = 0; i < blk_size; ++i) {
-                    float b = i < blk ? types::get_float_value(
+                    float b = i < blk ? io::load_float_value(
                                       bias_d.data_type(), bias, oc + i)
                                       : 0;
                     float d = conv_output[off + i];
