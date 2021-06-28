@@ -71,7 +71,7 @@ struct acl_inner_product_fwd_t : public primitive_t {
     struct pd_t : public cpu_inner_product_fwd_pd_t {
         using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("inner_product:acl", acl_inner_product_fwd_t);
+        DECLARE_COMMON_PD_T("acl", acl_inner_product_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace utils;
