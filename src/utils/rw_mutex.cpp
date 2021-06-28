@@ -20,6 +20,10 @@
 #include <pthread.h>
 #endif
 
+#if DNNL_GRAPH_SUPPORT_CXX17
+#include <shared_mutex>
+#endif
+
 #include "utils/compatible.hpp"
 
 #include "rw_mutex.hpp"
@@ -28,6 +32,44 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 namespace utils {
+
+#if DNNL_GRAPH_SUPPORT_CXX17
+
+struct rw_mutex_t::rw_mutex_impl_t {
+    using rwlock_t = std::shared_mutex;
+    rwlock_t &impl() { return impl_; }
+
+private:
+    rwlock_t impl_;
+};
+
+rw_mutex_t::rw_mutex_t() {
+    rw_mutex_impl_ = utils::make_unique<rw_mutex_impl_t>();
+}
+
+void rw_mutex_t::lock_read() {
+    auto &impl = rw_mutex_impl_->impl();
+    impl.lock_shared();
+}
+
+void rw_mutex_t::lock_write() {
+    auto &impl = rw_mutex_impl_->impl();
+    impl.lock();
+}
+
+void rw_mutex_t::unlock_read() {
+    auto &impl = rw_mutex_impl_->impl();
+    impl.unlock_shared();
+}
+
+void rw_mutex_t::unlock_write() {
+    auto &impl = rw_mutex_impl_->impl();
+    impl.unlock();
+}
+
+rw_mutex_t::~rw_mutex_t() {}
+
+#else
 
 struct rw_mutex_t::rw_mutex_impl_t {
 #ifdef _WIN32
@@ -94,6 +136,8 @@ rw_mutex_t::~rw_mutex_t() {
     pthread_rwlock_destroy(&impl);
 #endif
 }
+
+#endif // DNNL_GRAPH_SUPPORT_CXX17
 
 lock_read_t::lock_read_t(rw_mutex_t &rw_mutex) : rw_mutex_(rw_mutex) {
     rw_mutex_.lock_read();
