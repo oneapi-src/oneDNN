@@ -125,11 +125,9 @@ compatible with Compute Library versions 21.05 or later.
 > [linking guide](https://oneapi-src.github.io/oneDNN/dev_guide_link.html)
 > for more details.
 
-The library is optimized for the following GPUs:
-* Intel HD Graphics
-* Intel UHD Graphics
-* Intel Iris Plus Graphics
-* Xe architecture-based Graphics (code named DG1 and Tiger Lake)
+The library is optimized for the following GPU architectures:
+* Intel Processor Graphics Gen9, Gen9.5 and Gen11 architectures
+* Xe architecture
 
 ## Requirements for Building from Source
 
