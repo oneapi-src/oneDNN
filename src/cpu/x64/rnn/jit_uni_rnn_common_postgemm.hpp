@@ -473,7 +473,7 @@ protected:
             case 16: // sse: nothing to do
                 uni_vmovss(dst, Xbyak::Xmm(src.getIdx()));
                 break;
-            case 4: pextrb(dst, Xbyak::Xmm(src.getIdx()), 0x0); break;
+            case 4: uni_vpextrb(dst, Xbyak::Xmm(src.getIdx()), 0x0); break;
 
             default: assert(!"unsupported case");
         };

@@ -1187,7 +1187,10 @@ public:
     }
 
     void uni_vcvtps2dq(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
-        cvtps2dq(x, op);
+        if (is_valid_isa(avx))
+            vcvtps2dq(x, op);
+        else
+            cvtps2dq(x, op);
     }
     void uni_vcvtps2dq(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
         vcvtps2dq(x, op);
