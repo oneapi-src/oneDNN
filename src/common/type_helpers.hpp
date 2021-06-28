@@ -627,7 +627,9 @@ inline bool memory_desc_strides_check(
         if (md.padded_dims[d] == 0) return true;
 
         // no strides verification for runtime dims
-        if (strides[d] == DNNL_RUNTIME_DIM_VAL) return true;
+        const bool has_runtime_dim = utils::one_of(
+                DNNL_RUNTIME_DIM_VAL, strides[d], md.padded_dims[d]);
+        if (has_runtime_dim) return true;
 
         perm[d] = d;
         blocks[d] = 1;
