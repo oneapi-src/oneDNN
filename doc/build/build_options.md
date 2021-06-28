@@ -11,6 +11,7 @@ oneDNN Graph supports the following build-time options.
 | DNNL_GRAPH_VERBOSE          | **ON**, OFF                         | Enables verbose mode
 | DNNL_GRAPH_ENABLE_ASAN      | ON, **OFF**                         | Enables sanitizer check
 | DNNL_GRAPH_SUPPORT_CXX17    | ON, **OFF**                         | Enables features from c++ standard 17 (gcc/clang >= 5)
+| DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE | **ON**, OFF          | Enables compiled partition cache
 
 All other building options or values that can be found in CMake files are
 intended for development/debug purposes and are subject to change without
