@@ -92,7 +92,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const Reg64 &reg_reverse_src1_stride_range_ = rax;
     const Reg64 &reg_reverse_spat_offt_ = r13;
     const Reg64 &reg_tmp_ = r14;
-    const Reg64 &reg_tmp1_ = rcx;
+    const Reg64 &reg_tmp1_ = abi_not_param1;
     const Reg64 &reg_elt_inj_table_ = r15;
     const Reg64 &reg_off_rhs_postops_ = rdx;
     const Reg64 &reg_scales_src0_ = rbx;
