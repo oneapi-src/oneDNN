@@ -368,7 +368,7 @@ void jit_uni_binary_kernel_t<isa>::compute_dst(int unroll, bool tail) {
             }
 
             if (zero_pad_left) {
-                push(rdi);
+                push(abi_param1);
                 const Reg32 &reg_zero = eax;
                 const Reg64 &reg_ptr = rdi;
                 const Reg64 &reg_counter = rcx;
@@ -381,7 +381,7 @@ void jit_uni_binary_kernel_t<isa>::compute_dst(int unroll, bool tail) {
                 mov(reg_counter, off_end - off_start);
                 rep();
                 stosb();
-                pop(rdi);
+                pop(abi_param1);
             }
             L(end);
         } else
