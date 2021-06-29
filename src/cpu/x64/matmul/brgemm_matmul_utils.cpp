@@ -403,9 +403,10 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     };
 
     auto is_buffer_c_required = [&]() -> bool {
-        return (bgmmc.acc_dt != bgmmc.dst_dt || bgmmc.with_sum)
-                && (bgmmc.K > bgmmc.K_blk * bgmmc.brgemm_batch_size
-                        || bgmmc.K % bgmmc.K_blk > 0);
+        return bgmmc.nthr_k > 1
+                || ((bgmmc.acc_dt != bgmmc.dst_dt || bgmmc.with_sum)
+                        && (bgmmc.K > bgmmc.K_blk * bgmmc.brgemm_batch_size
+                                || bgmmc.K % bgmmc.K_blk > 0));
     };
 
     bgmmc.transposed_A = bgmmc.src_tag == transposed_tensor_layout_tag;
@@ -528,7 +529,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     bgmmc.LDB = bgmmc.wei_n_blk;
     bgmmc.LDD = bgmmc.N;
-    bgmmc.LDC = bgmmc.use_buffer_c ? bgmmc.N_blk : bgmmc.LDD;
+    bgmmc.LDC
+            = bgmmc.use_buffer_c && bgmmc.nthr_k <= 1 ? bgmmc.N_blk : bgmmc.LDD;
 
     init_aux_values(bgmmc, src_d, weights_d, dst_d);
 
@@ -555,9 +557,10 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
 
     if (bgmmc.with_bias) bgmmc.bias_dt_sz = types::data_type_size(bgmmc.bia_dt);
 
-    bgmmc.buffer_c_chunk_sz = bgmmc.acc_dt_sz * bgmmc.LDC * bgmmc.M_blk;
-    bgmmc.buffer_c_per_thread_sz
-            = bgmmc.buffer_c_chunk_sz * bgmmc.M_chunk_size * bgmmc.N_chunk_size;
+    bgmmc.buffer_c_chunk_sz = bgmmc.acc_dt_sz * bgmmc.LDC
+            * (bgmmc.nthr_k > 1 ? bgmmc.M : bgmmc.M_blk);
+    bgmmc.buffer_c_per_thread_sz = bgmmc.buffer_c_chunk_sz
+            * (bgmmc.nthr_k > 1 ? 1 : bgmmc.M_chunk_size * bgmmc.N_chunk_size);
 
     bgmmc.buffer_a_chunk_sz = bgmmc.a_dt_sz * bgmmc.M_blk
             * (bgmmc.use_buffer_a_tail_only ? bgmmc.wei_k_blk : bgmmc.LDA);

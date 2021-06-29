@@ -24,6 +24,7 @@
 #include "cpu/matmul/cpu_matmul_pd.hpp"
 
 #include "cpu/x64/brgemm/brgemm.hpp"
+#include "cpu/x64/cpu_reducer.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_copy_utils.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
 
@@ -95,16 +96,23 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_body(const exec_ctx_t &ctx) const;
     void compute_kernel(const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr,
-            int b_idx, int m_blk_idx, int n_blk_idx, int k_blk_idx) const;
+            int b_idx, int m_blk_idx, int n_blk_idx, int k_blk_idx,
+            bool do_init) const;
     void copy_a_chunk_in_buffer(const brg_matmul_exec_ctx_t &brgmm_ctx,
             int ithr, int b_idx, int m_blk_idx, int k_blk_idx) const;
     void copy_b_chunk_in_buffer(const brg_matmul_exec_ctx_t &brgmm_ctx,
             int ithr, int b_idx, int n_blk_idx, int k_blk_idx) const;
+    void maybe_reduce_partial_results_and_apply_postops(
+            const brg_matmul_exec_ctx_t &brgmm_ctx) const;
+    void accumulate(
+            char *result_ptr, const char *reduce_ptr, size_t size) const;
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_matmul];
     char brg_kernel_palettes_[max_num_brg_kernels_matmul][64];
     std::unique_ptr<jit_brgemm_matmul_copy_b_t> copy_B_kernel_;
     std::unique_ptr<jit_brgemm_matmul_copy_a_t> copy_A_kernel_;
+    std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_f32_;
+    std::unique_ptr<cpu_accumulator_1d_t<data_type::s32>> acc_ker_s32_;
 };
 
 } // namespace matmul

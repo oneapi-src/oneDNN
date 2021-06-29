@@ -81,6 +81,7 @@ struct brgemm_matmul_conf_t {
     data_type_t acc_dt;
     data_type_t bia_dt;
     int nthr;
+    int nthr_k;
 
     // Auxiliary values for init_config() and execute()
     dim_t a_dt_sz, b_dt_sz, c_dt_sz, acc_dt_sz, bias_dt_sz;
