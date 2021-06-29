@@ -114,8 +114,8 @@ struct jit_uni_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        using conv_pd_t = typename jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa,
-                src_type, dst_type>::pd_t;
+        using conv_pd_t =
+                typename jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::pd_t;
         friend jit_uni_x8s8s32x_1x1_deconvolution_fwd_t;
 
         std::shared_ptr<primitive_desc_t> conv_pd_;
