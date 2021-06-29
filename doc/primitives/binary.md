@@ -104,11 +104,7 @@ meaning associated with any of tensors dimensions.
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
 
-2. **CPU**
-   - For `f32` destination type source 0 and source 1 tensors must have `f32`
-     data type.
-
-3. **GPU**
+2. **GPU**
    - Implicit broadcast for source 0 is not supported.
 
 ## Performance Tips

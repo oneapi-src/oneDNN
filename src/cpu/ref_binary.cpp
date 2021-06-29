@@ -23,7 +23,9 @@
 #include "common/math_utils.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
+
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/ref_io_helper.hpp"
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/ref_binary.hpp"
@@ -32,12 +34,10 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
-status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
-        const exec_ctx_t &ctx) const {
-    const auto src0 = CTX_IN_MEM(const src0_data_t *, DNNL_ARG_SRC_0);
-    const auto src1 = CTX_IN_MEM(const src1_data_t *, DNNL_ARG_SRC_1);
-    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
+    const auto src0 = CTX_IN_MEM(const void *, DNNL_ARG_SRC_0);
+    const auto src1 = CTX_IN_MEM(const void *, DNNL_ARG_SRC_1);
+    auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
 
     const float *scales[2];
     ASSIGN_INPUT_SCALE_VALUE(scales[0], DNNL_ARG_SRC_0);
@@ -46,6 +46,10 @@ status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));
     const memory_desc_wrapper dst_d(pd()->dst_md());
+
+    const auto src0_dt = src0_d.data_type();
+    const auto src1_dt = src1_d.data_type();
+    const auto dst_dt = dst_d.data_type();
 
     const auto alg = pd()->desc()->alg_kind;
 
@@ -95,9 +99,9 @@ status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
         utils::apply_mask_on_dims(dims_src1, ndims, mask_src1);
         const auto off_B = src1_d.off_v(dims_src1);
 
-        float x_f = (float)src0[off_A];
-        float y_f = (float)src1[off_B];
-        float dst_f = (float)dst[off_C];
+        float x_f = io::load_float_value(src0_dt, src0, off_A);
+        float y_f = io::load_float_value(src1_dt, src1, off_B);
+        float dst_f = io::load_float_value(dst_dt, dst, off_C);
 
         x_f *= scales[0][0];
         y_f *= scales[1][0];
@@ -113,34 +117,11 @@ status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
             ref_post_ops->execute(acc, args);
         }
 
-        dst[off_C] = cpu::saturate_and_round<dst_data_t>(acc);
+        io::store_float_value(dst_dt, acc, dst, off_C);
     });
 
     return status::success;
 }
-
-using namespace data_type;
-
-template struct ref_binary_t<f32>;
-template struct ref_binary_t<bf16>;
-template struct ref_binary_t<s8, s8, s8>;
-template struct ref_binary_t<s8, u8, s8>;
-template struct ref_binary_t<u8, s8, s8>;
-template struct ref_binary_t<u8, u8, s8>;
-template struct ref_binary_t<s8, s8, u8>;
-template struct ref_binary_t<s8, u8, u8>;
-template struct ref_binary_t<u8, s8, u8>;
-template struct ref_binary_t<u8, u8, u8>;
-template struct ref_binary_t<s8, f32, s8>;
-template struct ref_binary_t<s8, f32, u8>;
-template struct ref_binary_t<u8, f32, s8>;
-template struct ref_binary_t<u8, f32, u8>;
-template struct ref_binary_t<f32, s8, s8>;
-template struct ref_binary_t<f32, s8, u8>;
-template struct ref_binary_t<f32, u8, s8>;
-template struct ref_binary_t<f32, u8, u8>;
-template struct ref_binary_t<f32, f32, s8>;
-template struct ref_binary_t<f32, f32, u8>;
 
 } // namespace cpu
 } // namespace impl
