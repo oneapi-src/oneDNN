@@ -144,7 +144,8 @@ struct logical_tensor_wrapper {
         return utils::array_product(dims(), static_cast<size_t>(ndims()));
     }
 
-    std::vector<dim_t> get_weight_spatial_dims(const std::string &format) {
+    std::vector<dim_t> get_weight_spatial_dims(
+            const std::string &format) const {
         std::vector<dim_t> spatial_dims = vdims();
         if (format == "OIX") {
             spatial_dims.erase(spatial_dims.begin(), spatial_dims.begin() + 2);
@@ -158,7 +159,7 @@ struct logical_tensor_wrapper {
         return spatial_dims;
     }
 
-    std::vector<dim_t> get_src_spatial_dims(const std::string &format) {
+    std::vector<dim_t> get_src_spatial_dims(const std::string &format) const {
         std::vector<dim_t> spatial_dims = vdims();
         if (format == "NCX") {
             spatial_dims.erase(spatial_dims.begin(), spatial_dims.begin() + 2);
@@ -172,7 +173,7 @@ struct logical_tensor_wrapper {
         return spatial_dims;
     }
 
-    dim_t get_weight_i(const std::string &format) {
+    dim_t get_weight_i(const std::string &format) const {
         if (format == "OIX") {
             return dims()[1];
         } else if (format == "XIO") {
@@ -183,7 +184,7 @@ struct logical_tensor_wrapper {
         }
     }
 
-    dim_t get_weight_o(const std::string &format) {
+    dim_t get_weight_o(const std::string &format) const {
         if (format == "OIX") {
             return dims()[0];
         } else if (format == "XIO") {
@@ -194,12 +195,12 @@ struct logical_tensor_wrapper {
         }
     }
 
-    dim_t get_src_n() {
+    dim_t get_src_n() const {
         // `n` is always the first element for both `NCX` and `NXC`
         return dims()[0];
     }
 
-    dim_t get_src_c(const std::string &format) {
+    dim_t get_src_c(const std::string &format) const {
         if (format == "NCX") {
             return dims()[1];
         } else if (format == "NXC") {
