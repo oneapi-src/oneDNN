@@ -268,34 +268,24 @@ struct ref_deconvolution_fwd_t : public primitive_t {
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    template <data_type_t dst_type>
-    void compute_fwd_bias_common(const exec_ctx_t &ctx,
-            typename prec_traits<dst_type>::type *dst,
-            const float *conv_output) const;
+    void compute_fwd_bias_common(const exec_ctx_t &ctx, void *dst,
+            const float *conv_output, bool non_default_attr) const;
 
-    template <data_type_t dst_type>
-    void compute_fwd_bias_ncdhw(const exec_ctx_t &ctx,
-            typename prec_traits<dst_type>::type *dst,
-            const float *conv_output) const;
+    void compute_fwd_bias_ncdhw(const exec_ctx_t &ctx, void *dst,
+            const float *conv_output, bool non_default_attr) const;
 
-    template <data_type_t dst_type>
-    void compute_fwd_bias_ndhwc(const exec_ctx_t &ctx,
-            typename prec_traits<dst_type>::type *dst,
-            const float *conv_output) const;
+    void compute_fwd_bias_ndhwc(const exec_ctx_t &ctx, void *dst,
+            const float *conv_output, bool non_default_attr) const;
 
-    template <data_type_t dst_type, dim_t blk_size>
-    void compute_fwd_bias_nCdhwXc(const exec_ctx_t &ctx,
-            typename prec_traits<dst_type>::type *dst,
-            const float *conv_output) const;
+    template <dim_t blk_size>
+    void compute_fwd_bias_nCdhwXc(const exec_ctx_t &ctx, void *dst,
+            const float *conv_output, bool non_default_attr) const;
 
-    template <data_type_t dst_type>
-    void compute_fwd_bias(const exec_ctx_t &ctx,
-            typename prec_traits<dst_type>::type *dst,
-            const float *conv_output) const;
+    void compute_fwd_bias(const exec_ctx_t &ctx, void *dst,
+            const float *conv_output, bool non_default_attr) const;
 
-    template <data_type_t dst_type>
     status_t compute_ref_attrs(const exec_ctx_t &ctx, const float *conv_output,
-            typename prec_traits<dst_type>::type *original_dst) const;
+            void *original_dst) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<primitive_t> conv_p_;

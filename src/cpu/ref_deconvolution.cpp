@@ -22,10 +22,9 @@
 #include "common/type_helpers.hpp"
 
 #include "cpu/cpu_primitive.hpp"
-#include "cpu/simple_q10n.hpp"
+#include "cpu/ref_io_helper.hpp"
 
 #include "cpu/ref_deconvolution.hpp"
-#include "cpu/ref_io_helper.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -44,11 +43,8 @@ dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb, dim_t c,
 
 } // namespace
 
-template <data_type_t dst_type>
 void ref_deconvolution_fwd_t::compute_fwd_bias_common(const exec_ctx_t &ctx,
-        typename prec_traits<dst_type>::type *dst,
-        const float *conv_output) const {
-    using dst_data_t = typename prec_traits<dst_type>::type;
+        void *dst, const float *conv_output, bool non_default_attr) const {
     const auto bias = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
@@ -67,15 +63,14 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_common(const exec_ctx_t &ctx,
                 const dim_t off = get_data_off(dst_d, ndims, mb, c, od, oh, ow);
                 float b = io::load_float_value(bias_d.data_type(), bias, c);
                 float d = conv_output[off];
-                dst[off] = cpu::saturate_and_round<dst_data_t>(d + b);
+                // Use f32 if attributes happen after bias to get precise answer
+                auto dt = non_default_attr ? data_type::f32 : dst_d.data_type();
+                io::store_float_value(dt, d + b, dst, off);
             });
 }
 
-template <data_type_t dst_type>
 void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw(const exec_ctx_t &ctx,
-        typename prec_traits<dst_type>::type *dst,
-        const float *conv_output) const {
-    using dst_data_t = typename prec_traits<dst_type>::type;
+        void *dst, const float *conv_output, bool non_default_attr) const {
     const auto bias = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
@@ -90,16 +85,15 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw(const exec_ctx_t &ctx,
         PRAGMA_OMP_SIMD()
         for (dim_t sp = 0; sp < SP; ++sp) {
             float d = conv_output[off + sp];
-            dst[off + sp] = cpu::saturate_and_round<dst_data_t>(d + b);
+            // Use f32 if attributes happen after bias to get precise answer.
+            auto dt = non_default_attr ? data_type::f32 : dst_d.data_type();
+            io::store_float_value(dt, d + b, dst, off + sp);
         }
     });
 }
 
-template <data_type_t dst_type>
 void ref_deconvolution_fwd_t::compute_fwd_bias_ndhwc(const exec_ctx_t &ctx,
-        typename prec_traits<dst_type>::type *dst,
-        const float *conv_output) const {
-    using dst_data_t = typename prec_traits<dst_type>::type;
+        void *dst, const float *conv_output, bool non_default_attr) const {
     const auto bias = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
@@ -114,16 +108,16 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ndhwc(const exec_ctx_t &ctx,
         for (dim_t oc = 0; oc < OC; ++oc) {
             float b = io::load_float_value(bias_d.data_type(), bias, oc);
             float d = conv_output[off + oc];
-            dst[off + oc] = cpu::saturate_and_round<dst_data_t>(d + b);
+            // Use f32 if attributes happen after bias to get precise answer.
+            auto dt = non_default_attr ? data_type::f32 : dst_d.data_type();
+            io::store_float_value(dt, d + b, dst, off + oc);
         }
     });
 }
 
-template <data_type_t dst_type, dim_t blk_size>
+template <dim_t blk_size>
 void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc(const exec_ctx_t &ctx,
-        typename prec_traits<dst_type>::type *dst,
-        const float *conv_output) const {
-    using dst_data_t = typename prec_traits<dst_type>::type;
+        void *dst, const float *conv_output, bool non_default_attr) const {
     const auto bias = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
@@ -145,50 +139,50 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc(const exec_ctx_t &ctx,
                                       bias_d.data_type(), bias, oc + i)
                                       : 0;
                     float d = conv_output[off + i];
-                    dst[off + i] = cpu::saturate_and_round<dst_data_t>(d + b);
+                    // Use f32 if attributes happen after bias to get precise
+                    // answer.
+                    auto dt = non_default_attr ? data_type::f32
+                                               : dst_d.data_type();
+                    io::store_float_value(dt, d + b, dst, off + i);
                 }
             });
 }
 
-template <data_type_t dst_type>
-void ref_deconvolution_fwd_t::compute_fwd_bias(const exec_ctx_t &ctx,
-        typename prec_traits<dst_type>::type *dst,
-        const float *conv_output) const {
+void ref_deconvolution_fwd_t::compute_fwd_bias(const exec_ctx_t &ctx, void *dst,
+        const float *conv_output, bool non_default_attr) const {
     using namespace format_tag;
     switch (pd()->dst_tag_) {
         case ncdhw:
         case nchw:
         case ncw:
-            compute_fwd_bias_ncdhw<dst_type>(ctx, dst, conv_output);
+            compute_fwd_bias_ncdhw(ctx, dst, conv_output, non_default_attr);
             break;
         case ndhwc:
         case nhwc:
         case nwc:
-            compute_fwd_bias_ndhwc<dst_type>(ctx, dst, conv_output);
+            compute_fwd_bias_ndhwc(ctx, dst, conv_output, non_default_attr);
             break;
         case nCdhw8c:
         case nChw8c:
         case nCw8c:
-            assert(dst_type != data_type::bf16);
-            compute_fwd_bias_nCdhwXc<dst_type, 8>(ctx, dst, conv_output);
+            compute_fwd_bias_nCdhwXc<8>(
+                    ctx, dst, conv_output, non_default_attr);
             break;
         case nCdhw16c:
         case nChw16c:
         case nCw16c:
-            compute_fwd_bias_nCdhwXc<dst_type, 16>(ctx, dst, conv_output);
+            compute_fwd_bias_nCdhwXc<16>(
+                    ctx, dst, conv_output, non_default_attr);
             break;
         default:
-            compute_fwd_bias_common<dst_type>(ctx, dst, conv_output);
+            compute_fwd_bias_common(ctx, dst, conv_output, non_default_attr);
             break;
     }
 }
 
-template <data_type_t dst_type>
 status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
-        const float *conv_output,
-        typename prec_traits<dst_type>::type *original_dst) const {
-    using dst_data_t = typename prec_traits<dst_type>::type;
-    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+        const float *conv_output, void *original_dst) const {
+    auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
     const bool is_dst_zp_common
             = pd()->attr()->zero_points_.common(DNNL_ARG_DST);
@@ -231,14 +225,16 @@ status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
 
                     ref_post_ops_t::args_t args;
                     if (pd()->attr()->post_ops_.find(primitive_kind::sum) != -1)
-                        args.dst_val = (float)original_dst[dst_off];
+                        args.dst_val = io::load_float_value(
+                                dst_d.data_type(), original_dst, dst_off);
                     args.ctx = &ctx;
                     args.l_offset = dst_l_off;
                     args.dst_md = pd()->dst_md();
                     ref_post_ops->execute(tmp_result, args);
                     maybe_dst_zero_point(tmp_result, ocp);
                 }
-                dst[dst_off] = cpu::saturate_and_round<dst_data_t>(tmp_result);
+                io::store_float_value(
+                        dst_d.data_type(), tmp_result, dst, dst_off);
             });
 
     return status_t::dnnl_success;
@@ -500,54 +496,17 @@ status_t ref_deconvolution_fwd_t::execute(const exec_ctx_t &ctx) const {
         }
     }
 
-    auto dst_type = pd()->dst_md()->data_type;
+    float *conv_output = scratchpad.get<float>(key_deconv_bias);
 
     if (ref_bias) {
-        float *conv_output = scratchpad.get<float>(key_deconv_bias);
-        if (non_default_attr) {
-            // Overwrite conv_output since further attr computations still need
-            // f32 output.
-            compute_fwd_bias<f32>(ctx, conv_output, conv_output);
-        } else {
-
-#define CASE(DT) \
-    case (DT): { \
-        using dst_data_t = typename prec_traits<DT>::type; \
-        dst_data_t *dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST); \
-        compute_fwd_bias<DT>(ctx, dst, conv_output); \
-    } break
-
-            switch (dst_type) {
-                CASE(f32);
-                CASE(bf16);
-                CASE(s32);
-                CASE(s8);
-                CASE(u8);
-                default: assert(!"unsupported data type");
-            }
-#undef CASE
-        }
+        void *dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+        void *tmp_output = non_default_attr ? conv_output : dst;
+        compute_fwd_bias(ctx, tmp_output, conv_output, non_default_attr);
     }
 
     if (non_default_attr) {
-        float *conv_output = scratchpad.get<float>(key_deconv_bias);
-
-#define CASE(DT) \
-    case (DT): { \
-        using dst_data_t = typename prec_traits<DT>::type; \
-        dst_data_t *original_dst = scratchpad.get<dst_data_t>(key_deconv_sum); \
-        compute_ref_attrs<DT>(ctx, conv_output, original_dst); \
-    } break
-
-        switch (dst_type) {
-            CASE(f32);
-            CASE(bf16);
-            CASE(s32);
-            CASE(s8);
-            CASE(u8);
-            default: assert(!"unsupported data type");
-        }
-#undef CASE
+        void *original_dst = scratchpad.get<void>(key_deconv_sum);
+        compute_ref_attrs(ctx, conv_output, original_dst);
     }
 
     return status::success;
