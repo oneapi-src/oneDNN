@@ -25,8 +25,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/ref_io_helper.hpp"
 #include "cpu/ref_prelu.hpp"
-#include "cpu/simple_q10n.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,52 +34,6 @@ namespace cpu {
 
 using namespace math;
 using namespace data_type;
-
-static float load(data_type_t src_dtype, const byte *base, dim_t offset) {
-    switch (src_dtype) {
-        case f32: return reinterpret_cast<const float *>(base)[offset];
-        case s32:
-            return static_cast<float>(
-                    reinterpret_cast<const int32_t *>(base)[offset]);
-        case bf16:
-            return static_cast<float>(
-                    reinterpret_cast<const bfloat16_t *>(base)[offset]);
-        case s8:
-            return static_cast<float>(
-                    reinterpret_cast<const int8_t *>(base)[offset]);
-        case u8:
-            return static_cast<float>(
-                    reinterpret_cast<const uint8_t *>(base)[offset]);
-
-        default: assert(!"Unsupported data type");
-    }
-    return -1;
-}
-
-static void store(data_type_t dst_dtype, float val, byte *base, dim_t offset) {
-    switch (dst_dtype) {
-        case f32:
-            *reinterpret_cast<float *>(base + sizeof(float) * offset) = val;
-            break;
-        case s32:
-            *reinterpret_cast<int32_t *>(base + sizeof(int32_t) * offset)
-                    = cpu::saturate_and_round<int32_t>(val);
-            break;
-        case bf16:
-            *reinterpret_cast<bfloat16_t *>(base + sizeof(bfloat16_t) * offset)
-                    = cpu::saturate_and_round<bfloat16_t>(val);
-            break;
-        case s8:
-            *reinterpret_cast<int8_t *>(base + sizeof(int8_t) * offset)
-                    = cpu::saturate_and_round<int8_t>(val);
-            break;
-        case u8:
-            *reinterpret_cast<uint8_t *>(base + sizeof(uint8_t) * offset)
-                    = cpu::saturate_and_round<uint8_t>(val);
-            break;
-        default: assert(!"Unsupported data type");
-    }
-}
 
 static dim_t offset(const memory_desc_wrapper &mem, dims_t dims) {
     const int ndims = mem.ndims();
@@ -142,13 +96,14 @@ status_t ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
         for (dim_t iwork = start; iwork < end; ++iwork) {
             const auto data_off = offset(data_d, off);
             const auto weight_off = weights_offset(mask, weights_d, off);
-            const float src_val = load(data_d.data_type(), src, data_off);
-            const float weights_val
-                    = load(weights_d.data_type(), weights, weight_off);
+            const float src_val
+                    = io::load_float_value(data_d.data_type(), src, data_off);
+            const float weights_val = io::load_float_value(
+                    weights_d.data_type(), weights, weight_off);
 
             const float res = relu_fwd(src_val, weights_val);
 
-            store(data_d.data_type(), res, dst, data_off);
+            io::store_float_value(data_d.data_type(), res, dst, data_off);
             utils::nd_iterator_step(off[0], dims_d[0], off[1], dims_d[1],
                     off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
         }
@@ -212,15 +167,15 @@ float ref_prelu_bwd_t::ker(const byte *src, const byte *weights,
 
     const auto dtype = pd()->src_md(0)->data_type;
     const auto wtype = pd()->weights_md(0)->data_type;
-    const float src_val = load(dtype, src, data_off);
-    const float diff_dst_val = load(dtype, diff_dst, data_off);
-    const float weights_val = load(wtype, weights, weight_off);
+    const float src_val = io::load_float_value(dtype, src, data_off);
+    const float diff_dst_val = io::load_float_value(dtype, diff_dst, data_off);
+    const float weights_val = io::load_float_value(wtype, weights, weight_off);
 
     const float diff_src_res
             = relu_bwd_use_dst(diff_dst_val, src_val, weights_val);
     const float diff_weight_res = src_val > 0 ? 0 : (diff_dst_val * src_val);
 
-    store(dtype, diff_src_res, diff_src, data_off);
+    io::store_float_value(dtype, diff_src_res, diff_src, data_off);
 
     return diff_weight_res;
 }
@@ -280,7 +235,7 @@ void ref_prelu_bwd_t::calculate_scalar(const byte *src, const byte *weights,
         }
         buf_nthr_partial_results[ithr] = reduce(group_buf, group_size);
     });
-    store(weights_d.data_type(),
+    io::store_float_value(weights_d.data_type(),
             reduce(&buf_nthr_partial_results[0], thread_count), diff_weights,
             0);
 }
@@ -316,7 +271,8 @@ void ref_prelu_bwd_t::calculate_no_broadcast(const byte *src,
             const auto res = ker(
                     src, weights, diff_dst, diff_src, data_off, weight_off);
 
-            store(weights_d.data_type(), res, diff_weights, weight_off);
+            io::store_float_value(
+                    weights_d.data_type(), res, diff_weights, weight_off);
             utils::nd_iterator_step(off[0], dims_d[0], off[1], dims_d[1],
                     off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
         }
@@ -379,8 +335,8 @@ void ref_prelu_bwd_t::calculate_shared_axes(const byte *src,
                             : workload - (group_off * buf_size);
                 }
             }
-            store(weights_d.data_type(), reduce(group_buf, group_size),
-                    diff_weights, weight_off);
+            io::store_float_value(weights_d.data_type(),
+                    reduce(group_buf, group_size), diff_weights, weight_off);
             utils::nd_iterator_step(off_w[0], dims_w[0], off_w[1], dims_w[1],
                     off_w[2], dims_w[2], off_w[3], dims_w[3], off_w[4],
                     dims_w[4]);
