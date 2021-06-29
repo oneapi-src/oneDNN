@@ -92,9 +92,6 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
     const bool ok = data_type_supported(conf_.dst_type)
             && data_type_supported(conf_.src0_type)
             && data_type_supported(conf_.src1_type)
-            && IMPLICATION(!conf_.is_i8,
-                    utils::everyone_is(
-                            conf_.dst_type, conf_.src0_type, conf_.src1_type))
             && IMPLICATION(conf_.src0_type == bf16, mayiuse(avx512_core))
             && set_default_params() == status::success && !has_zero_dim_memory()
             && IMPLICATION(!conf_.is_i8, src0_md_ == dst_md_) && is_applicable()
