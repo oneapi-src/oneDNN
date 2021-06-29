@@ -32,7 +32,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <cpu_isa_t isa, impl::data_type_t src_type, impl::data_type_t dst_type>
+template <cpu_isa_t isa>
 struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -50,14 +50,17 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
             using smask_t = primitive_attr_t::skip_mask_t;
             const bool args_ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(
-                            src_type, s8, data_type::undef, dst_type, s32)
+                    && utils::one_of(src_md(0)->data_type, s8, u8)
+                    && weights_md(0)->data_type == s8
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bias_md_.data_type, f32, s32, s8, u8))
+                            utils::one_of(
+                                    weights_md(1)->data_type, f32, s32, s8, u8))
+                    && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
+                    && desc()->accum_data_type == s32
                     && attr()->has_default_values(smask_t::oscale
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops,
-                            dst_type)
+                            dst_md(0)->data_type)
                     && !has_zero_dim_memory() && zero_points_ok();
             if (!args_ok) return status::unimplemented;
 
@@ -89,10 +92,6 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
     };
 
     jit_uni_x8s8s32x_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<data_type::s8>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
