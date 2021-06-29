@@ -19,6 +19,7 @@
 
 #include <memory>
 #include "common/utils.hpp"
+#include "cpu/x64/rnn/jit_uni_lstm_cell_postgemm.hpp"
 #include "cpu/x64/rnn/jit_uni_rnn_common_postgemm.hpp"
 
 namespace dnnl {
@@ -28,12 +29,16 @@ namespace x64 {
 
 template <cpu_isa_t isa, impl::data_type_t src_data_t,
         impl::data_type_t scratch_data_t>
-struct jit_uni_lstm_cell_postgemm_bwd : public jit_uni_rnn_postgemm {
+struct jit_uni_lstm_cell_postgemm_bwd
+    : public jit_uni_rnn_postgemm,
+      public jit_uni_lstm_cell_postgemm_t<isa> {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lstm_cell_postgemm_bwd)
 
     jit_uni_lstm_cell_postgemm_bwd(
             const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
-        : jit_uni_rnn_postgemm(rnn, pd), tanh_injector_(nullptr) {}
+        : jit_uni_rnn_postgemm(rnn, pd)
+        , jit_uni_lstm_cell_postgemm_t<isa>(
+                  this, 11 /*tmp_id_begin*/, bf16_emu_) {}
     ~jit_uni_lstm_cell_postgemm_bwd() = default;
 
     status_t init(data_type_t sdt) override {
@@ -45,10 +50,8 @@ struct jit_uni_lstm_cell_postgemm_bwd : public jit_uni_rnn_postgemm {
     }
 
 protected:
-    using injector_t = typename utils::conditional<isa == avx512_core,
-            jit_uni_eltwise_injector_f32<avx512_common>,
-            jit_uni_eltwise_injector_f32<isa>>::type;
-    using Vmm = typename cpu_isa_traits<isa>::Vmm;
+    using injector_t = typename jit_uni_lstm_cell_postgemm_t<isa>::injector_t;
+    using Vmm = typename jit_uni_lstm_cell_postgemm_t<isa>::Vmm;
 
     std::unique_ptr<injector_t> tanh_injector_;
 
@@ -57,96 +60,11 @@ protected:
     static constexpr size_t cstate_dt_size_ = sizeof(float);
     static constexpr size_t hstate_dt_size_ = sizeof(float);
     static constexpr size_t weights_peephole_dt_size_ = sizeof(float);
-    static constexpr int tmp_id_begin_ = 11;
-    const int tmp_id_end_ = cpu_isa_traits<isa>::n_vregs
-            - ((bf16_emu_ && is_superset(isa, avx512_common)) ? 4 : 0);
 
     const size_t vlen_scratch_
             = vlen_ / (sizeof(float) / types::data_type_size(scratch_data_t));
     const size_t gate_dt_size_ = types::data_type_size(scratch_data_t);
     const size_t scratch_dt_size_ = types::data_type_size(scratch_data_t);
-
-    int current_tmp_id_ = tmp_id_begin_;
-    const bool avx2_available_ = is_superset(isa, avx2);
-
-    Vmm get_next_tmp_vmm() {
-        const Vmm vmm {current_tmp_id_++};
-
-        if (current_tmp_id_ == tmp_id_end_) current_tmp_id_ = tmp_id_begin_;
-
-        return vmm;
-    }
-
-    Xbyak::Xmm get_next_tmp_xmm() {
-        return Xbyak::Xmm(get_next_tmp_vmm().getIdx());
-    }
-
-    void vaddps_rhs_op_mem(
-            const Vmm &dst, const Vmm &lhs, const Xbyak::Address &rhs_addr) {
-
-        if (avx2_available_)
-            uni_vaddps(dst, lhs, rhs_addr);
-        else {
-            const auto rhs = get_next_tmp_vmm();
-            uni_vmovups(rhs, rhs_addr);
-            uni_vaddps(dst, lhs, rhs);
-        }
-    }
-
-    void vfmadd231ps_rhs_op_mem(
-            const Vmm &dst, const Vmm &lhs, const Xbyak::Address &rhs_addr) {
-        if (avx2_available_)
-            uni_vfmadd231ps(dst, lhs, rhs_addr);
-        else {
-            const auto rhs = get_next_tmp_vmm();
-            uni_vmovups(rhs, rhs_addr);
-            uni_vfmadd231ps(dst, lhs, rhs);
-        }
-    }
-
-    void vmulps_rhs_op_mem(
-            const Vmm &dst, const Vmm &lhs, const Xbyak::Address &rhs_addr) {
-        if (avx2_available_)
-            uni_vmulps(dst, lhs, rhs_addr);
-        else {
-            const auto rhs = get_next_tmp_vmm();
-            uni_vmovups(rhs, rhs_addr);
-            uni_vmulps(dst, lhs, rhs);
-        }
-    }
-
-    void vaddss_rhs_op_mem(const Xbyak::Xmm &dst, const Xbyak::Xmm &lhs,
-            const Xbyak::Address &rhs_addr) {
-        if (avx2_available_)
-            uni_vaddss(dst, lhs, rhs_addr);
-        else {
-            const auto rhs = get_next_tmp_xmm();
-            uni_vmovss(rhs, rhs_addr);
-            uni_vaddss(dst, lhs, rhs);
-        }
-    }
-
-    void vfmadd231ss_rhs_op_mem(const Xbyak::Xmm &dst, const Xbyak::Xmm &lhs,
-            const Xbyak::Address &rhs_addr) {
-        if (avx2_available_)
-            uni_vfmadd231ss(dst, lhs, rhs_addr);
-        else {
-            const auto rhs = get_next_tmp_xmm();
-            uni_vmovss(rhs, rhs_addr);
-            uni_vfmadd231ss(dst, lhs, rhs);
-        }
-    }
-
-    void vmulss_rhs_op_mem(const Xbyak::Xmm &dst, const Xbyak::Xmm &lhs,
-            const Xbyak::Address &rhs_addr) {
-        if (avx2_available_)
-            uni_vmulss(dst, lhs, rhs_addr);
-        else {
-            const auto rhs = get_next_tmp_xmm();
-            uni_vmovss(rhs, rhs_addr);
-            uni_vmulss(dst, lhs, rhs);
-        }
-    }
 
     void generate() override {
         using namespace Xbyak;
@@ -245,12 +163,13 @@ protected:
             // assumption: the diff_states_t_lp1 address is already offset by rnn.n_states
             uni_vmovups(dHt, ptr[addr_diff_states_t_lp1_reg]);
             if (!rnn_.is_lstm_projection) {
-                vaddps_rhs_op_mem(dHt, dHt, ptr[addr_diff_states_tp1_l_reg]);
+                this->vaddps_rhs_op_mem(
+                        dHt, dHt, ptr[addr_diff_states_tp1_l_reg]);
             }
 
             // compute dCt
-            const auto tmp_dCt1 = get_next_tmp_vmm();
-            const auto tmp_dCt2 = get_next_tmp_vmm();
+            const auto tmp_dCt1 = this->get_next_tmp_vmm();
+            const auto tmp_dCt2 = this->get_next_tmp_vmm();
 
             uni_vmovups(tmp_dCt1, one_vmm);
             uni_vmovups(tmp_dCt2, tanhCt);
@@ -262,7 +181,7 @@ protected:
             uni_vaddps(dCt, dCt, tmp_dCt1);
 
             // compute dG3
-            const auto tmp_dG3 = get_next_tmp_vmm();
+            const auto tmp_dG3 = this->get_next_tmp_vmm();
             uni_vmovups(tmp_dG3, dG3);
             uni_vfnmadd231ps(dG3, tmp_dG3, tmp_dG3);
             uni_vmulps(dG3, dG3, dHt);
@@ -270,7 +189,8 @@ protected:
 
             // update dCt if lstm_peephole
             if (rnn_.is_lstm_peephole)
-                vfmadd231ps_rhs_op_mem(dCt, dG3, weights_peephole_addr(2));
+                this->vfmadd231ps_rhs_op_mem(
+                        dCt, dG3, weights_peephole_addr(2));
 
             // compute dG0
             // we will reuse G0 and G2 later for dG2
@@ -286,10 +206,10 @@ protected:
             uni_vmovups(dG1, G1);
             uni_vfnmadd231ps(dG1, G1, G1);
             uni_vmulps(dG1, dG1, dCt);
-            vmulps_rhs_op_mem(dG1, dG1, ptr[addr_c_states_tm1_l_reg]);
+            this->vmulps_rhs_op_mem(dG1, dG1, ptr[addr_c_states_tm1_l_reg]);
 
             // compute dG2
-            const auto tmp_dg2 = get_next_tmp_vmm();
+            const auto tmp_dg2 = this->get_next_tmp_vmm();
             uni_vmovups(tmp_dg2, one_vmm);
             uni_vfnmadd231ps(tmp_dg2, dG2, dG2);
             uni_vmulps(G0, G0, dCt);
@@ -299,8 +219,10 @@ protected:
             // compute diff_state_t_l
             uni_vmulps(dCt, dCt, G1);
             if (rnn_.is_lstm_peephole) {
-                vfmadd231ps_rhs_op_mem(dCt, dG0, weights_peephole_addr(0));
-                vfmadd231ps_rhs_op_mem(dCt, dG1, weights_peephole_addr(1));
+                this->vfmadd231ps_rhs_op_mem(
+                        dCt, dG0, weights_peephole_addr(0));
+                this->vfmadd231ps_rhs_op_mem(
+                        dCt, dG1, weights_peephole_addr(1));
             }
             uni_vmovups(ptr[addr_diff_c_states_t_l_reg], dCt);
 
@@ -345,11 +267,12 @@ protected:
             // assumption: the diff_states_t_lp1 address is already offset by rnn.n_states
             uni_vmovss(dHt, ptr[addr_diff_states_t_lp1_reg]);
             if (!rnn_.is_lstm_projection)
-                vaddss_rhs_op_mem(dHt, dHt, ptr[addr_diff_states_tp1_l_reg]);
+                this->vaddss_rhs_op_mem(
+                        dHt, dHt, ptr[addr_diff_states_tp1_l_reg]);
 
             // compute dCt
-            const auto tmp_dCt1 = get_next_tmp_xmm();
-            const auto tmp_dCt2 = get_next_tmp_xmm();
+            const auto tmp_dCt1 = this->get_next_tmp_xmm();
+            const auto tmp_dCt2 = this->get_next_tmp_xmm();
 
             uni_vmovss(tmp_dCt1, one_xmm);
             // This overrides tanhCt when using Xmm
@@ -362,7 +285,7 @@ protected:
             uni_vaddss(dCt, dCt, tmp_dCt1);
 
             // compute dG3
-            const auto tmp_dG3 = get_next_tmp_xmm();
+            const auto tmp_dG3 = this->get_next_tmp_xmm();
             uni_vmovss(tmp_dG3, dG3);
             uni_vfnmadd231ss(dG3, tmp_dG3, tmp_dG3);
             uni_vmulss(dG3, dG3, dHt);
@@ -370,7 +293,8 @@ protected:
 
             // update dCt if lstm_peephole
             if (rnn_.is_lstm_peephole) {
-                vfmadd231ss_rhs_op_mem(dCt, dG3, weights_peephole_addr(2));
+                this->vfmadd231ss_rhs_op_mem(
+                        dCt, dG3, weights_peephole_addr(2));
             }
 
             // compute dG0
@@ -388,10 +312,10 @@ protected:
             uni_vmovss(dG1, G1);
             uni_vfnmadd231ss(dG1, G1, G1);
             uni_vmulss(dG1, dG1, dCt);
-            vmulss_rhs_op_mem(dG1, dG1, ptr[addr_c_states_tm1_l_reg]);
+            this->vmulss_rhs_op_mem(dG1, dG1, ptr[addr_c_states_tm1_l_reg]);
 
             // compute dG2
-            const auto tmp_dG2 = get_next_tmp_xmm();
+            const auto tmp_dG2 = this->get_next_tmp_xmm();
             uni_vmovss(tmp_dG2, one_xmm);
             uni_vfnmadd231ss(tmp_dG2, dG2, dG2);
             uni_vmulss(G0, G0, dCt);
@@ -401,8 +325,10 @@ protected:
             // compute diff_state_t_l
             uni_vmulss(dCt, dCt, G1);
             if (rnn_.is_lstm_peephole) {
-                vfmadd231ss_rhs_op_mem(dCt, dG1, weights_peephole_addr(1));
-                vfmadd231ss_rhs_op_mem(dCt, dG0, weights_peephole_addr(0));
+                this->vfmadd231ss_rhs_op_mem(
+                        dCt, dG1, weights_peephole_addr(1));
+                this->vfmadd231ss_rhs_op_mem(
+                        dCt, dG0, weights_peephole_addr(0));
             }
             uni_vmovss(ptr[addr_diff_c_states_t_l_reg], dCt);
 

@@ -19,8 +19,8 @@
 
 #include <memory>
 #include "common/utils.hpp"
+#include "cpu/x64/rnn/jit_uni_lstm_cell_postgemm.hpp"
 #include "cpu/x64/rnn/jit_uni_rnn_common_postgemm.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -28,10 +28,17 @@ namespace x64 {
 
 template <cpu_isa_t isa, impl::data_type_t src_data_t,
         impl::data_type_t scratch_data_t>
-struct jit_uni_lstm_cell_postgemm_fwd : public jit_uni_rnn_postgemm {
+struct jit_uni_lstm_cell_postgemm_fwd
+    : public jit_uni_rnn_postgemm,
+      public jit_uni_lstm_cell_postgemm_t<isa> {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lstm_cell_postgemm_fwd)
 
-    using jit_uni_rnn_postgemm::jit_uni_rnn_postgemm;
+    jit_uni_lstm_cell_postgemm_fwd(
+            const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
+        : jit_uni_rnn_postgemm(rnn, pd)
+        , jit_uni_lstm_cell_postgemm_t<isa>(
+                  this, 5 /*tmp_id_begin*/, bf16_emu_) {}
+
     ~jit_uni_lstm_cell_postgemm_fwd() = default;
 
     status_t init(data_type_t sdt) override {
@@ -46,15 +53,13 @@ struct jit_uni_lstm_cell_postgemm_fwd : public jit_uni_rnn_postgemm {
     }
 
 protected:
-    using injector_t = typename utils::conditional<isa == avx512_core,
-            jit_uni_eltwise_injector_f32<avx512_common>,
-            jit_uni_eltwise_injector_f32<isa>>::type;
+    using injector_t = typename jit_uni_lstm_cell_postgemm_t<isa>::injector_t;
+    using Vmm = typename jit_uni_lstm_cell_postgemm_t<isa>::Vmm;
 
     std::unique_ptr<injector_t> sigmoid_injector_;
     std::unique_ptr<injector_t> tanh_injector_;
 
     // register size in bytes
-    using Vmm = typename jit_uni_eltwise_injector_f32<isa>::Vmm;
     static constexpr size_t vlen_ = cpu_isa_traits<isa>::vlen;
     static constexpr size_t cstate_dt_size_ = sizeof(float);
     static constexpr size_t qscale_dt_size = sizeof(float);
@@ -65,69 +70,6 @@ protected:
     const size_t hstate_dt_size_ = types::data_type_size(src_data_t);
     const size_t gate_dt_size_ = types::data_type_size(src_data_t);
     const size_t scratch_dt_size_ = types::data_type_size(scratch_data_t);
-
-    static constexpr int tmp_id_begin_ = 5;
-    const int tmp_id_end_ = cpu_isa_traits<isa>::n_vregs
-            - ((bf16_emu_ && is_superset(isa, avx512_common)) ? 4 : 0);
-    int current_tmp_id_ = tmp_id_begin_;
-    const bool avx2_available_ = is_superset(isa, avx2);
-
-    Vmm get_next_tmp_vmm() {
-        const Vmm vmm {current_tmp_id_++};
-
-        if (current_tmp_id_ == tmp_id_end_) current_tmp_id_ = tmp_id_begin_;
-
-        return vmm;
-    }
-
-    Xbyak::Xmm get_next_tmp_xmm() {
-        return Xbyak::Xmm(get_next_tmp_vmm().getIdx());
-    }
-
-    void vaddps_rhs_op_mem(
-            const Vmm &dst, const Vmm &lhs, const Xbyak::Address &rhs_addr) {
-
-        if (avx2_available_)
-            uni_vaddps(dst, lhs, rhs_addr);
-        else {
-            const auto rhs = get_next_tmp_vmm();
-            uni_vmovups(rhs, rhs_addr);
-            uni_vaddps(dst, lhs, rhs);
-        }
-    }
-
-    void vfmadd231ps_rhs_op_mem(
-            const Vmm &dst, const Vmm &lhs, const Xbyak::Address &rhs_addr) {
-        if (avx2_available_)
-            uni_vfmadd231ps(dst, lhs, rhs_addr);
-        else {
-            const auto rhs = get_next_tmp_vmm();
-            uni_vmovups(rhs, rhs_addr);
-            uni_vfmadd231ps(dst, lhs, rhs);
-        }
-    }
-
-    void vaddss_rhs_op_mem(const Xbyak::Xmm &dst, const Xbyak::Xmm &lhs,
-            const Xbyak::Address &rhs_addr) {
-        if (avx2_available_)
-            uni_vaddss(dst, lhs, rhs_addr);
-        else {
-            const auto rhs = get_next_tmp_xmm();
-            uni_vmovss(rhs, rhs_addr);
-            uni_vaddss(dst, lhs, rhs);
-        }
-    }
-
-    void vfmadd231ss_rhs_op_mem(const Xbyak::Xmm &dst, const Xbyak::Xmm &lhs,
-            const Xbyak::Address &rhs_addr) {
-        if (avx2_available_)
-            uni_vfmadd231ss(dst, lhs, rhs_addr);
-        else {
-            const auto rhs = get_next_tmp_xmm();
-            uni_vmovss(rhs, rhs_addr);
-            uni_vfmadd231ss(dst, lhs, rhs);
-        }
-    }
 
     void generate() override {
         using namespace Xbyak;
@@ -218,30 +160,30 @@ protected:
             uni_vmovups(G3, sg_addr(3));
 
             // dequantize the gates from s32 to f32 if needed, add bias
-            deq_w(src_data_t, G0, get_next_tmp_vmm(), get_next_tmp_vmm(),
-                    0 * rnn_.dhc, mask, true);
-            vaddps_rhs_op_mem(G0, G0, B_addr(0));
+            deq_w(src_data_t, G0, this->get_next_tmp_vmm(),
+                    this->get_next_tmp_vmm(), 0 * rnn_.dhc, mask, true);
+            this->vaddps_rhs_op_mem(G0, G0, B_addr(0));
 
-            deq_w(src_data_t, G1, get_next_tmp_vmm(), get_next_tmp_vmm(),
-                    1 * rnn_.dhc, mask, true);
-            vaddps_rhs_op_mem(G1, G1, B_addr(1));
+            deq_w(src_data_t, G1, this->get_next_tmp_vmm(),
+                    this->get_next_tmp_vmm(), 1 * rnn_.dhc, mask, true);
+            this->vaddps_rhs_op_mem(G1, G1, B_addr(1));
 
-            deq_w(src_data_t, G2, get_next_tmp_vmm(), get_next_tmp_vmm(),
-                    2 * rnn_.dhc, mask, true);
-            vaddps_rhs_op_mem(G2, G2, B_addr(2));
+            deq_w(src_data_t, G2, this->get_next_tmp_vmm(),
+                    this->get_next_tmp_vmm(), 2 * rnn_.dhc, mask, true);
+            this->vaddps_rhs_op_mem(G2, G2, B_addr(2));
 
-            deq_w(src_data_t, G3, get_next_tmp_vmm(), get_next_tmp_vmm(),
-                    3 * rnn_.dhc, mask, true);
-            vaddps_rhs_op_mem(G3, G3, B_addr(3));
+            deq_w(src_data_t, G3, this->get_next_tmp_vmm(),
+                    this->get_next_tmp_vmm(), 3 * rnn_.dhc, mask, true);
+            this->vaddps_rhs_op_mem(G3, G3, B_addr(3));
 
-            const auto tmp_c_states = get_next_tmp_vmm();
+            const auto tmp_c_states = this->get_next_tmp_vmm();
             uni_vmovups(tmp_c_states, ptr[addr_c_states_tm1_l_reg]);
 
             // add peephole
             if (rnn_.is_lstm_peephole) {
-                vfmadd231ps_rhs_op_mem(
+                this->vfmadd231ps_rhs_op_mem(
                         G0, tmp_c_states, weights_peephole_addr(0));
-                vfmadd231ps_rhs_op_mem(
+                this->vfmadd231ps_rhs_op_mem(
                         G1, tmp_c_states, weights_peephole_addr(1));
             }
 
@@ -271,7 +213,7 @@ protected:
 
             // add peephole
             if (rnn_.is_lstm_peephole) {
-                vfmadd231ps_rhs_op_mem(
+                this->vfmadd231ps_rhs_op_mem(
                         G3, tmp_c_states, weights_peephole_addr(2));
                 sigmoid_injector_->load_table_addr();
                 sigmoid_injector_->compute_vector(G3.getIdx());
@@ -325,29 +267,29 @@ protected:
             uni_vmovss(G3, sg_addr(3));
 
             // dequantize the gates from s32 to f32 if needed
-            deq_w(src_data_t, G0, get_next_tmp_xmm(), get_next_tmp_xmm(),
-                    0 * rnn_.dhc, mask, false);
-            deq_w(src_data_t, G1, get_next_tmp_xmm(), get_next_tmp_xmm(),
-                    1 * rnn_.dhc, mask, false);
-            deq_w(src_data_t, G2, get_next_tmp_xmm(), get_next_tmp_xmm(),
-                    2 * rnn_.dhc, mask, false);
-            deq_w(src_data_t, G3, get_next_tmp_xmm(), get_next_tmp_xmm(),
-                    3 * rnn_.dhc, mask, false);
+            deq_w(src_data_t, G0, this->get_next_tmp_xmm(),
+                    this->get_next_tmp_xmm(), 0 * rnn_.dhc, mask, false);
+            deq_w(src_data_t, G1, this->get_next_tmp_xmm(),
+                    this->get_next_tmp_xmm(), 1 * rnn_.dhc, mask, false);
+            deq_w(src_data_t, G2, this->get_next_tmp_xmm(),
+                    this->get_next_tmp_xmm(), 2 * rnn_.dhc, mask, false);
+            deq_w(src_data_t, G3, this->get_next_tmp_xmm(),
+                    this->get_next_tmp_xmm(), 3 * rnn_.dhc, mask, false);
 
             // add biases
-            vaddss_rhs_op_mem(G0, G0, B_addr(0));
-            vaddss_rhs_op_mem(G1, G1, B_addr(1));
-            vaddss_rhs_op_mem(G2, G2, B_addr(2));
-            vaddss_rhs_op_mem(G3, G3, B_addr(3));
+            this->vaddss_rhs_op_mem(G0, G0, B_addr(0));
+            this->vaddss_rhs_op_mem(G1, G1, B_addr(1));
+            this->vaddss_rhs_op_mem(G2, G2, B_addr(2));
+            this->vaddss_rhs_op_mem(G3, G3, B_addr(3));
 
-            const auto tmp_c_states = get_next_tmp_xmm();
+            const auto tmp_c_states = this->get_next_tmp_xmm();
             uni_vmovss(tmp_c_states, ptr[addr_c_states_tm1_l_reg]);
 
             // add peephole
             if (rnn_.is_lstm_peephole) {
-                vfmadd231ss_rhs_op_mem(
+                this->vfmadd231ss_rhs_op_mem(
                         G0, tmp_c_states, weights_peephole_addr(0));
-                vfmadd231ss_rhs_op_mem(
+                this->vfmadd231ss_rhs_op_mem(
                         G1, tmp_c_states, weights_peephole_addr(1));
             }
 
@@ -378,7 +320,7 @@ protected:
 
             // add peephole
             if (rnn_.is_lstm_peephole) {
-                vfmadd231ss_rhs_op_mem(
+                this->vfmadd231ss_rhs_op_mem(
                         G3, tmp_c_states, weights_peephole_addr(2));
                 sigmoid_injector_->load_table_addr();
                 sigmoid_injector_->compute_vector(G3.getIdx());
