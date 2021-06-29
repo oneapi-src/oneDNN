@@ -73,6 +73,7 @@ struct trans_wrapper_t {
             prb.op_tail = 0;
             prb.iblock = 1;
             prb.oblock = 1;
+            prb.blk_chunk_idx = prb.ndims - 1;
 
             kernel_t::desc_init(desc, prb, 2);
             return kernel_t::create(desc);
