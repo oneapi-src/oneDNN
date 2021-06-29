@@ -1,5 +1,5 @@
 # *******************************************************************************
-# Copyright 2020 Arm Limited and affiliates.
+# Copyright 2020-2021 Arm Limited and affiliates.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,6 +51,7 @@ if(DNNL_BLAS_VENDOR STREQUAL "MKL")
 elseif(DNNL_BLAS_VENDOR STREQUAL "OPENBLAS")
     set(BLA_VENDOR "OpenBLAS")
 elseif(DNNL_BLAS_VENDOR STREQUAL "ARMPL")
+    set(CBLAS_HEADERS "armpl.h")
     expect_arch_or_generic("AARCH64")
     if(DNNL_CPU_RUNTIME STREQUAL "OMP")
         set(BLA_VENDOR "Arm_mp")
