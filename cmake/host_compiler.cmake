@@ -82,6 +82,11 @@ if(DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
 
     append(CMAKE_CXX_FLAGS "-fsycl-host-compiler=${GNU_COMPILER}")
     append_host_compiler_options(CMAKE_CXX_FLAGS "${DPCPP_HOST_COMPILER_OPTS}")
+
+    # When using a non-default host compiler the main compiler doesn't
+    # handle some arguments properly and issues the warning.
+    # Suppress the warning until the bug is fixed.
+    append(CMAKE_CXX_FLAGS "-Wno-unused-command-line-argument")
 elseif(NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT")
     message(FATAL_ERROR "The valid values for DNNL_DPCPP_HOST_COMPILER: DEFAULT and g++ or absolute path to it")
 endif()
