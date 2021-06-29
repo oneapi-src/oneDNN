@@ -126,6 +126,9 @@ struct brgemm_matmul_conf_t {
 
     int wsp_tile_per_thr_bytes;
     int brgemm_batch_element_per_thr_sz;
+    bool is_amx;
+
+    int required_k_granularity;
 };
 
 status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,

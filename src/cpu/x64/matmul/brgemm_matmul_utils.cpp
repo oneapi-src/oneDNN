@@ -72,6 +72,50 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
         const memory_desc_wrapper &dst_d);
 
+struct matmul_blocking_params_t : public brgemm_matmul_conf_t {
+    matmul_blocking_params_t() { init_zero(); }
+    matmul_blocking_params_t(const brgemm_matmul_conf_t &bgmmc)
+        : brgemm_matmul_conf_t(bgmmc) {
+        init_from_conf();
+    }
+
+    void set_blocking_parameters(int nthr_k, int n_blk, int n_chunk_size,
+            int m_blk, int m_chunk_size);
+    void update_configuration(brgemm_matmul_conf_t &bgmmc);
+    float get_blocking_scores() { return efficiency_score_; }
+
+    static size_t L2_threshold;
+
+private:
+    // num threads for parallelism wrt k dimension
+    int nthr_k_;
+    // num threads for parallelism wrt m, n and batch dimensions
+    int nthr_mnb_;
+    int nthr_;
+    dim_t n_blk_, n_chunk_size_, k_chunk_elems_;
+    dim_t m_blk_, m_chunk_size_, m_chunk_elems_;
+    dim_t k_blk_, k_chunk_size_, n_chunk_elems_;
+
+    dim_t current_lda_;
+    bool need_buf_c_;
+    size_t blocking_chunk_mem_size_;
+    float efficiency_score_;
+
+    void init_zero();
+    void init_from_conf();
+    void update_k_blocking_dependent_params();
+    dim_t get_actual_lda();
+    bool is_buffer_c_required();
+    size_t calculate_chunk_memory_size();
+    float get_thread_balance_scores();
+    float get_copied_data_reusage_scores();
+    float get_L2_utilization_scores();
+    float calculate_blocking_scores();
+};
+
+size_t matmul_blocking_params_t::L2_threshold
+        = 3 * platform::get_per_core_cache_size(2) / 4;
+
 status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         const matmul_desc_t &mmd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
@@ -101,9 +145,15 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             && one_of(bgmmc.dst_dt, bf16, f32);
     const bool is_amx_int8 = isa == avx512_core_bf16_amx_int8;
     const bool is_amx_bf16 = isa == avx512_core_bf16_amx_bf16;
-    const bool is_amx = is_amx_int8 || is_amx_bf16;
+    bgmmc.is_amx = is_amx_int8 || is_amx_bf16;
 
     bgmmc.acc_dt = is_int8 ? s32 : f32;
+
+    bgmmc.a_dt_sz = types::data_type_size(bgmmc.src_dt);
+    bgmmc.b_dt_sz = types::data_type_size(bgmmc.wei_dt);
+    bgmmc.c_dt_sz = types::data_type_size(bgmmc.dst_dt);
+    bgmmc.acc_dt_sz = types::data_type_size(bgmmc.acc_dt);
+    if (bgmmc.with_bias) bgmmc.bias_dt_sz = types::data_type_size(bgmmc.bia_dt);
 
     bgmmc.with_scales = !attr.output_scales_.has_default_values();
     if (bgmmc.with_scales) {
@@ -174,8 +224,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     init_bcast_desc(bgmmc.bcast_B_desc, weights_d.dims());
 
     // required granularity for k dimension
-    const int k_gran = is_amx_int8 ? 4 : (is_amx_bf16 ? 2 : 1);
-    const int k_blk_gran = is_amx_int8 ? 64 : (is_amx_bf16 ? 32 : 4);
+    bgmmc.required_k_granularity = is_amx_int8 ? 4 : (is_amx_bf16 ? 2 : 1);
+    const int required_k_block_granularity
+            = is_amx_int8 ? 64 : (is_amx_bf16 ? 32 : 16);
 
     auto pick_blocked_B_layout = [&](int n_blk) -> format_tag_t {
         if (bgmmc.ndims > 2) return format_tag::undef;
@@ -243,7 +294,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         if (n_blk_fixed && n_blk_size != bgmmc.wei_n_blk)
             return status::unimplemented;
 
-        bgmmc.wei_k_blk = k_blk_gran;
+        bgmmc.wei_k_blk = required_k_block_granularity;
         bgmmc.wei_n_blk
                 = init ? get_default_n_block(format_tag::undef) : n_blk_size;
 
@@ -340,192 +391,97 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     }
     if (bgmmc.M_blk == 1) bgmmc.M_blk = nstl::min(bgmmc.M, max_M);
 
-    if (is_amx_bf16 && !n_blk_fixed) {
-        // reduce N block size for bf16 problems if number of parallel work
-        // is small
-        const auto num_parallel_work = bgmmc.batch
-                * div_up(bgmmc.M, bgmmc.M_blk)
-                * div_up(bgmmc.N, bgmmc.wei_n_blk);
-        if ((float)num_parallel_work < 1.5f * bgmmc.nthr) {
-            CHECK(set_or_check_B_tag(false, bgmmc.wei_n_blk / 2));
-        }
-    }
-
     bgmmc.N_blk = nstl::min(
-            (dim_t)(bgmmc.wei_n_blk == 1 ? 64 : bgmmc.wei_n_blk), bgmmc.N);
+            static_cast<dim_t>(bgmmc.wei_n_blk == 1 ? 64 : bgmmc.wei_n_blk),
+            bgmmc.N);
     bgmmc.M_chunk_size = bgmmc.N_chunk_size = 1;
 
     // AMX BRGEMM kernel requires (K_brgemm % 64 == 0 || K_brgemm < 64) for
     // for K_brgemm reduction value to avoid AMX tiles re-configuration.
     // To satisfy this condition K_tail value is fixed to K % wei_k_blk here.
-    const bool fixed_K_tail_size = is_amx && bgmmc.K % bgmmc.wei_k_blk > 0
+    const bool fixed_K_tail_size = bgmmc.is_amx && bgmmc.K % bgmmc.wei_k_blk > 0
             && bgmmc.K > bgmmc.wei_k_blk;
-    bgmmc.K_blk = IMPLICATION(is_amx, bgmmc.K < bgmmc.wei_k_blk)
-            ? rnd_up(bgmmc.K, k_gran)
+    bgmmc.K_blk = IMPLICATION(bgmmc.is_amx, bgmmc.K < bgmmc.wei_k_blk)
+            ? rnd_up(bgmmc.K, bgmmc.required_k_granularity)
             : fixed_K_tail_size ? bgmmc.wei_k_blk : bgmmc.K;
-    bgmmc.brgemm_batch_size = nstl::max(bgmmc.K / bgmmc.K_blk, (dim_t)1);
-
-    auto get_chunk_size = [&]() -> size_t {
-        size_t A_chunk_sz = types::data_type_size(bgmmc.src_dt) * bgmmc.K_blk
-                * bgmmc.brgemm_batch_size * bgmmc.M_blk * bgmmc.M_chunk_size;
-        size_t A_buf_sz = 0;
-        if (bgmmc.use_buffer_a)
-            A_buf_sz = types::data_type_size(bgmmc.src_dt) * bgmmc.LDA
-                    * bgmmc.brgemm_batch_size * bgmmc.M_blk
-                    * bgmmc.M_chunk_size;
-        size_t B_chunk_sz = types::data_type_size(bgmmc.wei_dt) * bgmmc.K_blk
-                * bgmmc.brgemm_batch_size * bgmmc.N_blk * bgmmc.N_chunk_size;
-        size_t B_buf_sz = 0;
-        if (bgmmc.use_buffer_b)
-            B_buf_sz = types::data_type_size(bgmmc.wei_dt) * bgmmc.wei_n_blk
-                    * bgmmc.K_blk * bgmmc.brgemm_batch_size;
-        size_t C_chunk_sz = types::data_type_size(bgmmc.dst_dt) * bgmmc.M_blk
-                * bgmmc.M_chunk_size * bgmmc.N_blk * bgmmc.N_chunk_size;
-        size_t C_buf_sz = 0;
-        if (bgmmc.use_buffer_c)
-            C_buf_sz = types::data_type_size(bgmmc.acc_dt) * bgmmc.M_blk
-                    * bgmmc.M_chunk_size * bgmmc.N_blk * bgmmc.N_chunk_size;
-        return A_chunk_sz + A_buf_sz + B_chunk_sz + B_buf_sz + C_chunk_sz
-                + C_buf_sz;
-    };
-
-    auto get_actual_LDA = [&]() -> dim_t {
-        if (bgmmc.use_buffer_a) {
-            constexpr int bytes_in_cacheline = 64;
-            const int elems_in_cacheline
-                    = bytes_in_cacheline / types::data_type_size(bgmmc.src_dt);
-            dim_t lda = rnd_up(bgmmc.K_blk, elems_in_cacheline);
-            const bool is_big_2_pow = lda >= 512 && (lda & (lda - 1)) == 0;
-            if (is_big_2_pow) lda += elems_in_cacheline;
-            return lda;
-        }
-        return bgmmc.K;
-    };
-
-    auto is_buffer_c_required = [&]() -> bool {
-        return bgmmc.nthr_k > 1
-                || ((bgmmc.acc_dt != bgmmc.dst_dt || bgmmc.with_sum)
-                        && (bgmmc.K > bgmmc.K_blk * bgmmc.brgemm_batch_size
-                                || bgmmc.K % bgmmc.K_blk > 0));
-    };
+    bgmmc.brgemm_batch_size
+            = nstl::max(bgmmc.K / bgmmc.K_blk, static_cast<dim_t>(1));
 
     bgmmc.transposed_A = bgmmc.src_tag == transposed_tensor_layout_tag;
-    const auto L2_treshold = 3 * platform::get_per_core_cache_size(2) / 4;
-    const bool is_copy_a_required = bgmmc.K % k_gran != 0
+    const bool lda_is_big_2pow = is_bf16 && !bgmmc.transposed_A
+            && math::is_pow2(bgmmc.K) && bgmmc.K >= 4096 && bgmmc.M >= 1024;
+    const bool is_copy_a_required = bgmmc.K % bgmmc.required_k_granularity != 0
             || bgmmc.wei_zp_type != brgemm_broadcast_t::none
-            || bgmmc.transposed_A;
+            || bgmmc.transposed_A || lda_is_big_2pow;
     bgmmc.use_buffer_a = is_copy_a_required;
     // Supported computation with copy only part of A related to K_tail if
     // is_copy_a_required == true, but the current performance measurements
     // show worse performance for it in comparison with copy whole A approach
     // (especially for big K sizes).
     bgmmc.use_buffer_a_tail_only = false;
-    int attempts = 3;
-    // Try to improve blocking wrt L2 size
-    // TODO: improve blocking algorithm
-    while (attempts > 0) {
-        bgmmc.use_buffer_c = is_buffer_c_required();
-        bgmmc.LDA = get_actual_LDA();
 
+    const int min_k_per_thread = 1024;
+    const int max_k_parallel_work
+            = div_up(static_cast<int>(bgmmc.K), min_k_per_thread);
+    const int max_nthr_k = is_amx_bf16 && bgmmc.batch == 1
+            ? nstl::min(saturate(1, 7, bgmmc.nthr / 8), max_k_parallel_work)
+            : 1;
+    int iter = 0;
+    matmul_blocking_params_t best_blocking(bgmmc);
+    matmul_blocking_params_t current_blocking(bgmmc);
+    for (int nthr_k = 1; nthr_k <= max_nthr_k; nthr_k++) {
         int num_M_blk = div_up(bgmmc.M, bgmmc.M_blk);
         int num_N_blk = div_up(bgmmc.N, bgmmc.N_blk);
-        if (4 * bgmmc.nthr < bgmmc.batch) {
-            bgmmc.M_chunk_size = num_M_blk;
-            bgmmc.N_chunk_size = num_N_blk;
-        } else {
-            // bgmmc.N_chunk_size and bgmmc.M_chunk_size parameters allow to
-            // reuse copied / transformed chunks for A and B matrixes.
-            // It reduces overhead on copy routines.
-            const bool a_lot_of_parallel_work
-                    = bgmmc.batch * num_M_blk * num_N_blk > 16 * bgmmc.nthr;
-            const int desired_M_chunk = nstl::min(
-                    bgmmc.use_buffer_b || a_lot_of_parallel_work ? 4 : 1,
-                    num_M_blk);
-            const int desired_N_chunk
-                    = nstl::min(bgmmc.transposed_A ? 4 : 1, num_N_blk);
-            const int min_m_blk_threshold = 32;
-            int M_chunk = desired_M_chunk;
-            int N_chunk = desired_N_chunk;
-            while (M_chunk >= 1 && N_chunk >= 1) {
-                // Trying to find balance between M/N work distribution across
-                // threads and reusage of copied parts of matrixes A & B.
-                const int par_work_along_n = div_up(num_N_blk, N_chunk);
-                const int par_work_along_m = div_up(num_M_blk, M_chunk);
-                const int par_work_total
-                        = bgmmc.batch * par_work_along_n * par_work_along_m;
-                if ((float)par_work_total < 0.7f * bgmmc.nthr
-                        && bgmmc.M_blk > min_m_blk_threshold) {
-                    bgmmc.M_blk = div_up(bgmmc.M_blk, 2);
-                    num_M_blk = div_up(bgmmc.M, bgmmc.M_blk);
-                    continue;
-                }
-                if ((float)par_work_total > bgmmc.nthr
-                        && (float)par_work_total < 1.2f * bgmmc.nthr
-                        && M_chunk == desired_M_chunk
-                        && N_chunk == desired_N_chunk) {
-                    if (num_M_blk % M_chunk != 0 || desired_N_chunk == 1)
-                        M_chunk++;
-                    else
-                        N_chunk++;
-                    bgmmc.M_chunk_size = M_chunk;
-                    bgmmc.N_chunk_size = N_chunk;
-                    break;
-                }
-                if ((float)par_work_total >= 0.85f * bgmmc.nthr) {
-                    bgmmc.M_chunk_size = M_chunk;
-                    bgmmc.N_chunk_size = N_chunk;
-                    break;
-                }
+        int k_parallel_work = nstl::min(max_k_parallel_work, nthr_k);
+        int num_parallel_work
+                = bgmmc.batch * num_M_blk * num_N_blk * k_parallel_work;
+        const bool a_lot_of_parallel_work = num_parallel_work > 8 * bgmmc.nthr;
+        const bool a_lot_of_parallel_work_lvl2
+                = num_parallel_work > 16 * bgmmc.nthr;
+        const bool low_parallelism
+                = static_cast<float>(num_parallel_work) < 1.5f * bgmmc.nthr;
+        const int min_M_blk = low_parallelism && bgmmc.M_blk > 32
+                ? div_up(bgmmc.M_blk, 2)
+                : bgmmc.M_blk;
+        const int min_N_blk = low_parallelism && is_amx_bf16 && !n_blk_fixed
+                        && bgmmc.N_blk > 32
+                ? 32
+                : bgmmc.N_blk;
+        const int desired_M_chunk = nstl::min(
+                (bgmmc.use_buffer_b || a_lot_of_parallel_work ? 4 : 1),
+                num_M_blk);
+        const int desired_N_chunk = nstl::min(a_lot_of_parallel_work_lvl2
+                        ? 6
+                        : (bgmmc.use_buffer_a || a_lot_of_parallel_work ? 4
+                                                                        : 1),
+                num_N_blk);
 
-                const int allowed_chunk_size_diff
-                        = num_M_blk % M_chunk == 0 ? 1 : 0;
-                const bool reduce_N_chunk = N_chunk > 1
-                        && N_chunk + allowed_chunk_size_diff >= M_chunk;
-                if (reduce_N_chunk)
-                    N_chunk--;
-                else
-                    M_chunk--;
-            }
-        }
-
-        auto chunk_sz = get_chunk_size();
-        if ((float)chunk_sz <= 1.1f * L2_treshold) break;
-        int k_div = div_up(chunk_sz, L2_treshold);
-
-        if (fixed_K_tail_size) // try to ajust brgemm_batch_size, not K_blk
-            bgmmc.brgemm_batch_size
-                    = nstl::max(bgmmc.brgemm_batch_size / k_div, 1);
-        else
-            bgmmc.K_blk
-                    = nstl::min(rnd_up(bgmmc.K_blk / k_div, bgmmc.wei_k_blk),
-                            rnd_up(bgmmc.K, k_gran));
-        attempts--;
-    }
-
-    // try to refine K_blk size
-    if (fixed_K_tail_size) {
-        // K_tail might be different from bgmmc.K_tail
-        const dim_t K_tail = bgmmc.K % bgmmc.K_blk;
-        const dim_t K_no_tail = bgmmc.K - K_tail;
-        const dim_t K_chunk_size = bgmmc.brgemm_batch_size * bgmmc.K_blk;
-        const bool the_same_num_blocks_in_all_chunks
-                = K_no_tail == K_no_tail / K_chunk_size * K_chunk_size;
-        // it's better to avoid using of too small K_blk values like wei_k_blk
-        if (the_same_num_blocks_in_all_chunks) {
-            bgmmc.K_blk = K_chunk_size;
-            // do not separate K_tail calculation to another chunk
-            const bool use_single_K_chunk = K_no_tail == K_chunk_size;
-            bgmmc.brgemm_batch_size = use_single_K_chunk ? 2 : 1;
-            bgmmc.LDA = get_actual_LDA();
+        for_(int n_blk = bgmmc.N_blk; n_blk >= min_N_blk; n_blk -= 16)
+        for_(int m_blk = bgmmc.M_blk; m_blk >= min_M_blk;
+                m_blk = m_blk > 1 ? div_up(m_blk, 2) : m_blk - 1)
+        for_(int n_ch_sz = desired_N_chunk; n_ch_sz >= 1; n_ch_sz--)
+        for (int m_ch_sz = desired_M_chunk; m_ch_sz >= 1; m_ch_sz--, iter++) {
+            current_blocking.set_blocking_parameters(
+                    nthr_k, n_blk, n_ch_sz, m_blk, m_ch_sz);
+            if (current_blocking.get_blocking_scores()
+                    > best_blocking.get_blocking_scores())
+                best_blocking = current_blocking;
         }
     }
-    bgmmc.use_buffer_c = is_buffer_c_required();
-    bgmmc.LDA = get_actual_LDA();
+
+    if (best_blocking.get_blocking_scores() == 0.0f)
+        return status::unimplemented;
+    best_blocking.update_configuration(bgmmc);
+    if (bgmmc.wei_n_blk > bgmmc.N_blk && bgmmc.N >= bgmmc.wei_n_blk) {
+        bgmmc.wei_n_blk = bgmmc.N_blk;
+        CHECK(set_or_check_B_tag(false, bgmmc.wei_n_blk));
+    }
 
     bgmmc.M_tail = bgmmc.M % bgmmc.M_blk;
     bgmmc.N_tail = bgmmc.N % bgmmc.N_blk;
-    bgmmc.K_tail
-            = bgmmc.K > bgmmc.K_blk ? rnd_up(bgmmc.K % bgmmc.K_blk, k_gran) : 0;
+    bgmmc.K_tail = bgmmc.K > bgmmc.K_blk
+            ? rnd_up(bgmmc.K % bgmmc.K_blk, bgmmc.required_k_granularity)
+            : 0;
 
     bgmmc.LDB = bgmmc.wei_n_blk;
     bgmmc.LDD = bgmmc.N;
@@ -541,10 +497,6 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
         const memory_desc_wrapper &dst_d) {
     bgmmc.wsp_tile_per_thr_bytes = 1024;
-    bgmmc.a_dt_sz = types::data_type_size(bgmmc.src_dt);
-    bgmmc.b_dt_sz = types::data_type_size(bgmmc.wei_dt);
-    bgmmc.c_dt_sz = types::data_type_size(bgmmc.dst_dt);
-    bgmmc.acc_dt_sz = types::data_type_size(bgmmc.acc_dt);
 
     bgmmc.M_chunk_elems = bgmmc.M_blk * bgmmc.M_chunk_size;
     bgmmc.N_chunk_elems = bgmmc.N_blk * bgmmc.N_chunk_size;
@@ -554,8 +506,6 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
     bgmmc.K_chunks = div_up(bgmmc.K, bgmmc.K_chunk_elems);
     bgmmc.num_M_blocks = div_up(bgmmc.M, bgmmc.M_blk);
     bgmmc.num_N_blocks = div_up(bgmmc.N, bgmmc.N_blk);
-
-    if (bgmmc.with_bias) bgmmc.bias_dt_sz = types::data_type_size(bgmmc.bia_dt);
 
     bgmmc.buffer_c_chunk_sz = bgmmc.acc_dt_sz * bgmmc.LDC
             * (bgmmc.nthr_k > 1 ? bgmmc.M : bgmmc.M_blk);
@@ -655,6 +605,210 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     if (one_of(bgmmc.isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16))
         scratchpad.book(key_conv_amx_tile_buffer,
                 bgmmc.nthr * bgmmc.wsp_tile_per_thr_bytes, default_data_align);
+}
+
+void matmul_blocking_params_t::init_zero() {
+    nthr_k_ = nthr_mnb_ = nthr_ = 0;
+    n_blk_ = n_chunk_size_ = n_chunk_elems_ = 0;
+    m_blk_ = m_chunk_size_ = m_chunk_elems_ = 0;
+    k_blk_ = k_chunk_size_ = k_chunk_elems_ = 0;
+    need_buf_c_ = false;
+    current_lda_ = 0;
+    efficiency_score_ = 0.0f;
+}
+
+void matmul_blocking_params_t::init_from_conf() {
+    nthr_k_ = nstl::max(nthr_k, 1);
+    nthr_mnb_ = nthr / nthr_k_;
+    nthr_ = nthr_mnb_ * nthr_k_;
+    n_blk_ = N_blk;
+    n_chunk_size_ = N_chunk_size;
+    m_blk_ = M_blk;
+    m_chunk_size_ = M_chunk_size;
+    k_blk_ = K_blk;
+    k_chunk_size_ = brgemm_batch_size;
+    n_chunk_elems_ = n_blk_ * n_chunk_size_;
+    m_chunk_elems_ = m_blk_ * m_chunk_size_;
+    k_chunk_elems_ = k_blk_ * k_chunk_size_;
+    need_buf_c_ = use_buffer_c;
+    current_lda_ = LDA;
+    efficiency_score_ = 0.0f;
+}
+
+void matmul_blocking_params_t::update_k_blocking_dependent_params() {
+    k_chunk_elems_ = k_blk_ * k_chunk_size_;
+    current_lda_ = get_actual_lda();
+    need_buf_c_ = is_buffer_c_required();
+}
+
+void matmul_blocking_params_t::set_blocking_parameters(
+        int nthr_k, int n_blk, int n_chunk_size, int m_blk, int m_chunk_size) {
+    nthr_k_ = nstl::max(1, nthr_k);
+    nthr_mnb_ = nthr / nthr_k_;
+    nthr_ = nthr_mnb_ * nthr_k_;
+    n_blk_ = n_blk;
+    n_chunk_size_ = n_chunk_size;
+    m_blk_ = m_blk;
+    m_chunk_size_ = m_chunk_size;
+    if (one_of(0, n_blk_, n_chunk_size_, m_blk_, m_chunk_size_)) {
+        k_blk_ = k_chunk_size_ = k_chunk_elems_ = 0;
+        efficiency_score_ = 0.0f;
+        return;
+    }
+
+    n_chunk_elems_ = n_blk_ * n_chunk_size_;
+    m_chunk_elems_ = m_blk_ * m_chunk_size_;
+
+    if (K < wei_k_blk) {
+        k_blk_ = is_amx ? rnd_up(K, required_k_granularity) : K;
+        k_chunk_size_ = 1;
+    } else {
+        dim_t k_per_thr = div_up(K, nthr_k_);
+        k_blk_ = nstl::min(
+                is_amx ? rnd_up(k_per_thr, required_k_granularity) : k_per_thr,
+                static_cast<dim_t>(wei_k_blk));
+        k_chunk_size_ = nstl::min(nstl::max(static_cast<dim_t>(1), K / k_blk_),
+                div_up(k_per_thr, k_blk_));
+
+        update_k_blocking_dependent_params();
+        auto chunk_sz = calculate_chunk_memory_size();
+        float k_div = (float)chunk_sz / L2_threshold;
+        if (k_div > 1.0f)
+            k_chunk_size_ = static_cast<int>(
+                    static_cast<float>(k_chunk_size_) / k_div + 0.6f);
+
+        const dim_t current_k_tail = K % k_blk_;
+        if (current_k_tail == 0 && K % (k_blk_ * k_chunk_size_) == 0) {
+            k_blk_ *= k_chunk_size_;
+            k_chunk_size_ = 1;
+        } else if (nthr_k_ == 1
+                && K == k_blk_ * k_chunk_size_ + current_k_tail) {
+            k_blk_ *= k_chunk_size_;
+            k_chunk_size_ = 2;
+        }
+    }
+
+    update_k_blocking_dependent_params();
+
+    blocking_chunk_mem_size_ = calculate_chunk_memory_size();
+
+    efficiency_score_ = calculate_blocking_scores();
+}
+
+// returns score for current blocking parameters' values in range [0, 1]
+// for parallel work over threads distribution score. Maximum scores - when
+// all threads have the same work amount w/o tails
+float matmul_blocking_params_t::get_thread_balance_scores() {
+    dim_t num_M_chunks = div_up(M, m_chunk_elems_);
+    dim_t num_N_chunks = div_up(N, n_chunk_elems_);
+    float mnb_parallel_score = batch * ((float)M / m_chunk_elems_)
+            * ((float)N / n_chunk_elems_)
+            / rnd_up(batch * num_M_chunks * num_N_chunks, nthr_mnb_)
+            * nthr_mnb_;
+    float k_parallel_score = 1.0f;
+    if (nthr_k_ > 1) {
+        dim_t num_K_chunks = div_up(K, k_chunk_elems_);
+        const float parallel_reduction_penalty = 0.8f;
+        k_parallel_score = parallel_reduction_penalty
+                * ((float)K / k_chunk_elems_) / rnd_up(num_K_chunks, nthr_k_)
+                * nthr_k_;
+    }
+
+    return mnb_parallel_score * k_parallel_score / nthr;
+}
+
+// returns score for current blocking parameters' values in range [0, 1]
+// for copied data reusage
+float matmul_blocking_params_t::get_copied_data_reusage_scores() {
+    const int desired_M_chunk = use_buffer_b
+            ? nstl::min(4, rnd_up(static_cast<int>(M), m_blk_))
+            : 1;
+    const int desired_N_chunk = use_buffer_a
+            ? nstl::min(4, rnd_up(static_cast<int>(N), n_blk_))
+            : 1;
+
+    return 0.5f
+            * (nstl::min((float)m_chunk_size_ / desired_M_chunk, 1.0f)
+                    + nstl::min((float)n_chunk_size_ / desired_N_chunk, 1.0f));
+}
+
+// returns score for current blocking parameters' values in range [0, 1]
+// for L2 utilization
+float matmul_blocking_params_t::get_L2_utilization_scores() {
+    const float relative_difference_with_L2
+            = fabsf((float)L2_threshold - blocking_chunk_mem_size_)
+            / nstl::max(L2_threshold, blocking_chunk_mem_size_);
+    return 1.0f - relative_difference_with_L2;
+}
+
+// returns score for current blocking parameters' values in range [0, 1]
+// consists of 3 parts with its own weights:
+// 	1) parallel work over threads distribution score
+// 	2) L2 utilization score
+// 	3) copied data re-usage score
+float matmul_blocking_params_t::calculate_blocking_scores() {
+    if (one_of(0, n_blk_, n_chunk_size_, m_blk_, m_chunk_size_, k_blk_,
+                k_chunk_size_))
+        return 0.0f;
+
+    const float nthr_coeff = nstl::min(nthr, 100);
+    const float reusage_factor = 1.0f;
+    const float balance_factor = (nthr_coeff - 1.0f) / nthr_coeff;
+    const float cache_utilization_factor = 1.0f / nthr_coeff;
+
+    float scores = cache_utilization_factor * get_L2_utilization_scores()
+            + reusage_factor * get_copied_data_reusage_scores();
+    if (balance_factor > 0.0f)
+        scores += balance_factor * get_thread_balance_scores();
+    return scores
+            / (reusage_factor + balance_factor + cache_utilization_factor);
+}
+
+void matmul_blocking_params_t::update_configuration(
+        brgemm_matmul_conf_t &bgmmc) {
+    bgmmc.nthr_k = nthr_k_;
+    bgmmc.M_blk = m_blk_;
+    bgmmc.M_chunk_size = m_chunk_size_;
+    bgmmc.N_blk = n_blk_;
+    bgmmc.N_chunk_size = n_chunk_size_;
+
+    bgmmc.K_blk = k_blk_;
+    bgmmc.brgemm_batch_size = k_chunk_size_;
+
+    bgmmc.use_buffer_c = need_buf_c_;
+    bgmmc.LDA = current_lda_;
+}
+
+dim_t matmul_blocking_params_t::get_actual_lda() {
+    if (!use_buffer_a) return K;
+
+    constexpr int bytes_in_cacheline = 64;
+    const int elems_in_cacheline = bytes_in_cacheline / a_dt_sz;
+    dim_t lda = rnd_up(k_blk_, elems_in_cacheline);
+    const bool is_big_2_pow = lda >= 512 && math::is_pow2(lda);
+    if (is_big_2_pow) lda += elems_in_cacheline;
+    return lda;
+}
+
+bool matmul_blocking_params_t::is_buffer_c_required() {
+    if (nthr_k_ > 1 && K > k_chunk_elems_) return true;
+
+    return ((acc_dt != dst_dt || with_sum)
+            && (K > k_chunk_elems_ || K % k_blk_ > 0));
+}
+
+size_t matmul_blocking_params_t::calculate_chunk_memory_size() {
+    size_t A_chunk_sz = a_dt_sz * k_chunk_elems_ * m_chunk_elems_;
+    size_t A_buf_sz = use_buffer_a
+            ? a_dt_sz * current_lda_ * k_chunk_size_ * m_chunk_elems_
+            : 0;
+    size_t B_chunk_sz = b_dt_sz * k_chunk_elems_ * n_chunk_elems_;
+    size_t B_buf_sz = use_buffer_b ? b_dt_sz * n_blk_ * k_chunk_elems_ : 0;
+    size_t C_chunk_sz = c_dt_sz * m_chunk_elems_ * n_chunk_elems_;
+    size_t C_buf_sz
+            = need_buf_c_ ? acc_dt_sz * m_chunk_elems_ * n_chunk_elems_ : 0;
+    return A_chunk_sz + A_buf_sz + B_chunk_sz + B_buf_sz + C_chunk_sz
+            + C_buf_sz;
 }
 
 } // namespace matmul
