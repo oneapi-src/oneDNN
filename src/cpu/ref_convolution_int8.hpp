@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_REF_CONVOLUTION_HPP
-#define CPU_REF_CONVOLUTION_HPP
+#ifndef CPU_REF_CONVOLUTION_INT8_HPP
+#define CPU_REF_CONVOLUTION_INT8_HPP
 
 #include <assert.h>
 
@@ -32,11 +32,11 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct ref_convolution_fwd_t : public primitive_t {
+struct ref_convolution_int8_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("ref:any", ref_convolution_fwd_t);
+        DECLARE_COMMON_PD_T("ref_int8:any", ref_convolution_int8_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -48,19 +48,16 @@ struct ref_convolution_fwd_t : public primitive_t {
 
             bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && platform::has_data_type_support(src_type)
-                    && platform::has_data_type_support(wei_type)
-                    && platform::has_data_type_support(bia_type)
-                    && platform::has_data_type_support(dst_type)
-                    && utils::one_of(src_type, f32, bf16)
-                    && utils::one_of(wei_type, f32, bf16)
-                    && utils::one_of(dst_type, f32, bf16)
+                    && utils::one_of(src_type, s8, u8) && wei_type == s8
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bia_type, f32, bf16)
-                                    && IMPLICATION(
-                                            src_type == f32, bia_type == f32))
+                            utils::one_of(bia_type, f32, s32, s8, u8))
+                    && utils::one_of(dst_type, f32, s32, s8, u8)
                     && set_default_formats()
-                    && attr()->has_default_values(smask_t::post_ops)
+                    && attr()->has_default_values(smask_t::oscale
+                                    | smask_t::zero_points_runtime
+                                    | smask_t::post_ops,
+                            dst_type)
+                    && output_scales_mask_ok() && zero_points_ok()
                     && post_ops_ok()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
@@ -76,12 +73,29 @@ struct ref_convolution_fwd_t : public primitive_t {
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
+        bool output_scales_mask_ok() const {
+            using namespace data_type;
+            const auto &mask = attr()->output_scales_.mask_;
+            return mask == 0 || mask == (1 << 1);
+        }
+
+        bool zero_points_ok() const {
+            using namespace data_type;
+            int mask_src = 0, mask_dst = 0;
+            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+            attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+
+            return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
+                    && (mask_src == 0 || mask_src == 1 << 1)
+                    && (mask_dst == 0 || mask_dst == 1 << 1);
+        }
+
         bool post_ops_ok() const {
             return attr()->post_ops_.find(primitive_kind::convolution) == -1;
         }
     };
 
-    ref_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_convolution_int8_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         ref_post_ops
@@ -100,11 +114,11 @@ private:
     std::unique_ptr<ref_post_ops_t> ref_post_ops;
 };
 
-struct ref_convolution_bwd_data_t : public primitive_t {
+struct ref_convolution_int8_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
 
-        DECLARE_COMMON_PD_T("ref:any", ref_convolution_bwd_data_t);
+        DECLARE_COMMON_PD_T("ref_int8:any", ref_convolution_int8_bwd_data_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -114,13 +128,12 @@ struct ref_convolution_bwd_data_t : public primitive_t {
 
             bool ok = desc()->prop_kind == prop_kind::backward_data
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && platform::has_data_type_support(diff_src_type)
-                    && platform::has_data_type_support(wei_type)
-                    && platform::has_data_type_support(diff_dst_type)
-                    && utils::one_of(diff_src_type, f32, bf16)
-                    && utils::one_of(wei_type, f32, bf16)
-                    && utils::one_of(diff_dst_type, f32, bf16)
-                    && set_default_formats() && attr()->has_default_values();
+                    && utils::one_of(diff_dst_type, s8, u8) && wei_type == s8
+                    && utils::one_of(diff_src_type, f32, s32, s8, u8)
+                    && set_default_formats()
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::oscale)
+                    && output_scales_mask_ok();
 
             return ok ? status::success : status::unimplemented;
         }
@@ -134,9 +147,15 @@ struct ref_convolution_bwd_data_t : public primitive_t {
                     : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
+
+        bool output_scales_mask_ok() const {
+            using namespace data_type;
+            const auto &mask = attr()->output_scales_.mask_;
+            return mask == 0 || mask == (1 << 1);
+        }
     };
 
-    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_convolution_int8_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -144,51 +163,6 @@ struct ref_convolution_bwd_data_t : public primitive_t {
 
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-};
-
-struct ref_convolution_bwd_weights_t : public primitive_t {
-    struct pd_t : public cpu_convolution_bwd_weights_pd_t {
-        using cpu_convolution_bwd_weights_pd_t::
-                cpu_convolution_bwd_weights_pd_t;
-
-        DECLARE_COMMON_PD_T("ref:any", ref_convolution_bwd_weights_t);
-
-        status_t init(engine_t *engine) {
-            const auto src_type = src_md(0)->data_type;
-            const auto diff_wei_type = diff_weights_md(0)->data_type;
-            const auto diff_bia_type = diff_weights_md(1)->data_type;
-            const auto diff_dst_type = diff_dst_md(0)->data_type;
-
-            bool ok = desc()->prop_kind == prop_kind::backward_weights
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && platform::has_data_type_support(src_type)
-                    && platform::has_data_type_support(diff_wei_type)
-                    && platform::has_data_type_support(diff_bia_type)
-                    && platform::has_data_type_support(diff_dst_type)
-                    && set_default_formats() && attr()->has_default_values();
-            return ok ? status::success : status::unimplemented;
-        }
-
-    protected:
-        bool set_default_formats() {
-            using namespace format_tag;
-            auto dat_tag = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
-            auto wei_tag = with_groups()
-                    ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
-                    : utils::pick(ndims() - 3, oiw, oihw, oidhw);
-            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
-    };
-
-    ref_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
-
-    status_t execute(const exec_ctx_t &ctx) const override {
-        return execute_backward_weights(ctx);
-    }
-
-private:
-    status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
