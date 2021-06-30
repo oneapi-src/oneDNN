@@ -19,12 +19,12 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstring>
 #include <functional>
 #include <iostream>
 #include <numeric>
 #include <stdexcept>
 #include <stdlib.h>
-#include <string>
 #include <initializer_list>
 
 #include "dnnl.hpp"
@@ -205,14 +205,9 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
 #endif
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (eng.get_kind() == dnnl::engine::kind::gpu) {
-        dnnl::stream s(eng);
-        cl_command_queue q = dnnl::ocl_interop::get_command_queue(s);
-        cl_mem m = dnnl::ocl_interop::get_mem_object(mem);
-
-        cl_int ret = clEnqueueReadBuffer(
-                q, m, CL_TRUE, 0, size, handle, 0, NULL, NULL);
-        if (ret != CL_SUCCESS)
-            throw std::runtime_error("clEnqueueReadBuffer failed.");
+        void *mapped_ptr = mem.map_data();
+        if (mapped_ptr) std::memcpy(handle, mapped_ptr, size);
+        mem.unmap_data(mapped_ptr);
         return;
     }
 #endif
@@ -269,14 +264,9 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
 #endif
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (eng.get_kind() == dnnl::engine::kind::gpu) {
-        dnnl::stream s(eng);
-        cl_command_queue q = dnnl::ocl_interop::get_command_queue(s);
-        cl_mem m = dnnl::ocl_interop::get_mem_object(mem);
-
-        cl_int ret = clEnqueueWriteBuffer(
-                q, m, CL_TRUE, 0, size, handle, 0, NULL, NULL);
-        if (ret != CL_SUCCESS)
-            throw std::runtime_error("clEnqueueWriteBuffer failed.");
+        void *mapped_ptr = mem.map_data();
+        if (mapped_ptr) std::memcpy(mapped_ptr, handle, size);
+        mem.unmap_data(mapped_ptr);
         return;
     }
 #endif

@@ -104,43 +104,15 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
     CHECK(dnnl_memory_get_memory_desc(mem, &md));
     size_t bytes = dnnl_memory_desc_get_size(md);
 
-#ifdef DNNL_WITH_SYCL
     bool is_cpu_sycl
             = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_cpu);
-    bool is_gpu_sycl
-            = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_gpu);
-    if (is_cpu_sycl || is_gpu_sycl) {
+
+    if (eng_kind == dnnl_gpu || is_cpu_sycl) {
         void *mapped_ptr = NULL;
         CHECK(dnnl_memory_map_data(mem, &mapped_ptr));
-        if (mapped_ptr) {
-            for (size_t i = 0; i < bytes; ++i) {
-                ((char *)handle)[i] = ((char *)mapped_ptr)[i];
-            }
-        }
+        if (mapped_ptr) memcpy(handle, mapped_ptr, bytes);
         CHECK(dnnl_memory_unmap_data(mem, mapped_ptr));
-        return;
     }
-#endif
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    if (eng_kind == dnnl_gpu) {
-        dnnl_stream_t s;
-        cl_command_queue q;
-        cl_mem m;
-
-        CHECK(dnnl_ocl_interop_memory_get_mem_object(mem, &m));
-        CHECK(dnnl_stream_create(&s, eng, dnnl_stream_default_flags));
-        CHECK(dnnl_ocl_interop_stream_get_command_queue(s, &q));
-
-        cl_int ret = clEnqueueReadBuffer(
-                q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
-        if (ret != CL_SUCCESS)
-            COMPLAIN_EXAMPLE_ERROR_AND_EXIT(
-                    "clEnqueueReadBuffer failed (status code: %d)", ret);
-
-        dnnl_stream_destroy(s);
-    }
-#endif
 
     if (eng_kind == dnnl_cpu) {
         void *ptr = NULL;
@@ -189,21 +161,10 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (eng_kind == dnnl_gpu) {
-        dnnl_stream_t s;
-        cl_command_queue q;
-        cl_mem m;
-
-        CHECK(dnnl_ocl_interop_memory_get_mem_object(mem, &m));
-        CHECK(dnnl_stream_create(&s, eng, dnnl_stream_default_flags));
-        CHECK(dnnl_ocl_interop_stream_get_command_queue(s, &q));
-
-        cl_int ret = clEnqueueWriteBuffer(
-                q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
-        if (ret != CL_SUCCESS)
-            COMPLAIN_EXAMPLE_ERROR_AND_EXIT(
-                    "clEnqueueWriteBuffer failed (status code: %d)", ret);
-
-        dnnl_stream_destroy(s);
+        void *mapped_ptr = NULL;
+        CHECK(dnnl_memory_map_data(mem, &mapped_ptr));
+        if (mapped_ptr) memcpy(mapped_ptr, handle, bytes);
+        CHECK(dnnl_memory_unmap_data(mem, mapped_ptr));
         return;
     }
 #endif
