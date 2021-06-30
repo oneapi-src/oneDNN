@@ -128,9 +128,9 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
     const bool with_binary = po.find(primitive_kind::binary) != -1;
     conf_.with_postops = with_binary || conf_.with_eltwise;
     conf_.sum_scale = conf_.do_sum ? po.entry_[0].sum.scale : 0.f;
-    conf_.bcast_type = is_tensor_op()
-            ? bcast_t::none
-            : get_bcast_type(src1_md_, broadcast_dims());
+    const auto &bcast_dims = broadcast_dims();
+    conf_.bcast_type = is_tensor_op() ? bcast_t::none
+                                      : get_bcast_type(src1_md_, bcast_dims);
     conf_.broadcast_src1_value = (conf_.op_type == op_t::n_c_spatial
                                          && conf_.bcast_type == bcast_t::per_c)
             || (utils::one_of(conf_.op_type, op_t::n_spatial_c, op_t::c_blocked)
@@ -145,14 +145,18 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
     conf_.use_stride_rhs_postops = conf_.postops_per_oc_broadcast_exists
             && conf_.op_type == op_t::n_spatial_c;
 
+    const auto ndims = src0_md_.ndims();
     if (conf_.is_src_different_layouts) {
         const auto &strides0 = src0_md_.blocking_desc().strides;
         const auto &strides1 = src1_md_.blocking_desc().strides;
-        const auto ndims = src0_md_.ndims();
         conf_.src1_stride
                 = get_different_layout_stride(strides0, strides1, ndims);
         conf_.outer_dims
                 = get_outer_dims_product(strides0, src0_md_.dims(), ndims);
+    }
+    if (conf_.bcast_type == bcast_t::per_w) {
+        for (int d = 2; d < ndims; ++d)
+            conf_.not_bcasted_sp_dims += !bcast_dims[d];
     }
 
     return status::success;
@@ -205,20 +209,27 @@ bool jit_uni_binary_t::pd_t::is_bcast_pattern(const dims_t &bcast_dims,
 }
 
 bool jit_uni_binary_t::pd_t::is_bcast_allowed(const int ndims) const {
-    // supported cases: NxCxDxHxW:{NxCx1x1x1,1xCx1x1x1,Nx1x1x1xW,
-    //                            1x1x1x1xW,1x1x1x1x1}
-    bool ok = true;
+    // supported cases: NxCxDxHxW:{NxCx1x1x1,1xCx1x1x1,Nx1xDxHxW,Nx1x1xHxW,
+    //                            Nx1x1x1xW,1x1xDxHxW,1x1x1xHxW,1x1x1x1xW,
+    //                            1x1x1x1x1}
     const auto &bcast_dims = broadcast_dims();
-    // check that SP (without W) dimensions are broadcasted
-    for (int d = 2; d < ndims - 1; ++d)
-        ok = ok && bcast_dims[d] == 1;
+    // check if there is continuous broadcast between non-broadcast dims
+    int next_bcast_expected = 1;
+    bool ok = true;
+    for (int d = 2; d < ndims; ++d) {
+        if (bcast_dims[d] == 0) next_bcast_expected = 0;
+        ok = ok && bcast_dims[d] == next_bcast_expected;
+    }
     if (ndims > 2)
         ok = ok
-                && (is_bcast_pattern(bcast_dims, ndims, 0, 0, 1)
-                        || is_bcast_pattern(bcast_dims, ndims, 1, 0, 1)
-                        || is_bcast_pattern(bcast_dims, ndims, 0, 1, 0)
+                && (is_bcast_pattern(bcast_dims, ndims, 0, 1, 0)
                         || is_bcast_pattern(bcast_dims, ndims, 1, 1, 0)
-                        || is_bcast_pattern(bcast_dims, ndims, 1, 1, 1));
+                        || (!!next_bcast_expected // not broadcast dim not met
+                                && (is_bcast_pattern(bcast_dims, ndims, 0, 0, 1)
+                                        || is_bcast_pattern(
+                                                bcast_dims, ndims, 1, 0, 1)
+                                        || is_bcast_pattern(
+                                                bcast_dims, ndims, 1, 1, 1))));
     return ok;
 }
 
@@ -720,14 +731,19 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
     const int dst_type_size = types::data_type_size(dst_d.data_type());
     const auto ndims = src0_d.ndims();
     const auto &dims = src0_d.dims();
+    const auto &bcast_dims = pd()->broadcast_dims();
+
+    const int not_bcasted_sp_dims = pd()->get_conf().not_bcasted_sp_dims;
     const dim_t MB = dims[0];
-    const dim_t W = ndims >= 3 ? dims[ndims - 1] : 1;
+    // array product of outer dimensions that are not broadcast
+    const dim_t SP_no_bcast = ndims >= 3
+            ? utils::array_product(
+                    dims + (ndims - not_bcasted_sp_dims), not_bcasted_sp_dims)
+            : 1;
     const dim_t C = ndims >= 2 ? dims[1] : 1;
     const dim_t SP = ndims >= 3 ? utils::array_product(dims + 2, ndims - 2) : 1;
-    // spatial dimensions without the last one
-    const dim_t N = SP / W;
-
-    const auto &bcast_dims = pd()->broadcast_dims();
+    // spatial without dimensions that are not broadcasted by src1
+    const dim_t N = SP / SP_no_bcast;
 
     const dim_t nelems_slice_src0
             = utils::array_product(src0_d.padded_dims() + 1, ndims - 1);
@@ -737,7 +753,8 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
                 static_cast<float>(src0_d.padded_dims()[1]) / simd_w);
         // Compute strategy:
         // Each line of channels is individual, parallel over MB, C_blocks
-        // and spatial (width and other spatial dims separately).
+        // and spatial (broadcasted and not broadcasted spatial dims
+        // separately).
 
         const std::function<void(jit_binary_call_s *, dim_t)>
                 kernel_blocked_no_tail
@@ -752,18 +769,18 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
         const auto &kernel_blocked = blocked_oc_tail ? kernel_blocked_tail
                                                      : kernel_blocked_no_tail;
 
-        parallel_nd(MB, C_blocks, N, W,
-                [&](dim_t mb, dim_t C_blk, dim_t n, dim_t w) {
+        parallel_nd(MB, C_blocks, N, SP_no_bcast,
+                [&](dim_t mb, dim_t C_blk, dim_t n, dim_t sp) {
                     jit_binary_call_s p;
                     p.spat_offt_count = simd_w * dst_type_size;
                     const auto off = mb * nelems_slice_src0
-                            + simd_w * (C_blk * SP + n * W + w);
+                            + simd_w * (C_blk * SP + n * SP_no_bcast + sp);
                     p.dst = dst + off * dst_type_size;
                     p.src0 = src0 + off * src0_type_size;
                     // check if mb is broadcast
                     const dim_t src1_off = bcast_dims[0] == 1
-                            ? w * simd_w
-                            : (mb * W + w) * simd_w;
+                            ? sp * simd_w
+                            : (mb * SP_no_bcast + sp) * simd_w;
                     p.src1 = src1 + src1_off * src1_type_size;
                     p.oc_l_off = C_blk * simd_w;
                     p.scales_src0 = scale0;
@@ -775,15 +792,17 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
     } else if (op_type == op_t::n_spatial_c) {
         // Compute strategy:
         // Each line of channels is individual, parallel over MB and spatial
-        // (width and other spatial dims separately).
+        // (broadcasted and not broadcasted spatial dims separately).
 
-        parallel_nd(MB, N, W, [&](dim_t mb, dim_t n, dim_t w) {
+        parallel_nd(MB, N, SP_no_bcast, [&](dim_t mb, dim_t n, dim_t sp) {
             jit_binary_call_s p;
             p.spat_offt_count = C * dst_type_size;
-            const auto off = mb * nelems_slice_src0 + n * W * C + w * C;
+            const auto off
+                    = mb * nelems_slice_src0 + n * SP_no_bcast * C + sp * C;
             p.dst = dst + off * dst_type_size;
             p.src0 = src0 + off * src0_type_size;
-            const dim_t src1_off = bcast_dims[0] == 1 ? w : mb * W + w;
+            const dim_t src1_off
+                    = bcast_dims[0] == 1 ? sp : mb * SP_no_bcast + sp;
             p.src1 = src1 + src1_off * src1_type_size;
             p.oc_l_off = 0;
             p.scales_src0 = scale0;
@@ -794,16 +813,17 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
     } else if (op_type == op_t::n_c_spatial) {
         // Compute strategy:
         // Each line of width is individual, parallel over MB, C and spatial
-        // without W. Use a kernel which broadcasts c_i value
-        // into a vector register.
+        // without not broadcasted dims. Use a kernel which broadcasts c_i
+        // value into a vector register.
 
         parallel_nd(MB, C, N, [&](dim_t mb, dim_t c, dim_t n) {
             jit_binary_call_s p;
-            p.spat_offt_count = W * dst_type_size;
-            const auto off = mb * nelems_slice_src0 + c * N * W + n * W;
+            p.spat_offt_count = SP_no_bcast * dst_type_size;
+            const auto off = mb * nelems_slice_src0 + c * N * SP_no_bcast
+                    + n * SP_no_bcast;
             p.dst = dst + off * dst_type_size;
             p.src0 = src0 + off * src0_type_size;
-            const dim_t src1_off = bcast_dims[0] == 1 ? 0 : mb * W;
+            const dim_t src1_off = bcast_dims[0] == 1 ? 0 : mb * SP_no_bcast;
             p.src1 = src1 + src1_off * src1_type_size;
             p.oc_l_off = c;
             p.scales_src0 = scale0;
