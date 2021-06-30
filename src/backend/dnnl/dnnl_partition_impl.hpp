@@ -339,7 +339,7 @@ public:
             // FIXME(qun) will modify the outputs inside the compile, which
             // break the constant semantics
             ret = kernel->compile(copied_part.get(), g_engine, inputs, outputs);
-            if (ret != status::success) return status::compile_fail;
+            if (ret != status::success) return ret;
 
             std::vector<impl::logical_tensor_t> ordered_inputs;
             std::vector<impl::logical_tensor_t> ordered_outputs;
@@ -394,7 +394,9 @@ public:
             const op_schema *cur_op_schema
                     = op_schema_registry::get_op_schema(fused_op->get_kind());
             if (cur_op_schema) {
-                cur_op_schema->shape_infer(fused_op, tmp_inputs, tmp_outputs);
+                ret = cur_op_schema->shape_infer(
+                        fused_op, tmp_inputs, tmp_outputs);
+                if (ret != status::success) return ret;
             }
 
             ret = kernel->compile(

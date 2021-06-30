@@ -74,9 +74,10 @@ inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
     // dfs_visit graph, do pattern matching
     topo_order_visit(backend_graph.get_output_ops(), [&](op_t *cur_op) {
         op_t *candidate_op = per_op_comp(cur_op, selected);
-        if (!candidate_op) { return; }
+        if (!candidate_op) { return impl::status::success; }
         fusion_ops.emplace_back(candidate_op);
         selected.insert(candidate_op);
+        return impl::status::success;
     });
 }
 

@@ -134,7 +134,7 @@ void dnnl_graph_graph::get_ordered_partitions(
     std::vector<std::vector<op_t *>> fusion_ops;
     topo_order_visit(copied_graph.get_output_ops(), [&](op_t *n) {
         partition_impl_t *part = n->get_partition();
-        if (!part) return;
+        if (!part) return impl::status::success;
         auto pos = std::find_if(fusion_ops.begin(), fusion_ops.end(),
                 [&](std::vector<op_t *> &tmp) -> bool {
                     return tmp[0]->get_partition() == part;
@@ -145,6 +145,7 @@ void dnnl_graph_graph::get_ordered_partitions(
             std::vector<op_t *> tmp {n};
             fusion_ops.emplace_back(tmp);
         }
+        return impl::status::success;
     });
 
     // Fuse ops that belong to same partition
@@ -161,6 +162,7 @@ void dnnl_graph_graph::get_ordered_partitions(
             partitions[count]->init(part->shared_from_this());
             count++;
         }
+        return impl::status::success;
     });
 }
 
@@ -230,6 +232,7 @@ void dnnl_graph_graph::visualize(const std::string &filename) {
                 out << input_op_name << " -> " << current_op_name << ";\n";
             }
         }
+        return impl::status::success;
     });
     out << "}\n";
     out.close();

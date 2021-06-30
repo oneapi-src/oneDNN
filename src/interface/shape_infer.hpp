@@ -359,6 +359,8 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
     using ltw = impl::logical_tensor_wrapper;
 
     auto backup = *inputs[1];
+    auto out0 = logical_tensor_wrapper(outputs[0]);
+    bool out_shape_unknown = out0.is_shape_unknown();
     if (n->get_attr<int64_t>("groups") > 1) {
         auto ndims = ltw(inputs[1]).ndims() - 1;
         auto dims = ltw(inputs[1]).vdims();
@@ -375,7 +377,7 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
     *inputs[1] = backup;
 
     // permute output from NCX to NXC
-    if (n->has_attr("output_format")
+    if (out_shape_unknown && n->has_attr("output_format")
             && n->get_attr<std::string>("output_format") == "NXC") {
         auto ndims = outputs[0]->ndims;
         auto channel = outputs[0]->dims[1];
@@ -564,8 +566,14 @@ status_t infer_pool_output_shape(op_t *n,
     const std::vector<int64_t> &kernel
             = n->get_attr<std::vector<int64_t>>("kernel");
     std::vector<int64_t> dilations(kernel.size(), 1);
-    if (n->has_attr("dilations"))
-        dilations = n->get_attr<std::vector<int64_t>>("dilations");
+    if (n->has_attr("dilations")) {
+        auto dilations_tmp = n->get_attr<std::vector<int64_t>>("dilations");
+        if (dilations_tmp.size() != dilations.size()) {
+            return status::invalid_argument;
+        } else {
+            dilations = dilations_tmp;
+        }
+    }
     const std::vector<int64_t> &pads_begin
             = n->get_attr<std::vector<int64_t>>("pads_begin");
     const std::vector<int64_t> &pads_end
@@ -618,7 +626,6 @@ status_t infer_pool_output_shape(op_t *n,
         }
         n->set_attr("pads_begin", infered_pads_begin);
         n->set_attr("pads_end", infered_pads_end);
-        return status::success;
     }
 
     std::vector<dim_t> out_shape

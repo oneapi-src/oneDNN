@@ -268,19 +268,21 @@ public:
 
             const op_schema *opm
                     = op_schema_registry::get_op_schema(op->get_kind());
-            assertm(opm, "can't infer shape for cur op: no schema");
+            // can't infer shape for cur op: no schema
+            if (!opm) return impl::status::invalid_op;
 
             impl::status_t ret
                     = opm->shape_infer(op, tmp_inputs_ptr, tmp_outputs_ptr);
-            assertm(ret == impl::status::success,
-                    ("infer shape failed for op: " + op->get_name()));
+
+            if (ret != impl::status::success)
+                return impl::status::invalid_shape;
 
             for (size_t i = 0; i < op->num_outputs(); i++) {
                 op->get_output_value(i)->set_dims(
                         logical_tensor_wrapper(tmp_outputs[i]).vdims());
             }
 
-            return ret;
+            return impl::status::success;
         });
 
         return impl::status::success;

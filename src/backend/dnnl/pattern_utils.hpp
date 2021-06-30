@@ -331,12 +331,13 @@ inline void pattern_utils::match(dnnl::graph::impl::graph_t &backend_graph,
     topo_order_visit(backend_graph.get_output_ops(), [&](op_t *cur_op) {
         std::vector<op_t *> candidate_fusion;
         if (!per_op_comp(cur_op, op_pattern, candidate_fusion, selected)) {
-            return;
+            return status::success;
         }
         fusion_ops.emplace_back(candidate_fusion);
         for (auto &aop : candidate_fusion) {
             selected.insert(aop);
         }
+        return status::success;
     });
 }
 

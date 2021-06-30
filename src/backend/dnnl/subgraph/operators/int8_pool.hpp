@@ -101,6 +101,7 @@ public:
         set_given_inputs_outputs(subgraph, inputs, outputs);
         impl::graph_t agraph(subgraph);
         BACKEND_DNNL_CHECK(agraph.infer_shape());
+        BACKEND_DNNL_CHECK(agraph.infer_shape());
         BACKEND_DNNL_CHECK(infer_type(agraph));
         BACKEND_DNNL_CHECK(
                 layout_propagation(subgraph, p_engine_, prm_attr_mgr_));
@@ -134,6 +135,7 @@ public:
                     auto arg_key = op->get_attr<int64_t>("execution_args_key");
                     auto &args = exec_arg_mgr_.get_args(arg_key);
                     exec_args_.emplace_back(args);
+                    return impl::status::success;
                 });
 
         opt_subgraph_ = subgraph;

@@ -64,7 +64,8 @@ impl::status_t infer_type(impl::graph_t &subgraph) {
         if (op->get_kind() == op_kind::mul_scales) {
             op->get_output_value(0)->set_data_type(impl::data_type::f32);
         } else if (op->get_kind() == op_kind::add_zps) {
-            assertm(false, "This op should be fused, can't infer type for it");
+            //This op should be fused, can't infer type for it
+            return impl::status::invalid_graph;
         } else if (op->get_kind() == op_kind::permute
                 || op->get_kind() == op_kind::Reorder
                 || op->get_kind() == op_kind::to_group
@@ -78,6 +79,7 @@ impl::status_t infer_type(impl::graph_t &subgraph) {
             }
         } else {
         }
+        return impl::status::success;
     });
     return impl::status::success;
 }

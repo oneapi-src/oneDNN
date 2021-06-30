@@ -404,7 +404,7 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 template <typename FUN>
-void topo_order_visit(const std::vector<op_t *> &root_ops, const FUN &f) {
+status_t topo_order_visit(const std::vector<op_t *> &root_ops, const FUN &f) {
     std::stack<op_t *> todo;
     std::unordered_set<op_t *> visited;
     for (auto &op : root_ops) {
@@ -433,11 +433,12 @@ void topo_order_visit(const std::vector<op_t *> &root_ops, const FUN &f) {
         }
         if (ready) {
             todo.pop();
-            // TODO(xx) need check the return status of f
-            f(top);
+            status_t ret = f(top);
+            if (ret != status::success) return ret;
             visited.insert(top);
         }
     }
+    return status::success;
 }
 } // namespace impl
 } // namespace graph
