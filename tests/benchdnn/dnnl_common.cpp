@@ -399,6 +399,11 @@ bool is_sycl_engine(const dnnl_engine_t &engine) {
     return false;
 }
 
+bool is_opencl_engine(const dnnl_engine_t &engine) {
+    if (is_gpu(engine)) return DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL;
+    return false;
+}
+
 bool is_nvidia_gpu(const dnnl_engine_t &engine) {
 #ifdef DNNL_WITH_SYCL
     if (!is_gpu(engine)) return false;

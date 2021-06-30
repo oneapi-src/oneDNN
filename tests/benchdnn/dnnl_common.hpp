@@ -443,6 +443,7 @@ void check_sum_post_ops(const attr_t &attr, res_t *res);
 bool is_cpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_gpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_sycl_engine(const dnnl_engine_t &engine = get_test_engine());
+bool is_opencl_engine(const dnnl_engine_t &engine = get_test_engine());
 bool is_nvidia_gpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_nvidia_eltwise_ok(
         dir_t dir, attr_t::post_ops_t::kind_t alg, float alpha);
