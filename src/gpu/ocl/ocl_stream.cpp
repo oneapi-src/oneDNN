@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+#include <cstring>
 
 #include <CL/cl.h>
 
@@ -83,11 +85,25 @@ status_t ocl_stream_t::copy(
         void *src_ptr = nullptr;
         src.get_data_handle(&src_ptr);
 
-        auto &ocl_dst = *utils::downcast<const ocl_memory_storage_t *>(&dst);
-        cl_mem ocl_mem = ocl_dst.mem_object();
-        cl_int err = clEnqueueWriteBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
-                src_ptr, 0, nullptr, nullptr);
-        OCL_CHECK(err);
+        const auto *ocl_dst
+                = utils::downcast<const ocl_memory_storage_base_t *>(&dst);
+        bool usm_dst = ocl_dst->memory_kind() == memory_kind::usm;
+
+        if (usm_dst) {
+            const auto *ocl_usm_dst
+                    = utils::downcast<const ocl_usm_memory_storage_t *>(
+                            ocl_dst);
+            CHECK(usm::memcpy(this, ocl_usm_dst->usm_ptr(), src_ptr, size));
+        } else {
+            const auto *ocl_buffer_dst
+                    = utils::downcast<const ocl_buffer_memory_storage_t *>(
+                            ocl_dst);
+
+            cl_mem ocl_mem = ocl_buffer_dst->mem_object();
+            cl_int err = clEnqueueWriteBuffer(queue(), ocl_mem, CL_TRUE, 0,
+                    size, src_ptr, 0, nullptr, nullptr);
+            OCL_CHECK(err);
+        }
     } else if (dst.engine()->kind() == engine_kind::cpu
             && is_native_runtime(dst.engine()->runtime_kind())) {
         assert(src.engine()->kind() == engine_kind::gpu);
@@ -95,11 +111,25 @@ status_t ocl_stream_t::copy(
         void *dst_ptr = nullptr;
         dst.get_data_handle(&dst_ptr);
 
-        auto &ocl_src = *utils::downcast<const ocl_memory_storage_t *>(&src);
-        cl_mem ocl_mem = ocl_src.mem_object();
-        cl_int err = clEnqueueReadBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
-                dst_ptr, 0, nullptr, nullptr);
-        OCL_CHECK(err);
+        const auto *ocl_src
+                = utils::downcast<const ocl_memory_storage_base_t *>(&src);
+        bool usm_src = ocl_src->memory_kind() == memory_kind::usm;
+
+        if (usm_src) {
+            const auto *ocl_usm_src
+                    = utils::downcast<const ocl_usm_memory_storage_t *>(
+                            ocl_src);
+            CHECK(usm::memcpy(this, ocl_usm_src->usm_ptr(), dst_ptr, size));
+        } else {
+            const auto *ocl_buffer_src
+                    = utils::downcast<const ocl_buffer_memory_storage_t *>(
+                            ocl_src);
+
+            cl_mem ocl_mem = ocl_buffer_src->mem_object();
+            cl_int err = clEnqueueReadBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
+                    dst_ptr, 0, nullptr, nullptr);
+            OCL_CHECK(err);
+        }
     } else {
         wait();
 
@@ -110,8 +140,8 @@ status_t ocl_stream_t::copy(
         CHECK(src.map_data(&src_mapped_ptr, this, size));
         CHECK(dst.map_data(&dst_mapped_ptr, this, size));
 
-        utils::array_copy(static_cast<uint8_t *>(dst_mapped_ptr),
-                static_cast<const uint8_t *>(src_mapped_ptr), size);
+        std::memcpy(static_cast<void *>(dst_mapped_ptr),
+                static_cast<const void *>(src_mapped_ptr), size);
 
         CHECK(src.unmap_data(src_mapped_ptr, this));
         CHECK(dst.unmap_data(dst_mapped_ptr, this));
@@ -121,10 +151,23 @@ status_t ocl_stream_t::copy(
 
 status_t ocl_stream_t::fill(
         const memory_storage_t &dst, uint8_t pattern, size_t size) {
-    auto &ocl_dst = *utils::downcast<const ocl_memory_storage_t *>(&dst);
-    cl_int err = clEnqueueFillBuffer(queue(), ocl_dst.mem_object(), &pattern,
-            sizeof(uint8_t), dst.offset(), size, 0, nullptr, nullptr);
-    OCL_CHECK(err);
+    using namespace dnnl::impl::utils;
+
+    const auto *ocl_dst = downcast<const ocl_memory_storage_base_t *>(&dst);
+
+    if (ocl_dst->memory_kind() == memory_kind::usm) {
+        const auto *ocl_usm_dst
+                = downcast<const ocl_usm_memory_storage_t *>(ocl_dst);
+        CHECK(usm::fill(
+                this, ocl_usm_dst->usm_ptr(), &pattern, sizeof(pattern), size));
+    } else {
+        const auto *ocl_buffer_dst
+                = downcast<const ocl_buffer_memory_storage_t *>(ocl_dst);
+        cl_int err = clEnqueueFillBuffer(queue(), ocl_buffer_dst->mem_object(),
+                &pattern, sizeof(uint8_t), dst.offset(), size, 0, nullptr,
+                nullptr);
+        OCL_CHECK(err);
+    }
     return status::success;
 }
 

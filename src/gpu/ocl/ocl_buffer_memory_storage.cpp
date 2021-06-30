@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,21 +16,22 @@
 
 #include <CL/cl.h>
 
-#include "gpu/ocl/ocl_memory_storage.hpp"
-
+#include "gpu/ocl/ocl_buffer_memory_storage.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
+#include "gpu/ocl/ocl_usm_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ocl_memory_storage_t::init_allocate(size_t size) {
+status_t ocl_buffer_memory_storage_t::init_allocate(size_t size) {
     auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine());
     cl_int err;
     mem_object_ = clCreateBuffer_wrapper(
             ocl_engine->context(), CL_MEM_READ_WRITE, size, nullptr, &err);
+
     OCL_CHECK(err);
     return status::success;
 }
@@ -50,7 +51,7 @@ status_t get_map_queue(
 }
 } // namespace
 
-status_t ocl_memory_storage_t::map_data(
+status_t ocl_buffer_memory_storage_t::map_data(
         void **mapped_ptr, stream_t *stream, size_t) const {
     if (!mem_object()) {
         *mapped_ptr = nullptr;
@@ -85,7 +86,7 @@ status_t ocl_memory_storage_t::map_data(
     return convert_to_dnnl(err);
 }
 
-status_t ocl_memory_storage_t::unmap_data(
+status_t ocl_buffer_memory_storage_t::unmap_data(
         void *mapped_ptr, stream_t *stream) const {
     if (!mapped_ptr) return status::success;
     cl_command_queue queue;
@@ -96,7 +97,7 @@ status_t ocl_memory_storage_t::unmap_data(
     return status::success;
 }
 
-std::unique_ptr<memory_storage_t> ocl_memory_storage_t::get_sub_storage(
+std::unique_ptr<memory_storage_t> ocl_buffer_memory_storage_t::get_sub_storage(
         size_t offset, size_t size) const {
     // Fast return on size = 0.
     // It also seems clCreateSubBuffer() does not work properly for such case.
@@ -118,7 +119,7 @@ std::unique_ptr<memory_storage_t> ocl_memory_storage_t::get_sub_storage(
     if (err != CL_SUCCESS) return nullptr;
 
     auto sub_storage
-            = new ocl_memory_storage_t(this->engine(), parent_storage());
+            = new ocl_buffer_memory_storage_t(this->engine(), parent_storage());
     if (sub_storage) {
         sub_storage->init(memory_flags_t::use_runtime_ptr, size, sub_buffer);
         sub_storage->base_offset_ = base_offset_ + offset;
@@ -126,14 +127,15 @@ std::unique_ptr<memory_storage_t> ocl_memory_storage_t::get_sub_storage(
     return std::unique_ptr<memory_storage_t>(sub_storage);
 }
 
-std::unique_ptr<memory_storage_t> ocl_memory_storage_t::clone() const {
-    auto storage = new ocl_memory_storage_t(engine());
+std::unique_ptr<memory_storage_t> ocl_buffer_memory_storage_t::clone() const {
+    auto storage = new ocl_buffer_memory_storage_t(engine());
     if (storage) storage->init(memory_flags_t::use_runtime_ptr, 0, mem_object_);
     return std::unique_ptr<memory_storage_t>(storage);
 }
 
-cl_mem ocl_memory_storage_t::parent_mem_object() const {
-    return utils::downcast<const ocl_memory_storage_t *>(parent_storage())
+cl_mem ocl_buffer_memory_storage_t::parent_mem_object() const {
+    return utils::downcast<const ocl_buffer_memory_storage_t *>(
+            parent_storage())
             ->mem_object();
 }
 

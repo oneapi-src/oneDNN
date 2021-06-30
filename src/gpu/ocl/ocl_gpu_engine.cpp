@@ -61,7 +61,7 @@ status_t ocl_gpu_engine_t::init() {
 
 status_t ocl_gpu_engine_t::create_memory_storage(
         memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
-    auto _storage = new ocl_memory_storage_t(this);
+    auto _storage = new ocl_buffer_memory_storage_t(this);
     if (_storage == nullptr) return status::out_of_memory;
     status_t status = _storage->init(flags, size, handle);
     if (status != status::success) {

@@ -17,7 +17,6 @@
 #include <type_traits>
 
 #include <CL/cl.h>
-#include <CL/cl_ext.h>
 
 #include "common/utils.hpp"
 #include "common/verbose.hpp"

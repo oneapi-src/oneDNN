@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,10 +14,38 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_MEMORY_STORAGE_HPP
-#define GPU_OCL_OCL_MEMORY_STORAGE_HPP
+#ifndef ONEAPI_DNNL_DNNL_OCL_TYPES_H
+#define ONEAPI_DNNL_DNNL_OCL_TYPES_H
 
-#include "gpu/ocl/ocl_buffer_memory_storage.hpp"
-#include "gpu/ocl/ocl_usm_memory_storage.hpp"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/// @addtogroup dnnl_api
+/// @{
+
+/// @addtogroup dnnl_api_interop
+/// @{
+
+/// @addtogroup dnnl_api_ocl_interop
+/// @{
+
+/// Memory allocation kind.
+typedef enum {
+    /// USM (device, shared, host, or unknown) memory allocation kind.
+    dnnl_ocl_interop_usm,
+    /// Buffer memory allocation kind.
+    dnnl_ocl_interop_buffer,
+} dnnl_ocl_interop_memory_kind_t;
+
+/// @} dnnl_api_ocl_interop
+
+/// @} dnnl_api_interop
+
+/// @} dnnl_api
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

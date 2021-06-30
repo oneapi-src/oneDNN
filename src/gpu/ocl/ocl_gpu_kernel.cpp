@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "gpu/compute/program_list.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
+#include "gpu/ocl/ocl_usm_utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -47,14 +48,13 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
 
     for (int i = 0; i < arg_list.nargs(); ++i) {
         auto &arg = arg_list.get(i);
-        cl_int set_err;
+        cl_int set_err = CL_SUCCESS;
         if (arg.is_global()) {
             auto *mem_storage
                     = static_cast<const memory_storage_t *>(arg.value());
-            cl_mem ocl_mem = nullptr;
             if (!mem_storage->is_null()) {
                 auto *ocl_mem_storage
-                        = utils::downcast<const ocl_memory_storage_t *>(
+                        = utils::downcast<const ocl_memory_storage_base_t *>(
                                 mem_storage);
 
                 // Validate that the OpenCL contexts match for execution
@@ -72,9 +72,32 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                     return status::invalid_arguments;
                 }
 
-                ocl_mem = ocl_mem_storage->mem_object();
+                switch (ocl_mem_storage->memory_kind()) {
+                    case memory_kind::buffer: {
+                        auto *m = utils::downcast<
+                                const ocl_buffer_memory_storage_t *>(
+                                ocl_mem_storage);
+                        auto ocl_mem = m->mem_object();
+                        set_err = clSetKernelArg(
+                                ocl_kernel_, i, sizeof(cl_mem), &ocl_mem);
+                        break;
+                    }
+                    case memory_kind::usm: {
+                        auto *m = utils::downcast<
+                                const ocl_usm_memory_storage_t *>(
+                                ocl_mem_storage);
+                        auto *usm_ptr = m->usm_ptr();
+                        CHECK(usm::set_kernel_arg_usm(
+                                stream.engine(), ocl_kernel_, i, usm_ptr));
+                        break;
+                    }
+                    default: assert(!"not expected");
+                }
+            } else {
+                cl_mem null_mem = nullptr;
+                set_err = clSetKernelArg(
+                        ocl_kernel_, i, sizeof(cl_mem), &null_mem);
             }
-            set_err = clSetKernelArg(ocl_kernel_, i, sizeof(cl_mem), &ocl_mem);
         } else if (arg.is_local()) {
             set_err = clSetKernelArg(ocl_kernel_, i, arg.size(), arg.value());
         } else if (arg.is_svm_pointer()) {
