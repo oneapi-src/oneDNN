@@ -13,4 +13,10 @@
 --mb=1024 --batch=shapes_alexnet
 --mb=512 --batch=shapes_maskrcnn
 --mb=2048 --batch=shapes_dlrm
---mb=128 --batch=shapes_rnn_t
+# mb = 16 * num_cores for rnn-t
+--mb=896 --batch=shapes_rnn_t
+# TR-LT has 2 parts with different mb values dependign on num cores
+# please correct mb values in input list according ot description
+# also it has set of problems which are executed in training only
+# and it commented by default
+--mb=0 --batch=shapes_transformer_lt

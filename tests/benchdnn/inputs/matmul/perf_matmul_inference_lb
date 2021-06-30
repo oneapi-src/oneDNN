@@ -6,8 +6,9 @@
 --batch=shapes_converted_ip_inf_lb_ncf
 --batch=shapes_converted_ip_inf_lb_alexnet
 --batch=shapes_converted_ip_inf_lb_maskrcnn
---batch=shapes_converted_ip_inf_lb_bert
---batch=shapes_converted_ip_inf_lb_bert_large
 --batch=shapes_converted_ip_inf_lb_rnn_t
 --batch=shapes_converted_ip_inf_lb_dlrm
---batch=shapes_converted_ip_inf_lb_transformer_lt
+--batch=harness_matmul_bert_inf_lb_int8
+#--batch=harness_matmul_bert_inf_lb_bfloat16
+--batch=harness_matmul_transformer_lt_inf_lb_int8
+#--batch=harness_matmul_transformer_lt_inf_lb_bfloat16

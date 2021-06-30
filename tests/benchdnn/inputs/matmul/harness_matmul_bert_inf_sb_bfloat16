@@ -25,33 +25,36 @@
 --reset
 --skip-impl=ref
 --cfg=bf16bf16bf16 --bia_dt=bf16 --bia_mask=2
-# MM_2 and MM_3 are the same
-384x1024:1024x1024n"BERT:MM_1*3"
+--stag=ab --wtag=any --dtag=ab
+# MM_2, MM_3 and MM_6 are the same, but MM_6 with binary post-ops by default
+384x1024:1024x1024n"BERT:MM_1*96"
 
 --reset
 --skip-impl=ref
 --cfg=bf16bf16bf16 --stag=abcd --wtag=abdc --dtag=abcd
---attr-post-ops=add:bf16:per_mb_spatial 
-1x16x384x64:1x16x64x384n"BERT:MM_4"
+#--attr-post-ops=add:bf16:per_mb_spatial 
+1x16x384x64:1x16x64x384n"BERT:MM_4*24"
 
 --reset
 --skip-impl=ref
 --cfg=bf16bf16bf16 --stag=abcd --wtag=abcd --dtag=abcd  
-1x16x384x384:1x16x384x64n"BERT:MM_5"
+1x16x384x384:1x16x384x64n"BERT:MM_5*24"
+
+#--reset
+#--skip-impl=ref
+#--cfg=bf16bf16bf16 --bia_dt=bf16 --bia_mask=2
+#--attr-post-ops=add:bf16:per_tensor
+#384x1024:1024x1024n"BERT:MM_6"
 
 --reset
 --skip-impl=ref
 --cfg=bf16bf16bf16 --bia_dt=bf16 --bia_mask=2
---attr-post-ops=add:bf16:per_tensor
-384x1024:1024x1024n"BERT:MM_6"
+--stag=ab --wtag=any --dtag=ab
+384x1024:1024x4096n"BERT:MM_7*24"
 
 --reset
 --skip-impl=ref
 --cfg=bf16bf16bf16 --bia_dt=bf16 --bia_mask=2
-384x1024:1024x4096n"BERT:MM_7"
-
---reset
---skip-impl=ref
---cfg=bf16bf16bf16 --bia_dt=bf16 --bia_mask=2
---attr-post-ops=add:bf16:per_tensor
-384x4096:4096x1024n"BERT:MM_8"
+--stag=ab --wtag=any --dtag=ab
+#--attr-post-ops=add:bf16:per_tensor
+384x4096:4096x1024n"BERT:MM_8*24"

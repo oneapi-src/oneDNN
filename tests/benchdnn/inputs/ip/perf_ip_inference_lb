@@ -15,5 +15,9 @@
 --mb=1000 --batch=shapes_maskrcnn
 --mb=128 --batch=shapes_bert
 --mb=128 --batch=shapes_bert_large
---mb=128 --batch=shapes_rnn_t
+# mb = 16 * num_cores for rnn-t
+--mb=896 --batch=shapes_rnn_t
 --mb=2048 --batch=shapes_dlrm
+# TR-LT has 2 parts with different mb values dependign on num cores
+# please correct mb values in input list according ot description
+--mb=0 --batch=shapes_transformer_lt
