@@ -37,7 +37,7 @@ struct jit_uni_lstm_cell_postgemm_fwd
             const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
         : jit_uni_rnn_postgemm(rnn, pd)
         , jit_uni_lstm_cell_postgemm_t<isa>(
-                  this, 5 /*tmp_id_begin*/, bf16_emu_) {}
+                  this, 6 /*tmp_id_begin*/, static_cast<bool>(bf16_emu_)) {}
 
     ~jit_uni_lstm_cell_postgemm_fwd() = default;
 
@@ -152,7 +152,7 @@ protected:
 
         L_aligned(vector_loop_start_label, 64);
         {
-            const Vmm G0(1), G1(2), G2(4), G3(3);
+            const Vmm G0(1), G1(2), G2(4), G3(3), tmp_c_states(5);
             // load G0 G1 G2 G3
             uni_vmovups(G0, sg_addr(0));
             uni_vmovups(G1, sg_addr(1));
@@ -176,7 +176,6 @@ protected:
                     this->get_next_tmp_vmm(), 3 * rnn_.dhc, mask, true);
             this->vaddps_rhs_op_mem(G3, G3, B_addr(3));
 
-            const auto tmp_c_states = this->get_next_tmp_vmm();
             uni_vmovups(tmp_c_states, ptr[addr_c_states_tm1_l_reg]);
 
             // add peephole
@@ -208,7 +207,8 @@ protected:
 
             // compute c_states_t_l = G1 * c_tm1_l + G0 * G2
             uni_vmulps(tmp_c_states, tmp_c_states, G1);
-            uni_vfmadd231ps(tmp_c_states, G0, G2);
+            const auto tmp_g0 = this->vmm_backup(G0);
+            uni_vfmadd231ps(tmp_c_states, tmp_g0, G2);
             uni_vmovups(ptr[addr_c_states_t_l_reg], tmp_c_states);
 
             // add peephole
@@ -259,7 +259,7 @@ protected:
         // Same code as above, we just use vmovss for accessing inputs
         L_aligned(rem_loop_start_label, 64);
         {
-            const Xmm G0(1), G1(2), G2(4), G3(3);
+            const Xmm G0(1), G1(2), G2(4), G3(3), tmp_c_states(5);
             // load G0 G1 G2 G3
             uni_vmovss(G0, sg_addr(0));
             uni_vmovss(G1, sg_addr(1));
@@ -282,7 +282,6 @@ protected:
             this->vaddss_rhs_op_mem(G2, G2, B_addr(2));
             this->vaddss_rhs_op_mem(G3, G3, B_addr(3));
 
-            const auto tmp_c_states = this->get_next_tmp_xmm();
             uni_vmovss(tmp_c_states, ptr[addr_c_states_tm1_l_reg]);
 
             // add peephole
@@ -315,7 +314,8 @@ protected:
 
             // compute c_states_t_l = G1 * c_tm1_l + G0 * G2
             uni_vmulss(tmp_c_states, tmp_c_states, G1);
-            uni_vfmadd231ss(tmp_c_states, G0, G2);
+            const auto tmp_g0 = this->xmm_backup(G0);
+            uni_vfmadd231ss(tmp_c_states, tmp_g0, G2);
             uni_vmovss(ptr[addr_c_states_t_l_reg], tmp_c_states);
 
             // add peephole

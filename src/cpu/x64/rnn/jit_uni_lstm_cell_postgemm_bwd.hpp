@@ -17,6 +17,7 @@
 #ifndef CPU_X64_RNN_JIT_UNI_LSTM_CELL_POSTGEMM_BWD_HPP
 #define CPU_X64_RNN_JIT_UNI_LSTM_CELL_POSTGEMM_BWD_HPP
 
+#include <iostream>
 #include <memory>
 #include "common/utils.hpp"
 #include "cpu/x64/rnn/jit_uni_lstm_cell_postgemm.hpp"
@@ -38,7 +39,7 @@ struct jit_uni_lstm_cell_postgemm_bwd
             const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
         : jit_uni_rnn_postgemm(rnn, pd)
         , jit_uni_lstm_cell_postgemm_t<isa>(
-                  this, 11 /*tmp_id_begin*/, bf16_emu_) {}
+                  this, 11 /*tmp_id_begin*/, static_cast<bool>(bf16_emu_)) {}
     ~jit_uni_lstm_cell_postgemm_bwd() = default;
 
     status_t init(data_type_t sdt) override {
@@ -197,21 +198,25 @@ protected:
             to_float<src_data_t>(G0, wg_addr(0), vlen_);
             to_float<src_data_t>(dG2, wg_addr(2), vlen_);
             uni_vmovups(dG0, G0);
-            uni_vfnmadd231ps(dG0, G0, G0);
+            const auto tmp_g0 = this->vmm_backup(G0);
+            uni_vfnmadd231ps(dG0, tmp_g0, tmp_g0);
             uni_vmulps(dG0, dG0, dCt);
             uni_vmulps(dG0, dG0, dG2);
 
             // compute dG1
             to_float<src_data_t>(G1, wg_addr(1), vlen_);
             uni_vmovups(dG1, G1);
-            uni_vfnmadd231ps(dG1, G1, G1);
+            const auto tmp_g1 = this->vmm_backup(G1);
+            uni_vfnmadd231ps(dG1, tmp_g1, tmp_g1);
             uni_vmulps(dG1, dG1, dCt);
             this->vmulps_rhs_op_mem(dG1, dG1, ptr[addr_c_states_tm1_l_reg]);
 
             // compute dG2
             const auto tmp_dg2 = this->get_next_tmp_vmm();
             uni_vmovups(tmp_dg2, one_vmm);
-            uni_vfnmadd231ps(tmp_dg2, dG2, dG2);
+            const auto tmp_g2 = this->vmm_backup(dG2);
+
+            uni_vfnmadd231ps(tmp_dg2, tmp_g2, tmp_g2);
             uni_vmulps(G0, G0, dCt);
             uni_vmulps(tmp_dg2, tmp_dg2, G0);
             uni_vmovups(dG2, tmp_dg2);
@@ -303,21 +308,25 @@ protected:
             to_float<src_data_t>(dG2, wg_addr(2), hstate_dt_size_);
 
             uni_vmovss(dG0, G0);
-            uni_vfnmadd231ss(dG0, G0, G0);
+            const auto tmp_g0 = this->xmm_backup(G0);
+            uni_vfnmadd231ss(dG0, tmp_g0, tmp_g0);
             uni_vmulss(dG0, dG0, dCt);
             uni_vmulss(dG0, dG0, dG2);
 
             // compute dG1
             to_float<src_data_t>(G1, wg_addr(1), hstate_dt_size_);
+            const auto tmp_g1 = this->xmm_backup(G1);
             uni_vmovss(dG1, G1);
-            uni_vfnmadd231ss(dG1, G1, G1);
+            uni_vfnmadd231ss(dG1, tmp_g1, tmp_g1);
             uni_vmulss(dG1, dG1, dCt);
             this->vmulss_rhs_op_mem(dG1, dG1, ptr[addr_c_states_tm1_l_reg]);
 
             // compute dG2
             const auto tmp_dG2 = this->get_next_tmp_xmm();
             uni_vmovss(tmp_dG2, one_xmm);
-            uni_vfnmadd231ss(tmp_dG2, dG2, dG2);
+            const auto tmp_g2 = this->xmm_backup(dG2);
+
+            uni_vfnmadd231ss(tmp_dG2, tmp_g2, tmp_g2);
             uni_vmulss(G0, G0, dCt);
             uni_vmulss(tmp_dG2, tmp_dG2, G0);
             uni_vmovss(dG2, tmp_dG2);

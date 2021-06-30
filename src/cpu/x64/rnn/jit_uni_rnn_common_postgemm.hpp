@@ -613,7 +613,7 @@ protected:
     const rnn_utils::rnn_conf_t &rnn_;
     const rnn_pd_t *pd_;
     bool projection_;
-    bf16_emulation_t *bf16_emu_;
+    bf16_emulation_t *bf16_emu_ = nullptr;
 
     // registers/Labels used for int8 quantization and conversions
     Xbyak::Address dscale_off_addr;
