@@ -630,13 +630,17 @@ inline dnnl::memory make_memory(
     }
 #endif
 
-#if defined(TEST_DNNL_DPCPP_BUFFER)
+#if defined(TEST_DNNL_OCL_USM)
+    return dnnl::ocl_interop::make_memory(
+            md, eng, dnnl::ocl_interop::memory_kind::usm);
+#elif defined(TEST_DNNL_DPCPP_BUFFER)
     return dnnl::sycl_interop::make_memory(
             md, eng, dnnl::sycl_interop::memory_kind::buffer);
 #else
     return dnnl::memory(md, eng);
 #endif
 }
+
 inline dnnl::memory make_memory(
         const dnnl::memory::desc &md, const dnnl::engine &eng, void *handle) {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
@@ -645,7 +649,10 @@ inline dnnl::memory make_memory(
     }
 #endif
 
-#if defined(TEST_DNNL_DPCPP_BUFFER)
+#if defined(TEST_DNNL_OCL_USM)
+    return dnnl::ocl_interop::make_memory(
+            md, eng, dnnl::ocl_interop::memory_kind::usm, handle);
+#elif defined(TEST_DNNL_DPCPP_BUFFER)
     return dnnl::sycl_interop::make_memory(
             md, eng, dnnl::sycl_interop::memory_kind::buffer, handle);
 #else

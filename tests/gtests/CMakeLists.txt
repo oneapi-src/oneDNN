@@ -186,9 +186,15 @@ function(register_gtest exe src)
     string(REGEX REPLACE "-fsycl-host-compiler-options=\".*\""  "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 
     if(${exe} MATCHES "_buffer")
-        target_compile_definitions(${exe} PUBLIC -DTEST_DNNL_DPCPP_BUFFER)
+        if (DNNL_WITH_SYCL)
+            target_compile_definitions(${exe} PUBLIC -DTEST_DNNL_DPCPP_BUFFER)
+        endif()
         # Add a flag to build gtest with buffer support
         append_host_compiler_options(DPCPP_HOST_COMPILER_FLAGS "-DTEST_DNNL_DPCPP_BUFFER")
+    else()
+        if(DNNL_GPU_RUNTIME STREQUAL "OCL")
+            target_compile_definitions(${exe} PUBLIC -DTEST_DNNL_OCL_USM)
+        endif()
     endif()
 
     if (NOT no_engine_param)
@@ -231,8 +237,8 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
         register_gtest(${exe} ${TEST_FILE})
     endif()
 
-    # Create additional buffer targets for SYCL.
-    if(DNNL_WITH_SYCL)
+    # Create additional buffer targets for SYCL and OCL.
+    if(DNNL_WITH_SYCL OR DNNL_GPU_RUNTIME STREQUAL "OCL")
         register_gtest(${exe}_buffer ${TEST_FILE})
     endif()
 endforeach()
