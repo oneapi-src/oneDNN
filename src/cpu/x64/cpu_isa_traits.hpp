@@ -39,6 +39,7 @@
  * FIXME: replace size_t parameters with the appropriate ones */
 #pragma warning(disable : 4267)
 #endif
+#include "common/compiler_workarounds.hpp"
 #include "cpu/x64/xbyak/xbyak.h"
 #include "cpu/x64/xbyak/xbyak_util.h"
 
