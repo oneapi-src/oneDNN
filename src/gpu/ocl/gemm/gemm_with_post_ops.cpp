@@ -116,15 +116,12 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     def_offsets(bia_off, kernel_ctx, "BIA", ndims);
     bool with_bias = !bia_d.is_zero();
     bool is_int8 = src_md(1)->data_type == data_type::s8;
-    kernel_ctx.set_data_type(is_int8 ? data_type::f32 : c_type);
+    kernel_ctx.set_data_type(c_type);
     //here SRC is output tensor of gemm call
     def_data_type(kernel_ctx, desc()->acc_type, "SRC");
     def_data_type(
             kernel_ctx, is_int8 ? data_type::f32 : desc()->acc_type, "ACC");
-    def_data_type(kernel_ctx,
-            with_bias ? src_md(2)->data_type
-                      : is_int8 ? data_type::f32 : c_type,
-            "BIAS");
+    def_data_type(kernel_ctx, with_bias ? src_md(2)->data_type : c_type, "BIA");
     def_data_type(kernel_ctx, desc()->acc_type, "SPAD");
     def_data_type(kernel_ctx, c_type, "DST");
 

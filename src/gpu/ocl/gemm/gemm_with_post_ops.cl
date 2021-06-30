@@ -16,20 +16,20 @@
 #include "gpu/ocl/ocl_math_utils.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
-#ifdef DST_DT_F32
+#if defined(DST_DT_BF16)
+#define DST_TO_ACC(x) cvt_bf16_to_f32(x)
+#else
 #define DST_TO_ACC(x) (x)
-#else
-#define DST_TO_ACC(x) TO_DEF_ACC_DATA_T(x)
 #endif
-#ifdef BIAS_DT_F32
-#define BIAS_TO_ACC(x) (x)
+#if defined(BIA_DT_BF16)
+#define BIA_TO_ACC(x) cvt_bf16_to_f32(x)
 #else
-#define BIAS_TO_ACC(x) TO_DEF_ACC_DATA_T(x)
+#define BIA_TO_ACC(x) (x)
 #endif
-#ifdef SRC_DT_F32
+#if defined(SRC_DT_BF16)
+#define SRC_TO_ACC(x) cvt_bf16_to_f32(x)
+#else
 #define SRC_TO_ACC(x) (x)
-#else
-#define SRC_TO_ACC(x) TO_DEF_ACC_DATA_T(x)
 #endif
 #ifndef BIA_D2
 #define BIA_D2 1
@@ -46,10 +46,9 @@
 #elif BIA_NDIMS == 1
 #define BIA_OFF(x1, x0, d, h, w) (x0)
 #endif
-__kernel void gemm_post_ops(__global SRC_DATA_T *src,
-        __global BIAS_DATA_T *bias, __global DST_DATA_T *dst POST_OP_ARGS,
-        __global SPAD_DATA_T *scratchpad, global float *scales,
-        int scale_stride) {
+__kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
+        __global DST_DATA_T *dst POST_OP_ARGS, __global SPAD_DATA_T *scratchpad,
+        global float *scales, int scale_stride) {
     const uint mb = GWS_GET_MB();
     const uint oc = GWS_GET_OC();
     const uint mb2 = GWS_GET_MB2();
@@ -65,7 +64,7 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src,
 
 #if WITH_BIAS == 1
     const size_t bia_idx = BIA_OFF(mb, oc, 0, 0, 0);
-    acc += BIAS_TO_ACC(bias[bia_idx]);
+    acc += BIA_TO_ACC(bias[bia_idx]);
 #endif
 
 #if WITH_SCALES
