@@ -128,9 +128,8 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         reduce_to_unit_stride_t rtus_;
         jit_conv_conf_t *jcp_dw_; // doesn't own a resource
         std::unique_ptr<cpu_convolution_fwd_pd_t> dw_conv_pd_;
-        template <data_type_t sdt, data_type_t ddt>
-        using dw_pd_t = typename jit_avx512_core_x8s8s32x_convolution_fwd_t<sdt,
-                ddt>::pd_t;
+        using dw_pd_t =
+                typename jit_avx512_core_x8s8s32x_convolution_fwd_t::pd_t;
 
     protected:
         format_tag_t dat_tag() const {
@@ -157,34 +156,8 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                 dw_conv_pd_.reset(static_cast<cpu_convolution_fwd_pd_t *>(
                         other.dw_conv_pd_->clone()));
                 if (!dw_conv_pd_) return status::out_of_memory;
-#define CASE(sdt, ddt) \
-    case ddt: \
-        jcp_dw_ = &( \
-                static_cast<dw_pd_t<sdt, ddt> *>(dw_conv_pd_.get())->jcp_); \
-        break;
 
-                auto dw_dst_dt = dw_conv_pd_->dst_md()->data_type;
-                if (jcp_.dst_dt == data_type::u8) {
-                    switch (dw_dst_dt) {
-                        CASE(data_type::u8, data_type::u8);
-                        CASE(data_type::u8, data_type::s8);
-                        CASE(data_type::u8, data_type::s32);
-                        CASE(data_type::u8, data_type::f32);
-                        default: assert(!"unreachable");
-                    }
-                } else if (jcp_.dst_dt == data_type::s8) {
-                    switch (dw_dst_dt) {
-                        CASE(data_type::s8, data_type::u8);
-                        CASE(data_type::s8, data_type::s8);
-                        CASE(data_type::s8, data_type::s32);
-                        CASE(data_type::s8, data_type::f32);
-                        default: assert(!"unreachable");
-                    }
-                } else {
-                    assert(!"unreachable");
-                }
-
-#undef CASE
+                jcp_dw_ = &(static_cast<dw_pd_t *>(dw_conv_pd_.get())->jcp_);
             }
             return status::success;
         }
@@ -227,36 +200,11 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             CHECK(get_depthwise_conv_desc(
                     cd_dw, src_md, attr_1x1, attr_dw, dw_po_index));
 
-            auto dw_dst_dt = cd_dw.dst_desc.data_type;
-
-#define CASE(sdt, ddt) \
-    case ddt: { \
-        std::unique_ptr<dw_pd_t<sdt, ddt>> fusable_pd( \
-                new dw_pd_t<sdt, ddt>(&cd_dw, &attr_dw, nullptr)); \
-        CHECK(fusable_pd->init(engine)); \
-        jcp_dw_ = &(fusable_pd->jcp_); \
-        dw_conv_pd_ = std::move(fusable_pd); \
-        break; \
-    }
-            if (jcp_1x1.dst_dt == data_type::u8) {
-                switch (dw_dst_dt) {
-                    CASE(data_type::u8, data_type::u8);
-                    CASE(data_type::u8, data_type::s8);
-                    CASE(data_type::u8, data_type::s32);
-                    CASE(data_type::u8, data_type::f32);
-                    default: return status::unimplemented;
-                }
-            } else if (jcp_1x1.dst_dt == data_type::s8) {
-                switch (dw_dst_dt) {
-                    CASE(data_type::s8, data_type::u8);
-                    CASE(data_type::s8, data_type::s8);
-                    CASE(data_type::s8, data_type::s32);
-                    CASE(data_type::s8, data_type::f32);
-                    default: return status::unimplemented;
-                }
-            } else
-                return status::unimplemented;
-#undef CASE
+            std::unique_ptr<dw_pd_t> fusable_pd(
+                    new dw_pd_t(&cd_dw, &attr_dw, nullptr));
+            CHECK(fusable_pd->init(engine));
+            jcp_dw_ = &(fusable_pd->jcp_);
+            dw_conv_pd_ = std::move(fusable_pd);
 
             ok = true
                     && (dnnl_memory_desc_equal(&src_md, dw_conv_pd_->src_md(0)))
