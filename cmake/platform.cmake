@@ -250,6 +250,12 @@ elseif(UNIX OR MINGW)
         endif()
 
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+        # XXX: Suppress a warning that pops up when using a function pointer
+        # to an OpenCL function as a template argument (GCC Bugzilla – Bug 71463).
+        if (DNNL_GPU_RUNTIME STREQUAL "OCL")
+            append(CMAKE_CCXX_FLAGS "-Wno-ignored-attributes")
+        endif()
+
         if(DNNL_TARGET_ARCH STREQUAL "AARCH64")
              if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
                  set(DEF_ARCH_OPT_FLAGS "-O3")
