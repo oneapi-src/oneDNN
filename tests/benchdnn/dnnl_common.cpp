@@ -93,7 +93,7 @@ size_t engine_index = 0;
 // CPU ISA specific hints : none by default
 isa_hints_t hints {isa_hints_t::none};
 
-sycl_memory_kind_ext_t sycl_memory_kind {sycl_memory_kind_ext_t::usm};
+memory_kind_ext_t memory_kind {memory_kind_ext_t::usm};
 
 void init_isa_settings() {
     if (hints.get() == isa_hints_t::no_hints)
@@ -720,9 +720,9 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     return OK;
 }
 
-sycl_memory_kind_ext_t str2sycl_memory_kind(const char *str) {
+memory_kind_ext_t str2memory_kind(const char *str) {
 #define CASE(param) \
-    if (!strcasecmp(#param, str)) return sycl_memory_kind_ext_t::param
+    if (!strcasecmp(#param, str)) return memory_kind_ext_t::param
 
     CASE(usm);
     CASE(buffer);
@@ -732,7 +732,7 @@ sycl_memory_kind_ext_t str2sycl_memory_kind(const char *str) {
 #undef CASE
 
     assert(!"not expected");
-    return sycl_memory_kind_ext_t::usm;
+    return memory_kind_ext_t::usm;
 }
 
 engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {

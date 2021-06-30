@@ -109,7 +109,7 @@ int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr) {
 int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
 #ifdef DNNL_WITH_SYCL
     if (is_nvidia_gpu(engine_)) {
-        // USM is not supported with Nvidia so ignore sycl_memory_kind and
+        // USM is not supported with Nvidia so ignore memory_kind and
         // force SYCL buffers.
         DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine_,
                          dnnl_sycl_interop_buffer, handle_info.ptr),
@@ -118,33 +118,33 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
     }
 
     if (handle_info.is_host_ptr) {
-        // Ignore sycl_memory_kind with host pointers and force USM.
+        // Ignore memory_kind with host pointers and force USM.
         DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine_,
                          dnnl_sycl_interop_usm, handle_info.ptr),
                 CRIT);
         return OK;
     }
 
-    switch (sycl_memory_kind) {
-        case sycl_memory_kind_ext_t::usm:
+    switch (memory_kind) {
+        case memory_kind_ext_t::usm:
             DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine_,
                              dnnl_sycl_interop_usm, handle_info.ptr),
                     CRIT);
             break;
-        case sycl_memory_kind_ext_t::buffer:
+        case memory_kind_ext_t::buffer:
             DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine_,
                              dnnl_sycl_interop_buffer, handle_info.ptr),
                     CRIT);
             break;
-        case sycl_memory_kind_ext_t::usm_device:
-        case sycl_memory_kind_ext_t::usm_shared: {
+        case memory_kind_ext_t::usm_device:
+        case memory_kind_ext_t::usm_shared: {
             SAFE(handle_info.is_allocate() ? OK : FAIL, CRIT);
             is_data_owner_ = true;
             size_t sz = dnnl_memory_desc_get_size(&md_);
             auto eng = dnnl::engine(engine_, true);
             auto dev = dnnl::sycl_interop::get_device(eng);
             auto ctx = dnnl::sycl_interop::get_context(eng);
-            if (sycl_memory_kind == sycl_memory_kind_ext_t::usm_device) {
+            if (memory_kind == memory_kind_ext_t::usm_device) {
                 data_ = cl::sycl::malloc_device(sz, dev, ctx);
             } else {
                 data_ = cl::sycl::malloc_shared(sz, dev, ctx);
@@ -193,9 +193,9 @@ int dnn_mem_t::initialize_memory_create(const handle_info_t &handle_info) {
 
 int dnn_mem_t::cleanup_sycl() {
 #ifdef DNNL_WITH_SYCL
-    switch (sycl_memory_kind) {
-        case sycl_memory_kind_ext_t::usm_device:
-        case sycl_memory_kind_ext_t::usm_shared: {
+    switch (memory_kind) {
+        case memory_kind_ext_t::usm_device:
+        case memory_kind_ext_t::usm_shared: {
             auto eng = dnnl::engine(engine_, true);
             auto ctx = dnnl::sycl_interop::get_context(eng);
             cl::sycl::free(data_, ctx);
