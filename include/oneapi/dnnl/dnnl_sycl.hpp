@@ -51,7 +51,7 @@ namespace sycl_interop {
 
 /// Memory allocation kind.
 enum class memory_kind {
-    /// USM (device, shared, host, or unknown) memory allocation kind.
+    /// USM (device, shared, host, or unknown) memory allocation kind - default.
     usm = dnnl_sycl_interop_usm,
     /// Buffer memory allocation kind.
     buffer = dnnl_sycl_interop_buffer,

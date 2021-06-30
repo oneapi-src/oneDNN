@@ -34,7 +34,7 @@ extern "C" {
 typedef enum {
     /// USM (device, shared, host, or unknown) memory allocation kind.
     dnnl_ocl_interop_usm,
-    /// Buffer memory allocation kind.
+    /// Buffer memory allocation kind - default.
     dnnl_ocl_interop_buffer,
 } dnnl_ocl_interop_memory_kind_t;
 

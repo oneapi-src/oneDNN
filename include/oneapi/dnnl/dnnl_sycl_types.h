@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ extern "C" {
 
 /// Memory allocation kind.
 typedef enum {
-    /// USM (device, shared, host, or unknown) memory allocation kind.
+    /// USM (device, shared, host, or unknown) memory allocation kind - default.
     dnnl_sycl_interop_usm,
     /// Buffer memory allocation kind.
     dnnl_sycl_interop_buffer,

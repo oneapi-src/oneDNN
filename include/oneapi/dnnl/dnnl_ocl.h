@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@
 #define ONEAPI_DNNL_DNNL_OCL_H
 
 #include "oneapi/dnnl/dnnl.h"
+
+#include "oneapi/dnnl/dnnl_ocl_types.h"
 
 /// @cond DO_NOT_DOCUMENT_THIS
 // Set target version for OpenCL explicitly to suppress a compiler warning.
@@ -40,6 +42,49 @@ extern "C" {
 
 /// @addtogroup dnnl_api_ocl_interop
 /// @{
+
+/// Creates a memory object.
+///
+/// Unless @p handle is equal to DNNL_MEMORY_NONE or DNNL_MEMORY_ALLOCATE, the
+/// constructed memory object will have the underlying buffer set. In this
+/// case, the buffer will be initialized as if:
+/// - dnnl_memory_set_data_handle() has been called, if @p memory_kind is equal
+///   to dnnl_ocl_interop_usm, or
+/// - dnnl_ocl_interop_memory_set_mem_object() has been called, if @p memory_kind
+///   is equal to dnnl_ocl_interop_buffer.
+///
+/// @param memory Output memory object.
+/// @param memory_desc Memory descriptor.
+/// @param engine Engine to use.
+/// @param memory_kind Memory allocation kind to specify the type of handle.
+/// @param handle Handle of the memory buffer to use as an underlying storage.
+///     - A USM pointer to the user-allocated buffer. In this case the library
+///       doesn't own the buffer. Requires @p memory_kind to be equal to
+///       dnnl_ocl_interop_usm.
+///     - An OpenCL buffer. In this case the library doesn't own the buffer.
+///       Requires @p memory_kind be equal to be equal to dnnl_ocl_interop_buffer.
+///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+///       allocate the buffer that corresponds to the memory allocation kind
+///       @p memory_kind for the memory object. In this case the library
+///       owns the buffer.
+///     - The DNNL_MEMORY_NONE specific value. Instructs the library to
+///       create memory object without an underlying buffer.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ocl_interop_memory_create(dnnl_memory_t *memory,
+        const dnnl_memory_desc_t *memory_desc, dnnl_engine_t engine,
+        dnnl_ocl_interop_memory_kind_t memory_kind, void *handle);
+
+/// Returns the memory allocation kind associated with a memory object.
+///
+/// @param memory Memory to query.
+/// @param memory_kind Output underlying memory allocation kind of the memory
+///     object.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ocl_interop_memory_get_memory_kind(
+        const_dnnl_memory_t memory,
+        dnnl_ocl_interop_memory_kind_t *memory_kind);
 
 /// Returns an OpenCL memory object associated with a memory object.
 ///

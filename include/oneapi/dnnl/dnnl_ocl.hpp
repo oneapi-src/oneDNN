@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,6 +50,22 @@ namespace dnnl {
 
 /// OpenCL interoperability namespace
 namespace ocl_interop {
+
+/// Memory allocation kind.
+enum class memory_kind {
+    /// USM (device, shared, host, or unknown) memory allocation kind.
+    usm = dnnl_ocl_interop_usm,
+    /// Buffer memory allocation kind - default.
+    buffer = dnnl_ocl_interop_buffer,
+};
+
+/// Converts a memory allocation kind enum value from C++ API to C API type.
+///
+/// @param akind C++ API memory allocation kind enum value.
+/// @returns Corresponding C API memory allocation kind enum value.
+inline dnnl_ocl_interop_memory_kind_t convert_to_c(memory_kind akind) {
+    return static_cast<dnnl_ocl_interop_memory_kind_t>(akind);
+}
 
 /// Constructs an engine from OpenCL device and context objects.
 ///
@@ -137,6 +153,72 @@ inline void set_mem_object(memory &amemory, cl_mem mem_object) {
     error::wrap_c_api(
             dnnl_ocl_interop_memory_set_mem_object(amemory.get(), mem_object),
             "could not set OpenCL buffer object from a memory object");
+}
+
+/// Returns the memory allocation kind associated with a memory object.
+///
+/// @param amemory A memory object.
+///
+/// @returns The underlying memory allocation kind of the memory object.
+inline memory_kind get_memory_kind(const memory &amemory) {
+    dnnl_ocl_interop_memory_kind_t ckind;
+    error::wrap_c_api(
+            dnnl_ocl_interop_memory_get_memory_kind(amemory.get(), &ckind),
+            "could not get memory kind");
+    return static_cast<memory_kind>(ckind);
+}
+
+/// Creates a memory object.
+///
+/// Unless @p handle is equal to DNNL_MEMORY_NONE or DNNL_MEMORY_ALLOCATE, the
+/// constructed memory object will have the underlying buffer set. In this
+/// case, the buffer will be initialized as if:
+/// - dnnl::memory::set_data_handle() had been called, if @p memory_kind is
+///   equal to dnnl::ocl_interop::memory_kind::usm, or
+/// - dnnl::ocl_interop::set_mem_object() has been called, if @p memory_kind is
+///   equal to dnnl::ocl_interop::memory_kind::buffer.
+///
+/// @param memory_desc Memory descriptor.
+/// @param aengine Engine to use.
+/// @param kind Memory allocation kind to specify the type of handle.
+/// @param handle Handle of the memory buffer to use as an underlying storage.
+///     - A USM pointer to the user-allocated buffer. In this case the library
+///       doesn't own the buffer. Requires @p memory_kind to be equal to
+///       dnnl::ocl_interop::memory_kind::usm.
+///     - An OpenCL buffer. In this case the library doesn't own the buffer.
+///       Requires @p memory_kind be equal to be equal to
+///       dnnl::ocl_interop::memory_kind::buffer.
+///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+///       allocate the buffer that corresponds to the memory allocation kind
+///       @p memory_kind for the memory object. In this case the library
+///       owns the buffer.
+///     - The DNNL_MEMORY_NONE specific value. Instructs the library to
+///       create memory object without an underlying buffer.
+///
+/// @returns Created memory object.
+inline memory make_memory(const memory::desc &memory_desc,
+        const engine &aengine, memory_kind kind,
+        void *handle = DNNL_MEMORY_ALLOCATE) {
+    dnnl_memory_t c_memory;
+    error::wrap_c_api(
+            dnnl_ocl_interop_memory_create(&c_memory, &memory_desc.data,
+                    aengine.get(), convert_to_c(kind), handle),
+            "could not create a memory");
+    return memory(c_memory);
+}
+
+/// Constructs a memory object from an OpenCL buffer.
+///
+/// @param memory_desc Memory descriptor.
+/// @param aengine Engine to use.
+/// @param abuffer An OpenCL buffer to use.
+///
+/// @returns Created memory object.
+inline memory make_memory(const memory::desc &memory_desc,
+        const engine &aengine, cl_mem mem_object) {
+    memory amemory(memory_desc, aengine, DNNL_MEMORY_NONE);
+    set_mem_object(amemory, mem_object);
+    return amemory;
 }
 
 } // namespace ocl_interop
