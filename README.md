@@ -175,7 +175,7 @@ is enabled:
 * OpenCL runtime requires
     * OpenCL\* runtime library (OpenCL version 1.2 or later)
     * OpenCL driver (with kernel language support for OpenCL C 2.0 or later)
-      with Intel subgroups extension support
+      with Intel subgroups and USM extensions support
 * DPCPP runtime requires
     * [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
     * OpenCL runtime library (OpenCL version 1.2 or later)
