@@ -96,6 +96,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && IMPLICATION(with_bias(),
                             (d->bias_type() == d->c_type())
                                     && utils::one_of(
+                                            d->bias_type(), f32, bf16, f16)
+                                    && utils::one_of(
                                             bias_cmask(), 0, 1 << 0, 1 << 1))
                     && compute_engine->mayiuse_ngen_kernels()
                     && attr()->has_default_values(attr_skip_mask)
