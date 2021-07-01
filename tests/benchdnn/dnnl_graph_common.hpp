@@ -51,7 +51,7 @@ std::string convert_tag(const std::string &tag, bool activation_tag = true);
 dims_t convert_bin_policy(const dims_t &lhs_dims, const attr_t::policy_t policy,
         const std::string &data_format);
 std::map<std::string, float> convert_eltw_entry(
-        const dnnl::graph::op::kind kind,
+        const dnnl::graph::op::kind op_kind,
         const attr_t::post_ops_t::entry_t &entry);
 bool should_handle_swish(struct graph_prb_t &p, const dnnl_alg_kind_t kind);
 

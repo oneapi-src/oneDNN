@@ -16,34 +16,14 @@
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
+#include "compare.hpp"
+#include "dnnl_graph_common.hpp"
+
 #include "binary/binary.hpp"
 #include "binary/graph_binary.hpp"
 
-#include "compare.hpp"
-
-#include "dnnl_graph_common.hpp"
-
 namespace benchdnnext {
 namespace binary {
-
-void check_broadcast_rules(const ::binary::prb_t *prb, res_t *res) {
-    auto src0_dims = prb->sdims[0];
-    auto src1_dims = prb->sdims[1];
-
-    // General broadcast rules:
-    // Two dimensions are compatible when
-    // 1) they are equal, or
-    // 2) one of them is 1
-    for (auto d = 0; d < prb->ndims[0]; ++d) {
-        if (src0_dims[d] == src1_dims[d] || src0_dims[d] == 1
-                || src1_dims[d] == 1) {
-            continue;
-        } else {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
-}
 
 binary_graph_prb_t::spec_t::spec_t(const ::binary::prb_t *prb) {
     src0_dims = prb->sdims[0];
@@ -62,40 +42,26 @@ binary_graph_prb_t::spec_t::spec_t(const ::binary::prb_t *prb) {
     src1_tag = convert_tag(prb->stag[1]);
     dst_tag = convert_tag(prb->dtag);
 
-    alg = convert_alg_kind(attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
+    op_kind = convert_alg_kind(attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
 }
 
-fill_status_t binary_graph_prb_t::handle_main_op_() {
-    const std::string SRC0 {"bin_src0"};
-    const std::string SRC1 {"bin_src1"};
-    const std::string DST {"bin_dst"};
+void check_broadcast_rules(const ::binary::prb_t *prb, res_t *res) {
+    auto src0_dims = prb->sdims[0];
+    auto src1_dims = prb->sdims[1];
 
-    tensor_descs_.emplace(SRC0, spec_.src0_dt, spec_.src0_dims, lt::strided);
-    tensor_descs_.emplace(SRC1, spec_.src1_dt, spec_.src1_dims, lt::strided);
-    tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, lt::strided);
-
-    const size_t new_op_id = ops_.size();
-
-    dnnl::graph::op binary(new_op_id, spec_.alg,
-            {tensor_descs_[SRC0], tensor_descs_[SRC1]}, {tensor_descs_[DST]},
-            "binary");
-
-    binary.set_attr("auto_broadcast", spec_.auto_broadcast);
-    binary.set_attr("backend", spec_.backend);
-
-    ops_.emplace_back(binary);
-    curr_out_map_ids_.assign({DST});
-
-    return fill_status::DONE;
-}
-
-fill_status_t binary_graph_prb_t::handle_elt_(
-        const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.binary.eltw_handler(*this, po_entry);
-}
-
-fill_status_t binary_graph_prb_t::handle_sum_() {
-    return po_handler.binary.sum_handler(*this);
+    // General broadcast rules:
+    // Two dimensions are compatible when
+    // 1) they are equal, or
+    // 2) one of them is 1
+    for (auto d = 0; d < prb->ndims[0]; ++d) {
+        if (src0_dims[d] == src1_dims[d] || src0_dims[d] == 1
+                || src1_dims[d] == 1) {
+            continue;
+        } else {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
 }
 
 void check_known_skipped_case_graph(const ::binary::prb_t *prb, res_t *res) {
@@ -121,32 +87,61 @@ void check_known_skipped_case_graph(const ::binary::prb_t *prb, res_t *res) {
     }
 }
 
+fill_status_t binary_graph_prb_t::handle_main_op_() {
+    const std::string SRC0 {"bin_src0"};
+    const std::string SRC1 {"bin_src1"};
+    const std::string DST {"bin_dst"};
+
+    tensor_descs_.emplace(SRC0, spec_.src0_dt, spec_.src0_dims, lt::strided);
+    tensor_descs_.emplace(SRC1, spec_.src1_dt, spec_.src1_dims, lt::strided);
+    tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, lt::strided);
+
+    const size_t new_op_id = ops_.size();
+
+    dnnl::graph::op binary(new_op_id, spec_.op_kind,
+            {tensor_descs_[SRC0], tensor_descs_[SRC1]}, {tensor_descs_[DST]},
+            "binary");
+
+    binary.set_attr("auto_broadcast", spec_.auto_broadcast);
+    binary.set_attr("backend", spec_.backend);
+
+    ops_.emplace_back(binary);
+    curr_out_map_ids_.assign({DST});
+
+    return fill_status::DONE;
+}
+
+fill_status_t binary_graph_prb_t::handle_elt_(
+        const attr_t::post_ops_t::entry_t &po_entry) {
+    return po_handler.binary.eltw_handler(*this, po_entry);
+}
+
+fill_status_t binary_graph_prb_t::handle_sum_() {
+    return po_handler.binary.sum_handler(*this);
+}
+
 int doit(const ::binary::prb_t *prb, res_t *res) {
     using dt = dnnl::graph::logical_tensor::data_type;
-
     res->impl_name = "graph";
-    if (bench_mode == LIST) return res->state = LISTED, OK;
 
+    if (bench_mode == LIST) return res->state = LISTED, OK;
     ::binary::check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
-
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
-
     check_broadcast_rules(prb, res);
     if (res->state == SKIPPED) return OK;
 
     binary_graph_prb_t graph_prb(prb);
-
     if (graph_prb.ctor_status != fill_status::DONE
             && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto g = graph_prb.to_graph();
+    auto graph_h = graph_prb.to_graph();
 
     // Filter partitions
-    auto partitions = g.get_partitions();
+    const auto partitions = graph_h.get_partitions();
     if (partitions.empty() || partitions.size() > 1)
         return res->state = FAILED, FAIL;
 
@@ -178,16 +173,16 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
     dnnl::graph::tensor dst_tensor(outs[0], static_cast<void *>(dst_dt));
     dnnl::graph::tensor sum_src1_tensor;
 
-    std::vector<dnnl::graph::tensor> in_tensors {src0_tensor, src1_tensor};
-    std::vector<dnnl::graph::tensor> out_tensors {dst_tensor};
+    std::vector<dnnl::graph::tensor> tensors_in {src0_tensor, src1_tensor};
+    std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};
 
     if (graph_prb.has_post_sum()) {
         sum_src1_tensor
                 = dnnl::graph::tensor(ins.back(), static_cast<void *>(dst_dt));
-        in_tensors.push_back(sum_src1_tensor);
+        tensors_in.emplace_back(sum_src1_tensor);
     }
 
-    SAFE(execute_and_wait(cp, in_tensors, out_tensors), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
     if (is_bench_mode(CORR)) {
         ::binary::compute_ref(prb, src0_fp, src1_fp, binary_po_fp, dst_fp);
@@ -207,7 +202,7 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    measure_perf(res->timer, cp, in_tensors, out_tensors);
+    measure_perf(res->timer, cp, tensors_in, tensors_out);
 
     return OK;
 }

@@ -13,11 +13,12 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
 #ifndef GRAPH_REORDER_HPP
 #define GRAPH_REORDER_HPP
 
 #include "dnnl_graph_common.hpp"
-#include "reorder.hpp"
+#include "reorder/reorder.hpp"
 
 namespace benchdnnext {
 namespace reorder {
@@ -37,23 +38,31 @@ struct reorder_graph_prb_t : public graph_prb_t {
     };
     fill_status_t ctor_status;
 
+private:
     struct spec_t {
         spec_t(const ::reorder::prb_t *prb);
         dims_t dims;
         dt src_dt;
         dt dst_dt;
-        std::string stag;
-        std::string dtag;
+        std::string src_tag;
+        std::string dst_tag;
     };
+
     spec_t spec_;
+
     fill_status_t handle_main_op_(std::string tag_in, std::string tag_out);
+
     dnnl::graph::op::kind get_main_op_kind() const override {
         return dnnl::graph::op::kind::Reorder;
     }
+
+public:
+    const struct spec_t spec() const { return spec_; }
 };
 
 int doit(const ::reorder::prb_t *prb, res_t *res);
 
 } // namespace reorder
 } // namespace benchdnnext
+
 #endif

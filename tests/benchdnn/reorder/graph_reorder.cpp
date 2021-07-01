@@ -14,8 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "graph_reorder.hpp"
 #include "compare.hpp"
+
+#include "reorder/graph_reorder.hpp"
 
 namespace benchdnnext {
 namespace reorder {
@@ -24,8 +25,13 @@ reorder_graph_prb_t::spec_t::spec_t(const ::reorder::prb_t *prb) {
     dims = prb->reorder.dims;
     src_dt = convert_dt(prb->conf_in->dt);
     dst_dt = convert_dt(prb->conf_out->dt);
-    stag = convert_tag(prb->reorder.tag_in);
-    dtag = convert_tag(prb->reorder.tag_out);
+    src_tag = convert_tag(prb->reorder.tag_in);
+    dst_tag = convert_tag(prb->reorder.tag_out);
+}
+
+void check_known_graph_skipped_case(const ::reorder::prb_t *prb, res_t *res) {
+    if (prb->conf_in->dt != prb->conf_out->dt) { res->state = SKIPPED; }
+    return;
 }
 
 fill_status_t reorder_graph_prb_t::handle_main_op_(
@@ -43,15 +49,11 @@ fill_status_t reorder_graph_prb_t::handle_main_op_(
 
     op reorder_op(ops_.size(), op::kind::Reorder, {tensor_descs_[SRC]},
             {tensor_descs_[DST]}, "reorder");
+
     ops_.emplace_back(reorder_op);
     curr_out_map_ids_.assign({"reorder_dst"});
 
     return fill_status::DONE;
-}
-
-void check_known_graph_skipped_case(const ::reorder::prb_t *prb, res_t *res) {
-    if (prb->conf_in->dt != prb->conf_out->dt) { res->state = SKIPPED; }
-    return;
 }
 
 int doit(const ::reorder::prb_t *prb, res_t *res) {
@@ -71,6 +73,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     }
 
     auto graph_h = graph_prb.to_graph();
+    auto spec = graph_prb.spec();
 
     const auto partitions = graph_h.get_partitions();
     if (partitions.empty() || partitions.size() > 1)
@@ -85,14 +88,14 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     const auto &e = benchdnnext::get_test_engine();
     auto cp = par.compile(ins, outs, e);
 
-    dnn_mem_t src_fp = make_dnn_mem(
-            ins[0], graph_prb.spec_.src_dt, (prb->reorder.tag_in).c_str());
+    auto src_fp
+            = make_dnn_mem(ins[0], spec.src_dt, (prb->reorder.tag_in).c_str());
     // we need src_fp for proper comparison, => no in-place reference
-    dnn_mem_t dst_fp = make_dnn_mem(
-            outs[0], graph_prb.spec_.dst_dt, (prb->reorder.tag_out).c_str());
+    auto dst_fp = make_dnn_mem(
+            outs[0], spec.dst_dt, (prb->reorder.tag_out).c_str());
 
-    dnn_mem_t src_dt = make_dnn_mem(ins[0], (prb->reorder.tag_in).c_str());
-    dnn_mem_t dst_dt = make_dnn_mem(outs[0], (prb->reorder.tag_out).c_str());
+    auto src_dt = make_dnn_mem(ins[0], (prb->reorder.tag_in).c_str());
+    auto dst_dt = make_dnn_mem(outs[0], (prb->reorder.tag_out).c_str());
 
     //TODO: need to extend for post ops
     SAFE(fill_memory(prb, SRC, src_fp), WARN);
@@ -102,9 +105,9 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
 
     std::vector<dnnl::graph::tensor> tensors_in;
     std::vector<dnnl::graph::tensor> tensors_out;
-    tensors_in.push_back(
+    tensors_in.emplace_back(
             dnnl::graph::tensor(ins[0], static_cast<void *>(src_dt)));
-    tensors_out.push_back(
+    tensors_out.emplace_back(
             dnnl::graph::tensor(outs[0], static_cast<void *>(dst_dt)));
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
@@ -113,14 +116,10 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
         //TODO: do we need runtime compensation??
         SAFE(ref_reorder(prb, dst_fp, src_fp), WARN);
 
-        using cmp_t = compare::compare_t;
-        cmp_t cmp;
-        const bool has_s32 = graph_prb.spec_.src_dt == dt::s32
-                || graph_prb.spec_.dst_dt == dt::s32;
-        const bool has_s8 = graph_prb.spec_.src_dt == dt::s8
-                || graph_prb.spec_.dst_dt == dt::s8;
-        const bool has_u8 = graph_prb.spec_.src_dt == dt::u8
-                || graph_prb.spec_.dst_dt == dt::u8;
+        compare::compare_t cmp;
+        const bool has_s32 = spec.src_dt == dt::s32 || spec.dst_dt == dt::s32;
+        const bool has_s8 = spec.src_dt == dt::s8 || spec.dst_dt == dt::s8;
+        const bool has_u8 = spec.src_dt == dt::u8 || spec.dst_dt == dt::u8;
         if (has_u8)
             cmp.set_zero_trust_percent(58.f); // 4/7 inputs becomes 0
         else if (has_s32 || has_s8)

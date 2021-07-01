@@ -18,7 +18,7 @@
 #define GRAPH_ELTWISE_HPP
 
 #include "dnnl_graph_common.hpp"
-#include "eltwise.hpp"
+#include "eltwise/eltwise.hpp"
 
 namespace benchdnnext {
 namespace eltwise {
@@ -48,6 +48,7 @@ struct eltwise_graph_prb_t : public graph_prb_t {
     };
     fill_status_t ctor_status;
 
+private:
     struct spec_t {
         spec_t(const ::eltwise::prb_t *prb);
 
@@ -57,16 +58,20 @@ struct eltwise_graph_prb_t : public graph_prb_t {
         dnnl::graph::op::kind op_kind;
         std::string dst_tag;
     };
+
     spec_t spec_;
     po_handlers_t po_handler;
+
     fill_status_t handle_main_op_();
+    fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
+
     dnnl::graph::op::kind get_main_op_kind() const override {
         return spec_.op_kind;
     }
-    fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
 };
 
 int doit(const ::eltwise::prb_t *prb, res_t *res);
+
 } // namespace eltwise
 } // namespace benchdnnext
 

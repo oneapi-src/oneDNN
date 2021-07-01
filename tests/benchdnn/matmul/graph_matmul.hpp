@@ -17,9 +17,8 @@
 #ifndef GRAPH_MATMUL_HPP
 #define GRAPH_MATMUL_HPP
 
-#include "matmul.hpp"
-
 #include "dnnl_graph_common.hpp"
+#include "matmul/matmul.hpp"
 
 namespace benchdnnext {
 namespace matmul {
@@ -56,11 +55,6 @@ struct matmul_graph_prb_t : public graph_prb_t {
 
         ctor_status = fill_status::DONE;
     };
-
-    dnnl::graph::op::kind get_main_op_kind() const override {
-        return dnnl::graph::op::kind::MatMul;
-    }
-
     fill_status_t ctor_status;
 
 private:
@@ -92,6 +86,10 @@ private:
     fill_status_t handle_sum_();
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
+
+    dnnl::graph::op::kind get_main_op_kind() const override {
+        return dnnl::graph::op::kind::MatMul;
+    }
 };
 
 dims_t get_runtime_dims(const dims_t &dims, const ::matmul::dims_mask_t &mask);

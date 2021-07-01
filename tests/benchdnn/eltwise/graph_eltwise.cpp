@@ -14,9 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "eltwise/graph_eltwise.hpp"
-#include "binary/binary.hpp"
 #include "compare.hpp"
+
+#include "binary/binary.hpp"
+#include "eltwise/graph_eltwise.hpp"
 
 namespace benchdnnext {
 namespace eltwise {
@@ -104,16 +105,16 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
 
     static const engine_t cpu_engine(dnnl_cpu);
 
-    dnn_mem_t src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
+    auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     // we need src_fp for proper comparison, => no in-place reference
-    dnn_mem_t dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
+    auto dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
 
     dnn_mem_t placeholder_dst_dt;
     if (!prb->inplace) {
         placeholder_dst_dt = make_dnn_mem(outs[0], (prb->tag).c_str());
     }
 
-    dnn_mem_t src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
+    auto src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
     dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
     // eltwise operator supports only relu-add (single binary post-op)
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
@@ -157,13 +158,13 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
 
     std::vector<dnnl::graph::tensor> tensors_in;
     std::vector<dnnl::graph::tensor> tensors_out;
-    tensors_in.push_back(
+    tensors_in.emplace_back(
             dnnl::graph::tensor(ins[0], static_cast<void *>(src_dt)));
-    tensors_out.push_back(
+    tensors_out.emplace_back(
             dnnl::graph::tensor(outs[0], static_cast<void *>(dst_dt)));
 
     if (graph_prb.has_post_bin()) {
-        tensors_in.push_back(dnnl::graph::tensor(
+        tensors_in.emplace_back(dnnl::graph::tensor(
                 ins.back(), static_cast<void *>(binary_po_dt.back())));
     }
 

@@ -17,7 +17,7 @@
 #ifndef GRAPH_BNOM_HPP
 #define GRAPH_BNOM_HPP
 
-#include "bnorm.hpp"
+#include "bnorm/bnorm.hpp"
 #include "dnnl_graph_common.hpp"
 
 namespace benchdnnext {
@@ -43,8 +43,8 @@ struct bnorm_graph_prb_t : public graph_prb_t {
         ctor_status = fill_status::DONE;
     };
     fill_status_t ctor_status;
-    dnnl_dims_t ss_fp_dims;
 
+private:
     struct spec_t {
         spec_t(const ::bnorm::prb_t *prb);
         float epsilon {0.00001f};
@@ -54,14 +54,18 @@ struct bnorm_graph_prb_t : public graph_prb_t {
         dt bnorm_dt;
         std::string tag;
     };
+
     spec_t spec_;
     po_handlers_t po_handler;
+
     fill_status_t handle_main_op_();
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
+
     dnnl::graph::op::kind get_main_op_kind() const override {
         return dnnl::graph::op::kind::BatchNormInference;
     }
 };
+
 int doit(const ::bnorm::prb_t *prb, res_t *res);
 
 } // namespace bnorm

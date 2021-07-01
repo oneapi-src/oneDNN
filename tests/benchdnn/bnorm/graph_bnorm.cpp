@@ -14,20 +14,19 @@
  * * limitations under the License.
  * *******************************************************************************/
 
-#include <string>
-#include <vector>
-
 #include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl_graph_buildin_ops.h"
 
-#include "tests/test_thread.hpp"
-
-#include "bnorm/bnorm.hpp"
-#include "bnorm/graph_bnorm.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_graph_common.hpp"
 #include "dnnl_memory.hpp"
+
+#include "bnorm/bnorm.hpp"
+#include "bnorm/graph_bnorm.hpp"
 #include "norm.hpp"
+
+#include <string>
+#include <vector>
 
 namespace benchdnnext {
 namespace bnorm {
@@ -50,6 +49,20 @@ bnorm_graph_prb_t::spec_t::spec_t(const ::bnorm::prb_t *prb) {
     bnorm_dt = convert_dt(prb->dt);
     epsilon = prb->eps;
     tag = prb->tag;
+}
+
+void check_known_skipped_case(const ::bnorm::prb_t *prb, res_t *res) {
+    check_known_skipped_case_common({prb->dt}, prb->dir, res);
+    if (res->state == SKIPPED) return;
+
+    for (const auto &po : prb->attr.post_ops.entry) {
+        if (po.kind == attr_t::post_ops_t::RELU) {
+            continue;
+        } else {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
 }
 
 fill_status_t bnorm_graph_prb_t::handle_main_op_() {
@@ -89,20 +102,6 @@ fill_status_t bnorm_graph_prb_t::handle_elt_(
     return po_handler.bnorm.eltw_handler(*this, po_entry);
 }
 
-void check_known_skipped_case(const ::bnorm::prb_t *prb, res_t *res) {
-    check_known_skipped_case_common({prb->dt}, prb->dir, res);
-    if (res->state == SKIPPED) return;
-
-    for (const auto &po : prb->attr.post_ops.entry) {
-        if (po.kind == attr_t::post_ops_t::RELU) {
-            continue;
-        } else {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
-}
-
 int doit(const ::bnorm::prb_t *prb, res_t *res) {
     using dt = dnnl::graph::logical_tensor::data_type;
     res->impl_name = "graph";
@@ -118,6 +117,7 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     }
 
     auto graph_h = graph_prb.to_graph();
+
     const auto partitions = graph_h.get_partitions();
     if (partitions.empty() || partitions.size() > 1)
         return res->state = FAILED, FAIL;
@@ -135,22 +135,22 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
 
     static const engine_t cpu_engine(dnnl_cpu);
 
-    dnn_mem_t src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
-    dnn_mem_t scale_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
-    dnn_mem_t shift_fp = make_dnn_mem(ins[2], dt::f32, tag::abx);
-    dnn_mem_t mean_fp = make_dnn_mem(ins[3], dt::f32, tag::abx);
-    dnn_mem_t var_fp = make_dnn_mem(ins[4], dt::f32, tag::abx);
+    auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
+    auto scale_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
+    auto shift_fp = make_dnn_mem(ins[2], dt::f32, tag::abx);
+    auto mean_fp = make_dnn_mem(ins[3], dt::f32, tag::abx);
+    auto var_fp = make_dnn_mem(ins[4], dt::f32, tag::abx);
     dnn_mem_t &dst_fp = src_fp; // in-place reference
     dnn_mem_t src_hat_fp(4, data_dims, dnnl_f32, tag::abx, cpu_engine);
     dnn_mem_t ws_fp(4, data_dims, dnnl_u8, tag::abx, cpu_engine);
 
-    dnn_mem_t dest_dt = make_dnn_mem(outs[0], tag::abx);
-    dnn_mem_t src_dt = make_dnn_mem(ins[0], tag::abx);
-    dnn_mem_t scale_dt = make_dnn_mem(ins[1], tag::abx);
-    dnn_mem_t shift_dt = make_dnn_mem(ins[2], tag::abx);
-    dnn_mem_t mean_dt = make_dnn_mem(ins[3], tag::abx);
-    dnn_mem_t var_dt = make_dnn_mem(ins[4], tag::abx);
-    dnn_mem_t &dst_dt = prb->inplace ? src_dt : dest_dt;
+    auto placeholder_dst_dt = make_dnn_mem(outs[0], tag::abx);
+    auto src_dt = make_dnn_mem(ins[0], tag::abx);
+    auto scale_dt = make_dnn_mem(ins[1], tag::abx);
+    auto shift_dt = make_dnn_mem(ins[2], tag::abx);
+    auto mean_dt = make_dnn_mem(ins[3], tag::abx);
+    auto var_dt = make_dnn_mem(ins[4], tag::abx);
+    dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
     if (::bnorm::prepare_fwd(prb, src_fp, mean_fp, var_fp, scale_fp, shift_fp)
             != OK) {

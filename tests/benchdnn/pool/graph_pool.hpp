@@ -17,9 +17,8 @@
 #ifndef GRAPH_POOL_HPP
 #define GRAPH_POOL_HPP
 
-#include "pool.hpp"
-
 #include "dnnl_graph_common.hpp"
+#include "pool/pool.hpp"
 
 namespace benchdnnext {
 namespace pool {
@@ -36,11 +35,6 @@ struct pool_graph_prb_t : public graph_prb_t {
 
         ctor_status = fill_status::DONE;
     };
-
-    dnnl::graph::op::kind get_main_op_kind() const override {
-        return spec_.main_op_kind;
-    }
-
     fill_status_t ctor_status;
 
 private:
@@ -66,12 +60,16 @@ private:
         dt src_dt;
         dt dst_dt;
 
-        dnnl::graph::op::kind main_op_kind;
+        dnnl::graph::op::kind op_kind;
     };
 
     spec_t spec_;
 
     fill_status_t handle_main_op_();
+
+    dnnl::graph::op::kind get_main_op_kind() const override {
+        return spec_.op_kind;
+    }
 };
 
 int doit(const ::pool::prb_t *prb, res_t *res);

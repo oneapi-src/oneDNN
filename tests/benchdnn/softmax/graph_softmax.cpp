@@ -14,9 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "softmax/graph_softmax.hpp"
 #include "compare.hpp"
 #include "dnnl_graph_common.hpp"
+
+#include "softmax/graph_softmax.hpp"
 #include "softmax/softmax.hpp"
 
 namespace benchdnnext {
@@ -27,32 +28,14 @@ softmax_graph_prb_t::spec_t::spec_t(const ::softmax::prb_t *prb) {
     dims = prb->dims;
     softmax_dt = convert_dt(prb->dt);
     switch (prb->alg) {
-        case ::softmax::SOFTMAX: alg = dnnl::graph::op::kind::SoftMax; break;
-        case ::softmax::LOGSOFTMAX:
-            alg = dnnl::graph::op::kind::LogSoftmax;
+        case ::softmax::SOFTMAX:
+            op_kind = dnnl::graph::op::kind::SoftMax;
             break;
-        default: alg = dnnl::graph::op::kind::LastSymbol;
+        case ::softmax::LOGSOFTMAX:
+            op_kind = dnnl::graph::op::kind::LogSoftmax;
+            break;
+        default: op_kind = dnnl::graph::op::kind::LastSymbol;
     }
-}
-
-fill_status_t softmax_graph_prb_t::handle_main_op_() {
-    using op = dnnl::graph::op;
-
-    const std::string SRC {"softmax_src"};
-    const std::string DST {"softmax_dst"};
-
-    tensor_descs_.emplace(SRC, spec_.softmax_dt, spec_.dims, lt::strided);
-    tensor_descs_.emplace(DST, spec_.softmax_dt, spec_.dims, lt::strided);
-
-    std::string name
-            = spec_.alg == op::kind::SoftMax ? "Softmax" : "LogSoftMax";
-    op softmax_op(
-            1, spec_.alg, {tensor_descs_[SRC]}, {tensor_descs_[DST]}, name);
-    softmax_op.set_attr<int64_t>("axis", spec_.axis);
-    ops_.emplace_back(softmax_op);
-
-    curr_out_map_ids_.assign({"softmax_dst"});
-    return fill_status::DONE;
 }
 
 void check_known_skipped_case(const ::softmax::prb_t *prb, res_t *res) {
@@ -76,10 +59,31 @@ void add_additional_softmax_check(compare::compare_t &cmp) {
     cmp.set_driver_check_function(softmax_add_check);
 }
 
+fill_status_t softmax_graph_prb_t::handle_main_op_() {
+    using op = dnnl::graph::op;
+
+    const std::string SRC {"softmax_src"};
+    const std::string DST {"softmax_dst"};
+
+    tensor_descs_.emplace(SRC, spec_.softmax_dt, spec_.dims, lt::strided);
+    tensor_descs_.emplace(DST, spec_.softmax_dt, spec_.dims, lt::strided);
+
+    std::string name
+            = spec_.op_kind == op::kind::SoftMax ? "Softmax" : "LogSoftMax";
+    op softmax_op(
+            1, spec_.op_kind, {tensor_descs_[SRC]}, {tensor_descs_[DST]}, name);
+    softmax_op.set_attr<int64_t>("axis", spec_.axis);
+
+    ops_.emplace_back(softmax_op);
+    curr_out_map_ids_.assign({"softmax_dst"});
+
+    return fill_status::DONE;
+}
+
 int doit(const ::softmax::prb_t *prb, res_t *res) {
     using dt = dnnl::graph::logical_tensor::data_type;
-    if (bench_mode == LIST) return res->state = LISTED, OK;
 
+    if (bench_mode == LIST) return res->state = LISTED, OK;
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
@@ -104,12 +108,12 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
     const auto &e = benchdnnext::get_test_engine();
     auto cp = par.compile(ins, outs, e);
 
-    dnn_mem_t src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
+    auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     dnn_mem_t &dst_fp = src_fp; // in-place reference
 
-    dnn_mem_t dest_dt = make_dnn_mem(outs[0], (prb->tag).c_str());
-    dnn_mem_t src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
-    dnn_mem_t &dst_dt = prb->inplace ? src_dt : dest_dt;
+    auto placeholder_dst_dt = make_dnn_mem(outs[0], (prb->tag).c_str());
+    auto src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
+    dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
     std::vector<dnnl::graph::tensor> tensors_in, tensors_out;
     if (prb->dir & FLAG_FWD) {

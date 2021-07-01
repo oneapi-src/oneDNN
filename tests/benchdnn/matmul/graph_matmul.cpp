@@ -14,17 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <algorithm>
-
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_types.h"
 
+#include "compare.hpp"
 #include "dnnl_graph_common.hpp"
 
 #include "binary/binary.hpp"
+#include "matmul/graph_matmul.hpp"
 
-#include "compare.hpp"
-#include "graph_matmul.hpp"
+#include <algorithm>
 
 namespace benchdnnext {
 namespace matmul {
@@ -101,10 +100,9 @@ dims_t get_runtime_dims(const dims_t &dims, const ::matmul::dims_mask_t &mask) {
 
 int doit(const ::matmul::prb_t *prb, res_t *res) {
     using dt = dnnl::graph::logical_tensor::data_type;
-
     res->impl_name = "graph";
-    if (bench_mode == LIST) return res->state = LISTED, OK;
 
+    if (bench_mode == LIST) return res->state = LISTED, OK;
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
@@ -114,10 +112,10 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto g = graph_prb.to_graph();
+    auto graph_h = graph_prb.to_graph();
 
     // Filter partitions
-    const auto partitions = g.get_partitions();
+    const auto partitions = graph_h.get_partitions();
     if (partitions.empty() || partitions.size() > 1)
         return res->state = FAILED, FAIL;
 
@@ -132,15 +130,15 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
 
     const auto apply_bias = convert_dt(prb->bia_dt) != dt::undef;
 
-    dnn_mem_t src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
-    dnn_mem_t wei_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
-    dnn_mem_t dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
+    auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
+    auto wei_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
+    auto dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
     dnn_mem_t bia_fp;
     if (apply_bias) bia_fp = make_dnn_mem(ins[2], dt::f32, tag::x);
 
-    dnn_mem_t src_dt = make_dnn_mem(ins[0], tag::abx);
-    dnn_mem_t wei_dt = make_dnn_mem(ins[1], tag::abx);
-    dnn_mem_t dst_dt = make_dnn_mem(outs[0], tag::abx);
+    auto src_dt = make_dnn_mem(ins[0], tag::abx);
+    auto wei_dt = make_dnn_mem(ins[1], tag::abx);
+    auto dst_dt = make_dnn_mem(outs[0], tag::abx);
     dnn_mem_t bia_dt;
     if (apply_bias) bia_dt = make_dnn_mem(ins[2], tag::x);
 
@@ -166,25 +164,25 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     dnnl::graph::tensor bin_tensor;
     dnnl::graph::tensor sum_src1_tensor;
 
-    std::vector<dnnl::graph::tensor> input_ts {src_tensor, wei_tensor};
-    std::vector<dnnl::graph::tensor> output_ts {dst_tensor};
+    std::vector<dnnl::graph::tensor> tensors_in {src_tensor, wei_tensor};
+    std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};
 
     if (apply_bias) {
         bia_tensor = dnnl::graph::tensor(ins[2], static_cast<void *>(bia_dt));
-        input_ts.push_back(bia_tensor);
+        tensors_in.emplace_back(bia_tensor);
     }
     // we can't have fuse with both sum and binary-add at the same time
     if (graph_prb.has_post_bin()) {
         bin_tensor = dnnl::graph::tensor(
                 ins.back(), static_cast<void *>(binary_po_dt.back()));
-        input_ts.push_back(bin_tensor);
+        tensors_in.emplace_back(bin_tensor);
     } else if (graph_prb.has_post_sum()) {
         sum_src1_tensor
                 = dnnl::graph::tensor(ins.back(), static_cast<void *>(dst_dt));
-        input_ts.push_back(sum_src1_tensor);
+        tensors_in.emplace_back(sum_src1_tensor);
     }
 
-    SAFE(execute_and_wait(cp, input_ts, output_ts), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
     if (is_bench_mode(CORR)) {
         const auto &dnnl_test_engine = ::get_test_engine();
@@ -198,7 +196,7 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    measure_perf(res->timer, cp, input_ts, output_ts);
+    measure_perf(res->timer, cp, tensors_in, tensors_out);
 
     return OK;
 }

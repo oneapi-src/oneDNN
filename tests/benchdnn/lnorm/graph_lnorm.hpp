@@ -18,7 +18,7 @@
 #define GRAPH_LNORM_HPP
 
 #include "dnnl_graph_common.hpp"
-#include "lnorm.hpp"
+#include "lnorm/lnorm.hpp"
 
 namespace benchdnnext {
 namespace lnorm {
@@ -36,8 +36,8 @@ struct lnorm_graph_prb_t : public graph_prb_t {
         ctor_status = fill_status::DONE;
     };
     fill_status_t ctor_status;
-    dnnl_dims_t ss_fp_dims;
 
+private:
     struct spec_t {
         spec_t(const ::lnorm::prb_t *prb);
         bool keep_stats {true};
@@ -49,11 +49,17 @@ struct lnorm_graph_prb_t : public graph_prb_t {
         dims_t ss_dims;
         dt lnorm_dt;
     };
+
     spec_t spec_;
+
     fill_status_t handle_main_op_();
+
     dnnl::graph::op::kind get_main_op_kind() const override {
         return dnnl::graph::op::kind::LayerNorm;
     }
+
+public:
+    const struct spec_t spec() const { return spec_; }
 };
 
 int doit(const ::lnorm::prb_t *prb, res_t *res);

@@ -13,11 +13,12 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
 #ifndef GRAPH_SOFTMAX_HPP
 #define GRAPH_SOFTMAX_HPP
 
 #include "dnnl_graph_common.hpp"
-#include "softmax.hpp"
+#include "softmax/softmax.hpp"
 
 namespace benchdnnext {
 namespace softmax {
@@ -28,7 +29,7 @@ struct softmax_graph_prb_t : public graph_prb_t {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
-        if (spec_.alg == dnnl::graph::op::kind::LastSymbol) {
+        if (spec_.op_kind == dnnl::graph::op::kind::LastSymbol) {
             ctor_status = fill_status::UNSUPPORTED_OP;
             return;
         }
@@ -38,11 +39,6 @@ struct softmax_graph_prb_t : public graph_prb_t {
 
         ctor_status = fill_status::DONE;
     };
-
-    dnnl::graph::op::kind get_main_op_kind() const override {
-        return dnnl::graph::op::kind::SoftMax;
-    }
-
     fill_status_t ctor_status;
 
 private:
@@ -51,10 +47,16 @@ private:
         int axis {1};
         dims_t dims;
         dt softmax_dt;
-        dnnl::graph::op::kind alg;
+        dnnl::graph::op::kind op_kind;
     };
+
     spec_t spec_;
+
     fill_status_t handle_main_op_();
+
+    dnnl::graph::op::kind get_main_op_kind() const override {
+        return dnnl::graph::op::kind::SoftMax;
+    }
 };
 
 int doit(const ::softmax::prb_t *prb, res_t *res);

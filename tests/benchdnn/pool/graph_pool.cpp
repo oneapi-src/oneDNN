@@ -14,15 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <algorithm>
-
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_types.h"
 
 #include "compare.hpp"
 #include "dnnl_graph_common.hpp"
 
-#include "graph_pool.hpp"
+#include "pool/graph_pool.hpp"
+
+#include <algorithm>
 
 namespace benchdnnext {
 namespace pool {
@@ -76,8 +76,7 @@ pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) {
     rounding_type = "floor";
     data_format = convert_tag(prb->tag);
 
-    main_op_kind
-            = (prb->alg == ::pool::max) ? graph_op::MaxPool : graph_op::AvgPool;
+    op_kind = (prb->alg == ::pool::max) ? graph_op::MaxPool : graph_op::AvgPool;
 
     // attributes specific to pooling type
     dim_t dilation_nd[] = {prb->dd, prb->dh, prb->dw};
@@ -98,10 +97,9 @@ fill_status_t pool_graph_prb_t::handle_main_op_() {
     tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, lt::strided);
 
     const size_t new_op_id = ops_.size();
-    const std::string op_name = (spec_.main_op_kind == op::kind::MaxPool)
-            ? "max_pool"
-            : "avg_pool";
-    op pool(new_op_id, spec_.main_op_kind, {tensor_descs_[SRC]},
+    const std::string op_name
+            = (spec_.op_kind == op::kind::MaxPool) ? "max_pool" : "avg_pool";
+    op pool(new_op_id, spec_.op_kind, {tensor_descs_[SRC]},
             {tensor_descs_[DST]}, op_name);
 
     pool.set_attr("strides", spec_.strides)
@@ -112,7 +110,7 @@ fill_status_t pool_graph_prb_t::handle_main_op_() {
             .set_attr("data_format", spec_.data_format)
             .set_attr("auto_pad", spec_.auto_pad);
 
-    if (spec_.main_op_kind == op::kind::MaxPool) {
+    if (spec_.op_kind == op::kind::MaxPool) {
         pool.set_attr("dilations", spec_.dilations);
     } else { // AvgPool
         pool.set_attr("exclude_pad", spec_.exclude_pad);
@@ -126,10 +124,9 @@ fill_status_t pool_graph_prb_t::handle_main_op_() {
 
 int doit(const ::pool::prb_t *prb, res_t *res) {
     using dt = dnnl::graph::logical_tensor::data_type;
-
     res->impl_name = "graph";
-    if (bench_mode == LIST) return res->state = LISTED, OK;
 
+    if (bench_mode == LIST) return res->state = LISTED, OK;
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
@@ -139,10 +136,10 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto g = graph_prb.to_graph();
+    auto graph_h = graph_prb.to_graph();
 
     // Filter partitions
-    const auto partitions = g.get_partitions();
+    const auto partitions = graph_h.get_partitions();
     if (partitions.empty() || partitions.size() > 1)
         return res->state = FAILED, FAIL;
 
@@ -169,10 +166,10 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     dnnl::graph::tensor src_tensor(ins[0], static_cast<float *>(src_dt));
     dnnl::graph::tensor dst_tensor(outs[0], static_cast<float *>(dst_dt));
 
-    std::vector<dnnl::graph::tensor> input_ts {src_tensor};
-    std::vector<dnnl::graph::tensor> output_ts {dst_tensor};
+    std::vector<dnnl::graph::tensor> tensors_in {src_tensor};
+    std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};
 
-    SAFE(execute_and_wait(cp, input_ts, output_ts), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
     if (is_bench_mode(CORR)) {
         // currently we run benchmark only with dir equal FWD_I
@@ -185,7 +182,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    measure_perf(res->timer, cp, input_ts, output_ts);
+    measure_perf(res->timer, cp, tensors_in, tensors_out);
 
     return OK;
 }

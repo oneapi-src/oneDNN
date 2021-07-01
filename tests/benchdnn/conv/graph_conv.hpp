@@ -19,40 +19,13 @@
 
 #include <vector>
 
-#include "conv.hpp"
-
+#include "conv/conv.hpp"
 #include "dnnl_graph_common.hpp"
 
 namespace benchdnnext {
 namespace conv {
 
 struct conv_graph_prb_t : public graph_prb_t {
-    struct spec_t {
-        spec_t(const ::conv::prb_t *prb);
-
-        dims_t src_dim;
-        dims_t wei_dim;
-        dims_t bia_dim;
-        dims_t dst_dim;
-
-        dims_t strides;
-        dims_t pads_begin;
-        dims_t pads_end;
-        dims_t dilations;
-
-        std::string auto_pad {"None"};
-
-        int64_t groups;
-
-        std::string data_format {"NCX"};
-        std::string filter_format {"OIX"};
-
-        dt src_dtype;
-        dt wei_dtype;
-        dt bia_dtype;
-        dt dst_dtype;
-    };
-
     conv_graph_prb_t(const ::conv::prb_t *prb) : prb(prb), spec_(prb) {
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
@@ -90,16 +63,36 @@ struct conv_graph_prb_t : public graph_prb_t {
 
         ctor_status = fill_status::DONE;
     };
-
-    dnnl::graph::op::kind get_main_op_kind() const override {
-        return dnnl::graph::op::kind::Convolution;
-    }
-    const spec_t spec() const { return spec_; }
-
-    std::vector<float> oscales;
     fill_status_t ctor_status;
 
 private:
+    std::vector<float> oscales;
+    struct spec_t {
+        spec_t(const ::conv::prb_t *prb);
+
+        dims_t src_dims;
+        dims_t wei_dims;
+        dims_t bia_dims;
+        dims_t dst_dims;
+
+        dims_t strides;
+        dims_t pads_begin;
+        dims_t pads_end;
+        dims_t dilations;
+
+        std::string auto_pad {"None"};
+
+        int64_t groups;
+
+        std::string data_format {"NCX"};
+        std::string filter_format {"OIX"};
+
+        dt src_dt;
+        dt wei_dt;
+        dt bia_dt;
+        dt dst_dt;
+    };
+
     const ::conv::prb_t *prb;
     spec_t spec_;
     po_handlers_t po_handler;
@@ -110,6 +103,15 @@ private:
     fill_status_t handle_sum_();
     fill_status_t handle_low_precision_();
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po);
+
+    dnnl::graph::op::kind get_main_op_kind() const override {
+        return dnnl::graph::op::kind::Convolution;
+    }
+
+public:
+    const struct spec_t spec() const { return spec_; }
+
+    std::vector<float> get_oscales() { return oscales; }
 };
 
 int doit(const ::conv::prb_t *prb, res_t *res);
