@@ -261,7 +261,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     ptrdiff_t cs_[max_ndims] = {0}; // compensation strides
     ptrdiff_t *cs = cs_;
     if (compensation_needed) {
-        const int compensation_mask = with_groups ? 0x2 : 0x1;
+        const int compensation_mask = with_groups ? 0x3 : 0x1;
         if (p.scale_type == scale_type_t::MANY
                 && attr->output_scales_.mask_ == compensation_mask)
             cs = ss;

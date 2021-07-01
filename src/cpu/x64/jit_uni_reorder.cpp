@@ -1802,10 +1802,11 @@ status_t jit_uni_reorder_t::pd_t::init(
 
 void jit_uni_reorder_t::pd_t::init_scratchpad() {
     const memory_desc_wrapper id(src_md());
-    const auto N = id.dims()[0];
+    const auto G = with_groups_ ? id.dims()[0] : 1;
+    const auto N = id.dims()[with_groups_ ? 1 : 0];
     static constexpr int cache_line_size = 16;
     const auto wspace_per_thr_size
-            = utils::rnd_up(N, cache_line_size) * sizeof(int32_t);
+            = utils::rnd_up(G * N, cache_line_size) * sizeof(int32_t);
 
     auto scratchpad = scratchpad_registry().registrar();
     const auto compensation_reduce_size = wspace_per_thr_size * nthr_;
@@ -1901,13 +1902,13 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
 
     _pd->nthr_ = nthr;
     _pd->prb_ = prb;
+    _pd->with_groups_ = with_groups;
     if (_pd->init(engine, src_engine, dst_engine) != status::success) {
         delete _pd;
         return status::unimplemented;
     }
     _pd->ker_desc_ = ker_desc;
     _pd->init_scratchpad_md();
-    _pd->with_groups_ = with_groups;
 
     return safe_ptr_assign(*reorder_pd, _pd);
 }
@@ -2045,9 +2046,10 @@ void jit_uni_reorder_t::omp_driver(const char *in, char *out,
             memory_tracking::names::key_reorder_space);
 
     const memory_desc_wrapper id(pd()->src_md());
+    const auto G = pd()->with_groups_ ? id.dims()[0] : 1;
     const auto N = id.dims()[pd()->with_groups_ ? 1 : 0];
     static constexpr int cache_line_size = 16;
-    const auto wspace_per_thr_size = utils::rnd_up(N, cache_line_size);
+    const auto wspace_per_thr_size = utils::rnd_up(G * N, cache_line_size);
     const auto wspace_per_thr_bytes = wspace_per_thr_size * sizeof(int32_t);
 
     if (ndims - ndims_ker == 0) {
@@ -2090,38 +2092,40 @@ void jit_uni_reorder_t::omp_driver(const char *in, char *out,
     //reduction of intermediate compensation results to the final output
     if (req_compensation) {
         const int nthr = ndims - ndims_ker == 0 ? 1 : pd()->nthr_;
-        reduce_compensation(
-                out, compensation_reduce_scratch, nthr, N, wspace_per_thr_size);
+        reduce_compensation(out, compensation_reduce_scratch, nthr, G, N,
+                wspace_per_thr_size);
     }
 }
 
 void jit_uni_reorder_t::reduce_compensation(char *out,
-        const int32_t *compensation_reduce_scratch, const int nthr, const int N,
-        const dim_t wspace_per_thr_size) const {
+        const int32_t *compensation_reduce_scratch, const int nthr, const int G,
+        const int N, const dim_t wspace_per_thr_size) const {
 
     const memory_desc_wrapper od(pd()->dst_md());
     size_t offset = od.padded_dims()[0];
     for (int dim = 1; dim < od.ndims(); dim++)
         offset *= od.padded_dims()[dim];
     const size_t zp_offset
-            = offset + (pd()->prb_.req_s8s8_comp ? N * sizeof(int32_t) : 0);
+            = offset + (pd()->prb_.req_s8s8_comp ? G * N * sizeof(int32_t) : 0);
     static constexpr int32_t comp_s8s8_shift = 128;
 
     const bool req_s8s8_comp = pd()->prb_.req_s8s8_comp;
     const bool req_asymmetric_comp = pd()->prb_.req_asymmetric_comp;
-    parallel_nd(N, [&](int n) {
+    parallel_nd(G, N, [&](int g, int n) {
         int32_t acc = 0;
+        const auto g_n_off = g * N + n;
         for (int ithr = 0; ithr < nthr; ithr++) {
-            acc -= compensation_reduce_scratch[ithr * wspace_per_thr_size + n];
+            acc -= compensation_reduce_scratch[ithr * wspace_per_thr_size
+                    + g_n_off];
         }
         if (req_s8s8_comp) {
             int32_t *out_comp = reinterpret_cast<int32_t *>(&out[offset]);
-            out_comp[n] = comp_s8s8_shift * acc;
+            out_comp[g_n_off] = comp_s8s8_shift * acc;
         }
         if (req_asymmetric_comp) {
             int32_t *out_asym_comp
                     = reinterpret_cast<int32_t *>(&out[zp_offset]);
-            out_asym_comp[n] = acc;
+            out_asym_comp[g_n_off] = acc;
         }
     });
 }

@@ -189,7 +189,7 @@ private:
 
     void reduce_compensation(char *out,
             const int32_t *compensation_reduce_scratch, const int nthr,
-            const int N, const dim_t wspace_per_thr_size) const;
+            const int G, const int N, const dim_t wspace_per_thr_size) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::unique_ptr<tr::kernel_t> kernel_;
