@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -115,8 +115,8 @@ void jit_avx512_core_amx_gemm_kern::generate() {
     mov(K, qword[r8]);
 
     mov(rcx, ARG_X(0x28));
-    mov(B, ARG_X(0x30));
-    mov(C, ARG_X(0x38));
+    mov(r8, ARG_X(0x30));
+    mov(r9, ARG_X(0x38));
     mov(LDC, ARG_X(0x40));
 #else
 
