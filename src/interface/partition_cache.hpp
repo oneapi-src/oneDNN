@@ -24,8 +24,9 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
-#include "c_types_map.hpp"
-#include "partition_hashing.hpp"
+#include "interface/c_types_map.hpp"
+#include "interface/partition_hashing.hpp"
+
 #include "utils/rw_mutex.hpp"
 
 namespace dnnl {
