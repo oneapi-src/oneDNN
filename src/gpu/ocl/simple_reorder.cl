@@ -258,8 +258,9 @@
 #endif // SCALE_QUANT
 
 KERNEL_ATTR
-__kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
-        float alpha, float beta, __global float *scales) {
+__kernel void simple_reorder(__global SRC_DATA_T *restrict src,
+        __global DST_DATA_T *restrict dst, float alpha, float beta,
+        __global float *restrict scales) {
 
     src += SRC_OFFSET0;
     dst += DST_OFFSET0;
