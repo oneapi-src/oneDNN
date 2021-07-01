@@ -158,12 +158,13 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 sp_end += memory_desc_wrapper(to_md).size();
 
                 user_scratchpad_size_ = nstl::max<size_t>(user_scratchpad_size_,
-                        op_pds_.back()->scratchpad_size(scratchpad_mode::user));
+                        op_pds_.back()->scratchpad_size(
+                                attr()->scratchpad_mode_));
             }
 
             op_pds_.emplace_back(std::move(op_pd));
             user_scratchpad_size_ = nstl::max<size_t>(user_scratchpad_size_,
-                    op_pds_.back()->scratchpad_size(scratchpad_mode::user));
+                    op_pds_.back()->scratchpad_size(attr()->scratchpad_mode_));
             return status::success;
         }
 
@@ -191,7 +192,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             size_t inout_sp_offset_begin = 0;
             size_t inout_sp_offset_end = 0;
             user_scratchpad_size_
-                    = root_pd->scratchpad_size(scratchpad_mode::user);
+                    = root_pd->scratchpad_size(attr()->scratchpad_mode_);
 
             // Create arg cache for the root pd
             arg_cache_t arg_cache;
