@@ -33,6 +33,7 @@ namespace impl {
 namespace gpu {
 
 #define MAX_NDIMS 6
+#define MAX_POST_OPS_SUPPORTED 32
 
 struct memory_desc_info_t {
     // Max 2 levels of blocking
@@ -999,7 +1000,7 @@ inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
         }
     }
 
-    if (p.len() > 10) is_po_ok = false;
+    if (p.len() > MAX_POST_OPS_SUPPORTED) is_po_ok = false;
 
     return is_po_ok;
 }
@@ -1052,12 +1053,37 @@ inline void def_post_ops_cfg(
                     "PO_" + std::to_string(idx) + "_KIND", po_eltwise_id);
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_ALG", e.eltwise.alg);
+            kernel_ctx.define_float(
+                    ("PO_" + std::to_string(idx) + "_ELTWISE_ALPHA").c_str(),
+                    e.eltwise.alpha);
+            kernel_ctx.define_float(
+                    ("PO_" + std::to_string(idx) + "_ELTWISE_BETA").c_str(),
+                    e.eltwise.beta);
+            kernel_ctx.define_float(
+                    ("PO_" + std::to_string(idx) + "_ELTWISE_SCALE").c_str(),
+                    e.eltwise.scale);
+        } else {
+            kernel_ctx.define_float(
+                    ("PO_" + std::to_string(idx) + "_ELTWISE_ALPHA").c_str(),
+                    1.0f);
+            kernel_ctx.define_float(
+                    ("PO_" + std::to_string(idx) + "_ELTWISE_BETA").c_str(),
+                    0.0f);
+            kernel_ctx.define_float(
+                    ("PO_" + std::to_string(idx) + "_ELTWISE_SCALE").c_str(),
+                    1.0f);
         }
         if (e.is_sum(false)) {
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_KIND", po_sum_id);
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_ALG", alg_kind::undef);
+            kernel_ctx.define_float(
+                    ("PO_" + std::to_string(idx) + "_SUM_SCALE").c_str(),
+                    e.sum.scale);
+        } else {
+            kernel_ctx.define_float(
+                    ("PO_" + std::to_string(idx) + "_SUM_SCALE").c_str(), 1.0f);
         }
         if (!(e.is_binary() || e.is_eltwise(false) || e.is_sum(false))) {
             // empty post op
@@ -1070,12 +1096,6 @@ inline void def_post_ops_cfg(
         }
         po_kernel_args += ", const __global PO_" + std::to_string(idx)
                 + "_BIN_ARG_DATA_T *po_" + std::to_string(idx) + "_binary_arg";
-        po_kernel_args
-                += ", float po_" + std::to_string(idx) + "_eltwise_alpha";
-        po_kernel_args += ", float po_" + std::to_string(idx) + "_eltwise_beta";
-        po_kernel_args
-                += ", float po_" + std::to_string(idx) + "_eltwise_scale";
-        po_kernel_args += ", float po_" + std::to_string(idx) + "_sum_scale";
     };
 
     for (int idx = 0; idx < post_ops.len(); ++idx, ++nof_supported_post_ops) {
@@ -1083,17 +1103,11 @@ inline void def_post_ops_cfg(
                 = "PO_" + std::to_string(idx) + "_BIN_ARG";
         add_po_defines(bin_arg_name, post_ops.entry_[idx], idx);
     }
-    post_ops_t::entry_t empty_po = post_ops_t::entry_t();
-    for (int idx = post_ops.len(); idx < 10; ++idx, ++nof_supported_post_ops) {
-        const std::string bin_arg_name
-                = "PO_" + std::to_string(idx) + "_BIN_ARG";
-        add_po_defines(bin_arg_name, empty_po, idx);
-    }
 
     kernel_ctx.define_int("POST_OP_CHAIN_LENGTH", nof_supported_post_ops);
     if (post_ops.len() > 0) {
         // due to C macro limitations on which post op service is build always
-        // load bf16 convertion functions
+        // load bf16 conversion functions
         kernel_ctx.define_int("POST_OP_USING_BF16", 1);
     }
     po_kernel_args += "\"";
@@ -1117,30 +1131,10 @@ inline int append_post_ops_to_arg_list_base(const exec_args_t &args,
         } else {
             arg_list.set(post_op_idx++, memory_storage_t::empty_storage());
         }
-
-        if (e.is_eltwise()) {
-            arg_list.set(post_op_idx++, e.eltwise.alpha);
-            arg_list.set(post_op_idx++, e.eltwise.beta);
-            arg_list.set(post_op_idx++, e.eltwise.scale);
-        } else {
-            arg_list.set(post_op_idx++, 1.0f); // _eltwise_alpha
-            arg_list.set(post_op_idx++, 0.0f); // _eltwise_beta
-            arg_list.set(post_op_idx++, 1.0f); // _eltwise_scale
-        }
-
-        if (e.is_sum(false)) {
-            arg_list.set(post_op_idx++, e.sum.scale);
-        } else {
-            arg_list.set(post_op_idx++, 1.0f);
-        }
     };
 
     for (int idx = 0; idx < post_ops.len(); ++idx) {
         set_arg_entry(post_ops.entry_[idx], idx);
-    }
-    post_ops_t::entry_t empty_po = post_ops_t::entry_t();
-    for (int idx = post_ops.len(); idx < 10; ++idx) {
-        set_arg_entry(empty_po, 0);
     }
     return post_op_idx;
 }
