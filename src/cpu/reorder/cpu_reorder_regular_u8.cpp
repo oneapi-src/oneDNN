@@ -21,6 +21,13 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+#ifdef __INTEL_COMPILER
+/* Enable direct copy primitives for non-icc compilers, but place it after the jitted ones */
+#define REG_FAST_DIRECT_COPY_AFTER_JIT(sdt, ddt)
+#else
+#define REG_FAST_DIRECT_COPY_AFTER_JIT(sdt, ddt) REG_SR_DIRECT_COPY(sdt, ddt)
+#endif
+
 // clang-format off
 
 const impl_list_map_t &regular_u8_impl_list_map() {
@@ -38,6 +45,13 @@ const impl_list_map_t &regular_u8_impl_list_map() {
 
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_blk_reorder_t))
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
+
+            // Allow direct-copy primitives for non-intel compilers, but with a lower priority than the jitted impl
+            REG_FAST_DIRECT_COPY_AFTER_JIT(u8, f32)
+            REG_FAST_DIRECT_COPY_AFTER_JIT(u8, s32)
+            REG_FAST_DIRECT_COPY_AFTER_JIT(u8, bf16)
+            REG_FAST_DIRECT_COPY_AFTER_JIT(u8, s8)
+            REG_FAST_DIRECT_COPY_AFTER_JIT(u8, u8)
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(u8, any, f32, nChw16c))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(u8, any, s32, nChw16c))
