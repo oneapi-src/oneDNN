@@ -81,8 +81,8 @@ struct matmul_blocking_params_t : public brgemm_matmul_conf_t {
 
     void set_blocking_parameters(int nthr_k, int n_blk, int n_chunk_size,
             int m_blk, int m_chunk_size);
-    void update_configuration(brgemm_matmul_conf_t &bgmmc);
-    float get_blocking_scores() { return efficiency_score_; }
+    void update_configuration(brgemm_matmul_conf_t &bgmmc) const;
+    float get_blocking_scores() const { return efficiency_score_; }
 
     static size_t L2_threshold;
 
@@ -109,7 +109,7 @@ private:
     size_t calculate_chunk_memory_size();
     float get_thread_balance_scores();
     float get_copied_data_reusage_scores();
-    float get_L2_utilization_scores();
+    float get_L2_utilization_scores() const;
     float calculate_blocking_scores();
 };
 
@@ -734,7 +734,7 @@ float matmul_blocking_params_t::get_copied_data_reusage_scores() {
 
 // returns score for current blocking parameters' values in range [0, 1]
 // for L2 utilization
-float matmul_blocking_params_t::get_L2_utilization_scores() {
+float matmul_blocking_params_t::get_L2_utilization_scores() const {
     const float relative_difference_with_L2
             = fabsf((float)L2_threshold - blocking_chunk_mem_size_)
             / nstl::max(L2_threshold, blocking_chunk_mem_size_);
@@ -765,7 +765,7 @@ float matmul_blocking_params_t::calculate_blocking_scores() {
 }
 
 void matmul_blocking_params_t::update_configuration(
-        brgemm_matmul_conf_t &bgmmc) {
+        brgemm_matmul_conf_t &bgmmc) const {
     bgmmc.nthr_k = nthr_k_;
     bgmmc.M_blk = m_blk_;
     bgmmc.M_chunk_size = m_chunk_size_;
