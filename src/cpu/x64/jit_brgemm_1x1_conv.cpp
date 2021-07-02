@@ -18,8 +18,8 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/jit_brgemm_1x1_conv.hpp"
 
 namespace dnnl {
@@ -37,13 +37,15 @@ using namespace data_type;
 #define ndims_pick(v5, v4, v3) \
     ((ndims == 5) ? (v5) : (ndims == 4) ? (v4) : (ndims == 3) ? (v3) : 0)
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
-        data_type_t dst_type>
-status_t
-brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::pd_t::init(
-        engine_t *engine) {
+template <cpu_isa_t isa>
+status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     using namespace data_type;
     using namespace utils;
+
+    const auto src_type = src_md(0)->data_type;
+    const auto wei_type = weights_md(0)->data_type;
+    const auto dst_type = dst_md(0)->data_type;
+
     using skip_mask_t = primitive_attr_t::skip_mask_t;
     auto skip_mask = skip_mask_t::post_ops;
     if (one_of(src_type, u8, s8)) skip_mask |= skip_mask_t::oscale;
@@ -111,10 +113,8 @@ brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::pd_t::init(
     return status::success;
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
-        data_type_t dst_type>
-status_t brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::init(
-        engine_t *engine) {
+template <cpu_isa_t isa>
+status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
     auto ndims = pd()->ndims();
     if (ndims < 3 || ndims > 5) assert(!"Invalid ndims!");
 
@@ -146,6 +146,9 @@ status_t brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::init(
     dst_w_sz = (dim_t)OW * jcp.oc_without_padding;
     dst_h_sz = OH * dst_w_sz;
     dst_d_sz = OD * dst_h_sz;
+
+    const auto src_type = pd()->src_md(0)->data_type;
+    const auto wei_type = pd()->weights_md(0)->data_type;
 
     const auto last_ic_block
             = (src_type == f32) ? 1 : ((src_type == bf16) ? 2 : 4);
@@ -182,18 +185,24 @@ status_t brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::init(
     return status::success;
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
-        data_type_t dst_type>
-void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::exec_ker(
+template <cpu_isa_t isa>
+void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
         const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
         brgemm_batch_element_t *const __restrict brg_batch,
         char *const c_buffer, int g, int n, int ocb, int od, int oh, int ow,
         int icc) const {
 
-    const src_data_t *const __restrict src = brgemm_ctx.src;
-    const wei_data_t *const __restrict weights = brgemm_ctx.weights;
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const size_t src_dt_size = types::data_type_size(src_d.data_type());
+    const size_t wei_dt_size = types::data_type_size(weights_d.data_type());
+    const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
+
+    const char *const __restrict src = brgemm_ctx.src;
+    const char *const __restrict weights = brgemm_ctx.weights;
     const char *const __restrict bias = brgemm_ctx.bias;
-    dst_data_t *const __restrict dst = brgemm_ctx.dst;
+    char *const __restrict dst = brgemm_ctx.dst;
     const std::vector<const void *> &post_ops_binary_rhs_arg_vec
             = brgemm_ctx.post_ops_binary_rhs_arg_vec;
 
@@ -223,13 +232,17 @@ void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::exec_ker(
     const bool is_ic_tail
             = (icc == ic_chunks - 1 && ((jcp.ic - ic) % jcp.ic_block != 0));
 
-    const auto src_base = src + n * src_d_sz + id * src_h_sz + ih * src_w_sz
-            + iw * jcp.ic_without_padding + g_ic;
-    const auto wei_base = jcp.wei_plain
-            ? (weights + g * wei_ic_sz + ocb * wei_ocb_sz)
-            : (weights + g * wei_ocb_sz + ocb * wei_ic_sz);
-    const auto ptr_D = dst + n * dst_d_sz + od * dst_h_sz + oh * dst_w_sz
-            + ow * jcp.oc_without_padding + g_oc;
+    const auto src_base = src
+            + src_dt_size
+                    * (n * src_d_sz + id * src_h_sz + ih * src_w_sz
+                            + iw * jcp.ic_without_padding + g_ic);
+    const auto wei_offset = jcp.wei_plain ? g * wei_ic_sz + ocb * wei_ocb_sz
+                                          : g * wei_ocb_sz + ocb * wei_ic_sz;
+    const auto wei_base = weights + wei_dt_size * wei_offset;
+    const auto ptr_D = dst
+            + dst_dt_size
+                    * (n * dst_d_sz + od * dst_h_sz + oh * dst_w_sz
+                            + ow * jcp.oc_without_padding + g_oc);
     char *const ptr_C = (jcp.use_buffer) ? c_buffer : (char *)ptr_D;
 
     const auto bias_w
@@ -243,8 +256,8 @@ void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::exec_ker(
             const auto ic_off = (ic_block_s + k) * jcp.ic_block;
             const auto src_ic = ic_off;
             const auto wei_ic = ic + ic_off;
-            const auto ptr_A = src_base + src_ic;
-            const auto ptr_B = wei_base + wei_ic * wei_oc_sz;
+            const auto ptr_A = src_base + src_dt_size * src_ic;
+            const auto ptr_B = wei_base + wei_dt_size * wei_ic * wei_oc_sz;
             brg_batch[k].ptr.A = ptr_A;
             brg_batch[k].ptr.B = ptr_B;
             brg_batch[k].vvpad.top = 0;
@@ -286,10 +299,9 @@ void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type, dst_type>::exec_ker(
     }
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
-        data_type_t dst_type>
-void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type,
-        dst_type>::execute_forward_all(const exec_ctx_t &ctx) const {
+template <cpu_isa_t isa>
+void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
+        const exec_ctx_t &ctx) const {
 
     brgemm_exec_ctx_t brgemm_ctx(ctx, pd());
 
@@ -387,21 +399,9 @@ void brgemm_1x1_convolution_fwd_t<isa, src_type, wei_type,
     }
 }
 
-template struct brgemm_1x1_convolution_fwd_t<avx512_core, f32>;
-
-template struct brgemm_1x1_convolution_fwd_t<avx512_core_vnni, u8, s8, f32>;
-template struct brgemm_1x1_convolution_fwd_t<avx512_core_vnni, u8, s8, s32>;
-template struct brgemm_1x1_convolution_fwd_t<avx512_core_vnni, u8, s8, u8>;
-template struct brgemm_1x1_convolution_fwd_t<avx512_core_vnni, u8, s8, s8>;
-
-template struct brgemm_1x1_convolution_fwd_t<avx512_core_vnni, s8, s8, f32>;
-template struct brgemm_1x1_convolution_fwd_t<avx512_core_vnni, s8, s8, s32>;
-template struct brgemm_1x1_convolution_fwd_t<avx512_core_vnni, s8, s8, u8>;
-template struct brgemm_1x1_convolution_fwd_t<avx512_core_vnni, s8, s8, s8>;
-
-template struct brgemm_1x1_convolution_fwd_t<avx512_core_bf16, bf16, bf16,
-        bf16>;
-template struct brgemm_1x1_convolution_fwd_t<avx512_core_bf16, bf16, bf16, f32>;
+template struct brgemm_1x1_convolution_fwd_t<avx512_core>;
+template struct brgemm_1x1_convolution_fwd_t<avx512_core_vnni>;
+template struct brgemm_1x1_convolution_fwd_t<avx512_core_bf16>;
 
 } // namespace x64
 } // namespace cpu
