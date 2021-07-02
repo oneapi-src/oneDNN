@@ -47,6 +47,9 @@ float fwd_Xnary(unsigned algorithm, float x, float y, float alpha, float beta,
         case BINARY_LT: return x < y; break;
         case BINARY_EQ: return x == y; break;
         case BINARY_NE: return x != y; break;
+        case BINARY_PRELU:
+            return fwd_eltwise_common(RELU, x, y, beta, scale);
+            break;
 
         // unary
         default:
@@ -275,7 +278,7 @@ float fwd_Xnary(unsigned algorithm, float x, float y, float alpha, float beta,
         FWD_XNARY_GENERIC_DT(CONCAT3(PO_, idx, _ALG), accumulator, \
                 acc_elem_dt, ((acc_elem_dt *)(&accumulator)), \
                 (sizeof(accumulator) / sizeof(acc_elem_dt)), bin_arg_ptr, \
-                bin_arg_size, 0.0f, 0.0f, 0.0f); \
+                bin_arg_size, 0.0f, 0.0f, 1.0f); \
     }
 
 #define APPLY_PO_SUM(idx, accumulator, acc_elem_dt, sum_src, sum_elem_dt) \

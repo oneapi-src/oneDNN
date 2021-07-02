@@ -943,6 +943,7 @@ inline void def_binary_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("BINARY_LT", alg_kind::binary_lt);
     kernel_ctx.define_int("BINARY_EQ", alg_kind::binary_eq);
     kernel_ctx.define_int("BINARY_NE", alg_kind::binary_ne);
+    kernel_ctx.define_int("BINARY_PRELU", alg_kind::binary_prelu);
 }
 
 inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
