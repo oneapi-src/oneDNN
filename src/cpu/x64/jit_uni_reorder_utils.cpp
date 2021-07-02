@@ -226,6 +226,9 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             ? scale_type_t::NONE
             : (attr->output_scales_.mask_ == 0 ? scale_type_t::COMMON
                                                : scale_type_t::MANY);
+    p.scale_adjust = (om_d.extra().flags & memory_extra_flags::scale_adjust)
+            ? om_d.extra().scale_adjust
+            : 1.f;
     p.req_s8s8_comp
             = om_d.extra().flags & memory_extra_flags::compensation_conv_s8s8;
     p.req_asymmetric_comp = om_d.extra().flags

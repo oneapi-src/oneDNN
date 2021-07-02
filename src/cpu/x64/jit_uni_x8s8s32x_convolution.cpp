@@ -270,6 +270,7 @@ jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_1d(
             ? reinterpret_cast<int32_t *>(&w[extra_data_offset])
                     + (jcp.signed_input ? ch_offset : 0)
             : nullptr;
+
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     int nb_groups = jcp.nb_ch / jcp.nb_ch_blocking;
     int group_block = jcp.ch_block;

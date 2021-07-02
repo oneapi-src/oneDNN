@@ -58,6 +58,7 @@ struct prb_t {
     int iblock;
     int oblock;
     int blk_chunk_idx;
+    float scale_adjust = 1.f;
     bool req_s8s8_comp = false;
     bool req_asymmetric_comp = false;
     bool req_src_zp = false;
@@ -92,13 +93,13 @@ void prb_node_move(prb_t &p, int d0, int d1);
 void prb_dump(const prb_t &p);
 
 struct call_param_t {
-    const void *in;
-    void *out;
-    const float *scale;
-    int src_zp;
-    int dst_zp;
-    size_t blk_chunks;
-    int32_t *compensation_scratch;
+    const void *in = nullptr;
+    void *out = nullptr;
+    const float *scale = nullptr;
+    int src_zp = 0;
+    int dst_zp = 0;
+    size_t blk_chunks = 0;
+    int32_t *compensation_scratch = nullptr;
 };
 
 struct kernel_t {
@@ -189,7 +190,7 @@ private:
 
     void reduce_compensation(char *out,
             const int32_t *compensation_reduce_scratch, const int nthr,
-            const int G, const int N, const dim_t wspace_per_thr_size) const;
+            const dim_t wspace_per_thr_size) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::unique_ptr<tr::kernel_t> kernel_;

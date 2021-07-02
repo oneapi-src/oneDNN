@@ -524,6 +524,15 @@ public:
         }
     }
 
+    void uni_vpshufd(
+            const Xbyak::Xmm &x1, const Xbyak::Operand &op, Xbyak::uint8 imm) {
+        if (is_valid_isa(avx))
+            vpshufd(x1, op, imm);
+        else {
+            pshufd(x1, op, imm);
+        }
+    }
+
     void uni_vrcpss(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
         rcpss(x, op);
     }
@@ -1221,6 +1230,12 @@ public:
         vmovmskps(x1, x2);
     }
 
+    void uni_vmovd(const Xbyak::Reg32 &r, const Xbyak::Xmm &x) {
+        if (is_valid_isa(avx))
+            vmovd(r, x);
+        else
+            movd(r, x);
+    }
     void uni_vmovd(const Xbyak::Xmm &x, const Xbyak::Reg32 &r) {
         if (is_valid_isa(avx))
             vmovd(x, r);
