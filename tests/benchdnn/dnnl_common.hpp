@@ -354,6 +354,22 @@ inline const engine_t &get_cpu_engine() {
 }
 
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
+int check_same_pd(res_t *res, const dnnl_primitive_desc_t &pd_no_attr);
+
+template <typename op_desc_t>
+int check_pd_w_and_wo_attr(
+        res_t *res, const attr_t &attr, const op_desc_t &op_desc) {
+    if (attr_same_pd_check && !attr.is_def()) {
+        dnnl_primitive_desc_t pd_no_attr {};
+        dnnl_primitive_attr_t dnnl_empty_attrs {};
+        DNN_SAFE(dnnl_primitive_desc_create(&pd_no_attr, &op_desc,
+                         dnnl_empty_attrs, get_test_engine(), nullptr),
+                WARN);
+        auto pd_no_attr_wrapper = make_benchdnn_dnnl_wrapper(pd_no_attr);
+        SAFE(check_same_pd(res, pd_no_attr_wrapper), WARN);
+    }
+    return OK;
+}
 
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,

@@ -747,6 +747,8 @@ std::ostream &dump_global_params(std::ostream &s) {
     if (canonical || hints.get() != isa_hints_t::none)
         s << "--cpu-isa-hints=" << isa_hints_t::hints2str(hints) << " ";
     if (canonical || bench_mode != CORR) s << "--mode=" << bench_mode << " ";
+    if (canonical || attr_same_pd_check != false)
+        s << "--attr-same-pd-check=" << bool2str(attr_same_pd_check) << " ";
 
     return s;
 }

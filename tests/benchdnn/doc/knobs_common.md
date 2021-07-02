@@ -26,6 +26,11 @@ The following common options are supported:
   reproducer line omitting options and problem descriptor entries which values
   are set to their defaults.
 
+* --attr-same-pd-check=`BOOL` -- Instructs the driver to compare two primitive
+  descriptors - one with added attributes and one without them. When BOOL is
+  `true`, check will return error if adding of attributes caused fallback to
+  generic kernel, when optimized kernel lacked proper support.
+
 * --engine=`KIND[:INDEX]` -- Specifies an engine kind KIND to be used for
   benchmarking. KIND values can be `cpu` (the default) or `gpu`. Optional
   non-negative integer value of INDEX may be specified followed by colon `:`.

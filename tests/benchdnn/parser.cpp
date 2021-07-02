@@ -420,6 +420,12 @@ static bool parse_test_start(
             str, option_name);
 }
 
+static bool parse_attr_same_pd_check(const char *str,
+        const std::string &option_name = "attr-same-pd-check") {
+    return parse_single_value_option(
+            attr_same_pd_check, false, str2bool, str, option_name);
+}
+
 bool parse_bench_settings(const char *str) {
     last_parsed_is_problem = false; // if start parsing, expect an option
 
@@ -429,7 +435,7 @@ bool parse_bench_settings(const char *str) {
             || parse_canonical(str) || parse_mem_check(str)
             || parse_skip_impl(str) || parse_allow_enum_tags_only(str)
             || parse_cpu_isa_hints(str) || parse_memory_kind(str)
-            || parse_test_start(str);
+            || parse_test_start(str) || parse_attr_same_pd_check(str);
 }
 
 void catch_unknown_options(const char *str) {

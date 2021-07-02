@@ -385,6 +385,20 @@ void check_sum_post_ops(const attr_t &attr, res_t *res) {
     }
 }
 
+// Check ensures that attributes don't cause implementation fallback
+int check_same_pd(res_t *res, const dnnl_primitive_desc_t &pd_no_attr) {
+    const std::string pd_no_attr_name = query_impl_info(pd_no_attr);
+    if (res->impl_name != pd_no_attr_name) {
+        res->state = FAILED;
+        BENCHDNN_PRINT(0,
+                "ERROR: attributes usage caused implementation fallback from "
+                "[%s] to [%s] \n",
+                pd_no_attr_name.c_str(), res->impl_name.c_str());
+        return FAIL;
+    }
+    return OK;
+}
+
 bool is_cpu(const dnnl_engine_t &engine) {
     return get_engine_kind(engine) == dnnl_cpu;
 }

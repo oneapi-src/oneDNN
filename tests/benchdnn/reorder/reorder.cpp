@@ -229,6 +229,16 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                 5, "oneDNN implementation: %s\n", res->impl_name.c_str());
     }
 
+    if (attr_same_pd_check && !prb->attr.is_def()) {
+        dnnl_primitive_desc_t pd_no_attr {};
+        dnnl_primitive_attr_t dnnl_empty_attrs {};
+        DNN_SAFE(dnnl_reorder_primitive_desc_create(&pd_no_attr, &src_d,
+                         src_engine, &dst_d, dst_engine, dnnl_empty_attrs),
+                WARN);
+        auto pd_no_attr_wrapper = make_benchdnn_dnnl_wrapper(pd_no_attr);
+        SAFE(check_same_pd(res, pd_no_attr_wrapper), WARN);
+    }
+
     return OK;
 }
 
