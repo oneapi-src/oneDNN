@@ -14,8 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "partition_hashing.hpp"
+#include <memory>
+
 #include "partition.hpp"
+#include "partition_hashing.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -117,7 +119,7 @@ size_t get_logical_tensor_hash(const logical_tensor_t &lt) {
 
 size_t get_op_hash(const op_t &op) {
     size_t seed = 0;
-    // TODO: `id` might be sufficient to cover all attributes.
+    // TODO(zixuanwe): `id` might be sufficient to cover all attributes.
     seed = utils::hash_combine(seed, op.get_id());
     seed = utils::hash_combine(seed, static_cast<size_t>(op.get_kind()));
     return seed;

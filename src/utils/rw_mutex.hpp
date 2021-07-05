@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef INTERFACE_RW_MUTEX_HPP
-#define INTERFACE_RW_MUTEX_HPP
+#ifndef UTILS_RW_MUTEX_HPP
+#define UTILS_RW_MUTEX_HPP
 
 #include <memory>
 
