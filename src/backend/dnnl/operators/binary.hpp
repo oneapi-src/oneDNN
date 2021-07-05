@@ -40,16 +40,13 @@ enum binary_inputs { kSrc0, kSrc1 };
 enum binary_outputs { kDst };
 } // namespace bin
 
-/// Currently, we only support unidirectional broadcast. The shape of src0
-/// and src1 have to meet the one of following requirement:
-/// property 1: src0 and src1 both have exactly the same shape.
-/// property 2: src0 and src1 all have the same number of dimensions
-///             and the length of each src1 dimensions is either a common
-///             length or src1's length is 1.
-/// property 3: src1 has too few dimensions, and src1 can have its
-///             shapes prepended with a dimension of length 1 to
-///             satisfy property 2.
-/// \note src0 and src1 in the above description can be swapped
+// We support both multidirectional and unidirectional broadcast. And the
+// broadcast semantics is consistent with PyTorch broadcast:
+// Two tensors are “broadcastable” if the following rules hold:
+// - Each tensor has at least one dimension.
+// - When iterating over the dimension sizes, starting at the trailing
+//   dimension, the dimension sizes must either be equal, one of them is 1, or
+//   one of them does not exist.
 struct binary : public dnnl::binary, public kernel_base {
     using super = dnnl::binary;
 
@@ -66,9 +63,9 @@ private:
     size_t idx_dst_ {bin::kDst};
 
     bool broadcast_ {false};
-    bool unidirectional_ {false};
     bool with_post_sum_ {false};
 
+    dnnl::memory expected_src0_;
     dnnl::memory expected_src1_;
     dnnl::memory expected_dst_;
 
@@ -203,11 +200,6 @@ public:
 
         p_engine_ = make_dnnl_engine(*g_engine);
 
-        // dnnl only support src1 broadcast now
-        if (ltw(inputs[idx_src0_]).vdims() != ltw(outputs[idx_dst_]).vdims()) {
-            std::swap(idx_src0_, idx_src1_);
-        }
-
         desc src0 = make_dnnl_memory_desc(inputs.at(idx_src0_));
         desc src1 = make_dnnl_memory_desc(inputs.at(idx_src1_));
         desc dst = make_dnnl_memory_desc(outputs.at(idx_dst_));
@@ -217,14 +209,8 @@ public:
             if (auto_broadcast_ != "numpy") return status::compile_fail;
 
             broadcast_ = true;
-            int src0_ndims = src0.data.ndims;
-            int src1_ndims = src1.data.ndims;
-            if (src0.dims() == dst.dims() && (src0_ndims >= src1_ndims)) {
-                src1 = expand(src1, src0_ndims);
-                unidirectional_ = true;
-            } else {
-                return status::compile_fail;
-            }
+            src0 = expand(src0, dst.data.ndims);
+            src1 = expand(src1, dst.data.ndims);
         }
 
         // to any for allowing dnnl choose optimal layout for dst
@@ -273,15 +259,20 @@ public:
         // broadcasted: parse its buffer with the reshaped desc
         // not broadcasted:use the origin memory object directly
         if (broadcast_) {
-            if (unidirectional_) {
-                if (first_iteration_) {
-                    expected_src1_ = memory(pd_.src1_desc(), p_engine_,
-                            src1_.get_data_handle());
-                }
-                expected_src1_.set_data_handle(src1_.get_data_handle());
+            if (first_iteration_) {
+                expected_src0_ = memory(
+                        pd_.src0_desc(), p_engine_, src0_.get_data_handle());
+                expected_src1_ = memory(
+                        pd_.src1_desc(), p_engine_, src1_.get_data_handle());
             }
+            expected_src0_.set_data_handle(src0_.get_data_handle());
+            expected_src1_.set_data_handle(src1_.get_data_handle());
         } else {
-            if (first_iteration_) expected_src1_ = src1_;
+            if (first_iteration_) {
+                expected_src0_ = src0_;
+                expected_src1_ = src1_;
+            }
+            expected_src0_.set_data_handle(src0_.get_data_handle());
             expected_src1_.set_data_handle(src1_.get_data_handle());
         }
 
@@ -289,8 +280,8 @@ public:
 
         // Deal with the dst:
         // when create the primitive, we use any format for dst, so the
-        // optiminal layout may be different from the original. we need
-        // to check this and alloc new memory for optiminal dst
+        // optimal layout may be different from the original. we need
+        // to check this and alloc new memory for optimal dst
         if (pd_.dst_desc() != dst_.get_desc()) {
             if (first_iteration_) {
                 expected_dst_buf_ = allocator::malloc(
@@ -317,7 +308,7 @@ public:
         }
 
         if (first_iteration_) {
-            binary_args_ = {{DNNL_ARG_SRC_0, src0_},
+            binary_args_ = {{DNNL_ARG_SRC_0, expected_src0_},
                     {DNNL_ARG_SRC_1, expected_src1_},
                     {DNNL_ARG_DST, expected_dst_}};
         }
