@@ -24,6 +24,7 @@
 
 #include "interface/backend.hpp"
 #include "interface/graph.hpp"
+#include "interface/logical_tensor.hpp"
 #include "interface/op_schema.hpp"
 #include "interface/partition.hpp"
 
@@ -45,6 +46,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_create(partition_t **partition) {
 /// should be the same as partitioning a normal user graph.
 status_t DNNL_GRAPH_API dnnl_graph_partition_create_with_op(
         partition_t **partition, const op_t *op, engine_kind_t ekind) {
+    using ltw = logical_tensor_wrapper;
     // new an empty partition
     *partition = new partition_t();
     if (utils::any_null(*partition, op)) return status::invalid_argument;
@@ -57,11 +59,65 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_create_with_op(
 
     if (ret != status::success) return ret;
 
-    // get partition impl. by calling each backends
-    std::vector<const backend *> &backends
-            = backend_registry::get_singleton().get_registered_backends();
-    for (auto cbkd : backends) {
-        backend *bkd = const_cast<backend *>(cbkd);
+    // find opaque logical tensor in inputs
+    const auto &input_vals = op->get_input_values();
+    auto opaque_in_iter = std::find_if(input_vals.begin(), input_vals.end(),
+            [](const std::shared_ptr<value_t> &it) {
+                return ltw(it->get_logical_tensor()).is_opaque();
+            });
+    // find opaque layout tensors in outputs
+    const auto &output_vals = op->get_output_values();
+    auto opaque_out_iter = std::find_if(output_vals.begin(), output_vals.end(),
+            [](const std::shared_ptr<value_t> &it) {
+                return ltw(it->get_logical_tensor()).is_opaque();
+            });
+
+    // Case 1: all input/outputs are not opaque logical tensors
+    // we need go through all registered backends to get partitions
+    if (opaque_in_iter == input_vals.end()
+            && opaque_out_iter == output_vals.end()) {
+        // get partition impl. by calling each backend
+        std::vector<const backend *> &backends
+                = backend_registry::get_singleton().get_registered_backends();
+        for (const auto &cbkd : backends) {
+            backend *bkd = const_cast<backend *>(cbkd);
+            ret = bkd->get_partitions(g, partition_policy::fusion);
+            if (ret != status::success) return ret;
+        }
+    } else {
+        // Case 2: if input/output logical tensors have already embedded with
+        // backend ID (e.g opaque layout), here we directly use the same backend
+        // to get partitions
+        bool in_has_valid_layout_id = opaque_in_iter != input_vals.end();
+        bool out_has_valid_layout_id = opaque_out_iter != output_vals.end();
+        size_t in_valid_layout_id = in_has_valid_layout_id
+                ? static_cast<size_t>(
+                        ltw((*opaque_in_iter)->get_logical_tensor())
+                                .layout_id())
+                : std::numeric_limits<size_t>::max();
+        size_t out_valid_layout_id = out_has_valid_layout_id
+                ? static_cast<size_t>(
+                        ltw((*opaque_out_iter)->get_logical_tensor())
+                                .layout_id())
+                : std::numeric_limits<size_t>::max();
+        if (in_has_valid_layout_id && out_has_valid_layout_id) {
+            size_t in_backend_id
+                    = backend_registry::extract_backend_id(in_valid_layout_id);
+            size_t out_backend_id
+                    = backend_registry::extract_backend_id(out_valid_layout_id);
+            // input and output logical tensor have different backend IDs
+            if (in_backend_id != out_backend_id) {
+                assertm(false, "backends dismatch between inputs and outputs");
+                return status::unsupported;
+            }
+        }
+        size_t valid_layout_id = in_has_valid_layout_id ? in_valid_layout_id
+                                                        : out_valid_layout_id;
+        backend *bkd = const_cast<backend *>(
+                backend_registry::get_singleton().get_registered_backend(
+                        valid_layout_id));
+        assertm(bkd != nullptr,
+                "backend is not valid since layout id maybe not correct.");
         ret = bkd->get_partitions(g, partition_policy::fusion);
         if (ret != status::success) return ret;
     }
