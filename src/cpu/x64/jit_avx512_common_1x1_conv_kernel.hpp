@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,6 +75,10 @@ private:
     reg64_t reg_bcast_loop_work = aux1_reg_bcast_data;
     reg64_t reg_load_dim_tail_mask = aux_reg_load_data;
 
+    /* binary post-ops operands */
+    reg64_t oc_off_oprnd = r12;
+    reg64_t out_off_oprnd = r13;
+
     Xbyak::Zmm vreg_bcast = Xbyak::Zmm(31);
     Xbyak::Opmask k_load_dim_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_load_dim_tail_mask = Xbyak::Opmask(3);
@@ -87,6 +91,16 @@ private:
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
+
+    inline size_t get_output_offset(
+            const bool is_out_layout_nxc, const int i_load, const int i_ur) {
+        const size_t i_load_shift = is_out_layout_nxc
+                ? jcp.load_block
+                : (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) * jcp.load_block;
+        const size_t i_ur_shift
+                = is_out_layout_nxc ? jcp.load_dim : jcp.load_block;
+        return (i_load * i_load_shift + i_ur * i_ur_shift);
+    }
 
     Xbyak::Address output_ptr(
             const bool out_layout_nxc, const int i_load, const int i_ur);

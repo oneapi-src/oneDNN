@@ -93,6 +93,9 @@ private:
     const Xbyak::Reg64 reg_src_zero_point = aux_reg_ker_d;
     const Xbyak::Reg64 reg_dst_zero_point = reg_src_zero_point;
 
+    /* binary post-ops operand */
+    const Xbyak::Reg64 temp_offset_reg = r12;
+
     const Vmm vmm_wei = Vmm(0);
     /* used during bias/comp/scale section of store_output */
     const Vmm vmm_bias = Vmm(0);

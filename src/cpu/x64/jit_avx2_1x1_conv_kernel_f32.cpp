@@ -159,7 +159,6 @@ void jit_avx2_1x1_conv_kernel_f32::apply_postops(
         if (jcp.with_binary) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
                     rhs_arg_params_tail;
-            const auto oc_off_oprnd = r12;
 
             iterate(load_loop_blk, ur, load_dim_tail,
                     [&](const bool mask_flag, const int i, const int j) {
@@ -179,7 +178,7 @@ void jit_avx2_1x1_conv_kernel_f32::apply_postops(
                         rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
                                 vmm_idx, aux_output_offset);
                         rhs_arg_params_tail.vmm_idx_to_out_off_oprnd.emplace(
-                                vmm_idx, oc_off_oprnd);
+                                vmm_idx, out_off_oprnd);
                         if (mask_flag)
                             rhs_arg_params_tail.vmm_tail_idx_.emplace(vmm_idx);
                     });
@@ -187,7 +186,7 @@ void jit_avx2_1x1_conv_kernel_f32::apply_postops(
             rhs_arg_params.vmm_tail_idx_.clear();
 
             const injector_utils::register_preserve_guard_t register_guard(
-                    this, {abi_param1, oc_off_oprnd});
+                    this, {abi_param1, oc_off_oprnd, out_off_oprnd});
             const size_t reg_guard_stack_occupied
                     = register_guard.stack_space_occupied();
             mov(abi_param1,
@@ -196,6 +195,9 @@ void jit_avx2_1x1_conv_kernel_f32::apply_postops(
             mov(oc_off_oprnd,
                     ptr[rsp + reg_binary_post_op_acc_off
                             + reg_guard_stack_occupied]);
+            mov(out_off_oprnd, aux_reg_output_data);
+            sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
+            shr(out_off_oprnd, std::log2(sizeof(float)));
 
             Label postops_done;
             if (load_dim_tail) {
@@ -797,9 +799,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     static constexpr bool sum_requires_zp_zero = true;
     const bool post_ops_ok_ = post_ops_ok({avx2, {eltwise, binary, sum},
             jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
-            sum_requires_zp_zero,
-            {broadcasting_strategy_t::scalar,
-                    broadcasting_strategy_t::per_oc}});
+            sum_requires_zp_zero});
     if (!post_ops_ok_) return status::unimplemented;
 
     bool args_ok = true && jcp.ngroups == 1 && jcp.src_tag == dat_tag

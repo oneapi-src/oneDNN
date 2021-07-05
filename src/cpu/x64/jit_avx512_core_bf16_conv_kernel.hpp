@@ -73,6 +73,9 @@ private:
 
     reg64_t reg_long_offt = r14;
 
+    /* binary post-ops operand */
+    reg64_t temp_offset_reg = r12;
+
     int vmm_dst_idx(const int i_ur, const int i_oc) const;
     Vmm vmm_dst(const int i_ur, const int i_oc) const;
 

@@ -194,13 +194,12 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_postops(const int ur,
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
         vmm_index_set_t vmm_idxs;
         if (jcp.with_binary) {
-            const auto oc_off_oprnd = r12;
             iterate(ur, load_loop_blk, [&](const int i_ur, const int i_load) {
                 const int ur_stride = jcp.with_dw_conv
                         ? jcp.nb_load_blocking * jcp.oc_block * i_ur
                         : jcp.oc_without_padding * jcp.ngroups * i_ur;
-                const int aux_output_offset = jcp.typesize_out
-                        * (ur_stride + i_load * jcp.load_block);
+                const int aux_output_offset
+                        = (ur_stride + i_load * jcp.load_block);
                 const auto vmm_idx
                         = vreg_accum_idx(load_loop_blk, i_load, i_ur);
                 vmm_idxs.emplace(vmm_idx);
@@ -210,15 +209,21 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_postops(const int ur,
                         vmm_idx, i_load * jcp.load_block);
                 rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
                         vmm_idx, oc_off_oprnd);
+                rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
+                        vmm_idx, out_off_oprnd);
                 rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
                         vmm_idx, aux_output_offset);
             });
 
             const injector_utils::register_preserve_guard_t register_guard(
-                    this, {oc_off_oprnd});
+                    this, {oc_off_oprnd, out_off_oprnd});
             mov(oc_off_oprnd,
                     ptr[rsp + reg_binary_post_op_acc_off
                             + register_guard.stack_space_occupied()]);
+            mov(out_off_oprnd, aux_reg_output_data);
+            sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
+            shr(out_off_oprnd, std::log2(types::data_type_size(jcp.dst_dt)));
+
             postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
         } else {
             iterate(ur, load_loop_blk, [&](const int i_ur, const int i_load) {
@@ -731,9 +736,7 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
 
     using namespace injector;
     const bool post_ops_ok_ = post_ops_ok({isa, {eltwise, binary, sum},
-            jcp.post_ops, &dst_d, false, false, false,
-            {broadcasting_strategy_t::scalar,
-                    broadcasting_strategy_t::per_oc}});
+            jcp.post_ops, &dst_d, false, false, false});
     if (!post_ops_ok_) return status::unimplemented;
 
     args_ok = true && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0

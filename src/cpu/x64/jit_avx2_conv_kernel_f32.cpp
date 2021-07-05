@@ -210,7 +210,6 @@ void jit_avx2_conv_fwd_kernel_f32::apply_postops(
         if (jcp.with_binary) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
                     rhs_arg_params_tail;
-            const auto temp_offset_reg = r12;
             iterate(oc_blocks, ur_w, oc_tail,
                     [&](const bool mask_flag, const int i, const int j) {
                         const int aux_output_offset
@@ -704,9 +703,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     static constexpr bool sum_requires_zp_zero = true;
     const bool post_ops_ok_ = post_ops_ok({avx2, {eltwise, binary, sum},
             jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
-            sum_requires_zp_zero,
-            {broadcasting_strategy_t::scalar,
-                    broadcasting_strategy_t::per_oc}});
+            sum_requires_zp_zero});
     if (!post_ops_ok_) return status::unimplemented;
 
     bool args_ok = true

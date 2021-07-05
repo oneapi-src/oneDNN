@@ -159,10 +159,9 @@ void jit_sse41_conv_fwd_kernel_f32::apply_postops(
     injector_utils::vmm_index_set_t vmm_idxs;
     if (jcp.with_binary) {
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-        const auto temp_offset_reg = this->r13;
         iterate(oc_blocks, ur_w,
                 [&](const bool mask_flag, const int i, const int j) {
-                    const int o_off = get_output_offset(i, j) * sizeof(float);
+                    const int o_off = get_output_offset(i, j) / sizeof(float);
                     const auto vmm_idx = get_xmm_idx(ur_w, i, j);
                     vmm_idxs.emplace(vmm_idx);
 
@@ -173,13 +172,18 @@ void jit_sse41_conv_fwd_kernel_f32::apply_postops(
                     rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
                             vmm_idx, o_off);
                     rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                            vmm_idx, temp_offset_reg);
+                            vmm_idx, oc_off_oprnd);
+                    rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
+                            vmm_idx, out_off_oprnd);
                     if (mask_flag)
                         rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
                 });
         const injector_utils::register_preserve_guard_t register_guard(
-                this, {temp_offset_reg});
-        imul(temp_offset_reg, simd_iter, simd_w_);
+                this, {oc_off_oprnd, out_off_oprnd});
+        imul(oc_off_oprnd, simd_iter, simd_w_);
+        mov(out_off_oprnd, reg_output);
+        sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
+        shr(out_off_oprnd, std::log2(sizeof(float)));
         postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
     } else {
         iterate(oc_blocks, ur_w, [&](const bool, const int i, const int j) {
@@ -467,9 +471,7 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     static constexpr bool sum_requires_zp_zero = true;
     const bool post_ops_ok_ = post_ops_ok({sse41, {eltwise, binary, sum},
             jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
-            sum_requires_zp_zero,
-            {broadcasting_strategy_t::scalar,
-                    broadcasting_strategy_t::per_oc}});
+            sum_requires_zp_zero});
     if (!post_ops_ok_) return status::unimplemented;
 
     const bool flat = jcp.ic == 3;

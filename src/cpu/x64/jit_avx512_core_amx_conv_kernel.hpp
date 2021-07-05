@@ -324,6 +324,9 @@ private:
     const Xbyak::Reg64 &reg_oc_blocks = rax;
     const Xbyak::Reg64 &reg_tmp = r8;
 
+    /* binary post-ops operand */
+    const Xbyak::Reg64 &out_off_oprnd = r13;
+
     const Xbyak::Opmask &ktail_mask = k2;
 
     const Xbyak::Zmm &zmm_bias = zmm31;

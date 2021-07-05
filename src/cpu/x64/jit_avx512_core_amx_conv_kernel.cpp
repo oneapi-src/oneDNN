@@ -1384,10 +1384,18 @@ void jit_avx512_core_amx_fwd_kernel_t::apply_postops(const Zmm &zmm_out,
                     vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
             rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
                     vmm_idx, oc_l_offset);
+            rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
+                    vmm_idx, out_off_oprnd);
             rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
-                    vmm_idx, static_cast<int>(off));
+                    vmm_idx, static_cast<int>(off) / jcp.typesize_out);
             if (mask_flag) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
         }
+
+        const injector_utils::register_preserve_guard_t register_guard(
+                this, {out_off_oprnd});
+        mov(out_off_oprnd, reg_out_ptr);
+        sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
+        shr(out_off_oprnd, std::log2(types::data_type_size(jcp.dst_dt)));
 
         postops_injector_->compute_vector(vmm_idx, rhs_arg_params);
     }
@@ -2434,9 +2442,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     const bool sum_requires_zp_zero = sum_at_pos_0_only;
     const bool post_ops_ok_ = post_ops_ok({avx512_core, {eltwise, binary, sum},
             jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
-            sum_requires_zp_zero,
-            {broadcasting_strategy_t::scalar,
-                    broadcasting_strategy_t::per_oc}});
+            sum_requires_zp_zero});
     if (!post_ops_ok_) return status::unimplemented;
 
     auto set_or_check_wei_format = [&]() {

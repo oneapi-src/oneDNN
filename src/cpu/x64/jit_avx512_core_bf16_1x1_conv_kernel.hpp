@@ -83,6 +83,10 @@ private:
             = reg_output_stride; // reg_output_stride used only in BWD/WU
     reg64_t aux_reg_store_buf = reg_load_loop_work;
 
+    /* binary post-ops operands */
+    reg64_t oc_off_oprnd = r12;
+    reg64_t out_off_oprnd = r13;
+
     mask_t vmask = k7;
     // Used for axb tail handling.
     // k_load_dim_mask is dynamically updated with k_load_mask_tail_mask
@@ -183,6 +187,16 @@ private:
             if (zero_mask) ymm = ymm | T_z;
         }
         return ymm;
+    }
+
+    inline size_t get_output_offset(const int i_load, const int i_ur) {
+        const bool is_output_layout_nxc = is_out_layout_nxc();
+        const size_t i_load_shift = is_output_layout_nxc
+                ? jcp.load_block
+                : (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) * jcp.load_block;
+        const size_t i_ur_shift
+                = is_output_layout_nxc ? jcp.load_dim : jcp.load_block;
+        return (i_load * i_load_shift + i_ur * i_ur_shift);
     }
 
     std::unique_ptr<bf16_emulation_t> bf16_emu_;

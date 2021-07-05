@@ -73,6 +73,10 @@ private:
     const Xbyak::Reg64 reg_src_zero_point = aux_reg_bcast_data; // r14
     const Xbyak::Reg64 reg_dst_zero_point = reg_src_zero_point;
 
+    /* binary post-ops operands */
+    const Xbyak::Reg64 oc_off_oprnd = r12;
+    const Xbyak::Reg64 out_off_oprnd = r15;
+
     const Vmm vmm_tmp = Vmm(3);
     const Vmm vmm_one = Vmm(2);
     const Vmm vmm_zero = Vmm(1);

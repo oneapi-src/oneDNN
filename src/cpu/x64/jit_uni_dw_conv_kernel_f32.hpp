@@ -66,6 +66,10 @@ private:
     reg64_t aux_reg_input_buffer_ptr = rbp;
     reg64_t reg_iw_offset = reg_input; //Hack: clear reg_input early in kernel
 
+    /* binary post-ops operands */
+    reg64_t oc_off_oprnd = reg_ch_blocks;
+    reg64_t out_off_oprnd = reg_output;
+
     reg64_t reg_tail = rax;
     mask_t k_oc_tail_mask = Xbyak::Opmask(2);
 

@@ -174,7 +174,6 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::apply_postops(int ur_w) {
         if (jcp.with_binary) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
                     rhs_arg_params_tail;
-            const auto temp_offset_reg = this->r12;
             const auto mask_tail = jcp.oc_without_padding % jcp.simd_w;
             const bool oc_blk_is_smaller_than_vmm
                     = jcp.oc_block < isa_simd_width_;
@@ -204,7 +203,7 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::apply_postops(int ur_w) {
                     this, {temp_offset_reg});
             mov(temp_offset_reg, reg_dst);
             sub(temp_offset_reg, ptr[param1 + GET_OFF(dst_orig)]);
-            shr(temp_offset_reg, std::log2(sizeof(float)));
+            shr(temp_offset_reg, std::log2(types::data_type_size(jcp.dst_dt)));
 
             Label postops_done;
             if (mask_tail || oc_blk_is_smaller_than_vmm) {
@@ -1026,9 +1025,7 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     static constexpr bool sum_requires_zp_zero = true;
     const bool post_ops_ok_ = post_ops_ok({avx512_core, {eltwise, binary, sum},
             jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
-            sum_requires_zp_zero,
-            {broadcasting_strategy_t::scalar,
-                    broadcasting_strategy_t::per_oc}});
+            sum_requires_zp_zero});
     if (!post_ops_ok_) return status::unimplemented;
 
     jcp.nb_ic = utils::div_up(jcp.ic, jcp.ic_block);

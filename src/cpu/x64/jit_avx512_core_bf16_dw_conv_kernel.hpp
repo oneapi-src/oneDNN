@@ -60,6 +60,10 @@ private:
     reg64_t reg_oi = rbx;
     reg64_t aux_reg_ch_blocks = rdx;
 
+    /* binary post-ops operands */
+    reg64_t oc_off_oprnd = reg_ch_blocks;
+    reg64_t out_off_oprnd = reg_output;
+
     // fused convolution
     reg64_t reg_input_buffer_ptr = rdx;
     reg64_t aux_reg_input_buffer_ptr = rsi;

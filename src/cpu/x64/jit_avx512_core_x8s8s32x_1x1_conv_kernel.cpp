@@ -223,7 +223,6 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::apply_postops(
         if (jcp.with_binary) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
                     rhs_arg_params_tail;
-            const auto oc_off_oprnd = reg_scratch;
             const auto mask_tail = jcp.oc_without_padding % jcp.load_block;
             const bool oc_blk_is_smaller_than_vmm
                     = jcp.oc_block < isa_simd_width_;
@@ -245,9 +244,8 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::apply_postops(
                                 vmm_idx, i_load * jcp.load_block);
                         rhs_arg_params_tail.vmm_idx_to_oc_off_oprnd.emplace(
                                 vmm_idx, oc_off_oprnd);
-                        rhs_arg_params_tail.vmm_idx_to_out_elem_off_addr
-                                .emplace(vmm_idx,
-                                        ptr[param1 + GET_OFF(dst_l_off)]);
+                        rhs_arg_params_tail.vmm_idx_to_out_off_oprnd.emplace(
+                                vmm_idx, out_off_oprnd);
                         rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
                                 vmm_idx, aux_output_l_off);
                         if (mask_flag)
@@ -256,9 +254,21 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::apply_postops(
             rhs_arg_params = rhs_arg_params_tail;
             rhs_arg_params.vmm_tail_idx_.clear();
 
-            mov(abi_param1, EVEX_compress_addr(rsp, reg_abi_param1_backup));
+            const injector_utils::register_preserve_guard_t register_guard(
+                    this, {out_off_oprnd});
+            const size_t reg_guard_stack_occupied
+                    = register_guard.stack_space_occupied();
+
+            mov(abi_param1,
+                    EVEX_compress_addr(rsp,
+                            reg_abi_param1_backup + reg_guard_stack_occupied));
             mov(oc_off_oprnd,
-                    EVEX_compress_addr(rsp, reg_binary_post_op_acc_off));
+                    EVEX_compress_addr(rsp,
+                            reg_binary_post_op_acc_off
+                                    + reg_guard_stack_occupied));
+            mov(out_off_oprnd, aux_reg_output_data);
+            sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
+            shr(out_off_oprnd, std::log2(types::data_type_size(jcp.dst_dt)));
 
             Label postops_done;
             if (mask_tail || oc_blk_is_smaller_than_vmm) {
@@ -876,9 +886,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     static constexpr bool sum_requires_zp_zero = false;
     const bool post_ops_ok_ = post_ops_ok({avx512_core, {eltwise, binary, sum},
             jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
-            sum_requires_zp_zero,
-            {broadcasting_strategy_t::scalar,
-                    broadcasting_strategy_t::per_oc}});
+            sum_requires_zp_zero});
     if (!post_ops_ok_) return status::unimplemented;
 
     const int simd_w = (jcp.ic % 16 == 0 && jcp.oc % 16 == 0)

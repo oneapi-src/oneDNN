@@ -208,7 +208,6 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
         if (jcp.with_binary) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
                     rhs_arg_params_tail;
-            const auto temp_offset_reg = this->r12;
             const auto mask_tail = jcp.oc_without_padding % jcp.ch_block;
             const auto dst_layout_nxc = is_dst_layout_nxc();
             const auto ch_blk = jcp.ch_block;
@@ -227,11 +226,11 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
                         rhs_arg_params_tail.vmm_idx_to_oc_elem_off_val.emplace(
                                 vmm_idx, ch * jcp.ch_block);
                         rhs_arg_params_tail.vmm_idx_to_oc_off_oprnd.emplace(
-                                vmm_idx, temp_offset_reg);
+                                vmm_idx, oc_off_oprnd);
                         rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
                                 vmm_idx, aux_output_l_off);
                         rhs_arg_params_tail.vmm_idx_to_out_off_oprnd.emplace(
-                                vmm_idx, temp_offset_reg);
+                                vmm_idx, out_off_oprnd);
                         if (mask_flag)
                             rhs_arg_params_tail.vmm_tail_idx_.emplace(vmm_idx);
                     });
@@ -239,15 +238,15 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
             rhs_arg_params.vmm_tail_idx_.clear();
 
             const injector_utils::register_preserve_guard_t register_guard(
-                    this, {temp_offset_reg});
-            mov(temp_offset_reg, reg_output);
-            sub(temp_offset_reg, ptr[param1 + GET_OFF(dst_orig)]);
-            shr(temp_offset_reg, std::log2(sizeof(float)));
+                    this, {oc_off_oprnd, out_off_oprnd});
+            mov(out_off_oprnd, reg_output);
+            sub(out_off_oprnd, ptr[param1 + GET_OFF(dst_orig)]);
+            shr(out_off_oprnd, std::log2(types::data_type_size(jcp.dst_dt)));
 
             Label postops_done;
             if (mask_tail) {
                 Label postops_no_tail;
-                const auto reg_tail = temp_offset_reg;
+                const auto reg_tail = oc_off_oprnd;
                 mov(reg_tail, ptr[param1 + GET_OFF(load_work)]);
                 cmp(reg_tail, jcp.nb_ch_blocking * jcp.ch_block);
                 jge(postops_no_tail, T_NEAR);

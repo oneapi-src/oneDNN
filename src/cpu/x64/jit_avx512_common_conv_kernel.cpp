@@ -155,7 +155,6 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::apply_postops(int ur_w) {
     injector_utils::vmm_index_set_t vmm_idxs;
     if (jcp.with_binary) {
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-        const auto temp_offset_reg = this->r12;
         const bool mask_tail = jcp.oc_without_padding % jcp.simd_w;
         const bool oc_blk_is_smaller_than_vmm = jcp.oc_block < isa_simd_width_;
         iterate(jcp.nb_oc_blocking, ur_w, mask_tail, oc_blk_is_smaller_than_vmm,
@@ -1513,9 +1512,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     static constexpr bool sum_requires_zp_zero = true;
     const bool post_ops_ok_ = post_ops_ok({avx512_common,
             {eltwise, binary, sum}, jcp.post_ops, &dst_d, sum_at_pos_0_only,
-            sum_requires_scale_one, sum_requires_zp_zero,
-            {broadcasting_strategy_t::scalar,
-                    broadcasting_strategy_t::per_oc}});
+            sum_requires_scale_one, sum_requires_zp_zero});
     if (!post_ops_ok_) return status::unimplemented;
 
     if (mayiuse(avx512_common) && src_d.data_type() == data_type::f32

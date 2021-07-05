@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,6 +77,10 @@ private:
     reg64_t reg_tmp_output_stride = reg_bcast_data;
     reg64_t reg_tmp = aux_reg_bcast_data;
     reg64_t reg_output_stride_scale = load_loop_iter;
+
+    /* binary post-ops operands */
+    reg64_t oc_off_oprnd = r12;
+    reg64_t out_off_oprnd = r15;
 
     constexpr static int reg64_size_ = sizeof(int64_t);
     constexpr static int reg_diff_bias_data_stack_offt = 0;

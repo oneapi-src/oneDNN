@@ -344,7 +344,7 @@ void jit_pp_ker_t::apply_postops(const Xbyak::Reg64 &reg_dst, const int idx) {
             const injector_utils::register_preserve_guard_t register_guard(
                     this, {dst_offset_reg});
             sub(dst_offset_reg, ptr[reg_param_ + PARAM_OFF(dst_orig)]);
-            const auto size = sizeof(jcp_.dst_data_type);
+            const auto size = types::data_type_size(jcp_.dst_data_type);
             if (size) shr(dst_offset_reg, std::log2(size));
 
             postops_injector_->compute_vector(

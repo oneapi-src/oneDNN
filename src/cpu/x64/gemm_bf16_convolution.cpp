@@ -134,25 +134,31 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
 
 template <data_type_t dst_data_type>
 void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::apply_postops(
-        const bool apply_mask, const int vmm_idx) {
+        const bool apply_mask, const int out_offset, const int vmm_idx) {
 #define PARAM_OFF(x) offsetof(ker_args, x)
     if (jcp_.with_eltwise || jcp_.with_binary) {
         static constexpr int offset = 0;
         if (jcp_.with_binary) {
-            const auto oc_off_oprnd = this->r12;
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
             rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
                     vmm_idx, ptr[abi_param1 + PARAM_OFF(g_oc_offset)]);
             rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(vmm_idx, offset);
             rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
                     vmm_idx, oc_off_oprnd);
+            rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                    vmm_idx, out_offset);
+            rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
+                    vmm_idx, out_off_oprnd);
             if (apply_mask) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
 
             const injector_utils::register_preserve_guard_t register_guard(
-                    this, {oc_off_oprnd});
+                    this, {oc_off_oprnd, out_off_oprnd});
             mov(oc_off_oprnd,
                     ptr[rsp + reg_binary_post_op_acc_off
                             + register_guard.stack_space_occupied()]);
+            mov(out_off_oprnd, reg_dst);
+            sub(out_off_oprnd, ptr[param1 + PARAM_OFF(dst_orig)]);
+            shr(out_off_oprnd, std::log2(sizeof(dst_data_t)));
 
             postops_injector_->compute_vector(vmm_idx, rhs_arg_params);
         } else
@@ -223,7 +229,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
             vfmadd231ps(vreg_dst(idx), vreg_prev_dst(idx), vreg_sum_scale);
         }
 
-        apply_postops(apply_mask, vreg_dst_idx(idx));
+        apply_postops(apply_mask, offset, vreg_dst_idx(idx));
 
         if (dst_data_type == data_type::bf16) {
             // TODO: implement store by zmm registers for bf16
@@ -515,7 +521,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_thr_nspc(
                             (*pp_ker_)(dst_arr,
                                     acc_needed ? acc_arr : (float *)dst_arr,
                                     bia_arr, sum_scale, jcp.oc,
-                                    post_ops_binary_rhs_arg_vec, dst,
+                                    post_ops_binary_rhs_arg_vec, dst_base,
                                     g * jcp.oc);
                         });
             }
@@ -578,8 +584,8 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
     auto inner_ker = [&](const int ic, const int oc, const int groups,
                              const int od, const int spatial,
                              const src_data_t *src, const wei_data_t *weights,
-                             src_data_t *col, dst_data_t *dst, acc_data_t *acc,
-                             int ic_block, int oc_block) {
+                             src_data_t *col, dst_data_t *dst_im,
+                             acc_data_t *acc, int ic_block, int oc_block) {
         const dim_t os_block = nstl::min(
                 (dim_t)jcp.os_block, (dim_t)jcp.os - spatial * jcp.os_block);
 
@@ -602,7 +608,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
         const dim_t LDC = is_bf16_dst ? m : M;
         const float beta = (ic == 0) ? this->beta_ : one;
         auto out_off = spatial * jcp.os_block + od * jcp.os;
-        dst_data_t *dst_local = dst + out_off;
+        dst_data_t *dst_local = dst_im + out_off;
 
         status_t st_thr = gemm_bf16bf16f32("N", "N", &m, &N, &K, &one,
                 jcp.im2col_sz ? col : src + ic * M + out_off, &LDA, weights,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,6 +60,11 @@ private:
     reg64_t simd_iter = r15;
     reg64_t reg_oc_blocks = r14;
     reg64_t imm_addr64 = reg_oc_blocks;
+
+    /* binary post-ops operands */
+    reg64_t oc_off_oprnd = r12;
+    reg64_t out_off_oprnd = r13;
+
     Xbyak::Reg32 reg_ci_flag = r13d;
 
     std::unique_ptr<injector::jit_uni_postops_injector_t<sse41>>

@@ -95,6 +95,9 @@ private:
     const Xbyak::Reg64 reg_icb = reg_bias;
     const Xbyak::Reg64 reg_jmp_tbl_base = reg_kj;
 
+    /* binary post-op operand */
+    const Xbyak::Reg64 temp_offset_reg = r12;
+
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
     const Xbyak::Opmask kblend_mask = Xbyak::Opmask(3);
     const Xbyak::Opmask postops_mask = Xbyak::Opmask(4);

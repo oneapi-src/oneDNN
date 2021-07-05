@@ -95,6 +95,9 @@ private:
     const Xbyak::Reg64 &reg_src_zero_point = reg_oc_blocks;
     const Xbyak::Reg64 &reg_dst_zero_point = rax;
 
+    /* binary post-ops operand */
+    const Xbyak::Reg64 &out_off_oprnd = r13;
+
     const Xbyak::Zmm &zmm_bias = zmm31;
     const Xbyak::Zmm &zmm_saturation = zmm_bias;
     const Xbyak::Zmm &zmm_zero = zmm30;

@@ -87,6 +87,10 @@ private:
     reg64_t reg_ker_long_offt = r11;
     reg64_t reg_tail = aux_reg_ker;
     reg64_t reg_load_work = reg_tail;
+
+    /* binary post-ops operand */
+    reg64_t temp_offset_reg = r12;
+
     Xbyak::Opmask k_oc_tail_mask = Xbyak::Opmask(2);
     const Xbyak::Opmask postops_mask = Xbyak::Opmask(3);
 

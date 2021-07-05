@@ -179,16 +179,14 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_postops(
                 p_sum_zp);
 
         vmm_index_set_t vmm_idxs;
-        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
         if (jcp.with_binary) {
+            binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
             const bool oc_blk_is_smaller_than_vmm = oc_block < isa_simd_width_;
             iterate(nb_oc_block, ur_w, last_oc_block_flag,
                     oc_blk_is_smaller_than_vmm,
                     [&](const bool mask_flag, const int k, const int j) {
-                        const int aux_output_offset = jcp.typesize_out
-                                * (k * oc_block
-                                        + j * jcp.oc_without_padding
-                                                * jcp.ngroups);
+                        const int aux_output_offset = (k * oc_block
+                                + j * jcp.oc_without_padding * jcp.ngroups);
                         const auto vmm_idx = vmm_out_idx(j, k);
                         vmm_idxs.emplace(vmm_idx);
 
@@ -196,18 +194,28 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_postops(
                                 vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
                         rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
                                 vmm_idx, k * oc_block);
+                        rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
+                                vmm_idx, temp_offset_reg);
                         rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
                                 vmm_idx, aux_output_offset);
                         if (mask_flag)
                             rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
                     });
-        } else
+
+            const injector_utils::register_preserve_guard_t register_guard(
+                    this, {temp_offset_reg});
+            mov(temp_offset_reg, reg_out);
+            sub(temp_offset_reg, ptr[param1 + GET_OFF(dst_orig)]);
+            shr(temp_offset_reg, std::log2(types::data_type_size(jcp.dst_dt)));
+
+            postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+        } else {
             iterate(nb_oc_block, ur_w,
                     [&](const bool, const int k, const int j) {
                         vmm_idxs.emplace(vmm_out_idx(j, k));
                     });
-
-        postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+            postops_injector_->compute_vector_range(vmm_idxs);
+        }
         if (jcp.with_sum && *p_sum_zp != 0) pop(reg_ptr_sum_zp);
     }
 }
@@ -1447,9 +1455,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
     using namespace injector;
 
     const bool post_ops_ok_ = post_ops_ok({isa, {eltwise, binary, sum},
-            jcp.post_ops, &dst_d, false, false, false,
-            {broadcasting_strategy_t::scalar,
-                    broadcasting_strategy_t::per_oc}});
+            jcp.post_ops, &dst_d, false, false, false});
     if (!post_ops_ok_) return status::unimplemented;
 
     jcp.typesize_in = types::data_type_size(src_d.data_type());
