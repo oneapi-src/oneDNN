@@ -18,6 +18,7 @@
 #define INTERFACE_PARTITION_HASHING_HPP
 
 #include <algorithm>
+#include <memory>
 #include <thread>
 #include <typeindex>
 #include <vector>

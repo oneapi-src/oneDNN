@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <vector>
 #include <unordered_map>
 
 #include "interface/c_types_map.hpp"
@@ -237,8 +238,8 @@ void lru_compiled_partition_cache_t::evict(size_t n) {
 
     for (size_t e = 0; e < n; e++) {
         // Find the smallest timestamp
-        // TODO: revisit the eviction algorithm due to O(n) complexity, E.g.
-        // maybe evict multiple entries at once.
+        // TODO(zixuanwe): revisit the eviction algorithm due to O(n)
+        // complexity, E.g. maybe evict multiple entries at once.
         auto it = std::min_element(cache_mapper_.begin(), cache_mapper_.end(),
                 [&](const decltype(cache_mapper_)::value_type &left,
                         const decltype(cache_mapper_)::value_type &right) {

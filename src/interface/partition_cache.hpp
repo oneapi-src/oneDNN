@@ -20,6 +20,7 @@
 #include <future>
 #include <memory>
 #include <thread>
+#include <vector>
 #include <unordered_map>
 
 #include "oneapi/dnnl/dnnl_graph.h"
