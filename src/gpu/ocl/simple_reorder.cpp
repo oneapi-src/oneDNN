@@ -33,42 +33,59 @@ using dimension = struct {
     int idx;
 };
 
+using stride_t = struct {
+    int idx;
+    int stride;
+    int size;
+};
+
+// Stride sorter. Smaller stride = inner dim, bigger stride = outer dim.
+// Dimensions of size 1 are considered outermost regardless of strides and
+// they are sorted by index.
+bool stride_cmp(const stride_t &a, const stride_t &b) {
+    if (a.size == 1 && b.size == 1) {
+        return a.idx > b.idx;
+    } else if (a.size != 1 && b.size == 1) {
+        return true;
+    } else if (a.size == 1 && b.size != 1) {
+        return false;
+    } else {
+        return a.stride < b.stride;
+    }
+}
+
 // Returns size and index of dimension or block that's last or at given
 // distance from end. Blocks, if exist, take precedence before dimensions.
 // Order of dimensions is determined by sorting strides; smallest stride is
-// last dimension.
+// last dimension. Dimensions of size 1 are 'ignored' (treated as first).
+// Due to ignoring dims of size 1 and treating them as outermost regardless of
+// their original position in tensor tag, now it is possible to arrive at
+// illegal tensor tag where last dim is the same as first block:
+// 8x8x1x1 aBcd8b becomes cdaB8b (notice the "B8b").
+// In such cases this function combines last dim with first block (xB8b := xb)
 dimension get_Nth_last_dim_or_block(
         const memory_desc_wrapper &md, int distance = 0) {
     int nblks = md.blocking_desc().inner_nblks;
     dimension ret;
-    if (nblks >= distance + 1) {
-        ret.idx = md.blocking_desc().inner_idxs[nblks - 1 - distance];
-        ret.size = md.blocking_desc().inner_blks[nblks - 1 - distance];
-        return ret;
-    } else {
-        int ndims = md.ndims();
-        int dim_distance = distance - nblks;
+    int ndims = md.ndims();
 
-        assert(dim_distance < ndims);
-
-        std::vector<std::pair<int, int>> strides(ndims);
-        for (int d = 0; d < ndims; ++d) {
-            strides[d].first = md.blocking_desc().strides[d];
-            strides[d].second = d;
-        }
-        std::sort(strides.begin(), strides.end());
-        ret.idx = strides[dim_distance].second;
-        ret.size = md.padded_dims()[ret.idx];
-        // if a dimension has size=1 then two dimensions will have the same strides
-        // and the above sort is not guaranteed to select the correct dimension
-        if (dim_distance < ndims - 1) {
-            if (strides[dim_distance].first
-                    == strides[dim_distance + 1].first) {
-                ret.size = 1;
-            }
-        }
-        return ret;
+    std::vector<stride_t> strides(ndims);
+    for (int d = 0; d < ndims; ++d) {
+        strides[d].idx = d;
+        strides[d].stride = md.blocking_desc().strides[d];
+        strides[d].size = md.padded_dims()[d];
     }
+    std::sort(strides.begin(), strides.end(), stride_cmp);
+    for (int i = 0; i < nblks; i++) {
+        stride_t blk;
+        blk.idx = md.blocking_desc().inner_idxs[i];
+        blk.size = md.blocking_desc().inner_blks[i];
+        if (i == 0 && blk.idx == strides[0].idx) { continue; }
+        strides.insert(strides.begin(), blk);
+    }
+    ret.idx = strides[distance].idx;
+    ret.size = strides[distance].size;
+    return ret;
 }
 
 int innermost_block(dnnl_blocking_desc_t blk) {
@@ -123,6 +140,98 @@ bool matches_one_NxN_layout(const memory_desc_wrapper &src,
     return true;
 }
 
+// For cases like ab -> Ba4b, BA4b8a8b2a etc. Takes dst's last two dimensions
+// and groups them together into packets of size 16 so that it can be written
+// to in bursts.
+bool fill_conf_xab_xba(const memory_desc_wrapper &src,
+        const memory_desc_wrapper &dst, int scale_mask, xb_to_xab_xba_t &cfg,
+        int &vect_dim, int &vect_size, dim_t *blocks) {
+
+    vect_size = 16;
+    if (dst.ndims() < 2) { return false; }
+    dimension src_last = get_Nth_last_dim_or_block(src);
+    dimension dst_last = get_Nth_last_dim_or_block(dst);
+    dimension dst_next_last = get_Nth_last_dim_or_block(dst, 1);
+
+    if (src_last.idx != dst_last.idx && src_last.idx != dst_next_last.idx) {
+        return false;
+    }
+    bool xb_to_xab = (src_last.idx == dst_last.idx);
+
+    // no padding on dims that are src's or dst's innermost
+    if (src.padded_dims()[src_last.idx] != src.dims()[src_last.idx]) {
+        return false;
+    }
+    if (src.padded_dims()[dst_last.idx] != src.dims()[dst_last.idx]) {
+        return false;
+    }
+    if (dst.padded_dims()[src_last.idx] != dst.dims()[src_last.idx]) {
+        return false;
+    }
+    if (dst.padded_dims()[dst_last.idx] != dst.dims()[dst_last.idx]) {
+        return false;
+    }
+    if (src.offset0() != 0) { return false; }
+    if (dst.offset0() != 0) { return false; }
+
+    // no scale mask allowed on src's or dst's innermost dimension
+    if (scale_mask & (1 << src_last.idx)) { return false; }
+    if (scale_mask & (1 << dst_last.idx)) { return false; }
+
+    if (src_last.size < 16) { return false; }
+    if (src_last.size % 16 != 0) { return false; }
+    if (vect_size % dst_last.size != 0) { return false; }
+    if (dst_next_last.size % (vect_size / dst_last.size) != 0) { return false; }
+
+    dimension src_burst;
+    dimension dst_burst[2];
+    dimension dst_loop;
+    dimension src_loop;
+
+    src_burst.idx = src_last.idx;
+    src_burst.size = vect_size;
+    dst_burst[0] = dst_last;
+    dst_burst[1].idx = dst_next_last.idx;
+    dst_burst[1].size = 16 / dst_last.size;
+
+    int dst_src_idx = xb_to_xab ? 0 : 1;
+    dst_loop.size = src_burst.size / dst_burst[dst_src_idx].size;
+    dst_loop.idx = src_burst.idx;
+
+    src_loop.size = dst_burst[1 - dst_src_idx].size;
+    src_loop.idx = dst_burst[1 - dst_src_idx].idx;
+
+    vect_dim = src_last.idx;
+
+    if ((dst_last.size * dst_next_last.size) % vect_size != 0) { return false; }
+    blocks[src_loop.idx] = src_loop.size;
+    cfg.blk_size = src_loop.size;
+    cfg.src_blk_dim = src_loop.idx;
+    cfg.src_blk_coeff = 1;
+    cfg.dst_blk_dim = dst_loop.idx;
+
+    if (dst_loop.idx == dst_burst[0].idx) {
+        cfg.dst_blk_coeff = dst_burst[0].size;
+    } else if (dst_loop.idx == dst_burst[1].idx) {
+        cfg.dst_blk_coeff = dst_burst[1].size;
+    } else {
+        cfg.dst_blk_coeff = 1;
+    }
+    cfg.vd = xb_to_xab;
+    return true;
+}
+
+bool fits_xab_xba(const memory_desc_wrapper &src,
+        const memory_desc_wrapper &dst, int scale_mask) {
+    xb_to_xab_xba_t cfg;
+    int vect_dim;
+    int vect_size;
+    dim_t blocks[6];
+
+    return fill_conf_xab_xba(
+            src, dst, scale_mask, cfg, vect_dim, vect_size, &blocks[0]);
+}
+
 bool matches_ABxxxx8ayb_layout(dnnl_blocking_desc_t blk, int ndims) {
     if (ndims > 2) { return false; }
     int last = blk.inner_nblks - 1;
@@ -175,22 +284,35 @@ bool fits_3ch(const memory_desc_wrapper &src_mdw,
     auto last_dim_dst = get_Nth_last_dim_or_block(dst_mdw);
     auto nextlast_dim_dst = get_Nth_last_dim_or_block(dst_mdw, 1);
 
+    bool same_nextlast_dims = (nextlast_dim_src.idx == nextlast_dim_dst.idx);
+
+    // src's innermost dim is assumed to be contiguous, it'll be read from
+    // adjacent mem addresses
+    if (last_dim_src.size != src_mdw.padded_dims()[last_dim_src.idx]) {
+        return false;
+    }
     if (last_dim_src.idx != last_dim_dst.idx) { return false; }
     if (last_dim_src.size > last_dim_dst.size) { return false; }
     if (last_dim_dst.size > 16 || last_dim_dst.size % 8 != 0) { return false; }
     if (last_dim_src.idx == nextlast_dim_src.idx) { return false; }
     if (last_dim_src.idx == nextlast_dim_dst.idx) { return false; }
-    if (nextlast_dim_src.idx == nextlast_dim_dst.idx) { return false; }
     if (nextlast_dim_src.size % 2 != 0) { return false; }
     if (nextlast_dim_dst.size % 2 != 0) { return false; }
     if (is_padded(src_mdw, last_dim_src.idx)) { return false; }
-    if (is_padded(src_mdw, nextlast_dim_src.idx)) { return false; }
-    if (is_padded(src_mdw, nextlast_dim_dst.idx)) { return false; }
-    if (is_padded(dst_mdw, nextlast_dim_src.idx)) { return false; }
-    if (is_padded(dst_mdw, nextlast_dim_dst.idx)) { return false; }
+    // If src's and dst's nextlast dims are not the same, CL code will use
+    // nested loops. In inner loop, data offset is incremented and can't be
+    // converted back into tensor coordinates. This means there can't be
+    // operations that depend on nextlast dim's coordinates in inner loop -
+    // so no padding and no scale quant.
+    if (!same_nextlast_dims) {
+        if (is_padded(src_mdw, nextlast_dim_src.idx)) { return false; }
+        if (is_padded(src_mdw, nextlast_dim_dst.idx)) { return false; }
+        if (is_padded(dst_mdw, nextlast_dim_src.idx)) { return false; }
+        if (is_padded(dst_mdw, nextlast_dim_dst.idx)) { return false; }
+        if (scale_mask & (1 << nextlast_dim_src.idx)) { return false; }
+        if (scale_mask & (1 << nextlast_dim_dst.idx)) { return false; }
+    }
     if (scale_mask & (1 << last_dim_src.idx)) { return false; }
-    if (scale_mask & (1 << nextlast_dim_src.idx)) { return false; }
-    if (scale_mask & (1 << nextlast_dim_dst.idx)) { return false; }
     // no 2nd layer of block on innermost dim in dst
     if (dst_mdw.padded_dims()[last_dim_src.idx] != last_dim_dst.size) {
         return false;
@@ -261,17 +383,21 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
     if (fits_3ch(src_mdw, dst_mdw, conf.scale_mask)) {
         return reorder_kernel_t::pad_innermost;
     }
+    if (fits_xab_xba(src_mdw, dst_mdw, conf.scale_mask)) {
+        return reorder_kernel_t::xb_to_xab_xba;
+    }
     // This kernel works on tensors that have common innermost dim. Tries to
     // access mem using large enough chunks to utilize whole cache lines.
     auto src_last = get_Nth_last_dim_or_block(src_mdw);
     auto dst_last = get_Nth_last_dim_or_block(dst_mdw);
     auto inner_dim = dst_last.idx;
-    if (!has_padding_or_scale_quant && src_last.idx == dst_last.idx
+    if (src_last.idx == dst_last.idx
             && (src_last.size <= 16 || dst_last.size <= 16)
             && src_last.size % 8 == 0 && dst_last.size % 8 == 0
             && conf.ndims <= MAX_NDIMS
             && (src_last.size % (2 * dst_last.size) == 0
                     || dst_last.size % (2 * src_last.size) == 0)
+            && src_mdw.offset0() == 0 && dst_mdw.offset0() == 0
             && !(conf.scale_mask & (1 << inner_dim))
             && dst_mdw.dims()[inner_dim] == dst_mdw.padded_dims()[inner_dim]
             && src_mdw.dims()[inner_dim] == src_mdw.padded_dims()[inner_dim]) {
@@ -337,6 +463,7 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
     if (conf.ndims >= 2 && conf.ndims <= 4
             && src_mdw.md_->format_desc.blocking.inner_nblks == 0
             && dst_mdw.md_->format_desc.blocking.inner_nblks == 0
+            && src_mdw.offset0() == 0 && dst_mdw.offset0() == 0
             && is_alt_faster_than_ref(src_mdw, dst_mdw, dev_info)
             && !has_padding_or_scale_quant) {
         return reorder_kernel_t::reorder_alt;
@@ -466,6 +593,11 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             vect_dim = 3;
             vect_size = conf.sub_group_size;
         } break;
+        case xb_to_xab_xba:
+            fill_conf_xab_xba(src_mdw, dst_mdw, conf.scale_mask,
+                    conf.aux_data.ab, vect_dim, vect_size, &blocks[0]);
+            conf.sub_group_size = vect_size;
+            break;
         case vectorize_last_dim:
             for (int dim = last - 1;
                     dim >= 0 && dim < MAX_NDIMS && temp_block == 1; dim--) {
@@ -497,14 +629,21 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             }
 
             conf.aux_data.vg.vector_dim = last_dim_src.idx;
-            conf.aux_data.vg.group_size = max_group_size;
             conf.aux_data.vg.src_loop_dim = nextlast_dim_dst.idx;
             conf.aux_data.vg.dst_loop_dim = nextlast_dim_src.idx;
             conf.aux_data.vg.innermost_size = min_common_size;
             conf.sub_group_size = max_common_size;
 
-            blocks[conf.aux_data.vg.src_loop_dim] = conf.aux_data.vg.group_size;
-            blocks[conf.aux_data.vg.dst_loop_dim] = conf.aux_data.vg.group_size;
+            blocks[conf.aux_data.vg.src_loop_dim] = max_group_size;
+            blocks[conf.aux_data.vg.dst_loop_dim] = max_group_size;
+            // if src loop and dst loop dims are the same, CL code would iterate
+            // over the same dimension in inner and outer loop, effectively doing
+            // redundant operations; set inner loop counter to 1 in that case.
+            conf.aux_data.vg.group_size
+                    = (nextlast_dim_dst.idx == nextlast_dim_src.idx)
+                    ? 1
+                    : max_group_size;
+
             vect_dim = conf.aux_data.vg.vector_dim;
             vect_size = conf.sub_group_size;
         } break;
@@ -704,6 +843,20 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     if (conf.implementation == plain_to_ABcd4axb)
         kernel_ctx.define_int("PLAIN_TO_ABCD4AXB", 1);
 
+    if (conf.implementation == xb_to_xab_xba) {
+        kernel_ctx.define_int("XAB_XBA", 1);
+        auto r = conf.dispatch.nd_range();
+        auto *lr = r.local_range();
+        kernel_ctx.define_int(
+                "SG_PER_WG", (lr[0] * lr[1] * lr[2]) / conf.sub_group_size);
+        kernel_ctx.define_int("BLOCK_SIZE", conf.aux_data.ab.blk_size);
+        kernel_ctx.define_int("SRC_BLK_DIM", conf.aux_data.ab.src_blk_dim);
+        kernel_ctx.define_int("SRC_OFF_COEFF", conf.aux_data.ab.src_blk_coeff);
+        kernel_ctx.define_int("DST_BLK_DIM", conf.aux_data.ab.dst_blk_dim);
+        kernel_ctx.define_int("DST_OFF_COEFF", conf.aux_data.ab.dst_blk_coeff);
+        kernel_ctx.define_int("XB_TO_XAB", conf.aux_data.ab.vd);
+    }
+
     if (conf.implementation == vectorize_last_dim) {
         kernel_ctx.define_int("VECTORIZE_LAST_DIM", 1);
     }
@@ -721,6 +874,14 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
         kernel_ctx.define_int(
                 "INNERMOST_SIZE", conf.aux_data.vg.innermost_size);
         kernel_ctx.define_int("VECT_SIZE", conf.sub_group_size);
+        bool has_non_innermost_padding = false;
+        for (int i = 0; i < MAX_NDIMS; i++) {
+            if (i == conf.aux_data.vg.vector_dim) { continue; }
+            has_non_innermost_padding
+                    |= (dst_mdw.dims()[i] != dst_mdw.padded_dims()[i]);
+        }
+        kernel_ctx.define_int(
+                "NON_INNERMOST_PADDING", has_non_innermost_padding);
     }
     if (conf.implementation == vectorize_groups) {
         kernel_ctx.define_int("VECTORIZE_GROUPS", 1);

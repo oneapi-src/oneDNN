@@ -721,7 +721,7 @@ __kernel void simple_reorder(__global SRC_DATA_T *restrict src,
     }
 
 #elif PAD_INNERMOST
-    int sgId = get_sub_group_local_id();
+    const int sgId = get_sub_group_local_id();
     int d[6];
     int blk[6];
     int b[6] = {0, 0, 0, 0, 0, 0};
@@ -742,15 +742,27 @@ __kernel void simple_reorder(__global SRC_DATA_T *restrict src,
     __local SRC_DATA_T cache[SG_PER_WG * GROUP * GROUP * VECT_SIZE];
 
     // offset to local memory for given subgroup
-    int sg_off = get_sub_group_id() * VECT_SIZE * (GROUP * GROUP);
+    const int sg_off = get_sub_group_id() * VECT_SIZE * (GROUP * GROUP);
 
     for (int i = 0; i < blk[SRC_LOOP_DIM]; i++) {
         b[SRC_LOOP_DIM] = i;
         const int src_off = SRC_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
                 d[3] + b[3], d[4] + b[4], d[5] + b[5]);
         unroll_for(int j = 0; j < GROUP; j++) {
-            int coff = sg_off + VECT_SIZE * GROUP * i + VECT_SIZE * j;
-            int soff = src_off + INNERMOST_SIZE * j;
+            const int coff = sg_off + VECT_SIZE * GROUP * i + VECT_SIZE * j;
+            const int soff = src_off + INNERMOST_SIZE * j;
+#if NON_INNERMOST_PADDING == 1
+            const int pad_d0 = d[0] + b[0] >= SRC_D0;
+            const int pad_d1 = NDIMS > 1 && d[1] + b[1] >= SRC_D1;
+            const int pad_d2 = NDIMS > 2 && d[2] + b[2] >= SRC_D2;
+            const int pad_d3 = NDIMS > 3 && d[3] + b[3] >= SRC_D3;
+            const int pad_d4 = NDIMS > 4 && d[4] + b[4] >= SRC_D4;
+            const int pad_d5 = NDIMS > 5 && d[5] + b[5] >= SRC_D5;
+            if (pad_d0 || pad_d1 || pad_d2 || pad_d3 || pad_d4 || pad_d5) {
+                cache[coff + sgId] = 0;
+                continue;
+            }
+#endif
             if (sgId < INNERMOST_SIZE) {
                 cache[coff + sgId] = src[soff + sgId];
             } else {
@@ -763,12 +775,16 @@ __kernel void simple_reorder(__global SRC_DATA_T *restrict src,
         b[DST_LOOP_DIM] = i;
         const int dst_off = DST_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
                 d[3] + b[3], d[4] + b[4], d[5] + b[5]);
+#if SCALE_QUANT
+        alpha = scales[SCALE_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+                d[3] + b[3], d[4] + b[4], d[5] + b[5])];
+#endif
         unroll_for(int j = 0; j < GROUP; j++) {
-            int coff = sg_off + VECT_SIZE * GROUP * j + VECT_SIZE * i;
-            int doff = dst_off + VECT_SIZE * j;
+            const int coff = sg_off + VECT_SIZE * GROUP * j + VECT_SIZE * i;
+            const int doff = dst_off + VECT_SIZE * j;
             DST_DATA_T dst_tmp;
 #if WITH_SUM_AB
-            dst_tmp = DST_BLOCK_READ(&dst[doff + sgId]);
+            dst_tmp = dst[doff + sgId];
 #endif
             REORDER(dst_tmp, cache[coff + sgId], alpha, beta);
             dst[doff + sgId] = dst_tmp;
@@ -801,7 +817,7 @@ __kernel void simple_reorder(__global SRC_DATA_T *restrict src,
     // There will be GROUP reads of SIMD{VECT} items, each with
     // sizeof(SRC_DATA_T) bytes, and they all point to contiguous mem area.
     // GROUP and VECT must be selected in such way that resulting mem
-    // accesses could be combined into full cache line accesses by mem ccontroller
+    // accesses could be combined into full cache line accesses by mem controller
     int coeff = (VECT_DIM == SRC_LOOP_DIM ? get_sub_group_size() : 1);
     for (int i = 0; i < blk[SRC_LOOP_DIM]; i++) {
         b[SRC_LOOP_DIM] = coeff * i;
@@ -810,6 +826,18 @@ __kernel void simple_reorder(__global SRC_DATA_T *restrict src,
         unroll_for(int j = 0; j < GROUP; j++) {
             int cidx = GROUP * i + j;
             int sidx = src_off + get_sub_group_size() * j;
+#if PAD_FILL_ZERO == 1
+            int pad_d0 = d[0] + b[0] >= SRC_D0;
+            int pad_d1 = NDIMS > 1 && d[1] + b[1] >= SRC_D1;
+            int pad_d2 = NDIMS > 2 && d[2] + b[2] >= SRC_D2;
+            int pad_d3 = NDIMS > 3 && d[3] + b[3] >= SRC_D3;
+            int pad_d4 = NDIMS > 4 && d[4] + b[4] >= SRC_D4;
+            int pad_d5 = NDIMS > 5 && d[5] + b[5] >= SRC_D5;
+            if (pad_d0 || pad_d1 || pad_d2 || pad_d3 || pad_d4 || pad_d5) {
+                cache[cidx] = 0;
+                continue;
+            }
+#endif
             cache[cidx] = SRC_BLOCK_READ(&src[sidx]);
         }
     }
@@ -826,6 +854,11 @@ __kernel void simple_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_SUM_AB
             dst_tmp = DST_BLOCK_READ(&dst[didx]);
 #endif
+#if SCALE_QUANT
+            alpha = scales[SCALE_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+                    d[3] + b[3], d[4] + b[4], d[5] + b[5])];
+#endif
+
             REORDER(dst_tmp, cache[cidx], alpha, beta);
             DST_BLOCK_WRITE(&dst[didx], dst_tmp);
         }
@@ -843,6 +876,82 @@ __kernel void simple_reorder(__global SRC_DATA_T *restrict src,
         REORDER8(dst_tmp, src_tmp, alpha, beta);
         DST_BLOCK_WRITE8(&dst[d0], dst_tmp);
     }
+
+// xb -> xab and xb -> xba, where size of dst's innermost dim is less than 16
+#elif XAB_XBA
+    const int sgId = get_sub_group_local_id();
+    const int sgNr = get_sub_group_id();
+    const int wgId
+            = get_group_id(0) + 10 * get_group_id(1) + 100 * get_group_id(2);
+
+    int d[6];
+    int blk[6];
+    int b[6] = {0, 0, 0, 0, 0, 0};
+
+    d[0] = GWS_GET_D0();
+    d[1] = GWS_GET_D1();
+    d[2] = GWS_GET_D2();
+    d[3] = GWS_GET_D3();
+    d[4] = GWS_GET_D4();
+    d[5] = GWS_GET_D5();
+    blk[0] = GWS_GET_D0_BLOCK();
+    blk[1] = GWS_GET_D1_BLOCK();
+    blk[2] = GWS_GET_D2_BLOCK();
+    blk[3] = GWS_GET_D3_BLOCK();
+    blk[4] = GWS_GET_D4_BLOCK();
+    blk[5] = GWS_GET_D5_BLOCK();
+
+    __local SRC_DATA_T tmp[SG_PER_WG * SUB_GROUP_SIZE * BLOCK_SIZE];
+    SRC_DATA_T data;
+    const int sgLs = SUB_GROUP_SIZE * BLOCK_SIZE;
+    const int wg_off = sgNr * sgLs;
+    for (int i = 0; i < blk[SRC_BLK_DIM]; i++) {
+        b[SRC_BLK_DIM] = SRC_OFF_COEFF * i;
+        const int src_off = SRC_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+                d[3] + b[3], d[4] + b[4], d[5] + b[5]);
+#if PAD_FILL_ZERO == 1
+        const int pad_d0 = d[0] + b[0] >= SRC_D0;
+        const int pad_d1 = NDIMS > 1 && d[1] + b[1] >= SRC_D1;
+        const int pad_d2 = NDIMS > 2 && d[2] + b[2] >= SRC_D2;
+        const int pad_d3 = NDIMS > 3 && d[3] + b[3] >= SRC_D3;
+        const int pad_d4 = NDIMS > 4 && d[4] + b[4] >= SRC_D4;
+        const int pad_d5 = NDIMS > 5 && d[5] + b[5] >= SRC_D5;
+        if (pad_d0 || pad_d1 || pad_d2 || pad_d3 || pad_d4 || pad_d5) {
+            tmp[wg_off + SUB_GROUP_SIZE * i + sgId] = 0;
+            continue;
+        }
+#endif
+        data = src[src_off + sgId];
+        tmp[wg_off + SUB_GROUP_SIZE * i + sgId] = data;
+    }
+    b[SRC_BLK_DIM] = 0;
+
+    for (int i = 0; i < blk[SRC_BLK_DIM]; i++) {
+        b[DST_BLK_DIM] = DST_OFF_COEFF * i;
+        const int dst_off = DST_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+                d[3] + b[3], d[4] + b[4], d[5] + b[5]);
+#if XB_TO_XAB
+        SRC_DATA_T data = tmp[wg_off + (sgId % (SUB_GROUP_SIZE / BLOCK_SIZE))
+                + (sgId / (SUB_GROUP_SIZE / BLOCK_SIZE)) * SUB_GROUP_SIZE
+                + (SUB_GROUP_SIZE / BLOCK_SIZE) * i];
+#else // XB_TO_XBA
+        SRC_DATA_T data = tmp[wg_off + (sgId % BLOCK_SIZE) * SUB_GROUP_SIZE
+                + sgId / BLOCK_SIZE + (SUB_GROUP_SIZE / BLOCK_SIZE) * i];
+#endif
+
+#if SCALE_QUANT
+        alpha = scales[SCALE_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+                d[3] + b[3], d[4] + b[4], d[5] + b[5])];
+#endif
+        DST_DATA_T dst_tmp;
+#if WITH_SUM_AB
+        dst_tmp = dst[dst_off + sgId];
+#endif
+        REORDER(dst_tmp, data, alpha, beta);
+        dst[dst_off + sgId] = dst_tmp;
+    }
+
+//###################################################################################
 #else // unroll_* kernels start here
 
     const int d0 = GWS_GET_D0();

@@ -68,6 +68,37 @@
 --dtag=acdb
 128x256x40x40 128x256x5x5 128x256x80x80
 
+# tests for xb->xab/xba kernel
+--stag=ab,ba
+--dtag=BA4b8a8b2a
+2048x1001 1024x30522 1024x4096 1001x2048 1024x1024 30522x1024 4096x1024
+
+--stag=abcd,acdb,cdba,cdba
+--dtag=BAcd4b8a8b2a,ABcd4a2b,ABcd4a8b8a2b,ABcd8a2b
+1024x512x1x1 128x128x3x3 128x256x1x1 128x3x230x230 128x512x1x1 2048x512x1x1
+256x256x3x3 256x512x1x1 256x64x1x1 512x128x1x1 512x2048x1x1 512x512x3x3
+64x256x1x1 64x3x7x7 64x64x1x1 64x64x3x3 1024x256x1x1
+
+# tests based on cosmictagger; will run mainly on pad_innermost and xb->xab/xba kernels
+--stag=acdb --dtag=aBcd16b 4x56x10x16
+--stag=acdb --dtag=aBcd16b 4x168x10x16
+
+--stag=cdba
+--dtag=ABcd16a16b
+32x24x1x1 48x56x1x1 56x48x1x1 40x48x1x1 48x40x1x1 24x16x1x1 16x24x1x1 24x32x1x1
+32x40x1x1 3x8x1x1 8x16x1x1 40x32x1x1 16x8x1x1 168x256x1x1 256x168x1x1
+
+--dtag=ABcd16b16a
+48x40x1x1 48x56x1x1 40x48x1x1 56x48x1x1 16x24x1x1 32x24x1x1 8x1x5x5 24x32x1x1
+24x16x1x1 8x16x1x1 16x8x1x1 3x8x1x1 32x40x1x1 40x32x1x1 256x168x1x1 168x256x1x1
+
+--stag=aBcd16b
+--dtag=acdb
+4x32x40x64 4x168x10x16 4x48x10x16
+--stag=ABcd16b16a --dtag=cdba
+40x48x1x1 8x16x1x1 16x8x1x1 3x8x1x1 168x256x1x1 48x56x1x1 32x24x1x1 56x48x1x1
+8x1x5x5 48x40x1x1 24x32x1x1 24x16x1x1 32x40x1x1 16x24x1x1 40x32x1x1 256x168x1x1
+
 ### test types
 --reset
 --sdt=f32,s32,s8,u8,f16,bf16

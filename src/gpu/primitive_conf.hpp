@@ -606,10 +606,11 @@ enum reorder_kernel_t {
     unaligned_sizes,
     reorder_alt,
     vectorize_groups,
-    pad_innermost
+    pad_innermost,
+    xb_to_xab_xba
 };
 
-struct vectorize_group {
+struct vectorize_group_t {
     int vector_dim;
     int src_loop_dim;
     int dst_loop_dim;
@@ -617,8 +618,18 @@ struct vectorize_group {
     int innermost_size;
 };
 
+struct xb_to_xab_xba_t {
+    int vd;
+    int blk_size;
+    int src_blk_dim;
+    int src_blk_coeff;
+    int dst_blk_dim;
+    int dst_blk_coeff;
+};
+
 union reorder_implementation {
-    vectorize_group vg;
+    vectorize_group_t vg;
+    xb_to_xab_xba_t ab;
 };
 struct reorder_conf_t {
     bool has_padding;
