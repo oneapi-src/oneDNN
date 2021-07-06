@@ -702,6 +702,20 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     DATA_T C[C_SIZE] = {0};
 #endif
 
+    src += src_off(mb, g * IC, id, ih, iw);
+    wei += wei_off(g, oc, 0, 0, 0, 0);
+#ifdef DST_DT_S8
+    dst += dst_off(mb, g * OC + oc, od, oh, ow);
+#else
+    dst += dst_off(mb, g * OC + oc, od, oh, ow);
+#endif
+
+    if ((DST_32N32C || DST_W32C) && (OC_BLOCK % 32 != 0)
+            && oc > OC_WO_PADDING) {
+        write_dst_block((DATA_T *)(&C), dst, ow);
+        return;
+    }
+
     if (WITH_BIAS) {
         for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) {
             for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) {
@@ -727,14 +741,6 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
             } // oc_outer
         } // mb_block
     } // if-bias
-
-    src += src_off(mb, g * IC, id, ih, iw);
-    wei += wei_off(g, oc, 0, 0, 0, 0);
-#ifdef DST_DT_S8
-    dst += dst_off(mb, g * OC + oc, od, oh, ow);
-#else
-    dst += dst_off(mb, g * OC + oc, od, oh, ow);
-#endif
 
     if (OW_BLOCK == 1) {
         loop_kdhw_outermost(src, wei, C, id, ih, iw);
