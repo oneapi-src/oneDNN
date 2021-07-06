@@ -180,11 +180,13 @@ status_t ref_convolution_fwd_t::pd_t::init_kernel_ctx(
 
 status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
+    status_t status = status::success;
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
     auto &oscales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
-    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
+    CHECK(status);
     auto &src_zpoints
             = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
     auto &dst_zpoints
@@ -224,7 +226,7 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
-    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    status = parallel_for(ctx, nd_range, kernel_, arg_list);
     return status;
 }
 
@@ -240,9 +242,11 @@ status_t ref_convolution_bwd_data_t::pd_t::init_kernel_ctx(
 status_t ref_convolution_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
 
+    status_t status = status::success;
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
     auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
-    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
+    auto &diff_src = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
     auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
 
     compute::kernel_arg_list_t arg_list;
@@ -255,7 +259,7 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
-    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;
 }
@@ -272,10 +276,13 @@ status_t ref_convolution_bwd_weights_t::pd_t::init_kernel_ctx(
 status_t ref_convolution_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
 
+    status_t status = status::success;
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
-    auto &diff_weights = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS);
-    auto &diff_bias = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
+    auto &diff_weights = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_WEIGHTS, status);
+    CHECK(status);
+    auto &diff_bias = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_BIAS, status);
+    CHECK(status);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -285,7 +292,7 @@ status_t ref_convolution_bwd_weights_t::execute_backward_weights(
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
-    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;
 }
