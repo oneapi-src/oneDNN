@@ -30,6 +30,7 @@
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/legacy.hpp"
+#include "backend/dnnl/scratchpad.hpp"
 #include "backend/dnnl/subgraph/compile_ops.hpp"
 #include "backend/dnnl/subgraph/infer_type.hpp"
 #include "backend/dnnl/subgraph/layout_propagation.hpp"
@@ -48,13 +49,7 @@ struct quantized_conv : public kernel_base {
 
 private:
     dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
     impl::allocator_t *g_alloc_;
-
-    char *val2 = std::getenv("DNNL_GRAPH_HOLD_MEMORY");
-    bool enable_hold_memory_ = (val2 != nullptr && std::strcmp(val2, "1") == 0);
-
-    bool first_iter_ {true};
 
     std::vector<std::shared_ptr<impl::op_t>> opt_subgraph_;
 
@@ -65,13 +60,10 @@ private:
     std::vector<op_executable *> execs_;
     std::vector<exec_args> exec_args_;
 
-    char *internal_buf_ {nullptr};
+    registry_t registry_;
 
 public:
-    virtual ~quantized_conv() {
-        if (!enable_hold_memory_ || !internal_buf_) return;
-        allocator::free(internal_buf_, p_engine_, g_alloc_);
-    }
+    virtual ~quantized_conv() {}
 
     virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
@@ -146,6 +138,14 @@ public:
 
         opt_subgraph_ = subgraph;
 
+        // book buffer (only count total size and calculate offset)
+        // for each internal memory
+        registry_t::key_t key = 0;
+        registrar_t registrar = registry_.registrar();
+        for (const auto &mem : exec_arg_mgr_.get_internal_mems()) {
+            registrar.book(key++, mem.get_desc().get_size());
+        }
+
         return impl::status::success;
     }
 
@@ -154,7 +154,7 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(part);
-        if (first_iter_) { p_stream_ = make_dnnl_stream(p_engine_, *g_stream); }
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
         // update the data of partition in/outputs args
         for (size_t i = 0; i < inputs.size(); i++) {
@@ -166,27 +166,21 @@ public:
                     outputs[i].get_data_handle());
         }
 
-        // allocate buffer for internal memory object
-        if (!enable_hold_memory_ || first_iter_) {
-            internal_buf_ = (char *)allocator::malloc(
-                    exec_arg_mgr_.get_internal_mem_size(), p_engine_, g_alloc_);
-            char *start = internal_buf_;
-            for (auto &mem : exec_arg_mgr_.get_internal_mems()) {
-                mem.set_data_handle((void *)start);
-                start += mem.get_desc().get_size();
-            }
+        temporary_scratchpad_t scratchpad(
+                registry_.size(), p_engine_, *g_alloc_);
+        assertm(scratchpad.size() >= registry_.size(),
+                "no enough scratchpad memory");
+        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
+
+        registry_t::key_t key = 0;
+        for (auto &mem : exec_arg_mgr_.get_internal_mems()) {
+            mem.set_data_handle(grantor.get(key++));
         }
 
         for (size_t i = 0; i < execs_.size(); i++) {
-            execs_[i]->execute(p_stream_, exec_args_[i]);
+            execs_[i]->execute(p_stream, exec_args_[i]);
         }
 
-        // free buffer for internal memory object
-        if (!enable_hold_memory_) {
-            allocator::free(internal_buf_, p_engine_, g_alloc_);
-        }
-
-        first_iter_ = false;
         return impl::status::success;
     }
 

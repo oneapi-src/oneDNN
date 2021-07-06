@@ -88,14 +88,6 @@ public:
         return false;
     }
 
-    size_t get_internal_mem_size() {
-        size_t total_size = 0;
-        for (auto &mem : internal_mems_) {
-            total_size += mem.get_desc().get_size();
-        }
-        return total_size;
-    }
-
 private:
     std::unordered_map<int64_t, std::unordered_map<int, memory>> data_;
     int64_t counter {0};
