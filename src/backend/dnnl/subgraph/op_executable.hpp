@@ -153,14 +153,13 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
 
 struct op_executable {
     virtual ~op_executable() {}
-    virtual void execute(
-            const stream &stream, const std::unordered_map<int, memory> &args)
-            = 0;
+    virtual void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const = 0;
 };
 
 struct memory_reparser : public op_executable {
-    virtual void execute(
-            const stream &stream, const std::unordered_map<int, memory> &args) {
+    virtual void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
         UNUSED(stream);
         const memory &in_mem = args.find(DNNL_ARG_FROM)->second;
         memory &out_mem = const_cast<memory &>(args.find(DNNL_ARG_TO)->second);
@@ -174,65 +173,40 @@ struct conv_fwd_executable : public op_executable {
         pd_ = create_conv_pd(op, p_engine, prm_attr_mgr);
         if (op->has_attr("with_sum"))
             with_sum_ = op->get_attr<bool>("with_sum");
-        if (op->has_attr("output_format"))
-            output_format_ = op->get_attr<std::string>("output_format");
+        if (op->has_attr("output_format")
+                && op->get_attr<std::string>("output_format") == "NXC")
+            perm_dst_ = true;
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
 
     virtual void execute(const stream &stream,
-            const std::unordered_map<int, memory> &args) override {
-        // only first iteration
-        if (first_iteration_) {
-            cached_args = args;
+            const std::unordered_map<int, memory> &args) const override {
+        std::unordered_map<int, memory> cached_args = args;
 
-            if (output_format_ == "NXC") {
-                org_dst_mem_ = args.find(DNNL_ARG_DST)->second;
-                dst_mem_ = make_dnnl_memory(pd_.dst_desc(), pd_.get_engine(),
-                        org_dst_mem_.get_data_handle());
-                cached_args[DNNL_ARG_DST] = dst_mem_;
-                perm_dst_ = true;
-            } else {
-                dst_mem_ = cached_args.find(DNNL_ARG_DST)->second;
-            }
-
-            if (with_sum_) {
-                psrc_mem_ = cached_args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
-                if (psrc_mem_.get_data_handle() != dst_mem_.get_data_handle()) {
-                    psrc_reorder_pd_ = dnnl::reorder::primitive_desc(
-                            psrc_mem_, dst_mem_);
-                    reorder_psrc_ = true;
-                }
-            }
-        }
-
-        // every iteration
         if (perm_dst_) {
-            dst_mem_.set_data_handle(org_dst_mem_.get_data_handle());
+            memory dst_mem = make_dnnl_memory(pd_.dst_desc(), pd_.get_engine(),
+                    args.find(DNNL_ARG_DST)->second.get_data_handle());
+            cached_args[DNNL_ARG_DST] = dst_mem;
         }
 
-        if (reorder_psrc_) {
-            dnnl::reorder(psrc_reorder_pd_)
-                    .execute(stream, psrc_mem_, dst_mem_);
+        if (with_sum_) {
+            memory &psrc_mem
+                    = cached_args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
+            memory &dst_mem = cached_args.find(DNNL_ARG_DST)->second;
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                dnnl::reorder(psrc_mem, dst_mem)
+                        .execute(stream, psrc_mem, dst_mem);
+            }
         }
 
         dnnl::convolution_forward(pd_).execute(stream, cached_args);
-        first_iteration_ = false;
     }
 
 private:
     dnnl::convolution_forward::primitive_desc pd_;
     bool with_sum_ {false};
-    std::string output_format_ {"NCX"};
-
-    std::unordered_map<int, memory> cached_args;
-    bool first_iteration_ {true};
     bool perm_dst_ {false};
-    memory psrc_mem_;
-    memory dst_mem_;
-    memory org_dst_mem_;
-    dnnl::reorder::primitive_desc psrc_reorder_pd_;
-    bool reorder_psrc_ {false};
 };
 
 struct matmul_executable : public op_executable {
@@ -259,84 +233,49 @@ struct matmul_executable : public op_executable {
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
 
     virtual void execute(const stream &stream,
-            const std::unordered_map<int, memory> &args) override {
-        // only first iteration
-        if (first_iteration_) {
-            cached_args_ = args;
-            dst_mem_ = cached_args_.find(DNNL_ARG_DST)->second;
+            const std::unordered_map<int, memory> &args) const override {
+        if (with_sum_) {
+            memory &dst_mem
+                    = const_cast<memory &>(args.find(DNNL_ARG_DST)->second);
+            memory &psrc_mem = const_cast<memory &>(
+                    args.find(DNNL_GRAPH_ARG_POST_SRC)->second);
 
-            if (with_sum_) {
-                psrc_mem_ = cached_args_.find(DNNL_GRAPH_ARG_POST_SRC)->second;
-                if (psrc_mem_.get_data_handle() != dst_mem_.get_data_handle()) {
-                    psrc_reorder_pd_ = dnnl::reorder::primitive_desc(
-                            psrc_mem_, dst_mem_);
-                    reorder_psrc_ = true;
-                }
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                dnnl::reorder(psrc_mem, dst_mem)
+                        .execute(stream, psrc_mem, dst_mem);
             }
         }
-
-        if (reorder_psrc_) {
-            dnnl::reorder(psrc_reorder_pd_)
-                    .execute(stream, psrc_mem_, dst_mem_);
-        }
-
-        dnnl::matmul(pd_).execute(stream, cached_args_);
-        first_iteration_ = false;
+        dnnl::matmul(pd_).execute(stream, args);
     }
 
 private:
     dnnl::matmul::primitive_desc pd_;
     bool with_sum_ {false};
-    std::unordered_map<int, memory> cached_args_;
-    bool first_iteration_ {true};
-    memory psrc_mem_;
-    memory dst_mem_;
-    dnnl::reorder::primitive_desc psrc_reorder_pd_;
-    bool reorder_psrc_ {false};
 };
 
 struct pool_executable : public op_executable {
     pool_executable(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
         pd_ = create_pool_pd(op, p_engine, prm_attr_mgr);
-        if (op->has_attr("output_format"))
-            output_format_ = op->get_attr<std::string>("output_format");
+        if (op->has_attr("output_format")
+                && op->get_attr<std::string>("output_format") == "NXC")
+            perm_dst_ = true;
     }
 
     virtual void execute(const stream &stream,
-            const std::unordered_map<int, memory> &args) override {
-        // only first iteration
-        if (first_iteration_) {
-            cached_args_ = args;
-
-            if (output_format_ == "NXC") {
-                org_dst_mem_ = args.find(DNNL_ARG_DST)->second;
-                dst_mem_ = make_dnnl_memory(pd_.dst_desc(), pd_.get_engine(),
-                        org_dst_mem_.get_data_handle());
-                cached_args_[DNNL_ARG_DST] = dst_mem_;
-                perm_dst_ = true;
-            } else {
-                dst_mem_ = cached_args_.find(DNNL_ARG_DST)->second;
-            }
-        }
-
-        // every iteration
+            const std::unordered_map<int, memory> &args) const override {
+        std::unordered_map<int, memory> cached_args_ = args;
         if (perm_dst_) {
-            dst_mem_.set_data_handle(org_dst_mem_.get_data_handle());
+            memory dst_mem = make_dnnl_memory(pd_.dst_desc(), pd_.get_engine(),
+                    args.find(DNNL_ARG_DST)->second.get_data_handle());
+            cached_args_[DNNL_ARG_DST] = dst_mem;
         }
-
         dnnl::pooling_v2_forward(pd_).execute(stream, cached_args_);
-        first_iteration_ = false;
     }
 
 private:
     dnnl::pooling_v2_forward::primitive_desc pd_;
-    std::string output_format_ {"NCX"};
-    std::unordered_map<int, memory> cached_args_;
-    bool first_iteration_ {true};
     bool perm_dst_ {false};
-    memory dst_mem_;
-    memory org_dst_mem_;
 };
 
 struct reorder_executable : public op_executable {
@@ -369,8 +308,8 @@ struct reorder_executable : public op_executable {
                 p_engine, in_md, p_engine, out_md, prm_attr);
     }
 
-    virtual void execute(
-            const stream &stream, const std::unordered_map<int, memory> &args) {
+    virtual void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
         dnnl::reorder(pd_).execute(stream, args);
     }
 

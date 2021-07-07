@@ -25,7 +25,12 @@
 
 #include "dnnl.hpp"
 
+#include "utils/utils.hpp"
+
+#include "backend/dnnl/md_hashing.hpp"
+#include "backend/dnnl/resource.hpp"
 #include "backend/dnnl/subgraph/passes.hpp"
+#include "backend/dnnl/utils.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -36,11 +41,58 @@ class execution_args_mgr {
 public:
     execution_args_mgr() = default;
 
-    // Disable assignment and copy
-    execution_args_mgr(const execution_args_mgr &) = delete;
+    // Disable movement ctor
     execution_args_mgr(execution_args_mgr &&) = delete;
     execution_args_mgr &operator=(const execution_args_mgr &) = delete;
     execution_args_mgr &operator=(execution_args_mgr &&) = delete;
+
+    // Deep copy constructor
+    execution_args_mgr(const execution_args_mgr &other)
+        : counter(other.counter), topo_ordered_keys_(other.topo_ordered_keys_) {
+        // clone
+        for (auto &val_mem : other.value_mem_map_) {
+            memory cloned_mem(val_mem.second.get_desc(),
+                    val_mem.second.get_engine(), nullptr);
+            value_mem_map_.insert({val_mem.first, cloned_mem});
+        }
+
+        auto find_val = [&](const memory &mem) -> value_t * {
+            auto pos = std::find_if(other.value_mem_map_.begin(),
+                    other.value_mem_map_.end(),
+                    [&](const std::pair<value_t *, memory> &val_mem) {
+                        return val_mem.second.get() == mem.get();
+                    });
+            assertm(pos != other.value_mem_map_.end(), "can't find such mem");
+            return pos->first;
+        };
+
+        // copy alias
+        for (auto &mem : other.external_input_mems_) {
+            external_input_mems_.emplace_back(value_mem_map_.at(find_val(mem)));
+        }
+
+        for (auto &mem : other.external_output_mems_) {
+            external_output_mems_.emplace_back(
+                    value_mem_map_.at(find_val(mem)));
+        }
+
+        for (auto &mem : other.internal_mems_) {
+            internal_mems_.emplace_back(value_mem_map_[find_val(mem)]);
+        }
+
+        for (auto &key_args : other.data_) {
+            int64_t key = key_args.first;
+            const std::unordered_map<int, memory> &args = key_args.second;
+
+            std::unordered_map<int, memory> new_args;
+            for (auto &arg : args) {
+                int idx = arg.first;
+                const memory &mem = arg.second;
+                new_args.insert({idx, value_mem_map_.at(find_val(mem))});
+            }
+            data_.insert({key, new_args});
+        }
+    }
 
     int64_t init_args() {
         auto ret = data_.insert({counter++, std::unordered_map<int, memory>()});
@@ -51,6 +103,15 @@ public:
         return data_[key];
     }
 
+    const std::unordered_map<int, memory> &get_args(int64_t key) const {
+        return data_.find(key)->second;
+    }
+
+    const std::unordered_map<int64_t, std::unordered_map<int, memory>> &
+    get_args() const {
+        return data_;
+    }
+
     // for external memory
     const memory &get_external_input_mem(size_t index) {
         return external_input_mems_[index];
@@ -58,6 +119,14 @@ public:
 
     const memory &get_external_output_mem(size_t index) {
         return external_output_mems_[index];
+    }
+
+    const std::vector<memory> &get_external_input_mems() const {
+        return external_input_mems_;
+    }
+
+    const std::vector<memory> &get_external_output_mems() const {
+        return external_output_mems_;
     }
 
     void add_external_input_mem(const memory &mem) {
@@ -71,6 +140,10 @@ public:
     // for internal memory
     const std::vector<memory> &get_internal_mems() { return internal_mems_; }
 
+    const std::vector<memory> &get_internal_mems() const {
+        return internal_mems_;
+    }
+
     void add_internal_mem(const memory &mem) {
         internal_mems_.emplace_back(mem);
     }
@@ -79,13 +152,21 @@ public:
         value_mem_map_.insert(map);
     }
 
-    bool find_value_mem_map(value_t *key, memory &mem) {
+    bool find_value_mem_map(value_t *key, memory &mem) const {
         auto pos = value_mem_map_.find(key);
         if (pos != value_mem_map_.end()) {
             mem = pos->second;
             return true;
         }
         return false;
+    }
+
+    void add_topo_ordered_key(int64_t key) {
+        topo_ordered_keys_.emplace_back(key);
+    }
+
+    std::vector<int64_t> get_topo_ordered_keys() const {
+        return topo_ordered_keys_;
     }
 
 private:
@@ -96,6 +177,7 @@ private:
     std::vector<memory> external_output_mems_;
     std::vector<memory> internal_mems_;
     std::unordered_map<value_t *, memory> value_mem_map_; // pointer -> mem
+    std::vector<int64_t> topo_ordered_keys_;
 };
 
 impl::status_t memory_binding(
@@ -104,6 +186,83 @@ impl::status_t memory_binding(
         const std::vector<impl::logical_tensor_t> &outputs,
         const dnnl::engine &p_engine, execution_args_mgr &exec_arg_mgr,
         primitive_attr_mgr &prm_attr_mgr);
+
+} // namespace dnnl_impl
+} // namespace impl
+} // namespace graph
+} // namespace dnnl
+
+namespace std {
+
+// TODO(qun) improve the hashing function
+template <>
+struct hash<dnnl::graph::impl::dnnl_impl::execution_args_mgr> {
+    size_t operator()(const dnnl::graph::impl::dnnl_impl::execution_args_mgr
+                    &exec_args_mgr) const {
+        using namespace dnnl::graph::impl::utils;
+        using namespace dnnl::graph::impl::dnnl_impl;
+
+        size_t seed = 0;
+
+        for (auto &mem : exec_args_mgr.get_external_input_mems()) {
+            seed = hash_combine(seed, get_md_hash(mem.get_desc()));
+            seed = hash_combine(seed, mem.get_engine().get());
+        }
+
+        for (auto &mem : exec_args_mgr.get_external_output_mems()) {
+            seed = hash_combine(seed, get_md_hash(mem.get_desc()));
+            seed = hash_combine(seed, mem.get_engine().get());
+        }
+
+        for (auto &mem : exec_args_mgr.get_internal_mems()) {
+            seed = hash_combine(seed, get_md_hash(mem.get_desc()));
+            seed = hash_combine(seed, mem.get_engine().get());
+        }
+
+        for (auto &key_args : exec_args_mgr.get_args()) {
+            auto &args = key_args.second;
+            for (auto &key_mem : args) {
+                seed = hash_combine(seed, static_cast<size_t>(key_mem.first));
+                seed = hash_combine(
+                        seed, get_md_hash(key_mem.second.get_desc()));
+                seed = hash_combine(seed, key_mem.second.get_engine().get());
+            }
+        }
+
+        return seed;
+    }
+};
+} // namespace std
+
+namespace dnnl {
+namespace graph {
+namespace impl {
+namespace dnnl_impl {
+
+// The devired resource subclass for subgraph mode.
+class subgraph_resource_t : public resource_t {
+public:
+    subgraph_resource_t(const execution_args_mgr &exec_args_mgr)
+        : exec_args_mgr_(exec_args_mgr) {
+        for (int64_t key : exec_args_mgr_.get_topo_ordered_keys()) {
+            exec_args_.emplace_back(exec_args_mgr_.get_args(key));
+        }
+    }
+
+    const execution_args_mgr &get_exec_args_mgr() const {
+        return exec_args_mgr_;
+    }
+
+    const std::vector<exec_args> &get_exec_args() const { return exec_args_; }
+
+    execution_args_mgr &get_exec_args_mgr() { return exec_args_mgr_; }
+
+    std::vector<exec_args> &get_exec_args() { return exec_args_; }
+
+private:
+    execution_args_mgr exec_args_mgr_;
+    std::vector<exec_args> exec_args_;
+};
 
 } // namespace dnnl_impl
 } // namespace impl

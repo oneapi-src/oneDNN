@@ -30,6 +30,7 @@
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/legacy.hpp"
+#include "backend/dnnl/resource.hpp"
 #include "backend/dnnl/scratchpad.hpp"
 #include "backend/dnnl/subgraph/compile_ops.hpp"
 #include "backend/dnnl/subgraph/infer_type.hpp"
@@ -58,9 +59,10 @@ private:
     execution_args_mgr exec_arg_mgr_;
 
     std::vector<op_executable *> execs_;
-    std::vector<exec_args> exec_args_;
 
     registry_t registry_;
+    size_t resource_key_;
+    resource_cache_t::creator_t resource_ctor_;
 
 public:
     virtual ~quantized_conv() {}
@@ -123,7 +125,7 @@ public:
         BACKEND_DNNL_CHECK(
                 compile_ops(subgraph, p_engine_, prm_attr_mgr_, exec_mgr_));
 
-        // topologically sort the prms and their args
+        // topologically sort the executables
         impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(),
                 [this](impl::op_t *op) {
                     auto exec_key = op->get_attr<int64_t>("executable_key");
@@ -131,8 +133,7 @@ public:
                     execs_.emplace_back(exec.get());
 
                     auto arg_key = op->get_attr<int64_t>("execution_args_key");
-                    auto &args = exec_arg_mgr_.get_args(arg_key);
-                    exec_args_.emplace_back(args);
+                    exec_arg_mgr_.add_topo_ordered_key(arg_key);
                     return impl::status::success;
                 });
 
@@ -146,6 +147,13 @@ public:
             registrar.book(key++, mem.get_desc().get_size());
         }
 
+        // generate a hash key for exec_args_mgr
+        resource_key_ = std::hash<execution_args_mgr>()(exec_arg_mgr_);
+        resource_ctor_ = [this]() {
+            return std::unique_ptr<resource_t>(
+                    new subgraph_resource_t(this->exec_arg_mgr_));
+        };
+
         return impl::status::success;
     }
 
@@ -156,13 +164,18 @@ public:
         UNUSED(part);
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
+        // each thread's own local resource
+        resource_cache_t res_cache;
+        subgraph_resource_t *res = res_cache.get<subgraph_resource_t>(
+                resource_key_, resource_ctor_);
+
         // update the data of partition in/outputs args
         for (size_t i = 0; i < inputs.size(); i++) {
-            exec_arg_mgr_.get_external_input_mem(i).set_data_handle(
+            res->get_exec_args_mgr().get_external_input_mem(i).set_data_handle(
                     inputs[i].get_data_handle());
         }
         for (size_t i = 0; i < outputs.size(); i++) {
-            exec_arg_mgr_.get_external_output_mem(i).set_data_handle(
+            res->get_exec_args_mgr().get_external_output_mem(i).set_data_handle(
                     outputs[i].get_data_handle());
         }
 
@@ -173,12 +186,12 @@ public:
         grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
 
         registry_t::key_t key = 0;
-        for (auto &mem : exec_arg_mgr_.get_internal_mems()) {
+        for (auto &mem : res->get_exec_args_mgr().get_internal_mems()) {
             mem.set_data_handle(grantor.get(key++));
         }
 
         for (size_t i = 0; i < execs_.size(); i++) {
-            execs_[i]->execute(p_stream, exec_args_[i]);
+            execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
         return impl::status::success;
