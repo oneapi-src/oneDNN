@@ -41,6 +41,7 @@ struct jit_brgemm_primitive_conf_t {
     int stride_d, stride_h, stride_w;
     int dilate_d, dilate_h, dilate_w;
     format_tag_t src_tag, wei_tag, dst_tag; // temporary workaround
+    bool is_wei_layout_any;
     bool with_bias;
     bool with_sum;
     bool with_eltwise;
