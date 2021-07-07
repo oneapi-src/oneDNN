@@ -14,14 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/x64/jit_uni_x8s8s32x_deconvolution.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
+
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/zero_point_utils.hpp"
+
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_uni_deconv_zp_pad_str_kernel.hpp"
-#include "cpu/zero_point_utils.hpp"
+#include "cpu/x64/jit_uni_x8s8s32x_deconvolution.hpp"
 
 #define GET_OFF(field) offsetof(jit_deconv_call_s, field)
 
@@ -1353,32 +1355,31 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::generate() {
     if (jcp_.with_eltwise) postops_injector_->prepare_table();
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
-_jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
-        dst_type>::_jit_uni_x8s8s32x_deconvolution_fwd_t(const pd_t *apd)
+template <cpu_isa_t isa>
+jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::jit_uni_x8s8s32x_deconvolution_fwd_t(
+        const pd_t *apd)
     : primitive_t(apd) {}
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
-_jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
-        dst_type>::~_jit_uni_x8s8s32x_deconvolution_fwd_t()
+template <cpu_isa_t isa>
+jit_uni_x8s8s32x_deconvolution_fwd_t<
+        isa>::~jit_uni_x8s8s32x_deconvolution_fwd_t()
         = default;
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
-status_t
-_jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type, dst_type>::pd_t::init(
+template <cpu_isa_t isa>
+status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::pd_t::init(
         engine_t *engine) {
     using namespace data_type;
+    using skip_mask_t = primitive_attr_t::skip_mask_t;
     const bool ok = true && is_fwd()
             && (desc()->alg_kind & alg_kind::deconvolution_direct)
-            && desc()->src_desc.data_type == src_type
-            && desc()->dst_desc.data_type == dst_type
+            && utils::one_of(src_md(0)->data_type, s8, u8)
+            && weights_md(0)->data_type == s8
             && IMPLICATION(with_bias(),
-                    utils::one_of(
-                            desc()->bias_desc.data_type, f32, s32, s8, u8))
+                    utils::one_of(weights_md(1)->data_type, f32, s32, s8, u8))
+            && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
             && desc()->accum_data_type == s32
-            && attr()->has_default_values(primitive_attr_t::skip_mask_t::oscale
-                    | primitive_attr_t::skip_mask_t::post_ops
-                    | primitive_attr_t::skip_mask_t::zero_points_runtime);
+            && attr()->has_default_values(skip_mask_t::oscale
+                    | skip_mask_t::post_ops | skip_mask_t::zero_points_runtime);
     if (!ok) return status::unimplemented;
 
     CHECK(jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(jcp_, *desc(),
@@ -1392,9 +1393,8 @@ _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type, dst_type>::pd_t::init(
     return status::success;
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
-status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type, dst_type>::init(
-        engine_t *engine) {
+template <cpu_isa_t isa>
+status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::init(engine_t *engine) {
     CHECK(safe_ptr_assign(kernel_,
             new jit_uni_x8s8s32x_deconv_fwd_kernel<isa>(pd()->jcp_,
                     *pd()->attr(), memory_desc_wrapper(pd()->dst_md()))));
@@ -1409,9 +1409,8 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type, dst_type>::init(
     return kernel_->create_kernel();
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
-status_t
-_jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type, dst_type>::execute(
+template <cpu_isa_t isa>
+status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
     const auto &_pd = pd();
     const auto &ndims = _pd->ndims();
@@ -1426,13 +1425,13 @@ _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type, dst_type>::execute(
     return status::success;
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
-status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
-        dst_type>::execute_forward_1d(const exec_ctx_t &ctx) const {
-    const auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    const auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+template <cpu_isa_t isa>
+status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_1d(
+        const exec_ctx_t &ctx) const {
+    const auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+    const auto weights = CTX_IN_MEM(const int8_t *, DNNL_ARG_WEIGHTS);
     const auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
     DEFINE_ZERO_POINTS_BUFFER(zp_src, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(zp_dst, DNNL_ARG_DST);
 
@@ -1442,6 +1441,8 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
+
+    const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
 
     const auto post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
@@ -1472,7 +1473,7 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
     }
     const size_t offset
             = (size_t)jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw;
-    auto w = const_cast<wei_data_t *>(weights);
+    auto w = const_cast<int8_t *>(weights);
     int32_t *compensation = (jcp.signed_input)
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
@@ -1502,7 +1503,7 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
                     = (g * jcp.ch_block * jcp.nb_oc + ocb) * jcp.oc_block;
             const int g_ic = g * jcp.ch_block * jcp.ic;
 
-            p.dst = dst + dst_d.blk_off(n, g_oc);
+            p.dst = dst + dst_dt_size * dst_d.blk_off(n, g_oc);
             p.src = src + src_d.blk_off(n, g_ic);
             p.filt = weights + wht_blk_off(weights_d, g, ocb, 0);
             p.bias = jcp.with_bias
@@ -1537,13 +1538,13 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
     return status::success;
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
-status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
-        dst_type>::execute_forward_2d(const exec_ctx_t &ctx) const {
-    const auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    const auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+template <cpu_isa_t isa>
+status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_2d(
+        const exec_ctx_t &ctx) const {
+    const auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+    const auto weights = CTX_IN_MEM(const int8_t *, DNNL_ARG_WEIGHTS);
     const auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
     DEFINE_ZERO_POINTS_BUFFER(zp_src, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(zp_dst, DNNL_ARG_DST);
 
@@ -1551,6 +1552,8 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
+
+    const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
 
     const auto &jcp = pd()->jcp_;
     const auto post_ops_binary_rhs_arg_vec
@@ -1587,7 +1590,7 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
     }
     const size_t offset
             = (size_t)jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw;
-    auto w = const_cast<wei_data_t *>(weights);
+    auto w = const_cast<int8_t *>(weights);
     int32_t *compensation = (jcp.signed_input)
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
@@ -1623,7 +1626,7 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
             const int oh_e
                     = oh_s + work_rem > jcp.oh ? jcp.oh : oh_s + work_rem;
 
-            const auto dst_w = dst + dst_d.blk_off(n, g_oc);
+            const auto dst_w = dst + dst_dt_size * dst_d.blk_off(n, g_oc);
             const auto src_w = src + src_d.blk_off(n, g_ic);
             const auto wht_w = weights + wht_blk_off(weights_d, g, ocb, 0);
             const auto bias_w = jcp.with_bias
@@ -1672,7 +1675,7 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
                         ? kh_lo * wht_kh_stride
                         : 0;
                 p.src = src_w + ih_max * src_h_stride;
-                p.dst = dst_w + oj * dst_h_stride;
+                p.dst = dst_w + dst_dt_size * oj * dst_h_stride;
                 p.filt = wht_w + wei_stride;
                 p.bias = bias_w;
                 p.compensation = compensation_w;
@@ -1714,13 +1717,13 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
     return status::success;
 }
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
-status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
-        dst_type>::execute_forward_3d(const exec_ctx_t &ctx) const {
-    const auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    const auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+template <cpu_isa_t isa>
+status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_3d(
+        const exec_ctx_t &ctx) const {
+    const auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+    const auto weights = CTX_IN_MEM(const int8_t *, DNNL_ARG_WEIGHTS);
     const auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-    const auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
     DEFINE_ZERO_POINTS_BUFFER(zp_src, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(zp_dst, DNNL_ARG_DST);
 
@@ -1728,6 +1731,8 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
+
+    const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
 
     const auto &jcp = pd()->jcp_;
     const auto post_ops_binary_rhs_arg_vec
@@ -1767,7 +1772,7 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
         oscales = local_scales;
     }
     const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
-    auto w = const_cast<wei_data_t *>(weights);
+    auto w = const_cast<int8_t *>(weights);
     int32_t *compensation = (jcp.signed_input)
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
@@ -1837,7 +1842,9 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
                 input_d_s = (od_s + jcp.f_pad - kd_lo) / jcp.stride_d;
             }
 
-            auto dst_w = dst + dst_d.blk_off(n, g_oc) + od_s * dst_d_stride;
+            auto dst_w = dst
+                    + dst_dt_size
+                            * (dst_d.blk_off(n, g_oc) + od_s * dst_d_stride);
             const auto src_w
                     = src + src_d.blk_off(n, g_ic) + input_d_s * src_d_stride;
             const auto wht_w = weights + wht_blk_off(weights_d, g, ocb, 0)
@@ -1890,7 +1897,7 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
                         ? kh_lo * wht_kh_stride
                         : 0;
                 p.src = src_w + ih_max * src_h_stride;
-                p.dst = dst_w + oj * dst_h_stride;
+                p.dst = dst_w + dst_dt_size * oj * dst_h_stride;
                 p.filt = wht_w + wei_stride;
                 p.bias = bias_w;
                 p.compensation = compensation_w;
@@ -1947,22 +1954,8 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
 }
 
 using namespace data_type;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, u8, u8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, u8, s8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, u8, f32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, u8, s32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, s8, u8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, s8, s8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, s8, f32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<avx2, s8, s32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, u8, u8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, u8, s8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, u8, f32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, u8, s32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, s8, u8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, s8, s8>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, s8, f32>;
-template struct _jit_uni_x8s8s32x_deconvolution_fwd_t<sse41, s8, s32>;
+template struct jit_uni_x8s8s32x_deconvolution_fwd_t<avx2>;
+template struct jit_uni_x8s8s32x_deconvolution_fwd_t<sse41>;
 template struct jit_uni_x8s8s32x_deconv_fwd_kernel<avx2>;
 template struct jit_uni_x8s8s32x_deconv_fwd_kernel<sse41>;
 template struct _jit_uni_x8s8s32x_deconv_fwd_kernel<avx2, Xbyak::Ymm>;

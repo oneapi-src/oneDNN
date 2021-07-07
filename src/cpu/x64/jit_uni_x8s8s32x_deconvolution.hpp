@@ -24,6 +24,7 @@
 #include "common/primitive.hpp"
 
 #include "cpu/cpu_deconvolution_pd.hpp"
+
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -179,8 +180,8 @@ private:
     std::unique_ptr<jit_generator> kernel_;
 };
 
-template <cpu_isa_t isa, impl::data_type_t src_type, impl::data_type_t dst_type>
-struct _jit_uni_x8s8s32x_deconvolution_fwd_t : public primitive_t {
+template <cpu_isa_t isa>
+struct jit_uni_x8s8s32x_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
 
@@ -188,18 +189,14 @@ struct _jit_uni_x8s8s32x_deconvolution_fwd_t : public primitive_t {
                 JIT_IMPL_NAME_HELPER("jit_uni_deconv:",
                         isa == avx2 && jcp_.ver == ver_vnni ? avx2_vnni : isa,
                         ""),
-                _jit_uni_x8s8s32x_deconvolution_fwd_t);
+                jit_uni_x8s8s32x_deconvolution_fwd_t);
 
         status_t init(engine_t *engine);
         jit_conv_conf_t jcp_;
     };
 
-    _jit_uni_x8s8s32x_deconvolution_fwd_t(const pd_t *apd);
-    ~_jit_uni_x8s8s32x_deconvolution_fwd_t();
-
-    using src_data_t = typename prec_traits<src_type>::type;
-    using wei_data_t = typename prec_traits<data_type::s8>::type;
-    using dst_data_t = typename prec_traits<dst_type>::type;
+    jit_uni_x8s8s32x_deconvolution_fwd_t(const pd_t *apd);
+    ~jit_uni_x8s8s32x_deconvolution_fwd_t();
 
     status_t init(engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
