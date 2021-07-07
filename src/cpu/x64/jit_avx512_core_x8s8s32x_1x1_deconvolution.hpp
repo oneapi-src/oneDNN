@@ -26,17 +26,16 @@
 
 #include "cpu/cpu_convolution_pd.hpp"
 #include "cpu/cpu_deconvolution_pd.hpp"
+#include "cpu/zero_point_utils.hpp"
 
 #include "cpu/x64/jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
 #include "cpu/x64/jit_uni_1x1_conv_utils.hpp"
-#include "cpu/zero_point_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <impl::data_type_t src_type, impl::data_type_t dst_type>
 struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -83,12 +82,12 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
             bool ok = is_fwd()
                     && desc()->alg_kind == alg_kind::deconvolution_direct
                     && !has_zero_dim_memory()
-                    && desc()->src_desc.data_type == src_type
-                    && desc()->dst_desc.data_type == dst_type
-                    && desc()->weights_desc.data_type == s8
+                    && utils::one_of(src_md(0)->data_type, s8, u8)
+                    && weights_md(0)->data_type == s8
                     && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type, f32, s32,
-                                    s8, u8))
+                            utils::one_of(
+                                    weights_md(1)->data_type, f32, s32, s8, u8))
+                    && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
                     && desc()->accum_data_type == s32
                     && attr()->has_default_values(skip_mask_t::oscale
                             | skip_mask_t::post_ops
