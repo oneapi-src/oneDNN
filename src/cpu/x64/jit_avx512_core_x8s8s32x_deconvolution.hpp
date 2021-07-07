@@ -221,8 +221,7 @@ private:
     jit_generator *kernel_;
 };
 
-template <impl::data_type_t src_type, impl::data_type_t dst_type>
-struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
+struct jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
 
@@ -230,21 +229,22 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
                                     ((jcp_.ver == ver_vnni) ? avx512_core_vnni
                                                             : avx512_core),
                                     ""),
-                _jit_avx512_core_x8s8s32x_deconvolution_fwd_t);
+                jit_avx512_core_x8s8s32x_deconvolution_fwd_t);
 
         status_t init(engine_t *engine) {
+            using namespace data_type;
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
             const bool ok = is_fwd()
                     && (desc()->alg_kind & alg_kind::deconvolution_direct)
-                    && desc()->src_desc.data_type == src_type
-                    && desc()->dst_desc.data_type == dst_type
+                    && utils::one_of(src_md(0)->data_type, s8, u8)
+                    && weights_md(0)->data_type == s8
                     && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type,
-                                    data_type::f32, data_type::s32,
-                                    data_type::s8, data_type::u8))
-                    && desc()->accum_data_type == data_type::s32
+                            utils::one_of(
+                                    weights_md(1)->data_type, f32, s32, s8, u8))
+                    && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
+                    && desc()->accum_data_type == s32
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale
-                            | primitive_attr_t::skip_mask_t::post_ops);
+                            skip_mask_t::oscale | skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
 
             CHECK(_jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(jcp_,
@@ -261,12 +261,8 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
         jit_conv_conf_t jcp_;
     };
 
-    _jit_avx512_core_x8s8s32x_deconvolution_fwd_t(const pd_t *apd)
+    jit_avx512_core_x8s8s32x_deconvolution_fwd_t(const pd_t *apd)
         : primitive_t(apd) {}
-
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<data_type::s8>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
