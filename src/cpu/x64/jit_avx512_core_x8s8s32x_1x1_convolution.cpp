@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -152,7 +152,8 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
             : nullptr;
     const int32_t *zp_compensation = jcp.src_zero_point
             ? reinterpret_cast<int32_t *>(&w[offset])
-                    + (jcp.signed_input ? jcp.ngroups * jcp.oc : 0)
+                    + (jcp.signed_input ? jcp.ngroups * jcp.oc_without_padding
+                                        : 0)
             : nullptr;
 
     auto p = jit_1x1_conv_call_s();

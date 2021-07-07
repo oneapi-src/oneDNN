@@ -1477,8 +1477,8 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
     const int32_t *zp_compensation = jcp.src_zero_point
-            ? get_src_zp_comp_from_wei(
-                    weights, weights_d, jcp.signed_input, jcp.ngroups, jcp.oc)
+            ? get_src_zp_comp_from_wei(weights, weights_d, jcp.signed_input,
+                    jcp.ngroups, jcp.oc_without_padding)
             : nullptr;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
@@ -1592,8 +1592,8 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
     const int32_t *zp_compensation = jcp.src_zero_point
-            ? get_src_zp_comp_from_wei(
-                    weights, weights_d, jcp.signed_input, jcp.ngroups, jcp.oc)
+            ? get_src_zp_comp_from_wei(weights, weights_d, jcp.signed_input,
+                    jcp.ngroups, jcp.oc_without_padding)
             : nullptr;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
@@ -1772,8 +1772,8 @@ status_t _jit_uni_x8s8s32x_deconvolution_fwd_t<isa, src_type,
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
     const int32_t *zp_compensation = jcp.src_zero_point
-            ? get_src_zp_comp_from_wei(
-                    weights, weights_d, jcp.signed_input, jcp.ngroups, jcp.oc)
+            ? get_src_zp_comp_from_wei(weights, weights_d, jcp.signed_input,
+                    jcp.ngroups, jcp.oc_without_padding)
             : nullptr;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
