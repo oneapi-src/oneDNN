@@ -17,6 +17,7 @@
 #ifndef GRAPH_POOL_HPP
 #define GRAPH_POOL_HPP
 
+#include "dnn_graph_types.hpp"
 #include "dnnl_graph_common.hpp"
 #include "pool/pool.hpp"
 
@@ -32,6 +33,12 @@ struct pool_graph_prb_t : public graph_prb_t {
 
         ctor_status = handle_main_op_();
         if (stop_work(ctor_status)) return;
+
+        auto dtypes = {spec_.src_dt, spec_.dst_dt};
+        if (benchdnnext::is_low_precision(dtypes)) {
+            ctor_status = handle_low_precision_();
+            if (stop_work(ctor_status)) return;
+        }
 
         ctor_status = fill_status::DONE;
     };
@@ -66,6 +73,7 @@ private:
     spec_t spec_;
 
     fill_status_t handle_main_op_();
+    fill_status_t handle_low_precision_();
 
     dnnl::graph::op::kind get_main_op_kind() const override {
         return spec_.op_kind;

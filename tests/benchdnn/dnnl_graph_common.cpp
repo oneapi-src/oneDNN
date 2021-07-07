@@ -171,12 +171,6 @@ bool should_handle_swish(graph_prb_t &p, const dnnl_alg_kind_t kind) {
     return valid_base_op && is_bias && is_swish;
 }
 
-bool is_low_precision(const std::vector<dt> &dtypes) {
-    return std::find_if(dtypes.begin(), dtypes.end(), [](dt dt_) {
-        return dt_ == dt::u8 || dt_ == dt::s8;
-    }) != dtypes.end();
-}
-
 int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> scales) {
     if (scales.empty()) {
         dst = std::move(src);
