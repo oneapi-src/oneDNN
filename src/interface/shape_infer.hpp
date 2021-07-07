@@ -640,6 +640,26 @@ status_t infer_pool_output_shape(op_t *n,
     return status::success;
 }
 
+status_t infer_dnnl_pool_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    bool out_shape_unknown
+            = logical_tensor_wrapper(outputs[0]).is_shape_unknown();
+    infer_pool_output_shape(n, inputs, outputs);
+
+    // permute output from NCX to NXC
+    if (out_shape_unknown && n->has_attr("output_format")
+            && n->get_attr<std::string>("output_format") == "NXC") {
+        auto ndims = outputs[0]->ndims;
+        auto channel = outputs[0]->dims[1];
+        for (size_t i = 1; i < ndims - 1; i++) {
+            outputs[0]->dims[i] = outputs[0]->dims[i + 1];
+        }
+        outputs[0]->dims[ndims - 1] = channel;
+    }
+    return status::success;
+}
+
 status_t infer_matmul_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {

@@ -194,7 +194,8 @@ impl::status_t memory_binding(std::vector<op_ptr> &subgraph,
                 || cur_op->get_kind() == op_kind::MatMul) {
             bind_memory_for_conv_and_matmul(
                     cur_op, p_engine, exec_arg_mgr, prm_attr_mgr);
-        } else if (cur_op->get_kind() == op_kind::MaxPool) {
+        } else if (cur_op->get_kind() == op_kind::MaxPool
+                || cur_op->get_kind() == op_kind::dnnl_maxpool) {
             bool is_training = cur_op->has_attr("is_training")
                     ? cur_op->get_attr<bool>("is_training")
                     : false;

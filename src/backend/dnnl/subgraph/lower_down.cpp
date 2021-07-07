@@ -492,7 +492,7 @@ void fuse_to_int8_pool(std::vector<op_ptr> &subgraph) {
 
     if (fusion_ops.empty()) return;
     for (auto &pool_op : fusion_ops) {
-        op_ptr q_pool_op = std::make_shared<op_t>(pool_op->get_kind());
+        op_ptr q_pool_op = std::make_shared<op_t>(op_kind::dnnl_maxpool);
         q_pool_op->merge_attributes(pool_op->get_attributes());
 
         // oneDNN int8 pooling primitive doesn't require scales and zps, so we

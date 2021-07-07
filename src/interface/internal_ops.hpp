@@ -109,6 +109,7 @@ namespace op_kind {
     X(expand, Expand) \
     X(dnnl_convolution, Dnnl_convolution) \
     X(int8_maxpool, INT8_MaxPool) \
+    X(dnnl_maxpool, Dnnl_maxpool) \
     X(relu_add, Relu_add) \
     X(add_relu, Add_relu) \
     X(add_sigmoid, Add_sigmoid) \

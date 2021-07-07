@@ -2777,6 +2777,35 @@ DNNL_GRAPH_OP_SCHEMA(Dnnl_convolution, 1,
                         false, attribute_kind::s, "NXC")
                 .SET_CONV_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(Dnnl_maxpool, 1,
+        op_schema()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("strides", "the distance to slide the filter", true,
+                        attribute_kind::is)
+                .set_attr("pads_begin", "top and left padding", true,
+                        attribute_kind::is)
+                .set_attr("pads_end", "bottom and right padding", true,
+                        attribute_kind::is)
+                .set_attr("kernel", "size of each filter", true,
+                        attribute_kind::is)
+                .set_attr("dilations",
+                        "the distance in width and height between elements "
+                        "in the filter",
+                        false, attribute_kind::is,
+                        std::vector<int64_t>(1, DNNL_GRAPH_MAX_NDIMS))
+                .set_attr("output_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
+                .set_attr("rounding_type", "a type of rounding to be applied",
+                        false, attribute_kind::s, "floor")
+                .set_attr("auto_pad", "how the padding is calculated", false,
+                        attribute_kind::s, "None")
+                .set_shape_inference_function(infer_dnnl_pool_output_shape))
+
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

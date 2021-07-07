@@ -137,7 +137,8 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
         dst = permute_NXC2NCX(dst);
     }
     algorithm algo = algorithm::undef;
-    if (op->get_kind() == op_kind::MaxPool)
+    if (op->get_kind() == op_kind::MaxPool
+            || op->get_kind() == op_kind::dnnl_maxpool)
         algo = algorithm::pooling_max;
     else {
         BACKEND_DNNL_ENFORCE(0, "Currently only int8 MaxPool is supported.");
