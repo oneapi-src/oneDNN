@@ -55,6 +55,7 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         bn_fw_train_pass, dnnl, BatchNormForwardTraining, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         bn_bw_pass, dnnl, BatchNormTrainingBackprop, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(concat_pass, dnnl, Concat, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(conv_pass, dnnl, Convolution, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         conv_data_bw_pass, dnnl, ConvolutionBackpropData, 8.f)

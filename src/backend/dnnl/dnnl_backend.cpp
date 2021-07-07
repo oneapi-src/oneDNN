@@ -64,6 +64,9 @@ bool dnnl_backend::register_kernels() {
                     &kernel_registry::create_kernel<kernel_class_>); \
     (void)_flag_##op_kind_##_;
 
+    // concat
+    DNNL_REGISTER_KERNEL(Concat, concat);
+
     // conv related operators
     DNNL_REGISTER_KERNEL(Convolution, convolution_forward)
     DNNL_REGISTER_KERNEL(conv_add, convolution_forward)

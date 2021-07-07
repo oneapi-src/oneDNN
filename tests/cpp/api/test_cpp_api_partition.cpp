@@ -195,22 +195,14 @@ TEST(api_partition, unsupported_partitions) {
     op wildcard {op_ids[1], op::kind::Wildcard, {input2}, {wildcard_dst},
             "wildcard"};
 
-    logical_tensor concat_dst {lt_ids[4], logical_tensor::data_type::f32,
-            logical_tensor::layout_type::undef};
-
-    op concat {op_ids[2], op::kind::Concat, {sigmoid_dst, wildcard_dst},
-            {concat_dst}, "concat"};
-    concat.set_attr<int64_t>("axis", 0);
-
-    op end {op_ids[3], op::kind::End, {concat_dst}, {}, "end"};
+    op end {op_ids[3], op::kind::End, {wildcard_dst}, {}, "end"};
 
     g.add_op(sigmoid);
     g.add_op(wildcard);
-    g.add_op(concat);
     g.add_op(end);
 
     std::vector<partition> partitions = g.get_partitions();
-    ASSERT_EQ(partitions.size(), 4);
+    ASSERT_EQ(partitions.size(), 3);
     for (auto &p : partitions)
         ASSERT_FALSE(p.is_supported());
 }

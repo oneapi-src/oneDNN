@@ -70,6 +70,9 @@ dims group_dims(const dims &adims, dim groups);
 std::pair<std::vector<float>, std::vector<float>> compute_scales(
         float src_scale, float dst_scale, std::vector<float> weight_scales);
 
+std::pair<bool, int64_t> try_reverse_axis(
+        const int64_t axis, const int32_t rank);
+
 inline int op_scale_mask(dim scale_size) {
     return scale_size > 1 ? 2 : 0;
 }
