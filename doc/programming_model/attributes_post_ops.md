@@ -257,7 +257,7 @@ with
 The intermediate result of \f$\operatorname{Op}(...)\f$ is not preserved.
 Hence, in most cases this kind of fusion cannot be used during training.
 
-Currently the following scenarios are supported:
+Currently the following scenarios are optimized:
 * Per tensor broadcast, when \f$Source\_1\f$ is represented as a one-element
   tensor, i.e. {1, 1, 1, 1} for 2D spatial \f$\operatorname{Op}(...)\f$.
 * Per channels (i.e. dimension 1) broadcast, when a `dim[1]` value of
