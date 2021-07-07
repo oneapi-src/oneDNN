@@ -1,0 +1,10 @@
+name: onednn-doc
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9.5
+  - pip=21.1.2
+  - doxyrest=2.1.2
+  - sphinx=4.0.2
+  - sphinx-book-theme=0.0.41
