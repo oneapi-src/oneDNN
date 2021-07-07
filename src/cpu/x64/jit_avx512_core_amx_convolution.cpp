@@ -51,10 +51,8 @@ static inline T accum_with_upper_bound(T ub, T lv, T uv) {
     return nstl::min(ub, nstl::min(ub, lv) + nstl::max(0, ub - uv));
 }
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
-        dst_type>::prepare_padded_bias(const char *&bias,
-        const memory_tracking::grantor_t &scratchpad) const {
+void jit_avx512_core_amx_convolution_fwd_t::prepare_padded_bias(
+        const char *&bias, const memory_tracking::grantor_t &scratchpad) const {
     if (!pd()->wants_padded_bias()) return;
 
     const size_t bia_dt_size = pd()->jcp_.typesize_bia;
@@ -67,15 +65,14 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     bias = padded_bias;
 }
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
-        dst_type>::execute_forward_reduced_lowering(const exec_ctx_t &ctx)
-        const {
+status_t
+jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
+        const exec_ctx_t &ctx) const {
     const auto &jcp = pd()->jcp_;
-    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    const auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+    const auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
     const auto post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
 
@@ -87,11 +84,11 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
-    const size_t wei_dt_size
-            = types::data_type_size(pd()->desc()->weights_desc.data_type);
-    const size_t bia_dt_size = pd()->with_bias()
-            ? types::data_type_size(pd()->desc()->bias_desc.data_type)
-            : 0;
+    const size_t src_dt_size = types::data_type_size(src_d.data_type());
+    const size_t wei_dt_size = types::data_type_size(weights_d.data_type());
+    const size_t bia_dt_size
+            = pd()->with_bias() ? types::data_type_size(bias_d.data_type()) : 0;
+    const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
@@ -100,9 +97,9 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
 
-    auto inp_p_buffer = ctx.get_scratchpad_grantor().template get<src_data_t>(
+    auto inp_p_buffer = ctx.get_scratchpad_grantor().template get<char>(
             key_conv_amx_inp_buffer); // fix the template
-    auto wei_buffer = ctx.get_scratchpad_grantor().template get<wei_data_t>(
+    auto wei_buffer = ctx.get_scratchpad_grantor().template get<char>(
             key_conv_amx_wei_buffer); // fix the template
     auto wsp = ctx.get_scratchpad_grantor().template get<int32_t>(
             key_conv_amx_wsp_buffer);
@@ -114,9 +111,9 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
             key_conv_zero_point_flag);
 
     const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
-    auto w = const_cast<wei_data_t *>(weights);
+    char *w = const_cast<char *>(weights);
     int32_t *zp_compensation = jcp.src_zero_point
-            ? reinterpret_cast<int32_t *>(&w[offset])
+            ? reinterpret_cast<int32_t *>(w + offset)
             : nullptr;
 
     const int t_pad_output = jcp.t_pad_output;
@@ -137,7 +134,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     p.src = weights;
     p.dst = wei_buffer;
     kernel_->copy_to_wbuffer()(&p);
-    const wei_data_t *wei = wei_buffer;
+    const char *wei = wei_buffer;
 
     const size_t oc_subblock_step
             = jcp.kh * jcp.kw * jcp.ic_block_int_np * jcp.oc_block;
@@ -234,14 +231,16 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
         int last_copied_owb = -1;
         int last_copied_g = -1;
         while (start < end) {
-            src_data_t *inp_buffer = inp_p_buffer + ithr * jcp.inp_buffer_size;
+            char *inp_buffer
+                    = inp_p_buffer + src_dt_size * ithr * jcp.inp_buffer_size;
 
             assert(IMPLICATION(
                     jcp.ngroups > 1, jcp.oc == jcp.oc_without_padding));
             int oc = g * jcp.oc + occ * jcp.nb_oc_blocking * jcp.oc_block;
             int ocb = jcp.is_nspc ? oc : oc / jcp.oc_block;
-            auto bias_w = bias ? bias + (bias_d.blk_off(oc) * bia_dt_size)
-                               : nullptr;
+            const char *bias_w = bias
+                    ? bias + (bias_d.blk_off(oc) * bia_dt_size)
+                    : nullptr;
             p.zp_compensation
                     = jcp.src_zero_point ? zp_compensation + oc : nullptr;
             p.src_zero_point = jcp.src_zero_point ? src_zero_point : nullptr;
@@ -312,8 +311,8 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
 
                 int ow = owb * jcp.ow_block;
 
-                src_data_t *inp_buffer_oh
-                        = inp_buffer + (size_t)oh * inp_buffer_h_step;
+                char *inp_buffer_oh
+                        = inp_buffer + src_dt_size * oh * inp_buffer_h_step;
 
                 if (!is_inp_buffer_relevant) {
                     // prepare padded input buffer
@@ -321,14 +320,14 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                     size_t inp_offset = is_1d ? src_d.blk_off(mb, icb, 0)
                                               : src_d.blk_off(mb, icb, 0, 0);
                     const int iw_step = jcp.ngroups * jcp.ic_without_padding;
-                    const src_data_t *psrc = src + inp_offset;
+                    const char *psrc = src + src_dt_size * inp_offset;
                     // calculate overlap...
                     const int ih_overlap = has_inp_buffer_overlap
                             * nstl::max(0, jcp.kh - oh_step * jcp.stride_h);
                     const int kh_eff = jcp.kh - ih_overlap;
                     // prepare padded input buffer
-                    src_data_t *pdst = inp_buffer_oh
-                            + ih_overlap * jcp.ic_without_padding;
+                    char *pdst = inp_buffer_oh
+                            + src_dt_size * ih_overlap * jcp.ic_without_padding;
                     for (int doh = 0; doh < oh_step; doh++) {
                         const int ih_s = (doh + oh) * jcp.stride_h - jcp.t_pad
                                 + ih_overlap;
@@ -349,9 +348,10 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                         p.kw_padding = nstl::max<int>(
                                 0, jcp.iwp - p.f_overflow - p.back_overflow);
 
-                        p.src = psrc + (ih * jcp.iw + iw) * iw_step;
+                        p.src = psrc
+                                + src_dt_size * (ih * jcp.iw + iw) * iw_step;
                         p.dst = pdst
-                                + doh * jcp.iwp * jcp.kh
+                                + src_dt_size * doh * jcp.iwp * jcp.kh
                                         * jcp.ic_without_padding;
 
                         kernel_->copy_to_pbuffer()(&p);
@@ -361,13 +361,14 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                 p.src = inp_buffer_oh;
                 size_t dst_offset = is_1d ? dst_d.blk_off(mb, ocb, ow)
                                           : dst_d.blk_off(mb, ocb, oh, ow);
-                p.dst = dst + dst_offset;
+                p.dst = dst + dst_dt_size * dst_offset;
                 const size_t pbuff_offset
                         = zp_oh * jcp.ow_pad * sp_stride + ocb * oc_stride;
                 p.zero_point_pbuff = req_zero_point_buffer
                         ? &local_zp_pbuff[pbuff_offset]
                         : nullptr;
-                p.filt = wei + (g * oc_chunks + occ) * wei_oc_shift;
+                p.filt = wei
+                        + wei_dt_size * (g * oc_chunks + occ) * wei_oc_shift;
                 p.bias = bias_w;
                 p.scales = &oscales[jcp.is_oc_scale * oc];
 
@@ -414,11 +415,10 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     return status::success;
 }
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
-        dst_type>::execute_forward(const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
-    auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
+status_t jit_avx512_core_amx_convolution_fwd_t::execute_forward(
+        const exec_ctx_t &ctx) const {
+    const auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+    const auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
     const auto post_ops_binary_rhs_arg_vec
@@ -456,7 +456,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     const size_t wei_d_shift
             = (size_t)jcp.kh * jcp.kw * jcp.ic_block_int_np * jcp.oc_block;
 
-    auto inp_p_buffer = ctx.get_scratchpad_grantor().template get<src_data_t>(
+    auto inp_p_buffer = ctx.get_scratchpad_grantor().template get<char>(
             key_conv_amx_inp_buffer); // fix the template
     auto wsp = ctx.get_scratchpad_grantor().template get<int32_t>(
             key_conv_amx_wsp_buffer);
@@ -468,7 +468,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
             key_conv_zero_point_flag);
 
     const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
-    auto w = const_cast<char *>(weights);
+    char *w = const_cast<char *>(weights);
     int32_t *zp_compensation = jcp.src_zero_point
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
@@ -596,14 +596,16 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
         int last_copied_owb = -1;
         int last_copied_g = -1;
         while (start < end) {
-            src_data_t *inp_buffer = inp_p_buffer + ithr * jcp.inp_buffer_size;
+            char *inp_buffer
+                    = inp_p_buffer + src_dt_size * ithr * jcp.inp_buffer_size;
 
             assert(IMPLICATION(
                     jcp.ngroups > 1, jcp.oc == jcp.oc_without_padding));
             int oc = g * jcp.oc + occ * jcp.nb_oc_blocking * jcp.oc_block;
             int ocb = jcp.is_nspc ? oc : oc / jcp.oc_block;
-            auto bias_w = bias ? bias + (bias_d.blk_off(oc) * bia_dt_size)
-                               : nullptr;
+            const char *bias_w = bias
+                    ? bias + (bias_d.blk_off(oc) * bia_dt_size)
+                    : nullptr;
             p.zp_compensation
                     = jcp.src_zero_point ? zp_compensation + oc : nullptr;
             p.src_zero_point = jcp.src_zero_point ? src_zero_point : nullptr;
@@ -729,7 +731,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                                         - oh_s * jcp.stride_h
                                 : gen_stride_h * (oh + ohi - oh_s);
                         p.dst = inp_buffer
-                                + (size_t)ih_buf * jcp.iwp
+                                + src_dt_size * ih_buf * jcp.iwp
                                         * jcp.ic_block_int_np;
 
                         kernel_->copy_to_pbuffer()(&p);
@@ -738,7 +740,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                 int ih_buf = gen_stride_h * (oh - oh_s);
                 int ow = owb * jcp.ow_block;
                 p.src = inp_buffer
-                        + (size_t)ih_buf * jcp.iwp * jcp.ic_block_int_np;
+                        + src_dt_size * ih_buf * jcp.iwp * jcp.ic_block_int_np;
 
                 size_t dst_offset = mem_blk_off(dst_d, mb, ocb, odc, oh, ow);
                 p.dst = dst + dst_dt_size * dst_offset;
@@ -798,33 +800,12 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     return status::success;
 }
 
-template struct jit_avx512_core_amx_convolution_fwd_t<data_type::s8,
-        data_type::s8, data_type::u8>;
-template struct jit_avx512_core_amx_convolution_fwd_t<data_type::u8,
-        data_type::s8, data_type::u8>;
-template struct jit_avx512_core_amx_convolution_fwd_t<data_type::s8,
-        data_type::s8, data_type::s8>;
-template struct jit_avx512_core_amx_convolution_fwd_t<data_type::u8,
-        data_type::s8, data_type::s8>;
-template struct jit_avx512_core_amx_convolution_fwd_t<data_type::s8,
-        data_type::s8, data_type::s32>;
-template struct jit_avx512_core_amx_convolution_fwd_t<data_type::u8,
-        data_type::s8, data_type::s32>;
-template struct jit_avx512_core_amx_convolution_fwd_t<data_type::s8,
-        data_type::s8, data_type::f32>;
-template struct jit_avx512_core_amx_convolution_fwd_t<data_type::u8,
-        data_type::s8, data_type::f32>;
-template struct jit_avx512_core_amx_convolution_fwd_t<data_type::bf16,
-        data_type::bf16, data_type::bf16>;
-template struct jit_avx512_core_amx_convolution_fwd_t<data_type::bf16,
-        data_type::bf16, data_type::f32>;
-
 template <data_type_t diff_src_type, data_type_t wei_type,
         data_type_t diff_dst_type>
 void jit_avx512_core_amx_convolution_bwd_data_t<diff_src_type, wei_type,
         diff_dst_type>::execute_backward(const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST);
-    auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
+    const auto diff_dst = CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST);
+    const auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
