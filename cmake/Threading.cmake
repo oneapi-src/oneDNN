@@ -39,12 +39,13 @@ list(APPEND EXTRA_SHARED_LIBS "${CMAKE_THREAD_LIBS_INIT}")
 
 # A macro to avoid code duplication
 macro(find_package_tbb)
+    set(_cmake_proj_dir "${PROJECT_SOURCE_DIR}/cmake")
     if(WIN32)
-        find_package(TBB ${ARGN} COMPONENTS tbb HINTS cmake/win)
+        find_package(TBB ${ARGN} COMPONENTS tbb HINTS ${_cmake_proj_dir}/win)
     elseif(APPLE)
-        find_package(TBB ${ARGN} COMPONENTS tbb HINTS cmake/mac)
+        find_package(TBB ${ARGN} COMPONENTS tbb HINTS ${_cmake_proj_dir}/mac)
     elseif(UNIX)
-        find_package(TBB ${ARGN} COMPONENTS tbb HINTS cmake/lnx)
+        find_package(TBB ${ARGN} COMPONENTS tbb HINTS ${_cmake_proj_dir}/lnx)
     endif()
 
     if(TBB_FOUND)
