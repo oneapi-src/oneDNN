@@ -27,6 +27,7 @@
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/operators/batchnorm.hpp"
+#include "backend/dnnl/operators/concat.hpp"
 #include "backend/dnnl/operators/conv.hpp"
 #include "backend/dnnl/operators/eltwise.hpp"
 #include "backend/dnnl/operators/inner_product.hpp"
@@ -493,6 +494,142 @@ TEST(operator_compile, bn_compile_bwd_fp32) {
         ASSERT_TRUE(absolute_error < 0.001);
     }
 }
+
+struct dnnl_graph_test_concat_params {
+    std::vector<impl::dim_t> src0_strides;
+    std::vector<impl::dim_t> src1_strides;
+    std::vector<impl::dim_t> dst_strides;
+    test::vector<float> ref_dst;
+    int64_t axis;
+};
+
+class test_concat_compile
+    : public ::testing::TestWithParam<dnnl_graph_test_concat_params> {
+public:
+    void TestConcat() {
+        const auto params = ::testing::TestWithParam<
+                dnnl_graph_test_concat_params>::GetParam();
+
+        test::vector<float> src0_data {1., 1., 2., 2., 3., 3., 4., 4.};
+        test::vector<float> src1_data {2., 2., 4., 4., 6., 6., 8., 8.};
+        test::vector<float> dst_data(src0_data.size() + src1_data.size(), 0.);
+        test::vector<float> dst_data_2nd_run = dst_data;
+
+        impl::op_t concat_op(impl::op_kind::Concat);
+        const auto axis = params.axis;
+        concat_op.set_attr<int64_t>("axis", axis);
+
+        auto &op_factory = get_dnnl_kernel_registry();
+        const auto concat_kernel = op_factory.create_kernel(concat_op);
+        ASSERT_TRUE(concat_kernel);
+
+        const std::vector<impl::dim_t> src_dims {1, 2, 2, 2};
+        std::vector<impl::dim_t> dst_dims = src_dims;
+        const auto axis_pos = (axis < 0) ? src_dims.size() + axis : axis;
+        dst_dims[axis_pos] *= 2;
+
+        impl::logical_tensor_t src0_lt = utils::logical_tensor_init(
+                0, src_dims, params.src0_strides, impl::data_type::f32);
+        impl::logical_tensor_t src1_lt = utils::logical_tensor_init(
+                1, src_dims, params.src1_strides, impl::data_type::f32);
+        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                2, dst_dims, params.dst_strides, impl::data_type::f32);
+
+        const auto &eng = get_engine();
+        concat_kernel->compile(&concat_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+
+        impl::tensor_t src0_ts(src0_lt, src0_data.data());
+        impl::tensor_t src1_ts(src1_lt, src1_data.data());
+        impl::tensor_t dst_ts(dst_lt, dst_data.data());
+        impl::tensor_t src0_ts_2nd_run(src0_lt, src0_data.data());
+        impl::tensor_t src1_ts_2nd_run(src1_lt, src1_data.data());
+        impl::tensor_t dst_ts_2nd_run(dst_lt, dst_data_2nd_run.data());
+
+        auto &strm = get_stream();
+
+        concat_kernel->execute(&concat_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+        strm.wait();
+
+        concat_kernel->execute(&concat_op, &strm,
+                {src0_ts_2nd_run, src1_ts_2nd_run}, {dst_ts_2nd_run});
+        strm.wait();
+
+        for (size_t i = 0; i < dst_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(params.ref_dst[i], dst_data[i]);
+            ASSERT_FLOAT_EQ(params.ref_dst[i], dst_data_2nd_run[i]);
+        }
+    }
+
+    void Test() { TestConcat(); }
+};
+
+TEST_P(test_concat_compile, TestConcatCompile) {}
+
+INSTANTIATE_TEST_SUITE_P(TestConcatCompile, test_concat_compile,
+        ::testing::Values(
+                // NCHW, NCHW => NCHW
+                dnnl_graph_test_concat_params {{8, 4, 2, 1}, {8, 4, 2, 1},
+                        {8, 4, 2, 1},
+                        {1., 1., 3., 3., 5., 5., 7., 7., 2., 2., 4., 4., 6., 6.,
+                                8., 8.},
+                        0},
+                dnnl_graph_test_concat_params {{8, 4, 2, 1}, {8, 4, 2, 1},
+                        {16, 4, 2, 1},
+                        {1., 1., 3., 3., 5., 5., 7., 7., 2., 2., 4., 4., 6., 6.,
+                                8., 8.},
+                        1},
+                dnnl_graph_test_concat_params {{8, 4, 2, 1}, {8, 4, 2, 1},
+                        {16, 8, 2, 1},
+                        {1., 1., 3., 3., 2., 2., 4., 4., 5., 5., 7., 7., 6., 6.,
+                                8., 8.},
+                        2},
+                dnnl_graph_test_concat_params {{8, 4, 2, 1}, {8, 4, 2, 1},
+                        {16, 8, 4, 1},
+                        {1., 1., 2., 2., 3., 3., 4., 4., 5., 5., 6., 6., 7., 7.,
+                                8., 8.},
+                        3},
+                // NCHW, NHWC => NCHW; negative axis
+                dnnl_graph_test_concat_params {{8, 4, 2, 1}, {8, 1, 4, 2},
+                        {8, 4, 2, 1},
+                        {1., 1., 3., 3., 5., 5., 7., 7., 2., 4., 6., 8., 2., 4.,
+                                6., 8.},
+                        -4},
+                dnnl_graph_test_concat_params {{8, 4, 2, 1}, {8, 1, 4, 2},
+                        {16, 4, 2, 1},
+                        {1., 1., 3., 3., 5., 5., 7., 7., 2., 4., 6., 8., 2., 4.,
+                                6., 8.},
+                        -3},
+                dnnl_graph_test_concat_params {{8, 4, 2, 1}, {8, 1, 4, 2},
+                        {16, 8, 2, 1},
+                        {1., 1., 3., 3., 2., 4., 6., 8., 5., 5., 7., 7., 2., 4.,
+                                6., 8.},
+                        -2},
+                dnnl_graph_test_concat_params {{8, 4, 2, 1}, {8, 1, 4, 2},
+                        {16, 8, 4, 1},
+                        {1., 1., 2., 4., 3., 3., 6., 8., 5., 5., 2., 4., 7., 7.,
+                                6., 8.},
+                        -1},
+                // NCHW, NCHW => NHWC
+                dnnl_graph_test_concat_params {{8, 4, 2, 1}, {8, 4, 2, 1},
+                        {8, 1, 4, 2},
+                        {1., 5., 1., 5., 3., 7., 3., 7., 2., 6., 2., 6., 4., 8.,
+                                4., 8.},
+                        0},
+                dnnl_graph_test_concat_params {{8, 4, 2, 1}, {8, 4, 2, 1},
+                        {16, 1, 8, 4},
+                        {1., 5., 2., 6., 1., 5., 2., 6., 3., 7., 4., 8., 3., 7.,
+                                4., 8.},
+                        1},
+                dnnl_graph_test_concat_params {{8, 4, 2, 1}, {8, 4, 2, 1},
+                        {16, 1, 4, 2},
+                        {1., 5., 1., 5., 3., 7., 3., 7., 2., 6., 2., 6., 4., 8.,
+                                4., 8.},
+                        2},
+                dnnl_graph_test_concat_params {{8, 4, 2, 1}, {8, 4, 2, 1},
+                        {16, 1, 8, 2},
+                        {1., 5., 1., 5., 2., 6., 2., 6., 3., 7., 3., 7., 4., 8.,
+                                4., 8.},
+                        3}));
 
 TEST(operator_kernel, relu) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};

@@ -1051,6 +1051,8 @@ status_t infer_concat_output_shape(op_t *n,
     }
     auto in0 = logical_tensor_wrapper(inputs[0]);
     auto data_type = in0.data_type();
+    if (data_type != out0.data_type()) return status::unsupported;
+
     int64_t axis = n->get_attr<int64_t>("axis");
     auto ndims = in0.ndims();
     auto dims = in0.dims();

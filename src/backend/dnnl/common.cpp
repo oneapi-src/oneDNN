@@ -109,6 +109,15 @@ std::pair<std::vector<float>, std::vector<float>> compute_scales(
     return std::make_pair(std::move(bias_scales), std::move(op_scales));
 }
 
+std::pair<bool, int64_t> try_reverse_axis(
+        const int64_t axis, const int32_t rank) {
+    // oneDNN can not operate on the negative axis
+    const auto new_axis = (axis < 0) ? rank + axis : axis;
+    if (new_axis < 0 || new_axis >= static_cast<int64_t>(rank))
+        return std::make_pair(false, axis);
+    return std::make_pair(true, new_axis);
+}
+
 dnnl::engine make_dnnl_engine(const impl::engine_t &g_engine) {
 #if DNNL_GRAPH_WITH_SYCL
     return dnnl::sycl_interop::make_engine(
