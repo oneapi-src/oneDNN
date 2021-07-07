@@ -1299,17 +1299,49 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
         }
     };
 
-    for_(int occ = ti->oc_c_start; occ < ti->oc_c_end; occ++)
-    for_(int icc = ti->ic_c_start; icc < ti->ic_c_end; icc++)
-    for_(int ocb = 0; ocb < nstl::min(jbgp.nb_oc_blocking,
-                              jbgp.nb_oc - occ * jbgp.nb_oc_blocking);
-            ocb++)
-    for_(int icb = 0; icb < nstl::min(jbgp.nb_ic_blocking,
-                              jbgp.nb_ic - icc * jbgp.nb_ic_blocking);
-            icb++)
-    for (int osc = ti->os_c_start; osc < ti->os_c_end; osc++) {
-        ker(osc, icc * jbgp.nb_ic_blocking + icb,
-                occ * jbgp.nb_oc_blocking + ocb);
+    const auto occ_work = (ti->oc_c_end - ti->oc_c_start);
+    const auto icc_work = (ti->ic_c_end - ti->ic_c_start);
+    const auto osc_work = (ti->os_c_end - ti->os_c_start);
+
+    auto loop_idx = 0;
+    const auto loop_end = occ_work * icc_work * osc_work;
+
+    // For huge mini batch (os) iterate over osc in outermost loop
+    // Optimization for bert_large topology
+    const bool osc_outermost
+            = jbgp.os >= 5 * (jbgp.ic + jbgp.oc) && jbgp.nb_os >= 256;
+
+    int occ_idx = 0, icc_idx = 0, osc_idx = 0;
+    if (osc_outermost)
+        nd_iterator_init(loop_idx, osc_idx, osc_work, occ_idx, occ_work,
+                icc_idx, icc_work);
+    else
+        nd_iterator_init(loop_idx, occ_idx, occ_work, icc_idx, icc_work,
+                osc_idx, osc_work);
+
+    while (loop_idx < loop_end) {
+        const int occ = ti->oc_c_start + occ_idx;
+        const int icc = ti->ic_c_start + icc_idx;
+        const int osc = ti->os_c_start + osc_idx;
+
+        const int ocb_work = nstl::min(
+                jbgp.nb_oc_blocking, jbgp.nb_oc - occ * jbgp.nb_oc_blocking);
+        const int icb_work = nstl::min(
+                jbgp.nb_ic_blocking, jbgp.nb_ic - icc * jbgp.nb_ic_blocking);
+
+        for_(int ocb = 0; ocb < ocb_work; ocb++)
+        for (int icb = 0; icb < icb_work; icb++) {
+            ker(osc, icc * jbgp.nb_ic_blocking + icb,
+                    occ * jbgp.nb_oc_blocking + ocb);
+        }
+
+        ++loop_idx;
+        if (osc_outermost)
+            nd_iterator_step(
+                    osc_idx, osc_work, occ_idx, occ_work, icc_idx, icc_work);
+        else
+            nd_iterator_step(
+                    occ_idx, occ_work, icc_idx, icc_work, osc_idx, osc_work);
     }
     if (is_amx_bf16) amx_tile_release();
 }
