@@ -83,6 +83,9 @@ if(DNNL_WITH_SYCL)
     append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
 
     if(WIN32)
+        # XXX: SYCL does not like __thiscall convention coming from TBB,
+        # suppress warnings for now.
+        append(CMAKE_CCXX_FLAGS "-Wno-ignored-attributes")
         # XXX: compiler always pulls in release C++ runtime by default, until
         # this is fixed we have to explicitly drop release C++ runtime for
         # debug build types.
