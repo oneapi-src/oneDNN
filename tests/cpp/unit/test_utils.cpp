@@ -18,6 +18,7 @@
 
 #include "utils/compatible.hpp"
 
+#ifndef DNNL_GRAPH_SUPPORT_CXX17
 TEST(utils_test, optional) {
     //init, copy constructor
     dnnl::graph::impl::utils::optional_impl<int64_t> o1, o2 = 2, o3 = o2;
@@ -31,6 +32,7 @@ TEST(utils_test, optional) {
     EXPECT_THROW(o4.value(), std::logic_error);
     EXPECT_THROW(o1.value(), std::logic_error);
 }
+#endif
 
 TEST(utils_test, any) {
     dnnl::graph::impl::utils::any a = 1;

@@ -2663,6 +2663,67 @@ TEST(pass_test, int8_conv_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
 }
 
+TEST(pass_test, int8_conv_fail_fusion) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+      /    conv
+wildcard     | (f32)
+           quant
+             | (u8/s8)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t conv {2, Convolution, "conv"};
+    set_conv_common_attr(conv);
+    op_t relu {3, ReLU, "relu"};
+    op_t quant {4, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+    op_t wildcard {5, Wildcard, "wildcard"};
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+    wildcard.add_input(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_conv_out = logical_tensor_init(4, data_type::f32);
+    conv.add_input(fp32_data);
+    conv.add_input(fp32_weight);
+    conv.add_output(fp32_conv_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(5, data_type::u8);
+    quant.add_input(fp32_conv_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&conv), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard), status::success);
+
+    agraph.build_graph();
+
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 4);
+}
+
 TEST(pass_test, int8_conv_bias_fusion) {
     /*
         | (u8/s8)  | (s8)

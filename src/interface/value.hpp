@@ -25,6 +25,7 @@
 
 #include "c_types_map.hpp"
 #include "logical_tensor.hpp"
+#include "utils/compatible.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -121,7 +122,20 @@ public:
         }
     }
 
-    bool find_consumer(const op_kind_t &kind, size_t &offset);
+    /// Find whether a specific consumer exists in current op's consumers.
+    ///
+    /// @param start_index Search from [start_index]-th consumer. The
+    /// consumers before [start_index] has already been matched in previous
+    /// rounds of matching, so they cannot be searched again.
+    /// @param kind Search for specific op_kind in the consumers
+    /// @param expected_input_offset Check the consumer's input offset
+    /// @param ignore_expected_input_offset: ignore the check of consumer's
+    /// input offset, useful for binary ops.
+    /// @returns an optional contained size_t, representing the offset of
+    /// the found consumer
+    utils::optional<size_t> find_consumer(const size_t start_index,
+            const op_kind_t kind, const size_t expected_input_offset,
+            bool ignore_expected_input_offset = false);
 
     void swap_consumer(const size_t offset1, const size_t offset2) {
         std::swap(consumers_[offset1], consumers_[offset2]);

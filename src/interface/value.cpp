@@ -19,13 +19,18 @@
 
 using namespace dnnl::graph::impl;
 
-bool value_t::find_consumer(const op_kind_t &kind, size_t &offset) {
-    for (size_t i = 0; i < consumers_.size(); i++) {
-        const impl::op_t &op1 = consumers_[i].get_op();
-        if (op1.get_kind() == kind) {
-            offset = i;
-            return true;
+utils::optional<size_t> value_t::find_consumer(const size_t start_index,
+        const op_kind_t kind, const size_t expected_input_offset,
+        bool ignore_expected_input_offset) {
+    if (start_index >= consumers_.size()) return {};
+    for (size_t i = start_index; i < consumers_.size(); i++) {
+        const op_t &op1 = consumers_[i].get_op();
+        const size_t input_offset = consumers_[i].get_offset();
+        if ((op1.get_kind() == kind)
+                && (ignore_expected_input_offset
+                        || input_offset == expected_input_offset)) {
+            return i;
         }
     }
-    return false;
+    return {};
 }

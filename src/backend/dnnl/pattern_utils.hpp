@@ -25,6 +25,8 @@
 #include <vector>
 #include <unordered_set>
 
+#include "utils/compatible.hpp"
+
 #include "interface/graph.hpp"
 #include "interface/partition.hpp"
 
@@ -46,19 +48,19 @@ using FRequirement = impl::pass::FRequirement;
  */
 struct op_set {
     /**
-     * Check if operator is binary (has two swapable inputs).
+     * Check if operator inputs are commutative.
      *
      * @param kind operator kind
-     * @return whether the operator is binary
+     * @return whether the operator inputs are commutative
      */
-    static bool is_binary(op_kind_t op_kind) {
-        static const std::set<op_kind_t> supported_binary_ops {op_kind::Add,
+    static bool check_inputs_commutativity(op_kind_t op_kind) {
+        static const std::set<op_kind_t> supported_ops {op_kind::Add,
                 op_kind::Multiply, op_kind::Maximum, op_kind::Minimum};
-        return supported_binary_ops.count(op_kind);
+        return supported_ops.count(op_kind);
     }
 };
 
-//check if the input order of the "binary" op in pattern need to be swapped
+//check if the inputs of the op in pattern need to be swapped
 template <typename getinput>
 bool should_swap_inputs(op_t *graph_op, op_t *pattern_op, getinput get_input) {
     const auto get_op_kind_ = [&](op_t *op_, size_t idx) {
@@ -104,8 +106,8 @@ void special_case_handle(op_t *graph_op, op_t *pattern_op, indegree in_degree,
     const auto gin_deg = in_degree(graph_op);
     const auto expected_deg = 2;
 
-    if (op_set::is_binary(pattern_op->get_kind()) && expected_deg == pin_deg
-            && pin_deg == gin_deg) {
+    if (op_set::check_inputs_commutativity(pattern_op->get_kind())
+            && expected_deg == pin_deg && pin_deg == gin_deg) {
         if (should_swap_inputs(graph_op, pattern_op, get_input)) {
             pattern_op->swap_input_values(0, 1);
         }
@@ -217,13 +219,15 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
             if (pconsumers.size() != nconsumers.size()) { return false; }
             // output ops have no order, so need to match pattern to get the
             // corresponding op
-            size_t corresponding_offset;
             for (size_t i = 0; i < pconsumers.size(); i++) {
-                bool flag = noutput->find_consumer(
-                        pconsumers[i].get_op().get_kind(),
-                        corresponding_offset);
-                if (!flag) { return false; }
-                noutput->swap_consumer(i, corresponding_offset);
+                impl::utils::optional<size_t> corresponding_offset
+                        = noutput->find_consumer(i,
+                                pconsumers[i].get_op().get_kind(),
+                                pconsumers[i].get_offset(),
+                                op_set::check_inputs_commutativity(
+                                        pconsumers[i].get_op().get_kind()));
+                if (!corresponding_offset.has_value()) { return false; }
+                noutput->swap_consumer(i, corresponding_offset.value());
             }
             pfront.second.first++;
             nconsumers = noutput->get_consumers();

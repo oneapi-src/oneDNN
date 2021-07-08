@@ -43,7 +43,7 @@ public:
     layout_id_manager() {};
     virtual ~layout_id_manager() {}
 
-    /*! \brief Set a backend memory descriptor to manager and get a 
+    /*! \brief Set a backend memory descriptor to manager and get a
     * corresponding layout id
     * \param mem_desc The backend's memory descriptor, it can
     * be both plain or opaque
@@ -72,9 +72,9 @@ public:
         return layout_id;
     }
 
-    /*! \brief Get a backend memory descriptor from manager by using a 
+    /*! \brief Get a backend memory descriptor from manager by using a
     * layout id
-    * \param layout_id The layout id, which is generated and managed 
+    * \param layout_id The layout id, which is generated and managed
     * by backends
     * \return When the input is a valid cache index, the return value
     * is a cached memory descriptor; otherwise, the return value will
@@ -83,14 +83,14 @@ public:
     virtual impl::utils::optional<impl::utils::any> get_mem_desc(
             const size_t &layout_id) const {
         std::lock_guard<std::mutex> lock(mem_descs_.m_);
-        if (layout_id >= mem_descs_.data_.size()) return impl::utils::nullopt;
+        if (layout_id >= mem_descs_.data_.size()) return {};
         return mem_descs_.data_[layout_id];
     }
 
 private:
-    /*! \brief compare two backend mem desc 
-    * \param mem_desc1 
-    * \param mem_desc2 
+    /*! \brief compare two backend mem desc
+    * \param mem_desc1
+    * \param mem_desc2
     * \return bool
     */
     virtual bool is_mem_desc_equal(const impl::utils::any &mem_desc1,
@@ -214,7 +214,7 @@ public:
         return std::make_shared<kernel_type>();
     }
 
-    /*! 
+    /*!
      * \brief register a backend kernel's creator for a op_kind
      */
     bool register_kernel(impl::op_kind_t op_kind, kernel_creator_f fn) {
@@ -223,7 +223,7 @@ public:
         return true;
     }
 
-    /*! 
+    /*!
      * \brief create an kernel instance for a op
      */
     kernel_ptr create_kernel(const impl::op_t &aop) {
@@ -237,7 +237,7 @@ public:
         return create_fn();
     }
 
-    /*! 
+    /*!
      * \brief get registered kernel number
      */
     size_t get_register_kernels_num() const {

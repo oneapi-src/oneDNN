@@ -29,74 +29,6 @@ namespace graph {
 namespace impl {
 namespace utils {
 
-struct nullopt_t {
-    enum class _construct { _token };
-    explicit constexpr nullopt_t(_construct) {}
-};
-
-constexpr const nullopt_t nullopt {nullopt_t::_construct::_token};
-
-template <typename T>
-class optional_impl {
-public:
-    optional_impl() : is_null_(true) {}
-    optional_impl(const T &value) {
-        is_null_ = false;
-        new (&value_) T(value);
-    }
-
-    optional_impl(const optional_impl<T> &opt) {
-        is_null_ = opt.is_null_;
-        if (!is_null_) { new (&value_) T(opt.value()); }
-    }
-
-    optional_impl(nullopt_t) : is_null_(true) {}
-
-    ~optional_impl() {
-        // explicitly deconstructor
-        if (!is_null_) { reinterpret_cast<T *>(&value_)->~T(); }
-    }
-
-    void swap(optional_impl<T> &another) {
-        std::swap(value_, another.value_);
-        std::swap(is_null_, another.is_null_);
-    }
-
-    optional_impl<T> &operator=(const optional_impl<T> &another) {
-        (optional_impl<T>(another)).swap(*this);
-        return *this;
-    }
-
-    optional_impl<T> &operator=(const T &value) {
-        (optional_impl<T>(value)).swap(*this);
-        return *this;
-    }
-
-    optional_impl<T> &operator=(nullopt_t) {
-        (optional_impl<T>()).swap(*this);
-        return *this;
-    }
-
-    const T &operator*() const { return *reinterpret_cast<const T *>(&value_); }
-    T &operator*() { return *reinterpret_cast<T *>(&value_); }
-
-    const T &value() const {
-        if (is_null_) { throw std::logic_error("bad optional access"); }
-        return *reinterpret_cast<const T *>(&value_);
-    }
-
-    bool operator==(const optional_impl<T> &other) const {
-        return this->is_null_ == other.is_null_
-                && (this->is_null_ == true || this->value() == other.value());
-    }
-
-    bool has_value() const { return !is_null_; }
-
-private:
-    typename std::aligned_storage<sizeof(T), alignof(T)>::type value_;
-    bool is_null_;
-};
-
 class bad_any_cast : public std::bad_cast {
 public:
     virtual const char *what() const noexcept { return "bad any_cast"; }
@@ -261,6 +193,74 @@ std::unique_ptr<T> make_unique(Args &&... args) {
 template <typename T>
 using optional = std::optional<T>;
 #else
+struct nullopt_t {
+    enum class _construct { _token };
+    explicit constexpr nullopt_t(_construct) {}
+};
+
+constexpr const nullopt_t nullopt {nullopt_t::_construct::_token};
+
+template <typename T>
+class optional_impl {
+public:
+    optional_impl() : is_null_(true) {}
+    optional_impl(const T &value) {
+        is_null_ = false;
+        new (&value_) T(value);
+    }
+
+    optional_impl(const optional_impl<T> &opt) {
+        is_null_ = opt.is_null_;
+        if (!is_null_) { new (&value_) T(opt.value()); }
+    }
+
+    optional_impl(nullopt_t) : is_null_(true) {}
+
+    ~optional_impl() {
+        // explicitly deconstructor
+        if (!is_null_) { reinterpret_cast<T *>(&value_)->~T(); }
+    }
+
+    void swap(optional_impl<T> &another) {
+        std::swap(value_, another.value_);
+        std::swap(is_null_, another.is_null_);
+    }
+
+    optional_impl<T> &operator=(const optional_impl<T> &another) {
+        (optional_impl<T>(another)).swap(*this);
+        return *this;
+    }
+
+    optional_impl<T> &operator=(const T &value) {
+        (optional_impl<T>(value)).swap(*this);
+        return *this;
+    }
+
+    optional_impl<T> &operator=(nullopt_t) {
+        (optional_impl<T>()).swap(*this);
+        return *this;
+    }
+
+    const T &operator*() const { return *reinterpret_cast<const T *>(&value_); }
+    T &operator*() { return *reinterpret_cast<T *>(&value_); }
+
+    const T &value() const {
+        if (is_null_) { throw std::logic_error("bad optional access"); }
+        return *reinterpret_cast<const T *>(&value_);
+    }
+
+    bool operator==(const optional_impl<T> &other) const {
+        return this->is_null_ == other.is_null_
+                && (this->is_null_ == true || this->value() == other.value());
+    }
+
+    bool has_value() const { return !is_null_; }
+
+private:
+    typename std::aligned_storage<sizeof(T), alignof(T)>::type value_;
+    bool is_null_;
+};
+
 template <typename T>
 using optional = optional_impl<T>;
 #endif // DNNL_GRAPH_SUPPORT_CXX17
