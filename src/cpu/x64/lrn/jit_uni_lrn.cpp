@@ -123,8 +123,8 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::execute_forward(
     if (dat_tag == nChw8c && ls == 5 && ak == lrn_across_channels) {
         parallel_nd(N, C / VECTOR_LENGTH, [&](int n, int c8) {
             const auto offset = n * HW * C + c8 * HW * VECTOR_LENGTH;
-            jit_args_fwd_t args {
-                    &src[offset], &dst[offset], &ws[offset], nullptr};
+            auto ws_ptr = ws ? &ws[offset] : nullptr;
+            jit_args_fwd_t args {&src[offset], &dst[offset], ws_ptr, nullptr};
             if (c8 == 0)
                 (*ker_first)(&args);
             else if (c8 == C / VECTOR_LENGTH - 1)
@@ -159,8 +159,8 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::execute_forward(
     } else { // nhwc
         parallel_nd(N, HW, [&](int n, int hw) {
             const auto offset = n * HW * C + hw * C;
-            jit_args_fwd_t args {
-                    &src[offset], &dst[offset], &ws[offset], nullptr};
+            auto ws_ptr = ws ? &ws[offset] : nullptr;
+            jit_args_fwd_t args {&src[offset], &dst[offset], ws_ptr, nullptr};
             (*ker)(&args);
         });
     }
