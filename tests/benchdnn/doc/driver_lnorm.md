@@ -15,10 +15,12 @@ where *lnorm-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--stat_tag={tn [default], ...}` -- physical mean and variance memory format.
             Refer to [tags](knobs_tag.md) for details.
- - `--flags=[|G|S]` -- layer normalization flags, default `none`; where
+ - `--flags=[|G|S|C|H]` -- layer normalization flags, default `none`; where
             multiple simultaneous flags are supported.
             `G` is dnnl_use_global_stats;
             `S` is dnnl_use_scaleshift;
+            `C` is dnnl_use_scale;
+            `H` is dnnl_use_shift;
             Refer to [layer normalization primitive](https://oneapi-src.github.io/oneDNN/dev_guide_layer_normalization.html)
             for details.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input

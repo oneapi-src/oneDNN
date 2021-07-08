@@ -33,7 +33,6 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_dtag : s.dtag)
     for_(const auto &i_oflag : s.oflag)
-    for_(const auto &i_alg : s.alg)
     for_(const auto &i_cross_engine : s.cross_engine)
     for_(const auto &i_oscale : s.oscale)
     for_(const auto &i_zero_points : s.zero_points)
@@ -71,12 +70,7 @@ void check_correctness(const settings_t &s) {
         auto &scale = attr.oscale.scale == 0 ? s.def_scale : attr_scale;
 
         for (const auto &i_scale : scale) {
-            uint64_t oflag = FLAG_NONE;
-            for (const auto &f : i_oflag) {
-                oflag |= f;
-            }
-
-            const prb_t prb(reorder_conf, iconf, oconf, attr, i_alg, oflag,
+            const prb_t prb(reorder_conf, iconf, oconf, attr, i_oflag,
                     i_cross_engine, i_runtime_dim_mask, i_scale);
             std::stringstream ss;
             ss << prb;
@@ -97,7 +91,7 @@ void check_correctness(const settings_t &s) {
             bool want_perf_report = false;
             parse_result(res, want_perf_report, status, pstr);
 
-            if (want_perf_report && bench_mode & PERF) {
+            if (want_perf_report && is_bench_mode(PERF)) {
                 perf_report_t pr(s.perf_template);
                 pr.report(&prb, &res, pstr);
             }
@@ -119,11 +113,10 @@ int bench(int argc, char **argv) {
                 || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
-                || parse_multivector_option(
-                        s.oflag, def.oflag, str2flag, argv[0], "oflag")
+                || parse_multivector_option(s.oflag, def.oflag, str2flag,
+                        argv[0], "oflag", ',', '+')
                 || parse_vector_option(s.runtime_dim_mask, def.runtime_dim_mask,
                         atoi, argv[0], "runtime-dim-mask")
-                || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_vector_option(
                         s.def_scale, def.def_scale, atof, argv[0], "def-scales")
                 || parse_vector_option(s.cross_engine, def.cross_engine,

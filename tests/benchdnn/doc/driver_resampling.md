@@ -9,14 +9,19 @@ where *resampling-knobs* are:
 
  - `--dir={FWD_D [default], BWD_D}` -- dnnl_prop_kind_t.
             Refer to [direction](knobs_dir.md) for details.
- - `--dt={f32 [default], ...}` -- src and dst data type.
+ - `--sdt={f32 [default], ...}` -- src data type.
+            Refer to [data types](knobs_dt.md) for details.
+ - `--ddt={f32 [default], ...}` -- dst data type.
             Refer to [data types](knobs_dt.md) for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
  - `--alg={nearest [default], linear}` -- resampling algorithm.
-            `nearest` is dnnl_resampling_nearest;
-            `linear` is dnnl_resampling_linear;
+            `nearest` or `resampling_nearest` is dnnl_resampling_nearest;
+            `linear` or `resampling_nearest` is dnnl_resampling_linear;
             Refer to [resampling primitive](https://oneapi-src.github.io/oneDNN/dev_guide_resampling.html)
+            for details.
+ - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
+            operations are set by default. Refer to [attributes](knobs_attr.md)
             for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
@@ -46,7 +51,7 @@ Run a named problem with single precision src/dst, iterating by:
 3) all algorithm combinations,
 4) using default minibatch of 96 and 5:
 ``` sh
-    ./benchdnn --resampling --dt=f32 --tag=nChw8c,nChw16c \
+    ./benchdnn --resampling --sdt=f32 --ddt=f32 --tag=nChw8c,nChw16c \
                --dir=FWD_D,BWD_D --alg=nearest,linear --mb=0,5 \
                mb96ic768_ih17oh34
 ```

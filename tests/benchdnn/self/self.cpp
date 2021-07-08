@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,16 +22,19 @@
 namespace self {
 
 int bench(int argc, char **argv) {
-    (void)argv;
-
     SAFE(argc <= 1 ? OK : FAIL, CRIT);
-    SAFE(bench_mode == CORR ? OK : FAIL, CRIT);
+
+    (void)argv;
+    auto &bs = benchdnn_stat;
+    if (bench_mode != CORR) {
+        bs.skipped = bs.tests;
+        return OK;
+    }
 
     common();
     conv();
     bnorm();
 
-    auto &bs = benchdnn_stat;
     return bs.tests == bs.passed ? OK : FAIL;
 }
 

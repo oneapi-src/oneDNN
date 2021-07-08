@@ -1,7 +1,7 @@
 --batch=../../inputs/conv/shapes_resnet_50
 
---attr-post-ops='add:f32:per_oc','add:f32:common' --batch=../../inputs/conv/shapes_resnet_50
+--attr-post-ops=add:f32:per_oc,add:f32:common --batch=../../inputs/conv/shapes_resnet_50
 
---attr-post-ops="'relu'" --batch=../../inputs/conv/shapes_resnet_50
+--attr-post-ops=relu --batch=../../inputs/conv/shapes_resnet_50
 
---attr-post-ops="'sum;relu'" --batch=../../inputs/conv/shapes_resnet_50
+--attr-post-ops=sum+relu --batch=../../inputs/conv/shapes_resnet_50

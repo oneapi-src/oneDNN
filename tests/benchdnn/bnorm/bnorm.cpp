@@ -36,7 +36,26 @@
 namespace bnorm {
 
 static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
-        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss) {
+        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh) {
+    const bool use_ss = prb->use_ss();
+    const bool use_sc = prb->use_sc();
+    const bool use_sh = prb->use_sh();
+
+    dnnl::impl::parallel_nd(prb->ic, [&](int64_t c) {
+        mean.set_elem(c, 4 * ((c % 5) - 2));
+        var.set_elem(c, ((c % 7) << 1));
+
+        const float sc_value = 1 << (c % 7);
+        const float sh_value = ((c % 3) - 1) * sc_value;
+        if (use_sc || use_sh) {
+            ss.set_elem(c, use_sc ? sc_value : 1.0f);
+            sh.set_elem(c, use_sh ? sh_value : 0.0f);
+        } else {
+            ss.set_elem(c, use_ss ? sc_value : 1.0f);
+            ss.set_elem(prb->ic + c, use_ss ? sh_value : 0.0f);
+        }
+    });
+
     dnnl::impl::parallel_nd(prb->ic, prb->mb, prb->id, prb->ih, prb->iw,
             [&](int64_t c, int64_t mb, int64_t d, int64_t h, int64_t w) {
                 int64_t l_base = mb * prb->id * prb->ih * prb->iw + c * 239 * 2;
@@ -46,25 +65,13 @@ static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
                 const int64_t l = l_base + sp;
                 const int64_t value = (l % 65) - 32;
                 s[sp] = round_to_nearest_representable(prb->dt, value);
-
-                ((float *)mean)[c] = 4 * ((c % 5) - 2);
-                ((float *)var)[c] = ((c % 7) << 1);
-
-                if (prb->flags & USE_SCALESHIFT) {
-                    ((float *)ss)[c] = (1 << (c % 7));
-                    ((float *)ss)[prb->ic + c]
-                            = ((c % 3) - 1) * ((float *)ss)[c];
-                } else {
-                    ((float *)ss)[c] = 1;
-                    ((float *)ss)[prb->ic + c] = 0;
-                }
             });
 
     return OK;
 }
 
 static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
-        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss) {
+        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh) {
     /** Idea: choose src[] values so that both mean and variance are computed
      * exactly (independently of the order of the computations).
      *
@@ -111,6 +118,10 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
     BENCHDNN_PRINT(6, "check_alg: %s, density = %g, flex_bits = " IFMT "\n",
             check_alg2str(alg), density, flex_bits);
 
+    const bool use_ss = prb->use_ss();
+    const bool use_sc = prb->use_sc();
+    const bool use_sh = prb->use_sh();
+
     dnnl::impl::parallel_nd(prb->ic, [&](int64_t c) {
         const float m = ((float *)mean)[c]
                 = alg == ALG_0 ? 0.f : 0.25f * (1 << (c % 7));
@@ -147,12 +158,14 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
 
         ((float *)var)[c] = v / (prb->mb * prb->id * prb->ih * prb->iw);
 
-        if (prb->flags & USE_SCALESHIFT) {
-            ((float *)ss)[c] = 1.f / 8 * (1 << (c % 7));
-            ((float *)ss)[prb->ic + c] = ((c % 3) - 1) * ((float *)ss)[c] / 64;
+        const float sc_value = 1.f / 8 * (1 << (c % 7));
+        const float sh_value = ((c % 3) - 1) * sc_value / 64;
+        if (use_sc || use_sh) {
+            ((float *)ss)[c] = use_sc ? sc_value : 1.0f;
+            ((float *)sh)[c] = use_sh ? sh_value : 0.0f;
         } else {
-            ((float *)ss)[c] = 1;
-            ((float *)ss)[prb->ic + c] = 0;
+            ((float *)ss)[c] = use_ss ? sc_value : 1.0f;
+            ((float *)ss)[prb->ic + c] = use_ss ? sh_value : 0.0f;
         }
     });
 
@@ -160,11 +173,11 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
 }
 
 static int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
-        dnn_mem_t &var, dnn_mem_t &ss) {
+        dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh) {
     if (prb->flags & GLOB_STATS)
-        return prepare_fwd_with_stats(prb, src, mean, var, ss);
+        return prepare_fwd_with_stats(prb, src, mean, var, ss, sh);
     else
-        return prepare_fwd_no_stats(prb, src, mean, var, ss);
+        return prepare_fwd_no_stats(prb, src, mean, var, ss, sh);
 }
 
 static int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
@@ -210,13 +223,15 @@ static int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 }
 
 int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
-        const dnn_mem_t &dt_mem, res_t *res, const dnn_mem_t *ss) {
+        const dnn_mem_t &dt_mem, res_t *res, const dnn_mem_t *ss,
+        const dnn_mem_t *sh) {
     const char *skind = data_kind2str(kind);
 
     const int f32_mant_digits = 24;
     const float eps_coeff = (1 << (f32_mant_digits - digits_dt(prb->dt)));
     float eps = eps_coeff * (kind == DATA ? 5e-7 : 0);
-    if (kind == SS && prb->dir & FLAG_BWD) eps = eps_coeff * 5e-6;
+    if ((kind == SS || kind == SC || kind == SH) && prb->dir & FLAG_BWD)
+        eps = eps_coeff * 5e-6;
 
     if (is_nvidia_gpu()) {
         // cuDNN stores unbiased variance which requires rescaling by
@@ -229,12 +244,15 @@ int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
 
     // Since bwd testing is done using results from forward which are random
     // fp32 values, diff_ss starts fluctuating, so we check norm for both data
-    // and SS.
+    // and SS, SC and SH.
     const bool rely_on_norm = prb->dir & FLAG_BWD;
 
     const int64_t N = kind == DATA ? prb->mb : 1;
     const int64_t C = kind == DATA ? prb->ic : prb->ic * (kind == SS ? 2 : 1);
     const int64_t SP = kind == DATA ? prb->id * prb->ih * prb->iw : 1;
+
+    const bool use_sc = prb->use_sc();
+    const bool use_sh = prb->use_sh();
 
     const auto nelems = N * C * SP;
     if (nelems == 0) return res->state = PASSED, OK;
@@ -251,42 +269,49 @@ int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
         const float fp = kind == DATA
                 ? round_to_nearest_representable(prb->dt, fp0)
                 : fp0;
-        diff_norm.update(fp, dt);
+        float diff = 0.f, rel_diff = 0.f;
+        bool ok = true;
 
-        if (rely_on_norm) continue;
+        if (rely_on_norm) {
+            diff_norm.update(fp, dt);
+        } else {
+            diff = fabsf(fp - dt);
+            rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
+            ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= eps;
 
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= eps;
-
-        /* When the error is larger than eps, It could be
-         * due to catastrophic cancellation in final result
-         * which is computed as `Y = a * X + b`.
-         * When `a * X`  is close to `b` and `sign(a * X) = - sign(b)`.
-         * Then large error in `a * X` could result in a final
-         * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
-         * which has no meaningful digits left in mantissa.*/
-        if (!ok && (prb->dir & FLAG_FWD) && kind == DATA && ss) {
-            const float beta = ((float *)*ss)[prb->ic + c];
-            /* Using an empirically derived threshold,
-             * check if cancellation error
-             * in `|Y| = |a*X - (-b)|` is huge.*/
-            bool maybe_cancellation_error
-                    = (fabsf(fp - beta) / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1))
-                    > 1.0f;
-            if (maybe_cancellation_error) {
-                /* Check for error in `a * X` */
-                float diff_aX = fabsf((fp - beta) - (dt - beta));
-                float rel_diff_aX = diff_aX
-                        / (fabsf(fp - beta) > FLT_MIN ? fabsf(fp - beta) : 1);
-                ok = rel_diff_aX <= eps;
+            /* When the error is larger than eps, It could be
+             * due to catastrophic cancellation in final result
+             * which is computed as `Y = a * X + b`.
+             * When `a * X`  is close to `b` and `sign(a * X) = - sign(b)`.
+             * Then large error in `a * X` could result in a final
+             * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
+             * which has no meaningful digits left in mantissa.*/
+            if (!ok && (prb->dir & FLAG_FWD) && kind == DATA && ss && sh) {
+                const float beta = (use_sc || use_sh)
+                        ? ((const float *)*sh)[c]
+                        : ((const float *)*ss)[prb->ic + c];
+                /* Using an empirically derived threshold,
+                 * check if cancellation error
+                 * in `|Y| = |a*X - (-b)|` is huge.*/
+                bool maybe_cancellation_error
+                        = (fabsf(fp - beta)
+                                  / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1))
+                        > 1.0f;
+                if (maybe_cancellation_error) {
+                    /* Check for error in `a * X` */
+                    float diff_aX = fabsf((fp - beta) - (dt - beta));
+                    float rel_diff_aX = diff_aX
+                            / (fabsf(fp - beta) > FLT_MIN ? fabsf(fp - beta)
+                                                          : 1);
+                    ok = rel_diff_aX <= eps;
+                }
             }
+
+            res->errors += !ok;
         }
 
-        res->errors += !ok;
-
-        bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
+        bool dump = (!ok && (res->errors < 10 || verbose >= 10))
+                || (verbose >= 99);
         if (dump) {
             std::stringstream ss;
             if (kind == DATA) {
@@ -307,30 +332,29 @@ int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
         }
     }
 
-    diff_norm.done();
-
     if (rely_on_norm) {
+        diff_norm.done();
         const bool ok = diff_norm.rel_diff(norm_t::L1) <= eps
                 && diff_norm.rel_diff(norm_t::L2) <= eps
                 && diff_norm.rel_diff(norm_t::L8) <= eps;
         res->errors += !ok;
-    }
 
-    if (res->errors || verbose >= 5) {
-        const int vl = res->errors ? 0 : 2;
-        BENCHDNN_PRINT(vl,
-                "@@@ [%s%s] diff: l0(``%g``) "
-                "l1:(%g,%g,%g,``%g``) "
-                "l2:(%g,%g,%g,``%g``) "
-                "l8:(%g,%g,%g,``%g``)\n",
-                prb->dir & FLAG_BWD ? "D_" : "", skind,
-                diff_norm.rel_diff(norm_t::L0), diff_norm.a_[norm_t::L1],
-                diff_norm.b_[norm_t::L1], diff_norm.diff_[norm_t::L1],
-                diff_norm.rel_diff(norm_t::L1), diff_norm.a_[norm_t::L2],
-                diff_norm.b_[norm_t::L2], diff_norm.diff_[norm_t::L2],
-                diff_norm.rel_diff(norm_t::L2), diff_norm.a_[norm_t::L8],
-                diff_norm.b_[norm_t::L8], diff_norm.diff_[norm_t::L8],
-                diff_norm.rel_diff(norm_t::L8));
+        if (res->errors || verbose >= 5) {
+            const int vl = res->errors ? 0 : 2;
+            BENCHDNN_PRINT(vl,
+                    "@@@ [%s%s] diff: l0(``%g``) "
+                    "l1:(%g,%g,%g,``%g``) "
+                    "l2:(%g,%g,%g,``%g``) "
+                    "l8:(%g,%g,%g,``%g``)\n",
+                    prb->dir & FLAG_BWD ? "D_" : "", skind,
+                    diff_norm.rel_diff(norm_t::L0), diff_norm.a_[norm_t::L1],
+                    diff_norm.b_[norm_t::L1], diff_norm.diff_[norm_t::L1],
+                    diff_norm.rel_diff(norm_t::L1), diff_norm.a_[norm_t::L2],
+                    diff_norm.b_[norm_t::L2], diff_norm.diff_[norm_t::L2],
+                    diff_norm.rel_diff(norm_t::L2), diff_norm.a_[norm_t::L8],
+                    diff_norm.b_[norm_t::L8], diff_norm.diff_[norm_t::L8],
+                    diff_norm.rel_diff(norm_t::L8));
+        }
     }
 
     if (res->errors) res->state = FAILED;
@@ -373,12 +397,7 @@ int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *res) {
                         (long)(i + j), want, bit_set, data, data);
             }
 
-            // XXX: GPU implementation uses int32_t for workspace
-            if (is_gpu()) {
-                ws += sizeof(int32_t);
-            } else {
-                if (ws_type == ws_byte) ++ws;
-            }
+            if (ws_type == ws_byte) ++ws;
         }
         if (ws_type == ws_bit) ++ws;
     }
@@ -426,12 +445,11 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
                 WARN);
     }
 
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args_t());
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args_t()));
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, hint);
-
-    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
@@ -445,7 +463,6 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
     if (maybe_skip(res->impl_name)) {
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                 res->impl_name.c_str());
-        DNN_SAFE(dnnl_primitive_desc_destroy(bpd), WARN);
         return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
     } else {
         BENCHDNN_PRINT(
@@ -468,14 +485,18 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
     if (res->state == SKIPPED) return;
 
+    if (prb->use_ss() && (prb->use_sc() || prb->use_sh()))
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+
     if (is_nvidia_gpu()) {
         const bool bwd_ok
                 = !((prb->dir & FLAG_BWD) && (prb->flags & GLOB_STATS));
         const bool inference_ok
                 = IMPLICATION(prb->dt == dnnl_s8 || prb->dt == dnnl_f16,
                         (prb->dir & FLAG_INF) && (prb->flags & GLOB_STATS));
+        const bool flags_ok = !prb->use_sc() && !prb->use_sh();
 
-        if (!bwd_ok || !inference_ok) {
+        if (!bwd_ok || !inference_ok || !flags_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
@@ -488,15 +509,14 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t b {};
-    SAFE(init_prim(&b, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_fpd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(b, &const_fpd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_fpd), CRIT);
 
     if (check_mem_size(const_fpd) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(b));
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -504,6 +524,10 @@ int doit(const prb_t *prb, res_t *res) {
                            int index = 0) -> const dnnl_memory_desc_t & {
         return *dnnl_primitive_desc_query_md(pd, dnnl_query_exec_arg_md, index);
     };
+
+    const bool use_ss = prb->use_ss();
+    const bool use_sc = prb->use_sc();
+    const bool use_sh = prb->use_sh();
 
     const auto &data_md = q(const_fpd, DNNL_ARG_SRC);
     const auto &mean_md = q(const_fpd, DNNL_ARG_MEAN);
@@ -541,6 +565,11 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t d_ss_fp(ss_md, fp, tag::abx, test_engine);
     dnn_mem_t d_ss_dt(ss_md, test_engine);
 
+    dnn_mem_t sh_fp(ss_md, fp, use_sh ? tag::x : tag::axb, test_engine);
+    dnn_mem_t sh_dt(ss_md, test_engine);
+    dnn_mem_t d_sh_fp(ss_md, fp, use_sh ? tag::x : tag::axb, test_engine);
+    dnn_mem_t d_sh_dt(ss_md, test_engine);
+
     if (prb->need_ws()) SAFE(ws_md.ndims != 0 ? OK : FAIL, WARN);
     dnn_mem_t ws_fp(data_md, dnnl_u8, tag, test_engine);
     dnn_mem_t ws_dt(ws_md, test_engine);
@@ -548,8 +577,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
-    if (prepare_fwd(prb, src_fp, mean_fp, var_fp, ss_fp) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(b));
+    if (prepare_fwd(prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp) != OK) {
         return res->state = MISTRUSTED, OK;
     }
 
@@ -558,52 +586,50 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
     }
-    if (prb->flags & USE_SCALESHIFT) { SAFE(ss_dt.reorder(ss_fp), WARN); }
+    if (use_ss || use_sc) { SAFE(ss_dt.reorder(ss_fp), WARN); }
+    if (use_sh) { SAFE(sh_dt.reorder(sh_fp), WARN); }
 
     args_t args;
     args.set(DNNL_ARG_SRC, src_dt);
     args.set(DNNL_ARG_DST, dst_dt);
     args.set(DNNL_ARG_MEAN, mean_dt);
     args.set(DNNL_ARG_VARIANCE, var_dt);
-    args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
+    args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_dt);
+    args.set(DNNL_ARG_SHIFT, sh_dt);
     args.set(DNNL_ARG_WORKSPACE, ws_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    SAFE(execute_and_wait(b, args), WARN);
+    SAFE(execute_and_wait(prim, args), WARN);
 
     // Running ref to collect src_hat (used instead of src + mean) and ws, if
     // fuse_relu flag is requested.
-    if (bench_mode & CORR) {
-        compute_ref_fwd(
-                prb, src_fp, mean_fp, var_fp, ss_fp, ws_fp, dst_fp, src_hat_fp);
+    if (is_bench_mode(CORR)) {
+        compute_ref_fwd(prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp, ws_fp,
+                dst_fp, src_hat_fp);
         if (prb->dir & FLAG_FWD) {
             if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
                 SAFE(compare(prb, MEAN, mean_fp, mean_dt, res), WARN);
                 SAFE(compare(prb, VAR, var_fp, var_dt, res), WARN);
             }
             dnn_mem_t dst(dst_dt, fp, tag, test_engine);
-            SAFE(compare(prb, DATA, dst_fp, dst, res, &ss_fp), WARN);
+            SAFE(compare(prb, DATA, dst_fp, dst, res, &ss_fp, &sh_fp), WARN);
             if (prb->debug_check_ws)
                 SAFE(check_fwd_ws(dst_dt, ws_dt, res), WARN);
         }
     }
 
     if (prb->dir & FLAG_BWD) {
-        dnnl_primitive_t bwd_p {};
-        int status = init_prim(&bwd_p, init_pd, prb, res, FLAG_BWD, const_fpd);
-        dnnl_primitive_destroy(b);
-        if (status != OK) return status;
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
+        SAFE(init_prim(tmp_prim, init_pd, prb, res, FLAG_BWD, const_fpd), WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-        b = bwd_p;
+        prim.reset(tmp_prim.release());
 
         const_dnnl_primitive_desc_t const_bpd;
-        DNN_SAFE(dnnl_primitive_get_primitive_desc(b, &const_bpd), CRIT);
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_bpd), CRIT);
 
         if (check_mem_size(const_bpd) != OK) {
-            DNN_SAFE_V(dnnl_primitive_destroy(b));
             return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
         }
-
         const auto &d_data_md = q(const_bpd, DNNL_ARG_DIFF_DST);
         const auto &d_scratchpad_md = q(const_bpd, DNNL_ARG_SCRATCHPAD);
 
@@ -626,28 +652,32 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(DNNL_ARG_MEAN, mean_dt);
         args.set(DNNL_ARG_VARIANCE, var_dt);
-        args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
-        args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt);
+        args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_dt);
+        args.set(use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
+                d_ss_dt);
+        args.set(DNNL_ARG_SHIFT, sh_dt);
+        args.set(DNNL_ARG_DIFF_SHIFT, d_sh_dt);
         args.set(DNNL_ARG_WORKSPACE, ws_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(b, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
-            compute_ref_bwd(prb, src_hat_fp, var_fp, d_dst_fp, ss_fp, ws_fp,
-                    d_src_fp, d_ss_fp);
-            if ((prb->flags & USE_SCALESHIFT) && (prb->dir & FLAG_WEI)) {
-                SAFE(compare(prb, SS, d_ss_fp, d_ss_dt, res), WARN);
+        if (is_bench_mode(CORR)) {
+            compute_ref_bwd(prb, src_hat_fp, var_fp, d_dst_fp, ss_fp, sh_fp,
+                    ws_fp, d_src_fp, d_ss_fp, d_sh_fp);
+            if ((use_ss || use_sc) && (prb->dir & FLAG_WEI)) {
+                SAFE(compare(prb, use_sc ? SC : SS, d_ss_fp, d_ss_dt, res),
+                        WARN);
+            }
+            if (use_sh && (prb->dir & FLAG_WEI)) {
+                SAFE(compare(prb, SH, d_sh_fp, d_sh_dt, res), WARN);
             }
             dnn_mem_t d_src(d_src_dt, fp, tag, test_engine);
             SAFE(compare(prb, DATA, d_src_fp, d_src, res), WARN);
         }
     }
-    measure_perf(res->timer, b, args);
 
-    DNN_SAFE_V(dnnl_primitive_destroy(b));
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace bnorm

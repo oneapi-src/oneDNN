@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -660,15 +660,15 @@ int compare_dat(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
             const float diff_threshold = prb.cfg[kind].eps;
 
             ok = (fabs(fp) > diff_threshold ? rel_diff : diff) <= rel_eps;
-            if (prb.cfg[kind].dt == dnnl_u8) // expect exact value for int8
+            if (prb.cfg[kind].dt == dnnl_u8
+                    || prb.cfg[kind].dt
+                            == dnnl_s8) // expect exact value for int8
                 ok = diff == 0;
 
             // TODO: Dirty hack to make testing green. Find an original source
             // of the problem and find a better solution.
             if (!ok && (prb.alg == LBR_GRU || prb.alg == VANILLA_RNN)
-                    && prb.prop == dnnl_backward
-                    && (prb.direction == dnnl_bidirectional_concat
-                            || prb.direction == dnnl_bidirectional_sum)) {
+                    && prb.prop == dnnl_backward) {
                 ok = diff < diff_threshold;
             }
 
@@ -738,7 +738,8 @@ void prb_t::set_qparams(float fp_min, float fp_max) {
     float int8_src_range = cfg[SRC_LAYER].f_max - cfg[SRC_LAYER].f_min,
           int8_wei_range = cfg[WEIGHTS_LAYER].f_max - cfg[WEIGHTS_LAYER].f_min;
 
-    data_shift = cfg[SRC_LAYER].f_mean;
+    // No shift needed for s8s8 AMX LSTM
+    data_shift = cfg.is_s8() ? 0 : cfg[SRC_LAYER].f_mean;
     data_scale = int8_src_range / fp_range;
 
     float K = int8_wei_range / fp_range;

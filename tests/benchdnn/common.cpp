@@ -18,6 +18,7 @@
 #include <limits.h>
 #include <stdint.h>
 
+#include <cctype>
 #include <fstream>
 #include <functional>
 #include <string>
@@ -27,6 +28,8 @@
 #include "dnnl.h"
 
 #include "common.hpp"
+
+#include "tests/test_thread.hpp"
 
 // BENCHDNN_MEMORY_CHECK macro enables guarding mechanism for memory allocation:
 // memory block is allocated on a page boundary and the page after the block is
@@ -43,50 +46,13 @@
 #include <sys/mman.h>
 #endif
 
-const char *bench_mode2str(bench_mode_t mode) {
-    const char *modes[] = {"MODE_UNDEF", "CORR", "PERF", "CORR+PERF", "LIST"};
-    assert((int)mode < sizeof(modes) / sizeof(*modes));
-    return modes[(int)mode];
-}
+bench_mode_t RUN {0x1}; // Run mode.
+bench_mode_t CORR {0x2}; // Correctness mode. The default one.
+bench_mode_t PERF {0x4}; // Performance mode. May be combined with CORR.
+bench_mode_t LIST {0x8}; // Listing mode. Standalone mode to only create prb.
 
-bench_mode_t str2bench_mode(const char *str) {
-    bench_mode_t mode = MODE_UNDEF;
-    if (strchr(str, 'c') || strchr(str, 'C'))
-        mode = (bench_mode_t)((int)mode | (int)CORR);
-    if (strchr(str, 'p') || strchr(str, 'P'))
-        mode = (bench_mode_t)((int)mode | (int)PERF);
-    if (strchr(str, 'l') || strchr(str, 'L')) {
-        // list mode is exclusive
-        assert(mode == MODE_UNDEF);
-        mode = (bench_mode_t)((int)mode | (int)LIST);
-    }
-    if (mode == MODE_UNDEF)
-        []() {
-            SAFE(FAIL, CRIT);
-            return 0;
-        }();
-    return mode;
-}
-
-const char *api_mode2str(api_mode_t mode) {
-    const char *modes[] = {"API_UNDEF", "PRIMITIVE", "GRAPH"};
-    assert((int)mode < sizeof(modes) / sizeof(*modes));
-    return modes[(int)mode];
-}
-
-api_mode_t str2api_mode(const char *str) {
-    api_mode_t mode = API_UNDEF;
-    if (strchr(str, 'g') || strchr(str, 'G'))
-        mode = (api_mode_t)((int)mode | (int)GRAPH);
-    if (strchr(str, 'p') || strchr(str, 'P'))
-        mode = (api_mode_t)((int)mode | (int)PRIMITIVE);
-    if (mode == API_UNDEF) {
-        []() {
-            SAFE(FAIL, CRIT);
-            return 0;
-        }();
-    }
-    return mode;
+bool is_bench_mode(bench_mode_t user_mode) {
+    return !(bench_mode & user_mode).none();
 }
 
 /* perf */
@@ -208,12 +174,17 @@ void parse_result(
 
     switch (res.state) {
         case UNTESTED:
-            if (!(bench_mode & CORR)) {
+            if (is_bench_mode(PERF)) {
                 want_perf_report = true;
                 if (status == FAIL)
                     bs.failed++;
                 else
                     bs.passed++;
+                break;
+            } else if (is_bench_mode(RUN)) {
+                assert(status == OK);
+                BENCHDNN_PRINT(0, "%d:EXECUTED __REPRO: %s\n", bs.tests, pstr);
+                want_perf_report = false;
                 break;
             }
         case FAILED:
@@ -263,7 +234,7 @@ void parse_result(
             }
     }
 
-    if (bench_mode & PERF) {
+    if (is_bench_mode(PERF)) {
         using bt = benchdnn_timer_t;
         for (int mode = 0; mode < (int)bt::n_modes; ++mode)
             bs.ms[mode] += res.timer.ms((bt::mode_t)mode);
@@ -276,7 +247,7 @@ void parse_result(
 static void *zmalloc_protect(size_t size) {
     const size_t page_sz = getpagesize();
 
-    const size_t block_sz = size + 2 * sizeof(void *);
+    const size_t block_sz = size + 3 * sizeof(void *);
     const size_t total_sz = div_up(block_sz, page_sz) * page_sz + page_sz;
 
     void *mem_ptr;
@@ -303,29 +274,36 @@ static void *zmalloc_protect(size_t size) {
         return nullptr;
     }
 
+    // Align down `ptr` on 8 bytes before storing addresses to make behavior
+    // defined.
+    ptrdiff_t to_align = reinterpret_cast<ptrdiff_t>(ptr) % sizeof(void *);
+    void *ptr_aligned_8 = ptr - to_align;
     // Save pointers for zfree_protect
-    ((void **)ptr)[-2] = ptr_start;
-    ((void **)ptr)[-1] = ptr_protect;
+    ((void **)ptr_aligned_8)[-2] = ptr_start;
+    ((void **)ptr_aligned_8)[-1] = ptr_protect;
 
     return ptr;
 }
 
 static void zfree_protect(void *ptr) {
-    const size_t page_sz = getpagesize();
+    // Get aligned ptr before obtaining addresses
+    ptrdiff_t to_align = reinterpret_cast<ptrdiff_t>(ptr) % sizeof(void *);
+    void *ptr_aligned_8 = reinterpret_cast<uint8_t *>(ptr) - to_align;
 
     // Restore read-write access for the protected region
-    void *ptr_protect = ((void **)ptr)[-1];
+    void *ptr_protect = ((void **)ptr_aligned_8)[-1];
+    const size_t page_sz = getpagesize();
     mprotect(ptr_protect, page_sz, PROT_READ | PROT_WRITE);
 
     // Deallocate the whole region
-    void *ptr_start = ((void **)ptr)[-2];
+    void *ptr_start = ((void **)ptr_aligned_8)[-2];
     ::free(ptr_start);
 }
 #endif
 
 void *zmalloc(size_t size, size_t align) {
 #ifdef BENCHDNN_MEMORY_CHECK
-    if (bench_mode & CORR) { return zmalloc_protect(size); }
+    if (is_bench_mode(CORR)) { return zmalloc_protect(size); }
 #endif
 
     void *ptr;
@@ -340,7 +318,7 @@ void *zmalloc(size_t size, size_t align) {
 
     // TODO. Heuristics: Increasing the size to alignment increases
     // the stability of performance results.
-    if ((bench_mode & PERF) && (size < align)) size = align;
+    if ((is_bench_mode(PERF)) && (size < align)) size = align;
     int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
     return rc == 0 ? ptr : nullptr;
@@ -348,7 +326,7 @@ void *zmalloc(size_t size, size_t align) {
 
 void zfree(void *ptr) {
 #ifdef BENCHDNN_MEMORY_CHECK
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         zfree_protect(ptr);
         return;
     }
@@ -485,7 +463,7 @@ std::string locate_batch_file(const std::string &fname) {
     if (ifs.is_open()) return fname;
 
     for (int n = 0; n < n_paths; ++n) {
-        const std::string fullname = search_paths[n] + "/" + fname;
+        std::string fullname = search_paths[n] + "/" + fname;
         ifs.open(fullname);
         if (ifs.is_open()) {
             BENCHDNN_PRINT(50, "batch file used: %s\n", fullname.c_str());
@@ -511,7 +489,7 @@ std::string locate_batch_file(const std::string &fname) {
                         + std::string(driver_name);
             }
             // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
-            const std::string fullname = fdir + "/" + fname;
+            std::string fullname = fdir + "/" + fname;
             ifs.open(fullname);
             if (ifs.is_open()) {
                 search_paths[n_paths++] = std::move(fdir);
@@ -527,7 +505,7 @@ std::string locate_batch_file(const std::string &fname) {
 
 int batch(const char *fname, bench_f bench) {
     std::ifstream ifs(locate_batch_file(std::string(fname)));
-    SAFE_V(ifs.is_open() ? OK : FAIL);
+    SAFE(ifs.is_open() ? OK : FAIL, CRIT);
 
     std::vector<std::string> opts;
     std::string str;
@@ -614,6 +592,7 @@ void gemm(const char *layout, const char *transa, const char *transb, int64_t m,
         int64_t n, int64_t k, const float alpha, const float *a,
         const int64_t lda, const float *b, const int64_t ldb, const float beta,
         float *c, const int64_t ldc) {
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     if (*layout == 'C') {
         dnnl_sgemm(
                 *transa, *transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
@@ -621,6 +600,30 @@ void gemm(const char *layout, const char *transa, const char *transb, int64_t m,
         dnnl_sgemm(
                 *transb, *transa, n, m, k, alpha, b, ldb, a, lda, beta, c, ldc);
     }
+#else
+    if (std::toupper(*layout) != 'C') {
+        gemm("C", transb, transa, n, m, k, alpha, b, ldb, a, lda, beta, c, ldc);
+        return;
+    }
+
+    auto a_accessor = [&](int64_t i, int64_t j) {
+        if (std::toupper(*transa) == 'N') return a[i * lda + j];
+        return a[j * lda + i];
+    };
+
+    auto b_accessor = [&](int64_t i, int64_t j) {
+        if (std::toupper(*transb) == 'N') return b[i * ldb + j];
+        return b[j * ldb + i];
+    };
+
+    dnnl::impl::parallel_nd(m, n, [&](int64_t i, int64_t j) {
+        float ab = 0.0f;
+        for (int64_t _k = 0; _k < k; ++_k)
+            ab += a_accessor(i, _k) * b_accessor(_k, j);
+        float cij = (beta == 0) ? 0.0f : beta * c[i * ldc + j];
+        c[i * ldc + j] = alpha * ab + cij;
+    });
+#endif
 }
 
 int sanitize_desc(int &ndims, std::vector<std::reference_wrapper<int64_t>> d,
@@ -686,4 +689,25 @@ void print_dhw(bool &print_d, bool &print_h, bool &print_w, int ndims,
     print_h = ndims == 4 || (ndims == 5 && (!cubic_shape || canonical));
     print_w = ndims == 3 || (ndims == 5 && (!cubic_shape || canonical))
             || (ndims == 4 && (!square_shape || canonical));
+}
+
+const char *api_mode2str(api_mode_t mode) {
+    const char *modes[] = {"API_UNDEF", "PRIMITIVE", "GRAPH"};
+    assert((int)mode < sizeof(modes) / sizeof(*modes));
+    return modes[(int)mode];
+}
+
+api_mode_t str2api_mode(const char *str) {
+    api_mode_t mode = API_UNDEF;
+    if (strchr(str, 'g') || strchr(str, 'G'))
+        mode = (api_mode_t)((int)mode | (int)GRAPH);
+    if (strchr(str, 'p') || strchr(str, 'P'))
+        mode = (api_mode_t)((int)mode | (int)PRIMITIVE);
+    if (mode == API_UNDEF) {
+        []() {
+            SAFE(FAIL, CRIT);
+            return 0;
+        }();
+    }
+    return mode;
 }

@@ -1,7 +1,7 @@
 --reset
 --mb=2
 
---alg=MAX,AVG_NP,AVG_P
+--alg=max,avg_np,avg_p
 # Training
 --cfg=f32
 --tag=abx,axb,aBx8b,aBx16b
@@ -11,7 +11,7 @@
 --batch=set_topologies
 
 --dir=FWD_D
---attr-post-ops='mul:s32:per_oc'
+--attr-post-ops=mul:s32:per_oc
 --batch=set_all_small
 
 # Inference
@@ -20,7 +20,7 @@
 --tag=axb
 --batch=set_all
 
---attr-post-ops='add:s8'
+--attr-post-ops=add:s8
 --batch=set_all_small
 
 # bf16

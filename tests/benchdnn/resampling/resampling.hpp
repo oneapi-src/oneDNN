@@ -31,7 +31,13 @@
 
 namespace resampling {
 
-enum alg_t { nearest, linear };
+enum alg_t {
+    undef,
+    nearest,
+    linear,
+    resampling_nearest = nearest,
+    resampling_linear = linear,
+};
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 dnnl_alg_kind_t alg2alg_kind(alg_t alg);

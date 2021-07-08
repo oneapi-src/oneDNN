@@ -109,7 +109,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         //TODO: do we need runtime compensation??
         SAFE(ref_reorder(prb, dst_fp, src_fp), WARN);
 
@@ -128,12 +128,13 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
         // A hack to avoid false-positive result from f32->s32 conversion
         // in case of sum post-op on GPU happening when two max_dt values
         // are summed together.
-        const auto reorder_add_check = [&](int64_t i, float got, float diff) {
-            if (dst_dt.md_.data_type == dnnl_s32 && got == max_dt(dnnl_s32)
+        using cmp_args_t = compare::compare_t::driver_check_func_args_t;
+        const auto reorder_add_check = [&](const cmp_args_t &args) {
+            if (args.dt == dnnl_s32 && args.got == max_dt(args.dt)
                     && is_gpu()) {
                 // 128.f = float(INT_MAX)
                 //                - BENCHDNN_S32_TO_F32_SAT_CONST;
-                return diff == 128.f;
+                return args.diff == 128.f;
             }
             return false;
         };

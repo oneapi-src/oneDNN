@@ -62,7 +62,8 @@ double max_ms_per_prb {3e3};
 int min_times_per_prb {5};
 int fix_times_per_prb {0};
 
-bool fast_ref_gpu {true};
+bool fast_ref_gpu {DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE};
+
 bool allow_enum_tags_only {true};
 int test_start {0};
 
@@ -134,7 +135,7 @@ int main(int argc, char **argv) {
             benchdnn_stat.tests, benchdnn_stat.passed, benchdnn_stat.skipped,
             benchdnn_stat.mistrusted, benchdnn_stat.unimplemented,
             benchdnn_stat.failed, benchdnn_stat.listed);
-    if (bench_mode & PERF) {
+    if (is_bench_mode(PERF)) {
         printf("total perf: min(ms):%g avg(ms):%g\n",
                 benchdnn_stat.ms[benchdnn_timer_t::min],
                 benchdnn_stat.ms[benchdnn_timer_t::avg]);

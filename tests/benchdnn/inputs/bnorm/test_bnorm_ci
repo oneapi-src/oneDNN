@@ -6,7 +6,7 @@
 # training
 --dir=FWD_D,BWD_DW
 --dt=f32,bf16
---flags=,G,S,R,GS,GR,SR,GSR
+--flags=,G,S,C,H,R,GS,GR,SR,GSR,GCHR
 --batch=shapes_ci
 ## no scaleshift support for backward_data
 --dir=BWD_D
@@ -17,8 +17,8 @@
 --dir=FWD_I
 
 --dt=f32,bf16,f16
---flags=,G,S,GS
---attr-post-ops='','relu'
+--flags=,G,S,GS,GH
+--attr-post-ops=,relu
 --batch=shapes_ci
 
 --dt=f16
@@ -26,5 +26,5 @@
 --batch=shapes_ci
 
 --dt=s8
---flags=G,GS,GR,GSR
+--flags=G,GS,GR,GSR,GC
 --batch=shapes_ci

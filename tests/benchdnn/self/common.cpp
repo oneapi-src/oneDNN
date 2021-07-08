@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,20 +64,26 @@ static int check_attr2str() {
     CHECK_PRINT_EQ(attr,
             "--attr-oscale=per_dim_01:3.2 --attr-zero-points=src:common:1 ");
 
+    attr.zero_points.set(DNNL_ARG_SRC, policy_t::PER_DIM_0, 3, false);
     attr.zero_points.set(DNNL_ARG_WEIGHTS, {policy_t::PER_DIM_1, 2, true});
     CHECK_PRINT_EQ2(attr,
             "--attr-oscale=per_dim_01:3.2 "
-            "--attr-zero-points=src:common:1_wei:per_dim_1:2* ",
+            "--attr-zero-points=src:per_dim_0:3+wei:per_dim_1:2* ",
             "--attr-oscale=per_dim_01:3.2 "
-            "--attr-zero-points=wei:per_dim_1:2*_src:common:1 ");
+            "--attr-zero-points=wei:per_dim_1:2*+src:per_dim_0:3 ");
 
     attr = attr_t();
     attr.scales.set(DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.3));
     CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.3 ");
 
-    attr.scales.set(DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.3));
+    attr = attr_t();
+    attr.scales.set(
+            DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.3, true));
+    CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.3* ");
+
+    attr.scales.set(DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.2));
     attr.scales.set(DNNL_ARG_SRC_1, attr_t::scale_t(policy_t::COMMON, 3));
-    CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.3_src1:common:3 ");
+    CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.2+src1:common:3 ");
 
     return OK;
 }
@@ -106,7 +112,7 @@ static int check_str2attr() {
     CHECK_EQ(attr.is_def(), true);
 
     CHECK_ATTR(
-            "oscale=common:1.0;zero_points=src:common:0_wei:common:0_dst:"
+            "oscale=common:1.0;zero_points=src:common:0+wei:common:0+dst:"
             "common:0",
             COMMON, 1., false);
     CHECK_EQ(attr.is_def(), true);
@@ -115,7 +121,7 @@ static int check_str2attr() {
     CHECK_ATTR("oscale=common:2.0*", COMMON, 2., true);
     CHECK_ATTR("oscale=per_oc:.5*;", PER_OC, .5, true);
 
-    CHECK_ATTR("oscale=common:2.0*;zero_points=src:common:0_dst:common:-2*",
+    CHECK_ATTR("oscale=common:2.0*;zero_points=src:common:0+dst:common:-2*",
             COMMON, 2., true);
     CHECK_ATTR_ZP(DNNL_ARG_SRC, 0, false);
     CHECK_ATTR_ZP(DNNL_ARG_WEIGHTS, 0, false);
@@ -125,7 +131,7 @@ static int check_str2attr() {
     CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_1).policy, policy_t::COMMON);
     CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_1).scale, 1.5);
 
-    CHECK_EQ(str2attr(&attr, "scales=src:common:2.5_src1:common:1.5;"), OK);
+    CHECK_EQ(str2attr(&attr, "scales=src:common:2.5+src1:common:1.5;"), OK);
     CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_0).policy, policy_t::COMMON);
     CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_0).scale, 2.5);
     CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_1).policy, policy_t::COMMON);
@@ -170,33 +176,32 @@ void append_eltwise(attr_t::post_ops_t &po, pk_t akind, float aalpha = 0.f,
 static int check_post_ops2str() {
     attr_t::post_ops_t po;
     CHECK_EQ(po.is_def(), true);
-    CHECK_PRINT_EQ(po, "''");
+    CHECK_PRINT_EQ(po, "");
 
     append_sum(po);
     CHECK_EQ(po.len(), 1);
-    CHECK_PRINT_EQ(po, "'sum'");
+    CHECK_PRINT_EQ(po, "sum");
 
     append_eltwise(po, pk_t::RELU);
     CHECK_EQ(po.len(), 2);
-    CHECK_PRINT_EQ(po, "'sum;relu'");
+    CHECK_PRINT_EQ(po, "sum+relu");
 
     append_sum(po, 2.f, dnnl_s8);
     CHECK_EQ(po.len(), 3);
-    CHECK_PRINT_EQ(po, "'sum;relu;sum:2:s8'");
+    CHECK_PRINT_EQ(po, "sum+relu+sum:2:s8");
 
     append_eltwise(po, pk_t::LINEAR, 5.f, 10.f, 2.f);
     CHECK_EQ(po.len(), 4);
-    CHECK_PRINT_EQ(po, "'sum;relu;sum:2:s8;linear:5:10:2'");
+    CHECK_PRINT_EQ(po, "sum+relu+sum:2:s8+linear:5:10:2");
 
     append_convolution(po, pk_t::DW_K3S1P1);
     CHECK_EQ(po.len(), 5);
-    CHECK_PRINT_EQ(po, "'sum;relu;sum:2:s8;linear:5:10:2;dw_k3s1p1'");
+    CHECK_PRINT_EQ(po, "sum+relu+sum:2:s8+linear:5:10:2+dw_k3s1p1");
 
     append_convolution(po, pk_t::DW_K3S2P1, dnnl_s32, policy_t::PER_OC, 2.f);
     CHECK_EQ(po.len(), 6);
     CHECK_PRINT_EQ(po,
-            "'sum;relu;sum:2:s8;linear:5:10:2;dw_k3s1p1;dw_k3s2p1:s32:per_oc:"
-            "2'");
+            "sum+relu+sum:2:s8+linear:5:10:2+dw_k3s1p1+dw_k3s2p1:s32:per_oc:2");
 
     return OK;
 }
@@ -220,19 +225,19 @@ static int check_str2post_ops() {
         return OK;
     };
 
-    ops.from_str("''");
+    ops.from_str("");
     CHECK_EQ(ops.is_def(), true);
 
-    ops.from_str("'sum:2;'");
+    ops.from_str("sum:2");
     CHECK_EQ(quick(1), OK);
 
-    ops.from_str("'sum:2;relu'");
+    ops.from_str("sum:2+relu");
     CHECK_EQ(quick(2), OK);
 
-    ops.from_str("'sum:2;relu;sum:3'");
+    ops.from_str("sum:2+relu+sum:3");
     CHECK_EQ(quick(3), OK);
 
-    ops.from_str("'sum:2;relu;sum:3;relu;'");
+    ops.from_str("sum:2+relu+sum:3+relu");
     CHECK_EQ(quick(4), OK);
 
     return OK;
@@ -242,7 +247,7 @@ static int check_tags() {
     dnnl_memory_desc_t md_from_tag;
     dnnl_memory_desc_t md_from_str;
 
-    dnnl_dims_t dims = {29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73};
+    dnnl_dims_t dims = {7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47};
     for (int tag_ = dnnl_format_tag_undef; tag_ != dnnl_format_tag_last;
             tag_++) {
         dnnl_format_tag_t format_tag = (dnnl_format_tag_t)tag_;

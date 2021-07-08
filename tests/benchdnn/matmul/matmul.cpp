@@ -62,13 +62,15 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             = get_runtime_dims(prb->dst_dims(), prb->dst_runtime_dim_mask());
 
     SAFE(init_md(&src_d, prb->ndims, src_rt_dims.data(), prb->cfg[SRC].dt,
-                 prb->stag),
+                 prb->stag, prb->strides[STRIDES_SRC]),
             CRIT);
+
     SAFE(init_md(&wei_d, prb->ndims, weights_rt_dims.data(), prb->cfg[WEI].dt,
-                 prb->wtag),
+                 prb->wtag, prb->strides[STRIDES_WEI]),
             CRIT);
+
     SAFE(init_md(&dst_d, prb->ndims, dst_rt_dims.data(), prb->cfg[DST].dt,
-                 prb->dtag),
+                 prb->dtag, prb->strides[STRIDES_DST]),
             CRIT);
 
     if (prb->bia_dt != dnnl_data_type_undef) {
@@ -97,13 +99,12 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->n, mask);
     attr_args.prepare_binary_post_op_mds(
             prb->attr, prb->ndims, dst_dims.data());
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args);
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args));
 
     dnnl_status_t init_status = dnnl_success;
     init_status = dnnl_primitive_desc_create(
             &mpd, &op_d, dnnl_attr, engine, nullptr);
-    dnnl_primitive_attr_destroy(dnnl_attr);
-
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
     else
@@ -113,7 +114,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     if (maybe_skip(res->impl_name)) {
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                 res->impl_name.c_str());
-        DNN_SAFE(dnnl_primitive_desc_destroy(mpd), WARN);
         return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
     } else {
         BENCHDNN_PRINT(
@@ -267,15 +267,14 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t m {};
-    SAFE(init_prim(&m, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(m, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE(dnnl_primitive_destroy(m), CRIT);
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -298,15 +297,15 @@ int doit(const prb_t *prb, res_t *res) {
     if (dnnl_memory_desc_equal(&src_md, &def_md)) {
         assert(prb->stag != tag::any);
         SAFE(init_md(&src_md, prb->ndims, src_dims.data(), prb->cfg[SRC].dt,
-                     prb->stag),
+                     prb->stag, prb->strides[STRIDES_SRC]),
                 WARN);
     }
 
     const auto &weights_dims = prb->weights_dims();
     if (dnnl_memory_desc_equal(&wei_md, &def_md)) {
-        assert(prb->wtag != "any");
+        assert(prb->wtag != tag::any);
         SAFE(init_md(&wei_md, prb->ndims, weights_dims.data(), prb->cfg[WEI].dt,
-                     prb->wtag),
+                     prb->wtag, prb->strides[STRIDES_WEI]),
                 WARN);
     }
 
@@ -314,7 +313,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (dnnl_memory_desc_equal(&dst_md, &def_md)) {
         assert(prb->dtag != tag::any);
         SAFE(init_md(&dst_md, prb->ndims, dst_dims.data(), prb->cfg[DST].dt,
-                     prb->dtag),
+                     prb->dtag, prb->strides[STRIDES_DST]),
                 WARN);
     }
     if (prb->bia_dt != dnnl_data_type_undef) {
@@ -347,7 +346,8 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(fill_data(SRC, prb, src_dt, src_fp, res), WARN);
     SAFE(fill_data(WEI, prb, wei_dt, wei_fp, res), WARN);
-    SAFE(fill_data(DST, prb, dst_dt, dst_fp, res), WARN);
+    if (prb->attr.post_ops.find(attr_t::post_ops_t::SUM) >= 0)
+        SAFE(fill_data(DST, prb, dst_dt, dst_fp, res), WARN);
     if (prb->bia_dt != dnnl_data_type_undef)
         SAFE(fill_data(BIA, prb, bia_dt, bia_fp, res), WARN);
 
@@ -355,7 +355,7 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t src_zero_points_m, wei_zero_points_m, dst_zero_points_m;
     const auto &wei_zero_point_val
             = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).value;
-    maybe_prepare_runtime_scales(scales, prb->attr, prb->n, prb->scales);
+    maybe_prepare_runtime_scales(scales, prb->attr.oscale, prb->n, prb->scales);
     maybe_prepare_runtime_zero_points(
             src_zero_points_m, prb->attr, DNNL_ARG_SRC, prb->k, prb->src_zp);
     maybe_prepare_runtime_zero_points(wei_zero_points_m, prb->attr,
@@ -382,9 +382,9 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
     args.set(binary_po_args, binary_po_dt);
 
-    SAFE(execute_and_wait(m, args), WARN);
+    SAFE(execute_and_wait(prim, args), WARN);
 
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         compute_ref(
                 test_engine, prb, src_fp, wei_fp, bia_fp, binary_po_fp, dst_fp);
         compare::compare_t cmp;
@@ -394,11 +394,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
-    measure_perf(res->timer, m, args);
-
-    DNN_SAFE_V(dnnl_primitive_destroy(m));
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace matmul

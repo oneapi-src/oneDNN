@@ -15,6 +15,17 @@ where *matmul-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--dtag={ab [default], any, ...}` -- memory format of the destination memory.
             Refer to [tags](knobs_tag.md) for details.
+ - `--strides=S0xS1x..xS_mxS_k:W_0xW_1x..xW_kxW_n:D_0xD_1x..xD_mxD_n` -- direct
+            stride specification for `src`, `weights`, and `dst` tensors that
+            can be specified as an alternative to memory formats. The syntax
+            matches with problem descriptor where `x` is the delimiter for
+            dimensions within a tensor and `:` is the delimiter for tensors in
+            the order `src`, `weights`, and `dst` respectively. The stride for
+            either of the tensors can be skipped and moreover if a separate tag
+            is not provided for the skipped tensor, trivial strides based on the
+            default format of the skipped tensor will be used. As long as
+            `--strides` and `--*tag` options refer to different tensors, they
+            can be specified together.
  - `--runtime_mb=BOOL` -- specify whether `mb` dimension is a run-time
             parameter (will be deprecated soon. See `--runtime_dims_masks`).
  - `--runtime_m=BOOL` -- specify whether `m` dimension is a run-time parameter
@@ -23,12 +34,12 @@ where *matmul-knobs* are:
             (will be deprecated soon. See `--runtime_dims_masks`).
  - `--runtime_k=BOOL` -- specify whether `k` dimension is a run-time parameter
             (will be deprecated soon. See `--runtime_dims_masks`).
- - `--attr-oscale="STRING"` -- output scale primitive attribute. No oscale is
+ - `--attr-oscale=STRING` -- output scale primitive attribute. No oscale is
             set by default. Refer to [attributes](knobs_attr.md) for details.
- - `--attr-zero-points="STRING"` -- zero points primitive attribute. No zero
+ - `--attr-zero-points=STRING` -- zero points primitive attribute. No zero
             points are set by default. Refer to [attributes](knobs_attr.md)
             for details.
- - `--attr-post-ops="STRING"` -- post operation primitive attribute. No post
+ - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
             operations are set by default. Refer to [attributes](knobs_attr.md)
             for details.
  - `--bia_dt={undef [default], f32, s32, s8, u8}` -- bias data type.
@@ -36,22 +47,23 @@ where *matmul-knobs* are:
             Refer to [data types](knobs_dt.md) for details.
  - `--bia_mask=INT` -- a bit-mask that indicates which bias dimensions are
             broadcasted. 0-bit means broadcast, 1-bit means full dimension.
-- `--runtime_dims_masks=[INT][:INT]` -- a bit-mask values for `src` and
-            `weights` that indicates if a dimension is `DNNL_RUNTIME_DIM_VAL`
-            (indicated as 1-bit in corresponding dimension position). Default is
-            `0` for all dimensions, meaning all tensor dimensions are fully
-            defined at primitive creation.
+- `--runtime_dims_masks=[INT][:INT]` -- a bit-mask with values for `src` and
+            `weights` that indicates whether a dimension is
+            `DNNL_RUNTIME_DIM_VAL` (indicated as 1-bit in the corresponding
+            dimension position). The default is `0` for all dimensions, meaning
+            all tensor dimensions are fully defined at primitive creation.
+
 
 and *matmul-desc* is a problem descriptor. The canonical form is:
 ```
     d0xd1xd2x..xMxK:d0xd1xd2x..xKxN[:d0xd1xd2x..xMxN][nS]
 ```
-Here `x` is delimiter for dimensions within a tensor and `:` is delimiter for
-tensors in the order `src`, `weights` and `dst`. The `dst` is optional and each
-of its individual dimensions are computed as
+Here `x` is the delimiter for dimensions within a tensor and `:` is the
+delimiter for tensors in the order `src`, `weights`, and `dst`. The `dst` is
+optional, and each of its individual dimensions are computed as
 `max(src_dimension, weights_dimension)` by the driver if not provided by user.
 `d0`, `d1`, `d2` and so on are dimension values of the corresponding tensor,
-where as `m`, `n` and `k` are inner dimensions for matrix multiplication.
+where `m`, `n`, and `k` are inner dimensions for matrix multiplication.
 
 **Deprecated desc (only supports up to 3D)**
 ```
@@ -97,7 +109,7 @@ runtime, but sizes specified at creation time:
                --cfg=u8s8u8 \
                --wtag=any \
                --attr-zero-points=src:1*_dst:-2* \
-               10x30:30x20 # or m10n20k3 with deprecated matmul desc
+               10x30:30x20 # or m10n20k30 with deprecated matmul desc
 ```
 
 Run single precision batched matrix multiplication with bias, of which only the
@@ -105,7 +117,19 @@ full dimension is along the `n`-axis:
 ``` sh
     ./benchdnn --matmul \
                --bia_dt=f32 --bia_mask=4 \
-               2x10x30:2x30x20 # or mb2m10n20k3 with deprecated matmul desc
+               2x10x30:2x30x20 # or mb2m10n20k30 with deprecated matmul desc
+```
+
+Run single precision batched matrix multiplication with strides so that `dst` tensor
+has non-dense memory layout:
+``` sh
+    ./benchdnn --matmul \
+               --strides=8x4x1:24x6x1:21x7x1 \
+               3x2x4:3x4x6:3x2x6 # or mb3m2n6k4 with deprecated matmul desc
+
+    ./benchdnn --matmul \
+               --stag=bax --wtag=abx --strides=::8x4x1 \
+               2x2x3:2x3x2:2x2x2 # --dtag cannot be specified here
 ```
 
 More examples with different driver options can be found at

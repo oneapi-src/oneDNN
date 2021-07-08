@@ -12,13 +12,15 @@ where *pool-knobs* are:
  - `--cfg={f32 [default], ...}` -- Refer to ``Configurations`` below.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
- - `--alg={MAX [default], AVG_NP, AVG_P}` -- pooling algorithm.
-            `MAX` is dnnl_pooling_max;
-            `AVG_NP` is dnnl_pooling_avg_exclude_padding;
-            `AVG_P` is dnnl_pooling_avg_include_padding;
+ - `--alg={max [default], avg_np, avg_p}` -- pooling algorithm.
+            `max` or `pooling_max` is dnnl_pooling_max;
+            `avg_np` or `pooling_avg_exclude_padding` is
+                    dnnl_pooling_avg_exclude_padding;
+            `avg_p` or `pooling_avg_include_padding` is
+                    dnnl_pooling_avg_include_padding;
             Refer to [pooling primitive](https://oneapi-src.github.io/oneDNN/dev_guide_pooling.html)
             for details.
- - `--attr-post-ops="STRING"` -- post operation primitive attribute. No post
+ - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
             operations are set by default. Refer to [attributes](knobs_attr.md)
             for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
@@ -45,21 +47,27 @@ The table below shows supported name configurations for this driver:
 |:---   |:---   |:---   |:---
 | f32   | f32   | f32   | TBA.
 | s32   | s32   | s32   |
-| f16   | f16   | f16   |
-| bf16  | bf16  | bf16  |
+| f16   | f16   | f16   | Only on GPU engine
+| bf16  | bf16  | bf16  | Only on GPU engine
 | s8    | s8    | s8    |
 | u8    | u8    | u8    |
-| s8    | f32   | s8f32 |
-| f32   | s8    | f32s8 |
-| u8    | f32   | u8f32 |
-| f32   | u8    | f32u8 |
+| s8    | u8    | s8u8  | Only on GPU engine
+| u8    | s8    | u8s8  | Only on GPU engine
+| s8    | f16   | s8f16 | Only on GPU engine
+| f16   | s8    | f16s8 | Only on GPU engine
+| u8    | f16   | u8f16 | Only on GPU engine
+| f16   | u8    | f16u8 | Only on GPU engine
+| s8    | f32   | s8f32 | Only on GPU engine
+| f32   | s8    | f32s8 | Only on GPU engine
+| u8    | f32   | u8f32 | Only on GPU engine
+| f32   | u8    | f32u8 | Only on GPU engine
 
 
 ## Essence of Testing
-MAX algorithm: Fill input data with integers and expect an integer answer.
-AVG_P algorithm: Fill input data with integers, divisible by the kernel size,
+`max` algorithm: Fill input data with integers and expect an integer answer.
+`avg_p` algorithm: Fill input data with integers, divisible by the kernel size,
             and expect an integer answer.
-AVG_NP algorithm: Fill input data with integers, divisible by the kernel size,
+`avg_np` algorithm: Fill input data with integers, divisible by the kernel size,
             but expect a float answer due to boarder points have different
             kernel shapes applied to the same point.
 
@@ -78,7 +86,7 @@ Run a named problem with single precision src/dst, iterating by:
 4) using default minibatch of 96 and 5:
 ``` sh
     ./benchdnn --pool --cfg=f32 --tag=nChw8c,nChw16c \
-               --dir=FWD_D,FWD_I,BWD_D --alg=MAX,AVG_NP,AVG_P --mb=0,5 \
+               --dir=FWD_D,FWD_I,BWD_D --alg=max,avg_np,avg_p --mb=0,5 \
                mb96ic768_ih17oh17_kh3sh1ph1n"googlenet_v3:ave_pool_mixed_4_pool"
 ```
 

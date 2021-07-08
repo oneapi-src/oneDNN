@@ -1,4 +1,4 @@
-# The following shapes are from 'shapes_1x1' file
+# The following shapes are from shapes_1x1 file
 
 ic72oc80_ih56oh56kh1sh1dh0ph0_iw56ow56kw1sw1dw0pw0_n"generated_tails_conv:1"
 ic265oc256_ih32oh16kh1sh2dh0ph0_iw32ow16kw1sw2dw0pw0_n"generated_tails_conv:2"
@@ -22,3 +22,6 @@ ic689oc384_iw60ow12kw1sw5dw0pw0n"generated_strided_conv1d:5"
 g2ic256oc512_ih56oh28kh1sh2dh0ph0_iw56ow28kw1sw2dw0pw0_n"resnet50_v1.5_group:conv4"
 g2ic512ih28iw28oc256oh14ow14kh1kw1sh2sw2ph0pw0n"resnet_50_group:res4a_branch2a"
 g2ic72oc80_ih56oh56kh1sh1dh0ph0_iw56ow56kw1sw1dw0pw0_n"generated_group_tails_conv:1"
+
+# Shape with huge stride
+mb1_ic16oc16_ih14oh1kh1sh14dh0ph0_n"1x1_shape_with_huge_stride"

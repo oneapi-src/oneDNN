@@ -98,7 +98,7 @@ bool parse_attr(attr_t &attr, const char *str,
                 "will iterate over all possible combinations.");
         notice_printed = true;
     }
-    SAFE_V(str2attr(&attr, str + pattern.size()));
+    SAFE(str2attr(&attr, str + pattern.size()), CRIT);
     return true;
 }
 
@@ -160,6 +160,18 @@ bool parse_skip_nonlinear(std::vector<bool> &skip,
     return parse_vector_option(skip, def_skip, str2bool, str, option_name);
 }
 
+bool parse_strides(std::vector<strides_t> &strides,
+        const std::vector<strides_t> &def_strides, const char *str,
+        const std::string &option_name /* = "strides"*/) {
+    auto str2strides = [&](const char *str) -> strides_t {
+        strides_t strides(STRIDES_SIZE);
+        parse_multi_dims(strides, str);
+        return strides;
+    };
+    return parse_vector_option(
+            strides, def_strides, str2strides, str, option_name);
+}
+
 bool parse_trivial_strides(std::vector<bool> &ts,
         const std::vector<bool> &def_ts, const char *str,
         const std::string &option_name /* = "trivial-strides"*/) {
@@ -197,7 +209,7 @@ bool parse_batch(const bench_f bench, const char *str,
         const std::string &option_name /* = "batch"*/) {
     const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) != eol) {
-        SAFE_V(batch(str + pattern.size(), bench));
+        SAFE(batch(str + pattern.size(), bench), CRIT);
         return true;
     }
     return false;
@@ -255,6 +267,28 @@ void parse_multi_dims(std::vector<dims_t> &dims, const char *str) {
 // service functions
 static bool parse_bench_mode(
         const char *str, const std::string &option_name = "mode") {
+    const auto str2bench_mode = [](const std::string &_str) {
+        bench_mode_t mode;
+        for (size_t i = 0; i < _str.size(); i++) {
+            if (_str[i] == 'r' || _str[i] == 'R') mode |= RUN;
+            if (_str[i] == 'c' || _str[i] == 'C') mode |= CORR;
+            if (_str[i] == 'p' || _str[i] == 'P') mode |= PERF;
+            if (_str[i] == 'l' || _str[i] == 'L') mode |= LIST;
+        }
+        if (!(mode & LIST).none() && mode.count() > 1) {
+            fprintf(stderr,
+                    "ERROR: LIST mode is incompatible with any other modes. "
+                    "Please use just `--mode=L` instead.\n");
+            exit(2);
+        }
+        if (mode.none()) {
+            fprintf(stderr, "ERROR: empty mode is not allowed.\n");
+            exit(2);
+        }
+
+        return mode;
+    };
+
     return parse_single_value_option(
             bench_mode, CORR, str2bench_mode, str, option_name);
 }
@@ -313,8 +347,18 @@ static bool parse_engine(
 
 static bool parse_fast_ref_gpu(
         const char *str, const std::string &option_name = "fast-ref-gpu") {
-    return parse_single_value_option(
+    bool parsed = parse_single_value_option(
             fast_ref_gpu, true, str2bool, str, option_name);
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+    if (parsed && fast_ref_gpu) {
+        fast_ref_gpu = false;
+        fprintf(stderr,
+                "%s driver: WARNING: option `fast_ref_gpu` is not supported "
+                "for GPU only configurations.\n",
+                driver_name);
+    }
+#endif
+    return parsed;
 }
 
 static bool parse_canonical(

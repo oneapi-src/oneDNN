@@ -241,14 +241,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
     if (canonical || prb.wtag != def.wtag[0]) s << "--wtag=" << prb.wtag << " ";
     if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
-
-    // TODO: switch me on when run-time leading dimensions will be supported
-    // if (canonical || prb.ld_src != defaults::ld)
-    //     s << "--ld_src=" << prb.ld_src << " ";
-    // if (canonical || prb.ld_wei != defaults::ld)
-    //     s << "--ld_wei=" << prb.ld_wei << " ";
-    // if (canonical || prb.ld_dst != defaults::ld)
-    //     s << "--ld_dst=" << prb.ld_dst << " ";
+    if (canonical || prb.strides != def.strides[0])
+        s << "--strides=" << prb.strides << " ";
 
     if (canonical || prb.src_runtime_dim_mask().any()
             || prb.weights_runtime_dim_mask().any())

@@ -32,17 +32,19 @@ alg_t str2alg(const char *str) {
 #define CASE(_alg) \
     if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
     CASE(nearest);
+    CASE(resampling_nearest);
     CASE(linear);
+    CASE(resampling_linear);
 #undef CASE
     assert(!"unknown algorithm");
-    return nearest;
+    return undef;
 }
 
 const char *alg2str(alg_t alg) {
     if (alg == nearest) return "nearest";
     if (alg == linear) return "linear";
     assert(!"unknown algorithm");
-    return "unknown algorithm";
+    return "undef";
 }
 
 dnnl_alg_kind_t alg2alg_kind(alg_t alg) {

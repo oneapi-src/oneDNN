@@ -2,6 +2,6 @@
 
 --cfg=f32
 --dir=FWD_B
---attr-post-ops="'swish:1.0'"
+--attr-post-ops=swish:1.0
 --batch=../../inputs/conv/shapes_resnet_50
 

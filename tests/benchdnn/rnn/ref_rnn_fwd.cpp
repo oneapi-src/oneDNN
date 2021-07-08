@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -163,7 +163,10 @@ void copy_res_fwd(const prb_t &prb, float *dst_layer_, float *dst_iter_,
     AOC<float> dst_iter_c(
             dst_iter_c_, prb.n_layer, prb.n_dir(), prb.mb, prb.dhc);
     AOC<float> dst_layer(dst_layer_, prb.n_iter, prb.mb, prb.dlc(PRIMITIVE));
-
+    const bool is_layer_deq = (prb.is_u8() && prb.cfg[DST_LAYER].dt != dnnl_u8)
+            || (prb.is_s8() && prb.cfg[DST_LAYER].dt != dnnl_s8);
+    const bool is_iter_deq = (prb.is_u8() && prb.cfg[DST_ITER].dt != dnnl_u8)
+            || (prb.is_s8() && prb.cfg[DST_ITER].dt != dnnl_s8);
     // Copy dst_layer
     for (int64_t it = 0; it < prb.n_iter; it++) {
         for (int64_t nb = 0; nb < prb.mb; nb++) {
@@ -173,7 +176,7 @@ void copy_res_fwd(const prb_t &prb, float *dst_layer_, float *dst_iter_,
             copy(1, prb.dlc(CELL), prb.wc, prb.dlc(PRIMITIVE), from, to, action,
                     prb.is_int8());
 
-            if (prb.is_int8() && prb.cfg[DST_LAYER].dt != dnnl_u8) {
+            if (is_layer_deq) {
                 float data_shift = prb.data_shift;
                 bool do_deq10n = true;
 
@@ -205,7 +208,7 @@ void copy_res_fwd(const prb_t &prb, float *dst_layer_, float *dst_iter_,
         copy(prb.mb, prb.dic, prb.wc, prb.dic,
                 &ws_src_iter(lay + 1, dir_val, it_source, 0, 0),
                 &dst_iter(lay, dir_val, 0, 0));
-        if (prb.is_int8() && prb.cfg[DST_ITER].dt != dnnl_u8)
+        if (is_iter_deq)
             data_deq10n(prb.mb, prb.dic, prb.dic, &dst_iter(lay, dir_val, 0, 0),
                     prb.data_scale, prb.data_shift);
     }

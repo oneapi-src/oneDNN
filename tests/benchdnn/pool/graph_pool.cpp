@@ -81,7 +81,7 @@ pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) {
     data_format = convert_tag(prb->tag);
 
     main_op_kind
-            = (prb->alg == ::pool::MAX) ? graph_op::MaxPool : graph_op::AvgPool;
+            = (prb->alg == ::pool::max) ? graph_op::MaxPool : graph_op::AvgPool;
 
     // attributes specific to pooling type
     dim_t dilation_nd[] = {prb->dd, prb->dh, prb->dw};
@@ -89,7 +89,7 @@ pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) {
     // "0" dilations in oneDNN is "1" in oneDNN graph
     std::for_each(dilations.begin(), dilations.end(), [](dim_t &v) { v += 1; });
 
-    exclude_pad = prb->alg == ::pool::AVG_NP;
+    exclude_pad = prb->alg == ::pool::avg_np;
 }
 
 fill_status_t pool_graph_prb_t::handle_main_op_() {
@@ -178,7 +178,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(cp, input_ts, output_ts), WARN);
 
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         // currently we run benchmark only with dir equal FWD_I
         ::pool::compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp, ws_fp);
         compare::compare_t cmp;

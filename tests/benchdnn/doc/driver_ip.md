@@ -17,9 +17,9 @@ where *ip-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--dtag={any [default], ...}` -- physical dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
- - `--attr-oscale="STRING"` -- output scale primitive attribute. No oscale is
+ - `--attr-oscale=STRING` -- output scale primitive attribute. No oscale is
             set by default. Refer to [attributes](knobs_attr.md) for details.
- - `--attr-post-ops="STRING"` -- post operation primitive attribute. No post
+ - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
             operations are set by default. Refer to [attributes](knobs_attr.md)
             for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.

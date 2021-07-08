@@ -5,7 +5,7 @@
 
 --cfg=bf16bf16bf16
 --dir=FWD_B
---attr-post-ops='','sum','linear:2:1','sum:1.5;add:f32:per_oc;relu'
+--attr-post-ops=,sum,linear:2:1,sum:1.5+add:f32:per_oc+relu
 --batch=set_all
 
 --dir=BWD_D,BWD_W,BWD_WB

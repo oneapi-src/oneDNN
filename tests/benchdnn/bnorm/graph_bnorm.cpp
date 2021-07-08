@@ -318,10 +318,10 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     tensors_out.emplace_back(outs[0], static_cast<void *>(dst_dt));
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
 
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         static const engine_t cpu_engine(dnnl_cpu);
-        ::bnorm::compute_ref_fwd(
-                prb, src_fp, mean_fp, var_fp, ss_fp, ws_fp, dst_fp, src_hat_fp);
+        ::bnorm::compute_ref_fwd(prb, src_fp, mean_fp, var_fp, scale_fp,
+                shift_fp, ws_fp, dst_fp, src_hat_fp);
         if (prb->dir & FLAG_FWD) {
             if (!(prb->flags & ::bnorm::GLOB_STATS) && !(prb->dir & FLAG_INF)) {
                 SAFE(::bnorm::compare(prb, MEAN, mean_fp, mean_dt, res), WARN);

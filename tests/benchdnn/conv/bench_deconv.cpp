@@ -65,7 +65,7 @@ void check_correctness(const settings_t &s) {
         bool want_perf_report = false;
         parse_result(res, want_perf_report, status, pstr);
 
-        if (want_perf_report && bench_mode & PERF) {
+        if (want_perf_report && is_bench_mode(PERF)) {
             perf_report_t pr(s.perf_template);
             pr.report(&prb, &res, pstr);
         }
@@ -103,7 +103,7 @@ int bench(int argc, char **argv) {
             catch_unknown_options(argv[0]);
 
             bool is_deconv = true;
-            SAFE_V(str2desc(&s.desc, argv[0], is_deconv));
+            SAFE(str2desc(&s.desc, argv[0], is_deconv), CRIT);
             check_correctness(s);
         }
     }

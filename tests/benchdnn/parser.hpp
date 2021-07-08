@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,10 +77,12 @@ static bool parse_vector_option(T &vec, const T &def, F process_func,
 template <typename T, typename F>
 static bool parse_multivector_option(std::vector<T> &vec,
         const std::vector<T> &def, F process_func, const char *str,
-        const std::string &option_name) {
+        const std::string &option_name, char vector_delim = ',',
+        char element_delim = ':') {
     const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) == eol) return false;
-    return parse_multivector_str(vec, def, process_func, str + pattern.size());
+    return parse_multivector_str(vec, def, process_func, str + pattern.size(),
+            vector_delim, element_delim);
 }
 
 template <typename T, typename F>
@@ -182,6 +184,10 @@ bool parse_inplace(std::vector<bool> &inplace,
 bool parse_skip_nonlinear(std::vector<bool> &skip,
         const std::vector<bool> &def_skip, const char *str,
         const std::string &option_name = "skip-nonlinear");
+
+bool parse_strides(std::vector<strides_t> &strides,
+        const std::vector<strides_t> &def_strides, const char *str,
+        const std::string &option_name = "strides");
 
 bool parse_trivial_strides(std::vector<bool> &ts,
         const std::vector<bool> &def_ts, const char *str,

@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <bitset>
 #include <cinttypes>
 #include <functional>
 #include <string>
@@ -61,41 +62,27 @@ enum { CRIT = 1, WARN = 2 };
 
 #define SAFE(f, s) \
     do { \
-        int status = (f); \
-        if (status != OK) { \
+        int status__ = (f); \
+        if (status__ != OK) { \
             if (s == CRIT || s == WARN) { \
                 fprintf(stderr, "@@@ error [%s:%d]: '%s' -> %d\n", \
-                        __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), status); \
+                        __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), \
+                        status__); \
                 fflush(0); \
                 if (s == CRIT) exit(1); \
             } \
-            return status; \
+            return status__; \
         } \
     } while (0)
 
 #define SAFE_V(f) \
     do { \
-        int status = (f); \
-        if (status != OK) { \
+        int status__ = (f); \
+        if (status__ != OK) { \
             fprintf(stderr, "@@@ error [%s:%d]: '%s' -> %d\n", \
-                    __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), status); \
+                    __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), status__); \
             fflush(0); \
             exit(1); \
-        } \
-    } while (0)
-
-#define SAFE_CLEAN(f, s, clean) \
-    do { \
-        int status = (f); \
-        if (status != OK) { \
-            if (s == CRIT || s == WARN) { \
-                fprintf(stderr, "@@@ error [%s:%d]: '%s' -> %d\n", \
-                        __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), status); \
-                fflush(0); \
-                if (s == CRIT) exit(1); \
-            } \
-            clean(); \
-            return status; \
         } \
     } while (0)
 
@@ -117,26 +104,12 @@ extern std::string skip_impl; /* empty or "" means skip nothing */
     T(const T &) = delete; \
     T &operator=(const T &) = delete;
 
-enum bench_mode_t {
-    MODE_UNDEF = 0x0,
-    CORR = 0x1,
-    PERF = 0x2,
-    LIST = 0x4,
-};
-const char *bench_mode2str(bench_mode_t mode);
-bench_mode_t str2bench_mode(const char *str);
-extern bench_mode_t bench_mode;
+using bench_mode_t = std::bitset<4>;
+extern bench_mode_t RUN, CORR, PERF, LIST; // pre-defined modes
+extern bench_mode_t bench_mode; // user mode
 extern const char *driver_name;
 
-/* api mode */
-enum api_mode_t {
-    API_UNDEF = 0x0,
-    PRIMITIVE = 0x1, /** Primitive API mode */
-    GRAPH = 0x2, /** Graph API mode */
-};
-const char *api_mode2str(api_mode_t mode);
-api_mode_t str2api_mode(const char *str);
-extern api_mode_t api_mode;
+bool is_bench_mode(bench_mode_t user_mode);
 
 /* perf */
 extern double max_ms_per_prb; /** maximum time spends per prb in ms */
@@ -273,5 +246,15 @@ int sanitize_desc(int &ndims, std::vector<std::reference_wrapper<int64_t>> d,
 void print_dhw(bool &print_d, bool &print_h, bool &print_w, int ndims,
         const std::vector<int64_t> &d, const std::vector<int64_t> &h,
         const std::vector<int64_t> &w);
+
+/* api mode */
+enum api_mode_t {
+    API_UNDEF = 0x0,
+    PRIMITIVE = 0x1, /** Primitive API mode */
+    GRAPH = 0x2, /** Graph API mode */
+};
+const char *api_mode2str(api_mode_t mode);
+api_mode_t str2api_mode(const char *str);
+extern api_mode_t api_mode;
 
 #endif

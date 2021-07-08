@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,15 @@
 
 namespace conv {
 
-enum alg_t { DIRECT, WINO, AUTO };
+enum alg_t {
+    UNDEF,
+    DIRECT,
+    WINO,
+    AUTO,
+    convolution_direct = DIRECT,
+    convolution_wino = WINO,
+    convolution_auto = AUTO,
+};
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 alg_t alg_kind2alg(dnnl_alg_kind_t alg);
@@ -339,13 +347,13 @@ inline void inv_dst_off_f(const prb_t *prb, int64_t off, int64_t &mb,
 
 float oscale(const prb_t *prb, int oc);
 
-void compute_ref_fwd(const prb_t *prb, dnnl_primitive_t c_ref, dnn_mem_t &src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
+void compute_ref_fwd(const prb_t *prb, dnnl_primitive_t prim_ref,
+        dnn_mem_t &src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m);
-void compute_ref_bwd_d(const prb_t *prb, dnnl_primitive_t c_ref,
+void compute_ref_bwd_d(const prb_t *prb, dnnl_primitive_t prim_ref,
         dnn_mem_t &diff_src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m);
-void compute_ref_bwd_w(const prb_t *prb, dnnl_primitive_t c_ref,
+void compute_ref_bwd_w(const prb_t *prb, dnnl_primitive_t prim_ref,
         dnn_mem_t &src_m, dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m,
         dnn_mem_t &diff_dst_m);
 
@@ -373,6 +381,12 @@ int compare_bia(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *res, bool final_compare = false);
 int compare_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *res, bool final_compare = false);
+
+bool need_src_init(const prb_t *prb);
+bool need_wei_init(const prb_t *prb);
+bool need_bia_init(const prb_t *prb);
+bool need_dst_init(const prb_t *prb);
+
 int fill_src(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
 int fill_wei(

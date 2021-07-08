@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,20 @@ namespace compare {
 bool compare_extreme_values(float a, float b);
 
 struct compare_t {
+    struct driver_check_func_args_t {
+        driver_check_func_args_t(const dnn_mem_t &exp_mem,
+                const dnn_mem_t &got_f32, const int64_t i,
+                const dnnl_data_type_t data_type);
+
+        const dnnl_data_type_t dt = dnnl_data_type_undef;
+        const int64_t idx = 0;
+        const float exp_f32 = 0.f;
+        const float exp = 0.f;
+        const float got = 0.f;
+        const float diff = 0.f;
+        const float rel_diff = 0.f;
+    };
+
     compare_t() = default;
 
     void set_threshold(float trh) { trh_ = trh; }
@@ -40,7 +54,7 @@ struct compare_t {
     // @param diff The absolute difference between expected and got values.
     // @returns true if checks pass and false otherwise.
     using driver_check_func_t
-            = std::function<bool(int64_t idx, float got, float diff)>;
+            = std::function<bool(const driver_check_func_args_t &)>;
     void set_driver_check_function(const driver_check_func_t &dcf) {
         driver_check_func_ = dcf;
     }

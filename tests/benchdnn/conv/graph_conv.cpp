@@ -247,7 +247,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(cp, input_ts, output_ts), WARN);
 
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         const auto fp = dnnl_f32;
         const auto src_tag = tag::abx;
         dnnl_primitive_t c_ref = nullptr;

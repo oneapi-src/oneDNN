@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,7 +21,12 @@
 namespace lnorm {
 
 void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &mean,
-        dnn_mem_t &var, const dnn_mem_t &ss, dnn_mem_t &dst) {
+        dnn_mem_t &var, const dnn_mem_t &ss, const dnn_mem_t &sh,
+        dnn_mem_t &dst) {
+    const bool use_ss = prb->use_ss();
+    const bool use_sc = prb->use_sc();
+    const bool use_sh = prb->use_sh();
+
     dnnl::impl::parallel_nd(prb->n, [&](int64_t n) {
         float smean = ((float *)mean)[n];
         float svar = ((float *)var)[n];
@@ -29,10 +34,9 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &mean,
 
         for (int64_t c = 0; c < prb->c; ++c) {
             float gamma
-                    = (prb->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1.0f)
-                    / sqrt_var;
-            float beta = prb->flags & USE_SCALESHIFT ? ((float *)ss)[prb->c + c]
-                                                     : 0;
+                    = (use_ss || use_sc ? ((float *)ss)[c] : 1.0f) / sqrt_var;
+            float beta = use_ss ? ((float *)ss)[prb->c + c]
+                                : use_sh ? ((float *)sh)[c] : 0;
             auto off = n * prb->c + c;
             float res = gamma * (((float *)src)[off] - smean) + beta;
             dst.set_elem(off, res);
@@ -42,9 +46,13 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &mean,
 
 void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
-        const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss) {
+        const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss,
+        dnn_mem_t &d_sh) {
+    const bool use_ss = prb->use_ss();
+    const bool use_sc = prb->use_sc();
+    const bool use_sh = prb->use_sh();
 
-    if ((prb->flags & USE_SCALESHIFT) && (prb->dir & FLAG_WEI)) {
+    if ((use_ss || use_sc || use_sh) && (prb->dir & FLAG_WEI)) {
         dnnl::impl::parallel_nd(prb->c, [&](int64_t c) {
             float d_gamma = 0;
             float d_beta = 0;
@@ -59,8 +67,13 @@ void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
                 d_beta += dd;
             }
 
-            ((float *)d_ss)[c] = d_gamma;
-            ((float *)d_ss)[prb->c + c] = d_beta;
+            if (use_ss) {
+                ((float *)d_ss)[c] = d_gamma;
+                ((float *)d_ss)[prb->c + c] = d_beta;
+            }
+
+            if (use_sc) ((float *)d_ss)[c] = d_gamma;
+            if (use_sh) ((float *)d_sh)[c] = d_beta;
         });
     }
 
@@ -74,15 +87,14 @@ void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
                 auto off = n * prb->c + c;
                 float ds = ((float *)d_dst)[off];
                 const float x = ((float *)src)[off] - smean;
-                float gamma
-                        = prb->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
+                float gamma = use_ss || use_sc ? ((float *)ss)[c] : 1;
                 dd_gamma += gamma * ds;
                 dd_gamma_x += gamma * ds * x;
             }
             dd_gamma_x *= rcp_denom;
         }
         for (int64_t c = 0; c < prb->c; ++c) {
-            float gamma = prb->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
+            float gamma = use_ss || use_sc ? ((float *)ss)[c] : 1;
             auto off = n * prb->c + c;
             float ds = ((float *)d_dst)[off] * gamma;
             if (!(prb->flags & GLOB_STATS)) {

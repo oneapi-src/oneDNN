@@ -29,19 +29,14 @@
 
 namespace reorder {
 
-enum alg_t { ALG_REF, ALG_BOOT };
-alg_t str2alg(const char *str);
-const char *alg2str(alg_t alg);
-
-enum flag_t {
+enum flag_bit_t {
     FLAG_NONE = 0x0U,
-    FLAG_CONV_S8S8 = 0x1U,
-    FLAG_GCONV_S8S8 = 0x2U,
-    FLAG_CONV_ZP_COMP = 0x4U,
-    FLAG_GCONV_ZP_COMP = 0x8U,
+    FLAG_S8S8_COMP = 0x1U,
+    FLAG_ZP_COMP = 0x2U,
 };
-uint64_t str2flag(const char *str);
-std::string flag2str(uint64_t flag);
+using flag_t = std::pair<flag_bit_t, int>;
+flag_t str2flag(const char *str);
+std::string flag2str(flag_bit_t flag);
 
 struct dt_conf_s {
     dnnl_data_type_t dt;
@@ -82,9 +77,8 @@ struct settings_t {
     std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
     std::vector<std::string> stag {tag::abx}, dtag {tag::abx};
     std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
-    std::vector<std::vector<uint64_t>> oflag {{FLAG_NONE}};
+    std::vector<std::vector<flag_t>> oflag {{{FLAG_NONE, 0}}};
     std::vector<unsigned> runtime_dim_mask {0};
-    std::vector<alg_t> alg {ALG_REF};
     std::vector<cross_engine_t> cross_engine {NONE};
     std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
     std::vector<attr_t::zero_points_t> zero_points {attr_t::zero_points_t()};
@@ -105,14 +99,13 @@ struct settings_t {
 
 struct prb_t {
     prb_t(const reorder_conf_t &res, const dt_conf_t &conf_in,
-            const dt_conf_t &conf_out, const attr_t &attr, alg_t alg,
-            uint64_t oflag, cross_engine_t cross_engine,
+            const dt_conf_t &conf_out, const attr_t &attr,
+            const std::vector<flag_t> &oflag, cross_engine_t cross_engine,
             unsigned runtime_dim_mask, float scale)
         : reorder(res)
         , conf_in(conf_in)
         , conf_out(conf_out)
         , attr(attr)
-        , alg(alg)
         , oflag(oflag)
         , cross_engine(cross_engine)
         , runtime_dim_mask(runtime_dim_mask)
@@ -132,8 +125,7 @@ struct prb_t {
     dt_conf_t conf_in;
     dt_conf_t conf_out;
     attr_t attr;
-    alg_t alg;
-    uint64_t oflag;
+    std::vector<flag_t> oflag;
     cross_engine_t cross_engine;
     unsigned runtime_dim_mask;
     int ndims;
@@ -141,12 +133,13 @@ struct prb_t {
     int32_t *src_zp, *dst_zp;
 
     bool is_reorder_with_compensation() const {
-        return alg == ALG_BOOT && oflag != FLAG_NONE;
+        return !oflag.empty() && oflag[0].first != FLAG_NONE;
     }
     float *generate_oscales();
-    int32_t *generate_zero_points(int arg);
+    int32_t *generate_zero_points(int arg) const;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
+std::ostream &operator<<(std::ostream &s, const std::vector<flag_t> &oflag);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
@@ -159,8 +152,6 @@ struct perf_report_t : public base_perf_report_t {
         dtag_ = normalize_tag(p_->reorder.tag_out, p_->ndims);
         base_report(res, prb_str);
     }
-
-    void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
 
     void dump_desc(std::ostream &s) const override { s << p_->reorder.dims; }
 
@@ -177,9 +168,7 @@ struct perf_report_t : public base_perf_report_t {
             base_perf_report_t::dump_engine(s);
     }
 
-    void dump_flags(std::ostream &s) const override {
-        s << flag2str(p_->oflag);
-    }
+    void dump_flags(std::ostream &s) const override { s << p_->oflag; }
 
     const attr_t *attr() const override { return &p_->attr; }
     const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }

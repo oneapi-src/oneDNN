@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <sstream>
+#include <string>
+#include <utility>
 
 #include "dnnl_debug.hpp"
 
@@ -22,51 +25,59 @@
 
 namespace reorder {
 
-alg_t str2alg(const char *str) {
-    if (!strcasecmp("bootstrap", str)) return ALG_BOOT;
-    if (!strcasecmp("reference", str)) return ALG_REF;
-    assert(!"unknown algorithm");
-    return ALG_REF;
+// TODO: consolidate it in parser.cpp with one from dnn_types.cpp
+std::string get_substr(
+        const std::string &s, size_t &start_pos, char delim = ':') {
+    auto end_pos = s.find_first_of(delim, start_pos);
+    auto sub = s.substr(start_pos, end_pos - start_pos);
+    start_pos = end_pos + (end_pos != std::string::npos);
+    return sub;
 }
 
-const char *alg2str(alg_t alg) {
-    switch (alg) {
-        case ALG_REF: return "reference";
-        case ALG_BOOT: return "bootstrap";
-        default: assert(!"unknown algorithm"); return "unknown algorithm";
+flag_t str2flag(const char *str) {
+    std::string s(str);
+    if (s.empty()) return std::make_pair(FLAG_NONE, 0);
+
+    size_t start_pos = 0;
+    // format of single entry is `flag_bit:mask`
+    auto sub = get_substr(s, start_pos, ':');
+    std::transform(sub.begin(), sub.end(), sub.begin(), ::tolower);
+
+    flag_bit_t flag = FLAG_NONE;
+    if (sub.compare("s8s8_comp") == 0)
+        flag = FLAG_S8S8_COMP;
+    else if (sub.compare("zp_comp") == 0)
+        flag = FLAG_ZP_COMP;
+    else {
+        assert(!"unknown flag");
+        SAFE_V(FAIL);
     }
+
+    int mask = std::stoi(get_substr(s, start_pos));
+    if (mask < 0) {
+        fprintf(stderr,
+                "ERROR: reorder driver: `mask` should be non-negative.\n"),
+                fflush(stderr);
+        SAFE_V(FAIL);
+    }
+
+    return std::make_pair(flag, mask);
 }
 
-uint64_t str2flag(const char *str) {
-    uint64_t flag = FLAG_NONE;
-    if (!strcasecmp("conv_s8s8", str)) flag |= FLAG_CONV_S8S8;
-    if (!strcasecmp("gconv_s8s8", str)) flag |= FLAG_GCONV_S8S8;
-    if (!strcasecmp("conv_zp_comp", str)) flag |= FLAG_CONV_ZP_COMP;
-    if (!strcasecmp("gconv_zp_comp", str)) flag |= FLAG_GCONV_ZP_COMP;
-    if (strcasecmp("none", str) && flag == FLAG_NONE) assert(!"unknown flag");
-    return flag;
+std::string flag_name2str(flag_bit_t flag) {
+    if (flag == FLAG_S8S8_COMP) return "s8s8_comp";
+    if (flag == FLAG_ZP_COMP) return "zp_comp";
+    assert(!"unsupported flag");
+    return "";
 }
 
-std::string flag2str(uint64_t flag) {
-    std::stringstream s;
-    bool mult_entry = false;
-
-    if (!flag) return "none";
-
-#define CASE(_f, _l) \
-    do { \
-        if (flag & (_f)) { \
-            s << (mult_entry ? ":" : "") << #_l; \
-            mult_entry = true; \
-        } \
-    } while (0)
-    CASE(FLAG_CONV_S8S8, conv_s8s8);
-    CASE(FLAG_GCONV_S8S8, gconv_s8s8);
-    CASE(FLAG_CONV_ZP_COMP, conv_zp_comp);
-    CASE(FLAG_GCONV_ZP_COMP, gconv_zp_comp);
-#undef CASE
-
-    return s.str();
+std::ostream &operator<<(std::ostream &s, const std::vector<flag_t> &oflag) {
+    const char *delim = "";
+    for (const auto &i_oflag : oflag) {
+        s << delim << flag_name2str(i_oflag.first) << ":" << i_oflag.second;
+        delim = "+";
+    }
+    return s;
 }
 
 cross_engine_t str2cross_engine(const char *str) {
@@ -102,7 +113,7 @@ float *prb_t::generate_oscales() {
     return scales;
 }
 
-int32_t *prb_t::generate_zero_points(int arg) {
+int32_t *prb_t::generate_zero_points(int arg) const {
     const attr_t::zero_points_t &zero_points = this->attr.zero_points;
     if (zero_points.is_def(arg)) return nullptr;
 
@@ -124,10 +135,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     s << "--stag=" << prb.reorder.tag_in << " ";
     s << "--dtag=" << prb.reorder.tag_out << " ";
 
-    if (canonical || prb.alg != def.alg[0])
-        s << "--alg=" << alg2str(prb.alg) << " ";
-    if (canonical || prb.oflag != def.oflag[0][0])
-        s << "--oflag=" << flag2str(prb.oflag) << " ";
+    if (canonical || (!prb.oflag.empty() && prb.oflag != def.oflag[0]))
+        s << "--oflag=" << prb.oflag << " ";
     if (canonical || prb.cross_engine != def.cross_engine[0])
         s << "--cross-engine=" << cross_engine2str(prb.cross_engine) << " ";
     if (canonical || prb.runtime_dim_mask != def.runtime_dim_mask[0])

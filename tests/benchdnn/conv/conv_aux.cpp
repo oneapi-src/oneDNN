@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,11 +33,14 @@ alg_t str2alg(const char *str) {
 #define CASE(_alg) \
     if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
     CASE(AUTO);
+    CASE(convolution_auto);
     CASE(DIRECT);
+    CASE(convolution_direct);
     CASE(WINO);
+    CASE(convolution_wino);
 #undef CASE
     assert(!"unknown algorithm");
-    return DIRECT;
+    return UNDEF;
 }
 
 const char *alg2str(alg_t alg) {
@@ -45,7 +48,7 @@ const char *alg2str(alg_t alg) {
     if (alg == DIRECT) return "direct";
     if (alg == WINO) return "wino";
     assert(!"unknown algorithm");
-    return "unknown algorithm";
+    return "undef";
 }
 
 alg_t alg_kind2alg(dnnl_alg_kind_t alg) {

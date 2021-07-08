@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                              &sd, prop, &data_d, prb->axis),
                     WARN);
         else
-            SAFE_V(FAIL);
+            SAFE(FAIL, CRIT);
     } else {
         dnnl_memory_desc_t diff_data_d;
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, prb->ndims,
@@ -68,15 +68,14 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                              &sd, &diff_data_d, &data_d, prb->axis),
                     WARN);
         else
-            SAFE_V(FAIL);
+            SAFE(FAIL, CRIT);
     }
 
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args_t());
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args_t()));
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&spd, &sd, dnnl_attr, engine, nullptr);
-
-    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
@@ -87,7 +86,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     if (maybe_skip(res->impl_name)) {
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                 res->impl_name.c_str());
-        DNN_SAFE(dnnl_primitive_desc_destroy(spd), WARN);
         return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
     } else {
         BENCHDNN_PRINT(
@@ -164,21 +162,30 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
 }
 
+void add_additional_softmax_check(compare::compare_t &cmp) {
+    const auto softmax_add_check
+            = [&](const compare::compare_t::driver_check_func_args_t &args) {
+                  // SSE4.1 and OpenCL rdiff tolerance is too high for
+                  // certain scenarios.
+                  return args.diff < epsilon_dt(args.dt);
+              };
+    cmp.set_driver_check_function(softmax_add_check);
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t s {};
-    SAFE(init_prim(&s, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(s, &const_pd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
 
     if (check_mem_size(const_pd) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(s));
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -213,9 +220,9 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(s, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_fwd(prb, src_fp, dst_fp);
 
             compare::compare_t cmp;
@@ -230,13 +237,7 @@ int doit(const prb_t *prb, res_t *res) {
             const int64_t axis_size = prb->dims[prb->axis];
             cmp.set_zero_trust_percent(axis_size < 10 ? 100.f : 60.f);
 
-            const auto softmax_add_check
-                    = [&](int64_t i, float got, float diff) {
-                          // SSE4.1 and OpenCL rdiff tolerance is too high for
-                          // certain scenarios.
-                          return diff < epsilon_dt(prb->dt);
-                      };
-            cmp.set_driver_check_function(softmax_add_check);
+            add_additional_softmax_check(cmp);
 
             SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
@@ -262,9 +263,9 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(s, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd(prb, src_fp, d_dst_fp, d_src_fp);
 
             compare::compare_t cmp;
@@ -275,23 +276,13 @@ int doit(const prb_t *prb, res_t *res) {
                     = 4 * trh_coeff_f32 * epsilon_dt(d_data_md.data_type);
             cmp.set_threshold(trh);
 
-            const auto softmax_add_check
-                    = [&](int64_t i, float got, float diff) {
-                          // SSE4.1 and OpenCL rdiff tolerance is too high for
-                          // certain scenarios.
-                          return diff < epsilon_dt(prb->dt);
-                      };
-            cmp.set_driver_check_function(softmax_add_check);
+            add_additional_softmax_check(cmp);
 
             SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
         }
     }
 
-    measure_perf(res->timer, s, args);
-
-    DNN_SAFE_V(dnnl_primitive_destroy(s));
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace softmax

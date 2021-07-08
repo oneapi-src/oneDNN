@@ -8,5 +8,5 @@
 --batch=option_set_all_algs
 
 --dir=FWD_D
---attr-post-ops='add:f32;mul:f32:per_oc'
+--attr-post-ops=add:f32+mul:f32:per_oc
 --batch=option_set_all_algs

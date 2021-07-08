@@ -4,7 +4,7 @@
 --inplace=false
 --alg=ADD,MUL,MAX,MIN
 --ddt=f32 --sdt=f32:f32
---attr-post-ops='','relu','logistic'
+--attr-post-ops=,relu,logistic
 --batch=option_set_all
 
 --reset
@@ -12,5 +12,5 @@
 --inplace=false
 --alg=MUL,MAX,MIN
 --ddt=f32 --sdt=f32:f32
---attr-post-ops='sum'
+--attr-post-ops=sum
 --batch=option_set_all

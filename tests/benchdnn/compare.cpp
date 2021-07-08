@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,6 +53,17 @@ bool compare_extreme_values(float a, float b) {
     return false;
 }
 
+compare_t::driver_check_func_args_t::driver_check_func_args_t(
+        const dnn_mem_t &exp_mem, const dnn_mem_t &got_f32, const int64_t i,
+        const dnnl_data_type_t data_type)
+    : dt(data_type)
+    , idx(i)
+    , exp_f32(exp_mem.get_elem(idx))
+    , exp(round_to_nearest_representable(dt, exp_f32))
+    , got(got_f32.get_elem(idx))
+    , diff(fabsf(exp - got))
+    , rel_diff(diff / (fabsf(exp) > FLT_MIN ? fabsf(exp) : 1)) {}
+
 int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         const attr_t &attr, res_t *res, const dnnl_engine_t &engine) const {
     const auto nelems = got_mem.nelems();
@@ -82,32 +93,28 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     const bool need_dump = verbose >= 99;
 
     const auto compare_point_values = [&](int64_t i) {
-        const float exp_f32 = exp_mem.get_elem(i);
-        const float exp = round_to_nearest_representable(dt, exp_f32);
-        const float got = got_f32.get_elem(i);
-        const float diff = fabsf(exp - got);
-        const float rel_diff = diff / (fabsf(exp) > FLT_MIN ? fabsf(exp) : 1);
+        driver_check_func_args_t args(exp_mem, got_f32, i, dt);
 
         bool ok = false;
-        if (std::isnan(exp_f32) && is_integral_dt(dt)) {
+        if (std::isnan(args.exp_f32) && is_integral_dt(dt)) {
             // Relax output requirements for this case, since different backends
             // may implement NaN fp32 -> int32 conversion in a different manner.
             ok = true;
         } else {
             // Standard check for relative diff is under set threshold...
-            ok = (fabsf(exp) > 1e-5 ? rel_diff : diff) <= trh;
+            ok = (fabsf(args.exp) > 1e-5 ? args.rel_diff : args.diff) <= trh;
             // If not, check that both are NaNs or infinity with same sign...
-            if (!ok) ok = compare::compare_extreme_values(exp, got);
+            if (!ok) ok = compare::compare_extreme_values(args.exp, args.got);
             // If not, use hack to check not fully correct s32 saturation on
             // cpu...
-            if (!ok && is_cpu() && dt == dnnl_s32 && exp == max_dt(dnnl_s32))
-                ok = got >= BENCHDNN_S32_TO_F32_SAT_CONST
-                        && got < max_dt(dnnl_s32);
+            if (!ok && is_cpu() && dt == dnnl_s32
+                    && args.exp == max_dt(dnnl_s32))
+                ok = args.got >= BENCHDNN_S32_TO_F32_SAT_CONST
+                        && args.got < max_dt(dnnl_s32);
             // If not, check driver additional checks if set...
-            if (!ok && driver_check_func_)
-                ok = driver_check_func_(i, got, diff);
+            if (!ok && driver_check_func_) ok = driver_check_func_(args);
             // Update zero stats for mistrust testing.
-            if (from_parallel && got == 0) zeros++;
+            if (from_parallel && args.got == 0) zeros++;
         }
 
         if (!ok && all_ok) all_ok = false;
@@ -116,8 +123,8 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         const bool dump
                 = need_dump || (!ok && (n_errors < 10 || verbose >= 10));
         if (!from_parallel && dump)
-            dump_point_values(
-                    got_mem.md_, kind_, i, exp_f32, exp, got, diff, rel_diff);
+            dump_point_values(got_mem.md_, kind_, i, args.exp_f32, args.exp,
+                    args.got, args.diff, args.rel_diff);
     };
 
     // parallel comparison to speed up the process

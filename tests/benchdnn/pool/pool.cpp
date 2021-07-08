@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,9 +44,9 @@ int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
 
     dnnl::impl::parallel_nd(MB, IC, D, H, W,
             [&](int64_t mb, int64_t ic, int64_t d, int64_t h, int64_t w) {
-                const int64_t factor = prb->alg == MAX ? 1 : ker_size;
+                const int64_t factor = prb->alg == max ? 1 : ker_size;
                 // keep values for avg_exclude_pad positive to prevent cancellation err
-                const int64_t f_min = prb->alg == MAX ? c.f_min / factor : 0;
+                const int64_t f_min = prb->alg == max ? c.f_min / factor : 0;
                 // divide on factor to keep value in the range
                 const int64_t range = c.f_max / factor - f_min + 1;
                 const int64_t gen
@@ -144,14 +144,13 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 
     attr_args_t attr_args;
     attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims, dst_dims);
-    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args);
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args));
 
     dnnl_status_t init_status;
 
     init_status
             = dnnl_primitive_desc_create(&ppd, &pd, dnnl_attr, engine, hint);
-
-    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
@@ -165,7 +164,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     if (maybe_skip(res->impl_name)) {
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                 res->impl_name.c_str());
-        DNN_SAFE(dnnl_primitive_desc_destroy(ppd), WARN);
         return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
     } else {
         BENCHDNN_PRINT(
@@ -180,7 +178,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             {prb->cfg[SRC].dt, prb->cfg[DST].dt}, prb->dir, res);
     if (res->state == SKIPPED) return;
 
-    if (prb->alg == AVG_NP) {
+    if (prb->alg == avg_np) {
         bool ker_in_pad_d = prb->pd >= prb->kd || prb->pd_r >= prb->kd;
         bool ker_in_pad_h = prb->ph >= prb->kh || prb->ph_r >= prb->kh;
         bool ker_in_pad_w = prb->pw >= prb->kw || prb->pw_r >= prb->kw;
@@ -201,7 +199,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         const int64_t PD = prb->pd, PH = prb->ph, PW = prb->pw;
         const int64_t PD_R = prb->pd_r, PH_R = prb->ph_r, PW_R = prb->pw_r;
         const bool pad_ok
-                = !(prb->alg == AVG_P && (PD < PD_R || PH < PH_R || PW < PW_R));
+                = !(prb->alg == avg_p && (PD < PD_R || PH < PH_R || PW < PW_R));
 
         const int64_t DD = prb->dd, DH = prb->dh, DW = prb->dw;
         const bool dilation_ok = DD == 0 && DH == 0 && DW == 0;
@@ -221,15 +219,14 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_primitive_t pp {};
-    SAFE(init_prim(&pp, init_pd, prb, res), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_fpd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(pp, &const_fpd), CRIT);
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_fpd), CRIT);
 
     if (check_mem_size(const_fpd) != OK) {
-        DNN_SAFE_V(dnnl_primitive_destroy(pp));
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
@@ -277,10 +274,10 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
     args.set(binary_po_args, binary_po_dt);
 
-    SAFE(execute_and_wait(pp, args), WARN);
+    SAFE(execute_and_wait(prim, args), WARN);
 
     // want this pass on backward to get ws_fp filled properly
-    if (bench_mode & CORR) {
+    if (is_bench_mode(CORR)) {
         compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp, ws_fp);
         if (prb->dir & FLAG_FWD) {
             compare::compare_t cmp;
@@ -289,14 +286,14 @@ int doit(const prb_t *prb, res_t *res) {
             cmp.set_zero_trust_percent(100.f); // TODO: consider enabling
 
             const auto pooling_add_check
-                    = [&](int64_t i, float got, float diff) {
+                    = [&](const compare::compare_t::driver_check_func_args_t
+                                      &args) {
                           // cuDNN bug: it spits fp16 min value as -inf,
                           // not -65504.
-                          if (is_nvidia_gpu() && prb->cfg[DST].dt == dnnl_f16) {
-                              const float exp = round_to_nearest_representable(
-                                      prb->cfg[DST].dt, dst_fp.get_elem(i));
-                              return exp == lowest_dt(prb->cfg[DST].dt)
-                                      && std::isinf(got) && std::signbit(got);
+                          if (is_nvidia_gpu() && args.dt == dnnl_f16) {
+                              return args.exp == lowest_dt(args.dt)
+                                      && std::isinf(args.got)
+                                      && std::signbit(args.got);
                           }
                           return false;
                       };
@@ -307,18 +304,15 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     if (prb->dir & FLAG_BWD) {
-        dnnl_primitive_t bwd_p {};
-        int status = init_prim(&bwd_p, init_pd, prb, res, FLAG_BWD, const_fpd);
-        dnnl_primitive_destroy(pp);
-        if (status != OK) return status;
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
+        SAFE(init_prim(tmp_prim, init_pd, prb, res, FLAG_BWD, const_fpd), WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-        pp = bwd_p;
+        prim.reset(tmp_prim.release());
 
         const_dnnl_primitive_desc_t const_bpd;
-        DNN_SAFE(dnnl_primitive_get_primitive_desc(pp, &const_bpd), CRIT);
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_bpd), CRIT);
 
         if (check_mem_size(const_bpd) != OK) {
-            DNN_SAFE_V(dnnl_primitive_destroy(pp));
             return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
         }
 
@@ -342,9 +336,9 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_WORKSPACE, ws_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(pp, args), WARN);
+        SAFE(execute_and_wait(prim, args), WARN);
 
-        if (bench_mode & CORR) {
+        if (is_bench_mode(CORR)) {
             compute_ref_bwd(prb, d_src_fp, d_dst_fp, ws_fp);
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[SRC].eps);
@@ -354,11 +348,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    measure_perf(res->timer, pp, args);
-
-    DNN_SAFE_V(dnnl_primitive_destroy(pp));
-
-    return OK;
+    return measure_perf(res->timer, prim, args);
 }
 
 } // namespace pool
