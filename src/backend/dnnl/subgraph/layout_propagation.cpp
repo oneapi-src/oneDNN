@@ -83,9 +83,16 @@ static bool layout_propagation_for_conv(op_ptr &op,
         fill_layout_info(dst, pd.dst_desc());
     }
 
-    // make scratchpad as conv's last output
+    // fill scratchpads dimensions and data type to scratchpad value_t
     auto scratchpad_val = insert_scratchpad(op);
-    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+    const memory::desc scratchpad_desc = pd.scratchpad_desc();
+    const memory::dims dims = scratchpad_desc.dims();
+    scratchpad_val->set_dims(dims);
+    scratchpad_val->set_data_type(
+            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
+
+    // make scratchpad as conv's last output
+    fill_layout_info(scratchpad_val, scratchpad_desc);
 
     return true;
 }
@@ -130,9 +137,16 @@ static bool layout_propagation_for_matmul(op_ptr &op,
         fill_layout_info(bias, pd.bias_desc());
     fill_layout_info(dst, pd.dst_desc());
 
-    // make scratchpad as matmul's last output
+    // fill scratchpads dimensions and data type to scratchpad value_t
     auto scratchpad_val = insert_scratchpad(op);
-    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+    const memory::desc scratchpad_desc = pd.scratchpad_desc();
+    const memory::dims dims = scratchpad_desc.dims();
+    scratchpad_val->set_dims(dims);
+    scratchpad_val->set_data_type(
+            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
+
+    // make scratchpad as matmul's last output
+    fill_layout_info(scratchpad_val, scratchpad_desc);
 
     return false;
 }

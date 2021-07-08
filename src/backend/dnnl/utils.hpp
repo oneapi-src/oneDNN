@@ -58,6 +58,37 @@ inline void simultaneous_sort(T *vals, U *keys, size_t size, F comparator) {
     }
 }
 
+/* Sorts an array of @p vals using @p comparator. Uses @p vals_2nd_level as a
+ * second level comparing criteria in case comparator returns 0 (equal values)
+ * for @p vals elements.
+ * While sorting the array of @p vals, the function permutes an array of
+ * @p vals_2nd_level and @p keys accordingly.
+ */
+template <typename T, typename U, typename F>
+inline void simultaneous_sort(
+        T *vals, T *vals_2nd_level, U *keys, size_t size, F comparator) {
+    if (size == 0) return;
+
+    for (size_t i = 0; i < size - 1; ++i) {
+        bool swapped = false;
+
+        for (size_t j = 0; j < size - i - 1; j++) {
+            auto res = comparator(vals[j], vals[j + 1]);
+            if (res == 0)
+                res = comparator(vals_2nd_level[j], vals_2nd_level[j + 1]);
+
+            if (res > 0) {
+                std::swap(vals[j], vals[j + 1]);
+                std::swap(vals_2nd_level[j], vals_2nd_level[j + 1]);
+                std::swap(keys[j], keys[j + 1]);
+                swapped = true;
+            }
+        }
+
+        if (swapped == false) break;
+    }
+}
+
 template <typename T>
 inline T rnd_up(const T a, const T b) {
     return (a + b - 1) / b * b;

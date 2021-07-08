@@ -31,6 +31,16 @@ namespace dnnl_impl {
 void fill_layout_info(impl::logical_tensor_t *lt, const tensor::desc &td) {
     const impl::logical_tensor_wrapper ltw(lt);
     if (ltw.is_any()) { // we only reset any format
+#ifdef DNNL_GRAPH_LAYOUT_DEBUG
+        const int ndims = td.data.ndims;
+        if (ndims <= 1) { // scratchpads mem
+            const dnnl_dims_t &dims = td.data.dims;
+            lt->ndims = ndims;
+            std::copy(dims, dims + ndims, lt->dims);
+            lt->data_type = static_cast<impl::data_type_t>(td.data.data_type);
+        }
+#endif // DNNL_GRAPH_LAYOUT_DEBUG
+
         impl::utils::optional<size_t> layout_id
                 = dnnl_backend::get_singleton().set_mem_desc(td);
         lt->layout.layout_id = static_cast<int64_t>(layout_id.value());

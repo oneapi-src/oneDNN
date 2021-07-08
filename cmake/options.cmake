@@ -39,6 +39,10 @@ option(DNNL_GRAPH_LOGGER
 option(DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE
     "enables compiled partition cache." ON) # enabled by default
 
+option(DNNL_GRAPH_LAYOUT_DEBUG
+    "allows backends in oneDNN Graph library to generate user-comprehensive
+    layout id which helps debugging for layout propagation" OFF)
+
 # =============================
 # Building properties and scope
 # =============================

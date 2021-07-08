@@ -141,22 +141,26 @@ dnnl::stream make_dnnl_stream(
 
 dnnl::memory::desc make_dnnl_memory_desc(const impl::logical_tensor_t &lt) {
     const impl::logical_tensor_wrapper ltw(lt);
+    const auto dtype = static_cast<dnnl::memory::data_type>(ltw.data_type());
 
     if (ltw.is_opaque()) {
+#ifdef DNNL_GRAPH_LAYOUT_DEBUG
+        const auto format_tag
+                = static_cast<dnnl::memory::format_tag>(ltw.layout_id());
+        if (format_tag < dnnl::memory::format_tag::format_tag_last
+                && format_tag > dnnl::memory::format_tag::any) {
+            return {ltw.vdims(), dtype, format_tag};
+        }
+#endif // DNNL_GRAPH_LAYOUT_DEBUG
+
         const auto &td = dnnl_backend::get_singleton().get_mem_desc(
                 static_cast<size_t>(ltw.layout_id()));
         return static_cast<dnnl::memory::desc>(
                 impl::utils::any_cast<tensor::desc>(td.value()));
-    } else if (ltw.is_any() || ltw.is_strided()) {
-        const dnnl::memory::dims dims = ltw.vdims();
-        const auto dtype
-                = static_cast<dnnl::memory::data_type>(ltw.data_type());
-        if (ltw.is_any()) {
-            return dnnl::memory::desc {
-                    dims, dtype, dnnl::memory::format_tag::any};
-        } else {
-            return dnnl::memory::desc {dims, dtype, ltw.vstrides()};
-        }
+    } else if (ltw.is_any()) {
+        return {ltw.vdims(), dtype, dnnl::memory::format_tag::any};
+    } else if (ltw.is_strided()) {
+        return {ltw.vdims(), dtype, ltw.vstrides()};
     } else {
         return {};
     }

@@ -124,8 +124,9 @@ memory::desc permute_OIX2XIO(const memory::desc &adesc);
 #define BACKEND_DNNL_ENFORCE(condition, message)
 #endif
 
-#define BACKEND_DNNL_CHECK(ret) \
+#define BACKEND_DNNL_CHECK(statement) \
     do { \
+        impl::status_t ret = (statement); \
         if (ret != impl::status::success) return ret; \
     } while (false)
 
