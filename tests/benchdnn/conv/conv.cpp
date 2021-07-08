@@ -754,6 +754,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
                     && prb->ph_r < prb->kh;
             if (!shape_ok) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
             }
 
             const auto stag = normalize_tag(prb->stag, prb->ndims);
@@ -762,9 +763,9 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             bool is_axb_ok = (prb->ic % 16 == 0) && (prb->oc % 16 == 0);
             if (stag_is_axb && !is_axb_ok) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
             }
 
-            return;
         } else {
             assert(!"Unknown Engine");
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
