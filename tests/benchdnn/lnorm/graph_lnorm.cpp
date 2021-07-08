@@ -32,9 +32,11 @@ lnorm_graph_prb_t::spec_t::spec_t(const ::lnorm::prb_t *prb) {
     ss_dims = dims_t {1, prb->c};
     lnorm_dt = convert_dt(prb->dt);
 
-    //TOOD - not supported for now. NOT USED only for training.
-    keep_stats = false;
-    if (!(prb->flags & ::lnorm::GLOB_STATS)) { keep_stats = false; }
+    for (int i = 0; i < prb->ndims - 1; i++) {
+        stat_dims.emplace_back(prb->dims[i]);
+    }
+
+    if (prb->dir != FWD_D) { keep_stats = false; }
     if (!(prb->flags & ::lnorm::USE_SCALESHIFT)) { use_affine = false; }
     epsilon = 1.f / 16;
 }
@@ -42,6 +44,17 @@ lnorm_graph_prb_t::spec_t::spec_t(const ::lnorm::prb_t *prb) {
 void check_known_skipped_case(const ::lnorm::prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
     if (res->state == SKIPPED) return;
+    check_known_skipped_case_graph_common(
+            {prb->dt}, normalize_tag(prb->tag, prb->ndims), prb->dir, res);
+    if (res->state == SKIPPED) return;
+    /* GLOBAL STATS cannot be passed as DNNL Graph doesnt support this */
+    if (prb->flags & ::lnorm::GLOB_STATS) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+    }
+    /* dnnl_use_scale and dnnl_use_shift are new features yet to be added */
+    if (prb->use_sc() || prb->use_sh()) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+    }
 }
 
 /* When the error is larger than eps, It could be
@@ -91,15 +104,15 @@ fill_status_t lnorm_graph_prb_t::handle_main_op_() {
     const std::string BETA {"lnorm_beta"};
     const std::string DST {"lnorm_dst"};
     const std::string MEAN {"lnorm_mean"};
-    const std::string VAR {"lnorm_mean"};
+    const std::string VAR {"lnorm_var"};
 
     //NOTE: beta, gamma, mean and variance supports only f32
     tensor_descs_.emplace(SRC, spec_.lnorm_dt, spec_.dims, lt::strided);
     tensor_descs_.emplace(GAMMA, graph_dt::f32, spec_.ss_dims, lt::strided);
     tensor_descs_.emplace(BETA, graph_dt::f32, spec_.ss_dims, lt::strided);
     tensor_descs_.emplace(DST, spec_.lnorm_dt, spec_.dims, lt::strided);
-    tensor_descs_.emplace(MEAN, graph_dt::f32, spec_.dims, lt::strided);
-    tensor_descs_.emplace(VAR, graph_dt::f32, spec_.dims, lt::strided);
+    tensor_descs_.emplace(MEAN, graph_dt::f32, spec_.stat_dims, lt::strided);
+    tensor_descs_.emplace(VAR, graph_dt::f32, spec_.stat_dims, lt::strided);
 
     std::vector<dnnl::graph::logical_tensor> ltensors_in;
     std::vector<dnnl::graph::logical_tensor> ltensors_out;
@@ -110,7 +123,6 @@ fill_status_t lnorm_graph_prb_t::handle_main_op_() {
         ltensors_in.push_back(tensor_descs_[GAMMA]);
         ltensors_in.push_back(tensor_descs_[BETA]);
     }
-    //TODO:  - not supported for now.
     if (spec_.keep_stats) {
         ltensors_out.push_back(tensor_descs_[MEAN]);
         ltensors_out.push_back(tensor_descs_[VAR]);
@@ -118,6 +130,7 @@ fill_status_t lnorm_graph_prb_t::handle_main_op_() {
     op lnorm_op(1, dnnl::graph::op::kind::LayerNorm, ltensors_in, ltensors_out,
             "LayerNorm");
 
+    lnorm_op.set_attr("begin_norm_axis", spec_.begin_norm_axis);
     lnorm_op.set_attr("keep_stats", spec_.keep_stats);
     lnorm_op.set_attr("use_affine", spec_.use_affine);
     lnorm_op.set_attr("epsilon", spec_.epsilon);
@@ -168,20 +181,34 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
     static const engine_t cpu_engine(dnnl_cpu);
 
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
+    auto src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
     dnn_mem_t &dst_fp = src_fp; // in-place reference
-    auto mean_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
-    auto var_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
-
     dnn_mem_t placeholder_dst_dt;
     if (!prb->inplace) {
         placeholder_dst_dt = make_dnn_mem(outs[0], (prb->tag).c_str());
     }
-
-    auto src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
-    auto mean_dt = make_dnn_mem(outs[0], (prb->stat_tag).c_str());
-    auto var_dt = make_dnn_mem(outs[0], (prb->stat_tag).c_str());
     dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
+    dnn_mem_t mean_fp, var_fp, mean_dt, var_dt;
+    if (spec.keep_stats) {
+        mean_dt = make_dnn_mem(outs[1], (prb->stat_tag).c_str());
+        mean_fp = make_dnn_mem(outs[1], dt::f32, tag::abx);
+        var_dt = make_dnn_mem(outs[2], (prb->stat_tag).c_str());
+        var_fp = make_dnn_mem(outs[2], dt::f32, tag::abx);
+    } else {
+        /* prepare_fwd needs these memories for inference and training cases.
+         * Below memories are used when keep_stats=false */
+        dnnl::graph::logical_tensor mean_lt(1,
+                dnnl::graph::logical_tensor::data_type::f32, spec.stat_dims,
+                lt::strided);
+        dnnl::graph::logical_tensor var_lt(2,
+                dnnl::graph::logical_tensor::data_type::f32, spec.stat_dims,
+                lt::strided);
+        mean_dt = make_dnn_mem(mean_lt, (prb->stat_tag).c_str());
+        mean_fp = make_dnn_mem(mean_lt, dt::f32, tag::abx);
+        var_dt = make_dnn_mem(var_lt, (prb->stat_tag).c_str());
+        var_fp = make_dnn_mem(var_lt, dt::f32, tag::abx);
+    }
     dnn_mem_t ss_fp(2, dims_ss, dnnl_f32, tag::abx, cpu_engine);
     dnn_mem_t ss_dt(2, dims_ss, dnnl_f32, tag::abx, cpu_engine);
     dnnl_dim_t dims_sh[] = {prb->c};
@@ -235,7 +262,6 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         }
         tensors_in.emplace_back(dnnl::graph::tensor(ins.back(), beta_v.data()));
     }
-    //TODO - not supported for now.
     if (spec.keep_stats) {
         tensors_out.emplace_back(
                 dnnl::graph::tensor(outs[1], static_cast<void *>(mean_dt)));

@@ -46,6 +46,9 @@ enum class fill_status {
 };
 typedef fill_status fill_status_t;
 
+void check_known_skipped_case_graph_common(
+        const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
+        const dir_t &dir, res_t *res);
 dnnl::graph::logical_tensor::data_type convert_dt(const dnnl_data_type_t dt);
 dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind);
 std::string convert_tag(const std::string &tag, bool activation_tag = true);

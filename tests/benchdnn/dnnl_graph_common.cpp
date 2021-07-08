@@ -31,6 +31,25 @@ inline bool should_stop(const benchdnn_timer_t &t) {
     return stop;
 }
 
+void check_known_skipped_case_graph_common(
+        const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
+        const dir_t &dir, res_t *res) {
+    // FWD_I is the supported testcase for now
+    if (!(dir & FLAG_FWD)) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+    // bf16 not supported for now
+    for (const auto &i_dt : v_dt) {
+        if (i_dt == dnnl_bf16 || i_dt == dnnl_f16) {
+            if (strcmp("lnorm", driver_name) != 0) {
+                res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
+                break;
+            }
+        }
+    }
+}
+
 dnnl::graph::logical_tensor::data_type convert_dt(const dnnl_data_type_t dt) {
     using graph_dt = dnnl::graph::logical_tensor::data_type;
 
