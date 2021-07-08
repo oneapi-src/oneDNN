@@ -85,21 +85,37 @@ namespace op_kind {
     X(matmul_add_relu, MatMul_add_relu) \
     X(matmul_add_sigmoid, MatMul_add_sigmoid) \
     X(int8_conv, INT8_Conv) \
+    X(int8_quant_wei_conv, INT8_Quant_wei_Conv) \
     X(int8_conv_bias, INT8_Conv_bias) \
+    X(int8_quant_wei_conv_bias, INT8_Quant_wei_Conv_bias) \
     X(int8_conv_relu, INT8_Conv_relu) \
+    X(int8_quant_wei_conv_relu, INT8_Quant_wei_Conv_relu) \
     X(int8_conv_bias_relu, INT8_Conv_bias_relu) \
+    X(int8_quant_wei_conv_bias_relu, INT8_Quant_wei_Conv_bias_relu) \
     X(int8_conv_add_relu, INT8_Conv_add_relu) \
+    X(int8_quant_wei_conv_add_relu, INT8_Quant_wei_Conv_add_relu) \
     X(int8_conv_bias_add_relu, INT8_Conv_bias_add_relu) \
+    X(int8_quant_wei_conv_bias_add_relu, INT8_Quant_wei_Conv_bias_add_relu) \
     X(int8_matmul, INT8_MatMul) \
+    X(int8_quant_wei_matmul, INT8_Quant_wei_MatMul) \
     X(int8_matmul_bias, INT8_MatMul_bias) \
+    X(int8_quant_wei_matmul_bias, INT8_Quant_wei_MatMul_bias) \
     X(int8_matmul_relu, INT8_MatMul_relu) \
+    X(int8_quant_wei_matmul_relu, INT8_Quant_wei_MatMul_relu) \
     X(int8_matmul_bias_relu, INT8_MatMul_bias_relu) \
+    X(int8_quant_wei_matmul_bias_relu, INT8_Quant_wei_MatMul_bias_relu) \
     X(int8_matmul_sigmoid, INT8_MatMul_sigmoid) \
+    X(int8_quant_wei_matmul_sigmoid, INT8_Quant_wei_MatMul_sigmoid) \
     X(int8_matmul_bias_sigmoid, INT8_MatMul_bias_sigmoid) \
+    X(int8_quant_wei_matmul_bias_sigmoid, INT8_Quant_wei_MatMul_bias_sigmoid) \
     X(int8_matmul_gelu, INT8_MatMul_gelu) \
+    X(int8_quant_wei_matmul_gelu, INT8_Quant_wei_MatMul_gelu) \
     X(int8_matmul_bias_gelu, INT8_MatMul_bias_gelu) \
+    X(int8_quant_wei_matmul_bias_gelu, INT8_Quant_wei_MatMul_bias_gelu) \
     X(int8_matmul_add, INT8_MatMul_add) \
+    X(int8_quant_wei_matmul_add, INT8_Quant_wei_MatMul_add) \
     X(int8_matmul_bias_add, INT8_MatMul_bias_add) \
+    X(int8_quant_wei_matmul_bias_add, INT8_Quant_wei_MatMul_bias_add) \
     X(x8s8f32_matmul_add, X8S8F32_MatMul_add) \
     X(x8s8f32_matmul_bias_add, X8S8F32_MatMul_bias_add) \
     X(mul_scales, Mul_scales) \
@@ -135,7 +151,25 @@ namespace op_kind {
     X(x8s8f32_conv_relu, X8S8F32_Conv_relu) \
     X(x8s8f32_conv_bias_relu, X8S8F32_Conv_bias_relu) \
     X(x8s8f32_conv_add_relu, X8S8F32_Conv_add_relu) \
-    X(x8s8f32_conv_bias_add_relu, X8S8F32_Conv_bias_add_relu)
+    X(x8s8f32_conv_bias_add_relu, X8S8F32_Conv_bias_add_relu) \
+    X(x8s8f32_quant_wei_matmul_add, X8S8F32_Quant_wei_MatMul_add) \
+    X(x8s8f32_quant_wei_matmul_bias_add, X8S8F32_Quant_wei_MatMul_bias_add) \
+    X(x8s8f32_quant_wei_matmul, X8S8F32_Quant_wei_MatMul) \
+    X(x8s8f32_quant_wei_matmul_bias, X8S8F32_Quant_wei_MatMul_bias) \
+    X(x8s8f32_quant_wei_matmul_relu, X8S8F32_Quant_wei_MatMul_relu) \
+    X(x8s8f32_quant_wei_matmul_bias_relu, X8S8F32_Quant_wei_MatMul_bias_relu) \
+    X(x8s8f32_quant_wei_matmul_sigmoid, X8S8F32_Quant_wei_MatMul_sigmoid) \
+    X(x8s8f32_quant_wei_matmul_bias_sigmoid, \
+            X8S8F32_Quant_wei_MatMul_bias_sigmoid) \
+    X(x8s8f32_quant_wei_matmul_gelu, X8S8F32_Quant_wei_MatMul_gelu) \
+    X(x8s8f32_quant_wei_matmul_bias_gelu, X8S8F32_Quant_wei_MatMul_bias_gelu) \
+    X(x8s8f32_quant_wei_conv, X8S8F32_Quant_wei_Conv) \
+    X(x8s8f32_quant_wei_conv_bias, X8S8F32_Quant_wei_Conv_bias) \
+    X(x8s8f32_quant_wei_conv_relu, X8S8F32_Quant_wei_Conv_relu) \
+    X(x8s8f32_quant_wei_conv_bias_relu, X8S8F32_Quant_wei_Conv_bias_relu) \
+    X(x8s8f32_quant_wei_conv_add_relu, X8S8F32_Quant_wei_Conv_add_relu) \
+    X(x8s8f32_quant_wei_conv_bias_add_relu, \
+            X8S8F32_Quant_wei_Conv_bias_add_relu)
 
 enum {
     kAny = 0x1234,

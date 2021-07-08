@@ -71,6 +71,8 @@ public:
 
         std::vector<std::shared_ptr<op_t>> subgraph = part->get_ops();
 
+        set_all_layout_to_any(subgraph);
+
         fuse_bias_add(subgraph);
 
         // check if bias exists
@@ -95,7 +97,13 @@ public:
         BACKEND_DNNL_CHECK(fuse_post_ops(subgraph, prm_attr_mgr_));
         fuse_zero_points(subgraph, prm_attr_mgr_);
 
+        // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
+        fuse_mul_scales_add_zps(subgraph);
+
+        BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
+
         insert_transpose_for_matmul(subgraph);
+        BACKEND_DNNL_CHECK(impl::graph_t(subgraph).infer_shape());
         insert_expand_for_matmul(subgraph);
         insert_reorder(subgraph);
 

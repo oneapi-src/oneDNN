@@ -169,6 +169,18 @@ void set_given_inputs_outputs(std::vector<op_ptr> &subgraph,
     }
 }
 
+void set_all_layout_to_any(std::vector<op_ptr> &subgraph) {
+    for (auto &cur_op : subgraph) {
+        for (auto val : cur_op->get_input_values()) {
+            val->set_layout_type(impl::layout_type::any);
+        }
+
+        for (auto val : cur_op->get_output_values()) {
+            val->set_layout_type(impl::layout_type::any);
+        }
+    }
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

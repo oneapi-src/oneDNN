@@ -48,6 +48,9 @@ void fuse_op_to_predecessor(op_t *op,
 void set_given_inputs_outputs(std::vector<std::shared_ptr<op_t>> &subgraph,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs);
+
+void set_all_layout_to_any(std::vector<std::shared_ptr<op_t>> &subgraph);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

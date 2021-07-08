@@ -295,12 +295,28 @@ struct reorder_executable : public op_executable {
             op->set_attr<int64_t>("primitive_attr_key", attr_key);
             dnnl::primitive_attr &initial_attr
                     = prm_attr_mgr.get_attr(attr_key);
+
+            int mask = 0;
             if (op->has_attr("axis") && op->has_attr("scales")) {
                 int64_t axis = op->get_attr<int64_t>("axis");
                 auto scales = op->get_attr<std::vector<float>>("scales");
-                int mask = scales.size() == 1 ? 0 : 1 << axis;
+                mask = scales.size() == 1 ? 0 : 1 << axis;
                 initial_attr.set_output_scales(mask, scales);
             }
+
+            if (op->has_attr("src_zps")) {
+                auto zps = op->get_attr<std::vector<int64_t>>("src_zps");
+                std::vector<int32_t> neg_zps = dnnl_impl::utils::fmap(zps,
+                        [](int64_t zp) { return static_cast<int32_t>(-zp); });
+                initial_attr.set_zero_points(DNNL_ARG_FROM, mask, neg_zps);
+            } else if (op->has_attr("dst_zps")) {
+                auto zps = op->get_attr<std::vector<int64_t>>("dst_zps");
+                std::vector<int32_t> int32_zps = dnnl_impl::utils::fmap(zps,
+                        [](int64_t zp) { return static_cast<int32_t>(zp); });
+                initial_attr.set_zero_points(DNNL_ARG_TO, mask, int32_zps);
+            } else {
+            }
+
             prm_attr = initial_attr;
         }
 

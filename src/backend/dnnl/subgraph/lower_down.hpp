@@ -74,6 +74,8 @@ status_t fuse_post_ops(std::vector<std::shared_ptr<op_t>> &subgraph,
 void fuse_zero_points(std::vector<std::shared_ptr<op_t>> &subgraph,
         primitive_attr_mgr &prm_attr_mgr);
 
+void fuse_mul_scales_add_zps(std::vector<std::shared_ptr<op_t>> &subgraph);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

@@ -136,21 +136,37 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_add_gelu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_add_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(MatMul_add_sigmoid, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_Conv, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_bias, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_Conv_bias, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_Conv_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_bias_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_Conv_bias_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_add_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_Conv_add_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_bias_add_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_Conv_bias_add_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_MatMul, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_bias, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_MatMul_bias, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_MatMul_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_bias_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_MatMul_bias_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_sigmoid, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_MatMul_sigmoid, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_bias_sigmoid, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_MatMul_bias_sigmoid, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_gelu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_MatMul_gelu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_bias_gelu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_MatMul_bias_gelu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_add, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_MatMul_add, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul_bias_add, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Quant_wei_MatMul_bias_add, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_MatMul_add, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_MatMul_bias_add, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Mul_scales, 1);
@@ -187,6 +203,22 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Conv_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Conv_bias_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Conv_add_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Conv_bias_add_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_MatMul, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_MatMul_bias, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_MatMul_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_MatMul_bias_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_MatMul_sigmoid, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_MatMul_bias_sigmoid, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_MatMul_gelu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_MatMul_bias_gelu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_MatMul_add, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_MatMul_bias_add, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_Conv, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_Conv_bias, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_Conv_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_Conv_bias_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_Conv_add_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_Conv_bias_add_relu, 1);
 
 class opset_v1 {
 public:
@@ -341,33 +373,65 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         MatMul_add_sigmoid, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_Conv, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_bias, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_Conv_bias, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_Conv_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_Conv_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_Conv_bias_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_Conv_bias_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_Conv_add_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_Conv_add_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_Conv_bias_add_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_Conv_bias_add_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MatMul, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_MatMul, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_MatMul_bias, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_MatMul_bias, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_MatMul_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_MatMul_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_MatMul_bias_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_MatMul_bias_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_MatMul_sigmoid, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_MatMul_sigmoid, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_MatMul_bias_sigmoid, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_MatMul_bias_sigmoid, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_MatMul_gelu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_MatMul_gelu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_MatMul_bias_gelu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_MatMul_bias_gelu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_MatMul_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_MatMul_add, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         INT8_MatMul_bias_add, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        INT8_Quant_wei_MatMul_bias_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         X8S8F32_MatMul_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
@@ -422,6 +486,38 @@ public:
                         X8S8F32_Conv_add_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         X8S8F32_Conv_bias_add_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_MatMul, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_MatMul_bias, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_MatMul_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_MatMul_bias_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_MatMul_sigmoid, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_MatMul_bias_sigmoid, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_MatMul_gelu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_MatMul_bias_gelu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_MatMul_add, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_MatMul_bias_add, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_Conv, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_Conv_bias, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_Conv_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_Conv_bias_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_Conv_add_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        X8S8F32_Quant_wei_Conv_bias_add_relu, 1)>());
     }
 };
 

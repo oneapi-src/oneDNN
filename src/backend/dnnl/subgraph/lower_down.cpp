@@ -721,7 +721,10 @@ void fuse_zero_points(
         if (!consumers.empty()) {
             auto &next_op = consumers[0].get_op();
             auto offset = consumers[0].get_offset();
-            if (has_int8_support(next_op.get_kind()) && offset == 0) {
+            // only fuse conv/matmul's src and weight zps
+            if (!has_int8_support(next_op.get_kind())) continue;
+
+            if (offset == 0) {
                 int64_t key = -1;
                 if (next_op.has_attr("primitive_attr_key")) {
                     key = next_op.get_attr<int64_t>("primitive_attr_key");
@@ -771,6 +774,80 @@ void fuse_zero_points(
 
             fuse_op_to_predecessor(zp_op, subgraph);
         }
+    }
+}
+
+void fuse_mul_scales_add_zps(std::vector<op_ptr> &subgraph) {
+    std::vector<std::pair<op_t *, op_t *>> fuse_groups;
+    std::set<op_t *> visited;
+    for (const auto &cur_op : subgraph) {
+        if ((cur_op->get_kind() != op_kind::mul_scales
+                    && cur_op->get_kind() != op_kind::add_zps)
+                || visited.count(cur_op.get()) != 0)
+            continue;
+
+        auto out_val = cur_op->get_output_values()[0];
+        auto consumers = out_val->get_consumers();
+        if (consumers.empty()) continue;
+
+        auto &consumer_op = consumers[0].get_op();
+        if ((consumer_op.get_kind() != op_kind::mul_scales
+                    && consumer_op.get_kind() != op_kind::add_zps))
+            continue;
+
+        fuse_groups.emplace_back(
+                std::pair<op_t *, op_t *> {cur_op.get(), &consumer_op});
+        visited.insert(cur_op.get());
+        visited.insert(&consumer_op);
+    }
+
+    if (fuse_groups.empty()) return;
+
+    for (auto &fuse_ops : fuse_groups) {
+        op_t *op1 = fuse_ops.first;
+        op_t *op2 = fuse_ops.second;
+
+        bool add_zps_first = op1->get_kind() == op_kind::add_zps
+                && op2->get_kind() == op_kind::mul_scales;
+
+        const int64_t axis = op1->get_attr<int64_t>("axis");
+        const std::string &qtype = op1->get_attr<std::string>("qtype");
+        const std::vector<float> &scales = add_zps_first
+                ? op2->get_attr<std::vector<float>>("scales")
+                : op1->get_attr<std::vector<float>>("scales");
+        const std::vector<int64_t> &zps = add_zps_first
+                ? op1->get_attr<std::vector<int64_t>>("zps")
+                : op2->get_attr<std::vector<int64_t>>("zps");
+
+        op_ptr fused_op = std::make_shared<op_t>(op_kind::Reorder);
+        fused_op->set_attr<bool>("change_layout", false);
+        fused_op->set_attr<int64_t>("axis", axis);
+        fused_op->set_attr<std::string>("qtype", qtype);
+        fused_op->set_attr<std::vector<float>>("scales", scales);
+        if (std::find_if(zps.begin(), zps.end(), [](const int64_t &zp) -> bool {
+                return zp != 0;
+            }) != zps.end()) { // not all zero
+            std::string attr_name = add_zps_first ? "src_zps" : "dst_zps";
+            fused_op->set_attr<std::vector<int64_t>>(attr_name, zps);
+        }
+
+        auto in_val = op1->get_input_value(0);
+        in_val->remove_consumer(*op1, 0);
+        fused_op->connect_input(0, in_val);
+
+        auto out_val = op2->get_output_value(0);
+        fused_op->add_output(out_val);
+        out_val->set_producer(*fused_op);
+
+        subgraph.emplace_back(fused_op);
+
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op1](const op_ptr &f_op) { return op1 == f_op.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+
+        pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op2](const op_ptr &f_op) { return op2 == f_op.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
     }
 }
 

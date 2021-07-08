@@ -79,6 +79,8 @@ public:
 
         std::vector<std::shared_ptr<op_t>> subgraph = part->get_ops();
 
+        set_all_layout_to_any(subgraph);
+
         // for those primitive ops like pooling, it requires the scales and zps
         // between input tensor and output tensor are the same. So here, we
         // don't need to split Dequant and Quant ops firstly, it should be okay

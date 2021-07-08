@@ -354,6 +354,30 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_quant_wei_matmul_fusion)
+        .set_priority(10.0f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    quant->fill_and_connect_input(0, *matmul, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_quant_wei_matmul);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -391,6 +415,48 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, int8_quant_wei_matmul_bias_fusion)
+        .set_priority(10.0f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 3);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    quant->fill_and_connect_input(0, *matmul, 0);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    bias->fill_and_connect_input(0, *matmul, 0);
+                    quant->fill_and_connect_input(0, *bias, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_quant_wei_matmul_bias);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_relu_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -412,6 +478,33 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_relu_fusion)
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
                             op_kind::int8_matmul_relu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, int8_quant_wei_matmul_relu_fusion)
+        .set_priority(10.6f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    relu->fill_and_connect_input(0, *matmul, 0);
+                    quant->fill_and_connect_input(0, *relu, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_quant_wei_matmul_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
@@ -456,6 +549,52 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_relu_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, int8_quant_wei_matmul_bias_relu_fusion)
+        .set_priority(10.6f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    matmul->set_attr<int64_t>("num_inputs", 3);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    relu->fill_and_connect_input(0, *matmul, 0);
+                    quant->fill_and_connect_input(0, *relu, 0);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    bias->fill_and_connect_input(0, *matmul, 0);
+                    relu->fill_and_connect_input(0, *bias, 0);
+                    quant->fill_and_connect_input(0, *relu, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_quant_wei_matmul_bias_relu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_sigmoid_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -477,6 +616,33 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_sigmoid_fusion)
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
                             op_kind::int8_matmul_sigmoid);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, int8_quant_wei_matmul_sigmoid_fusion)
+        .set_priority(10.6f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    sigmoid->fill_and_connect_input(0, *matmul, 0);
+                    quant->fill_and_connect_input(0, *sigmoid, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_quant_wei_matmul_sigmoid);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
@@ -521,6 +687,52 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_sigmoid_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, int8_quant_wei_matmul_bias_sigmoid_fusion)
+        .set_priority(10.6f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
+                    matmul->set_attr<int64_t>("num_inputs", 3);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    sigmoid->fill_and_connect_input(0, *matmul, 0);
+                    quant->fill_and_connect_input(0, *sigmoid, 0);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    bias->fill_and_connect_input(0, *matmul, 0);
+                    sigmoid->fill_and_connect_input(0, *bias, 0);
+                    quant->fill_and_connect_input(0, *sigmoid, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_quant_wei_matmul_bias_sigmoid);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_gelu_fusion)
         .set_priority(9.9f)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -542,6 +754,33 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_gelu_fusion)
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
                             op_kind::int8_matmul_gelu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, int8_quant_wei_matmul_gelu_fusion)
+        .set_priority(10.6f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *gelu = apattern->create_op(op_kind::GELU);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    gelu->fill_and_connect_input(0, *matmul, 0);
+                    quant->fill_and_connect_input(0, *gelu, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_quant_wei_matmul_gelu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
@@ -583,6 +822,52 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_gelu_fusion)
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
                             op_kind::int8_matmul_bias_gelu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, int8_quant_wei_matmul_bias_gelu_fusion)
+        .set_priority(10.6f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 3);
+                    op_t *gelu = apattern->create_op(op_kind::GELU);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    gelu->fill_and_connect_input(0, *matmul, 0);
+                    quant->fill_and_connect_input(0, *gelu, 0);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *gelu = apattern->create_op(op_kind::GELU);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    bias->fill_and_connect_input(0, *matmul, 0);
+                    gelu->fill_and_connect_input(0, *bias, 0);
+                    quant->fill_and_connect_input(0, *gelu, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_quant_wei_matmul_bias_gelu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
@@ -841,6 +1126,291 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_matmul_bias_gelu_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_quant_wei_matmul_fusion)
+        .set_priority(9.6f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::x8s8f32_quant_wei_matmul);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, x8s8f32_quant_wei_matmul_bias_fusion)
+        .set_priority(9.7f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 3);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    bias->fill_and_connect_input(0, *matmul, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::x8s8f32_quant_wei_matmul_bias);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, x8s8f32_quant_wei_matmul_relu_fusion)
+        .set_priority(9.7f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    relu->fill_and_connect_input(0, *matmul, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::x8s8f32_quant_wei_matmul_relu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, x8s8f32_quant_wei_matmul_bias_relu_fusion)
+        .set_priority(9.8f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 3);
+                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    relu->fill_and_connect_input(0, *matmul, 0);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *relu = apattern->create_op(op_kind::ReLU);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    bias->fill_and_connect_input(0, *matmul, 0);
+                    relu->fill_and_connect_input(0, *bias, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::x8s8f32_quant_wei_matmul_bias_relu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, x8s8f32_quant_wei_matmul_sigmoid_fusion)
+        .set_priority(9.7f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    sigmoid->fill_and_connect_input(0, *matmul, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::x8s8f32_quant_wei_matmul_sigmoid);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, x8s8f32_quant_wei_matmul_bias_sigmoid_fusion)
+        .set_priority(9.8f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 3);
+                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    sigmoid->fill_and_connect_input(0, *matmul, 0);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *sigmoid = apattern->create_op(op_kind::Sigmoid);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    bias->fill_and_connect_input(0, *matmul, 0);
+                    sigmoid->fill_and_connect_input(0, *bias, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::x8s8f32_quant_wei_matmul_bias_sigmoid);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, x8s8f32_quant_wei_matmul_gelu_fusion)
+        .set_priority(9.7f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *gelu = apattern->create_op(op_kind::GELU);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    gelu->fill_and_connect_input(0, *matmul, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::x8s8f32_quant_wei_matmul_gelu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, x8s8f32_quant_wei_matmul_bias_gelu_fusion)
+        .set_priority(9.8f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 3);
+                    op_t *gelu = apattern->create_op(op_kind::GELU);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    gelu->fill_and_connect_input(0, *matmul, 0);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *gelu = apattern->create_op(op_kind::GELU);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    bias->fill_and_connect_input(0, *matmul, 0);
+                    gelu->fill_and_connect_input(0, *bias, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::x8s8f32_quant_wei_matmul_bias_gelu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_add_fusion)
         .set_priority(10.5f)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -869,6 +1439,40 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_add_fusion)
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
                             op_kind::int8_matmul_add);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, int8_quant_wei_matmul_add_fusion)
+        .set_priority(10.6f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *dequant_other
+                            = apattern->create_op(op_kind::Dequantize);
+                    // currently dnnl backend only support symmetric
+                    // quantization for the second input of add op
+                    dequant_other->set_attr<bool>("symmetric_check", true);
+
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    add->fill_and_connect_input(0, *matmul, 0);
+                    add->fill_and_connect_input(1, *dequant_other, 0);
+                    quant->fill_and_connect_input(0, *add, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_quant_wei_matmul_add);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
@@ -924,6 +1528,66 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_add_fusion)
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
                             op_kind::int8_matmul_bias_add);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, int8_quant_wei_matmul_bias_add_fusion)
+        .set_priority(10.6f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *dequant_other
+                            = apattern->create_op(op_kind::Dequantize);
+                    // currently dnnl backend only support symmetric
+                    // quantization for the second input of add op
+                    dequant_other->set_attr<bool>("symmetric_check", true);
+
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 3);
+                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    add->fill_and_connect_input(0, *matmul, 0);
+                    add->fill_and_connect_input(1, *dequant_other, 0);
+                    quant->fill_and_connect_input(0, *add, 0);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *dequant_other
+                            = apattern->create_op(op_kind::Dequantize);
+                    // currently dnnl backend only support symmetric
+                    // quantization for the second input of add op
+                    dequant_other->set_attr<bool>("symmetric_check", true);
+
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *quant = apattern->create_op(op_kind::Quantize);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    bias->fill_and_connect_input(0, *matmul, 0);
+                    add->fill_and_connect_input(0, *bias, 0);
+                    add->fill_and_connect_input(1, *dequant_other, 0);
+                    quant->fill_and_connect_input(0, *add, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::int8_quant_wei_matmul_bias_add);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
@@ -1013,6 +1677,103 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_matmul_bias_add_fusion)
                 "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
                     op_t *fused_op = optimized_pattern->create_op(
                             op_kind::x8s8f32_matmul_bias_add);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, x8s8f32_quant_wei_matmul_add_fusion)
+        .set_priority(10.5f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *dequant_other
+                            = apattern->create_op(op_kind::Dequantize);
+                    // currently dnnl backend only support symmetric
+                    // quantization for the second input of add op
+                    dequant_other->set_attr<bool>("symmetric_check", true);
+
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *add = apattern->create_op(op_kind::Add);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    add->fill_and_connect_input(0, *matmul, 0);
+                    add->fill_and_connect_input(1, *dequant_other, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::x8s8f32_quant_wei_matmul_add);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, x8s8f32_quant_wei_matmul_bias_add_fusion)
+        .set_priority(10.5f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *dequant_other
+                            = apattern->create_op(op_kind::Dequantize);
+                    // currently dnnl backend only support symmetric
+                    // quantization for the second input of add op
+                    dequant_other->set_attr<bool>("symmetric_check", true);
+
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 3);
+                    op_t *add = apattern->create_op(op_kind::Add);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    add->fill_and_connect_input(0, *matmul, 0);
+                    add->fill_and_connect_input(1, *dequant_other, 0);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *dequant_data
+                            = apattern->create_op(op_kind::Dequantize);
+                    op_t *quant_weight = apattern->create_op(op_kind::Quantize);
+                    op_t *dequant_weight
+                            = apattern->create_op(op_kind::Dequantize);
+                    dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
+                    op_t *dequant_other
+                            = apattern->create_op(op_kind::Dequantize);
+                    // currently dnnl backend only support symmetric
+                    // quantization for the second input of add op
+                    dequant_other->set_attr<bool>("symmetric_check", true);
+
+                    // this pattern requires the weight should be s8
+                    dequant_weight->set_attr<bool>("s8_check", true);
+
+                    op_t *matmul = apattern->create_op(op_kind::MatMul);
+                    matmul->set_attr<int64_t>("num_inputs", 2);
+                    op_t *bias = apattern->create_op(op_kind::BiasAdd);
+                    op_t *add = apattern->create_op(op_kind::Add);
+                    matmul->fill_and_connect_input(0, *dequant_data, 0);
+                    matmul->fill_and_connect_input(1, *dequant_weight, 0);
+                    bias->fill_and_connect_input(0, *matmul, 0);
+                    add->fill_and_connect_input(0, *bias, 0);
+                    add->fill_and_connect_input(1, *dequant_other, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::x8s8f32_quant_wei_matmul_bias_add);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 

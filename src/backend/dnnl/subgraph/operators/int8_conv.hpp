@@ -77,6 +77,8 @@ public:
         // get subgraph from the deep copied partition
         std::vector<std::shared_ptr<impl::op_t>> subgraph = part->get_ops();
 
+        set_all_layout_to_any(subgraph);
+
         fuse_bias_add(subgraph);
 
         check_with_bias(subgraph);
@@ -90,6 +92,9 @@ public:
         fuse_output_scales(subgraph, prm_attr_mgr_);
         BACKEND_DNNL_CHECK(fuse_post_ops(subgraph, prm_attr_mgr_));
         fuse_zero_points(subgraph, prm_attr_mgr_);
+
+        // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
+        fuse_mul_scales_add_zps(subgraph);
 
         insert_permute(subgraph);
         insert_to_group_for_conv(subgraph);

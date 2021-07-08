@@ -297,16 +297,24 @@ static bool layout_propagation_for_reorder(op_ptr &op) {
 
     if ((ltw(in_lt).is_strided() || ltw(in_lt).is_opaque())
             && (!ltw(out_lt).is_strided() && !ltw(out_lt).is_opaque())) {
-        auto in_md = make_dnnl_memory_desc(in_lt);
-        fill_layout_info(dst, in_md);
+        auto out_md = make_dnnl_memory_desc(in_lt);
+        out_md.data.data_type
+                = static_cast<dnnl_data_type_t>(ltw(out_lt).data_type());
+        fill_layout_info(dst, out_md);
     } else if ((ltw(out_lt).is_strided() || ltw(out_lt).is_opaque())
             && (!ltw(in_lt).is_strided() && !ltw(in_lt).is_opaque())) {
-        auto out_md = make_dnnl_memory_desc(out_lt);
-        fill_layout_info(src, out_md);
+        auto in_md = make_dnnl_memory_desc(out_lt);
+        in_md.data.data_type
+                = static_cast<dnnl_data_type_t>(ltw(in_lt).data_type());
+        fill_layout_info(src, in_md);
     } else {
         changed = false;
     }
     return changed;
+}
+
+static bool layout_propagation_for_mul_scales(op_ptr &op) {
+    return layout_propagation_for_reorder(op);
 }
 
 static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
@@ -362,15 +370,19 @@ static void remove_unnecessary_reorder(std::vector<op_ptr> &subgraph) {
 impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
         const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
     // lambda function to do layout propagation for non-computation-intensive
-    // and non-reorder ops. If no layout is changed, this function will return
-    // false.
+    // and non-layout-reorder ops. If no layout is changed, this function will
+    // return false.
     auto layout_propagation_func = [&](std::vector<op_ptr> &subgraph) -> bool {
         bool changed = false;
         for (auto &cur_op : subgraph) {
             if (cur_op->get_kind() == op_kind::Convolution
                     || cur_op->get_kind() == op_kind::dnnl_convolution
-                    || cur_op->get_kind() == op_kind::MatMul
-                    || cur_op->get_kind() == op_kind::Reorder)
+                    || cur_op->get_kind() == op_kind::MatMul)
+                continue;
+
+            if (cur_op->get_kind() == op_kind::Reorder
+                    && cur_op->has_attr("change_layout")
+                    && cur_op->get_attr<bool>("change_layout"))
                 continue;
 
             if (cur_op->get_kind() == op_kind::MaxPool
@@ -381,11 +393,13 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
             } else if (cur_op->get_kind() == op_kind::permute) {
                 changed = layout_propagation_for_permute(cur_op) || changed;
             } else if (cur_op->get_kind() == op_kind::mul_scales) {
-                changed = layout_propagation_for_reorder(cur_op) || changed;
+                changed = layout_propagation_for_mul_scales(cur_op) || changed;
             } else if (cur_op->get_kind() == op_kind::to_group) {
                 changed = layout_propagation_for_to_group(cur_op) || changed;
             } else if (cur_op->get_kind() == op_kind::expand) {
                 changed = layout_propagation_for_expand(cur_op) || changed;
+            } else if (cur_op->get_kind() == op_kind::Reorder) {
+                changed = layout_propagation_for_reorder(cur_op) || changed;
             } else {
                 assertm(false,
                         "none layout propagation function for current op");
@@ -420,7 +434,10 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
         }
         // layout propagation for layout reorder op
         for (auto &cur_op : subgraph) {
-            if (cur_op->get_kind() != op_kind::Reorder) continue;
+            if (cur_op->get_kind() != op_kind::Reorder
+                    || (cur_op->has_attr("change_layout")
+                            && !cur_op->get_attr<bool>("change_layout")))
+                continue;
             changed = layout_propagation_for_reorder(cur_op) || changed;
         }
         cnt++;

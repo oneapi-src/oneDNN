@@ -77,6 +77,7 @@ void insert_reorder(std::vector<op_ptr> &subgraph) {
             if (i >= in_bound) break;
 
             op_ptr reorder_op = std::make_shared<impl::op_t>(op_kind::Reorder);
+            reorder_op->set_attr<bool>("change_layout", true);
             insert_op_before(reorder_op, cur_op, i);
             to_be_inserted_ops.emplace_back(reorder_op);
         }
@@ -192,40 +193,11 @@ void insert_expand_for_matmul(std::vector<op_ptr> &subgraph) {
         std::vector<op_ptr> expand_ops;
         expand_ops.reserve(cur_op->num_inputs());
 
-        int32_t new_src_ndims, new_wei_ndims;
-        // FIXME(wuxun): if the producer op is transpose, the ndims is unknown
-        // and should be derived from producer's producer
-        if (cur_op->get_input_value(0)->has_producer()) {
-            auto &src_producer = cur_op->get_input_value(0)->get_producer();
-            if (src_producer.get_kind() == op_kind::permute) {
-                new_src_ndims = src_producer.get_input_value(0)
-                                        ->get_logical_tensor()
-                                        .ndims;
-            } else {
-                new_src_ndims = cur_op->get_input_value(0)
-                                        ->get_logical_tensor()
-                                        .ndims;
-            }
-        } else {
-            new_src_ndims
-                    = cur_op->get_input_value(0)->get_logical_tensor().ndims;
-        }
-
-        if (cur_op->get_input_value(1)->has_producer()) {
-            auto &wei_producer = cur_op->get_input_value(1)->get_producer();
-            if (wei_producer.get_kind() == op_kind::permute) {
-                new_wei_ndims = wei_producer.get_input_value(0)
-                                        ->get_logical_tensor()
-                                        .ndims;
-            } else {
-                new_wei_ndims = cur_op->get_input_value(1)
-                                        ->get_logical_tensor()
-                                        .ndims;
-            }
-        } else {
-            new_wei_ndims
-                    = cur_op->get_input_value(1)->get_logical_tensor().ndims;
-        }
+        int32_t new_src_ndims
+                = cur_op->get_input_value(0)->get_logical_tensor().ndims;
+        int32_t new_wei_ndims
+                = cur_op->get_input_value(1)->get_logical_tensor().ndims;
+        assertm(new_src_ndims >= 1 && new_wei_ndims >= 1, "invalid dims");
 
         std::vector<int32_t> ori_ndims {new_src_ndims, new_wei_ndims};
         int32_t dst_ndims
