@@ -19,6 +19,7 @@
 #include "gtest/gtest.h"
 
 #include "oneapi/dnnl/dnnl.hpp"
+#include "tests/test_isa_common.hpp"
 
 namespace dnnl {
 
@@ -512,6 +513,43 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, InnerProdPostops) {
         pd = inner_product_forward::primitive_desc(ip_desc, attr, e);
         ASSERT_NO_THROW(impl_info_with_postops = pd.impl_info_str(););
         ASSERT_EQ(impl_info_no_postops, impl_info_with_postops);
+    }
+}
+
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, InnerProdBlockedWeights) {
+    auto engine_kind = get_test_engine_kind();
+    bool skip_test = !DNNL_X64 || (DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE)
+            || (engine_kind != engine::kind::cpu);
+#if DNNL_X64
+    skip_test = skip_test || !dnnl::mayiuse(cpu_isa::avx512_core);
+#endif
+    SKIP_IF(skip_test,
+            "Inner product blocked weights test is supported only on "
+            "avx512_core CPU");
+
+    engine e {engine_kind, 0};
+
+    std::vector<memory::format_tag> blocked_weights_tags {
+            memory::format_tag::OIhw16i64o, memory::format_tag::OIhw16i32o,
+            memory::format_tag::OIhw16i16o};
+
+    for (const auto &weights_tag : blocked_weights_tags) {
+        memory::desc src_md {{1024, 512, 1, 1}, memory::data_type::f32,
+                memory::format_tag::any};
+        memory::desc wei_md {
+                {256, 512, 1, 1}, memory::data_type::f32, weights_tag};
+        memory::desc bia_md {
+                {256}, memory::data_type::f32, memory::format_tag::any};
+        memory::desc dst_md {
+                {1024, 256}, memory::data_type::f32, memory::format_tag::any};
+
+        auto ip_desc = inner_product_forward::desc(
+                prop_kind::forward_training, src_md, wei_md, bia_md, dst_md);
+        auto pd = inner_product_forward::primitive_desc(ip_desc, e);
+
+        std::string impl_info;
+        ASSERT_NO_THROW(impl_info = pd.impl_info_str(););
+        ASSERT_NE(impl_info, "ref:any");
     }
 }
 
