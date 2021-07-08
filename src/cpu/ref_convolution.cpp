@@ -573,9 +573,11 @@ status_t ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
         const dim_t src_loc_off
                 = get_data_off(src_d, ndims, 0, g * IC + ic, 0, 0, 0);
 
+        // check for nullptr in case of zero spatial dimensions
         const diff_dst_data_t *__restrict diff_dst_loc
-                = diff_dst + diff_dst_loc_off;
-        const src_data_t *__restrict src_loc = src + src_loc_off;
+                = diff_dst ? diff_dst + diff_dst_loc_off : nullptr;
+        const src_data_t *__restrict src_loc
+                = src ? src + src_loc_off : nullptr;
 
         for_(dim_t mb = 0; mb < MB; ++mb)
         for_(dim_t od = 0; od < OD; ++od)

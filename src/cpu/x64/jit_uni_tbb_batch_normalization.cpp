@@ -1859,11 +1859,11 @@ public:
                     + start.S * stride_S;
             c.src = (void *)((char *)src + d_off * dt_size_);
             c.dst = (void *)((char *)dst + d_off * dt_size_);
-            c.ws = &ws[d_off / bits_per_byte];
+            c.ws = ws ? &ws[d_off / bits_per_byte] : nullptr;
             c.mean = &mean[start.C * simd_w];
             c.var = &var[start.C * simd_w];
-            c.scale = &scale[start.C * simd_w];
-            c.shift = &shift[start.C * simd_w];
+            c.scale = scale ? &scale[start.C * simd_w] : nullptr;
+            c.shift = shift ? &shift[start.C * simd_w] : nullptr;
             c.blk_has_tail = blk_has_tail && stop.C == C_blks;
             (*ker_fwd_)(&c);
         });
@@ -1976,7 +1976,7 @@ public:
                     + start.S * stride_S;
             c.src = (void *)((char *)src + d_off * dt_size_);
             c.diff_dst = (void *)((char *)diff_dst + d_off * dt_size_);
-            c.ws = &ws[d_off / bits_per_byte];
+            c.ws = ws ? &ws[d_off / bits_per_byte] : nullptr;
             c.mean = &mean[start.C * simd_w];
             c.var = &var[start.C * simd_w];
             c.diff_gamma = &loc_diff_gamma[start.C * simd_w];
@@ -2015,10 +2015,10 @@ public:
             c.src = (void *)((char *)src + d_off * dt_size_);
             c.diff_src = (void *)((char *)diff_src + d_off * dt_size_);
             c.diff_dst = (void *)((char *)diff_dst + d_off * dt_size_);
-            c.ws = &ws[d_off / bits_per_byte];
+            c.ws = ws ? &ws[d_off / bits_per_byte] : nullptr;
             c.mean = &mean[start.C * simd_w];
             c.var = &var[start.C * simd_w];
-            c.scale = &scale[start.C * simd_w];
+            c.scale = scale ? &scale[start.C * simd_w] : nullptr;
             c.diff_scale = &diff_scale[start.C * simd_w];
             c.diff_shift = &diff_shift[start.C * simd_w];
             c.blk_has_tail = blk_has_tail && stop.C == C_blks;
