@@ -58,7 +58,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
 
             using skip_mask_t = primitive_attr_t::skip_mask_t;
             auto skip_mask = skip_mask_t::post_ops;
-            if (one_of(src_dt, u8, s8)) skip_mask |= skip_mask_t::oscale;
+            if (one_of(src_dt, u8, s8)) skip_mask |= skip_mask_t::oscale
+                | skip_mask_t::oscale_runtime;
 
             bool ok = is_fwd() && mayiuse(isa)
                     && expect_data_types(src_dt, wei_dt, data_type::undef,
@@ -179,12 +180,11 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
-    void execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<brgemm_kernel_t>

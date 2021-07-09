@@ -19,6 +19,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_primitive.hpp"
+
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
@@ -55,7 +57,7 @@ void copy_data_chunk(ker_type &ker, char *tr_data, const char *data,
 } // namespace
 
 template <cpu_isa_t isa>
-void brgemm_inner_product_fwd_t<isa>::execute_forward(
+status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
         const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
@@ -70,7 +72,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
 
     const auto &jbgp = pd()->jbgp_;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
@@ -453,6 +455,8 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
             }
         });
     }
+
+    return status::success;
 }
 
 template struct brgemm_inner_product_fwd_t<avx512_core>;

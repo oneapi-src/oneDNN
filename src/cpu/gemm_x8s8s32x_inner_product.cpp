@@ -18,6 +18,8 @@
 #include "common/math_utils.hpp"
 #include "cpu/simple_q10n.hpp"
 
+#include "cpu/cpu_primitive.hpp"
+
 #include "cpu/binary_injector_utils.hpp"
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm_x8s8s32x_inner_product.hpp"
@@ -54,7 +56,7 @@ status_t gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
     const src_data_t off_b = 0;
     const int32_t off_c = 0;
 
-    const float *scales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(scales);
 
     acc_data_t *acc = pd()->dst_is_acc_
             ? (acc_data_t *)dst

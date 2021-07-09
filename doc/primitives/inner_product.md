@@ -131,6 +131,13 @@ The following post-ops are supported by inner product primitives:
 | forward     | post-op   | [Sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |                                     |
 | forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)                 | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions |
 
+To facilitate dynamic quantization, the primitive supports run-time output
+scales. That means a user could configure attributes with output scales set to
+the #DNNL_RUNTIME_F32_VAL wildcard value instead of the actual scales,
+if the scales are not known at the primitive descriptor creation stage.
+In this case, the user must provide the scales as an additional input memory
+object with argument `DNNL_ARG_ATTR_OUTPUT_SCALES` during the execution stage.
+
 ## Implementation Limitations
 
 1. Check @ref dev_guide_data_types.

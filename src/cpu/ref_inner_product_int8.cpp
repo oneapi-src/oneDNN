@@ -24,6 +24,8 @@
 #include "cpu/ref_inner_product_int8.hpp"
 #include "cpu/ref_inner_product_utils.hpp"
 
+#include "cpu/cpu_primitive.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -69,11 +71,11 @@ status_t ref_inner_product_int8_fwd_t::execute_forward(
         return d;
     };
 
+    DEFINE_SCALES_BUFFER(scales);
     auto maybe_oscale = [=](float &d, dim_t oc) {
         // scale_idx_mult = 1 for per_oc scales and 0, otherwise
         const int scale_idx_mult
                 = pd()->attr()->output_scales_.mask_ == (1 << 1);
-        const float *scales = pd()->attr()->output_scales_.scales_;
         d *= scales[oc * scale_idx_mult];
     };
 
