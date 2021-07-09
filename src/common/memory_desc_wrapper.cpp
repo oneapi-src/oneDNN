@@ -57,7 +57,9 @@ status_t fill_blocked(memory_desc_t &md, std::initializer_list<int> perm,
 
     utils::array_set(md.padded_offsets, 0, md.ndims);
     for (int d = 0; d < md.ndims; ++d)
-        md.padded_dims[d] = utils::rnd_up(md.dims[d], blocks[d]);
+        md.padded_dims[d] = md.dims[d] == DNNL_RUNTIME_DIM_VAL
+                ? DNNL_RUNTIME_DIM_VAL
+                : utils::rnd_up(md.dims[d], blocks[d]);
 
     // setting the strides
     {

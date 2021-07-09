@@ -227,6 +227,9 @@ std::string md2fmt_tag_str(const dnnl_memory_desc_t *md) {
         ou_blocks[d] /= blocks[d];
     }
 
+    // Can't report meaningful tag for runtime dimensions.
+    if (mdw.has_runtime_strides()) return "*";
+
     dims_t strides;
     utils::array_copy(strides, blk.strides, mdw.ndims());
 

@@ -732,8 +732,12 @@ inline status_t memory_desc_init_by_blocking_desc(
         ou_blocks[d] /= blocks[d];
     }
 
-    utils::simultaneous_sort(mblk.strides, ou_blocks, perm, ndims,
-            [](stride_t a, stride_t b) { return b - a; });
+    utils::simultaneous_sort(
+            mblk.strides, ou_blocks, perm, ndims, [](stride_t a, stride_t b) {
+                if (utils::one_of(DNNL_RUNTIME_DIM_VAL, a, b))
+                    return DNNL_RUNTIME_DIM_VAL;
+                return b - a;
+            });
 
     dim_t stride = block_size;
     for (int _d = ndims - 1; _d >= 0; --_d) {

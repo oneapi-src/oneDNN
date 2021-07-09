@@ -518,7 +518,9 @@ int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
             blk.strides[dim_idx] = stride;
 
             dnnl_dim_t fib = full_inner_blks[dim_idx];
-            dnnl_dim_t padded_dim = (md->dims[dim_idx] + fib - 1) / fib * fib;
+            dnnl_dim_t padded_dim = md->dims[dim_idx] == DNNL_RUNTIME_DIM_VAL
+                    ? DNNL_RUNTIME_DIM_VAL
+                    : (md->dims[dim_idx] + fib - 1) / fib * fib;
             md->padded_dims[dim_idx] = padded_dim;
             if (padded_dim == DNNL_RUNTIME_DIM_VAL)
                 stride = DNNL_RUNTIME_DIM_VAL;
