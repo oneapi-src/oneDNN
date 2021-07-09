@@ -1271,14 +1271,14 @@ static int ExecDeathTestChildMain(void* child_arg) {
 static void StackLowerThanAddress(const void* ptr,
                                   bool* result) GTEST_NO_INLINE_;
 static void StackLowerThanAddress(const void* ptr, bool* result) {
-  int dummy;
+  int dummy = 0;
   *result = (&dummy < ptr);
 }
 
 // Make sure AddressSanitizer does not tamper with the stack here.
 GTEST_ATTRIBUTE_NO_SANITIZE_ADDRESS_
 static bool StackGrowsDown() {
-  int dummy;
+  int dummy = 0;
   bool result;
   StackLowerThanAddress(&dummy, &result);
   return result;
