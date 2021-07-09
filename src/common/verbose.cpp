@@ -17,6 +17,7 @@
 #include <atomic>
 #include <iostream>
 #include <sstream>
+#include <type_traits>
 
 #include <stdlib.h>
 #ifndef _WIN32
@@ -292,6 +293,14 @@ std::ostream &operator<<(std::ostream &ss, const memory_desc_t *md) {
     return ss;
 }
 
+template <typename T>
+static std::string get_val_str(T val) {
+    static_assert(
+            std::is_arithmetic<T>::value, "T must be an arithmetic type.");
+    if (is_runtime_value(val)) return std::string("*");
+    return std::to_string(val);
+}
+
 // Returns string with dimensions from a given memory descriptor.
 // The format is defined as: dim0xdim1x...xdimN, with RT values signed as `*`.
 std::string md2dim_str(const dnnl_memory_desc_t *md) {
@@ -300,12 +309,9 @@ std::string md2dim_str(const dnnl_memory_desc_t *md) {
     memory_desc_wrapper mdw(md);
     std::string s;
 
-    for (int d = 0; d < mdw.ndims() - 1; ++d) {
-        auto val = mdw.dims()[d];
-        s += (is_runtime_value(val) ? "*" : std::to_string(val)) + "x";
-    }
-    auto val = mdw.dims()[mdw.ndims() - 1];
-    s += (is_runtime_value(val) ? "*" : std::to_string(val));
+    s += get_val_str(mdw.dims()[0]);
+    for (int d = 1; d < mdw.ndims(); ++d)
+        s += ("x" + get_val_str(mdw.dims()[d]));
 
     return s;
 }
@@ -331,7 +337,7 @@ std::string md2desc_str(const memory_desc_t *md) {
 
 std::ostream &operator<<(std::ostream &ss, const scales_t &oscale) {
     ss << oscale.mask_;
-    if (oscale.mask_ == 0) ss << ":" << oscale.scales_[0];
+    if (oscale.mask_ == 0) ss << ":" << get_val_str(oscale.scales_[0]);
     return ss;
 }
 
@@ -379,12 +385,7 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                << (arg == DNNL_ARG_SRC ? "src"
                                        : arg == DNNL_ARG_DST ? "dst" : "wei")
                << ":" << mask;
-            if (mask == 0) {
-                if (is_runtime_value(*zpp))
-                    ss << ":*";
-                else
-                    ss << ":" << *zpp;
-            }
+            if (mask == 0) ss << ":" << get_val_str(*zpp);
             delim = attr_delim;
         }
         ss << " ";
