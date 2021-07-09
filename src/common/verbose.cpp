@@ -205,6 +205,8 @@ std::ostream &operator<<(std::ostream &ss, const memory_extra_desc_t &extra) {
         ss << ":s8m" << extra.compensation_mask;
     if (extra.flags & compensation_conv_asymmetric_src)
         ss << ":zpm" << extra.asymm_compensation_mask;
+    if (extra.flags & scale_adjust && extra.scale_adjust != 1.f)
+        ss << ":sa" << extra.scale_adjust;
     return ss;
 }
 
