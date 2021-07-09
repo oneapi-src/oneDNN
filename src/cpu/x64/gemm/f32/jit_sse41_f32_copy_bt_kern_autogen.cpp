@@ -60,7 +60,7 @@ void jit_sse41_f32_copy_bt_kern::generate() {
 
     inLocalLabel();
     {
-        std::vector<Xbyak::Label> labels(58);
+        std::vector<Xbyak::Label> labels(59);
         preamble();
 #ifdef _WIN32
         auto stacksize = get_size_of_abi_save_regs();
