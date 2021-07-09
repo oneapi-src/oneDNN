@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Arm Ltd. and affiliates
+* Copyright 2021 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/aarch64/acl_winograd_convolution.hpp"
+#include "cpu/aarch64/acl_inner_product.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -25,38 +25,38 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
 
-status_t acl_wino_convolution_fwd_t::execute_forward(
-        const exec_ctx_t &ctx) const {
+status_t acl_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     status_t status = status::success;
     auto src_base = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto wei_base = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     auto bia_base = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
-    bool with_bias = pd()->acp_.with_bias;
+    bool with_bias = pd()->aip_.with_bias;
+    bool with_sum = pd()->aip_.with_sum;
 
     // Retrieve primitive resource and configured Compute Library objects
     auto *acl_resource
-            = ctx.get_resource_mapper()->get<acl_wino_resource_t>(this);
-    acl_obj_t<arm_compute::NEWinogradConvolutionLayer> &acl_wino_obj
-            = acl_resource->get_acl_obj();
+            = ctx.get_resource_mapper()->get<acl_ip_resource_t>(this);
+    acl_ip_obj_t &acl_obj = acl_resource->get_acl_obj();
 
-    acl_wino_obj.src_tensor.allocator()->import_memory(
+    acl_obj.src_tensor.allocator()->import_memory(
             const_cast<data_t *>(src_base));
-    acl_wino_obj.wei_tensor.allocator()->import_memory(
+    acl_obj.wei_tensor.allocator()->import_memory(
             const_cast<data_t *>(wei_base));
-    acl_wino_obj.dst_tensor.allocator()->import_memory(dst_base);
+    acl_obj.dst_tensor.allocator()->import_memory(dst_base);
     if (with_bias) {
-        acl_wino_obj.bia_tensor.allocator()->import_memory(
+        acl_obj.bia_tensor.allocator()->import_memory(
                 const_cast<data_t *>(bia_base));
     }
 
-    acl_wino_obj.conv.run();
+    acl_obj.fc.run();
+    if (with_sum) { acl_obj.add.run(); }
 
-    acl_wino_obj.src_tensor.allocator()->free();
-    acl_wino_obj.wei_tensor.allocator()->free();
-    acl_wino_obj.dst_tensor.allocator()->free();
-    if (with_bias) { acl_wino_obj.bia_tensor.allocator()->free(); }
+    acl_obj.src_tensor.allocator()->free();
+    acl_obj.wei_tensor.allocator()->free();
+    acl_obj.dst_tensor.allocator()->free();
+    if (with_bias) { acl_obj.bia_tensor.allocator()->free(); }
 
     return status;
 }

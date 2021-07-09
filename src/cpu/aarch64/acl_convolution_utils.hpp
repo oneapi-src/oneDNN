@@ -17,14 +17,9 @@
 #ifndef CPU_AARCH64_ACL_CONVOLUTION_UTILS_HPP
 #define CPU_AARCH64_ACL_CONVOLUTION_UTILS_HPP
 
-#include "common/c_types_map.hpp"
-#include "common/dnnl_thread.hpp"
-#include "common/memory_tracking.hpp"
-
 #include "cpu/cpu_convolution_pd.hpp"
-#include "cpu/cpu_engine.hpp"
 
-#include "arm_compute/runtime/NEON/NEFunctions.h"
+#include "cpu/aarch64/acl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -73,10 +68,6 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
         const primitive_attr_t &attr);
-
-arm_compute::DataType get_acl_data_t(const dnnl_data_type_t dt);
-arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr);
-bool acl_act_ok(alg_kind_t eltwise_activation);
 
 } // namespace acl_convolution_utils
 

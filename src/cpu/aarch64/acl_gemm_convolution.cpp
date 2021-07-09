@@ -14,15 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "oneapi/dnnl/dnnl_types.h"
-
-#include "common/c_types_map.hpp"
-#include "common/dnnl_thread.hpp"
-#include "common/type_helpers.hpp"
-#include "common/utils.hpp"
 #include "cpu/aarch64/acl_gemm_convolution.hpp"
-
-#include <cstring>
 
 namespace dnnl {
 namespace impl {

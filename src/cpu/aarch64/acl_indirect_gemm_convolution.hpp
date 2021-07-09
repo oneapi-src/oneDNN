@@ -17,16 +17,9 @@
 #ifndef CPU_AARCH64_ACL_INDIRECT_GEMM_CONVOLUTION_HPP
 #define CPU_AARCH64_ACL_INDIRECT_GEMM_CONVOLUTION_HPP
 
-#include "common/primitive.hpp"
-#include "common/utils.hpp"
-
-#include "cpu/aarch64/acl_convolution_utils.hpp"
-
 #include "cpu/cpu_convolution_pd.hpp"
 
-#include "arm_compute/runtime/FunctionDescriptors.h"
-#include "arm_compute/runtime/NEON/NEFunctions.h"
-#include "arm_compute/runtime/Scheduler.h"
+#include "cpu/aarch64/acl_convolution_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -104,13 +97,7 @@ struct acl_indirect_gemm_convolution_fwd_t : public primitive_t {
                     *attr());
             if (conf_status != status::success) return status::unimplemented;
 
-            // Number of threads in Compute Library is set by OMP_NUM_THREADS
-            // dnnl_get_max_threads() == OMP_NUM_THREADS
-
-            arm_compute::IScheduler::BindFunc linear
-                    = [](int i, int max_cores) { return i % max_cores; };
-            arm_compute::Scheduler::get().set_num_threads_with_affinity(
-                    dnnl_get_max_threads(), linear);
+            acl_common_utils::acl_thread_bind();
 
             return status::success;
         }
@@ -129,7 +116,7 @@ struct acl_indirect_gemm_convolution_fwd_t : public primitive_t {
             // Compute Library supports only one eltwise post-op
             if (po.len() == 1 && is_eltwise(0)) {
                 const auto act_type = po.entry_[0].eltwise.alg;
-                eltwise_ok = acl_convolution_utils::acl_act_ok(act_type);
+                eltwise_ok = acl_common_utils::acl_act_ok(act_type);
             }
 
             return eltwise_ok || (po.len() == 0);
