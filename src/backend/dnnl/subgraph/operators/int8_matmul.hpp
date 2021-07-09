@@ -35,6 +35,7 @@
 #include "backend/dnnl/subgraph/memory_binding.hpp"
 #include "backend/dnnl/subgraph/op_executable.hpp"
 #include "backend/dnnl/subgraph/passes.hpp"
+#include "backend/dnnl/utils.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -56,11 +57,26 @@ private:
     std::vector<std::shared_ptr<impl::op_t>> opt_subgraph_;
 
     registry_t registry_;
+    registry_t c_registry_;
     size_t resource_key_;
     resource_cache_t::creator_t resource_ctor_;
 
+    // FIXME(qun) improve the cache key
+    constant_cache_t::key_t constant_key_
+            = reinterpret_cast<constant_cache_t::key_t>(this);
+
+    bool enable_constant_cache_ = utils::is_enable_constant_cache();
+
+    std::vector<bool> is_constant_;
+    std::vector<bool> is_skip_;
+
 public:
-    virtual ~quantized_matmul() {}
+    virtual ~quantized_matmul() {
+        if (enable_constant_cache_) {
+            constant_cache_t constant_cache;
+            constant_cache.remove_if_exist(constant_key_);
+        }
+    }
 
     virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
@@ -125,6 +141,17 @@ public:
             }
         }
 
+        // constant propagation
+        if (enable_constant_cache_) {
+#if 1
+            // TODO(qun): because fwk doesn't set constant from API level at
+            // this momnet, so we hardcode matmul op's weight and bias to be
+            // constant
+            set_weight_bias_constant(subgraph);
+#endif
+            constant_propagation(subgraph);
+        }
+
         BACKEND_DNNL_CHECK(
                 compile_ops(subgraph, p_engine_, prm_attr_mgr_, exec_mgr_));
 
@@ -132,7 +159,7 @@ public:
         BACKEND_DNNL_CHECK(memory_binding(subgraph, inputs, outputs, p_engine_,
                 exec_arg_mgr_, prm_attr_mgr_));
 
-        // topologically sort the prms and their args
+        // topologically sort the executables
         impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(),
                 [this](impl::op_t *op) {
                     auto exec_key = op->get_attr<int64_t>("executable_key");
@@ -141,6 +168,12 @@ public:
 
                     auto arg_key = op->get_attr<int64_t>("execution_args_key");
                     exec_arg_mgr_.add_topo_ordered_key(arg_key);
+
+                    is_constant_.push_back(op->has_attr("is_constant")
+                            && op->get_attr<bool>("is_constant"));
+
+                    is_skip_.push_back(op->has_attr("is_skip")
+                            && op->get_attr<bool>("is_skip"));
                     return impl::status::success;
                 });
 
@@ -150,8 +183,17 @@ public:
         // for each internal memory
         registry_t::key_t key = 0;
         registrar_t registrar = registry_.registrar();
-        for (const auto &mem : exec_arg_mgr_.get_internal_mems()) {
+        for (const auto &mem : exec_arg_mgr_.get_internal_variable_mems()) {
             registrar.book(key++, mem.get_desc().get_size());
+        }
+
+        if (enable_constant_cache_) {
+            registry_t::key_t constant_key = 0;
+            registrar_t constant_registrar = c_registry_.registrar();
+            for (auto &mem : exec_arg_mgr_.get_internal_constant_mems()) {
+                constant_registrar.book(
+                        constant_key++, mem.get_desc().get_size());
+            }
         }
 
         // generate a hash key for exec_args_mgr
@@ -193,11 +235,50 @@ public:
         grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
 
         registry_t::key_t key = 0;
-        for (auto &mem : res->get_exec_args_mgr().get_internal_mems()) {
+        for (auto &mem :
+                res->get_exec_args_mgr().get_internal_variable_mems()) {
             mem.set_data_handle(grantor.get(key++));
         }
 
+        if (enable_constant_cache_) {
+            std::promise<constant_cache_t::cached_t> c_promise;
+            constant_cache_t global_constant_cache;
+            constant_cache_t::value_t cached_value
+                    = global_constant_cache.get_or_add(
+                            constant_key_, c_promise.get_future());
+            bool is_from_cache = cached_value.valid();
+            if (is_from_cache) {
+                constant_cache_t::cached_t c_buffer = cached_value.get();
+                grantor_t c_grantor
+                        = c_registry_.grantor(c_buffer->data<char>());
+                registry_t::key_t key = 0;
+                for (auto &mem :
+                        res->get_exec_args_mgr().get_internal_constant_mems()) {
+                    mem.set_data_handle(c_grantor.get(key++));
+                }
+            } else {
+                constant_cache_t::cached_t c_buffer
+                        = std::make_shared<constant_buffer_t>(
+                                c_registry_.size(), p_engine_, g_alloc_);
+                grantor_t c_grantor
+                        = c_registry_.grantor(c_buffer->data<char>());
+                registry_t::key_t key = 0;
+                for (auto &mem :
+                        res->get_exec_args_mgr().get_internal_constant_mems()) {
+                    mem.set_data_handle(c_grantor.get(key++));
+                }
+
+                for (size_t i = 0; i < execs_.size(); i++) {
+                    if (!is_constant_[i]) continue;
+                    execs_[i]->execute(p_stream, res->get_exec_args()[i]);
+                }
+
+                c_promise.set_value(c_buffer);
+            }
+        }
+
         for (size_t i = 0; i < execs_.size(); i++) {
+            if (is_skip_[i]) continue;
             execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
@@ -224,9 +305,12 @@ public:
 
         if (with_sum) {
             // post_src should always be the last one input of matmul op
-            auto post_src_val
-                    = matmul_op->get_input_value(matmul_op->num_inputs() - 1);
-            size_t post_src_id = post_src_val->get_logical_tensor().id;
+            auto val = matmul_op->get_input_value(matmul_op->num_inputs() - 1);
+            if (val->has_producer()
+                    && val->get_producer().get_kind() == op_kind::expand) {
+                val = val->get_producer().get_input_value(0);
+            }
+            size_t post_src_id = val->get_logical_tensor().id;
 
             // find the given post src index
             size_t idx = 0;

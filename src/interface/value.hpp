@@ -68,6 +68,8 @@ public:
         val_.layout_type = layout_type::opaque;
     }
 
+    void set_property(property_type_t ptype) { val_.property = ptype; }
+
     void set_data_type(data_type_t new_dtype) { val_.data_type = new_dtype; }
 
     op_t &get_producer() const { return *producer_; }

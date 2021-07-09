@@ -137,7 +137,7 @@ public:
         // for each internal memory
         registry_t::key_t key = 0;
         registrar_t registrar = registry_.registrar();
-        for (const auto &mem : exec_arg_mgr_.get_internal_mems()) {
+        for (const auto &mem : exec_arg_mgr_.get_internal_variable_mems()) {
             registrar.book(key++, mem.get_desc().get_size());
         }
 
@@ -180,7 +180,8 @@ public:
         grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
 
         registry_t::key_t key = 0;
-        for (auto &mem : res->get_exec_args_mgr().get_internal_mems()) {
+        for (auto &mem :
+                res->get_exec_args_mgr().get_internal_variable_mems()) {
             mem.set_data_handle(grantor.get(key++));
         }
 

@@ -181,6 +181,25 @@ void set_all_layout_to_any(std::vector<op_ptr> &subgraph) {
     }
 }
 
+// Constant property should be set by users from API level, this function is
+// just a workaround at this moment.
+void set_weight_bias_constant(std::vector<op_ptr> &subgraph) {
+    for (auto &op : subgraph) {
+        if (!(op->get_kind() == op_kind::MatMul
+                    || op->get_kind() == op_kind::Convolution
+                    || op->get_kind() == op_kind::dnnl_convolution))
+            continue;
+
+        // set weight to be constant
+        op->get_input_value(1)->set_property(property_type::constant);
+
+        // set bias to be constant
+        if (op->get_attr<bool>("with_bias")) {
+            op->get_input_value(2)->set_property(property_type::constant);
+        }
+    }
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

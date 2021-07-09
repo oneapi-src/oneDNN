@@ -76,8 +76,12 @@ public:
                     value_mem_map_.at(find_val(mem)));
         }
 
-        for (auto &mem : other.internal_mems_) {
-            internal_mems_.emplace_back(value_mem_map_[find_val(mem)]);
+        for (auto &mem : other.internal_variable_mems_) {
+            internal_variable_mems_.emplace_back(value_mem_map_[find_val(mem)]);
+        }
+
+        for (auto &mem : other.internal_constant_mems_) {
+            internal_constant_mems_.emplace_back(value_mem_map_[find_val(mem)]);
         }
 
         for (auto &key_args : other.data_) {
@@ -137,15 +141,12 @@ public:
         external_output_mems_.emplace_back(mem);
     }
 
-    // for internal memory
-    const std::vector<memory> &get_internal_mems() { return internal_mems_; }
-
-    const std::vector<memory> &get_internal_mems() const {
-        return internal_mems_;
+    const std::vector<memory> &get_internal_variable_mems() const {
+        return internal_variable_mems_;
     }
 
-    void add_internal_mem(const memory &mem) {
-        internal_mems_.emplace_back(mem);
+    void add_internal_variable_mem(const memory &mem) {
+        internal_variable_mems_.emplace_back(mem);
     }
 
     void add_value_mem_map(const std::pair<value_t *, memory> &map) {
@@ -169,13 +170,22 @@ public:
         return topo_ordered_keys_;
     }
 
+    void add_internal_constant_mem(const memory &mem) {
+        internal_constant_mems_.emplace_back(mem);
+    }
+
+    const std::vector<memory> &get_internal_constant_mems() const {
+        return internal_constant_mems_;
+    }
+
 private:
     std::unordered_map<int64_t, std::unordered_map<int, memory>> data_;
     int64_t counter {0};
 
     std::vector<memory> external_input_mems_;
     std::vector<memory> external_output_mems_;
-    std::vector<memory> internal_mems_;
+    std::vector<memory> internal_variable_mems_;
+    std::vector<memory> internal_constant_mems_;
     std::unordered_map<value_t *, memory> value_mem_map_; // pointer -> mem
     std::vector<int64_t> topo_ordered_keys_;
 };
@@ -214,7 +224,12 @@ struct hash<dnnl::graph::impl::dnnl_impl::execution_args_mgr> {
             seed = hash_combine(seed, mem.get_engine().get());
         }
 
-        for (auto &mem : exec_args_mgr.get_internal_mems()) {
+        for (auto &mem : exec_args_mgr.get_internal_variable_mems()) {
+            seed = hash_combine(seed, get_md_hash(mem.get_desc()));
+            seed = hash_combine(seed, mem.get_engine().get());
+        }
+
+        for (auto &mem : exec_args_mgr.get_internal_constant_mems()) {
             seed = hash_combine(seed, get_md_hash(mem.get_desc()));
             seed = hash_combine(seed, mem.get_engine().get());
         }

@@ -1,0 +1,100 @@
+/*******************************************************************************
+ * Copyright 2021 Intel Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
+
+#include <algorithm>
+#include <memory>
+#include <string>
+#include <vector>
+#include <unordered_map>
+
+#include "dnnl.hpp"
+
+#include <interface/value.hpp>
+
+#include "backend/dnnl/common.hpp"
+#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/legacy.hpp"
+#include "backend/dnnl/subgraph/utils.hpp"
+#include "backend/dnnl/utils.hpp"
+
+namespace dnnl {
+namespace graph {
+namespace impl {
+namespace dnnl_impl {
+using op_t = impl::op_t;
+using op_ptr = std::shared_ptr<impl::op_t>;
+using ltw = impl::logical_tensor_wrapper;
+
+// Because we don't know which logical tensors (may be partition's ins/outs
+// edges, or edges inside partition) will be set constant by FWK, so we have to
+// do constant propagation bidirectionally
+void constant_propagation(std::vector<op_ptr> &subgraph) {
+    impl::graph_t tmp_graph(subgraph);
+    bool changed;
+    do {
+        changed = false;
+        impl::topo_order_visit(tmp_graph.get_output_ops(), [&](op_t *op) {
+            bool all_inputs_are_constant = true;
+            for (const auto &in : op->get_input_values()) {
+                if (ltw(in->get_logical_tensor()).property_type()
+                        != property_type::constant) {
+                    all_inputs_are_constant = false;
+                    break;
+                }
+            }
+
+            bool all_outputs_are_constant = true;
+            for (const auto &out : op->get_output_values()) {
+                if (ltw(out->get_logical_tensor()).property_type()
+                        != property_type::constant) {
+                    all_outputs_are_constant = false;
+                    break;
+                }
+            }
+
+            if (all_inputs_are_constant || all_outputs_are_constant) {
+                op->set_attr<bool>("is_constant", true);
+                if (is_preprocess_op(*op)) {
+                    op->set_attr<bool>("is_skip", false);
+                } else {
+                    op->set_attr<bool>("is_skip", true);
+                }
+            }
+
+            if (all_inputs_are_constant && !all_outputs_are_constant) {
+                // propagate from in to out
+                for (auto &out : op->get_output_values()) {
+                    out->set_property(property_type::constant);
+                }
+                changed = changed || true;
+            } else if (!all_inputs_are_constant && all_outputs_are_constant) {
+                // propagate from out to in
+                for (auto &in : op->get_input_values()) {
+                    in->set_property(property_type::constant);
+                }
+                changed = changed || true;
+            } else {
+                changed = changed || false;
+            }
+            return status::success;
+        });
+    } while (changed);
+}
+
+} // namespace dnnl_impl
+} // namespace impl
+} // namespace graph
+} // namespace dnnl

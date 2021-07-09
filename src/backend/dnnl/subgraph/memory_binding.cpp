@@ -24,6 +24,7 @@
 #include "backend/dnnl/subgraph/memory_binding.hpp"
 #include "backend/dnnl/subgraph/op_executable.hpp"
 #include "backend/dnnl/subgraph/passes.hpp"
+#include "backend/dnnl/subgraph/utils.hpp"
 
 #include "dnnl.hpp"
 
@@ -31,16 +32,31 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
+using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
+using ltw = impl::logical_tensor_wrapper;
 
 static memory bind_memory_for_value(value_t *val, const dnnl::engine &p_engine,
-        execution_args_mgr &exec_arg_mgr, bool need_buf) {
+        execution_args_mgr &exec_arg_mgr) {
     memory mem;
     if (!exec_arg_mgr.find_value_mem_map(val, mem)) {
         mem = make_dnnl_memory(make_dnnl_memory_desc(val->get_logical_tensor()),
                 p_engine, nullptr);
         exec_arg_mgr.add_value_mem_map({val, mem});
-        if (need_buf) exec_arg_mgr.add_internal_mem(mem);
+
+        bool is_alias = false;
+        if (val->has_producer() && is_preprocess_op(val->get_producer())) {
+            is_alias = true;
+        }
+
+        if (!is_alias) {
+            if (ltw(val->get_logical_tensor()).property_type()
+                    == impl::property_type::constant) {
+                exec_arg_mgr.add_internal_constant_mem(mem);
+            } else {
+                exec_arg_mgr.add_internal_variable_mem(mem);
+            }
+        }
     }
     return mem;
 }
@@ -57,16 +73,16 @@ static void bind_memory_for_conv_and_matmul(op_ptr &op,
 
     // bind mem for inputs
     mem = bind_memory_for_value(
-            op->get_input_value(index++).get(), p_engine, exec_arg_mgr, true);
+            op->get_input_value(index++).get(), p_engine, exec_arg_mgr);
     args.insert({DNNL_ARG_SRC, mem});
 
     mem = bind_memory_for_value(
-            op->get_input_value(index++).get(), p_engine, exec_arg_mgr, true);
+            op->get_input_value(index++).get(), p_engine, exec_arg_mgr);
     args.insert({DNNL_ARG_WEIGHTS, mem});
 
     if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
-        mem = bind_memory_for_value(op->get_input_value(index++).get(),
-                p_engine, exec_arg_mgr, true);
+        mem = bind_memory_for_value(
+                op->get_input_value(index++).get(), p_engine, exec_arg_mgr);
         args.insert({DNNL_ARG_BIAS, mem});
     }
 
@@ -75,12 +91,12 @@ static void bind_memory_for_conv_and_matmul(op_ptr &op,
     dnnl::post_ops pops = prm_attr.get_post_ops();
     for (int i = 0; i < pops.len(); i++) {
         if (pops.kind(i) == dnnl::primitive::kind::sum) {
-            mem = bind_memory_for_value(op->get_input_value(index++).get(),
-                    p_engine, exec_arg_mgr, true);
+            mem = bind_memory_for_value(
+                    op->get_input_value(index++).get(), p_engine, exec_arg_mgr);
             args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
         } else if (pops.kind(i) == dnnl::primitive::kind::binary) {
-            mem = bind_memory_for_value(op->get_input_value(index++).get(),
-                    p_engine, exec_arg_mgr, true);
+            mem = bind_memory_for_value(
+                    op->get_input_value(index++).get(), p_engine, exec_arg_mgr);
             args.insert(
                     {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
         } else {
@@ -89,43 +105,42 @@ static void bind_memory_for_conv_and_matmul(op_ptr &op,
 
     // bind mem for outputs
     mem = bind_memory_for_value(
-            op->get_output_value(0).get(), p_engine, exec_arg_mgr, true);
+            op->get_output_value(0).get(), p_engine, exec_arg_mgr);
     args.insert({DNNL_ARG_DST, mem});
 
     if (op->num_outputs() > 1) {
         mem = bind_memory_for_value(
-                op->get_output_value(1).get(), p_engine, exec_arg_mgr, true);
+                op->get_output_value(1).get(), p_engine, exec_arg_mgr);
         args.insert({DNNL_ARG_SCRATCHPAD, mem});
     }
 }
 
 // for single-input-single-output op
 static void bind_memory_for_siso_op(op_ptr &op, const dnnl::engine &p_engine,
-        execution_args_mgr &exec_arg_mgr, bool need_output_buf,
-        bool need_scratchpad = false, bool need_workspace = false) {
+        execution_args_mgr &exec_arg_mgr, bool need_scratchpad = false,
+        bool need_workspace = false) {
     int64_t key = exec_arg_mgr.init_args();
     op->set_attr<int64_t>("execution_args_key", key);
     auto &args = exec_arg_mgr.get_args(key);
 
     auto in_val = op->get_input_value(0);
-    memory in_mem
-            = bind_memory_for_value(in_val.get(), p_engine, exec_arg_mgr, true);
+    memory in_mem = bind_memory_for_value(in_val.get(), p_engine, exec_arg_mgr);
     args.insert({DNNL_ARG_FROM, in_mem});
 
     auto out_val = op->get_output_value(0);
-    memory out_mem = bind_memory_for_value(
-            out_val.get(), p_engine, exec_arg_mgr, need_output_buf);
+    memory out_mem
+            = bind_memory_for_value(out_val.get(), p_engine, exec_arg_mgr);
     args.insert({DNNL_ARG_TO, out_mem});
 
     if (need_scratchpad && op->num_outputs() > 1) {
         dnnl::memory mem = bind_memory_for_value(
-                op->get_output_value(1).get(), p_engine, exec_arg_mgr, true);
+                op->get_output_value(1).get(), p_engine, exec_arg_mgr);
         args.insert({DNNL_ARG_SCRATCHPAD, mem});
     }
 
     if (need_workspace && op->num_outputs() > 2) {
         dnnl::memory mem = bind_memory_for_value(
-                op->get_output_value(2).get(), p_engine, exec_arg_mgr, true);
+                op->get_output_value(2).get(), p_engine, exec_arg_mgr);
         args.insert({DNNL_ARG_WORKSPACE, mem});
     }
 }
@@ -200,16 +215,13 @@ impl::status_t memory_binding(std::vector<op_ptr> &subgraph,
                     ? cur_op->get_attr<bool>("is_training")
                     : false;
             bind_memory_for_siso_op(
-                    cur_op, p_engine, exec_arg_mgr, true, true, is_training);
+                    cur_op, p_engine, exec_arg_mgr, true, is_training);
         } else if (cur_op->get_kind() == op_kind::Reorder
-                || cur_op->get_kind() == op_kind::mul_scales) {
-            bind_memory_for_siso_op(cur_op, p_engine, exec_arg_mgr, true);
-        } else if (cur_op->get_kind() == op_kind::permute
+                || cur_op->get_kind() == op_kind::mul_scales
+                || cur_op->get_kind() == op_kind::permute
                 || cur_op->get_kind() == op_kind::to_group
                 || cur_op->get_kind() == op_kind::expand) {
-            // preprocess op's outputs are shadow memories, which don't need
-            // buffer
-            bind_memory_for_siso_op(cur_op, p_engine, exec_arg_mgr, false);
+            bind_memory_for_siso_op(cur_op, p_engine, exec_arg_mgr);
         } else {
             assertm(false, "memory binding: unsupported op");
             return impl::status::compile_fail;

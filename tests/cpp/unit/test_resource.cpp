@@ -171,7 +171,7 @@ TEST(resource, subgraph_resource) {
 
     exec_args_mgr.add_external_output_mem(mem5);
 
-    exec_args_mgr.add_internal_mem(mem3);
+    exec_args_mgr.add_internal_variable_mem(mem3);
 
     int64_t op1_key = exec_args_mgr.init_args();
     auto &op1_args = exec_args_mgr.get_args(op1_key);
@@ -227,7 +227,7 @@ TEST(resource, subgraph_resource) {
     ASSERT_TRUE(cloned_mem5.get_desc() == external_output_mems[0].get_desc()
             && cloned_mem5.get() == external_output_mems[0].get());
 
-    auto internal_mems = cloned_exec_args_mgr.get_internal_mems();
+    auto internal_mems = cloned_exec_args_mgr.get_internal_variable_mems();
     ASSERT_TRUE(cloned_mem3.get_desc() == internal_mems[0].get_desc()
             && cloned_mem3.get() == internal_mems[0].get());
 
@@ -322,7 +322,7 @@ TEST(resource, execution_args_mgr_hashing) {
 
     exec_args_mgr.add_external_output_mem(mem5);
 
-    exec_args_mgr.add_internal_mem(mem3);
+    exec_args_mgr.add_internal_variable_mem(mem3);
 
     execution_args_mgr exec_args_mgr2(exec_args_mgr);
 

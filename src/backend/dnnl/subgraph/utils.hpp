@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -50,6 +51,14 @@ void set_given_inputs_outputs(std::vector<std::shared_ptr<op_t>> &subgraph,
         const std::vector<impl::logical_tensor_t> &outputs);
 
 void set_all_layout_to_any(std::vector<std::shared_ptr<op_t>> &subgraph);
+
+void set_weight_bias_constant(std::vector<std::shared_ptr<op_t>> &subgraph);
+
+inline bool is_preprocess_op(op_t &op) {
+    static std::set<impl::op_kind_t> preprocess_ops
+            = {op_kind::permute, op_kind::to_group, op_kind::expand};
+    return preprocess_ops.count(op.get_kind()) != 0;
+}
 
 } // namespace dnnl_impl
 } // namespace impl
