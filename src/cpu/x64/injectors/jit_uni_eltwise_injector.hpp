@@ -18,6 +18,7 @@
 #define CPU_X64_JIT_UNI_ELTWISE_INJECTOR_HPP
 
 #include <assert.h>
+#include <type_traits>
 
 #include "common/c_types_map.hpp"
 #include "common/primitive_attr.hpp"
@@ -69,9 +70,11 @@ bool is_supported(cpu_isa_t isa, alg_kind_t alg);
 
 } // namespace eltwise_injector
 
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, typename Wmm = typename cpu_isa_traits<isa>::Vmm>
 struct jit_uni_eltwise_injector_f32 {
-    using Vmm = typename cpu_isa_traits<isa>::Vmm;
+    using Vmm = typename std::conditional<isa == avx512_common
+                    && std::is_same<Wmm, Xbyak::Ymm>::value,
+            Xbyak::Zmm, Wmm>::type;
 
     // Arguments description:
     // host - jit generator which is filled with instructions
@@ -151,7 +154,7 @@ private:
         return utils::one_of(isa, avx512_common, avx512_core);
     }
 
-    static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
+    static constexpr size_t vlen = injector_utils::vmm_size_t<Vmm>::bytes;
     static constexpr size_t preserved_vecs_max = 6;
     static constexpr size_t preserved_gprs_max = 5;
     static constexpr size_t vecs_count = has_avx512() ? 32 : 16;

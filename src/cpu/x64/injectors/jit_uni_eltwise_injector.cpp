@@ -54,8 +54,8 @@ bool is_supported(cpu_isa_t isa, alg_kind_t alg) {
 
 using namespace Xbyak;
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_preamble(
         const injector_utils::vmm_index_set_t &vmm_idxs) {
     using namespace alg_kind;
     using namespace Xbyak::util;
@@ -125,8 +125,8 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
     assign_regs();
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::injector_preamble_tail(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_preamble_tail(
         const injector_utils::vmm_index_set_iterator_t start_idx_it) {
     size_t tail_vecs_to_preserve = std::distance(start_idx_it, start_idx_tail);
     if (tail_vecs_to_preserve == 0) return;
@@ -155,8 +155,8 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble_tail(
     assign_regs();
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::injector_postamble() {
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_postamble() {
     using namespace Xbyak::util;
     if (!save_state_) return;
 
@@ -170,8 +170,8 @@ void jit_uni_eltwise_injector_f32<isa>::injector_postamble() {
     h->pop(p_table);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::assign_regs() {
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::assign_regs() {
     vmm_mask = Vmm(preserved_vec_idxs[0]);
     vmm_aux0 = Vmm(preserved_vec_idxs[0]);
     vmm_aux1 = Vmm(preserved_vec_idxs[1]);
@@ -185,8 +185,8 @@ void jit_uni_eltwise_injector_f32<isa>::assign_regs() {
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::vec_shift(const Vmm &vmm_dst,
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::vec_shift(const Vmm &vmm_dst,
         const Vmm &vmm_src, bool shift_left, const int imm) {
     if (isa != avx) {
         if (shift_left)
@@ -213,9 +213,10 @@ void jit_uni_eltwise_injector_f32<isa>::vec_shift(const Vmm &vmm_dst,
 
 // Uses injector masks objects: k_mask (>= avx512_common) or vmm_mask (<= avx2).
 // Stores a mask by applying cmpps on two inputs w/ a given predicate.
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::compute_cmp_mask(const Vmm &vmm_src,
-        const Xbyak::Operand &compare_operand, int cmp_predicate) {
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::compute_cmp_mask(
+        const Vmm &vmm_src, const Xbyak::Operand &compare_operand,
+        int cmp_predicate) {
     if (has_avx512()) {
         h->vcmpps(k_mask, vmm_src, compare_operand, cmp_predicate);
     } else {
@@ -225,8 +226,8 @@ void jit_uni_eltwise_injector_f32<isa>::compute_cmp_mask(const Vmm &vmm_src,
 
 // Uses injector masks objects: k_mask (>= avx512_common) or vmm_mask (<= avx2).
 // Blends a result of second input into a first input w/ a stored mask.
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::blend_with_mask(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::blend_with_mask(
         const Vmm &vmm_dst, const Xbyak::Operand &src) {
     if (has_avx512()) {
         h->vblendmps(vmm_dst | k_mask, vmm_dst, src);
@@ -238,8 +239,8 @@ void jit_uni_eltwise_injector_f32<isa>::blend_with_mask(
 // Uses injector masks objects: k_mask (>= avx512_common) or vmm_mask (<= avx2).
 // Tests a mask for all zeros. If all zeroes occur, set ZF = 1.
 // Nicely combines with jump_if_zero (jz).
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::test_mask() {
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::test_mask() {
     if (has_avx512()) {
         h->kortestw(k_mask, k_mask);
     } else {
@@ -247,8 +248,8 @@ void jit_uni_eltwise_injector_f32<isa>::test_mask() {
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::exp_compute_vector_fwd(
         const Vmm &vmm_src) {
     // exp(x) =
     // = exp(n * ln(2) + r) // divide x by ln(2) and get quot and rem
@@ -311,8 +312,8 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_fwd(
     h->uni_vmulps(vmm_src, vmm_src, table_val(two));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::relu_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmovups(vmm_aux1, vmm_src);
     compute_cmp_mask(vmm_src, table_val(zero), _cmp_gt_os);
@@ -320,14 +321,14 @@ void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector_fwd(
     blend_with_mask(vmm_src, vmm_aux1);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::relu_zero_ns_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::relu_zero_ns_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmaxps(vmm_src, vmm_src, table_val(zero));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::elu_compute_vector_fwd(
         const Vmm &vmm_src) {
     // IMPORTANT: we use vmm_aux3 for the mask as exp_compute does not use it.
     h->uni_vmovups(vmm_aux3, vmm_src);
@@ -343,8 +344,8 @@ void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector_fwd(
     blend_with_mask(vmm_src, vmm_aux3);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::tanh_compute_vector_fwd(
         const Vmm &vmm_src) {
     // we add a check as the avx2 code cannot be used for avx
     assert(IMPLICATION(isa == avx2, mayiuse(avx2)));
@@ -538,8 +539,8 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_fwd(
     h->uni_vmovups(vmm_src, vmm_dst);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::gelu_tanh_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_tanh_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmovups(vmm_aux0, vmm_src);
 
@@ -566,57 +567,57 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_tanh_compute_vector_fwd(
     h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::square_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::square_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmulps(vmm_src, vmm_src, vmm_src);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::abs_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::abs_compute_vector_fwd(
         const Vmm &vmm_src) {
     // compute abs(x) = _mm_and_ps(x, 01111..111));
     h->uni_vandps(vmm_src, vmm_src, table_val(positive_mask));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::sqrt_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::sqrt_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vsqrtps(vmm_src, vmm_src);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::linear_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::linear_compute_vector_fwd(
         const Vmm &vmm_src) {
     // compute x = alpha * x + beta;
     h->uni_vmovups(vmm_aux0, table_val(alpha));
     h->uni_vfmadd213ps(vmm_src, vmm_aux0, table_val(beta));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::bounded_relu_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::bounded_relu_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmaxps(vmm_src, vmm_src, table_val(zero));
     h->uni_vminps(vmm_src, vmm_src, table_val(alpha));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::clip_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::clip_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmaxps(vmm_src, vmm_src, table_val(alpha));
     h->uni_vminps(vmm_src, vmm_src, table_val(beta));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::logsigmoid_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::logsigmoid_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmulps(vmm_src, vmm_src, table_val(minus_one));
     soft_relu_compute_vector_fwd(vmm_src);
     h->uni_vmulps(vmm_src, vmm_src, table_val(minus_one));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::mish_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::mish_compute_vector_fwd(
         const Vmm &vmm_src) {
     // An equation other than mish(x) = x*tanh(srelu(x)) was used
     // to calculate mish, but it should be remembered that it is equivalent
@@ -648,8 +649,8 @@ void jit_uni_eltwise_injector_f32<isa>::mish_compute_vector_fwd(
     h->uni_vmulps(vmm_src, vmm_src, vmm_aux3);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::hardswish_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::hardswish_compute_vector_fwd(
         const Vmm &vmm_src) {
     // result = x * relu6(x + 3) / 6
     h->uni_vmovups(vmm_aux0, vmm_src);
@@ -661,8 +662,8 @@ void jit_uni_eltwise_injector_f32<isa>::hardswish_compute_vector_fwd(
     h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_compute_vector_fwd(
         const Vmm &vmm_src) {
     // ln(1 + exp(x)) =
     // = ln(1 + exp(n * ln(2) + r)) // divide x by ln(2) and get quot and rem
@@ -772,8 +773,8 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
     blend_with_mask(vmm_src, vmm_aux2);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::logistic_compute_vector_fwd(
         const Vmm &vmm_src) {
     // To avoid exp(x) overflow happened at x > logf(FLT_MAX), negate positive,
     // compute exp(x), where x <= 0 to get 0 <= exp(x) <= 1 and restore value
@@ -805,8 +806,8 @@ void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector_fwd(
     h->uni_vmovups(vmm_src, vmm_aux2);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::swish_compute_vector_fwd(
         const Vmm &vmm_src) {
     // Save src data on stack for later usage
     h->sub(h->rsp, vlen);
@@ -821,8 +822,8 @@ void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector_fwd(
     h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
         const Vmm &vmm_src) {
     // From J.-M. Muller and others, Handbook of Floating-Point Arithmetic, 2010
     // Here is a brief mathematics to approximate log(x):
@@ -988,8 +989,8 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_fwd(
     h->L(end_log_label);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::pow_compute_vector_fwd(
         const Vmm &vmm_src) {
     // dispatch between special cases.
     if (beta_ == -1) { // alpha / x
@@ -1091,8 +1092,8 @@ void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector_fwd(
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_fwd(
         const Vmm &vmm_src) {
     // Here we approximate erf(x) using the expression by
     // Abramowitz and Stegun from ``Handbook of Mathematical
@@ -1149,8 +1150,8 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector_fwd(
     h->uni_vfmadd213ps(vmm_src, vmm_aux3, vmm_aux3);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::relu_compute_vector_bwd(
         const Vmm &vmm_src) {
     // invariant to whether `s` or `d` is passed.
     // get mask of `s` > 0
@@ -1160,8 +1161,8 @@ void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector_bwd(
     blend_with_mask(vmm_src, table_val(one));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::elu_compute_vector_bwd(
         const Vmm &vmm_src) {
     if (!use_dst_) {
         // R = exp(s)
@@ -1179,8 +1180,8 @@ void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector_bwd(
     blend_with_mask(vmm_src, table_val(one));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::tanh_compute_vector_bwd(
         const Vmm &vmm_src) {
     // res = 1 - d^2 = 1 - tanh^2(s)
     if (!use_dst_) tanh_compute_vector_fwd(vmm_src);
@@ -1189,8 +1190,8 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_bwd(
     h->uni_vmovups(vmm_src, vmm_aux0);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::gelu_tanh_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_tanh_compute_vector_bwd(
         const Vmm &vmm_src) {
     h->uni_vmovups(vmm_aux0, vmm_src);
 
@@ -1237,15 +1238,15 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_tanh_compute_vector_bwd(
     h->uni_vmulps(vmm_src, vmm_src, table_val(half));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::square_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::square_compute_vector_bwd(
         const Vmm &vmm_src) {
     // res = 2 * s
     h->uni_vmulps(vmm_src, vmm_src, table_val(two));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::abs_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::abs_compute_vector_bwd(
         const Vmm &vmm_src) {
     // replace positive values with 1.f
     compute_cmp_mask(vmm_src, table_val(zero), _cmp_gt_os);
@@ -1255,8 +1256,8 @@ void jit_uni_eltwise_injector_f32<isa>::abs_compute_vector_bwd(
     blend_with_mask(vmm_src, table_val(minus_one));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::sqrt_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::sqrt_compute_vector_bwd(
         const Vmm &vmm_src) {
     // res = 0.5 / d = 0.5 / sqrt(s)
     if (!use_dst_) sqrt_compute_vector_fwd(vmm_src);
@@ -1266,14 +1267,14 @@ void jit_uni_eltwise_injector_f32<isa>::sqrt_compute_vector_bwd(
     h->uni_vmovups(vmm_src, vmm_aux0);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::linear_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::linear_compute_vector_bwd(
         const Vmm &vmm_src) {
     h->uni_vmovups(vmm_src, table_val(alpha));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::bounded_relu_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::bounded_relu_compute_vector_bwd(
         const Vmm &vmm_src) {
     // get mask of values > alpha and blend with 0.f
     compute_cmp_mask(vmm_src, table_val(alpha), _cmp_gt_os);
@@ -1285,21 +1286,21 @@ void jit_uni_eltwise_injector_f32<isa>::bounded_relu_compute_vector_bwd(
     blend_with_mask(vmm_src, table_val(one));
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_compute_vector_bwd(
         const Vmm &vmm_src) {
     logistic_compute_vector_fwd(vmm_src);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::logsigmoid_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::logsigmoid_compute_vector_bwd(
         const Vmm &vmm_src) {
     h->uni_vmulps(vmm_src, vmm_src, table_val(minus_one));
     soft_relu_compute_vector_bwd(vmm_src);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::mish_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::mish_compute_vector_bwd(
         const Vmm &vmm_src) {
     // IMPORTANT: we use vmm_aux3 to save src as exp does not use it.
     h->uni_vmovups(vmm_aux3, vmm_src); // vmm_aux3 = x
@@ -1339,8 +1340,8 @@ void jit_uni_eltwise_injector_f32<isa>::mish_compute_vector_bwd(
     h->uni_vdivps(vmm_src, vmm_src, vmm_aux1);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::logistic_compute_vector_bwd(
         const Vmm &vmm_src) {
     // res = d * (1 - d) = d - d * d; d = logistic(s)
     if (!use_dst_) logistic_compute_vector_fwd(vmm_src);
@@ -1350,14 +1351,14 @@ void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector_bwd(
     h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::exp_compute_vector_bwd(
         const Vmm &vmm_src) {
     if (!use_dst_) exp_compute_vector_fwd(vmm_src);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::swish_compute_vector_bwd(
         const Vmm &vmm_src) {
     // R = alpha * s
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
@@ -1383,8 +1384,8 @@ void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector_bwd(
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_bwd(
         const Vmm &vmm_src) {
     // res = 1 / s
     h->uni_vmovups(vmm_aux0, table_val(one));
@@ -1393,8 +1394,8 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_bwd(
     h->uni_vmovups(vmm_src, vmm_aux0);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::clip_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::clip_compute_vector_bwd(
         const Vmm &vmm_src) {
     using namespace alg_kind;
 
@@ -1410,8 +1411,8 @@ void jit_uni_eltwise_injector_f32<isa>::clip_compute_vector_bwd(
     h->uni_vmovups(vmm_src, vmm_aux1);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::pow_compute_vector_bwd(
         const Vmm &vmm_src) {
     // dispatch some special cases.
     if (beta_ == 0) { // zero
@@ -1442,8 +1443,8 @@ void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector_bwd(
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_bwd(
         const Vmm &vmm_src) {
     // R = s / sqrt(2)
     h->uni_vmulps(vmm_src, vmm_src, table_val(gelu_erf_one_over_sqrt_two));
@@ -1501,8 +1502,8 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector_bwd(
     h->uni_vmovups(vmm_src, vmm_aux2);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::hardswish_compute_vector_bwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::hardswish_compute_vector_bwd(
         const Vmm &vmm_src) {
     h->uni_vmovups(vmm_aux1, vmm_src);
 
@@ -1516,8 +1517,8 @@ void jit_uni_eltwise_injector_f32<isa>::hardswish_compute_vector_bwd(
     blend_with_mask(vmm_src, table_val(one));
 }
 
-template <cpu_isa_t isa>
-size_t jit_uni_eltwise_injector_f32<isa>::aux_gprs_count() {
+template <cpu_isa_t isa, typename Wmm>
+size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_gprs_count() {
     using namespace alg_kind;
     switch (alg_) {
         case eltwise_tanh_use_dst_for_bwd:
@@ -1528,14 +1529,14 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_gprs_count() {
     return 0;
 };
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::round_compute_vector_fwd(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::round_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vroundps(vmm_src, vmm_src, _op_mxcsr);
 }
 
-template <cpu_isa_t isa>
-size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
+template <cpu_isa_t isa, typename Wmm>
+size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_vecs_count() {
     using namespace alg_kind;
     if (is_fwd_) {
         switch (alg_) {
@@ -1607,8 +1608,8 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
     return 0;
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::compute_body(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::compute_body(
         const injector_utils::vmm_index_set_iterator_t &start_idx_it,
         const injector_utils::vmm_index_set_iterator_t &end_idx_it) {
     using namespace alg_kind;
@@ -1718,8 +1719,8 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
     });
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::compute_vector_range(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::compute_vector_range(
         size_t start_idx, size_t end_idx) {
     injector_utils::vmm_index_set_t vmm_idxs;
     for (size_t i = start_idx; i < end_idx; i++)
@@ -1727,8 +1728,8 @@ void jit_uni_eltwise_injector_f32<isa>::compute_vector_range(
     compute_vector_range(vmm_idxs);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::compute_vector_range(
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::compute_vector_range(
         const injector_utils::vmm_index_set_t &vmm_idxs) {
     const auto &start_idx_it = vmm_idxs.begin();
     const auto &end_idx_it = vmm_idxs.end();
@@ -1742,8 +1743,8 @@ void jit_uni_eltwise_injector_f32<isa>::compute_vector_range(
     injector_postamble();
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::prepare_table(bool gen_table) {
     if (!gen_table) return;
 
     h->align(64);
@@ -1784,8 +1785,8 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
+template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa, Wmm>::register_table_entries() {
     // This function is responsible to pick all necessary constants
     // for a given algorithm, compute right offset for them to be used
     // in table_val() and save the hexadecimal value of them, which
@@ -2318,9 +2319,14 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
 
 template struct jit_uni_eltwise_injector_f32<avx512_core_bf16>;
 template struct jit_uni_eltwise_injector_f32<avx512_core>;
+template struct jit_uni_eltwise_injector_f32<avx512_core, Ymm>;
+template struct jit_uni_eltwise_injector_f32<avx512_core, Xmm>;
 template struct jit_uni_eltwise_injector_f32<avx512_common>;
+template struct jit_uni_eltwise_injector_f32<avx512_common, Xbyak::Ymm>;
 template struct jit_uni_eltwise_injector_f32<avx2>;
+template struct jit_uni_eltwise_injector_f32<avx2, Xmm>;
 template struct jit_uni_eltwise_injector_f32<avx>;
+template struct jit_uni_eltwise_injector_f32<avx, Xmm>;
 template struct jit_uni_eltwise_injector_f32<sse41>;
 
 } // namespace x64
