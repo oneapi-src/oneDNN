@@ -47,7 +47,8 @@ static status_t weights_axes_permutation(
 }
 
 static status_t conv_descr_create(const deconvolution_desc_t *dd,
-        convolution_desc_t *cd, data_type_t src_dt = data_type::undef) {
+        convolution_desc_t *cd, const memory_desc_t *bias_md = nullptr,
+        data_type_t src_dt = data_type::undef) {
     using namespace prop_kind;
     alg_kind_t alg_kind = dd->alg_kind == alg_kind::deconvolution_direct
             ? alg_kind::convolution_direct
@@ -84,8 +85,8 @@ static status_t conv_descr_create(const deconvolution_desc_t *dd,
     CHECK(weights_axes_permutation(&c_weights_d, d_weights_d, with_groups));
 
     return conv_desc_init(cd, prop_kind, alg_kind, src_md, &c_weights_d,
-            prop_kind != backward_weights ? &dd->bias_desc : nullptr, dst_md,
-            dd->strides, dd->dilates, dd->padding[0], dd->padding[1]);
+            bias_md, dst_md, dd->strides, dd->dilates, dd->padding[0],
+            dd->padding[1]);
 }
 
 struct ref_deconvolution_fwd_t : public primitive_t {
@@ -120,7 +121,8 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             // diff_src for conv for correct result. If attributes are
             // requested, enforce conv impl to return f32 output no matter what.
             if (attr()->has_default_values()) {
-                CHECK(conv_descr_create(desc(), &cd, dst_md()->data_type));
+                CHECK(conv_descr_create(
+                        desc(), &cd, weights_md(1), dst_md()->data_type));
                 dnnl_primitive_desc_iterator it(
                         engine, (op_desc_t *)&cd, &conv_attr, nullptr);
                 if (!it.is_initialized()) return status::out_of_memory;
@@ -140,7 +142,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
 
             // Enforce f32 dt for diff src and work with f32 output for bias
             // update or post ops after conv execution.
-            CHECK(conv_descr_create(desc(), &cd, data_type::f32));
+            CHECK(conv_descr_create(desc(), &cd, nullptr, data_type::f32));
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
