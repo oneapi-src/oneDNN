@@ -284,7 +284,6 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     status_t status = status::success;
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto diff_src
             = CTX_OUT_CLEAN_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
@@ -292,7 +291,6 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
-    const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
     const bool with_groups = pd()->with_groups();
 
@@ -456,9 +454,7 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
             [&](dim_t g, dim_t mb, dim_t ic, dim_t id, dim_t ih, dim_t iw) {
                 auto ds_idx = get_data_off(
                         diff_src_d, ndims, mb, g * IC + ic, id, ih, iw);
-                float a = bias ? get_bias(bias, bias_d.off(g * IC + ic),
-                                  pd()->desc()->bias_desc.data_type)
-                               : 0;
+                float a = 0;
 
                 if (diff_dst_d.is_plain() && weights_d.is_plain()
                         && diff_dst_oc_stride == 1 && weights_kw_stride == 1)
