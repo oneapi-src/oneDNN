@@ -73,7 +73,11 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     dst += mb * G * OD * OH * OW + g * OD * OH * OW * MB_BLOCK
             + (od * OH * OW + oh * OW + ow) * MB_BLOCK * OC_BLOCK;
 #endif
-    src += mb * G * ID * IH * IW + g * ID * IH * IW * MB_BLOCK
+    src += mb
+                    * ((G_WO_PADDING / IC_BLOCK)
+                            + (G_WO_PADDING % IC_BLOCK > 0 ? 1 : 0))
+                    * IC_BLOCK * ID * IH * IW
+            + g * ID * IH * IW * MB_BLOCK
             + (id * IH * IW + ih * IW + iw) * MB_BLOCK * IC_BLOCK;
     wei += g * KD * KH * KW;
 
@@ -121,6 +125,10 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
                 __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
                 for (int k = 0; k < OW_BLOCK; k++) {
+                    if (G != G_WO_PADDING && g >= G_WO_PADDING) {
+                        S00[k] = DATA_ZERO;
+                        continue;
+                    }
 #if KH != 1 || KW != 1 || KD != 1
                     A0 = tempA[k * SW + kw * (1 + DW)];
 #else
@@ -208,7 +216,11 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     dst += mb * G * OD * OH * OW + g * OD * OH * OW * MB_BLOCK
             + (od * OH * OW + oh * OW + ow) * MB_BLOCK * OC_BLOCK;
 #endif
-    src += mb * G * ID * IH * IW + g * ID * IH * IW * MB_BLOCK
+    src += mb
+                    * ((G_WO_PADDING / IC_BLOCK)
+                            + (G_WO_PADDING % IC_BLOCK > 0 ? 1 : 0))
+                    * IC_BLOCK * ID * IH * IW
+            + g * ID * IH * IW * MB_BLOCK
             + (id * IH * IW + ih * IW + iw) * MB_BLOCK * IC_BLOCK;
     wei += g * KD * KH * KW;
 
@@ -247,6 +259,15 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     const __global DATA_T *wei1 = wei;
     const __global DATA_T *src1 = src;
 #endif
+                if (G != G_WO_PADDING && g >= G_WO_PADDING) {
+                    S00 = DATA_ZERO;
+                    S01 = DATA_ZERO;
+#if VER_32MB16C
+                    S02 = DATA_ZERO;
+                    S03 = DATA_ZERO;
+#endif
+                    continue;
+                }
                 DATA8_T A0 = AS_DATA8_T(
                         BLOCK_READ8((const __global BLOCK_DATA_T *)(src1)));
                 DATA8_T A1 = AS_DATA8_T(BLOCK_READ8(

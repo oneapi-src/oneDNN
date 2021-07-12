@@ -125,7 +125,8 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     }
 
     conf.ngroups_without_padding = conf.ngroups;
-    if (is_depthwise) conf.ngroups = utils::rnd_up(conf.ngroups, 16);
+    if (is_depthwise)
+        conf.ngroups = utils::rnd_up(conf.ngroups, int8_dst ? 32 : 16);
 
     const bool is_dw_16g = (conf.is_depthwise && conf.ngroups % 16 == 0);
     const bool is_16oc = conf.oc % out_block == 0;
