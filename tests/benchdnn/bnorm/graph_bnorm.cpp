@@ -31,11 +31,11 @@
 namespace benchdnnext {
 namespace bnorm {
 
-bnorm_graph_prb_t::spec_t::spec_t(const ::bnorm::prb_t *prb) {
-    dims_t dims_0d = {prb->mb, prb->ic};
-    dims_t dims_1d = {prb->mb, prb->ic, prb->iw};
-    dims_t dims_2d = {prb->mb, prb->ic, prb->ih, prb->iw};
-    dims_t dims_3d = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
+bnorm_graph_prb_t::spec_t::spec_t(const ::bnorm::prb_t *prb) noexcept {
+    const dims_t dims_0d = {prb->mb, prb->ic};
+    const dims_t dims_1d = {prb->mb, prb->ic, prb->iw};
+    const dims_t dims_2d = {prb->mb, prb->ic, prb->ih, prb->iw};
+    const dims_t dims_3d = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
     dims = [&](int n) {
         switch (n) {
             case 5: return dims_3d;
@@ -51,7 +51,8 @@ bnorm_graph_prb_t::spec_t::spec_t(const ::bnorm::prb_t *prb) {
     tag = prb->tag;
 }
 
-void check_known_skipped_case(const ::bnorm::prb_t *prb, res_t *res) {
+void check_known_skipped_case_graph(
+        const ::bnorm::prb_t *prb, res_t *res) noexcept {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
     if (res->state == SKIPPED) return;
 
@@ -107,7 +108,7 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    check_known_skipped_case(prb, res);
+    check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
     bnorm_graph_prb_t graph_prb(prb);
@@ -144,13 +145,13 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     dnn_mem_t src_hat_fp(4, data_dims, dnnl_f32, tag::abx, cpu_engine);
     dnn_mem_t ws_fp(4, data_dims, dnnl_u8, tag::abx, cpu_engine);
 
-    auto placeholder_dst_dt = make_dnn_mem(outs[0], tag::abx);
+    const auto placeholder_dst_dt = make_dnn_mem(outs[0], tag::abx);
     auto src_dt = make_dnn_mem(ins[0], tag::abx);
     auto scale_dt = make_dnn_mem(ins[1], tag::abx);
     auto shift_dt = make_dnn_mem(ins[2], tag::abx);
     auto mean_dt = make_dnn_mem(ins[3], tag::abx);
     auto var_dt = make_dnn_mem(ins[4], tag::abx);
-    dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
+    const dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
     if (::bnorm::prepare_fwd(prb, src_fp, mean_fp, var_fp, scale_fp, shift_fp)
             != OK) {

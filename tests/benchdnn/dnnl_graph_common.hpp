@@ -49,15 +49,18 @@ typedef fill_status fill_status_t;
 void check_known_skipped_case_graph_common(
         const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
         const dir_t &dir, res_t *res);
-dnnl::graph::logical_tensor::data_type convert_dt(const dnnl_data_type_t dt);
-dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind);
-std::string convert_tag(const std::string &tag, bool activation_tag = true);
+dnnl::graph::logical_tensor::data_type convert_dt(
+        const dnnl_data_type_t dt) noexcept;
+dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept;
+std::string convert_tag(
+        const std::string &tag, bool activation_tag = true) noexcept;
 dims_t convert_bin_policy(const dims_t &lhs_dims, const attr_t::policy_t policy,
-        const std::string &data_format);
+        const std::string &data_format) noexcept;
 std::map<std::string, float> convert_eltw_entry(
         const dnnl::graph::op::kind op_kind,
-        const attr_t::post_ops_t::entry_t &entry);
-bool should_handle_swish(struct graph_prb_t &p, const dnnl_alg_kind_t kind);
+        const attr_t::post_ops_t::entry_t &entry) noexcept;
+bool should_handle_swish(
+        struct graph_prb_t &p, const dnnl_alg_kind_t kind) noexcept;
 
 int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> scales);
 
@@ -169,7 +172,7 @@ private:
     bool frozen_;
 };
 
-inline size_t encode_dnnl_layout(size_t layout_idx) {
+inline size_t encode_dnnl_layout(size_t layout_idx) noexcept {
     // NOTE: Follows the definitions in oneDNN Graph implementation. And there
     //   is a assumption where the dnnl backend is registered in the first
     //   place. Can we expose any API to fetch the information of backend
@@ -210,7 +213,7 @@ struct tensor_descs_t {
             return;
         }
 
-        std::string ou_fmt_str = get_ou_format(dnnl_fmt_tag_str);
+        const std::string ou_fmt_str = get_ou_format(dnnl_fmt_tag_str);
 
         static_assert(DNNL_GRAPH_MAX_NDIMS == DNNL_MAX_NDIMS,
                 "Maximum number of dimensions of primitive and graph is not "
@@ -227,7 +230,7 @@ struct tensor_descs_t {
         // NOTE: Currently, only the first method is used.
         dims_t permuted_dims(ndims, 0);
         for (size_t d = 0; d < ndims; ++d) {
-            size_t coord = static_cast<size_t>(ou_fmt_str[d] - 'a');
+            const size_t coord = static_cast<size_t>(ou_fmt_str[d] - 'a');
             permuted_dims[d] = adims[coord];
         }
 
@@ -313,7 +316,7 @@ struct graph_prb_t {
     using lt = dnnl::graph::logical_tensor::layout_type;
 
     dnnl::graph::graph to_graph() {
-        dnnl::graph::engine &engine = benchdnnext::get_test_engine();
+        const dnnl::graph::engine &engine = benchdnnext::get_test_engine();
         dnnl::graph::graph graph(engine.get_kind());
         for (auto &&op : ops_)
             graph.add_op(op);
@@ -322,9 +325,9 @@ struct graph_prb_t {
 
     virtual dnnl::graph::op::kind get_main_op_kind() const = 0;
 
-    bool has_post_bia() const { return has_post_bia_; }
-    bool has_post_bin() const { return has_post_bin_; }
-    bool has_post_sum() const { return has_post_sum_; }
+    bool has_post_bia() const noexcept { return has_post_bia_; }
+    bool has_post_bin() const noexcept { return has_post_bin_; }
+    bool has_post_sum() const noexcept { return has_post_sum_; }
 
 protected:
     std::vector<dnnl::graph::op> ops_;

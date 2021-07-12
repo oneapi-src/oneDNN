@@ -40,7 +40,7 @@ struct reorder_graph_prb_t : public graph_prb_t {
 
 private:
     struct spec_t {
-        spec_t(const ::reorder::prb_t *prb);
+        spec_t(const ::reorder::prb_t *prb) noexcept;
         dims_t dims;
         dt src_dt;
         dt dst_dt;
@@ -52,12 +52,12 @@ private:
 
     fill_status_t handle_main_op_(std::string tag_in, std::string tag_out);
 
-    dnnl::graph::op::kind get_main_op_kind() const override {
+    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::Reorder;
     }
 
 public:
-    const struct spec_t spec() const { return spec_; }
+    const struct spec_t spec() const noexcept { return spec_; }
 };
 
 int doit(const ::reorder::prb_t *prb, res_t *res);

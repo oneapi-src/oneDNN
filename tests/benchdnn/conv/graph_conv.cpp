@@ -36,24 +36,25 @@ namespace conv {
 
 namespace graph = dnnl::graph;
 
-conv_graph_prb_t::spec_t::spec_t(const ::conv::prb_t *prb) {
+conv_graph_prb_t::spec_t::spec_t(const ::conv::prb_t *prb) noexcept {
     groups = prb->has_groups ? (int64_t)prb->g : 1;
 
-    dim_t src_1d_dims[] = {prb->mb, prb->ic, prb->iw};
-    dim_t src_2d_dims[] = {prb->mb, prb->ic, prb->ih, prb->iw};
-    dim_t src_3d_dims[] = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
+    const dim_t src_1d_dims[] = {prb->mb, prb->ic, prb->iw};
+    const dim_t src_2d_dims[] = {prb->mb, prb->ic, prb->ih, prb->iw};
+    const dim_t src_3d_dims[] = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
 
-    dim_t wei_1d_dims[] = {prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kw};
-    dim_t wei_2d_dims[]
+    const dim_t wei_1d_dims[]
+            = {prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kw};
+    const dim_t wei_2d_dims[]
             = {prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kh, prb->kw};
-    dim_t wei_3d_dims[] = {prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kd,
-            prb->kh, prb->kw};
+    const dim_t wei_3d_dims[] = {prb->g, prb->oc / prb->g, prb->ic / prb->g,
+            prb->kd, prb->kh, prb->kw};
 
     bia_dims.assign({prb->oc});
 
-    dim_t dst_1d_dims[] = {prb->mb, prb->oc, prb->ow};
-    dim_t dst_2d_dims[] = {prb->mb, prb->oc, prb->oh, prb->ow};
-    dim_t dst_3d_dims[] = {prb->mb, prb->oc, prb->od, prb->oh, prb->ow};
+    const dim_t dst_1d_dims[] = {prb->mb, prb->oc, prb->ow};
+    const dim_t dst_2d_dims[] = {prb->mb, prb->oc, prb->oh, prb->ow};
+    const dim_t dst_3d_dims[] = {prb->mb, prb->oc, prb->od, prb->oh, prb->ow};
 
     switch (prb->ndims) {
         case CONV_3D_NDIMS: {
@@ -83,10 +84,10 @@ conv_graph_prb_t::spec_t::spec_t(const ::conv::prb_t *prb) {
         default: break;
     }
 
-    dim_t strides_nd[] = {prb->sd, prb->sh, prb->sw};
-    dim_t dilates_nd[] = {prb->dd, prb->dh, prb->dw};
-    dim_t padding_nd[] = {prb->pd, prb->ph, prb->pw};
-    dim_t padding_r_nd[] = {prb->pd_r, prb->ph_r, prb->pw_r};
+    const dim_t strides_nd[] = {prb->sd, prb->sh, prb->sw};
+    const dim_t dilates_nd[] = {prb->dd, prb->dh, prb->dw};
+    const dim_t padding_nd[] = {prb->pd, prb->ph, prb->pw};
+    const dim_t padding_r_nd[] = {prb->pd_r, prb->ph_r, prb->pw_r};
 
     const size_t spatial_offset = CONV_MAX_NDIMS - prb->ndims;
     strides.assign(strides_nd + spatial_offset, end(strides_nd));
@@ -245,7 +246,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    check_known_skipped_case(prb, res);
+    ::conv::check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
     conv_graph_prb_t graph_prb(prb);
@@ -255,7 +256,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     }
 
     auto graph_h = graph_prb.to_graph();
-    auto spec = graph_prb.spec();
+    const auto spec = graph_prb.spec();
 
     // Filer partitions
     const auto partitions
@@ -311,7 +312,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     graph::tensor sum_src1_tensor;
     graph::tensor bin_tensor;
     if (graph_prb.has_post_sum()) { // Always use in-place operation.
-        size_t idx = prb->dir == FWD_B ? 3 : 2;
+        const size_t idx = prb->dir == FWD_B ? 3 : 2;
         sum_src1_tensor = graph::tensor(ins[idx], static_cast<float *>(dst_dt));
         tensors_in.emplace_back(sum_src1_tensor);
     } else if (graph_prb.has_post_bin()) {

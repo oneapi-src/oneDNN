@@ -21,7 +21,7 @@
 namespace benchdnnext {
 namespace reorder {
 
-reorder_graph_prb_t::spec_t::spec_t(const ::reorder::prb_t *prb) {
+reorder_graph_prb_t::spec_t::spec_t(const ::reorder::prb_t *prb) noexcept {
     dims = prb->reorder.dims;
     src_dt = convert_dt(prb->conf_in->dt);
     dst_dt = convert_dt(prb->conf_out->dt);
@@ -29,7 +29,8 @@ reorder_graph_prb_t::spec_t::spec_t(const ::reorder::prb_t *prb) {
     dst_tag = convert_tag(prb->reorder.tag_out);
 }
 
-void check_known_graph_skipped_case(const ::reorder::prb_t *prb, res_t *res) {
+void check_known_skipped_case_graph(
+        const ::reorder::prb_t *prb, res_t *res) noexcept {
     if (prb->conf_in->dt != prb->conf_out->dt) { res->state = SKIPPED; }
     return;
 }
@@ -63,7 +64,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
     ::reorder::check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
-    check_known_graph_skipped_case(prb, res);
+    check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
     reorder_graph_prb_t graph_prb(prb);
@@ -73,7 +74,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     }
 
     auto graph_h = graph_prb.to_graph();
-    auto spec = graph_prb.spec();
+    const auto spec = graph_prb.spec();
 
     const auto partitions = graph_h.get_partitions();
     if (partitions.empty() || partitions.size() > 1)

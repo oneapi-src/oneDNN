@@ -28,16 +28,16 @@
 namespace benchdnnext {
 namespace pool {
 
-pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) {
+pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) noexcept {
     using graph_op = dnnl::graph::op::kind;
 
-    dim_t src_1d_dims[] = {prb->mb, prb->ic, prb->iw};
-    dim_t src_2d_dims[] = {prb->mb, prb->ic, prb->ih, prb->iw};
-    dim_t src_3d_dims[] = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
+    const dim_t src_1d_dims[] = {prb->mb, prb->ic, prb->iw};
+    const dim_t src_2d_dims[] = {prb->mb, prb->ic, prb->ih, prb->iw};
+    const dim_t src_3d_dims[] = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
 
-    dim_t dst_1d_dims[] = {prb->mb, prb->ic, prb->ow};
-    dim_t dst_2d_dims[] = {prb->mb, prb->ic, prb->oh, prb->ow};
-    dim_t dst_3d_dims[] = {prb->mb, prb->ic, prb->od, prb->oh, prb->ow};
+    const dim_t dst_1d_dims[] = {prb->mb, prb->ic, prb->ow};
+    const dim_t dst_2d_dims[] = {prb->mb, prb->ic, prb->oh, prb->ow};
+    const dim_t dst_3d_dims[] = {prb->mb, prb->ic, prb->od, prb->oh, prb->ow};
 
     switch (prb->ndims) {
         case 5: {
@@ -61,10 +61,10 @@ pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) {
     src_dt = convert_dt(prb->cfg[SRC].dt);
     dst_dt = convert_dt(prb->cfg[DST].dt);
 
-    dim_t strides_nd[] = {prb->sd, prb->sh, prb->sw};
-    dim_t kernel_nd[] = {prb->kd, prb->kh, prb->kw};
-    dim_t padding_l_nd[] = {prb->pd, prb->ph, prb->pw};
-    dim_t padding_r_nd[] = {prb->pd_r, prb->ph_r, prb->pw_r};
+    const dim_t strides_nd[] = {prb->sd, prb->sh, prb->sw};
+    const dim_t kernel_nd[] = {prb->kd, prb->kh, prb->kw};
+    const dim_t padding_l_nd[] = {prb->pd, prb->ph, prb->pw};
+    const dim_t padding_r_nd[] = {prb->pd_r, prb->ph_r, prb->pw_r};
 
     const size_t max_ndims = 5;
     const size_t offset = max_ndims - prb->ndims;
@@ -80,7 +80,7 @@ pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) {
     op_kind = (prb->alg == ::pool::max) ? graph_op::MaxPool : graph_op::AvgPool;
 
     // attributes specific to pooling type
-    dim_t dilation_nd[] = {prb->dd, prb->dh, prb->dw};
+    const dim_t dilation_nd[] = {prb->dd, prb->dh, prb->dw};
     dilations.assign(dilation_nd + offset, end(dilation_nd));
     // "0" dilations in oneDNN is "1" in oneDNN graph
     std::for_each(dilations.begin(), dilations.end(), [](dim_t &v) { v += 1; });
@@ -175,7 +175,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    check_known_skipped_case(prb, res);
+    ::pool::check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
     pool_graph_prb_t graph_prb(prb);

@@ -71,7 +71,7 @@ struct matmul_graph_prb_t : public graph_prb_t {
 
 private:
     struct spec_t {
-        spec_t(const ::matmul::prb_t *prb);
+        spec_t(const ::matmul::prb_t *prb) noexcept;
 
         bool transpose_a {false};
         bool transpose_b {false};
@@ -103,12 +103,13 @@ private:
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
 
-    dnnl::graph::op::kind get_main_op_kind() const override {
+    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::MatMul;
     }
 };
 
-dims_t get_runtime_dims(const dims_t &dims, const ::matmul::dims_mask_t &mask);
+dims_t get_runtime_dims(
+        const dims_t &dims, const ::matmul::dims_mask_t &mask) noexcept;
 int doit(const ::matmul::prb_t *prb, res_t *res);
 
 } // namespace matmul

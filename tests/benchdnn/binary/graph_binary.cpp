@@ -29,7 +29,7 @@ binary_graph_prb_t::spec_t::spec_t(const ::binary::prb_t *prb) {
     src0_dims = prb->sdims[0];
     src1_dims = prb->sdims[1];
 
-    auto ndims = prb->ndims[0];
+    const auto ndims = prb->ndims[0];
     dst_dims.reserve(ndims);
     for (auto d = 0; d < ndims; ++d)
         dst_dims.push_back(std::max(src0_dims[d], src1_dims[d]));
@@ -46,8 +46,8 @@ binary_graph_prb_t::spec_t::spec_t(const ::binary::prb_t *prb) {
 }
 
 void check_broadcast_rules(const ::binary::prb_t *prb, res_t *res) {
-    auto src0_dims = prb->sdims[0];
-    auto src1_dims = prb->sdims[1];
+    const auto src0_dims = prb->sdims[0];
+    const auto src1_dims = prb->sdims[1];
 
     // General broadcast rules:
     // Two dimensions are compatible when

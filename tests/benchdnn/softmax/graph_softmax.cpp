@@ -23,7 +23,7 @@
 namespace benchdnnext {
 namespace softmax {
 
-softmax_graph_prb_t::spec_t::spec_t(const ::softmax::prb_t *prb) {
+softmax_graph_prb_t::spec_t::spec_t(const ::softmax::prb_t *prb) noexcept {
     axis = prb->axis;
     dims = prb->dims;
     softmax_dt = convert_dt(prb->dt);
@@ -38,7 +38,8 @@ softmax_graph_prb_t::spec_t::spec_t(const ::softmax::prb_t *prb) {
     }
 }
 
-void check_known_skipped_case(const ::softmax::prb_t *prb, res_t *res) {
+void check_known_skipped_case_graph(
+        const ::softmax::prb_t *prb, res_t *res) noexcept {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
     //TODO - Remove below while adding training usecases.
     if (!(prb->dir & FLAG_FWD)) {
@@ -49,7 +50,7 @@ void check_known_skipped_case(const ::softmax::prb_t *prb, res_t *res) {
     }
 }
 
-void add_additional_softmax_check(compare::compare_t &cmp) {
+void add_additional_softmax_check(compare::compare_t &cmp) noexcept {
     const auto softmax_add_check
             = [&](const compare::compare_t::driver_check_func_args_t &args) {
                   // SSE4.1 and OpenCL rdiff tolerance is too high for
@@ -84,7 +85,7 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
     using dt = dnnl::graph::logical_tensor::data_type;
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    check_known_skipped_case(prb, res);
+    check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
     softmax_graph_prb_t graph_prb(prb);
@@ -111,9 +112,9 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     dnn_mem_t &dst_fp = src_fp; // in-place reference
 
-    auto placeholder_dst_dt = make_dnn_mem(outs[0], (prb->tag).c_str());
+    const auto placeholder_dst_dt = make_dnn_mem(outs[0], (prb->tag).c_str());
     auto src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
-    dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
+    const dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
     std::vector<dnnl::graph::tensor> tensors_in, tensors_out;
     if (prb->dir & FLAG_FWD) {

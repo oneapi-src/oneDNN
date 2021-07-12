@@ -46,7 +46,7 @@ struct bnorm_graph_prb_t : public graph_prb_t {
 
 private:
     struct spec_t {
-        spec_t(const ::bnorm::prb_t *prb);
+        spec_t(const ::bnorm::prb_t *prb) noexcept;
         float epsilon {0.00001f};
 
         dims_t dims;
@@ -61,7 +61,7 @@ private:
     fill_status_t handle_main_op_();
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
 
-    dnnl::graph::op::kind get_main_op_kind() const override {
+    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::BatchNormInference;
     }
 };

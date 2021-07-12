@@ -68,7 +68,7 @@ struct conv_graph_prb_t : public graph_prb_t {
 private:
     std::vector<float> oscales;
     struct spec_t {
-        spec_t(const ::conv::prb_t *prb);
+        spec_t(const ::conv::prb_t *prb) noexcept;
 
         dims_t src_dims;
         dims_t wei_dims;
@@ -104,14 +104,14 @@ private:
     fill_status_t handle_low_precision_();
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po);
 
-    dnnl::graph::op::kind get_main_op_kind() const override {
+    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::Convolution;
     }
 
 public:
-    const struct spec_t spec() const { return spec_; }
+    const struct spec_t spec() const noexcept { return spec_; }
 
-    std::vector<float> get_oscales() { return oscales; }
+    std::vector<float> get_oscales() noexcept { return oscales; }
 };
 
 int doit(const ::conv::prb_t *prb, res_t *res);

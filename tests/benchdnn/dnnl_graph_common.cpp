@@ -23,7 +23,7 @@
 
 namespace benchdnnext {
 
-inline bool should_stop(const benchdnn_timer_t &t) {
+inline bool should_stop(const benchdnn_timer_t &t) noexcept {
     const bool stop = false
             || (fix_times_per_prb && t.times() >= fix_times_per_prb)
             || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
@@ -50,7 +50,8 @@ void check_known_skipped_case_graph_common(
     }
 }
 
-dnnl::graph::logical_tensor::data_type convert_dt(const dnnl_data_type_t dt) {
+dnnl::graph::logical_tensor::data_type convert_dt(
+        const dnnl_data_type_t dt) noexcept {
     using graph_dt = dnnl::graph::logical_tensor::data_type;
 
     switch (dt) {
@@ -65,7 +66,8 @@ dnnl::graph::logical_tensor::data_type convert_dt(const dnnl_data_type_t dt) {
     }
 }
 
-dnnl_data_type_t convert_dt(const dnnl::graph::logical_tensor::data_type dt) {
+dnnl_data_type_t convert_dt(
+        const dnnl::graph::logical_tensor::data_type dt) noexcept {
     using graph_dt = dnnl::graph::logical_tensor::data_type;
 
     switch (dt) {
@@ -80,7 +82,7 @@ dnnl_data_type_t convert_dt(const dnnl::graph::logical_tensor::data_type dt) {
     }
 }
 
-dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) {
+dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept {
     using graph_op = dnnl::graph::op::kind;
     // all options could be easily added later
     switch (kind) {
@@ -123,7 +125,7 @@ dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) {
     }
 }
 
-std::string convert_tag(const std::string &tag, bool activation_tag) {
+std::string convert_tag(const std::string &tag, bool activation_tag) noexcept {
     if (tag == "abx") return (activation_tag) ? "NCX" : "OIX";
     if (tag == "axb") return "NXC";
     if (tag == "xba") return "XIO";
@@ -132,7 +134,7 @@ std::string convert_tag(const std::string &tag, bool activation_tag) {
 }
 
 dims_t convert_bin_policy(const dims_t &lhs_dims, const attr_t::policy_t policy,
-        const std::string &data_format) {
+        const std::string &data_format) noexcept {
     using bin_pol = attr_t::policy_t;
 
     auto rhs_dims = dims_t(lhs_dims.size(), 1);
@@ -160,7 +162,7 @@ dims_t convert_bin_policy(const dims_t &lhs_dims, const attr_t::policy_t policy,
 
 std::map<std::string, float> convert_eltw_entry(
         const dnnl::graph::op::kind op_kind,
-        const attr_t::post_ops_t::entry_t &entry) {
+        const attr_t::post_ops_t::entry_t &entry) noexcept {
     using graph_op = dnnl::graph::op::kind;
 
     std::map<std::string, float> attrs;
@@ -175,7 +177,7 @@ std::map<std::string, float> convert_eltw_entry(
     }
 }
 
-bool should_handle_swish(graph_prb_t &p, const dnnl_alg_kind_t kind) {
+bool should_handle_swish(graph_prb_t &p, const dnnl_alg_kind_t kind) noexcept {
     using op = dnnl::graph::op;
     static const std::vector<op::kind> possible_base_ops
             = {op::kind::Convolution};
@@ -254,7 +256,7 @@ dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
     dnnl_dims_t dnnl_dims = {0};
     std::copy(dims.begin(), dims.end(), dnnl_dims);
 
-    auto ltype = lt.get_layout_type();
+    const auto ltype = lt.get_layout_type();
     if (ltype == graph_layout::any)
         return dnn_mem_t(ndims, dnnl_dims, convert_dt(graph_dt), valid_tag,
                 dnnl_test_engine);
@@ -345,12 +347,12 @@ inline int measure_perf_individual(benchdnn_timer_t &t,
 int measure_perf(benchdnn_timer_t &t, perf_function_t &perf_func,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs) {
-    int ret = OK;
     if (is_bench_mode(PERF)) {
         dnnl::graph::stream stream(::benchdnnext::get_test_engine());
-        ret = measure_perf_individual(t, stream, perf_func, inputs, outputs);
+        return measure_perf_individual(t, stream, perf_func, inputs, outputs);
+    } else {
+        return OK;
     }
-    return ret;
 }
 
 int measure_perf(benchdnn_timer_t &t, dnnl::graph::compiled_partition &cp,

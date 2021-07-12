@@ -22,7 +22,7 @@
 namespace benchdnnext {
 namespace eltwise {
 
-eltwise_graph_prb_t::spec_t::spec_t(const ::eltwise::prb_t *prb) {
+eltwise_graph_prb_t::spec_t::spec_t(const ::eltwise::prb_t *prb) noexcept {
     dims = prb->dims;
     eltwise_dt = convert_dt(prb->dt);
     dst_tag = convert_tag(prb->tag);
@@ -109,13 +109,16 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
     // we need src_fp for proper comparison, => no in-place reference
     auto dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
 
-    dnn_mem_t placeholder_dst_dt;
-    if (!prb->inplace) {
-        placeholder_dst_dt = make_dnn_mem(outs[0], (prb->tag).c_str());
-    }
+    const dnn_mem_t placeholder_dst_dt = [&outs, &prb] {
+        if (!prb->inplace) {
+            return make_dnn_mem(outs[0], (prb->tag).c_str());
+        } else {
+            return dnn_mem_t();
+        }
+    }();
 
     auto src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
-    dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
+    const dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
     // eltwise operator supports only relu-add (single binary post-op)
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     if (graph_prb.has_post_bin()) {
@@ -130,7 +133,7 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
     SAFE(::eltwise::fill_data(prb, SRC, src_dt, src_fp), WARN);
 
     const bool is_fwd = prb->dir & FLAG_FWD;
-    dnn_mem_t &arg_fp = !is_fwd && prb->use_dst() ? dst_fp : src_fp;
+    const dnn_mem_t &arg_fp = !is_fwd && prb->use_dst() ? dst_fp : src_fp;
 
     // Shouldn't be defined inside since not available when `eltwise_add_check`
     // is invoked due to removed from stack.

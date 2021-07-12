@@ -46,7 +46,7 @@ struct pool_graph_prb_t : public graph_prb_t {
 
 private:
     struct spec_t {
-        spec_t(const ::pool::prb_t *prb);
+        spec_t(const ::pool::prb_t *prb) noexcept;
 
         dims_t strides;
         dims_t kernel;
@@ -75,7 +75,7 @@ private:
     fill_status_t handle_main_op_();
     fill_status_t handle_low_precision_();
 
-    dnnl::graph::op::kind get_main_op_kind() const override {
+    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return spec_.op_kind;
     }
 };

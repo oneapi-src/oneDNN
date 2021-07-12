@@ -27,7 +27,7 @@
 namespace benchdnnext {
 namespace lnorm {
 
-lnorm_graph_prb_t::spec_t::spec_t(const ::lnorm::prb_t *prb) {
+lnorm_graph_prb_t::spec_t::spec_t(const ::lnorm::prb_t *prb) noexcept {
     dims = prb->dims;
     ss_dims = dims_t {1, prb->c};
     lnorm_dt = convert_dt(prb->dt);
@@ -41,7 +41,8 @@ lnorm_graph_prb_t::spec_t::spec_t(const ::lnorm::prb_t *prb) {
     epsilon = 1.f / 16;
 }
 
-void check_known_skipped_case(const ::lnorm::prb_t *prb, res_t *res) {
+void check_known_skipped_case_graph(
+        const ::lnorm::prb_t *prb, res_t *res) noexcept {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
     if (res->state == SKIPPED) return;
     check_known_skipped_case_graph_common(
@@ -69,12 +70,13 @@ void add_additional_fwd_lnorm_check(const ::lnorm::prb_t *&prb,
         const float &eps, compare::compare_t &cmp) {
     using cmp_args_t = compare::compare_t::driver_check_func_args_t;
     const auto lnorm_add_check = [&](const cmp_args_t &args) {
-        bool scale_or_shift = prb->use_ss() || prb->use_sc() || prb->use_sh();
+        const bool scale_or_shift
+                = prb->use_ss() || prb->use_sc() || prb->use_sh();
         if (!scale_or_shift) return false;
 
         ::dims_t l_dims(dst_fp.md_);
-        dims_t dims_idx = off2dims_idx(l_dims, args.idx);
-        int64_t c = dims_idx[prb->ndims - 1];
+        const dims_t dims_idx = off2dims_idx(l_dims, args.idx);
+        const int64_t c = dims_idx[prb->ndims - 1];
         const float beta = prb->use_sh() ? ((const float *)sh_fp)[c]
                                          : ((const float *)ss_fp)[prb->c + c];
         /* Using an empirically derived threshold,
@@ -146,7 +148,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    check_known_skipped_case(prb, res);
+    check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
     lnorm_graph_prb_t graph_prb(prb);
@@ -160,7 +162,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
     const bool use_sh = prb->use_sh();
 
     auto graph_h = graph_prb.to_graph();
-    auto spec = graph_prb.spec();
+    const auto spec = graph_prb.spec();
 
     const auto partitions = graph_h.get_partitions();
     if (partitions.empty() || partitions.size() > 1)

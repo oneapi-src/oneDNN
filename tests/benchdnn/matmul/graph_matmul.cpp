@@ -28,7 +28,7 @@
 namespace benchdnnext {
 namespace matmul {
 
-matmul_graph_prb_t::spec_t::spec_t(const ::matmul::prb_t *prb) {
+matmul_graph_prb_t::spec_t::spec_t(const ::matmul::prb_t *prb) noexcept {
     src_dims = get_runtime_dims(prb->src_dims(), prb->src_runtime_dim_mask());
     wei_dims = get_runtime_dims(
             prb->weights_dims(), prb->weights_runtime_dim_mask());
@@ -163,7 +163,8 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_() {
     return fill_status_t::DONE;
 }
 
-dims_t get_runtime_dims(const dims_t &dims, const ::matmul::dims_mask_t &mask) {
+dims_t get_runtime_dims(
+        const dims_t &dims, const ::matmul::dims_mask_t &mask) noexcept {
     if (mask.none() || dims.empty()) return dims;
     dims_t runtime_dims;
     runtime_dims.resize(dims.size());
@@ -179,7 +180,7 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    check_known_skipped_case(prb, res);
+    ::matmul::check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
     matmul_graph_prb_t graph_prb(prb);

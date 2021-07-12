@@ -39,7 +39,7 @@ struct lnorm_graph_prb_t : public graph_prb_t {
 
 private:
     struct spec_t {
-        spec_t(const ::lnorm::prb_t *prb);
+        spec_t(const ::lnorm::prb_t *prb) noexcept;
         bool keep_stats {true};
         int64_t begin_norm_axis {-1};
         bool use_affine {true};
@@ -55,12 +55,12 @@ private:
 
     fill_status_t handle_main_op_();
 
-    dnnl::graph::op::kind get_main_op_kind() const override {
+    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::LayerNorm;
     }
 
 public:
-    const struct spec_t spec() const { return spec_; }
+    const struct spec_t spec() const noexcept { return spec_; }
 };
 
 int doit(const ::lnorm::prb_t *prb, res_t *res);
