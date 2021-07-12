@@ -39,7 +39,7 @@ struct jit_uni_shuffle_t : public primitive_t {
         using cpu_shuffle_pd_t::cpu_shuffle_pd_t;
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_shuffle_t);
+                JIT_IMPL_NAME_HELPER("jit:", conf_.isa, ""), jit_uni_shuffle_t);
 
         status_t init(engine_t *engine);
 

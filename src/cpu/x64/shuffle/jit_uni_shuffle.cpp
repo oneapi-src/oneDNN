@@ -38,18 +38,16 @@ status_t jit_uni_shuffle_t<isa>::pd_t::init(engine_t *engine) {
 
     const bool ok = mayiuse(isa)
             && utils::one_of(conf_.data_type, f32, s32, bf16)
-            && IMPLICATION(
-                    conf_.data_type == bf16, is_superset(isa, avx512_core))
             && platform::has_data_type_support(conf_.data_type)
             && attr()->has_default_values() && axis() == 1
             && IMPLICATION(!is_fwd(), set_default_formats_common());
 
     if (!ok) return status::unimplemented;
 
-    if (isa != avx512_common)
-        conf_.isa = mayiuse(avx2) ? avx2 : isa;
-    else
-        conf_.isa = isa;
+    conf_.isa = isa;
+    if (isa == avx) conf_.isa = mayiuse(avx2) ? avx2 : avx;
+    if (conf_.data_type == bf16)
+        conf_.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
 
     const format_tag_t blocked_format
             = memory_desc_matches_one_of_tag(*data_md(), nCw16c, nChw16c,
