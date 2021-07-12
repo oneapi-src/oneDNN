@@ -5432,9 +5432,9 @@ TEST(operator_kernel, layernorm_training) {
     impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
             3, {1, 3, 2}, impl::data_type::f32, impl::layout_type::any);
     impl::logical_tensor_t mean_lt = utils::logical_tensor_init(
-            4, {3}, impl::data_type::f32, impl::layout_type::any);
+            4, {1, 3}, impl::data_type::f32, impl::layout_type::any);
     impl::logical_tensor_t variance_lt = utils::logical_tensor_init(
-            5, {3}, impl::data_type::f32, impl::layout_type::any);
+            5, {1, 3}, impl::data_type::f32, impl::layout_type::any);
 
     std::vector<impl::logical_tensor_t> inputs {src_lt, scale_lt, shift_lt};
     std::vector<impl::logical_tensor_t> outputs {dst_lt, mean_lt, variance_lt};

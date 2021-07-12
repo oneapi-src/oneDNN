@@ -140,6 +140,15 @@ dnnl::memory::desc make_dnnl_memory_desc(const impl::logical_tensor_t &lt) {
     } else if (ltw.is_strided()) {
         return dnnl::memory::desc {dims, dtype, ltw.vstrides()};
     } else {
+#ifdef DNNL_GRAPH_LAYOUT_DEBUG
+        const auto format_tag
+                = static_cast<dnnl::memory::format_tag>(ltw.layout_id());
+        if (format_tag < dnnl::memory::format_tag::format_tag_last
+                && format_tag > dnnl::memory::format_tag::any) {
+            return {ltw.vdims(), dtype, format_tag};
+        }
+#endif // DNNL_GRAPH_LAYOUT_DEBUG
+
         const auto &td = dnnl_backend::get_singleton().get_mem_desc(
                 static_cast<size_t>(ltw.layout_id()));
         return static_cast<dnnl::memory::desc>(

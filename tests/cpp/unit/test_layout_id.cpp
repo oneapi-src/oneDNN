@@ -46,6 +46,14 @@ TEST(layout_id_test, opaque_md_layout_id_mapping) {
     auto id2 = mgr.set_mem_desc(md2);
     ASSERT_TRUE(id2.has_value());
 
+#ifdef DNNL_GRAPH_LAYOUT_DEBUG
+    ASSERT_EQ(id1.value(), static_cast<size_t>(format_tag::nChw16c));
+    ASSERT_EQ(id2.value(), static_cast<size_t>(format_tag::nChw8c));
+
+    tensor::desc md3({1, 2, 3, 4}, data_type::s8, format_tag::nChw16c);
+    auto id3 = mgr.set_mem_desc(md3);
+    ASSERT_EQ(id3.value(), static_cast<size_t>(format_tag::nChw16c));
+#else
     ASSERT_GT(id2.value(), id1.value());
 
     // we should be able to get cached opaque md out according to the
@@ -61,4 +69,5 @@ TEST(layout_id_test, opaque_md_layout_id_mapping) {
     ASSERT_EQ(dnnl::graph::impl::utils::any_cast<tensor::desc>(
                       recovered_md2.value()),
             md2);
+#endif // DNNL_GRAPH_LAYOUT_DEBUG
 }

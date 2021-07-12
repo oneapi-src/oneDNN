@@ -153,6 +153,12 @@ if(${DNNL_GRAPH_ENABLE_ASAN})
         )
 endif()
 
+# Set up debug mode for memory layout (option is defined in cmake/options.cmake)
+if(DNNL_GRAPH_LAYOUT_DEBUG)
+    message(STATUS "Layout debugging mode enabled")
+    append(DNNL_GRAPH_COMMON_COMPILATION_FLAGS "-DDNNL_GRAPH_LAYOUT_DEBUG")
+endif()
+
 if(NOT WIN32)
     include("cmake/check_headers.cmake")
 endif()

@@ -36,6 +36,10 @@ option(DNNL_GRAPH_VERBOSE
 option(DNNL_GRAPH_LOGGER
     "allows oneDNN Graph library to output logging information" OFF)
 
+option(DNNL_GRAPH_LAYOUT_DEBUG
+    "allows backends in oneDNN Graph library to generate user-comprehensive
+    layout id which helps debugging for layout propagation" OFF)
+
 # =============================
 # Building properties and scope
 # =============================
