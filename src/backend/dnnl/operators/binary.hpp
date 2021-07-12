@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <assert.h>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,7 +29,10 @@
 #include "interface/backend.hpp"
 
 #include "backend/dnnl/common.hpp"
+#include "backend/dnnl/f32_kernel_resource.hpp"
 #include "backend/dnnl/legacy.hpp"
+#include "backend/dnnl/resource.hpp"
+#include "backend/dnnl/scratchpad.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -38,6 +42,11 @@ namespace dnnl_impl {
 namespace bin {
 enum binary_inputs { kSrc0, kSrc1 };
 enum binary_outputs { kDst };
+enum mem_keys {
+    kOpt_src0,
+    kOpt_src1,
+    kOpt_dst,
+};
 } // namespace bin
 
 // We support both multidirectional and unidirectional broadcast. And the
@@ -65,24 +74,15 @@ private:
     bool broadcast_ {false};
     bool with_post_sum_ {false};
 
-    dnnl::memory expected_src0_;
-    dnnl::memory expected_src1_;
-    dnnl::memory expected_dst_;
-
-    dnnl::memory src0_;
-    dnnl::memory src1_;
-    dnnl::memory dst_;
-
-    void *expected_dst_buf_ {nullptr};
+    dnnl::reorder::primitive_desc dst_reorder_pd_;
 
     dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
-    impl::allocator_t *g_alloc_;
 
-    bool first_iteration_ {true};
-    exec_args binary_args_;
+    registry_t registry_;
+    size_t res_key_;
+    resource_cache_t::creator_t resource_ctor_;
 
-    dnnl::reorder::primitive_desc dst_reorder_pd_;
+    f32_kernel_resource_t::desc_t res_desc_;
 
     bool require_broadcast(const dnnl::memory::desc &src0,
             const dnnl::memory::desc &src1, const dnnl::memory::desc &dst) {
@@ -174,10 +174,7 @@ private:
     }
 
 public:
-    ~binary() {
-        if (expected_dst_buf_)
-            allocator::free(expected_dst_buf_, p_engine_, g_alloc_);
-    }
+    ~binary() {}
 
     impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
@@ -200,25 +197,32 @@ public:
 
         p_engine_ = make_dnnl_engine(*g_engine);
 
-        desc src0 = make_dnnl_memory_desc(inputs.at(idx_src0_));
-        desc src1 = make_dnnl_memory_desc(inputs.at(idx_src1_));
-        desc dst = make_dnnl_memory_desc(outputs.at(idx_dst_));
+        res_desc_.cvt_src_ = make_dnnl_memory_desc(inputs.at(idx_src0_));
+        res_desc_.cvt_src1_ = make_dnnl_memory_desc(inputs.at(idx_src1_));
+        res_desc_.cvt_dst_ = make_dnnl_memory_desc(outputs.at(idx_dst_));
 
         // expand for broadcast
-        if (require_broadcast(src0, src1, dst)) {
+        if (require_broadcast(res_desc_.cvt_src_, res_desc_.cvt_src1_,
+                    res_desc_.cvt_dst_)) {
             if (auto_broadcast_ != "numpy") return status::compile_fail;
 
             broadcast_ = true;
-            src0 = expand(src0, dst.data.ndims);
-            src1 = expand(src1, dst.data.ndims);
+            res_desc_.cvt_src_
+                    = expand(res_desc_.cvt_src_, res_desc_.cvt_dst_.data.ndims);
+            res_desc_.cvt_src1_ = expand(
+                    res_desc_.cvt_src1_, res_desc_.cvt_dst_.data.ndims);
         }
 
         // to any for allowing dnnl choose optimal layout for dst
-        desc dst_any(dst.dims(), dst.data_type(), format_tag::any);
+        desc dst_any(res_desc_.cvt_dst_.dims(), res_desc_.cvt_dst_.data_type(),
+                format_tag::any);
 
         // set sum post-op
         with_post_sum_ = fuse_add(op->get_kind());
-        if (with_post_sum_) { attr_ = attr_t::fuse_sum(); }
+        if (with_post_sum_) {
+            res_desc_.cvt_post_src_ = make_dnnl_memory_desc(inputs.back());
+            attr_ = attr_t::fuse_sum();
+        }
 
         // set eltwise post-op
         const algorithm algo = get_eltwise_algo(op->get_kind());
@@ -227,14 +231,38 @@ public:
         }
 
         pd_ = primitive_desc(
-                {alg_kind_, src0, src1, dst_any}, attr_, p_engine_);
+                {alg_kind_, res_desc_.cvt_src_, res_desc_.cvt_src1_, dst_any},
+                attr_, p_engine_);
 
         prim_ = super(pd_);
-        first_iteration_ = true;
+
+        // Note: opt_src should be equal to cvt_src, because we don't use any
+        // for input
+        res_desc_.opt_src_ = pd_.src0_desc();
+        res_desc_.opt_src1_ = pd_.src1_desc();
+        res_desc_.opt_dst_ = pd_.dst_desc();
+        if (impl::logical_tensor_wrapper(outputs.at(idx_dst_)).is_any()) {
+            res_desc_.cvt_dst_ = pd_.dst_desc();
+        }
 
         impl::logical_tensor_t *orgi_dst_lt
                 = const_cast<impl::logical_tensor_t *>(&outputs.at(idx_dst_));
         fill_layout_info(orgi_dst_lt, pd_.dst_desc());
+
+        registrar_t registrar = registry_.registrar();
+        if (res_desc_.opt_dst_ != res_desc_.cvt_dst_) {
+            registrar.book(bin::kOpt_dst, res_desc_.opt_dst_.get_size());
+            dst_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
+                    res_desc_.opt_dst_, p_engine_, res_desc_.cvt_dst_);
+        }
+
+        res_key_ = impl::utils::hash_combine(0, res_desc_);
+        res_key_ = impl::utils::hash_combine(res_key_, p_engine_.get());
+        resource_ctor_ = [this]() {
+            return std::unique_ptr<resource_t>(new f32_kernel_resource_t(
+                    this->res_desc_, this->p_engine_));
+        };
+
         return impl::status::success;
     }
 
@@ -243,84 +271,53 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(op);
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
-        if (first_iteration_) {
-            src0_ = make_dnnl_memory(inputs.at(idx_src0_), p_engine_);
-            src1_ = make_dnnl_memory(inputs.at(idx_src1_), p_engine_);
-            dst_ = make_dnnl_memory(outputs.at(idx_dst_), p_engine_);
-        }
+        // each thread's own local resource
+        resource_cache_t res_cache;
+        f32_kernel_resource_t *res = res_cache.get<f32_kernel_resource_t>(
+                res_key_, resource_ctor_, true /*is f32*/);
 
-        src0_.set_data_handle(inputs.at(idx_src0_).get_data_handle());
-        src1_.set_data_handle(inputs.at(idx_src1_).get_data_handle());
-        dst_.set_data_handle(outputs.at(idx_dst_).get_data_handle());
+        impl::allocator_t *g_alloc_ = g_stream->get_engine()->get_allocator();
+        temporary_scratchpad_t scratchpad(
+                registry_.size(), p_engine_, *g_alloc_);
+        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
 
-        // Deal with src1; If it's:
-        // broadcasted: parse its buffer with the reshaped desc
-        // not broadcasted:use the origin memory object directly
-        if (broadcast_) {
-            if (first_iteration_) {
-                expected_src0_ = memory(
-                        pd_.src0_desc(), p_engine_, src0_.get_data_handle());
-                expected_src1_ = memory(
-                        pd_.src1_desc(), p_engine_, src1_.get_data_handle());
-            }
-            expected_src0_.set_data_handle(src0_.get_data_handle());
-            expected_src1_.set_data_handle(src1_.get_data_handle());
-        } else {
-            if (first_iteration_) {
-                expected_src0_ = src0_;
-                expected_src1_ = src1_;
-            }
-            expected_src0_.set_data_handle(src0_.get_data_handle());
-            expected_src1_.set_data_handle(src1_.get_data_handle());
-        }
+        res->cvt_src_.set_data_handle(inputs.at(idx_src0_).get_data_handle());
+        res->cvt_src1_.set_data_handle(inputs.at(idx_src1_).get_data_handle());
+        res->cvt_dst_.set_data_handle(outputs.at(idx_dst_).get_data_handle());
 
-        g_alloc_ = g_stream->get_engine()->get_allocator();
+        res->opt_src_.set_data_handle(res->cvt_src_.get_data_handle());
+        res->opt_src1_.set_data_handle(res->cvt_src1_.get_data_handle());
 
         // Deal with the dst:
         // when create the primitive, we use any format for dst, so the
         // optimal layout may be different from the original. we need
         // to check this and alloc new memory for optimal dst
-        if (pd_.dst_desc() != dst_.get_desc()) {
-            if (first_iteration_) {
-                expected_dst_buf_ = allocator::malloc(
-                        pd_.dst_desc().get_size(), p_engine_, g_alloc_);
-                expected_dst_
-                        = memory(pd_.dst_desc(), p_engine_, expected_dst_buf_);
-                dst_reorder_pd_ = dnnl::reorder::primitive_desc(
-                        p_engine_, pd_.dst_desc(), p_engine_, dst_.get_desc());
-            }
+        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
+            res->opt_dst_.set_data_handle(grantor.get(bin::kOpt_dst));
         } else {
-            if (first_iteration_) expected_dst_ = dst_;
-            expected_dst_.set_data_handle(dst_.get_data_handle());
+            res->opt_dst_.set_data_handle(res->cvt_dst_.get_data_handle());
         }
 
-        memory post_src = with_post_sum_
-                ? make_dnnl_memory(inputs.back(), p_engine_)
-                : memory {};
+        if (with_post_sum_) {
+            res->cvt_post_src_.set_data_handle(inputs.back().get_data_handle());
+        }
 
         if (with_post_sum_
-                && post_src.get_data_handle()
-                        != expected_dst_.get_data_handle()) {
-            dnnl::reorder(post_src, expected_dst_)
-                    .execute(p_stream_, post_src, expected_dst_);
+                && res->cvt_post_src_.get_data_handle()
+                        != res->opt_dst_.get_data_handle()) {
+            dnnl::reorder(res->cvt_post_src_, res->opt_dst_)
+                    .execute(p_stream, res->cvt_post_src_, res->opt_dst_);
         }
 
-        if (first_iteration_) {
-            binary_args_ = {{DNNL_ARG_SRC_0, expected_src0_},
-                    {DNNL_ARG_SRC_1, expected_src1_},
-                    {DNNL_ARG_DST, expected_dst_}};
-        }
+        dnnl::binary(pd_).execute(p_stream, res->exec_args_);
 
-        prim_.execute(p_stream_, binary_args_);
-
-        if (expected_dst_ != dst_) {
+        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
             dnnl::reorder(dst_reorder_pd_)
-                    .execute(p_stream_, expected_dst_, dst_);
+                    .execute(p_stream, res->opt_dst_, res->cvt_dst_);
         }
 
-        first_iteration_ = false;
         return impl::status::success;
     }
 };

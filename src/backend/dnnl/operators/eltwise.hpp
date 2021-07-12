@@ -67,32 +67,32 @@ private:
     float beta_ = 0.f;
     prop_kind prop_kind_ = prop_kind::forward;
     dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
 
 public:
     void compute(const tensor &src, tensor &dst, const tensor &post_src,
-            impl::allocator_t *alc) {
+            impl::allocator_t *alc, const dnnl::stream &p_stream) const {
+        tensor expected_dst;
         if (dst.get_desc() != pd_.dst_desc()) {
-            if (expected_dst_.is_empty()) {
-                expected_dst_ = tensor {pd_.dst_desc(), p_engine_, alc};
+            if (expected_dst.is_empty()) {
+                expected_dst = tensor {pd_.dst_desc(), p_engine_, alc};
             }
         } else {
-            expected_dst_ = dst;
+            expected_dst = dst;
         }
 
         exec_args args;
 
         args.insert({DNNL_ARG_SRC, src});
-        args.insert({DNNL_ARG_DST, expected_dst_});
+        args.insert({DNNL_ARG_DST, expected_dst});
         if (eltwise_fusion_set::with_binary(kind_))
             args.insert({DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
                     post_src});
 
-        super(pd_).execute(p_stream_, args);
+        super(pd_).execute(p_stream, args);
 
-        if (expected_dst_ != dst) {
-            dnnl::reorder(expected_dst_, dst)
-                    .execute(p_stream_, expected_dst_, dst);
+        if (expected_dst != dst) {
+            dnnl::reorder(expected_dst, dst)
+                    .execute(p_stream, expected_dst, dst);
         }
     }
 
@@ -177,7 +177,7 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(op);
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
         tensor x {inputs.at(eltwise::kSrc).get_logical_tensor(), p_engine_, alc,
@@ -188,7 +188,7 @@ public:
                 ? tensor {inputs.back().get_logical_tensor(), p_engine_, alc,
                         inputs.back().get_data_handle()}
                 : tensor {};
-        compute(x, y, post_src, alc);
+        compute(x, y, post_src, alc, p_stream);
         return impl::status::success;
     }
 };

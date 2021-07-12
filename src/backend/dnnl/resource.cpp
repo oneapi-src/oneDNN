@@ -25,16 +25,24 @@ thread_local std::unordered_map<resource_cache_t::key_t,
         resource_cache_t::cached_t>
         resource_cache_t::resource_map_;
 
-bool resource_cache_t::has_resource(const key_t &key) const {
-    return resource_map_.count(key);
+thread_local std::unordered_map<resource_cache_t::key_t,
+        resource_cache_t::cached_t>
+        resource_cache_t::f32_resource_map_;
+
+bool resource_cache_t::has_resource(const key_t &key, bool is_f32) const {
+    if (is_f32)
+        return f32_resource_map_.count(key);
+    else
+        return resource_map_.count(key);
 }
 
 size_t resource_cache_t::size() const {
-    return resource_map_.size();
+    return resource_map_.size() + f32_resource_map_.size();
 }
 
 void resource_cache_t::clear() {
     resource_map_.clear();
+    f32_resource_map_.clear();
 }
 
 } // namespace dnnl_impl

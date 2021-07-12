@@ -92,12 +92,12 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(op);
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
         tensor src_ts {inputs.at(logsoftmax::kSrc), p_engine_, alc};
         tensor dst_ts {outputs.at(logsoftmax::kDst), p_engine_, alc};
-        logsoftmax_forward::compute(src_ts, dst_ts, p_engine_, alc, p_stream_);
+        logsoftmax_forward::compute(src_ts, dst_ts, p_engine_, alc, p_stream);
         return impl::status::success;
     }
 };

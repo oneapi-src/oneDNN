@@ -295,6 +295,19 @@ memory::desc to_format_any(const memory::desc &adesc) {
             adesc.dims(), adesc.data_type(), memory::format_tag::any);
 }
 
+bool is_4c_blocked(const memory::desc &adesc) {
+    if (adesc.data.format_kind != dnnl_blocked) return false;
+
+    const auto &blk = adesc.data.format_desc.blocking;
+    return blk.inner_nblks == 1 && blk.inner_idxs[0] == 1
+            && blk.inner_blks[0] == 4;
+}
+
+memory::desc to_default_format(const memory::desc &adesc) {
+    return memory::desc(adesc.dims(), adesc.data_type(),
+            get_default_format(adesc.data.ndims));
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

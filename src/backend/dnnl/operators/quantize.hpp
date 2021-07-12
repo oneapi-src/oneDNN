@@ -38,7 +38,6 @@ private:
 
     primitive_desc pd_;
     dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
 
     static std::vector<float> inverse_scales(const std::vector<float> &scales) {
         std::vector<float> inv_scales;
@@ -134,12 +133,12 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(op);
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
         memory src = make_dnnl_memory(
                 cvt_src_desc_, p_engine_, inputs[0].get_data_handle());
         memory dst = make_dnnl_memory(
                 cvt_dst_desc_, p_engine_, outputs[0].get_data_handle());
-        super(pd_).execute(p_stream_, src, dst);
+        super(pd_).execute(p_stream, src, dst);
         return status::success;
     }
 };

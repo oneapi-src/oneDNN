@@ -18,6 +18,7 @@
 #define BACKEND_DNNL_UTILS_HPP
 
 #include <algorithm>
+#include <cstring>
 #include <stdlib.h>
 #include <utility>
 #include <vector>

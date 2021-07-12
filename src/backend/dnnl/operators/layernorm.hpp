@@ -44,26 +44,24 @@ private:
     bool use_affine_ = true;
     bool keep_stats_ = true;
 
-    tensor scale_shift_;
-    tensor expected_src_;
-    tensor expected_dst_;
-    tensor expected_mean_;
-    tensor expected_variance_;
-
     dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
 
 public:
-    void compute(tensor &scale, tensor &shift, impl::allocator_t *alc) {
+    void compute(tensor &scale, tensor &shift, impl::allocator_t *alc,
+            const dnnl::stream &p_stream, const tensor &expected_src,
+            const tensor &expected_dst, const tensor &expected_mean,
+            const tensor &expected_variance) const {
+        tensor scale_shift;
+
         if (use_affine_) {
-            if (scale_shift_.is_empty()) {
-                scale_shift_ = tensor {pd_.weights_desc(), p_engine_, alc};
+            if (scale_shift.is_empty()) {
+                scale_shift = tensor {pd_.weights_desc(), p_engine_, alc};
             }
 
             auto *scale_shift_buf
-                    = static_cast<char *>(scale_shift_.get_data_handle());
+                    = static_cast<char *>(scale_shift.get_data_handle());
 #if DNNL_GRAPH_WITH_SYCL
-            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream_);
+            cl::sycl::queue q = dnnl::sycl_interop::get_queue(p_stream);
             q.memcpy(
                     scale_shift_buf, scale.get_data_handle(), scale.get_size());
             q.memcpy(scale_shift_buf + scale.get_size(),
@@ -78,15 +76,15 @@ public:
 
         exec_args ln_args;
 
-        ln_args.insert({DNNL_ARG_SRC, expected_src_});
-        ln_args.insert({DNNL_ARG_DST, expected_dst_});
-        if (use_affine_) ln_args.insert({DNNL_ARG_SCALE_SHIFT, scale_shift_});
+        ln_args.insert({DNNL_ARG_SRC, expected_src});
+        ln_args.insert({DNNL_ARG_DST, expected_dst});
+        if (use_affine_) ln_args.insert({DNNL_ARG_SCALE_SHIFT, scale_shift});
         if (keep_stats_) {
-            ln_args.insert({DNNL_ARG_MEAN, expected_mean_});
-            ln_args.insert({DNNL_ARG_VARIANCE, expected_variance_});
+            ln_args.insert({DNNL_ARG_MEAN, expected_mean});
+            ln_args.insert({DNNL_ARG_VARIANCE, expected_variance});
         }
 
-        super(pd_).execute(p_stream_, ln_args);
+        super(pd_).execute(p_stream, ln_args);
     }
 
     impl::status_t compile_impl(const impl::op_t *op,
@@ -152,17 +150,20 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(op);
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
+
+        tensor expected_src, expected_dst;
+        tensor expected_mean, expected_variance;
 
         tensor src {inputs.at(layernorm::kSrc), p_engine_, alc};
         if (src.get_desc() != pd_.src_desc()) {
-            if (expected_src_.is_empty()) {
-                expected_src_ = tensor {pd_.src_desc(), p_engine_, alc};
+            if (expected_src.is_empty()) {
+                expected_src = tensor {pd_.src_desc(), p_engine_, alc};
             }
-            src.reorder_to(p_stream_, expected_src_);
+            src.reorder_to(p_stream, expected_src);
         } else {
-            expected_src_ = src;
+            expected_src = src;
         }
 
         tensor scale;
@@ -179,11 +180,11 @@ public:
         tensor mean;
         tensor variance;
         if (dst.get_desc() != pd_.dst_desc()) {
-            if (expected_dst_.is_empty()) {
-                expected_dst_ = tensor {pd_.dst_desc(), p_engine_, alc};
+            if (expected_dst.is_empty()) {
+                expected_dst = tensor {pd_.dst_desc(), p_engine_, alc};
             }
         } else
-            expected_dst_ = dst;
+            expected_dst = dst;
 
         if (keep_stats_) {
             if (outputs.size() < 3) {
@@ -195,30 +196,29 @@ public:
                     = tensor {outputs.at(layernorm::kVariance), p_engine_, alc};
 
             if (mean.get_desc() != pd_.mean_desc()) {
-                if (expected_mean_.is_empty()) {
-                    expected_mean_ = tensor {pd_.dst_desc(), p_engine_, alc};
+                if (expected_mean.is_empty()) {
+                    expected_mean = tensor {pd_.dst_desc(), p_engine_, alc};
                 }
             } else
-                expected_mean_ = mean;
+                expected_mean = mean;
 
             if (variance.get_desc() != pd_.variance_desc()) {
-                if (expected_variance_.is_empty()) {
-                    expected_variance_
-                            = tensor {pd_.dst_desc(), p_engine_, alc};
+                if (expected_variance.is_empty()) {
+                    expected_variance = tensor {pd_.dst_desc(), p_engine_, alc};
                 }
             } else
-                expected_variance_ = variance;
+                expected_variance = variance;
         }
 
-        compute(scale, shift, alc);
+        compute(scale, shift, alc, p_stream, expected_src, expected_dst,
+                expected_mean, expected_variance);
 
-        if (expected_dst_ != dst) expected_dst_.reorder_to(p_stream_, dst);
+        if (expected_dst != dst) expected_dst.reorder_to(p_stream, dst);
 
         if (keep_stats_) {
-            if (expected_mean_ != mean)
-                expected_mean_.reorder_to(p_stream_, mean);
-            if (expected_variance_ != variance)
-                expected_variance_.reorder_to(p_stream_, variance);
+            if (expected_mean != mean) expected_mean.reorder_to(p_stream, mean);
+            if (expected_variance != variance)
+                expected_variance.reorder_to(p_stream, variance);
         }
         return impl::status::success;
     }

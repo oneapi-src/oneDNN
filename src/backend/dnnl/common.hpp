@@ -114,6 +114,10 @@ memory::desc permute_NCX2NXC(const memory::desc &adesc);
 
 memory::desc permute_OIX2XIO(const memory::desc &adesc);
 
+bool is_4c_blocked(const memory::desc &adesc);
+
+memory::desc to_default_format(const memory::desc &adesc);
+
 #ifndef NDEBUG
 #define BACKEND_DNNL_ENFORCE(condition, message) \
     do { \

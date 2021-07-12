@@ -24,3 +24,5 @@
 | Single operator partition            | CPU      | FP32      | @ref cpu_single_op_partition_matmul_cpp               |                                   |
 | Int8 conv+relu multithreads          | CPU      | INT8      | @ref cpu_multithreading_int8_conv_relu_pattern_cpp    |                                   |
 | Int8 matmul+relu multithreads        | CPU      | INT8      | @ref cpu_multithreading_int8_matmul_relu_pattern_cpp  |                                   |
+| conv+bn+add+relu multithreads        | CPU      | F32       | @ref cpu_multithreading_conv_bn_add_relu_pattern_cpp  |                                   |
+| matmul+relu multithreads             | CPU      | F32       | @ref cpu_multithreading_matmul_relu_pattern_cpp       |                                   |
