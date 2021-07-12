@@ -964,7 +964,7 @@ TEST(pass_test, conv_bias_sum_relu6_fusion) {
             conv_bias_add_relu6);
 }
 
-TEST(pass_test, binary_sum_fusion) {
+TEST(pass_test, binary_sum_fusion_no_broadcast) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
@@ -977,7 +977,12 @@ TEST(pass_test, binary_sum_fusion) {
         op_t binary {0, binary_kind, "binary"};
         op_t add {1, Add, "add"};
 
-        std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+        std::vector<logical_tensor_t> lt_vec;
+        lt_vec.reserve(5);
+        for (size_t i = 0; i < 5; i++)
+            lt_vec.emplace_back(
+                    logical_tensor_init(i, {2, 3, 4, 5}, data_type::f32));
+
         binary.add_input(lt_vec[0]);
         binary.add_input(lt_vec[1]);
         binary.add_output(lt_vec[2]);
@@ -995,6 +1000,136 @@ TEST(pass_test, binary_sum_fusion) {
 
         auto fused_op = get_fused_op(agraph.get_partitions()[0]);
         ASSERT_EQ(fused_op->get_kind(), p.second);
+    }
+}
+
+TEST(pass_test, binary_sum_fusion_supported_broadcast) {
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
+            {Multiply, multiply_add}, {Maximum, maximum_add},
+            {Minimum, minimum_add}};
+
+    for (auto &p : opkind_pair) {
+        graph_t agraph;
+        auto binary_kind = p.first;
+        op_t binary {0, binary_kind, "binary"};
+        op_t add {1, Add, "add"};
+
+        std::vector<logical_tensor_t> lt_vec;
+        lt_vec.reserve(5);
+        for (size_t i = 0; i < 5; i++)
+            lt_vec.emplace_back(
+                    logical_tensor_init(i, {2, 3, 4, 5}, data_type::f32));
+
+        // set add's src1 shape to be {1,1,4,5}
+        lt_vec[3].dims[0] = 1;
+        lt_vec[3].dims[1] = 1;
+
+        binary.add_input(lt_vec[0]);
+        binary.add_input(lt_vec[1]);
+        binary.add_output(lt_vec[2]);
+        add.add_input(lt_vec[2]);
+        add.add_input(lt_vec[3]);
+        add.add_output(lt_vec[4]);
+
+        ASSERT_EQ(agraph.add_op(&binary), status::success);
+        ASSERT_EQ(agraph.add_op(&add), status::success);
+        agraph.build_graph();
+
+        pm.run_passes(agraph, "no_config");
+
+        // should not be fused
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+    }
+}
+
+TEST(pass_test, binary_sum_fusion_unsupported_broadcast) {
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
+            {Multiply, multiply_add}, {Maximum, maximum_add},
+            {Minimum, minimum_add}};
+
+    for (auto &p : opkind_pair) {
+        graph_t agraph;
+        auto binary_kind = p.first;
+        op_t binary {0, binary_kind, "binary"};
+        op_t add {1, Add, "add"};
+
+        std::vector<logical_tensor_t> lt_vec;
+        lt_vec.reserve(5);
+        for (size_t i = 0; i < 5; i++)
+            lt_vec.emplace_back(
+                    logical_tensor_init(i, {1, 1, 1, 1}, data_type::f32));
+
+        lt_vec[1].dims[2] = 28;
+        lt_vec[1].dims[3] = 28;
+
+        lt_vec[2].dims[2] = 28;
+        lt_vec[2].dims[3] = 28;
+
+        lt_vec[3].dims[1] = 32;
+        lt_vec[3].dims[2] = 28;
+        lt_vec[3].dims[2] = 28;
+
+        lt_vec[4].dims[1] = 32;
+        lt_vec[4].dims[2] = 28;
+        lt_vec[4].dims[3] = 28;
+
+        binary.add_input(lt_vec[0]);
+        binary.add_input(lt_vec[1]);
+        binary.add_output(lt_vec[2]);
+        add.add_input(lt_vec[2]);
+        add.add_input(lt_vec[3]);
+        add.add_output(lt_vec[4]);
+
+        ASSERT_EQ(agraph.add_op(&binary), status::success);
+        ASSERT_EQ(agraph.add_op(&add), status::success);
+        agraph.build_graph();
+
+        pm.run_passes(agraph, "no_config");
+
+        // should not be fused
+        ASSERT_EQ(agraph.get_num_partitions(), 2);
+    }
+}
+
+TEST(pass_test, binary_sum_fusion_unknown_shape) {
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager(backend_ptr.get_pass_registry());
+    std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
+            {Multiply, multiply_add}, {Maximum, maximum_add},
+            {Minimum, minimum_add}};
+
+    for (auto &p : opkind_pair) {
+        graph_t agraph;
+        auto binary_kind = p.first;
+        op_t binary {0, binary_kind, "binary"};
+        op_t add {1, Add, "add"};
+
+        std::vector<logical_tensor_t> lt_vec;
+        lt_vec.reserve(5);
+        // valid ndims, invalid shape
+        for (size_t i = 0; i < 5; i++)
+            lt_vec.emplace_back(
+                    logical_tensor_init(i, {-1, -1, -1, -1}, data_type::f32));
+
+        binary.add_input(lt_vec[0]);
+        binary.add_input(lt_vec[1]);
+        binary.add_output(lt_vec[2]);
+        add.add_input(lt_vec[2]);
+        add.add_input(lt_vec[3]);
+        add.add_output(lt_vec[4]);
+
+        ASSERT_EQ(agraph.add_op(&binary), status::success);
+        ASSERT_EQ(agraph.add_op(&add), status::success);
+        agraph.build_graph();
+
+        pm.run_passes(agraph, "no_config");
+
+        // should not be fused
+        ASSERT_EQ(agraph.get_num_partitions(), 2);
     }
 }
 

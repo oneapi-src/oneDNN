@@ -789,6 +789,180 @@ TEST(operator_kernel, broadcast_add) {
     }
 }
 
+TEST(operator_kernel, multidirectional_broadcast_add_BA) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {1.0, 1.0, 1.0};
+    test::vector<float> src1 {2.0, 2.0, 2.0};
+    test::vector<float> ref_dst {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
+    test::vector<float> dst(ref_dst.size(), 0.0);
+
+    impl::op_t broadcast_add_op(impl::op_kind::Add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto broadcast_add_kernel = op_factory.create_kernel(broadcast_add_op);
+    ASSERT_TRUE(broadcast_add_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {3}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt = utils::logical_tensor_init(
+            1, std::vector<impl::dim_t> {3, 1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(2, {3, 3}, impl::data_type::f32);
+
+    // compile the add operator
+    broadcast_add_kernel->compile(
+            &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    broadcast_add_kernel->execute(
+            &broadcast_add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < ref_dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+
+    // the second iteration
+    test::vector<float> src0_2nd {1.0, 1.0, 1.0};
+    test::vector<float> src1_2nd {1.0, 1.0, 1.0};
+    test::vector<float> ref_dst_2nd {
+            2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> dst_2nd(ref_dst_2nd.size(), 0.0);
+
+    impl::tensor_t src0_2nd_ts(src0_lt, src0_2nd.data());
+    impl::tensor_t src1_2nd_ts(src1_lt, src1_2nd.data());
+    impl::tensor_t dst_2nd_ts(dst_lt, dst_2nd.data());
+    broadcast_add_kernel->execute(
+            &broadcast_add_op, &strm, {src0_2nd_ts, src1_2nd_ts}, {dst_2nd_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < ref_dst_2nd.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst_2nd[i], ref_dst_2nd[i]);
+    }
+}
+
+TEST(operator_kernel, multidirectional_broadcast_add_AB) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {1.0, 1.0, 1.0};
+    test::vector<float> src1 {2.0, 2.0, 2.0};
+    test::vector<float> ref_dst {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
+    test::vector<float> dst(ref_dst.size(), 0.0);
+
+    impl::op_t broadcast_add_op(impl::op_kind::Add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto broadcast_add_kernel = op_factory.create_kernel(broadcast_add_op);
+    ASSERT_TRUE(broadcast_add_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {3, 1}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt = utils::logical_tensor_init(
+            1, std::vector<impl::dim_t> {3}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(2, {3, 3}, impl::data_type::f32);
+
+    // compile the add operator
+    broadcast_add_kernel->compile(
+            &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    broadcast_add_kernel->execute(
+            &broadcast_add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < ref_dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, multidirectional_broadcast_add_2x1x4_1x3x1) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0(8, 1.0);
+    test::vector<float> src1(3, 2.0);
+    test::vector<float> ref_dst(24, 3.0);
+    test::vector<float> dst(ref_dst.size(), 0.0);
+
+    impl::op_t broadcast_add_op(impl::op_kind::Add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto broadcast_add_kernel = op_factory.create_kernel(broadcast_add_op);
+    ASSERT_TRUE(broadcast_add_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {2, 1, 4}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt = utils::logical_tensor_init(
+            1, std::vector<impl::dim_t> {1, 3, 1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(2, {2, 3, 4}, impl::data_type::f32);
+
+    // compile the add operator
+    broadcast_add_kernel->compile(
+            &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    broadcast_add_kernel->execute(
+            &broadcast_add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < ref_dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, multidirectional_broadcast_add_2x1x1_3x4) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0(2, 1.0);
+    test::vector<float> src1(12, 2.0);
+    test::vector<float> ref_dst(24, 3.0);
+    test::vector<float> dst(ref_dst.size(), 0.0);
+
+    impl::op_t broadcast_add_op(impl::op_kind::Add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto broadcast_add_kernel = op_factory.create_kernel(broadcast_add_op);
+    ASSERT_TRUE(broadcast_add_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {2, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt = utils::logical_tensor_init(
+            1, std::vector<impl::dim_t> {3, 4}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(2, {2, 3, 4}, impl::data_type::f32);
+
+    // compile the add operator
+    broadcast_add_kernel->compile(
+            &broadcast_add_op, &eng, {src0_lt, src1_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    broadcast_add_kernel->execute(
+            &broadcast_add_op, &strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < ref_dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
 TEST(operator_kernel, add_shape_mismatch_0) {
     impl::engine_t &eng = get_engine();
 
@@ -6121,4 +6295,133 @@ TEST(operator_compile, matmul_add_get_inplace_pair) {
     ASSERT_EQ(inplace_pairs.size(), 1);
     ASSERT_EQ(inplace_pairs[0].input, lt_mm_out2.id);
     ASSERT_EQ(inplace_pairs[0].output, lt_add_out.id);
+}
+
+TEST(operator_kernel, mul_add_per_tensor_broadcast) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> src1 {2.0};
+    test::vector<float> post_src {2.0};
+    test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
+    test::vector<float> dst(src0.size(), 0.0);
+
+    impl::op_t mul_op(impl::op_kind::multiply_add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto mul_kernel = op_factory.create_kernel(mul_op);
+    ASSERT_TRUE(mul_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1, 1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 1, 3, 3}, impl::data_type::f32);
+
+    // compile the add operator
+    mul_kernel->compile(
+            &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    mul_kernel->execute(
+            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, mul_add_per_hw_broadcast) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0(18, 2.0);
+    test::vector<float> src1(1, 2.0);
+    test::vector<float> post_src(6, 2.0);
+    test::vector<float> ref_dst(18, 6.0);
+    test::vector<float> dst(src0.size(), 0.0);
+
+    impl::op_t mul_op(impl::op_kind::multiply_add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto mul_kernel = op_factory.create_kernel(mul_op);
+    ASSERT_TRUE(mul_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1, 3, 2, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(2, {2, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 3, 2, 3}, impl::data_type::f32);
+
+    // compile the add operator
+    mul_kernel->compile(
+            &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    mul_kernel->execute(
+            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, mul_add_per_channel_broadcast) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> src1 {2.0};
+    test::vector<float> post_src {2.0, 2.0, 2.0};
+    test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
+    test::vector<float> dst(src0.size(), 0.0);
+
+    impl::op_t mul_op(impl::op_kind::multiply_add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto mul_kernel = op_factory.create_kernel(mul_op);
+    ASSERT_TRUE(mul_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1, 3, 1, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(2, {3, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 3, 1, 3}, impl::data_type::f32);
+
+    // compile the add operator
+    mul_kernel->compile(
+            &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    mul_kernel->execute(
+            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
 }
