@@ -1421,9 +1421,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_add_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // currently dnnl backend only support symmetric
-                    // quantization for the second input of add op
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     op_t *matmul = apattern->create_op(op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
@@ -1455,9 +1452,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // currently dnnl backend only support symmetric
-                    // quantization for the second input of add op
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     op_t *matmul = apattern->create_op(op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
@@ -1486,9 +1480,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_add_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // currently dnnl backend only support symmetric
-                    // quantization for the second input of add op
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     op_t *matmul = apattern->create_op(op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 3);
@@ -1508,9 +1499,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_add_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // currently dnnl backend only support symmetric
-                    // quantization for the second input of add op
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     op_t *matmul = apattern->create_op(op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
@@ -1544,10 +1532,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // currently dnnl backend only support symmetric
-                    // quantization for the second input of add op
-                    dequant_other->set_attr<bool>("symmetric_check", true);
-
                     op_t *matmul = apattern->create_op(op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 3);
                     op_t *add = apattern->create_op(op_kind::Add);
@@ -1568,9 +1552,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // currently dnnl backend only support symmetric
-                    // quantization for the second input of add op
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     op_t *matmul = apattern->create_op(op_kind::MatMul);
                     matmul->set_attr<int64_t>("num_inputs", 2);
@@ -1601,9 +1582,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_matmul_add_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // currently dnnl backend only support symmetric
-                    // quantization for the second input of add op
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
@@ -1633,9 +1611,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_matmul_bias_add_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // currently dnnl backend only support symmetric
-                    // quantization for the second input of add op
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
@@ -1656,9 +1631,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_matmul_bias_add_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // currently dnnl backend only support symmetric
-                    // quantization for the second input of add op
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
@@ -1693,9 +1665,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // currently dnnl backend only support symmetric
-                    // quantization for the second input of add op
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
@@ -1728,9 +1697,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // currently dnnl backend only support symmetric
-                    // quantization for the second input of add op
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
@@ -1753,9 +1719,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // currently dnnl backend only support symmetric
-                    // quantization for the second input of add op
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);

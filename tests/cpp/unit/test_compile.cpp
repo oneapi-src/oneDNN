@@ -6458,8 +6458,13 @@ TEST(int8_subgraph_mode, int8_conv1d_conv2d_conv3d) {
             cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                /*atol*/ 1.f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -6696,8 +6701,13 @@ TEST(int8_subgraph_mode, int8_conv2d_relu) {
             cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                /*atol*/ 1.f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -6712,9 +6722,11 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
     std::vector<int64_t> groups = {1, 4};
     std::vector<bool> with_biases = {true, false};
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
+    std::vector<std::string> other_qtypes = {"symmetric", "asymmetric"};
 
     for_(const auto &g : groups)
     for_(const auto &with_bias : with_biases)
+    for_(const auto &other_qtype : other_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
         // prepare fp32 data
         int64_t in_channel = 8, out_channel = 8;
@@ -6749,7 +6761,7 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
         float scale_other = 1 / 127.f;
         float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_other = 0;
+        int64_t zp_other = other_qtype == "symmetric" ? 0 : 128;
         int64_t zp_out = 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
@@ -6940,6 +6952,20 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
         strm.wait();
 
         // -------------------------case 2----------------------------------
+        src_u8 = utils::logical_tensor_init(1, impl::data_type::u8);
+        src_f32_dq = utils::logical_tensor_init(2, impl::data_type::f32);
+        weight_s8 = utils::logical_tensor_init(4, impl::data_type::s8);
+        weight_f32_dq = utils::logical_tensor_init(5, impl::data_type::f32);
+        dst_f32 = utils::logical_tensor_init(7, impl::data_type::f32);
+        dst_relu_f32 = utils::logical_tensor_init(8, impl::data_type::f32);
+        dst_s8 = utils::logical_tensor_init(9, impl::data_type::s8);
+        other_s8 = utils::logical_tensor_init(11, impl::data_type::s8);
+        other_f32_dq = utils::logical_tensor_init(12, impl::data_type::f32);
+        dst_add_f32 = utils::logical_tensor_init(13, impl::data_type::f32);
+        if (with_bias) {
+            bias_f32 = utils::logical_tensor_init(6, impl::data_type::f32);
+        }
+
         dqdata_node.add_input(src_u8);
         dqdata_node.add_output(src_f32_dq);
 
@@ -6989,6 +7015,17 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
         impl::compiled_partition_t cp(p);
 
         std::vector<const impl::logical_tensor_t *> lt_ins;
+        src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+        weight_s8 = utils::logical_tensor_init(
+                4, weight_shape, impl::data_type::s8);
+        dst_s8 = utils::logical_tensor_init(9, dst_shape, impl::data_type::s8);
+        other_s8 = utils::logical_tensor_init(
+                11, dst_shape, impl::data_type::s8);
+        if (with_bias) {
+            bias_f32 = utils::logical_tensor_init(
+                    6, bias_shape, impl::data_type::f32);
+        }
+
         if (with_bias)
             lt_ins = {&src_u8, &weight_s8, &bias_f32, &other_s8};
         else
@@ -7008,8 +7045,13 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
                     {dst_s8_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                /*atol*/ 1.f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -7327,8 +7369,13 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu_NXC) {
                     {dst_s8_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                /*atol*/ 1.f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -7555,8 +7602,13 @@ TEST(int8_subgraph_mode, x8s8f32_conv1d_conv2d_conv3d) {
             cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                /*atol*/ 1.f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -7781,8 +7833,13 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_relu) {
             cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                /*atol*/ 1.f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -8081,8 +8138,13 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu) {
                     {dst_f32_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                /*atol*/ 1.f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -8388,8 +8450,13 @@ TEST(int8_subgraph_mode, x8s8f32_conv2d_sum_relu_NXC) {
                     {dst_f32_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                /*atol*/ 1.f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -8605,8 +8672,13 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d) {
                 {dst_s8_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                /*atol*/ 1.f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -8811,8 +8883,15 @@ TEST(int8_subgraph_mode, int8_matmul_ndx1d) {
             cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
             strm.wait();
 
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            static auto isa = dnnl_get_effective_cpu_isa();
+            if (isa < dnnl_cpu_isa_avx512_core_vnni)
+                ASSERT_TRUE(
+                        allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                                /*atol*/ 1.f));
+            else
+                ASSERT_TRUE(
+                        allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                                /*atol*/ 1.f));
         }
     }
 }
@@ -9031,8 +9110,15 @@ TEST(int8_subgraph_mode, int8_matmul_ndx2d_with_transpose) {
                     {dst_s8_case2_ts});
             strm.wait();
 
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            static auto isa = dnnl_get_effective_cpu_isa();
+            if (isa < dnnl_cpu_isa_avx512_core_vnni)
+                ASSERT_TRUE(
+                        allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                                /*atol*/ 1.f));
+            else
+                ASSERT_TRUE(
+                        allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                                /*atol*/ 1.f));
         }
     }
 }
@@ -9240,8 +9326,13 @@ TEST(int8_subgraph_mode, int8_matmul_relu_fusion) {
     cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
     strm.wait();
 
-    ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-            /*atol*/ 1.f));
+    static auto isa = dnnl_get_effective_cpu_isa();
+    if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                /*atol*/ 1.f));
+    else
+        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                /*atol*/ 1.f));
 }
 
 TEST(operator_kernel, interpolate_forkward_nearest) {
@@ -9408,6 +9499,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
     if (engine.kind() == impl::engine_kind::gpu) return;
 
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
+    std::vector<std::string> other_qtypes = {"symmetric", "asymmetric"};
     std::vector<std::vector<int64_t>> src_shapes {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
@@ -9415,6 +9507,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
             {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
     for_(const auto &qtype : qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
+    for_(const auto &other_qtype : other_qtypes)
     for (size_t j = 0; j < weight_shapes.size(); ++j) {
         // prepare fp32 data
         std::vector<int64_t> src_shape = src_shapes[i];
@@ -9443,7 +9536,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
         float scale_other = 1 / 127.f;
         float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_other = 0;
+        int64_t zp_other = other_qtype == "symmetric" ? 0 : 128;
         int64_t zp_out = 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
@@ -9679,8 +9772,13 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_ndx2d) {
                 {dst_s8_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                /*atol*/ 1.f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -9945,8 +10043,13 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_sum_ndx2d) {
                 {dst_f32_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /* rtol = */ 1e-1f,
-                /* atol = */ 1e0f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -10143,8 +10246,13 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_ndx2d) {
                 {dst_f32_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /* rtol = */ 1e-1f,
-                /* atol = */ 1e0f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -10331,8 +10439,13 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_ndx2d) {
         cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /* rtol = */ 1e-1f,
-                /* atol = */ 1e0f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -10543,8 +10656,13 @@ TEST(int8_subgraph_mode, x8s8f32_matmul_bias_gelu_ndx2d) {
                 {dst_f32_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /* rtol = */ 1e-1f,
-                /* atol = */ 1e0f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -10558,8 +10676,10 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu_get_inplace_pair) {
 
     std::vector<int64_t> groups = {1, 4};
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
+    std::vector<std::string> other_qtypes = {"symmetric", "asymmetric"};
 
     for_(const auto &g : groups)
+    for_(const auto &other_qtype : other_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
         int64_t in_channel = 8, out_channel = 8;
         int64_t kernel_size = 3;
@@ -10572,7 +10692,7 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu_get_inplace_pair) {
         float scale_other = 1 / 127.f;
         float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_other = 0;
+        int64_t zp_other = other_qtype == "symmetric" ? 0 : 128;
         int64_t zp_out = 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
@@ -10944,8 +11064,13 @@ TEST(int8_subgraph_mode, int8_maxpool) {
         cp.execute(&strm, {src_u8_ts}, {dst_u8_case2_ts});
         strm.wait();
 
-        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                /*atol*/ 1.f));
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
     }
 }
 
@@ -11373,8 +11498,15 @@ TEST(int8_subgraph_mode, int8_quant_wei_conv2d_sum_relu) {
                         {dst_s8_case2_ts});
             strm.wait();
 
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            static auto isa = dnnl_get_effective_cpu_isa();
+            if (isa < dnnl_cpu_isa_avx512_core_vnni)
+                ASSERT_TRUE(
+                        allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                                /*atol*/ 1.f));
+            else
+                ASSERT_TRUE(
+                        allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                                /*atol*/ 1.f));
         }
     }
 }
@@ -11688,8 +11820,15 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_sum_ndx2d) {
                     {dst_s8_case2_ts});
             strm.wait();
 
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            static auto isa = dnnl_get_effective_cpu_isa();
+            if (isa < dnnl_cpu_isa_avx512_core_vnni)
+                ASSERT_TRUE(
+                        allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                                /*atol*/ 1.f));
+            else
+                ASSERT_TRUE(
+                        allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                                /*atol*/ 1.f));
         }
     }
 }
@@ -11933,8 +12072,15 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_ndx2d_with_transpose) {
                     {dst_s8_case2_ts});
             strm.wait();
 
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.05f,
-                    /*atol*/ 1.f));
+            static auto isa = dnnl_get_effective_cpu_isa();
+            if (isa < dnnl_cpu_isa_avx512_core_vnni)
+                ASSERT_TRUE(
+                        allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                                /*atol*/ 1.f));
+            else
+                ASSERT_TRUE(
+                        allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                                /*atol*/ 1.f));
         }
     }
 }
@@ -12195,8 +12341,15 @@ TEST(int8_subgraph_mode, int8_quant_wei_matmul_bias_relu_ndx2d) {
             }
             strm.wait();
 
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
+            static auto isa = dnnl_get_effective_cpu_isa();
+            if (isa < dnnl_cpu_isa_avx512_core_vnni)
+                ASSERT_TRUE(
+                        allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                                /*atol*/ 1.f));
+            else
+                ASSERT_TRUE(
+                        allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                                /*atol*/ 1.f));
         }
     }
 }
@@ -12355,6 +12508,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_get_inplace_pair) {
     if (engine.kind() == impl::engine_kind::gpu) return;
 
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
+    std::vector<std::string> other_qtypes = {"symmetric", "asymmetric"};
     std::vector<std::vector<int64_t>> src_shapes {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
@@ -12362,6 +12516,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_get_inplace_pair) {
             {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {1, 2}};
     for_(const auto &qtype : qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
+    for_(const auto &other_qtype : other_qtypes)
     for (size_t j = 0; j < weight_shapes.size(); ++j) {
         // prepare fp32 data
         std::vector<int64_t> src_shape = src_shapes[i];
@@ -12373,7 +12528,7 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_get_inplace_pair) {
         float scale_other = 1 / 127.f;
         float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_other = 0;
+        int64_t zp_other = other_qtype == "symmetric" ? 0 : 128;
         int64_t zp_out = 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();

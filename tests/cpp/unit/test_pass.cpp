@@ -3029,7 +3029,7 @@ TEST(pass_test, int8_conv_bias_add_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
 }
 
-TEST(pass_test, int8_conv_add_symmetric_test) {
+TEST(pass_test, int8_conv_add_test) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -3119,16 +3119,6 @@ TEST(pass_test, int8_conv_add_symmetric_test) {
 
     pass::pass_base_ptr apass2 = get_pass("int8_conv_bias_add_relu_fusion");
     apass2->run(agraph);
-    // dequantize which connect to add is asymmetric
-    // symmetric_check return false
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
-
-    // change zps to make dequantize symmetric
-    zps[3] = 0;
-    agraph.get_ops()[2]->set_attr("zps", zps);
-
-    apass2->run(agraph);
-    // dequantize are symmetric, pass can match the subgraph
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
             int8_conv_bias_add_relu);
@@ -3451,7 +3441,7 @@ TEST(pass_test, x8s8f32_conv_bias_add_relu_fusion) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
 }
 
-TEST(pass_test, x8s8f32_conv_add_symmetric_test) {
+TEST(pass_test, x8s8f32_conv_add_test) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -3531,16 +3521,6 @@ TEST(pass_test, x8s8f32_conv_add_symmetric_test) {
 
     pass::pass_base_ptr apass2 = get_pass("x8s8f32_conv_bias_add_relu_fusion");
     apass2->run(agraph);
-    // dequantize which connect to add is asymmetric
-    // symmetric_check return false
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
-
-    // change zps to make dequantize symmetric
-    zps[3] = 0;
-    agraph.get_ops()[2]->set_attr("zps", zps);
-
-    apass2->run(agraph);
-    // dequantize are symmetric, pass can match the subgraph
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
             x8s8f32_conv_bias_add_relu);
@@ -4232,7 +4212,7 @@ TEST(pass_test, int8_maxpool_fusion) {
             get_fused_op(agraph.get_partitions()[0])->get_kind(), int8_maxpool);
 }
 
-TEST(pass_test, int8_matmul_bias_add_fusion_with_symmetric_check) {
+TEST(pass_test, int8_matmul_bias_add_fusion) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -4313,11 +4293,6 @@ TEST(pass_test, int8_matmul_bias_add_fusion_with_symmetric_check) {
 
     pass::pass_base_ptr apass2 = get_pass("int8_matmul_bias_add_fusion");
     apass2->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
-
-    zps[1] = 0;
-    agraph.get_ops()[2]->set_attr<std::vector<int64_t>>("zps", zps);
-    apass2->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -4355,7 +4330,7 @@ TEST(pass_test, relu_add_fusion) {
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(), relu_add);
 }
 
-TEST(pass_test, x8s8f32_matmul_bias_add_fusion_with_symmetric_check) {
+TEST(pass_test, x8s8f32_matmul_bias_add_fusion) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -4425,11 +4400,6 @@ TEST(pass_test, x8s8f32_matmul_bias_add_fusion_with_symmetric_check) {
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 
     pass::pass_base_ptr apass2 = get_pass("x8s8f32_matmul_bias_add_fusion");
-    apass2->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
-
-    zps[1] = 0;
-    agraph.get_ops()[2]->set_attr<std::vector<int64_t>>("zps", zps);
     apass2->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 

@@ -608,9 +608,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // dnnl backend just support int8_conv_add related funsion
-                    // when dequantize which connect to add is symmetric
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     op_t *conv = apattern->create_op(op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
@@ -632,9 +629,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_add_relu_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // dnnl backend just support int8_conv_add related funsion
-                    // when dequantize which connect to add is symmetric
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     op_t *conv = apattern->create_op(op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
@@ -669,9 +663,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // dnnl backend just support int8_conv_add related funsion
-                    // when dequantize which connect to add is symmetric
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     op_t *conv = apattern->create_op(op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 3);
@@ -695,9 +686,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // dnnl backend just support int8_conv_add related funsion
-                    // when dequantize which connect to add is symmetric
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     op_t *conv = apattern->create_op(op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
@@ -820,9 +808,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_add_relu_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // dnnl backend just support int8_conv_add related funsion
-                    // when dequantize which connect to add is symmetric
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     op_t *conv = apattern->create_op(op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
@@ -856,9 +841,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // dnnl backend just support int8_conv_add related funsion
-                    // when dequantize which connect to add is symmetric
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     op_t *conv = apattern->create_op(op_kind::Convolution);
                     conv->set_attr<int64_t>("num_inputs", 2);
@@ -1027,9 +1009,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // dnnl backend just support x8s8f32_conv_add related
-                    // fusion when dequantize which connect to add is symmetric
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
@@ -1052,9 +1031,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // dnnl backend just support x8s8f32_conv_add related
-                    // fusion when dequantize which connect to add is symmetric
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
@@ -1088,9 +1064,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8f32_conv_add_relu_fusion)
                             = apattern->create_op(op_kind::Dequantize);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // dnnl backend just support x8s8f32_conv_add related
-                    // fusion when dequantize which connect to add is symmetric
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
@@ -1277,9 +1250,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // dnnl backend just support x8s8f32_conv_add related
-                    // fusion when dequantize which connect to add is symmetric
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
@@ -1304,9 +1274,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // dnnl backend just support x8s8f32_conv_add related
-                    // fusion when dequantize which connect to add is symmetric
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);
@@ -1343,9 +1310,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     dequant_weight->fill_and_connect_input(0, *quant_weight, 0);
                     op_t *dequant_other
                             = apattern->create_op(op_kind::Dequantize);
-                    // dnnl backend just support x8s8f32_conv_add related
-                    // fusion when dequantize which connect to add is symmetric
-                    dequant_other->set_attr<bool>("symmetric_check", true);
 
                     // this pattern requires the weight should be s8
                     dequant_weight->set_attr<bool>("s8_check", true);

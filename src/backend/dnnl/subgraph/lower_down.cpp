@@ -636,8 +636,7 @@ status_t fuse_post_ops(
                     auto tmp = mul_scale_op.get_input_value(0);
                     auto &add_zps_op = tmp->get_producer();
                     auto zps = add_zps_op.get_attr<std::vector<int64_t>>("zps");
-                    assert(scales.size() == zps.size()
-                            && zps[0] == 0); // symmetric
+                    assert(scales.size() == zps.size());
 
                     fuse_op_to_successor(&add_zps_op, subgraph);
                     fuse_op_to_successor(&mul_scale_op, subgraph);
@@ -662,7 +661,7 @@ status_t fuse_post_ops(
                             prm_attr.set_output_scales(ori_mask, ori_scales);
                         }
                     }
-                    pops.append_sum(scales[0]);
+                    pops.append_sum(scales[0], static_cast<int32_t>(-zps[0]));
                 } else {
                     // for fp32 cases, the another input of sum op have no
                     // producer
