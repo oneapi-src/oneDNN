@@ -34,6 +34,8 @@ add_library(${LIB_NAME}_unit_test_objlib OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_v2_patterns.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_value.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_scratchpad.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_resource.cpp
     )
 
 # Set path to exported and non exported headers

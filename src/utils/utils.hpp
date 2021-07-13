@@ -116,6 +116,22 @@ inline void array_set(T *arr, const U &val, size_t size) {
         arr[i] = static_cast<T>(val);
 }
 
+// solve the Greatest Common Divisor
+inline size_t gcd(size_t a, size_t b) {
+    size_t temp = 0;
+    while (b != 0) {
+        temp = a;
+        a = b;
+        b = temp % b;
+    }
+    return a;
+}
+
+// solve the Least Common Multiple
+inline size_t lcm(size_t a, size_t b) {
+    return a * b / gcd(a, b);
+}
+
 /// Default allocator for CPU
 /// now only support the allocation of persistent memory, that means
 /// we need to manually free the buffer allocated by this allocator
