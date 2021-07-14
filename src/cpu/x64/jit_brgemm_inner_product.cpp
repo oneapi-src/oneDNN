@@ -1131,13 +1131,14 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                                    + a_buf_idx)
                                 * jbgp.gemm_batch_size * jbgp.os_block
                                 * jbgp.ic_block);
-        char *b_buffer = b_buffer_global
-                + types::data_type_size(jbgp.dst_dt)
-                        * ((ti->ithr * os_chunks_per_thr + b_buf_idx)
-                                        * jbgp.gemm_batch_size * jbgp.os_block
-                                        * jbgp.LDB
-                                + (ocb_l_idx % jbgp.nb_oc_blocking)
-                                        * jbgp.oc_block);
+        char *b_buffer = b_buffer_global ? b_buffer_global
+                        + types::data_type_size(jbgp.dst_dt)
+                                * ((ti->ithr * os_chunks_per_thr + b_buf_idx)
+                                                * jbgp.gemm_batch_size
+                                                * jbgp.os_block * jbgp.LDB
+                                        + (ocb_l_idx % jbgp.nb_oc_blocking)
+                                                * jbgp.oc_block)
+                                         : nullptr;
 
         char *wsp_tile = is_amx_bf16 ? wsp_tile_global + ti->ithr * tile_size
                                      : nullptr;
