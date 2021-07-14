@@ -55,7 +55,9 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         , bf16_reg4(r13)
         , bf16_reg5(zmm28)
         , bf16_k_mask(k2)
-        , bf16_dq_reg_idx(15) {}
+        , bf16_dq_reg_idx(15)
+        , bias_dt_size_(types::data_type_size(rnn.bias_dt))
+        , cstate_dt_size_(types::data_type_size(rnn.src_iter_c_dt)) {}
 
     ~jit_uni_rnn_postgemm() {
         if (bf16_emu_) delete bf16_emu_;
@@ -121,9 +123,9 @@ struct jit_uni_rnn_postgemm : public jit_generator {
     inline void postgemm_fwd_call(int m, const rnn_utils::rnn_conf_t &rnn,
             rnn_utils::cell_position_t cell_position, gates_t *ws_gates_,
             scratch_t *scratch_gates_, dst_layer_t *dst_layer_,
-            float *dst_iter_c_, const src_iter_t *src_iter_,
-            const float *src_iter_c_, const float *weights_peephole_,
-            float *bias_, gates_t *ws_grid_, scratch_t *scratch_cell_,
+            void *dst_iter_c_, const src_iter_t *src_iter_,
+            const void *src_iter_c_, const float *weights_peephole_,
+            const void *bias_, gates_t *ws_grid_, scratch_t *scratch_cell_,
             dst_iter_t *dst_iter_, float *weights_scales_,
             int block_step) const {
         const rnn_utils::ws_gates_aoc<gates_t> ws_gates(rnn, ws_gates_);
@@ -146,10 +148,11 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                 rnn, dst_iter_, dst_iter_ld);
         const rnn_utils::ws_states_iter_aoc<const src_iter_t> src_iter(
                 rnn, src_iter_, src_iter_ld);
-        const rnn_utils::ws_states_iter_c_aoc<float> dst_iter_c(
-                rnn, dst_iter_c_, dst_iter_c_ld);
-        const rnn_utils::ws_states_iter_c_aoc<const float> src_iter_c(
-                rnn, src_iter_c_, src_iter_c_ld);
+        const rnn_utils::ws_states_iter_c_aoc_t dst_iter_c(
+                rnn, rnn.dst_iter_c_dt, dst_iter_c_, dst_iter_c_ld);
+        const rnn_utils::ws_states_iter_c_aoc_t src_iter_c(rnn,
+                rnn.src_iter_c_dt, const_cast<void *>(src_iter_c_),
+                src_iter_c_ld);
         const rnn_utils::ws_gates_aoc<scratch_t> scratch_cell(
                 rnn, scratch_cell_);
         const utils::array_offset_calculator<gates_t, 2> ws_Wh_b(
@@ -161,7 +164,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
 
         void *param1_ = SAFE_PTR(ws_gates, m, 0, 0); // RNN, LSTM, GRU
         void *param2_ = SAFE_PTR(scratch_gates, m, 0, 0); // RNN, LSTM, GRU
-        const void *param3_ = SAFE_PTR(bias, 0, 0); // RNN, LSTM, GRU
+        const void *param3_ = bias(0, 0); // RNN, LSTM, GRU
         void *param4_ = SAFE_PTR(dst_layer, m, 0); // RNN, LSTM, GRU
         void *param5_ = SAFE_PTR(dst_iter, m, 0); // RNN, LSTM, GRU
         const void *param6_;
@@ -171,9 +174,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
 
         switch (pd_->cell_kind()) {
             case alg_kind::vanilla_lstm:
-                param6_ = is_projection() ? src_iter_c_
-                                          : SAFE_PTR(src_iter_c, m, 0);
-                param7_ = SAFE_PTR(dst_iter_c, m, 0);
+                param6_ = is_projection() ? src_iter_c_ : src_iter_c(m, 0);
+                param7_ = dst_iter_c(m, 0);
                 param8_ = (void *)SAFE_PTR(weights_peephole, 0, 0);
                 break;
             case alg_kind::lbr_gru:
@@ -222,10 +224,11 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                 rnn, diff_dst_iter_);
         const rnn_utils::ws_diff_states_iter_c_aoc<gemm_acc_t> diff_dst_iter_c(
                 rnn, diff_dst_iter_c_);
-        const rnn_utils::ws_states_iter_c_aoc<float> dst_iter_c(
-                rnn, dst_iter_c_, dst_iter_c_ld);
-        const rnn_utils::ws_states_iter_c_aoc<const float> src_iter_c(
-                rnn, src_iter_c_, src_iter_c_ld);
+        const rnn_utils::ws_states_iter_c_aoc_t dst_iter_c(
+                rnn, rnn.dst_iter_c_dt, dst_iter_c_, dst_iter_c_ld);
+        const rnn_utils::ws_states_iter_c_aoc_t src_iter_c(rnn,
+                rnn.src_iter_c_dt, const_cast<void *>(src_iter_c_),
+                src_iter_c_ld);
 
         const ws_states_iter_aoc<const src_iter_t> src_iter(
                 rnn, src_iter_, src_iter_ld);
@@ -252,8 +255,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     param4_ = SAFE_PTR(diff_dst_iter, i, 0);
                     param5_ = SAFE_PTR(diff_src_iter_c, i, 0);
                     param6_ = SAFE_PTR(diff_dst_iter_c, i, 0);
-                    param7_ = (float *)SAFE_PTR(src_iter_c, i, 0);
-                    param8_ = SAFE_PTR(dst_iter_c, i, 0);
+                    param7_ = src_iter_c(i, 0);
+                    param8_ = dst_iter_c(i, 0);
                     param9_ = (void *)SAFE_PTR(weights_peephole, 0, 0);
                     break;
                 case alg_kind::lbr_gru:
@@ -559,7 +562,9 @@ protected:
         }
         switch (in_len) {
             case 64: uni_vmovups(dst, bf16_reg_dc); break;
-            case 4: pextrw(dst, Xbyak::Xmm(bf16_reg_dc.getIdx()), 0x0); break;
+            case 4:
+                uni_vpextrw(dst, Xbyak::Xmm(bf16_reg_dc.getIdx()), 0x0);
+                break;
             default: assert(!"unsupported case");
         }
     }
@@ -637,6 +642,8 @@ protected:
     Xbyak::Reg64 bf16_reg_mask;
     Xbyak::Opmask bf16_k_mask;
     int bf16_dq_reg_idx;
+    const size_t bias_dt_size_;
+    const size_t cstate_dt_size_;
 };
 
 } // namespace x64

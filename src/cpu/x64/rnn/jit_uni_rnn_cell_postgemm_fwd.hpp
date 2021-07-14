@@ -55,12 +55,12 @@ protected:
     size_t vlen = cpu_isa_traits<isa>::vlen;
     size_t vlen_dst
             = vlen / (sizeof(float) / types::data_type_size(src_data_t));
+    const size_t vlen_bias = vlen / (sizeof(float) / bias_dt_size_);
     size_t cstate_dt_size = sizeof(float);
     size_t hstate_dt_size = types::data_type_size(src_data_t);
     size_t gate_dt_size = types::data_type_size(src_data_t);
     size_t scratch_dt_size = types::data_type_size(scratch_data_t);
     size_t qscale_dt_size = sizeof(float);
-    size_t bias_dt_size = sizeof(float);
 
     void generate() override {
         using namespace Xbyak;
@@ -111,7 +111,7 @@ protected:
         auto sg_addr
                 = ptr[addr_scratch_gates_reg + 0 * rnn_.dhc * scratch_dt_size];
         auto wg_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dhc * gate_dt_size];
-        auto B_addr = ptr[addr_bias_reg + 0 * rnn_.dhc * bias_dt_size];
+        auto B_addr = ptr[addr_bias_reg + 0 * rnn_.dhc * bias_dt_size_];
 
         // initialize registers with addresses and constants
         init_regs(weights_scales, vlen);
@@ -134,7 +134,7 @@ protected:
             deq_w(src_data_t, G, tmp1_vmm, tmp2_vmm, 0, mask, true);
 
             // add biases
-            uni_vmovups(tmp1_vmm, B_addr);
+            to_float(tmp1_vmm, B_addr, rnn_.bias_dt, vlen);
             uni_vaddps(G, G, tmp1_vmm);
 
             // inject eltwise code
@@ -152,7 +152,7 @@ protected:
             // increment address pointers
             L(vector_loop_inc_regs);
             add(addr_scratch_gates_reg, vlen);
-            add(addr_bias_reg, vlen);
+            add(addr_bias_reg, vlen_bias);
             add(addr_states_t_l_reg, vlen_dst);
             add(addr_states_t_l_copy_reg, vlen_dst);
             if (is_training) add(addr_ws_gates_reg, vlen_dst);
@@ -182,7 +182,7 @@ protected:
             deq_w(src_data_t, G, tmp1_vmm, tmp2_vmm, 0, mask, true);
 
             // add biases
-            uni_vmovss(tmp1s_vmm, B_addr);
+            to_float(tmp1_vmm, B_addr, rnn_.bias_dt, sizeof(float));
             uni_vaddps(Gs, Gs, tmp1s_vmm);
 
             // inject eltwise code
@@ -201,7 +201,7 @@ protected:
             // increment address pointers
             L(rem_loop_inc_regs);
             add(addr_scratch_gates_reg, scratch_dt_size);
-            add(addr_bias_reg, bias_dt_size);
+            add(addr_bias_reg, bias_dt_size_);
             add(addr_states_t_l_reg, hstate_dt_size);
             add(addr_states_t_l_copy_reg, hstate_dt_size);
             if (is_training) add(addr_ws_gates_reg, gate_dt_size);

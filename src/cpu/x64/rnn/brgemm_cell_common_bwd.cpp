@@ -777,8 +777,8 @@ template <typename scratch_t>
 brgemm_diff_wei_peep_t<scratch_t>::brgemm_diff_wei_peep_t(
         const ref_rnn_brgemm_t &rnn_brgemm, const rnn_utils::rnn_conf_t &rnn,
         rnn_utils::cell_position_t cell_position,
-        const scratch_t *scratch_gates, const float *src_iter_c,
-        const float *dst_iter_c, float *diff_weights_peephole)
+        const scratch_t *scratch_gates, const void *src_iter_c,
+        const void *dst_iter_c, float *diff_weights_peephole)
     : rnn_(rnn)
     , scratch_gates_(scratch_gates)
     , src_iter_c_(src_iter_c)
@@ -809,10 +809,11 @@ void brgemm_diff_wei_peep_t<scratch_t>::kernel(
     nd_iterator_init(
             start, g, n_gates_, dhc_block_id, rnn_.dhc_blocks_peephole);
 
-    const rnn_utils::ws_states_iter_c_aoc<const float> dst_iter_c(
-            rnn_, dst_iter_c_, dst_iter_c_ld_);
-    const rnn_utils::ws_states_iter_c_aoc<const float> src_iter_c(
-            rnn_, src_iter_c_, src_iter_c_ld_);
+    const rnn_utils::ws_states_iter_c_aoc_t dst_iter_c(rnn_, rnn_.dst_iter_c_dt,
+            const_cast<void *>(dst_iter_c_), dst_iter_c_ld_);
+    const rnn_utils::ws_states_iter_c_aoc_t src_iter_c(rnn_, rnn_.src_iter_c_dt,
+            const_cast<void *>(src_iter_c_), src_iter_c_ld_);
+
     const rnn_utils::ws_gates_aoc<const scratch_t> scratch_gates(
             rnn_, scratch_gates_);
     const rnn_utils::weights_peephole_aoc_t<float> diff_weights_peephole(
@@ -830,7 +831,7 @@ void brgemm_diff_wei_peep_t<scratch_t>::kernel(
         jit_diff_weights_peephole_t::call_params_t params;
 
         for (int mb = 0; mb < rnn_.mb; ++mb) {
-            params.c_states = &c_states(mb, dhc);
+            params.c_states = c_states(mb, dhc);
             params.scratch_gates = &scratch_gates(mb, scratch_g, dhc);
             params.dst = &diff_weights_peephole(g, dhc);
             (*kernel)(&params);

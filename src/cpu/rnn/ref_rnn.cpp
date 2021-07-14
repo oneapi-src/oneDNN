@@ -150,9 +150,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     const AOC<src_iter_t, 4> ws_states_iter(ws_states_iter_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_iter + 1,
             rnn.ws_states_iter_nld * rnn.ws_states_iter_ld);
-    const AOC<float, 4> ws_states_iter_c(ws_states_iter_c_, rnn.n_layer + 1,
-            rnn.n_dir, rnn.n_iter + 1,
-            rnn.ws_states_iter_c_nld * rnn.ws_states_iter_c_ld);
+    const ws_iter_c_linear_exec_aoc_t ws_states_iter_c(rnn, ws_states_iter_c_);
     const AOC<gemm_acc_t, 4> ws_diff_states_layer(ws_diff_states_layer_,
             rnn.n_layer + 1, rnn.n_dir, rnn.n_iter + 1,
             rnn.ws_diff_states_layer_nld * rnn.ws_diff_states_layer_ld);
@@ -174,7 +172,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             weights_projection_, rnn.n_layer, rnn.n_dir);
     const AOC<const float, 3> weights_peephole(
             weights_peephole_, rnn.n_layer, rnn.n_dir, 3 * rnn.dhc);
-    const AOC<float *, 3> bias(bias_, rnn.n_layer, rnn.n_dir, rnn.n_parts_bias);
+    bias_linear_exec_aoc_t bias(rnn, bias_);
     const AOC<gemm_acc_t, 3> diff_weights_layer(diff_weights_layer_,
             rnn.n_layer, rnn.n_dir,
             rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ld);
@@ -253,10 +251,10 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 const src_iter_t *cell_src_iter
                         = &(ws_states_iter(lay + 1, dir, iter, 0));
 
-                float *cell_dst_iter_c
-                        = &(ws_states_iter_c(lay + 1, dir, iter + 1, 0));
-                const float *cell_src_iter_c
-                        = &(ws_states_iter_c(lay + 1, dir, iter, 0));
+                void *cell_dst_iter_c
+                        = ws_states_iter_c(lay + 1, dir, iter + 1);
+                const void *cell_src_iter_c
+                        = ws_states_iter_c(lay + 1, dir, iter);
 
                 // the cell_position is used only when skip_data_copy is
                 // supported currently supported only for forward
@@ -301,13 +299,13 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 // conversion, we can always skip to copy for the 1st
                 // and last iteration
                 if (iter == 0 && src_iter_c_) {
-                    cell_src_iter_c
-                            = src_iter_c_ + src_iter_c_mdw.off(lay, dir, 0, 0);
+                    cell_src_iter_c = inc_ptr(src_iter_c_, rnn.src_iter_c_dt,
+                            src_iter_c_mdw.off(lay, dir, 0, 0));
                     cell_position |= c_state_first_iter;
                 }
                 if (iter == rnn.n_iter - 1 && dst_iter_c_) {
-                    cell_dst_iter_c
-                            = dst_iter_c_ + dst_iter_c_mdw.off(lay, dir, 0, 0);
+                    cell_dst_iter_c = inc_ptr(dst_iter_c_, rnn.dst_iter_c_dt,
+                            dst_iter_c_mdw.off(lay, dir, 0, 0));
                     cell_position |= c_state_last_iter;
                 }
 
@@ -341,8 +339,8 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         w_proj_comp
                                 ? w_proj_comp + (j * rnn.n_dir + dir) * rnn.dic
                                 : nullptr,
-                        SAFE_PTR(bias, lay, dir, 0), cell_src_layer,
-                        cell_src_iter, cell_src_iter_c,
+                        bias(lay, dir), cell_src_layer, cell_src_iter,
+                        cell_src_iter_c,
                         SAFE_PTR(ws_diff_states_layer, lay + 1, dir, iter, 0),
                         SAFE_PTR(ws_diff_states_iter, lay, dir, iter + 1, 0),
                         SAFE_PTR(ws_diff_states_iter_c, lay, dir, iter + 1, 0),
@@ -370,8 +368,8 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         w_proj_comp
                                 ? w_proj_comp + (j * rnn.n_dir + dir) * rnn.dic
                                 : nullptr,
-                        SAFE_PTR(bias, lay, dir, 0), cell_src_layer,
-                        cell_src_iter, cell_src_iter_c,
+                        bias(lay, dir), cell_src_layer, cell_src_iter,
+                        cell_src_iter_c,
                         SAFE_PTR(ws_diff_states_layer, lay + 1, dir, iter, 0),
                         SAFE_PTR(ws_diff_states_iter, lay, dir, iter + 1, 0),
                         SAFE_PTR(ws_diff_states_iter_c, lay, dir, iter + 1, 0),
@@ -585,15 +583,15 @@ RNN_DECL_COPY_INIT_LAYER_BWD(ref_rnn_bwd_bf16_t)
 template <typename src_data_t, typename input_data_t>
 void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
         src_data_t *__restrict ws_states_iter_,
-        float *__restrict ws_states_iter_c_,
+        void *__restrict ws_states_iter_c_,
         const input_data_t *__restrict src_iter_,
         const memory_desc_wrapper &src_iter_d,
-        const float *__restrict src_iter_c_,
+        const void *__restrict src_iter_c_,
         const memory_desc_wrapper &src_iter_c_d) {
     const AOC<src_data_t, 5> ws_states_iter(ws_states_iter_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_iter + 1, rnn.mb, rnn.ws_states_iter_ld);
-    const AOC<float, 5> ws_states_iter_c(ws_states_iter_c_, rnn.n_layer + 1,
-            rnn.n_dir, rnn.n_iter + 1, rnn.mb, rnn.ws_states_iter_c_ld);
+    const rnn_utils::ws_iter_c_init_aoc_t ws_states_iter_c_aoc(
+            rnn, ws_states_iter_c_);
     const float data_shift = pd->attr()->rnn_data_qparams_.shift_;
     const float data_scale = pd->attr()->rnn_data_qparams_.scale_;
 
@@ -608,6 +606,13 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
             return (src_data_t)f;
     };
     const src_data_t zero = maybe_q(0.f);
+    const auto zero_ws_iter_c = [&](int lay, int dir, int mb_id, int sic_id) {
+        void *ws_states_iter_c = ws_states_iter_c_aoc(lay, dir, mb_id, sic_id);
+        if (rnn.src_iter_c_dt == data_type::f32)
+            *(static_cast<float *>(ws_states_iter_c)) = 0.0f;
+        else if (rnn.src_iter_c_dt == data_type::bf16)
+            *(static_cast<bfloat16_t *>(ws_states_iter_c)) = 0.0f;
+    };
 
     if (src_iter_) {
         parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb,
@@ -626,7 +631,7 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
                         ws_states_iter(lay + 1, dir, 0, b, j) = zero;
                     if (pd->cell_kind() == alg_kind::vanilla_lstm)
                         for (int j = 0; j < rnn.dhc; j++)
-                            ws_states_iter_c(lay + 1, dir, 0, b, j) = 0.0f;
+                            zero_ws_iter_c(lay + 1, dir, b, j);
                 });
     }
 }
@@ -678,11 +683,11 @@ void copy_init_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     template <typename input_data_t> \
     void cname::copy_init_iter(const rnn_conf_t &rnn, \
             src_layer_t *__restrict ws_states_iter_, \
-            float *__restrict ws_states_iter_c_, \
+            void *__restrict ws_states_iter_c_, \
             gemm_acc_t *__restrict ws_diff_states_iter_, \
             gemm_acc_t *__restrict ws_diff_states_iter_c_, \
             const input_data_t *__restrict src_iter_, \
-            const float *__restrict src_iter_c_, \
+            const void *__restrict src_iter_c_, \
             const gemm_acc_t *__restrict diff_dst_iter_, \
             const float *__restrict diff_dst_iter_c_) const { \
         auto src_iter_d = memory_desc_wrapper(pd()->src_md(1)); \
@@ -701,10 +706,10 @@ RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_fwd_s8s8_t)
     template <> \
     template <typename input_data_t> \
     void cname::copy_init_iter(const rnn_conf_t &rnn, \
-            src_layer_t *ws_states_iter_, float *ws_states_iter_c_, \
+            src_layer_t *ws_states_iter_, void *ws_states_iter_c_, \
             gemm_acc_t *ws_diff_states_iter_, \
             gemm_acc_t *ws_diff_states_iter_c_, const input_data_t *src_iter_, \
-            const float *src_iter_c_, const gemm_acc_t *diff_dst_iter_, \
+            const void *src_iter_c_, const gemm_acc_t *diff_dst_iter_, \
             const float *diff_dst_iter_c_) const { \
         auto diff_dst_iter_d = memory_desc_wrapper(pd()->diff_dst_md(1)); \
         auto diff_dst_iter_c_d = memory_desc_wrapper(pd()->diff_dst_md(2)); \
@@ -886,17 +891,14 @@ RNN_DECL_COPY_RES_LAYER_BWD(ref_rnn_bwd_bf16_t)
 template <typename src_data_t, typename dst_iter_dt, typename dst_layer_dt>
 void copy_res_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
         dst_iter_dt *dst_iter_, memory_desc_wrapper &dst_iter_d,
-        float *dst_iter_c_, memory_desc_wrapper dst_iter_c_d,
+        void *dst_iter_c_, memory_desc_wrapper dst_iter_c_d,
         const dst_layer_dt *dst_layer_, memory_desc_wrapper dst_layer_d,
-        const src_data_t *ws_states_iter_, const float *ws_states_iter_c_) {
+        const src_data_t *ws_states_iter_, const void *ws_states_iter_c_) {
     if (dst_iter_ == nullptr) return;
 
     const AOC<const src_data_t, 5> ws_states_iter(ws_states_iter_,
             rnn.n_layer + 1, rnn.n_dir, rnn.n_iter + 1, rnn.mb,
             rnn.ws_states_iter_ld);
-    const AOC<const float, 5> ws_states_iter_c(ws_states_iter_c_,
-            rnn.n_layer + 1, rnn.n_dir, rnn.n_iter + 1, rnn.mb,
-            rnn.ws_states_iter_c_ld);
 
     const float data_shift = pd->attr()->rnn_data_qparams_.shift_;
     const float data_scale = pd->attr()->rnn_data_qparams_.scale_;
@@ -971,10 +973,10 @@ void copy_res_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     template <> \
     template <typename dst_iter_dt, typename dst_layer_dt> \
     void cname::copy_res_iter(const rnn_conf_t &rnn, dst_iter_dt *dst_iter_, \
-            float *dst_iter_c_, gemm_acc_t *diff_src_iter_, \
+            void *dst_iter_c_, gemm_acc_t *diff_src_iter_, \
             float *diff_src_iter_c_, const dst_layer_dt *dst_layer_, \
             const src_layer_t *ws_states_layer_, \
-            const float *ws_states_iter_c_, \
+            const void *ws_states_iter_c_, \
             const gemm_acc_t *ws_diff_states_iter_, \
             const gemm_acc_t *ws_diff_states_iter_c_) const { \
         auto dst_layer_d = memory_desc_wrapper(pd()->dst_md(0)); \
@@ -994,10 +996,10 @@ RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_s8s8_t)
     template <> \
     template <typename output_data_t, typename dst_data_t> \
     void cname::copy_res_iter(const rnn_conf_t &rnn, output_data_t *dst_iter_, \
-            float *dst_iter_c_, gemm_acc_t *diff_src_iter_, \
+            void *dst_iter_c_, gemm_acc_t *diff_src_iter_, \
             float *diff_src_iter_c_, const dst_data_t *dst_layer_, \
             const src_layer_t *ws_states_layer_, \
-            const float *ws_states_iter_c_, \
+            const void *ws_states_iter_c_, \
             const gemm_acc_t *ws_diff_states_iter_, \
             const gemm_acc_t *ws_diff_states_iter_c_) const { \
         auto diff_src_iter_d = memory_desc_wrapper(pd()->diff_src_md(1)); \
@@ -1010,38 +1012,83 @@ RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_s8s8_t)
 RNN_DECL_COPY_RES_ITER_BWD(ref_rnn_bwd_f32_t)
 RNN_DECL_COPY_RES_ITER_BWD(ref_rnn_bwd_bf16_t)
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
-        data_type_t acc_type>
-rnn_bias_prepare_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
-        acc_type>::bias_prepare)) {
-    /* Original set of bias provided by the user */
-    const AOC<const float, 5> b(
-            b_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dhc);
-    /* Array of pointers initialized in packing */
-    const AOC<float *, 3> bias(bias_, rnn.n_layer, rnn.n_dir, rnn.n_parts_bias);
-    const AOC<float, 3> scratch_bias(
+rnn_bias_prepare_sig_templ(copy_bias_to_scratch) {
+    const AOC<T, 3> scratch_bias(
             scratch_bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dhc);
 
-    if (rnn.copy_bias) {
-        parallel_nd(rnn.n_layer * rnn.n_dir, [&](dim_t i) {
-            int off = i * rnn.n_bias * rnn.dhc;
-            PRAGMA_OMP_SIMD()
-            for (int j = 0; j < rnn.n_bias * rnn.dhc; j++)
-                scratch_bias_[off + j] = b_[off + j];
-        });
-    }
+    parallel_nd(rnn.n_layer * rnn.n_dir, [&](dim_t i) {
+        const int off = i * rnn.n_bias * rnn.dhc;
+        PRAGMA_OMP_SIMD()
+        for (int j = 0; j < rnn.n_bias * rnn.dhc; j++)
+            scratch_bias_[off + j] = b_[off + j];
+    });
+}
+
+rnn_bias_prepare_sig_templ(copy_bias_to_ws) {
+    /* Original set of bias provided by the user */
+    const AOC<const T, 5> b(b_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dhc);
+    /* Array of pointers initialized in packing */
+    const AOC<T *, 3> bias(bias_, rnn.n_layer, rnn.n_dir, rnn.n_parts_bias);
+    const AOC<T, 3> scratch_bias(
+            scratch_bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dhc);
 
     for (int i = 0; i < rnn.n_layer; i++) {
         for (int d = 0; d < rnn.n_dir; d++) {
             int offset_bias = 0;
             for (int p = 0; p < rnn.n_parts_bias; p++) {
                 bias(i, d, p) = rnn.copy_bias
-                        ? (float *)&scratch_bias(i, d, offset_bias)
-                        : (float *)&b(i, d, offset_bias);
+                        ? const_cast<T *>(&scratch_bias(i, d, offset_bias))
+                        : const_cast<T *>(&b(i, d, offset_bias));
                 offset_bias += rnn.parts_bias[p] * rnn.dhc;
             }
         }
     }
+}
+
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+rnn_bias_prepare_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+        acc_type>::bias_prepare)) {
+
+    if (rnn.copy_bias) {
+        if (rnn.bias_dt == data_type::f32)
+            copy_bias_to_scratch(rnn, reinterpret_cast<float **>(bias_),
+                    static_cast<const float *>(b_),
+                    static_cast<float *>(scratch_bias_));
+        else if (rnn.bias_dt == data_type::bf16)
+            copy_bias_to_scratch(rnn, reinterpret_cast<bfloat16_t **>(bias_),
+                    static_cast<const bfloat16_t *>(b_),
+                    static_cast<bfloat16_t *>(scratch_bias_));
+        else
+            assert("Unsupported bias data type");
+    }
+
+    if (rnn.bias_dt == data_type::f32)
+        copy_bias_to_ws(rnn, reinterpret_cast<float **>(bias_),
+                static_cast<const float *>(b_),
+                static_cast<float *>(scratch_bias_));
+    else if (rnn.bias_dt == data_type::bf16)
+        copy_bias_to_ws(rnn, reinterpret_cast<bfloat16_t **>(bias_),
+                static_cast<const bfloat16_t *>(b_),
+                static_cast<bfloat16_t *>(scratch_bias_));
+    else
+        assert("Unsupported bias data type");
+}
+
+static void apply_bias_compensation(const rnn_utils::rnn_conf_t &rnn,
+        float *scratch_bias_, const float *w_iter_comp,
+        const float *w_layer_comp, const float data_shift,
+        const float data_scale, const float *const weights_scales,
+        const bool scale_per_oc) {
+
+    for (int i = 0; i < rnn.n_layer * rnn.n_dir; i++)
+        for (int j = 0; j < rnn.n_bias * rnn.dhc; j++) {
+            const size_t off = i * rnn.n_bias * rnn.dhc + j;
+            const float weights_scale
+                    = scale_per_oc ? weights_scales[j] : weights_scales[0];
+            scratch_bias_[off] -= (w_iter_comp[off] + w_layer_comp[off])
+                    * data_shift / (weights_scale * data_scale);
+        }
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
@@ -1054,14 +1101,10 @@ rnn_bias_finalize_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         const float *const weights_scales
                 = pd()->attr()->rnn_weights_qparams_.scales_;
         const bool scale_per_oc = pd()->attr()->rnn_weights_qparams_.mask_ != 0;
-        for (int i = 0; i < rnn.n_layer * rnn.n_dir; i++)
-            for (int j = 0; j < rnn.n_bias * rnn.dhc; j++) {
-                const size_t off = i * rnn.n_bias * rnn.dhc + j;
-                const float weights_scale
-                        = scale_per_oc ? weights_scales[j] : weights_scales[0];
-                scratch_bias_[off] -= (w_iter_comp[off] + w_layer_comp[off])
-                        * data_shift / (weights_scale * data_scale);
-            }
+
+        apply_bias_compensation(rnn, static_cast<float *>(scratch_bias_),
+                w_iter_comp, w_layer_comp, data_shift, data_scale,
+                weights_scales, scale_per_oc);
     }
 }
 
@@ -1116,7 +1159,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     const rnn_conf_t &rnn = this->pd()->rnn_;
     auto src_layer = CTX_IN_MEM(const src_layer_t *, DNNL_ARG_SRC_LAYER);
     auto src_iter = CTX_IN_MEM(const char *, DNNL_ARG_SRC_ITER);
-    auto src_iter_c = CTX_IN_MEM(const float *, DNNL_ARG_SRC_ITER_C);
+    auto src_iter_c = CTX_IN_MEM(const void *, DNNL_ARG_SRC_ITER_C);
     auto layer_weights_n_comp
             = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS_LAYER);
     auto iter_weights_n_comp = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS_ITER);
@@ -1124,7 +1167,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
             = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS_PEEPHOLE);
     auto projection_weights_n_comp
             = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS_PROJECTION);
-    auto bias = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
+    auto bias = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
 
     auto dst_layer = rnn.is_fwd
             ? CTX_OUT_MEM(char *, DNNL_ARG_DST_LAYER)
@@ -1132,9 +1175,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     auto dst_iter = rnn.is_fwd
             ? CTX_OUT_MEM(char *, DNNL_ARG_DST_ITER)
             : const_cast<char *>(CTX_IN_MEM(const char *, DNNL_ARG_DST_ITER));
-    auto dst_iter_c = rnn.is_fwd ? CTX_OUT_MEM(float *, DNNL_ARG_DST_ITER_C)
-                                 : const_cast<float *>(CTX_IN_MEM(
-                                         const float *, DNNL_ARG_DST_ITER_C));
+    auto dst_iter_c = CTX_OUT_MEM(void *, DNNL_ARG_DST_ITER_C);
 
     auto diff_dst_layer
             = CTX_IN_MEM(const gemm_acc_t *, DNNL_ARG_DIFF_DST_LAYER);
@@ -1159,7 +1200,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
             = scratchpad.template get<weights_t *>(key_rnn_ptrs_wei_iter);
     auto ptr_wei_projection
             = scratchpad.template get<weights_t *>(key_rnn_ptrs_wei_projection);
-    auto ptr_bias = scratchpad.template get<float *>(key_rnn_ptrs_bia);
+    auto ptr_bias = scratchpad.template get<void *>(key_rnn_ptrs_bia);
     // Here we use scratch_gates for the output of GEMMs on FWD and on input of GEMMs for BWD.
     // None of the values are kept for bwd
     auto scratch_gates = scratchpad.template get<scratch_t>(key_rnn_gates);
@@ -1204,7 +1245,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
             = (src_layer_t *)(base_ptr + ws_states_layer_offset_);
     src_iter_t *ws_states_iter
             = (src_iter_t *)(base_ptr + ws_states_iter_offset_);
-    float *ws_states_iter_c = (float *)(base_ptr + ws_states_iter_c_offset_);
+    void *ws_states_iter_c = (void *)(base_ptr + ws_states_iter_c_offset_);
     gemm_acc_t *ws_diff_states_layer
             = (gemm_acc_t *)(base_ptr + ws_diff_states_layer_offset_);
     gemm_acc_t *ws_diff_states_iter
@@ -1228,7 +1269,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     auto diff_bias = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);
 
     // Fetching extra buffers from scratchpad
-    float *ws_bias = (float *)(scratch_ptr + ws_bias_offset_);
+    void *ws_bias = static_cast<void *>(scratch_ptr + ws_bias_offset_);
     /* Pack(if using packed gemm API) or copy(if input arrays have bad leading
      * dimension */
     (this->*bias_preparation_func)(rnn, ptr_bias, bias, ws_bias);
@@ -1256,10 +1297,10 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
 
     if (!(rnn.skip_src_iter_copy() && rnn.is_fwd)) {
         if (pd()->src_md(1)->data_type == data_type::f32)
-            copy_init_iter(rnn, ws_states_iter, ws_states_iter_c,
-                    ws_diff_states_iter, ws_diff_states_iter_c,
-                    (const float *)src_iter, src_iter_c, diff_dst_iter,
-                    diff_dst_iter_c);
+            copy_init_iter(rnn, ws_states_iter,
+                    static_cast<void *>(ws_states_iter_c), ws_diff_states_iter,
+                    ws_diff_states_iter_c, (const float *)src_iter, src_iter_c,
+                    diff_dst_iter, diff_dst_iter_c);
         else
             copy_init_iter(rnn, ws_states_iter, ws_states_iter_c,
                     ws_diff_states_iter, ws_diff_states_iter_c,

@@ -54,7 +54,7 @@ private:
     void compute_dst(size_t unrolling, bool tail);
 
     static constexpr dim_t simd_w_ = 16;
-    static constexpr dim_t max_unrolling = 16;
+    static constexpr dim_t max_unrolling = 10;
 
     const data_type_t c_states_dt_;
     const data_type_t scratch_dt_;

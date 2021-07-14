@@ -311,6 +311,29 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
     return status::success;
 }
 
+float rnn_utils::to_float(const void *data, const data_type_t dt) {
+    if (dt == data_type::f32)
+        return *static_cast<const float *>(data);
+    else if (dt == data_type::bf16)
+        return float(*static_cast<const bfloat16_t *>(data));
+    return 0.0;
+}
+
+const void *rnn_utils::inc_ptr(
+        const void *data, data_type_t data_type, int offset) {
+    if (data_type == data_type::f32)
+        return static_cast<const float *>(data) + offset;
+    else if (data_type == data_type::bf16)
+        return static_cast<const bfloat16_t *>(data) + offset;
+    else
+        return data;
+}
+
+void *rnn_utils::inc_ptr(void *data, data_type_t data_type, int offset) {
+    return const_cast<void *>(
+            inc_ptr(static_cast<const void *>(data), data_type, offset));
+}
+
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

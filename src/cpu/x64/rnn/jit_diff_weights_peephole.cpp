@@ -25,7 +25,7 @@ namespace x64 {
 
 jit_diff_weights_peephole_t::jit_diff_weights_peephole_t(
         const rnn_utils::rnn_conf_t &rnn, const dim_t dhc_block_size)
-    : c_states_dt_(data_type::f32)
+    : c_states_dt_(rnn.src_iter_c_dt)
     , scratch_dt_(rnn.is_bf16() ? data_type::bf16 : data_type::f32)
     , dst_dt_(data_type::f32)
     , compute_block_size_(dhc_block_size)
@@ -101,7 +101,7 @@ void jit_diff_weights_peephole_t::compute_loop() {
 void jit_diff_weights_peephole_t::compute_dst(
         size_t unrolling_factor, bool tail) {
 
-    static constexpr dim_t number_vmm_single_compute = 2;
+    static constexpr dim_t number_vmm_single_compute = 3;
 
     const auto get_compute_zmm = [=](size_t base_idx, size_t unroll_group) {
         return Xbyak::Zmm(base_idx + unroll_group * number_vmm_single_compute);
@@ -115,23 +115,29 @@ void jit_diff_weights_peephole_t::compute_dst(
 
     static constexpr size_t dst_idx = 0;
     static constexpr size_t scratch_idx = 1;
+    static constexpr size_t c_states_idx = 2;
+
     const auto io_dst = io_.at(dst_dt_);
     const auto io_scratch = io_.at(scratch_dt_);
+    const auto io_c_states = io_.at(c_states_dt_);
 
     for (size_t unroll_group = 0; unroll_group < unrolling_factor;
             ++unroll_group) {
 
         const auto dst_zmm = get_compute_zmm(dst_idx, unroll_group);
         const auto scratch_zmm = get_compute_zmm(scratch_idx, unroll_group);
+        const auto c_states_zmm = get_compute_zmm(c_states_idx, unroll_group);
+
         const auto unroll_offset = unroll_group * simd_w_;
         const auto dst_addr = get_addr(reg_dst_, unroll_offset, dst_dt_);
         io_dst->load(dst_addr, dst_zmm, tail);
         io_scratch->load(
                 get_addr(reg_scratch_gates_, unroll_offset, scratch_dt_),
                 scratch_zmm, tail);
+        io_c_states->load(get_addr(reg_c_states_, unroll_offset, c_states_dt_),
+                c_states_zmm, tail);
         const auto dst_zmm_masked = tail ? dst_zmm | tail_opmask_ : dst_zmm;
-        uni_vfmadd231ps(dst_zmm_masked, scratch_zmm,
-                get_addr(reg_c_states_, unroll_offset, c_states_dt_));
+        uni_vfmadd231ps(dst_zmm_masked, scratch_zmm, c_states_zmm);
         io_dst->store(dst_zmm, dst_addr, tail);
     }
 }

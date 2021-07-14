@@ -46,10 +46,12 @@ protected:
     Vmm get_next_tmp_vmm() {
         const Vmm vmm {current_tmp_id_++};
 
-        if (current_tmp_id_ == tmp_id_end_) current_tmp_id_ = tmp_id_begin_;
+        if (current_tmp_id_ == tmp_id_end_) reset_vmm_cnt();
 
         return vmm;
     }
+
+    void reset_vmm_cnt() { current_tmp_id_ = tmp_id_begin_; }
 
     Xbyak::Xmm get_next_tmp_xmm() {
         return Xbyak::Xmm(get_next_tmp_vmm().getIdx());

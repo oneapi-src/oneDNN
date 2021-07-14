@@ -58,7 +58,9 @@ protected:
 
     // register size in bytes
     static constexpr size_t vlen_ = cpu_isa_traits<isa>::vlen;
-    static constexpr size_t cstate_dt_size_ = sizeof(float);
+    const size_t vlen_c_states_ = vlen_ / (sizeof(float) / cstate_dt_size_);
+
+    static constexpr size_t diff_cstate_dt_size_ = sizeof(float);
     static constexpr size_t hstate_dt_size_ = sizeof(float);
     static constexpr size_t weights_peephole_dt_size_ = sizeof(float);
 
@@ -157,7 +159,8 @@ protected:
             // - ws_gates is src_data_t
 
             // compute tanhCt
-            uni_vmovups(tanhCt, ptr[addr_c_states_t_l_reg]);
+            to_float(tanhCt, ptr[addr_c_states_t_l_reg], rnn_.src_iter_c_dt,
+                    vlen_);
             tanh_injector_->compute_vector(tanhCt.getIdx());
 
             // compute dHt
@@ -209,7 +212,11 @@ protected:
             const auto tmp_g1 = this->vmm_backup(G1);
             uni_vfnmadd231ps(dG1, tmp_g1, tmp_g1);
             uni_vmulps(dG1, dG1, dCt);
-            this->vmulps_rhs_op_mem(dG1, dG1, ptr[addr_c_states_tm1_l_reg]);
+
+            const auto tmp_c_states_tm1 = this->get_next_tmp_vmm();
+            to_float(tmp_c_states_tm1, ptr[addr_c_states_tm1_l_reg],
+                    rnn_.src_iter_c_dt, vlen_);
+            this->uni_vmulps(dG1, dG1, tmp_c_states_tm1);
 
             // compute dG2
             const auto tmp_dg2 = this->get_next_tmp_vmm();
@@ -243,8 +250,8 @@ protected:
             add(addr_diff_states_tp1_l_reg, vlen_);
             add(addr_diff_c_states_t_l_reg, vlen_);
             add(addr_diff_c_states_tp1_l_reg, vlen_);
-            add(addr_c_states_tm1_l_reg, vlen_);
-            add(addr_c_states_t_l_reg, vlen_);
+            add(addr_c_states_tm1_l_reg, vlen_c_states_);
+            add(addr_c_states_t_l_reg, vlen_c_states_);
             if (rnn_.is_lstm_peephole) add(addr_weights_peephole_reg, vlen_);
             inc_regs(vlen_);
 
@@ -258,6 +265,7 @@ protected:
         cmp(loop_cnt, 0);
         je(rem_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
         // Same code as above, we just use vmovss for accessing inputs
+        this->reset_vmm_cnt();
         L(rem_loop_start_label);
         {
             const Xmm dG0(dG0_idx), dG1(dG1_idx), dG2(dG2_idx), dG3(dG3_idx),
@@ -265,7 +273,8 @@ protected:
                     G1(G1_idx);
 
             // compute tanhCt
-            uni_vmovss(tanhCt, ptr[addr_c_states_t_l_reg]);
+            to_float(tanhCt, ptr[addr_c_states_t_l_reg], rnn_.src_iter_c_dt,
+                    sizeof(float));
             tanh_injector_->compute_vector(tanhCt.getIdx());
 
             // compute dHt
@@ -319,7 +328,11 @@ protected:
             uni_vmovss(dG1, G1);
             uni_vfnmadd231ss(dG1, tmp_g1, tmp_g1);
             uni_vmulss(dG1, dG1, dCt);
-            this->vmulss_rhs_op_mem(dG1, dG1, ptr[addr_c_states_tm1_l_reg]);
+
+            const auto tmp_c_states_tm1 = this->get_next_tmp_xmm();
+            to_float(tmp_c_states_tm1, ptr[addr_c_states_tm1_l_reg],
+                    rnn_.src_iter_c_dt, sizeof(float));
+            this->uni_vmulss(dG1, dG1, tmp_c_states_tm1);
 
             // compute dG2
             const auto tmp_dG2 = this->get_next_tmp_xmm();
@@ -351,8 +364,8 @@ protected:
             add(addr_scratch_gates_reg, scratch_dt_size_);
             add(addr_diff_states_t_lp1_reg, hstate_dt_size_);
             add(addr_diff_states_tp1_l_reg, hstate_dt_size_);
-            add(addr_diff_c_states_t_l_reg, cstate_dt_size_);
-            add(addr_diff_c_states_tp1_l_reg, cstate_dt_size_);
+            add(addr_diff_c_states_t_l_reg, diff_cstate_dt_size_);
+            add(addr_diff_c_states_tp1_l_reg, diff_cstate_dt_size_);
             add(addr_c_states_tm1_l_reg, cstate_dt_size_);
             add(addr_c_states_t_l_reg, cstate_dt_size_);
             if (rnn_.is_lstm_peephole)

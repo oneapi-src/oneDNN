@@ -61,12 +61,12 @@ protected:
 
     // register size in bytes
     static constexpr size_t vlen_ = cpu_isa_traits<isa>::vlen;
-    static constexpr size_t cstate_dt_size_ = sizeof(float);
     static constexpr size_t qscale_dt_size = sizeof(float);
     static constexpr size_t weights_peephole_dt_size_ = sizeof(float);
-    static constexpr size_t bias_dt_size_ = sizeof(float);
     const size_t vlen_dst_
             = vlen_ / (sizeof(float) / types::data_type_size(src_data_t));
+    const size_t vlen_bias_ = vlen_ / (sizeof(float) / bias_dt_size_);
+    const size_t vlen_c_states_ = vlen_ / (sizeof(float) / cstate_dt_size_);
     const size_t hstate_dt_size_ = types::data_type_size(src_data_t);
     const size_t gate_dt_size_ = types::data_type_size(src_data_t);
     const size_t scratch_dt_size_ = types::data_type_size(scratch_data_t);
@@ -162,21 +162,30 @@ protected:
             // dequantize the gates from s32 to f32 if needed, add bias
             deq_w(src_data_t, G0, this->get_next_tmp_vmm(),
                     this->get_next_tmp_vmm(), 0 * rnn_.dhc, mask, true);
-            this->vaddps_rhs_op_mem(G0, G0, B_addr(0));
+            const auto bias_g0_vmm = this->get_next_tmp_vmm();
+            to_float(bias_g0_vmm, B_addr(0), rnn_.bias_dt, vlen_);
+            this->uni_vaddps(G0, G0, bias_g0_vmm);
 
             deq_w(src_data_t, G1, this->get_next_tmp_vmm(),
                     this->get_next_tmp_vmm(), 1 * rnn_.dhc, mask, true);
-            this->vaddps_rhs_op_mem(G1, G1, B_addr(1));
+            const auto bias_g1_vmm = this->get_next_tmp_vmm();
+            to_float(bias_g1_vmm, B_addr(1), rnn_.bias_dt, vlen_);
+            this->uni_vaddps(G1, G1, bias_g1_vmm);
 
             deq_w(src_data_t, G2, this->get_next_tmp_vmm(),
                     this->get_next_tmp_vmm(), 2 * rnn_.dhc, mask, true);
-            this->vaddps_rhs_op_mem(G2, G2, B_addr(2));
+            const auto bias_g2_vmm = this->get_next_tmp_vmm();
+            to_float(bias_g2_vmm, B_addr(2), rnn_.bias_dt, vlen_);
+            this->uni_vaddps(G2, G2, bias_g2_vmm);
 
             deq_w(src_data_t, G3, this->get_next_tmp_vmm(),
                     this->get_next_tmp_vmm(), 3 * rnn_.dhc, mask, true);
-            this->vaddps_rhs_op_mem(G3, G3, B_addr(3));
+            const auto bias_g3_vmm = this->get_next_tmp_vmm();
+            to_float(bias_g3_vmm, B_addr(3), rnn_.bias_dt, vlen_);
+            this->uni_vaddps(G3, G3, bias_g3_vmm);
 
-            uni_vmovups(tmp_c_states, ptr[addr_c_states_tm1_l_reg]);
+            to_float(tmp_c_states, ptr[addr_c_states_tm1_l_reg],
+                    rnn_.src_iter_c_dt, vlen_);
 
             // add peephole
             if (rnn_.is_lstm_peephole) {
@@ -209,7 +218,8 @@ protected:
             uni_vmulps(tmp_c_states, tmp_c_states, G1);
             const auto tmp_g0 = this->vmm_backup(G0);
             uni_vfmadd231ps(tmp_c_states, tmp_g0, G2);
-            uni_vmovups(ptr[addr_c_states_t_l_reg], tmp_c_states);
+            to_src(ptr[addr_c_states_t_l_reg], tmp_c_states, rnn_.dst_iter_c_dt,
+                    vlen_);
 
             // add peephole
             if (rnn_.is_lstm_peephole) {
@@ -240,10 +250,10 @@ protected:
             L_aligned(vector_loop_inc_regs);
             add(addr_scratch_gates_reg, vlen_);
             if (rnn_.is_lstm_peephole) add(addr_weights_peephole_reg, vlen_);
-            add(addr_bias_reg, vlen_);
+            add(addr_bias_reg, vlen_bias_);
             add(addr_states_t_l_reg, vlen_dst_);
-            add(addr_c_states_tm1_l_reg, vlen_);
-            add(addr_c_states_t_l_reg, vlen_);
+            add(addr_c_states_tm1_l_reg, vlen_c_states_);
+            add(addr_c_states_t_l_reg, vlen_c_states_);
             if (is_training) add(addr_ws_gates_reg, vlen_dst_);
             inc_regs(mask, vlen_);
 
@@ -257,6 +267,8 @@ protected:
         cmp(loop_cnt, 0);
         je(rem_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
         // Same code as above, we just use vmovss for accessing inputs
+        this->reset_vmm_cnt();
+
         L_aligned(rem_loop_start_label, 64);
         {
             const Xmm G0(1), G1(2), G2(4), G3(3), tmp_c_states(5);
@@ -277,13 +289,21 @@ protected:
                     this->get_next_tmp_xmm(), 3 * rnn_.dhc, mask, false);
 
             // add biases
-            this->vaddss_rhs_op_mem(G0, G0, B_addr(0));
-            this->vaddss_rhs_op_mem(G1, G1, B_addr(1));
-            this->vaddss_rhs_op_mem(G2, G2, B_addr(2));
-            this->vaddss_rhs_op_mem(G3, G3, B_addr(3));
+            const auto bias_g0_xmm = this->get_next_tmp_xmm();
+            to_float(bias_g0_xmm, B_addr(0), rnn_.bias_dt, sizeof(float));
+            uni_vaddss(G0, G0, bias_g0_xmm);
+            const auto bias_g1_xmm = this->get_next_tmp_xmm();
+            to_float(bias_g1_xmm, B_addr(1), rnn_.bias_dt, sizeof(float));
+            uni_vaddss(G1, G1, bias_g1_xmm);
+            const auto bias_g2_xmm = this->get_next_tmp_xmm();
+            to_float(bias_g2_xmm, B_addr(2), rnn_.bias_dt, sizeof(float));
+            uni_vaddss(G2, G2, bias_g2_xmm);
+            const auto bias_g3_xmm = this->get_next_tmp_xmm();
+            to_float(bias_g3_xmm, B_addr(3), rnn_.bias_dt, sizeof(float));
+            uni_vaddss(G3, G3, bias_g3_xmm);
 
-            uni_vmovss(tmp_c_states, ptr[addr_c_states_tm1_l_reg]);
-
+            to_float(tmp_c_states, ptr[addr_c_states_tm1_l_reg],
+                    rnn_.src_iter_c_dt, sizeof(float));
             // add peephole
             if (rnn_.is_lstm_peephole) {
                 this->vfmadd231ss_rhs_op_mem(
@@ -316,8 +336,8 @@ protected:
             uni_vmulss(tmp_c_states, tmp_c_states, G1);
             const auto tmp_g0 = this->xmm_backup(G0);
             uni_vfmadd231ss(tmp_c_states, tmp_g0, G2);
-            uni_vmovss(ptr[addr_c_states_t_l_reg], tmp_c_states);
-
+            to_src(ptr[addr_c_states_t_l_reg], tmp_c_states, rnn_.dst_iter_c_dt,
+                    sizeof(float));
             // add peephole
             if (rnn_.is_lstm_peephole) {
                 this->vfmadd231ss_rhs_op_mem(

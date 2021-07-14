@@ -59,10 +59,10 @@ protected:
     const size_t vlen = cpu_isa_traits<isa>::vlen;
     const size_t vlen_dst
             = vlen / (sizeof(float) / types::data_type_size(src_data_t));
+    const size_t vlen_bias = vlen / (sizeof(float) / bias_dt_size_);
     const size_t hstate_dt_size = types::data_type_size(src_data_t);
     const size_t gate_dt_size = types::data_type_size(src_data_t);
     const size_t scratch_dt_size = types::data_type_size(scratch_data_t);
-    const size_t bias_dt_size = sizeof(float);
     const size_t qscale_dt_size = sizeof(float);
     const size_t vlen_qscale = vlen / qscale_dt_size;
 
@@ -133,7 +133,8 @@ protected:
                     + j * vlen_dst];
         };
         auto B_addr = [&](int i, int j) {
-            return ptr[addr_bias_reg + i * rnn_.dhc * bias_dt_size + j * vlen];
+            return ptr[addr_bias_reg + i * rnn_.dhc * bias_dt_size_
+                    + j * vlen_bias];
         };
 
         // initialize registers with addresses and constants
@@ -161,7 +162,8 @@ protected:
                     deq_w(src_data_t, G2(loop_ur_idx), tmp1_vmm, tmp2_vmm,
                             2 * rnn_.dhc + loop_ur_idx * vlen_qscale, mask,
                             true);
-                    uni_vmovups(tmp1_vmm, B_addr(2, loop_ur_idx));
+                    to_float(tmp1_vmm, B_addr(2, loop_ur_idx), rnn_.bias_dt,
+                            vlen);
                     uni_vaddps(G2(loop_ur_idx), G2(loop_ur_idx), tmp1_vmm);
                 }
 
@@ -204,7 +206,7 @@ protected:
 
                 // increment address pointers
                 add(addr_scratch_gates_reg, vlen * loop_ur);
-                add(addr_bias_reg, vlen * loop_ur);
+                add(addr_bias_reg, vlen_bias * loop_ur);
                 add(addr_states_t_l_reg, vlen_dst * loop_ur);
                 add(addr_states_t_l_copy_reg, vlen_dst * loop_ur);
                 add(addr_states_tm1_l_reg, vlen_dst * loop_ur);
@@ -234,7 +236,10 @@ protected:
                 // dequantize gate from s32 to f32 if needed
                 deq_w(src_data_t, G2s, tmp1s_vmm, tmp2s_vmm, 2 * rnn_.dhc, mask,
                         false);
-                uni_vaddss(G2s, G2s, B_addr(2, 0));
+
+                to_float(tmp1s_vmm, B_addr(2, 0), rnn_.bias_dt, sizeof(float));
+
+                uni_vaddss(G2s, G2s, tmp1s_vmm);
                 tanh_injector_->compute_vector(G2s.getIdx());
                 // if training we write back the gates
                 if (is_training)
@@ -259,7 +264,7 @@ protected:
                 // increment address pointers
                 L(rem_loop_inc_regs);
                 add(addr_scratch_gates_reg, scratch_dt_size);
-                add(addr_bias_reg, bias_dt_size);
+                add(addr_bias_reg, bias_dt_size_);
                 add(addr_states_t_l_reg, hstate_dt_size);
                 add(addr_states_t_l_copy_reg, hstate_dt_size);
                 add(addr_states_tm1_l_reg, hstate_dt_size);

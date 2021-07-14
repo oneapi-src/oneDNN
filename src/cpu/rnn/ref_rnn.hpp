@@ -139,6 +139,7 @@ struct _ref_rnn_common_t : public primitive_t {
                             weights_type, weights_iter_dt, weights_layer_dt)
                     && this->set_default_params() == status::success
                     && this->with_bias();
+
             if (!ok) return status::unimplemented;
 
             rnn_.is_brgemm = false;
@@ -146,8 +147,22 @@ struct _ref_rnn_common_t : public primitive_t {
                     this->src_md(1), this->src_md(2), this->weights_md(0),
                     this->weights_md(1),
                     this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION), this->dst_md(0),
-                    this->dst_md(1), this->dst_md(2));
+                    this->dst_md(1), this->dst_md(2),
+                    this->arg_md(DNNL_ARG_BIAS));
             if (!ok) return status::unimplemented;
+
+            if (rnn_.is_bf16()) {
+                if (!utils::one_of(
+                            rnn_.bias_dt, data_type::bf16, data_type::f32)
+                        || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt
+                        || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
+                                data_type::bf16, data_type::f32))
+                    return status::unimplemented;
+            } else if (rnn_.bias_dt != data_type::f32
+                    || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
+                            data_type::f32)
+                    || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt)
+                return status::unimplemented;
 
             /* check that no data shift have been passed to s8s8 lstm */
             if (!IMPLICATION(rnn_.is_signed_int8(),
@@ -243,6 +258,7 @@ struct _ref_rnn_common_t : public primitive_t {
                             weights_type, weights_iter_dt, weights_layer_dt)
                     && this->set_default_params() == status::success
                     && this->with_bias();
+
             if (!ok) return status::unimplemented;
 
             rnn_.is_brgemm = true;
@@ -250,7 +266,8 @@ struct _ref_rnn_common_t : public primitive_t {
                     this->src_md(1), this->src_md(2), this->weights_md(0),
                     this->weights_md(1),
                     this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION), this->dst_md(0),
-                    this->dst_md(1), this->dst_md(2));
+                    this->dst_md(1), this->dst_md(2),
+                    this->arg_md(DNNL_ARG_BIAS));
 
             ok = ok
                     && IMPLICATION(one_of(this->desc()->prop_kind,
@@ -269,8 +286,20 @@ struct _ref_rnn_common_t : public primitive_t {
                         this->desc()->prop_kind == forward_inference)))
                 return status::unimplemented;
 
-            if (rnn_.is_bf16() && !mayiuse(avx512_core_bf16))
+            if (rnn_.is_bf16()) {
+                if (!mayiuse(avx512_core_bf16)
+                        || !utils::one_of(
+                                rnn_.bias_dt, data_type::bf16, data_type::f32)
+                        || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt
+                        || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
+                                data_type::bf16, data_type::f32))
+                    return status::unimplemented;
+            } else if (rnn_.bias_dt != data_type::f32
+                    || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
+                            data_type::f32)
+                    || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt)
                 return status::unimplemented;
+
             if (rnn_.is_signed_int8() && !mayiuse(avx512_core_bf16_amx_int8))
                 return status::unimplemented;
             if (rnn_.is_int8() && !mayiuse(avx512_core_vnni))
@@ -543,10 +572,10 @@ private:
 
     template <typename input_t>
     void copy_init_iter(const rnn_utils::rnn_conf_t &rnn,
-            src_iter_t *ws_states_iter_, float *ws_states_iter_c_,
+            src_iter_t *ws_states_iter_, void *ws_states_iter_c_,
             gemm_acc_t *ws_diff_states_iter_,
             gemm_acc_t *ws_diff_states_iter_c_, const input_t *src_iter_,
-            const float *src_iter_c_, const gemm_acc_t *diff_dst_iter_,
+            const void *src_iter_c_, const gemm_acc_t *diff_dst_iter_,
             const float *diff_dst_iter_c_) const;
 
     template <typename dst_layer_dt, typename dst_iter_dt>
@@ -557,10 +586,10 @@ private:
 
     template <typename prim_dst_iter_t, typename prim_dst_layer_t>
     void copy_res_iter(const rnn_utils::rnn_conf_t &rnn,
-            prim_dst_iter_t *dst_iter_, float *dst_iter_c_,
+            prim_dst_iter_t *dst_iter_, void *dst_iter_c_,
             gemm_acc_t *diff_src_iter_, float *diff_src_iter_c_,
             const prim_dst_layer_t *dst_layer_,
-            const src_iter_t *ws_states_iter_, const float *ws_states_iter_c,
+            const src_iter_t *ws_states_iter_, const void *ws_states_iter_c,
             const gemm_acc_t *ws_diff_states_iter_,
             const gemm_acc_t *ws_diff_states_iter_c_) const;
 

@@ -63,10 +63,10 @@ protected:
 
     size_t vlen_dst
             = vlen / (sizeof(float) / types::data_type_size(src_data_t));
+    const size_t vlen_bias_ = vlen / (sizeof(float) / bias_dt_size_);
     size_t hstate_dt_size = types::data_type_size(src_data_t);
     size_t scratch_dt_size = types::data_type_size(scratch_data_t);
     size_t gate_dt_size = types::data_type_size(src_data_t);
-    size_t bias_dt_size = sizeof(float);
 
     void generate() override {
         using namespace Xbyak;
@@ -129,7 +129,7 @@ protected:
             return ptr[addr_ws_gates_reg + i * rnn_.dhc * gate_dt_size];
         };
         auto B_addr = [&](int i) {
-            return ptr[addr_bias_reg + i * rnn_.dhc * bias_dt_size];
+            return ptr[addr_bias_reg + i * rnn_.dhc * bias_dt_size_];
         };
         auto sc_addr = [&](int i) {
             return ptr[addr_scratch_cell_reg + i * rnn_.dhc * scratch_dt_size];
@@ -147,7 +147,7 @@ protected:
         {
             // Compute gate 0
             uni_vmovups(G0, sg_addr(0));
-            uni_vmovups(tmp1_vmm, B_addr(0));
+            to_float(tmp1_vmm, B_addr(0), rnn_.bias_dt, vlen);
             uni_vaddps(G0, G0, tmp1_vmm);
             uni_vmovups(tmp1_vmm, sc_addr(0));
             uni_vaddps(G0, G0, tmp1_vmm);
@@ -158,7 +158,7 @@ protected:
 
             // Compute gate 1
             uni_vmovups(G1, sg_addr(1));
-            uni_vmovups(tmp1_vmm, B_addr(1));
+            to_float(tmp1_vmm, B_addr(1), rnn_.bias_dt, vlen);
             uni_vaddps(G1, G1, tmp1_vmm);
             uni_vmovups(tmp1_vmm, sc_addr(1));
             uni_vaddps(G1, G1, tmp1_vmm);
@@ -171,11 +171,11 @@ protected:
             auto wh_b_addr = sc_addr(2);
             auto ws_h_addr = ptr[addr_ws_h_reg];
             uni_vmovups(tmp1_vmm, wh_b_addr);
-            uni_vmovups(tmp2_vmm, B_addr(3));
+            to_float(tmp2_vmm, B_addr(3), rnn_.bias_dt, vlen);
             uni_vaddps(tmp1_vmm, tmp1_vmm, tmp2_vmm);
             if (is_training) to_src(ws_h_addr, tmp1_vmm, src_data_t, vlen);
             uni_vmovups(G2, sg_addr(2));
-            uni_vmovups(tmp2_vmm, B_addr(2));
+            to_float(tmp2_vmm, B_addr(2), rnn_.bias_dt, vlen);
             uni_vaddps(G2, G2, tmp2_vmm);
             uni_vfmadd231ps(G2, G1, tmp1_vmm);
             tanh_injector_->load_table_addr();
@@ -201,7 +201,7 @@ protected:
             L(vector_loop_inc_regs);
             add(addr_scratch_gates_reg, vlen);
             add(addr_ws_h_reg, vlen_dst);
-            add(addr_bias_reg, vlen);
+            add(addr_bias_reg, vlen_bias_);
             add(addr_states_t_l_reg, vlen_dst);
             add(addr_states_t_l_copy_reg, vlen_dst);
             add(addr_states_tm1_l_reg, vlen_dst);
@@ -227,7 +227,8 @@ protected:
 
             // Compute gate 0
             uni_vmovss(G0s, sg_addr(0));
-            uni_vaddss(G0s, G0s, B_addr(0));
+            to_float(tmp1s_vmm, B_addr(0), rnn_.bias_dt, sizeof(float));
+            uni_vaddss(G0s, G0s, tmp1s_vmm);
             uni_vaddss(G0s, G0s, sc_addr(0));
             sigmoid_injector_->load_table_addr();
             sigmoid_injector_->compute_vector(G0s.getIdx());
@@ -237,7 +238,8 @@ protected:
 
             // Compute gate 1
             uni_vmovss(G1s, sg_addr(1));
-            uni_vaddss(G1s, G1s, B_addr(1));
+            to_float(tmp1s_vmm, B_addr(1), rnn_.bias_dt, sizeof(float));
+            uni_vaddss(G1s, G1s, tmp1s_vmm);
             uni_vaddss(G1s, G1s, sc_addr(1));
             sigmoid_injector_->load_table_addr();
             sigmoid_injector_->compute_vector(G1s.getIdx());
@@ -249,11 +251,13 @@ protected:
             auto wh_b_addr = sc_addr(2);
             auto ws_h_addr = ptr[addr_ws_h_reg];
             uni_vmovss(tmp1s_vmm, wh_b_addr);
-            uni_vaddss(tmp1s_vmm, tmp1s_vmm, B_addr(3));
+            to_float(tmp2s_vmm, B_addr(3), rnn_.bias_dt, sizeof(float));
+            uni_vaddss(tmp1s_vmm, tmp1s_vmm, tmp2s_vmm);
             if (is_training)
                 to_src(ws_h_addr, tmp1_vmm, src_data_t, scratch_dt_size);
             uni_vmovss(G2s, sg_addr(2));
-            uni_vaddss(G2s, G2s, B_addr(2));
+            to_float(tmp2s_vmm, B_addr(2), rnn_.bias_dt, sizeof(float));
+            uni_vaddss(G2s, G2s, tmp2s_vmm);
             uni_vfmadd231ss(G2s, G1s, tmp1s_vmm);
             tanh_injector_->load_table_addr();
             tanh_injector_->compute_vector(G2s.getIdx());
@@ -281,7 +285,7 @@ protected:
             L(rem_loop_inc_regs);
             add(addr_scratch_gates_reg, scratch_dt_size);
             add(addr_ws_h_reg, gate_dt_size);
-            add(addr_bias_reg, bias_dt_size);
+            add(addr_bias_reg, bias_dt_size_);
             add(addr_states_t_l_reg, hstate_dt_size);
             add(addr_states_t_l_copy_reg, hstate_dt_size);
             add(addr_states_tm1_l_reg, hstate_dt_size);

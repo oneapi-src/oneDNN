@@ -96,8 +96,8 @@ status_t check_data_type_consistency_fwd(const rnn_desc_t &r) {
     const bool is_int8_ok
             = one_of(r.cell_kind, dnnl_vanilla_lstm, dnnl_vanilla_gru);
 
-    const bool cell_state_check = expect_dt(r.src_iter_c_desc, f32, f16)
-            && expect_dt(r.dst_iter_c_desc, f32, f16);
+    const bool cell_state_check = expect_dt(r.src_iter_c_desc, f32, bf16, f16)
+            && expect_dt(r.dst_iter_c_desc, f32, bf16, f16);
 
     const bool is_f32 = everyone_is(f32, src_layer_dt, dst_layer_dt,
                                 weights_iter_dt, weights_layer_dt)
@@ -111,7 +111,8 @@ status_t check_data_type_consistency_fwd(const rnn_desc_t &r) {
             && expect_dt(r.src_iter_desc, bf16)
             && expect_dt(r.weights_peephole_desc, f32)
             && one_of(weights_projection_dt, bf16, data_type::undef)
-            && expect_dt(r.dst_iter_desc, bf16) && expect_dt(r.bias_desc, f32);
+            && expect_dt(r.dst_iter_desc, bf16)
+            && one_of(r.bias_desc.data_type, bf16, f32);
 
     const bool is_f16 = is_forward
             && everyone_is(f16, src_layer_dt, dst_layer_dt, weights_iter_dt,

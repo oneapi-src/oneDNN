@@ -42,10 +42,13 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
         const rnn_utils::rnn_conf_t &rnn,
         rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_,
         scratch_data_t *scratch_gates_, src_data_t *dst_layer_,
-        src_data_t *dst_iter_, const src_data_t *src_iter_, float *bias_) {
+        src_data_t *dst_iter_, const src_data_t *src_iter_, const void *bias_) {
     const ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     const scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
-    const bias_aoc_t bias(rnn, bias_);
+    const bias_aoc_t bias_aoc(rnn, bias_);
+    const auto bias = [&](int gate_id, int dhc_id) {
+        return to_float(bias_aoc(gate_id, dhc_id), rnn.bias_dt);
+    };
 
     const auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
     const auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
@@ -89,10 +92,13 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
         const rnn_utils::rnn_conf_t &rnn,
         rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_,
         scratch_data_t *scratch_gates_, src_data_t *dst_layer_,
-        src_data_t *dst_iter_, const src_data_t *src_iter_, float *bias_) {
+        src_data_t *dst_iter_, const src_data_t *src_iter_, const void *bias_) {
     const ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     const scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
-    const bias_aoc_t bias(rnn, bias_);
+    const bias_aoc_t bias_aoc(rnn, bias_);
+    const auto bias = [&](int gate_id, int dhc_id) {
+        return to_float(bias_aoc(gate_id, dhc_id), rnn.bias_dt);
+    };
 
     const auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
     const auto dst_iter_ld = rnn.dst_iter_ld(cell_position);

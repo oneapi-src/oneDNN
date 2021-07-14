@@ -209,8 +209,8 @@ public:
     brgemm_diff_wei_peep_t(const ref_rnn_brgemm_t &rnn_brgemm,
             const rnn_utils::rnn_conf_t &rnn,
             rnn_utils::cell_position_t cell_position,
-            const scratch_t *scratch_gates, const float *src_iter_c,
-            const float *dst_iter_c, float *diff_weights_peephole);
+            const scratch_t *scratch_gates, const void *src_iter_c,
+            const void *dst_iter_c, float *diff_weights_peephole);
 
     void execute() const;
 
@@ -220,8 +220,8 @@ private:
     const int n_gates_ = 3;
     const rnn_utils::rnn_conf_t &rnn_;
     const scratch_t *scratch_gates_;
-    const float *src_iter_c_;
-    const float *dst_iter_c_;
+    const void *src_iter_c_;
+    const void *dst_iter_c_;
     float *diff_weights_peephole_;
     const int work_amount_;
     const int dst_iter_c_ld_;

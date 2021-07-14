@@ -95,16 +95,17 @@ template rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_ref);
 
 template <typename scratch_data_t, typename acc_data_t>
 void lstm_bwd_weights_peephole_and_bias(const rnn_utils::rnn_conf_t &rnn,
-        cell_position_t cell_position, const float *src_iter_c_,
-        const float *dst_iter_c_, const scratch_data_t *scratch_gates_,
+        cell_position_t cell_position, const void *src_iter_c_,
+        const void *dst_iter_c_, const scratch_data_t *scratch_gates_,
         float *diff_weights_peephole_, acc_data_t *diff_bias_) {
     const auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
     const auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
 
-    const ws_states_iter_c_aoc<const float> dst_iter_c(
-            rnn, dst_iter_c_, dst_iter_c_ld);
-    const ws_states_iter_c_aoc<const float> src_iter_c(
-            rnn, src_iter_c_, src_iter_c_ld);
+    const rnn_utils::ws_states_iter_c_aoc_t dst_iter_c(rnn, rnn.dst_iter_c_dt,
+            const_cast<void *>(dst_iter_c_), dst_iter_c_ld);
+    const rnn_utils::ws_states_iter_c_aoc_t src_iter_c(rnn, rnn.src_iter_c_dt,
+            const_cast<void *>(src_iter_c_), src_iter_c_ld);
+
     const ws_gates_aoc<const scratch_data_t> scratch_gates(rnn, scratch_gates_);
     const weights_peephole_aoc_t<float> diff_weights_peephole(
             rnn, diff_weights_peephole_);
@@ -121,9 +122,13 @@ void lstm_bwd_weights_peephole_and_bias(const rnn_utils::rnn_conf_t &rnn,
             if (g < 3) {
                 // weights peephole
                 auto &c_states = g < 2 ? src_iter_c : dst_iter_c;
+                const auto c_states_dt
+                        = g < 2 ? rnn.src_iter_c_dt : rnn.dst_iter_c_dt;
+
                 const int scratch_g = g < 2 ? g : 3;
                 for (int mb = 0; mb < rnn.mb; ++mb) {
-                    diff_weights_peephole(g, dhc) += c_states(mb, dhc)
+                    diff_weights_peephole(g, dhc)
+                            += to_float(c_states(mb, dhc), c_states_dt)
                             * scratch_gates(mb, scratch_g, dhc);
                 }
             } else {
@@ -150,12 +155,12 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
         T3 gemm_proj_f, T4 gemm_weights_layer_f, T5 gemm_weights_iter_f,
         T6 gemm_weights_proj_f, T7 rnn_postgemm,
         const rnn_utils::rnn_conf_t &rnn, const cell_position_t cell_position,
-        src_data_t *dst_layer_, float *dst_iter_c_, acc_data_t *diff_src_layer_,
+        src_data_t *dst_layer_, void *dst_iter_c_, acc_data_t *diff_src_layer_,
         acc_data_t *diff_src_iter_, acc_data_t *diff_src_iter_c_,
         weights_data_t **w_layer_, weights_data_t **w_iter_,
-        weights_data_t **w_proj_, const float *weights_peephole_, float **bias_,
+        weights_data_t **w_proj_, const float *weights_peephole_, void **bias_,
         const src_data_t *src_layer_, const src_data_t *src_iter_,
-        const float *src_iter_c_, acc_data_t *diff_dst_layer_,
+        const void *src_iter_c_, acc_data_t *diff_dst_layer_,
         acc_data_t *diff_dst_iter_, acc_data_t *diff_dst_iter_c_,
         acc_data_t *diff_w_layer_, acc_data_t *diff_w_iter_,
         float *diff_weights_projection_, float *diff_weights_peephole_,

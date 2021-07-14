@@ -72,15 +72,16 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                     ? dst_iter_postgemm + m * LDDi + n
                     : nullptr;
             const auto Dic_n = (dst_iter_c_ != nullptr)
-                    ? dst_iter_c_ + m * LDDic + n
+                    ? inc_ptr(dst_iter_c_, rnn.dst_iter_c_dt, m * LDDic + n)
                     : nullptr;
 
             const auto curr_ws_gates_
                     = ws_gates_ + (m * rnn.ws_gates_ld) + nb_i * rnn.n_block;
             const float *weights_peephole_n = weights_peephole_ + n;
             auto weights_scales_n = weights_scales + (mask ? n : 0);
-            const auto Aic_n = src_iter_c_ + m * LDAic + n;
-            const auto bias_n = bias_[0] + n;
+            const auto Aic_n
+                    = inc_ptr(src_iter_c_, rnn.src_iter_c_dt, m * LDAic + n);
+            const auto bias_n = inc_ptr(bias_[0], rnn.bias_dt, n);
             rnn_postgemm_->execute(rnn, cell_position, curr_ws_gates_, C_n,
                     Dpg_n, Dic_n, Ai_m, Aic_n, diff_src_layer_, diff_src_iter_,
                     diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,

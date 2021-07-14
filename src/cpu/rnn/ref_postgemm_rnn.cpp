@@ -76,13 +76,15 @@ void rnn_fwd_postgemm_template(T func1, const float *scales, float alpha,
         const rnn_utils::rnn_conf_t &rnn,
         rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_,
         scratch_data_t *scratch_gates_, src_data_t *dst_layer_,
-        src_data_t *dst_iter_, const src_data_t *src_iter_, float *bias_,
+        src_data_t *dst_iter_, const src_data_t *src_iter_, const void *bias_,
         int block_step) {
 
     const ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     const scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
-    const bias_aoc_t bias(rnn, bias_);
-
+    const bias_aoc_t bias_aoc(rnn, bias_);
+    const auto bias = [&](int gate_id, int dhc_id) {
+        return to_float(bias_aoc(gate_id, dhc_id), rnn.bias_dt);
+    };
     const auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
     const auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
     const ws_states_layer_aoc<src_data_t> dst_layer(

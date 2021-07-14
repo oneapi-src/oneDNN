@@ -91,7 +91,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_projection_postgemm) {
     // - src_iter_c to pass the projection compensation
 
     const auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
-    const auto w_proj_comp = src_iter_c_;
+    const auto w_proj_comp = static_cast<const float *>(src_iter_c_);
 
     const float data_shift = pd_->attr()->rnn_data_qparams_.shift_;
     const float data_scale = pd_->attr()->rnn_data_qparams_.scale_;
