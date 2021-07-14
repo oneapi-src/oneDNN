@@ -559,6 +559,8 @@ impl::status_t dnnl_graph_partition::compile(
             std::shared_ptr<impl::compiled_partition_t> new_cp(
                     new impl::compiled_partition_t(*this));
             new_cp->init(compiled_partition.first->pimpl_);
+            assertm(new_cp->is_initialized(),
+                    "Compiled partition is not initialized.");
             cp_promise.set_value({new_cp, status});
 
             // According to the doc of primitive cache, it says:

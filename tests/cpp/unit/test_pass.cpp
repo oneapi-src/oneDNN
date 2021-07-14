@@ -80,12 +80,13 @@ void set_conv_common_attr(op_t &conv, std::vector<int64_t> strides = {1, 1},
     conv.set_attr("auto_pad", auto_pad);
 }
 
-impl::op_t *get_fused_op(
+const impl::op_t *get_fused_op(
         const std::shared_ptr<dnnl::graph::impl::partition_impl_t> &part) {
     return dynamic_cast<
             const dnnl::graph::impl::dnnl_impl::dnnl_partition_impl_t *>(
             part.get())
-            ->get_fused_op();
+            ->get_fused_op()
+            .get();
 }
 } // namespace
 
