@@ -86,7 +86,7 @@ TEST(partition_test, copy) {
 
     // copy the partition
     dnnl_impl::dnnl_partition_impl_t p_copy(p);
-    op_t *p_op = const_cast<op_t *>(p_copy.get_fused_op());
+    op_t *p_op = const_cast<op_t *>(p_copy.get_fused_op().get());
     p_op->set_attr<int64_t>("groups", 1);
     ASSERT_EQ(p_copy.get_fused_op()->get_attr<int64_t>("groups"), 1);
     ASSERT_NE(p_copy.get_fused_op()->get_attr<int64_t>("groups"),

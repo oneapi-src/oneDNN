@@ -111,7 +111,7 @@ public:
             const std::vector<impl::logical_tensor_t> &outputs,
             const std::map<size_t, size_t> &perm_ins,
             const std::map<size_t, size_t> &perm_outs, kernel_ptr &kernel,
-            const impl::op_t *op)
+            const std::shared_ptr<impl::op_t> &op)
         : impl::compiled_partition_impl_t(
                 engine, inputs, outputs, kernel->inplace_pairs_)
         , perm_ins_(perm_ins)
@@ -140,7 +140,8 @@ public:
             ordered_outputs.emplace_back(outputs[perm_outs_[i]]);
         }
 
-        return kernel_->execute(op_, g_stream, ordered_inputs, ordered_outputs);
+        return kernel_->execute(
+                op_.get(), g_stream, ordered_inputs, ordered_outputs);
     }
 
 #if DNNL_GRAPH_WITH_SYCL
@@ -167,7 +168,8 @@ public:
             ordered_outputs.emplace_back(outputs[perm_outs_[i]]);
         }
 
-        return kernel_->execute(op_, g_stream, ordered_inputs, ordered_outputs);
+        return kernel_->execute(
+                op_.get(), g_stream, ordered_inputs, ordered_outputs);
     }
 #endif
 
@@ -175,7 +177,7 @@ private:
     std::map<size_t, size_t> perm_ins_;
     std::map<size_t, size_t> perm_outs_;
     kernel_ptr kernel_;
-    const impl::op_t *op_;
+    const std::shared_ptr<impl::op_t> op_;
 };
 
 class dnnl_partition_impl_t : public impl::partition_impl_t {
@@ -190,8 +192,7 @@ public:
     // deep copy
     dnnl_partition_impl_t(const dnnl_partition_impl_t &other)
         : impl::partition_impl_t(other)
-        , fused_op_(impl::utils::make_unique<impl::op_t>(
-                  other.fused_op_->get_kind()))
+        , fused_op_(std::make_shared<impl::op_t>(other.fused_op_->get_kind()))
         , inputs_map_(other.inputs_map_)
         , outputs_map_(other.outputs_map_) {
         fused_op_->merge_attributes(other.fused_op_->get_attributes());
@@ -200,7 +201,7 @@ public:
     ///// The following are used only in backend for constructing object
 
     void init(const impl::op_t *aop) {
-        fused_op_ = impl::utils::make_unique<impl::op_t>(aop->get_kind());
+        fused_op_ = std::make_shared<impl::op_t>(aop->get_kind());
         fused_op_->merge_attributes(aop->get_attributes());
         add_tensors(aop);
         add_tensors_map(aop);
@@ -273,9 +274,10 @@ public:
             const impl::engine_t *g_engine = nullptr) override {
         using ltw = impl::logical_tensor_wrapper;
 
-        impl::op_t *fused_op = dynamic_cast<const dnnl_partition_impl_t *>(
-                compiled_partition->src_partition().get_pimpl())
-                                       ->get_fused_op();
+        const dnnl_partition_impl_t *part
+                = dynamic_cast<const dnnl_partition_impl_t *>(
+                        compiled_partition->src_partition().get_pimpl());
+        std::shared_ptr<impl::op_t> fused_op = part->get_fused_op();
         if (!fused_op) return status::compile_fail;
 
         // To support arbitrary re-connection in FWK graph, we need to
@@ -285,13 +287,13 @@ public:
         std::vector<impl::logical_tensor_t> ordered_inputs;
         std::map<size_t, size_t> perm_ins;
         ret = get_ordered_inputs_outputs(
-                fused_op, inputs_, inputs, ordered_inputs, perm_ins);
+                fused_op.get(), inputs_, inputs, ordered_inputs, perm_ins);
         if (status::success != ret) return ret;
 
         std::vector<impl::logical_tensor_t> ordered_outputs;
         std::map<size_t, size_t> perm_outs;
         ret = get_ordered_inputs_outputs(
-                fused_op, outputs_, outputs, ordered_outputs, perm_outs);
+                fused_op.get(), outputs_, outputs, ordered_outputs, perm_outs);
         if (status::success != ret) return ret;
 
         // Check if all the shapes are known
@@ -313,7 +315,7 @@ public:
         const op_schema *cur_op_schema
                 = op_schema_registry::get_op_schema(fused_op->get_kind());
         if (cur_op_schema) {
-            cur_op_schema->shape_infer(fused_op, tmp_inputs, tmp_outputs);
+            cur_op_schema->shape_infer(fused_op.get(), tmp_inputs, tmp_outputs);
         }
 
         // create kernel
@@ -322,7 +324,7 @@ public:
 
         // compile kernel
         ret = kernel->compile(
-                fused_op, g_engine, ordered_inputs, ordered_outputs);
+                fused_op.get(), g_engine, ordered_inputs, ordered_outputs);
         if (ret != impl::status::success) return status::compile_fail;
 
         // wrapper kernel to dnnl_compiled_partition_impl_t
@@ -425,11 +427,13 @@ public:
         return os.str();
     }
 
-    impl::op_t *get_fused_op() const { return fused_op_.get(); };
+    const std::shared_ptr<impl::op_t> &get_fused_op() const {
+        return fused_op_;
+    };
 
 private:
     // // Fused op. Currently, only one op here
-    std::unique_ptr<impl::op_t> fused_op_ {nullptr};
+    std::shared_ptr<impl::op_t> fused_op_ {nullptr};
 
     // Map from (op id, op input offset) -> partition input index
     std::unordered_map<std::pair<size_t, size_t>, size_t> inputs_map_;
