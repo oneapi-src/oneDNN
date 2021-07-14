@@ -251,6 +251,7 @@ enum {
     key_reorder_rnn_weights_transposition,
     key_rnn_space,
     key_rnn_cell,
+    key_rnn_diff_states,
     key_rnn_gates,
     key_rnn_gates_blocked,
     key_rnn_src_layer_trans,

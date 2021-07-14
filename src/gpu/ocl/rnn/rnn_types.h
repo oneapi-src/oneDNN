@@ -60,9 +60,9 @@
     OFF5((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_ITER + 1, (i3), BATCH, (i4), \
             STATES_WS_LD)
 
-#define OFF_WS_DIFF_STATES(i0, i1, i2, i3, i4, i5) \
+#define OFF_SCRATCH_DIFF_STATES(i0, i1, i2, i3, i4, i5) \
     OFF6((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_STATES + 1, (i3), N_ITER + 1, \
-            (i4), BATCH, (i5), DIFF_STATES_WS_LD)
+            (i4), BATCH, (i5), SCRATCH_DIFF_STATES_LD)
 
 // cannot be presented by OFF6 due to leading dimension across two dims
 #define OFF_WS_GATES(i0, i1, i2, i3, i4, i5) \
@@ -90,13 +90,13 @@
 // for cell - shorter forms
 
 #define CELL_WS_GATES(i3, i4, i5) OFF_WS_GATES(0, 0, 0, i3, i4, i5)
-#define CELL_SCRATCH_MEM(i1, i2, i3) OFF_SCRATCH_MEM(0, i1, i2, i3)
 #define CELL_WS_STATE(i4, i5) OFF_WS_STATE(0, 0, 0, i4, i5)
-#define CELL_WS_DIFF_STATES(i2, i4, i5) OFF_WS_DIFF_STATES(0, 0, i2, 0, i4, i5)
+#define CELL_SCRATCH_MEM(i1, i2, i3) OFF_SCRATCH_MEM(0, i1, i2, i3)
+#define CELL_SCRATCH_DIFF_STATES(i2, i4, i5) \
+    OFF_SCRATCH_DIFF_STATES(0, 0, i2, 0, i4, i5)
 #define CELL_WS_GRID_COMP(i3, i4) OFF_WS_GRID_OFFSET(0, 0, 0, i3, i4)
-
 #define OFF_KER_BIAS(i0, i1) OFF2((i0), N_GATES, (i1), DHC)
-#define OFF_WS_DHG1(i0, i1) OFF2((i0), BATCH, (i1), DIFF_STATES_WS_LD)
+#define OFF_WS_DHG1(i0, i1) OFF2((i0), BATCH, (i1), SCRATCH_DIFF_STATES_LD)
 #define OFF_SCRATCH_CELL(i0, i1) OFF2((i0), BATCH, (i1), STATES_WS_LD)
 
 #define SRC_L_OFF(x0, x1, x2) \

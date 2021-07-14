@@ -249,7 +249,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)), sizeof_states_dt);
     rnn.gates_ws_ld = get_good_ld(rnn.gates_ld,
             rnn.dt_conf == all_f16 ? sizeof(cl_half) : sizeof(cl_float));
-    rnn.diff_states_ws_ld = get_good_ld(
+    rnn.scratch_diff_states_ld = get_good_ld(
             nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)), sizeof(cl_float));
     rnn.scratch_gates_ld = get_good_ld(rnn.gates_ld, rnn.scratch_gates_elsz);
 
@@ -257,16 +257,17 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 
     rnn.ws_states_size = (size_t)(rnn.n_layer + 1) * rnn.n_dir
             * (rnn.n_iter + 1) * rnn.mb * rnn.states_ws_ld * rnn.ws_states_elsz;
+
     // we do not need a good ld for iter_c as it is not involved in GEMM
     // for now reverting it back to what it was originally
     // TODO: seprate diff_c_offsets from diff-states & seprate h- and c- off
     rnn.ws_c_states_size = is_lstm ? (size_t)(rnn.n_layer + 1) * rnn.n_dir
                     * (rnn.n_iter + 1) * rnn.mb * rnn.states_ws_ld * aux_elsz
                                    : (size_t)0;
-    rnn.ws_diff_states_size = rnn.is_training ? (size_t)(rnn.n_layer + 1)
+    rnn.scratch_diff_states_size = rnn.is_training ? (size_t)(rnn.n_layer + 1)
                     * rnn.n_dir * (rnn.n_states + 1) * (rnn.n_iter + 1) * rnn.mb
-                    * rnn.diff_states_ws_ld * aux_elsz
-                                              : (size_t)0;
+                    * rnn.scratch_diff_states_ld * aux_elsz
+                                                   : (size_t)0;
     rnn.ws_gates_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.mb
             * rnn.gates_ws_ld * aux_elsz;
     rnn.n_iter_scratch_gates
@@ -275,7 +276,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             * rnn.scratch_gates_ld * rnn.scratch_gates_elsz;
     rnn.ws_dhG1_size
             = (rd.cell_kind == alg_kind::vanilla_gru && rnn.is_training)
-            ? (size_t)rnn.gates_nld * rnn.diff_states_ws_ld * sizeof(float)
+            ? (size_t)rnn.gates_nld * rnn.scratch_diff_states_ld * sizeof(float)
             : 0;
     rnn.ws_bias_size
             = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dhc * aux_elsz;
@@ -304,7 +305,7 @@ int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
 
 void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_states_offset, size_t &ws_c_states_offset,
-        size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
+        size_t &scratch_diff_states_offset, size_t &ws_grid_comp_offset,
         size_t &scratch_cell_offset, size_t &ws_dhG1_offset,
         size_t &ws_bias_offset, size_t &scratch_gates_offset,
         size_t &scratchpad_size, size_t &workspace_size) {
@@ -314,7 +315,6 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
 
     // Mandatory workspaces: go to workspace if use_workspace, scratchpad
     // otherwise assumes the workspace base pointer is page aligned
-
     current_offset = 0;
     ws_gates_offset = current_offset;
     current_offset += rnn.ws_gates_size;
@@ -332,15 +332,10 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
     current_offset += rnn.ws_grid_comp_size;
 
     current_offset = utils::rnd_up(current_offset, page_size);
-    ws_diff_states_offset = current_offset;
-    current_offset += rnn.ws_diff_states_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
     ws_dhG1_offset = current_offset;
     current_offset += rnn.ws_dhG1_size;
 
     workspace_size = rnn.use_workspace ? current_offset : 0;
-
     // Optional scratchpads
     // Assumes the scratchpad base pointer is page aligned.
     // If use_workspace, the following goes to scratchpad alone,
@@ -355,6 +350,10 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
     scratch_cell_offset = current_offset;
     current_offset += rnn.scratch_cell_size;
 
+    current_offset = utils::rnd_up(current_offset, page_size);
+    scratch_diff_states_offset = current_offset;
+    current_offset += rnn.scratch_diff_states_size;
+
     ws_bias_offset = 0;
     if (rnn.copy_bias) {
         current_offset = utils::rnd_up(current_offset, page_size);
@@ -367,12 +366,13 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
 void rnn_utils::get_scratchpad_and_workspace_sizes(
         const conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size) {
     size_t ws_gates_offset, ws_states_offset, ws_c_states_offset,
-            ws_diff_states_offset, ws_grid_comp_offset, scratch_cell_offset,
-            ws_dhG1_offset, ws_bias_offset, sratch_gates_offset;
-    set_offsets(rnn, ws_gates_offset, ws_states_offset, ws_diff_states_offset,
-            ws_c_states_offset, ws_grid_comp_offset, scratch_cell_offset,
-            ws_dhG1_offset, ws_bias_offset, sratch_gates_offset,
-            scratchpad_size, workspace_size);
+            scratch_diff_states_offset, ws_grid_comp_offset,
+            scratch_cell_offset, ws_dhG1_offset, ws_bias_offset,
+            sratch_gates_offset;
+    set_offsets(rnn, ws_gates_offset, ws_states_offset,
+            scratch_diff_states_offset, ws_c_states_offset, ws_grid_comp_offset,
+            scratch_cell_offset, ws_dhG1_offset, ws_bias_offset,
+            sratch_gates_offset, scratchpad_size, workspace_size);
 }
 
 void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, int dir, int lay,
@@ -446,48 +446,46 @@ void rnn_utils::set_gru_offsets_part2(const conf_t &rnn, int iter, int dir,
 }
 
 void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir,
-        int lay, const size_t &ws_diff_states_off_,
-        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
-        size_t &cell_diff_ws_lay_off) {
+        int lay, size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
+        size_t &cell_scr_diff_lay_off) {
     // Function overloaded. This function is called by grid execution and it
     // then calls set_offsets_bwd_gemm which is otherwise called in cell exec
+    // scr is short for scratch
     cl_ulong dummy_var;
-    set_offsets_bwd_gemm(rnn, iter, dir, lay, ws_diff_states_off_,
-            cell_diff_wei_iter_off, cell_diff_wei_lay_off, cell_diff_ws_lay_off,
-            dummy_var);
+    set_offsets_bwd_gemm(rnn, iter, dir, lay, cell_diff_wei_iter_off,
+            cell_diff_wei_lay_off, cell_scr_diff_lay_off, dummy_var);
 }
 
 void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir,
-        int lay, const size_t &ws_diff_states_off_,
-        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
-        size_t &cell_diff_ws_lay_off, size_t &cell_diff_ws_iter_off,
+        int lay, size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
+        size_t &cell_scr_diff_lay_off, size_t &cell_scr_diff_iter_off,
         size_t &cell_diff_wei_iter_off2) {
 
-    set_offsets_bwd_gemm(rnn, iter, dir, lay, ws_diff_states_off_,
-            cell_diff_wei_iter_off, cell_diff_wei_lay_off, cell_diff_ws_lay_off,
-            cell_diff_ws_iter_off);
+    set_offsets_bwd_gemm(rnn, iter, dir, lay, cell_diff_wei_iter_off,
+            cell_diff_wei_lay_off, cell_scr_diff_lay_off,
+            cell_scr_diff_iter_off);
     cell_diff_wei_iter_off2
             = cell_diff_wei_iter_off + 2 * rnn.dhc * sizeof(float);
 }
 
 void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir,
-        int lay, const size_t &ws_diff_states_off_,
-        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
-        size_t &cell_diff_ws_lay_off, size_t &cell_diff_ws_iter_off) {
+        int lay, size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
+        size_t &cell_scr_diff_lay_off, size_t &cell_scr_diff_iter_off) {
     int n_layers = rnn.n_layer;
     int batch = rnn.mb;
     int n_iter = rnn.n_iter;
     int n_dir = rnn.n_dir;
     int n_states = rnn.n_states;
 
-    cell_diff_ws_iter_off = ws_diff_states_off_
-            + OFF5(lay, n_layers + 1, dir, n_dir, 0, n_states + 1, iter,
-                      n_iter + 1, 0, rnn.states_nld * rnn.diff_states_ws_ld)
-                    * sizeof(float);
-    cell_diff_ws_lay_off = ws_diff_states_off_
-            + OFF5(lay, n_layers + 1, dir, n_dir, n_states, n_states + 1, iter,
-                      n_iter + 1, 0, rnn.states_nld * rnn.diff_states_ws_ld)
-                    * sizeof(float);
+    cell_scr_diff_iter_off
+            = OFF5(lay, n_layers + 1, dir, n_dir, 0, n_states + 1, iter,
+                      n_iter + 1, 0,
+                      rnn.states_nld * rnn.scratch_diff_states_ld)
+            * sizeof(float);
+    cell_scr_diff_lay_off = OFF5(lay, n_layers + 1, dir, n_dir, n_states,
+                                    n_states + 1, iter, n_iter + 1, 0,
+                                    rnn.states_nld * rnn.scratch_diff_states_ld)
+            * sizeof(float);
     cell_diff_wei_lay_off
             = OFF3(lay, n_layers, dir, n_dir, 0,
                       rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ld)

@@ -434,21 +434,21 @@ struct rnn_conf_t {
     int diff_dst_iter_ndims;
     int diff_dst_iter_c_ndims;
     int diff_bias_ndims;
-    int states_ws_ld, gates_ws_ld, diff_states_ws_ld, scratch_gates_ld;
+    int states_ws_ld, gates_ws_ld, scratch_diff_states_ld, scratch_gates_ld;
 
     int wei_qparam_mask;
 
     size_t ws_gates_offset;
     size_t ws_states_offset;
-    size_t ws_diff_states_offset;
     size_t ws_grid_comp_offset;
-    size_t scratch_cell_offset;
     size_t ws_dhG1_offset;
     size_t ws_h_state_offset;
     size_t ws_c_state_offset;
     size_t ws_bias_offset;
-    size_t scratch_gates_offset;
     size_t scratchpad_size;
+    size_t scratch_gates_offset;
+    size_t scratch_cell_offset;
+    size_t scratch_diff_states_offset;
     size_t workspace_size;
 };
 

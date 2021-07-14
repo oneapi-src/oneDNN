@@ -51,27 +51,29 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 gemm_iter_fwd);
 
         (this->*elemwise_func)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scales, bias, tm_scales, PART);
+                scratch_gates, scratch_cell, scratch_diff_states, scales, bias,
+                tm_scales, PART);
 
     } else { // backward
         cl_ulong cell_diff_wei_iter_off, cell_diff_wei_lay_off,
-                cell_diff_ws_iter_off, cell_diff_ws_lay_off;
+                cell_scr_diff_iter_off, cell_scr_diff_lay_off;
 
-        set_offsets_bwd_gemm(rnn, iter, dir, lay, ws_diff_states_offset_,
-                cell_diff_wei_iter_off, cell_diff_wei_lay_off,
-                cell_diff_ws_lay_off, cell_diff_ws_iter_off);
+        set_offsets_bwd_gemm(rnn, iter, dir, lay, cell_diff_wei_iter_off,
+                cell_diff_wei_lay_off, cell_scr_diff_lay_off,
+                cell_scr_diff_iter_off);
 
         (this->*elemwise_func)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scales, bias, tm_scales, PART);
+                scratch_gates, scratch_cell, scratch_diff_states, scales, bias,
+                tm_scales, PART);
 
         gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
-                scratch_gates, cell_scratch_offset, workspace,
-                cell_diff_ws_iter_off, gemm_iter_bwd);
+                scratch_gates, cell_scratch_offset, scratch_diff_states,
+                cell_scr_diff_iter_off, gemm_iter_bwd);
 
         if (!rnn.merge_gemm_layer) {
             gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
-                    scratch_gates, cell_scratch_offset, workspace,
-                    cell_diff_ws_lay_off, gemm_layer_bwd);
+                    scratch_gates, cell_scratch_offset, scratch_diff_states,
+                    cell_scr_diff_lay_off, gemm_layer_bwd);
 
             gemm_primitive(engine, ctx, scratch_gates, cell_scratch_offset,
                     workspace, cell_ws_lay_offset, diff_weights_layer,

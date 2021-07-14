@@ -38,6 +38,7 @@
             int batch, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
+            const memory_storage_t &scratch_diff_states, \
             const memory_storage_t *scales, const memory_storage_t &bias, \
             const memory_storage_t *tm_scales, int part) const
 
@@ -47,6 +48,7 @@
             const memory_storage_t &bias, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
+            const memory_storage_t &scratch_diff_states, \
             const memory_storage_t &wei_layer, \
             const memory_storage_t &wei_iter, \
             const memory_storage_t &diff_weights_layer, \
@@ -59,6 +61,7 @@
             const memory_storage_t &bias, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
+            const memory_storage_t &scratch_diff_states, \
             const memory_storage_t &wei_layer, \
             const memory_storage_t &wei_iter, \
             const memory_storage_t &diff_weights_layer, \
@@ -138,7 +141,7 @@ struct conf_t {
     int diff_weights_layer_ld, diff_weights_layer_nld;
     int weights_iter_ld, weights_iter_nld;
     int diff_weights_iter_ld, diff_weights_iter_nld;
-    int states_nld, states_ws_ld, diff_states_ws_ld;
+    int states_nld, states_ws_ld, scratch_diff_states_ld;
     int weights_iter_compensation_size, weights_layer_compensation_size;
     bool is_fwd, is_training, is_lbr, is_int8, is_testmode, is_vanilla_gru;
     bool use_workspace;
@@ -148,9 +151,9 @@ struct conf_t {
     int tm_ngates;
 
     // Size of workspace for each tensor in bytes
-    size_t ws_gates_size, ws_states_size, ws_c_states_size, ws_diff_states_size,
-            scratch_cell_size, ws_dhG1_size, ws_grid_comp_size, ws_per_cell,
-            ws_bias_size;
+    size_t ws_gates_size, ws_states_size, ws_c_states_size,
+            scratch_diff_states_size, scratch_cell_size, ws_dhG1_size,
+            ws_grid_comp_size, ws_per_cell, ws_bias_size;
 
     bool merge_gemm_iter, merge_gemm_layer, use_gemm, use_layer_packed_gemm,
             use_iter_packed_gemm;
@@ -170,7 +173,6 @@ struct conf_t {
     data_type_t dst_data_type;
     data_type_t diff_data_type;
 };
-
 bool is_ldigo(const memory_desc_wrapper &md);
 bool is_ldgoi(const memory_desc_wrapper &md);
 
@@ -189,7 +191,7 @@ void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &diff_weights_iter_d);
 void set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_h_state_offset, size_t &ws_c_state_offset,
-        size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
+        size_t &scratch_diff_states_offset, size_t &ws_grid_comp_offset,
         size_t &scratch_cell_offset, size_t &ws_dhG1_offset,
         size_t &ws_bias_offset, size_t &scratch_gates_offset,
         size_t &scratchpad_size, size_t &workspace_size);
@@ -207,16 +209,15 @@ void set_offsets_fwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
         size_t &cell_ws_lay_offset, size_t &cell_scratch_offset,
         size_t &cell_wei_iter_offset);
 void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
-        const size_t &ws_diff_states_off_, size_t &cell_diff_wei_iter_off,
-        size_t &cell_diff_wei_lay_off, size_t &cell_diff_ws_lay_off,
-        size_t &cell_diff_ws_iter_off);
+        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
+        size_t &cell_scr_diff_lay_off, size_t &cell_scr_diff_iter_off);
 void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
-        const size_t &ws_diff_states_off_, size_t &cell_diff_wei_iter_off,
-        size_t &cell_diff_wei_lay_off, size_t &cell_diff_ws_lay_off,
-        size_t &cell_diff_ws_iter_off, size_t &cell_diff_wei_iter_off2);
+        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
+        size_t &cell_scr_diff_lay_off, size_t &cell_scr_diff_iter_off,
+        size_t &cell_diff_wei_iter_off2);
 void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
-        const size_t &ws_diff_states_off_, size_t &cell_diff_wei_iter_off,
-        size_t &cell_diff_wei_lay_off, size_t &cell_diff_ws_lay_off);
+        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
+        size_t &cell_scr_diff_lay_off);
 void get_scratchpad_and_workspace_sizes(
         const conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size);
 status_t set_expected_desc(
