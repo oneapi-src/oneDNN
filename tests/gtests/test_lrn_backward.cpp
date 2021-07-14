@@ -422,16 +422,6 @@ static auto CaffeNHWC_cases = [](algorithm lk) {
             fmt::nhwc, fmt::nhwc, {2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f}});
 };
 
-static auto Caffe_nChw8c_cases = [](algorithm lk) {
-    return ::testing::Values(lrn_test_params_t {prop_kind::forward_training, lk,
-            fmt::nChw8c, fmt::nChw8c, {2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f}});
-};
-
-static auto Caffe_nChw16c_cases = [](algorithm lk) {
-    return ::testing::Values(lrn_test_params_t {prop_kind::forward_training, lk,
-            fmt::nChw16c, fmt::nChw16c, {2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f}});
-};
-
 static auto AlexnetNCHW_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params_t {prop_kind::forward_training, lk, fmt::nchw,
@@ -448,44 +438,12 @@ static auto AlexnetNHWC_cases = [](algorithm lk) {
                     fmt::nhwc, {2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f}});
 };
 
-static auto Alexnet_nChw8c_cases = [](algorithm lk) {
-    return ::testing::Values(
-            lrn_test_params_t {prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, {2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f}},
-            lrn_test_params_t {prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, {2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f}});
-};
-
-static auto Alexnet_nChw16c_cases = [](algorithm lk) {
-    return ::testing::Values(
-            lrn_test_params_t {prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, {2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f}},
-            lrn_test_params_t {prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, {2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f}});
-};
-
 static auto GoogleNetV1NCHW_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params_t {prop_kind::forward_training, lk, fmt::nchw,
                     fmt::nchw, {2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}},
             lrn_test_params_t {prop_kind::forward_training, lk, fmt::nchw,
                     fmt::nchw, {2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}});
-};
-
-static auto GoogleNetV1_nChw8c_cases = [](algorithm lk) {
-    return ::testing::Values(
-            lrn_test_params_t {prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, {2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}},
-            lrn_test_params_t {prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, {2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}});
-};
-
-static auto GoogleNetV1_nChw16c_cases = [](algorithm lk) {
-    return ::testing::Values(
-            lrn_test_params_t {prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, {2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}},
-            lrn_test_params_t {prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, {2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}});
 };
 
 static auto RegressionWeightFormat_cases = [](algorithm lk) {
@@ -507,19 +465,10 @@ static auto RegressionWeightFormat_cases = [](algorithm lk) {
     INSTANTIATE_TEST_SUITE_P(nChw16c, test, nChw16c_cases(lk)); \
     INSTANTIATE_TEST_SUITE_P(CaffeNCHW, test, CaffeNCHW_cases(lk)); \
     INSTANTIATE_TEST_SUITE_P(CaffeNHWC, test, CaffeNHWC_cases(lk)); \
-    INSTANTIATE_TEST_SUITE_P(Caffe_nChw8c, test, Caffe_nChw8c_cases(lk)); \
-    INSTANTIATE_TEST_SUITE_P(Caffe_nChw16c, test, Caffe_nChw16c_cases(lk)); \
     INSTANTIATE_TEST_SUITE_P(AlexnetNCHW, test, AlexnetNCHW_cases(lk)); \
     INSTANTIATE_TEST_SUITE_P(AlexnetNHWC, test, AlexnetNHWC_cases(lk)); \
-    INSTANTIATE_TEST_SUITE_P(Alexnet_nChw8c, test, Alexnet_nChw8c_cases(lk)); \
-    INSTANTIATE_TEST_SUITE_P( \
-            Alexnet_nChw16c, test, Alexnet_nChw16c_cases(lk)); \
     INSTANTIATE_TEST_SUITE_P( \
             GoogleNetV1NCHW, test, GoogleNetV1NCHW_cases(lk)); \
-    INSTANTIATE_TEST_SUITE_P( \
-            GoogleNetV1_nChw8c, test, GoogleNetV1_nChw8c_cases(lk)); \
-    INSTANTIATE_TEST_SUITE_P( \
-            GoogleNetV1_nChw16c, test, GoogleNetV1_nChw16c_cases(lk)); \
     INSTANTIATE_TEST_SUITE_P(RegressionWeightFormat, test, \
             RegressionWeightFormat_cases( \
                     lk)); // This tests compatibility with Intel MKL-DNN v0.14
