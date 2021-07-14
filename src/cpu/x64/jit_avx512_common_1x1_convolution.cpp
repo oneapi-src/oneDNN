@@ -193,8 +193,9 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
 
         p.output_data = jcp.with_dw_conv ? pbuf + (oh % jcp_dw_kh) * row_offset
                                          : &dst[dst_off];
-        p.bias_data
-                = &bias[oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block)];
+        p.bias_data = bias
+                ? &bias[oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block)]
+                : nullptr;
 
         p.load_data
                 = &weights[pd()->with_groups() ? weights_d.blk_off(g, ocb, icb)
