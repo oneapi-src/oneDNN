@@ -19,3 +19,5 @@
 | add(conv+bias, conv+bias)            | CPU      | FP32      | @ref cpu_inplace_options_cpp               |                                   |
 | matmul+relu                          | CPU      | FP32      | @ref cpu_matmul_relu_pattern_cpp           |                                   |
 | Single operator partition            | CPU      | FP32      | @ref cpu_single_op_partition_matmul_cpp    |                                   |
+| conv+bn+add+relu multithreads        | CPU      | F32       | @ref cpu_multithreading_conv_bn_add_relu_pattern_cpp  |                                   |
+| matmul+relu multithreads             | CPU      | F32       | @ref cpu_multithreading_matmul_relu_pattern_cpp       |                                   |

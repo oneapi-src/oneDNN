@@ -18,9 +18,10 @@
 #define BACKEND_DNNL_UTILS_HPP
 
 #include <algorithm>
+#include <cstring>
+#include <stdlib.h>
 #include <utility>
 #include <vector>
-
 namespace dnnl {
 namespace graph {
 namespace impl {
@@ -100,6 +101,11 @@ inline uintptr_t mod_ptr(void *ptr, size_t bytes) {
 
 inline bool is_aligned_ptr(void *ptr, size_t bytes) {
     return mod_ptr(ptr, bytes) == 0;
+}
+
+inline bool is_enable_constant_cache() {
+    char *env = std::getenv("DNNL_GRAPH_CONSTANT_CACHE");
+    return env != nullptr && std::strcmp(env, "1") == 0;
 }
 
 } // namespace utils

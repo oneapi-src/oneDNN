@@ -46,35 +46,35 @@ private:
     primitive_desc pd_;
     std::string mode_;
     algorithm alg_;
-    tensor expected_src_;
-    tensor expected_dst_;
     dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
 
 public:
-    void compute(const tensor &src, tensor &dst, impl::allocator_t *alc) {
+    void compute(const tensor &src, tensor &dst, impl::allocator_t *alc,
+            const dnnl::stream &p_stream) const {
+        tensor expected_src, expected_dst;
+
         if (src.get_desc() != pd_.src_desc()) {
-            if (expected_src_.is_empty()) {
-                expected_src_ = tensor {pd_.src_desc(), p_engine_, alc};
+            if (expected_src.is_empty()) {
+                expected_src = tensor {pd_.src_desc(), p_engine_, alc};
             }
-            src.reorder_to(p_stream_, expected_src_);
+            src.reorder_to(p_stream, expected_src);
         } else {
-            expected_src_ = src;
+            expected_src = src;
         }
 
         if (dst.get_desc() != pd_.dst_desc()) {
-            if (expected_dst_.is_empty()) {
-                expected_dst_ = tensor {pd_.dst_desc(), p_engine_, alc};
+            if (expected_dst.is_empty()) {
+                expected_dst = tensor {pd_.dst_desc(), p_engine_, alc};
             }
         } else
-            expected_dst_ = dst;
+            expected_dst = dst;
 
-        super(pd_).execute(p_stream_,
-                {{DNNL_ARG_SRC, expected_src_}, {DNNL_ARG_DST, expected_dst_}});
+        super(pd_).execute(p_stream,
+                {{DNNL_ARG_SRC, expected_src}, {DNNL_ARG_DST, expected_dst}});
 
-        if (expected_dst_ != dst) {
-            dnnl::reorder(expected_dst_, dst)
-                    .execute(p_stream_, expected_dst_, dst);
+        if (expected_dst != dst) {
+            dnnl::reorder(expected_dst, dst)
+                    .execute(p_stream, expected_dst, dst);
         }
     }
 
@@ -111,12 +111,12 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(op);
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
         tensor src_ts {inputs.at(resampling::kSrc), p_engine_, alc};
         tensor dst_ts {outputs.at(resampling::kDst), p_engine_, alc};
-        resampling_forward::compute(src_ts, dst_ts, alc);
+        resampling_forward::compute(src_ts, dst_ts, alc, p_stream);
         return impl::status::success;
     }
 };

@@ -60,36 +60,55 @@ public:
 
     resource_cache_t() = default;
 
-    bool has_resource(const key_t &key) const;
+    bool has_resource(const key_t &key, bool is_f32 = false) const;
     size_t size() const;
     void clear();
 
     // Add a resource to the cache and return the added resource's raw pointer
     // note: transfer the ownership of resource from users to the cache
     template <typename T>
-    T *add(const key_t &key, cached_t &&resource) {
-        assertm(resource_map_.count(key) == 0, "key has existed");
-        auto ret = resource_map_.emplace(key, std::move(resource));
-        return static_cast<T *>(ret.first->second.get());
+    T *add(const key_t &key, cached_t &&resource, bool is_f32 = false) {
+        if (is_f32) {
+            assertm(f32_resource_map_.count(key) == 0, "key has existed");
+            auto ret = f32_resource_map_.emplace(key, std::move(resource));
+            return static_cast<T *>(ret.first->second.get());
+        } else {
+            assertm(resource_map_.count(key) == 0, "key has existed");
+            auto ret = resource_map_.emplace(key, std::move(resource));
+            return static_cast<T *>(ret.first->second.get());
+        }
     }
 
     // Get out the raw pointer of cached resource
     template <typename T>
-    T *get(const key_t &key) const {
-        assertm(resource_map_.count(key), "no such key");
-        return static_cast<T *>(resource_map_.at(key).get());
+    T *get(const key_t &key, bool is_f32 = false) const {
+        if (is_f32) {
+            assertm(f32_resource_map_.count(key), "no such key");
+            return static_cast<T *>(f32_resource_map_.at(key).get());
+        } else {
+            assertm(resource_map_.count(key), "no such key");
+            return static_cast<T *>(resource_map_.at(key).get());
+        }
     }
 
     // A wrapper for usability. Get out the raw pointer of cached resource. If
     // the resource is not found, the function will call the creator func to
     // creat a new one and do the adding process
     template <typename T>
-    T *get(const key_t &key, const creator_t &func) {
-        if (has_resource(key)) {
-            return static_cast<T *>(resource_map_.at(key).get());
+    T *get(const key_t &key, const creator_t &func, bool is_f32 = false) {
+        if (has_resource(key, is_f32)) {
+            if (is_f32)
+                return static_cast<T *>(f32_resource_map_.at(key).get());
+            else
+                return static_cast<T *>(resource_map_.at(key).get());
         } else {
-            auto ret = resource_map_.emplace(key, func());
-            return static_cast<T *>(ret.first->second.get());
+            if (is_f32) {
+                auto ret = f32_resource_map_.emplace(key, func());
+                return static_cast<T *>(ret.first->second.get());
+            } else {
+                auto ret = resource_map_.emplace(key, func());
+                return static_cast<T *>(ret.first->second.get());
+            }
         }
     }
 
@@ -98,6 +117,7 @@ private:
     resource_cache_t &operator=(const resource_cache_t &other) = delete;
 
     thread_local static std::unordered_map<key_t, cached_t> resource_map_;
+    thread_local static std::unordered_map<key_t, cached_t> f32_resource_map_;
 };
 
 } // namespace dnnl_impl

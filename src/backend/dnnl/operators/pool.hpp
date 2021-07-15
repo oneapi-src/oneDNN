@@ -17,9 +17,18 @@
 #ifndef BACKEND_DNNL_OPERATORS_POOL_HPP
 #define BACKEND_DNNL_OPERATORS_POOL_HPP
 
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "interface/c_types_map.hpp"
+
+#include "backend/dnnl/common.hpp"
+#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/f32_kernel_resource.hpp"
+#include "backend/dnnl/legacy.hpp"
+#include "backend/dnnl/resource.hpp"
+#include "backend/dnnl/scratchpad.hpp"
 #include "backend/dnnl/tensor.hpp"
 #include "backend/dnnl/utils.hpp"
 
@@ -31,6 +40,12 @@ namespace dnnl_impl {
 namespace pool {
 enum pool_inputs { kSrc };
 enum pool_outputs { kDst };
+enum mem_keys {
+    kOpt_src,
+    kOpt_dst,
+    kScratchpad,
+    kWorkspace,
+};
 } // namespace pool
 
 namespace pool_bwd {
@@ -55,39 +70,19 @@ private:
     prop_kind prop_kind_;
 
     dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
+
+    bool with_workspace_;
+
+    dnnl::reorder::primitive_desc src_reorder_pd_;
+    dnnl::reorder::primitive_desc dst_reorder_pd_;
+
+    registry_t registry_;
+    size_t res_key_;
+    resource_cache_t::creator_t resource_ctor_;
+
+    f32_kernel_resource_t::desc_t res_desc_;
 
 public:
-    void compute(const tensor &src, const dims &output_sizes, tensor &dst,
-            const dnnl::engine &p_engine, impl::allocator_t *alc,
-            const dnnl::stream &p_stream) {
-        UNUSED(output_sizes);
-        bool with_workspace = prop_kind_ == prop_kind::forward_training
-                && algo_ == dnnl::algorithm::pooling_max;
-
-        auto expected_src = src.reorder_if_differ_in(p_stream, pd_.src_desc());
-
-        tensor expected_dst = dst;
-        if (pd_.dst_desc() != dst.get_desc()) {
-            expected_dst = tensor {pd_.dst_desc(), p_engine, alc};
-        }
-        exec_args args {
-                {DNNL_ARG_SRC, expected_src}, {DNNL_ARG_DST, expected_dst}};
-        if (with_workspace) {
-            expected_dst.init_workspace(pd_.workspace_desc());
-            args.insert({DNNL_ARG_WORKSPACE, expected_dst.get_workspace()});
-        }
-
-        super(pd_).execute(p_stream, args);
-
-        // if output layout has been set and different from optimal layout
-        // we have to do reorder
-        if (expected_dst != dst) {
-            dnnl::reorder(expected_dst, dst)
-                    .execute(p_stream, expected_dst, dst);
-        }
-    }
-
     impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
@@ -98,20 +93,13 @@ public:
         dims pads_begin = op->get_attr<dims>("pads_begin");
         dims pads_end = op->get_attr<dims>("pads_end");
         std::string data_format = op->get_attr<std::string>("data_format");
-        // "NXC" format will be converted to "NCX" format
-        impl::logical_tensor_t src_lt = inputs.at(pool::kSrc);
-        impl::logical_tensor_t dst_lt = outputs.at(pool::kDst);
 
-        // "NXC"
-        if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper(&inputs.at(pool::kSrc))
-                             .reorder_data_dims_strides();
-            dst_lt = impl::logical_tensor_wrapper(&outputs.at(pool::kDst))
-                             .reorder_data_dims_strides();
+        res_desc_.cvt_src_ = make_dnnl_memory_desc(inputs.at(pool::kSrc));
+        res_desc_.cvt_dst_ = make_dnnl_memory_desc(outputs.at(pool::kDst));
+        if (data_format == "NXC") { // permute NXC to NCX
+            res_desc_.cvt_src_ = permute_NXC2NCX(res_desc_.cvt_src_);
+            res_desc_.cvt_dst_ = permute_NXC2NCX(res_desc_.cvt_dst_);
         }
-        // prepare the inputs and outputs' tensors' descs
-        const desc src {src_lt};
-        const desc dst {dst_lt};
 
         op_kind_t kind = op->get_kind();
         dims dilations;
@@ -134,20 +122,63 @@ public:
 
         // workaround: use src once issue intel/mkl-dnn#588 is
         // resolved
-        auto expected_src = src.is_4c_blocked() ? src.to_default_format() : src;
-        auto any_dst = dst.to_format_any();
+        auto expected_src = is_4c_blocked(res_desc_.cvt_src_)
+                ? to_default_format(res_desc_.cvt_src_)
+                : res_desc_.cvt_src_;
+        auto any_dst = to_format_any(res_desc_.cvt_dst_);
 
         prop_kind_ = is_training_ ? prop_kind::forward
                                   : prop_kind::forward_inference;
+
+        with_workspace_ = prop_kind_ == prop_kind::forward_training
+                && algo_ == dnnl::algorithm::pooling_max;
 
         pd_ = primitive_desc({prop_kind_, algo_, expected_src, any_dst, strides,
                                      kernel, dilations, pads_begin, pads_end},
                 p_engine_);
 
-        const tensor::desc optimal_dst_desc {pd_.dst_desc()};
+        res_desc_.opt_src_ = pd_.src_desc();
+        res_desc_.opt_dst_ = pd_.dst_desc();
+        if (impl::logical_tensor_wrapper(outputs.at(pool::kDst)).is_any()) {
+            res_desc_.cvt_dst_ = pd_.dst_desc();
+        }
+        res_desc_.scratchpad_ = pd_.scratchpad_desc();
+        if (with_workspace_) res_desc_.workspace_ = pd_.workspace_desc();
+
+        registrar_t registrar = registry_.registrar();
+
+        if (res_desc_.opt_src_ != res_desc_.cvt_src_) {
+            registrar.book(pool::kOpt_src, res_desc_.opt_src_.get_size());
+            src_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
+                    res_desc_.cvt_src_, p_engine_, res_desc_.opt_src_);
+        }
+
+        if (res_desc_.opt_dst_ != res_desc_.cvt_dst_) {
+            registrar.book(pool::kOpt_dst, res_desc_.opt_dst_.get_size());
+            dst_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
+                    res_desc_.opt_dst_, p_engine_, res_desc_.cvt_dst_);
+        }
+
+        registrar.book(pool::kScratchpad, res_desc_.scratchpad_.get_size());
+        if (with_workspace_)
+            registrar.book(pool::kWorkspace, res_desc_.workspace_.get_size());
+
         impl::logical_tensor_t *ori_dst_lt
                 = const_cast<impl::logical_tensor_t *>(&outputs.at(pool::kDst));
-        fill_layout_info(ori_dst_lt, optimal_dst_desc);
+        if (data_format == "NXC") {
+            memory::desc tmp = permute_NCX2NXC(pd_.dst_desc());
+            fill_layout_info(ori_dst_lt, tmp);
+        } else {
+            fill_layout_info(ori_dst_lt, pd_.dst_desc());
+        }
+
+        res_key_ = impl::utils::hash_combine(0, res_desc_);
+        res_key_ = impl::utils::hash_combine(res_key_, p_engine_.get());
+        resource_ctor_ = [this]() {
+            return std::unique_ptr<resource_t>(new f32_kernel_resource_t(
+                    this->res_desc_, this->p_engine_));
+        };
+
         return impl::status::success;
     }
 
@@ -155,29 +186,46 @@ public:
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        std::string data_format = op->get_attr<std::string>("data_format");
-        auto &src_lt = const_cast<impl::logical_tensor_t &>(
-                inputs.at(pool::kSrc).get_logical_tensor());
-        auto &dst_lt = const_cast<impl::logical_tensor_t &>(
-                outputs.at(pool::kDst).get_logical_tensor());
-        // "NXC"
-        if (data_format == "NXC") {
-            src_lt = impl::logical_tensor_wrapper(src_lt)
-                             .reorder_data_dims_strides();
-            dst_lt = impl::logical_tensor_wrapper(dst_lt)
-                             .reorder_data_dims_strides();
-        }
-
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor x {src_lt, p_engine_, alc,
-                inputs.at(pool::kSrc).get_data_handle()};
-        tensor y {dst_lt, p_engine_, alc,
-                outputs.at(pool::kDst).get_data_handle()};
+        // each thread's own local resource
+        resource_cache_t res_cache;
+        f32_kernel_resource_t *res = res_cache.get<f32_kernel_resource_t>(
+                res_key_, resource_ctor_, true /*is f32*/);
 
-        dims outsize = y.get_dims();
-        pooling_forward::compute(x, outsize, y, p_engine_, alc, p_stream_);
+        temporary_scratchpad_t scratchpad(registry_.size(), p_engine_, *alc);
+        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
+
+        res->cvt_src_.set_data_handle(inputs.at(pool::kSrc).get_data_handle());
+        res->cvt_dst_.set_data_handle(outputs.at(pool::kDst).get_data_handle());
+
+        if (res_desc_.cvt_src_ != res_desc_.opt_src_) {
+            res->opt_src_.set_data_handle(grantor.get(pool::kOpt_src));
+            dnnl::reorder(src_reorder_pd_)
+                    .execute(p_stream, res->cvt_src_, res->opt_src_);
+        } else {
+            res->opt_src_.set_data_handle(res->cvt_src_.get_data_handle());
+        }
+
+        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
+            res->opt_dst_.set_data_handle(grantor.get(pool::kOpt_dst));
+        } else {
+            res->opt_dst_.set_data_handle(res->cvt_dst_.get_data_handle());
+        }
+
+        res->scratchpad_.set_data_handle(grantor.get(pool::kScratchpad));
+        if (with_workspace_)
+            res->workspace_.set_data_handle(grantor.get(pool::kWorkspace));
+
+        super(pd_).execute(p_stream, res->exec_args_);
+
+        // if output layout has been set and different from optimal layout
+        // we have to do reorder
+        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
+            dnnl::reorder(dst_reorder_pd_)
+                    .execute(p_stream, res->opt_dst_, res->cvt_dst_);
+        }
         return impl::status::success;
     }
 };

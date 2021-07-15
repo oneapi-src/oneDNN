@@ -38,7 +38,6 @@ struct reorder : public dnnl::reorder, public kernel_base {
 private:
     primitive_desc pd_;
     dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
 
     // handle the case in which the src and dst's dims are different
     bool need_reshape_ {false};
@@ -114,7 +113,7 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(op);
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
         tensor src_ts {inputs.at(reorder_input::kSrc), p_engine_, alc};
@@ -130,7 +129,7 @@ public:
             }
         }
 
-        super(pd_).execute(p_stream_, src_ts, dst_ts);
+        super(pd_).execute(p_stream, src_ts, dst_ts);
         return status::success;
     }
 };

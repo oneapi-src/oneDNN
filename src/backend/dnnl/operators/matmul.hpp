@@ -18,10 +18,19 @@
 #define BACKEND_DNNL_OPERATORS_MATMUL_HPP
 
 #include <functional>
+#include <memory>
 #include <set>
 #include <utility>
 #include <vector>
 #include <unordered_map>
+
+#include "dnnl.hpp"
+
+#include "interface/c_types_map.hpp"
+#include "interface/internal_ops.hpp"
+
+#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/utils.hpp"
 
 #include "bn_fusion.hpp"
 
@@ -34,6 +43,13 @@ namespace matmul_fwd {
 enum matmul_inputs { kSrc, kWeight, kBias };
 enum fused_bn_inputs { kScale, kShift, kMean, kVariance };
 enum matmul_outputs { kDst };
+enum mem_keys {
+    kOpt_src,
+    kOpt_weights,
+    kOpt_dst,
+    kOpt_bias,
+    kScratchpad,
+};
 } // namespace matmul_fwd
 
 struct matmul_op_set {
@@ -94,32 +110,9 @@ private:
     // cached pd is in this struct
     primitive_desc pd_;
     dnnl::matmul prim_;
+
     // cache expected data to avoid creating memory in every iteration
-    memory expected_src_;
-    memory expected_weights_;
-    memory expected_bias_;
-    memory expected_dst_;
     attr_t attr_;
-
-    memory updated_weights_;
-    memory updated_bias_;
-
-    memory::desc cvt_src_desc_;
-    memory::desc cvt_weights_desc_;
-    memory::desc cvt_bias_desc_;
-    memory::desc cvt_dst_desc_;
-    memory::desc cvt_post_src_desc_;
-
-    memory::desc opt_src_desc_;
-    memory::desc opt_weights_desc_;
-    memory::desc opt_bias_desc_;
-    memory::desc opt_dst_desc_;
-
-    memory cvt_src_;
-    memory cvt_weight_;
-    memory cvt_bias_;
-    memory cvt_dst_;
-    memory cvt_post_src_;
 
     bool transpose_a_ {false};
     bool transpose_b_ {false};
@@ -134,30 +127,28 @@ private:
     float beta_ = 0.f;
 
     dnnl::engine p_engine_;
-    impl::allocator_t *alc_ {nullptr};
-    std::vector<void *> internal_buffers_;
-
-    exec_args matmul_args_;
-    bool first_iteration_ = true;
 
     dnnl::reorder::primitive_desc src_reorder_pd_;
     dnnl::reorder::primitive_desc weight_reorder_pd_;
     dnnl::reorder::primitive_desc dst_reorder_pd_;
     dnnl::reorder::primitive_desc bias_reorder_pd_;
 
+    registry_t registry_;
+    registry_t c_registry_;
+    size_t res_key_;
+    resource_cache_t::creator_t resource_ctor_;
+
+    f32_kernel_resource_t::desc_t res_desc_;
+
     // FIXME(qun) NOT well designed
     /// \note Currently we don't have enough information from framework to
     /// decide cache or not. Also we think that caching data in a library
     /// is not safe at this moment.
-    char *val = std::getenv("DNNL_GRAPH_WEIGHT_CACHE");
-    bool enable_cache_data_ = (val != nullptr && std::strcmp(val, "1") == 0);
+    bool enable_constant_cache_ = utils::is_enable_constant_cache();
 
 public:
-    virtual ~matmul_forward() {
-        for (auto &buf : internal_buffers_) {
-            allocator::free(buf, p_engine_, alc_);
-        }
-    }
+    virtual ~matmul_forward() {}
+
     impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
@@ -300,16 +291,16 @@ public:
                 attr_ = attr_t::fuse_binary(post_src, algorithm::binary_add);
                 with_post_binary_add_ = true;
             }
-            cvt_post_src_desc_ = post_src;
+            res_desc_.cvt_post_src_ = post_src;
         } else if (with_eltwise_) {
             attr_ = attr_t::fuse_eltwise(
                     get_eltwise_algo(kind_), 1.f, alpha_, beta_);
         }
 
-        cvt_src_desc_ = src;
-        cvt_weights_desc_ = weight;
-        cvt_bias_desc_ = bias;
-        cvt_dst_desc_ = dst;
+        res_desc_.cvt_src_ = src;
+        res_desc_.cvt_wei_ = weight;
+        res_desc_.cvt_bias_ = bias;
+        res_desc_.cvt_dst_ = dst;
 
         p_engine_ = make_dnnl_engine(*g_engine);
 
@@ -320,58 +311,79 @@ public:
                     "Incorrect data type in bias");
         }
 
+        attr_.set_scratchpad_mode(dnnl::scratchpad_mode::user);
         pd_ = with_bias_
                 ? primitive_desc({src, weight, bias, dst}, attr_, p_engine_)
                 : primitive_desc({src, weight, dst}, attr_, p_engine_);
         prim_ = super(pd_);
-        // set this flag = true every time compile is called
-        first_iteration_ = true;
 
-        opt_src_desc_ = pd_.src_desc();
-        opt_weights_desc_ = pd_.weights_desc();
-        opt_dst_desc_ = pd_.dst_desc();
-        if (with_bias_) { opt_bias_desc_ = pd_.bias_desc(); }
+        res_desc_.opt_src_ = pd_.src_desc();
+        res_desc_.opt_wei_ = pd_.weights_desc();
+        res_desc_.opt_dst_ = pd_.dst_desc();
+        if (with_bias_) { res_desc_.opt_bias_ = pd_.bias_desc(); }
+        res_desc_.scratchpad_ = pd_.scratchpad_desc();
 
         if (impl::logical_tensor_wrapper(inputs.at(matmul_fwd::kSrc)).is_any())
-            cvt_src_desc_ = opt_src_desc_;
+            res_desc_.cvt_src_ = res_desc_.opt_src_;
         if (impl::logical_tensor_wrapper(inputs.at(matmul_fwd::kWeight))
                         .is_any())
-            cvt_weights_desc_ = opt_weights_desc_;
+            res_desc_.cvt_wei_ = res_desc_.opt_wei_;
         if (impl::logical_tensor_wrapper(outputs.at(matmul_fwd::kDst))
                         .is_any()) {
-            cvt_dst_desc_ = opt_dst_desc_;
+            res_desc_.cvt_dst_ = res_desc_.opt_dst_;
         }
         if ((with_bias_)
                 && impl::logical_tensor_wrapper(inputs.at(matmul_fwd::kBias))
                            .is_any()) {
-            cvt_bias_desc_ = opt_bias_desc_;
+            res_desc_.cvt_bias_ = res_desc_.opt_bias_;
         }
 
-        if (cvt_weights_desc_ != opt_weights_desc_) { //need to reorder
-            weight_reorder_pd_ = dnnl::reorder::primitive_desc(
-                    p_engine_, cvt_weights_desc_, p_engine_, opt_weights_desc_);
+        registrar_t registrar = registry_.registrar();
+        registrar_t constant_registrar = c_registry_.registrar();
+        registrar_t &wei_bias_registrar
+                = enable_constant_cache_ ? constant_registrar : registrar;
+
+        if (res_desc_.cvt_wei_ != res_desc_.opt_wei_) {
+            wei_bias_registrar.book(
+                    matmul_fwd::kOpt_weights, res_desc_.opt_wei_.get_size());
+            weight_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
+                    res_desc_.cvt_wei_, p_engine_, res_desc_.opt_wei_);
         }
 
         if (with_bias_) {
-            if (cvt_bias_desc_ != opt_bias_desc_) {
-                bias_reorder_pd_ = dnnl::reorder::primitive_desc(
-                        p_engine_, cvt_bias_desc_, p_engine_, opt_bias_desc_);
+            if (res_desc_.cvt_bias_ != res_desc_.opt_bias_) {
+                wei_bias_registrar.book(
+                        matmul_fwd::kOpt_bias, res_desc_.opt_bias_.get_size());
+                bias_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
+                        res_desc_.cvt_bias_, p_engine_, res_desc_.opt_bias_);
             }
         }
 
-        if (cvt_src_desc_ != opt_src_desc_) {
-            src_reorder_pd_ = dnnl::reorder::primitive_desc(
-                    p_engine_, cvt_src_desc_, p_engine_, opt_src_desc_);
+        if (res_desc_.cvt_src_ != res_desc_.opt_src_) {
+            registrar.book(matmul_fwd::kOpt_src, res_desc_.opt_src_.get_size());
+            src_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
+                    res_desc_.cvt_src_, p_engine_, res_desc_.opt_src_);
         }
 
-        if (cvt_dst_desc_ != opt_dst_desc_) {
-            dst_reorder_pd_ = dnnl::reorder::primitive_desc(
-                    p_engine_, opt_dst_desc_, p_engine_, cvt_dst_desc_);
+        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
+            registrar.book(matmul_fwd::kOpt_dst, res_desc_.opt_dst_.get_size());
+            dst_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
+                    res_desc_.opt_dst_, p_engine_, res_desc_.cvt_dst_);
         }
+        registrar.book(
+                matmul_fwd::kScratchpad, res_desc_.scratchpad_.get_size());
+
+        res_key_ = impl::utils::hash_combine(0, res_desc_);
+        res_key_ = impl::utils::hash_combine(res_key_, p_engine_.get());
+        resource_ctor_ = [this]() {
+            return std::unique_ptr<resource_t>(new f32_kernel_resource_t(
+                    this->res_desc_, this->p_engine_));
+        };
 
         // fill_layout_info for not-copied input/outputs
         impl::logical_tensor_t *ori_dst_lt
-                = const_cast<impl::logical_tensor_t *>(&outputs.at(conv::kDst));
+                = const_cast<impl::logical_tensor_t *>(
+                        &outputs.at(matmul_fwd::kDst));
         fill_layout_info(ori_dst_lt, pd_.dst_desc());
 
         impl::logical_tensor_t *ori_weight_lt
@@ -388,7 +400,7 @@ public:
                     = const_cast<impl::logical_tensor_t *>(
                             &inputs.at(matmul_fwd::kBias));
             fill_layout_info(
-                    ori_bias_lt, opt_bias_desc_.reshape(old_bias_dims));
+                    ori_bias_lt, res_desc_.opt_bias_.reshape(old_bias_dims));
         }
         return impl::status::success;
     }
@@ -398,129 +410,124 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(op);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
+        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        if (first_iteration_) {
-            alc_ = g_stream->get_engine()->get_allocator();
+        // each thread's own local resource
+        resource_cache_t res_cache;
+        f32_kernel_resource_t *res = res_cache.get<f32_kernel_resource_t>(
+                res_key_, resource_ctor_, true /*is f32*/);
+
+        temporary_scratchpad_t scratchpad(registry_.size(), p_engine_, *alc);
+        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
+
+        ///////////// weight/bias process start ///////////////////////////
+        // lookup constant buffer
+        constant_cache_t::key_t cache_key
+                = reinterpret_cast<constant_cache_t::key_t>(this);
+        constant_cache_t global_constant_cache;
+
+        std::promise<constant_cache_t::cached_t> c_promise;
+
+        bool is_from_cache;
+        constant_cache_t::value_t cached_value;
+        constant_cache_t::cached_t c_buffer;
+        if (enable_constant_cache_) {
+            cached_value = global_constant_cache.get_or_add(
+                    cache_key, c_promise.get_future());
+            is_from_cache = cached_value.valid();
+            if (is_from_cache) {
+                // get from cache or wait for other thread
+                c_buffer = cached_value.get();
+            } else {
+                c_buffer = std::make_shared<constant_buffer_t>(
+                        c_registry_.size(), p_engine_, alc);
+            }
         }
 
-        // only create memory object in first iteration
-        if (first_iteration_) {
-            cvt_src_ = make_dnnl_memory(cvt_src_desc_, p_engine_, nullptr);
-            cvt_weight_
-                    = make_dnnl_memory(cvt_weights_desc_, p_engine_, nullptr);
-            cvt_bias_ = make_dnnl_memory(cvt_bias_desc_, p_engine_, nullptr);
-            cvt_dst_ = make_dnnl_memory(cvt_dst_desc_, p_engine_, nullptr);
-            cvt_post_src_
-                    = make_dnnl_memory(cvt_post_src_desc_, p_engine_, nullptr);
-        }
+        grantor_t c_grantor = c_registry_.grantor(
+                enable_constant_cache_ ? c_buffer->data<char>() : nullptr);
+        grantor_t &wei_bias_grantor
+                = enable_constant_cache_ ? c_grantor : grantor;
 
-        // modify the data handle by using given buffer in every iteration
-        cvt_src_.set_data_handle(inputs.at(matmul_fwd::kSrc).get_data_handle());
-        cvt_dst_.set_data_handle(
-                outputs.at(matmul_fwd::kDst).get_data_handle());
-        cvt_weight_.set_data_handle(
+        res->cvt_wei_.set_data_handle(
                 inputs.at(matmul_fwd::kWeight).get_data_handle());
         if (with_bias_) {
-            cvt_bias_.set_data_handle(
+            res->cvt_bias_.set_data_handle(
                     inputs.at(matmul_fwd::kBias).get_data_handle());
         }
-        if (with_add_)
-            cvt_post_src_.set_data_handle(inputs.back().get_data_handle());
 
-        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-
-        if (cvt_weights_desc_ != opt_weights_desc_) { //need to reorder
-            if (first_iteration_) {
-                internal_buffers_.emplace_back(allocator::malloc(
-                        opt_weights_desc_.get_size(), p_engine_, alc_));
-                expected_weights_ = make_dnnl_memory(
-                        opt_weights_desc_, p_engine_, internal_buffers_.back());
+        if (res_desc_.cvt_wei_ != res_desc_.opt_wei_) {
+            res->opt_wei_.set_data_handle(
+                    wei_bias_grantor.get(matmul_fwd::kOpt_weights));
+            if (!enable_constant_cache_ || !is_from_cache) {
+                dnnl::reorder(weight_reorder_pd_)
+                        .execute(p_stream, res->cvt_wei_, res->opt_wei_);
             }
-
-            // matmul should not cache 2nd input data unless const is set in lt
-            dnnl::reorder(weight_reorder_pd_)
-                    .execute(p_stream, cvt_weight_, expected_weights_);
         } else {
-            if (first_iteration_) expected_weights_ = cvt_weight_;
-            expected_weights_.set_data_handle(cvt_weight_.get_data_handle());
+            res->opt_wei_.set_data_handle(res->cvt_wei_.get_data_handle());
         }
 
         if (with_bias_) {
-            if (cvt_bias_desc_ != opt_bias_desc_) {
-                if (first_iteration_) {
-                    internal_buffers_.emplace_back(allocator::malloc(
-                            opt_bias_desc_.get_size(), p_engine_, alc_));
-                    expected_bias_ = make_dnnl_memory(opt_bias_desc_, p_engine_,
-                            internal_buffers_.back());
+            if (res_desc_.cvt_bias_ != res_desc_.opt_bias_) {
+                res->opt_bias_.set_data_handle(
+                        wei_bias_grantor.get(matmul_fwd::kOpt_bias));
+                if (!enable_constant_cache_ || !is_from_cache) {
+                    dnnl::reorder(bias_reorder_pd_)
+                            .execute(p_stream, res->cvt_bias_, res->opt_bias_);
                 }
-
-                dnnl::reorder(bias_reorder_pd_)
-                        .execute(p_stream, cvt_bias_, expected_bias_);
             } else {
-                if (first_iteration_) expected_bias_ = cvt_bias_;
-                expected_bias_.set_data_handle(cvt_bias_.get_data_handle());
+                res->opt_bias_.set_data_handle(
+                        res->cvt_bias_.get_data_handle());
             }
         }
 
-        if (cvt_src_desc_ != opt_src_desc_) {
-            if (first_iteration_) {
-                internal_buffers_.emplace_back(allocator::malloc(
-                        opt_src_desc_.get_size(), p_engine_, alc_));
-                expected_src_ = make_dnnl_memory(
-                        opt_src_desc_, p_engine_, internal_buffers_.back());
-            }
+        if (enable_constant_cache_ && !is_from_cache) {
+            c_promise.set_value(c_buffer);
+        }
+        ///////////// weight/bias process end ///////////////////////////
 
+        // modify the data handle by using given buffer in every iteration
+        res->cvt_src_.set_data_handle(
+                inputs.at(matmul_fwd::kSrc).get_data_handle());
+        res->cvt_dst_.set_data_handle(
+                outputs.at(matmul_fwd::kDst).get_data_handle());
+        if (with_add_) {
+            res->cvt_post_src_.set_data_handle(inputs.back().get_data_handle());
+        }
+
+        if (res_desc_.cvt_src_ != res_desc_.opt_src_) {
+            res->opt_src_.set_data_handle(grantor.get(matmul_fwd::kOpt_src));
             dnnl::reorder(src_reorder_pd_)
-                    .execute(p_stream, cvt_src_, expected_src_);
+                    .execute(p_stream, res->cvt_src_, res->opt_src_);
         } else {
-            if (first_iteration_) expected_src_ = cvt_src_;
-            expected_src_.set_data_handle(cvt_src_.get_data_handle());
+            res->opt_src_.set_data_handle(res->cvt_src_.get_data_handle());
         }
 
-        if (cvt_dst_desc_ != opt_dst_desc_) {
-            if (first_iteration_) {
-                internal_buffers_.emplace_back(allocator::malloc(
-                        opt_dst_desc_.get_size(), p_engine_, alc_));
-                expected_dst_ = make_dnnl_memory(
-                        opt_dst_desc_, p_engine_, internal_buffers_.back());
-            }
+        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
+            res->opt_dst_.set_data_handle(grantor.get(matmul_fwd::kOpt_dst));
         } else {
-            if (first_iteration_) expected_dst_ = cvt_dst_;
-            expected_dst_.set_data_handle(cvt_dst_.get_data_handle());
+            res->opt_dst_.set_data_handle(res->cvt_dst_.get_data_handle());
         }
 
         if (with_post_sum_
-                && cvt_post_src_.get_data_handle()
-                        != expected_dst_.get_data_handle()) {
-            dnnl::reorder(cvt_post_src_, expected_dst_)
-                    .execute(p_stream, cvt_post_src_, expected_dst_);
+                && res->cvt_post_src_.get_data_handle()
+                        != res->opt_dst_.get_data_handle()) {
+            dnnl::reorder(res->cvt_post_src_, res->opt_dst_)
+                    .execute(p_stream, res->cvt_post_src_, res->opt_dst_);
         }
 
-        if (first_iteration_) {
-            matmul_args_ = {{DNNL_ARG_SRC, expected_src_},
-                    {DNNL_ARG_WEIGHTS, expected_weights_},
-                    {DNNL_ARG_DST, expected_dst_}};
+        res->scratchpad_.set_data_handle(grantor.get(matmul_fwd::kScratchpad));
 
-            if (with_bias_) {
-                matmul_args_.insert({DNNL_ARG_BIAS, expected_bias_});
-            }
-
-            if (with_post_binary_add_) {
-                matmul_args_.insert(
-                        {(DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1),
-                                cvt_post_src_});
-            }
-        }
-
-        prim_.execute(p_stream, matmul_args_);
+        prim_.execute(p_stream,
+                with_bias_ ? res->exec_args_ : res->exec_args_no_bias_);
 
         // reorder optimal output to given output buffer
-        if (expected_dst_ != cvt_dst_) {
+        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
             dnnl::reorder(dst_reorder_pd_)
-                    .execute(p_stream, expected_dst_, cvt_dst_);
+                    .execute(p_stream, res->opt_dst_, res->cvt_dst_);
         }
 
-        first_iteration_ = false;
         return impl::status::success;
     }
 

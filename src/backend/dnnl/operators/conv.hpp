@@ -18,13 +18,21 @@
 #define BACKEND_DNNL_OPERATORS_CONV_HPP
 
 #include <algorithm>
+#include <future>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
 #include <unordered_map>
 
+#include "utils/utils.hpp"
+
 #include "backend/dnnl/common.hpp"
+#include "backend/dnnl/constant_cache.hpp"
+#include "backend/dnnl/f32_kernel_resource.hpp"
 #include "backend/dnnl/legacy.hpp"
+#include "backend/dnnl/resource.hpp"
+#include "backend/dnnl/scratchpad.hpp"
 
 #include "bn_fusion.hpp"
 
@@ -37,6 +45,15 @@ namespace conv {
 enum conv_inputs { kSrc, kWeight, kBias };
 enum fused_bn_inputs { kScale, kShift, kMean, kVariance };
 enum conv_outputs { kDst };
+enum mem_keys {
+    kUpdated_weights,
+    kUpdated_bias,
+    kOpt_src,
+    kOpt_weights,
+    kOpt_dst,
+    kOpt_bias,
+    kScratchpad
+};
 } // namespace conv
 
 namespace conv_bwd_data {
@@ -159,38 +176,8 @@ private:
     int64_t groups_;
     std::string data_format_, filter_format_;
 
-    memory expected_src_;
-    memory expected_weights_;
-    memory expected_bias_;
-    memory expected_dst_;
-
-    memory updated_weights_;
-    memory updated_bias_;
-
-    memory scratchpad_;
-    memory::desc scratchpad_desc_;
-
-    memory::desc cvt_src_desc_;
-    memory::desc cvt_weights_desc_;
-    memory::desc cvt_bias_desc_;
-    memory::desc cvt_dst_desc_;
-    memory::desc cvt_post_src_desc_;
-
-    memory::desc opt_src_desc_;
-    memory::desc opt_weights_desc_;
-    memory::desc opt_bias_desc_;
-    memory::desc opt_dst_desc_;
-
-    memory cvt_src_;
-    memory cvt_weight_;
-    memory cvt_bias_;
-    memory cvt_dst_;
-    memory cvt_post_src_;
-
     dnnl::engine p_engine_;
     impl::allocator_t *alc_ {nullptr};
-
-    std::vector<void *> internal_buffers_;
 
     attr_t attr_;
 
@@ -206,30 +193,29 @@ private:
 
     size_t bn_input_offset_;
 
-    bool channel_first_ {true};
-
     float epsilon_; // bn epsilon
-
-    bool first_iteration_ {true};
-
-    exec_args conv_args_;
 
     dnnl::reorder::primitive_desc src_reorder_pd_;
     dnnl::reorder::primitive_desc weight_reorder_pd_;
     dnnl::reorder::primitive_desc dst_reorder_pd_;
     dnnl::reorder::primitive_desc bias_reorder_pd_;
 
-    // FIXME(qun) NOT well designed
-    /// \note Currently we don't have enough information from framework to
-    /// decide cache or not. Also we think that caching data in a library
-    /// is not safe at this moment.
-    char *val = std::getenv("DNNL_GRAPH_WEIGHT_CACHE");
-    bool enable_cache_data_ = (val != nullptr && std::strcmp(val, "1") == 0);
+    registry_t registry_;
+    registry_t c_registry_;
+    size_t res_key_;
+    resource_cache_t::creator_t resource_ctor_;
+
+    f32_kernel_resource_t::desc_t res_desc_;
+
+    bool enable_constant_cache_ = utils::is_enable_constant_cache();
 
 public:
     virtual ~convolution_forward() {
-        for (auto &buf : internal_buffers_) {
-            allocator::free(buf, p_engine_, alc_);
+        if (enable_constant_cache_) {
+            constant_cache_t::key_t cache_key
+                    = reinterpret_cast<constant_cache_t::key_t>(this);
+            constant_cache_t constant_cache;
+            constant_cache.remove_if_exist(cache_key);
         }
     }
 
@@ -333,6 +319,8 @@ public:
         memory::desc weight = make_dnnl_memory_desc(inputs.at(conv::kWeight));
         memory::desc dst = make_dnnl_memory_desc(outputs.at(conv::kDst));
 
+        res_desc_.upd_wei_ = weight;
+
         // "NXC"
         if (data_format_ == "NXC") {
             src = permute_NXC2NCX(src);
@@ -340,23 +328,21 @@ public:
         }
 
         // "XIO"
-        if (filter_format_ == "XIO") {
-            weight = permute_XIO2OIX(weight);
-            channel_first_ = false;
-        }
+        if (filter_format_ == "XIO") { weight = permute_XIO2OIX(weight); }
 
-        cvt_src_desc_ = src;
-        cvt_weights_desc_ = weight;
-        cvt_dst_desc_ = dst;
+        res_desc_.cvt_src_ = src;
+        res_desc_.cvt_wei_ = weight;
+        res_desc_.cvt_dst_ = dst;
 
         if (with_add_) {
-            cvt_post_src_desc_ = make_dnnl_memory_desc(inputs.back());
+            res_desc_.cvt_post_src_ = make_dnnl_memory_desc(inputs.back());
             if (data_format_ == "NXC") {
-                cvt_post_src_desc_ = permute_NXC2NCX(cvt_post_src_desc_);
+                res_desc_.cvt_post_src_
+                        = permute_NXC2NCX(res_desc_.cvt_post_src_);
             }
             if (with_post_binary_add_) {
-                cvt_post_src_desc_
-                        = expand(cvt_post_src_desc_, cvt_dst_desc_.data.ndims);
+                res_desc_.cvt_post_src_ = expand(
+                        res_desc_.cvt_post_src_, res_desc_.cvt_dst_.data.ndims);
             }
         }
 
@@ -368,9 +354,11 @@ public:
                            inputs.at(bn_input_offset_ + conv::kShift))
                             : memory::desc {});
 
-        cvt_bias_desc_ = bias;
+        res_desc_.cvt_bias_ = bias;
+        res_desc_.upd_bias_ = bias;
 
         p_engine_ = make_dnnl_engine(*g_engine);
+        alc_ = g_engine->get_allocator();
 
 #define CONV_GET_CONFIG(with_bias, p_engine) \
     get_config<with_bias>(src, weight, bias, dst, strides_, dilates_, \
@@ -383,29 +371,32 @@ public:
                                        : CONV_GET_CONFIG(false, p_engine_);
         prim_ = super(pd_);
 #undef CONV_GET_CONFIG
-        // set this flag = true every time compile is called
-        first_iteration_ = true;
 
-        opt_src_desc_ = pd_.src_desc();
-        opt_weights_desc_ = pd_.weights_desc();
-        opt_dst_desc_ = pd_.dst_desc();
-        if (with_bias_ || with_bn_) { opt_bias_desc_ = pd_.bias_desc(); }
-        scratchpad_desc_ = pd_.scratchpad_desc();
+        res_desc_.opt_src_ = pd_.src_desc();
+        res_desc_.opt_wei_ = pd_.weights_desc();
+        res_desc_.opt_dst_ = pd_.dst_desc();
+        if (with_bias_ || with_bn_) { res_desc_.opt_bias_ = pd_.bias_desc(); }
+        res_desc_.scratchpad_ = pd_.scratchpad_desc();
 
         if (groups_ > 1)
-            cvt_weights_desc_ = to_grouped(cvt_weights_desc_, groups_);
+            res_desc_.cvt_wei_ = to_grouped(res_desc_.cvt_wei_, groups_);
 
         if (impl::logical_tensor_wrapper(inputs.at(conv::kSrc)).is_any())
-            cvt_src_desc_ = pd_.src_desc();
+            res_desc_.cvt_src_ = pd_.src_desc();
         if (impl::logical_tensor_wrapper(inputs.at(conv::kWeight)).is_any())
-            cvt_weights_desc_ = pd_.weights_desc();
+            res_desc_.cvt_wei_ = pd_.weights_desc();
         if (impl::logical_tensor_wrapper(outputs.at(conv::kDst)).is_any()) {
-            cvt_dst_desc_ = pd_.dst_desc();
+            res_desc_.cvt_dst_ = pd_.dst_desc();
         }
         if ((with_bias_ || with_bn_)
                 && impl::logical_tensor_wrapper(inputs.at(conv::kBias))
                            .is_any()) {
-            cvt_bias_desc_ = pd_.bias_desc();
+            res_desc_.cvt_bias_ = pd_.bias_desc();
+        }
+
+        if (!with_bn_) {
+            res_desc_.upd_wei_ = res_desc_.cvt_wei_;
+            res_desc_.upd_bias_ = res_desc_.cvt_bias_;
         }
 
         // fill_layout_info for not-copied input/outputs
@@ -438,6 +429,49 @@ public:
                 fill_layout_info(ori_bias_lt, pd_.bias_desc());
             }
         }
+
+        registrar_t registrar = registry_.registrar();
+        registrar_t constant_registrar = c_registry_.registrar();
+        registrar_t &wei_bias_registrar
+                = enable_constant_cache_ ? constant_registrar : registrar;
+
+        if (with_bn_) {
+            wei_bias_registrar.book(conv::kUpdated_weights, weight.get_size());
+            wei_bias_registrar.book(conv::kUpdated_bias, bias.get_size());
+        }
+        if (res_desc_.cvt_wei_ != res_desc_.opt_wei_) {
+            wei_bias_registrar.book(
+                    conv::kOpt_weights, res_desc_.opt_wei_.get_size());
+            weight_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
+                    res_desc_.cvt_wei_, p_engine_, res_desc_.opt_wei_);
+        }
+        if ((with_bias_ || with_bn_)
+                && (res_desc_.cvt_bias_ != res_desc_.opt_bias_)) {
+            wei_bias_registrar.book(
+                    conv::kOpt_bias, res_desc_.opt_bias_.get_size());
+            bias_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
+                    res_desc_.cvt_bias_, p_engine_, res_desc_.opt_bias_);
+        }
+
+        if (res_desc_.opt_src_ != res_desc_.cvt_src_) {
+            registrar.book(conv::kOpt_src, res_desc_.opt_src_.get_size());
+            src_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
+                    res_desc_.cvt_src_, p_engine_, res_desc_.opt_src_);
+        }
+        if (res_desc_.opt_dst_ != res_desc_.cvt_dst_) {
+            registrar.book(conv::kOpt_dst, res_desc_.opt_dst_.get_size());
+            dst_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
+                    res_desc_.opt_dst_, p_engine_, res_desc_.cvt_dst_);
+        }
+        registrar.book(conv::kScratchpad, res_desc_.scratchpad_.get_size());
+
+        res_key_ = impl::utils::hash_combine(0, res_desc_);
+        res_key_ = impl::utils::hash_combine(res_key_, p_engine_.get());
+        resource_ctor_ = [this]() {
+            return std::unique_ptr<resource_t>(new f32_kernel_resource_t(
+                    this->res_desc_, this->p_engine_));
+        };
+
         return impl::status::success;
     }
 
@@ -446,178 +480,154 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(op);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
-        if (first_iteration_) {
-            alc_ = g_stream->get_engine()->get_allocator();
+        // each thread's own local resource
+        resource_cache_t res_cache;
+        f32_kernel_resource_t *res = res_cache.get<f32_kernel_resource_t>(
+                res_key_, resource_ctor_, true /*is f32*/);
+
+        temporary_scratchpad_t scratchpad(registry_.size(), p_engine_, *alc_);
+        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
+
+        ///////////// weight/bias process start ///////////////////////////
+        // lookup constant buffer
+        constant_cache_t::key_t cache_key
+                = reinterpret_cast<constant_cache_t::key_t>(this);
+        constant_cache_t global_constant_cache;
+
+        std::promise<constant_cache_t::cached_t> c_promise;
+
+        bool is_from_cache;
+        constant_cache_t::value_t cached_value;
+        constant_cache_t::cached_t c_buffer;
+        if (enable_constant_cache_) {
+            cached_value = global_constant_cache.get_or_add(
+                    cache_key, c_promise.get_future());
+            is_from_cache = cached_value.valid();
+            if (is_from_cache) {
+                // get from cache or wait for other thread
+                c_buffer = cached_value.get();
+            } else {
+                c_buffer = std::make_shared<constant_buffer_t>(
+                        c_registry_.size(), p_engine_, alc_);
+            }
         }
+
+        grantor_t c_grantor = c_registry_.grantor(
+                enable_constant_cache_ ? c_buffer->data<char>() : nullptr);
+        grantor_t &wei_bias_grantor
+                = enable_constant_cache_ ? c_grantor : grantor;
 
         // bn folding
-        if (with_bn_ && (first_iteration_ || !enable_cache_data_)) {
-            const memory weight
-                    = make_dnnl_memory(inputs.at(conv::kWeight), p_engine_);
-            const memory bias = with_bias_
-                    ? make_dnnl_memory(inputs.at(conv::kBias), p_engine_)
-                    : memory();
-            const memory bn_scale = make_dnnl_memory(
-                    inputs.at(bn_input_offset_ + conv::kScale), p_engine_);
-            const memory bn_shift = make_dnnl_memory(
-                    inputs.at(bn_input_offset_ + conv::kShift), p_engine_);
-            const memory bn_mean = make_dnnl_memory(
-                    inputs.at(bn_input_offset_ + conv::kMean), p_engine_);
-            const memory bn_var = make_dnnl_memory(
-                    inputs.at(bn_input_offset_ + conv::kVariance), p_engine_);
-
-            if (first_iteration_) {
-                internal_buffers_.emplace_back(allocator::malloc(
-                        weight.get_desc().get_size(), p_engine_, alc_));
-                updated_weights_ = make_dnnl_memory(
-                        weight.get_desc(), p_engine_, internal_buffers_.back());
-
-                internal_buffers_.emplace_back(allocator::malloc(
-                        bn_shift.get_desc().get_size(), p_engine_, alc_));
-                updated_bias_ = make_dnnl_memory(bn_shift.get_desc(), p_engine_,
-                        internal_buffers_.back());
-            }
-
-            bn_fusion::folding(&updated_weights_, &updated_bias_, weight, bias,
-                    bn_mean, bn_var, bn_scale, bn_shift, epsilon_, *g_stream);
-        }
-
-        // only create memory object in first iteration
-        if (first_iteration_) {
-            cvt_src_ = make_dnnl_memory(cvt_src_desc_, p_engine_, nullptr);
-            cvt_weight_
-                    = make_dnnl_memory(cvt_weights_desc_, p_engine_, nullptr);
-            cvt_bias_ = make_dnnl_memory(cvt_bias_desc_, p_engine_, nullptr);
-            cvt_dst_ = make_dnnl_memory(cvt_dst_desc_, p_engine_, nullptr);
-            cvt_post_src_
-                    = make_dnnl_memory(cvt_post_src_desc_, p_engine_, nullptr);
-        }
-
-        // modify the data handle by using given buffer in every iteration
-        cvt_src_.set_data_handle(inputs.at(conv::kSrc).get_data_handle());
-        cvt_dst_.set_data_handle(outputs.at(conv::kDst).get_data_handle());
         if (with_bn_) {
-            cvt_weight_.set_data_handle(updated_weights_.get_data_handle());
-            cvt_bias_.set_data_handle(updated_bias_.get_data_handle());
+            res->upd_wei_.set_data_handle(
+                    wei_bias_grantor.get(conv::kUpdated_weights));
+            res->upd_bias_.set_data_handle(
+                    wei_bias_grantor.get(conv::kUpdated_bias));
+
+            if (!enable_constant_cache_ || !is_from_cache) {
+                const memory weight
+                        = make_dnnl_memory(inputs.at(conv::kWeight), p_engine_);
+                const memory bias = with_bias_
+                        ? make_dnnl_memory(inputs.at(conv::kBias), p_engine_)
+                        : memory();
+                const memory bn_scale = make_dnnl_memory(
+                        inputs.at(bn_input_offset_ + conv::kScale), p_engine_);
+                const memory bn_shift = make_dnnl_memory(
+                        inputs.at(bn_input_offset_ + conv::kShift), p_engine_);
+                const memory bn_mean = make_dnnl_memory(
+                        inputs.at(bn_input_offset_ + conv::kMean), p_engine_);
+                const memory bn_var = make_dnnl_memory(
+                        inputs.at(bn_input_offset_ + conv::kVariance),
+                        p_engine_);
+
+                bn_fusion::folding(&res->upd_wei_, &res->upd_bias_, weight,
+                        bias, bn_mean, bn_var, bn_scale, bn_shift, epsilon_,
+                        *g_stream);
+            }
+        }
+
+        if (with_bn_) {
+            res->cvt_wei_.set_data_handle(res->upd_wei_.get_data_handle());
+            res->cvt_bias_.set_data_handle(res->upd_bias_.get_data_handle());
         } else {
-            cvt_weight_.set_data_handle(
+            res->cvt_wei_.set_data_handle(
                     inputs.at(conv::kWeight).get_data_handle());
             if (with_bias_) {
-                cvt_bias_.set_data_handle(
+                res->cvt_bias_.set_data_handle(
                         inputs.at(conv::kBias).get_data_handle());
             }
         }
-        if (with_add_)
-            cvt_post_src_.set_data_handle(inputs.back().get_data_handle());
 
-        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-
-        // allocate buffer for internal memory (optimal layout memory),
-        // and reorder given inputs into these internal memory
-        if (cvt_weights_desc_ != opt_weights_desc_) {
-            if (first_iteration_) {
-                internal_buffers_.emplace_back(allocator::malloc(
-                        opt_weights_desc_.get_size(), p_engine_, alc_));
-                expected_weights_ = make_dnnl_memory(
-                        opt_weights_desc_, p_engine_, internal_buffers_.back());
-                weight_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                        cvt_weights_desc_, p_engine_, opt_weights_desc_);
-            }
-            if (first_iteration_ || !enable_cache_data_)
+        if (res_desc_.cvt_wei_ != res_desc_.opt_wei_) {
+            res->opt_wei_.set_data_handle(
+                    wei_bias_grantor.get(conv::kOpt_weights));
+            if (!enable_constant_cache_ || !is_from_cache) {
                 dnnl::reorder(weight_reorder_pd_)
-                        .execute(p_stream, cvt_weight_, expected_weights_);
+                        .execute(p_stream, res->cvt_wei_, res->opt_wei_);
+            }
         } else {
-            if (first_iteration_) expected_weights_ = cvt_weight_;
-            expected_weights_.set_data_handle(cvt_weight_.get_data_handle());
+            res->opt_wei_.set_data_handle(res->cvt_wei_.get_data_handle());
         }
 
         if (with_bias_ || with_bn_) {
-            if (cvt_bias_desc_ != opt_bias_desc_) {
-                if (first_iteration_) {
-                    internal_buffers_.emplace_back(allocator::malloc(
-                            opt_bias_desc_.get_size(), p_engine_, alc_));
-                    expected_bias_ = make_dnnl_memory(opt_bias_desc_, p_engine_,
-                            internal_buffers_.back());
-                    bias_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
-                            cvt_bias_desc_, p_engine_, opt_bias_desc_);
-                }
-
-                if (first_iteration_ || !enable_cache_data_)
+            if (res_desc_.cvt_bias_ != res_desc_.opt_bias_) {
+                res->opt_bias_.set_data_handle(
+                        wei_bias_grantor.get(conv::kOpt_bias));
+                if (!enable_constant_cache_ || !is_from_cache) {
                     dnnl::reorder(bias_reorder_pd_)
-                            .execute(p_stream, cvt_bias_, expected_bias_);
+                            .execute(p_stream, res->cvt_bias_, res->opt_bias_);
+                }
             } else {
-                if (first_iteration_) expected_bias_ = cvt_bias_;
-                expected_bias_.set_data_handle(cvt_bias_.get_data_handle());
+                res->opt_bias_.set_data_handle(
+                        res->cvt_bias_.get_data_handle());
             }
         }
 
-        if (cvt_src_desc_ != opt_src_desc_) {
-            if (first_iteration_) {
-                internal_buffers_.emplace_back(allocator::malloc(
-                        opt_src_desc_.get_size(), p_engine_, alc_));
-                expected_src_ = make_dnnl_memory(
-                        opt_src_desc_, p_engine_, internal_buffers_.back());
-                src_reorder_pd_ = dnnl::reorder::primitive_desc(
-                        p_engine_, cvt_src_desc_, p_engine_, opt_src_desc_);
-            }
+        if (enable_constant_cache_ && !is_from_cache) {
+            c_promise.set_value(c_buffer);
+        }
+        ///////////// weight/bias process end ///////////////////////////
 
+        res->cvt_src_.set_data_handle(inputs.at(conv::kSrc).get_data_handle());
+        res->cvt_dst_.set_data_handle(outputs.at(conv::kDst).get_data_handle());
+        if (with_add_) {
+            res->cvt_post_src_.set_data_handle(inputs.back().get_data_handle());
+        }
+
+        if (res_desc_.cvt_src_ != res_desc_.opt_src_) {
+            res->opt_src_.set_data_handle(grantor.get(conv::kOpt_src));
             dnnl::reorder(src_reorder_pd_)
-                    .execute(p_stream, cvt_src_, expected_src_);
+                    .execute(p_stream, res->cvt_src_, res->opt_src_);
         } else {
-            if (first_iteration_) expected_src_ = cvt_src_;
-            expected_src_.set_data_handle(cvt_src_.get_data_handle());
+            res->opt_src_.set_data_handle(res->cvt_src_.get_data_handle());
         }
 
-        // allocate buffer for optimal output
-        if (cvt_dst_desc_ != opt_dst_desc_) {
-            if (first_iteration_) {
-                internal_buffers_.emplace_back(allocator::malloc(
-                        opt_dst_desc_.get_size(), p_engine_, alc_));
-                expected_dst_ = make_dnnl_memory(
-                        opt_dst_desc_, p_engine_, internal_buffers_.back());
-                dst_reorder_pd_ = dnnl::reorder::primitive_desc(
-                        p_engine_, opt_dst_desc_, p_engine_, cvt_dst_desc_);
-            }
+        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
+            res->opt_dst_.set_data_handle(grantor.get(conv::kOpt_dst));
         } else {
-            if (first_iteration_) expected_dst_ = cvt_dst_;
-            expected_dst_.set_data_handle(cvt_dst_.get_data_handle());
+            res->opt_dst_.set_data_handle(res->cvt_dst_.get_data_handle());
         }
 
         // reorder the post_src to optimal output if they are not inplaced
         if (with_post_sum_
-                && cvt_post_src_.get_data_handle()
-                        != expected_dst_.get_data_handle()) {
-            dnnl::reorder(cvt_post_src_, expected_dst_)
-                    .execute(p_stream, cvt_post_src_, expected_dst_);
+                && res->cvt_post_src_.get_data_handle()
+                        != res->opt_dst_.get_data_handle()) {
+            dnnl::reorder(res->cvt_post_src_, res->opt_dst_)
+                    .execute(p_stream, res->cvt_post_src_, res->opt_dst_);
         }
 
-        if (first_iteration_) {
-            internal_buffers_.emplace_back(allocator::malloc(
-                    scratchpad_desc_.get_size(), p_engine_, alc_));
-            scratchpad_ = make_dnnl_memory(
-                    scratchpad_desc_, p_engine_, internal_buffers_.back());
+        res->scratchpad_.set_data_handle(grantor.get(conv::kScratchpad));
 
-            conv_args_ = {{DNNL_ARG_SRC, expected_src_},
-                    {DNNL_ARG_WEIGHTS, expected_weights_},
-                    {DNNL_ARG_BIAS, expected_bias_},
-                    {DNNL_ARG_DST, expected_dst_},
-                    {DNNL_ARG_SCRATCHPAD, scratchpad_}};
-            if (with_post_binary_add_) {
-                conv_args_.insert(
-                        {(DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1),
-                                cvt_post_src_});
-            }
-        }
+        prim_.execute(p_stream, res->exec_args_);
 
-        prim_.execute(p_stream, conv_args_);
         // reorder optimal output to given output buffer
-        if (expected_dst_ != cvt_dst_) {
+        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
             dnnl::reorder(dst_reorder_pd_)
-                    .execute(p_stream, expected_dst_, cvt_dst_);
+                    .execute(p_stream, res->opt_dst_, res->cvt_dst_);
         }
 
-        first_iteration_ = false;
         return impl::status::success;
     }
 
