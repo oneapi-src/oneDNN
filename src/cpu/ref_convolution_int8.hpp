@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,9 +24,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/primitive_attr_postops.hpp"
-
 #include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/primitive_attr_postops.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -24,9 +24,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/primitive_attr_postops.hpp"
-
 #include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/primitive_attr_postops.hpp"
 
 namespace dnnl {
 namespace impl {

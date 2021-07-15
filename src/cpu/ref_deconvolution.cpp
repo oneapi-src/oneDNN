@@ -24,24 +24,12 @@
 #include "cpu/cpu_primitive.hpp"
 #include "cpu/ref_io_helper.hpp"
 
+#include "cpu/ref_convolution_utils.hpp"
 #include "cpu/ref_deconvolution.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-
-namespace {
-dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb, dim_t c,
-        dim_t id, dim_t ih, dim_t iw) {
-    switch (ndims) {
-        case 5: return mdw.off(mb, c, id, ih, iw);
-        case 4: return mdw.off(mb, c, ih, iw);
-        case 3: return mdw.off(mb, c, iw);
-        default: assert(!"unsupported ndims"); return dim_t(0);
-    }
-}
-
-} // namespace
 
 void ref_deconvolution_fwd_t::compute_fwd_bias_common(const exec_ctx_t &ctx,
         void *dst, const float *conv_output, bool non_default_attr) const {
@@ -60,7 +48,8 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_common(const exec_ctx_t &ctx,
     parallel_nd(MB, G, OC, OD, OH, OW,
             [&](dim_t mb, dim_t g, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
                 const dim_t c = g * OC + oc;
-                const dim_t off = get_data_off(dst_d, ndims, mb, c, od, oh, ow);
+                const dim_t off = ref_conv_utils::get_data_off(
+                        dst_d, ndims, mb, c, od, oh, ow);
                 float b = io::load_float_value(bias_d.data_type(), bias, c);
                 float d = conv_output[off];
                 // Use f32 if attributes happen after bias to get precise answer
@@ -214,7 +203,8 @@ status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
 
     parallel_nd(MB, OCP, OD, OH, OW,
             [&](dim_t mb, int ocp, dim_t od, dim_t oh, dim_t ow) {
-                auto dst_off = get_data_off(dst_d, ndims, mb, ocp, od, oh, ow);
+                auto dst_off = ref_conv_utils::get_data_off(
+                        dst_d, ndims, mb, ocp, od, oh, ow);
                 float tmp_result = 0;
 
                 if (ocp < OC) {
@@ -417,8 +407,8 @@ static status_t apply_src_zero_point(const exec_ctx_t &ctx,
             [&](const dim_t mb, const dim_t g, const dim_t oc, const dim_t od,
                     const dim_t oh, const dim_t ow) {
                 const auto oc_off = g * OC + oc;
-                const auto dst_off
-                        = get_data_off(dst_d, ndims, mb, oc_off, od, oh, ow);
+                const auto dst_off = ref_conv_utils::get_data_off(
+                        dst_d, ndims, mb, oc_off, od, oh, ow);
                 int32_t conv_result
                         = conv_output[dst_off] - zp_src_compensation[oc_off];
 
@@ -545,7 +535,7 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias(
         for_(dim_t od = 0; od < OD; ++od)
         for_(dim_t oh = 0; oh < OH; ++oh)
         for (dim_t ow = 0; ow < OW; ++ow) {
-            const auto d_dst_off = get_data_off(
+            const auto d_dst_off = ref_conv_utils::get_data_off(
                     diff_dst_d, ndims, mb, g * OC + oc, od, oh, ow);
             db += diff_dst[d_dst_off];
         }

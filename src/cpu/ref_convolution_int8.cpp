@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,37 +25,11 @@
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/ref_convolution_int8.hpp"
+#include "cpu/ref_convolution_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-
-namespace {
-inline dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb,
-        dim_t c, dim_t id, dim_t ih, dim_t iw) {
-    switch (ndims) {
-        case 5: return mdw.off(mb, c, id, ih, iw);
-        case 4: return mdw.off(mb, c, ih, iw);
-        case 3: return mdw.off(mb, c, iw);
-        default: assert(!"unsupported ndims"); return dim_t(0);
-    }
-}
-
-inline dim_t get_weights_off(const memory_desc_wrapper &mdw, bool with_groups,
-        int ndims, dim_t g, dim_t oc, dim_t ic, dim_t kd, dim_t kh, dim_t kw) {
-    switch (ndims) {
-        case 5:
-            return with_groups ? mdw.off(g, oc, ic, kd, kh, kw)
-                               : mdw.off(oc, ic, kd, kh, kw);
-        case 4:
-            return with_groups ? mdw.off(g, oc, ic, kh, kw)
-                               : mdw.off(oc, ic, kh, kw);
-        case 3:
-            return with_groups ? mdw.off(g, oc, ic, kw) : mdw.off(oc, ic, kw);
-        default: assert(!"unsupported ndims"); return dim_t(0);
-    }
-}
-} // namespace
 
 status_t ref_convolution_int8_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
@@ -133,9 +107,9 @@ status_t ref_convolution_int8_fwd_t::execute_forward(
             if (ih < 0 || ih >= IH) continue;
             if (iw < 0 || iw >= IW) continue;
 
-            const auto src_off
-                    = get_data_off(src_d, ndims, mb, g * IC + ic, id, ih, iw);
-            const auto wei_off = get_weights_off(
+            const auto src_off = ref_conv_utils::get_data_off(
+                    src_d, ndims, mb, g * IC + ic, id, ih, iw);
+            const auto wei_off = ref_conv_utils::get_weights_off(
                     weights_d, with_groups, ndims, g, oc, ic, kd, kh, kw);
 
             const int s = io::load_int_value(src_d.data_type(), src, src_off);
@@ -171,9 +145,9 @@ status_t ref_convolution_int8_fwd_t::execute_forward(
         assert(3 <= ndims && ndims <= 5);
         int d = 0;
 
-        const dim_t src_loc_off
-                = get_data_off(src_d, ndims, mb, g * IC, 0, 0, 0);
-        const dim_t weights_loc_off = get_weights_off(
+        const dim_t src_loc_off = ref_conv_utils::get_data_off(
+                src_d, ndims, mb, g * IC, 0, 0, 0);
+        const dim_t weights_loc_off = ref_conv_utils::get_weights_off(
                 weights_d, with_groups, ndims, g, oc, 0, 0, 0, 0);
 
         const void *__restrict src_loc = src;
@@ -254,7 +228,7 @@ status_t ref_convolution_int8_fwd_t::execute_forward(
                     d += b;
                 }
 
-                dim_t dst_off = get_data_off(
+                dim_t dst_off = ref_conv_utils::get_data_off(
                         dst_d, ndims, mb, g * OC + oc, od, oh, ow);
 
                 dim_t dst_l_off = (mb * OC * G + g * OC + oc) * OD * OH * OW
@@ -351,9 +325,9 @@ status_t ref_convolution_int8_bwd_data_t::execute_backward_data(
             od /= KSD;
 
             if (od < OD && oh < OH && ow < OW) {
-                const auto diff_dst_off = get_data_off(
+                const auto diff_dst_off = ref_conv_utils::get_data_off(
                         diff_dst_d, ndims, mb, g * OC + oc, od, oh, ow);
-                const auto weights_off = get_weights_off(
+                const auto weights_off = ref_conv_utils::get_weights_off(
                         weights_d, with_groups, ndims, g, oc, ic, kd, kh, kw);
                 const int dd = io::load_int_value(
                         diff_dst_d.data_type(), diff_dst, diff_dst_off);
@@ -379,15 +353,15 @@ status_t ref_convolution_int8_bwd_data_t::execute_backward_data(
     const dim_t weights_kh_stride
             = (ndims >= 4) ? weights_str[ndims - 2 + gr_shift] : 0;
     const dim_t weights_kd_stride
-            = (ndims >= 4) ? weights_str[ndims - 3 + gr_shift] : 0;
+            = (ndims >= 5) ? weights_str[ndims - 3 + gr_shift] : 0;
 
     auto ker_plain = [=](dim_t g, dim_t mb, dim_t ic, dim_t id, dim_t ih,
                              dim_t iw) {
         assert(3 <= ndims && ndims <= 5);
         int ds = 0;
-        const dim_t diff_dst_loc_off
-                = get_data_off(diff_dst_d, ndims, mb, g * OC, 0, 0, 0);
-        const dim_t weights_loc_off = get_weights_off(
+        const dim_t diff_dst_loc_off = ref_conv_utils::get_data_off(
+                diff_dst_d, ndims, mb, g * OC, 0, 0, 0);
+        const dim_t weights_loc_off = ref_conv_utils::get_weights_off(
                 weights_d, with_groups, ndims, g, 0, ic, 0, 0, 0);
 
         const void *__restrict diff_dst_loc = diff_dst;
@@ -467,7 +441,7 @@ status_t ref_convolution_int8_bwd_data_t::execute_backward_data(
                 float ds = static_cast<float>(acc);
                 maybe_oscale(ds, g, ic);
 
-                const auto diff_src_off = get_data_off(
+                const auto diff_src_off = ref_conv_utils::get_data_off(
                         diff_src_d, ndims, mb, g * IC + ic, id, ih, iw);
                 io::store_float_value(
                         diff_src_d.data_type(), ds, diff_src, diff_src_off);
