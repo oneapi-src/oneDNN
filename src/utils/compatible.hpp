@@ -21,6 +21,7 @@
 #include <optional>
 #endif
 #include <memory>
+#include <stdexcept>
 #include <utility>
 #include <type_traits>
 
