@@ -28,13 +28,13 @@
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/legacy.hpp"
-#include "backend/dnnl/resource.hpp"
 #include "backend/dnnl/subgraph/compile_ops.hpp"
 #include "backend/dnnl/subgraph/infer_type.hpp"
 #include "backend/dnnl/subgraph/layout_propagation.hpp"
 #include "backend/dnnl/subgraph/memory_binding.hpp"
 #include "backend/dnnl/subgraph/op_executable.hpp"
 #include "backend/dnnl/subgraph/passes.hpp"
+#include "backend/dnnl/thread_local_cache.hpp"
 #include "backend/dnnl/utils.hpp"
 
 namespace dnnl {
@@ -58,8 +58,7 @@ private:
 
     registry_t registry_;
     registry_t c_registry_;
-    size_t resource_key_;
-    resource_cache_t::creator_t resource_ctor_;
+    std::function<std::shared_ptr<subgraph_resource_t>()> resource_ctor_;
 
     // FIXME(qun) improve the cache key
     constant_cache_t::key_t constant_key_
@@ -72,6 +71,9 @@ private:
 
 public:
     virtual ~quantized_matmul() {
+        thread_local_cache_t<subgraph_resource_t> res_cache;
+        res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+
         if (enable_constant_cache_) {
             constant_cache_t constant_cache;
             constant_cache.remove_if_exist(constant_key_);
@@ -196,11 +198,8 @@ public:
             }
         }
 
-        // generate a hash key for exec_args_mgr
-        resource_key_ = std::hash<execution_args_mgr>()(exec_arg_mgr_);
         resource_ctor_ = [this]() {
-            return std::unique_ptr<resource_t>(
-                    new subgraph_resource_t(this->exec_arg_mgr_));
+            return std::make_shared<subgraph_resource_t>(this->exec_arg_mgr_);
         };
 
         return impl::status::success;
@@ -214,9 +213,9 @@ public:
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
         // each thread's own local resource
-        resource_cache_t res_cache;
-        subgraph_resource_t *res = res_cache.get<subgraph_resource_t>(
-                resource_key_, resource_ctor_);
+        thread_local_cache_t<subgraph_resource_t> res_cache;
+        subgraph_resource_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
 
         // update the data of partition in/outputs args
         for (size_t i = 0; i < inputs.size(); i++) {

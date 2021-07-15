@@ -28,13 +28,13 @@
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/legacy.hpp"
-#include "backend/dnnl/resource.hpp"
 #include "backend/dnnl/subgraph/compile_ops.hpp"
 #include "backend/dnnl/subgraph/infer_type.hpp"
 #include "backend/dnnl/subgraph/layout_propagation.hpp"
 #include "backend/dnnl/subgraph/memory_binding.hpp"
 #include "backend/dnnl/subgraph/op_executable.hpp"
 #include "backend/dnnl/subgraph/passes.hpp"
+#include "backend/dnnl/thread_local_cache.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -56,11 +56,13 @@ private:
     std::vector<std::shared_ptr<impl::op_t>> opt_subgraph_;
 
     registry_t registry_;
-    size_t resource_key_;
-    resource_cache_t::creator_t resource_ctor_;
+    std::function<std::shared_ptr<subgraph_resource_t>()> resource_ctor_;
 
 public:
-    virtual ~quantized_pooling() {}
+    virtual ~quantized_pooling() {
+        thread_local_cache_t<subgraph_resource_t> res_cache;
+        res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+    }
 
     virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
@@ -142,10 +144,8 @@ public:
         }
 
         // generate a hash key for exec_args_mgr
-        resource_key_ = std::hash<execution_args_mgr>()(exec_arg_mgr_);
         resource_ctor_ = [this]() {
-            return std::unique_ptr<resource_t>(
-                    new subgraph_resource_t(this->exec_arg_mgr_));
+            return std::make_shared<subgraph_resource_t>(this->exec_arg_mgr_);
         };
 
         return impl::status::success;
@@ -159,9 +159,9 @@ public:
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
         // each thread's own local resource
-        resource_cache_t res_cache;
-        subgraph_resource_t *res = res_cache.get<subgraph_resource_t>(
-                resource_key_, resource_ctor_);
+        thread_local_cache_t<subgraph_resource_t> res_cache;
+        subgraph_resource_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
 
         // update the data of partition in/outputs args
         for (size_t i = 0; i < inputs.size(); i++) {

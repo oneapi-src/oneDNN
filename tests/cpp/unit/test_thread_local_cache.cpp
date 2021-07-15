@@ -21,106 +21,84 @@
 
 #include "interface/c_types_map.hpp"
 
-#include "backend/dnnl/resource.hpp"
 #include "backend/dnnl/subgraph/memory_binding.hpp"
+#include "backend/dnnl/thread_local_cache.hpp"
 
 #include <dnnl.hpp>
 
-using dnnl::graph::impl::dnnl_impl::resource_cache_t;
-using dnnl::graph::impl::dnnl_impl::resource_t;
+template <typename T>
+using thread_local_cache_t
+        = dnnl::graph::impl::dnnl_impl::thread_local_cache_t<T>;
 
-struct test_resource_t : public resource_t {
+struct test_resource_t {
     test_resource_t(size_t data) : data_(data) {}
     size_t data_;
 };
 
-TEST(resource, resource_cache) {
-    resource_cache_t resource_cache;
-    resource_cache.clear();
+TEST(resource, thread_local_cache) {
+    thread_local_cache_t<test_resource_t> cache;
+    cache.clear();
 
-    resource_cache_t::key_t key1 = (resource_cache_t::key_t)1;
-    std::unique_ptr<resource_t> resource1(new test_resource_t(10));
-    resource_cache.add<test_resource_t>(key1, std::move(resource1));
+    size_t key1 = (size_t)1;
+    test_resource_t *resource_ptr1 = cache.get_or_add(
+            key1, []() { return std::make_shared<test_resource_t>(10); });
 
-    resource_cache_t::key_t key2 = (resource_cache_t::key_t)2;
-    std::unique_ptr<resource_t> resource2(new test_resource_t(20));
-    resource_cache.add<test_resource_t>(key2, std::move(resource2));
+    size_t key2 = (size_t)2;
+    test_resource_t *resource_ptr2 = cache.get_or_add(
+            key2, []() { return std::make_shared<test_resource_t>(20); });
 
-    ASSERT_TRUE(resource_cache.has_resource(key1));
-    ASSERT_TRUE(resource_cache.has_resource(key2));
-
-    test_resource_t *resource_ptr1 = resource_cache.get<test_resource_t>(key1);
-    test_resource_t *resource_ptr2 = resource_cache.get<test_resource_t>(key2);
-
+    ASSERT_TRUE(cache.has_resource(key1));
+    ASSERT_TRUE(cache.has_resource(key2));
     ASSERT_EQ(resource_ptr1->data_, 10);
     ASSERT_EQ(resource_ptr2->data_, 20);
 
-    resource_ptr1->data_ = 30;
-    resource_ptr1 = resource_cache.get<test_resource_t>(key1);
-    ASSERT_EQ(resource_ptr1->data_, 30);
-
     // the given creator will not take effect since the key1 is already in the
-    // cache
-    resource_ptr1 = resource_cache.get<test_resource_t>(key1, []() {
-        return std::unique_ptr<resource_t>(new test_resource_t(100));
-    });
-    ASSERT_EQ(resource_ptr1->data_, 30);
-    ASSERT_EQ(resource_cache.size(), 2);
+    // mapper
+    resource_ptr1 = cache.get_or_add(
+            key1, []() { return std::make_shared<test_resource_t>(100); });
+    ASSERT_EQ(resource_ptr1->data_, 10);
+    ASSERT_EQ(cache.size(), 2);
 
-    // the given creator will take effect since the key3 is not in the cache
-    resource_cache_t::key_t key3 = (resource_cache_t::key_t)3;
-    test_resource_t *resource_ptr3
-            = resource_cache.get<test_resource_t>(key3, []() {
-                  return std::unique_ptr<resource_t>(new test_resource_t(100));
-              });
-    ASSERT_EQ(resource_ptr3->data_, 100);
-    ASSERT_EQ(resource_cache.size(), 3);
+    cache.remove_if_exist(key1);
+    cache.remove_if_exist(key2);
 }
 
-TEST(resource, resource_cache_multithreading) {
+TEST(resource, thread_local_cache_multithreading) {
     auto func = []() {
-        resource_cache_t resource_cache;
-        resource_cache.clear();
+        thread_local_cache_t<test_resource_t> cache;
+        cache.clear();
 
-        ASSERT_EQ(resource_cache.size(), 0);
+        ASSERT_EQ(cache.size(), 0);
 
-        resource_cache_t::key_t key1 = (resource_cache_t::key_t)1;
-        std::unique_ptr<resource_t> resource1(new test_resource_t(10));
-        resource_cache.add<test_resource_t>(key1, std::move(resource1));
+        size_t key1 = (size_t)1;
+        test_resource_t *resource_ptr1 = cache.get_or_add(
+                key1, []() { return std::make_shared<test_resource_t>(10); });
 
-        resource_cache_t::key_t key2 = (resource_cache_t::key_t)2;
-        std::unique_ptr<resource_t> resource2(new test_resource_t(20));
-        resource_cache.add<test_resource_t>(key2, std::move(resource2));
+        size_t key2 = (size_t)2;
+        test_resource_t *resource_ptr2 = cache.get_or_add(
+                key2, []() { return std::make_shared<test_resource_t>(20); });
 
-        ASSERT_TRUE(resource_cache.has_resource(key1));
-        ASSERT_TRUE(resource_cache.has_resource(key2));
-
-        test_resource_t *resource_ptr1
-                = resource_cache.get<test_resource_t>(key1);
-        test_resource_t *resource_ptr2
-                = resource_cache.get<test_resource_t>(key2);
-
+        ASSERT_TRUE(cache.has_resource(key1));
+        ASSERT_TRUE(cache.has_resource(key2));
         ASSERT_EQ(resource_ptr1->data_, 10);
         ASSERT_EQ(resource_ptr2->data_, 20);
 
         resource_ptr1->data_ = 30;
-        resource_ptr1 = resource_cache.get<test_resource_t>(key1);
         ASSERT_EQ(resource_ptr1->data_, 30);
 
-        resource_cache_t::key_t key3 = (resource_cache_t::key_t)3;
-        test_resource_t *resource_ptr3
-                = resource_cache.get<test_resource_t>(key3, []() {
-                      return std::unique_ptr<resource_t>(
-                              new test_resource_t(100));
-                  });
+        size_t key3 = (size_t)3;
+        test_resource_t *resource_ptr3 = cache.get_or_add(
+                key3, []() { return std::make_shared<test_resource_t>(100); });
 
-        ASSERT_EQ(resource_cache.size(), 3);
+        ASSERT_EQ(cache.size(), 3);
     };
 
     std::thread t1(func);
     std::thread t2(func);
+    std::thread t3(func);
     t1.join();
     t2.join();
+    t3.join();
 }
 
 TEST(resource, subgraph_resource) {
@@ -258,132 +236,4 @@ TEST(resource, subgraph_resource) {
     ASSERT_TRUE(
             cloned_mem5.get_desc() == cloned_op2_args[DNNL_ARG_DST].get_desc()
             && cloned_mem5.get() == cloned_op2_args[DNNL_ARG_DST].get());
-}
-
-TEST(resource, md_hashing) {
-    using dtype = dnnl::memory::data_type;
-    using ftag = dnnl::memory::format_tag;
-    using engine = dnnl::engine;
-
-    dnnl::memory::desc md1({4, 5, 6, 7}, dtype::f32, ftag::abcd);
-
-    // different from md1
-    dnnl::memory::desc md2({5, 6, 7, 8}, dtype::f32, ftag::abcd);
-    dnnl::memory::desc md4({4, 5, 6, 7}, dtype::u8, ftag::abcd);
-    dnnl::memory::desc md5({4, 5, 6, 7}, dtype::f32, ftag::acdb);
-
-    // same as md2
-    dnnl::memory::desc md3({5, 6, 7, 8}, dtype::f32, ftag::abcd);
-
-    size_t key1 = dnnl::graph::impl::dnnl_impl::get_md_hash(md1);
-    size_t key2 = dnnl::graph::impl::dnnl_impl::get_md_hash(md2);
-    size_t key3 = dnnl::graph::impl::dnnl_impl::get_md_hash(md3);
-    size_t key4 = dnnl::graph::impl::dnnl_impl::get_md_hash(md4);
-    size_t key5 = dnnl::graph::impl::dnnl_impl::get_md_hash(md5);
-
-    ASSERT_NE(key1, key2);
-    ASSERT_NE(key1, key4);
-    ASSERT_NE(key1, key5);
-
-    ASSERT_EQ(key2, key3);
-}
-
-TEST(resource, execution_args_mgr_hashing) {
-    using value_t = impl::value_t;
-    using dtype = dnnl::memory::data_type;
-    using ftag = dnnl::memory::format_tag;
-    using engine = dnnl::engine;
-    using execution_args_mgr = impl::dnnl_impl::execution_args_mgr;
-
-    value_t *val1 = (value_t *)1;
-    value_t *val2 = (value_t *)2;
-    value_t *val3 = (value_t *)3;
-    value_t *val4 = (value_t *)4;
-    value_t *val5 = (value_t *)5;
-
-    engine eng(dnnl::engine::kind::cpu, 0);
-    dnnl::memory mem1({{1, 2, 3, 4}, dtype::f32, ftag::abcd}, eng, nullptr);
-    dnnl::memory mem2({{2, 3, 4, 5}, dtype::f32, ftag::abcd}, eng, nullptr);
-    dnnl::memory mem3({{3, 4, 5, 6}, dtype::f32, ftag::abcd}, eng, nullptr);
-    dnnl::memory mem4({{4, 5, 6, 7}, dtype::f32, ftag::abcd}, eng, nullptr);
-    dnnl::memory mem5({{5, 6, 7, 8}, dtype::f32, ftag::abcd}, eng, nullptr);
-
-    // construct the execution_args_mgr
-    execution_args_mgr exec_args_mgr;
-    exec_args_mgr.add_value_mem_map({val1, mem1});
-    exec_args_mgr.add_value_mem_map({val2, mem2});
-    exec_args_mgr.add_value_mem_map({val3, mem3});
-    exec_args_mgr.add_value_mem_map({val4, mem4});
-    exec_args_mgr.add_value_mem_map({val5, mem5});
-
-    exec_args_mgr.add_external_input_mem(mem1);
-    exec_args_mgr.add_external_input_mem(mem2);
-    exec_args_mgr.add_external_input_mem(mem4);
-
-    exec_args_mgr.add_external_output_mem(mem5);
-
-    exec_args_mgr.add_internal_variable_mem(mem3);
-
-    execution_args_mgr exec_args_mgr2(exec_args_mgr);
-
-    // exec_args_mgr represent the following structure
-    // val1    val2
-    //   \     /
-    //    \   /
-    //     op1
-    //      |
-    //     val3   val4
-    //       \    /
-    //        \  /
-    //         op2
-    //          |
-    //         val5
-    int64_t op1_key = exec_args_mgr.init_args();
-    auto &op1_args = exec_args_mgr.get_args(op1_key);
-    op1_args.insert({DNNL_ARG_SRC_0, mem1});
-    op1_args.insert({DNNL_ARG_SRC_1, mem2});
-    op1_args.insert({DNNL_ARG_DST, mem3});
-
-    int64_t op2_key = exec_args_mgr.init_args();
-    auto &op2_args = exec_args_mgr.get_args(op2_key);
-    op2_args.insert({DNNL_ARG_SRC_0, mem3});
-    op2_args.insert({DNNL_ARG_SRC_1, mem4});
-    op2_args.insert({DNNL_ARG_DST, mem5});
-
-    exec_args_mgr.add_topo_ordered_key(op1_key);
-    exec_args_mgr.add_topo_ordered_key(op2_key);
-
-    size_t hash_key1 = std::hash<execution_args_mgr>()(exec_args_mgr);
-    size_t tmp = std::hash<execution_args_mgr>()(exec_args_mgr);
-    ASSERT_EQ(hash_key1, tmp); // check for reproducible
-
-    // exec_args_mgr2 represent the following structure
-    // val1
-    //  |
-    // op1
-    //  |
-    // val3  val2 val4
-    //   \   /   /
-    //    \ /  /
-    //     op2
-    //      |
-    //     val5
-    op1_key = exec_args_mgr2.init_args();
-    auto &op1_args_2 = exec_args_mgr2.get_args(op1_key);
-    op1_args_2.insert({DNNL_ARG_SRC_0, mem1});
-    op1_args_2.insert({DNNL_ARG_DST, mem3});
-
-    op2_key = exec_args_mgr2.init_args();
-    auto &op2_args_2 = exec_args_mgr2.get_args(op2_key);
-    op2_args_2.insert({DNNL_ARG_SRC_0, mem3});
-    op2_args_2.insert({DNNL_ARG_SRC_1, mem2});
-    op2_args_2.insert({DNNL_ARG_SRC_2, mem4});
-    op2_args_2.insert({DNNL_ARG_DST, mem5});
-
-    exec_args_mgr2.add_topo_ordered_key(op1_key);
-    exec_args_mgr2.add_topo_ordered_key(op2_key);
-
-    size_t hash_key2 = std::hash<execution_args_mgr>()(exec_args_mgr2);
-
-    ASSERT_NE(hash_key1, hash_key2);
 }

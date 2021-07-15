@@ -26,14 +26,14 @@
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/md_hashing.hpp"
-#include "backend/dnnl/resource.hpp"
+#include "backend/dnnl/thread_local_cache.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-class f32_kernel_resource_t : public resource_t {
+class f32_kernel_resource_t {
 public:
     class desc_t {
     public:
@@ -142,34 +142,5 @@ public:
 } // namespace impl
 } // namespace graph
 } // namespace dnnl
-
-namespace std {
-
-// TODO(qun) improve the hashing function
-template <>
-struct hash<dnnl::graph::impl::dnnl_impl::f32_kernel_resource_t::desc_t> {
-    size_t operator()(
-            const dnnl::graph::impl::dnnl_impl::f32_kernel_resource_t::desc_t
-                    &desc) const {
-        using namespace dnnl::graph::impl::utils;
-        using namespace dnnl::graph::impl::dnnl_impl;
-
-        size_t seed = 0;
-        seed = hash_combine(seed, get_md_hash(desc.upd_wei_));
-        seed = hash_combine(seed, get_md_hash(desc.upd_bias_));
-        seed = hash_combine(seed, get_md_hash(desc.cvt_src_));
-        seed = hash_combine(seed, get_md_hash(desc.cvt_wei_));
-        seed = hash_combine(seed, get_md_hash(desc.cvt_bias_));
-        seed = hash_combine(seed, get_md_hash(desc.cvt_dst_));
-        seed = hash_combine(seed, get_md_hash(desc.cvt_post_src_));
-        seed = hash_combine(seed, get_md_hash(desc.opt_src_));
-        seed = hash_combine(seed, get_md_hash(desc.opt_wei_));
-        seed = hash_combine(seed, get_md_hash(desc.opt_bias_));
-        seed = hash_combine(seed, get_md_hash(desc.opt_dst_));
-        seed = hash_combine(seed, get_md_hash(desc.scratchpad_));
-        return seed;
-    }
-};
-} // namespace std
 
 #endif

@@ -135,8 +135,7 @@ private:
 
     registry_t registry_;
     registry_t c_registry_;
-    size_t res_key_;
-    resource_cache_t::creator_t resource_ctor_;
+    std::function<std::shared_ptr<f32_kernel_resource_t>()> resource_ctor_;
 
     f32_kernel_resource_t::desc_t res_desc_;
 
@@ -147,7 +146,10 @@ private:
     bool enable_constant_cache_ = utils::is_enable_constant_cache();
 
 public:
-    virtual ~matmul_forward() {}
+    virtual ~matmul_forward() {
+        thread_local_cache_t<f32_kernel_resource_t> res_cache;
+        res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+    }
 
     impl::status_t compile_impl(const impl::op_t *op,
             const impl::engine_t *g_engine,
@@ -373,11 +375,9 @@ public:
         registrar.book(
                 matmul_fwd::kScratchpad, res_desc_.scratchpad_.get_size());
 
-        res_key_ = impl::utils::hash_combine(0, res_desc_);
-        res_key_ = impl::utils::hash_combine(res_key_, p_engine_.get());
         resource_ctor_ = [this]() {
-            return std::unique_ptr<resource_t>(new f32_kernel_resource_t(
-                    this->res_desc_, this->p_engine_));
+            return std::make_shared<f32_kernel_resource_t>(
+                    this->res_desc_, this->p_engine_);
         };
 
         // fill_layout_info for not-copied input/outputs
@@ -414,9 +414,9 @@ public:
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
         // each thread's own local resource
-        resource_cache_t res_cache;
-        f32_kernel_resource_t *res = res_cache.get<f32_kernel_resource_t>(
-                res_key_, resource_ctor_, true /*is f32*/);
+        thread_local_cache_t<f32_kernel_resource_t> res_cache;
+        f32_kernel_resource_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
 
         temporary_scratchpad_t scratchpad(registry_.size(), p_engine_, *alc);
         grantor_t grantor = registry_.grantor(scratchpad.get_buffer());

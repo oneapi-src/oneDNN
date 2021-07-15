@@ -27,8 +27,6 @@
 
 #include "utils/utils.hpp"
 
-#include "backend/dnnl/md_hashing.hpp"
-#include "backend/dnnl/resource.hpp"
 #include "backend/dnnl/subgraph/passes.hpp"
 #include "backend/dnnl/utils.hpp"
 
@@ -197,65 +195,7 @@ impl::status_t memory_binding(
         const dnnl::engine &p_engine, execution_args_mgr &exec_arg_mgr,
         primitive_attr_mgr &prm_attr_mgr);
 
-} // namespace dnnl_impl
-} // namespace impl
-} // namespace graph
-} // namespace dnnl
-
-namespace std {
-
-// TODO(qun) improve the hashing function
-template <>
-struct hash<dnnl::graph::impl::dnnl_impl::execution_args_mgr> {
-    size_t operator()(const dnnl::graph::impl::dnnl_impl::execution_args_mgr
-                    &exec_args_mgr) const {
-        using namespace dnnl::graph::impl::utils;
-        using namespace dnnl::graph::impl::dnnl_impl;
-
-        size_t seed = 0;
-
-        for (auto &mem : exec_args_mgr.get_external_input_mems()) {
-            seed = hash_combine(seed, get_md_hash(mem.get_desc()));
-            seed = hash_combine(seed, mem.get_engine().get());
-        }
-
-        for (auto &mem : exec_args_mgr.get_external_output_mems()) {
-            seed = hash_combine(seed, get_md_hash(mem.get_desc()));
-            seed = hash_combine(seed, mem.get_engine().get());
-        }
-
-        for (auto &mem : exec_args_mgr.get_internal_variable_mems()) {
-            seed = hash_combine(seed, get_md_hash(mem.get_desc()));
-            seed = hash_combine(seed, mem.get_engine().get());
-        }
-
-        for (auto &mem : exec_args_mgr.get_internal_constant_mems()) {
-            seed = hash_combine(seed, get_md_hash(mem.get_desc()));
-            seed = hash_combine(seed, mem.get_engine().get());
-        }
-
-        for (auto &key_args : exec_args_mgr.get_args()) {
-            auto &args = key_args.second;
-            for (auto &key_mem : args) {
-                seed = hash_combine(seed, static_cast<size_t>(key_mem.first));
-                seed = hash_combine(
-                        seed, get_md_hash(key_mem.second.get_desc()));
-                seed = hash_combine(seed, key_mem.second.get_engine().get());
-            }
-        }
-
-        return seed;
-    }
-};
-} // namespace std
-
-namespace dnnl {
-namespace graph {
-namespace impl {
-namespace dnnl_impl {
-
-// The devired resource subclass for subgraph mode.
-class subgraph_resource_t : public resource_t {
+class subgraph_resource_t {
 public:
     subgraph_resource_t(const execution_args_mgr &exec_args_mgr)
         : exec_args_mgr_(exec_args_mgr) {
