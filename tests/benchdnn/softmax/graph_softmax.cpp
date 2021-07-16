@@ -41,13 +41,10 @@ softmax_graph_prb_t::spec_t::spec_t(const ::softmax::prb_t *prb) noexcept {
 void check_known_skipped_case_graph(
         const ::softmax::prb_t *prb, res_t *res) noexcept {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
-    //TODO - Remove below while adding training usecases.
-    if (!(prb->dir & FLAG_FWD)) {
-        printf("Currently only inference usecases are enabled.\n");
-        res->state = SKIPPED;
-        res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
+    if (res->state == SKIPPED) return;
+    check_known_skipped_case_graph_common(
+            {prb->dt}, normalize_tag(prb->tag, prb->ndims), prb->dir, res);
+    if (res->state == SKIPPED) return;
 }
 
 void add_additional_softmax_check(compare::compare_t &cmp) noexcept {
