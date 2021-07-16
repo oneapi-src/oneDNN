@@ -932,26 +932,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     // different number of GEMMs.
     bool is_lbr = this->pd()->is_lbr();
     bool is_vanilla_gru = this->pd()->rnn_conf.is_vanilla_gru;
+    bool is_training = !this->pd()->rnn_conf.is_fwd;
 
     memory_t *workspace = (aprop == prop_kind::forward)
             ? ctx.output(DNNL_ARG_WORKSPACE)
             : ctx.input(DNNL_ARG_WORKSPACE);
-
-    std::unique_ptr<memory_storage_t> scratchpad;
-    if (pd()->rnn_conf.use_workspace) {
-        scratchpad = workspace->memory_storage()->clone();
-    } else {
-        scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
-                key_rnn_space);
-    }
-
-    auto scratchpad_gates
-            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
-
-    std::unique_ptr<memory_storage_t> scratchpad_cell;
-    if (is_lbr || (is_vanilla_gru && gemm_kind == gemm_diff_wei_iter_2))
-        scratchpad_cell
-                = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
 
     memory_t *weights {nullptr};
 
@@ -960,6 +945,30 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     std::unique_ptr<memory_storage_t> gemm_A_;
     std::unique_ptr<memory_storage_t> gemm_B_;
     std::unique_ptr<memory_storage_t> gemm_C_;
+    std::unique_ptr<memory_storage_t> scratchpad;
+    std::unique_ptr<memory_storage_t> scratchpad_gates;
+    std::unique_ptr<memory_storage_t> scratchpad_cell;
+    std::unique_ptr<memory_storage_t> scratchpad_diff;
+
+    scratchpad_gates
+            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
+
+    if (pd()->rnn_conf.use_workspace) {
+        scratchpad = workspace->memory_storage()->clone();
+    } else {
+        scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_rnn_space);
+    }
+
+    if (is_lbr || (is_vanilla_gru && gemm_kind == gemm_diff_wei_iter_2)) {
+        scratchpad_cell
+                = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
+    }
+
+    if (is_training) {
+        scratchpad_diff = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_rnn_diff_states);
+    }
 
     switch (gemm_kind) {
         case gemm_iter_fwd:
@@ -988,7 +997,8 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             } else {
                 gemm_B_ = scratchpad_gates->clone();
             }
-            gemm_C_ = scratchpad->clone();
+            gemm_C_ = (gemm_kind == gemm_iter_bwd_2) ? scratchpad->clone()
+                                                     : scratchpad_diff->clone();
             break;
         case gemm_diff_wei_iter:
         case gemm_diff_wei_layer:
@@ -1188,6 +1198,7 @@ template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, bool lr, bool rl, int n_iter,
         int batch, int slc, const memory_storage_t &ws,
+        const memory_storage_t &scratch_diff_states,
         const memory_storage_t &input,
         const memory_storage_t &diff_dst_layer) const {
 
@@ -1195,8 +1206,9 @@ void _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, input);
-        arg_list.set(2, (cl_int)lr);
-        arg_list.set(3, (cl_int)rl);
+        arg_list.set(2, scratch_diff_states);
+        arg_list.set(3, (cl_int)lr);
+        arg_list.set(4, (cl_int)rl);
 
         parallel_for(ctx, compute::nd_range_t({slc, batch, n_iter}),
                 copy_init_layer_kernel_, arg_list);
@@ -1204,8 +1216,9 @@ void _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, diff_dst_layer);
-        arg_list.set(2, (cl_int)0);
+        arg_list.set(2, scratch_diff_states);
         arg_list.set(3, (cl_int)0);
+        arg_list.set(4, (cl_int)0);
 
         parallel_for(ctx, compute::nd_range_t({batch, n_iter}),
                 copy_init_layer_kernel_, arg_list);
@@ -1216,6 +1229,7 @@ template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
         int batch, int sic, int dhc, const memory_storage_t &ws,
+        const memory_storage_t &scratch_diff_states,
         const memory_storage_t &firstit_states,
         const memory_storage_t &firstit_c_states,
         const memory_storage_t &diff_dst_iter,
@@ -1228,9 +1242,10 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.set(0, ws);
         arg_list.set(1, firstit_states);
         arg_list.set(2, firstit_c_states);
-        arg_list.set(3, shift);
-        arg_list.set(4, scale);
-        arg_list.set(5, (int)quantize);
+        arg_list.set(3, scratch_diff_states);
+        arg_list.set(4, shift);
+        arg_list.set(5, scale);
+        arg_list.set(6, (int)quantize);
         parallel_for(ctx, compute::nd_range_t({max_d, batch, n_layer * n_dir}),
                 copy_init_iter_kernel_, arg_list);
     } else {
@@ -1238,6 +1253,7 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.set(0, ws);
         arg_list.set(1, diff_dst_iter);
         arg_list.set(2, diff_dst_iter_c);
+        arg_list.set(3, scratch_diff_states);
         parallel_for(ctx, compute::nd_range_t({dhc, batch, n_layer * n_dir}),
                 copy_init_iter_kernel_, arg_list);
     }
@@ -1246,7 +1262,9 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, bool lr, bool rl, int n_iter,
-        int batch, int slc, int dhc, const memory_storage_t &dst_last_layer,
+        int batch, int slc, int dhc,
+        const memory_storage_t &scratch_diff_states,
+        const memory_storage_t &dst_last_layer,
         const memory_storage_t &diff_src_layer, const memory_storage_t &ws,
         const float shift, const float scale, const bool dequantize) const {
 
@@ -1254,19 +1272,21 @@ void _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, dst_last_layer);
-        arg_list.set(2, (cl_int)lr);
-        arg_list.set(3, (cl_int)rl);
-        arg_list.set(4, shift);
-        arg_list.set(5, scale);
-        arg_list.set(6, (int)dequantize);
+        arg_list.set(2, scratch_diff_states);
+        arg_list.set(3, (cl_int)lr);
+        arg_list.set(4, (cl_int)rl);
+        arg_list.set(5, shift);
+        arg_list.set(6, scale);
+        arg_list.set(7, (int)dequantize);
         parallel_for(ctx, compute::nd_range_t({dhc, batch, n_iter}),
                 copy_res_layer_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, diff_src_layer);
-        arg_list.set(2, (cl_int)lr);
-        arg_list.set(3, (cl_int)rl);
+        arg_list.set(2, scratch_diff_states);
+        arg_list.set(3, (cl_int)lr);
+        arg_list.set(4, (cl_int)rl);
         parallel_for(ctx, compute::nd_range_t({slc, batch, n_iter}),
                 copy_res_layer_kernel_, arg_list);
     }
@@ -1275,7 +1295,9 @@ void _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-        int batch, int sic, int dhc, const memory_storage_t &dst_last_iter,
+        int batch, int sic, int dhc,
+        const memory_storage_t &scratch_diff_states,
+        const memory_storage_t &dst_last_iter,
         const memory_storage_t &dst_last_iter_c,
         const memory_storage_t &diff_src_iter,
         const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws,
@@ -1286,9 +1308,10 @@ void _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.set(0, ws);
         arg_list.set(1, dst_last_iter);
         arg_list.set(2, dst_last_iter_c);
-        arg_list.set(3, shift);
-        arg_list.set(4, scale);
-        arg_list.set(5, (int)dequantize);
+        arg_list.set(3, scratch_diff_states);
+        arg_list.set(4, shift);
+        arg_list.set(5, scale);
+        arg_list.set(6, (int)dequantize);
         parallel_for(ctx, compute::nd_range_t({dhc, batch, n_layer * n_dir}),
                 copy_res_iter_kernel_, arg_list);
     } else {
@@ -1297,6 +1320,7 @@ void _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.set(0, ws);
         arg_list.set(1, diff_src_iter);
         arg_list.set(2, diff_src_iter_c);
+        arg_list.set(3, scratch_diff_states);
         parallel_for(ctx, compute::nd_range_t({max_d, batch, n_layer * n_dir}),
                 copy_res_iter_kernel_, arg_list);
     }
@@ -1536,13 +1560,14 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     // we first need to copy the initial states and input into ws
     copy_init_layer(ctx, compute_stream, is_lr, is_rl, n_iter, batch, slc,
-            workspace_, src_layer_native_, diff_dst_layer_native_);
+            workspace_, scratch_diff_states, src_layer_native_,
+            diff_dst_layer_native_);
     const bool quantize = pd()->with_src_iter()
             && pd()->src_md(1)->data_type == data_type::f32 && rnn.is_int8;
     copy_init_iter(ctx, compute_stream, n_layer, n_dir, batch, sic, dhc,
-            workspace_, src_iter_native_, src_c_iter_native_,
-            diff_dst_iter_native_, diff_dst_iter_c_native_, shift, scale,
-            quantize);
+            workspace_, scratch_diff_states, src_iter_native_,
+            src_c_iter_native_, diff_dst_iter_native_, diff_dst_iter_c_native_,
+            shift, scale, quantize);
 
     DPRINT("\n%s(%d) WS before grid\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(ctx, compute_stream, workspace_);
@@ -1567,18 +1592,17 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     const bool dequantize_l
             = pd()->dst_md(0)->data_type == data_type::f32 && rnn.is_int8;
     copy_res_layer(ctx, compute_stream, is_lr, is_rl, n_iter, batch, slc, dhc,
-            dst_last_layer_native_, diff_src_layer_native_, workspace_, shift,
-            scale, dequantize_l);
+            scratch_diff_states, dst_last_layer_native_, diff_src_layer_native_,
+            workspace_, shift, scale, dequantize_l);
     const bool dequantize_i = pd()->with_dst_iter()
             && pd()->dst_md(1)->data_type == data_type::f32 && rnn.is_int8;
     copy_res_iter(ctx, compute_stream, n_layer, n_dir, batch, sic, dhc,
-            dst_last_iter_native_, dst_last_iter_c_native_,
+            scratch_diff_states, dst_last_iter_native_, dst_last_iter_c_native_,
             diff_src_iter_native_, diff_src_iter_c_native_, workspace_, shift,
             scale, dequantize_i);
 
     return status::success;
 };
-
 // Fix for MSVS warning C4661.
 template <>
 cell_execution_sig(ref_rnn_fwd_t::cell_execution);

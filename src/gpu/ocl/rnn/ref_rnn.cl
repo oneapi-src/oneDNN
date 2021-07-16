@@ -119,8 +119,9 @@ float activation_bwd(float s, float alpha, float cliping) {
 #endif
 }
 
-__kernel void ref_rnn_copy_init_layer(
-        __global char *ws, __global char *src_base, int lr, int rl) {
+__kernel void ref_rnn_copy_init_layer(__global char *ws,
+        __global char *src_base, __global char *scratch_diff_states, int lr,
+        int rl) {
 
 #if IS_FWD
 
@@ -147,8 +148,7 @@ __kernel void ref_rnn_copy_init_layer(
     const int it = get_global_id(1);
     const int b = get_global_id(0);
 
-    __global DIFF_DATA_T *dst
-            = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
+    __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)scratch_diff_states;
 
 #if DIRECTION_KIND == CONCAT
     __global DIFF_DATA_T *src
@@ -186,8 +186,8 @@ __kernel void ref_rnn_copy_init_layer(
 #endif
 }
 
-__kernel void ref_rnn_copy_init_iter(
-        __global char *ws, __global char *src_base, __global char *src_c_base
+__kernel void ref_rnn_copy_init_iter(__global char *ws, __global char *src_base,
+        __global char *src_c_base, __global char *scratch_diff_states
 #if IS_FWD
         ,
         const float shift, const float scale, const int quantize
@@ -223,8 +223,7 @@ __kernel void ref_rnn_copy_init_iter(
 #else // BWD
 
     __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)(src_base);
-    __global DIFF_DATA_T *dst
-            = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
+    __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)scratch_diff_states;
 
     if (s < DHC)
         dst[OFF_SCRATCH_DIFF_STATES(lay, dir, 0, N_ITER, b, s)]
@@ -238,8 +237,8 @@ __kernel void ref_rnn_copy_init_iter(
 #endif
 }
 
-__kernel void ref_rnn_copy_res_layer(
-        __global char *ws, __global char *dst_base, int lr, int rl
+__kernel void ref_rnn_copy_res_layer(__global char *ws, __global char *dst_base,
+        __global char *scratch_diff_states, int lr, int rl
 #if IS_FWD
         ,
         const float shift, const float scale, const int dequantize
@@ -296,8 +295,7 @@ __kernel void ref_rnn_copy_res_layer(
     }
 #else // BWD
 
-    __global DIFF_DATA_T *src
-            = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
+    __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)(scratch_diff_states);
     __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)(dst_base);
     int dir = 0;
 
@@ -314,8 +312,8 @@ __kernel void ref_rnn_copy_res_layer(
 #endif
 }
 
-__kernel void ref_rnn_copy_res_iter(
-        __global char *ws, __global char *dst_base, __global char *dst_c_base
+__kernel void ref_rnn_copy_res_iter(__global char *ws, __global char *dst_base,
+        __global char *dst_c_base, __global char *scratch_diff_states
 #if IS_FWD
         ,
         const float shift, const float scale, const int dequantize
@@ -352,8 +350,7 @@ __kernel void ref_rnn_copy_res_iter(
 
 #else // BWD
 
-    __global DIFF_DATA_T *src
-            = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
+    __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)(scratch_diff_states);
     __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)(dst_base);
     __global DIFF_DATA_T *dst_c = (__global DIFF_DATA_T *)(dst_c_base);
     if (dst_base && s < SIC) {
@@ -806,7 +803,6 @@ __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
     scratch_gates[CELL_SCRATCH_MEM(i, 3, j)] = TO_INPUT(dG3);
 
 #elif CELL_KIND == LBR_GRU
-
     __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
             + OFF_SCRATCH_MEM(iter, 0, 0, 0);
     __global SRC_DATA_T *scratch_gate_r = (__global SRC_DATA_T *)(scr_gate_r);
