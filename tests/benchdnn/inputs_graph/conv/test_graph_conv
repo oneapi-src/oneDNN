@@ -10,8 +10,9 @@
 --attr-post-ops=add:f32:common,add:f32:per_oc
 --batch=harness_conv_resnet_50
 
-# --reset
-# --cfg=f32 --stag=axb --dtag=axb --batch=harness_conv_resnet_50
+--reset
+--dir=FWD_I,FWD_B
+--cfg=f32 --stag=axb --dtag=axb --batch=harness_conv_resnet_50
 
 --reset
 --batch=test_graph_conv_bias_swish
