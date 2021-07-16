@@ -234,17 +234,8 @@ dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt,
     dnnl_dims_t dnnl_dims = {0};
     std::copy(dims.begin(), dims.end(), dnnl_dims);
 
-    auto ltype = lt.get_layout_type();
-    if (ltype == graph_layout::any)
-        return dnn_mem_t(ndims, dnnl_dims, convert_dt(graph_dt), valid_tag,
-                dnnl_test_engine);
-    else if (ltype == graph_layout::strided) {
-        const auto strides = lt.get_strides();
-        dnnl_dims_t dnnl_strides;
-        std::copy(strides.begin(), strides.end(), dnnl_strides);
-        return dnn_mem_t(ndims, dnnl_dims, convert_dt(graph_dt), dnnl_strides,
-                dnnl_test_engine);
-    } else if (ltype == graph_layout::opaque) {
+    const auto ltype = lt.get_layout_type();
+    if (graph_layout::undef != ltype) {
         return dnn_mem_t(ndims, dnnl_dims, convert_dt(graph_dt), valid_tag,
                 dnnl_test_engine);
     } else {

@@ -239,7 +239,7 @@ struct tensor_descs_t {
             permuted_dims[d] = adims[coord];
         }
 
-        if (fmt_tag <= dnnl_abcdefghijkl) {
+        if (fmt_tag <= dnnl_abcdefghijlk) {
             emplace(str, dtype, permuted_dims, lt::strided);
         } else {
             const int64_t dnnl_layout_id
