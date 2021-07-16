@@ -213,6 +213,18 @@ struct tensor_descs_t {
             return;
         }
 
+#ifndef DNNL_GRAPH_LAYOUT_DEBUG
+        if (fmt_tag > dnnl_abcdefghijlk) {
+            []() {
+                BENCHDNN_PRINT(0, "error: %s\n",
+                        "to use dnnl opaque blocked formats, please build the "
+                        "library with \"DNNL_GRAPH_LAYOUT_DEBUG=ON\"");
+                SAFE(FAIL, CRIT);
+                return 0;
+            }();
+        }
+#endif // DNNL_GRAPH_LAYOUT_DEBUG
+
         const std::string ou_fmt_str = get_ou_format(dnnl_fmt_tag_str);
 
         static_assert(DNNL_GRAPH_MAX_NDIMS == DNNL_MAX_NDIMS,
