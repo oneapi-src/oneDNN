@@ -471,7 +471,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, InnerProdBlockedWeights) {
     auto engine_kind = get_test_engine_kind();
     bool skip_test = !DNNL_X64 || (DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE)
             || (engine_kind != engine::kind::cpu);
-#if DNNL_X64
+#if DNNL_X64 && (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
     skip_test = skip_test || !dnnl::mayiuse(cpu_isa::avx512_core);
 #endif
     SKIP_IF(skip_test,
