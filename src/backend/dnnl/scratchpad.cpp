@@ -21,10 +21,10 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-thread_local dnnl::engine thread_local_scratchpad_t::eng_;
-thread_local const impl::allocator_t *thread_local_scratchpad_t::alloc_;
-thread_local std::shared_ptr<char> thread_local_scratchpad_t::buffer_ = nullptr;
-thread_local size_t thread_local_scratchpad_t::size_ = 0;
+thread_local dnnl::engine thread_local_scratchpad_t::eng_ {};
+thread_local const impl::allocator_t *thread_local_scratchpad_t::alloc_ {};
+thread_local std::shared_ptr<char> thread_local_scratchpad_t::buffer_ {};
+thread_local size_t thread_local_scratchpad_t::size_ {0};
 
 thread_local_scratchpad_t::thread_local_scratchpad_t(
         size_t size, const dnnl::engine &eng, const impl::allocator_t &alloc) {
