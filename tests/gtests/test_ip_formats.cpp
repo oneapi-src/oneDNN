@@ -45,7 +45,7 @@ public:
     engine e;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         e = get_test_engine();
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
                 "GPU takes a lot of time to complete this test.");
@@ -136,7 +136,7 @@ protected:
     }
 
     void TestFormat(const md &src_md, const md &wei_md, const md &dst_md,
-            const std::vector<dt> &i_cfg) {
+            const std::vector<dt> &i_cfg) const {
         ip_fwd::desc ip_fwd_desc(
                 prop_kind::forward_training, src_md, wei_md, dst_md);
         ip_fwd::primitive_desc ip_fwd_pd(ip_fwd_desc, e, true);
