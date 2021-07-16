@@ -22,6 +22,7 @@
 #endif
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <type_traits>
 
@@ -246,7 +247,10 @@ public:
     T &operator*() { return *reinterpret_cast<T *>(&value_); }
 
     const T &value() const {
-        if (is_null_) { throw std::logic_error("bad optional access"); }
+        if (is_null_) {
+            const std::string err_msg = "bad optional access";
+            throw std::logic_error(err_msg);
+        }
         return *reinterpret_cast<const T *>(&value_);
     }
 

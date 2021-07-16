@@ -2881,6 +2881,48 @@ TEST(operator_kernel, max_pool) {
     }
 }
 
+TEST(operator_kernel, max_pool_with_opaque_input) {
+    // dequantize - maxpool
+    using dims = impl::dnnl_impl::dims;
+    impl::engine_t &eng = get_engine();
+
+    // prepare ops
+    impl::op_t dequantize(impl::op_kind::Dequantize);
+    dequantize.set_attr<std::vector<float>>("scales", {0.1f});
+    dequantize.set_attr<std::vector<int64_t>>("zps", {10});
+    dequantize.set_attr<std::string>("qtype", "per_tensor");
+    dequantize.set_attr<int64_t>("axis", 0);
+
+    impl::op_t maxpool(impl::op_kind::MaxPool);
+    maxpool.set_attr<dims>("strides", {2, 2});
+    maxpool.set_attr<dims>("kernel", {2, 2});
+    maxpool.set_attr<dims>("pads_begin", {0, 0});
+    maxpool.set_attr<dims>("pads_end", {0, 0});
+    maxpool.set_attr<std::string>("data_format", "NXC");
+    maxpool.set_attr<dims>("dilations", {1, 1});
+
+    // prepare input/output logical tensor
+    impl::logical_tensor_t dq_src_lt = utils::logical_tensor_init(
+            0, {1, 2, 2, 1}, impl::data_type::u8, impl::layout_type::strided);
+    impl::logical_tensor_t dq_dst_lt = utils::logical_tensor_init(
+            1, {1, 2, 2, 1}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t mp_dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 1, 1}, impl::data_type::f32, impl::layout_type::any);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto op_dq = op_factory.create_kernel(dequantize);
+    auto op_mp = op_factory.create_kernel(maxpool);
+
+    std::vector<impl::logical_tensor_t> dq_in = {dq_src_lt};
+    std::vector<impl::logical_tensor_t> dq_out = {dq_dst_lt};
+    op_dq->compile(&dequantize, &eng, dq_in, dq_out);
+    ASSERT_EQ(dq_out[0].layout_type, impl::layout_type::opaque);
+
+    std::vector<impl::logical_tensor_t> mp_out = {mp_dst_lt};
+    op_mp->compile(&maxpool, &eng, dq_out, mp_out);
+    ASSERT_EQ(mp_out[0].layout_type, impl::layout_type::opaque);
+}
+
 TEST(operator_kernel, avg_pool_exclude_pad) {
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
