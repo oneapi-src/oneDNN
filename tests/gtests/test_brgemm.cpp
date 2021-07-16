@@ -21,7 +21,8 @@
 
 #include "dnnl_test_common.hpp"
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
+#include "tests/test_isa_common.hpp"
 
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
@@ -75,37 +76,36 @@ public:
 
 private:
     void put_params() {
-        for (auto tr : transpose_)
-            for (size_t i = 0; i < sizes_and_leading_dims_[0].size(); i++)
-                for (auto alpha : alpha_values_)
-                    for (auto beta : beta_values_)
-                        for (auto dt : is_amx ? amx_dts_ : dts_) {
-                            brgemm_params_t param = {};
-                            param.transA = tr;
-                            param.transB = 'n';
-                            param.M = sizes_and_leading_dims_[0][i].first;
-                            param.lda = sizes_and_leading_dims_[0][i].second;
-                            param.N = sizes_and_leading_dims_[1][i].first;
-                            param.ldb = sizes_and_leading_dims_[1][i].second;
-                            param.K = sizes_and_leading_dims_[2][i].first;
-                            param.ldc = sizes_and_leading_dims_[2][i].second;
-                            param.alpha = alpha;
-                            param.beta = beta;
-                            param.dt_a = dt.first;
-                            param.dt_b = dt.second;
-                            param.batch_kind = impl::cpu::x64::brgemm_addr;
-                            param.layout = impl::cpu::x64::brgemm_row_major;
-                            param.bs = 1;
-                            param.attrs.max_bs = 1;
-                            param.attrs.max_top_vpad = 0;
-                            param.attrs.max_bottom_vpad = 0;
+        for_(auto tr : transpose_)
+        for_(size_t i = 0; i < sizes_and_leading_dims_[0].size(); i++)
+        for_(auto alpha : alpha_values_)
+        for_(auto beta : beta_values_)
+        for (auto dt : is_amx ? amx_dts_ : dts_) {
+            brgemm_params_t param = {};
+            param.transA = tr;
+            param.transB = 'n';
+            param.M = sizes_and_leading_dims_[0][i].first;
+            param.lda = sizes_and_leading_dims_[0][i].second;
+            param.N = sizes_and_leading_dims_[1][i].first;
+            param.ldb = sizes_and_leading_dims_[1][i].second;
+            param.K = sizes_and_leading_dims_[2][i].first;
+            param.ldc = sizes_and_leading_dims_[2][i].second;
+            param.alpha = alpha;
+            param.beta = beta;
+            param.dt_a = dt.first;
+            param.dt_b = dt.second;
+            param.batch_kind = impl::cpu::x64::brgemm_addr;
+            param.layout = impl::cpu::x64::brgemm_row_major;
+            param.bs = 1;
+            param.attrs.max_bs = 1;
+            param.attrs.max_top_vpad = 0;
+            param.attrs.max_bottom_vpad = 0;
 
-                            params.emplace_back(param);
-                        }
+            params.emplace_back(param);
+        }
     }
 
-    const bool is_amx
-            = impl::cpu::x64::mayiuse(impl::cpu::x64::avx512_core_amx);
+    const bool is_amx = dnnl::mayiuse(cpu_isa::avx512_core_amx);
 
     std::vector<char> transpose_;
     std::vector<std::pair<int64_t, int64_t>> sizes_and_leading_dims_[3];
@@ -160,8 +160,8 @@ private:
             size_t sizeA, sizeB, sizeC;
             get_matrix_size(p, sizeA, sizeB, sizeC);
 
-            b_mem_reordered_.reset(new test_memory(
-                    get_matrix_md<b_dt>(sizeB, p.off.b), get_test_engine()));
+            b_mem_reordered_ = std::make_shared<test_memory>(
+                    get_matrix_md<b_dt>(sizeB, p.off.b), get_test_engine());
             auto B_reordered = map_memory<b_dt>(*b_mem_reordered_);
 
             reorder_B(p, B, B_reordered);
@@ -175,7 +175,7 @@ private:
     template <typename a_dt, typename b_dt, typename c_dt>
     dnnl_status_t run_brgemm(const brgemm_params_t &p) {
         using namespace dnnl::impl::cpu;
-        using namespace impl::cpu::x64;
+        using namespace dnnl::impl::cpu::x64;
 
         mapped_ptr_t<a_dt> A = map_memory<a_dt>(*gemm_data_.a_mem);
         mapped_ptr_t<b_dt> B = get_B_mem<b_dt>(p);
@@ -231,7 +231,7 @@ private:
     void run_proper_test(const brgemm_params_t &p) {
         using namespace impl::cpu::x64;
 
-        if (mayiuse(avx512_core_amx)) {
+        if (dnnl::mayiuse(cpu_isa::avx512_core_amx)) {
             if (p.dt_a == dnnl_f32 && p.dt_b == dnnl_f32)
                 test_brgemm<float, float, float>(p);
             else if (p.dt_a == dnnl_bf16 && p.dt_b == dnnl_bf16)
