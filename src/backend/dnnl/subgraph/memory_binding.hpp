@@ -61,7 +61,10 @@ public:
                         return val_mem.second.get() == mem.get();
                     });
             assertm(pos != other.value_mem_map_.end(), "can't find such mem");
-            return pos->first;
+            if (pos != other.value_mem_map_.end())
+                return pos->first;
+            else
+                return nullptr;
         };
 
         // copy alias
@@ -75,11 +78,13 @@ public:
         }
 
         for (auto &mem : other.internal_variable_mems_) {
-            internal_variable_mems_.emplace_back(value_mem_map_[find_val(mem)]);
+            internal_variable_mems_.emplace_back(
+                    value_mem_map_.at(find_val(mem)));
         }
 
         for (auto &mem : other.internal_constant_mems_) {
-            internal_constant_mems_.emplace_back(value_mem_map_[find_val(mem)]);
+            internal_constant_mems_.emplace_back(
+                    value_mem_map_.at(find_val(mem)));
         }
 
         for (auto &key_args : other.data_) {
@@ -102,11 +107,11 @@ public:
     }
 
     std::unordered_map<int, memory> &get_args(int64_t key) {
-        return data_[key];
+        return data_.at(key);
     }
 
     const std::unordered_map<int, memory> &get_args(int64_t key) const {
-        return data_.find(key)->second;
+        return data_.at(key);
     }
 
     const std::unordered_map<int64_t, std::unordered_map<int, memory>> &
