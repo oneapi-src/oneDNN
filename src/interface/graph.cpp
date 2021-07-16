@@ -218,26 +218,6 @@ status_t dnnl_graph_graph::build_graph() {
     return status::success;
 }
 
-void dnnl_graph_graph::visualize(const std::string &filename) {
-    std::ofstream out;
-    static size_t i = 0;
-    out.open(std::to_string(i++).append(filename));
-    out << "digraph G {\n";
-    topo_order_visit(this->get_output_ops(), [&](op_t *op) {
-        auto current_op_name = op->get_name();
-        for (size_t i = 0; i < op->num_inputs(); ++i) {
-            op_t *input_op = op->get_input_op(i);
-            if (input_op) {
-                const std::string &input_op_name = input_op->get_name();
-                out << input_op_name << " -> " << current_op_name << ";\n";
-            }
-        }
-        return impl::status::success;
-    });
-    out << "}\n";
-    out.close();
-}
-
 // Deep copy a graph
 std::vector<dnnl_graph_graph::op_ptr> dnnl_graph_graph::deep_copy(
         const std::vector<dnnl_graph_graph::op_ptr> &ops) {
@@ -322,11 +302,6 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_filter(
     auto status = graph->build_graph();
     if (status != status::success) return status::invalid_graph;
 
-    if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
-        std::cout << "visualize un-fused graph to a dot file" << std::endl;
-        graph->visualize("_backend.dot");
-    }
-
     // Get partition_impl by calling each backends
     std::vector<const backend *> &backends
             = backend_registry::get_singleton().get_registered_backends();
@@ -342,11 +317,6 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_filter(
         if (p->get_assigned_backend() == nullptr) {
             return status::invalid_graph;
         }
-    }
-
-    if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
-        std::cout << "visualize fused graph to a dot file" << std::endl;
-        graph->visualize("_backend_opt.dot");
     }
 
     if (status != status::success) {
@@ -368,5 +338,54 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
     if (graph == nullptr) { return status::invalid_graph; }
     std::vector<partition_t *> partitions {partition, partition + num};
     graph->get_ordered_partitions(partitions);
+    return status::success;
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
+        graph_t *graph, const int ignore_env_var) {
+    if (ignore_env_var || utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
+        std::ofstream out;
+        auto filename = "graph-" + std::to_string(graph->id()) + ".dot";
+        std::cout << "visualize graph to a dot file: " << filename << std::endl;
+        out.open(filename);
+        out << "digraph G {\n";
+        topo_order_visit(graph->get_output_ops(), [&](op_t *op) {
+            auto current_op_name = op->get_name();
+            const size_t current_op_id = op->get_id();
+            if (op->num_inputs() > 0) {
+                for (size_t i = 0; i < op->num_inputs(); ++i) {
+                    op_t *input_op = op->get_input_op(i);
+                    if (input_op) {
+                        const std::string &input_op_name = input_op->get_name();
+                        const size_t input_op_id = input_op->get_id();
+                        out << "\"" << input_op_name << "_" << input_op_id
+                            << "\" -> \"" << current_op_name << "_"
+                            << current_op_id << "\";\n";
+                    }
+                }
+            } else {
+                out << "\"" << current_op_name << "_" << current_op_id
+                    << "\"[label=\"" << current_op_name << "_" << current_op_id
+                    << "\"];\n";
+            }
+            return status::success;
+        });
+        auto &partition_vec = graph->get_partitions();
+        for (auto &p : partition_vec) {
+            auto *bkd = p->get_assigned_backend();
+            if (bkd == nullptr) { continue; }
+            auto bkd_name = bkd->get_name();
+            for (auto &op : p->get_ops()) {
+                auto op_name = op->get_name();
+                auto op_id = op->get_id();
+                out << "\"" << op_name << "_" << op_id << "\"[label=\""
+                    << op_name << "_" << op_id << "\\n"
+                    << "partition id: " << p->id() << "\\n"
+                    << bkd_name << "\"];\n";
+            }
+        }
+        out << "}\n";
+        out.close();
+    }
     return status::success;
 }

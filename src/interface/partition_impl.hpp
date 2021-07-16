@@ -18,6 +18,7 @@
 #define INTERFACE_PARTITION_IMPL_HPP
 
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -160,6 +161,12 @@ public:
     // dump a partition to string
     virtual std::string to_string() const = 0;
 
+    /// get partition_impl id
+    size_t id() const { return id_; }
+
+    /// set partition_impl id
+    void set_id(const size_t id) { id_ = id; }
+
 protected:
     // Engine kind
     impl::engine_kind_t engine_kind_;
@@ -208,6 +215,9 @@ protected:
 
     /// All the output logical tensors of a partition
     std::vector<impl::logical_tensor_t> outputs_ {};
+
+    /// Partition_impl id
+    size_t id_ = std::numeric_limits<size_t>::max();
 };
 
 class compiled_partition_impl_t {

@@ -67,6 +67,7 @@ public:
 
     void init(const std::shared_ptr<impl::partition_impl_t> &pimpl) {
         pimpl_ = pimpl;
+        pimpl_->set_id(id());
     }
 
     bool is_initialized() {

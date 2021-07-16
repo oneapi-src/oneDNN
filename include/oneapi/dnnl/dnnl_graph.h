@@ -666,6 +666,15 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
         dnnl_graph_graph_t *graph, uint64_t num,
         dnnl_graph_partition_t **partition);
 
+/// Visualize the graph
+///
+/// @param graph The graph.
+/// @param ignore_env_var ignore DNNL_GRAPH_DUMP environment variable.
+/// @returns #dnnl_graph_result_success on success and a status describing the
+///     error otherwise.
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
+        dnnl_graph_graph_t *graph, const int ignore_env_var);
+
 /// @} dnnl_graph_api_graph
 
 /// @addtogroup dnnl_graph_api_threadpool

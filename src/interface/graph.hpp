@@ -231,8 +231,6 @@ public:
      */
     impl::status_t build_graph();
 
-    void visualize(const std::string &filename);
-
     // This function is used to infer shape for all the ops in a graph.
     // Before calling this function, the inputs value of the graph should
     // have valid shape
