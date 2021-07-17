@@ -116,8 +116,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
         }
 
         using conv_pd_t =
-                typename jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
-                        src_type, dst_type>::pd_t;
+                typename jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::pd_t;
         friend jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t;
 
         std::shared_ptr<primitive_desc_t> conv_pd_;

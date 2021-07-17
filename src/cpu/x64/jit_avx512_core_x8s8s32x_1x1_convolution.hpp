@@ -37,7 +37,6 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <impl::data_type_t src_type, impl::data_type_t dst_type>
 struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         using dw_conv_pd_type = cpu_convolution_fwd_pd_t;
@@ -63,15 +62,17 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             using smask_t = primitive_attr_t::skip_mask_t;
             bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(
-                            src_type, s8, data_type::undef, dst_type, s32)
+                    && utils::one_of(src_md(0)->data_type, s8, u8)
+                    && weights_md(0)->data_type == s8
                     && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type, f32, s32,
-                                    s8, u8))
+                            utils::one_of(
+                                    weights_md(1)->data_type, f32, s32, s8, u8))
+                    && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
+                    && desc()->accum_data_type == s32
                     && attr()->has_default_values(smask_t::oscale
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops,
-                            dst_type)
+                            dst_md(0)->data_type)
                     && !has_zero_dim_memory() && zero_points_ok()
                     && set_default_formats_common(
                             dat_tag(), format_tag::any, dat_tag())
@@ -258,11 +259,8 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
     jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t(const pd_t *apd)
         : primitive_t(apd) {}
 
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<data_type::s8>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
-    // Note: In case of fused depthwise convolution, the final output datatype
-    // after fusion may not be dst_data_t.
+    // Note: In case of fused depthwise convolution, the final output data type
+    // after fusion may not be same as for dst.
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
     status_t init(engine_t *engine) override {
@@ -288,10 +286,10 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    void execute_forward_thr(const int ithr, const int nthr,
-            const src_data_t *src, const wei_data_t *weights, const char *bias,
-            const wei_data_t *weights_dw, const char *bias_dw, dst_data_t *dst,
-            const int32_t *src_zero_point, const int32_t *dst_zero_point,
+    void execute_forward_thr(const int ithr, const int nthr, const char *src,
+            const char *weights, const char *bias, const char *weights_dw,
+            const char *bias_dw, char *dst, const int32_t *src_zero_point,
+            const int32_t *dst_zero_point,
             const memory_tracking::grantor_t &scratchpad,
             const void *post_ops_binary_rhs_arg_vec,
             const void *post_ops_binary_rhs_arg_vec_dw) const;
