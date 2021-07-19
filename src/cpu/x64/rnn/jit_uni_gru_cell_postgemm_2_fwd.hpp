@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -178,28 +178,27 @@ protected:
                         ++loop_ur_idx) {
                     // if training we write back the gates
                     if (is_training)
-                        to_src<src_data_t>(
-                                wg_addr(2, loop_ur_idx), G2(loop_ur_idx), vlen);
+                        to_src(wg_addr(2, loop_ur_idx), G2(loop_ur_idx),
+                                src_data_t, vlen);
 
                     // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
                     uni_vmovups(G0(loop_ur_idx), sg_addr(0, loop_ur_idx));
                     uni_vmovups(tmp1_vmm, one_addr);
                     uni_vsubps(tmp1_vmm, tmp1_vmm, G0(loop_ur_idx));
-                    to_float<src_data_t>(tmp2_vmm,
+                    to_float(tmp2_vmm,
                             ptr[addr_states_tm1_l_reg + loop_ur_idx * vlen_dst],
-                            vlen);
+                            src_data_t, vlen);
                     uni_vmulps(G0(loop_ur_idx), G0(loop_ur_idx), tmp2_vmm);
                     uni_vfmadd231ps(G0(loop_ur_idx), tmp1_vmm, G2(loop_ur_idx));
-                    to_src<src_data_t>(
-                            ptr[addr_states_t_l_reg + loop_ur_idx * vlen_dst],
-                            G0(loop_ur_idx), vlen);
+                    to_src(ptr[addr_states_t_l_reg + loop_ur_idx * vlen_dst],
+                            G0(loop_ur_idx), src_data_t, vlen);
                     // if states_t_l_copy is a non null ptr, we write the output to it too
                     Label vector_loop_inc_regs;
                     cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
                     jle(vector_loop_inc_regs);
-                    to_src<src_data_t>(ptr[addr_states_t_l_copy_reg
-                                               + loop_ur_idx * vlen_dst],
-                            G0(loop_ur_idx), vlen, true);
+                    to_src(ptr[addr_states_t_l_copy_reg
+                                   + loop_ur_idx * vlen_dst],
+                            G0(loop_ur_idx), src_data_t, vlen, true);
                     L(vector_loop_inc_regs);
                 }
 
@@ -239,22 +238,22 @@ protected:
                 tanh_injector_->compute_vector(G2s.getIdx());
                 // if training we write back the gates
                 if (is_training)
-                    to_src<src_data_t>(wg_addr(2, 0), G2s, scratch_dt_size);
+                    to_src(wg_addr(2, 0), G2s, src_data_t, scratch_dt_size);
 
                 // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
                 uni_vmovss(G0s, sg_addr(0, 0));
                 uni_vmovss(tmp1s_vmm, one_addr);
                 uni_vsubss(tmp1s_vmm, tmp1s_vmm, G0s);
-                to_float<src_data_t>(
-                        tmp2s_vmm, ptr[addr_states_tm1_l_reg], scratch_dt_size);
+                to_float(tmp2s_vmm, ptr[addr_states_tm1_l_reg], src_data_t,
+                        scratch_dt_size);
                 uni_vmulss(G0s, G0s, tmp2s_vmm);
                 uni_vfmadd231ss(G0s, tmp1s_vmm, G2s);
-                to_src<src_data_t>(
-                        ptr[addr_states_t_l_reg], G0s, scratch_dt_size);
+                to_src(ptr[addr_states_t_l_reg], G0s, src_data_t,
+                        scratch_dt_size);
                 // if states_t_l_copy is a non null ptr, we write the output to it too
                 cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
                 jle(rem_loop_inc_regs);
-                to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], G0s,
+                to_src(ptr[addr_states_t_l_copy_reg], G0s, src_data_t,
                         scratch_dt_size, true);
 
                 // increment address pointers

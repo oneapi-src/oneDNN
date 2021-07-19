@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -124,8 +124,8 @@ protected:
             Vmm dG1(dG1_idx), dhG1(dhG1_idx), hG1(hG1_idx), G1(G1_idx),
                     dH(dH_idx), tmp1(tmp1_idx), h(h_idx);
 
-            to_float<src_data_t>(G1, wg_addr(1), vlen);
-            to_float<src_data_t>(h, ptr[addr_states_tm1_l_reg], vlen);
+            to_float(G1, wg_addr(1), src_data_t, vlen);
+            to_float(h, ptr[addr_states_tm1_l_reg], src_data_t, vlen);
 
             // compute dG1
             uni_vmovups(dG1, G1);
@@ -144,8 +144,8 @@ protected:
             uni_vfmadd231ps(dH, dhG1, G1);
 
             // downconvert and write data
-            to_src<scratch_data_t>(sg_addr(1), dG1, vlen);
-            to_src<scratch_data_t>(ptr[addr_scratch_cell_reg], hG1, vlen);
+            to_src(sg_addr(1), dG1, scratch_data_t, vlen);
+            to_src(ptr[addr_scratch_cell_reg], hG1, scratch_data_t, vlen);
             uni_vmovups(ptr[addr_diff_states_t_l_reg], dH);
 
             // increment address pointers
@@ -173,8 +173,8 @@ protected:
             Xmm dG1(dG1_idx), dhG1(dhG1_idx), hG1(hG1_idx), G1(G1_idx),
                     dH(dH_idx), tmp1(tmp1_idx), h(h_idx);
 
-            to_float<src_data_t>(G1, wg_addr(1), hstate_dt_size);
-            to_float<src_data_t>(h, ptr[addr_states_tm1_l_reg], hstate_dt_size);
+            to_float(G1, wg_addr(1), src_data_t, hstate_dt_size);
+            to_float(h, ptr[addr_states_tm1_l_reg], src_data_t, hstate_dt_size);
 
             // compute dG1
             uni_vmovss(dG1, G1);
@@ -193,9 +193,9 @@ protected:
             uni_vfmadd231ps(dH, dhG1, G1);
 
             // downconvert and write data
-            to_src<scratch_data_t>(sg_addr(1), dG1, hstate_dt_size);
-            to_src<scratch_data_t>(
-                    ptr[addr_scratch_cell_reg], hG1, hstate_dt_size);
+            to_src(sg_addr(1), dG1, scratch_data_t, hstate_dt_size);
+            to_src(ptr[addr_scratch_cell_reg], hG1, scratch_data_t,
+                    hstate_dt_size);
             uni_vmovss(ptr[addr_diff_states_t_l_reg], dH);
 
             // increment address pointers

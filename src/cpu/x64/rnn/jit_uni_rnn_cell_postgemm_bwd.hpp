@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -119,7 +119,7 @@ protected:
             Vmm G(G_idx), dG(dG_idx), dHt(dHt_idx), tmp1(tmp1_idx),
                     one(one_idx), zero(zero_idx), alpha(alpha_idx);
 
-            to_float<src_data_t>(G, wg_addr(0), vlen);
+            to_float(G, wg_addr(0), src_data_t, vlen);
 
             // compute dHt
             uni_vmovups(dHt, ptr[addr_diff_states_tp1_l_reg]);
@@ -156,7 +156,7 @@ protected:
             uni_vmulps(dG, dG, dHt);
 
             // downconvert and write data
-            to_src<scratch_data_t>(sg_addr(0), dG, vlen);
+            to_src(sg_addr(0), dG, scratch_data_t, vlen);
 
             // increment address pointers
             add(addr_ws_gates_reg, vlen_scratch);
@@ -181,7 +181,7 @@ protected:
             Xmm G(G_idx), dG(dG_idx), dHt(dHt_idx), tmp1(tmp1_idx),
                     one(one_idx), zero(zero_idx), alpha(alpha_idx);
 
-            to_float<src_data_t>(G, wg_addr(0), hstate_dt_size);
+            to_float(G, wg_addr(0), src_data_t, hstate_dt_size);
 
             // compute dHt
             uni_vmovss(dHt, ptr[addr_diff_states_tp1_l_reg]);
@@ -213,7 +213,7 @@ protected:
             uni_vmulps(dG, dG, dHt);
 
             // downconvert and write data
-            to_src<scratch_data_t>(sg_addr(0), dG, hstate_dt_size);
+            to_src(sg_addr(0), dG, scratch_data_t, hstate_dt_size);
 
             // increment address pointers
             add(addr_ws_gates_reg, scratch_dt_size);

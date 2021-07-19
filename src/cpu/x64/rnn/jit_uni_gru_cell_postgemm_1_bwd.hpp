@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -113,8 +113,8 @@ protected:
             Vmm dG0(dG0_idx), dG2(dG2_idx), G0(G0_idx), G2(G2_idx),
                     dHt(dHt_idx), tmp1(tmp1_idx), tmp2(tmp2_idx), h(h_idx);
 
-            to_float<src_data_t>(G0, wg_addr(0), vlen);
-            to_float<src_data_t>(G2, wg_addr(2), vlen);
+            to_float(G0, wg_addr(0), src_data_t, vlen);
+            to_float(G2, wg_addr(2), src_data_t, vlen);
 
             // compute dHt
             uni_vmovups(dHt, ptr[addr_diff_states_tp1_l_reg]);
@@ -123,7 +123,7 @@ protected:
             uni_vaddps(dHt, dHt, tmp1);
 
             // compute dG0
-            to_float<src_data_t>(h, ptr[addr_states_tm1_l_reg], vlen);
+            to_float(h, ptr[addr_states_tm1_l_reg], src_data_t, vlen);
             uni_vmovups(dG0, G0);
             uni_vmovups(tmp1, G0);
             uni_vfnmadd231ps(dG0, tmp1, tmp1); // (G0 - G0^2)
@@ -145,8 +145,8 @@ protected:
             uni_vmovups(ptr[addr_diff_states_t_l_reg], dHt);
 
             // downconvert and write data
-            to_src<scratch_data_t>(sg_addr(0), dG0, vlen);
-            to_src<scratch_data_t>(sg_addr(2), dG2, vlen);
+            to_src(sg_addr(0), dG0, scratch_data_t, vlen);
+            to_src(sg_addr(2), dG2, scratch_data_t, vlen);
 
             // increment address pointers
             add(addr_ws_gates_reg, vlen_scratch);
@@ -174,8 +174,8 @@ protected:
             Xmm dG0(dG0_idx), dG2(dG2_idx), G0(G0_idx), G2(G2_idx),
                     dHt(dHt_idx), tmp1(tmp1_idx), tmp2(tmp2_idx), h(h_idx);
 
-            to_float<src_data_t>(G0, wg_addr(0), hstate_dt_size);
-            to_float<src_data_t>(G2, wg_addr(2), hstate_dt_size);
+            to_float(G0, wg_addr(0), src_data_t, hstate_dt_size);
+            to_float(G2, wg_addr(2), src_data_t, hstate_dt_size);
 
             // compute dHt
             uni_vmovss(dHt, ptr[addr_diff_states_tp1_l_reg]);
@@ -184,7 +184,7 @@ protected:
             uni_vaddss(dHt, dHt, tmp1);
 
             // compute dG0
-            to_float<src_data_t>(h, ptr[addr_states_tm1_l_reg], hstate_dt_size);
+            to_float(h, ptr[addr_states_tm1_l_reg], src_data_t, hstate_dt_size);
             uni_vmovss(dG0, G0);
             uni_vmovss(tmp1, G0);
             uni_vfnmadd231ps(dG0, tmp1, tmp1); // (G0 - G0^2)
@@ -206,8 +206,8 @@ protected:
             uni_vmovss(ptr[addr_diff_states_t_l_reg], dHt);
 
             // downconvert and write data
-            to_src<scratch_data_t>(sg_addr(0), dG0, hstate_dt_size);
-            to_src<scratch_data_t>(sg_addr(2), dG2, hstate_dt_size);
+            to_src(sg_addr(0), dG0, scratch_data_t, hstate_dt_size);
+            to_src(sg_addr(2), dG2, scratch_data_t, hstate_dt_size);
 
             // increment address pointers
             add(addr_ws_gates_reg, scratch_dt_size);

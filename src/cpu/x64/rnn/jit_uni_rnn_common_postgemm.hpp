@@ -571,10 +571,10 @@ protected:
     // 2. the src register and the temporary registers for
     // quantization/downconvert were not overritten in between the two
     // calls
-    template <data_type_t src_data_t, typename Vmm>
-    void to_src(
-            Xbyak::Address dst, Vmm src, int in_len, bool write_only = false) {
-        switch (src_data_t) {
+    template <typename Vmm>
+    void to_src(const Xbyak::Address &dst, const Vmm &src, data_type_t src_dt,
+            int in_len, bool write_only = false) {
+        switch (src_dt) {
             case data_type::f32:
                 if (in_len == (int)src.getBit() / 8)
                     uni_vmovups(dst, src);
@@ -586,15 +586,16 @@ protected:
             case data_type::bf16: bf16_dc(dst, src, in_len, write_only); break;
             case data_type::u8:
             case data_type::s8:
-                q_d(src_data_t, dst, src, in_len, write_only);
+                q_d(src_dt, dst, src, in_len, write_only);
                 break;
             default: assert(!"unsupported");
         }
     }
 
-    template <data_type_t src_data_t, typename Vmm>
-    void to_float(Vmm dst, Xbyak::Address src, int in_len) {
-        switch (src_data_t) {
+    template <typename Vmm>
+    void to_float(const Vmm &dst, const Xbyak::Address &src, data_type_t src_dt,
+            int in_len) {
+        switch (src_dt) {
             case data_type::f32:
                 if (in_len == (int)dst.getBit() / 8)
                     uni_vmovups(dst, src);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -154,7 +154,7 @@ protected:
             sigmoid_injector_->load_table_addr();
             sigmoid_injector_->compute_vector(G0.getIdx());
             // if training we write back the gates
-            if (is_training) to_src<src_data_t>(wg_addr(0), G0, vlen);
+            if (is_training) to_src(wg_addr(0), G0, src_data_t, vlen);
 
             // Compute gate 1
             uni_vmovups(G1, sg_addr(1));
@@ -165,7 +165,7 @@ protected:
             sigmoid_injector_->load_table_addr();
             sigmoid_injector_->compute_vector(G1.getIdx());
             // if training we write back the gates
-            if (is_training) to_src<src_data_t>(wg_addr(1), G1, vlen);
+            if (is_training) to_src(wg_addr(1), G1, src_data_t, vlen);
 
             // compute last gate
             auto wh_b_addr = sc_addr(2);
@@ -173,7 +173,7 @@ protected:
             uni_vmovups(tmp1_vmm, wh_b_addr);
             uni_vmovups(tmp2_vmm, B_addr(3));
             uni_vaddps(tmp1_vmm, tmp1_vmm, tmp2_vmm);
-            if (is_training) to_src<src_data_t>(ws_h_addr, tmp1_vmm, vlen);
+            if (is_training) to_src(ws_h_addr, tmp1_vmm, src_data_t, vlen);
             uni_vmovups(G2, sg_addr(2));
             uni_vmovups(tmp2_vmm, B_addr(2));
             uni_vaddps(G2, G2, tmp2_vmm);
@@ -181,21 +181,21 @@ protected:
             tanh_injector_->load_table_addr();
             tanh_injector_->compute_vector(G2.getIdx());
             // if training we write back the gates
-            if (is_training) to_src<src_data_t>(wg_addr(2), G2, vlen);
+            if (is_training) to_src(wg_addr(2), G2, src_data_t, vlen);
 
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
             uni_vmovups(tmp1_vmm, one_addr);
             uni_vsubps(tmp1_vmm, tmp1_vmm, G0);
-            to_float<src_data_t>(tmp2_vmm, ptr[addr_states_tm1_l_reg], vlen);
+            to_float(tmp2_vmm, ptr[addr_states_tm1_l_reg], src_data_t, vlen);
             uni_vmulps(G0, G0, tmp2_vmm);
             uni_vfmadd231ps(G0, tmp1_vmm, G2);
 
             // write back the result
-            to_src<src_data_t>(ptr[addr_states_t_l_reg], G0, vlen);
+            to_src(ptr[addr_states_t_l_reg], G0, src_data_t, vlen);
             // if states_t_l_copy is a non null ptr, we write the output to it too
             cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
             jle(vector_loop_inc_regs);
-            to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], G0, vlen, true);
+            to_src(ptr[addr_states_t_l_copy_reg], G0, src_data_t, vlen, true);
 
             // increment address pointers
             L(vector_loop_inc_regs);
@@ -233,7 +233,7 @@ protected:
             sigmoid_injector_->compute_vector(G0s.getIdx());
             // if training we write back the gates
             if (is_training)
-                to_src<src_data_t>(wg_addr(0), G0, scratch_dt_size);
+                to_src(wg_addr(0), G0, src_data_t, scratch_dt_size);
 
             // Compute gate 1
             uni_vmovss(G1s, sg_addr(1));
@@ -243,7 +243,7 @@ protected:
             sigmoid_injector_->compute_vector(G1s.getIdx());
             // if training we write back the gates
             if (is_training)
-                to_src<src_data_t>(wg_addr(1), G1, scratch_dt_size);
+                to_src(wg_addr(1), G1, src_data_t, scratch_dt_size);
 
             // compute last gate
             auto wh_b_addr = sc_addr(2);
@@ -251,7 +251,7 @@ protected:
             uni_vmovss(tmp1s_vmm, wh_b_addr);
             uni_vaddss(tmp1s_vmm, tmp1s_vmm, B_addr(3));
             if (is_training)
-                to_src<src_data_t>(ws_h_addr, tmp1_vmm, scratch_dt_size);
+                to_src(ws_h_addr, tmp1_vmm, src_data_t, scratch_dt_size);
             uni_vmovss(G2s, sg_addr(2));
             uni_vaddss(G2s, G2s, B_addr(2));
             uni_vfmadd231ss(G2s, G1s, tmp1s_vmm);
@@ -259,23 +259,23 @@ protected:
             tanh_injector_->compute_vector(G2s.getIdx());
             // if training we write back the gates
             if (is_training)
-                to_src<src_data_t>(wg_addr(2), G2, scratch_dt_size);
+                to_src(wg_addr(2), G2, src_data_t, scratch_dt_size);
 
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
             uni_vmovss(tmp1s_vmm, one_addr);
             uni_vsubss(tmp1s_vmm, tmp1s_vmm, G0s);
-            to_float<src_data_t>(
-                    tmp2s_vmm, ptr[addr_states_tm1_l_reg], scratch_dt_size);
+            to_float(tmp2s_vmm, ptr[addr_states_tm1_l_reg], src_data_t,
+                    scratch_dt_size);
             uni_vmulss(G0s, G0s, tmp2s_vmm);
             uni_vfmadd231ss(G0s, tmp1s_vmm, G2s);
 
             // write back the result
-            to_src<src_data_t>(ptr[addr_states_t_l_reg], G0, scratch_dt_size);
+            to_src(ptr[addr_states_t_l_reg], G0, src_data_t, scratch_dt_size);
             // if states_t_l_copy is a non null ptr, we write the output to it too
             cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
             jle(rem_loop_inc_regs);
-            to_src<src_data_t>(
-                    ptr[addr_states_t_l_copy_reg], G0, scratch_dt_size, true);
+            to_src(ptr[addr_states_t_l_copy_reg], G0, src_data_t,
+                    scratch_dt_size, true);
 
             // increment address pointers
             L(rem_loop_inc_regs);

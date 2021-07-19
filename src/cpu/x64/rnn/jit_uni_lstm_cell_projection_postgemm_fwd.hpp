@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -100,12 +100,12 @@ protected:
             uni_vmovups(in, ptr[addr_scratch_reg]);
             deq_w(src_data_t, in, tmp1_vmm, tmp2_vmm, 0, mask, true,
                     &addr_wcomp_reg);
-            to_src<src_data_t>(ptr[addr_states_t_l_reg], in, vlen);
+            to_src(ptr[addr_states_t_l_reg], in, src_data_t, vlen);
 
             // if states_t_l_copy is a non null ptr, we write the output to it too
             cmp(addr_states_t_l_copy_reg, 0);
             je(vector_loop_inc_regs);
-            to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], in, vlen, true);
+            to_src(ptr[addr_states_t_l_copy_reg], in, src_data_t, vlen, true);
             add(addr_states_t_l_copy_reg, vlen_dst);
 
             // increment address pointers
@@ -130,13 +130,13 @@ protected:
             uni_vmovss(in, ptr[addr_scratch_reg]);
             deq_w(src_data_t, in, tmp1_vmm, tmp2_vmm, 0, mask, false,
                     &addr_wcomp_reg);
-            to_src<src_data_t>(ptr[addr_states_t_l_reg], in, scratch_dt_size);
+            to_src(ptr[addr_states_t_l_reg], in, src_data_t, scratch_dt_size);
 
             // if states_t_l_copy is a non null ptr, we write the output to it too
             cmp(addr_states_t_l_copy_reg, 0);
             je(rem_loop_inc_regs);
-            to_src<src_data_t>(
-                    ptr[addr_states_t_l_copy_reg], in, scratch_dt_size, true);
+            to_src(ptr[addr_states_t_l_copy_reg], in, src_data_t,
+                    scratch_dt_size, true);
             add(addr_states_t_l_copy_reg, hstate_dt_size);
 
             // increment address pointers
