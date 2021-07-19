@@ -413,7 +413,7 @@ fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(
     const auto dst_dims = dst_lt.get_dims();
     const auto dst_dt = dst_lt.get_data_type();
 
-    const std::string ELT_DST {"elt_dst"};
+    const std::string ELT_DST {"post_elt_dst"};
 
     BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
             p.tensor_descs_, ELT_DST, dst_dt, dst_dims, dst_lt);
@@ -433,7 +433,7 @@ fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(
 
     if (is_swish) {
         const std::string BIA_DST {"bias_dst"};
-        const std::string BIN_DST {"bin_dst"};
+        const std::string BIN_DST {"post_bin_dst"};
         const size_t new_op_id = p.ops_.size();
         p.tensor_descs_.emplace(BIN_DST, dst_dt, dst_dims, lt::strided);
         op binary(new_op_id, op::kind::Multiply,
@@ -462,8 +462,8 @@ fill_status_t po_handlers_t::binary_po_handler_t::operator()(graph_prb_t &p,
             = convert_bin_policy(dst_dims, po_entry.binary.policy, dst_dataf);
     const auto bin_src_dt = convert_dt(po_entry.binary.src1_dt);
 
-    const std::string BIN_SRC {"bin_src1"};
-    const std::string BIN_DST {"bin_dst"};
+    const std::string BIN_SRC {"post_bin_src1"};
+    const std::string BIN_DST {"post_bin_dst"};
 
     BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
             p.tensor_descs_, BIN_SRC, bin_src_dt, bin_src_dims, dst_lt);
@@ -489,8 +489,8 @@ fill_status_t po_handlers_t::sum_po_handler_t::operator()(graph_prb_t &p) {
     const auto dst_dims = dst_lt.get_dims();
     const auto dst_dt = dst_lt.get_data_type();
 
-    const std::string SUM_SRC {"sum_src1"};
-    const std::string SUM_DST {"sum_dst"};
+    const std::string SUM_SRC {"post_sum_src1"};
+    const std::string SUM_DST {"post_sum_dst"};
 
     BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
             p.tensor_descs_, SUM_SRC, dst_dt, dst_dims, dst_lt);

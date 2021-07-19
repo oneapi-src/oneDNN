@@ -78,7 +78,8 @@ void check_known_skipped_case_graph(const ::binary::prb_t *prb, res_t *res) {
     // Other cases are being skipped.
     for (const auto &po : prb->attr.post_ops.entry) {
         if (po.kind == p::RELU || po.kind == p::LOGISTIC
-                || (po.is_sum_kind() && prb->alg != p::kind_t::ADD)) {
+                || (po.is_sum_kind() && prb->alg != p::kind_t::ADD)
+                || (po.kind == p::kind_t::ADD && prb->alg != p::kind_t::ADD)) {
             continue;
         } else {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
@@ -114,6 +115,11 @@ fill_status_t binary_graph_prb_t::handle_main_op_() {
 fill_status_t binary_graph_prb_t::handle_elt_(
         const attr_t::post_ops_t::entry_t &po_entry) {
     return po_handler.binary.eltw_handler(*this, po_entry);
+}
+
+fill_status_t binary_graph_prb_t::handle_bin_(
+        const attr_t::post_ops_t::entry_t &po_entry) {
+    return po_handler.binary.bin_handler(*this, spec_.dst_tag, po_entry);
 }
 
 fill_status_t binary_graph_prb_t::handle_sum_() {
@@ -157,8 +163,6 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
     auto src0_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     auto src1_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
     auto dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
-    // binary operator doesn't support binary post-ops yet
-    std::vector<dnn_mem_t> binary_po_fp;
 
     auto src0_dt = make_dnn_mem(ins[0], prb->stag[0]);
     auto src1_dt = make_dnn_mem(ins[1], prb->stag[1]);
@@ -168,15 +172,29 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
     SAFE(::binary::fill_mem(1, src1_dt, src1_fp), WARN);
     SAFE(::binary::fill_mem(2, dst_dt, dst_fp), WARN);
 
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    if (graph_prb.has_post_bin()) {
+        binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
+        binary_po_dt.emplace_back(make_dnn_mem(ins.back(), tag::abx));
+        const int idx = 0;
+        ::binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
+                binary_po_dt.back(), binary_po_fp.back());
+    }
+
     dnnl::graph::tensor src0_tensor(ins[0], static_cast<void *>(src0_dt));
     dnnl::graph::tensor src1_tensor(ins[1], static_cast<void *>(src1_dt));
     dnnl::graph::tensor dst_tensor(outs[0], static_cast<void *>(dst_dt));
+    dnnl::graph::tensor bin_src1_tensor;
     dnnl::graph::tensor sum_src1_tensor;
 
     std::vector<dnnl::graph::tensor> tensors_in {src0_tensor, src1_tensor};
     std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};
 
-    if (graph_prb.has_post_sum()) {
+    if (graph_prb.has_post_bin()) {
+        bin_src1_tensor = dnnl::graph::tensor(
+                ins.back(), static_cast<void *>(binary_po_dt.back()));
+        tensors_in.emplace_back(bin_src1_tensor);
+    } else if (graph_prb.has_post_sum()) {
         sum_src1_tensor
                 = dnnl::graph::tensor(ins.back(), static_cast<void *>(dst_dt));
         tensors_in.emplace_back(sum_src1_tensor);

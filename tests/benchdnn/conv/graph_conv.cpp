@@ -225,8 +225,8 @@ fill_status_t conv_graph_prb_t::handle_low_precision_() {
             tensor_descs_.emplace(
                     "qsum_src1", spec_.dst_dt, spec_.dst_dims, prb->stag);
             graph::op dequant_sum(ops_.size(), graph::op::kind::Dequantize,
-                    {tensor_descs_["qsum_src1"]}, {tensor_descs_["sum_src1"]},
-                    "dequant_sum");
+                    {tensor_descs_["qsum_src1"]},
+                    {tensor_descs_["post_sum_src1"]}, "dequant_sum");
             dequant_sum.set_attr("scales", std::vector<float> {1.f})
                     .set_attr("zps", std::vector<int64_t> {0L});
             ops_.emplace_back(dequant_sum);

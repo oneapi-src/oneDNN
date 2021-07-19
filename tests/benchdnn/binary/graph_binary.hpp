@@ -37,6 +37,10 @@ struct binary_graph_prb_t : public graph_prb_t {
             if (po.is_eltwise_kind()) {
                 ctor_status = handle_elt_(po);
                 if (stop_work(ctor_status)) return;
+            } else if (po.is_binary_kind()) {
+                has_post_bin_ = true;
+                ctor_status = handle_bin_(po);
+                if (stop_work(ctor_status)) return;
             } else if (po.is_sum_kind()) {
                 has_post_sum_ = true;
                 ctor_status = handle_sum_();
@@ -76,6 +80,7 @@ private:
     fill_status_t handle_main_op_();
     fill_status_t handle_sum_();
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
+    fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
 
     dnnl::graph::op::kind get_main_op_kind() const override {
         return spec_.op_kind;

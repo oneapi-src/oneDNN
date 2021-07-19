@@ -13,5 +13,5 @@
 --inplace=false
 --alg=MUL,MAX,MIN
 --ddt=f32 --sdt=f32:f32
---attr-post-ops=sum
+--attr-post-ops=sum,add:f32:common,add:f32:per_dim_0,add:f32:per_dim_1,add:f32:per_dim_01
 --batch=option_set_all
