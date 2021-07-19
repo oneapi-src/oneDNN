@@ -84,6 +84,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_multiply_add_fusion)
                     op_t *mul = apattern->create_op(op_kind::Multiply);
                     op_t *any = apattern->create_op(op_kind::any);
                     op_t *add = apattern->create_op(op_kind::Add);
+                    // pattern will not matched if the add operation need
+                    // broadcast
+                    add->set_attr<bool>("broadcast_check", true);
                     add->fill_and_connect_input(0, *mul, 0);
                     add->fill_and_connect_input(1, *any, 0);
                 })
@@ -131,6 +134,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_maximum_add_fusion)
                     op_t *max = apattern->create_op(op_kind::Maximum);
                     op_t *any = apattern->create_op(op_kind::any);
                     op_t *add = apattern->create_op(op_kind::Add);
+                    // pattern will not matched if the add operation need
+                    // broadcast
+                    add->set_attr<bool>("broadcast_check", true);
                     add->fill_and_connect_input(0, *max, 0);
                     add->fill_and_connect_input(1, *any, 0);
                 })
@@ -178,6 +184,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_minimum_add_fusion)
                     op_t *min = apattern->create_op(op_kind::Minimum);
                     op_t *any = apattern->create_op(op_kind::any);
                     op_t *add = apattern->create_op(op_kind::Add);
+                    // pattern will not matched if the add operation need
+                    // broadcast
+                    add->set_attr<bool>("broadcast_check", true);
                     add->fill_and_connect_input(0, *min, 0);
                     add->fill_and_connect_input(1, *any, 0);
                 })

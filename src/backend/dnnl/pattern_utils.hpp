@@ -143,7 +143,8 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
     std::deque<op_t *> op_queue;
     //if a op have been visited
     std::unordered_set<hashtype> visited;
-    std::set<std::string> excepted {"num_inputs", "s8_check"};
+    std::set<std::string> excepted {
+            "num_inputs", "s8_check", "broadcast_check"};
     bool pattern_is_graph = graph_op == pattern_op;
     hashtype pattern_starter_hash = hash_func(pattern_op);
     pattern_queue.push_back(std::make_pair(pattern_op,
@@ -186,6 +187,51 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
         // handle the case that "Add" op's input tensor's order
         // is different from it in graph
         special_case_handle(nfront, pfront.first, in_degree, get_input);
+
+        if (!pattern_is_graph && pfront.first->has_attr("broadcast_check")
+                && pfront.first->get_attr<bool>("broadcast_check") == true) {
+            if (pfront.first->get_kind() == op_kind::Add) {
+                // find the input that will NOT be mapped to post-ops's src1
+                op_t &pin0_producer
+                        = pfront.first->get_input_value(0)->get_producer();
+                op_t &pin1_producer
+                        = pfront.first->get_input_value(1)->get_producer();
+
+                size_t no_post_src_index
+                        = pin0_producer.get_kind() == op_kind::any ? 1 : 0;
+
+                logical_tensor_t no_post_src
+                        = nfront->get_input_value(no_post_src_index)
+                                  ->get_logical_tensor();
+                logical_tensor_t dst
+                        = nfront->get_output_value(0)->get_logical_tensor();
+                auto no_post_src_ltw = logical_tensor_wrapper(no_post_src);
+                auto dst_ltw = logical_tensor_wrapper(dst);
+
+                // unsupported case1: no ndims
+                if (no_post_src_ltw.ndims() == -1 || dst_ltw.ndims() == -1)
+                    return false;
+
+                // expand expand to same ndims with dst
+                auto no_post_src_dims = no_post_src_ltw.vdims();
+                for (size_t i = no_post_src_ltw.ndims(); i < dst_ltw.ndims();
+                        i++) {
+                    no_post_src_dims.insert(no_post_src_dims.begin(), 1);
+                }
+
+                // unsupported case2: have ndims, but no concret shape
+                for (size_t i = 0; i < no_post_src_dims.size(); i++) {
+                    if (no_post_src_dims[i] == -1 || dst_ltw.vdims()[i] == -1)
+                        return false;
+                }
+
+                // unsupported case3: have shape, but post ops will affect
+                // output shape binary post-ops shouldn't affect the primitive
+                // output shape, so the on_post_src shape should be exactly same
+                // with dst
+                if (no_post_src_ltw.vdims() != dst_ltw.vdims()) return false;
+            }
+        }
 
         if (pfront.first->get_kind() == op_kind::any) {
             op_queue.pop_front();

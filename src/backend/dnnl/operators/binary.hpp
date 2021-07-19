@@ -72,7 +72,9 @@ private:
     size_t idx_dst_ {bin::kDst};
 
     bool broadcast_ {false};
+    bool with_add_ {false};
     bool with_post_sum_ {false};
+    bool with_post_binary_add_ {false};
 
     dnnl::reorder::primitive_desc dst_reorder_pd_;
 
@@ -219,11 +221,27 @@ public:
         desc dst_any(res_desc_.cvt_dst_.dims(), res_desc_.cvt_dst_.data_type(),
                 format_tag::any);
 
-        // set sum post-op
-        with_post_sum_ = fuse_add(op->get_kind());
-        if (with_post_sum_) {
-            res_desc_.cvt_post_src_ = make_dnnl_memory_desc(inputs.back());
-            attr_ = attr_t::fuse_sum();
+        with_add_ = fuse_add(op->get_kind());
+        if (with_add_) {
+            impl::logical_tensor_t post_src_lt = inputs.back();
+            impl::logical_tensor_t dst_lt = outputs.at(0);
+            if (impl::logical_tensor_wrapper(post_src_lt)
+                            .has_same_shape_as(dst_lt)) {
+                // if post src has the same shape of dst
+                // set post sum attribute
+                res_desc_.cvt_post_src_ = make_dnnl_memory_desc(post_src_lt);
+                attr_ = attr_t::fuse_sum();
+                with_post_sum_ = true;
+            } else {
+                const logical_tensor_wrapper dst_lt_wrapper(dst_lt);
+                int dst_lt_ndims = dst_lt_wrapper.ndims();
+                res_desc_.cvt_post_src_ = make_dnnl_memory_desc(post_src_lt);
+                res_desc_.cvt_post_src_
+                        = expand(res_desc_.cvt_post_src_, dst_lt_ndims);
+                attr_ = attr_t::fuse_binary(
+                        res_desc_.cvt_post_src_, algorithm::binary_add);
+                with_post_binary_add_ = true;
+            }
         }
 
         // set eltwise post-op
@@ -300,7 +318,7 @@ public:
             res->opt_dst_.set_data_handle(res->cvt_dst_.get_data_handle());
         }
 
-        if (with_post_sum_) {
+        if (with_add_) {
             res->cvt_post_src_.set_data_handle(inputs.back().get_data_handle());
         }
 

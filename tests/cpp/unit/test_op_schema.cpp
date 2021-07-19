@@ -101,6 +101,7 @@ void verify_shape_infer_for_arithmetic_op_no_broadcast(
     }
 }
 
+#define for_ for
 void verify_shape_infer_for_arithmetic_op_with_broadcast(
         const op_kind_t op_kind_) {
     const op_schema *op_schema_ = op_schema_registry::get_op_schema(op_kind_);
@@ -108,12 +109,19 @@ void verify_shape_infer_for_arithmetic_op_with_broadcast(
 
     const std::vector<layout_type_t> layout_types
             = {layout_type::strided, layout_type::opaque};
-
+    const std::vector<std::vector<int64_t>> in1_shapes
+            = {{2, 3, 64, 64}, {2, 3, 64, 64}};
+    const std::vector<std::vector<int64_t>> in2_shapes = {{3, 1, 64}, {1}};
+    const std::vector<std::vector<int64_t>> expected_out_shapes
+            = {{2, 3, 64, 64}, {2, 3, 64, 64}};
+    for_(const auto &in1_shape : in1_shapes)
+    for_(const auto &in2_shape : in2_shapes)
+    for_(const auto &expected_out_shape : expected_out_shapes)
     for (const auto &ltype : layout_types) {
         logical_tensor_t lt_in1
-                = logical_tensor_init(0, {2, 3, 64, 64}, data_type::f32, ltype);
+                = logical_tensor_init(0, in1_shape, data_type::f32, ltype);
         logical_tensor_t lt_in2
-                = logical_tensor_init(1, {3, 1, 64}, data_type::f32, ltype);
+                = logical_tensor_init(1, in2_shape, data_type::f32, ltype);
         std::vector<logical_tensor_t *> in {&lt_in1, &lt_in2};
         logical_tensor_t lt_out
                 = logical_tensor_init(2, data_type::f32, layout_type::strided);
@@ -124,7 +132,6 @@ void verify_shape_infer_for_arithmetic_op_with_broadcast(
         op_schema_->shape_infer(&op_, in, out);
         const std::vector<int64_t> infered_out_shape
                 = logical_tensor_wrapper(lt_out).vdims();
-        const std::vector<int64_t> expected_out_shape = {2, 3, 64, 64};
         EXPECT_EQ(infered_out_shape, expected_out_shape);
 
         const std::vector<int64_t> infered_out_strides

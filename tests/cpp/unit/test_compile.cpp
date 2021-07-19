@@ -12760,3 +12760,132 @@ TEST(int8_subgraph_mode, int8_matmul_bias_sum_get_inplace_pair) {
         ASSERT_EQ(inplace_pairs[0].output, dst_s8.id);
     }
 }
+
+TEST(operator_kernel, mul_add_per_tensor_broadcast) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> src1 {2.0};
+    test::vector<float> post_src {2.0};
+    test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
+    test::vector<float> dst(src0.size(), 0.0);
+
+    impl::op_t mul_op(impl::op_kind::multiply_add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto mul_kernel = op_factory.create_kernel(mul_op);
+    ASSERT_TRUE(mul_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1, 1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 1, 3, 3}, impl::data_type::f32);
+
+    // compile the add operator
+    mul_kernel->compile(
+            &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    mul_kernel->execute(
+            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, mul_add_per_hw_broadcast) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0(18, 2.0);
+    test::vector<float> src1(1, 2.0);
+    test::vector<float> post_src(6, 2.0);
+    test::vector<float> ref_dst(18, 6.0);
+    test::vector<float> dst(src0.size(), 0.0);
+
+    impl::op_t mul_op(impl::op_kind::multiply_add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto mul_kernel = op_factory.create_kernel(mul_op);
+    ASSERT_TRUE(mul_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1, 3, 2, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(2, {2, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 3, 2, 3}, impl::data_type::f32);
+
+    // compile the add operator
+    mul_kernel->compile(
+            &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    mul_kernel->execute(
+            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, mul_add_per_channel_broadcast) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> src1 {2.0};
+    test::vector<float> post_src {2.0, 2.0, 2.0};
+    test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
+    test::vector<float> dst(src0.size(), 0.0);
+
+    impl::op_t mul_op(impl::op_kind::multiply_add);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto mul_kernel = op_factory.create_kernel(mul_op);
+    ASSERT_TRUE(mul_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1, 3, 1, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(2, {3, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(3, {1, 3, 1, 3}, impl::data_type::f32);
+
+    // compile the add operator
+    mul_kernel->compile(
+            &mul_op, &eng, {src0_lt, src1_lt, post_src_lt}, {dst_lt});
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    mul_kernel->execute(
+            &mul_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
