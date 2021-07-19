@@ -37,6 +37,7 @@ private:
     dnnl::memory::desc cvt_dst_desc_ {};
 
     primitive_desc pd_;
+    dnnl::reorder prim_;
     dnnl::engine p_engine_;
 
     static std::vector<float> inverse_scales(const std::vector<float> &scales) {
@@ -121,7 +122,7 @@ public:
         }
 
         pd_ = primitive_desc(p_engine_, src, p_engine_, dst, attr);
-
+        prim_ = super(pd_);
         dnnl::memory::desc opt_dst_desc(pd_.dst_desc());
         auto *ori_dst_lt = const_cast<impl::logical_tensor_t *>(&outputs[0]);
         fill_layout_info(ori_dst_lt, opt_dst_desc);
@@ -138,7 +139,7 @@ public:
                 cvt_src_desc_, p_engine_, inputs[0].get_data_handle());
         memory dst = make_dnnl_memory(
                 cvt_dst_desc_, p_engine_, outputs[0].get_data_handle());
-        super(pd_).execute(p_stream, src, dst);
+        prim_.execute(p_stream, src, dst);
         return status::success;
     }
 };

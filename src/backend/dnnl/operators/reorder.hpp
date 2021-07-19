@@ -37,6 +37,7 @@ struct reorder : public dnnl::reorder, public kernel_base {
 
 private:
     primitive_desc pd_;
+    dnnl::reorder prim_;
     dnnl::engine p_engine_;
 
     // handle the case in which the src and dst's dims are different
@@ -106,6 +107,7 @@ public:
         }
         pd_ = primitive_desc(
                 /*src_engine=*/p_engine_, src, /*dst_engine=*/p_engine_, dst);
+        prim_ = super(pd_);
         return status::success;
     }
 
@@ -129,7 +131,7 @@ public:
             }
         }
 
-        super(pd_).execute(p_stream, src_ts, dst_ts);
+        prim_.execute(p_stream, src_ts, dst_ts);
         return status::success;
     }
 };

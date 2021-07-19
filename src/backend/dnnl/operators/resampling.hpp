@@ -44,6 +44,7 @@ struct resampling_forward : public dnnl::resampling_forward,
 
 private:
     primitive_desc pd_;
+    dnnl::resampling_forward prim_;
     std::string mode_;
     algorithm alg_;
     dnnl::engine p_engine_;
@@ -69,7 +70,7 @@ public:
         } else
             expected_dst = dst;
 
-        super(pd_).execute(p_stream,
+        prim_.execute(p_stream,
                 {{DNNL_ARG_SRC, expected_src}, {DNNL_ARG_DST, expected_dst}});
 
         if (expected_dst != dst) {
@@ -98,7 +99,7 @@ public:
         }
 
         pd_ = primitive_desc({prop_kind::forward, alg_, src, dst}, p_engine_);
-
+        prim_ = super(pd_);
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         impl::logical_tensor_t *dst_lt
                 = const_cast<logical_tensor_t *>(&outputs.at(resampling::kDst));

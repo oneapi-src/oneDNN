@@ -63,7 +63,7 @@ struct pooling_forward : public dnnl::pooling_v2_forward, public kernel_base {
 
 private:
     primitive_desc pd_;
-
+    dnnl::pooling_v2_forward prim_;
     algorithm algo_;
 
     bool is_training_ {false};
@@ -141,7 +141,7 @@ public:
         pd_ = primitive_desc({prop_kind_, algo_, expected_src, any_dst, strides,
                                      kernel, dilations, pads_begin, pads_end},
                 p_engine_);
-
+        prim_ = super(pd_);
         res_desc_.opt_src_ = pd_.src_desc();
         res_desc_.opt_dst_ = pd_.dst_desc();
         if (impl::logical_tensor_wrapper(outputs.at(pool::kDst)).is_any()) {
@@ -221,7 +221,7 @@ public:
         if (with_workspace_)
             res->workspace_.set_data_handle(grantor.get(pool::kWorkspace));
 
-        super(pd_).execute(p_stream, res->exec_args_);
+        prim_.execute(p_stream, res->exec_args_);
 
         // if output layout has been set and different from optimal layout
         // we have to do reorder

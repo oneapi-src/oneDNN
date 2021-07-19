@@ -38,6 +38,7 @@ struct layer_normalization_forward : public dnnl::layer_normalization_forward,
 
 private:
     primitive_desc pd_;
+    dnnl::layer_normalization_forward prim_;
     float epsilon_ = 0.00001f;
     //todo(jihui):need to support begin_norm_axis_
     int64_t begin_norm_axis_ = -1;
@@ -84,7 +85,7 @@ public:
             ln_args.insert({DNNL_ARG_VARIANCE, expected_variance});
         }
 
-        super(pd_).execute(p_stream, ln_args);
+        prim_.execute(p_stream, ln_args);
     }
 
     impl::status_t compile_impl(const impl::op_t *op,
@@ -117,7 +118,7 @@ public:
             pd_ = primitive_desc(
                     {prop_kind::forward_inference, src, epsilon_, flags},
                     p_engine_);
-
+        prim_ = super(pd_);
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
 
         impl::logical_tensor_t *ori_dst_lt

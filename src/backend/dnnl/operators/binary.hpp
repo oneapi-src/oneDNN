@@ -329,7 +329,7 @@ public:
                     .execute(p_stream, res->cvt_post_src_, res->opt_dst_);
         }
 
-        dnnl::binary(pd_).execute(p_stream, res->exec_args_);
+        prim_.execute(p_stream, res->exec_args_);
 
         if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
             dnnl::reorder(dst_reorder_pd_)
@@ -341,8 +341,11 @@ public:
 };
 
 struct bias_add : public dnnl::binary, public kernel_base {
+    using super = dnnl::binary;
+
 private:
     primitive_desc pd_;
+    dnnl::binary prim_;
     std::string data_format_ {"NXC"};
 
     size_t idx_src_ {0};
@@ -391,7 +394,7 @@ public:
         desc dst_any(dst.dims(), dst.data_type(), format_tag::any);
         pd_ = primitive_desc(
                 {algorithm::binary_add, src, bias, dst_any}, p_engine_);
-
+        prim_ = super(pd_);
         impl::logical_tensor_t *orgi_dst_lt
                 = const_cast<impl::logical_tensor_t *>(&outputs.at(idx_dst_));
         fill_layout_info(orgi_dst_lt, pd_.dst_desc());
@@ -435,7 +438,7 @@ public:
 
         p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
 
-        dnnl::binary(pd_).execute(p_stream_, args);
+        prim_.execute(p_stream_, args);
 
         if (expected_dst_ != dst) {
             dnnl::reorder(expected_dst_, dst)

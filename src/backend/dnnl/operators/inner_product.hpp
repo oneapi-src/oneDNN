@@ -38,6 +38,7 @@ struct inner_product_forward : public dnnl::inner_product_forward,
 
 private:
     primitive_desc pd_;
+    dnnl::inner_product_forward prim_;
     attr_t attr_;
     dnnl::engine p_engine_;
     dnnl::stream p_stream_;
@@ -95,7 +96,7 @@ public:
                         attr_, p_engine_)
                 : primitive_desc({prop_kind::forward, src, weight, dst_desc},
                         attr_, p_engine_);
-
+        prim_ = super(pd_);
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         fill_layout_info(dst_lt, optimal_dst_desc);
 
@@ -205,13 +206,13 @@ private:
         if (with_bias) {
             auto expected_bias = bias.reorder_if_differ_in(
                     p_stream, pd_.bias_desc(), bias_attr);
-            super(pd_).execute(p_stream,
+            prim_.execute(p_stream,
                     {{DNNL_ARG_SRC, expected_src},
                             {DNNL_ARG_WEIGHTS, expected_weights},
                             {DNNL_ARG_BIAS, expected_bias},
                             {DNNL_ARG_DST, dst}});
         } else {
-            super(pd_).execute(p_stream,
+            prim_.execute(p_stream,
                     {{DNNL_ARG_SRC, expected_src},
                             {DNNL_ARG_WEIGHTS, expected_weights},
                             {DNNL_ARG_DST, dst}});

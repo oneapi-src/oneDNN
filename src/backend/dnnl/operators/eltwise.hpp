@@ -56,6 +56,7 @@ struct eltwise_forward : public dnnl::eltwise_forward, public kernel_base {
 
 private:
     primitive_desc pd_;
+    dnnl::eltwise_forward prim_;
     algorithm post_alg_;
     algorithm algo_;
     attr_t attr_;
@@ -88,7 +89,7 @@ public:
             args.insert({DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
                     post_src});
 
-        super(pd_).execute(p_stream, args);
+        prim_.execute(p_stream, args);
 
         if (expected_dst != dst) {
             dnnl::reorder(expected_dst, dst)
@@ -164,7 +165,7 @@ public:
                         attr_, p_engine_);
             }
         }
-
+        prim_ = super(pd_);
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         impl::logical_tensor_t *dst_lt = const_cast<impl::logical_tensor_t *>(
                 &outputs.at(eltwise::kDst));
