@@ -445,7 +445,12 @@ struct _ref_rnn_common_t : public primitive_t {
                     key_rnn_ptrs_wei_iter, ptr_wei_sz);
             scratchpad.template book<float *>(
                     key_rnn_ptrs_wei_projection, ptr_wei_sz);
-            scratchpad.template book<float *>(key_rnn_ptrs_bia, ptr_wei_sz);
+
+            const auto bias_dt_size = types::data_type_size(
+                    this->arg_md(DNNL_ARG_BIAS)->data_type);
+            scratchpad.template book<void *>(
+                    key_rnn_ptrs_bia, ptr_wei_sz * bias_dt_size);
+
             scratchpad.template book<scratch_t>(
                     key_rnn_gates, rnn_.scratch_gates_size);
             scratchpad.template book<ht_t>(key_rnn_ht, rnn_.scratch_ht_size);

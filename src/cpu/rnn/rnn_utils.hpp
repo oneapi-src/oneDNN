@@ -925,10 +925,10 @@ void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             * (rnn.n_iter + 1) * rnn.mb * rnn.ws_states_iter_ld
             * sizeof(typename T::src_iter_t);
     bool is_lstm = rd.cell_kind == dnnl_vanilla_lstm;
-    rnn.ws_states_iter_c_size = is_lstm
-            ? (size_t)(rnn.n_layer + 1) * rnn.n_dir * (rnn.n_iter + 1) * rnn.mb
-                    * rnn.ws_states_iter_c_ld * sizeof(float)
-            : 0;
+    rnn.ws_states_iter_c_size = is_lstm ? (size_t)(rnn.n_layer + 1) * rnn.n_dir
+                    * (rnn.n_iter + 1) * rnn.mb * rnn.ws_states_iter_c_ld
+                    * types::data_type_size(rnn.src_iter_c_dt)
+                                        : 0;
 
     rnn.ws_diff_states_layer_size = rnn.is_training
             ? (size_t)(rnn.n_layer + 1) * rnn.n_dir * (rnn.n_iter + 1) * rnn.mb
@@ -981,7 +981,7 @@ void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             * rnn.n_dir * rnn.n_iter * rnn.ws_per_cell * sizeof(float);
     /// bias ws needed to add compensation in int8
     rnn.ws_bias_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dhc
-            * sizeof(float);
+            * types::data_type_size(rnn.bias_dt);
 }
 
 void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
