@@ -215,6 +215,12 @@ enum class memory_kind_ext_t {
     usm_shared, // USM allocated via malloc_shared()
 };
 
+#ifdef DNNL_WITH_SYCL
+const memory_kind_ext_t default_memory_kind = memory_kind_ext_t::usm;
+#else
+const memory_kind_ext_t default_memory_kind = memory_kind_ext_t::buffer;
+#endif
+
 extern memory_kind_ext_t memory_kind;
 
 void init_isa_settings();

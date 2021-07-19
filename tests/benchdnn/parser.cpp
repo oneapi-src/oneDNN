@@ -393,12 +393,11 @@ static bool parse_cpu_isa_hints(
 static bool parse_memory_kind(
         const char *str, const std::string &option_name = "memory-kind") {
     const bool parsed = parse_single_value_option(memory_kind,
-            memory_kind_ext_t::usm, str2memory_kind, str, option_name);
+            default_memory_kind, str2memory_kind, str, option_name);
 
     if (!parsed) {
-        const bool parsed_old_style
-                = parse_single_value_option(memory_kind, memory_kind_ext_t::usm,
-                        str2memory_kind, str, "sycl-memory-kind");
+        const bool parsed_old_style = parse_single_value_option(memory_kind,
+                default_memory_kind, str2memory_kind, str, "sycl-memory-kind");
         if (!parsed_old_style) return false;
     }
 
