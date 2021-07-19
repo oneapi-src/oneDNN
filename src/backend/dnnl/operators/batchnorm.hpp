@@ -70,6 +70,7 @@ struct batch_normalization_forward_inference
 
 private:
     primitive_desc pd_;
+    dnnl::batch_normalization_forward prim_;
     float epsilon_;
 
     tensor scale_shift_;
@@ -121,6 +122,7 @@ public:
         pd_ = primitive_desc(
                 {prop_kind::forward_inference, src, epsilon_, flags},
                 p_engine_);
+        prim_ = super(pd_);
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         impl::logical_tensor_t *ori_dst_lt
                 = const_cast<impl::logical_tensor_t *>(
@@ -231,14 +233,14 @@ private:
                 expected_var_ = variance.reorder_if_differ_in(
                         p_stream, pd_.variance_desc());
             }
-            super(pd_).execute(p_stream,
+            prim_.execute(p_stream,
                     {{DNNL_ARG_SRC, expected_src},
                             {DNNL_ARG_SCALE_SHIFT, scale_shift_},
                             {DNNL_ARG_VARIANCE, expected_var_},
                             {DNNL_ARG_MEAN, expected_mean_},
                             {DNNL_ARG_DST, expected_dst}});
         } else {
-            super(pd_).execute(p_stream,
+            prim_.execute(p_stream,
                     {{DNNL_ARG_SRC, expected_src},
                             {DNNL_ARG_SCALE_SHIFT, scale_shift_},
                             {DNNL_ARG_DST, expected_dst}});

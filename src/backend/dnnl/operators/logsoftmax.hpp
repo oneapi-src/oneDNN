@@ -42,6 +42,7 @@ struct logsoftmax_forward : public dnnl::logsoftmax_forward,
 
 private:
     primitive_desc pd_;
+    dnnl::logsoftmax_forward prim_;
     int64_t axis_;
     dnnl::engine p_engine_;
     dnnl::stream p_stream_;
@@ -55,7 +56,7 @@ public:
             expected_dst = tensor {pd_.dst_desc(), p_engine, alc};
         }
 
-        super(pd_).execute(p_stream,
+        prim_.execute(p_stream,
                 {{DNNL_ARG_SRC, expected_src}, {DNNL_ARG_DST, expected_dst}});
 
         if (expected_dst != dst) {
@@ -82,6 +83,7 @@ public:
 
         pd_ = primitive_desc(
                 {prop_kind::forward, src, static_cast<int>(axis_)}, p_engine_);
+        prim_ = super(pd_);
         const tensor::desc optimal_dst_desc {pd_.dst_desc()};
         fill_layout_info(dst_lt, optimal_dst_desc);
         return impl::status::success;
