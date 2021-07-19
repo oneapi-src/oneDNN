@@ -6763,11 +6763,14 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
 
     std::vector<int64_t> groups = {1, 4};
     std::vector<bool> with_biases = {true, false};
+    // swap add's two inputs
+    std::vector<bool> swaps = {true, false};
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
     std::vector<std::string> other_qtypes = {"symmetric", "asymmetric"};
 
     for_(const auto &g : groups)
     for_(const auto &with_bias : with_biases)
+    for_(const auto &swap : swaps)
     for_(const auto &other_qtype : other_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
         // prepare fp32 data
@@ -6916,8 +6919,12 @@ TEST(int8_subgraph_mode, int8_conv2d_sum_relu) {
         kernel_qother->compile(&qother_node, &engine, {other_f32}, {other_s8});
         kernel_dqother->compile(
                 &dqother_node, &engine, {other_s8}, {other_f32_dq});
-        kernel_add->compile(
-                &add_node, &engine, {dst_f32, other_f32_dq}, {dst_add_f32});
+        if (swap)
+            kernel_add->compile(
+                    &add_node, &engine, {other_f32_dq, dst_f32}, {dst_add_f32});
+        else
+            kernel_add->compile(
+                    &add_node, &engine, {dst_f32, other_f32_dq}, {dst_add_f32});
         kernel_relu->compile(
                 &relu_node, &engine, {dst_add_f32}, {dst_relu_f32});
         kernel_qout->compile(&qout_node, &engine, {dst_relu_f32}, {dst_s8});

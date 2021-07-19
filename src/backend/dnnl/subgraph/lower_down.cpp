@@ -581,6 +581,8 @@ status_t fuse_post_ops(
         for (auto &fuse_group : fuse_groups) {
             auto base_op = fuse_group.first;
             auto post_op = fuse_group.second;
+            // post op fuse to which predecessor
+            size_t fuse_op_predecessor_offset = 0;
 
             int64_t key = -1;
             if (base_op->has_attr("primitive_attr_key")) {
@@ -625,10 +627,24 @@ status_t fuse_post_ops(
                 }
                 pops.append_eltwise(scale, alg, alpha, beta);
             } else if (post_op->get_kind() == op_kind::Add) {
-                auto in_val1 = post_op->get_input_value(1);
-                if (in_val1->has_producer()) {
+                // get mul_scale op from Add's input
+                // as Add is commutative, mul_scale op can be
+                // 0 / 1 input of Add
+                size_t mul_scale_op_offset = 2;
+                for (size_t i = 0; i < 2; ++i) {
+                    auto in_val = post_op->get_input_value(i);
+                    if (in_val->has_producer()
+                            && in_val->get_producer().get_kind()
+                                    == op_kind::mul_scales) {
+                        mul_scale_op_offset = i;
+                        fuse_op_predecessor_offset = 1 - i;
+                        break;
+                    }
+                }
+                if (mul_scale_op_offset != 2) {
                     // for int8 cases
-                    auto &mul_scale_op = in_val1->get_producer();
+                    auto in_val = post_op->get_input_value(mul_scale_op_offset);
+                    auto &mul_scale_op = in_val->get_producer();
                     auto scales = mul_scale_op.get_attr<std::vector<float>>(
                             "scales");
                     assert(scales.size() == 1); // per tensor
@@ -677,7 +693,8 @@ status_t fuse_post_ops(
             prm_attr.set_post_ops(pops);
 
             // remove the fused post_ops op
-            fuse_op_to_predecessor(post_op, subgraph);
+            fuse_op_to_predecessor(
+                    post_op, subgraph, fuse_op_predecessor_offset);
         }
 
         return true;
