@@ -399,25 +399,6 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_compile(
         const dnnl_graph_logical_tensor_t **outputs,
         const dnnl_graph_engine_t *engine);
 
-/// Infer the shape of the output logical tensors of a partition with given
-/// input logical tensors.
-///
-/// @note The output logical tensors will be mutated with inferred shape. If an
-///       output logical tensor is with strided layout type, its strides field
-///       will be also inferred as dense strides.
-///
-/// @param partition The target partition.
-/// @param in_num The number of input logical tensors.
-/// @param inputs A list of input logical tensors.
-/// @param out_num The number of output logical tensors.
-/// @param outputs A list of output logical tensors.
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_infer_shape(
-        dnnl_graph_partition_t *partition, uint64_t in_num,
-        const dnnl_graph_logical_tensor_t **inputs, uint64_t out_num,
-        dnnl_graph_logical_tensor_t **outputs);
-
 /// Returns the number of input logical tensors of the partition.
 ///
 /// @param partition The target partition.

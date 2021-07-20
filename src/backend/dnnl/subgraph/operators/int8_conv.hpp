@@ -127,7 +127,6 @@ public:
 
         impl::graph_t agraph(subgraph);
         BACKEND_DNNL_CHECK(agraph.infer_shape());
-        BACKEND_DNNL_CHECK(agraph.infer_shape());
         BACKEND_DNNL_CHECK(infer_type(agraph));
         BACKEND_DNNL_CHECK(
                 layout_propagation(subgraph, p_engine_, prm_attr_mgr_));

@@ -1130,10 +1130,6 @@ TEST(c_api_test, compile_conv2d_with_unknown_shape) {
     // support arbitrary order of inputs in infer_shape and compile APIs
     const dnnl_graph_logical_tensor_t *const_inputs[2] = {&weight, &input};
     dnnl_graph_logical_tensor_t *mutable_outputs[1] = {&output};
-    ASSERT_EQ_SAFE(dnnl_graph_partition_infer_shape(
-                           partition, 2, const_inputs, 1, mutable_outputs),
-            dnnl_graph_result_success,
-            COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_compiled_partition_create(
                            &compiled_partition, partition),
             dnnl_graph_result_success,

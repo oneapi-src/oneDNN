@@ -227,14 +227,6 @@ void verify_shape_infer_for_conv(const op_kind_t op_kind_,
             = logical_tensor_wrapper(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
-    auto unchanged_pads_begin
-            = op_.get_attr<std::vector<int64_t>>("pads_begin");
-    auto unchanged_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
-    EXPECT_EQ(unchanged_pads_begin, pads_begin);
-    EXPECT_EQ(unchanged_pads_end, pads_end);
-
-    // if output shape is known, infer auto pad
-    op_schema_->shape_infer(&op_, in, out);
     auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
     auto infered_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
     std::vector<int64_t> expected_pads;
@@ -331,14 +323,6 @@ void verify_shape_infer_for_conv(const op_kind_t op_kind_,
             = logical_tensor_wrapper(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
-    auto unchanged_pads_begin
-            = op_.get_attr<std::vector<int64_t>>("pads_begin");
-    auto unchanged_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
-    EXPECT_EQ(unchanged_pads_begin, pads_begin);
-    EXPECT_EQ(unchanged_pads_end, pads_end);
-
-    // if output shape is known, infer auto pad
-    op_schema_->shape_infer(&op_, in, out);
     auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
     auto infered_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
     std::vector<int64_t> expected_pads;
@@ -383,14 +367,6 @@ void verify_shape_infer_for_conv_bprop_data(const op_kind_t op_kind_,
             = logical_tensor_wrapper(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
-    auto unchanged_pads_begin
-            = op_.get_attr<std::vector<int64_t>>("pads_begin");
-    auto unchanged_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
-    EXPECT_EQ(unchanged_pads_begin, pads_begin);
-    EXPECT_EQ(unchanged_pads_end, pads_end);
-
-    // if output shape is known, infer auto pad
-    op_schema_->shape_infer(&op_, in, out);
     auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
     auto infered_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
     const std::vector<int64_t> expected_pads = {0, 0};
@@ -1122,16 +1098,6 @@ void infer_conv_shape(op_kind_t kind) {
     std::vector<logical_tensor_t *> lt_out {&lt_o};
 
     conv_op_schema->shape_infer(&conv_op, lt_in, lt_out);
-
-    auto unchanged_pads_begin
-            = conv_op.get_attr<std::vector<int64_t>>("pads_begin");
-    auto unchanged_pads_end
-            = conv_op.get_attr<std::vector<int64_t>>("pads_end");
-    EXPECT_EQ(unchanged_pads_begin, pads_begin);
-    EXPECT_EQ(unchanged_pads_end, pads_end);
-
-    // if output shape is known, infer auto pad
-    conv_op_schema->shape_infer(&conv_op, lt_in, lt_out);
     auto infered_pads_begin
             = conv_op.get_attr<std::vector<int64_t>>("pads_begin");
     auto infered_pads_end = conv_op.get_attr<std::vector<int64_t>>("pads_end");
@@ -1517,15 +1483,6 @@ TEST(op_schema_test, maxpool_ceil_mode) {
             EXPECT_EQ(infered_out_strides, expected_out_strides);
         }
 
-        auto unchanged_pads_begin
-                = pool_op.get_attr<std::vector<int64_t>>("pads_begin");
-        auto unchanged_pads_end
-                = pool_op.get_attr<std::vector<int64_t>>("pads_end");
-        EXPECT_EQ(unchanged_pads_begin, pads_begin);
-        EXPECT_EQ(unchanged_pads_end, pads_end);
-
-        // if output shape is known, infer auto pad
-        pool_op_schema->shape_infer(&pool_op, lt_in, lt_out);
         auto infered_pads_begin
                 = pool_op.get_attr<std::vector<int64_t>>("pads_begin");
         auto infered_pads_end

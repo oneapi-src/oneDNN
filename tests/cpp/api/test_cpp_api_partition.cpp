@@ -91,14 +91,6 @@ TEST(api_partition, partition_test) {
     std::vector<logical_tensor> in0({lt1_plain, lt2_plain, lt3_plain});
     std::vector<logical_tensor> out0({lt4_any});
 
-    //infer_shape
-    partitions[0].infer_shape(in0, out0);
-    std::vector<int64_t> infered_dst_dims = lt4_any.get_dims();
-    ASSERT_EQ(out0[0].get_dims()[0], 8);
-    ASSERT_EQ(out0[0].get_dims()[1], 64);
-    ASSERT_EQ(out0[0].get_dims()[2], 56);
-    ASSERT_EQ(out0[0].get_dims()[3], 56);
-
     auto cp = partitions[0].compile(in0, out0, eng);
     // query logical tensor from compiled partition
     auto lt4_opaque = cp.query_logical_tensor(3);
@@ -230,14 +222,6 @@ TEST(api_partition, add_infer_shape) {
     g.add_op(add);
     auto ps = g.get_partitions();
     ASSERT_EQ(ps.size(), 1);
-
-    std::vector<logical_tensor> out {lt_2};
-    ps[0].infer_shape({lt_0, lt_1}, out);
-    ASSERT_EQ(out[0].get_dims().size(), 4);
-    ASSERT_EQ(out[0].get_dims()[0], 8);
-    ASSERT_EQ(out[0].get_dims()[1], 15);
-    ASSERT_EQ(out[0].get_dims()[2], 5);
-    ASSERT_EQ(out[0].get_dims()[3], 7);
 }
 
 TEST(api_partition, single_conv_partition) {

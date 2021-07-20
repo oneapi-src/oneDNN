@@ -403,17 +403,6 @@ public:
                     ordered_outputs, perm_outs);
             if (status::success != ret) return ret;
 
-            // Check if all the shapes are known. In the phase of compilation,
-            // all the output shape should be known.
-            auto pos = std::find_if(ordered_outputs.begin(),
-                    ordered_outputs.end(),
-                    [&](const impl::logical_tensor_t &out) -> bool {
-                        return ltw(out).is_shape_unknown();
-                    });
-            if (pos != ordered_outputs.end()) {
-                return status::invalid_argument;
-            }
-
             // Infer attributes of the node, i.e.
             std::vector<impl::logical_tensor_t *> tmp_inputs, tmp_outputs;
             for (auto &in : ordered_inputs) {

@@ -1105,33 +1105,6 @@ public:
         return compile_(inputs, outputs, &e);
     }
 
-    /// Infer the partition's output shape
-    ///
-    /// @param inputs A list of input logical tensors
-    /// @param outputs A list of output logical tensors
-    void infer_shape(const std::vector<logical_tensor> &inputs,
-            std::vector<logical_tensor> &outputs) const {
-        std::vector<const dnnl_graph_logical_tensor_t *> c_inputs;
-        std::vector<dnnl_graph_logical_tensor_t *> c_outputs;
-
-        c_inputs.reserve(inputs.size());
-        for (auto &&in : inputs) {
-            c_inputs.push_back(&(in.data));
-        }
-
-        c_outputs.reserve(outputs.size());
-        for (auto &&out : outputs) {
-            c_outputs.push_back(&(out.data));
-        }
-
-        error::check_succeed(
-                dnnl_graph_partition_infer_shape(get(),
-                        static_cast<uint64_t>(c_inputs.size()), c_inputs.data(),
-                        static_cast<uint64_t>(c_outputs.size()),
-                        c_outputs.data()),
-                "inferring output shape of the partition failed");
-    }
-
     /// Returns the supporting status of the partition
     ///
     /// @returns @c true if this partition is supported by oneDNN Graph backend

@@ -81,14 +81,17 @@ static inline void infer_conv_ncx_oix(const dims &src_dims,
         const dims &fil_dims, const dims &strides, const dims &dilations,
         const dims &pads_begin, const dims &pads_end, dims &output_dims);
 
-/// Check if output shape is already known. If the shape is unknown, infer
-/// output shape (will modify the output logical tensor), otherwise infer
-/// padding sizes (will modify the op attributes).
-status_t infer_conv_output_shape(op_t *n,
+/// Calculate convolution output shape according to the input shapes. If
+/// auto_pad, the real size of pads_begin and pads_end will also be calculated.
+/// The inferred output shape will be written to the logical tensor in outputs.
+/// The inferred pads_begin and pads_end will be attached to the operator
+/// directly. Hence the function will change the state of the input operator.
+static status_t infer_conv_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
 status_t infer_conv_bprop_data_output_shape(op_t *n,
+
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 

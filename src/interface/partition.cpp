@@ -205,17 +205,6 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile(partition_t *partition,
     return status::success;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_partition_infer_shape(partition_t *partition,
-        uint64_t in_num, const logical_tensor_t **inputs, uint64_t out_num,
-        logical_tensor_t **outputs) {
-    if (partition == nullptr) { return status::invalid_argument; }
-
-    std::vector<const logical_tensor_t *> in {inputs, inputs + in_num};
-    std::vector<logical_tensor_t *> out {outputs, outputs + out_num};
-    status_t ret = partition->infer_shape(in, out);
-    return ret;
-}
-
 status_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports_num(
         const partition_t *partition, uint64_t *num) {
     if (partition == nullptr || num == nullptr) {
