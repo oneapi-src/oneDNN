@@ -853,7 +853,7 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
             dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
 
     ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init_with_dims(&bn_input, 6,
-                           dnnl_graph_f32, 4, input_dim,
+                           dnnl_graph_f32, 4, output_dim,
                            dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);

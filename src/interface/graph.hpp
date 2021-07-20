@@ -245,7 +245,7 @@ public:
         }
 
         // call each op's infer shape function in topological order
-        impl::topo_order_visit(get_output_ops(), [](impl::op_t *op) {
+        return impl::topo_order_visit(get_output_ops(), [](impl::op_t *op) {
             std::vector<logical_tensor_t> tmp_inputs, tmp_outputs;
             std::vector<logical_tensor_t *> tmp_inputs_ptr, tmp_outputs_ptr;
 
@@ -282,8 +282,6 @@ public:
 
             return impl::status::success;
         });
-
-        return impl::status::success;
     }
 
     static std::vector<op_ptr> deep_copy(const std::vector<op_ptr> &ops);
