@@ -266,6 +266,12 @@ g1ic32ih202iw202oc32oh202ow202kh7kw3ph3pw1
 g1ic32ih202oc32oh202kh5ph2
 g1ic32ih202oc32oh202kh7ph3
 
+# AMX bwd/wu small spatial with large kernel
+--reset
+--skip-impl=ref:gemm
+--dir=BWD_WB --cfg=bf16f32bf16,bf16bf16bf16
+mb2_ic16oc16_ih1oh1kh3ph1n"large_kernel_small_spatial"
+
 # Strides along w-dimension but not along h-dimension
 --reset
 --skip-impl="ref:gemm"
