@@ -19,6 +19,7 @@
 #include "cpu/gemm_inner_product.hpp"
 #include "cpu/gemm_x8s8s32x_inner_product.hpp"
 #include "cpu/ref_inner_product.hpp"
+#include "cpu/ref_inner_product_int8.hpp"
 
 #if DNNL_X64
 #include "cpu/x64/gemm_bf16_inner_product.hpp"
@@ -40,35 +41,27 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 const impl_list_item_t impl_list[] = {
-        /* f32 */
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core_bf16_amx_bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core_bf16_amx_bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core_bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core_bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core>)
         CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core>)
         CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core>)
-        CPU_INSTANCE_AARCH64_ACL(acl_inner_product_fwd_t)
-        CPU_INSTANCE(gemm_inner_product_fwd_t<f32>)
-        CPU_INSTANCE(gemm_inner_product_bwd_data_t<f32>)
-        CPU_INSTANCE(gemm_inner_product_bwd_weights_t<f32>)
-        CPU_INSTANCE(ref_inner_product_fwd_t<f32>)
-        CPU_INSTANCE(ref_inner_product_bwd_data_t<f32, f32, f32, f32>)
-        CPU_INSTANCE(ref_inner_product_bwd_weights_t<f32>)
-        /* bfloat16 */
-        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_bf16>)
-        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16>)
-        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core_bf16_amx_bf16>)
-        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core_bf16>)
-        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core_bf16_amx_bf16>)
-        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core_bf16>)
         CPU_INSTANCE_X64(gemm_bf16_inner_product_fwd_t<f32>)
         CPU_INSTANCE_X64(gemm_bf16_inner_product_fwd_t<bf16>)
         CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_data_t<f32>)
         CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_data_t<bf16>)
         CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_weights_t<f32>)
         CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_weights_t<bf16>)
-        CPU_INSTANCE(ref_inner_product_fwd_t<bf16, bf16, bf16, f32>)
-        CPU_INSTANCE(ref_inner_product_fwd_t<bf16, bf16, f32, f32>)
-        /* int */
-        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
-        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
+        CPU_INSTANCE_AARCH64_ACL(acl_inner_product_fwd_t)
+        CPU_INSTANCE(gemm_inner_product_fwd_t<f32>)
+        CPU_INSTANCE(gemm_inner_product_bwd_data_t<f32>)
+        CPU_INSTANCE(gemm_inner_product_bwd_weights_t<f32>)
         CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, u8>)
         CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s8>)
         CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s32>)
@@ -77,14 +70,10 @@ const impl_list_item_t impl_list[] = {
         CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, s8>)
         CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, s32>)
         CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, f32>)
-        CPU_INSTANCE(ref_inner_product_fwd_t<u8, s8, u8, s32>)
-        CPU_INSTANCE(ref_inner_product_fwd_t<u8, s8, s8, s32>)
-        CPU_INSTANCE(ref_inner_product_fwd_t<u8, s8, s32, s32>)
-        CPU_INSTANCE(ref_inner_product_fwd_t<u8, s8, f32, s32>)
-        CPU_INSTANCE(ref_inner_product_fwd_t<s8, s8, u8, s32>)
-        CPU_INSTANCE(ref_inner_product_fwd_t<s8, s8, s8, s32>)
-        CPU_INSTANCE(ref_inner_product_fwd_t<s8, s8, s32, s32>)
-        CPU_INSTANCE(ref_inner_product_fwd_t<s8, s8, f32, s32>)
+        CPU_INSTANCE(ref_inner_product_fwd_t)
+        CPU_INSTANCE(ref_inner_product_bwd_data_t)
+        CPU_INSTANCE(ref_inner_product_bwd_weights_t)
+        CPU_INSTANCE(ref_inner_product_int8_fwd_t)
         /* eol */
         nullptr,
 };
