@@ -1080,8 +1080,9 @@ status_t infer_concat_output_shape(op_t *n,
         }
     };
 
-    utils::array_copy(outputs[0]->dims, dims, static_cast<size_t>(ndims));
-    outputs[0]->dims[axis] = sum;
+    std::vector<int64_t> infered_out_shape(dims, dims + ndims);
+    infered_out_shape[axis] = sum;
+    set_infered_shape_and_strides(outputs[0], infered_out_shape);
     return status::success;
 }
 

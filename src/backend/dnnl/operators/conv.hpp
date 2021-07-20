@@ -365,7 +365,7 @@ public:
 #define CONV_GET_CONFIG(with_bias, p_engine) \
     get_config<with_bias>(src, weight, bias, dst, strides_, dilates_, \
             pads_begin_, pads_end_, groups_, p_engine, attr_, \
-            algorithm::convolution_direct, prop_kind::forward)
+            algorithm::convolution_direct, prop_kind::forward_inference)
 
         // if with_bn, we also need to create ptimitive with bias,
         // because bn's shift will act as bias in execution
