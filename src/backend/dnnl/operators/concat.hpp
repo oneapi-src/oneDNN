@@ -18,15 +18,28 @@
 #define BACKEND_DNNL_OPERATORS_CONCAT_HPP
 
 #include <algorithm>
+#include <memory>
+#include <utility>
 #include <vector>
 
+#include "interface/backend.hpp"
+
 #include "backend/dnnl/common.hpp"
+#include "backend/dnnl/f32_kernel_resource.hpp"
 #include "backend/dnnl/legacy.hpp"
+#include "backend/dnnl/scratchpad.hpp"
+#include "backend/dnnl/thread_local_cache.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
+
+namespace cat {
+// Since concat accepts variadic inputs, so we use `kBase` as the key for dst
+// memory while using `kBase + (i + 1)` for variadic inputs.
+enum mem_keys { kBase };
+} // namespace cat
 
 struct concat : public dnnl::concat, public kernel_base {
     using super = dnnl::concat;
@@ -34,63 +47,28 @@ struct concat : public dnnl::concat, public kernel_base {
 private:
     primitive_desc pd_;
     dnnl::concat prim_;
-    exec_args concat_args_;
 
-    memory dst_opt_mem_;
+    dnnl::engine p_engine_;
 
-    dnnl::engine engine_;
-    dnnl::stream stream_;
-    impl::allocator_t *alloc_ {nullptr};
-
-    bool first_iteration_ {true};
-    void *dst_opt_buf_ {nullptr};
-
+    std::vector<dnnl::reorder::primitive_desc> src_reorder_pds_;
     dnnl::reorder::primitive_desc dst_reorder_pd_;
 
-    bool shapes_match(const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs,
-            const int64_t axis, const int32_t rank) {
-        using lt = impl::logical_tensor_t;
-
-        const auto same_rank = std::all_of(inputs.cbegin(), inputs.cend(),
-                [rank](const lt &in) { return rank == in.ndims; });
-        if (!same_rank) return false;
-
-        for (int32_t i = 0; i < rank; ++i) {
-            if (axis == static_cast<int64_t>(i)) continue;
-            const auto d = outputs.front().dims[i];
-            const auto same_d = std::all_of(inputs.cbegin(), inputs.cend(),
-                    [d, i](const lt &in) { return d == in.dims[i]; });
-            if (!same_d) return false;
-        }
-
-        const auto out_axis_dim = outputs.front().dims[axis];
-        const auto in_axis_dim_sum = std::accumulate(inputs.cbegin(),
-                inputs.cend(), 0L, [axis](int64_t acc, const lt &in) {
-                    return acc + in.dims[axis];
-                });
-        if (out_axis_dim != in_axis_dim_sum) return false;
-
-        // all checks passed
-        return true;
-    }
-
-    void free_buffer_if_allocated() {
-        if (dst_opt_buf_) {
-            allocator::free(dst_opt_buf_, engine_, alloc_);
-            dst_opt_buf_ = nullptr;
-        }
-    }
+    registry_t registry_;
+    std::function<std::shared_ptr<f32_concat_resource_t>()> resource_ctor_;
+    f32_concat_resource_t::desc_t res_desc_;
 
 public:
-    ~concat() override { free_buffer_if_allocated(); }
+    ~concat() {
+        thread_local_cache_t<f32_concat_resource_t> res_cache;
+        res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+    }
 
     impl::status_t compile_impl(const op_t *op, const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
         using lt = impl::logical_tensor_t;
 
-        engine_ = make_dnnl_engine(*g_engine);
+        p_engine_ = make_dnnl_engine(*g_engine);
 
         const size_t expected_outs = 1;
         if (inputs.empty() || expected_outs != outputs.size())
@@ -101,27 +79,58 @@ public:
         if (!res.first) return status::invalid_argument;
         const auto axis = res.second;
 
-        if (!shapes_match(inputs, outputs, axis, rank))
-            return status::invalid_shape;
-
         std::vector<memory::desc> src_mds;
         src_mds.reserve(inputs.size());
-        std::for_each(inputs.cbegin(), inputs.cend(), [&src_mds](const lt &in) {
-            src_mds.push_back(make_dnnl_memory_desc(in));
-        });
-        auto dst_md = make_dnnl_memory_desc(outputs.front());
-        // we need to let oneDNN choose the optimal tag for dst
-        memory::desc dst_any_md {
-                dst_md.dims(), dst_md.data_type(), format_tag::any};
+        res_desc_.cvt_src_.reserve(inputs.size());
+        std::for_each(
+                inputs.cbegin(), inputs.cend(), [this, &src_mds](const lt &in) {
+                    auto tmp_desc = make_dnnl_memory_desc(in);
+                    this->res_desc_.cvt_src_.push_back(tmp_desc);
+                    src_mds.push_back(memory::desc {tmp_desc.dims(),
+                            tmp_desc.data_type(), format_tag::acdb});
+                });
+
+        res_desc_.cvt_dst_ = make_dnnl_memory_desc(outputs.front());
+        // force output format as `acdb`
+        memory::desc dst_permute_md {res_desc_.cvt_dst_.dims(),
+                res_desc_.cvt_dst_.data_type(), format_tag::acdb};
 
         pd_ = primitive_desc(
-                dst_any_md, static_cast<int>(axis), src_mds, engine_);
+                dst_permute_md, static_cast<int>(axis), src_mds, p_engine_);
         prim_ = super(pd_);
+
+        registrar_t registrar = registry_.registrar();
+        res_desc_.opt_src_.reserve(inputs.size());
+        for (size_t i = 0; i < inputs.size(); ++i) {
+            const auto tmp_opt_src_desc = pd_.src_desc(static_cast<int>(i));
+            res_desc_.opt_src_.push_back(tmp_opt_src_desc);
+            if (res_desc_.cvt_src_[i] != tmp_opt_src_desc) {
+                registrar.book(static_cast<size_t>(cat::kBase + i + 1),
+                        tmp_opt_src_desc.get_size());
+                src_reorder_pds_.emplace_back(dnnl::reorder::primitive_desc(
+                        p_engine_, res_desc_.cvt_src_[i], p_engine_,
+                        tmp_opt_src_desc));
+            }
+        }
+
+        res_desc_.opt_dst_ = pd_.dst_desc();
+        if (impl::logical_tensor_wrapper(outputs.at(0)).is_any()) {
+            res_desc_.cvt_dst_ = res_desc_.opt_dst_;
+        }
+
+        if (res_desc_.opt_dst_ != res_desc_.cvt_dst_) {
+            registrar.book(cat::kBase, res_desc_.opt_dst_.get_size());
+            dst_reorder_pd_ = dnnl::reorder::primitive_desc(p_engine_,
+                    res_desc_.opt_dst_, p_engine_, res_desc_.cvt_dst_);
+        }
 
         lt *orig_dst_lt = const_cast<lt *>(&outputs.front());
         fill_layout_info(orig_dst_lt, pd_.dst_desc());
 
-        first_iteration_ = true;
+        resource_ctor_ = [this]() {
+            return std::make_shared<f32_concat_resource_t>(
+                    this->res_desc_, this->p_engine_);
+        };
 
         return status::success;
     }
@@ -130,49 +139,47 @@ public:
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
         UNUSED(op);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
-        alloc_ = g_stream->get_engine()->get_allocator();
-        stream_ = make_dnnl_stream(engine_, *g_stream);
+        // each thread's own local resource
+        thread_local_cache_t<f32_concat_resource_t> res_cache;
+        f32_concat_resource_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
 
-        std::vector<memory> src_mems;
-        src_mems.reserve(inputs.size());
-        std::for_each(inputs.cbegin(), inputs.cend(),
-                [&src_mems, this](const impl::tensor_t &in) {
-                    src_mems.push_back(make_dnnl_memory(in, engine_));
-                });
-        memory dst_mem = make_dnnl_memory(outputs.front(), engine_);
+        impl::allocator_t *g_alloc_ = g_stream->get_engine()->get_allocator();
+        temporary_scratchpad_t scratchpad(
+                registry_.size(), p_engine_, *g_alloc_);
+        grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
 
-        auto pd_dst_desc = pd_.dst_desc();
-        if (pd_dst_desc != dst_mem.get_desc()) {
-            if (first_iteration_) {
-                // in case dst_opt_buf_ already holds the data
-                free_buffer_if_allocated();
-                dst_opt_buf_ = allocator::malloc(
-                        pd_dst_desc.get_size(), engine_, alloc_);
-                dst_opt_mem_ = memory(pd_dst_desc, engine_, dst_opt_buf_);
-
-                dst_reorder_pd_ = dnnl::reorder::primitive_desc(
-                        engine_, pd_dst_desc, engine_, dst_mem.get_desc());
+        for (size_t i = 0; i < inputs.size(); ++i) {
+            res->cvt_src_mems_[i].set_data_handle(
+                    inputs.at(i).get_data_handle());
+            if (res_desc_.cvt_src_[i] != res_desc_.opt_src_[i]) {
+                res->opt_src_mems_[i].set_data_handle(
+                        grantor.get(static_cast<size_t>(cat::kBase + i + 1)));
+                dnnl::reorder(src_reorder_pds_[i])
+                        .execute(p_stream, res->cvt_src_mems_[i],
+                                res->opt_src_mems_[i]);
+            } else {
+                res->opt_src_mems_[i].set_data_handle(
+                        res->cvt_src_mems_[i].get_data_handle());
             }
+        }
+
+        res->cvt_dst_mem_.set_data_handle(outputs.at(0).get_data_handle());
+        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
+            res->opt_dst_mem_.set_data_handle(grantor.get(cat::kBase));
         } else {
-            if (first_iteration_) dst_opt_mem_ = dst_mem;
-            dst_opt_mem_.set_data_handle(dst_mem.get_data_handle());
+            res->opt_dst_mem_.set_data_handle(
+                    res->cvt_dst_mem_.get_data_handle());
         }
 
-        if (first_iteration_) {
-            for (int i = 0; i < inputs.size(); ++i)
-                concat_args_[DNNL_ARG_MULTIPLE_SRC + i] = src_mems[i];
-            concat_args_[DNNL_ARG_DST] = dst_opt_mem_;
-        }
+        prim_.execute(p_stream, res->exec_args_);
 
-        prim_.execute(stream_, concat_args_);
-
-        if (dst_mem.get_desc() != pd_dst_desc) {
+        if (res_desc_.cvt_dst_ != res_desc_.opt_dst_) {
             dnnl::reorder(dst_reorder_pd_)
-                    .execute(stream_, dst_opt_mem_, dst_mem);
+                    .execute(p_stream, res->opt_dst_mem_, res->cvt_dst_mem_);
         }
-
-        first_iteration_ = false;
 
         return status::success;
     }
