@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -164,12 +164,12 @@ mkldnn_status_t simple_net(mkldnn_engine_kind_t engine_kind) {
     // {BATCH, IC, CONV_IH, CONV_IW} (x) {OC, IC, CONV_KH, CONV_KW} ->
     // {BATCH, OC, CONV_OH, CONV_OW}
     // strides: {CONV_STRIDE, CONV_STRIDE}
-    mkldnn_dim_t conv_user_src_sizes[4] = {BATCH, IC, CONV_IH, CONV_IW};
-    mkldnn_dim_t conv_user_weights_sizes[4] = {OC, IC, 11, 11};
-    mkldnn_dim_t conv_bias_sizes[4] = {OC};
-    mkldnn_dim_t conv_user_dst_sizes[4] = {BATCH, OC, CONV_OH, CONV_OW};
-    mkldnn_dim_t conv_strides[2] = {CONV_STRIDE, CONV_STRIDE};
-    mkldnn_dim_t conv_padding[2] = {CONV_PAD, CONV_PAD};
+    mkldnn_dims_t conv_user_src_sizes = {BATCH, IC, CONV_IH, CONV_IW};
+    mkldnn_dims_t conv_user_weights_sizes = {OC, IC, 11, 11};
+    mkldnn_dims_t conv_bias_sizes = {OC};
+    mkldnn_dims_t conv_user_dst_sizes = {BATCH, OC, CONV_OH, CONV_OW};
+    mkldnn_dims_t conv_strides = {CONV_STRIDE, CONV_STRIDE};
+    mkldnn_dims_t conv_padding = {CONV_PAD, CONV_PAD};
 
     float *conv_src = net_src;
     float *conv_weights = (float *)malloc(
@@ -334,10 +334,10 @@ mkldnn_status_t simple_net(mkldnn_engine_kind_t engine_kind) {
     // {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, POOL_OH, POOL_OW}
     // kernel: {3, 3}
     // strides: {POOL_STRIDE, POOL_STRIDE}
-    mkldnn_dim_t pool_dst_sizes[4] = {BATCH, OC, POOL_OH, POOL_OW};
-    mkldnn_dim_t pool_kernel[2] = {3, 3};
-    mkldnn_dim_t pool_strides[2] = {POOL_STRIDE, POOL_STRIDE};
-    mkldnn_dim_t pool_padding[2] = {POOL_PAD, POOL_PAD};
+    mkldnn_dims_t pool_dst_sizes = {BATCH, OC, POOL_OH, POOL_OW};
+    mkldnn_dims_t pool_kernel = {3, 3};
+    mkldnn_dims_t pool_strides = {POOL_STRIDE, POOL_STRIDE};
+    mkldnn_dims_t pool_padding = {POOL_PAD, POOL_PAD};
 
     // create pooling memory descriptor on dst descriptor
     //  from previous primitive

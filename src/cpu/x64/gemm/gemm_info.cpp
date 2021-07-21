@@ -347,6 +347,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bn_small_k = 24;
             }
             break;
+        default: assert(!"unsupported data type!");
     }
 
     // Note: um is fixed for a given set of data types and ISA.
@@ -680,6 +681,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     gemv_kernel[do_trans] = new jit_sse41_gemv_t_f32_kern();
                 }
                 break;
+            default: assert(!"unsupported data type!");
         }
 
         // Set copy kernels function pointer table
@@ -857,6 +859,7 @@ bool gemm_info_t<a_t, b_t, c_t>::hasKernels(void) {
                     if (!this->gemv_kernel[isTrans]) return false;
             }
             break;
+        default: assert(!"unsupported data type!");
     }
 
     // All kernels necessary have been found or ISA is not supported.

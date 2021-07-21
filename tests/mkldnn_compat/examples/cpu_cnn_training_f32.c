@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -172,14 +172,17 @@ mkldnn_status_t simple_net() {
     mkldnn_primitive_t net_fwd[10], net_bwd[10];
     args_t net_fwd_args[10], net_bwd_args[10];
 
-    mkldnn_dim_t net_src_sizes[4] = {BATCH, IC, CONV_IH, CONV_IW};
-    mkldnn_dim_t net_dst_sizes[4] = {BATCH, OC, POOL_OH, POOL_OW};
+    const int ndims = 4;
+    mkldnn_dims_t net_src_sizes = {BATCH, IC, CONV_IH, CONV_IW};
+    mkldnn_dims_t net_dst_sizes = {BATCH, OC, POOL_OH, POOL_OW};
 
-    float *net_src = (float *)malloc(product(net_src_sizes, 4) * sizeof(float));
-    float *net_dst = (float *)malloc(product(net_dst_sizes, 4) * sizeof(float));
+    float *net_src
+            = (float *)malloc(product(net_src_sizes, ndims) * sizeof(float));
+    float *net_dst
+            = (float *)malloc(product(net_dst_sizes, ndims) * sizeof(float));
 
-    init_net_data(net_src, 4, net_src_sizes);
-    memset(net_dst, 0, product(net_dst_sizes, 4) * sizeof(float));
+    init_net_data(net_src, ndims, net_src_sizes);
+    memset(net_dst, 0, product(net_dst_sizes, ndims) * sizeof(float));
 
     //----------------------------------------------------------------------
     //----------------- Forward Stream -------------------------------------
@@ -187,28 +190,30 @@ mkldnn_status_t simple_net() {
     // {BATCH, IC, CONV_IH, CONV_IW} (x) {OC, IC, 11, 11} ->
     // {BATCH, OC, CONV_OH, CONV_OW}
     // strides: {CONV_STRIDE, CONV_STRIDE}
-    mkldnn_dim_t *conv_user_src_sizes = net_src_sizes;
-    mkldnn_dim_t conv_user_weights_sizes[4] = {OC, IC, 11, 11};
-    mkldnn_dim_t conv_bias_sizes[4] = {OC};
-    mkldnn_dim_t conv_user_dst_sizes[4] = {BATCH, OC, CONV_OH, CONV_OW};
-    mkldnn_dim_t conv_strides[2] = {CONV_STRIDE, CONV_STRIDE};
-    mkldnn_dim_t conv_padding[2] = {CONV_PAD, CONV_PAD};
+    mkldnn_dims_t conv_user_src_sizes;
+    for (int i = 0; i < ndims; i++)
+        conv_user_src_sizes[i] = net_src_sizes[i];
+    mkldnn_dims_t conv_user_weights_sizes = {OC, IC, 11, 11};
+    mkldnn_dims_t conv_bias_sizes = {OC};
+    mkldnn_dims_t conv_user_dst_sizes = {BATCH, OC, CONV_OH, CONV_OW};
+    mkldnn_dims_t conv_strides = {CONV_STRIDE, CONV_STRIDE};
+    mkldnn_dims_t conv_padding = {CONV_PAD, CONV_PAD};
 
     float *conv_src = net_src;
     float *conv_weights = (float *)malloc(
-            product(conv_user_weights_sizes, 4) * sizeof(float));
+            product(conv_user_weights_sizes, ndims) * sizeof(float));
     float *conv_bias
             = (float *)malloc(product(conv_bias_sizes, 1) * sizeof(float));
 
-    init_net_data(conv_weights, 4, conv_user_weights_sizes);
+    init_net_data(conv_weights, ndims, conv_user_weights_sizes);
     init_net_data(conv_bias, 1, conv_bias_sizes);
 
     // create memory for user data
     mkldnn_memory_t conv_user_src_memory, conv_user_weights_memory,
             conv_user_bias_memory;
-    init_data_memory(4, conv_user_src_sizes, mkldnn_nchw, mkldnn_f32, engine,
-            conv_src, &conv_user_src_memory);
-    init_data_memory(4, conv_user_weights_sizes, mkldnn_oihw, mkldnn_f32,
+    init_data_memory(ndims, conv_user_src_sizes, mkldnn_nchw, mkldnn_f32,
+            engine, conv_src, &conv_user_src_memory);
+    init_data_memory(ndims, conv_user_weights_sizes, mkldnn_oihw, mkldnn_f32,
             engine, conv_weights, &conv_user_weights_memory);
     init_data_memory(1, conv_bias_sizes, mkldnn_x, mkldnn_f32, engine,
             conv_bias, &conv_user_bias_memory);
@@ -220,13 +225,13 @@ mkldnn_status_t simple_net() {
         // create data descriptors for convolution w/ no specified format
         mkldnn_memory_desc_t conv_src_md, conv_weights_md, conv_bias_md,
                 conv_dst_md;
-        CHECK(mkldnn_memory_desc_init_by_tag(&conv_src_md, 4,
+        CHECK(mkldnn_memory_desc_init_by_tag(&conv_src_md, ndims,
                 conv_user_src_sizes, mkldnn_f32, mkldnn_format_tag_any));
-        CHECK(mkldnn_memory_desc_init_by_tag(&conv_weights_md, 4,
+        CHECK(mkldnn_memory_desc_init_by_tag(&conv_weights_md, ndims,
                 conv_user_weights_sizes, mkldnn_f32, mkldnn_format_tag_any));
         CHECK(mkldnn_memory_desc_init_by_tag(
                 &conv_bias_md, 1, conv_bias_sizes, mkldnn_f32, mkldnn_x));
-        CHECK(mkldnn_memory_desc_init_by_tag(&conv_dst_md, 4,
+        CHECK(mkldnn_memory_desc_init_by_tag(&conv_dst_md, ndims,
                 conv_user_dst_sizes, mkldnn_f32, mkldnn_format_tag_any));
 
         mkldnn_convolution_desc_t conv_any_desc;
@@ -374,14 +379,16 @@ mkldnn_status_t simple_net() {
     // {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, POOL_OH, POOL_OW}
     // kernel: {3, 3}
     // strides: {POOL_STRIDE, POOL_STRIDE}
-    mkldnn_dim_t *pool_dst_sizes = net_dst_sizes;
-    mkldnn_dim_t pool_kernel[2] = {3, 3};
-    mkldnn_dim_t pool_strides[2] = {POOL_STRIDE, POOL_STRIDE};
-    mkldnn_dim_t pool_padding[2] = {POOL_PAD, POOL_PAD};
+    mkldnn_dims_t pool_dst_sizes;
+    for (int i = 0; i < ndims; i++)
+        pool_dst_sizes[i] = net_dst_sizes[i];
+    mkldnn_dims_t pool_kernel = {3, 3};
+    mkldnn_dims_t pool_strides = {POOL_STRIDE, POOL_STRIDE};
+    mkldnn_dims_t pool_padding = {POOL_PAD, POOL_PAD};
 
     // create memory for user dst data
     mkldnn_memory_t pool_user_dst_memory;
-    init_data_memory(4, pool_dst_sizes, mkldnn_nchw, mkldnn_f32, engine,
+    init_data_memory(ndims, pool_dst_sizes, mkldnn_nchw, mkldnn_f32, engine,
             net_dst, &pool_user_dst_memory);
 
     // create a pooling primitive descriptor
@@ -394,8 +401,8 @@ mkldnn_status_t simple_net() {
 
         // create descriptors for dst pooling data
         mkldnn_memory_desc_t pool_dst_md;
-        CHECK(mkldnn_memory_desc_init_by_tag(&pool_dst_md, 4, pool_dst_sizes,
-                mkldnn_f32, mkldnn_format_tag_any));
+        CHECK(mkldnn_memory_desc_init_by_tag(&pool_dst_md, ndims,
+                pool_dst_sizes, mkldnn_f32, mkldnn_format_tag_any));
 
         mkldnn_pooling_desc_t pool_desc;
         CHECK(mkldnn_pooling_forward_desc_init(&pool_desc, mkldnn_forward,
@@ -448,13 +455,13 @@ mkldnn_status_t simple_net() {
 
     // ... user diff_data ...
     float *net_diff_dst
-            = (float *)malloc(product(pool_dst_sizes, 4) * sizeof(float));
+            = (float *)malloc(product(pool_dst_sizes, ndims) * sizeof(float));
 
-    init_net_data(net_diff_dst, 4, pool_dst_sizes);
+    init_net_data(net_diff_dst, ndims, pool_dst_sizes);
 
     // create memory for user diff dst data
     mkldnn_memory_t pool_user_diff_dst_memory;
-    init_data_memory(4, pool_dst_sizes, mkldnn_nchw, mkldnn_f32, engine,
+    init_data_memory(ndims, pool_dst_sizes, mkldnn_nchw, mkldnn_f32, engine,
             net_diff_dst, &pool_user_diff_dst_memory);
 
     // Pooling Backward

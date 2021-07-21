@@ -99,12 +99,13 @@ void test2() {
 
     const dnnl_dim_t mb = 2;
     const dnnl_dim_t groups = 2;
-    dnnl_dim_t c3_src_sizes[4] = {mb, 256, 13, 13};
-    dnnl_dim_t c3_weights_sizes[] = {groups, 384 / groups, 256 / groups, 3, 3};
-    dnnl_dim_t c3_bias_sizes[1] = {384};
-    dnnl_dim_t strides[] = {1, 1};
-    dnnl_dim_t padding[] = {0, 0}; // set proper values
-    dnnl_dim_t c3_dst_sizes[4] = {mb, 384,
+    const int ndims = 4;
+    dnnl_dims_t c3_src_sizes = {mb, 256, 13, 13};
+    dnnl_dims_t c3_weights_sizes = {groups, 384 / groups, 256 / groups, 3, 3};
+    dnnl_dims_t c3_bias_sizes = {384};
+    dnnl_dims_t strides = {1, 1};
+    dnnl_dims_t padding = {0, 0}; // set proper values
+    dnnl_dims_t c3_dst_sizes = {mb, 384,
             (c3_src_sizes[2] + 2 * padding[0] - c3_weights_sizes[3])
                             / strides[0]
                     + 1,
@@ -112,13 +113,15 @@ void test2() {
                             / strides[1]
                     + 1};
 
-    real_t *src = (real_t *)calloc(product(c3_src_sizes, 4), sizeof(real_t));
-    real_t *weights
-            = (real_t *)calloc(product(c3_weights_sizes, 5), sizeof(real_t));
+    real_t *src
+            = (real_t *)calloc(product(c3_src_sizes, ndims), sizeof(real_t));
+    real_t *weights = (real_t *)calloc(
+            product(c3_weights_sizes, ndims + 1), sizeof(real_t));
     real_t *bias = (real_t *)calloc(product(c3_bias_sizes, 1), sizeof(real_t));
-    real_t *dst = (real_t *)calloc(product(c3_dst_sizes, 4), sizeof(real_t));
+    real_t *dst
+            = (real_t *)calloc(product(c3_dst_sizes, ndims), sizeof(real_t));
     real_t *out_mem
-            = (real_t *)calloc(product(c3_dst_sizes, 4), sizeof(real_t));
+            = (real_t *)calloc(product(c3_dst_sizes, ndims), sizeof(real_t));
     CHECK_TRUE(src && weights && bias && dst && out_mem);
 
     for (dnnl_dim_t i = 0; i < c3_bias_sizes[0]; ++i)
@@ -263,13 +266,16 @@ void test2() {
 
 void test3() {
     const dnnl_dim_t mb = 2;
-    dnnl_dim_t l2_data_sizes[4] = {mb, 256, 13, 13};
+    const int ndims = 4;
+    dnnl_dims_t l2_data_sizes = {mb, 256, 13, 13};
 
-    real_t *src = (real_t *)calloc(product(l2_data_sizes, 4), sizeof(real_t));
-    real_t *dst = (real_t *)calloc(product(l2_data_sizes, 4), sizeof(real_t));
+    real_t *src
+            = (real_t *)calloc(product(l2_data_sizes, ndims), sizeof(real_t));
+    real_t *dst
+            = (real_t *)calloc(product(l2_data_sizes, ndims), sizeof(real_t));
     CHECK_TRUE(src && dst);
 
-    for (size_t i = 0; i < product(l2_data_sizes, 4); ++i)
+    for (size_t i = 0; i < product(l2_data_sizes, ndims); ++i)
         src[i] = (i % 13) + 1;
 
     dnnl_engine_t engine;
@@ -284,7 +290,7 @@ void test3() {
     // src, dst
     {
         CHECK(dnnl_memory_desc_init_by_tag(
-                &l2_data_md, 4, l2_data_sizes, dnnl_f32, dnnl_nchw));
+                &l2_data_md, ndims, l2_data_sizes, dnnl_f32, dnnl_nchw));
         CHECK(dnnl_memory_create(&l2_src, &l2_data_md, engine, src));
         CHECK(dnnl_memory_create(&l2_dst, &l2_data_md, engine, dst));
     }
