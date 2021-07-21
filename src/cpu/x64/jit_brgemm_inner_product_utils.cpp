@@ -939,9 +939,9 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 types::data_type_size(jbgp.acc_dt));
     }
     if (jbgp.use_buffer_a && jbgp.prop_kind == dnnl_backward_weights) {
-        int ic_chunks = div_up(
+        const dim_t ic_chunks = div_up(
                 div_up(jbgp.nb_ic, jbgp.nb_ic_blocking), jbgp.nthr_ic_b);
-        int os_chunks
+        const dim_t os_chunks
                 = div_up(div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
         scratchpad.book(key_brgemm_primitive_buffer_a,
                 jbgp.nthr * ic_chunks * os_chunks * jbgp.gemm_batch_size
