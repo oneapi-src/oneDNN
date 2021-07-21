@@ -590,9 +590,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 bgmmc.nthr * bgmmc.buffer_c_per_thread_sz, default_data_align);
 
     if (bgmmc.has_zero_point_a) {
-        int num_elems = bgmmc.blocked_B
-                ? bgmmc.num_N_blocks * bgmmc.zp_a_comp_shift_n
-                : bgmmc.nthr * bgmmc.zp_a_comp_elems_per_thr;
+        const int num_elems = bgmmc.nthr * bgmmc.zp_a_comp_elems_per_thr;
         scratchpad.book(key_brgemm_primitive_zp_comp_a, num_elems,
                 types::data_type_size(s32));
     }

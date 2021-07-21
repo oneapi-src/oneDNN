@@ -659,17 +659,17 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 ? 4
                 : isa == avx512_core_bf16_amx_bf16 ? 2 : 1;
 
+        reorder_zp_a_comp_ptr_ = nullptr;
         if (bgmmc_.has_zero_point_a && bgmmc_.blocked_B) {
-            const size_t reorder_zp_offset
+            // Store the pointer to computed in reorder compensation values to
+            // scale them locally by zp_a value just before usage in post-ops.
+            // Using the single global scaling before parallel section might
+            // produce significant overhead for small problems running in
+            // multitreaded execution mode
+            const size_t reorder_zp_a_comp_offset
                     = weights_d.size() - weights_d.additional_buffer_size();
-            const int32_t *reorder_zp_comp = reinterpret_cast<const int32_t *>(
-                    &data_B_ptr_[reorder_zp_offset]);
-
-            for (int nb = 0; nb < bgmmc.num_N_blocks; nb++) {
-                int32_t *zp = get_zp_a_compensation_ptr(0, nb);
-                for (int b = 0; b < bgmmc.wei_n_blk; b++)
-                    zp[b] = src_zp * reorder_zp_comp[nb * bgmmc.wei_n_blk + b];
-            }
+            reorder_zp_a_comp_ptr_
+                    = (int32_t *)&data_B_ptr_[reorder_zp_a_comp_offset];
         }
 
         // parallelization
@@ -882,15 +882,23 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     int32_t *get_zp_a_compensation_ptr(int ithr, int n_blk_idx) const {
         if (!bgmmc_.has_zero_point_a) return nullptr;
 
+        const int n_blk_local = n_blk_idx % bgmmc_.N_chunk_size;
+        int32_t *zp_comp = zero_point_a_compensations_ptr_
+                + ithr * bgmmc_.zp_a_comp_elems_per_thr
+                + n_blk_local * bgmmc_.zp_a_comp_shift_n;
+
         if (bgmmc_.blocked_B) {
-            return zero_point_a_compensations_ptr_
-                    + n_blk_idx * bgmmc_.zp_a_comp_shift_n;
-        } else {
-            const int n_blk_local = n_blk_idx % bgmmc_.N_chunk_size;
-            return zero_point_a_compensations_ptr_
-                    + ithr * bgmmc_.zp_a_comp_elems_per_thr
-                    + n_blk_local * bgmmc_.zp_a_comp_shift_n;
+            // Scale computed in reorder compensation values by zp_a value
+            // locally just before usage. Using the single global scaling before
+            // parallel section might produce significant overhead for small
+            // problems running in multitreaded execution mode
+            const int base_offset = n_blk_idx * bgmmc_.wei_n_blk;
+            PRAGMA_OMP_SIMD()
+            for (int b = 0; b < bgmmc_.wei_n_blk; b++)
+                zp_comp[b] = -zero_point_a_negative_val_
+                        * reorder_zp_a_comp_ptr_[base_offset + b];
         }
+        return zp_comp;
     }
 
     int32_t *get_zp_b_compensation_result_ptr(int ithr, int m_blk_idx) const {
@@ -982,6 +990,7 @@ private:
 
     int32_t *zero_point_a_compensations_ptr_;
     int32_t *zero_point_b_compensations_ptr_;
+    int32_t *reorder_zp_a_comp_ptr_;
 
     int32_t zero_point_a_negative_val_;
     int32_t zero_point_b_negative_val_;
