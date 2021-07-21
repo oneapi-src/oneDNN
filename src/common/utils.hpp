@@ -164,11 +164,11 @@ std::unique_ptr<T> make_unique(Args &&... args) {
 }
 
 template <typename T, typename P>
-inline bool everyone_is(T val, P item) {
+constexpr bool everyone_is(T val, P item) {
     return val == item;
 }
 template <typename T, typename P, typename... Args>
-inline bool everyone_is(T val, P item, Args... item_others) {
+constexpr bool everyone_is(T val, P item, Args... item_others) {
     return val == item && everyone_is(val, item_others...);
 }
 
@@ -191,7 +191,7 @@ constexpr P map(T pat, P def, T item, P ival, Args... item_others) {
 }
 
 template <typename... Args>
-inline bool any_null(Args... ptrs) {
+constexpr bool any_null(Args... ptrs) {
     return one_of(nullptr, ptrs...);
 }
 
@@ -222,13 +222,13 @@ constexpr int product_impl(const T *arr, int2type<0>) {
 }
 
 template <typename T, size_t num>
-inline T product_impl(const T *arr, int2type<num>) {
+constexpr T product_impl(const T *arr, int2type<num>) {
     return arr[0] * product_impl(arr + 1, int2type<num - 1>());
 }
 } // namespace product_impl
 
 template <size_t num, typename T>
-inline T array_product(const T *arr) {
+constexpr T array_product(const T *arr) {
     return product_impl::product_impl(arr, product_impl::int2type<num - 1>());
 }
 
@@ -284,7 +284,7 @@ inline void simultaneous_sort(
 }
 
 template <typename T>
-inline const T &saturate(const T &low, const T &upper, const T &a) {
+constexpr const T &saturate(const T &low, const T &upper, const T &a) {
     return nstl::max(low, nstl::min(upper, a));
 }
 
@@ -300,7 +300,7 @@ inline typename remove_reference<T>::type rnd_up(const T a, const U b) {
 }
 
 template <typename T, typename U>
-inline typename remove_reference<T>::type rnd_dn(const T a, const U b) {
+constexpr typename remove_reference<T>::type rnd_dn(const T a, const U b) {
     return static_cast<typename remove_reference<T>::type>((a / b) * b);
 }
 
@@ -384,11 +384,11 @@ inline bool nd_iterator_jump(
 }
 
 template <typename T>
-inline T pick(size_t i, const T &x0) {
+constexpr T pick(size_t i, const T &x0) {
     return x0;
 }
 template <typename T, typename... Args>
-inline T pick(size_t i, const T &x0, Args &&... args) {
+constexpr T pick(size_t i, const T &x0, Args &&... args) {
     return i == 0 ? x0 : pick(i - 1, utils::forward<Args>(args)...);
 }
 
