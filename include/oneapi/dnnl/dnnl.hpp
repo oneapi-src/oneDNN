@@ -1551,6 +1551,7 @@ struct memory : public handle<dnnl_memory_t> {
         ABcd8a16b2a = dnnl_ABcd8a16b2a,
         ABcd8a8b = dnnl_ABcd8a8b,
         ABcd8a4b = dnnl_ABcd8a4b,
+        ABcd8a2b = dnnl_ABcd8a2b,
         /// 4D tensor blocked by 2nd dimension with block size 8
         aBcd8b = dnnl_aBcd8b,
         ABcd8b16a2b = dnnl_ABcd8b16a2b,

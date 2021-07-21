@@ -441,6 +441,12 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
         return reorder_kernel_t::plain_to_ABcd4axb;
     }
 
+    if (src_mdw.matches_one_of_tag(abcd, acdb)
+            && dst_mdw.matches_one_of_tag(ABcd8a2b) && src_mdw.is_dense()
+            && dst_mdw.is_dense(true)) {
+        return reorder_kernel_t::plain_to_ABcd8a2b;
+    }
+
     // This kernel will be used where last dimension is not reordered.
     // It will vectorize that dimension.
     if (!has_padding_or_scale_quant && src_mdw.is_dense() && dst_mdw.is_dense()
@@ -590,6 +596,13 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             conf.sub_group_size = (b_block == 2 ? 8 : 16);
             blocks[0] = 4;
             blocks[1] = b_block;
+            vect_dim = 3;
+            vect_size = conf.sub_group_size;
+        } break;
+        case plain_to_ABcd8a2b: {
+            conf.sub_group_size = 16;
+            blocks[0] = 8;
+            blocks[1] = 2;
             vect_dim = 3;
             vect_size = conf.sub_group_size;
         } break;
@@ -745,7 +758,9 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
         for (int i = 0; i < MAX_NDIMS; ++i) {
             auto dim_str = utils::format("D%d", i);
             if (i < dst_mdw.ndims()) {
-                conf.dispatch.define_dim(dim_str, i, padded_dims[i], blocks[i]);
+                int dim = padded_dims[i];
+                if (i == vect_dim) { dim = utils::rnd_up(dim, vect_size); }
+                conf.dispatch.define_dim(dim_str, i, dim, blocks[i]);
             } else {
                 conf.dispatch.define_dim(dim_str, 1);
             }
@@ -842,6 +857,9 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
 
     if (conf.implementation == plain_to_ABcd4axb)
         kernel_ctx.define_int("PLAIN_TO_ABCD4AXB", 1);
+
+    if (conf.implementation == plain_to_ABcd8a2b)
+        kernel_ctx.define_int("PLAIN_TO_ABCD8A2B", 1);
 
     if (conf.implementation == xb_to_xab_xba) {
         kernel_ctx.define_int("XAB_XBA", 1);

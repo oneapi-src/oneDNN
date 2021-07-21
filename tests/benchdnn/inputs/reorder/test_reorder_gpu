@@ -27,6 +27,12 @@
 --dtag=AB32a32b8a4b,AB32a32b8a2b,AB8a4b,AB8a2b
 512x512
 
+# test plain to ABx8a2b
+--allow-enum-tags-only=0
+--stag=abx,axb
+--dtag=ABx8a2b
+4x3x230 16x16x32x16 1x3x10x10 8x5x7x7x7
+
 # test transposeNxN kernel, including checks if it tries to support formats it's not suitable for
 --allow-enum-tags-only=0
 
