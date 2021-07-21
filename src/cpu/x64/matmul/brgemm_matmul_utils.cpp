@@ -14,9 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
+#include <unordered_set>
+
 #include "cpu/platform.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
 
 #include "cpu/matmul/matmul_utils.hpp"
 #include "oneapi/dnnl/dnnl_debug.h"
@@ -455,10 +457,24 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
                         : (bgmmc.use_buffer_a || a_lot_of_parallel_work ? 4
                                                                         : 1),
                 num_N_blk);
+        std::unordered_set<int> mblk_candidates;
+        for (int m_blk = bgmmc.M_blk; m_blk >= min_M_blk;
+                m_blk = m_blk > 1 ? div_up(m_blk, 2) : m_blk - 1)
+            mblk_candidates.insert(m_blk);
+
+        if (bgmmc.M > 16) {
+            // Add multiple of 16 M block sizes for consideration
+            const int mul16_m_blk_max
+                    = nstl::min(rnd_dn(static_cast<int>(bgmmc.M), 16), 64);
+            const int mul16_m_blk_min = rnd_up(min_M_blk, 16);
+            for (int m_blk = mul16_m_blk_max; m_blk >= mul16_m_blk_min;
+                    m_blk -= 16) {
+                mblk_candidates.insert(m_blk);
+            }
+        }
 
         for_(int n_blk = bgmmc.N_blk; n_blk >= min_N_blk; n_blk -= 16)
-        for_(int m_blk = bgmmc.M_blk; m_blk >= min_M_blk;
-                m_blk = m_blk > 1 ? div_up(m_blk, 2) : m_blk - 1)
+        for_(int m_blk : mblk_candidates)
         for_(int n_ch_sz = desired_N_chunk; n_ch_sz >= 1; n_ch_sz--)
         for (int m_ch_sz = desired_M_chunk; m_ch_sz >= 1; m_ch_sz--, iter++) {
             current_blocking.set_blocking_parameters(
