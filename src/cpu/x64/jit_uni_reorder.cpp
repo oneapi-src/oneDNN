@@ -1475,9 +1475,10 @@ static void prb_thread_kernel_balance(
      * It might happen that for chosen kdims the sz_ker_cur is too small
      * (less than tr::ker_prb_size_min). In that case try to split the
      * innermost driver dimension into two, to increase sz_ker_cur. */
-    bool want_borrow_ker_from_drv = true && kdims < prb.ndims
+    const bool has_tails = prb.ip_tail > 0 || prb.op_tail > 0;
+    const bool want_borrow_ker_from_drv = true && kdims < prb.ndims
             && sz_ker_cur < tr::ker_prb_size_min && sz_drv_cur > sz_drv_min
-            && kdims != prb.blk_chunk_idx;
+            && IMPLICATION(has_tails, kdims != prb.blk_chunk_idx);
     if (want_borrow_ker_from_drv) {
         /* sz_want_borrow is the minimal sz, so that:
          *  o) sz_ker_cur * sz_want_borrow >= tr::ker_prb_size_min
@@ -1500,8 +1501,9 @@ static void prb_thread_kernel_balance(
      * the sz_drv_cur is too small (less than sz_drv_min). In that case
      * try to split the outermost kernel dimension into two, to increase
      * sz_drv_cur. */
-    bool want_borrow_drv_from_ker = true && sz_ker_cur > tr::ker_prb_size_min
-            && sz_drv_cur < sz_drv_min && kdims != prb.blk_chunk_idx;
+    const bool want_borrow_drv_from_ker = true
+            && sz_ker_cur > tr::ker_prb_size_min && sz_drv_cur < sz_drv_min
+            && &&IMPLICATION(has_tails, kdims != prb.blk_chunk_idx);
     if (want_borrow_drv_from_ker) {
         size_t sz_want_borrow = utils::div_up(sz_drv_min, sz_drv_cur);
         for (; prb.nodes[kdims - 1].n % sz_want_borrow; ++sz_want_borrow)

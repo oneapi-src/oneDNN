@@ -262,7 +262,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             ild.dims[i_pos] = factor;
         }
     }
-    int blk_chunk_idx = ndims;
+    int blk_chunk_idx = ndims - 1;
     CHECK(compute_chunk_idx(p, imd, omd, blk_idx, blk_chunk_idx));
 
     p.ndims = ndims;
