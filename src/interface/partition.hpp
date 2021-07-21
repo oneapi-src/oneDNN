@@ -58,7 +58,7 @@ public:
 
     // deep copy
     dnnl_graph_partition(const dnnl_graph_partition &other)
-        : impl::utils::id_t(other), pimpl_(other.pimpl_->clone()) {}
+        : impl::utils::id_t(other), pimpl_(other.pimpl_) {}
 
     // disable assign
     dnnl_graph_partition &operator=(const dnnl_graph_partition &other) = delete;
@@ -67,7 +67,7 @@ public:
 
     void init(const std::shared_ptr<impl::partition_impl_t> &pimpl) {
         pimpl_ = pimpl;
-        pimpl_->set_id(id());
+        const_cast<impl::partition_impl_t *>(pimpl_.get())->set_id(id());
     }
 
     bool is_initialized() {
@@ -135,7 +135,7 @@ public:
     }
 
 private:
-    std::shared_ptr<impl::partition_impl_t> pimpl_;
+    std::shared_ptr<const impl::partition_impl_t> pimpl_;
 };
 
 ///

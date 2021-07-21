@@ -277,7 +277,9 @@ public:
 
     /////////////// the followings are the implementation of interface
 
-    virtual bool is_initialized() override { return fused_op_ != nullptr; }
+    virtual bool is_initialized() const override {
+        return fused_op_ != nullptr;
+    }
 
     virtual std::shared_ptr<impl::partition_impl_t> clone() override {
         return std::make_shared<dnnl_partition_impl_t>(*this);
@@ -291,7 +293,7 @@ public:
             impl::compiled_partition_t *compiled_partition,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
-            const impl::engine_t *g_engine = nullptr) override {
+            const impl::engine_t *g_engine = nullptr) const override {
         using ltw = impl::logical_tensor_wrapper;
 
         static std::set<op_kind_t> subgraph_patterns {op_kind::int8_conv_relu,
@@ -345,9 +347,9 @@ public:
                 op_kind::x8s8f32_quant_wei_matmul_gelu,
                 op_kind::x8s8f32_quant_wei_matmul_bias_gelu};
 
-        const dnnl_partition_impl_t *part
-                = dynamic_cast<const dnnl_partition_impl_t *>(
-                        compiled_partition->src_partition().get_pimpl());
+        // compile will transform the subgraph in partition, so we make
+        // a copy
+        auto part = std::make_shared<dnnl_partition_impl_t>(*this);
 
         std::shared_ptr<impl::op_t> fused_op = part->get_fused_op();
         if (!fused_op) return status::compile_fail;
@@ -362,14 +364,10 @@ public:
         // mode
         bool use_subgraph = subgraph_patterns.count(fused_op->get_kind());
         if (use_subgraph) {
-            // compile will transform the subgraph in partition, so we make
-            // a copy
-            auto copied_part = std::make_shared<dnnl_partition_impl_t>(*part);
-
             // In subgraph mode, we don't need to resort the inputs or outputs
             // FIXME(qun) will modify the outputs inside the compile, which
             // break the constant semantics
-            ret = kernel->compile(copied_part.get(), g_engine, inputs, outputs);
+            ret = kernel->compile(part.get(), g_engine, inputs, outputs);
             if (ret != status::success) return ret;
 
             std::vector<impl::logical_tensor_t> ordered_inputs;
@@ -446,7 +444,7 @@ public:
 
     virtual impl::status_t infer_shape(
             std::vector<const impl::logical_tensor_t *> &inputs,
-            std::vector<impl::logical_tensor_t *> &outputs) override {
+            std::vector<impl::logical_tensor_t *> &outputs) const override {
         impl::status_t ret;
 
         std::vector<impl::logical_tensor_t *> ordered_inputs, ordered_outputs;

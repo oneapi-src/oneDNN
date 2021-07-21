@@ -86,7 +86,7 @@ public:
         return outputs_;
     }
 
-    virtual bool is_initialized() = 0;
+    virtual bool is_initialized() const = 0;
 
     /// Deep copy a partition, and return the copied partition's smart pointer
     virtual std::shared_ptr<impl::partition_impl_t> clone() = 0;
@@ -106,8 +106,7 @@ public:
     ///     function's implementation.
     virtual impl::status_t infer_shape(
             std::vector<const impl::logical_tensor_t *> &inputs,
-            std::vector<impl::logical_tensor_t *> &outputs)
-            = 0;
+            std::vector<impl::logical_tensor_t *> &outputs) const = 0;
 
     /// Compile the partition with specific inputs and outputs logical
     /// tensors and engine. A partitioncan be compiled multiple times
@@ -155,8 +154,7 @@ public:
             impl::compiled_partition_t *compiled_partition,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
-            const impl::engine_t *aengine = nullptr)
-            = 0;
+            const impl::engine_t *aengine = nullptr) const = 0;
 
     // dump a partition to string
     virtual std::string to_string() const = 0;

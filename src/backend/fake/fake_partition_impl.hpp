@@ -113,7 +113,9 @@ public:
 
     /////////////// the followings are the implementation of interface
 
-    virtual bool is_initialized() override { return fused_op_ != nullptr; }
+    virtual bool is_initialized() const override {
+        return fused_op_ != nullptr;
+    }
 
     virtual std::shared_ptr<impl::partition_impl_t> clone() override {
         return std::make_shared<fake_partition_impl_t>(*this);
@@ -127,7 +129,7 @@ public:
             impl::compiled_partition_t *compiled_partition,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
-            const impl::engine_t *g_engine = nullptr) override {
+            const impl::engine_t *g_engine = nullptr) const override {
         UNUSED(compiled_partition);
         UNUSED(inputs);
         UNUSED(outputs);
@@ -137,7 +139,7 @@ public:
 
     virtual impl::status_t infer_shape(
             std::vector<const impl::logical_tensor_t *> &inputs,
-            std::vector<impl::logical_tensor_t *> &outputs) override {
+            std::vector<impl::logical_tensor_t *> &outputs) const override {
         UNUSED(inputs);
         UNUSED(outputs);
         return status::unsupported;
