@@ -100,25 +100,22 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
 
     gemm_exec_ctx_t gemm_ctx(ctx, gemm_args);
 
-    nested_scratchpad_t ns(ctx, key_nested, gemm_);
+    nested_scratchpad_t ns(ctx, key_nested_multiple, gemm_);
     gemm_ctx.set_scratchpad_grantor(ns.grantor());
 
     status_t gemm_exec_status = gpu_gemm(gemm_)->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
     if (pd()->with_bias()) {
-        auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
-        auto &diff_bias = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
-
-        compute::kernel_arg_list_t arg_list;
-        arg_list.set(0, diff_dst);
-        arg_list.set(1, diff_bias);
-
-        auto nd_range = compute::nd_range_t({pd()->OC()});
-
-        status_t bias_status
-                = parallel_for(ctx, nd_range, bias_kernel_, arg_list);
-        if (bias_status != status::success) return bias_status;
+        auto diff_dst = ctx.input(DNNL_ARG_DIFF_DST);
+        auto diff_bia = ctx.output(DNNL_ARG_DIFF_BIAS);
+        exec_args_t r_args;
+        r_args[DNNL_ARG_SRC] = memory_arg_t {diff_dst, true};
+        r_args[DNNL_ARG_DST] = memory_arg_t {diff_bia, false};
+        exec_ctx_t r_ctx(ctx, std::move(r_args));
+        nested_scratchpad_t ns(ctx, key_nested_multiple + 1, reduction_);
+        r_ctx.set_scratchpad_grantor(ns.grantor());
+        reduction_->execute(r_ctx);
     }
 
     return status::success;

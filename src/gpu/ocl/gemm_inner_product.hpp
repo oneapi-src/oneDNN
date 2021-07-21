@@ -28,6 +28,7 @@
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
+#include "gpu/gpu_reduction_pd.hpp"
 #include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -42,10 +43,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
         pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
             : gpu_inner_product_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
-        pd_t(const pd_t &rhs) : gpu_inner_product_fwd_pd_t(rhs) {
-            gemm_pd_.reset(rhs.gemm_pd_->clone());
-            attr_info_ = rhs.attr_info_;
-        }
+        pd_t(const pd_t &rhs) = default;
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T("ocl:gemm", gemm_inner_product_fwd_t);
@@ -127,9 +125,7 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
         pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
             : gpu_inner_product_bwd_data_pd_t(adesc, attr, hint_fwd_pd) {}
-        pd_t(const pd_t &rhs) : gpu_inner_product_bwd_data_pd_t(rhs) {
-            gemm_pd_.reset(rhs.gemm_pd_->clone());
-        }
+        pd_t(const pd_t &rhs) = default;
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T("ocl:gemm", gemm_inner_product_bwd_data_t);
@@ -207,9 +203,8 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
         pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
             : gpu_ip_bwd_weights_pd_t(adesc, attr, hint_fwd_pd) {}
-        pd_t(const pd_t &rhs) : gpu_ip_bwd_weights_pd_t(rhs) {
-            gemm_pd_.reset(rhs.gemm_pd_->clone());
-        }
+        pd_t(const pd_t &rhs) = default;
+
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T("gemm:ocl", gemm_inner_product_bwd_weights_t);
@@ -250,8 +245,38 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                             &glob_zero_md, desc()->accum_data_type, attr());
 
             if (!gemm_ok) return status::unimplemented;
-            init_scratchpad();
 
+            if (with_bias()) {
+                memory_desc_t reduction_dst_md, reduction_bias_md;
+                //Set ndims to 3 in order to explicitly specify blocked format
+                //so that it will go to optimized reduction implementation.
+                reduction_bias_md.ndims = 3;
+                reduction_bias_md.dims[0] = 1;
+                reduction_bias_md.dims[1] = diff_bias_md_.dims[0];
+                reduction_bias_md.dims[2] = 1;
+                bool use_blocked = OC() % 16 == 0;
+                CHECK(dnnl_memory_desc_init_by_tag(&reduction_bias_md,
+                        reduction_bias_md.ndims, reduction_bias_md.dims,
+                        diff_bias_md_.data_type,
+                        use_blocked ? format_tag::aBc16b : format_tag::abc));
+                reduction_dst_md = *diff_dst_md();
+                reduction_dst_md.ndims = 3;
+                reduction_dst_md.dims[2] = 1;
+                CHECK(dnnl_memory_desc_init_by_tag(&reduction_dst_md,
+                        reduction_dst_md.ndims, reduction_dst_md.dims,
+                        diff_dst_md_.data_type,
+                        use_blocked ? format_tag::aBc16b : format_tag::abc));
+                reduction_desc_t reduction_d;
+                CHECK(dnnl_reduction_desc_init(&reduction_d,
+                        dnnl::impl::alg_kind::reduction_sum, &reduction_dst_md,
+                        &reduction_bias_md, 0.0f, 0.0f));
+                dnnl_primitive_desc_iterator it(engine,
+                        (op_desc_t *)&reduction_d, &default_attr(), nullptr);
+                if (!it.is_initialized()) return status::out_of_memory;
+                reduction_pd_ = *(++it);
+                if (!reduction_pd_) return status::unimplemented;
+            }
+            init_scratchpad();
             return status::success;
         }
 
@@ -261,33 +286,24 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
         }
 
         std::shared_ptr<primitive_desc_t> gemm_pd_;
+        std::shared_ptr<primitive_desc_t> reduction_pd_;
 
     private:
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
-            scratchpad.book(memory_tracking::names::key_nested,
+            scratchpad.book(memory_tracking::names::key_nested_multiple,
                     gemm_pd_->scratchpad_registry());
+            if (with_bias())
+                scratchpad.book(memory_tracking::names::key_nested_multiple + 1,
+                        reduction_pd_->scratchpad_registry());
         }
     };
 
     status_t init(engine_t *engine) override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
         if (gemm_status != status::success) return gemm_status;
-
-        if (pd()->with_bias()) {
-            compute::kernel_ctx_t kernel_ctx;
-
-            kernel_ctx.set_data_type(pd()->src_md()->data_type);
-            def_data_type(
-                    kernel_ctx, pd()->diff_weights_md(1)->data_type, "BIA");
-            kernel_ctx.define_int("MB", pd()->MB());
-            kernel_ctx.define_int("OC", pd()->OC());
-
-            create_kernel(engine, &bias_kernel_,
-                    "gemm_inner_product_backward_weights_bias", kernel_ctx);
-            if (!bias_kernel_) return status::runtime_error;
-        }
-
+        if (pd()->with_bias())
+            CHECK(pd()->reduction_pd_->create_primitive(reduction_, engine));
         return status::success;
     }
 
@@ -304,7 +320,7 @@ private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<primitive_t> gemm_;
-    compute::kernel_t bias_kernel_;
+    std::shared_ptr<primitive_t> reduction_;
 };
 
 } // namespace ocl
