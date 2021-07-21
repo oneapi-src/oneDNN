@@ -671,6 +671,8 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *prb,
                 5, "oneDNN implementation: %s\n", res->impl_name.c_str());
     }
 
+    SAFE(check_pd_w_and_wo_attr(res, prb->attr, cd), WARN);
+
     return OK;
 }
 
@@ -688,6 +690,53 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     if (is_cpu() && f32_s8_conv) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
+    }
+
+    if (is_nvidia_gpu()) {
+        const int64_t ID = prb->id, IH = prb->ih, IW = prb->iw;
+        const int64_t OD = prb->od, OH = prb->oh, OW = prb->ow;
+        const int64_t KD = prb->kd, KH = prb->kh, KW = prb->kw;
+        const int64_t SD = prb->sd, SH = prb->sh, SW = prb->sw;
+        const int64_t PD = prb->pd, PH = prb->ph, PW = prb->pw;
+        const int64_t PD_R = prb->pd_r, PH_R = prb->ph_r, PW_R = prb->pw_r;
+        const bool pad_ok = PD >= PD_R && PH >= PH_R && PW >= PW_R;
+        // copy-pasted from str2desc, dilation is not supported for Nvidia
+        const auto compute_out
+                = [](int64_t i, int64_t k, int64_t s, int64_t p) {
+                      return (i - k + 2 * p) / s + 1;
+                  };
+        const bool out_ok = OD == compute_out(ID, KD, SD, PD)
+                && OH == compute_out(IH, KH, SH, PH)
+                && OW == compute_out(IW, KW, SW, PW);
+
+        const auto &po = prb->attr.post_ops;
+        bool post_ops_ok = true;
+        for (int i = 0; i < po.len(); ++i) {
+            const auto &e = po.entry[i];
+            if (e.is_sum_kind())
+                continue;
+            else if (e.is_eltwise_kind())
+                post_ops_ok = post_ops_ok && is_nvidia_eltwise_ok(prb->dir, e);
+            else if (e.is_binary_kind() || e.is_convolution_kind())
+                post_ops_ok = false;
+            else
+                assert(!"unknown post-op type");
+        }
+
+        const auto dtag = normalize_tag(prb->dtag, prb->ndims);
+        const bool dtag_is_axb = dtag == normalize_tag(tag::axb, prb->ndims);
+        const bool tag_ok = !((prb->dir & FLAG_BWD) && dtag_is_axb);
+
+        const bool is_f16_src = prb->cfg[SRC].dt == dnnl_f16;
+        const bool is_f16_wei = prb->cfg[WEI].dt == dnnl_f16;
+        const bool f16_s8_conv = is_f16_src && is_f16_wei && is_int8_dst;
+
+        // TODO: specified wtag (even for supported formats) is not working?
+        if (!pad_ok || !out_ok || !post_ops_ok || !tag_ok || f32_s8_conv
+                || f16_s8_conv) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
     }
 
     // Winograd implementation limitations.
@@ -752,6 +801,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
                     && prb->ph_r < prb->kh;
             if (!shape_ok) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
             }
 
             const auto stag = normalize_tag(prb->stag, prb->ndims);
@@ -760,58 +810,11 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             bool is_axb_ok = (prb->ic % 16 == 0) && (prb->oc % 16 == 0);
             if (stag_is_axb && !is_axb_ok) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
             }
 
-            return;
         } else {
             assert(!"Unknown Engine");
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
-
-    if (is_nvidia_gpu()) {
-        const int64_t ID = prb->id, IH = prb->ih, IW = prb->iw;
-        const int64_t OD = prb->od, OH = prb->oh, OW = prb->ow;
-        const int64_t KD = prb->kd, KH = prb->kh, KW = prb->kw;
-        const int64_t SD = prb->sd, SH = prb->sh, SW = prb->sw;
-        const int64_t PD = prb->pd, PH = prb->ph, PW = prb->pw;
-        const int64_t PD_R = prb->pd_r, PH_R = prb->ph_r, PW_R = prb->pw_r;
-        const bool pad_ok = PD >= PD_R && PH >= PH_R && PW >= PW_R;
-        // copy-pasted from str2desc, dilation is not supported for Nvidia
-        const auto compute_out
-                = [](int64_t i, int64_t k, int64_t s, int64_t p) {
-                      return (i - k + 2 * p) / s + 1;
-                  };
-        const bool out_ok = OD == compute_out(ID, KD, SD, PD)
-                && OH == compute_out(IH, KH, SH, PH)
-                && OW == compute_out(IW, KW, SW, PW);
-
-        const auto &po = prb->attr.post_ops;
-        bool post_ops_ok = true;
-        for (int i = 0; i < po.len(); ++i) {
-            const auto &e = po.entry[i];
-            if (e.is_sum_kind())
-                continue;
-            else if (e.is_eltwise_kind())
-                post_ops_ok = post_ops_ok && is_nvidia_eltwise_ok(prb->dir, e);
-            else if (e.is_binary_kind() || e.is_convolution_kind())
-                post_ops_ok = false;
-            else
-                assert(!"unknown post-op type");
-        }
-
-        const auto dtag = normalize_tag(prb->dtag, prb->ndims);
-        const bool dtag_is_axb = dtag == normalize_tag(tag::axb, prb->ndims);
-        const bool tag_ok = !((prb->dir & FLAG_BWD) && dtag_is_axb);
-
-        const bool is_f16_src = prb->cfg[SRC].dt == dnnl_f16;
-        const bool is_f16_wei = prb->cfg[WEI].dt == dnnl_f16;
-        const bool f16_s8_conv = is_f16_src && is_f16_wei && is_int8_dst;
-
-        // TODO: specified wtag (even for supported formats) is not working?
-        if (!pad_ok || !out_ok || !post_ops_ok || !tag_ok || f32_s8_conv
-                || f16_s8_conv) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }

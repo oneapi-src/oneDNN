@@ -5,7 +5,7 @@
     --attr-oscale=POLICY[:SCALE[*]]
     --attr-scales=ARG:POLICY[:SCALE[*]][+...]
     --attr-zero-points=ARG:POLICY:ZEROPOINT[*][+...]
-    --attr-post-ops=SUM[:SCALE[:DATA_TYPE]]
+    --attr-post-ops=SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]
                     ELTWISE[:ALPHA[:BETA[:SCALE]]]
                     DW_K3S1P1[:DST_DT[:OUTPUTSCALE]]
                     DW_K3S2P1[:DST_DT[:OUTPUTSCALE]]
@@ -87,11 +87,12 @@ post operations kind, the syntax differs. To specify more than one post
 operation, plus delimiter `+` is used.
 
 `SUM` post operation kind appends operation result to the output. It supports
-optional arguments `SCALE` parsed as a real number, which scales the operation
-result before appending, and `DATA_TYPE` argument which defines sum data type
-parameter. If invalid or `undef` value of `DATA_TYPE` is specified, an error
-will be returned. Only single `SUM` operation can be applied to the output
-tensor.
+optional arguments `SCALE` parsed as a real number, which scales the output
+before appending the result, `ZERO_POINT` parsed as a integer, which shifts the
+output before using the scale and `DATA_TYPE` argument which defines sum data
+type parameter. If invalid or `undef` value of `DATA_TYPE` is specified, an
+error will be returned. Only single `SUM` operation can be applied to the
+output tensor.
 
 `ELTWISE` post operation kind applies one of supported element-wise algorithms
 to the operation result and then stores it. It supports optional arguments

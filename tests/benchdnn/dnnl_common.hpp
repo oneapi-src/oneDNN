@@ -208,14 +208,14 @@ extern size_t engine_index;
 extern isa_hints_t hints;
 
 // Extended version of dnnl_sycl_interop_memory_kind_t enumeration.
-enum class sycl_memory_kind_ext_t {
+enum class memory_kind_ext_t {
     usm, // Same as dnnl_sycl_interop_usm
     buffer, // Same as dnnl_sycl_interop_buffer
     usm_device, // USM allocated via malloc_device()
     usm_shared, // USM allocated via malloc_shared()
 };
 
-extern sycl_memory_kind_ext_t sycl_memory_kind;
+extern memory_kind_ext_t memory_kind;
 
 void init_isa_settings();
 
@@ -354,6 +354,22 @@ inline const engine_t &get_cpu_engine() {
 }
 
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
+int check_same_pd(res_t *res, const dnnl_primitive_desc_t &pd_no_attr);
+
+template <typename op_desc_t>
+int check_pd_w_and_wo_attr(
+        res_t *res, const attr_t &attr, const op_desc_t &op_desc) {
+    if (attr_same_pd_check && !attr.is_def()) {
+        dnnl_primitive_desc_t pd_no_attr {};
+        dnnl_primitive_attr_t dnnl_empty_attrs {};
+        DNN_SAFE(dnnl_primitive_desc_create(&pd_no_attr, &op_desc,
+                         dnnl_empty_attrs, get_test_engine(), nullptr),
+                WARN);
+        auto pd_no_attr_wrapper = make_benchdnn_dnnl_wrapper(pd_no_attr);
+        SAFE(check_same_pd(res, pd_no_attr_wrapper), WARN);
+    }
+    return OK;
+}
 
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
@@ -443,6 +459,7 @@ void check_sum_post_ops(const attr_t &attr, res_t *res);
 bool is_cpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_gpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_sycl_engine(const dnnl_engine_t &engine = get_test_engine());
+bool is_opencl_engine(const dnnl_engine_t &engine = get_test_engine());
 bool is_nvidia_gpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_nvidia_eltwise_ok(
         dir_t dir, attr_t::post_ops_t::kind_t alg, float alpha);
@@ -457,7 +474,7 @@ int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
 int check_mem_size(const dnnl_memory_desc_t &md);
 int check_mem_size(const_dnnl_primitive_desc_t const_pd);
 
-sycl_memory_kind_ext_t str2sycl_memory_kind(const char *str);
+memory_kind_ext_t str2memory_kind(const char *str);
 
 float reorder_rescale_factor();
 

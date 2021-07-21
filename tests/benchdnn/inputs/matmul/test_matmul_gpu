@@ -77,6 +77,10 @@ m96n512k8
 --bia_dt=bf16
 m2n3k4
 
+--reset
+#runtime oscale test
+--attr-oscale=common:2* m512n16k16
+
 # test all features at once: 6D tensors with two-way broadcast, bias, postops, scale
 --reset
 --cfg=bf16bf16bf16

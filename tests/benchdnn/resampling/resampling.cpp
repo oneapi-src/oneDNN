@@ -90,17 +90,17 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     SAFE(init_md(&dst_d, prb->ndims, dst_dims, prb->ddt, dst_tag), CRIT);
 
     dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
-    dnnl_resampling_desc_t pd;
+    dnnl_resampling_desc_t rd;
 
     if (prb->dir & FLAG_FWD) {
         auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
                                              : dnnl_forward_training;
         DNN_SAFE(dnnl_resampling_forward_desc_init(
-                         &pd, prop_kind, alg, nullptr, &src_d, &dst_d),
+                         &rd, prop_kind, alg, nullptr, &src_d, &dst_d),
                 WARN);
     } else {
         DNN_SAFE(dnnl_resampling_backward_desc_init(
-                         &pd, alg, nullptr, &src_d, &dst_d),
+                         &rd, alg, nullptr, &src_d, &dst_d),
                 WARN);
     }
 
@@ -132,7 +132,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             create_dnnl_attr(prb->attr, attr_args));
 
     status = dnnl_primitive_desc_create(
-            &rpd, &pd, dnnl_attr, engine, hint_fwd_pd);
+            &rpd, &rd, dnnl_attr, engine, hint_fwd_pd);
 
     if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
     SAFE(status, WARN);
@@ -146,6 +146,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         BENCHDNN_PRINT(
                 5, "oneDNN implementation: %s\n", res->impl_name.c_str());
     }
+
+    SAFE(check_pd_w_and_wo_attr(res, prb->attr, rd), WARN);
 
     return OK;
 }

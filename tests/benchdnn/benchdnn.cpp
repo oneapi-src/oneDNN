@@ -66,6 +66,7 @@ bool fast_ref_gpu {DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE};
 
 bool allow_enum_tags_only {true};
 int test_start {0};
+bool attr_same_pd_check {false};
 
 int main(int argc, char **argv) {
     using namespace parser;

@@ -26,6 +26,11 @@ The following common options are supported:
   reproducer line omitting options and problem descriptor entries which values
   are set to their defaults.
 
+* --attr-same-pd-check=`BOOL` -- Instructs the driver to compare two primitive
+  descriptors - one with added attributes and one without them. When BOOL is
+  `true`, check will return error if adding of attributes caused fallback to
+  generic kernel, when optimized kernel lacked proper support.
+
 * --engine=`KIND[:INDEX]` -- Specifies an engine kind KIND to be used for
   benchmarking. KIND values can be `cpu` (the default) or `gpu`. Optional
   non-negative integer value of INDEX may be specified followed by colon `:`.
@@ -68,9 +73,11 @@ The following common options are supported:
 * --start=`N` -- Specifies the test index to start testing. All tests before
   the index are skipped.
 
-* --sycl-memory-kind=`KIND` -- Specifies the memory kind to test with DPC++
-  engines. KIND values can be `usm` (default), `buffer`, `usm_device` (to use
-  malloc_device) or `usm_shared` (to use malloc_shared).
+* --memory-kind=`KIND` -- Specifies the memory kind to test with DPC++ and
+  OpenCL engines. KIND values can be `usm` (default), `buffer`, `usm_device`
+  (to use malloc_device) or `usm_shared` (to use malloc_shared).
+  The old style option named --sycl-memory-kind is supported for backward
+  compatibility.
 
 * -v`N`, --verbose=`N` -- Specifies the driver verbose level. It prints
   additional information depending on a level N. N is a non-negative integer

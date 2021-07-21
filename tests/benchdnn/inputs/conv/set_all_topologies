@@ -14,6 +14,7 @@
 --batch=shapes_mobilenet_dw
 --batch=shapes_resnet_50
 --batch=shapes_resnet_50_sparse
+--batch=shapes_resnext_101
 --batch=shapes_ssd_300_voc0712
 --batch=shapes_ssd_resnet34_training
 --batch=shapes_unet

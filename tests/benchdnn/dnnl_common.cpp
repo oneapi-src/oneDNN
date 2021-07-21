@@ -93,7 +93,7 @@ size_t engine_index = 0;
 // CPU ISA specific hints : none by default
 isa_hints_t hints {isa_hints_t::none};
 
-sycl_memory_kind_ext_t sycl_memory_kind {sycl_memory_kind_ext_t::usm};
+memory_kind_ext_t memory_kind {memory_kind_ext_t::usm};
 
 void init_isa_settings() {
     if (hints.get() == isa_hints_t::no_hints)
@@ -385,6 +385,20 @@ void check_sum_post_ops(const attr_t &attr, res_t *res) {
     }
 }
 
+// Check ensures that attributes don't cause implementation fallback
+int check_same_pd(res_t *res, const dnnl_primitive_desc_t &pd_no_attr) {
+    const std::string pd_no_attr_name = query_impl_info(pd_no_attr);
+    if (res->impl_name != pd_no_attr_name) {
+        res->state = FAILED;
+        BENCHDNN_PRINT(0,
+                "ERROR: attributes usage caused implementation fallback from "
+                "[%s] to [%s] \n",
+                pd_no_attr_name.c_str(), res->impl_name.c_str());
+        return FAIL;
+    }
+    return OK;
+}
+
 bool is_cpu(const dnnl_engine_t &engine) {
     return get_engine_kind(engine) == dnnl_cpu;
 }
@@ -396,6 +410,11 @@ bool is_gpu(const dnnl_engine_t &engine) {
 bool is_sycl_engine(const dnnl_engine_t &engine) {
     if (is_cpu(engine)) return DNNL_CPU_RUNTIME == DNNL_RUNTIME_DPCPP;
     if (is_gpu(engine)) return DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP;
+    return false;
+}
+
+bool is_opencl_engine(const dnnl_engine_t &engine) {
+    if (is_gpu(engine)) return DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL;
     return false;
 }
 
@@ -499,7 +518,9 @@ int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
             blk.strides[dim_idx] = stride;
 
             dnnl_dim_t fib = full_inner_blks[dim_idx];
-            dnnl_dim_t padded_dim = (md->dims[dim_idx] + fib - 1) / fib * fib;
+            dnnl_dim_t padded_dim = md->dims[dim_idx] == DNNL_RUNTIME_DIM_VAL
+                    ? DNNL_RUNTIME_DIM_VAL
+                    : (md->dims[dim_idx] + fib - 1) / fib * fib;
             md->padded_dims[dim_idx] = padded_dim;
             if (padded_dim == DNNL_RUNTIME_DIM_VAL)
                 stride = DNNL_RUNTIME_DIM_VAL;
@@ -720,9 +741,9 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     return OK;
 }
 
-sycl_memory_kind_ext_t str2sycl_memory_kind(const char *str) {
+memory_kind_ext_t str2memory_kind(const char *str) {
 #define CASE(param) \
-    if (!strcasecmp(#param, str)) return sycl_memory_kind_ext_t::param
+    if (!strcasecmp(#param, str)) return memory_kind_ext_t::param
 
     CASE(usm);
     CASE(buffer);
@@ -732,7 +753,7 @@ sycl_memory_kind_ext_t str2sycl_memory_kind(const char *str) {
 #undef CASE
 
     assert(!"not expected");
-    return sycl_memory_kind_ext_t::usm;
+    return memory_kind_ext_t::usm;
 }
 
 engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {

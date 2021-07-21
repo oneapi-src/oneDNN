@@ -219,6 +219,7 @@ private:
     mutable void *mapped_ptr_ = NULL;
 
     int initialize_memory_create_sycl(const handle_info_t &handle_info);
+    int initialize_memory_create_opencl(const handle_info_t &handle_info);
 
     int initialize_memory_create(const handle_info_t &handle_info);
 
@@ -279,6 +280,7 @@ private:
     }
 
     int cleanup_sycl();
+    int cleanup_opencl();
 
     int cleanup() {
         if (!active_) return OK;
@@ -287,6 +289,8 @@ private:
         if (is_data_owner_) {
             if (is_sycl_engine(engine_)) {
                 SAFE(cleanup_sycl(), CRIT);
+            } else if (is_opencl_engine(engine_)) {
+                SAFE(cleanup_opencl(), CRIT);
             } else {
                 zfree(data_);
             }
