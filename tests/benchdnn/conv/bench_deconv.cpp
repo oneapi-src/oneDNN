@@ -49,8 +49,9 @@ void check_correctness(const settings_t &s) {
         attr.insert(i_scratchpad_mode);
         handle_legacy_attr(attr, s.attr);
 
+        constexpr bool is_deconv {true};
         const prb_t prb(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, i_alg,
-                attr, i_mb);
+                attr, i_mb, is_deconv);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
