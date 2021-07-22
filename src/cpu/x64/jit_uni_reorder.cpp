@@ -1503,7 +1503,7 @@ static void prb_thread_kernel_balance(
      * sz_drv_cur. */
     const bool want_borrow_drv_from_ker = true
             && sz_ker_cur > tr::ker_prb_size_min && sz_drv_cur < sz_drv_min
-            && &&IMPLICATION(has_tails, kdims != prb.blk_chunk_idx);
+            && IMPLICATION(has_tails, kdims != prb.blk_chunk_idx);
     if (want_borrow_drv_from_ker) {
         size_t sz_want_borrow = utils::div_up(sz_drv_min, sz_drv_cur);
         for (; prb.nodes[kdims - 1].n % sz_want_borrow; ++sz_want_borrow)
