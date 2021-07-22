@@ -87,5 +87,6 @@
                      2x16x5x14:2x1x1x14
                      3x15x5x1:1x15x5x1
 
+--stag=abcd:dabc     1x1x3x3:1x1x3x3
 --stag=abc:bac       4x6x7:4x6x7 4x6x7:4x6x1
 

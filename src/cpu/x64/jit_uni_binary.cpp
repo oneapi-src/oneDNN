@@ -276,6 +276,7 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
             && (blk_d.inner_nblks > 1 || blk_d.inner_blks[0] > 16))
         return false;
 
+    const bool is_src_different_layouts = !compare_layouts(src0_d, src1_d);
     const bool different_layouts_allowed
             = is_different_layouts_allowed(src0_d, src1_d);
     if (!conf_.is_i8) {
@@ -287,11 +288,18 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
         if (!ok) return false;
 
         // full tensor operation
-        if (src0_d == src1_d) return true;
+        bool same_dims = true;
+        const auto &src0_dims = src0_d.dims();
+        const auto &src1_dims = src1_d.dims();
+        for (int d = 0; d < ndims; d++)
+            same_dims = same_dims && src0_dims[d] == src1_dims[d];
+        if (same_dims
+                && IMPLICATION(
+                        is_src_different_layouts, different_layouts_allowed))
+            return true;
     } else {
         const dim_t C = ndims >= 2 ? src0_d.dims()[1] : 1;
         const bool has_oc_tail = C != src0_d.padded_dims()[1];
-        const bool is_src_different_layouts = !compare_layouts(src0_d, src1_d);
         const bool has_outer_dims_tail = is_src_different_layouts
                 && get_outer_dims_product(src0_d.blocking_desc().strides,
                         src0_d.dims(), src0_d.ndims());
@@ -314,7 +322,10 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
         if (!src0_d.similar_to(dst_d, true, false, 0)) return false;
     }
     // broadcast operation
-    if (!(is_bcast_allowed(ndims) || different_layouts_allowed)) return false;
+    if (!(is_bcast_allowed(ndims)
+                && IMPLICATION(
+                        is_src_different_layouts, different_layouts_allowed)))
+        return false;
 
     if (!conf_.is_i8) {
         if (src0_d.is_plain() && src1_d.is_plain()) {
