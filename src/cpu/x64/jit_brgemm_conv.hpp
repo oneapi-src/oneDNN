@@ -38,9 +38,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <cpu_isa_t isa, impl::data_type_t src_type,
-        impl::data_type_t wei_type = src_type,
-        impl::data_type_t dst_type = src_type>
+template <cpu_isa_t isa>
 struct brgemm_convolution_fwd_t : public primitive_t {
 
     struct pd_t : public cpu_convolution_fwd_pd_t {
@@ -86,10 +84,6 @@ struct brgemm_convolution_fwd_t : public primitive_t {
 
     ~brgemm_convolution_fwd_t() = default;
 
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
-
     status_t execute(const exec_ctx_t &ctx) const override;
 
 protected:
@@ -99,16 +93,16 @@ private:
     //  brgemm convolution execution context
     struct brgemm_exec_ctx_t {
         brgemm_exec_ctx_t(const exec_ctx_t &ctx, const pd_t *pd)
-            : src(CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC))
-            , weights(CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS))
+            : src(CTX_IN_MEM(const char *, DNNL_ARG_SRC))
+            , weights(CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS))
             , bias(CTX_IN_MEM(const char *, DNNL_ARG_BIAS))
-            , dst(CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST))
+            , dst(CTX_OUT_MEM(char *, DNNL_ARG_DST))
             , post_ops_binary_rhs_arg_vec(binary_injector::prepare_binary_args(
                       pd->attr()->post_ops_, ctx)) {}
-        const src_data_t *const __restrict src;
-        const wei_data_t *const __restrict weights;
+        const char *const __restrict src;
+        const char *const __restrict weights;
         const char *const __restrict bias;
-        dst_data_t *const __restrict dst;
+        char *const __restrict dst;
         const std::vector<const void *> post_ops_binary_rhs_arg_vec;
     };
 
@@ -132,28 +126,27 @@ private:
             int owb, int icc) const;
     void ker_trans(const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
             brgemm_batch_element_t *const __restrict brg_batch,
-            char *const c_buffer, src_data_t *inp_buffer, int g, int n, int ocb,
+            char *const c_buffer, char *inp_buffer, int g, int n, int ocb,
             int od, int oh, int owb, int icc) const;
     void ker_vpad(const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
             brgemm_batch_element_t *const __restrict brg_batch,
             char *const c_buffer, int g, int n, int ocb, int od, int oh,
             int owb, int icc) const;
 
-    void perform_outwork(dst_data_t *dst_base, char *c_buffer,
-            const char *bias_w, int od, int oh, int ow, int g_oc,
-            bool is_oc_tail, int ker_ow_s, int ker_ow_f, int kd_l, int kh_l,
+    void perform_outwork(char *dst_base, char *c_buffer, const char *bias_w,
+            int od, int oh, int ow, int g_oc, bool is_oc_tail, int ker_ow_s,
+            int ker_ow_f, int kd_l, int kh_l,
             const void *post_ops_binary_rhs_arg_vec, bool do_init,
             bool do_postwork) const;
 
     void call_brgemm_kernel(brgemm_kernel_t *brg_ker, int batch_size,
             brgemm_batch_element_t *const __restrict brg_batch, char *ptr_C,
-            dst_data_t *ptr_D, const char *bias_w, int g_oc, bool do_postops,
+            char *ptr_D, const char *bias_w, int g_oc, bool do_postops,
             const void *binary_post_ops_rhs) const;
 
-    void maybe_conv_inp(int ithr, const src_data_t *__restrict src,
-            src_data_t *__restrict inp_buffer,
-            uint8_t *__restrict inp_buffer_mask, int g, int n, int icc, int odb,
-            int ohb, int owb) const;
+    void maybe_conv_inp(int ithr, const char *__restrict src,
+            char *__restrict inp_buffer, uint8_t *__restrict inp_buffer_mask,
+            int g, int n, int icc, int odb, int ohb, int owb) const;
 
     status_t add_po_kernel(brgemm_t &bcfg, int ker_idx, bool is_init);
     void add_po_kernels(

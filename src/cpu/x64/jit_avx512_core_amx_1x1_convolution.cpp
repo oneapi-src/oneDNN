@@ -45,10 +45,8 @@ using namespace nstl;
                                     ? (md).blk_off((n), (c), (h), (w)) \
                                     : (md).blk_off((n), (c), (d), (h), (w))))
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
-        dst_type>::prepare_padded_bias(const char *&bias,
-        const memory_tracking::grantor_t &scratchpad) const {
+void jit_avx512_core_amx_1x1_convolution_fwd_t::prepare_padded_bias(
+        const char *&bias, const memory_tracking::grantor_t &scratchpad) const {
     if (!pd()->wants_padded_bias()) return;
 
     const size_t bia_dt_size = pd()->jcp_.typesize_bia;
@@ -61,9 +59,8 @@ void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
     bias = padded_bias;
 }
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-status_t jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
-        dst_type>::execute_forward(const exec_ctx_t &ctx) const {
+status_t jit_avx512_core_amx_1x1_convolution_fwd_t::execute_forward(
+        const exec_ctx_t &ctx) const {
 
     auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
@@ -218,27 +215,6 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
     });
     return status::success;
 }
-
-template struct jit_avx512_core_amx_1x1_convolution_fwd_t<data_type::s8,
-        data_type::s8, data_type::u8>;
-template struct jit_avx512_core_amx_1x1_convolution_fwd_t<data_type::u8,
-        data_type::s8, data_type::u8>;
-template struct jit_avx512_core_amx_1x1_convolution_fwd_t<data_type::s8,
-        data_type::s8, data_type::s8>;
-template struct jit_avx512_core_amx_1x1_convolution_fwd_t<data_type::u8,
-        data_type::s8, data_type::s8>;
-template struct jit_avx512_core_amx_1x1_convolution_fwd_t<data_type::s8,
-        data_type::s8, data_type::s32>;
-template struct jit_avx512_core_amx_1x1_convolution_fwd_t<data_type::u8,
-        data_type::s8, data_type::s32>;
-template struct jit_avx512_core_amx_1x1_convolution_fwd_t<data_type::s8,
-        data_type::s8, data_type::f32>;
-template struct jit_avx512_core_amx_1x1_convolution_fwd_t<data_type::u8,
-        data_type::s8, data_type::f32>;
-template struct jit_avx512_core_amx_1x1_convolution_fwd_t<data_type::bf16,
-        data_type::bf16, data_type::bf16>;
-template struct jit_avx512_core_amx_1x1_convolution_fwd_t<data_type::bf16,
-        data_type::bf16, data_type::f32>;
 
 } // namespace x64
 } // namespace cpu

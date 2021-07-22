@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <assert.h>
+#include <string.h>
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -27,8 +28,6 @@
 #include "cpu/x64/jit_avx512_core_u8s8s32x_wino_convolution.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
-
-#include <string.h>
 
 namespace dnnl {
 namespace impl {
@@ -997,17 +996,13 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-template <data_type_t dst_data_type>
-status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
-        dst_data_type>::pd_t::jit_conf() {
+status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::pd_t::jit_conf() {
     return jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(jcp_,
             *this->desc(), this->src_md_, this->weights_md_, this->dst_md_,
             this->bias_md_, *this->attr());
 }
 
-template <data_type_t dst_data_type>
-void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
-        dst_data_type>::pd_t::init_scratchpad() {
+void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::pd_t::init_scratchpad() {
     auto scratchpad = this->scratchpad_registry().registrar();
 
     int nthr_multiplier = jcp_.small_mb ? 1 : jcp_.nthr;
@@ -1021,13 +1016,11 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
             key_conv_adjusted_scales, nstl::max<dim_t>(scale_count, 16));
 }
 
-template <data_type_t dst_data_type>
-jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
+jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::
         jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd)
     : primitive_t(apd) {}
 
-template <data_type_t dst_data_type>
-status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::init(
+status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::init(
         engine_t *engine) {
     CHECK(safe_ptr_assign(kernel_,
             new jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
@@ -1044,17 +1037,14 @@ status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::init(
     return status::success;
 }
 
-template <data_type_t dst_data_type>
-jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
-        dst_data_type>::~jit_avx512_core_u8s8s32x_wino_convolution_fwd_t() {
+jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::
+        ~jit_avx512_core_u8s8s32x_wino_convolution_fwd_t() {
     delete kernel_;
     delete src_trans_;
     delete dst_trans_;
 }
 
-template <data_type_t dst_data_type>
-const float *
-jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::adjust_oscales(
+const float *jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::adjust_oscales(
         const memory_tracking::grantor_t &scratchpad) const {
     const float *oscales = pd()->attr()->output_scales_.scales_;
     auto loc_scales = scratchpad.template get<float>(key_conv_adjusted_scales);
@@ -1068,13 +1058,12 @@ jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::adjust_oscales(
     return loc_scales;
 }
 
-template <data_type_t dst_data_type>
-void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
-        dst_data_type>::execute_forward(const exec_ctx_t &ctx) const {
+void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t ::execute_forward(
+        const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
     const auto &jcp = kernel_->jcp;
     if (jcp.small_mb)
@@ -1085,12 +1074,12 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                 src, weights, bias, dst, ctx.get_scratchpad_grantor());
 }
 
-template <data_type_t dst_data_type>
-void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
-        dst_data_type>::execute_forward_mbN(const src_data_t *src,
-        const wei_data_t *wei, const char *bia, dst_data_t *dst,
-        const memory_tracking::grantor_t &scratchpad) const {
+void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::execute_forward_mbN(
+        const src_data_t *src, const wei_data_t *wei, const char *bia,
+        char *dst, const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
     const float *oscales = adjust_oscales(scratchpad);
 
     auto dst_bias = (const acc_data_t *)(wei + jcp.size_wino_wei);
@@ -1170,6 +1159,8 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                     (*kernel_)(&gemm_p);
                 }
 
+                auto dst_loc
+                        = dst + dst_dt_size * mb * jcp.oh * jcp.ow * jcp.oc;
                 /* transformation from winograd domain to output tensor */
                 for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
                     for (int x_in_block = 0; x_in_block < jcp.xb;
@@ -1188,9 +1179,9 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                             v_y_masks[i]
                                     = uint16_t(y + i < jcp.oh ? 0xffff : 0);
                         }
-                        auto local_d = dst
-                                + (dim_t)mb * jcp.oh * jcp.ow * jcp.oc
-                                + y * jcp.ow * jcp.oc + x * jcp.oc;
+                        auto local_d = dst_loc
+                                + dst_dt_size
+                                        * (y * jcp.ow * jcp.oc + x * jcp.oc);
                         auto local_w = wino_dst + m * jcp.oc;
 
                         auto scales = oscales;
@@ -1208,12 +1199,12 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
             });
 }
 
-template <data_type_t dst_data_type>
-void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
-        dst_data_type>::execute_forward_small_mb(const src_data_t *src,
-        const wei_data_t *wei, const char *bia, dst_data_t *dst,
-        const memory_tracking::grantor_t &scratchpad) const {
+void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::execute_forward_small_mb(
+        const src_data_t *src, const wei_data_t *wei, const char *bia,
+        char *dst, const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
     const float *oscales = adjust_oscales(scratchpad);
 
     auto dst_bias = (const acc_data_t *)(wei + jcp.size_wino_wei);
@@ -1310,9 +1301,10 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                         v_y_masks[i] = uint16_t(y + i < jcp.oh ? 0xffff : 0);
                     }
                     auto local_d = dst
-                            + ((dim_t)mbb * jcp.mb_block + mb) * jcp.oh * jcp.ow
-                                    * jcp.oc
-                            + y * jcp.ow * jcp.oc + x * jcp.oc;
+                            + dst_dt_size
+                                    * ((mbb * jcp.mb_block + mb) * jcp.oh
+                                                    * jcp.ow * jcp.oc
+                                            + y * jcp.ow * jcp.oc + x * jcp.oc);
                     auto local_w = wino_dst + m * jcp.oc;
 
                     auto scales = oscales;
@@ -1328,11 +1320,6 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                 });
     }
 }
-
-template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<data_type::s8>;
-template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<data_type::u8>;
-template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<data_type::s32>;
-template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<data_type::f32>;
 
 } // namespace x64
 } // namespace cpu

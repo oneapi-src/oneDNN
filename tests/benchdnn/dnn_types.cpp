@@ -470,11 +470,11 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             if (e.sum.dt == dnnl_data_type_undef) return FAIL;
         } else if (e.is_convolution_kind()) {
             e.convolution.dst_dt = str2dt(get_substr(subs, subs_pos).c_str());
+            if (e.convolution.dst_dt == dnnl_data_type_undef) return FAIL;
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
-            auto policy_str = get_substr(subs, subs_pos);
-            auto scale_str = policy_str + ":" + get_substr(subs, subs_pos);
+            auto scale_str = get_substr(subs, subs_pos);
             SAFE(e.convolution.oscale.from_str(scale_str), WARN);
         } else if (e.is_eltwise_kind()) {
             e.eltwise.alpha = std::stof(get_substr(subs, subs_pos));
@@ -673,9 +673,9 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 s << ":" << e.sum.zero_point;
             if (e.sum.dt != dnnl_data_type_undef) s << ":" << e.sum.dt;
         } else if (e.is_convolution_kind()) {
-            if (e.convolution.dst_dt != dnnl_f32)
-                s << ":" << e.convolution.dst_dt;
             const auto &co = e.convolution.oscale;
+            if (e.convolution.dst_dt != dnnl_f32 || !co.is_def())
+                s << ":" << e.convolution.dst_dt;
             if (!co.is_def()) s << ":" << co;
         } else if (e.is_eltwise_kind()) {
             if (e.eltwise.scale != 1.f)

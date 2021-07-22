@@ -24,6 +24,7 @@
 #include "common/type_helpers.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/ref_io_helper.hpp"
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/matmul/matmul_utils.hpp"
@@ -104,12 +105,12 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
     };
 
     // bias section
-    const data_type_t bia_dt = pd()->desc()->bias_desc.data_type;
-    auto get_bias = [&](const dims_t &dst_dims_idx) -> float {
+    auto ker_bias = [&](const dims_t &dst_dims_idx) -> float {
         dims_t bia_dims_idx;
         utils::copy_dims_with_mask(bia_dims_idx, dst_dims_idx, ndims, bia_mask);
         dim_t off = bia_d.off_v(bia_dims_idx);
-        return math::get_bias(bias, off, bia_dt);
+        return io::load_float_value(
+                pd()->desc()->bias_desc.data_type, bias, off);
     };
 
     // output scale section
@@ -125,7 +126,7 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
         acc_data_t acc = ker(dst_dims_idx, m, n);
         float res = acc;
         if (bias || non_default_attrs) {
-            if (bias) res += get_bias(dst_dims_idx);
+            if (bias) res += ker_bias(dst_dims_idx);
             res *= scales[scale_stride * n];
 
             ref_post_ops_t::args_t args;

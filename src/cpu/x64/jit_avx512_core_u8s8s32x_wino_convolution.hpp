@@ -39,7 +39,6 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t;
 struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t;
 struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t;
 
-template <data_type_t dst_data_type>
 struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -58,15 +57,17 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public primitive_t {
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::convolution_auto,
                             alg_kind::convolution_winograd)
-                    && expect_data_types(
-                            u8, s8, data_type::undef, dst_data_type, s32)
+                    && src_md(0)->data_type == u8
+                    && weights_md(0)->data_type == s8
                     && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type, f32, s32,
-                                    s8, u8))
+                            utils::one_of(
+                                    weights_md(1)->data_type, f32, s32, s8, u8))
+                    && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
+                    && desc()->accum_data_type == s32
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
                                     | primitive_attr_t::skip_mask_t::post_ops,
-                            dst_data_type)
+                            dst_md(0)->data_type)
                     && !has_zero_dim_memory() && set_default_formats()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
 
@@ -95,7 +96,6 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::u8>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
-    typedef typename prec_traits<dst_data_type>::type dst_data_t;
 
     jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd);
     ~jit_avx512_core_u8s8s32x_wino_convolution_fwd_t();
@@ -112,10 +112,10 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
     void execute_forward(const exec_ctx_t &ctx) const;
     void execute_forward_small_mb(const src_data_t *src, const wei_data_t *wei,
-            const char *bia, dst_data_t *dst,
+            const char *bia, char *dst,
             const memory_tracking::grantor_t &scratchpad) const;
     void execute_forward_mbN(const src_data_t *src, const wei_data_t *wei,
-            const char *bia, dst_data_t *dst,
+            const char *bia, char *dst,
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 

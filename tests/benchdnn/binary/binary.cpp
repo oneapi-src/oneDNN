@@ -151,20 +151,6 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         if (res->state == SKIPPED) return;
     }
 
-    if (is_cpu()) {
-        const bool is_src0_int_type
-                = prb->sdt[0] == dnnl_s8 || prb->sdt[0] == dnnl_u8;
-        const bool is_src1_int_type
-                = prb->sdt[1] == dnnl_s8 || prb->sdt[1] == dnnl_u8;
-        const bool is_dst_int_type = prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8;
-
-        if (!IMPLICATION(
-                    is_src0_int_type || is_src1_int_type, is_dst_int_type)) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
-
     const bool is_sum = prb->attr.post_ops.find(alg_t::SUM) >= 0;
     bool bcast_src0 = false;
     for (int d = 0; d < prb->ndims[0]; ++d)

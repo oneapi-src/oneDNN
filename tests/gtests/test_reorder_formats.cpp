@@ -41,7 +41,7 @@ public:
     engine e;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         e = get_test_engine();
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
                 "GPU takes a lot of time to complete this test.");
@@ -168,7 +168,7 @@ protected:
         }
     }
 
-    void TestFormat(const md &in_md, const md &out_md) {
+    void TestFormat(const md &in_md, const md &out_md) const {
         auto src = test::make_memory(in_md, e);
         auto dst = test::make_memory(out_md, e);
         reorder::primitive_desc r_pd(

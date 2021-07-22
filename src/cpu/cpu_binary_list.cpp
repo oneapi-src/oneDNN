@@ -33,26 +33,7 @@ using namespace dnnl::impl::data_type;
 // clang-format off
 const impl_list_item_t impl_list[] = {
         CPU_INSTANCE_X64(jit_uni_binary_t)
-        CPU_INSTANCE(ref_binary_t<f32>)
-        CPU_INSTANCE(ref_binary_t<bf16>)
-        CPU_INSTANCE(ref_binary_t<s8, s8, s8>)
-        CPU_INSTANCE(ref_binary_t<s8, u8, s8>)
-        CPU_INSTANCE(ref_binary_t<u8, s8, s8>)
-        CPU_INSTANCE(ref_binary_t<u8, u8, s8>)
-        CPU_INSTANCE(ref_binary_t<s8, s8, u8>)
-        CPU_INSTANCE(ref_binary_t<s8, u8, u8>)
-        CPU_INSTANCE(ref_binary_t<u8, s8, u8>)
-        CPU_INSTANCE(ref_binary_t<u8, u8, u8>)
-        CPU_INSTANCE(ref_binary_t<s8, f32, s8>)
-        CPU_INSTANCE(ref_binary_t<s8, f32, u8>)
-        CPU_INSTANCE(ref_binary_t<u8, f32, s8>)
-        CPU_INSTANCE(ref_binary_t<u8, f32, u8>)
-        CPU_INSTANCE(ref_binary_t<f32, s8, s8>)
-        CPU_INSTANCE(ref_binary_t<f32, s8, u8>)
-        CPU_INSTANCE(ref_binary_t<f32, u8, s8>)
-        CPU_INSTANCE(ref_binary_t<f32, u8, u8>)
-        CPU_INSTANCE(ref_binary_t<f32, f32, s8>)
-        CPU_INSTANCE(ref_binary_t<f32, f32, u8>)
+        CPU_INSTANCE(ref_binary_t)
         /* eol */
         nullptr,
 };

@@ -14,9 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/x64/jit_avx512_core_x8s8s32x_deconvolution.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory_desc_wrapper.hpp"
+
+#include "cpu/x64/jit_avx512_core_x8s8s32x_deconvolution.hpp"
 
 #define GET_OFF(field) offsetof(jit_deconv_call_s, field)
 
@@ -1112,18 +1113,19 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::generate() {
     if (jcp.with_eltwise) postops_injector_->prepare_table();
 }
 
-template <data_type_t src_type, data_type_t dst_type>
-void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
-        dst_type>::execute_forward_1d(const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+void jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_1d(
+        const exec_ctx_t &ctx) const {
+    const auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+    const auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
+    const auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
+
+    const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
 
     const auto &jcp = pd()->jcp_;
     const auto post_ops_binary_rhs_arg_vec
@@ -1147,7 +1149,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
         oscales = local_scales;
     }
     size_t offset = (size_t)jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw;
-    auto w = const_cast<wei_data_t *>(weights);
+    auto w = const_cast<char *>(weights);
     int32_t *compensation = (jcp.signed_input)
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
@@ -1172,7 +1174,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
             int g_oc = (g * jcp.ch_block * jcp.nb_oc + ocb) * jcp.oc_block;
             int g_ic = g * jcp.ch_block * jcp.ic;
 
-            p.dst = dst + dst_d.blk_off(n, g_oc);
+            p.dst = dst + dst_dt_size * dst_d.blk_off(n, g_oc);
             p.src = src + src_d.blk_off(n, g_ic);
             p.filt = weights + wht_blk_off(weights_d, g, ocb, 0);
             p.bias = jcp.with_bias
@@ -1199,13 +1201,13 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     });
 }
 
-template <data_type_t src_type, data_type_t dst_type>
-void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
-        dst_type>::execute_forward_2d(const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+void jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_2d(
+        const exec_ctx_t &ctx) const {
+    const auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+    const auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
+    const auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+
     const auto &jcp = pd()->jcp_;
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -1213,6 +1215,8 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
     const auto post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
+
+    const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     int nb_groups = jcp.nb_ch;
@@ -1236,7 +1240,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
         oscales = local_scales;
     }
     size_t offset = (size_t)jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw;
-    auto w = const_cast<wei_data_t *>(weights);
+    auto w = const_cast<char *>(weights);
     int32_t *compensation = (jcp.signed_input)
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
@@ -1266,7 +1270,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
             int work_rem = end - start;
             int oh_e = oh_s + work_rem > jcp.oh ? jcp.oh : oh_s + work_rem;
 
-            auto dst_w = dst + dst_d.blk_off(n, g_oc);
+            auto dst_w = dst + dst_dt_size * dst_d.blk_off(n, g_oc);
             auto src_w = src + src_d.blk_off(n, g_ic);
             auto wht_w = weights + wht_blk_off(weights_d, g, ocb, 0);
             auto bias_w = jcp.with_bias
@@ -1313,7 +1317,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
                 int wei_stride
                         = (!jcp.signed_input) ? kh_lo * wht_kh_stride : 0;
                 p.src = src_w + ih_max * src_h_stride;
-                p.dst = dst_w + oj * dst_h_stride;
+                p.dst = dst_w + dst_dt_size * oj * dst_h_stride;
                 p.filt = wht_w + wei_stride;
                 p.bias = bias_w;
                 p.compensation = compensation_w;
@@ -1346,13 +1350,12 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     });
 }
 
-template <data_type_t src_type, data_type_t dst_type>
-void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
-        dst_type>::execute_forward_3d(const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+void jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_3d(
+        const exec_ctx_t &ctx) const {
+    const auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+    const auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
+    const auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
     auto &jcp = pd()->jcp_;
 
     const memory_desc_wrapper src_d(pd()->src_md());
@@ -1361,6 +1364,8 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
     const auto post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
+
+    const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     int nb_groups = jcp.nb_ch;
@@ -1387,7 +1392,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
         oscales = local_scales;
     }
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
-    auto w = const_cast<wei_data_t *>(weights);
+    auto w = const_cast<char *>(weights);
     int32_t *compensation = (jcp.signed_input)
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
@@ -1451,7 +1456,9 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
                 input_d_s = (od_s + jcp.f_pad - kd_lo) / jcp.stride_d;
             }
 
-            auto dst_w = dst + dst_d.blk_off(n, g_oc) + od_s * dst_d_stride;
+            auto dst_w = dst
+                    + dst_dt_size
+                            * (dst_d.blk_off(n, g_oc) + od_s * dst_d_stride);
             auto src_w
                     = src + src_d.blk_off(n, g_ic) + input_d_s * src_d_stride;
             auto wht_w = weights + wht_blk_off(weights_d, g, ocb, 0)
@@ -1501,7 +1508,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
                 int wei_stride
                         = (!jcp.signed_input) ? kh_lo * wht_kh_stride : 0;
                 p.src = src_w + ih_max * src_h_stride;
-                p.dst = dst_w + oj * dst_h_stride;
+                p.dst = dst_w + dst_dt_size * oj * dst_h_stride;
                 p.filt = wht_w + wei_stride;
                 p.bias = bias_w;
                 p.compensation = compensation_w;
@@ -1546,25 +1553,10 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     });
 }
 
-template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<data_type::u8,
-        data_type::u8>;
-template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<data_type::u8,
-        data_type::s8>;
-template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<data_type::u8,
-        data_type::f32>;
-template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<data_type::u8,
-        data_type::s32>;
-template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<data_type::s8,
-        data_type::u8>;
-template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<data_type::s8,
-        data_type::s8>;
-template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<data_type::s8,
-        data_type::f32>;
-template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<data_type::s8,
-        data_type::s32>;
 template struct jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Xbyak::Zmm>;
 template struct jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Xbyak::Ymm>;
 template struct jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Xbyak::Xmm>;
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl

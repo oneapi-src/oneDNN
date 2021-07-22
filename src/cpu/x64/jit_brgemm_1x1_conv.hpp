@@ -37,9 +37,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <cpu_isa_t isa, impl::data_type_t src_type,
-        impl::data_type_t wei_type = src_type,
-        impl::data_type_t dst_type = src_type>
+template <cpu_isa_t isa>
 struct brgemm_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -65,10 +63,6 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
 
     ~brgemm_1x1_convolution_fwd_t() {}
 
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
-
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward_all(ctx);
 
@@ -84,16 +78,16 @@ private:
     //  brgemm convolution execution context
     struct brgemm_exec_ctx_t {
         brgemm_exec_ctx_t(const exec_ctx_t &ctx, const pd_t *pd)
-            : src(CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC))
-            , weights(CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS))
+            : src(CTX_IN_MEM(const char *, DNNL_ARG_SRC))
+            , weights(CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS))
             , bias(CTX_IN_MEM(const char *, DNNL_ARG_BIAS))
-            , dst(CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST))
+            , dst(CTX_OUT_MEM(char *, DNNL_ARG_DST))
             , post_ops_binary_rhs_arg_vec(binary_injector::prepare_binary_args(
                       pd->attr()->post_ops_, ctx)) {}
-        const src_data_t *const __restrict src;
-        const wei_data_t *const __restrict weights;
+        const char *const __restrict src;
+        const char *const __restrict weights;
         const char *const __restrict bias;
-        dst_data_t *const __restrict dst;
+        char *const __restrict dst;
         const std::vector<const void *> post_ops_binary_rhs_arg_vec;
     };
 

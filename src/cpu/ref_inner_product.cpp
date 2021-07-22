@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 
+#include "cpu/ref_io_helper.hpp"
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/ref_inner_product.hpp"
@@ -27,8 +28,6 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
-
-using math::get_bias;
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
         data_type_t acc_type>
@@ -97,9 +96,14 @@ void ref_inner_product_fwd_t<src_type, wei_type, dst_type,
     };
 
     parallel_nd(MB, OC, [&](dim_t mb, dim_t oc) {
-        float a = bias ? get_bias(bias, bias_d.off(oc),
-                          pd()->desc()->bias_desc.data_type)
-                       : 0;
+        float b = 0;
+        if (bias) {
+            const auto bias_off = bias_d.off(oc);
+            b = io::load_float_value(
+                    pd()->desc()->bias_desc.data_type, bias, bias_off);
+        }
+        float a = b;
+
         if (src_has_spatial)
             a += ker_has_spatial(mb, oc);
         else

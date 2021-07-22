@@ -45,7 +45,7 @@ public:
     engine e;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         e = get_test_engine();
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
                 "GPU takes a lot of time to complete this test.");
@@ -136,11 +136,16 @@ protected:
     }
 
     void TestFormat(const md &src_md, const md &wei_md, const md &dst_md,
-            const std::vector<dt> &i_cfg) {
+            const std::vector<dt> &i_cfg) const {
         ip_fwd::desc ip_fwd_desc(
                 prop_kind::forward_training, src_md, wei_md, dst_md);
         ip_fwd::primitive_desc ip_fwd_pd(ip_fwd_desc, e, true);
         if (ip_fwd_pd) {
+            // Filter-out reference implementation since it doesn't have any
+            // format restrictions and too slow.
+            std::string pd_name = ip_fwd_pd.impl_info_str();
+            if (pd_name.find("ref") != std::string::npos) return;
+
             auto ip_fwd_prim = ip_fwd(ip_fwd_pd);
             auto strm = make_stream(ip_fwd_pd.get_engine());
             auto src = test::make_memory(ip_fwd_pd.src_desc(), e);
@@ -160,6 +165,11 @@ protected:
         ip_bwd_d::desc ip_bwd_d_desc(src_md, wei_md, dst_md);
         ip_bwd_d::primitive_desc ip_bwd_d_pd(ip_bwd_d_desc, e, ip_fwd_pd, true);
         if (ip_bwd_d_pd) {
+            // Filter-out reference implementation since it doesn't have any
+            // format restrictions and too slow.
+            std::string pd_name = ip_bwd_d_pd.impl_info_str();
+            if (pd_name.find("ref") != std::string::npos) return;
+
             auto ip_bwd_d_prim = ip_bwd_d(ip_bwd_d_pd);
             auto strm = make_stream(ip_bwd_d_pd.get_engine());
             auto d_src = memory(ip_bwd_d_pd.diff_src_desc(), e);
@@ -174,6 +184,11 @@ protected:
         ip_bwd_w::desc ip_bwd_w_desc(src_md, wei_md, dst_md);
         ip_bwd_w::primitive_desc ip_bwd_w_pd(ip_bwd_w_desc, e, ip_fwd_pd, true);
         if (ip_bwd_w_pd) {
+            // Filter-out reference implementation since it doesn't have any
+            // format restrictions and too slow.
+            std::string pd_name = ip_bwd_w_pd.impl_info_str();
+            if (pd_name.find("ref") != std::string::npos) return;
+
             auto ip_bwd_w_prim = ip_bwd_w(ip_bwd_w_pd);
             auto strm = make_stream(ip_bwd_w_pd.get_engine());
             auto src = memory(ip_bwd_w_pd.src_desc(), e);

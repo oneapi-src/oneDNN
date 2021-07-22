@@ -33,8 +33,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <data_type_t src0_type, data_type_t src1_type = src0_type,
-        data_type_t dst_type = src0_type>
 struct ref_binary_t : public primitive_t {
     struct pd_t : public cpu_binary_pd_t {
         using cpu_binary_pd_t::cpu_binary_pd_t;
@@ -45,12 +43,10 @@ struct ref_binary_t : public primitive_t {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
-            const bool ok = src0_type == src_md(0)->data_type
-                    && src1_type == src_md(1)->data_type
-                    && dst_type == dst_md()->data_type
-                    && platform::has_data_type_support(src0_type)
-                    && platform::has_data_type_support(src1_type)
-                    && platform::has_data_type_support(dst_type)
+            const bool ok
+                    = platform::has_data_type_support(src_md(0)->data_type)
+                    && platform::has_data_type_support(src_md(1)->data_type)
+                    && platform::has_data_type_support(dst_md()->data_type)
                     && set_default_params() == status::success
                     && attr()->has_default_values(
                             sm::post_ops | sm::scales_runtime)
@@ -79,10 +75,6 @@ struct ref_binary_t : public primitive_t {
         if (!ref_post_ops) return status::out_of_memory;
         return status::success;
     }
-
-    using src0_data_t = typename prec_traits<src0_type>::type;
-    using src1_data_t = typename prec_traits<src1_type>::type;
-    using dst_data_t = typename prec_traits<dst_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_ref(ctx);

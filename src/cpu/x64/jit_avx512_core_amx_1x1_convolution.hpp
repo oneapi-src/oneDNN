@@ -33,8 +33,6 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <impl::data_type_t src_type, impl::data_type_t wei_type,
-        impl::data_type_t dst_type>
 struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -48,18 +46,22 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
             bool is_bf16_convolution
-                    = (src_md_.data_type == bf16
-                              && weights_md_.data_type == bf16
-                              && utils::one_of(dst_md_.data_type, f32, bf16))
+                    = (src_md(0)->data_type == bf16
+                              && weights_md(0)->data_type == bf16
+                              && utils::one_of(dst_md(0)->data_type, f32, bf16))
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bias_md_.data_type, f32, bf16))
+                            utils::one_of(weights_md(1)->data_type, f32, bf16))
                     && attr()->has_default_values(smask_t::post_ops);
-            bool is_int8_convolution = expect_data_types(src_type, s8,
-                                               data_type::undef, dst_type, s32)
+            bool is_int8_convolution
+                    = utils::one_of(src_md(0)->data_type, s8, u8)
+                    && weights_md(0)->data_type == s8
+                    && utils::one_of(dst_md(0)->data_type, s8, u8, s32, f32)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bias_md_.data_type, f32, s32, s8, u8))
+                            utils::one_of(
+                                    weights_md(1)->data_type, f32, s32, s8, u8))
                     && attr()->has_default_values(smask_t::oscale
                             | smask_t::post_ops | smask_t::zero_points_runtime);
+
             bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && (is_bf16_convolution || is_int8_convolution)
@@ -95,10 +97,6 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
 
     jit_avx512_core_amx_1x1_convolution_fwd_t(const pd_t *apd)
         : primitive_t(apd) {}
-
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,

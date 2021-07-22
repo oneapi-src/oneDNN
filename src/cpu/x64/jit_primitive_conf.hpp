@@ -915,6 +915,7 @@ struct jit_binary_conf_t {
     bool is_src_different_layouts = false;
     dim_t outer_dims = 1;
     int src1_stride = 1;
+    int not_bcasted_sp_dims = 0;
 
     data_type_t src0_type = data_type::undef;
     data_type_t src1_type = data_type::undef;

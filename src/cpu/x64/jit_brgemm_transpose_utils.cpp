@@ -772,13 +772,14 @@ void jit_brgemm_copy_to_coarse_t::set_tail_mask() {
         return 1 + math::ilog2q(mask);
     };
 
-    const int row_block_size_in_bytes = row_block_size_ * typesize_;
-    if (row_block_size_in_bytes >= num_bytes(full_mask))
+    const int row_tail_store_size
+            = utils::rnd_up(row_tail, row_block_size_) * typesize_;
+    if (row_tail_store_size >= num_bytes(full_mask))
         mov(reg_tail_mask, full_mask);
-    else if (row_block_size_in_bytes >= num_bytes(half_mask))
+    else if (row_tail_store_size >= num_bytes(half_mask))
         mov(reg_tail_mask, half_mask);
     else {
-        assert(row_block_size_in_bytes == num_bytes(quad_mask));
+        assert(row_tail_store_size == num_bytes(quad_mask));
         mov(reg_tail_mask, quad_mask);
     }
     kmovq(reg_m_row_tail_store, reg_tail_mask);
