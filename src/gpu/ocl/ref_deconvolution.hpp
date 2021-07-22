@@ -92,9 +92,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
             : gpu_deconvolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        pd_t(const pd_t &other)
-            : gpu_deconvolution_fwd_pd_t(other)
-            , conv_pd_(other.conv_pd_->clone()) {}
+        pd_t(const pd_t &other) = default;
 
         ~pd_t() = default;
 
@@ -220,9 +218,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
             : gpu_deconvolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
             , conv_pd_(nullptr) {}
 
-        pd_t(const pd_t &other)
-            : gpu_deconvolution_bwd_data_pd_t(other)
-            , conv_pd_(other.conv_pd_->clone()) {}
+        pd_t(const pd_t &other) = default;
 
         ~pd_t() = default;
 
@@ -321,9 +317,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
             : gpu_deconvolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        pd_t(const pd_t &other)
-            : gpu_deconvolution_bwd_weights_pd_t(other)
-            , conv_pd_(other.conv_pd_->clone()) {}
+        pd_t(const pd_t &other) = default;
 
         ~pd_t() = default;
 

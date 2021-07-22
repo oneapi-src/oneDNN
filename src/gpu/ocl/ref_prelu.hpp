@@ -87,10 +87,7 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
                 const prelu_fwd_pd_t *hint_fwd_pd)
             : gpu_prelu_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        pd_t(const pd_t &other) : gpu_prelu_bwd_pd_t(other), conf(other.conf) {
-            if (other.reduction_pd_)
-                reduction_pd_.reset(other.reduction_pd_->clone());
-        }
+        pd_t(const pd_t &other) = default;
 
         ~pd_t() = default;
 

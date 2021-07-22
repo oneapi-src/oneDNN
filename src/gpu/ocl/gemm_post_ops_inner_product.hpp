@@ -45,13 +45,7 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
                 const inner_product_fwd_pd_t *hint_fwd_pd)
             : gpu_inner_product_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        pd_t(const pd_t &rhs) : gpu_inner_product_fwd_pd_t(rhs) {
-            gemm_pd_ = rhs.gemm_pd_;
-            ip_scratchpad_md_ = rhs.ip_scratchpad_md_;
-            scales_md_ = rhs.scales_md_;
-            attr_info_ = rhs.attr_info_;
-            is_int8_ = rhs.is_int8_;
-        }
+        pd_t(const pd_t &rhs) = default;
 
         DECLARE_COMMON_PD_T(
                 "ocl:gemm_post_ops_fwd", gemm_post_ops_inner_product_fwd_t);

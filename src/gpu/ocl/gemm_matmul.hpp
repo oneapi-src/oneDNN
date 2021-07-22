@@ -36,8 +36,7 @@ struct gemm_matmul_t : public gpu_primitive_t {
                 const matmul_pd_t *hint_pd)
             : gpu_matmul_pd_t(adesc, attr, hint_pd) {}
 
-        pd_t(const pd_t &other)
-            : gpu_matmul_pd_t(other), gemm_pd_(other.gemm_pd_->clone()) {}
+        pd_t(const pd_t &other) = default;
 
         DECLARE_COMMON_PD_T(gemm_pd_->name(), gemm_matmul_t);
 
