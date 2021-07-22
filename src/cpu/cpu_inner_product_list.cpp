@@ -38,52 +38,175 @@ namespace cpu {
 
 namespace {
 using namespace dnnl::impl::data_type;
+using namespace dnnl::impl::prop_kind;
+
+struct ip_impl_key_t {
+    prop_kind_t kind;
+    data_type_t src_dt, wei_dt, dst_dt;
+
+    bool operator<(const ip_impl_key_t &rhs) const {
+        return value() < rhs.value();
+    }
+
+private:
+    enum { MAX_DT_NUM = 10 };
+    size_t value() const {
+        return (((size_t)kind * MAX_DT_NUM + (size_t)src_dt) * MAX_DT_NUM
+                       + (size_t)wei_dt)
+                * MAX_DT_NUM
+                + (size_t)dst_dt;
+    }
+};
 
 // clang-format off
-const impl_list_item_t impl_list[] = {
-        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
-        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_bf16>)
-        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core_bf16_amx_bf16>)
-        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core_bf16_amx_bf16>)
-        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16>)
-        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core_bf16>)
-        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core_bf16>)
-        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
+const std::map<ip_impl_key_t, std::vector<impl_list_item_t>> impl_list_map {
+    {{forward, f32, f32, f32}, {
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core>)
-        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core>)
-        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core>)
-        CPU_INSTANCE_X64(gemm_bf16_inner_product_fwd_t<f32>)
-        CPU_INSTANCE_X64(gemm_bf16_inner_product_fwd_t<bf16>)
-        CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_data_t<f32>)
-        CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_data_t<bf16>)
-        CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_weights_t<f32>)
-        CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_weights_t<bf16>)
         CPU_INSTANCE_AARCH64_ACL(acl_inner_product_fwd_t)
         CPU_INSTANCE(gemm_inner_product_fwd_t<f32>)
-        CPU_INSTANCE(gemm_inner_product_bwd_data_t<f32>)
-        CPU_INSTANCE(gemm_inner_product_bwd_weights_t<f32>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, u8>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s8>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s32>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, f32>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, u8>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, s8>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, s32>)
-        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, f32>)
         CPU_INSTANCE(ref_inner_product_fwd_t)
-        CPU_INSTANCE(ref_inner_product_bwd_data_t)
-        CPU_INSTANCE(ref_inner_product_bwd_weights_t)
-        CPU_INSTANCE(ref_inner_product_int8_fwd_t)
-        /* eol */
         nullptr,
+    }},
+    {{forward, bf16, bf16, f32}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16>)
+        CPU_INSTANCE_X64(gemm_bf16_inner_product_fwd_t<f32>)
+        CPU_INSTANCE(ref_inner_product_fwd_t)
+        nullptr,
+    }},
+    {{forward, bf16, bf16, bf16}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16>)
+        CPU_INSTANCE_X64(gemm_bf16_inner_product_fwd_t<bf16>)
+        CPU_INSTANCE(ref_inner_product_fwd_t)
+        nullptr,
+    }},
+    {{backward_data, f32, f32, f32}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core>)
+        CPU_INSTANCE(gemm_inner_product_bwd_data_t<f32>)
+        CPU_INSTANCE(ref_inner_product_bwd_data_t)
+        nullptr,
+    }},
+    {{backward_data, f32, bf16, bf16}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core_bf16_amx_bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core_bf16>)
+        CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_data_t<f32>)
+        CPU_INSTANCE(ref_inner_product_bwd_data_t)
+        nullptr,
+    }},
+    {{backward_data, bf16, bf16, bf16}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core_bf16_amx_bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<avx512_core_bf16>)
+        CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_data_t<bf16>)
+        CPU_INSTANCE(ref_inner_product_bwd_data_t)
+        nullptr,
+    }},
+    {{backward_weights, f32, f32, f32}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core>)
+        CPU_INSTANCE(gemm_inner_product_bwd_weights_t<f32>)
+        CPU_INSTANCE(ref_inner_product_bwd_weights_t)
+        nullptr,
+    }},
+    {{backward_weights, bf16, f32, bf16}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core_bf16_amx_bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core_bf16>)
+        CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_weights_t<f32>)
+        CPU_INSTANCE(ref_inner_product_bwd_weights_t)
+        nullptr,
+    }},
+    {{backward_weights, bf16, bf16, bf16}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core_bf16_amx_bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<avx512_core_bf16>)
+        CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_weights_t<bf16>)
+        CPU_INSTANCE(ref_inner_product_bwd_weights_t)
+        nullptr,
+    }},
+    {{forward, s8, s8, f32}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, f32>)
+        CPU_INSTANCE(ref_inner_product_int8_fwd_t)
+        nullptr,
+    }},
+    {{forward, s8, s8, s32}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, s32>)
+        CPU_INSTANCE(ref_inner_product_int8_fwd_t)
+        nullptr,
+    }},
+    {{forward, s8, s8, s8}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, s8>)
+        CPU_INSTANCE(ref_inner_product_int8_fwd_t)
+        nullptr,
+    }},
+    {{forward, s8, s8, u8}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, u8>)
+        CPU_INSTANCE(ref_inner_product_int8_fwd_t)
+        nullptr,
+    }},
+    {{forward, u8, s8, f32}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, f32>)
+        CPU_INSTANCE(ref_inner_product_int8_fwd_t)
+        nullptr,
+    }},
+    {{forward, u8, s8, s32}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s32>)
+        CPU_INSTANCE(ref_inner_product_int8_fwd_t)
+        nullptr,
+    }},
+    {{forward, u8, s8, s8}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s8>)
+        CPU_INSTANCE(ref_inner_product_int8_fwd_t)
+        nullptr,
+    }},
+    {{forward, u8, s8, u8}, {
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<avx512_core_vnni>)
+        CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, u8>)
+        CPU_INSTANCE(ref_inner_product_int8_fwd_t)
+        nullptr,
+    }},
 };
 // clang-format on
 } // namespace
 
 const impl_list_item_t *get_inner_product_impl_list(
         const inner_product_desc_t *desc) {
-    UNUSED(desc);
-    return impl_list;
+    static const impl_list_item_t empty_list[] = {nullptr};
+
+    const bool is_fwd = utils::one_of(
+            desc->prop_kind, forward_training, forward_inference);
+    prop_kind_t prop_kind = is_fwd ? forward : desc->prop_kind;
+
+    const memory_desc_t *src_md = desc->prop_kind == backward_data
+            ? &desc->diff_src_desc
+            : &desc->src_desc;
+    const memory_desc_t *wei_md = desc->prop_kind == backward_weights
+            ? &desc->diff_weights_desc
+            : &desc->weights_desc;
+    const memory_desc_t *dst_md
+            = is_fwd ? &desc->dst_desc : &desc->diff_dst_desc;
+    ip_impl_key_t key {
+            prop_kind,
+            src_md->data_type,
+            wei_md->data_type,
+            dst_md->data_type,
+    };
+
+    const auto impl_list_it = impl_list_map.find(key);
+    return (impl_list_it != impl_list_map.cend()) ? impl_list_it->second.data()
+                                                  : empty_list;
 }
 
 } // namespace cpu
