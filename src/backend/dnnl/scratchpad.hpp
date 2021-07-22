@@ -38,36 +38,6 @@ public:
     virtual size_t size() const = 0;
 };
 
-// The buffer is allocated when
-//     - the first time creating the thread_local_scratchpad_t
-//     - the required size is larger than existing buffer size
-// The holden buffer is deallocated when:
-//     - the required size is larger than existing buffer size
-//     - the thread is destroyed
-// FIXME(qun) This class is not used at this moment, because we can't guarantee
-// that the cached thread local memory must be destroyed before the allocator
-// and engine. If the allocator and engine have been destroyed from caller side,
-// a segmentation fault will happen when we free the memory using the cached
-// allocator from library side. Need more designs from API level in the future
-// to solve this issue.
-class thread_local_scratchpad_t : public scratchpad_t {
-public:
-    thread_local_scratchpad_t(size_t size, const dnnl::engine &eng,
-            const impl::allocator_t &alloc);
-
-    ~thread_local_scratchpad_t() {}
-
-    virtual char *get_buffer() const override { return buffer_.get(); }
-
-    virtual size_t size() const override { return size_; }
-
-private:
-    thread_local static dnnl::engine eng_;
-    thread_local static const impl::allocator_t *alloc_;
-    thread_local static std::shared_ptr<char> buffer_;
-    thread_local static size_t size_;
-};
-
 // The buffer is allocated when creating the temporary_scratchpad_t and
 // deallocated when destroying the temporary_scratchpad_t
 class temporary_scratchpad_t : public scratchpad_t {

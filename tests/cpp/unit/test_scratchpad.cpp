@@ -25,67 +25,6 @@
 
 #include <dnnl.hpp>
 
-TEST(scratchpad, buffer_can_reuse) {
-    using dnnl::graph::impl::allocator_t;
-    using dnnl::graph::impl::dnnl_impl::thread_local_scratchpad_t;
-
-    // FIXME(qun) When the alloc, engine and scratchpad are in the same thread,
-    // then the alloc and engine may be freed before scratchpad's thread local
-    // buffer. This will cause segment fault when existing thread because the
-    // buffer free rely on the allocator instance.
-
-    allocator_t alloc;
-    dnnl::engine eng(dnnl::engine::kind::cpu, 0);
-
-    auto func = [&]() {
-        std::vector<size_t> buf_sizes = {2048, 1024, 2048, 512};
-        char *orig_address = nullptr;
-        for (size_t i = 0; i < buf_sizes.size(); i++) {
-            thread_local_scratchpad_t scratchpad(buf_sizes[i], eng, alloc);
-            if (!orig_address) {
-                orig_address = scratchpad.get_buffer();
-                ASSERT_EQ(buf_sizes[i], scratchpad.size());
-            } else {
-                // if buffer size is smaller than existing buffer size,
-                // then we will reuse the existing one
-                ASSERT_EQ(orig_address, scratchpad.get_buffer());
-                // the scratchpad size will not be changed
-                ASSERT_EQ(buf_sizes[0], scratchpad.size());
-                ASSERT_TRUE(buf_sizes[i] <= scratchpad.size());
-            }
-        }
-    };
-
-    std::thread t1(func);
-    t1.join();
-}
-
-TEST(scratchpad, buffer_cannot_reuse) {
-    using dnnl::graph::impl::allocator_t;
-    using dnnl::graph::impl::dnnl_impl::thread_local_scratchpad_t;
-
-    // FIXME(qun) When the alloc, engine and scratchpad are in the same thread,
-    // then the alloc and engine may be freed before scratchpad's thread local
-    // buffer. This will cause segment fault when existing thread because the
-    // buffer free rely on the allocator instance.
-
-    allocator_t alloc;
-    dnnl::engine eng(dnnl::engine::kind::cpu, 0);
-
-    auto func = [&]() {
-        std::vector<size_t> buf_sizes = {512, 1024, 2048, 4096};
-        char *orig_address = nullptr;
-        for (size_t i = 0; i < buf_sizes.size(); i++) {
-            thread_local_scratchpad_t scratchpad(buf_sizes[i], eng, alloc);
-            // the scratchpad size will be changed
-            ASSERT_EQ(buf_sizes[i], scratchpad.size());
-        }
-    };
-
-    std::thread t1(func);
-    t1.join();
-}
-
 TEST(scratchpad, temporary_scratchpad) {
     using dnnl::graph::impl::allocator_t;
     using dnnl::graph::impl::dnnl_impl::temporary_scratchpad_t;
@@ -108,37 +47,6 @@ TEST(scratchpad, temporary_scratchpad) {
         // the scratchpad size will be changed
         ASSERT_EQ(buf_sizes[i], scratchpad.size());
     }
-}
-
-TEST(scratchpad, multithreading) {
-    using dnnl::graph::impl::allocator_t;
-    using dnnl::graph::impl::dnnl_impl::thread_local_scratchpad_t;
-
-    allocator_t alloc;
-    dnnl::engine eng(dnnl::engine::kind::cpu, 0);
-
-    char *t1_scratchpad_address = nullptr;
-    char *t2_scratchpad_address = nullptr;
-
-    auto func = [&](size_t id) {
-        size_t buf_size = 1024;
-        thread_local_scratchpad_t scratchpad(buf_size, eng, alloc);
-        if (id == 1)
-            t1_scratchpad_address = scratchpad.get_buffer();
-        else
-            t2_scratchpad_address = scratchpad.get_buffer();
-
-        // make sure that a thread is still runing when another thread allocate
-        // buffer
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    };
-
-    std::thread t1(func, 1);
-    std::thread t2(func, 2);
-    t1.join();
-    t2.join();
-
-    ASSERT_NE(t1_scratchpad_address, t2_scratchpad_address);
 }
 
 TEST(scratchpad, registry) {
