@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -120,6 +120,8 @@ private:
     void set_default_options() {
         // By default fp32 division and sqrt are not IEEE-compliant
         add_option("-cl-fp32-correctly-rounded-divide-sqrt");
+        // force compiler to assume all buffers are >4GB
+        add_option("-cl-intel-greater-than-4GB-buffer-required");
     }
 
     std::map<std::string, int64_t> int_var_map_;
