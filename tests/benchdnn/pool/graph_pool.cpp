@@ -156,8 +156,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
 
-    const auto &e = benchdnnext::get_test_engine();
-    auto cp = par.compile(ins, outs, e);
+    auto cp = compile_partition(res->create_timer, par, ins, outs);
 
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     auto dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
@@ -188,8 +187,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
 
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
-
-    measure_perf(res->timer, cp, input_ts, output_ts);
+    SAFE(measure_perf(res->timer, cp, input_ts, output_ts), WARN);
 
     return OK;
 }

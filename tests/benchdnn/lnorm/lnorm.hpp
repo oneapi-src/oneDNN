@@ -67,7 +67,7 @@ struct settings_t {
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%dir%,%dt%,%tag%,%stat_tag%,%flags%,%DESC%,"
-              "%-time%,%0time%,";
+              "%-time%,%0time%";
     const char *perf_template_def
             = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
     const char *perf_template = perf_template_def;

@@ -33,6 +33,7 @@ struct base_perf_report_t {
     void handle_option(std::ostream &s, const char *&option, const res_t *r,
             const char *prb_str) const {
         const auto &t = r->timer;
+        const auto &create_timer = r->create_timer;
         benchdnn_timer_t::mode_t mode = benchdnn_timer_t::min;
         (void)mode;
         double unit = 1e0;
@@ -106,6 +107,7 @@ struct base_perf_report_t {
         HANDLE("freq", s << get_freq());
         HANDLE("ops", s << ops() / unit);
         HANDLE("time", s << t.ms(mode) / unit);
+        HANDLE("ctime", s << create_timer.ms(mode) / unit);
         HANDLE("impl", s << r->impl_name);
         HANDLE("ibytes", s << r->ibytes / unit);
         HANDLE("obytes", s << r->obytes / unit);

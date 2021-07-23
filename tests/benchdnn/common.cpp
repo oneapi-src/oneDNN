@@ -236,8 +236,10 @@ void parse_result(
 
     if (is_bench_mode(PERF)) {
         using bt = benchdnn_timer_t;
-        for (int mode = 0; mode < (int)bt::n_modes; ++mode)
+        for (int mode = 0; mode < (int)bt::n_modes; ++mode) {
             bs.ms[mode] += res.timer.ms((bt::mode_t)mode);
+            bs.create_ms[mode] += res.create_timer.ms((bt::mode_t)mode);
+        }
     }
 }
 

@@ -78,17 +78,18 @@ unit modifier. I.e. `%-Gflops%`, not `%G-flops%`.
 
 Performance profiling options supported:
 
-| Syntax     | Primitives | Description
-| :--        | :--        | :--
-| %@time%    | All        | Time in milliseconds
-| %@clocks%  | All        | Time in clocks
-| %@freq%    | All        | Effective CPU frequency computed as `clocks / time`
-| %@ibytes%  | All        | Number of input memories bytes of a problem
-| %@obytes%  | All        | Number of output memories bytes of a problem
-| %@iobytes% | All        | Number of input and output memories bytes of a problem
-| %@bw%      | All        | Bandwidth computed as `iobytes / time`
-| %@ops%     | Ops based  | Number of ops required (padding is not taken into account)
-| %@flops%   | Ops based  | FLOPS computed as `ops / time`
+| Syntax      | Primitives | Description
+| :--         | :--        | :--
+| %@time%     | All        | Time in milliseconds
+| %@ctime%    | All        | Creation time in milliseconds
+| %@clocks%   | All        | Time in clocks
+| %@freq%     | All        | Effective CPU frequency computed as `clocks / time`
+| %@ibytes%   | All        | Number of input memories bytes of a problem
+| %@obytes%   | All        | Number of output memories bytes of a problem
+| %@iobytes%  | All        | Number of input and output memories bytes of a problem
+| %@bw%       | All        | Bandwidth computed as `iobytes / time`
+| %@ops%      | Ops based  | Number of ops required (padding is not taken into account)
+| %@flops%    | Ops based  | FLOPS computed as `ops / time`
 
 Modifiers supported:
 

@@ -189,8 +189,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     const auto inputs = par.get_in_ports();
     const auto outputs = par.get_out_ports();
 
-    const graph::engine &engine = benchdnnext::get_test_engine();
-    graph::compiled_partition cp = par.compile(inputs, outputs, engine);
+    auto cp = compile_partition(res->create_timer, par, inputs, outputs);
 
     auto spec = graph_prb.spec();
     dnn_mem_t src_fp = make_dnn_mem(inputs[0], spec.src_dim, dt::f32, tag::abx);
@@ -265,8 +264,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
         dnn_mem_t dst(dst_dt, fp, src_tag, dnnl_test_engine);
         SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
     }
-
-    measure_perf(res->timer, cp, input_ts, output_ts);
+    SAFE(measure_perf(res->timer, cp, input_ts, output_ts), WARN);
 
     return OK;
 }

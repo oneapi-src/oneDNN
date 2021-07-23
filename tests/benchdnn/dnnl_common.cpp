@@ -179,7 +179,7 @@ int execute_and_wait(dnnl_primitive_t prim, const args_t &args) {
     return execute_and_wait(exec_func, engine, args);
 }
 
-inline bool should_stop(const benchdnn_timer_t &t) {
+bool should_stop(const benchdnn_timer_t &t) {
     const bool stop = false
             || (fix_times_per_prb && t.times() >= fix_times_per_prb)
             || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
@@ -206,8 +206,6 @@ inline int measure_perf_individual(benchdnn_timer_t &t, dnnl_stream_t stream,
 
 inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
         perf_function_t &perf_func, std::vector<dnnl_exec_arg_t> &dnnl_args) {
-    const int max_batch_times = 10000;
-
     // Warm-up run, this is not measured due to possibility the associated
     // kernel has not been built and skews the results.
     DNN_SAFE(perf_func(stream, dnnl_args), WARN);
@@ -226,6 +224,7 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
 
         if (should_stop(t)) break;
 
+        const int max_batch_times = 10000;
         // Adjust cur_batch_times after the first batch run
         if (t.times() == cur_batch_times + 1) {
             double ms_min = t.ms(benchdnn_timer_t::min);

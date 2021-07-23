@@ -355,6 +355,43 @@ inline const engine_t &get_cpu_engine() {
 
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 
+bool should_stop(const benchdnn_timer_t &t);
+
+template <typename func_t, typename prb_t>
+int measure_prim_create(benchdnn_timer_t &t,
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
+        const func_t &init_pd_func, prb_t *prb, res_t *res,
+        dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr) {
+    if (is_bench_mode(PERF)) {
+        dnnl_primitive_desc_t pd {};
+        dnnl_primitive_t prim_ {};
+
+        t.reset();
+        while (true) {
+            SAFE(init_pd_func(get_test_engine(), prb, pd, res, dir, hint),
+                    WARN);
+            auto pd2 = make_benchdnn_dnnl_wrapper(pd);
+            if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+            int check_pd_cache_status = check_pd_cache(pd2);
+
+            // Collect memory footprint for a given primitive descriptor.
+            SAFE(get_memory_footprint(pd, res), WARN);
+
+            t.start();
+            // This primitive is expected to come from the cache.
+            DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
+            t.stamp();
+            int check_primitive_cache_status = check_primitive_cache(prim_);
+
+            SAFE(check_pd_cache_status | check_primitive_cache_status, WARN);
+
+            user_prim.reset(prim_);
+            if (should_stop(t)) break;
+        }
+    }
+    return OK;
+}
+
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         const func_t &init_pd_func, prb_t *prb, res_t *res,
@@ -412,6 +449,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
 
     user_prim.reset(prim_);
 
+    measure_prim_create(res->create_timer, user_prim, init_pd_func, prb, res);
     return OK;
 }
 

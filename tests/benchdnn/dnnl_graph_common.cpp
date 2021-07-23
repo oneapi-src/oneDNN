@@ -23,14 +23,6 @@
 
 namespace benchdnnext {
 
-inline bool should_stop(const benchdnn_timer_t &t) {
-    const bool stop = false
-            || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-            || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
-                    && t.times() >= min_times_per_prb);
-    return stop;
-}
-
 void check_known_skipped_case_graph_common(
         const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
         const dir_t &dir, res_t *res) {
@@ -289,6 +281,21 @@ dnn_mem_t make_dnn_mem(
 
 dnn_mem_t make_dnn_mem(const dnnl::graph::logical_tensor &lt, const char *tag) {
     return make_dnn_mem(lt, lt.get_data_type(), tag);
+}
+
+dnnl::graph::compiled_partition compile_partition(benchdnn_timer_t &t,
+        const dnnl::graph::partition &par,
+        const std::vector<dnnl::graph::logical_tensor> &inputs,
+        const std::vector<dnnl::graph::logical_tensor> &outputs) {
+    dnnl::graph::engine &engine = get_test_engine();
+    auto cp = par.compile(inputs, outputs, engine);
+    // measure parititon compilation perf
+    if (is_bench_mode(PERF)) {
+        t.reset();
+        par.compile(inputs, outputs, engine);
+        t.stamp();
+    }
+    return cp;
 }
 
 void compiled_partition_executor(dnnl::graph::compiled_partition &cp,

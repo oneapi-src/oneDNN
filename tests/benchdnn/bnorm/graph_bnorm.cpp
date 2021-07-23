@@ -273,8 +273,7 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
 
-    const auto &e = benchdnnext::get_test_engine();
-    auto cp = par.compile(ins, outs, e);
+    auto cp = compile_partition(res->create_timer, par, ins, outs);
 
     dnnl_dim_t dims_ss[] = {2, prb->ic};
     dnnl_dim_t data_dims[] = {prb->mb, prb->ic, prb->ih, prb->iw};
@@ -331,7 +330,9 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
             SAFE(::bnorm::compare(prb, DATA, dst_fp, dst, res, &ss_fp), WARN);
         }
     }
-    return measure_perf(res->timer, cp, tensors_in, tensors_out);
+    SAFE(measure_perf(res->timer, cp, tensors_in, tensors_out), WARN);
+
+    return OK;
 }
 
 } // namespace bnorm

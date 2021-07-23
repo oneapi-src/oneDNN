@@ -99,8 +99,7 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
 
-    const auto &e = benchdnnext::get_test_engine();
-    auto cp = par.compile(ins, outs, e);
+    auto cp = compile_partition(res->create_timer, par, ins, outs);
 
     static const engine_t cpu_engine(dnnl_cpu);
 
@@ -175,8 +174,7 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
             SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
     }
-
-    measure_perf(res->timer, cp, tensors_in, tensors_out);
+    SAFE(measure_perf(res->timer, cp, tensors_in, tensors_out), WARN);
 
     return OK;
 }

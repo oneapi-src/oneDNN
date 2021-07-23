@@ -165,6 +165,7 @@ struct stat_t {
     int unimplemented;
     int listed;
     double ms[benchdnn_timer_t::mode_t::n_modes];
+    double create_ms[benchdnn_timer_t::mode_t::n_modes];
 };
 extern stat_t benchdnn_stat;
 
@@ -196,6 +197,7 @@ struct res_t {
     res_state_t state;
     size_t errors, total;
     benchdnn_timer_t timer;
+    benchdnn_timer_t create_timer;
     std::string impl_name;
     skip_reason_t reason;
     size_t ibytes, obytes;
@@ -203,6 +205,8 @@ struct res_t {
 
 void parse_result(
         res_t &res, bool &want_perf_report, int status, const char *pstr);
+
+void fill_ms(double *ms, benchdnn_timer_t &timer);
 
 /* misc */
 void init_fp_mode();

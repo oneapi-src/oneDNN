@@ -82,8 +82,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
 
-    const auto &e = benchdnnext::get_test_engine();
-    auto cp = par.compile(ins, outs, e);
+    auto cp = compile_partition(res->create_timer, par, ins, outs);
 
     dnn_mem_t src_fp = make_dnn_mem(
             ins[0], graph_prb.spec_.src_dt, (prb->reorder.tag_in).c_str());
@@ -143,8 +142,9 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
         // TODO: enable additional checks for border values validity.
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
+    SAFE(measure_perf(res->timer, cp, tensors_in, tensors_out), WARN);
 
-    return measure_perf(res->timer, cp, tensors_in, tensors_out);
+    return OK;
 }
 
 } // namespace reorder

@@ -287,6 +287,11 @@ constexpr T *end(T (&arr)[N]) noexcept {
     return arr + N;
 }
 
+typedef std::function<void(const dnnl::graph::engine &,
+        const std::vector<dnnl::graph::logical_tensor> &,
+        const std::vector<dnnl::graph::logical_tensor> &)>
+        cmpl_function_t;
+
 typedef std::function<void(dnnl::graph::stream &,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs)>
@@ -301,6 +306,16 @@ inline dnnl::graph::engine &get_test_engine() {
             graph_engine_kind, static_cast<int>(engine_index));
     return instance;
 }
+
+dnnl::graph::compiled_partition compile_partition(benchdnn_timer_t &t,
+        const dnnl::graph::partition &par,
+        const std::vector<dnnl::graph::logical_tensor> &inputs,
+        const std::vector<dnnl::graph::logical_tensor> &outputs);
+
+int measure_cmpl(benchdnn_timer_t &t, const dnnl::graph::engine &engine,
+        const dnnl::graph::partition &par,
+        const std::vector<dnnl::graph::logical_tensor> &inputs,
+        const std::vector<dnnl::graph::logical_tensor> &outputs);
 
 int execute_and_wait(perf_function_t &exec_func,
         const dnnl::graph::engine &engine,
