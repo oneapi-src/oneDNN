@@ -41,11 +41,12 @@ struct lnorm_graph_prb_t : public graph_prb_t {
     struct spec_t {
         spec_t(const ::lnorm::prb_t *prb);
         bool keep_stats {true};
-        int begin_norm_axis {-1};
+        int64_t begin_norm_axis {-1};
         bool use_affine {true};
         float epsilon {0.00001f};
 
         dims_t dims;
+        dims_t stat_dims;
         dims_t ss_dims;
         dt lnorm_dt;
     };
