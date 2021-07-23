@@ -89,12 +89,12 @@ argument index as specified by the following table.
 The MatMul primitive supports the following combinations of data
 types for source, destination, weights, and bias tensors:
 
-| Source | Weights  | Destination      | Bias             |
-| :--    | :--      | :--              | :--              |
-| f32    | f32      | f32              | f32              |
-| f16    | f16      | f16              | f16              |
-| bf16   | bf16     | bf16             | bf16, f32        |
-| u8, s8 | s8, u8   | u8, s8, s32, f32 | u8, s8, s32, f32 |
+| Source | Weights | Destination            | Bias                   |
+| :--    | :--     | :--                    | :--                    |
+| f32    | f32     | f32                    | f32                    |
+| f16    | f16     | f16                    | f16                    |
+| bf16   | bf16    | f32, bf16              | bf16, f32              |
+| u8, s8 | u8, s8  | u8, s8, s32, f32, bf16 | u8, s8, s32, f32, bf16 |
 
 ### Data Representation
 
