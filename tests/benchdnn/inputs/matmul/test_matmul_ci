@@ -1,61 +1,54 @@
 --reset
 
+--bia_dt=undef
+# Post-ops check for different data types
 --cfg=f32,bf16bf16bf16,u8s8s8,s8s8f32
---batch=shapes_2d_ci
-
---bia_dt=undef,f32
 --attr-post-ops=, \
                 sum:0.5, \
                 linear:2:1, \
                 add:f32, \
                 mul:s8:per_oc+sum:0.25+relu:0.5+add:f32:per_tensor
-
-# 2D
---stag=ab,ba --wtag=ab,ba --dtag=ab
---bia_mask=1,2,3
-## Defined
---runtime_m=0 --runtime_n=0 --runtime_k=0
---attr-oscale=,common:2.25,per_oc:2.25
---attr-zero-points=,src:common:1+wei:common:-1+dst:common:2
-m16n7k12
-## Run-time
---runtime_m=1 --runtime_n=1 --runtime_k=1
---attr-oscale=common:0.5*,per_oc:5*
---attr-zero-points=src:per_dim_1:-1*+wei:common:1*+dst:common:0*
-m16n7k13
-
-# 3D (batched)
---stag=abc,acb --wtag=abc,acb --dtag=abc
---bia_mask=4,6
-## Defined
---runtime_mb=0 --runtime_m=0 --runtime_n=0 --runtime_k=0
---attr-oscale=,common:2.25,per_oc:2.25
---attr-zero-points=,src:common:1+wei:common:-1+dst:common:2
-mb2m10n4k30
-
-## Run-time
---runtime_mb=1 --runtime_m=1 --runtime_n=1 --runtime_k=1
---attr-oscale=common:2.25*,per_oc:2.25*
---attr-zero-points=src:common:1*+wei:common:-1*+dst:per_dim_1:2*
-mb2m10n4k31
-
---reset
---skip-impl=ref
---cfg=u8s8u8,s8s8s8
---attr-oscale=common:0.25 --attr-post-ops=sum:1.5+relu:3
---bia_dt=s8 --bia_mask=2
 --batch=shapes_2d_ci
+--batch=shapes_3d
+--attr-post-ops=
 
-# test all the supported configurations
+# Output scale check
+--cfg=f32,bf16bf16bf16,u8s8u8,s8s8s32
+--attr-oscale=common:2.25,per_oc:2.25,common:0.5*,per_oc:5*
+--batch=shapes_2d_ci
+--batch=shapes_3d
+--attr-oscale=
+
+# Zero-points check
+--cfg=s8s8s8,u8s8f32,u8s8bf16
+--attr-zero-points=src:common:1+wei:common:-1+dst:common:2, \
+                   src:per_dim_1:-1*+wei:common:1*+dst:common:2*
+--batch=shapes_2d_ci
+--batch=shapes_3d
+--attr-zero-points=
+
+# Run-time dimensions check
+--stag=abx,xba --wtag=abx,xba --dtag=abx
+--runtime_dims_masks=15:15
+--batch=shapes_2d_ci
+--batch=shapes_3d
+
+# test all the supported data type configurations + bias data types
 --reset
 --cfg=f32
---bia_dt=undef,f32 --bia_mask=2
-77x133:133x117
+--bia_dt=undef,f32
+--bia_mask=2,3  77x133:133x117
+--bia_mask=4,6  15x24x16:15x16x32
+--bia_mask=8,12 7x16x24x8:7x16x8x24
 
 --cfg=bf16bf16bf16,bf16bf16f32
---bia_dt=undef,f32,bf16 --bia_mask=2
-77x133:133x117
+--bia_dt=undef,f32,bf16
+--bia_mask=2,3  77x133:133x117
+--bia_mask=4,6  15x24x16:15x16x32
+--bia_mask=8,12 7x16x24x8:7x16x8x24
 
 --cfg=u8s8f32,u8s8s32,u8s8s8,u8s8u8,s8s8f32,s8s8s32,s8s8s8,s8s8u8,s8s8bf16,u8s8bf16
---bia_dt=undef,f32,bf16,u8,s8,s32 --bia_mask=2
-77x133:133x117
+--bia_dt=undef,f32,bf16,u8,s8,s32
+--bia_mask=2,3  77x133:133x117
+--bia_mask=4,6  15x24x16:15x16x32
+--bia_mask=8,12 7x16x24x8:7x16x8x24
