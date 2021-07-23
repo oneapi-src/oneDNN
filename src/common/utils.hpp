@@ -213,6 +213,12 @@ inline void array_set(T *arr, const U &val, size_t size) {
         arr[i] = static_cast<T>(val);
 }
 
+inline bool array_cmp_weak(const dnnl_dim_t *a1, const dnnl_dim_t *a2, size_t size) {
+    for (size_t i = 0; i < size; ++i)
+        if (a1[i] != a2[i] && a1[i] != DNNL_RUNTIME_DIM_VAL && a2[i] != DNNL_RUNTIME_DIM_VAL) return false;
+    return true;
+}
+
 namespace product_impl {
 template <size_t>
 struct int2type {};
