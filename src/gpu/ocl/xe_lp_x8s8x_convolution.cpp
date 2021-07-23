@@ -120,8 +120,8 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
 
             conf.gws_d[0] = utils::div_up(conf.ngroups, 32) * conf.lws_d[0];
             conf.gws_d[1] = conf.od * conf.oh * ow_nchunk;
-            conf.gws_d[2]
-                    = utils::div_up(conf.mb, utils::div_up(conf.mb_block, 4));
+            conf.gws_d[2] = utils::div_up(conf.mb,
+                    utils::div_up(conf.mb_block, conf.mb_block == 32 ? 4 : 1));
         } else {
             if (!is_1stconv) {
                 conf.ow_block
@@ -159,7 +159,9 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
                     = conf.od * conf.oh * utils::rnd_up(ow_nchunk, ow_group);
             conf.gws_d[2] = is_1stconv
                     ? utils::rnd_up(conf.mb, conf.mb_block)
-                    : utils::div_up(conf.mb, utils::div_up(conf.mb_block, 2));
+                    : utils::div_up(conf.mb,
+                            utils::div_up(conf.mb_block,
+                                    conf.mb_block == 32 ? 2 : 1));
         }
 
     } else if (conf.is_depthwise) {
@@ -202,7 +204,8 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
 
         conf.gws_d[0] = utils::div_up(conf.ngroups, 32) * conf.lws_d[0];
         conf.gws_d[1] = spatial_global_size;
-        conf.gws_d[2] = 4 * utils::div_up(conf.mb, conf.mb_block);
+        conf.gws_d[2] = (conf.mb_block == 32 ? 4 : 1)
+                * utils::div_up(conf.mb, conf.mb_block);
 
     } else {
         if (conf.mb == 8 || conf.mb % 16 == 0) {
@@ -266,7 +269,8 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
         conf.gws_d[1] = conf.od * conf.oh
                 * utils::rnd_up(
                         utils::div_up(conf.ow, conf.ow_block), ow_group);
-        conf.gws_d[2] = 2 * utils::div_up(conf.mb, conf.mb_block);
+        conf.gws_d[2] = (conf.mb_block == 32 ? 2 : 1)
+                * utils::div_up(conf.mb, conf.mb_block);
 
         if (conf.ver == ver_1stconv) {
             conf.gws_d[2] = utils::rnd_up(conf.mb, conf.mb_block);

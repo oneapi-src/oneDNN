@@ -170,7 +170,7 @@ conv_nhwc_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
     dst += OC_BLOCK * MB_BLOCK * (OW * OH * od + OW * oh + ow);
 #endif
 
-    src += group_mb * ID * IH * IW * G * IC;
+    src += (group_mb >= MB ? MB - 1 : group_mb) * ID * IH * IW * G * IC;
     src += (IW * IH * id + IW * ih + iw + PW) * G * IC;
 
     wei += 4 * KDHW_SIZE * OC_BLOCK * (group_oc + oc);

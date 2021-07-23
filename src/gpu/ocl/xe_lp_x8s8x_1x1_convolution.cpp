@@ -108,7 +108,8 @@ status_t xe_lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_conf(engine_t *engine) {
 
     conf.gws_d[0] = utils::rnd_up(conf.nchunk * 8, conf.lws_d[0]);
     conf.gws_d[1] = utils::rnd_up(num_sp_threads, conf.lws_d[1]);
-    conf.gws_d[2] = 2 * utils::div_up(conf.mb, conf.mb_block);
+    conf.gws_d[2] = (conf.mb_block == 32 ? 2 : 1)
+            * utils::div_up(conf.mb, conf.mb_block);
 
     conf.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
