@@ -190,7 +190,7 @@ private:
     thread_local_cache_t &operator=(const thread_local_cache_t &other) = delete;
 
     static cache_type_t &get_thread_local_cache() {
-        thread_local cache_type_t cache(global_cache_);
+        static thread_local cache_type_t cache(global_cache_);
         return cache;
     }
 
