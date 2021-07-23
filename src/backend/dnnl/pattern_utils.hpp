@@ -291,9 +291,9 @@ bool per_op_comp_(op_t *graph_op, op_t *pattern_op,
             value_t *pvalue = get_input(pfront.first, pfront.second.second);
             op_t *pinput = &pvalue->get_producer();
             value_t *nvalue = get_input(nfront, pfront.second.second++);
-            op_t *ninput = &nvalue->get_producer();
             hashtype pinput_hash = hash_func(pinput);
             if (nvalue->has_producer()) { // maybe case #2
+                op_t *ninput = &nvalue->get_producer();
                 if (visited.count(pinput_hash) == 0) {
                     pattern_queue.push_front(
                             std::make_pair(pinput, std::make_pair(0, 0)));

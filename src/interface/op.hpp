@@ -97,7 +97,10 @@ public:
         }
 
         for (auto &v : outputs_) {
-            if (&v->get_producer() == this) { v->reset_producer(); }
+            if (v->has_producer()
+                    && std::addressof(v->get_producer()) == this) {
+                v->reset_producer();
+            }
         }
     }
 

@@ -72,7 +72,10 @@ public:
 
     void set_data_type(data_type_t new_dtype) { val_.data_type = new_dtype; }
 
-    op_t &get_producer() const { return *producer_; }
+    op_t &get_producer() const {
+        assertm(producer_ != nullptr, "Producer has not been set");
+        return *producer_;
+    }
     void set_producer(op_t &producer) { producer_ = &producer; }
     void reset_producer() { producer_ = nullptr; }
     bool has_producer() const { return producer_ != nullptr; }

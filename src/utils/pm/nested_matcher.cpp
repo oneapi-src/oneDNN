@@ -887,14 +887,18 @@ bool match_pattern(op_ptr first_op, const shared_ptr<pb_graph> &pattern,
         m.op_pb_op_pairs.emplace_back(i.first, p_op);
         for (size_t j = 0; j < i.second->op_unhandled_input.size(); j++) {
             op_ptr op = i.first;
+            op_ptr prod_op = nullptr;
             if (i.second->op_unhandled_input[j] == true) {
-                op_ptr prod_op = &(op->get_input_value(j)->get_producer());
-                // check if prod_op is in matched_ops
+                auto input_value = op->get_input_value(j);
                 bool found = false;
-                for (size_t k = 0; k < matched_ops.size(); k++) {
-                    if (matched_ops[k] == prod_op) {
-                        found = true;
-                        break;
+                if (input_value->has_producer()) {
+                    prod_op = &(input_value->get_producer());
+                    // check if prod_op is in matched_ops
+                    for (size_t k = 0; k < matched_ops.size(); k++) {
+                        if (matched_ops[k] == prod_op) {
+                            found = true;
+                            break;
+                        }
                     }
                 }
                 if (!found) {
