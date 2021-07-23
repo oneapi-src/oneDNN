@@ -1264,6 +1264,93 @@ TEST(operator_kernel, bias_add) {
     }
 }
 
+TEST(operator_kernel, add_mul) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    test::vector<float> src1 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> post_src {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> ref_dst {6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0};
+    test::vector<float> dst(src0.size(), 0.0);
+
+    impl::op_t add_op(impl::op_kind::add_multiply);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto add_kernel = op_factory.create_kernel(add_op);
+    ASSERT_TRUE(add_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(2, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            3, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
+
+    std::vector<impl::logical_tensor_t> inputs {src0_lt, src1_lt, post_src_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    add_kernel->compile(&add_op, &eng, inputs, outputs);
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    add_kernel->execute(
+            &add_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
+TEST(operator_kernel, add_mul_post_src_as_nxc) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    test::vector<float> src1 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> post_src {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
+    test::vector<float> ref_dst {
+            3.0, 12.0, 21.0, 6.0, 15.0, 24.0, 9.0, 18.0, 27.0};
+    test::vector<float> dst(src0.size(), 0.0);
+
+    impl::op_t add_op(impl::op_kind::add_multiply);
+
+    auto &op_factory = get_dnnl_kernel_registry();
+    auto add_kernel = op_factory.create_kernel(add_op);
+    ASSERT_TRUE(add_kernel);
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt = utils::logical_tensor_init(
+            2, {1, 3, 3}, {9, 1, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            3, {1, 3, 3}, impl::data_type::f32, impl::layout_type::any);
+
+    std::vector<impl::logical_tensor_t> inputs {src0_lt, src1_lt, post_src_lt};
+    std::vector<impl::logical_tensor_t> outputs {dst_lt};
+    add_kernel->compile(&add_op, &eng, inputs, outputs);
+
+    impl::tensor_t src0_ts(src0_lt, src0.data());
+    impl::tensor_t src1_ts(src1_lt, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    add_kernel->execute(
+            &add_op, &strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+}
+
 TEST(operator_kernel, add_relu) {
     impl::engine_t &eng = get_engine();
 

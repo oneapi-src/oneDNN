@@ -129,6 +129,7 @@ namespace op_kind {
     X(relu_add, Relu_add) \
     X(add_relu, Add_relu) \
     X(add_sigmoid, Add_sigmoid) \
+    X(add_multiply, Add_multiply) \
     X(multiply_relu, Multiply_relu) \
     X(multiply_sigmoid, Multiply_sigmoid) \
     X(maximum_relu, Maximum_relu) \

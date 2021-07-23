@@ -71,10 +71,8 @@ private:
     size_t idx_src1_ {bin::kSrc1};
     size_t idx_dst_ {bin::kDst};
 
-    bool broadcast_ {false};
-    bool with_add_ {false};
     bool with_post_sum_ {false};
-    bool with_post_binary_add_ {false};
+    bool with_post_binary_ {false};
 
     dnnl::reorder::primitive_desc dst_reorder_pd_;
 
@@ -121,25 +119,24 @@ private:
         return with_add_set.find(kind) != with_add_set.end();
     }
 
-    static algorithm get_eltwise_algo(op_kind_t kind) {
-        switch (static_cast<int>(kind)) {
-            case op_kind::add_relu:
-            case op_kind::multiply_relu:
-            case op_kind::maximum_relu:
-            case op_kind::minimum_relu: return (algorithm::eltwise_relu);
-            case op_kind::add_sigmoid:
-            case op_kind::multiply_sigmoid:
-            case op_kind::maximum_sigmoid:
-            case op_kind::minimum_sigmoid: return (algorithm::eltwise_logistic);
-            default: return (algorithm::undef);
-        }
+    /**
+     * Check if binary operator fuses binary
+     *
+     * @param kind operator kind
+     * @return whether the operator fused binary
+     */
+    static bool fuse_binary(op_kind_t kind) {
+        static const std::unordered_set<op_kind_t, enum_hash> with_binary_set {
+                op_kind::add_multiply};
+        return with_binary_set.find(kind) != with_binary_set.end();
     }
 
-    static algorithm get_binary_algo(op_kind_t kind) {
+    static algorithm get_base_algo(op_kind_t kind) {
         switch (static_cast<int>(kind)) {
             case op_kind::Add:
             case op_kind::add_relu:
-            case op_kind::add_sigmoid: return (algorithm::binary_add);
+            case op_kind::add_sigmoid:
+            case op_kind::add_multiply: return (algorithm::binary_add);
             case op_kind::Multiply:
             case op_kind::multiply_relu:
             case op_kind::multiply_sigmoid:
@@ -152,6 +149,27 @@ private:
             case op_kind::minimum_relu:
             case op_kind::minimum_sigmoid:
             case op_kind::minimum_add: return (algorithm::binary_min);
+            default: return (algorithm::undef);
+        }
+    }
+
+    static algorithm get_binary_algo(op_kind_t kind) {
+        switch (static_cast<int>(kind)) {
+            case op_kind::add_multiply: return (algorithm::binary_mul);
+            default: return (algorithm::undef);
+        }
+    }
+
+    static algorithm get_eltwise_algo(op_kind_t kind) {
+        switch (static_cast<int>(kind)) {
+            case op_kind::add_relu:
+            case op_kind::multiply_relu:
+            case op_kind::maximum_relu:
+            case op_kind::minimum_relu: return (algorithm::eltwise_relu);
+            case op_kind::add_sigmoid:
+            case op_kind::multiply_sigmoid:
+            case op_kind::maximum_sigmoid:
+            case op_kind::minimum_sigmoid: return (algorithm::eltwise_logistic);
             default: return (algorithm::undef);
         }
     }
@@ -196,7 +214,7 @@ public:
             auto_broadcast_ = op->get_attr<std::string>("auto_broadcast");
         }
 
-        alg_kind_ = get_binary_algo(op->get_kind());
+        alg_kind_ = get_base_algo(op->get_kind());
         if (alg_kind_ == algorithm::undef) return status::compile_fail;
 
         p_engine_ = make_dnnl_engine(*g_engine);
@@ -210,7 +228,6 @@ public:
                     res_desc_.cvt_dst_)) {
             if (auto_broadcast_ != "numpy") return status::compile_fail;
 
-            broadcast_ = true;
             res_desc_.cvt_src_
                     = expand(res_desc_.cvt_src_, res_desc_.cvt_dst_.data.ndims);
             res_desc_.cvt_src1_ = expand(
@@ -221,26 +238,27 @@ public:
         desc dst_any(res_desc_.cvt_dst_.dims(), res_desc_.cvt_dst_.data_type(),
                 format_tag::any);
 
-        with_add_ = fuse_add(op->get_kind());
-        if (with_add_) {
-            impl::logical_tensor_t post_src_lt = inputs.back();
-            impl::logical_tensor_t dst_lt = outputs.at(0);
-            if (impl::logical_tensor_wrapper(post_src_lt)
-                            .has_same_shape_as(dst_lt)) {
-                // if post src has the same shape of dst
-                // set post sum attribute
-                res_desc_.cvt_post_src_ = make_dnnl_memory_desc(post_src_lt);
-                attr_ = attr_t::fuse_sum();
+        const bool with_add = fuse_add(op->get_kind());
+        const bool with_bin = fuse_binary(op->get_kind());
+        if (with_add || with_bin) {
+            const ltw dst_ltw(outputs[idx_dst_]);
+            const ltw post_src_ltw(inputs.back());
+
+            if (with_add && dst_ltw.has_same_shape_as(post_src_ltw)) {
                 with_post_sum_ = true;
+                res_desc_.cvt_post_src_ = make_dnnl_memory_desc(inputs.back());
+                attr_ = attr_t::fuse_sum();
             } else {
-                const logical_tensor_wrapper dst_lt_wrapper(dst_lt);
-                int dst_lt_ndims = dst_lt_wrapper.ndims();
-                res_desc_.cvt_post_src_ = make_dnnl_memory_desc(post_src_lt);
+                with_post_binary_ = true;
+                if (!doable(dst_ltw.vdims(), post_src_ltw.vdims()))
+                    return status::invalid_shape;
+
+                res_desc_.cvt_post_src_ = make_dnnl_memory_desc(inputs.back());
                 res_desc_.cvt_post_src_
-                        = expand(res_desc_.cvt_post_src_, dst_lt_ndims);
-                attr_ = attr_t::fuse_binary(
-                        res_desc_.cvt_post_src_, algorithm::binary_add);
-                with_post_binary_add_ = true;
+                        = expand(res_desc_.cvt_post_src_, dst_ltw.ndims());
+                const auto algo = with_add ? algorithm::binary_add
+                                           : get_binary_algo(op->get_kind());
+                attr_ = attr_t::fuse_binary(res_desc_.cvt_post_src_, algo);
             }
         }
 
@@ -318,7 +336,7 @@ public:
             res->opt_dst_.set_data_handle(res->cvt_dst_.get_data_handle());
         }
 
-        if (with_add_) {
+        if (with_post_binary_ || with_post_sum_) {
             res->cvt_post_src_.set_data_handle(inputs.back().get_data_handle());
         }
 

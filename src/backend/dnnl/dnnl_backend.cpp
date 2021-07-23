@@ -115,6 +115,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(Add, binary)
     DNNL_REGISTER_KERNEL(add_relu, binary)
     DNNL_REGISTER_KERNEL(add_sigmoid, binary)
+    DNNL_REGISTER_KERNEL(add_multiply, binary)
     DNNL_REGISTER_KERNEL(Multiply, binary)
     DNNL_REGISTER_KERNEL(multiply_add, binary)
     DNNL_REGISTER_KERNEL(multiply_relu, binary)

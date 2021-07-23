@@ -71,6 +71,21 @@ DNNL_GRAPH_OP_SCHEMA(Add_sigmoid, 1,
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(Add_multiply, 1,
+        op_schema()
+                .set_num_inputs(3)
+                .set_num_outputs(1)
+                .set_input(0, "lhs", "first input tensor")
+                .set_input(1, "rhs", "second input tensor")
+                .set_input(2, "other", "the second input tensor of multiply")
+                .set_output(0, "output", "output tensor")
+                .set_attr("auto_broadcast",
+                        "specifies rules used for auto-broadcasting "
+                        "of input tensors",
+                        false, attribute_kind::s, "numpy")
+                .set_shape_inference_function(
+                        infer_elemwise_arithmetic_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(AvgPool, 1,
         op_schema()
                 .set_num_inputs(1)

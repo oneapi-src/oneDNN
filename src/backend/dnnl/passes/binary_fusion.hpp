@@ -77,6 +77,21 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_add_sigmoid_fusion)
                     fused_op->set_attr<std::string>("backend", "dnnl");
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_add_multiply_fusion)
+        .set_priority(8.2f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](pattern *apattern) -> void {
+                    op_t *add = apattern->create_op(op_kind::Add);
+                    op_t *mul = apattern->create_op(op_kind::Multiply);
+                    mul->fill_and_connect_input(0, *add, 0);
+                })
+        .set_attr<FCreateOptPattern>(
+                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
+                    op_t *fused_op = optimized_pattern->create_op(
+                            op_kind::add_multiply);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_multiply_add_fusion)
         .set_priority(8.2f)
         .set_attr<FCreatePattern>("FCreatePattern",
