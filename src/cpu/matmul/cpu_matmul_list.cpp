@@ -20,6 +20,7 @@
 #include "cpu/matmul/gemm_f32_matmul.hpp"
 #include "cpu/matmul/gemm_x8s8s32x_matmul.hpp"
 #include "cpu/matmul/ref_matmul.hpp"
+#include "cpu/matmul/ref_matmul_int8.hpp"
 
 #if DNNL_X64
 #include "cpu/x64/matmul/brgemm_matmul.hpp"
@@ -50,19 +51,9 @@ const impl_list_item_t impl_list[] = {
         CPU_INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s32>)
         CPU_INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s8>)
         CPU_INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, u8>)
-        CPU_INSTANCE(ref_matmul_t<f32>)
-        CPU_INSTANCE(ref_matmul_t<bf16, bf16, f32, f32>)
-        CPU_INSTANCE(ref_matmul_t<bf16, bf16, bf16, f32>)
-        CPU_INSTANCE(ref_matmul_t<s8, s8, f32, s32>)
-        CPU_INSTANCE(ref_matmul_t<s8, s8, s32, s32>)
-        CPU_INSTANCE(ref_matmul_t<s8, s8, s8, s32>)
-        CPU_INSTANCE(ref_matmul_t<s8, s8, u8, s32>)
-        CPU_INSTANCE(ref_matmul_t<u8, s8, f32, s32>)
-        CPU_INSTANCE(ref_matmul_t<u8, s8, s32, s32>)
-        CPU_INSTANCE(ref_matmul_t<u8, s8, s8, s32>)
-        CPU_INSTANCE(ref_matmul_t<u8, s8, u8, s32>)
-        CPU_INSTANCE(ref_matmul_t<s8, s8, bf16, s32>)
-        CPU_INSTANCE(ref_matmul_t<u8, s8, bf16, s32>)
+        CPU_INSTANCE(ref_matmul_t)
+        CPU_INSTANCE(ref_matmul_int8_t)
+
         /* eol */
         nullptr,
 };

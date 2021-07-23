@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,12 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_MATMUL_REF_MATMUL_HPP
-#define CPU_MATMUL_REF_MATMUL_HPP
+#ifndef CPU_MATMUL_REF_MATMUL_INT8_HPP
+#define CPU_MATMUL_REF_MATMUL_INT8_HPP
 
 #include <assert.h>
 
-#include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
@@ -35,11 +34,11 @@ namespace impl {
 namespace cpu {
 namespace matmul {
 
-struct ref_matmul_t : public primitive_t {
+struct ref_matmul_int8_t : public primitive_t {
     struct pd_t : public cpu_matmul_pd_t {
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
-        DECLARE_COMMON_PD_T("ref:any", ref_matmul_t);
+        DECLARE_COMMON_PD_T("ref_int8:any", ref_matmul_int8_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -49,32 +48,37 @@ struct ref_matmul_t : public primitive_t {
             const auto bia_type = weights_md(1)->data_type;
             const auto dst_type = dst_md(0)->data_type;
 
-            bool ok = utils::one_of(src_type, f32, bf16)
-                    && utils::one_of(wei_type, f32, bf16)
-                    && utils::one_of(dst_type, f32, bf16)
-                    && src_type == wei_type
-                    && IMPLICATION(src_type == f32, dst_type == f32)
+            bool ok = utils::one_of(src_type, s8, u8) && wei_type == s8
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bia_type, f32, bf16)
-                                    && IMPLICATION(
-                                            src_type == f32, bia_type == f32))
-                    && platform::has_data_type_support(src_type)
-                    && attr()->has_default_values(
-                            smask_t::oscale_runtime | smask_t::post_ops)
-                    && attr_oscale_ok() && set_default_formats()
+                            utils::one_of(bia_type, f32, bf16, s32, s8, u8))
+                    && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
+                    && attr()->has_default_values(smask_t::oscale_runtime
+                            | smask_t::zero_points_runtime | smask_t::post_ops)
+                    && attr_oscale_ok() && attr_zero_points_ok()
+                    && set_default_formats()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
         }
 
     private:
-        // oscale for f32/bf16 is a way to support alpha multiplication.
         bool attr_oscale_ok() const {
             const auto &oscale = attr()->output_scales_;
             return oscale.mask_ == 0 || oscale.mask_ == (1 << (batched() + 1));
         }
+
+        bool attr_zero_points_ok() const {
+            int mask_src = 0, mask_wei = 0, mask_dst = 0;
+            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+            attr()->zero_points_.get(
+                    DNNL_ARG_WEIGHTS, nullptr, &mask_wei, nullptr);
+            attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+
+            return (mask_src == 0 || mask_src == 1 << 1) && (mask_wei == 0)
+                    && (mask_dst == 0 || mask_dst == 1 << 1);
+        }
     };
 
-    ref_matmul_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_matmul_int8_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         ref_post_ops

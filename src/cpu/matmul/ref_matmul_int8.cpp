@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,22 +25,26 @@
 
 #include "cpu/cpu_primitive.hpp"
 #include "cpu/ref_io_helper.hpp"
+#include "cpu/simple_q10n.hpp"
 
 #include "cpu/matmul/matmul_utils.hpp"
-#include "cpu/matmul/ref_matmul.hpp"
+#include "cpu/matmul/ref_matmul_int8.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace matmul {
 
-status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
+status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     const auto weights = CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS);
     const auto bias = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
 
     DEFINE_SCALES_BUFFER(scales);
+    DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
+    DEFINE_ZERO_POINT_VALUE(weights_zero_point, DNNL_ARG_WEIGHTS);
+    DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
 
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
@@ -64,9 +68,15 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const int bia_mask
             = utils::get_dims_mask(dst_d.dims(), bia_d.dims(), ndims);
 
+    // zp_idx_mult = 1 for per_dim1 zero points and 0, otherwise
+    const int src_zp_idx_mult
+            = !pd()->attr()->zero_points_.common(DNNL_ARG_SRC);
+    const int dst_zp_idx_mult
+            = !pd()->attr()->zero_points_.common(DNNL_ARG_DST);
+
     // mm kernel
     auto ker = [&](const dims_t dst_dims_idx, dim_t m, dim_t n) {
-        float acc = 0;
+        int acc = 0;
         dims_t src_dims_idx, weights_dims_idx;
         utils::copy_dims_with_mask(src_dims_idx, dst_dims_idx, ndims, src_mask);
         utils::copy_dims_with_mask(
@@ -80,10 +90,15 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             wei_k_dim = k;
             const auto src_off = src_d.off_v(src_dims_idx);
             const auto weights_off = weights_d.off_v(weights_dims_idx);
-            const float s
-                    = io::load_float_value(src_d.data_type(), src, src_off);
-            const float w = io::load_float_value(
+            int s = io::load_int_value(src_d.data_type(), src, src_off);
+            int w = io::load_int_value(
                     weights_d.data_type(), weights, weights_off);
+            if (src_zero_point) {
+                const int src_zp = io::load_int_value(
+                        data_type::s32, src_zero_point, src_zp_idx_mult * k);
+                s -= src_zp;
+            }
+            if (weights_zero_point) { w -= weights_zero_point; }
             acc += s * w;
         }
         return acc;
@@ -106,7 +121,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         // account for M, N dims for index calculations
         const size_t l_offset = mb * M * N + m * N + n;
         utils::l_dims_by_l_offset(dst_dims_idx, l_offset, dst_d.dims(), ndims);
-        float d = ker(dst_dims_idx, m, n);
+        int acc = ker(dst_dims_idx, m, n);
+        float d = static_cast<int>(acc);
         if (bias) d += ker_bias(dst_dims_idx);
 
         const auto dst_off = dst_d.off_v(dst_dims_idx);
@@ -120,6 +136,12 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             args.l_offset = l_offset;
             args.dst_md = pd()->dst_md();
             ref_post_ops->execute(d, args);
+
+            if (dst_zero_point) {
+                const int dst_zp = io::load_int_value(
+                        data_type::s32, dst_zero_point, dst_zp_idx_mult * n);
+                d += dst_zp;
+            }
         }
         io::store_float_value(dst_d.data_type(), d, dst, dst_off);
         utils::dim_iterator(dst_d.dims(), dst_dims_idx, batch_ndims);
