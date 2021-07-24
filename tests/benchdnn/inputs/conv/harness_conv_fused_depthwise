@@ -58,5 +58,5 @@
 --attr-post-ops=linear:2+dw_k3s1p1:u8:per_oc:2.5+relu
 --batch=shapes_fused_large_src
 --cfg=u8s8u8
---attr-post-ops=relu:0.5+dw_k3s2p1:s32:per_oc:2.5+relu # FIXME: ,dw_k3s2p1:f32:common:2
+--attr-post-ops=relu:0.5+dw_k3s2p1:s32:per_oc:2.5+relu,dw_k3s2p1:f32:common:2
 --batch=shapes_fused_large_src
