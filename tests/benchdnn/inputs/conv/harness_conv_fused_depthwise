@@ -57,5 +57,5 @@
 --attr-oscale=per_oc:0.5
 --attr-post-ops=linear:2+dw_k3s1p1:u8:per_oc:2.5+relu
 --batch=shapes_fused_large_src
---attr-post-ops=relu:0.5+dw_k3s2p1:u8:per_oc:2.5+relu
+--attr-post-ops=relu:0.5+dw_k3s2p1:u8:per_oc:2.5+relu,dw_k3s2p1:f32:common:2
 --batch=shapes_fused_large_src
