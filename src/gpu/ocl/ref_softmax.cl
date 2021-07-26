@@ -72,7 +72,7 @@
             + OFF(softmax_dim, 5)
 #define NEEDS_PADDING(dim0, dim1, dim2, dim3, dim4, softmax_dim) \
     dim0 >= DD(0) || dim1 >= DD(1) || dim2 >= DD(2) || dim3 >= DD(3) \
-            || dim4 >= DD(4) || sofmtax_dim >= DD(5)
+            || dim4 >= DD(4) || softmax_dim >= DD(5)
 #else
 #error unsupported softmax dimension
 #endif
@@ -93,33 +93,36 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
             get_global_id(2) / BLOCK_2,
     };
 
-    int local_id = get_local_id(0);
+    const int local_id = get_local_id(0);
 
     // SOFTMAX_AXIS is the size of axis around which softmax operation is
     // performed
 
     // begin and end indices calculated according to thread's id
-    int begin = local_id * (SOFTMAX_AXIS / GROUP_SIZE);
-    int end = (local_id == GROUP_SIZE - 1)
+    const int begin = local_id * (SOFTMAX_AXIS / GROUP_SIZE);
+    const int end = (local_id == GROUP_SIZE - 1)
             ? SOFTMAX_AXIS
             : (local_id + 1) * (SOFTMAX_AXIS / GROUP_SIZE);
+#if SOFTMAX_AXIS - (GROUP_SIZE - 1) * (SOFTMAX_AXIS / GROUP_SIZE) \
+        > SOFTMAX_AXIS / GROUP_SIZE
+    const int buf_size
+            = SOFTMAX_AXIS - (GROUP_SIZE - 1) * (SOFTMAX_AXIS / GROUP_SIZE);
+#else
+    const int buf_size = SOFTMAX_AXIS / GROUP_SIZE;
+#endif
 
-    // initializing max_ to first value of subgroup
-    int start_idx = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], begin);
+    DEF_ACC_DATA_T d[buf_size];
     DEF_ACC_DATA_T max_ = -FLT_MAX;
     DEF_ACC_DATA_T denom_ = DATA_ZERO;
 
     // finding max value for each sub_group
-    for (int i = begin; i < end; ++i) {
-        DEF_ACC_DATA_T temp = -FLT_MAX;
-
-        if (!(NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i))) {
+    if (!(NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], begin))) {
+        for (int i = begin; i < end && i < DD(SOFTMAX_AXIS_IDX); ++i) {
             size_t data_off
                     = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
-            temp = TO_DEF_ACC_DATA_T(src[data_off]);
+            d[i - begin] = TO_DEF_ACC_DATA_T(src[data_off]);
+            max_ = max(max_, d[i - begin]);
         }
-
-        max_ = temp > max_ ? temp : max_;
     }
 
     // reduce using work_group_reduce if no. of subgroups > 1, for e.g.
@@ -131,21 +134,15 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
     max_ = work_group_reduce_max(max_);
 #endif
     // updating dst tensor and accumulating denom for last step
-    for (int i = begin; i < end; ++i) {
-        size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
-
-        if (NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i)) {
-            dst[data_off] = DATA_ZERO;
-            continue;
-        }
-
-        DEF_ACC_DATA_T temp = TO_DEF_ACC_DATA_T(src[data_off]);
+    if (!(NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], begin))) {
+        for (int i = begin; i < end && i < DD(SOFTMAX_AXIS_IDX); ++i) {
 #if LOGSOFTMAX
-        denom_ += exp(temp - max_);
+            denom_ += exp(d[i - begin] - max_);
 #else
-        dst[data_off] = TO_DATA_T(exp(temp - max_));
-        denom_ += TO_DEF_ACC_DATA_T(dst[data_off]);
+            d[i - begin] = exp(d[i - begin] - max_);
+            denom_ += d[i - begin];
 #endif
+        }
     }
 
 #if GROUP_SIZE == SUB_GROUP_SIZE
@@ -164,16 +161,14 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
         size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
 
         if (NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i)) {
-            continue;
-        }
-
+            dst[data_off] = DATA_ZERO;
+        } else {
 #if LOGSOFTMAX
-        DEF_ACC_DATA_T temp = TO_DEF_ACC_DATA_T(src[data_off]);
-        dst[data_off] = TO_DATA_T(temp - max_ - denom_);
+            dst[data_off] = TO_DATA_T(d[i - begin] - max_ - denom_);
 #else
-        DEF_ACC_DATA_T temp = TO_DEF_ACC_DATA_T(dst[data_off]);
-        dst[data_off] = TO_DATA_T(temp * denom_);
+            dst[data_off] = TO_DATA_T(d[i - begin] * denom_);
 #endif
+        }
     }
 }
 
