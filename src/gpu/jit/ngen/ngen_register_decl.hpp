@@ -311,6 +311,7 @@ NGEN_REGISTER_DECL(ngen::BinaryCodeGenerator<hw>, template <ngen::HW hw>)
 NGEN_REGISTER_DECL(ngen::AsmCodeGenerator, /* nothing */)
 #endif
 
+template class ngen::BinaryCodeGenerator<ngen::HW::Unknown>;
 template class ngen::BinaryCodeGenerator<ngen::HW::Gen9>;
 template class ngen::BinaryCodeGenerator<ngen::HW::Gen10>;
 template class ngen::BinaryCodeGenerator<ngen::HW::Gen11>;
