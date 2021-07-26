@@ -14,6 +14,7 @@ Currently the following post-ops are supported by the library:
 * [Sum](@ref dev_guide_attributes_post_ops_sum)
 * [Depthwise](@ref dev_guide_attributes_post_ops_depthwise)
 * [Binary](@ref dev_guide_attributes_post_ops_binary)
+* [PReLu](@ref dev_guide_attributes_post_ops_prelu)
 
 Just like @ref dev_guide_attributes, the post-ops are represented by an opaque
 structure (@ref dnnl_post_ops_t in C API and @ref dnnl::post_ops in C++ API)
@@ -271,6 +272,51 @@ Currently the following scenarios are optimized:
   post-operation which format may be queried from attributes using
   `dnnl::post_ops::get_params_binary(...)` function call.
 
+### Prelu Post-op
+
+The prelu post-op enables fusing a primitive with a @ref dev_guide_prelu
+primitive.
+
+The @ref dnnl::primitive::kind of this post-op is
+#dnnl::primitive::kind::prelu.
+
+API:
+- C: @ref dnnl_post_ops_append_prelu
+- C++: @ref dnnl::post_ops::append_prelu
+
+
+The parameters (C++ API for simplicity):
+
+~~~cpp
+void dnnl::post_ops::append_prelu(
+    int mask /*mask describing prelu weights broadcast.*/);
+~~~
+
+The prelu post-op replaces:
+\f[
+    \dst[:] = \operatorname{Op}(...)
+\f]
+
+with
+
+\f[
+    \dst[:] = \operatorname{prelu}(\operatorname{Op}(...), weights[:])
+\f]
+
+Assumptions:
+- the weights tensor is passed in runtime using
+DNNL_ARG_ATTR_MULTIPLE_POST_OP(index) | DNNL_ARG_WEIGHTS mechanism, where index
+is the sequence number of the prelu in post-operations chain;
+- only fp32 weights tensor data type is supported;
+- only plain layout (a, ab, acb, acdb, acdeb) is supported for weights tensor;
+- mask defines the correspondence between the output tensor dimensions and
+  the prelu weights tensor. The set i-th bit indicates that a dedicated weights
+  value is used for each index along that dimension. Mask 0 valuee means common
+  (scalar) weights value for the whole output tensor.
+- the order of dimensions does not depend on how elements are laid out in memory.
+For example:
+    * for a 2D CNN activations tensor the order is always (n, c)
+    * for a 4D CNN activations tensor the order is always (n, c, h, w)
 ## Examples of Chained Post-ops
 
 Different post-ops can be chained together by appending one after another.

@@ -29,6 +29,21 @@ dnnl_primitive_desc::dnnl_primitive_desc(
         const std::shared_ptr<primitive_desc_t> &pd, engine_t *engine)
     : pd_(pd), engine_(engine) {}
 
+static int po_inputs(const post_ops_t &post_ops, const primitive_kind_t kind) {
+    int n_inputs = 0;
+    for (int idx = 0; idx < post_ops.len(); ++idx) {
+        if (post_ops.contain(kind, idx)) n_inputs++;
+    }
+    return n_inputs;
+}
+
+int primitive_desc_t::n_binary_po_inputs() const {
+    return po_inputs(attr()->post_ops_, primitive_kind::binary);
+}
+int primitive_desc_t::n_prelu_po_inputs() const {
+    return po_inputs(attr()->post_ops_, primitive_kind::prelu);
+}
+
 status_t dnnl_primitive_desc::create_primitive_iface(
         std::pair<primitive_iface_t *, bool> &primitive_iface) const {
     // Step 1: create impl::primitive_t or get it from primitive cache

@@ -56,3 +56,11 @@
 --skip-impl=ref,x64:gemm      # ! test jit version only
 --attr-post-ops=add:s8:per_tensor+add:s32+add:u8:per_tensor+max:f32:per_tensor
 --batch=shapes_resnet_50
+
+--reset
+--dir=FWD_I
+--mb=2
+--attr-post-ops=prelu:common,prelu:per_oc
+--cfg=u8s8s8  --batch=shapes_googlenet_v3
+--cfg=u8s8s32 --batch=shapes_alexnet
+--cfg=u8s8s32 --batch=shapes_tails

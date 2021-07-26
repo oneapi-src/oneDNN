@@ -172,11 +172,15 @@ class LogParser:
                             p_op['scale'] = params[1]
                         return p_op
 
+                    def convert_prelu_post_op(value):
+                        return {'alg': value.split(':')[0]}
+
                     convert = {
                         'binary': convert_binary_post_op,
                         'dw': convert_dw_post_op,
                         'eltwise': convert_eltwise_post_op,
                         'sum': convert_sum_post_op
+                        'prelu': convert_prelu_post_op
                     }
 
                     entries = value.split('+')

@@ -375,6 +375,10 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             dnnl::impl::memory_desc_t src1_desc;
         };
 
+        struct prelu_t {
+            int mask;
+        };
+
         dnnl::impl::primitive_kind_t kind
                 = dnnl::impl::primitive_kind::undefined;
         union {
@@ -386,6 +390,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             eltwise_t eltwise;
             depthwise_conv_t depthwise_conv;
             binary_t binary;
+            prelu_t prelu;
         };
 
         bool is_eltwise(bool require_scale_one = false) const {
@@ -417,6 +422,10 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
         bool is_binary() const {
             return kind == dnnl::impl::primitive_kind::binary;
+        }
+
+        bool is_prelu() const {
+            return kind == dnnl::impl::primitive_kind::prelu;
         }
 
         dnnl::impl::status_t set_depthwise_scales(const float *scales);
@@ -464,6 +473,9 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                             && binary.user_src1_desc
                                     == rhs.binary.user_src1_desc;
                     break;
+                case primitive_kind::prelu:
+                    ret = prelu.mask == rhs.prelu.mask;
+                    break;
                 default: assert(!"unsupported post_op");
             }
             return ret;
@@ -510,6 +522,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             dnnl::impl::dim_t count, int mask, const float *scales);
     dnnl::impl::status_t append_binary(dnnl::impl::alg_kind_t alg,
             const dnnl::impl::memory_desc_t *user_src1_desc);
+    dnnl::impl::status_t append_prelu(int mask);
 
     int find(dnnl::impl::primitive_kind_t kind, int start = 0,
             int stop = -1) const {

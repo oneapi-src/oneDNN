@@ -916,6 +916,46 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_binary(
         const_dnnl_post_ops_t post_ops, int index, dnnl_alg_kind_t *alg_kind,
         const dnnl_memory_desc_t **src1_desc);
 
+/// Appends a prelu forward post-op.
+///
+/// The kind of this post-op is #dnnl::primitive::kind::prelu.
+///
+/// The post-op can be defined as:
+///
+///      dst[:] <- prelu(dst[:], weights[:])
+///      prelu:
+///      dst[:] <- dst[:] if dst[:] > 0
+///      dst[:] <- dst[:] * weights[:] if dst[:] <= 0
+///
+///
+/// @note
+///     The order of dimensions does not depend on how elements are laid
+///     out in memory. For example:
+///     - for a 2D CNN activations tensor the order is always (n, c)
+///     - for a 4D CNN activations tensor the order is always (n, c, h, w)
+///     - for a 5D CNN weights tensor the order is always
+///        (g, oc, ic, kh, kw)
+///
+///    Prelu weights tensor is passed in runtime execution phase. Prelu
+///    weights tensor data type is implicitly assumed as f32 using plain
+///    layout (a, ab, acb, acdb, acdeb)
+
+/// @param mask Defines the correspondence between the output tensor
+///     dimensions and the prelu weights tensor. The set i-th bit indicates
+///     that a dedicated weights value is used for each index along that
+///     dimension. Set the mask to 0 to use a common weights value
+///     for the whole output tensor.
+dnnl_status_t DNNL_API dnnl_post_ops_append_prelu(
+        dnnl_post_ops_t post_ops, int mask);
+
+/// Returns the parameters of a prelu post-op.
+///
+/// @param post_ops Post-ops.
+/// @param index Index of the preu post-op.
+/// @param mask Mask of the prelu post-op.
+dnnl_status_t DNNL_API dnnl_post_ops_get_params_prelu(
+        const_dnnl_post_ops_t post_ops, int index, int *mask);
+
 /// @} dnnl_api_attributes
 
 /// @} dnnl_api_primitives

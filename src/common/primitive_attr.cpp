@@ -279,6 +279,16 @@ status_t post_ops_t::append_binary(
     return success;
 }
 
+status_t post_ops_t::append_prelu(int mask) {
+    if (len() == post_ops_limit) return out_of_memory;
+
+    auto it_entry = entry_.emplace(entry_.end());
+    it_entry->kind = primitive_kind::prelu;
+    it_entry->prelu.mask = mask;
+
+    return success;
+}
+
 bool post_ops_t::defined() const {
     for (int idx = 0; idx < len(); ++idx) {
         auto kind = entry_[idx].kind;
@@ -292,7 +302,8 @@ bool post_ops_t::defined() const {
         } else if (kind == primitive_kind::convolution) {
             const auto &c = entry_[idx].depthwise_conv;
             if (c.scales && is_runtime_value(*(c.scales))) return false;
-        } else if (kind == primitive_kind::binary) {
+        } else if (utils::one_of(kind, primitive_kind::binary,
+                           primitive_kind::prelu)) {
             // binary is always defined
         } else {
             assert(!"unreachable");
@@ -670,6 +681,23 @@ status_t dnnl_post_ops_get_params_binary(const post_ops_t *post_ops, int index,
     const auto &b = post_ops->entry_[index].binary;
     if (alg_kind) *alg_kind = b.alg;
     if (user_src1_desc) *user_src1_desc = &b.user_src1_desc;
+
+    return success;
+}
+
+status_t dnnl_post_ops_append_prelu(post_ops_t *post_ops, int mask) {
+    if (post_ops == nullptr) return invalid_arguments;
+
+    return post_ops->append_prelu(mask);
+}
+
+status_t dnnl_post_ops_get_params_prelu(
+        const post_ops_t *post_ops, int index, int *mask) {
+    if (post_ops == nullptr || index >= post_ops->len())
+        return invalid_arguments;
+
+    const auto &prelu_entry = post_ops->entry_[index].prelu;
+    if (mask) *mask = prelu_entry.mask;
 
     return success;
 }

@@ -38,6 +38,7 @@
 #include "binary/binary.hpp"
 #include "conv/conv_common.hpp"
 #include "eltwise/eltwise.hpp"
+#include "prelu/prelu.hpp"
 
 namespace conv {
 
@@ -653,7 +654,7 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *prb,
 
     attr_args_t attr_args;
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
-    attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims, dst_dims);
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, dst_dims);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -925,6 +926,12 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(binary::setup_binary_po(
                  const_pd, binary_po_args, binary_po_dt, binary_po_fp),
             WARN);
+    std::vector<dnn_mem_t> prelu_po_prim;
+    std::vector<dnn_mem_t> prelu_po_ref;
+    std::vector<int> prelu_po_args;
+    SAFE(prelu::setup_prelu_po(
+                 const_pd, dst_md, prelu_po_args, prelu_po_ref, prelu_po_prim),
+            WARN);
 
     dnn_mem_t src_fp(src_md, fp, src_tag, test_engine);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, test_engine);
@@ -955,12 +962,13 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
         args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
         args.set(binary_po_args, binary_po_dt);
+        args.set(prelu_po_args, prelu_po_prim);
 
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
             compute_ref_fwd(prb, prim_ref, src_fp, wei_fp, bia_fp, binary_po_fp,
-                    dst_fp);
+                    prelu_po_ref, dst_fp);
             dnn_mem_t dst(dst_dt, fp, src_tag, test_engine);
             SAFE(compare_dst(prb, dst, dst_fp, res, true), WARN);
         }

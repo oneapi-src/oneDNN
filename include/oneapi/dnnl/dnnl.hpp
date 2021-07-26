@@ -3105,6 +3105,71 @@ struct post_ops : public handle<dnnl_post_ops_t> {
         aalgorithm = static_cast<dnnl::algorithm>(c_alg);
         src1_desc.data = *data;
     }
+
+    /// Appends a prelu forward post-op.
+    ///
+    /// The kind of this post-op is #dnnl::primitive::kind::prelu.
+    ///
+    /// The post-op can be defined as:
+    ///
+    ///      dst[:] <- prelu(dst[:], weights[:])
+    ///      prelu:
+    ///      dst[:] <- dst[:] if dst[:] > 0
+    ///      dst[:] <- dst[:] * weights[:] if dst[:] <= 0
+    ///
+    ///
+    /// Example usage:
+    /// @code
+    ///     int mb = 32, oc = 32,
+    ///         oh = 14, ow = 14; // convolution output params
+    ///     // unique weights per output channel
+    ///     vector<float> weights = { ... };
+    ///     int oc_dim = 1; // mb_dim = 0, channel_dim = 1, height_dim = 2, ...
+    ///
+    ///     // construct a convolution descriptor
+    ///     dnnl::convolution::desc conv_d;
+    ///
+    ///     dnnl::primitive_attr attr;
+    ///     attr.append_prelu(1 << oc_dim);
+    ///
+    ///     dnnl::primitive_desc conv_pd(conv_d, attr, engine);
+    ///     memory prelu_weights({{1}, dt::f32, {1}}, eng, weights.data());
+    ///
+    ///     std::unordered_map<int, memory> conv_args;
+    ///
+    ///     conv_args.insert(
+    ///      {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_WEIGHTS, prelu_weights})
+
+    /// @note
+    ///     The order of dimensions does not depend on how elements are laid
+    ///     out in memory. For example:
+    ///     - for a 2D CNN activations tensor the order is always (n, c)
+    ///     - for a 4D CNN activations tensor the order is always (n, c, h, w)
+    ///     - for a 5D CNN weights tensor the order is always
+    ///        (g, oc, ic, kh, kw)
+    ///
+    ///    Prelu weights tensor is passed in runtime execution phase. Prelu
+    ///    weights tensor data type is implicitly assumed as f32 using plain
+    ///    layout (a, ab, acb, acdb, acdeb)
+
+    /// @param mask Defines the correspondence between the output tensor
+    ///     dimensions and the prelu weights tensor. The set i-th bit indicates
+    ///     that a dedicated weights value is used for each index along that
+    ///     dimension. Set the mask to 0 to use a common weights value
+    ///     for the whole output tensor.
+    void append_prelu(int mask) {
+        error::wrap_c_api(dnnl_post_ops_append_prelu(get(), mask),
+                "could not append a prelu post-op");
+    }
+
+    /// Returns the parameters of a prelu post-op.
+    ///
+    /// @param index Index of the prelu post-op.
+    /// @param maks Weights mask of prelu post-op.
+    void get_params_prelu(int index, int &mask) const {
+        error::wrap_c_api(dnnl_post_ops_get_params_prelu(get(), index, &mask),
+                "could not get parameters of a binary post-op");
+    }
 };
 
 /// @cond DO_NOT_DOCUMENT_THIS

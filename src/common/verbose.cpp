@@ -441,6 +441,11 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                     if (!memory_desc_wrapper(md).count_non_unit_dims(1))
                         ss << ":" << md2fmt_tag_str(&md);
                 } break;
+                case primitive_kind::prelu: {
+                    const auto &ep = e.prelu;
+                    ss << delim << "prelu"
+                       << ":" << ep.mask;
+                } break;
                 default: assert(!"unsupported post op primitive kind!"); break;
             }
             delim = attr_delim;

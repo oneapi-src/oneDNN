@@ -97,8 +97,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     attr_args_t attr_args;
     const auto &dst_dims = prb->dst_dims();
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->n, mask);
-    attr_args.prepare_binary_post_op_mds(
-            prb->attr, prb->ndims, dst_dims.data());
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, dst_dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 

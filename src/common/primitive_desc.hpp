@@ -65,6 +65,13 @@ struct primitive_desc_t : public c_compatible {
 
     virtual const op_desc_t *op_desc() const { return nullptr; }
 
+    static bool post_op_has_proper_input(const primitive_attr_t *attr,
+            const primitive_kind_t prim, const int idx, const int arg,
+            const int src_mnemonic) {
+        return (attr->post_ops_.contain(prim, idx)
+                && arg == (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | src_mnemonic));
+    }
+
     enum class arg_usage_t { unused, input, output };
     virtual arg_usage_t arg_usage(int arg) const {
         using types::is_zero_md;
@@ -83,10 +90,11 @@ struct primitive_desc_t : public c_compatible {
         if (arg == DNNL_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
             return arg_usage_t::output;
         for (int idx = 0; idx < attr()->post_ops_.len(); ++idx) {
-            if (attr()->post_ops_.contain(primitive_kind::binary, idx)
-                    && arg
-                            == (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
-                                    | DNNL_ARG_SRC_1))
+            using namespace primitive_kind;
+            if (post_op_has_proper_input(
+                        attr(), binary, idx, arg, DNNL_ARG_SRC_1)
+                    || post_op_has_proper_input(
+                            attr(), prelu, idx, arg, DNNL_ARG_WEIGHTS))
                 return arg_usage_t::input;
         }
 
@@ -200,15 +208,8 @@ struct primitive_desc_t : public c_compatible {
 
     virtual int n_inputs() const { return 0; }
     virtual int n_outputs() const { return 0; }
-    virtual int n_binary_po_inputs() const {
-        int n_inputs = 0;
-        for (int idx = 0; idx < attr()->post_ops_.len(); ++idx) {
-            if (attr()->post_ops_.contain(primitive_kind::binary, idx))
-                n_inputs++;
-        }
-        return n_inputs;
-    }
-
+    int n_binary_po_inputs() const;
+    int n_prelu_po_inputs() const;
     // The `hint_mds(bool is_hint)` returns a vector of memory descriptors
     // that might affect the equality of primitive descriptors for backward pass.
     //

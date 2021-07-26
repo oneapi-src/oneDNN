@@ -273,6 +273,10 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
                 seed = hash_combine(
                         seed, get_md_hash(entry.binary.user_src1_desc));
                 break;
+            case primitive_kind::prelu:
+                seed = hash_combine(
+                        seed, static_cast<size_t>(entry.prelu.mask));
+                break;
             default: assert(!"unknown post_op");
         }
     }

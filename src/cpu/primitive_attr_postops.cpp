@@ -183,6 +183,70 @@ ref_post_ops_t::ref_post_ops_t(const post_ops_t &po, bool skip_sum)
     }
 }
 
+namespace {
+
+format_tag_t get_prelu_weights_format(const dim_t n_dims) {
+    switch (n_dims) {
+        case 1: return format_tag::a;
+        case 2: return format_tag::ab;
+        case 3: return format_tag::acb;
+        case 4: return format_tag::acdb;
+        case 5: return format_tag::acdeb;
+    }
+
+    return format_tag::undef;
+}
+
+memory_desc_t get_prelu_memory_desc(
+        const dims_t &dst_dims, const int dst_ndims, int weights_mask) {
+
+    memory_desc_t weights_md;
+    weights_md.data_type = data_type::f32;
+    weights_md.ndims = dst_ndims;
+    utils::copy_dims_with_mask(
+            weights_md.dims, dst_dims, dst_ndims, weights_mask);
+    memory_desc_init_by_tag(weights_md, get_prelu_weights_format(dst_ndims));
+
+    return weights_md;
+}
+
+void get_l_dims_po(dims_t &l_dims_po, const dim_t l_offset,
+        const dims_t &dst_dims, const int dst_ndims, int mask) {
+    utils::l_dims_by_l_offset(l_dims_po, l_offset, dst_dims, dst_ndims);
+    utils::apply_mask_on_dims(l_dims_po, dst_ndims, mask);
+}
+
+dim_t get_po_tensor_off(const memory_desc_t &tensor_md, const dim_t l_offset,
+        const dims_t &dst_dims, const int dst_ndims, int mask) {
+
+    dims_t l_dims_po {};
+    get_l_dims_po(l_dims_po, l_offset, dst_dims, dst_ndims, mask);
+
+    return memory_desc_wrapper(tensor_md).off_v(l_dims_po);
+}
+
+dim_t get_prelu_weights_off(const dim_t l_offset, const dims_t &dst_dims,
+        const int dst_ndims, int weights_mask) {
+
+    const memory_desc_t &weights_md
+            = get_prelu_memory_desc(dst_dims, dst_ndims, weights_mask);
+
+    return get_po_tensor_off(
+            weights_md, l_offset, dst_dims, dst_ndims, weights_mask);
+}
+
+dim_t get_binary_src1_off(const memory_desc_t &src1_md, const dim_t l_offset,
+        const dims_t &dst_dims, const int dst_ndims) {
+
+    const int mask_binary_po
+            = utils::get_dims_mask(dst_dims, src1_md.dims, dst_ndims);
+
+    return get_po_tensor_off(
+            src1_md, l_offset, dst_dims, dst_ndims, mask_binary_po);
+}
+
+} // namespace
+
 status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
     if (po_.len() == 0) return status::success;
 
@@ -207,26 +271,33 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
 
                 const exec_ctx_t &ctx = *args.ctx;
                 const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, args.dst_md);
-                const auto &dst_dims = dst_d.dims();
-                const auto dst_ndims = dst_d.ndims();
+                const auto &src1_desc = e.binary.src1_desc;
 
-                const auto &b = e.binary;
-                const memory_desc_wrapper src1_binary_po_d(b.src1_desc);
-                dims_t l_dims_binary_po {};
-                utils::l_dims_by_l_offset(
-                        l_dims_binary_po, args.l_offset, dst_dims, dst_ndims);
-                int mask_binary_po = utils::get_dims_mask(
-                        dst_dims, src1_binary_po_d.dims(), dst_ndims);
-                utils::apply_mask_on_dims(
-                        l_dims_binary_po, dst_ndims, mask_binary_po);
-
-                const auto off = src1_binary_po_d.off_v(l_dims_binary_po);
+                const auto off = get_binary_src1_off(
+                        src1_desc, args.l_offset, dst_d.dims(), dst_d.ndims());
                 const auto src1_binary_po = CTX_IN_MEM(const void *,
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
-                float val_po = io::load_float_value(
-                        src1_binary_po_d.data_type(), src1_binary_po, off);
+                const float val_po = io::load_float_value(
+                        src1_desc.data_type, src1_binary_po, off);
                 res = it_binary_po->compute_scalar(res, val_po);
                 ++it_binary_po;
+            } break;
+            case primitive_kind::prelu: {
+                if (res >= 0) break;
+
+                assert(args.ctx);
+                assert(args.l_offset >= 0);
+                assert(args.dst_md);
+
+                const exec_ctx_t &ctx = *args.ctx;
+                const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, args.dst_md);
+                const auto prelu_weights = CTX_IN_MEM(const float *,
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                | DNNL_ARG_WEIGHTS));
+                const auto off = get_prelu_weights_off(args.l_offset,
+                        dst_d.dims(), dst_d.ndims(), e.prelu.mask);
+                const auto &weights_value = prelu_weights[off];
+                res = weights_value * res;
             } break;
             default: assert(!"unsupported post op primitive kind!");
         }

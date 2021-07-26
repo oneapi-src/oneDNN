@@ -48,6 +48,7 @@
 --attr-post-ops=add:bf16:per_oc --batch=shapes_tails
 --attr-post-ops=add:bf16:per_tensor --batch=shapes_tails
 --attr-post-ops=mul:f32+sum+tanh:1:1:2.5 --batch=shapes_tails
+--attr-post-ops=mul:f32+sum+tanh:1:1:2.5+prelu --batch=shapes_tails
 
 --batch=harness_conv_dw_bfloat16_nxc
 

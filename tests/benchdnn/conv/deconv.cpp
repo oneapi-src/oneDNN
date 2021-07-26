@@ -152,7 +152,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 
     attr_args_t attr_args;
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
-    attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims, dst_dims);
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, dst_dims);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -356,7 +356,7 @@ int doit(const prb_t *prb, res_t *res) {
         if (is_bench_mode(CORR)) {
             dnn_mem_t zero_fp;
             compute_ref_fwd(&p_tr, nullptr, dst_fp, wei_tr_fp, zero_fp,
-                    std::vector<dnn_mem_t>(), src_fp);
+                    std::vector<dnn_mem_t>(), std::vector<dnn_mem_t>(), src_fp);
             dnn_mem_t src(src_dt, fp, src_tag, test_engine);
             SAFE(compare_src(prb, src, src_fp, res, true), WARN);
         }

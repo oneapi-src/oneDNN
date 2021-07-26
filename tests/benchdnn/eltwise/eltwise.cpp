@@ -61,8 +61,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     }
 
     attr_args_t attr_args;
-    attr_args.prepare_binary_post_op_mds(
-            prb->attr, prb->ndims, prb->dims.data());
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
