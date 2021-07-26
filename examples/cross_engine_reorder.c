@@ -71,7 +71,7 @@ void cross_engine_reorder() {
     CHECK(dnnl_engine_create(&engine_cpu, validate_engine_kind(dnnl_cpu), 0));
     CHECK(dnnl_engine_create(&engine_gpu, validate_engine_kind(dnnl_gpu), 0));
 
-    dnnl_dim_t tz[4] = {2, 16, 1, 1};
+    const dnnl_dims_t tz = {2, 16, 1, 1};
 
     dnnl_memory_desc_t m_cpu_md, m_gpu_md;
     CHECK(dnnl_memory_desc_init_by_tag(&m_cpu_md, 4, tz, dnnl_f32, dnnl_nchw));
