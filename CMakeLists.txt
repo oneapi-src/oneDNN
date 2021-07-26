@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 2.8.12)
 message(STATUS "cmake version: ${CMAKE_VERSION}")
 
 # https://github.com/oneapi-src/oneDNN/blob/master/CMakeLists.txt
