@@ -743,7 +743,7 @@ __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
 #elif CELL_KIND == LBR_GRU
         __global char *scr_gate_r,
 #elif CELL_KIND == VANILLA_GRU
-        int n_part, __global char *scr_cell,
+        int n_part, __global char *scr_cell, __global char *scratch_dhG1,
 #endif
         __global char *diff_states) {
 
@@ -894,15 +894,14 @@ __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         scratch_gates[CELL_SCRATCH_MEM(i, 2, j)] = TO_INPUT(dG2);
     } else if (n_part == 2) {
         __global SRC_DATA_T *scratch_cell = (__global SRC_DATA_T *)(scr_cell);
-        __global DIFF_DATA_T *dhG1
-                = (__global DIFF_DATA_T *)(ws + WS_HDG1_OFFSET);
+        __global DIFF_DATA_T *dhG1 = (__global DIFF_DATA_T *)scratch_dhG1;
 
         float dG1 = ws_gates[CELL_WS_GATES(i, 1, j)];
         diff_src_iter[CELL_SCRATCH_DIFF_STATES(0, i, j)]
-                += dhG1[OFF_WS_DHG1(i, j)] * dG1;
+                += dhG1[OFF_SCRATCH_DHG1(i, j)] * dG1;
 
         scratch_gates[CELL_SCRATCH_MEM(i, 1, j)]
-                = TO_INPUT(dhG1[OFF_WS_DHG1(i, j)] * h * x_m_square(dG1));
+                = TO_INPUT(dhG1[OFF_SCRATCH_DHG1(i, j)] * h * x_m_square(dG1));
         scratch_cell[OFF_SCRATCH_CELL(i, j)] = TO_INPUT(dG1 * h);
     }
 #else

@@ -274,7 +274,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             = (rnn.merge_gemm_layer || rnn.merge_gemm_iter) ? rnn.n_iter : 1;
     rnn.scratch_gates_size = (size_t)rnn.n_iter_scratch_gates * rnn.gates_nld
             * rnn.scratch_gates_ld * rnn.scratch_gates_elsz;
-    rnn.ws_dhG1_size
+    rnn.scratch_dhG1_size
             = (rd.cell_kind == alg_kind::vanilla_gru && rnn.is_training)
             ? (size_t)rnn.gates_nld * rnn.scratch_diff_states_ld * sizeof(float)
             : 0;
@@ -305,9 +305,9 @@ int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
 
 void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_states_offset, size_t &ws_c_states_offset,
-        size_t &scratch_diff_states_offset, size_t &ws_grid_comp_offset,
-        size_t &scratch_cell_offset, size_t &ws_dhG1_offset,
-        size_t &ws_bias_offset, size_t &scratch_gates_offset,
+        size_t &ws_grid_comp_offset, size_t &ws_bias_offset,
+        size_t &scratch_diff_states_offset, size_t &scratch_cell_offset,
+        size_t &scratch_dhG1_offset, size_t &scratch_gates_offset,
         size_t &scratchpad_size, size_t &workspace_size) {
 
     const size_t page_size = 4096;
@@ -326,7 +326,6 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
     register_space(ws_states);
     register_space(ws_c_states);
     register_space(ws_grid_comp);
-    register_space(ws_dhG1);
 
     workspace_size = rnn.use_workspace ? current_offset : 0;
 
@@ -339,6 +338,7 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
     register_space(scratch_gates);
     register_space(scratch_cell);
     register_space(scratch_diff_states);
+    register_space(scratch_dhG1);
 
     ws_bias_offset = 0;
     if (rnn.copy_bias) { register_space(ws_bias); }
@@ -350,12 +350,12 @@ void rnn_utils::get_scratchpad_and_workspace_sizes(
         const conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size) {
     size_t ws_gates_offset, ws_states_offset, ws_c_states_offset,
             scratch_diff_states_offset, ws_grid_comp_offset,
-            scratch_cell_offset, ws_dhG1_offset, ws_bias_offset,
+            scratch_cell_offset, scratch_dhG1_offset, ws_bias_offset,
             sratch_gates_offset;
-    set_offsets(rnn, ws_gates_offset, ws_states_offset,
-            scratch_diff_states_offset, ws_c_states_offset, ws_grid_comp_offset,
-            scratch_cell_offset, ws_dhG1_offset, ws_bias_offset,
-            sratch_gates_offset, scratchpad_size, workspace_size);
+    set_offsets(rnn, ws_gates_offset, ws_states_offset, ws_c_states_offset,
+            ws_grid_comp_offset, ws_bias_offset, scratch_diff_states_offset,
+            scratch_cell_offset, scratch_dhG1_offset, sratch_gates_offset,
+            scratchpad_size, workspace_size);
 }
 
 void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, int dir, int lay,

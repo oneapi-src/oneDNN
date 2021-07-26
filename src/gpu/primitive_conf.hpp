@@ -441,11 +441,11 @@ struct rnn_conf_t {
     size_t ws_gates_offset;
     size_t ws_states_offset;
     size_t ws_grid_comp_offset;
-    size_t ws_dhG1_offset;
     size_t ws_h_state_offset;
     size_t ws_c_state_offset;
     size_t ws_bias_offset;
     size_t scratchpad_size;
+    size_t scratch_dhG1_offset;
     size_t scratch_gates_offset;
     size_t scratch_cell_offset;
     size_t scratch_diff_states_offset;

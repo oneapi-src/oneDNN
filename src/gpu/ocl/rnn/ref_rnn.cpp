@@ -178,10 +178,11 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     }
 
     rnn_utils::set_offsets(rnn, conf.ws_gates_offset, conf.ws_states_offset,
-            conf.ws_c_state_offset, conf.scratch_diff_states_offset,
-            conf.ws_grid_comp_offset, conf.scratch_cell_offset,
-            conf.ws_dhG1_offset, conf.ws_bias_offset, conf.scratch_gates_offset,
-            conf.scratchpad_size, conf.workspace_size);
+            conf.ws_c_state_offset, conf.ws_grid_comp_offset,
+            conf.ws_bias_offset, conf.scratch_diff_states_offset,
+            conf.scratch_cell_offset, conf.scratch_dhG1_offset,
+            conf.scratch_gates_offset, conf.scratchpad_size,
+            conf.workspace_size);
 
     conf.cell_kind = rnn_pd->cell_kind();
     conf.activation_kind = rnn_pd->activation_kind();
@@ -288,7 +289,6 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WS_STATES_OFFSET", conf.ws_states_offset);
     kernel_ctx.define_int("WS_C_STATE_OFFSET", conf.ws_c_state_offset);
     kernel_ctx.define_int("WS_GRID_COMP_OFFSET", conf.ws_grid_comp_offset);
-    kernel_ctx.define_int("WS_HDG1_OFFSET", conf.ws_dhG1_offset);
     kernel_ctx.define_int("WS_BIAS_OFFSET", conf.ws_bias_offset);
 
     kernel_ctx.define_int("STATES_WS_LD", conf.states_ws_ld);
@@ -783,9 +783,9 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
 
     size_t scratchpad_size, workspace_size;
     rnn_utils::set_offsets(pd()->rnn_conf, ws_gates_offset_, ws_states_offset_,
-            ws_c_states_offset_, scratch_diff_states_offset_,
-            ws_grid_comp_offset_, scratch_cell_offset_, ws_dhG1_offset_,
-            ws_bias_offset_, scratch_gates_offset_, scratchpad_size,
+            ws_c_states_offset_, ws_grid_comp_offset_, ws_bias_offset_,
+            scratch_diff_states_offset_, scratch_cell_offset_,
+            scratch_dhG1_offset_, scratch_gates_offset_, scratchpad_size,
             workspace_size);
     int max_nparts = (pd()->cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
     int wei_offsets_iter_sz = pd()->L() * pd()->D() * max_nparts;
@@ -948,6 +948,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     std::unique_ptr<memory_storage_t> scratchpad;
     std::unique_ptr<memory_storage_t> scratchpad_gates;
     std::unique_ptr<memory_storage_t> scratchpad_cell;
+    std::unique_ptr<memory_storage_t> scratchpad_dhG1;
     std::unique_ptr<memory_storage_t> scratchpad_diff;
 
     scratchpad_gates
@@ -963,6 +964,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     if (is_lbr || (is_vanilla_gru && gemm_kind == gemm_diff_wei_iter_2)) {
         scratchpad_cell
                 = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
+    }
+
+    if (is_vanilla_gru && gemm_kind == gemm_iter_bwd_2) {
+        scratchpad_dhG1 = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_rnn_diff_ht);
     }
 
     if (is_training) {
@@ -997,7 +1003,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             } else {
                 gemm_B_ = scratchpad_gates->clone();
             }
-            gemm_C_ = (gemm_kind == gemm_iter_bwd_2) ? scratchpad->clone()
+            gemm_C_ = (gemm_kind == gemm_iter_bwd_2) ? scratchpad_dhG1->clone()
                                                      : scratchpad_diff->clone();
             break;
         case gemm_diff_wei_iter:
@@ -1148,7 +1154,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                 (this->*cell_func)(engine, ctx, dir, lay, iter,
                         &offset_wei_layer, wei_iter_offset_ptr, bias, workspace,
                         scratch_gates, scratch_cell, scratch_diff_states,
-                        wei_layer, wei_iter, diff_weights_layer,
+                        scratch_dhG1, wei_layer, wei_iter, diff_weights_layer,
                         diff_weights_iter, diff_bias, scales, tm_scales);
             }
 
@@ -1436,14 +1442,19 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     auto scratchpad_cell
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
 
-    auto &scratch_cell
-            = this->pd()->is_lbr() || this->pd()->rnn_conf.is_vanilla_gru
+    auto &scratch_cell = this->pd()->is_lbr() || is_vanilla_gru
             ? *scratchpad_cell
             : empty_mem;
+
     auto scratchpad_diff_states
             = ctx.get_scratchpad_grantor().get_memory_storage(
                     key_rnn_diff_states);
     auto &scratch_diff_states = is_fwd ? empty_mem : *scratchpad_diff_states;
+
+    auto scratchpad_dhG1
+            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_diff_ht);
+    auto &scratch_dhG1
+            = (!is_fwd && is_vanilla_gru) ? *scratchpad_dhG1 : empty_mem;
 
     auto &diff_src_layer_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_LAYER);
     auto &diff_src_iter_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_ITER);
@@ -1518,12 +1529,6 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     }
 #endif
 
-    // initialize dhG1 values to 0
-    if (aprop == prop_kind::backward) {
-        ws_set(ctx, compute_stream, workspace_, ws_dhG1_offset_,
-                rnn_utils::dhG1_gru, 0.0f, rnn.ws_dhG1_size / sizeof(float));
-    }
-
     DPRINT("\n%s(%d) WS before bias prepare\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(ctx, compute_stream, workspace_);
 
@@ -1579,8 +1584,8 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     // run the execution on the grid
     (this->*grid_computation)(engine, ctx, bias_native_, workspace_,
-            scratch_gates, scratch_cell, scratch_diff_states, wei_layer_native_,
-            wei_iter_native_, diff_weights_layer_native_,
+            scratch_gates, scratch_cell, scratch_diff_states, scratch_dhG1,
+            wei_layer_native_, wei_iter_native_, diff_weights_layer_native_,
             diff_weights_iter_native_, diff_bias_native_, scales_buf,
             tm_scales_buf);
 

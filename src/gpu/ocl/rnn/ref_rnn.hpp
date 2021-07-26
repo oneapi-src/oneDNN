@@ -129,6 +129,8 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
             scratchpad.book(key_rnn_diff_states,
                     rnn_conf.scratch_diff_states_size, 1, OCL_BUFFER_ALIGNMENT,
                     4096);
+            scratchpad.book(key_rnn_diff_ht, rnn_conf.scratch_dhG1_size, 1,
+                    OCL_BUFFER_ALIGNMENT, 4096);
             // book scratchpad for nested primitives
             switch (aprop) {
                 case prop_kind::forward:
@@ -287,7 +289,7 @@ private:
     cl_ulong ws_c_states_offset_;
     cl_ulong ws_grid_comp_offset_;
     cl_ulong ws_bias_offset_;
-    cl_ulong ws_dhG1_offset_;
+    cl_ulong scratch_dhG1_offset_;
     cl_ulong scratch_cell_offset_;
     cl_ulong scratch_gates_offset_;
     cl_ulong scratch_diff_states_offset_;

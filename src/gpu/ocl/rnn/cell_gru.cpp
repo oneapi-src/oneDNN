@@ -59,8 +59,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
 
         // 3. activation zt and rt + elemwise multiplication rt,ht-1
         (this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, bias,
-                tm_scales, PART_ONE);
+                scratch_gates, scratch_cell, scratch_diff_states, scratch_dhG1,
+                bias, tm_scales, PART_ONE);
 
         // 4. gemm Wh[2],h~t
         gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset2, workspace,
@@ -69,8 +69,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
 
         // 5. activation h~t + calculate ht
         (this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, bias,
-                tm_scales, PART_TWO);
+                scratch_gates, scratch_cell, scratch_diff_states, scratch_dhG1,
+                bias, tm_scales, PART_TWO);
+
     } else {
         cl_ulong cell_diff_wei_iter_off, cell_diff_wei_lay_off,
                 cell_scr_diff_iter_off, cell_scr_diff_lay_off,
@@ -82,20 +83,20 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
 
         // 1. calculate dG2, dG1, and part of dht-1
         (this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, bias,
-                tm_scales, PART_ONE);
+                scratch_gates, scratch_cell, scratch_diff_states, scratch_dhG1,
+                bias, tm_scales, PART_ONE);
 
         // 2. calculate intermediate d(hG1)
         // d(hG1) = dG2 * W2h^t
         gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset2,
-                scratch_gates, cell_scratch_offset2, workspace, ws_dhG1_offset_,
+                scratch_gates, cell_scratch_offset2, scratch_dhG1, 0,
                 gemm_iter_bwd_2);
 
         // 3. calculate dG1^ and part of dht-1
         // hg1 needs to be bf16 as it is used as gemm output
         (this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, bias,
-                tm_scales, PART_TWO);
+                scratch_gates, scratch_cell, scratch_diff_states, scratch_dhG1,
+                bias, tm_scales, PART_TWO);
 
         // 4. calculate diff weights
         // dWh1 += dG1 * h, dWh2 += dG2 * h, dWh3 += dG3 * (G1(*)h)

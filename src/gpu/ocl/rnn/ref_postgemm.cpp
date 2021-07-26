@@ -143,7 +143,8 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     arg_list.set(8, part);
     if (aprop != dnnl_forward) {
         arg_list.set(9, scratch_cell);
-        arg_list.set(10, scratch_diff_states);
+        arg_list.set(10, scratch_dhG1);
+        arg_list.set(11, scratch_diff_states);
     }
     parallel_for(ctx, nd_range, kernel, arg_list);
 }

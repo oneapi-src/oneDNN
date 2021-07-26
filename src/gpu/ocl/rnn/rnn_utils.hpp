@@ -56,8 +56,9 @@
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
-            const memory_storage_t &bias, \
-            const memory_storage_t *tm_scales, int part) const
+            const memory_storage_t &scratch_dhG1, \
+            const memory_storage_t &bias, const memory_storage_t *tm_scales, \
+            int part) const
 
 #define cell_execution_sig(f) \
     void f(engine_t *engine, const exec_ctx_t &ctx, int dir, int lay, \
@@ -66,6 +67,7 @@
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
+            const memory_storage_t &scratch_dhG1, \
             const memory_storage_t &wei_layer, \
             const memory_storage_t &wei_iter, \
             const memory_storage_t &diff_weights_layer, \
@@ -79,6 +81,7 @@
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
+            const memory_storage_t &scratch_dhG1, \
             const memory_storage_t &wei_layer, \
             const memory_storage_t &wei_iter, \
             const memory_storage_t &diff_weights_layer, \
@@ -169,7 +172,7 @@ struct conf_t {
 
     // Size of workspace for each tensor in bytes
     size_t ws_gates_size, ws_states_size, ws_c_states_size,
-            scratch_diff_states_size, scratch_cell_size, ws_dhG1_size,
+            scratch_diff_states_size, scratch_cell_size, scratch_dhG1_size,
             ws_grid_comp_size, ws_per_cell, ws_bias_size;
 
     bool merge_gemm_iter, merge_gemm_layer, use_gemm, use_layer_packed_gemm,
@@ -208,9 +211,9 @@ void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &diff_weights_iter_d);
 void set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_h_state_offset, size_t &ws_c_state_offset,
-        size_t &scratch_diff_states_offset, size_t &ws_grid_comp_offset,
-        size_t &scratch_cell_offset, size_t &ws_dhG1_offset,
-        size_t &ws_bias_offset, size_t &scratch_gates_offset,
+        size_t &ws_grid_comp_offset, size_t &ws_bias_offset,
+        size_t &scratch_diff_states_offset, size_t &scratch_cell_offset,
+        size_t &scratch_dhG1_offset, size_t &scratch_gates_offset,
         size_t &scratchpad_size, size_t &workspace_size);
 void set_gru_offsets_part2(const conf_t &rnn, int iter, int dir, int lay,
         data_type_t src_t, size_t *wei_iter_off_ptr,
