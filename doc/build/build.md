@@ -197,7 +197,13 @@ ctest
 
 ## Build documenation
 
-Build the documentation:
+- Install the requirements
+~~~sh
+conda env create -f ../doc/environment.yml
+conda activate onednn-doc
+~~~
+
+- Build the documentation
 ~~~sh
 cmake --build . --target doc
 ~~~
