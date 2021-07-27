@@ -241,7 +241,7 @@ static bool layout_propagation_for_to_group(op_ptr &op) {
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
         auto groups = op->get_attr<int64_t>("groups");
         dnnl::memory::desc out_md = to_grouped(in_md, groups);
-        fill_layout_info(dst, out_md);
+        fill_layout_info(dst, {out_md, groups});
     } else {
         changed = false;
     }

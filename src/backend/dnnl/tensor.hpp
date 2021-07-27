@@ -54,18 +54,16 @@ public:
         using data_type = typename memory::data_type;
         using format_tag = typename memory::format_tag;
 
-        desc() : memory::desc() {};
+        desc() : memory::desc() {}
 
         // copy ctor
-        desc(const desc &adesc) : memory::desc(adesc.data) {
-            set_g(adesc.g());
-        };
+        desc(const desc &adesc) : memory::desc(adesc.data) { set_g(adesc.g()); }
 
         // supplement group info for memory::desc
         desc(const memory::desc &adesc, dim groups = 1)
             : memory::desc(adesc.data) {
             set_g(groups);
-        };
+        }
 
         desc &operator=(const desc &adesc) {
             memory::desc::operator=(adesc);
@@ -73,7 +71,7 @@ public:
             return *this;
         }
 
-        desc(const dnnl_memory_desc_t &adata) : memory::desc(adata) {};
+        desc(const dnnl_memory_desc_t &adata) : memory::desc(adata) {}
 
         desc(const dims &adims, data_type adata_type, format_tag aformat_tag)
             : memory::desc(adims, adata_type, aformat_tag) {
@@ -492,19 +490,11 @@ public:
                     .format_desc.blocking.strides;
         }
 
-        void set_g(dim groups) {
-            auto reserved_size
-                    = sizeof(((dnnl_memory_extra_desc_t *)0)->reserved);
-            auto offset = reserved_size / sizeof(dim) - 1;
-            reinterpret_cast<dim *>(data.extra.reserved)[offset] = groups;
-        }
+        void set_g(dim groups) { group_ = groups; }
 
-        dim g() const {
-            auto reserved_size
-                    = sizeof(((dnnl_memory_extra_desc_t *)0)->reserved);
-            auto offset = reserved_size / sizeof(dim) - 1;
-            return reinterpret_cast<const dim *>(data.extra.reserved)[offset];
-        }
+        dim g() const { return group_; }
+
+        dim group_ {1};
     };
 
     desc get_desc() const {

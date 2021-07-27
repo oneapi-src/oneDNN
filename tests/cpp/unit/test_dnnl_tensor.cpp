@@ -182,12 +182,7 @@ TEST(dnnl_tensor_desc, to_grouped) {
 
     dim groups = 4;
     tensor::desc grouped_td = td.to_grouped(groups);
-
-    auto reserved_size = sizeof(((dnnl_memory_extra_desc_t *)0)->reserved);
-    auto offset = reserved_size / sizeof(dim) - 1;
-    ASSERT_EQ(groups,
-            reinterpret_cast<const dim *>(
-                    grouped_td.data.extra.reserved)[offset]);
+    ASSERT_TRUE(grouped_td.is_grouped());
 
     ASSERT_EQ(grouped_td.data.ndims, 5);
     ASSERT_EQ(grouped_td.data.dims[0], 4);

@@ -20,7 +20,9 @@
 #include <algorithm>
 #include <vector>
 
-#include "backend/dnnl/tensor.hpp"
+#include "backend/dnnl/common.hpp"
+#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/legacy.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -44,7 +46,7 @@ private:
     bool need_reshape_ {false};
     // only valid if need_reshape_ is true
     bool reshape_first_ {false};
-    tensor::desc reshaped_desc_;
+    memory::desc reshaped_desc_;
 
 public:
     impl::status_t compile_impl(const op_t *op, const impl::engine_t *g_engine,
@@ -66,34 +68,42 @@ public:
                     dst_lt_dims.begin()))
             return status::compile_fail;
 
-        tensor::desc src {inputs.at(reorder_input::kSrc)};
-        tensor::desc dst {outputs.at(reorder_output::kDst)};
+        memory::desc src
+                = make_dnnl_memory_desc(inputs.at(reorder_input::kSrc));
+        memory::desc dst
+                = make_dnnl_memory_desc(outputs.at(reorder_output::kDst));
 
-        bool has_group = src.is_grouped() || dst.is_grouped();
-        bool ok = src.has_same_shape_as(dst)
-                || (has_group
-                        && std::abs(src.get_ndims() - dst.get_ndims()) == 1);
-        if (!ok) return status::compile_fail;
+        const bool src_has_group = src.data.ndims == dst.data.ndims + 1;
+        const bool dst_has_group = src.data.ndims + 1 == dst.data.ndims;
+
+        const bool has_group = src_has_group || dst_has_group;
+        if (!(check_same_shape(src, dst) || has_group))
+            return status::compile_fail;
+
+        // check if the dims is in (g, O, I, H, W) format
+        bool consistency = true;
+        if (src_has_group) {
+            int group = src.data.dims[0];
+            consistency = group * src.data.dims[1] == dst.data.dims[0];
+        } else if (dst_has_group) {
+            int group = dst.data.dims[0];
+            consistency = group * dst.data.dims[1] == src.data.dims[0];
+        }
+        if (!consistency) return status::compile_fail;
 
         // has group
-        if (!src.has_same_shape_as(dst)) {
+        if (has_group) {
             need_reshape_ = true;
             // Case 1: if src is blocked format with group while dst has plain
-            // format, perhaps for backward path
-            if (src.is_grouped() && src.get_ndims() > dst.get_ndims()) {
-                reshape_first_ = false;
-                reshaped_desc_ = src.is_plain()
-                        ? src
-                        : tensor::desc {src.get_dims(), src.get_data_type(),
-                                src.get_format_tag()};
-            } else if (dst.is_grouped() && src.get_ndims() < dst.get_ndims()) {
+            // format, perhaps for backward path.
+            // No such case for now, so just disable
+            if (src_has_group) {
+                return status::unsupported;
+            } else {
                 // Case 2: if src has plain format while dst has blocked format
                 // with group, typically for weight prepacking
                 reshape_first_ = true;
-                reshaped_desc_ = tensor::desc {
-                        src.reshape(dst.get_dims()), dst.get_dim(0)};
-            } else {
-                return status::compile_fail;
+                reshaped_desc_ = src.reshape(dst.dims());
             }
         }
 
@@ -118,21 +128,31 @@ public:
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
         impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
 
-        tensor src_ts {inputs.at(reorder_input::kSrc), p_engine_, alc};
-        tensor dst_ts {outputs.at(reorder_output::kDst), p_engine_, alc};
+        memory src
+                = make_dnnl_memory(inputs.at(reorder_input::kSrc), p_engine_);
+        memory dst
+                = make_dnnl_memory(outputs.at(reorder_output::kDst), p_engine_);
 
         if (need_reshape_) {
             if (reshape_first_) {
-                src_ts = tensor {reshaped_desc_, p_engine_, alc,
-                        inputs[reorder_input::kSrc].get_data_handle()};
+                src = make_dnnl_memory(reshaped_desc_, p_engine_,
+                        inputs[reorder_input::kSrc].get_data_handle());
             } else {
-                dst_ts = tensor {reshaped_desc_, p_engine_, alc,
-                        outputs[reorder_output::kDst].get_data_handle()};
+                dst = make_dnnl_memory(reshaped_desc_, p_engine_,
+                        outputs[reorder_output::kDst].get_data_handle());
             }
         }
 
-        prim_.execute(p_stream, src_ts, dst_ts);
+        prim_.execute(p_stream, src, dst);
         return status::success;
+    }
+
+private:
+    bool check_same_shape(
+            const memory::desc &in1, const memory::desc &in2) const {
+        if (in1.data.ndims != in2.data.ndims) return false;
+        return std::equal(
+                in1.data.dims, in1.data.dims + in1.data.ndims, in2.data.dims);
     }
 };
 
