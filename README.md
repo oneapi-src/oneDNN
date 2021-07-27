@@ -354,9 +354,10 @@ terms.
 * [Instrumentation and Tracing Technology API (ITT API)](https://github.com/intel/IntelSEAPI/tree/master/ittnotify)
 * [CMake](https://github.com/Kitware/CMake)
 
+2-clause BSD license:
+* [Sphinx](https://www.sphinx-doc.org/)
+
 Apache License Version 2.0:
-* [Font Roboto](https://fonts.google.com/specimen/Roboto)
-* [MathJax](https://github.com/mathjax/MathJax)
 * [Xbyak_aarch64](https://github.com/fujitsu/xbyak_aarch64)
 
 Boost Software License, Version 1.0:
@@ -365,11 +366,7 @@ Boost Software License, Version 1.0:
 MIT License:
 * [Intel Graphics Compute Runtime for oneAPI Level Zero and OpenCL Driver](https://github.com/intel/compute-runtime)
 * [Intel Graphics Compiler](https://github.com/intel/intel-graphics-compiler)
-
-SIL Open Font License (OFL):
-* [Font Awesome](https://github.com/FortAwesome/Font-Awesome)
-* [Font Lato](https://fonts.google.com/specimen/Lato)
-* Font Asana Math
+* [Doxyrest](https://github.com/vovkos/doxyrest)
 
 This third party software, even if included with the distribution of
 the Intel software, may be governed by separate license terms, including
