@@ -278,7 +278,10 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (is_bench_mode(CORR)) {
             compute_ref_fwd(prb, src_fp, dst_fp, binary_po_fp);
-            float trh = prb->alg == nearest ? 0.f : 3 * epsilon_dt(prb->ddt);
+            const float linear_trh = epsilon_dt(prb->sdt) > epsilon_dt(prb->ddt)
+                    ? epsilon_dt(prb->sdt) // conversion error sdt->ddt
+                    : 7 * epsilon_dt(prb->ddt); // algorithm calculation error
+            float trh = prb->alg == nearest ? 0.f : linear_trh;
 
             if (is_nvidia_gpu()) {
                 // cuDNN precision is different from ref one due to different
@@ -303,7 +306,11 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (is_bench_mode(CORR)) {
             compute_ref_bwd(prb, src_fp, dst_fp);
-            float trh = prb->alg == nearest ? 0.f : 6 * epsilon_dt(prb->sdt);
+            const float linear_trh = epsilon_dt(prb->ddt) > epsilon_dt(prb->sdt)
+                    ? epsilon_dt(prb->ddt)
+                    : 7 * epsilon_dt(prb->sdt);
+            float trh = prb->alg == nearest ? 0.f : linear_trh;
+
             // cuDNN precision is different from ref one due to different
             // computation algorithm used for resampling.
             if (is_nvidia_gpu()) trh = 2e-5;
