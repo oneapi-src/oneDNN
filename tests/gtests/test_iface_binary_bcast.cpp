@@ -55,6 +55,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
     auto engine_kind = std::get<0>(GetParam());
     SKIP_IF(engine_kind != get_test_engine_kind(),
             "Test prepared for a different engine kind");
+    SKIP_IF(!IMPLICATION(engine_kind == engine::kind::cpu, DNNL_X64),
+            "Binary impl_info_str should be same only on x64 CPU");
     engine e {engine_kind, 0};
 
     const auto src1_bcast_dims = std::get<1>(GetParam());
