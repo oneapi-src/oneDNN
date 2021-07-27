@@ -363,11 +363,12 @@ int measure_prim_create(benchdnn_timer_t &t,
         const func_t &init_pd_func, prb_t *prb, res_t *res,
         dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr) {
     if (is_bench_mode(PERF)) {
-        dnnl_primitive_desc_t pd {};
-        dnnl_primitive_t prim_ {};
 
         t.reset();
         while (true) {
+            dnnl_primitive_desc_t pd {};
+            dnnl_primitive_t prim_ {};
+
             SAFE(init_pd_func(get_test_engine(), prb, pd, res, dir, hint),
                     WARN);
             auto pd2 = make_benchdnn_dnnl_wrapper(pd);
