@@ -108,6 +108,28 @@ const _dt_conf_t conf_f16 = {
         {dnnl_f16},
 };
 
+const _dt_conf_t conf_f16f16s8 = {
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
+                0.},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, 0, .35, 1,
+                0.},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, .35, 1,
+                0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
+        {dnnl_f16},
+};
+
+const _dt_conf_t conf_f16f16u8 = {
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
+                0.},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, 0, .35, 1,
+                0.},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, .35, 1,
+                0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, .35, 1, 0.},
+        {dnnl_f16},
+};
+
 const _dt_conf_t conf_u8s8f32 = {
         {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, .35, 1, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
@@ -193,6 +215,8 @@ const dt_conf_t *str2cfg(const char *str) {
     if (!strcasecmp(STRINGIFY(cfg), str)) return CONCAT2(conf_, cfg)
     CASE(f32);
     CASE(f16);
+    CASE(f16f16s8);
+    CASE(f16f16u8);
     CASE(u8s8f32);
     CASE(u8s8s32);
     CASE(u8s8s8);
@@ -217,6 +241,8 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     if (cfg == CONCAT2(conf_, _cfg)) return s << STRINGIFY(_cfg)
     CASE(f32);
     CASE(f16);
+    CASE(f16f16s8);
+    CASE(f16f16u8);
     CASE(u8s8f32);
     CASE(u8s8s32);
     CASE(u8s8s8);
