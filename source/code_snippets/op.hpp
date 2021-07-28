@@ -18,7 +18,7 @@ op(size_t id, kind akind, const std::string &debug_string);
 op(size_t id, kind akind, const std::vector<logical_tensor> &inputs,
         const std::vector<logical_tensor> &outputs,
         const std::string &debug_string);
- 
+
 /// Adds input logical tensor to the op
 ///
 /// @param t Input logical tensor

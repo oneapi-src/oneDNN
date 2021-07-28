@@ -1,5 +1,12 @@
 class partition {
 public:
+
+/// Constructs a partition with a given op and engine kind
+///
+/// @param aop An operator used to create the partition
+/// @param ekind Engine kind
+partition(const op &aop, engine::kind ekind);
+
 /// Returns the number of ops in the partition
 ///
 /// @returns Number of ops

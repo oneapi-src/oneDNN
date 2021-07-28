@@ -241,7 +241,7 @@ public:
     /// @param lt The input logical tensor to be compared
     /// @returns @c true if they have the same layout
     ///        @c false if they have different layout
-    bool has_same_layout_and_dtype(const logical_tensor &lt) const;
+    bool has_same_layout(const logical_tensor &lt) const;
 };
 
 /// @} dnnl_graph_api_logical_tensor
@@ -311,16 +311,18 @@ public:
     /// @returns The logical tensor
     logical_tensor query_logical_tensor(size_t tid) const;
 
-    /// Returns the in-place options
+    /// Returns the in-place port pairs
     ///
     /// @note
-    ///     Each entry of the returned in-place options is a pair that maps from
-    ///     input to output, indicating possible reused memory buffers in an
-    ///     operator.
+    ///     Each entry of the returned vector is a pair of IDs of input and
+    ///     output ports. For in-place ports, users can assign same memory
+    ///     buffer when passing tensor along with execution API. The in-place
+    ///     optimization is optional, users can always use different memory
+    ///     buffers for the execution.
     ///
     /// @returns List of pairs of that indicates input and output use same
     ///     memory buffer.
-    std::vector<std::pair<size_t, size_t>> get_inplace_options() const;
+    std::vector<std::pair<size_t, size_t>> get_inplace_ports() const;
 
     /// Execute a compiled partition
     ///
@@ -360,6 +362,12 @@ public:
     ///
     /// @param p A raw pointer to the C API handle
     partition(dnnl_graph_partition_t *p);
+
+    /// Constructs a partition with a given op and engine kind
+    ///
+    /// @param aop An operator used to create the partition
+    /// @param ekind Engine kind
+    partition(const op &aop, engine::kind ekind);
 
     /// Returns the number of dnnl graph ops in the partition
     ///
@@ -403,41 +411,15 @@ public:
     /// Returns a list of input logical tensors from the partition
     ///
     /// @returns A list of input logical tensors
-    std::vector<logical_tensor> get_inputs() const;
+    std::vector<logical_tensor> get_in_ports() const;
 
     /// Returns a list of output logical tensors from the partition
     ///
     /// @returns A list of output logical tensor
-    std::vector<logical_tensor> get_outputs() const;
+    std::vector<logical_tensor> get_out_ports() const;
 };
 
 /// @} dnnl_graph_api_partition
-
-/// @addtogroup dnnl_graph_api_conversion Data conversion API
-///
-/// `conversion` is considered as a special partition which only accepts two
-/// input arguments.
-///
-/// @{
-
-/// Data conversion API
-class conversion {
-public:
-    /// Default constructor
-    conversion();
-
-    /// Compile the conversion partition to generate compiled partition based
-    /// on the input/output logical tensor.
-    ///
-    /// @param input Input logical tensors
-    /// @param output Output logical tensors
-    /// @param aengine The engine used to compile the partition
-    /// @returns A compiled partition
-    compiled_partition compile(const logical_tensor &input,
-            const logical_tensor &output, const engine &aengine);
-};
-
-/// @} dnnl_graph_api_conversion
 
 /// @addtogroup dnnl_graph_api_op Op
 ///
@@ -509,6 +491,9 @@ public:
         InterpolateBackprop = kInterpolateBackprop,
         PowBackpropExponent = kPowBackpropExponent,
         End = kEnd,
+        Quantize = kQuantize,
+        Dequantize = kDequantize,
+        Reorder = kReorder,
         LastSymbol = kLastSymbol,
     };
 

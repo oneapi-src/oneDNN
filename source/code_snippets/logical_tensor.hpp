@@ -1,32 +1,32 @@
 /// Data Type
 enum class data_type {
-        undef = dnnl_graph_data_type_undef,
-        /// 16-bit/half-precision floating point.
-        f16 = dnnl_graph_f16,
-        /// non-standard 16-bit (bfloat16 w/ 7 bit mantissa) floating point.
-        bf16 = dnnl_graph_bf16,
-        /// 32-bit/single-precision floating point.
-        f32 = dnnl_graph_f32,
-        /// 32-bit signed integer.
-        s32 = dnnl_graph_s32,
-        /// 8-bit signed integer.
-        s8 = dnnl_graph_s8,
-        /// 8-bit unsigned integer.
-        u8 = dnnl_graph_u8,
+  undef = dnnl_graph_data_type_undef,
+  /// 16-bit/half-precision floating point.
+  f16 = dnnl_graph_f16,
+  /// non-standard 16-bit (bfloat16 w/ 7 bit mantissa) floating point.
+  bf16 = dnnl_graph_bf16,
+  /// 32-bit/single-precision floating point.
+  f32 = dnnl_graph_f32,
+  /// 32-bit signed integer.
+  s32 = dnnl_graph_s32,
+  /// 8-bit signed integer.
+  s8 = dnnl_graph_s8,
+  /// 8-bit unsigned integer.
+  u8 = dnnl_graph_u8,
 };
 
 /// Layout type
 enum class layout_type {
-        /// undefined layout type
-        undef = dnnl_graph_layout_type_undef,
-        /// any means that oneDNN graph implementation needs to decide the
-        /// layout for the compiled partition.
-        any = dnnl_graph_layout_type_any,
-        /// strided means that the layout is determined by the strides field.
-        strided = dnnl_graph_layout_type_strided,
-        /// opaque means that the layout is a target-specific layout decided by
-        /// oneDNN graph implementation.
-        opaque = dnnl_graph_layout_type_opaque,
+  /// undefined layout type
+  undef = dnnl_graph_layout_type_undef,
+  /// any means that oneDNN graph implementation needs to decide the
+  /// layout for the compiled partition.
+  any = dnnl_graph_layout_type_any,
+  /// strided means that the layout is determined by the strides field.
+  strided = dnnl_graph_layout_type_strided,
+  /// opaque means that the layout is a target-specific layout decided by
+  /// oneDNN graph implementation.
+  opaque = dnnl_graph_layout_type_opaque,
 };
 
 class logical_tensor {
@@ -107,10 +107,10 @@ dims_t get_strides() const;
 /// @returns The memory size in bytes
 size_t get_mem_size() const;
 
-/// Compares if this and input logical tensor has the same layout and dtype
+/// Compares if this and input logical tensor has the same layout
 ///
 /// @param lt The input logical tensor to be compared
 /// @returns @c true if they have the same layout
 ///        @c false if they have different layout
-bool has_same_layout_and_dtype(const logical_tensor &lt) const;
+bool has_same_layout(const logical_tensor &lt) const;
 };
