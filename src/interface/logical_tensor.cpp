@@ -145,15 +145,18 @@ bool logical_tensor_wrapper::is_similar(const logical_tensor_t &lhs,
 size_t logical_tensor_wrapper::hash() const noexcept {
     size_t seed = 0;
     seed = utils::hash_combine(seed, this->id());
-    seed = partition_hashing::get_array_hash(seed, this->dims(), this->ndims());
+    const int32_t nd = this->ndims();
+    seed = nd > 0 ? partition_hashing::get_array_hash(seed, this->dims(), nd)
+                  : utils::hash_combine(seed, nd);
     seed = utils::hash_combine(seed, static_cast<size_t>(this->data_type()));
     // layout type
     switch (this->layout_type()) {
         case layout_type::undef:
         case layout_type::any: break;
         case layout_type::strided:
-            seed = partition_hashing::get_array_hash(
-                    seed, this->strides(), this->ndims());
+            if (nd > 0)
+                seed = partition_hashing::get_array_hash(
+                        seed, this->strides(), nd);
             break;
         case layout_type::opaque:
             seed = utils::hash_combine(
@@ -178,7 +181,10 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init(
     val.layout_type = ltype;
     val.property = ptype;
 
-    // dims and strides are undefined.
+    // initialize the dims
+    std::fill(
+            val.dims, val.dims + DNNL_GRAPH_MAX_NDIMS, DNNL_GRAPH_UNKNOWN_DIM);
+
     *logical_tensor = val;
 
     return status::success;

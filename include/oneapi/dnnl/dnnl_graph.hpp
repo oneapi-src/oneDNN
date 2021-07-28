@@ -465,7 +465,14 @@ public:
     /// Returns dimensions of the logical tensor
     ///
     /// @returns A the dimensions vector
-    dims_t get_dims() const { return {data.dims, data.dims + data.ndims}; }
+    dims_t get_dims() const {
+        if (data.ndims < 0) {
+            error::check_succeed(dnnl_graph_result_error_invalid_argument,
+                    "cannot return dims when ndims < 0");
+        }
+
+        return {data.dims, data.dims + data.ndims};
+    }
 
     /// Returns unique id of the logical tensor
     ///
@@ -512,6 +519,11 @@ public:
         if (get_layout_type() != layout_type::strided) {
             error::check_succeed(dnnl_graph_result_error_invalid_argument,
                     "layout type should be strided");
+        }
+
+        if (data.ndims < 0) {
+            error::check_succeed(dnnl_graph_result_error_invalid_argument,
+                    "cannot return strides when ndims < 0");
         }
 
         return {data.layout.strides, data.layout.strides + data.ndims};
