@@ -225,14 +225,7 @@ void parse_result(
             want_perf_report = false;
             bs.listed++;
             break;
-        default:
-            assert(!"unknown state");
-            {
-                []() {
-                    SAFE(FAIL, CRIT);
-                    return 0;
-                }();
-            }
+        default: assert(!"unknown state"); SAFE_V(FAIL);
     }
 
     if (is_bench_mode(PERF)) {
@@ -319,7 +312,7 @@ void *zmalloc(size_t size, size_t align) {
 
     // TODO. Heuristics: Increasing the size to alignment increases
     // the stability of performance results.
-    if ((is_bench_mode(PERF)) && (size < align)) size = align;
+    if (is_bench_mode(PERF) && (size < align)) size = align;
     int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
     return rc == 0 ? ptr : nullptr;

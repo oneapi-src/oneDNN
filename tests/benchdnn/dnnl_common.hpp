@@ -381,8 +381,10 @@ template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         const func_t &init_pd_func, prb_t *prb, res_t *res,
         dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr) {
-    dnnl_primitive_desc_t pd {};
+    dnnl_primitive_desc_t pd_ {};
     dnnl_primitive_t prim_ {};
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pd;
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
 
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
 
@@ -409,30 +411,29 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     engine_t engine(engine_tgt_kind);
 #endif
 
-    SAFE(init_pd_func(engine, prb, pd, res, dir, hint), WARN);
-    auto pd1 = make_benchdnn_dnnl_wrapper(pd);
+    SAFE(init_pd_func(engine, prb, pd_, res, dir, hint), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
 
-    DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
-    DNN_SAFE(dnnl_primitive_destroy(prim_), CRIT);
+    pd.reset(pd_);
+    prim.reset(prim_);
 #endif
     // The second (if the cache is enabled) primitive creation using
     // the global test engine.
-    SAFE(init_pd_func(get_test_engine(), prb, pd, res, dir, hint), WARN);
-    auto pd2 = make_benchdnn_dnnl_wrapper(pd);
+    SAFE(init_pd_func(get_test_engine(), prb, pd_, res, dir, hint), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    int check_pd_cache_status = check_pd_cache(pd2);
+    // This primitive is expected to come from the cache.
+    DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
 
+    pd.reset(pd_);
+    prim.reset(prim_);
+
+    SAFE(check_pd_cache(pd), WARN);
+    SAFE(check_primitive_cache(prim), WARN);
     // Collect memory footprint for a given primitive descriptor.
     SAFE(get_memory_footprint(pd, res), WARN);
 
-    // This primitive is expected to come from the cache.
-    DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
-    int check_primitive_cache_status = check_primitive_cache(prim_);
-
-    SAFE(check_pd_cache_status | check_primitive_cache_status, WARN);
-
-    user_prim.reset(prim_);
+    user_prim.reset(prim.release());
 
     return OK;
 }
