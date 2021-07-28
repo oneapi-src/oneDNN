@@ -163,6 +163,7 @@ status_t ref_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
     const int ndims = mdw.ndims();
     const auto &dims = mdw.dims();
     const auto &pdims = mdw.padded_dims();
+    const auto mem_total_size = mdw.size();
 
     const auto most_inner_nblk = blocking_desc.inner_nblks - 1;
 
@@ -237,7 +238,8 @@ status_t ref_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
         CHECK(status);
 
         if (dims[blocking_desc.inner_idxs[most_inner_nblk - 1]]
-                != pdims[blocking_desc.inner_idxs[most_inner_nblk - 1]]) {
+                        != pdims[blocking_desc.inner_idxs[most_inner_nblk - 1]]
+                && s2most_inner_block_stride != mem_total_size) {
             const cl_ulong base_offset_b2 = most_inner_block_base_offset
                     + s2most_inner_block_stride * gws1;
             arg_list.set(2, base_offset_b2);
