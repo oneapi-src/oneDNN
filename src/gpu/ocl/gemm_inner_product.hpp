@@ -313,7 +313,7 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
 
 protected:
     primitive_list_t nested_primitives() const override {
-        return {gemm_.get()};
+        return {gemm_.get(), reduction_.get()};
     }
 
 private:
