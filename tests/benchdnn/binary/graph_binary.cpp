@@ -38,9 +38,7 @@ binary_graph_prb_t::spec_t::spec_t(const ::binary::prb_t *prb) {
     src1_dt = convert_dt(prb->sdt[1]);
     dst_dt = convert_dt(prb->ddt);
 
-    src0_tag = convert_tag(prb->stag[0]);
-    src1_tag = convert_tag(prb->stag[1]);
-    dst_tag = convert_tag(prb->dtag);
+    data_format = convert_tag(prb->dtag);
 
     op_kind = convert_alg_kind(attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
 }
@@ -119,7 +117,7 @@ fill_status_t binary_graph_prb_t::handle_elt_(
 
 fill_status_t binary_graph_prb_t::handle_bin_(
         const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.binary.bin_handler(*this, spec_.dst_tag, po_entry);
+    return po_handler.binary.bin_handler(*this, spec_.data_format, po_entry);
 }
 
 fill_status_t binary_graph_prb_t::handle_sum_() {

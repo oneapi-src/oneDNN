@@ -67,9 +67,7 @@ private:
         dt src1_dt;
         dt dst_dt;
 
-        std::string src0_tag;
-        std::string src1_tag;
-        std::string dst_tag;
+        std::string data_format;
 
         dnnl::graph::op::kind op_kind;
     };

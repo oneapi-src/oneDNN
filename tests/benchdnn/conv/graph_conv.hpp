@@ -26,7 +26,7 @@ namespace benchdnnext {
 namespace conv {
 
 struct conv_graph_prb_t : public graph_prb_t {
-    conv_graph_prb_t(const ::conv::prb_t *prb) : prb(prb), spec_(prb) {
+    conv_graph_prb_t(const ::conv::prb_t *prb) : spec_(prb) {
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
@@ -58,7 +58,7 @@ struct conv_graph_prb_t : public graph_prb_t {
             }
         }
 
-        ctor_status = handle_low_precision_();
+        ctor_status = handle_low_precision_(prb);
         if (stop_work(ctor_status)) return;
 
         ctor_status = fill_status::DONE;
@@ -82,10 +82,14 @@ private:
 
         std::string auto_pad {"None"};
 
+        bool has_groups;
         int64_t groups;
 
         std::string data_format {"NCX"};
         std::string filter_format {"OIX"};
+        std::string raw_src_tag;
+        std::string raw_wei_tag;
+        std::string raw_dst_tag;
 
         dt src_dt;
         dt wei_dt;
@@ -93,7 +97,6 @@ private:
         dt dst_dt;
     };
 
-    const ::conv::prb_t *prb;
     spec_t spec_;
     po_handlers_t po_handler;
 
@@ -101,7 +104,7 @@ private:
     fill_status_t handle_bia_();
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po);
     fill_status_t handle_sum_();
-    fill_status_t handle_low_precision_();
+    fill_status_t handle_low_precision_(const ::conv::prb_t *prb);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po);
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {

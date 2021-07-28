@@ -38,6 +38,7 @@ namespace graph = dnnl::graph;
 
 conv_graph_prb_t::spec_t::spec_t(const ::conv::prb_t *prb) noexcept {
     groups = prb->has_groups ? (int64_t)prb->g : 1;
+    has_groups = prb->has_groups;
 
     const dim_t src_1d_dims[] = {prb->mb, prb->ic, prb->iw};
     const dim_t src_2d_dims[] = {prb->mb, prb->ic, prb->ih, prb->iw};
@@ -104,6 +105,9 @@ conv_graph_prb_t::spec_t::spec_t(const ::conv::prb_t *prb) noexcept {
 
     data_format = tag2data_format(prb->stag);
     filter_format = tag2filter_format(prb->wtag);
+    raw_src_tag = prb->stag;
+    raw_wei_tag = prb->wtag;
+    raw_dst_tag = prb->dtag;
 }
 
 fill_status_t conv_graph_prb_t::handle_main_op_() {
@@ -114,16 +118,16 @@ fill_status_t conv_graph_prb_t::handle_main_op_() {
     const std::string DST {"conv_dst"};
 
     dims_t wei_dims = spec_.wei_dims;
-    if (prb->has_groups) {
+    if (spec_.has_groups) {
         // group convolution convert
         dim_t groups = wei_dims[0];
         wei_dims.erase(wei_dims.begin());
         wei_dims[0] *= groups;
     }
 
-    tensor_descs_.emplace(SRC, dt::f32, spec_.src_dims, prb->stag);
-    tensor_descs_.emplace(WEI, dt::f32, wei_dims, prb->wtag);
-    tensor_descs_.emplace(DST, dt::f32, spec_.dst_dims, prb->dtag);
+    tensor_descs_.emplace(SRC, dt::f32, spec_.src_dims, spec_.raw_src_tag);
+    tensor_descs_.emplace(WEI, dt::f32, wei_dims, spec_.raw_wei_tag);
+    tensor_descs_.emplace(DST, dt::f32, spec_.dst_dims, spec_.raw_dst_tag);
 
     const size_t new_op_id = ops_.size();
     graph::op conv_op(new_op_id, kind::Convolution,
@@ -158,7 +162,8 @@ fill_status_t conv_graph_prb_t::handle_sum_() {
     return po_handler.conv.sum_handler(*this);
 }
 
-fill_status_t conv_graph_prb_t::handle_low_precision_() {
+fill_status_t conv_graph_prb_t::handle_low_precision_(
+        const ::conv::prb_t *prb) {
     if (spec_.src_dt != dt::f32 || spec_.wei_dt != dt::f32
             || spec_.dst_dt != dt::f32) {
         std::string output_name = curr_out_map_ids_.front();
@@ -279,11 +284,11 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     if (prb->dir == FWD_B) bia_fp = make_dnn_mem(ins[2], dt::f32, tag::x);
     auto dst_fp = make_dnn_mem(outs[0], spec.dst_dims, dt::f32, tag::abx);
 
-    auto src_dt = make_dnn_mem(ins[0], spec.src_dims, prb->stag);
-    auto wei_dt = make_dnn_mem(ins[1], spec.wei_dims, prb->wtag);
+    auto src_dt = make_dnn_mem(ins[0], spec.src_dims, spec.raw_src_tag);
+    auto wei_dt = make_dnn_mem(ins[1], spec.wei_dims, spec.raw_wei_tag);
     dnn_mem_t bia_dt;
     if (prb->dir == FWD_B) bia_dt = make_dnn_mem(ins[2], tag::x);
-    auto dst_dt = make_dnn_mem(outs[0], spec.dst_dims, prb->dtag);
+    auto dst_dt = make_dnn_mem(outs[0], spec.dst_dims, spec.raw_dst_tag);
 
     SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
     SAFE(fill_wei(prb, wei_dt, wei_fp, res), WARN);

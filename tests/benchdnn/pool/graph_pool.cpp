@@ -76,6 +76,7 @@ pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) noexcept {
 
     rounding_type = "floor";
     data_format = convert_tag(prb->tag);
+    raw_data_format = prb->tag;
 
     op_kind = (prb->alg == ::pool::max) ? graph_op::MaxPool : graph_op::AvgPool;
 
@@ -104,8 +105,8 @@ fill_status_t pool_graph_prb_t::handle_main_op_() {
         dst_dt = spec_.dst_dt;
     }
 
-    tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, lt::strided);
-    tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, lt::strided);
+    tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, spec_.raw_data_format);
+    tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, spec_.raw_data_format);
 
     const size_t new_op_id = ops_.size();
     const std::string op_name
@@ -144,8 +145,10 @@ fill_status_t pool_graph_prb_t::handle_low_precision_() {
     const std::string qsrc_dtype = spec_.src_dt == dt::u8 ? "uint8" : "int8";
     const std::string qdst_dtype = spec_.dst_dt == dt::u8 ? "uint8" : "int8";
 
-    tensor_descs_.emplace(QSRC, spec_.src_dt, spec_.src_dims, lt::strided);
-    tensor_descs_.emplace(QDST, spec_.dst_dt, spec_.dst_dims, lt::strided);
+    tensor_descs_.emplace(
+            QSRC, spec_.src_dt, spec_.src_dims, spec_.raw_data_format);
+    tensor_descs_.emplace(
+            QDST, spec_.dst_dt, spec_.dst_dims, spec_.raw_data_format);
 
     op dequant_src(ops_.size(), op::kind::Dequantize, {tensor_descs_[QSRC]},
             {tensor_descs_[SRC]}, "dequant_src");
@@ -205,8 +208,8 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     dnn_mem_t ws_fp;
     std::vector<dnn_mem_t> binary_po_fp;
 
-    auto src_dt = make_dnn_mem(ins[0], tag::abx);
-    auto dst_dt = make_dnn_mem(outs[0], tag::abx);
+    auto src_dt = make_dnn_mem(ins[0], prb->tag);
+    auto dst_dt = make_dnn_mem(outs[0], prb->tag);
 
     SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
     SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);

@@ -56,7 +56,7 @@ private:
         dims_t dims;
         dt eltwise_dt;
         dnnl::graph::op::kind op_kind;
-        std::string dst_tag;
+        std::string data_format;
     };
 
     spec_t spec_;

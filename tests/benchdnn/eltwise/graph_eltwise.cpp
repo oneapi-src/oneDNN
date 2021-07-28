@@ -25,7 +25,7 @@ namespace eltwise {
 eltwise_graph_prb_t::spec_t::spec_t(const ::eltwise::prb_t *prb) noexcept {
     dims = prb->dims;
     eltwise_dt = convert_dt(prb->dt);
-    dst_tag = convert_tag(prb->tag);
+    data_format = convert_tag(prb->tag);
 
     op_kind = convert_alg_kind(attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
 
@@ -71,7 +71,7 @@ fill_status_t eltwise_graph_prb_t::handle_main_op_() {
 
 fill_status_t eltwise_graph_prb_t::handle_bin_(
         const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.eltwise.bin_handler(*this, spec_.dst_tag, po_entry);
+    return po_handler.eltwise.bin_handler(*this, spec_.data_format, po_entry);
 }
 
 int doit(const ::eltwise::prb_t *prb, res_t *res) {
