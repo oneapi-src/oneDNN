@@ -74,7 +74,7 @@ logical_tensor conv_bias_lt {id_mgr["conv_bias"], data_type::f32, bias_dims, lay
 logical_tensor conv_dst_lt {id_mgr["dst_dims"], data_type::f32, dst_dims, layout_type::strided};
 ~~~
 
-Here [`id_mgr`](../examples/cpp/include/common/utils.hpp#120) is a utility class
+Here [`id_mgr`](../examples/cpp/include/common/utils.hpp#135) is a utility class
 to generate unique id according to the given name. It requires the 1:1 mapping
 between id and the given name.
 
@@ -133,7 +133,7 @@ g.add_op(end_1);
 ~~~
 
 Then by calling
-[`get_partitions()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1274), users can get
+[`get_partitions()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1273), users can get
 several partitions in topological order.
 
 ~~~cpp
@@ -166,7 +166,7 @@ flag is True, that partition is supported by oneDNN Graph backend. Otherwise,
 that partition is not supported by oneDNN Graph backend and users need to handle
 the computation by themselves.
 
-- [`is_supported()`](../include/oneapi/dnnl/dnnl_graph.hpp#L790)
+- [`is_supported()`](../include/oneapi/dnnl/dnnl_graph.hpp#L1138)
 
 ~~~cpp
 // create the vector to store all compiled partitions
@@ -223,3 +223,114 @@ c_partitions[i].execute(s, input_ts, output_ts);
 
 After finishing executing all compiled partitions, users can get the final
 results of the graph.
+
+## Single Operator Partition
+
+In order to simplify the support of framework imperative execution mode, oneDNN
+Graph starts to feature single op partition. As the name suggests, it's a
+partition which only contains one operator. In addition, a `graph` is a more or
+less useless and confusing concept for imperative execution mode. The demo code
+is like below. The full example code can be found at [cpu_single_op_partition_matmul.cpp](https://github.com/intel-innersource/libraries.performance.math.onednn/blob/dev-graph/examples/cpp/src/cpu_single_op_partition_matmul.cpp).
+
+~~~cpp
+// define input and output logical tensor
+logical_tensor lt0 {0, data_type::f32, {1, 3, 256, 256}, layout_type::strided}; // 1
+logical_tensor lt1 {1, data_type::f32, {32, 3, 3, 3}, layout_type::strided};    // 2
+logical_tensor lt2 {2, data_type::f32, {1, 32, 252, 252}, layout_type::strided};// 3
+
+// step 1: create the op
+op conv {0, kind::Convolution, {lt0, lt1}, {lt2}, "convolution"};               // 4
+// set many attributes
+conv.set_attr("pads_begin", {0,0});                                             // 5
+conv.set_attr("pads_end", {0,0});                                               // 6
+
+// step 2: create partition with the given operator
+partition part {conv, engine_kind};                                             // 7
+
+// step 3: compile the partition
+engine eng {engine_kind, 0};                                                    // 8
+compiled_partition cpart = part.compile({lt0, lt1}, {lt2}, eng);                // 9
+
+// step 4: execute the compiled partition
+tensor data {lt0, eng, buf0};                                                   // 10
+tensor weight {lt1, eng, buf1};                                                 // 11
+tensor output {lt2, eng, buf2};                                                 // 12
+cp.execute(stream, {data, weight}, {output});                                   // 13
+~~~
+
+## Fall-back Mechanism
+
+Sometimes framework users may want to fall back to default implementation when
+oneDNN Graph fails to compile or execute. At this time users need to reorder
+oneDNN Graph specific tensors to public tensor and then feed into framework
+default implementation kernel. Now oneDNN Graph has already been support
+`reorder` operator for this case. With the help of feature of single operator
+partition, users can easily convert tensors to public layout.
+
+## Weight Prepacking
+
+For inference mode, weights are usually constant during iterations. Also for
+some operators like convolution and matmul, the layout of weight tensor may be
+not public. In order to improve inference performance, users may want to convert
+the weight to optimal layout and use this converted weight every iteration. This
+will significantly reduce the overhead of converting weight every iteration.
+With the combination of single operation partition and `reorder` operation,
+users should be able to implement this optimization on their side.
+
+## Additional Ease-of-Use Features
+
+- Users don't need set tensor's dims assuming NHWC format
+
+  - oneDNN Graph library supports arbitrary orders of shapes passed by users.
+    The library now provides two attributes (`data_format` and `filter_format`)
+    to indicate how to parse the shapes.
+
+     ~~~cpp
+     // for example, tensorflow shapes
+      dims_t ish = {1, 227, 227, 3};
+      dims_t wsh = {11, 11, 3, 96};
+      dims_t osh = {1, 55, 55, 96};
+      // create input/output logical tensors.
+      logical_tensor conv_src {0, dt::f32, ish, layout_type::strided};
+      logical_tensor conv_wei {1, dt::f32, wsh, layout_type::strided};
+      logical_tensor conv_dst {2, dt::f32, osh, layout_type::strided};
+      // create convolution op with inputs and outputs
+      op conv {0, kind::Convolution, {conv_src, conv_wei}, {conv_dst}, “conv0”};
+      // set attributes to conv op
+      conv.set_attr("data_format", std::string("NXC")); // input, nhwc
+      conv.set_attr("filter_format", std::string("XIO")); // weight, hwio
+      // add op to graph.
+      graph.add_op(conv);
+     ~~~
+
+- Users don't need query and convert to the opaque layout for input tensors
+
+  - oneDNN Graph library allows that the output tensor of one partition is
+    directly passed to another partition, even though this output tensor has
+    opaque layout.
+
+    ~~~cpp
+    // create logical tensors, previous layer also runs oneDNN Graph partition
+    logical_tensor conv_src {0, dt::f32, {1, 3, 227, 227}, layout_type::opaque};
+    logical_tensor conv_wei {1, dt::f32, {96, 3, 11, 11}, layout_type::strided};
+    logical_tensor conv_dst {2, dt::f32, {-1, -1, -1, -1}, layout_type::any};
+    // create convolution op with inputs and outputs
+    op conv {0, kind::Convolution, {conv_src, conv_wei}, {conv_dst}, “conv0”};
+    // add op to graph.
+    graph.add_op(conv);
+    // get partitions with debug policy.
+    std::vector<partition> partitions = graph.get_partitions();
+    // compile the first partition and set blocked format to output tensor
+    compiled_partition cp = partitions[0].compile({conv_src, conv_wei}, {conv_dst}, eng);
+    // execute the compiled partition with input/output tensors
+    tensor src_tensor = tensor_from_last_layer; // with opaque layout id
+    tensor wei_tensor = tensor(conv_wei, buf_wei); // strided weight
+    tensor dst = tensor(cp.query_logical_tensor(2), buf_dst);
+    cp.execute(stream, {src_tensor, wei_tensor}, {dst_tensor});
+    ~~~
+
+- Users don't need pass opaque layout tensor for compilation.
+
+  - oneDNN Graph library accepts both public layout and opaque layout for
+    compilation. If users pass an tensor with opaque layout, the library will
+    take it as the most reliable hint.
