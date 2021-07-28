@@ -201,7 +201,9 @@ int ip_fwd_get_nb_oc_blocking(
 }
 
 bool ip_fwd_adjust_thread_balance(const jit_brgemm_primitive_conf_t &jbgp) {
-    if (jbgp.isa != avx512_core_bf16_amx_bf16) return false;
+    if (IMPLICATION(
+                jbgp.is_wei_layout_any, jbgp.isa != avx512_core_bf16_amx_bf16))
+        return false;
 
     int os_chunks = div_up(jbgp.os, get_os_block(jbgp, true, false));
 
