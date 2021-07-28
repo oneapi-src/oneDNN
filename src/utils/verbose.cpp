@@ -215,9 +215,9 @@ int logical_tensor2layout_str(char *str, size_t str_len,
         for (int i = 0; i < ndim - 1; ++i) {
             PUTS(DFMT "s", strides[i]);
         }
-        PUTS(DFMT "d", strides[ndim - 1]);
+        PUTS(DFMT, strides[ndim - 1]);
     } else if (lt.layout_type() == impl::layout_type::opaque) {
-        PUTS(DFMT "d", lt.layout_id());
+        PUTS(DFMT, lt.layout_id());
     } else if (lt.layout_type() == impl::layout_type::any) {
         PUTS("%s", "any");
     } else {
