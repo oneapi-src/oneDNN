@@ -176,7 +176,6 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(To_group, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Expand, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MaxPool, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Dnnl_convolution, 1);
-class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Dnnl_maxpool, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Relu_add, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add_sigmoid, 1);
@@ -220,6 +219,8 @@ class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_Conv_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_Conv_bias_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_Conv_add_relu, 1);
 class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(X8S8F32_Quant_wei_Conv_bias_add_relu, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_AvgPool, 1);
+class DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Dnnl_pool, 1);
 
 class opset_v1 {
 public:
@@ -445,7 +446,6 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_MaxPool, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         Dnnl_convolution, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Dnnl_maxpool, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Relu_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Add_sigmoid, 1)>());
@@ -520,6 +520,8 @@ public:
                         X8S8F32_Quant_wei_Conv_add_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         X8S8F32_Quant_wei_Conv_bias_add_relu, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(INT8_AvgPool, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(Dnnl_pool, 1)>());
     }
 };
 

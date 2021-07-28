@@ -125,7 +125,6 @@ namespace op_kind {
     X(expand, Expand) \
     X(dnnl_convolution, Dnnl_convolution) \
     X(int8_maxpool, INT8_MaxPool) \
-    X(dnnl_maxpool, Dnnl_maxpool) \
     X(relu_add, Relu_add) \
     X(add_relu, Add_relu) \
     X(add_sigmoid, Add_sigmoid) \
@@ -170,7 +169,9 @@ namespace op_kind {
     X(x8s8f32_quant_wei_conv_bias_relu, X8S8F32_Quant_wei_Conv_bias_relu) \
     X(x8s8f32_quant_wei_conv_add_relu, X8S8F32_Quant_wei_Conv_add_relu) \
     X(x8s8f32_quant_wei_conv_bias_add_relu, \
-            X8S8F32_Quant_wei_Conv_bias_add_relu)
+            X8S8F32_Quant_wei_Conv_bias_add_relu) \
+    X(int8_avgpool, INT8_AvgPool) \
+    X(dnnl_pool, Dnnl_pool)
 
 enum {
     kAny = 0x1234,

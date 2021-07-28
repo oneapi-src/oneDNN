@@ -386,7 +386,8 @@ impl::status_t layout_propagation(std::vector<op_ptr> &subgraph,
                 continue;
 
             if (cur_op->get_kind() == op_kind::MaxPool
-                    || cur_op->get_kind() == op_kind::dnnl_maxpool) {
+                    || cur_op->get_kind() == op_kind::AvgPool
+                    || cur_op->get_kind() == op_kind::dnnl_pool) {
                 changed = layout_propagation_for_pool(
                                   cur_op, p_engine, prm_attr_mgr)
                         || changed;

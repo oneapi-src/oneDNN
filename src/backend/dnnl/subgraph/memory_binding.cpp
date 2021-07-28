@@ -210,8 +210,9 @@ impl::status_t memory_binding(std::vector<op_ptr> &subgraph,
             bind_memory_for_conv_and_matmul(
                     cur_op, p_engine, exec_arg_mgr, prm_attr_mgr);
         } else if (cur_op->get_kind() == op_kind::MaxPool
-                || cur_op->get_kind() == op_kind::dnnl_maxpool) {
-            bool is_training = cur_op->has_attr("is_training")
+                || cur_op->get_kind() == op_kind::AvgPool
+                || cur_op->get_kind() == op_kind::dnnl_pool) {
+            const bool is_training = cur_op->has_attr("is_training")
                     ? cur_op->get_attr<bool>("is_training")
                     : false;
             bind_memory_for_siso_op(

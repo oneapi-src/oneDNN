@@ -83,11 +83,7 @@ format_tag get_default_format(const dims &adims) {
 dims get_compatible_dilates(const dims &dilates, size_t input_size) {
     if (!dilates.empty() && !impl::utils::any_le(dilates, static_cast<dim>(0)))
         return utils::fmap(dilates, [](dim x) { return x - 1; });
-    if (4 == input_size) {
-        return {0, 0};
-    } else {
-        return {0, 0, 0};
-    }
+    return dims(input_size - 2, 0);
 }
 
 dims group_dims(const dims &adims, dim groups) {

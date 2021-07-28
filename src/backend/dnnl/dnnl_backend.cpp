@@ -271,6 +271,7 @@ bool dnnl_backend::register_kernels() {
 
     // quantized pooling
     DNNL_REGISTER_KERNEL(int8_maxpool, quantized_pooling);
+    DNNL_REGISTER_KERNEL(int8_avgpool, quantized_pooling);
 
 #undef DNNL_REGISTER_KERNEL
 

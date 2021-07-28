@@ -4348,6 +4348,65 @@ TEST(pass_test, int8_maxpool_fusion) {
             get_fused_op(agraph.get_partitions()[0])->get_kind(), int8_maxpool);
 }
 
+TEST(pass_test, int8_avgpool_fusion) {
+    /*
+             | (u8/s8)
+          dequant
+             | (f32)
+           avgpool
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant {0, Dequantize, "dequant"};
+    dequant.set_attr("scales", scales);
+    dequant.set_attr("zps", zps);
+
+    std::vector<int64_t> strides = {1, 1};
+    std::vector<int64_t> pads_begin = {0, 0};
+    std::vector<int64_t> pads_end = {0, 0};
+    std::vector<int64_t> kernel = {2, 2};
+    op_t avgpool {1, AvgPool, "avgpool"};
+    avgpool.set_attr("strides", strides);
+    avgpool.set_attr("pads_begin", pads_begin);
+    avgpool.set_attr("pads_end", pads_end);
+    avgpool.set_attr("kernel", kernel);
+    avgpool.set_attr<bool>("exclude_pad", false);
+
+    op_t quant {2, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant.add_input(int8_data);
+    dequant.add_output(fp32_data);
+
+    logical_tensor_t fp32_avgpool_out = logical_tensor_init(2, data_type::f32);
+    avgpool.add_input(fp32_data);
+    avgpool.add_output(fp32_avgpool_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(3, data_type::u8);
+    quant.add_input(fp32_avgpool_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant), status::success);
+    ASSERT_EQ(agraph.add_op(&avgpool), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("int8_avgpool_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(
+            get_fused_op(agraph.get_partitions()[0])->get_kind(), int8_avgpool);
+}
+
 TEST(pass_test, int8_matmul_bias_add_fusion) {
     /*
         | (u8/s8)  | (s8)

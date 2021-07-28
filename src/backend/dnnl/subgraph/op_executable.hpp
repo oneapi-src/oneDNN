@@ -116,8 +116,10 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
     dims kernel = op->get_attr<dims>("kernel");
     dims pads_begin = op->get_attr<dims>("pads_begin");
     dims pads_end = op->get_attr<dims>("pads_end");
-    dims dilations = op->get_attr<dims>("dilations");
-    dilations = get_compatible_dilates(dilations);
+    dims dilations;
+    if (op->has_attr("dilations")) {
+        dilations = op->get_attr<dims>("dilations");
+    }
     std::string data_format = op->get_attr<std::string>("data_format");
 
     dnnl::primitive_attr prm_attr;
@@ -132,16 +134,25 @@ inline dnnl::pooling_v2_forward::primitive_desc create_pool_pd(
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
 
+    dilations = get_compatible_dilates(dilations, src.dims().size());
     if (op->has_attr("output_format")
             && op->get_attr<std::string>("output_format") == "NXC") {
         dst = permute_NXC2NCX(dst);
     }
     algorithm algo = algorithm::undef;
     if (op->get_kind() == op_kind::MaxPool
-            || op->get_kind() == op_kind::dnnl_maxpool)
+            || (op->get_kind() == op_kind::dnnl_pool
+                    && op->get_attr<std::string>("kind") == "maxpool"))
         algo = algorithm::pooling_max;
-    else {
-        BACKEND_DNNL_ENFORCE(0, "Currently only int8 MaxPool is supported.");
+    else if (op->get_kind() == op_kind::AvgPool
+            || (op->get_kind() == op_kind::dnnl_pool
+                    && op->get_attr<std::string>("kind") == "avgpool")) {
+        const bool exclude_pad = op->get_attr<bool>("exclude_pad");
+        algo = exclude_pad ? algorithm::pooling_avg_exclude_padding
+                           : algorithm::pooling_avg_include_padding;
+    } else {
+        BACKEND_DNNL_ENFORCE(
+                0, "Currently only int8 MaxPool/AvgPool is supported.");
     }
 
     dnnl::pooling_v2_forward::primitive_desc pd(

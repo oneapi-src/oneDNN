@@ -56,7 +56,8 @@ impl::status_t compile_ops(std::vector<op_ptr> &subgraph,
             prm = std::make_shared<matmul_executable>(
                     cur_op, p_engine, prm_attr_mgr);
         } else if (cur_op->get_kind() == op_kind::MaxPool
-                || cur_op->get_kind() == op_kind::dnnl_maxpool) {
+                || cur_op->get_kind() == op_kind::AvgPool
+                || cur_op->get_kind() == op_kind::dnnl_pool) {
             prm = std::make_shared<pool_executable>(
                     cur_op, p_engine, prm_attr_mgr);
         } else if (cur_op->get_kind() == op_kind::mul_scales

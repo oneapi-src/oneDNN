@@ -485,15 +485,21 @@ void fuse_to_int8_matmul(std::vector<op_ptr> &subgraph) {
 void fuse_to_int8_pool(std::vector<op_ptr> &subgraph) {
     std::vector<op_t *> fusion_ops;
     for (const auto &cur_op : subgraph) {
-        // currently only support int8 MaxPooling
-        if (cur_op->get_kind() != op_kind::MaxPool) continue;
+        if (cur_op->get_kind() != op_kind::MaxPool
+                && cur_op->get_kind() != op_kind::AvgPool)
+            continue;
         fusion_ops.emplace_back(cur_op.get());
     }
 
     if (fusion_ops.empty()) return;
     for (auto &pool_op : fusion_ops) {
-        op_ptr q_pool_op = std::make_shared<op_t>(op_kind::dnnl_maxpool);
+        op_ptr q_pool_op = std::make_shared<op_t>(op_kind::dnnl_pool);
         q_pool_op->merge_attributes(pool_op->get_attributes());
+        if (pool_op->get_kind() == op_kind::MaxPool) {
+            q_pool_op->set_attr<std::string>("kind", "maxpool");
+        } else {
+            q_pool_op->set_attr<std::string>("kind", "avgpool");
+        }
 
         // oneDNN int8 pooling primitive doesn't require scales and zps, so we
         // just fuse the Quantize and Dequantize op into this newly created pool
