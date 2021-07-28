@@ -311,55 +311,38 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &scratchpad_size, size_t &workspace_size) {
 
     const size_t page_size = 4096;
-    size_t current_offset;
+    size_t current_offset = 0;
+
+#define register_space(a) \
+    do { \
+        current_offset = utils::rnd_up(current_offset, page_size); \
+        CONCAT2(a, _offset) = current_offset; \
+        current_offset += rnn.CONCAT2(a, _size); \
+    } while (false)
 
     // Mandatory workspaces: go to workspace if use_workspace, scratchpad
     // otherwise assumes the workspace base pointer is page aligned
-    current_offset = 0;
-    ws_gates_offset = current_offset;
-    current_offset += rnn.ws_gates_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_states_offset = current_offset;
-    current_offset += rnn.ws_states_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_c_states_offset = current_offset;
-    current_offset += rnn.ws_c_states_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_grid_comp_offset = current_offset;
-    current_offset += rnn.ws_grid_comp_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_dhG1_offset = current_offset;
-    current_offset += rnn.ws_dhG1_size;
+    register_space(ws_gates);
+    register_space(ws_states);
+    register_space(ws_c_states);
+    register_space(ws_grid_comp);
+    register_space(ws_dhG1);
 
     workspace_size = rnn.use_workspace ? current_offset : 0;
+
     // Optional scratchpads
     // Assumes the scratchpad base pointer is page aligned.
     // If use_workspace, the following goes to scratchpad alone,
     // otherwise, all goes to scratchpad and continue incrementing offset
     current_offset = rnn.use_workspace ? 0 : current_offset;
 
-    current_offset = utils::rnd_up(current_offset, page_size);
-    scratch_gates_offset = current_offset;
-    current_offset += rnn.scratch_gates_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    scratch_cell_offset = current_offset;
-    current_offset += rnn.scratch_cell_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    scratch_diff_states_offset = current_offset;
-    current_offset += rnn.scratch_diff_states_size;
+    register_space(scratch_gates);
+    register_space(scratch_cell);
+    register_space(scratch_diff_states);
 
     ws_bias_offset = 0;
-    if (rnn.copy_bias) {
-        current_offset = utils::rnd_up(current_offset, page_size);
-        ws_bias_offset = current_offset;
-        current_offset += rnn.ws_bias_size;
-    }
+    if (rnn.copy_bias) { register_space(ws_bias); }
+
     scratchpad_size = current_offset;
 }
 
