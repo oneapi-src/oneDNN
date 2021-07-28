@@ -292,7 +292,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     // Used for storing the intermediate value from fwd pass in training lbr gru
     rnn.ws_per_cell = (size_t)rnn.is_lbr * rnn.mb * rnn.dhc * aux_elsz;
     rnn.ws_grid_comp_size = (size_t)rnn.is_lbr * rnn.is_training * rnn.n_layer
-            * rnn.n_dir * rnn.n_iter * rnn.ws_per_cell * aux_elsz;
+            * rnn.n_dir * rnn.n_iter * rnn.ws_per_cell;
 }
 
 int rnn_utils::get_good_ld(int dim, int sizeof_dt) {

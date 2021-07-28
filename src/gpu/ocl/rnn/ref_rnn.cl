@@ -931,7 +931,7 @@ __kernel void ref_rnn_elemwise_bwd(
     } else if (n_part == 2) {
         __global SRC_DATA_T *scratch_cell = (__global SRC_DATA_T *)(scr_cell);
         __global DIFF_DATA_T *dhG1
-                = (__global DIFF_DATA_T *)(ws + SCRATCH_HDG1_OFFSET);
+                = (__global DIFF_DATA_T *)(ws + WS_HDG1_OFFSET);
 
         float dG1 = ws_gates[CELL_WS_GATES(i, 1, j)];
         diff_src_iter[CELL_WS_DIFF_STATES(0, i, j)]
@@ -939,7 +939,7 @@ __kernel void ref_rnn_elemwise_bwd(
 
         scratch_gates[CELL_SCRATCH_MEM(i, 1, j)]
                 = TO_INPUT(dhG1[OFF_WS_DHG1(i, j)] * h * x_m_square(dG1));
-        scratch_cell[OFF_SCRATCHCELL(i, j)] = TO_INPUT(dG1 * h);
+        scratch_cell[OFF_SCRATCH_CELL(i, j)] = TO_INPUT(dG1 * h);
     }
 #else
 #error "Wrong Cell Kind"

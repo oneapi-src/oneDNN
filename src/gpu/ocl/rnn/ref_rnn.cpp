@@ -290,9 +290,8 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WS_C_STATE_OFFSET", conf.ws_c_state_offset);
     kernel_ctx.define_int("WS_DIFF_STATES_OFFSET", conf.ws_diff_states_offset);
     kernel_ctx.define_int("WS_GRID_COMP_OFFSET", conf.ws_grid_comp_offset);
-    kernel_ctx.define_int("SCRATCH_HDG1_OFFSET", conf.ws_dhG1_offset);
+    kernel_ctx.define_int("WS_HDG1_OFFSET", conf.ws_dhG1_offset);
     kernel_ctx.define_int("WS_BIAS_OFFSET", conf.ws_bias_offset);
-    kernel_ctx.define_int("SCRATCH_GATES_OFFSET", conf.scratch_gates_offset);
     kernel_ctx.define_int("STATES_WS_LD", conf.states_ws_ld);
     kernel_ctx.define_int("DIFF_STATES_WS_LD", conf.diff_states_ws_ld);
     kernel_ctx.define_int("GATES_WS_LD", conf.gates_ws_ld);
@@ -1435,10 +1434,10 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
         DPRINT("  n_gates         = %d\n", n_gates);
         DPRINT("  n_bias          = %d\n", n_bias);
         DPRINT("  n_states        = %d\n", rnn.n_states);
-        DPRINT("  n_weights_layer = %d\n", rnn_pd()->SLC);
-        DPRINT("  n_weights_iter  = %d\n", rnn_pd()->SIC);
+        DPRINT("  n_weights_layer = %d\n", rnn_pd->SLC());
+        DPRINT("  n_weights_iter  = %d\n", rnn_pd->SIC());
         DPRINT("  batch           = %d\n", batch);
-        DPRINT("  slc             = %d\n", nlc);
+        DPRINT("  slc             = %d\n", slc);
         DPRINT("  sic             = %d\n", sic);
         DPRINT("  dhc             = %d\n", dhc);
         DPRINT("  dlc             = %d\n", dlc);

@@ -97,7 +97,7 @@
 
 #define OFF_KER_BIAS(i0, i1) OFF2((i0), N_GATES, (i1), DHC)
 #define OFF_WS_DHG1(i0, i1) OFF2((i0), BATCH, (i1), DIFF_STATES_WS_LD)
-#define OFF_SCRATCHCELL(i0, i1) OFF2((i0), BATCH, (i1), STATES_WS_LD)
+#define OFF_SCRATCH_CELL(i0, i1) OFF2((i0), BATCH, (i1), STATES_WS_LD)
 
 #define SRC_L_OFF(x0, x1, x2) \
     (((x0) % SRC_L_B0) * SRC_L_SB0 + ((x0) / SRC_L_B0) * SRC_L_S0 \
