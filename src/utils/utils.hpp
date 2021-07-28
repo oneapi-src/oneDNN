@@ -46,6 +46,12 @@ namespace graph {
 namespace impl {
 namespace utils {
 
+#define CHECK(f) \
+    do { \
+        status_t _status_ = f; \
+        if (_status_ != status::success) return _status_; \
+    } while (0)
+
 inline static size_t size_of(data_type_t dtype) {
     switch (dtype) {
         case data_type::f32:

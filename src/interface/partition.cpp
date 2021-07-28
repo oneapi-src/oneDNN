@@ -190,10 +190,9 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile(partition_t *partition,
     //   false - cache_miss, the compiled partition is not in the cache
     std::pair<compiled_partition_t *, bool> cp {compiled_partition, false};
 
-    status_t ret = status::unknown;
     if (utils::get_verbose() >= 2) {
         double ms = utils::get_msec();
-        ret = partition->compile(cp, in, out, engine);
+        CHECK(partition->compile(cp, in, out, engine));
         ms = utils::get_msec() - ms;
 
         const char *cache_status = cp.second ? "cache_hit" : "cache_miss";
@@ -201,9 +200,9 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile(partition_t *partition,
                 compiled_partition->info(), ms);
         fflush(stdout);
     } else {
-        ret = partition->compile(cp, in, out, engine);
+        CHECK(partition->compile(cp, in, out, engine));
     }
-    return ret;
+    return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_infer_shape(partition_t *partition,
@@ -312,19 +311,17 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
         outs.emplace_back(**(outputs + i));
     }
 
-    status_t ret = status::unknown;
     if (utils::get_verbose()) {
         double ms = utils::get_msec();
-        ret = compiled_partition->execute(stream, ins, outs);
+        CHECK(compiled_partition->execute(stream, ins, outs));
         ms = utils::get_msec() - ms;
         printf("dnnl_graph_verbose,exec,%s,%g\n", compiled_partition->info(),
                 ms);
         fflush(stdout);
     } else {
-        ret = compiled_partition->execute(stream, ins, outs);
+        CHECK(compiled_partition->execute(stream, ins, outs));
     }
-
-    return ret;
+    return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_compiled_partition_execute(
