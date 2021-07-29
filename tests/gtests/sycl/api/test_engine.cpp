@@ -220,6 +220,20 @@ TEST_P(sycl_engine_test, SubDevice) {
                     engine eng;
                     ASSERT_NO_THROW(eng
                             = sycl_interop::make_engine(sub_dev_i, sub_ctx));
+
+                    memory::dims tz = {2, 3, 4, 5};
+                    memory::desc mem_d(tz, memory::data_type::f32,
+                            memory::format_tag::nchw);
+                    auto mem = test::make_memory(mem_d, eng);
+
+                    auto eltwise_d = eltwise_forward::desc(prop_kind::forward,
+                            algorithm::eltwise_relu, mem_d, 0.0f);
+                    auto eltwise = eltwise_forward({eltwise_d, eng});
+
+                    stream s(eng);
+                    eltwise.execute(
+                            s, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
+                    s.wait();
                 }
             },
             param.expected_status != dnnl_success, param.expected_status);
