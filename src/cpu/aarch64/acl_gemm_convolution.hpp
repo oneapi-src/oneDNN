@@ -132,8 +132,9 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
 
         bool post_ops_ok() const {
             auto const &po = attr()->post_ops_;
+            // "true" here stands for eltwise.scale == 1.f check
             auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
+                    = [&](int idx) { return po.entry_[idx].is_eltwise(true); };
             auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
 
             bool sum_with_eltwise

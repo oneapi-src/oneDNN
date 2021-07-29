@@ -27,7 +27,6 @@ namespace cpu {
 namespace aarch64 {
 
 struct acl_indirect_gemm_resource_t : public resource_t {
-
     acl_indirect_gemm_resource_t()
         : acl_obj_(utils::make_unique<acl_obj_t<arm_compute::NEGEMMConv2d>>()) {
     }
@@ -40,19 +39,32 @@ struct acl_indirect_gemm_resource_t : public resource_t {
         acl_obj_->wei_tensor.allocator()->init(acp.wei_info);
         acl_obj_->dst_tensor.allocator()->init(acp.dst_info);
         acl_obj_->bia_tensor.allocator()->init(acp.bia_info);
-
+        if (acp.sum_with_eltwise) {
+            acl_obj_->dst_acc_tensor.allocator()->init(acp.dst_info);
+        }
         // clang-format off
         acl_obj_->conv.configure(
             &acl_obj_->src_tensor,
             &acl_obj_->wei_tensor,
             acp.with_bias ? &acl_obj_->bia_tensor : nullptr,
-            &acl_obj_->dst_tensor,
+            acp.sum_with_eltwise ? &acl_obj_->dst_acc_tensor
+                                 : &acl_obj_->dst_tensor,
             arm_compute::Conv2dInfo(acp.padstride_info,
                                     acp.dilation_info,
-                                    acp.act_info,
+                                    acp.sum_with_eltwise
+                                        ? arm_compute::ActivationLayerInfo()
+                                        : acp.act_info,
                                     false,
                                     1));
         // clang-format on
+        if (acp.sum_with_eltwise) {
+            acl_obj_->add.configure(&acl_obj_->dst_tensor,
+                    &acl_obj_->dst_acc_tensor, &acl_obj_->dst_acc_tensor,
+                    arm_compute::ConvertPolicy::SATURATE);
+            acl_obj_->act.configure(&acl_obj_->dst_acc_tensor,
+                    &acl_obj_->dst_tensor, acp.act_info);
+            acl_obj_->dst_acc_tensor.allocator()->allocate();
+        }
 
         return status::success;
     }
@@ -109,13 +121,19 @@ struct acl_indirect_gemm_convolution_fwd_t : public primitive_t {
             using namespace data_type;
             using namespace alg_kind;
             auto const &po = attr()->post_ops_;
+            // "true" here stands for eltwise.scale == 1.f check
             auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
+                    = [&](int idx) { return po.entry_[idx].is_eltwise(true); };
+            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
 
+            bool sum_with_eltwise
+                    = (po.len() == 2) && is_sum(0) && is_eltwise(1);
+            bool eltwise_only = (po.len() == 1) ? is_eltwise(0) : false;
             bool eltwise_ok = false;
-            // Compute Library supports only one eltwise post-op
-            if (po.len() == 1 && is_eltwise(0)) {
-                const auto act_type = po.entry_[0].eltwise.alg;
+            // Compute Library supports only one eltwise post-op or
+            // sum+eltwise post-ops
+            if (eltwise_only || sum_with_eltwise) {
+                const auto act_type = po.entry_[sum_with_eltwise].eltwise.alg;
                 eltwise_ok = acl_common_utils::acl_act_ok(act_type);
             }
 

@@ -205,8 +205,9 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     // Post-convolutional operations (post-ops)
     const auto &post_ops = attr.post_ops_;
+    // is_eltwise(true) here stands for eltwise.scale == 1.f check
     acp.sum_with_eltwise = (post_ops.len() == 2) && post_ops.entry_[0].is_sum()
-            && post_ops.entry_[1].is_eltwise();
+            && post_ops.entry_[1].is_eltwise(true);
     acp.act_info = acl_common_utils::get_acl_act(attr);
 
     return status::success;
