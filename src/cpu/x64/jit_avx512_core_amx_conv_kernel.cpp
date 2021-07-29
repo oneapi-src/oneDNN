@@ -3507,23 +3507,22 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     using namespace data_type;
     const bool is_deconv = cd.prop_kind != prop_kind::backward_data;
-    const bool is_bf16_convolution = !is_deconv
-            && everyone_is(true, diff_dst_d.data_type() == bf16,
-                    weights_d.data_type() == bf16,
-                    one_of(diff_src_d.data_type(), bf16, f32));
+    const bool is_bf16 = everyone_is(true, diff_dst_d.data_type() == bf16,
+            weights_d.data_type() == bf16,
+            one_of(diff_src_d.data_type(), bf16, f32));
+    const bool is_bf16_convolution = is_bf16 && !is_deconv;
+    const bool is_bf16_deconvolution = is_bf16 && is_deconv;
     const bool is_int8_deconvolution = is_deconv
             && everyone_is(true, one_of(diff_dst_d.data_type(), s8, u8),
                     weights_d.data_type() == s8,
                     one_of(diff_src_d.data_type(), f32, s32, s8, u8));
 
-    bool supported = false
-            || (is_bf16_convolution && mayiuse(avx512_core_bf16_amx_bf16))
+    bool supported = false || (is_bf16 && mayiuse(avx512_core_bf16_amx_bf16))
             || (is_int8_deconvolution && mayiuse(avx512_core_bf16_amx_int8));
     if (!supported) return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
-    jcp.isa = is_bf16_convolution ? avx512_core_bf16_amx_bf16
-                                  : avx512_core_bf16_amx_int8;
+    jcp.isa = is_bf16 ? avx512_core_bf16_amx_bf16 : avx512_core_bf16_amx_int8;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -3583,8 +3582,7 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     // To toggle the default data layout for BF16 between nChw16c and nhwc,
     // swap the following two variable definitions. Current choice: nhwc.
     format_tag_t dat_tag_opt = dat_tag_nspc;
-    format_tag_t dat_tag_alt
-            = is_bf16_convolution ? dat_tag_ncsp : dat_tag_nspc;
+    format_tag_t dat_tag_alt = is_bf16 ? dat_tag_ncsp : dat_tag_nspc;
 
     if (diff_src_d.format_kind() == format_kind::any) {
         CHECK(memory_desc_init_by_tag(diff_src_md, dat_tag_opt));
@@ -3624,7 +3622,7 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     bool args_ok = jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0;
     if (!args_ok) return status::unimplemented;
 
-    const int vnni_width = is_bf16_convolution ? 2 : 4;
+    const int vnni_width = is_bf16 ? 2 : 4;
     jcp.oc_block_int = jcp.oc_block * vnni_width; // 32 for bf16, 64 for int8
 
     if (attr.set_default_formats(&diff_src_md) != status::success)
@@ -3642,6 +3640,9 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
         if (is_bf16_convolution)
             wei_tag = pick(with_groups + 2 * (ndims - 3), OIw16o16i2o,
                     gOIw16o16i2o, OIhw16o16i2o, gOIhw16o16i2o);
+        else if (is_bf16_deconvolution)
+            wei_tag = pick(with_groups + 2 * (ndims - 3), OIw16i16o2i,
+                    gOIw16i16o2i, OIhw16i16o2i, gOIhw16i16o2i);
         else if (is_int8_deconvolution)
             wei_tag = pick(with_groups + 2 * (ndims - 3), OIw16i16o4i,
                     gOIw16i16o4i, OIhw16i16o4i, gOIhw16i16o4i);

@@ -19,7 +19,7 @@
 #include "cpu/ref_deconvolution.hpp"
 
 #if DNNL_X64
-#include "cpu/x64/jit_avx512_core_amx_int8_deconvolution.hpp"
+#include "cpu/x64/jit_avx512_core_amx_deconvolution.hpp"
 #include "cpu/x64/jit_avx512_core_x8s8s32x_1x1_deconvolution.hpp"
 #include "cpu/x64/jit_avx512_core_x8s8s32x_deconvolution.hpp"
 #include "cpu/x64/jit_uni_x8s8s32x_1x1_deconvolution.hpp"
@@ -36,7 +36,7 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 const impl_list_item_t impl_list[] = {
-        CPU_INSTANCE_X64(jit_avx512_core_amx_int8_deconvolution_fwd_t)
+        CPU_INSTANCE_X64(jit_avx512_core_amx_deconvolution_fwd_t)
         CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t)
         CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_deconvolution_fwd_t)
         CPU_INSTANCE_X64(jit_uni_x8s8s32x_1x1_deconvolution_fwd_t<avx2>)

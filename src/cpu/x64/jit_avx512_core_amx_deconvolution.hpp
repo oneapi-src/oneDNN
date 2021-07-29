@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_JIT_AVX512_CORE_AMX_INT8_CONVOLUTION_HPP
-#define CPU_X64_JIT_AVX512_CORE_AMX_INT8_CONVOLUTION_HPP
+#ifndef CPU_X64_JIT_AVX512_CORE_AMX_DECONVOLUTION_HPP
+#define CPU_X64_JIT_AVX512_CORE_AMX_DECONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -33,7 +33,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-struct jit_avx512_core_amx_int8_deconvolution_fwd_t : public primitive_t {
+struct jit_avx512_core_amx_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
@@ -41,11 +41,19 @@ struct jit_avx512_core_amx_int8_deconvolution_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_deconvolution:", jcp_.isa, ""),
-                jit_avx512_core_amx_int8_deconvolution_fwd_t);
+                jit_avx512_core_amx_deconvolution_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
+            bool is_bf16_deconvolution = true
+                    && utils::everyone_is(true,
+                            utils::one_of(src_md_.data_type, bf16),
+                            weights_md_.data_type == bf16,
+                            utils::one_of(dst_md_.data_type, f32, bf16))
+                    && IMPLICATION(with_bias(),
+                            utils::one_of(bias_md_.data_type, f32, bf16))
+                    && attr()->has_default_values(smask_t::post_ops);
             bool is_int8_deconvolution = true
                     && utils::everyone_is(true,
                             utils::one_of(src_md_.data_type, s8, u8),
@@ -58,7 +66,8 @@ struct jit_avx512_core_amx_int8_deconvolution_fwd_t : public primitive_t {
 
             bool ok = is_fwd()
                     && (desc()->alg_kind & alg_kind::deconvolution_direct)
-                    && is_int8_deconvolution && !has_zero_dim_memory();
+                    && (is_bf16_deconvolution || is_int8_deconvolution)
+                    && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             CHECK(jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jcp_,
@@ -75,7 +84,7 @@ struct jit_avx512_core_amx_int8_deconvolution_fwd_t : public primitive_t {
         jit_conv_conf_t jcp_;
     };
 
-    jit_avx512_core_amx_int8_deconvolution_fwd_t(const pd_t *apd)
+    jit_avx512_core_amx_deconvolution_fwd_t(const pd_t *apd)
         : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {

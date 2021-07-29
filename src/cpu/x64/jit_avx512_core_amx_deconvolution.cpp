@@ -22,7 +22,7 @@
 #include "cpu/cpu_primitive.hpp"
 
 #include "cpu/x64/jit_avx512_core_amx_conv_utils.hpp"
-#include "cpu/x64/jit_avx512_core_amx_int8_deconvolution.hpp"
+#include "cpu/x64/jit_avx512_core_amx_deconvolution.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -44,7 +44,7 @@ using namespace dnnl::impl::memory_tracking::names;
 //       The same exchange applies to all derivative values in `pd()->jcp_`
 //       (eg, ic_block <-> oc_block, etc).
 
-void jit_avx512_core_amx_int8_deconvolution_fwd_t::prepare_padded_bias(
+void jit_avx512_core_amx_deconvolution_fwd_t::prepare_padded_bias(
         const char *&bias, const memory_tracking::grantor_t &scratchpad) const {
     auto &jcp = pd()->jcp_;
     if (jcp.with_bias && jcp.ic != jcp.ic_without_padding) {
@@ -59,7 +59,7 @@ void jit_avx512_core_amx_int8_deconvolution_fwd_t::prepare_padded_bias(
     }
 }
 
-void jit_avx512_core_amx_int8_deconvolution_fwd_t::execute_forward(
+void jit_avx512_core_amx_deconvolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
