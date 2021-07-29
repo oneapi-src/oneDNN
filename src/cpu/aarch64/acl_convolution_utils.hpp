@@ -71,6 +71,45 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
 } // namespace acl_convolution_utils
 
+template <typename conv_obj_t, typename conv_pd_t, typename src_data_t,
+        typename wei_data_t = src_data_t, typename dst_data_t = src_data_t,
+        typename bia_data_t = src_data_t>
+status_t execute_forward_conv_acl(
+        const exec_ctx_t &ctx, conv_obj_t &acl_conv_obj, const conv_pd_t *pd) {
+    bool with_bias = pd->acp_.with_bias;
+    bool sum_with_eltwise = pd->acp_.sum_with_eltwise;
+
+    auto src_base = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto dst_base = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+
+    acl_conv_obj.src_tensor.allocator()->import_memory(
+            const_cast<src_data_t *>(src_base));
+    acl_conv_obj.wei_tensor.allocator()->import_memory(
+            const_cast<wei_data_t *>(wei_base));
+    acl_conv_obj.dst_tensor.allocator()->import_memory(dst_base);
+
+    if (with_bias) {
+        auto bia_base = CTX_IN_MEM(const bia_data_t *, DNNL_ARG_BIAS);
+        acl_conv_obj.bia_tensor.allocator()->import_memory(
+                const_cast<bia_data_t *>(bia_base));
+    }
+
+    acl_conv_obj.conv.run();
+
+    if (sum_with_eltwise) {
+        acl_conv_obj.add.run();
+        acl_conv_obj.act.run();
+    }
+
+    acl_conv_obj.src_tensor.allocator()->free();
+    acl_conv_obj.wei_tensor.allocator()->free();
+    acl_conv_obj.dst_tensor.allocator()->free();
+    if (with_bias) { acl_conv_obj.bia_tensor.allocator()->free(); }
+
+    return status::success;
+}
+
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl

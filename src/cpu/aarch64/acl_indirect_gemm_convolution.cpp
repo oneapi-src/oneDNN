@@ -23,14 +23,6 @@ namespace aarch64 {
 
 status_t acl_indirect_gemm_convolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
-    auto src_base = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto wei_base = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
-    auto bia_base = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
-    auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-
-    bool with_bias = pd()->acp_.with_bias;
-
     // Retrieve primitive resource and configured Compute Library objects
     auto *acl_resource
             = ctx.get_resource_mapper()->get<acl_indirect_gemm_resource_t>(
@@ -38,24 +30,8 @@ status_t acl_indirect_gemm_convolution_fwd_t::execute_forward(
     acl_obj_t<arm_compute::NEGEMMConv2d> &acl_indirect_gemm_obj
             = acl_resource->get_acl_obj();
 
-    acl_indirect_gemm_obj.src_tensor.allocator()->import_memory(
-            const_cast<data_t *>(src_base));
-    acl_indirect_gemm_obj.wei_tensor.allocator()->import_memory(
-            const_cast<data_t *>(wei_base));
-    acl_indirect_gemm_obj.dst_tensor.allocator()->import_memory(dst_base);
-    if (with_bias) {
-        acl_indirect_gemm_obj.bia_tensor.allocator()->import_memory(
-                const_cast<data_t *>(bia_base));
-    }
-
-    acl_indirect_gemm_obj.conv.run();
-
-    acl_indirect_gemm_obj.src_tensor.allocator()->free();
-    acl_indirect_gemm_obj.wei_tensor.allocator()->free();
-    acl_indirect_gemm_obj.dst_tensor.allocator()->free();
-    if (with_bias) { acl_indirect_gemm_obj.bia_tensor.allocator()->free(); }
-
-    return status;
+    return execute_forward_conv_acl<acl_obj_t<arm_compute::NEGEMMConv2d>, pd_t,
+            data_t>(ctx, acl_indirect_gemm_obj, pd());
 }
 
 } // namespace aarch64
