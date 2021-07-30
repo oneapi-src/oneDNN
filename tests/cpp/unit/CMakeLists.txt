@@ -21,6 +21,7 @@ add_library(${LIB_NAME}_unit_test_objlib OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_debug.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_dnnl_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
