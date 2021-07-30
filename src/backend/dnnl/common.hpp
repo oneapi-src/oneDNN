@@ -61,7 +61,7 @@ struct allocator {
 
 format_tag get_default_format(size_t ndim);
 
-format_tag get_default_format(const dims adims);
+format_tag get_default_format(const dims &adims);
 
 dims get_compatible_dilates(const dims &dilates, size_t input_size = 4);
 

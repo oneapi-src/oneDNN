@@ -79,21 +79,34 @@ public:
         if (!res.first) return status::invalid_argument;
         const auto axis = res.second;
 
+        // Here we force to use plain-in-plain-out (acdb) for 4D case to make
+        // sure good performance of DensenNet121 (reducing reorder overhead).
+        // But for other cases like 2D/3D (e.g. DLRM), we just use default
+        // format since there may be followed by a non-DNNL op which requires an
+        // input with default format. Anyway it looks like a bit tricky.
+        auto get_forced_format_tag = [](const dims &in_dims) -> format_tag {
+            if (in_dims.size() == 4)
+                return format_tag::acdb;
+            else
+                return get_default_format(in_dims);
+        };
+
         std::vector<memory::desc> src_mds;
         src_mds.reserve(inputs.size());
         res_desc_.cvt_src_.reserve(inputs.size());
-        std::for_each(
-                inputs.cbegin(), inputs.cend(), [this, &src_mds](const lt &in) {
+        std::for_each(inputs.cbegin(), inputs.cend(),
+                [this, &src_mds, &get_forced_format_tag](const lt &in) {
                     auto tmp_desc = make_dnnl_memory_desc(in);
                     this->res_desc_.cvt_src_.push_back(tmp_desc);
-                    src_mds.push_back(memory::desc {tmp_desc.dims(),
-                            tmp_desc.data_type(), format_tag::acdb});
+                    src_mds.push_back(
+                            memory::desc {tmp_desc.dims(), tmp_desc.data_type(),
+                                    get_forced_format_tag(tmp_desc.dims())});
                 });
 
         res_desc_.cvt_dst_ = make_dnnl_memory_desc(outputs.front());
-        // force output format as `acdb`
         memory::desc dst_permute_md {res_desc_.cvt_dst_.dims(),
-                res_desc_.cvt_dst_.data_type(), format_tag::acdb};
+                res_desc_.cvt_dst_.data_type(),
+                get_forced_format_tag(res_desc_.cvt_dst_.dims())};
 
         pd_ = primitive_desc(
                 dst_permute_md, static_cast<int>(axis), src_mds, p_engine_);
