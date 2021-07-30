@@ -51,7 +51,7 @@ struct vmm_size_t<Xbyak::Xmm> {
 };
 
 /*
- * Scope guard for general purpouse register and vector registers preservation.
+ * Scope guard for general purpose register and vector registers preservation.
  * Pushes registers to stack during construction and pops during destruction.
  */
 class register_preserve_guard_t {
