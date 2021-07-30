@@ -237,7 +237,7 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end, T nx, T &nx_start,
 /* Functions:
  *  - parallel(nthr, f)                  - executes f in parallel using at
  *                                         most nthr threads. If nthr equals
- *                                         0 dnnl_get_max_threads() threads
+ *                                         0 dnnl_get_current_num_threads() threads
  *                                         is used
  *  - for_nd(ithr, nthr, dims..., f)     - multidimensional for loop for
  *                                         already created threads
