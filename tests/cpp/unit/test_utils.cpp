@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include "utils/compatible.hpp"
+#include "utils/utils.hpp"
 
 #ifndef DNNL_GRAPH_SUPPORT_CXX17
 TEST(utils_test, optional) {
@@ -48,4 +49,23 @@ TEST(utils_test, any) {
     ASSERT_EQ(b.empty(), true);
     EXPECT_THROW(dnnl::graph::impl::utils::any_cast<int>(b),
             dnnl::graph::impl::utils::bad_any_cast);
+}
+
+TEST(utils_test, sizeoftype) {
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::utils;
+    EXPECT_EQ(sizeof(float), size_of(data_type::f32));
+    EXPECT_EQ(sizeof(int32_t), size_of(data_type::s32));
+    EXPECT_EQ(sizeof(uint8_t), size_of(data_type::u8));
+    EXPECT_EQ(sizeof(int8_t), size_of(data_type::s8));
+    EXPECT_EQ(sizeof(int16_t), size_of(data_type::f16));
+    EXPECT_EQ(sizeof(int16_t), size_of(data_type::bf16));
+}
+
+TEST(utils_test, iffy_getenv) {
+    namespace utils = dnnl::graph::impl::utils;
+    char buffer[10] = {'\0'};
+    EXPECT_EQ(INT_MIN, utils::getenv(nullptr, buffer, 10));
+    EXPECT_EQ(INT_MIN, utils::getenv("foo", nullptr, 10));
+    EXPECT_EQ(INT_MIN, utils::getenv("foo", buffer, -1));
 }
