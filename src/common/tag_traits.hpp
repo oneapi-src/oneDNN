@@ -116,6 +116,12 @@ enum class inner_blk_t {
     _2b8c8b2c,
     _4a8b8a4b,
     _4b8c8b4c,
+    _16c32b2c,
+    _16c48b2c,
+    _16c64b2c,
+    _16c32b4c,
+    _16c48b4c,
+    _16c64b4c,
 };
 
 /** returns the offset within the block for weights blocked over oc and ic */
@@ -137,7 +143,8 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
                     ib::_16b16c2b, ib::_16c16b2c, ib::_16c16b4c, ib::_2a8b8a2b,
                     ib::_2b8c8b2c, ib::_4a8b8a4b, ib::_4b8c8b4c, ib::_16b32a2b,
                     ib::_16b48a2b, ib::_16b64a2b, ib::_16b32a4b, ib::_16b48a4b,
-                    ib::_16b64a4b),
+                    ib::_16b64a4b, ib::_16c32b2c, ib::_16c48b2c, ib::_16c64b2c,
+                    ib::_16c32b4c, ib::_16c48b4c, ib::_16c64b4c),
             "unexpected inner_blk format");
 
     // clang-format off
@@ -174,12 +181,12 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
         : (f == ib::_4b8c2b || f == ib::_4c8b2c) ? (x0 / 2) * 16 + x1 * 2 + x0 % 2
         : (f == ib::_2a8b8a2b || f == ib::_2b8c8b2c) ? (x0 / 8) * 128 + (x1 / 2) * 16 + (x0 % 8) * 2 + x1 % 2
         : (f == ib::_4a8b8a4b || f == ib::_4b8c8b4c) ? (x0 / 8) * 256 + (x1 / 4) * 32 + (x0 % 8) * 4 + x1 % 4
-        : (f == ib::_16b32a2b) ? (x1 / 2) * 64 + x0 * 2 + x1 % 2
-        : (f == ib::_16b48a2b) ? (x1 / 2) * 96 + x0 * 2 + x1 % 2
-        : (f == ib::_16b64a2b) ? (x1 / 2) * 128 + x0 * 2 + x1 % 2
-        : (f == ib::_16b32a4b) ? (x1 / 4) * 128 + x0 * 4 + x1 % 4
-        : (f == ib::_16b48a4b) ? (x1 / 4) * 192 + x0 * 4 + x1 % 4
-        : (f == ib::_16b64a4b) ? (x1 / 4) * 256 + x0 * 4 + x1 % 4
+        : (f == ib::_16b32a2b || f == ib::_16c32b2c) ? (x1 / 2) * 64 + x0 * 2 + x1 % 2
+        : (f == ib::_16b48a2b || f == ib::_16c48b2c) ? (x1 / 2) * 96 + x0 * 2 + x1 % 2
+        : (f == ib::_16b64a2b || f == ib::_16c64b2c) ? (x1 / 2) * 128 + x0 * 2 + x1 % 2
+        : (f == ib::_16b32a4b || f == ib::_16c32b4c) ? (x1 / 4) * 128 + x0 * 4 + x1 % 4
+        : (f == ib::_16b48a4b || f == ib::_16c48b4c) ? (x1 / 4) * 192 + x0 * 4 + x1 % 4
+        : (f == ib::_16b64a4b || f == ib::_16c64b4c) ? (x1 / 4) * 256 + x0 * 4 + x1 % 4
         : INT_MIN;
     // clang-format on
 }
@@ -482,6 +489,56 @@ DECL_TRAITS(abdEC32e2c, _CE, _32e2c, 5);
 DECL_TRAITS(abdEC32e4c, _CE, _32e4c, 5);
 DECL_TRAITS(abdCe32c, _C, _32c, 5);
 DECL_TRAITS(abdCE32c2e, _CE, _32c2e, 5);
+
+DECL_TRAITS(aBdC16c16b2c, _BC, _16c16b2c, 4);
+DECL_TRAITS(aBdC16c16b4c, _BC, _16c16b4c, 4);
+DECL_TRAITS(aBdC16c32b2c, _BC, _16c32b2c, 4);
+DECL_TRAITS(aBdC16c32b4c, _BC, _16c32b4c, 4);
+DECL_TRAITS(aBdC16c48b2c, _BC, _16c48b2c, 4);
+DECL_TRAITS(aBdC16c48b4c, _BC, _16c48b4c, 4);
+DECL_TRAITS(aBdC16c64b2c, _BC, _16c64b2c, 4);
+DECL_TRAITS(aBdC16c64b4c, _BC, _16c64b4c, 4);
+DECL_TRAITS(aBdeC16c16b2c, _BC, _16c16b2c, 5);
+DECL_TRAITS(aBdeC16c16b4c, _BC, _16c16b4c, 5);
+DECL_TRAITS(aBdeC16c32b2c, _BC, _16c32b2c, 5);
+DECL_TRAITS(aBdeC16c32b4c, _BC, _16c32b4c, 5);
+DECL_TRAITS(aBdeC16c48b2c, _BC, _16c48b2c, 5);
+DECL_TRAITS(aBdeC16c48b4c, _BC, _16c48b4c, 5);
+DECL_TRAITS(aBdeC16c64b2c, _BC, _16c64b2c, 5);
+DECL_TRAITS(aBdeC16c64b4c, _BC, _16c64b4c, 5);
+DECL_TRAITS(aBdefC16c16b2c, _BC, _16c16b2c, 6);
+DECL_TRAITS(aBdefC16c16b4c, _BC, _16c16b4c, 6);
+DECL_TRAITS(aBdefC16c32b2c, _BC, _16c32b2c, 6);
+DECL_TRAITS(aBdefC16c32b4c, _BC, _16c32b4c, 6);
+DECL_TRAITS(aBdefC16c48b2c, _BC, _16c48b2c, 6);
+DECL_TRAITS(aBdefC16c48b4c, _BC, _16c48b4c, 6);
+DECL_TRAITS(aBdefC16c64b2c, _BC, _16c64b2c, 6);
+DECL_TRAITS(aBdefC16c64b4c, _BC, _16c64b4c, 6);
+
+DECL_TRAITS(AcB16b16a2b, _AB, _16b16a2b, 3);
+DECL_TRAITS(AcB16b16a4b, _AB, _16b16a4b, 3);
+DECL_TRAITS(AcB16b32a2b, _AB, _16b32a2b, 3);
+DECL_TRAITS(AcB16b32a4b, _AB, _16b32a4b, 3);
+DECL_TRAITS(AcB16b48a2b, _AB, _16b48a2b, 3);
+DECL_TRAITS(AcB16b48a4b, _AB, _16b48a4b, 3);
+DECL_TRAITS(AcB16b64a2b, _AB, _16b64a2b, 3);
+DECL_TRAITS(AcB16b64a4b, _AB, _16b64a4b, 3);
+DECL_TRAITS(AcdB16b16a2b, _AB, _16b16a2b, 4);
+DECL_TRAITS(AcdB16b16a4b, _AB, _16b16a4b, 4);
+DECL_TRAITS(AcdB16b32a2b, _AB, _16b32a2b, 4);
+DECL_TRAITS(AcdB16b32a4b, _AB, _16b32a4b, 4);
+DECL_TRAITS(AcdB16b48a2b, _AB, _16b48a2b, 4);
+DECL_TRAITS(AcdB16b48a4b, _AB, _16b48a4b, 4);
+DECL_TRAITS(AcdB16b64a2b, _AB, _16b64a2b, 4);
+DECL_TRAITS(AcdB16b64a4b, _AB, _16b64a4b, 4);
+DECL_TRAITS(AcdeB16b16a2b, _AB, _16b16a2b, 5);
+DECL_TRAITS(AcdeB16b16a4b, _AB, _16b16a4b, 5);
+DECL_TRAITS(AcdeB16b32a2b, _AB, _16b32a2b, 5);
+DECL_TRAITS(AcdeB16b32a4b, _AB, _16b32a4b, 5);
+DECL_TRAITS(AcdeB16b48a2b, _AB, _16b48a2b, 5);
+DECL_TRAITS(AcdeB16b48a4b, _AB, _16b48a4b, 5);
+DECL_TRAITS(AcdeB16b64a2b, _AB, _16b64a2b, 5);
+DECL_TRAITS(AcdeB16b64a4b, _AB, _16b64a4b, 5);
 
 } // namespace impl
 } // namespace dnnl
