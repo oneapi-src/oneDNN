@@ -35,6 +35,8 @@ namespace x64 {
 
 namespace brgemm_convolution_utils {
 
+bool is_amx(cpu_isa_t isa);
+
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,

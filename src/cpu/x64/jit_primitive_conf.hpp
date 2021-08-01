@@ -124,7 +124,7 @@ struct jit_conv_conf_t {
 
     int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b, nthr_oh;
 
-    int idp, ihp, iwp, ohp, owp;
+    int idp, ihp, iwp, ohp, owp, icp;
     int nb_ic, ic_block;
     int nb_oc, oc_block;
     int nb_iw, iw_block;
@@ -790,24 +790,26 @@ enum conv_brgemm_exec_type_t {
 };
 
 struct jit_brgemm_conv_conf_t {
+    cpu_isa_t isa;
     prop_kind_t prop_kind;
     conv_version_t ver;
     conv_brgemm_loop_order_t loop_order;
     conv_harness_t harness;
-    int simd_w;
+    int simd_w, amx_w, amx_h;
     int ndims;
     int mb;
     int ngroups, ic, oc, oc_without_padding, ic_without_padding;
 
-    int od_blk_size, oh_blk_size, nb_od,
+    int od_block, oh_block, nb_od,
             nb_oh; // blocking  - included in parallelization
     dim_t inp_buffer_size, inp_buffer_mask_size;
     conv_brgemm_exec_type_t exec_type;
 
-    int id, ih, iw, od, oh, ow, os, idp, ihp, iwp;
+    int id, ih, iw, od, oh, ow, os, idp, ihp, iwp, icp;
     int f_pad, l_pad, t_pad;
     int back_pad, r_pad, b_pad;
     int kd, kh, kw;
+    int ext_kd, ext_kh, ext_kw;
     int kd_block, kh_block, kw_block, kd_block_pad, kh_block_pad, kw_block_pad;
     int stride_d, stride_h, stride_w;
     int dilate_d, dilate_h, dilate_w;
@@ -822,7 +824,7 @@ struct jit_brgemm_conv_conf_t {
     int nb_ic, ic_block;
     int nb_oc, oc_block;
     int nb_iw, iw_block;
-    int nb_ow, ow_block;
+    int nb_ow, ow_block, ow_tail;
     int nb_os, os_block;
     int nb_oc_blocking;
     int nb_ic_blocking;
@@ -846,6 +848,8 @@ struct jit_brgemm_conv_conf_t {
 
     int LDA, LDB, LDC, LDD;
     int M, N, K, M_tail, N_tail, K_tail;
+    // M for brgemm kernel. For use_store_mask it is usually greater than M (M_tail). Otherwise it is equal to M (M_tail)
+    int brgM, brgM_tail;
     int gemm_batch_size, adjusted_batch_size;
     brgemm_batch_kind_t brg_type;
     // strides for brg_type == brgemm_strd
@@ -856,6 +860,17 @@ struct jit_brgemm_conv_conf_t {
     int max_vpad;
 
     bool wei_plain;
+    bool is_ic_padded;
+    int kw_sets, kh_sets;
+    bool copy_block_only;
+    bool amx_tile_load_xx;
+    int use_M_mask;
+    int oskip;
+    bool brgemm_bd_loop_innermost;
+
+    bool use_uker;
+    bool use_interleave_stores;
+    bool is_1x1;
 };
 
 struct jit_shuffle_conf_t {

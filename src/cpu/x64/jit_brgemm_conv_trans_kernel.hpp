@@ -25,6 +25,17 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+namespace jit_avx512_core_brgemm_conv_trans_kernel {
+struct jit_brgemm_conv_trans_kernel_call_s {
+    const void *src;
+    const void *dst;
+    size_t owb;
+    size_t ic;
+    size_t t_pad;
+    size_t h_count;
+    size_t b_pad;
+};
+
 struct jit_avx512_core_brgemm_conv_trans_kernel_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_brgemm_conv_trans_kernel_t)
 
@@ -33,50 +44,36 @@ struct jit_avx512_core_brgemm_conv_trans_kernel_t : public jit_generator {
     jit_avx512_core_brgemm_conv_trans_kernel_t(
             const jit_brgemm_conv_conf_t &ajcp);
 
+    int dst_w(int out_w) const;
+
 private:
     jit_brgemm_conv_conf_t jcp;
-    dim_t src_dsz;
+    dim_t inp_dsz;
     dim_t ic_block_sz;
-    dim_t iw_size;
-    dim_t out_h_offset;
-    dim_t VL, n_vec;
-
+    dim_t iw_size, dst_w_block, dst_stride;
+    dim_t dst_h_offset, dst_w_offset;
+    dim_t VL, n_vec, n_tail_vec;
     const reg64_t inp_ptr = r15;
-    const reg64_t out_ptr = r14;
+    const reg64_t dst_ptr = r14;
 
     const reg64_t aux_inp_ptr = r13;
-    const reg64_t aux_out_ptr = r12;
+    const reg64_t aux_dst_ptr = r12;
 
-    /* relow stuff */
-    const reg64_t reg_kht = r11;
-    const reg64_t reg_khp = r10;
-    const reg64_t reg_tov = r9;
-    const reg64_t reg_bov = r8;
-    const reg64_t reg_kwp = rax;
-    const reg64_t reg_lov = aux_inp_ptr;
-    const reg64_t reg_rov = rbx;
-    const reg64_t save_out_ptr = rdx;
-    const reg64_t reg_cnt = rbp;
-    /* relow stuff */
+    const reg64_t reg_hc = r10;
 
-    /* non-relow stuff */
-    const reg64_t khp = r11;
-    const reg64_t khc = r10;
-
-    const reg64_t reg_icb = r9;
-
-    const reg64_t kh_over = r8;
-    const reg64_t tover = rax;
-    const reg64_t bover = rbx;
+    const reg64_t reg_ic = r9;
 
     const reg64_t reg_owb = rdx;
+
+    const reg64_t kh_over = r8;
+    const reg64_t reg_t_pad = rax;
+    const reg64_t reg_b_pad = rbx;
 
     const reg64_t reg_tmp = rsi;
 
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
     const Xbyak::Opmask kblock_tail_mask = Xbyak::Opmask(3);
 
-    const Xbyak::Ymm ymm_tmp = Xbyak::Ymm(0);
     const Xbyak::Zmm zmm_tmp = Xbyak::Zmm(0);
     const Xbyak::Zmm zmm_zero = Xbyak::Zmm(1);
 
@@ -84,12 +81,19 @@ private:
 
     void store(const Xbyak::Address &addr, const Xbyak::Xmm &x);
 
-    void zero_ic_block(int icb, dim_t out_off);
-    void copy_ic_block(int icb, dim_t inp_off, dim_t out_off);
+    void zero_ic_block(bool is_ic_tail, dim_t dst_off);
+    void copy_ic_block(
+            bool is_ic_tail, dim_t inp_off, dim_t dst_off, bool do_load);
     void generate() override;
-    void copy_row(int icb);
-    void copy_row_body(int lpad, int ow_len, int iw_len, int icb);
+    void copy_ow_block(bool is_ic_tail);
+    void copy_ow_block_body(int lpad, int ow_len, int iw_len, bool is_ic_tail);
+
+    int inp_w(int out_w) const;
+    int inp_w(int out_w, int kw) const;
+    int inp_w_start(int owb) const;
 };
+
+} // namespace jit_avx512_core_brgemm_conv_trans_kernel
 
 } // namespace x64
 } // namespace cpu

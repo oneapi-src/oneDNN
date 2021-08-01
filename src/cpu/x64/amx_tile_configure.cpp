@@ -64,7 +64,7 @@ private:
     }
 };
 
-status_t amx_tile_configure(const char palette[64]) {
+status_t amx_tile_configure(const char palette[AMX_PALETTE_SIZE]) {
     static const jit_amx_tilecfg_t tilecfg;
     tilecfg.tile_configure(palette);
     return status::success;

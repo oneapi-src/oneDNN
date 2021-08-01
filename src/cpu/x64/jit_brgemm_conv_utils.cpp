@@ -63,6 +63,10 @@ inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
     return status::success;
 }
 
+bool is_amx(cpu_isa_t isa) {
+    return one_of(isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
+}
+
 bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
         const memory_desc_wrapper &dst_d) {
     using namespace injector;
@@ -131,19 +135,31 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             if (is_3d) {
                 if (jcp.wei_dt == f32)
                     wei_tag = with_groups ? gOdhwi64o : Odhwi64o;
-                else if (jcp.wei_dt == s8)
-                    wei_tag = with_groups ? gOdhwI64o4i : OdhwI64o4i;
-                else if (jcp.wei_dt == bf16) {
-                    wei_tag = with_groups ? gOdhwI64o2i : OdhwI64o2i;
+                else if (jcp.wei_dt == s8) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOdhwI16i64o4i : OdhwI16i64o4i;
+                    else
+                        wei_tag = with_groups ? gOdhwI64o4i : OdhwI64o4i;
+                } else if (jcp.wei_dt == bf16) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOdhwI16i64o2i : OdhwI16i64o2i;
+                    else
+                        wei_tag = with_groups ? gOdhwI64o2i : OdhwI64o2i;
                 } else
                     return status::unimplemented;
             } else if (is_1d) {
                 if (jcp.wei_dt == f32)
                     wei_tag = with_groups ? gOwi64o : Owi64o;
-                else if (jcp.wei_dt == s8)
-                    wei_tag = with_groups ? gOwI64o4i : OwI64o4i;
-                else if (jcp.wei_dt == bf16) {
-                    wei_tag = with_groups ? gOwI64o2i : OwI64o2i;
+                else if (jcp.wei_dt == s8) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOwI16i64o4i : OwI16i64o4i;
+                    else
+                        wei_tag = with_groups ? gOwI64o4i : OwI64o4i;
+                } else if (jcp.wei_dt == bf16) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOwI16i64o2i : OwI16i64o2i;
+                    else
+                        wei_tag = with_groups ? gOwI64o2i : OwI64o2i;
                 } else
                     return status::unimplemented;
             } else {
@@ -151,10 +167,16 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                 UNUSED(is_2d);
                 if (jcp.wei_dt == f32)
                     wei_tag = with_groups ? gOhwi64o : Ohwi64o;
-                else if (jcp.wei_dt == s8)
-                    wei_tag = with_groups ? gOhwI64o4i : OhwI64o4i;
-                else if (jcp.wei_dt == bf16) {
-                    wei_tag = with_groups ? gOhwI64o2i : OhwI64o2i;
+                else if (jcp.wei_dt == s8) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOhwI16i64o4i : OhwI16i64o4i;
+                    else
+                        wei_tag = with_groups ? gOhwI64o4i : OhwI64o4i;
+                } else if (jcp.wei_dt == bf16) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOhwI16i64o2i : OhwI16i64o2i;
+                    else
+                        wei_tag = with_groups ? gOhwI64o2i : OhwI64o2i;
                 } else
                     return status::unimplemented;
             }
@@ -162,19 +184,31 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             if (is_3d) {
                 if (jcp.wei_dt == f32)
                     wei_tag = with_groups ? gOdhwi48o : Odhwi48o;
-                else if (jcp.wei_dt == s8)
-                    wei_tag = with_groups ? gOdhwI48o4i : OdhwI48o4i;
-                else if (jcp.wei_dt == bf16) {
-                    wei_tag = with_groups ? gOdhwI48o2i : OdhwI48o2i;
+                else if (jcp.wei_dt == s8) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOdhwI16i48o4i : OdhwI16i48o4i;
+                    else
+                        wei_tag = with_groups ? gOdhwI48o4i : OdhwI48o4i;
+                } else if (jcp.wei_dt == bf16) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOdhwI16i48o2i : OdhwI16i48o2i;
+                    else
+                        wei_tag = with_groups ? gOdhwI48o2i : OdhwI48o2i;
                 } else
                     return status::unimplemented;
             } else if (is_1d) {
                 if (jcp.wei_dt == f32)
                     wei_tag = with_groups ? gOwi48o : Owi48o;
-                else if (jcp.wei_dt == s8)
-                    wei_tag = with_groups ? gOwI48o4i : OwI48o4i;
-                else if (jcp.wei_dt == bf16) {
-                    wei_tag = with_groups ? gOwI48o2i : OwI48o2i;
+                else if (jcp.wei_dt == s8) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOwI16i48o4i : OwI16i48o4i;
+                    else
+                        wei_tag = with_groups ? gOwI48o4i : OwI48o4i;
+                } else if (jcp.wei_dt == bf16) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOwI16i48o2i : OwI16i48o2i;
+                    else
+                        wei_tag = with_groups ? gOwI48o2i : OwI48o2i;
                 } else
                     return status::unimplemented;
             } else {
@@ -182,10 +216,16 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                 UNUSED(is_2d);
                 if (jcp.wei_dt == f32)
                     wei_tag = with_groups ? gOhwi48o : Ohwi48o;
-                else if (jcp.wei_dt == s8)
-                    wei_tag = with_groups ? gOhwI48o4i : OhwI48o4i;
-                else if (jcp.wei_dt == bf16) {
-                    wei_tag = with_groups ? gOhwI48o2i : OhwI48o2i;
+                else if (jcp.wei_dt == s8) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOhwI16i48o4i : OhwI16i48o4i;
+                    else
+                        wei_tag = with_groups ? gOhwI48o4i : OhwI48o4i;
+                } else if (jcp.wei_dt == bf16) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOhwI16i48o2i : OhwI16i48o2i;
+                    else
+                        wei_tag = with_groups ? gOhwI48o2i : OhwI48o2i;
                 } else
                     return status::unimplemented;
             }
@@ -193,19 +233,31 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             if (is_3d) {
                 if (jcp.wei_dt == f32)
                     wei_tag = with_groups ? gOdhwi32o : Odhwi32o;
-                else if (jcp.wei_dt == s8)
-                    wei_tag = with_groups ? gOdhwI32o4i : OdhwI32o4i;
-                else if (jcp.wei_dt == bf16) {
-                    wei_tag = with_groups ? gOdhwI32o2i : OdhwI32o2i;
+                else if (jcp.wei_dt == s8) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOdhwI16i32o4i : OdhwI16i32o4i;
+                    else
+                        wei_tag = with_groups ? gOdhwI32o4i : OdhwI32o4i;
+                } else if (jcp.wei_dt == bf16) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOdhwI16i32o2i : OdhwI16i32o2i;
+                    else
+                        wei_tag = with_groups ? gOdhwI32o2i : OdhwI32o2i;
                 } else
                     return status::unimplemented;
             } else if (is_1d) {
                 if (jcp.wei_dt == f32)
                     wei_tag = with_groups ? gOwi32o : Owi32o;
-                else if (jcp.wei_dt == s8)
-                    wei_tag = with_groups ? gOwI32o4i : OwI32o4i;
-                else if (jcp.wei_dt == bf16) {
-                    wei_tag = with_groups ? gOwI32o2i : OwI32o2i;
+                else if (jcp.wei_dt == s8) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOwI16i32o4i : OwI16i32o4i;
+                    else
+                        wei_tag = with_groups ? gOwI32o4i : OwI32o4i;
+                } else if (jcp.wei_dt == bf16) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOwI16i32o2i : OwI16i32o2i;
+                    else
+                        wei_tag = with_groups ? gOwI32o2i : OwI32o2i;
                 } else
                     return status::unimplemented;
             } else {
@@ -213,10 +265,16 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                 UNUSED(is_2d);
                 if (jcp.wei_dt == f32)
                     wei_tag = with_groups ? gOhwi32o : Ohwi32o;
-                else if (jcp.wei_dt == s8)
-                    wei_tag = with_groups ? gOhwI32o4i : OhwI32o4i;
-                else if (jcp.wei_dt == bf16) {
-                    wei_tag = with_groups ? gOhwI32o2i : OhwI32o2i;
+                else if (jcp.wei_dt == s8) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOhwI16i32o4i : OhwI16i32o4i;
+                    else
+                        wei_tag = with_groups ? gOhwI32o4i : OhwI32o4i;
+                } else if (jcp.wei_dt == bf16) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOhwI16i32o2i : OhwI16i32o2i;
+                    else
+                        wei_tag = with_groups ? gOhwI32o2i : OhwI32o2i;
                 } else
                     return status::unimplemented;
             }
@@ -224,20 +282,32 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             if (is_3d) {
                 if (jcp.wei_dt == f32)
                     wei_tag = with_groups ? gOdhwi16o : Odhwi16o;
-                else if (jcp.wei_dt == s8)
-                    wei_tag = with_groups ? gOdhwI16o4i : OdhwI16o4i;
-                else if (jcp.wei_dt == bf16)
-                    wei_tag = with_groups ? gOdhwI16o2i : OdhwI16o2i;
-                else
+                else if (jcp.wei_dt == s8) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOdhwI16i16o4i : OdhwI16i16o4i;
+                    else
+                        wei_tag = with_groups ? gOdhwI16o4i : OdhwI16o4i;
+                } else if (jcp.wei_dt == bf16) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOdhwI16i16o2i : OdhwI16i16o2i;
+                    else
+                        wei_tag = with_groups ? gOdhwI16o2i : OdhwI16o2i;
+                } else
                     return status::unimplemented;
             } else if (is_1d) {
                 if (jcp.wei_dt == f32)
                     wei_tag = with_groups ? gOwi16o : Owi16o;
-                else if (jcp.wei_dt == s8)
-                    wei_tag = with_groups ? gOwI16o4i : OwI16o4i;
-                else if (jcp.wei_dt == bf16)
-                    wei_tag = with_groups ? gOwI16o2i : OwI16o2i;
-                else
+                else if (jcp.wei_dt == s8) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOwI16i16o4i : OwI16i16o4i;
+                    else
+                        wei_tag = with_groups ? gOwI16o4i : OwI16o4i;
+                } else if (jcp.wei_dt == bf16) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOwI16i16o2i : OwI16i16o2i;
+                    else
+                        wei_tag = with_groups ? gOwI16o2i : OwI16o2i;
+                } else
                     return status::unimplemented;
             } else {
                 assert(is_2d);
@@ -245,11 +315,17 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
 
                 if (jcp.wei_dt == f32)
                     wei_tag = with_groups ? gOhwi16o : Ohwi16o;
-                else if (jcp.wei_dt == s8)
-                    wei_tag = with_groups ? gOhwI16o4i : OhwI16o4i;
-                else if (jcp.wei_dt == bf16)
-                    wei_tag = with_groups ? gOhwI16o2i : OhwI16o2i;
-                else
+                else if (jcp.wei_dt == s8) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOhwI16i16o4i : OhwI16i16o4i;
+                    else
+                        wei_tag = with_groups ? gOhwI16o4i : OhwI16o4i;
+                } else if (jcp.wei_dt == bf16) {
+                    if (jcp.is_ic_padded)
+                        wei_tag = with_groups ? gOhwI16i16o2i : OhwI16i16o2i;
+                    else
+                        wei_tag = with_groups ? gOhwI16o2i : OhwI16o2i;
+                } else
                     return status::unimplemented;
             }
         }
@@ -307,7 +383,6 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     static unsigned L1;
     static unsigned L2;
     static unsigned L3;
-    static cpu_isa_t isa;
     // These are rough estimates of the latency (relative) of access to various
     // cache levels. This is enough for an estimation of data access cost.
     // TODO: Improve memory access estimates
@@ -323,13 +398,14 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     static constexpr int bcast_simd = 16;
 
     int sp, sp_block, nb_sp;
+    static int last_ic_block_size;
 
     void get_from_jcp(const jit_brgemm_conv_conf_t &jcp) { *this = jcp; }
     void save_to_jcp(jit_brgemm_conv_conf_t &jcp) const { jcp = *this; }
 
-    int estimate_brgemm_ur(int spb) const;
-    int get_brgemm_ur(const primitive_attr_t *attr, const memory_desc_t &dst_md,
-            bool is_1x1) const;
+    int estimate_brgemm_ur(int spb);
+    int get_brgemm_ur(
+            const primitive_attr_t *attr, const memory_desc_t &dst_md);
 
     float io_k(dim_t src, dim_t wei, dim_t dst, float n, float pk,
             bool is_broadcast, bool is_shared) const;
@@ -393,7 +469,7 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
 unsigned brg_blocking_t::L1;
 unsigned brg_blocking_t::L2;
 unsigned brg_blocking_t::L3;
-cpu_isa_t brg_blocking_t::isa;
+int brg_blocking_t::last_ic_block_size;
 
 float brg_blocking_t::io_k(dim_t src, dim_t wei, dim_t dst, float n, float pk,
         bool is_broadcast, bool is_shared) const {
@@ -418,86 +494,144 @@ float brg_blocking_t::io_k(const loop_t loop, const array_in_loop_t arr,
 }
 
 void brg_blocking_t::select_ic_block() {
-    auto max_simd_blocks = nstl::min(5 * simd_w, div_up(ic, simd_w));
-    const auto est_ur = nstl::min(sp_block, estimate_ur(oc_block));
-    const auto inp_ur = is_os_blocking ? est_ur : inp_w(est_ur, kw_block);
-
-    if (kw_block > 1) {
-        // try to fit src into L1
-        const auto inp_per_ic = (unsigned int)inp_ur * src_dsz;
-        max_simd_blocks = saturate(
-                1, max_simd_blocks, (int)(L1 / (inp_per_ic * simd_w)));
-    }
-    {
-        // try to fit all batch for ur into L2
-        const auto wei_per_ic = (unsigned int)kd_block * kh_block * kw_block
-                * oc_block * wei_dsz;
-        const auto inp_per_ic
-                = (unsigned int)kd_block * kh_block * inp_ur * src_dsz;
-        const auto out_size = (unsigned int)ur * oc_block * dst_dsz;
-
-        max_simd_blocks = saturate(1, max_simd_blocks,
-                (int)((L2 - out_size) / ((wei_per_ic + inp_per_ic) * simd_w)));
-    }
-
     auto nb_simd = utils::div_up(ic, simd_w);
+    auto max_simd_blocks = nstl::min(5 * simd_w, nb_simd);
     const auto nb_icb_eff_threshold = 0.5f;
-    auto simd_blocks = 1;
-    for (int nb_icb = nstl::min(max_simd_blocks, nb_simd); nb_icb >= 1;
-            nb_icb--) {
-        auto nb_icb_eff = (float)nb_simd / rnd_up(nb_simd, nb_icb);
-        if (nb_icb_eff >= nb_icb_eff_threshold) {
-            simd_blocks = nb_icb;
-            break;
+    const auto padded_ic = last_ic_block_size * (is_ic_padded ? 16 : 1);
+    if (is_amx(isa)) {
+        if (ic * kw_sets < simd_w) {
+            // this is current requirement from brgemm kernel
+            ic_block = rnd_up(ic, last_ic_block_size);
+        } else {
+            if (exec_type == exec_trans) {
+                auto simd_blocks = 1;
+                for (int nb_icb = max_simd_blocks; nb_icb >= 1; nb_icb--) {
+                    auto nb_icb_eff = static_cast<float>(nb_simd)
+                            / rnd_up(nb_simd, nb_icb);
+                    if (nb_icb_eff >= nb_icb_eff_threshold) {
+                        simd_blocks = nb_icb;
+                        break;
+                    }
+                }
+                ic_block = simd_blocks * simd_w;
+            } else
+                ic_block = simd_w;
         }
+    } else {
+        const auto est_ur = nstl::min(sp_block, estimate_ur(oc_block));
+        const auto inp_ur = is_os_blocking ? est_ur : inp_w(est_ur, kw_block);
+
+        if (kw_block > 1) {
+            // try to fit src into L1
+            const auto inp_per_ic = (unsigned int)inp_ur * src_dsz;
+            max_simd_blocks = saturate(
+                    1, max_simd_blocks, (int)(L1 / (inp_per_ic * simd_w)));
+        }
+        {
+            // try to fit all batch for ur into L2
+            const auto wei_per_ic = (unsigned int)kd_block * kh_block * kw_block
+                    * oc_block * wei_dsz;
+            const auto inp_per_ic
+                    = (unsigned int)kd_block * kh_block * inp_ur * src_dsz;
+            const auto out_size = (unsigned int)ur * oc_block * dst_dsz;
+
+            max_simd_blocks = saturate(1, max_simd_blocks,
+                    (int)((L2 - out_size)
+                            / ((wei_per_ic + inp_per_ic) * simd_w)));
+        }
+
+        auto simd_blocks = 1;
+        for (int nb_icb = nstl::min(max_simd_blocks, nb_simd); nb_icb >= 1;
+                nb_icb--) {
+            auto nb_icb_eff = (float)nb_simd / rnd_up(nb_simd, nb_icb);
+            if (nb_icb_eff >= nb_icb_eff_threshold) {
+                simd_blocks = nb_icb;
+                break;
+            }
+        }
+
+        ic_block = nstl::min(
+                (exec_type == exec_trans) ? rnd_up(ic, padded_ic) : ic,
+                simd_blocks * simd_w);
     }
-    ic_block = simd_blocks * simd_w;
     nb_ic = utils::div_up(ic, ic_block);
 }
 
-int brg_blocking_t::estimate_brgemm_ur(int spb) const {
+int brg_blocking_t::estimate_brgemm_ur(int spb) {
     // Simple simulation of brgemm_desc init
     if (sp_block <= 0) return 0;
     brgemm_t brg;
-    const auto LDA = (exec_type == exec_trans) ? stride_w * ic_block
-                                               : stride_w * ic_without_padding;
-    const auto LDB = oc_block;
-    const auto LDC = use_buffer ? oc_block : oc_without_padding;
-    const auto N = oc >= oc_block ? oc_block : oc;
-    const auto K = ic >= ic_block ? ic_block : ic;
+    LDA = (kh_sets > 1 ? kh_sets : 1) * (kw_sets > 1 ? kw_sets : stride_w)
+            * (exec_type == exec_trans ? ic_block : ic_without_padding);
+    LDB = oc_block;
+    LDC = use_buffer ? oc_block : oc_without_padding;
+
+    // Configure matrix sizes
+    // for amx if ic_block != ic then we use exec_trans so K is ic_block
+    const auto padded_ic = last_ic_block_size * (is_ic_padded ? 16 : 1);
+
+    icp = rnd_up(ic, padded_ic);
+    M = brgM = sp >= sp_block ? sp_block : 0;
+    M_tail = brgM_tail = sp % sp_block;
+    if (is_os_blocking) {
+        if (!is_1x1) M_tail = brgM_tail = (oh * ow) % sp_block;
+        oskip = ((ext_kw - 1) / stride_w) * stride_h + (stride_h - 1) * ow;
+
+        brgM = sp_block + oskip * (div_up(M, ow) - 1);
+
+        // round up brgM to help brgemm kernel use max amx_h as brgemm bd_block
+        if (use_M_mask == 2) {
+            int ibrgM = 0;
+            const auto adj_ow = ow_block + oskip;
+            while (ibrgM < brgM) {
+                if (ibrgM % adj_ow < ow_block)
+                    ibrgM += amx_h;
+                else
+                    ibrgM++;
+            }
+            brgM = ibrgM;
+        } else
+            brgM = rnd_up(brgM, amx_h);
+
+        brgM_tail = brgM;
+    }
+
+    N = oc >= oc_block ? oc_block : 0;
+    N_tail = oc % oc_block;
+    K = kh_sets * kw_sets * (ic >= ic_block ? ic_block : 0);
+    K_tail = kh_sets * kw_sets
+            * (exec_type == exec_trans
+                            ? ic_block
+                            : rnd_up(ic % ic_block, last_ic_block_size));
+
+    const auto vK = K > 0 ? K : K_tail;
+    const auto vM = M > 0 ? M : M_tail;
+    const auto vN = N > 0 ? N : N_tail;
 
     const float alpha = 1.0;
     const float beta = 0.0;
-    auto status = brgemm_desc_init(&brg, isa, brgemm_addr, src_dt, wei_dt,
-            false, false, brgemm_row_major, alpha, beta, LDA, LDB, LDC, spb, N,
-            K);
-    return status == success ? brg.bd_block : 0;
+    const auto status = brgemm_desc_init(&brg, isa, brgemm_addr, src_dt, wei_dt,
+            false, false, brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN,
+            vK);
+    return status == success
+            ? (is_amx(isa) ? brg.bd_block * brg.bd_block2 : brg.bd_block)
+            : 0;
 }
 
-int brg_blocking_t::get_brgemm_ur(const primitive_attr_t *attr,
-        const memory_desc_t &dst_md, bool is_1x1) const {
+int brg_blocking_t::get_brgemm_ur(
+        const primitive_attr_t *attr, const memory_desc_t &dst_md) {
     // Detailed simulation of brgemm convolution init
-    if (sp_block <= 0) return 0;
+    if (sp_block <= 0 || ic_block <= 0 || sp_block <= 0 || oc_block <= 0)
+        return 0;
     brgemm_t brg;
-    const auto LDA = (exec_type == exec_trans) ? stride_w * ic_block
-                                               : stride_w * ic_without_padding;
-    const auto LDB = oc_block;
-    const auto LDC = (use_buffer) ? oc_block : oc_without_padding;
-    const auto LDD = oc_without_padding;
+    status_t status = success;
+    int res_ur = estimate_brgemm_ur(is_os_blocking ? os_block : ow_block);
+
+    LDD = oc_without_padding;
 
     const float alpha = 1.0;
     const float beta = 1.0;
     const float beta_init = 0.0;
-
-    const auto M = sp_block;
-    const auto M_tail = is_os_blocking ? os % sp_block : ow % sp_block;
-    const auto K = ic >= ic_block ? ic_block : 0;
-    const auto K_tail = ic % ic_block;
-    const auto N = oc >= oc_block ? oc_block : 0;
-    const auto N_tail = oc % oc_block;
-
-    status_t status = success;
-    int res_ur = estimate_brgemm_ur(is_os_blocking ? os_block : ow_block);
 
     for (int i = 0; i < M; i++) {
         auto vM = i + 1;
@@ -516,9 +650,7 @@ int brg_blocking_t::get_brgemm_ur(const primitive_attr_t *attr,
                     brg_strides.stride_a
                             = ic_without_padding * (dilate_w + 1) * src_dsz;
                     //weights are padded by oc_block and last_ic_block
-                    const auto last_ic_block
-                            = (wei_dt == f32) ? 1 : ((wei_dt == bf16) ? 2 : 4);
-                    brg_strides.stride_b = rnd_up(ic, last_ic_block)
+                    brg_strides.stride_b = rnd_up(ic, last_ic_block_size)
                             * rnd_up(oc, oc_block) * wei_dsz;
                     const auto strides_ptr = (brg_type == brgemm_strd)
                             ? &brg_strides
@@ -554,24 +686,29 @@ int brg_blocking_t::get_brgemm_ur(const primitive_attr_t *attr,
 }
 
 void brg_blocking_t::update_blocks() {
-    if (sp_block <= 0) return;
-    nb_od = div_up(od, od_blk_size);
-    nb_oh = div_up(oh, oh_blk_size);
+    if (sp_block <= 0
+            || utils::one_of(0, od_block, oh_block, ic_block, oc_block,
+                    kd_block, kh_block, kw_block, os_block, ow_block))
+        return;
+
+    nb_od = div_up(od, od_block);
+    nb_oh = div_up(oh, oh_block);
     nb_ic = div_up(ic, ic_block);
     nb_oc = div_up(oc, oc_block);
     nb_kd = div_up(kd, kd_block);
     nb_kh = div_up(kh, kh_block);
     nb_kw = div_up(kw, kw_block);
+    nb_ow = div_up(ow, ow_block);
     if (is_os_blocking) {
         nb_os = div_up(os, os_block);
         sp = os;
         sp_block = os_block;
         nb_sp = nb_os;
     } else {
-        nb_ow = div_up(ow, ow_block);
         sp = ow;
         sp_block = ow_block;
         nb_sp = nb_ow;
+        iw_block = get_inp_size(iwp, ow_block, kw, stride_w, dilate_w);
     }
 }
 
@@ -595,8 +732,6 @@ bool brg_blocking_t::fast_check_oc_block() const {
 
 float brg_blocking_t::est_eff() {
     const auto ocblock = oc_block / 16;
-    const auto od_block = od_blk_size;
-    const auto oh_block = oh_blk_size;
 
     const auto brgemm_microkernel_eff
             = ((float)ocblock * ur) / ((ur + ocblock) * max_regs);
@@ -778,8 +913,10 @@ float brg_blocking_t::est_eff() {
     loop[l].dst.set(od_thr * oh_thr * sp_thr * nsimd_oc_thr * simd_w, 1);
     loop[l].wei.set(kd * kh * kw * nsimd_oc_thr * simd_w * ic, mb_thr);
 
-    const auto src_op = mb_thr * od_thr * oh_thr * sp_thr * kd * kh * kw * ic;
-    const auto dst_op = mb_thr * od_thr * oh_thr * sp_thr * nsimd_oc_thr;
+    const auto src_op = (dim_t)mb_thr * od_thr * (is_os_blocking ? 1 : oh_thr)
+            * sp_thr * kd * kh * kw * ic;
+    const auto dst_op = (dim_t)mb_thr * od_thr * (is_os_blocking ? 1 : oh_thr)
+            * sp_thr * nsimd_oc_thr;
     wei_op = kd * kh * kw * nsimd_oc_thr * ic;
 
     // for "real" application set bench_iterations to 1
@@ -843,28 +980,75 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
     }
 
     if (exec_type == exec_vpad) {
-        od_blk_size = 1;
-        oh_blk_size = 1;
+        od_block = 1;
+        oh_block = 1;
     } else if (exec_type == exec_trans) {
-        // TODO: select od/oh block size for best balancing
-        // and performance
         const auto w_block_size
-                = 2 * src_dsz * ic * iwp + dst_dsz * oc_block * ow;
-        const auto L2_available = L2 - wei_dsz * kd * kh * kw * ic * oc_block;
+                = 2 * src_dsz * ic * iwp + dst_dsz * ow * oc_block;
+        const auto other_size = wei_dsz * kd * kh * kw * ic * oc_block
+                + acc_dsz * 2 * amx_h * oc_block;
+        const auto L2_available = nstl::min(
+                (size_t)div_up(L2, 2), other_size > L2 ? 0 : L2 - other_size);
         if (idp * ihp * w_block_size > L2_available) {
-            od_blk_size
-                    = utils::saturate(1, od, int(L2 / (ihp * w_block_size)));
-            if (od_blk_size == 1)
-                oh_blk_size = utils::saturate(1, oh, int(L2 / (w_block_size)));
+            od_block = utils::saturate(
+                    1, od, int(L2_available / (ihp * w_block_size)));
+            if (od_block == 1)
+                oh_block = utils::saturate(
+                        1, oh, int(L2_available / (w_block_size)));
             else
-                oh_blk_size = oh;
+                oh_block = oh;
         } else {
-            od_blk_size = 1;
-            oh_blk_size = oh;
+            od_block = 1;
+            oh_block = oh;
         }
+        if (is_amx(isa)) {
+            // try to fit into L1
+            bool L1_fit_res = false;
+            auto cur_od_block = od_block;
+            auto cur_oh_block = oh_block;
+            const auto src_w_block_size
+                    = src_dsz * ic * iwp + dst_dsz * ow * oc_block;
+            if (src_w_block_size < L1) {
+                cur_od_block = utils::saturate(
+                        1, od, int(L1 / (ihp * src_w_block_size)));
+                if (cur_od_block == 1)
+                    cur_oh_block = utils::saturate(
+                            1, oh, int(L1 / (src_w_block_size)));
+            }
+            for (; cur_od_block > 1; cur_od_block--) {
+                const auto sp_size = cur_od_block * cur_oh_block * iwp;
+                if (((float)od / rnd_up(od, cur_od_block)) > 0.9f
+                        && (float)sp_size / rnd_up(sp, amx_h) > 0.8f) {
+                    L1_fit_res = true;
+                    break;
+                }
+            }
+            if (cur_od_block == 1) {
+                for (; cur_oh_block > 1; cur_oh_block--) {
+                    const auto sp_size = cur_oh_block * iwp;
+                    if (((float)oh / rnd_up(oh, cur_oh_block)) > 0.9f
+                            && sp_size > 128) {
+                        L1_fit_res = true;
+                        break;
+                    }
+                }
+            }
+            if (L1_fit_res) {
+                od_block = cur_od_block;
+                oh_block = cur_oh_block;
+            }
+        }
+
+        // limit oh_block to have good threading
+        auto thr_od_block = div_up(od, div_up(nthr, mb * div_up(oc, oc_block)));
+        auto thr_oh_block = div_up(oh,
+                div_up(nthr,
+                        mb * div_up(oc, oc_block) * div_up(od, thr_od_block)));
+        od_block = nstl::min(od_block, thr_od_block);
+        oh_block = nstl::min(oh_block, thr_oh_block);
     } else {
-        od_blk_size = 1;
-        oh_blk_size = 1;
+        od_block = 1;
+        oh_block = 1;
     }
 
     // --- Select ow_block ----
@@ -872,11 +1056,12 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
     auto start_ow_block = nstl::min(max_ow_block_thr, max_ow_block_L2);
 
     sp = ow;
-    const auto start_sp_block = start_ow_block;
+    const auto start_sp_block = is_os_blocking ? ow : start_ow_block;
     auto prev_spb = 0;
     for (auto ns = 1; ns <= sp; ns++) {
         const auto spb = div_up(sp, ns);
         if (spb == prev_spb || spb > start_sp_block) continue;
+        if (is_os_blocking && spb != ow) continue;
         prev_spb = spb;
         ow_block = spb;
         sp_block = ow_block;
@@ -890,9 +1075,11 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
                         || kw_block_pad != kw);
         if (exec_type == exec_base)
             use_buffer = use_buffer || (maybe_use_buffer && iwp != iw);
+        if (is_amx(isa)) use_buffer = use_buffer || (use_M_mask > 0);
 
         ur = estimate_brgemm_ur(ow_block);
         if (ur == 0) continue;
+        os_block = sp_block = ow_block;
         update_blocks();
 
         eff = est_eff();
@@ -903,7 +1090,6 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
 
 void brg_blocking_t::calc_blocks() {
     sp = ow;
-    is_os_blocking = false;
 
     nb_ic_blocking = 1;
     // --- Select kernel blocking ---
@@ -936,7 +1122,15 @@ void brg_blocking_t::calc_blocks() {
         }
     }
     *this = best_brgb;
-    ow_block = os_block = sp_block;
+    if (is_os_blocking) {
+        ow_block = ow;
+        os_block = ow * oh_block;
+        sp_block = os_block;
+        ow_tail = 0;
+    } else {
+        ow_block = os_block = sp_block;
+        ow_tail = ow % ow_block;
+    }
     update_blocks();
 }
 
@@ -960,8 +1154,6 @@ bool brg_blocking_t::fast_check_oc_block_1x1() const {
 
 float brg_blocking_t::est_eff_1x1() {
     const auto ocblock = oc_block / 16;
-    const auto od_block = od_blk_size;
-    const auto oh_block = oh_blk_size;
 
     const auto brgemm_microkernel_eff
             = ((float)ocblock * ur) / ((ur + ocblock) * max_regs);
@@ -1151,8 +1343,10 @@ float brg_blocking_t::est_eff_1x1() {
     loop[l].dst.set(nsimd_oc_thr * simd_w * od_thr * oh_thr * sp_thr, 1);
     loop[l].wei.set(nsimd_oc_thr * ic * simd_w, mb_thr);
 
-    const auto src_op = mb_thr * od_thr * oh_thr * sp_thr * ic_blocking_size;
-    const auto dst_op = mb_thr * nsimd_oc_thr * od_thr * oh_thr * sp_thr;
+    const auto src_op = (dim_t)mb_thr * od_thr * (is_os_blocking ? 1 : oh_thr)
+            * sp_thr * ic_blocking_size;
+    const auto dst_op = (dim_t)mb_thr * nsimd_oc_thr * od_thr
+            * (is_os_blocking ? 1 : oh_thr) * sp_thr;
     wei_op = nsimd_oc_thr * ic;
 
     // for "real" application set bench_iterations to 1
@@ -1207,8 +1401,8 @@ void brg_blocking_t::calc_blocks_1x1() {
         is_os_blocking = false;
     }
 
-    od_blk_size = 1;
-    oh_blk_size = 1;
+    od_block = 1;
+    oh_block = 1;
     kd_block = kh_block = kw_block = 1;
     kd_block_pad = kh_block_pad = kw_block_pad = 1;
     nb_ic_blocking = 1;
@@ -1274,7 +1468,7 @@ void brg_blocking_t::calc_blocks_1x1() {
                 && (ic_block * nb_ic_blocking < ic);
 
         eff = est_eff_1x1();
-        if (eff > best_brgb.eff || best_brgb.eff == 0) { best_brgb = *this; }
+        if (eff > best_brgb.eff || best_brgb.eff == 0) best_brgb = *this;
     }
     *this = best_brgb;
     os_block = ow_block = sp_block;
@@ -1290,7 +1484,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     brg_blocking_t::L1 = platform::get_per_core_cache_size(1);
     brg_blocking_t::L2 = platform::get_per_core_cache_size(2);
     brg_blocking_t::L3 = platform::get_per_core_cache_size(2);
-    brg_blocking_t::isa = isa;
 
     if (!mayiuse(avx512_core)) return status::unimplemented;
 
@@ -1303,6 +1496,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     int ndims = src_d.ndims();
 
     jcp = zero<decltype(jcp)>();
+    jcp.isa = isa;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -1333,16 +1527,16 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     jcp.os = jcp.od * jcp.oh * jcp.ow;
 
-    int ext_kd = calculate_extended_filter_size(jcp.kd, jcp.dilate_d);
-    int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
-    int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+    jcp.ext_kd = calculate_extended_filter_size(jcp.kd, jcp.dilate_d);
+    jcp.ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
+    jcp.ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
 
     jcp.back_pad = calculate_end_padding(
-            jcp.f_pad, jcp.od, jcp.id, jcp.stride_d, ext_kd);
+            jcp.f_pad, jcp.od, jcp.id, jcp.stride_d, jcp.ext_kd);
     jcp.b_pad = calculate_end_padding(
-            jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh);
+            jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, jcp.ext_kh);
     jcp.r_pad = calculate_end_padding(
-            jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw);
+            jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, jcp.ext_kw);
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
@@ -1351,8 +1545,12 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.wei_dt = cd.weights_desc.data_type;
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
 
+    brg_blocking_t::last_ic_block_size
+            = (jcp.wei_dt == f32) ? 1 : ((jcp.wei_dt == bf16) ? 2 : 4);
+
     // TODO: optimize depthwise convolutions (for now direct approach is faster)
-    const bool is_depthwise = with_groups && everyone_is(1, jcp.ic, jcp.oc);
+    const bool is_depthwise
+            = with_groups && jcp.ngroups > 1 && everyone_is(1, jcp.ic, jcp.oc);
     if (is_depthwise) return status::unimplemented;
 
     // TODO: optimize grouped convolutions with small ic
@@ -1360,8 +1558,9 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             = with_groups && jcp.ngroups > 1 && jcp.ic <= 16;
     if (is_grouped_small_ic) return status::unimplemented;
 
-    // TODO: support s8 by brgemm convolutions
-    if (jcp.src_dt == s8) return status::unimplemented;
+    // TODO: support s8 in non-amx brgemm convolutions
+    if (!IMPLICATION(jcp.src_dt == s8, is_amx(jcp.isa)))
+        return status::unimplemented;
 
     if (!IMPLICATION(jcp.wei_dt == s8, mayiuse(avx512_core_vnni)))
         return status::unimplemented;
@@ -1384,6 +1583,9 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (!post_ops_ok(jcp, attr, dst_d)) return status::unimplemented;
 
     jcp.simd_w = cpu_isa_traits<avx512_common>::vlen / jcp.src_dsz;
+    jcp.amx_h = 16;
+    jcp.amx_w = 64 / jcp.src_dsz;
+
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
@@ -1398,12 +1600,29 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     }
 
     jcp.nthr = nthreads;
+    jcp.kh_sets = 1;
+    jcp.kw_sets = 1;
+    jcp.copy_block_only = false;
+    jcp.amx_tile_load_xx = false;
+    jcp.use_M_mask = 0;
+    jcp.is_os_blocking = false;
+    jcp.oskip = 0;
+    jcp.use_uker = false;
+    jcp.use_interleave_stores = false;
+    jcp.brgemm_bd_loop_innermost = false;
+    jcp.is_1x1 = true && jcp.f_pad <= 0 && jcp.back_pad <= 0 && jcp.t_pad <= 0
+            && jcp.b_pad <= 0 && jcp.l_pad <= 0 && jcp.r_pad <= 0 && jcp.kd == 1
+            && jcp.kh == 1 && jcp.kw == 1;
 
     // fast check data layout before spending time for blocking selection
     format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
     const bool any_eligible = (jcp.prop_kind == prop_kind::forward_inference
             || jcp.wei_dt == data_type::s8);
     CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag, any_eligible));
+
+    const auto ic_padded_block = 16 * brg_blocking_t::last_ic_block_size;
+    jcp.is_ic_padded = !jcp.is_1x1 && one_of(jcp.wei_dt, bf16, s8)
+            && jcp.ic * jcp.kw_sets > ic_padded_block && is_amx(isa);
 
     return status::success;
 }
@@ -1414,9 +1633,20 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
 
     using namespace prop_kind;
+    if (!mayiuse(isa)) return status::unimplemented;
 
     CHECK(init_jcp(
             jcp, isa, cd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
+
+    if (jcp.is_1x1) return status::unimplemented;
+
+    // TODO: check these restrictions
+    if (is_amx(isa)) {
+        if (jcp.f_pad >= jcp.kd || jcp.t_pad >= jcp.kh || jcp.r_pad >= jcp.kw)
+            return status::unimplemented;
+        if (jcp.dilate_d > 0 || jcp.dilate_h > 0 || jcp.dilate_w > 0)
+            return status::unimplemented;
+    }
 
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
@@ -1445,7 +1675,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         best_brgb.oc_block = min_oc_block;
         brg_blocking_t cur_brgb = zero<decltype(best_brgb)>();
         cur_brgb.get_from_jcp(jcp);
-        auto start_ocb = 4;
+        auto start_ocb = (is_amx(isa) && jcp.is_os_blocking) ? 2 : 4;
         if (jcp.wei_plain)
             start_ocb = nstl::min(jcp.ic > 128 ? (jcp.ic > 256 ? 8 : 16) : 32,
                     div_up(jcp.oc, 16));
@@ -1458,8 +1688,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             if (!cur_brgb.fast_check_oc_block()) continue;
 
             cur_brgb.calc_blocks();
-            const bool is_1x1 = false;
-            const auto ur = cur_brgb.get_brgemm_ur(&attr, dst_md, is_1x1);
+            const auto ur = cur_brgb.get_brgemm_ur(&attr, dst_md);
             if (ur == 0) continue;
             cur_brgb.ur = ur;
             cur_brgb.eff = cur_brgb.est_eff();
@@ -1480,21 +1709,27 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     bool try_exec_vpad = false;
     bool try_exec_trans = false;
+    bool try_exec_base = true;
 
-    if (div_up(jcp.l_pad, jcp.stride_w) < jcp.kw
+    if (!is_amx(isa) && div_up(jcp.l_pad, jcp.stride_w) < jcp.kw
             && div_up(jcp.r_pad, jcp.stride_w) < jcp.kw) {
         try_exec_vpad = true;
     }
+
+    const auto ic_padded_block = 16 * brg_blocking_t::last_ic_block_size;
     // TODO: remove this restriction
-    if (jcp.dilate_d == 0 && jcp.dilate_h == 0 && jcp.dilate_w == 0
-            && jcp.stride_w == 1) {
-        // conv with transpose does not work well for 3d
-        try_exec_trans = (jcp.l_pad > 0 || jcp.r_pad > 0)
-                && (1.f - float(jcp.iw) / jcp.iwp)
-                                / nstl::max(1, jcp.iwp - jcp.iw)
-                        < 0.1f
-                && jcp.id == 1;
+    const auto w_padding = jcp.l_pad > 0 || jcp.r_pad > 0;
+    if (is_amx(isa)) {
+        try_exec_base = !w_padding
+                && IMPLICATION(jcp.ic <= ic_padded_block,
+                        jcp.ic % brg_blocking_t::last_ic_block_size == 0)
+                && IMPLICATION(
+                        jcp.ic > ic_padded_block, jcp.ic % ic_padded_block == 0)
+                && jcp.ow > 50 /*TODO: reinvestigate this heuristic */;
+        try_exec_trans = !try_exec_base;
     }
+
+    bool must_exec_vpad = false;
 
     // TODO: in future use (kd/kh/kw) and (kd/kh/kw)_pad blocks for more
     // precise calculation of jcp.max_batch
@@ -1509,26 +1744,50 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (try_exec_vpad) {
         jcp.exec_type = exec_vpad;
         try_exec_type_res = try_exec_type();
-        const auto iw_block = (jcp.ow_block - 1) * jcp.stride_w + 1;
         // to avoid case when both top and bottom virtual padding are non-zero
         // TODO: remove this restriction
-        if (iw_block > jcp.iw) try_exec_type_res = false;
+        const auto iw_block = (jcp.ow_block - 1) * jcp.stride_w + 1;
+        if (!must_exec_vpad && (iw_block > jcp.iw)) try_exec_type_res = false;
     }
     if (try_exec_type_res == false && try_exec_trans) {
         jcp.exec_type = exec_trans;
+
+        // try loop_ndhwgc always for exec_trans
+        jcp.loop_order = loop_ndhwgc;
+
+        // we read input block only once for loop_ndhwgc, so we don't need to
+        // keep it memory
+        if (jcp.loop_order == loop_ndhwgc) { jcp.copy_block_only = true; }
+
+        jcp.is_ic_padded = one_of(jcp.wei_dt, bf16, s8)
+                && jcp.ic * jcp.kw_sets > ic_padded_block;
+
+        if (is_amx(isa) && (/* heuristic*/ jcp.kw_sets == 1 && jcp.ow < 256)) {
+            jcp.is_os_blocking = true;
+            jcp.use_M_mask = 2;
+            jcp.use_uker = true;
+            jcp.use_interleave_stores = true;
+            // assuming 2x2 decomposition in amx brgemm kernel
+            // and overlap of input by kw
+            const auto bd_blocking = 2 * jcp.amx_h;
+            const auto ld_blocking = 2 * 16;
+            const auto A_ds = jcp.src_dsz * bd_blocking * jcp.K * jcp.kd_block
+                    * jcp.kh_block;
+            const auto B_ds = jcp.wei_dsz * ld_blocking * jcp.K * jcp.kd_block
+                    * jcp.kh_block * jcp.kw_block;
+            const auto C_ds = jcp.acc_dsz * bd_blocking * ld_blocking;
+            if (A_ds + B_ds + C_ds > brg_blocking_t::L1)
+                jcp.amx_tile_load_xx = true;
+        }
+
         try_exec_type_res = try_exec_type();
-        const auto iw_block = (jcp.ow_block - 1) * jcp.stride_w + 1;
-        // transform kernel doesn't work well with big padding
-        // and with ic not divided by ic_block
-        // TODO: remove this restriction
-        if (iw_block < jcp.l_pad || iw_block < jcp.r_pad
-                || (jcp.ic % jcp.ic_block != 0))
-            try_exec_type_res = false;
     }
-    if (try_exec_type_res == false) {
+    if (try_exec_base && try_exec_type_res == false) {
         jcp.exec_type = exec_base;
         try_exec_type_res = try_exec_type();
     }
+
+    if (try_exec_type_res == false) return status::unimplemented;
 
     // ============ end blocking ===========================================
     if (jcp.exec_type == exec_vpad)
@@ -1538,13 +1797,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (jcp.ow_block == 0 || jcp.ic_block == 0 || jcp.oc_block == 0)
         return status::unimplemented;
-    // Configure matrix sizes
-    jcp.M = jcp.ow >= jcp.ow_block ? jcp.ow_block : 0;
-    jcp.K = jcp.ic >= jcp.ic_block ? jcp.ic_block : 0;
-    jcp.N = jcp.oc >= jcp.oc_block ? jcp.oc_block : 0;
-    jcp.M_tail = jcp.ow % jcp.ow_block;
-    jcp.K_tail = jcp.ic % jcp.ic_block;
-    jcp.N_tail = jcp.oc % jcp.oc_block;
 
     jcp.gemm_batch_size = jcp.nb_ic_blocking
             * nstl::max(jcp.kd_block * jcp.kh_block * jcp.kw_block,
@@ -1553,12 +1805,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     size_t sc_size = sizeof(brgemm_batch_element_t);
     jcp.adjusted_batch_size
             = div_up(rnd_up(jcp.gemm_batch_size * sc_size, 4096), sc_size);
-
-    jcp.LDA = (jcp.exec_type == exec_trans)
-            ? jcp.stride_w * jcp.ic_block
-            : jcp.stride_w * jcp.ic_without_padding;
-    jcp.LDC = (jcp.use_buffer) ? jcp.oc_block : jcp.oc_without_padding;
-    jcp.LDD = jcp.oc_without_padding;
 
     CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
     CHECK(attr.set_default_formats(&dst_md));
@@ -1572,13 +1818,16 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     jcp.buffer_size = jcp.LDC * jcp.M;
 
-    jcp.nb_od = div_up(jcp.od, jcp.od_blk_size);
-    jcp.nb_oh = div_up(jcp.oh, jcp.oh_blk_size);
+    jcp.nb_od = div_up(jcp.od, jcp.od_block);
+    jcp.nb_oh = div_up(jcp.oh, jcp.oh_block);
 
     if (jcp.exec_type == exec_trans) {
         // TODO: this is rough estimation of buffer for transpose input
-        jcp.inp_buffer_size = rnd_up((dim_t)jcp.idp * jcp.ihp * jcp.iwp
-                        * jcp.ngroups * jcp.nb_ic * jcp.ic_block,
+        jcp.inp_buffer_size = rnd_up((dim_t)jcp.idp
+                        * (jcp.is_os_blocking ? rnd_up(jcp.ihp, jcp.brgM)
+                                              : jcp.ihp)
+                        * jcp.iwp * jcp.ngroups * jcp.nb_ic * jcp.ic_block
+                        * jcp.kh_sets * jcp.kw_sets,
                 4096);
         jcp.inp_buffer_mask_size = rnd_up((dim_t)jcp.nb_od * jcp.nb_oh
                         * jcp.nb_ow * jcp.ngroups * jcp.nb_ic,
@@ -1594,6 +1843,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
 
     using namespace prop_kind;
+    if (!mayiuse(isa)) return status::unimplemented;
 
     CHECK(init_jcp(
             jcp, isa, cd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
@@ -1603,10 +1853,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper bias_d(&bias_md);
 
-    bool args_ok = true && jcp.f_pad <= 0 && jcp.back_pad <= 0 && jcp.t_pad <= 0
-            && jcp.b_pad <= 0 && jcp.l_pad <= 0 && jcp.r_pad <= 0 && jcp.kd == 1
-            && jcp.kh == 1 && jcp.kw == 1;
-    if (!args_ok) return status::unimplemented;
+    if (!jcp.is_1x1) return status::unimplemented;
 
     using namespace data_type;
     // ===================== blocking =================================
@@ -1644,8 +1891,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         if (!cur_brgb.fast_check_oc_block_1x1()) continue;
 
         cur_brgb.calc_blocks_1x1();
-        const bool is_1x1 = true;
-        const auto ur = cur_brgb.get_brgemm_ur(&attr, dst_md, is_1x1);
+        const auto ur = cur_brgb.get_brgemm_ur(&attr, dst_md);
         if (ur == 0) continue;
         cur_brgb.ur = ur;
         cur_brgb.eff = cur_brgb.est_eff_1x1();
@@ -1663,12 +1909,12 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (best_brgb.is_os_blocking) {
         if (jcp.os_block == 0) return status::unimplemented;
-        jcp.M = jcp.os_block;
-        jcp.M_tail = jcp.os % jcp.os_block;
+        jcp.M = jcp.brgM = jcp.os_block;
+        jcp.M_tail = jcp.brgM_tail = jcp.os % jcp.os_block;
     } else {
         if (jcp.ow_block == 0) return status::unimplemented;
-        jcp.M = jcp.ow_block;
-        jcp.M_tail = jcp.ow % jcp.ow_block;
+        jcp.M = jcp.brgM = jcp.ow_block;
+        jcp.M_tail = jcp.brgM_tail = jcp.ow % jcp.ow_block;
     }
 
     jcp.K = jcp.ic >= jcp.ic_block ? jcp.ic_block : 0;
@@ -1701,6 +1947,30 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.inp_buffer_size = 0;
     jcp.buffer_size = jcp.LDC * jcp.M;
 
+#if 0
+    printf("@@@ debug: nthreads = %d, IC = %d, OC = %d, ID = %d, IH = %d, IW = "
+           "%d, OD = %d, OH = %d, OW = %d, KD = %d, "
+           "KH = %d, KW = %d\n",
+            nthreads, jcp.ic, jcp.oc, jcp.id, jcp.ih, jcp.iw, jcp.od, jcp.oh,
+            jcp.ow, jcp.kd, jcp.kh, jcp.kw);
+
+    printf("@@@ debug: blocking: ic_block = %d, nb_ic_blocking = %d, oc_block "
+           "= %d, os_block = %d, ow_block = %d, nb_os_blocking = %d, "
+           "loop_order = %d, "
+           "wei_plain = %d, wei_tag = %d \n",
+            jcp.ic_block, jcp.nb_ic_blocking, jcp.oc_block, jcp.os_block,
+            jcp.ow_block, jcp.nb_os_blocking, jcp.loop_order, jcp.wei_plain,
+            jcp.wei_tag);
+
+    printf("@@@ debug: Matrix configuration: M = %d, N = %d, K = "
+           "%d, M_tail = %d, N_tail = %d, K_tail = %d, LDA = %d, LDB = %d, LDC "
+           "= %d ur = %d\n",
+            jcp.M, jcp.N, jcp.K, jcp.M_tail, jcp.N_tail, jcp.K_tail, jcp.LDA,
+            jcp.LDB, jcp.LDC, best_brgb.ur);
+    printf("@@@ debug: brg_type = %d use_buffer = %d \n", jcp.brg_type,
+            jcp.use_buffer);
+    fflush(nullptr);
+#endif
     return status::success;
 }
 
@@ -1723,6 +1993,10 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     if (jcp.use_buffer) {
         scratchpad.book(key_brgemm_primitive_buffer, jcp.nthr * jcp.buffer_size,
                 jcp.acc_dsz);
+    }
+    if (is_amx(jcp.isa)) {
+        scratchpad.book(
+                key_conv_amx_tile_buffer, jcp.nthr * 4 * 1024, sizeof(char));
     }
 }
 

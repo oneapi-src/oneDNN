@@ -24,7 +24,8 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-status_t DNNL_API amx_tile_configure(const char palette[64]);
+static constexpr size_t AMX_PALETTE_SIZE = 64;
+status_t DNNL_API amx_tile_configure(const char palette[AMX_PALETTE_SIZE]);
 status_t DNNL_API amx_tile_release();
 
 } // namespace x64
