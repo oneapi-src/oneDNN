@@ -73,6 +73,9 @@ typedef enum {
 
 struct DNNL_API brgemm_attr_t {
     brgemm_attr_t();
+    // if unrollaed kernel is used (use_uker == true)
+    // then "max_bs" is the the only batch size that can be used on kernel call
+    // else "max_bs" is the maximum batch size that can be used
     int max_bs;
     int max_top_vpad, max_bottom_vpad;
     dim_t hint_expected_A_size, hint_expected_B_size, hint_expected_C_size;
@@ -81,6 +84,20 @@ struct DNNL_API brgemm_attr_t {
     brgemm_kernel_prefetching_t hint_prefetching;
     bool wary_tail_read;
     bool generate_skip_accumulation;
+    // bd_mask is char array in which each element is a boolean value that
+    // determines whether to write this row to the result mastrix or skip
+    char *bd_mask;
+    // Value of bd_mask_level specifies how bd_mask is used in brgemm kernel
+    // 0 – bd_mask is not used
+    // 1 – bd_mask is used on storing stage only
+    // 2 – bd_mask used both on reading and storing stages
+    int bd_mask_level;
+    // use_uker is a boolean value that determines whether to use the unrolled
+    // kernel or not
+    bool use_uker;
+    // use_interleave_stores is a value that determines whether to use the
+    // interleave stores or not
+    bool use_interleave_stores;
 };
 
 struct brgemm_batch_element_t {
@@ -225,19 +242,40 @@ struct brgemm_kernel_params_t {
     size_t skip_accm = 0;
 };
 
-struct jit_brgemm_kernel_base_t;
+struct jit_brgemm_kernel_t;
+struct jit_brgemm_amx_uker_base_t;
 
 struct brgemm_kernel_t {
-    brgemm_kernel_t(const brgemm_t abrd);
-    ~brgemm_kernel_t();
+    brgemm_kernel_t(const brgemm_t abrd) {};
+    virtual ~brgemm_kernel_t() {};
+    virtual status_t create_kernel() = 0;
+    virtual void operator()(brgemm_kernel_params_t *) const = 0;
+};
+
+struct brgemm_kernel_common_t : public brgemm_kernel_t {
+    brgemm_kernel_common_t(const brgemm_t abrd);
+    ~brgemm_kernel_common_t();
 
     status_t create_kernel();
     void operator()(brgemm_kernel_params_t *) const;
 
 private:
-    jit_brgemm_kernel_base_t *brgemm_kernel_ = nullptr;
+    jit_brgemm_kernel_t *brgemm_kernel_ = nullptr;
 
-    DNNL_DISALLOW_COPY_AND_ASSIGN(brgemm_kernel_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(brgemm_kernel_common_t);
+};
+
+struct brgemm_amx_uker_t : public brgemm_kernel_t {
+    brgemm_amx_uker_t(const brgemm_t abrd);
+    ~brgemm_amx_uker_t();
+
+    status_t create_kernel();
+    void operator()(brgemm_kernel_params_t *) const;
+
+private:
+    jit_brgemm_amx_uker_base_t *brgemm_kernel_ = nullptr;
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(brgemm_amx_uker_t);
 };
 
 /// @param bias Vector of bias (vector length is N)

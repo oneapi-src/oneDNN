@@ -56,6 +56,9 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.do_post_ops = 0;
     brgemm_p.skip_accm = 0;
     brgemm_p.BS = bs;
+
+    assert(brg_kernel);
+
     (*brg_kernel)(&brgemm_p);
 }
 
@@ -101,7 +104,6 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.a_zp_compensations = post_ops_data.a_zp_compensations;
     brgemm_p.b_zp_compensations = post_ops_data.b_zp_compensations;
     brgemm_p.c_zp_values = post_ops_data.c_zp_values;
-
     (*brg_kernel)(&brgemm_p);
 }
 
@@ -129,6 +131,218 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
 
     (*brg_kernel)(&brgemm_p);
 }
+
+namespace {
+status_t brgemm_blocking(brgemm_t *brg) {
+    if (!brg->is_int8_amx && !brg->is_bf16_amx) {
+        brg->ld_block = 16;
+        brg->ldb = brg->load_dim / brg->ld_block;
+        brg->ldb_tail = brg->load_dim % brg->ld_block;
+
+        brg->ld_block2 = 4; // (M < 9) ? 2 : 4 | TODO - fix this for INT8
+        brg->ldb2 = brg->ldb / brg->ld_block2;
+        brg->ldb2_tail = brg->ldb % brg->ld_block2;
+
+        if (brg->ldb2 == 0) brg->ld_block2 = nstl::max(1, brg->ldb2_tail);
+        brg->embd_bcst = !brg->is_int8 && !brg->is_bf16
+                && (brg->ldb2_tail <= 1 && brg->ldb2 == 0);
+
+        int ld_block = (brg->ldb2 != 0) ? brg->ld_block2 : brg->ldb2_tail;
+        int adj_ld_block = (ld_block == 0) ? (ld_block + 1) : ld_block;
+
+        const int max_avx512_regs = 32;
+        const int max_bcst_regs = 1;
+        int max_regs = max_avx512_regs - (adj_ld_block + max_bcst_regs);
+        int max_block
+                = (brg->embd_bcst ? 28
+                                  : ((brg->beta == 1.f || brg->beta == 0.f)
+                                                  ? max_regs
+                                                  : max_regs - 1));
+        max_block -= brg->req_s8s8_compensation;
+        max_block /= adj_ld_block;
+        int min_block = 1;
+        float best_bd_block_eff = 0.f;
+        brg->bd_block = 1;
+        for (int bd_block = max_block; bd_block >= min_block; bd_block--) {
+            const auto bd_block_disb
+                    = (float)brg->bcast_dim / rnd_up(brg->bcast_dim, bd_block);
+            const auto brgemm_microkernel_eff = ((float)(adj_ld_block)*bd_block)
+                    / (((adj_ld_block) + bd_block) * max_block);
+            const auto bd_block_eff = bd_block_disb * brgemm_microkernel_eff;
+
+            float block_foot_print
+                    = (float)brg->typesize_A * (bd_block * brg->reduce_dim);
+            if (block_foot_print <= (float)platform::get_per_core_cache_size(1)
+                    && (bd_block_eff > best_bd_block_eff)) {
+                brg->bd_block = bd_block;
+                best_bd_block_eff = bd_block_eff;
+            }
+        }
+        brg->bdb = brg->bcast_dim / brg->bd_block;
+        brg->bdb_tail = brg->bcast_dim % brg->bd_block;
+
+        brg->rd_block = 16 / brg->typesize_A;
+        brg->rdb = brg->reduce_dim / brg->rd_block;
+        brg->rdb_tail = brg->reduce_dim % brg->rd_block;
+
+        brg->is_M_tail = false;
+    } else {
+        // Blocking configuration for AMX
+        const int max_width = 16, min_width = 1;
+        brg->ld_block = 16;
+        brg->ldb = brg->load_dim / brg->ld_block;
+        brg->ldb_tail = brg->load_dim % brg->ld_block;
+
+        auto find_bd_block_for_bd_mask = [&]() {
+            const auto bd_mask_size = brg->bcast_dim;
+            if (brg->brgattr.bd_mask_level != 2 || bd_mask_size == 0)
+                return false;
+
+            const auto sm_buffer = brg->brgattr.bd_mask;
+            auto min_bdb = INT_MAX;
+            const auto start_bd_block = nstl::min(max_width, brg->bcast_dim);
+            auto best_bd_block = start_bd_block;
+            for (auto bd_block = start_bd_block; bd_block > 0; bd_block--) {
+                auto bdb = 0;
+                for (int i = 0; i < bd_mask_size;) {
+                    if (brg->brgattr.bd_mask_level == 2 && sm_buffer[i] == 0) {
+                        i++;
+                    } else {
+                        i += bd_block;
+                        if (i > brg->bcast_dim) {
+                            // bcast_dim not divided by bd_block
+                            bdb = INT_MAX;
+                        } else
+                            bdb++;
+                    }
+                }
+                if (bdb < min_bdb) {
+                    min_bdb = bdb;
+                    best_bd_block = bd_block;
+                }
+            }
+            brg->bd_block = best_bd_block;
+            brg->bdb_tail = 0;
+            brg->bdb = min_bdb;
+            return true;
+        };
+
+        auto set_decomposition_by_ld = [&]() {
+            if (brg->bd_block2 == 1 && brg->ldb > 0 && brg->ldb_tail == 0) {
+                if (brg->ldb % 3 == 0)
+                    brg->ld_block2 = 3;
+                else if (brg->ldb % 2 == 0)
+                    brg->ld_block2 = 2;
+                else
+                    brg->ld_block2 = 1;
+            } else {
+                brg->ld_block2
+                        = (brg->ldb > 0 && brg->ldb % 2 == 0
+                                  && brg->ldb_tail == 0 && brg->bd_block2 < 3)
+                        ? 2
+                        : 1;
+            }
+            brg->ldb2 = brg->ldb / brg->ld_block2;
+            brg->ldb2_tail = brg->ldb % brg->ld_block2;
+
+            // Re-adjust the bd_block2 if possible
+            if (brg->ld_block2 == 1 && !brg->is_M_tail && brg->ldb_tail == 0) {
+                brg->bd_block2 = (brg->bdb >= 3) ? 3 : (brg->bdb >= 2) ? 2 : 1;
+                brg->bdb2 = brg->bdb / brg->bd_block2;
+                brg->bdb2_tail = (brg->bd_block2 == 1)
+                        ? brg->bdb
+                        : brg->bdb % brg->bd_block2;
+            }
+        };
+
+        auto try_3x1_decomposition = [&](int width_step) {
+            brg->is_M_tail = false;
+            if (brg->bcast_dim > (width_step - 1) * max_width
+                    && brg->bcast_dim < width_step * max_width
+                    && brg->ldb_tail == 0) {
+                if (!find_bd_block_for_bd_mask()) {
+                    brg->bd_block = max_width;
+                    brg->bdb = div_up(brg->bcast_dim, brg->bd_block);
+                    brg->bdb_tail = brg->bcast_dim % brg->bd_block;
+                    brg->is_M_tail = true;
+                }
+                brg->bd_block2 = width_step;
+                brg->bdb2 = brg->bdb / brg->bd_block2;
+                brg->bdb2_tail = brg->bdb % brg->bd_block2;
+                set_decomposition_by_ld();
+                return true;
+            }
+            return false;
+        };
+
+        auto try_2x2_decomposition = [&]() {
+            if (!find_bd_block_for_bd_mask()) {
+                for (int m_block = max_width; m_block >= min_width; m_block--) {
+                    if (brg->bcast_dim % m_block == 0) {
+                        brg->bd_block = m_block;
+                        break;
+                    }
+                }
+                if (brg->bd_block == 1) {
+                    brg->bd_block = nstl::min(max_width, brg->bcast_dim);
+                    brg->bdb_tail = brg->bcast_dim % max_width;
+                    for (int i = max_width; i >= min_width; i--) {
+                        int i_tail = brg->bcast_dim % i;
+                        if (i_tail > brg->bdb_tail || i_tail == 0) {
+                            brg->bd_block = i;
+                            brg->bdb_tail = i_tail;
+                            if (i_tail == 0) break;
+                        }
+                    }
+                }
+                brg->bdb = brg->bcast_dim / brg->bd_block;
+                brg->bdb_tail = brg->bcast_dim % brg->bd_block;
+            }
+
+            brg->bd_block2 = (brg->bdb >= 2) ? 2 : 1;
+            brg->bdb2 = brg->bdb / brg->bd_block2;
+            brg->bdb2_tail = (brg->bd_block2 == 1) ? brg->bdb
+                                                   : brg->bdb % brg->bd_block2;
+
+            brg->is_M_tail = false;
+
+            set_decomposition_by_ld();
+
+            return !(brg->ld_block2 == 1 || brg->bd_block2 == 1
+                    || brg->bd_block < 8);
+        };
+
+        bool is_decomposition_defined = false;
+        for (int i = decomposition_2x2; i != not_definded; i++) {
+            switch (i) {
+                case decomposition_2x2:
+                    is_decomposition_defined = try_2x2_decomposition();
+                    break;
+                case decomposition_3x1_3:
+                    is_decomposition_defined = try_3x1_decomposition(3);
+                    break;
+                case decomposition_3x1_2:
+                    is_decomposition_defined = try_3x1_decomposition(2);
+                    break;
+                default: assert(!"invalid value"); break;
+            };
+            if (is_decomposition_defined) break;
+        }
+        if (!is_decomposition_defined) try_2x2_decomposition();
+
+        brg->rd_block = brg->is_bf16_amx ? 32 : 64;
+        brg->rdb = brg->reduce_dim / brg->rd_block;
+        brg->rdb_tail = brg->reduce_dim % brg->rd_block;
+
+        // Remove these guard in the future (add tail processing by reduction dimension)
+        if (brg->rdb > 0 && brg->rdb_tail) return status::unimplemented;
+        if (brg->rdb_tail % ((brg->is_bf16_amx) ? 2 : 4))
+            return status::unimplemented;
+    }
+
+    return status::success;
+}
+} // namespace
 
 status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
         brgemm_batch_kind_t type, impl::data_type_t dt_a,
@@ -219,7 +433,6 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     brg->with_sum = false;
     brg->sum_scale = 0;
     brg->sum_zp = 0;
-    brg->sum_dt = brg->dt_d;
     brg->with_scales = false;
 
     brg->beta = beta;
@@ -237,180 +450,14 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 
     brg->ld_step = brg->rd_step = 4 / brg->typesize_A;
 
-    if (!brg->is_int8_amx && !brg->is_bf16_amx) {
-        brg->ld_block = 16;
-        brg->ldb = brg->load_dim / brg->ld_block;
-        brg->ldb_tail = brg->load_dim % brg->ld_block;
-
-        brg->ld_block2 = 4; // (M < 9) ? 2 : 4 | TODO - fix this for INT8
-        brg->ldb2 = brg->ldb / brg->ld_block2;
-        brg->ldb2_tail = brg->ldb % brg->ld_block2;
-
-        if (brg->ldb2 == 0) brg->ld_block2 = nstl::max(1, brg->ldb2_tail);
-        brg->embd_bcst = !brg->is_int8 && !brg->is_bf16
-                && (brg->ldb2_tail <= 1 && brg->ldb2 == 0);
-
-        int ld_block = (brg->ldb2 != 0) ? brg->ld_block2 : brg->ldb2_tail;
-        int adj_ld_block = (ld_block == 0) ? (ld_block + 1) : ld_block;
-
-        const int max_avx512_regs = 32;
-        const int max_bcst_regs = 1;
-        int max_regs = max_avx512_regs - (adj_ld_block + max_bcst_regs);
-        int max_block
-                = (brg->embd_bcst ? 28
-                                  : ((brg->beta == 1.f || brg->beta == 0.f)
-                                                  ? max_regs
-                                                  : max_regs - 1));
-        max_block -= brg->req_s8s8_compensation;
-        max_block /= adj_ld_block;
-        int min_block = 1;
-        float best_bd_block_eff = 0.f;
-        brg->bd_block = 1;
-        for (int bd_block = max_block; bd_block >= min_block; bd_block--) {
-            const auto bd_block_disb
-                    = (float)brg->bcast_dim / rnd_up(brg->bcast_dim, bd_block);
-            const auto brgemm_microkernel_eff = ((float)(adj_ld_block)*bd_block)
-                    / (((adj_ld_block) + bd_block) * max_block);
-            const auto bd_block_eff = bd_block_disb * brgemm_microkernel_eff;
-
-            float block_foot_print
-                    = (float)brg->typesize_A * (bd_block * brg->reduce_dim);
-            if (block_foot_print <= (float)platform::get_per_core_cache_size(1)
-                    && (bd_block_eff > best_bd_block_eff)) {
-                brg->bd_block = bd_block;
-                best_bd_block_eff = bd_block_eff;
-            }
-        }
-        brg->bdb = brg->bcast_dim / brg->bd_block;
-        brg->bdb_tail = brg->bcast_dim % brg->bd_block;
-
-        brg->rd_block = 16 / brg->typesize_A;
-        brg->rdb = brg->reduce_dim / brg->rd_block;
-        brg->rdb_tail = brg->reduce_dim % brg->rd_block;
-
-        brg->is_M_tail = false;
-    } else {
-        // Blocking configuration for AMX
-        const int max_width = 16, min_width = 1;
-        brg->ld_block = 16;
-        brg->ldb = brg->load_dim / brg->ld_block;
-        brg->ldb_tail = brg->load_dim % brg->ld_block;
-
-        auto set_decomposition_by_ld = [&]() {
-            if (brg->bd_block2 == 1 && brg->ldb > 0 && brg->ldb_tail == 0) {
-                if (brg->ldb % 3 == 0)
-                    brg->ld_block2 = 3;
-                else if (brg->ldb % 2 == 0)
-                    brg->ld_block2 = 2;
-                else
-                    brg->ld_block2 = 1;
-            } else {
-                brg->ld_block2
-                        = (brg->ldb > 0 && brg->ldb % 2 == 0
-                                  && brg->ldb_tail == 0 && brg->bd_block2 < 3)
-                        ? 2
-                        : 1;
-            }
-            brg->ldb2 = brg->ldb / brg->ld_block2;
-            brg->ldb2_tail = brg->ldb % brg->ld_block2;
-
-            // Re-adjust the bd_block2 if possible
-            if (brg->ld_block2 == 1 && !brg->is_M_tail && brg->ldb_tail == 0) {
-                brg->bd_block2 = (brg->bdb >= 3) ? 3 : (brg->bdb >= 2) ? 2 : 1;
-                brg->bdb2 = brg->bdb / brg->bd_block2;
-                brg->bdb2_tail = (brg->bd_block2 == 1)
-                        ? brg->bdb
-                        : brg->bdb % brg->bd_block2;
-            }
-        };
-
-        auto try_3x1_decomposition = [&](int width_step) {
-            brg->is_M_tail = false;
-            if (brg->bcast_dim > (width_step - 1) * max_width
-                    && brg->bcast_dim < width_step * max_width
-                    && brg->ldb_tail == 0) {
-                brg->bd_block = max_width;
-                brg->bdb = div_up(brg->bcast_dim, brg->bd_block);
-                brg->bdb_tail = brg->bcast_dim % brg->bd_block;
-
-                brg->bd_block2 = width_step;
-                brg->bdb2 = brg->bdb / brg->bd_block2;
-                brg->bdb2_tail = brg->bdb % brg->bd_block2;
-                brg->is_M_tail = true;
-            }
-            set_decomposition_by_ld();
-
-            return brg->is_M_tail;
-        };
-
-        auto try_2x2_decomposition = [&]() {
-            for (int m_block = max_width; m_block >= min_width; m_block--) {
-                if (brg->bcast_dim % m_block == 0) {
-                    brg->bd_block = m_block;
-                    break;
-                }
-            }
-            if (brg->bd_block == 1) {
-                brg->bd_block = nstl::min(max_width, brg->bcast_dim);
-                brg->bdb_tail = brg->bcast_dim % max_width;
-                for (int i = max_width; i >= min_width; i--) {
-                    int i_tail = brg->bcast_dim % i;
-                    if (i_tail > brg->bdb_tail || i_tail == 0) {
-                        brg->bd_block = i;
-                        brg->bdb_tail = i_tail;
-                        if (i_tail == 0) break;
-                    }
-                }
-            }
-            brg->bdb = brg->bcast_dim / brg->bd_block;
-            brg->bdb_tail = brg->bcast_dim % brg->bd_block;
-
-            brg->bd_block2 = (brg->bdb >= 2) ? 2 : 1;
-            brg->bdb2 = brg->bdb / brg->bd_block2;
-            brg->bdb2_tail = (brg->bd_block2 == 1) ? brg->bdb
-                                                   : brg->bdb % brg->bd_block2;
-            brg->is_M_tail = false;
-
-            set_decomposition_by_ld();
-
-            return !(brg->ld_block2 == 1 || brg->bd_block2 == 1
-                    || brg->bd_block < 8);
-        };
-
-        bool is_decomposition_defined = false;
-        for (int i = decomposition_2x2; i != not_definded; i++) {
-            switch (i) {
-                case decomposition_2x2:
-                    is_decomposition_defined = try_2x2_decomposition();
-                    break;
-                case decomposition_3x1_3:
-                    is_decomposition_defined = try_3x1_decomposition(3);
-                    break;
-                case decomposition_3x1_2:
-                    is_decomposition_defined = try_3x1_decomposition(2);
-                    break;
-                default: assert(!"invalid value"); break;
-            };
-            if (is_decomposition_defined) break;
-        }
-        if (!is_decomposition_defined) try_2x2_decomposition();
-
-        brg->rd_block = brg->is_bf16_amx ? 32 : 64;
-        brg->rdb = brg->reduce_dim / brg->rd_block;
-        brg->rdb_tail = brg->reduce_dim % brg->rd_block;
-
-        // Remove these guard in the future (add tail processing by reduction dimension)
-        if (brg->rdb > 0 && brg->rdb_tail) return status::unimplemented;
-        if (brg->rdb_tail % ((brg->is_bf16_amx) ? 2 : 4))
-            return status::unimplemented;
-    }
-
     if (strides != nullptr) {
         brg->stride_a = strides->stride_a;
         brg->stride_b = strides->stride_b;
     } else {
         brg->stride_a = brg->stride_b = 0;
     }
+
+    CHECK(brgemm_blocking(brg));
 
     return status::success;
 }
@@ -552,14 +599,24 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
         return status::unimplemented;
 
     brg->brgattr = brgattr;
+
+    if (brgattr.bd_mask_level) brgemm_blocking(brg);
+
     return status::success;
 }
 
 status_t brgemm_kernel_create(
         brgemm_kernel_t **brg_kernel, const brgemm_t &brg) {
-    CHECK(safe_ptr_assign<brgemm_kernel_t>(
-            *brg_kernel, new brgemm_kernel_t(brg)));
-    return (*brg_kernel)->create_kernel();
+    if (brg.is_amx && brg.type == brgemm_addr && brg.brgattr.max_bs >= 1
+            && brg.brgattr.use_uker) {
+        CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                *brg_kernel, new brgemm_amx_uker_t(brg)));
+        return (*brg_kernel)->create_kernel();
+    } else {
+        CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                *brg_kernel, new brgemm_kernel_common_t(brg)));
+        return (*brg_kernel)->create_kernel();
+    }
 }
 
 void brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel) {
