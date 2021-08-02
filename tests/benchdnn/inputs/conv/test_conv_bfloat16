@@ -19,7 +19,7 @@
 
 --reset
 --mb=2
---skip-impl=ref,gemm
+--skip-impl=ref,x64:gemm
 --dir=FWD_D --cfg=bf16bf16bf16
 --batch=shapes_3d_2d_strided_padding --batch=shapes_dilated_3d_strided_padding
 --dir=BWD_D --cfg=f32bf16bf16 --batch=shapes_3d_2d_strided_padding
@@ -29,7 +29,7 @@
 # Attributes
 --reset
 --mb=2
---skip-impl=ref,gemm
+--skip-impl=ref,x64:gemm
 --dir=FWD_B
 --cfg=bf16bf16bf16
 ## Post-Ops
@@ -55,6 +55,6 @@
 
 # Test src-transpose padding handling in bf16 bwd-w convolution
 --reset --mb=2
---skip-impl=ref,gemm
+--skip-impl=ref,x64:gemm
 --cfg=bf16bf16bf16 --dir=BWD_W
 --batch=shapes_src-transpose_padding

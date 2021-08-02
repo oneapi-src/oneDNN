@@ -46,7 +46,7 @@
 
 # target jit kernel with large shape to overcome L2-cache heuristic
 
---skip-impl=ref,gemm
+--skip-impl=ref,x64:gemm
 --cfg=f32
 --attr-oscale=
 --attr-post-ops=dw_k3s1p1:f32

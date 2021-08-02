@@ -1,7 +1,7 @@
 #i8
 --reset
 --mb=2
---skip-impl=ref,gemm      # ! test jit version only
+--skip-impl=ref,x64:gemm      # ! test jit version only
 --dir=FWD_D
 --cfg=u8s8u8 --batch=shapes_mobilenet_dw
 --cfg=u8s8u8 --batch=shapes_regression_dw
@@ -9,7 +9,7 @@
 #i8 attrs
 --reset
 --mb=2
---skip-impl=ref,gemm      # ! test jit version only
+--skip-impl=ref,x64:gemm      # ! test jit version only
 --dir=FWD_B
 --attr-oscale=per_oc:2.25 --attr-post-ops=sum:1.5:2+relu
 --cfg=s8s8f32,u8s8u8 --batch=shapes_mobilenet_dw

@@ -52,22 +52,22 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
         const dim_t *ldb, const float *beta, float *C, const dim_t *ldc);
 
 #if defined(USE_CBLAS)
-#define GEMM_IMPL_STR "gemm:blas"
+#define GEMM_IMPL_STR "x64:gemm:blas"
 #elif DNNL_X64
-#define GEMM_IMPL_STR "gemm:jit"
+#define GEMM_IMPL_STR "x64:gemm:jit"
 #else
 #define GEMM_IMPL_STR "gemm:ref"
 #endif
 
 #if USE_MKL_IGEMM
-#define IGEMM_S8U8S32_IMPL_STR "igemm_s8u8s32:blas"
-#define IGEMM_S8S8S32_IMPL_STR "igemm_s8s8s32:blas"
+#define IGEMM_S8U8S32_IMPL_STR "x64:gemm_s8u8s32:blas"
+#define IGEMM_S8S8S32_IMPL_STR "x64:gemm_s8s8s32:blas"
 #elif DNNL_X64
-#define IGEMM_S8U8S32_IMPL_STR "igemm_s8u8s32:jit"
-#define IGEMM_S8S8S32_IMPL_STR "igemm_s8s8s32:jit"
+#define IGEMM_S8U8S32_IMPL_STR "x64:gemm_s8u8s32:jit"
+#define IGEMM_S8S8S32_IMPL_STR "x64:gemm_s8s8s32:jit"
 #else
-#define IGEMM_S8U8S32_IMPL_STR "igemm_s8u8s32:ref"
-#define IGEMM_S8S8S32_IMPL_STR "igemm_s8s8s32:ref"
+#define IGEMM_S8U8S32_IMPL_STR "gemm_s8u8s32:ref"
+#define IGEMM_S8S8S32_IMPL_STR "gemm_s8s8s32:ref"
 #endif
 
 #if !defined(USE_MKL_IGEMM) && defined(DNNL_X64)

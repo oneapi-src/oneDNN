@@ -11,7 +11,7 @@
 
 --reset --cfg=f32_full
 --mb=2
---skip-impl=ref,gemm
+--skip-impl=ref,x64:gemm
 --dir=FWD_B,BWD_D,BWD_WB
 --batch=set_conv_dw
 --batch=shapes_dw_minibatch_2d-spatial

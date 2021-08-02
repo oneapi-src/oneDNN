@@ -1,7 +1,7 @@
 # f32
 --reset --cfg=f32
 --mb=2
---skip-impl=ref,gemm      # ! test jit version only
+--skip-impl=ref,x64:gemm      # ! test jit version only
 --dir=FWD_B
 --attr-post-ops=sum+relu --batch=shapes_resnet_50
 --attr-post-ops=sum+relu:0.5 --batch=shapes_tails

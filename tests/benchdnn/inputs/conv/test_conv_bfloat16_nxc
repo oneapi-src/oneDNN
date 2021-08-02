@@ -21,7 +21,7 @@
 --reset
 --mb=2
 --stag=axb --dtag=axb
---skip-impl=ref,gemm
+--skip-impl=ref,x64:gemm
 
 --dir=FWD_D
 --cfg=bf16bf16bf16
@@ -39,7 +39,7 @@
 --reset
 --mb=2
 --stag=axb --dtag=axb
---skip-impl=ref,gemm
+--skip-impl=ref,x64:gemm
 --dir=FWD_B
 --cfg=bf16bf16bf16
 ## PostOps
@@ -54,6 +54,6 @@
 # Test src-transpose padding handling in bf16 bwd-w convolution
 --reset --mb=2
 --stag=axb --dtag=axb
---skip-impl=ref,gemm
+--skip-impl=ref,x64:gemm
 --cfg=bf16bf16bf16 --dir=BWD_W
 --batch=shapes_src-transpose_padding
