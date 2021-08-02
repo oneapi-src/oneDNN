@@ -216,6 +216,18 @@ bool parse_bench_settings(const char *str);
 void catch_unknown_options(const char *str);
 
 int parse_last_argument();
+
+// Function returns a substring of a given string @p `s`, using @p `start_pos`
+// to start a search from this index in string and @p `delim` as a stop symbol
+// and sets a @p `start_pos` to the next symbol after `delim` or to `npos`.
+// E.g. 1) s=apple:juice, start_pos=0, delim=':'
+//         get_substr -> apple && start_pos -> 6
+//      2) s=apple:juice, start_pos=6, delim=':'
+//         get_substr -> juice && start_pos -> npos
+//      3) s=apple:juice, start_pos=0, delim=';'
+//         get_substr -> apple:juice && start_pos -> npos
+std::string get_substr(const std::string &s, size_t &start_pos, char delim);
+
 } // namespace parser
 
 #endif

@@ -19,20 +19,10 @@
 #include <string>
 #include <utility>
 
-#include "dnnl_debug.hpp"
-
+#include "parser.hpp"
 #include "reorder/reorder.hpp"
 
 namespace reorder {
-
-// TODO: consolidate it in parser.cpp with one from dnn_types.cpp
-std::string get_substr(
-        const std::string &s, size_t &start_pos, char delim = ':') {
-    auto end_pos = s.find_first_of(delim, start_pos);
-    auto sub = s.substr(start_pos, end_pos - start_pos);
-    start_pos = end_pos + (end_pos != std::string::npos);
-    return sub;
-}
 
 flag_t str2flag(const char *str) {
     std::string s(str);
@@ -40,7 +30,7 @@ flag_t str2flag(const char *str) {
 
     size_t start_pos = 0;
     // format of single entry is `flag_bit:mask`
-    auto sub = get_substr(s, start_pos, ':');
+    auto sub = parser::get_substr(s, start_pos, ':');
     std::transform(sub.begin(), sub.end(), sub.begin(), ::tolower);
 
     flag_bit_t flag = FLAG_NONE;
@@ -53,7 +43,7 @@ flag_t str2flag(const char *str) {
         SAFE_V(FAIL);
     }
 
-    int mask = std::stoi(get_substr(s, start_pos));
+    int mask = std::stoi(parser::get_substr(s, start_pos, ':'));
     if (mask < 0) {
         fprintf(stderr,
                 "ERROR: reorder driver: `mask` should be non-negative.\n"),

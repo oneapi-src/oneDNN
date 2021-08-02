@@ -27,12 +27,14 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "src/common/math_utils.hpp"
+
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_debug.hpp"
 #include "dnnl_memory.hpp"
-#include "src/common/math_utils.hpp"
+#include "parser.hpp"
 
 #define BENCHDNN_DNNL_ARG_UNDEF 0
 
@@ -199,17 +201,6 @@ int attr_t::get_default_mask(policy_t policy) {
     }
 }
 
-// This function return substring by @start_pos and @delim and shifts @start_pos
-// to the place where @delim was found. Useful to parse peices of inputs
-// separated by @delim.
-std::string get_substr(
-        const std::string &s, size_t &start_pos, char delim = ':') {
-    auto end_pos = s.find_first_of(delim, start_pos);
-    auto sub = s.substr(start_pos, end_pos - start_pos);
-    start_pos = end_pos + (end_pos != std::string::npos);
-    return sub;
-}
-
 // This function takes input string, extracts float value and runtime, if
 // present, from the string. Updates @value and @runtime with extracted values.
 int parse_value_and_runtime(float &value, bool &runtime, const std::string &s) {
@@ -230,13 +221,13 @@ int attr_t::scale_t::from_str(const std::string &s) {
 
     size_t start_pos = 0;
     // process policy
-    this->policy = str2policy(get_substr(s, start_pos));
+    this->policy = str2policy(parser::get_substr(s, start_pos, ':'));
     if (this->policy == POLICY_TOTAL) return FAIL;
     if (start_pos == std::string::npos) return OK;
     if (start_pos >= s.size()) return FAIL; // to catch dangling ':'
 
-    SAFE(parse_value_and_runtime(
-                 this->scale, this->runtime, get_substr(s, start_pos)),
+    SAFE(parse_value_and_runtime(this->scale, this->runtime,
+                 parser::get_substr(s, start_pos, ':')),
             WARN);
     if (this->scale < 0) return FAIL;
     return OK;
@@ -248,15 +239,15 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
 
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
-        auto subs = get_substr(s, start_pos, '+');
+        auto subs = parser::get_substr(s, start_pos, '+');
         size_t subs_pos = 0;
 
-        auto arg = str2arg(get_substr(subs, subs_pos));
+        auto arg = str2arg(parser::get_substr(subs, subs_pos, ':'));
         if (arg == BENCHDNN_DNNL_ARG_UNDEF || subs_pos == std::string::npos
                 || subs_pos >= subs.size())
             return FAIL;
 
-        auto policy = str2policy(get_substr(subs, subs_pos));
+        auto policy = str2policy(parser::get_substr(subs, subs_pos, ':'));
         if (policy == POLICY_TOTAL || subs_pos == std::string::npos
                 || subs_pos >= subs.size())
             return FAIL;
@@ -264,7 +255,7 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
         float zp = 0;
         bool runtime = false;
         SAFE(parse_value_and_runtime(
-                     zp, runtime, get_substr(subs, subs_pos, '\0')),
+                     zp, runtime, parser::get_substr(subs, subs_pos, '\0')),
                 WARN);
         set(arg, policy, static_cast<int>(zp), runtime);
     }
@@ -277,21 +268,22 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
 
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
-        auto subs = get_substr(s, start_pos, '+');
+        auto subs = parser::get_substr(s, start_pos, '+');
         // Special handling for really big float values
         if (subs.back() == 'e') {
-            auto subs_add = get_substr(s, start_pos, '+');
+            auto subs_add = parser::get_substr(s, start_pos, '+');
             subs += subs_add;
         }
         size_t subs_pos = 0;
 
-        auto arg = str2arg(get_substr(subs, subs_pos));
+        auto arg = str2arg(parser::get_substr(subs, subs_pos, ':'));
         if (arg == BENCHDNN_DNNL_ARG_UNDEF || subs_pos == std::string::npos
                 || subs_pos >= s.size())
             return FAIL;
 
         scale_t arg_scale;
-        SAFE(arg_scale.from_str(get_substr(subs, subs_pos, '\0')), WARN);
+        SAFE(arg_scale.from_str(parser::get_substr(subs, subs_pos, '\0')),
+                WARN);
         set(arg, arg_scale);
     }
     return OK;
@@ -442,10 +434,10 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
-        auto subs = get_substr(s, start_pos, '+');
+        auto subs = parser::get_substr(s, start_pos, '+');
         size_t subs_pos = 0;
 
-        auto kind = str2kind(get_substr(subs, subs_pos));
+        auto kind = str2kind(parser::get_substr(subs, subs_pos, ':'));
         if (kind == KIND_TOTAL) return FAIL;
 
         entry.emplace_back(kind);
@@ -454,51 +446,57 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 
         auto &e = entry.back();
         if (e.is_sum_kind()) {
-            e.sum.scale = std::stof(get_substr(subs, subs_pos));
+            e.sum.scale = std::stof(parser::get_substr(subs, subs_pos, ':'));
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
-            std::string zero_point_str = get_substr(subs, subs_pos);
+            std::string zero_point_str
+                    = parser::get_substr(subs, subs_pos, ':');
             // TODO: update this check to validate whole string for digits
             if (!std::isdigit(zero_point_str[0])) return FAIL;
             e.sum.zero_point = std::stoi(zero_point_str);
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
-            e.sum.dt = str2dt(get_substr(subs, subs_pos).c_str());
+            e.sum.dt = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
             // sum dt, if specified, should be defined
             if (e.sum.dt == dnnl_data_type_undef) return FAIL;
         } else if (e.is_convolution_kind()) {
-            e.convolution.dst_dt = str2dt(get_substr(subs, subs_pos).c_str());
+            e.convolution.dst_dt
+                    = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
             if (e.convolution.dst_dt == dnnl_data_type_undef) return FAIL;
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
-            auto scale_str = get_substr(subs, subs_pos, '+');
+            auto scale_str = parser::get_substr(subs, subs_pos, '+');
             SAFE(e.convolution.oscale.from_str(scale_str), WARN);
         } else if (e.is_eltwise_kind()) {
-            e.eltwise.alpha = std::stof(get_substr(subs, subs_pos));
+            e.eltwise.alpha
+                    = std::stof(parser::get_substr(subs, subs_pos, ':'));
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
-            e.eltwise.beta = std::stof(get_substr(subs, subs_pos));
+            e.eltwise.beta = std::stof(parser::get_substr(subs, subs_pos, ':'));
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
-            e.eltwise.scale = std::stof(get_substr(subs, subs_pos));
+            e.eltwise.scale
+                    = std::stof(parser::get_substr(subs, subs_pos, ':'));
             if (e.eltwise.scale <= 0) return FAIL;
         } else if (e.is_binary_kind()) {
-            e.binary.src1_dt = str2dt(get_substr(subs, subs_pos).c_str());
+            e.binary.src1_dt
+                    = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
             if (e.binary.src1_dt == dnnl_data_type_undef) return FAIL;
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
-            e.binary.policy = str2policy(get_substr(subs, subs_pos));
+            e.binary.policy
+                    = str2policy(parser::get_substr(subs, subs_pos, ':'));
             if (e.binary.policy == POLICY_TOTAL) return FAIL;
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
-            e.binary.tag = get_substr(subs, subs_pos);
+            e.binary.tag = parser::get_substr(subs, subs_pos, ':');
             SAFE(check_tag(e.binary.tag), WARN);
         }
         if (subs_pos == std::string::npos) continue;
@@ -567,7 +565,8 @@ int str2attr(attr_t *attr, const char *str) {
     if (start_pos != std::string::npos) {
         start_pos += entry_name.size();
         // ';' is an attribute delimeter
-        auto status = attr->oscale.from_str(get_substr(s, start_pos, ';'));
+        auto status
+                = attr->oscale.from_str(parser::get_substr(s, start_pos, ';'));
         if (status != OK) return status;
     }
 
@@ -575,7 +574,8 @@ int str2attr(attr_t *attr, const char *str) {
     start_pos = s.find(entry_name);
     if (start_pos != std::string::npos) {
         start_pos += entry_name.size();
-        auto status = attr->zero_points.from_str(get_substr(s, start_pos, ';'));
+        auto status = attr->zero_points.from_str(
+                parser::get_substr(s, start_pos, ';'));
         if (status != OK) return status;
     }
 
@@ -583,7 +583,8 @@ int str2attr(attr_t *attr, const char *str) {
     start_pos = s.find(entry_name);
     if (start_pos != std::string::npos) {
         start_pos += entry_name.size();
-        auto status = attr->scales.from_str(get_substr(s, start_pos, ';'));
+        auto status
+                = attr->scales.from_str(parser::get_substr(s, start_pos, ';'));
         if (status != OK) return status;
     }
 

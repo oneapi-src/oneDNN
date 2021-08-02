@@ -455,4 +455,12 @@ int parse_last_argument() {
                 driver_name);
     return OK;
 }
+
+std::string get_substr(const std::string &s, size_t &start_pos, char delim) {
+    auto end_pos = s.find_first_of(delim, start_pos);
+    auto sub = s.substr(start_pos, end_pos - start_pos);
+    start_pos = end_pos + (end_pos != std::string::npos);
+    return sub;
+}
+
 } // namespace parser
