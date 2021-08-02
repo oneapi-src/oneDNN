@@ -85,6 +85,13 @@ public:
             const binary_injector::static_params_t &binary_static_params,
             const quantization_injector::static_params_t &quantization_static_params);
     jit_uni_postops_injector_t(jit_generator *host, const post_ops_t &post_ops,
+            const eltwise_injector::static_params_t &eltwise_static_params,
+            const quantization_injector::static_params_t &quantization_static_params);
+    jit_uni_postops_injector_t(jit_generator *host, const post_ops_t &post_ops,
+            const binary_injector::static_params_t &binary_static_params,
+            const eltwise_injector::static_params_t &eltwise_static_params,
+            const quantization_injector::static_params_t &quantization_static_params);
+    jit_uni_postops_injector_t(jit_generator *host, const post_ops_t &post_ops,
             const binary_injector::static_params_t &binary_static_params,
             const eltwise_injector::static_params_t &eltwise_static_params,
             const quantization_injector::static_params_t &quantization_static_params,
@@ -99,7 +106,7 @@ public:
     void compute_vector_range(const injector_utils::vmm_index_set_t &vmm_idxs,
             const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params,
             const depthwise_injector::dynamic_params_t &ddp,
-            const quantization_injector::dynamic_params_t &qdp);
+            const quantization_injector::dynamic_params_t &qdp, bool is_broadcast = false);
 
     void compute_vector_range(const injector_utils::vmm_index_set_t &vmm_idxs,
             const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params);
@@ -132,6 +139,13 @@ public:
     void compute_vector(size_t idx,
             const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params);
     void compute_vector(size_t idx);
+    void compute_vector(size_t idx,
+                        const depthwise_injector::dynamic_params_t &ddp,
+                        const quantization_injector::dynamic_params_t &qdp, bool is_broadcast = false);
+    void compute_vector(size_t idx,
+            const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params,
+            const depthwise_injector::dynamic_params_t &ddp,
+            const quantization_injector::dynamic_params_t &qdp);
 
     /*
      * Thin wrapper for eltwise injector specific function

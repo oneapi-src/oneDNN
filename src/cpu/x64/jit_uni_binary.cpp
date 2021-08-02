@@ -265,7 +265,7 @@ bool jit_uni_binary_t::pd_t::alg_preserves_zero() const {
     using namespace alg_kind;
     return utils::one_of(desc()->alg_kind, binary_add, binary_max, binary_min,
             binary_mul, binary_sub, binary_ge, binary_gt, binary_le, binary_lt,
-            binary_eq, binary_ne);
+            binary_eq, binary_ne, binary_prelu);
 }
 
 bool jit_uni_binary_t::pd_t::check_scales_mask() const {
@@ -386,7 +386,7 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
         if (utils::one_of(desc()->alg_kind, alg_kind::binary_ge,
                     alg_kind::binary_gt, alg_kind::binary_le,
                     alg_kind::binary_lt, alg_kind::binary_eq,
-                    alg_kind::binary_ne)
+                    alg_kind::binary_ne, alg_kind::binary_prelu)
                 && (has_oc_tail || has_outer_dims_tail))
             return false;
 
@@ -1099,7 +1099,7 @@ status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
     // blocked format due to overwriting the vector tail by vcmpps.
     const bool vector_overwrite = utils::one_of(alg, alg_kind::binary_ge,
             alg_kind::binary_gt, alg_kind::binary_le, alg_kind::binary_lt,
-            alg_kind::binary_eq, alg_kind::binary_ne);
+            alg_kind::binary_eq, alg_kind::binary_ne, alg_kind::binary_prelu);
     const bool blocked_oc_tail = op_type == op_t::c_blocked && has_oc_tail
             && (with_postops || point_broadcast || bcast_type == bcast_t::per_w
                     || vector_overwrite);

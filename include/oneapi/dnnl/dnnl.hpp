@@ -665,6 +665,8 @@ enum class algorithm {
     binary_eq = dnnl_binary_eq,
     /// Binary not equal
     binary_ne = dnnl_binary_ne,
+    /// Binary prelu
+    binary_prelu = dnnl_binary_prelu,
     /// Nearest Neighbor resampling method
     resampling_nearest = dnnl_resampling_nearest,
     /// Linear (Bilinear, Trilinear) resampling method

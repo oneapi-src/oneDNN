@@ -64,7 +64,7 @@ ref_depthwise_scalar_fwd_t::ref_depthwise_scalar_fwd_t(const alg_kind_t alg_)
     assert(utils::one_of(alg, depthwise_scale_shift, depthwise_prelu));
 }
 
-float ref_depthwise_scalar_fwd_t::compute_scalar(float s, const float* weights, const float* bias) {
+float ref_depthwise_scalar_fwd_t::compute_scalar(float s, const float* weights, const float* bias) const {
     switch (alg) {
         case depthwise_scale_shift: return scale_shift_fwd(s, *weights, *bias);
         case depthwise_prelu: return prelu_fwd(s, *weights);

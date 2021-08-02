@@ -27,7 +27,7 @@ namespace cpu {
 struct ref_depthwise_scalar_fwd_t {
 public:
     explicit ref_depthwise_scalar_fwd_t(alg_kind_t alg);
-    float compute_scalar(float s, const float* weights, const float* bias);
+    float compute_scalar(float s, const float* weights, const float* bias) const;
 
 private:
     alg_kind_t alg;

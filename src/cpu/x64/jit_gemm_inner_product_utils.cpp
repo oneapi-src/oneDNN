@@ -307,6 +307,7 @@ jit_pp_kernel_t<isa>::jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
         static const size_t helper_vmm_idx = is_avx512_ ? 31 : 15;
+        static const size_t prelu_helper_vmm_idx = is_avx512_ ? 30 : 0; // todo: [antonvor] check prelu_helper_vmm_idx if is_avx512_ == false
         static constexpr bool use_exact_tail_scalar_bcast = false;
         const auto dst_md_wrapper = memory_desc_wrapper(*dst_md);
 
@@ -327,7 +328,7 @@ jit_pp_kernel_t<isa>::jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
                 helper_vmm_idx, eltwise_reserved_gpr_, r14, preserve_gpr,
                 preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
                 PARAM_OFF(dst_orig), dst_md_wrapper, tail_size, opmask_binary,
-                reg_tmp, use_exact_tail_scalar_bcast};
+                reg_tmp, use_exact_tail_scalar_bcast, prelu_helper_vmm_idx};
         static const bcast_set_t enabled_bcast_strategy
                 = {broadcasting_strategy_t::scalar,
                         broadcasting_strategy_t::per_oc,

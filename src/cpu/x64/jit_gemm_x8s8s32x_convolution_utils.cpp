@@ -180,6 +180,7 @@ jit_pp_ker_t::jit_pp_ker_t(
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = true;
         static constexpr size_t helper_vmm_idx = 31;
+        static constexpr size_t prelu_helper_vmm_idx = 30; // todo: [antonvor]
         // tail_size = 1 just indicates that tailing is to be performed
         // actual tail value is held in opmask passed to injector
         static constexpr size_t tail_size = 1;
@@ -190,7 +191,7 @@ jit_pp_ker_t::jit_pp_ker_t(
                 r13, r14, preserve_gpr, preserve_vmm,
                 PARAM_OFF(post_ops_binary_rhs_arg_vec), PARAM_OFF(dst_orig),
                 memory_desc_wrapper(pd->dst_md()), tail_size, opmask_binary,
-                use_exact_tail_scalar_bcast};
+                use_exact_tail_scalar_bcast, prelu_helper_vmm_idx};
 #undef PARAM_OFF
 
         const static_params_t static_params {reg_param_, rhs_arg_static_params};

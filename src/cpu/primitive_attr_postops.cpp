@@ -40,6 +40,7 @@ float compute_binary_scalar(alg_kind_t alg, float x, float y) {
         case binary_lt: return x < y;
         case binary_eq: return x == y;
         case binary_ne: return x != y;
+        case binary_prelu: return x >= 0 ? x : x * y;
         default: assert(!"not supported operation!"); return NAN;
     }
 }
@@ -145,7 +146,7 @@ ref_binary_scalar_t::ref_binary_scalar_t(alg_kind_t alg) : alg_(alg) {
             alg_kind::binary_min, alg_kind::binary_mul, alg_kind::binary_div,
             alg_kind::binary_sub, alg_kind::binary_ge, alg_kind::binary_gt,
             alg_kind::binary_le, alg_kind::binary_lt, alg_kind::binary_eq,
-            alg_kind::binary_ne));
+            alg_kind::binary_ne, alg_kind::binary_prelu));
 }
 
 ref_binary_scalar_t::ref_binary_scalar_t(
@@ -190,6 +191,8 @@ ref_post_ops_t::ref_post_ops_t(const post_ops_t &po, bool skip_sum)
             eltwise_po_.emplace_back(e.eltwise);
         } else if (po_.contain(primitive_kind::binary, idx)) {
             binary_po_.emplace_back(e.binary);
+        } else if (po_.contain(primitive_kind::depthwise, idx)) {
+            depthwise_po_.emplace_back(e.depthwise.alg);
         }
     }
 }
@@ -258,11 +261,12 @@ dim_t get_binary_src1_off(const memory_desc_t &src1_md, const dim_t l_offset,
 
 } // namespace
 
-status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
+status_t ref_post_ops_t::execute(float &res, const args_t &args, const size_t oc) const {
     if (po_.len() == 0) return status::success;
 
     auto it_eltwise_po = eltwise_po_.begin();
     auto it_binary_po = binary_po_.begin();
+    auto it_depthwise_po = depthwise_po_.begin();
     for (auto idx = 0; idx < po_.len(); ++idx) {
         const auto &e = po_.entry_[idx];
         switch (e.kind) {
@@ -309,6 +313,40 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
                         dst_d.dims(), dst_d.ndims(), e.prelu.mask);
                 const auto &weights_value = prelu_weights[off];
                 res = weights_value * res;
+            } break;
+            case primitive_kind::depthwise: {
+                auto depthwise_weights = e.depthwise.weights_data;
+                auto depthwise_bias = e.depthwise.biases_data;
+                res = it_depthwise_po->compute_scalar(res, depthwise_weights + oc, depthwise_bias + oc);
+                ++it_depthwise_po;
+            } break;
+            case primitive_kind::quantization: {
+                bool do_dequantization = e.quantization.alg == alg_kind::quantization_quantize_dequantize;
+                bool do_rounding = do_dequantization || args.dst_md->data_type == dnnl_f32 || idx != po_.len() - 1;
+
+                auto quant = e.quantization;
+                auto pcl = quant.crop_low_data->shifts_;
+                auto pch = quant.crop_high_data->shifts_;
+                auto pisc = quant.input_scale_data->scales_;
+                auto pish = quant.input_shift_data->shifts_;
+                auto posc = quant.output_scale_data->scales_;
+                auto posh = quant.output_shift_data->shifts_;
+
+                int cl_idx = quant.crop_low_data->count_ == 1 ? 0 : oc;
+                int ch_idx = quant.crop_high_data->count_ == 1 ? 0 : oc;
+                int isc_idx = quant.input_scale_data->count_ == 1 ? 0 : oc;
+                int ish_idx = quant.input_shift_data->count_ == 1 ? 0 : oc;
+                int osc_idx = quant.output_scale_data->count_ == 1 ? 0 : oc;
+                int osh_idx = quant.output_shift_data->count_ == 1 ? 0 : oc;
+
+                res = nstl::min(pch[ch_idx], nstl::max(pcl[cl_idx], res));
+                res = res * pisc[isc_idx] + pish[ish_idx];
+
+                if (do_rounding)
+                    res = roundf(res);
+
+                if (do_dequantization)
+                    res = res * posc[osc_idx] + posh[osh_idx];
             } break;
             default: assert(!"unsupported post op primitive kind!");
         }

@@ -243,12 +243,14 @@ rhs_arg_static_params_t::rhs_arg_static_params_t(
         const Xbyak::Reg64 &rhs_helper_reg, bool preserve_gpr_helpers,
         bool preserve_vmm_helper, std::size_t abi_param_offset,
         const memory_desc_wrapper &dst_d, std::size_t tail_size,
-        const Xbyak::Opmask &tail_opmask, bool use_exact_tail_scalar_bcast)
+        const Xbyak::Opmask &tail_opmask, bool use_exact_tail_scalar_bcast, std::size_t rhs_prelu_helper_vmm_idx)
     : rhs_arg_static_params_t(rhs_dt_helper_vmm_idx, rhs_addr_reg,
             rhs_helper_reg, preserve_gpr_helpers, preserve_vmm_helper,
             abi_param_offset, 0, dst_d, tail_size, tail_opmask,
             use_exact_tail_scalar_bcast, rhs_helper_reg, true /*is_opmask_set*/,
-            false /*is_dst_orig_set*/) {}
+            false /*is_dst_orig_set*/) {
+    this->rhs_prelu_helper_vmm_idx = rhs_prelu_helper_vmm_idx;
+}
 
 rhs_arg_static_params_t::rhs_arg_static_params_t(
         std::size_t rhs_dt_helper_vmm_idx, const Xbyak::Reg64 &rhs_addr_reg,
@@ -256,12 +258,14 @@ rhs_arg_static_params_t::rhs_arg_static_params_t(
         bool preserve_vmm_helper, std::size_t abi_param_offset,
         std::size_t dst_orig_offset, const memory_desc_wrapper &dst_d,
         std::size_t tail_size, const Xbyak::Opmask &tail_opmask,
-        bool use_exact_tail_scalar_bcast)
+        bool use_exact_tail_scalar_bcast, std::size_t rhs_prelu_helper_vmm_idx)
     : rhs_arg_static_params_t(rhs_dt_helper_vmm_idx, rhs_addr_reg,
             rhs_helper_reg, preserve_gpr_helpers, preserve_vmm_helper,
             abi_param_offset, dst_orig_offset, dst_d, tail_size, tail_opmask,
             use_exact_tail_scalar_bcast, rhs_helper_reg, true /*is_opmask_set*/,
-            true /*is_dst_orig_set*/) {}
+            true /*is_dst_orig_set*/) {
+    this->rhs_prelu_helper_vmm_idx = rhs_prelu_helper_vmm_idx;
+}
 
 rhs_arg_static_params_t::rhs_arg_static_params_t(
         std::size_t rhs_dt_helper_vmm_idx, const Xbyak::Reg64 &rhs_addr_reg,
@@ -269,12 +273,14 @@ rhs_arg_static_params_t::rhs_arg_static_params_t(
         bool preserve_vmm_helper, std::size_t abi_param_offset,
         const memory_desc_wrapper &dst_d, std::size_t tail_size,
         const Xbyak::Opmask &tail_opmask, const Xbyak::Reg64 &reg_tail_size,
-        bool use_exact_tail_scalar_bcast)
+        bool use_exact_tail_scalar_bcast, std::size_t rhs_prelu_helper_vmm_idx)
     : rhs_arg_static_params_t(rhs_dt_helper_vmm_idx, rhs_addr_reg,
             rhs_helper_reg, preserve_gpr_helpers, preserve_vmm_helper,
             abi_param_offset, 0, dst_d, tail_size, tail_opmask,
             use_exact_tail_scalar_bcast, reg_tail_size, true /*is_opmask_set*/,
-            false /*is_dst_orig_set*/) {}
+            false /*is_dst_orig_set*/) {
+    this->rhs_prelu_helper_vmm_idx = rhs_prelu_helper_vmm_idx;
+}
 
 rhs_arg_static_params_t::rhs_arg_static_params_t(
         std::size_t rhs_dt_helper_vmm_idx, const Xbyak::Reg64 &rhs_addr_reg,
@@ -282,12 +288,14 @@ rhs_arg_static_params_t::rhs_arg_static_params_t(
         bool preserve_vmm_helper, std::size_t abi_param_offset,
         std::size_t dst_orig_offset, const memory_desc_wrapper &dst_d,
         std::size_t tail_size, const Xbyak::Opmask &tail_opmask,
-        const Xbyak::Reg64 &reg_tail_size, bool use_exact_tail_scalar_bcast)
+        const Xbyak::Reg64 &reg_tail_size, bool use_exact_tail_scalar_bcast, std::size_t rhs_prelu_helper_vmm_idx)
     : rhs_arg_static_params_t(rhs_dt_helper_vmm_idx, rhs_addr_reg,
             rhs_helper_reg, preserve_gpr_helpers, preserve_vmm_helper,
             abi_param_offset, dst_orig_offset, dst_d, tail_size, tail_opmask,
             use_exact_tail_scalar_bcast, reg_tail_size, true /*is_opmask_set*/,
-            true /*is_dst_orig_set*/) {}
+            true /*is_dst_orig_set*/) {
+    this->rhs_prelu_helper_vmm_idx = rhs_prelu_helper_vmm_idx;
+}
 
 rhs_arg_static_params_t::rhs_arg_static_params_t(
         std::size_t rhs_dt_helper_vmm_idx, const Xbyak::Reg64 &rhs_addr_reg,
@@ -1511,7 +1519,7 @@ void jit_uni_binary_injector_t<isa, Vmm>::inject_binary(
             = rhs_arg_data_type != data_type::f32 || (scalar_f32 && !is_avx512_)
             || with_tail_not_fusable_to_binary_op
             || !binary_op_with_unaligned_mem_operand_allowed_
-            || (cmp_op && !is_avx512_);
+            || ((cmp_op || alg == alg_kind::binary_prelu) && !is_avx512_);
 
     if (process_rhs_arg_using_tmp_vmm) {
 
@@ -2293,6 +2301,23 @@ jit_uni_binary_injector_t<isa, Vmm>::execute_cmp_binary(const Vmm &dst,
     pop_opmask(host_, cmp_mask);
 }
 
+template <cpu_isa_t isa, typename Vmm>
+template <typename T>
+typename std::enable_if<std::is_same<T, Xbyak::Zmm>::value
+        || std::is_same<T, Xbyak::Address>::value>::type
+jit_uni_binary_injector_t<isa, Vmm>::execute_prelu_binary(const Vmm &dst, const Vmm &lhs, const T &rhs) const {
+    const auto &cmp_mask = rhs_arg_static_params_.tail_opmask;
+    const Xbyak::Zmm zmm_aux0
+            = Xbyak::Zmm(rhs_arg_static_params_.rhs_prelu_helper_vmm_idx);
+
+    push_opmask(host_, cmp_mask);
+    host_->uni_vpxor(zmm_aux0, zmm_aux0, zmm_aux0);
+    host_->vcmpps(cmp_mask, lhs, zmm_aux0, jit_generator::_cmp_lt_os);
+    host_->uni_vmulps(dst | cmp_mask, lhs, rhs);
+    pop_opmask(host_, cmp_mask);
+}
+
+
 // SSE4.1., AVX and AVX2 implementation
 template <cpu_isa_t isa, typename Vmm>
 template <typename T>
@@ -2310,6 +2335,23 @@ jit_uni_binary_injector_t<isa, Vmm>::execute_cmp_binary(const Vmm &dst,
     host_->uni_vmovq(xreg_one, reg_tmp);
     host_->uni_vbroadcastss(vreg_one, xreg_one);
     host_->uni_vminps(dst, dst, vreg_one);
+}
+
+// todo: [antonvor] check sse41 path
+template <cpu_isa_t isa, typename Vmm>
+template <typename T>
+typename std::enable_if<!(std::is_same<T, Xbyak::Zmm>::value
+                          || std::is_same<T, Xbyak::Address>::value)>::type
+jit_uni_binary_injector_t<isa, Vmm>::execute_prelu_binary(const Vmm &dst,
+                                                        const Vmm &lhs, const T &rhs) const {
+    const Vmm vmm_aux0 = Vmm(rhs_arg_static_params_.rhs_prelu_helper_vmm_idx);
+
+    push_vmm(host_, vmm_aux0);
+    host_->uni_vmulps(rhs, rhs, lhs);
+    host_->vpxor(vmm_aux0, vmm_aux0, vmm_aux0);
+    host_->vcmpltps(vmm_aux0, lhs, vmm_aux0);
+    host_->uni_vblendvps(dst, lhs, rhs, vmm_aux0);
+    pop_vmm(host_, vmm_aux0);
 }
 
 template <cpu_isa_t isa, typename Vmm>
@@ -2340,6 +2382,9 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_binary(alg_kind_t binary_alg,
             break;
         case alg_kind::binary_ne:
             execute_cmp_binary(dst, lhs, rhs, jit_generator::_cmp_neq_uq);
+            break;
+        case alg_kind::binary_prelu:
+            execute_prelu_binary(dst, lhs, rhs);
             break;
         default: assert(!"unsupported algorithm");
     }

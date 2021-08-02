@@ -22,6 +22,8 @@
 #include "common/primitive.hpp"
 #include "common/primitive_attr.hpp"
 
+#include "ref_depthwise_injector.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -69,7 +71,7 @@ struct ref_post_ops_t {
 
     virtual ~ref_post_ops_t() = default;
 
-    status_t execute(float &res, const args_t &args = args_t()) const;
+    status_t execute(float &res, const args_t &args = args_t(), const size_t oc = 0) const;
 
 private:
     const post_ops_t &po_;
@@ -79,6 +81,7 @@ private:
 
     std::vector<ref_eltwise_scalar_fwd_t> eltwise_po_;
     std::vector<ref_binary_scalar_t> binary_po_;
+    std::vector<ref_depthwise_scalar_fwd_t> depthwise_po_;
 };
 
 } // namespace cpu
