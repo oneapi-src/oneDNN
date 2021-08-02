@@ -663,6 +663,15 @@ struct concat_conf_t {
     int simd;
     int data_type_size;
     size_t gws_d[3], lws_d[3];
+
+    data_type_t src_type, dst_type;
+    compute::dispatch_t dispatch;
+    int ndims;
+    memory_desc_info_t src_md_infos[16];
+    memory_desc_info_t dst_md_info;
+    int concat_axis;
+    int sub_group_size;
+    int iter_dim, iter_dim_chunk;
 };
 
 // Elementwise

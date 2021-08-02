@@ -44,3 +44,7 @@
 --stag=abx:abx
 --dtag=axb
 --axis=1 2x16x3x4:2x16x3x4
+
+# additional tests for gen9 concat kernel
+--reset
+--batch=option_set_gen9_gpu

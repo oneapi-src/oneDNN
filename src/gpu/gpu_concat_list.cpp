@@ -18,6 +18,7 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
+#include "gpu/ocl/gen9_concat.hpp"
 #include "gpu/ocl/ref_concat.hpp"
 #include "gpu/ocl/simple_concat.hpp"
 
@@ -31,6 +32,7 @@ namespace {
             __VA_ARGS__::pd_t>())
 const impl_list_item_t concat_impl_list[] = {
         INSTANCE(ocl::simple_concat_t),
+        INSTANCE(ocl::gen9_concat_t),
         INSTANCE(ocl::ref_concat_t),
         nullptr,
 };
