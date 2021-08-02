@@ -30,6 +30,7 @@
 #include "gpu/ocl/gen9_binary.hpp"
 #include "gpu/ocl/gen9_convolution.hpp"
 #include "gpu/ocl/gen9_eltwise.hpp"
+#include "gpu/ocl/gen9_global_pooling.hpp"
 #include "gpu/ocl/gen9_pooling.hpp"
 #include "gpu/ocl/gen9_reduction.hpp"
 #include "gpu/ocl/gen9_softmax.hpp"
@@ -96,6 +97,7 @@ const impl_list_item_t gpu_impl_list[] = {
         INSTANCE(ocl::ref_batch_normalization_bwd_t),
 
         // Pooling
+        INSTANCE(ocl::gen9_global_pooling_bwd_t),
         INSTANCE(ocl::gen9_pooling_fwd_t),
         INSTANCE(ocl::gen9_pooling_bwd_t),
         INSTANCE(ocl::ref_pooling_fwd_t),

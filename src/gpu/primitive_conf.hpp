@@ -332,6 +332,7 @@ struct pool_conf_t {
     int nvect;
     compute::dispatch_t dispatch;
     int sub_group_size;
+    int global_pool_spatial_chunk;
 
     attr_info_t attr_info;
     memory_desc_info_t src_md_info;

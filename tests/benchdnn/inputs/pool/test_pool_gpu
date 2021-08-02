@@ -84,3 +84,11 @@
 # Test layers of some key GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
+
+# Test global pooling
+--reset
+--cfg=f32,bf16
+--dir=BWD_D
+--tag=axb,abx,aBx16b,aBx32b
+--alg=max,avg_np,avg_p
+--batch=shapes_global_pooling
