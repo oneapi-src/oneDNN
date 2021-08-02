@@ -1,0 +1,7 @@
+# main op
+--reset
+--alg=MAX,AVG_NP,AVG_P --dir=FWD_I mb1ic64_ih600iw600_oh300ow300_kh3kw3_dh0dw0_ph1pw1_sh2sw2
+
+# int8
+--reset
+--cfg=s8,u8 --dir=FWD_I mb1ic64_ih600iw600_oh300ow300_kh3kw3_dh0dw0_ph1pw1_sh2sw2

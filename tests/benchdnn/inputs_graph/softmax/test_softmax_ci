@@ -1,0 +1,4 @@
+# main op
+--reset
+--alg=SOFTMAX --axis=0,1,2 8x384x1024
+--alg=LOGSOFTMAX --axis=0,1,2 8x384x1024

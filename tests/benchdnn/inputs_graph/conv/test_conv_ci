@@ -1,0 +1,32 @@
+# main op
+--reset
+mb50ic64ih56oc64oh56kh1ph0
+
+# post binary
+--reset
+--attr-post-ops=add:f32:common mb50ic64ih56oc64oh56kh1ph0
+--attr-post-ops=add:f32:per_oc mb50ic64ih56oc64oh56kh1ph0
+
+# post sum
+--reset
+--attr-post-ops=sum mb50ic64ih56oc64oh56kh1ph0
+
+# post eltwise
+--reset
+--attr-post-ops=logistic mb50ic64ih56oc64oh56kh1ph0
+
+# post sum+eltwise
+--reset
+--attr-post-ops=sum+relu mb50ic64ih56oc64oh56kh1ph0
+
+# post bias
+--reset
+--dir=FWD_B mb50ic64ih56oc64oh56kh1ph0
+
+# post swish
+--reset
+--cfg=f32 --dir=FWD_B --attr-post-ops=swish:1.0 mb50ic64ih56oc64oh56kh1ph0
+
+# int8
+--reset
+--cfg=u8s8u8,u8s8s8 --dir=FWD_I --attr-oscale=per_oc:2.25 mb50ic64ih56oc64oh56kh1ph0
