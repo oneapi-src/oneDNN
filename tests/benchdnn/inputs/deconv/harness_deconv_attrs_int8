@@ -1,7 +1,7 @@
 # i8
 --reset
 --mb=2
---skip-impl="ref"
+--skip-impl=ref
 --dir=FWD_B
 --attr-oscale=per_oc:2.25 --attr-post-ops=sum:1.5+relu:0:0:2.6
 --cfg=u8s8u8,s8s8s32 --batch=shapes_1d

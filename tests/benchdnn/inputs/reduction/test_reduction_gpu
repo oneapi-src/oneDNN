@@ -6,7 +6,7 @@
 
 # gen9 reduction kernel
 --reset
---skip-impl="ref"
+--skip-impl=ref
 
 # test different layouts with all shapes
 --sdt=f32

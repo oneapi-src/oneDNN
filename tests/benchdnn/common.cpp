@@ -28,6 +28,7 @@
 #include "dnnl.h"
 
 #include "common.hpp"
+#include "parser.hpp"
 
 #include "tests/test_thread.hpp"
 
@@ -381,23 +382,14 @@ bool match_regex(const char *str, const char *pattern) {
 bool maybe_skip(const std::string &impl_str) {
     if (skip_impl.empty()) return false;
 
-    size_t start_pos = 0, end_pos = 0;
-    if (skip_impl[0] == '"' || skip_impl[0] == '\'') start_pos++;
-
-    do {
-        const size_t delim_pos = skip_impl.find_first_of(':', start_pos);
-        // rows below to identify quotes at the end and deal with them
-        end_pos = MIN2(skip_impl.size(), delim_pos);
-        size_t len = end_pos - start_pos;
-        if (skip_impl[end_pos - 1] == '"' || skip_impl[end_pos - 1] == '\'')
-            len--;
-        std::string sub_skip_impl = skip_impl.substr(start_pos, len);
-        // even incomplete match leads to skipping
-        if (!sub_skip_impl.empty()
-                && impl_str.find(sub_skip_impl) != std::string::npos)
-            return true;
-        start_pos = end_pos + 1;
-    } while (end_pos < skip_impl.size());
+    size_t start_pos = 0;
+    // Iterate over impls in skip list.
+    while (start_pos != std::string::npos) {
+        const auto skip_impl_item
+                = parser::get_substr(skip_impl, start_pos, ',');
+        if (skip_impl_item.empty()) continue;
+        if (impl_str.find(skip_impl_item) != std::string::npos) return true;
+    }
 
     return false;
 }

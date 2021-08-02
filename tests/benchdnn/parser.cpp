@@ -371,7 +371,16 @@ static bool parse_skip_impl(
         const char *str, const std::string &option_name = "skip-impl") {
     const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) == eol) return false;
+
     skip_impl = std::string(str + pattern.size());
+    // Remove all quotes from input string since they affect the search.
+    for (auto c : {'"', '\''}) {
+        size_t start_pos = 0;
+        while (start_pos != std::string::npos) {
+            start_pos = skip_impl.find_first_of(c, start_pos);
+            if (start_pos != std::string::npos) skip_impl.erase(start_pos, 1);
+        }
+    }
     return true;
 }
 

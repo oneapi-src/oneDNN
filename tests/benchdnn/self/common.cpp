@@ -325,6 +325,19 @@ static int check_tags() {
     return OK;
 }
 
+static int check_skip_impl() {
+    skip_impl = "gemm";
+    CHECK_EQ(true, maybe_skip("x64:gemm:jit"));
+
+    skip_impl = "ref,x64:gemm";
+    CHECK_EQ(true, maybe_skip("x64:gemm:jit"));
+
+    skip_impl = "this,finds,nothing";
+    CHECK_EQ(false, maybe_skip("x64:gemm:jit"));
+
+    return OK;
+}
+
 void common() {
     RUN(check_simple_enums());
     RUN(check_attr2str());
@@ -332,6 +345,7 @@ void common() {
     RUN(check_post_ops2str());
     RUN(check_str2post_ops());
     RUN(check_tags());
+    RUN(check_skip_impl());
 }
 
 } // namespace self

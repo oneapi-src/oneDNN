@@ -67,8 +67,11 @@ The following common options are supported:
 * --skip-impl=`STR` -- Instructs the driver to return SKIPPED status when the
   implementation name matches STR. STR is a string literal with no spaces. When
   STR is empty (the default), the driver behavior is not modified. STR supports
-  several patterns to be matched against through `:` delimiter between patterns.
-  E.g. `--skip-impl=ref:gemm`.
+  several patterns to be matched against through `,` delimiter between patterns.
+  Picked up implementation name is searched for all patterns specified and if
+  any of patterns match any part of implementation name string, it counts as a
+  hit. E.g. `--skip-impl=ref,gemm` will make `ref:any` or `x64:gemm:jit`
+  implementations to be skipped.
 
 * --start=`N` -- Specifies the test index to start testing. All tests before
   the index are skipped.

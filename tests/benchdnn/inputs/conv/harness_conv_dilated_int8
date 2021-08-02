@@ -8,7 +8,7 @@
 
 --reset
 --dir=FWD_D --mb=2
---skip-impl="ref:gemm"
+--skip-impl=ref,gemm
 --cfg=u8s8s32
 --batch=set_dilated-conv_1st
 --batch=set_dilated-conv
