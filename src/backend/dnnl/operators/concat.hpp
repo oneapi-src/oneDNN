@@ -164,13 +164,14 @@ public:
                 registry_.size(), p_engine_, *g_alloc_);
         grantor_t grantor = registry_.grantor(scratchpad.get_buffer());
 
+        size_t idx = 0;
         for (size_t i = 0; i < inputs.size(); ++i) {
             res->cvt_src_mems_[i].set_data_handle(
                     inputs.at(i).get_data_handle());
             if (res_desc_.cvt_src_[i] != res_desc_.opt_src_[i]) {
                 res->opt_src_mems_[i].set_data_handle(
                         grantor.get(static_cast<size_t>(cat::kBase + i + 1)));
-                dnnl::reorder(src_reorder_pds_[i])
+                dnnl::reorder(src_reorder_pds_[idx++])
                         .execute(p_stream, res->cvt_src_mems_[i],
                                 res->opt_src_mems_[i]);
             } else {
