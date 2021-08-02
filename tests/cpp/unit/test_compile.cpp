@@ -505,6 +505,7 @@ struct dnnl_graph_test_concat_params {
     test::vector<float> src1_data;
     test::vector<float> ref_dst;
     int64_t axis;
+    bool is_nhwc;
 };
 
 class test_concat_compile
@@ -531,8 +532,20 @@ public:
 
         impl::logical_tensor_t src0_lt = utils::logical_tensor_init(
                 0, src0_dims, impl::data_type::f32, impl::layout_type::strided);
-        impl::logical_tensor_t src1_lt = utils::logical_tensor_init(
-                1, src1_dims, impl::data_type::f32, impl::layout_type::strided);
+
+        impl::logical_tensor_t src1_lt;
+        if (!params.is_nhwc) {
+            src1_lt = utils::logical_tensor_init(1, src1_dims,
+                    impl::data_type::f32, impl::layout_type::strided);
+        } else {
+            auto permuted_strides = utils::compute_dense_strides(src1_dims);
+            // convert strides to nhwc format
+            permuted_strides.insert(
+                    permuted_strides.begin() + 1, permuted_strides.back());
+            permuted_strides.pop_back();
+            src1_lt = utils::logical_tensor_init(
+                    1, src1_dims, permuted_strides, impl::data_type::f32);
+        }
         impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
                 2, dst_dims, impl::data_type::f32, impl::layout_type::strided);
 
@@ -562,57 +575,64 @@ INSTANTIATE_TEST_SUITE_P(TestConcatCompile, test_concat_compile,
         ::testing::Values(
                 // 2D, axis = 0
                 dnnl_graph_test_concat_params {{1, 2}, {1, 2}, {2, 2}, {1., 1.},
-                        {2., 2.}, {1., 1., 2., 2.}, 0},
+                        {2., 2.}, {1., 1., 2., 2.}, 0, false},
                 // 2D, axis = 1
                 dnnl_graph_test_concat_params {{1, 2}, {1, 2}, {1, 4}, {1., 1.},
-                        {2., 2.}, {1., 1., 2., 2.}, 1},
+                        {2., 2.}, {1., 1., 2., 2.}, 1, false},
                 // 3D, axis = 0
                 dnnl_graph_test_concat_params {{1, 2, 2}, {1, 2, 2}, {2, 2, 2},
                         {1., 1., 2., 2.}, {3., 3., 4., 4.},
-                        {1., 1., 2., 2., 3., 3., 4., 4.}, 0},
+                        {1., 1., 2., 2., 3., 3., 4., 4.}, 0, false},
                 // 3D, axis = 1
                 dnnl_graph_test_concat_params {{1, 2, 2}, {1, 2, 2}, {1, 4, 2},
                         {1., 1., 2., 2.}, {3., 3., 4., 4.},
-                        {1., 1., 2., 2., 3., 3., 4., 4.}, 1},
+                        {1., 1., 2., 2., 3., 3., 4., 4.}, 1, false},
                 // 3D, axis = 2
                 dnnl_graph_test_concat_params {{1, 2, 2}, {1, 2, 2}, {1, 2, 4},
                         {1., 1., 2., 2.}, {3., 3., 4., 4.},
-                        {1., 1., 3., 3., 2., 2., 4., 4.}, 2},
+                        {1., 1., 3., 3., 2., 2., 4., 4.}, 2, false},
                 // 4D, axis = 0
                 dnnl_graph_test_concat_params {{1, 2, 2, 2}, {1, 2, 2, 2},
                         {2, 2, 2, 2}, {1., 1., 2., 2., 3., 3., 4., 4.},
                         {5., 5., 6., 6., 7., 7., 8., 8.},
                         {1., 1., 2., 2., 3., 3., 4., 4., 5., 5., 6., 6., 7., 7.,
                                 8., 8.},
-                        0},
+                        0, false},
+                // 4D, axis = 0
+                dnnl_graph_test_concat_params {{1, 2, 2, 2}, {1, 2, 2, 2},
+                        {2, 2, 2, 2}, {1., 1., 2., 2., 3., 3., 4., 4.},
+                        {5., 5., 6., 6., 7., 7., 8., 8.},
+                        {1., 1., 2., 2., 3., 3., 4., 4., 5., 6., 7., 8., 5., 6.,
+                                7., 8.},
+                        0, true},
                 // 4D, axis = 1
                 dnnl_graph_test_concat_params {{1, 2, 2, 2}, {1, 2, 2, 2},
                         {1, 4, 2, 2}, {1., 1., 2., 2., 3., 3., 4., 4.},
                         {5., 5., 6., 6., 7., 7., 8., 8.},
                         {1., 1., 2., 2., 3., 3., 4., 4., 5., 5., 6., 6., 7., 7.,
                                 8., 8.},
-                        1},
+                        1, false},
                 // 4D, axis = 2
                 dnnl_graph_test_concat_params {{1, 2, 2, 2}, {1, 2, 2, 2},
                         {1, 2, 4, 2}, {1., 1., 2., 2., 3., 3., 4., 4.},
                         {5., 5., 6., 6., 7., 7., 8., 8.},
                         {1., 1., 2., 2., 5., 5., 6., 6., 3., 3., 4., 4., 7., 7.,
                                 8., 8.},
-                        2},
+                        2, false},
                 // 4D, axis = 3
                 dnnl_graph_test_concat_params {{1, 2, 2, 2}, {1, 2, 2, 2},
                         {1, 2, 2, 4}, {1., 1., 2., 2., 3., 3., 4., 4.},
                         {5., 5., 6., 6., 7., 7., 8., 8.},
                         {1., 1., 5., 5., 2., 2., 6., 6., 3., 3., 7., 7., 4., 4.,
                                 8., 8.},
-                        3},
+                        3, false},
                 // 4D, axis = -1
                 dnnl_graph_test_concat_params {{1, 2, 2, 2}, {1, 2, 2, 2},
                         {1, 2, 2, 4}, {1., 1., 2., 2., 3., 3., 4., 4.},
                         {5., 5., 6., 6., 7., 7., 8., 8.},
                         {1., 1., 5., 5., 2., 2., 6., 6., 3., 3., 7., 7., 4., 4.,
                                 8., 8.},
-                        -1}));
+                        -1, false}));
 
 TEST(operator_kernel, relu) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
