@@ -91,7 +91,7 @@ status_t dnnl_binary_primitive_desc_create(
     VCHECK_BINARY(
             one_of(alg_kind, binary_add, binary_mul, binary_max, binary_min,
                     binary_div, binary_sub, binary_ge, binary_gt, binary_le,
-                    binary_lt, binary_eq, binary_ne),
+                    binary_lt, binary_eq, binary_ne, binary_prelu),
             VERBOSE_BAD_ALGORITHM);
     // TODO - Add support for mutual or bi-directional broadcasts
     VCHECK_BINARY(!memory_desc_wrapper(src0_md).format_any(),
