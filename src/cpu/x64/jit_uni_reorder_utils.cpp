@@ -318,12 +318,9 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             ild.dims[i_pos] = factor;
         }
     }
-    int blk_chunk_idx = ndims - 1;
-    CHECK(compute_chunk_idx(p, imd, omd, blk_idx, blk_chunk_idx));
 
     p.ndims = ndims;
     p.full_ndims = ndims;
-    p.blk_chunk_idx = blk_chunk_idx;
 
     p.ioff = memory_desc_wrapper(imd).offset0();
     p.ooff = memory_desc_wrapper(omd).offset0();
@@ -346,8 +343,13 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             p.ip_tail = new_ip_tail;
             p.iblock = iblocks[d];
             p.oblock = oblocks[d];
+            blk_idx = d;
         }
     }
+
+    int blk_chunk_idx = ndims - 1;
+    CHECK(compute_chunk_idx(p, imd, omd, blk_idx, blk_chunk_idx));
+    p.blk_chunk_idx = blk_chunk_idx;
 
     return success;
 }
