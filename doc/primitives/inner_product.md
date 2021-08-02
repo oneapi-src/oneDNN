@@ -76,7 +76,7 @@ source, destination, weights, and bias:
 | Propagation        | Source    | Weights   | Destination      | Bias             |
 | :--                | :--       | :--       | :--              | :--              |
 | forward / backward | f32       | f32       | f32              | f32              |
-| forward            | f16       | f16       | f16              | f16              |
+| forward            | f16       | f16       | f16, u8, s8      | f16              |
 | forward            | u8, s8    | s8        | u8, s8, s32, f32 | u8, s8, s32, f32 |
 | forward            | bf16      | bf16      | f32, bf16        | f32, bf16        |
 | backward           | f32, bf16 | bf16      | bf16             |                  |
@@ -135,6 +135,7 @@ The following post-ops are supported by inner product primitives:
 
 1. Check @ref dev_guide_data_types.
 
+2. The CPU engine does not support `u8` or `s8` data type for `dst` with `f16` `src` and `weights`. 
 
 ## Performance Tips
 

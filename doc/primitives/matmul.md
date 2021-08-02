@@ -92,9 +92,10 @@ types for source, destination, weights, and bias tensors:
 | Source | Weights | Destination            | Bias                   |
 | :--    | :--     | :--                    | :--                    |
 | f32    | f32     | f32                    | f32                    |
-| f16    | f16     | f16                    | f16                    |
+| f16    | f16     | f16, u8, s8            | f16              |
 | bf16   | bf16    | f32, bf16              | bf16, f32              |
 | u8, s8 | u8, s8  | u8, s8, s32, f32, bf16 | u8, s8, s32, f32, bf16 |
+
 
 ### Data Representation
 
@@ -163,9 +164,12 @@ in the argument with index set to
 
 1. Check @ref dev_guide_data_types.
 
-2. The CPU engine does not support `u8` data type for weights.
+2. The CPU engine does not support `u8` data type for `weights`.
 
-3. GPU implementation is limited to 6D and plain memory formats.
+3. The CPU engine does not support `u8` or `s8` data type for `dst` with `f16` `src` and `weights`. 
+
+4. GPU implementation is limited to 6D and plain memory formats.
+
 
 ## Performance Tips
 
