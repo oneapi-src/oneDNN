@@ -842,9 +842,8 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
             return;
         }
         // Implemented only for CPU
-        if (prb.cfg[BIAS].dt == dnnl_bf16
-                || prb.cfg[DIFF_SRC_ITER_C].dt == dnnl_bf16
-                || prb.cfg[DIFF_DST_ITER_C].dt == dnnl_bf16) {
+        if (prb.cfg[BIAS].dt == dnnl_bf16 || prb.cfg[SRC_ITER_C].dt == dnnl_bf16
+                || prb.cfg[DST_ITER_C].dt == dnnl_bf16) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
