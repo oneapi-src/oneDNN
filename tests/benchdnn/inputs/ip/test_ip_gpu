@@ -41,7 +41,7 @@
 # f16
 --reset
 --mb=0,2
---cfg=f16
+--cfg=f16,f16f16s8,f16f16u8
 --dir=FWD_B,FWD_D
 --attr-post-ops=linear:1:2,add:f16,add:s8:per_tensor+linear:2:3:0.5
 --batch=shapes_1d
