@@ -174,64 +174,60 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     DEFINE_ZERO_POINT_VALUE(wei_zero_point, DNNL_ARG_WEIGHTS);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
 
-    brg_matmul_exec_ctx_t brgmm_ctx(ctx, pd(), src_zero_point, wei_zero_point,
-            dst_zero_point, dnnl_get_max_threads());
+    brg_matmul_exec_ctx_t brgmm_ctx(
+            ctx, pd(), src_zero_point, wei_zero_point, dst_zero_point);
 
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
     const bool use_buffer_a
             = bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only;
-
     constexpr bool is_amx
             = one_of(isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
-    parallel(brgmm_ctx.get_num_threads_for_parallelization(),
-            [&](const int ithr, const int nthr) {
-                const int ithr_bmn = brgmm_ctx.get_thread_idx_for_bmn(ithr);
-                const int ithr_k = brgmm_ctx.get_thread_idx_for_k(ithr);
-                if (ithr_bmn < 0 || ithr_k < 0) return;
-                int start {0}, end {0};
-                balance211(brgmm_ctx.get_parallel_work_amount(),
-                        brgmm_ctx.get_num_threads_for_bmn(), ithr_bmn, start,
-                        end);
-                int kc_start {0}, kc_end {bgmmc.K_chunks};
-                if (brgmm_ctx.parallel_reduction_is_used())
-                    balance211((int)bgmmc.K_chunks,
-                            brgmm_ctx.get_num_threads_for_k(), ithr_k, kc_start,
-                            kc_end);
+    const int num_threads = brgmm_ctx.get_num_threads_for_parallelization();
 
-                if (is_amx) {
-                    const auto base_ker_idx
-                            = brgmm_ctx.get_base_brgemm_kernel_idx();
-                    amx_tile_configure(&brg_kernel_palettes_[base_ker_idx][0]);
-                }
+    parallel(num_threads, [&](const int ithr, const int nthr) {
+        const int ithr_bmn = brgmm_ctx.get_thread_idx_for_bmn(ithr);
+        const int ithr_k = brgmm_ctx.get_thread_idx_for_k(ithr);
+        if (ithr_bmn < 0 || ithr_k < 0) return;
+        int start {0}, end {0};
+        balance211(brgmm_ctx.get_parallel_work_amount(),
+                brgmm_ctx.get_num_threads_for_bmn(), ithr_bmn, start, end);
+        int kc_start {0}, kc_end {bgmmc.K_chunks};
+        if (brgmm_ctx.parallel_reduction_is_used())
+            balance211((int)bgmmc.K_chunks, brgmm_ctx.get_num_threads_for_k(),
+                    ithr_k, kc_start, kc_end);
 
-                int b {0}, mc {0}, nc {0};
-                nd_iterator_init(start, b, bgmmc.batch, mc, bgmmc.M_chunks, nc,
-                        bgmmc.N_chunks);
-                while (start < end) {
-                    auto m_start = mc * bgmmc.M_chunk_size;
-                    auto m_end = nstl::min(
-                            (mc + 1) * bgmmc.M_chunk_size, bgmmc.num_M_blocks);
-                    auto n_start = nc * bgmmc.N_chunk_size;
-                    auto n_end = nstl::min(
-                            (nc + 1) * bgmmc.N_chunk_size, bgmmc.num_N_blocks);
-                    for_(int kc = kc_start; kc < kc_end; kc++)
-                    for (int nb = n_start; nb < n_end; nb++) {
-                        if (bgmmc.use_buffer_b)
-                            copy_b_chunk_in_buffer(brgmm_ctx, ithr, b, nb, kc);
-                        for (int mb = m_start; mb < m_end; mb++) {
-                            if (use_buffer_a && nb == n_start)
-                                copy_a_chunk_in_buffer(
-                                        brgmm_ctx, ithr, b, mb, kc);
-                            compute_kernel(brgmm_ctx, ithr, b, mb, nb, kc,
-                                    kc == kc_start);
-                        }
-                    }
-                    ++start;
-                    nd_iterator_step(b, bgmmc.batch, mc, bgmmc.M_chunks, nc,
-                            bgmmc.N_chunks);
+        if (is_amx) {
+            const auto base_ker_idx = brgmm_ctx.get_base_brgemm_kernel_idx();
+            amx_tile_configure(&brg_kernel_palettes_[base_ker_idx][0]);
+        }
+
+        int b {0}, mc {0}, nc {0};
+        nd_iterator_init(
+                start, b, bgmmc.batch, mc, bgmmc.M_chunks, nc, bgmmc.N_chunks);
+        while (start < end) {
+            auto m_start = mc * bgmmc.M_chunk_size;
+            auto m_end = nstl::min(
+                    (mc + 1) * bgmmc.M_chunk_size, bgmmc.num_M_blocks);
+            auto n_start = nc * bgmmc.N_chunk_size;
+            auto n_end = nstl::min(
+                    (nc + 1) * bgmmc.N_chunk_size, bgmmc.num_N_blocks);
+            for_(int kc = kc_start; kc < kc_end; kc++)
+            for (int nb = n_start; nb < n_end; nb++) {
+                if (bgmmc.use_buffer_b)
+                    copy_b_chunk_in_buffer(brgmm_ctx, ithr, b, nb, kc);
+                for (int mb = m_start; mb < m_end; mb++) {
+                    if (use_buffer_a && nb == n_start)
+                        copy_a_chunk_in_buffer(brgmm_ctx, ithr, b, mb, kc);
+                    compute_kernel(
+                            brgmm_ctx, ithr, b, mb, nb, kc, kc == kc_start);
                 }
-                if (is_amx) { amx_tile_release(); }
-            });
+            }
+            ++start;
+            nd_iterator_step(
+                    b, bgmmc.batch, mc, bgmmc.M_chunks, nc, bgmmc.N_chunks);
+        }
+        if (is_amx) { amx_tile_release(); }
+    });
 
     maybe_reduce_partial_results_and_apply_postops(brgmm_ctx);
 
@@ -372,8 +368,9 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
     if (!brgmm_ctx.parallel_reduction_is_used()) return;
 
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
+    const int num_threads = brgmm_ctx.get_num_threads_for_parallelization();
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(num_threads, [&](const int ithr, const int nthr) {
         const int nthr_k = brgmm_ctx.get_num_threads_for_k();
         const int ithr_bmn = brgmm_ctx.get_thread_idx_for_bmn(ithr);
         const int ithr_k = brgmm_ctx.get_thread_idx_for_k(ithr);
@@ -588,8 +585,8 @@ void brgemm_matmul_t<isa>::accumulate(
 template <cpu_isa_t isa>
 struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     brg_matmul_exec_ctx_t(const exec_ctx_t &ctx, const pd_t *pd, int32_t src_zp,
-            int32_t wei_zp, int32_t dst_zp, int nthr)
-        : bgmmc_(pd->get_brgemm_matmul_conf()), nthr_(nthr) {
+            int32_t wei_zp, int32_t dst_zp)
+        : bgmmc_(pd->get_brgemm_matmul_conf()) {
 
         data_A_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
         data_B_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
@@ -674,6 +671,24 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
 
         // parallelization
         parallel_work_amount_ = bgmmc.batch * bgmmc.M_chunks * bgmmc.N_chunks;
+
+        // The number of threads available during primitive execution may
+        // increase (ex. Eigen threadpool implementation) or decrease
+        // (ex. nested parallelism) compared to the
+        // number of threads available during primitive creation.
+        // So we limit the total number of threads to the
+        // minimum of these two values to prevent potential OOM issues.
+        nthr_ = nstl::min(dnnl_get_current_num_threads(), bgmmc.nthr);
+
+        // If parallel_work_amount_ == 1 and parallel reduction is not used, we
+        // limit num threads to 1 as parallel(1, ...) does not create parallel
+        // section at all. We do not limit number of threads for case
+        // 1 < parallel_work_amount_ < dnnl_get_max_threads() to avoid potential
+        // overhead on spawning different number of OMP threads from layer to
+        // layer.
+        if (parallel_work_amount_ == 1 && !parallel_reduction_is_used())
+            nthr_ = 1;
+
         nthr_k_ = bgmmc.nthr_k > 0 && bgmmc.nthr_k <= nthr_ ? bgmmc.nthr_k : 1;
         nthr_bmn_ = nthr_ / nthr_k_;
         num_threads_used_ = nthr_k_ * nthr_bmn_;
@@ -960,16 +975,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         const int ithr_bmn = ithr % nthr_bmn_;
         return ithr_bmn < parallel_work_amount_ ? ithr_bmn : -1;
     }
-
-    // If parallel_work_amount_ == 1 parallel reduction is not used we limit
-    // num threads to 1 as parallel(1, ...) does not create parallel section at
-    // all. We do not limit number of threads for case
-    // 1 < parallel_work_amount_ < dnnl_get_max_threads() to avoid potential
-    // overhead on spawning different number of OMP threads from layer to layer.
-    int get_num_threads_for_parallelization() {
-        return parallel_work_amount_ == 1 && !parallel_reduction_is_used() ? 1
-                                                                           : 0;
-    }
+    int get_num_threads_for_parallelization() const { return nthr_; }
 
 private:
     bool is_amx_;
