@@ -28,7 +28,7 @@
 #include "dnnl.h"
 
 #include "common.hpp"
-#include "parser.hpp"
+#include "utils/parser.hpp"
 
 #include "tests/test_thread.hpp"
 

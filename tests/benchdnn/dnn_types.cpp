@@ -34,7 +34,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_debug.hpp"
 #include "dnnl_memory.hpp"
-#include "parser.hpp"
+#include "utils/parser.hpp"
 
 #define BENCHDNN_DNNL_ARG_UNDEF 0
 

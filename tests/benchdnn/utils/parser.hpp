@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef PARSER_HPP
-#define PARSER_HPP
+#ifndef UTILS_PARSER_HPP
+#define UTILS_PARSER_HPP
 
 #include <stdio.h>
 #include <stdlib.h>

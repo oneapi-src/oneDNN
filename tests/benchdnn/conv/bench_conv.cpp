@@ -22,7 +22,7 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "parser.hpp"
+#include "utils/parser.hpp"
 
 #include "conv/conv.hpp"
 #include "conv/conv_dw_fusion.hpp"

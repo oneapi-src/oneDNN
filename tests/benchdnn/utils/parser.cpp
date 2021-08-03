@@ -19,7 +19,7 @@
 #include <string.h>
 #include <string>
 
-#include "parser.hpp"
+#include "utils/parser.hpp"
 
 #include "dnnl_common.hpp"
 
@@ -325,8 +325,7 @@ static bool parse_engine(
     // Parse engine index if present
     std::string s(str);
     auto start_pos = s.find_first_of(':');
-    if (start_pos != std::string::npos)
-        engine_index = stoi(s.substr(start_pos + 1));
+    if (start_pos != eol) engine_index = stoi(s.substr(start_pos + 1));
 
     auto n_devices = dnnl_engine_get_count(engine_tgt_kind);
     if (engine_index >= n_devices) {
@@ -376,9 +375,9 @@ static bool parse_skip_impl(
     // Remove all quotes from input string since they affect the search.
     for (auto c : {'"', '\''}) {
         size_t start_pos = 0;
-        while (start_pos != std::string::npos) {
+        while (start_pos != eol) {
             start_pos = skip_impl.find_first_of(c, start_pos);
-            if (start_pos != std::string::npos) skip_impl.erase(start_pos, 1);
+            if (start_pos != eol) skip_impl.erase(start_pos, 1);
         }
     }
     return true;
@@ -468,7 +467,7 @@ int parse_last_argument() {
 std::string get_substr(const std::string &s, size_t &start_pos, char delim) {
     auto end_pos = s.find_first_of(delim, start_pos);
     auto sub = s.substr(start_pos, end_pos - start_pos);
-    start_pos = end_pos + (end_pos != std::string::npos);
+    start_pos = end_pos + (end_pos != eol);
     return sub;
 }
 
