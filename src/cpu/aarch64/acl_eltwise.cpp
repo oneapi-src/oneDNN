@@ -14,28 +14,49 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/aarch64/acl_indirect_gemm_convolution.hpp"
+#include "cpu/aarch64/acl_eltwise.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-status_t acl_indirect_gemm_convolution_fwd_t::execute_forward(
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
+
+template <data_type_t data_type>
+status_t acl_eltwise_fwd_t<data_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     // Lock here is needed because resource_mapper does not support
-    // concurrent multithreaded access.
+    // concurrent access.
     std::lock_guard<std::mutex> _lock {this->mtx};
+
+    status_t status = status::success;
+    auto src_base = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+
     // Retrieve primitive resource and configured Compute Library objects
     auto *acl_resource
-            = ctx.get_resource_mapper()->get<acl_indirect_gemm_resource_t>(
-                    this);
-    acl_obj_t<arm_compute::NEGEMMConv2d> &acl_indirect_gemm_obj
-            = acl_resource->get_acl_obj();
+            = ctx.get_resource_mapper()->get<acl_eltwise_resource_t>(this);
+    acl_eltwise_obj_t &acl_obj = acl_resource->get_acl_obj();
 
-    return execute_forward_conv_acl<acl_obj_t<arm_compute::NEGEMMConv2d>, pd_t,
-            data_t>(ctx, acl_indirect_gemm_obj, pd());
+    // import_memory() and free() methods do not allocate/free any additional
+    // memory, only acquire/release pointers.
+    acl_obj.src_tensor.allocator()->import_memory(
+            const_cast<data_t *>(src_base));
+    acl_obj.dst_tensor.allocator()->import_memory(dst_base);
+
+    acl_obj.act.run();
+
+    acl_obj.src_tensor.allocator()->free();
+    acl_obj.dst_tensor.allocator()->free();
+
+    return status;
 }
+
+template struct acl_eltwise_fwd_t<data_type::f32>;
+template struct acl_eltwise_fwd_t<data_type::s8>;
 
 } // namespace aarch64
 } // namespace cpu

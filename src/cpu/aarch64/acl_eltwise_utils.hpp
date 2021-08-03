@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Arm Ltd. and affiliates
+* Copyright 2021 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,30 +14,40 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/aarch64/acl_winograd_convolution.hpp"
+#ifndef CPU_AARCH64_ACL_ELTWISE_UTILS_HPP
+#define CPU_AARCH64_ACL_ELTWISE_UTILS_HPP
+
+#include "cpu/cpu_convolution_pd.hpp"
+
+#include "cpu/aarch64/acl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-status_t acl_wino_convolution_fwd_t::execute_forward(
-        const exec_ctx_t &ctx) const {
-    // Lock here is needed because resource_mapper does not support
-    // concurrent multithreaded access.
-    std::lock_guard<std::mutex> _lock {this->mtx};
-    // Retrieve primitive resource and configured Compute Library objects
-    auto *acl_resource
-            = ctx.get_resource_mapper()->get<acl_wino_resource_t>(this);
-    acl_obj_t<arm_compute::NEWinogradConvolutionLayer> &acl_wino_obj
-            = acl_resource->get_acl_obj();
+struct acl_eltwise_obj_t {
+    arm_compute::NEActivationLayer act;
+    arm_compute::Tensor src_tensor;
+    arm_compute::Tensor dst_tensor;
+};
 
-    return execute_forward_conv_acl<
-            acl_obj_t<arm_compute::NEWinogradConvolutionLayer>, pd_t, data_t>(
-            ctx, acl_wino_obj, pd());
-}
+struct acl_eltwise_conf_t {
+    arm_compute::ActivationLayerInfo act_info;
+    arm_compute::TensorInfo src_info;
+    arm_compute::TensorInfo dst_info;
+};
+
+namespace acl_eltwise_utils {
+
+status_t init_conf_eltwise(acl_eltwise_conf_t &aep, memory_desc_t &data_md,
+        const eltwise_desc_t &ed, const primitive_attr_t &attr);
+
+} // namespace acl_eltwise_utils
 
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+
+#endif // CPU_AARCH64_ACL_ELTWISE_UTILS_HPP

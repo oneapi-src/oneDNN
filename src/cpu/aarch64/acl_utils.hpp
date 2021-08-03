@@ -17,6 +17,8 @@
 #ifndef CPU_AARCH64_ACL_UTILS_HPP
 #define CPU_AARCH64_ACL_UTILS_HPP
 
+#include <mutex>
+
 #include "oneapi/dnnl/dnnl_types.h"
 
 #include "common/bfloat16.hpp"
@@ -29,7 +31,7 @@
 #include "cpu/cpu_engine.hpp"
 
 #include "arm_compute/runtime/NEON/NEFunctions.h"
-#include "arm_compute/runtime/NEON/NEScheduler.h"
+#include "arm_compute/runtime/Scheduler.h"
 
 namespace dnnl {
 namespace impl {
@@ -40,6 +42,7 @@ namespace acl_common_utils {
 
 arm_compute::DataType get_acl_data_t(const dnnl_data_type_t dt);
 arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr);
+arm_compute::ActivationLayerInfo get_acl_act(const eltwise_desc_t &ed);
 bool acl_act_ok(alg_kind_t eltwise_activation);
 void acl_thread_bind();
 
