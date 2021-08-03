@@ -26,6 +26,10 @@ using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
 
 status_t acl_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
+    // Lock here is needed because resource_mapper does not support
+    // concurrent multithreaded access.
+    std::lock_guard<std::mutex> _lock {this->mtx};
+
     status_t status = status::success;
     auto src_base = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto wei_base = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
@@ -40,6 +44,8 @@ status_t acl_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
             = ctx.get_resource_mapper()->get<acl_ip_resource_t>(this);
     acl_ip_obj_t &acl_obj = acl_resource->get_acl_obj();
 
+    // import_memory() and free() methods do not allocate/free any additional
+    // memory, only acquire/release pointers.
     acl_obj.src_tensor.allocator()->import_memory(
             const_cast<data_t *>(src_base));
     acl_obj.wei_tensor.allocator()->import_memory(

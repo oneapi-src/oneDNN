@@ -83,6 +83,8 @@ status_t execute_forward_conv_acl(
     auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto dst_base = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
+    // import_memory() and free() methods do not allocate/free any additional
+    // memory, only acquire/release pointers.
     acl_conv_obj.src_tensor.allocator()->import_memory(
             const_cast<src_data_t *>(src_base));
     acl_conv_obj.wei_tensor.allocator()->import_memory(

@@ -142,6 +142,8 @@ struct acl_inner_product_fwd_t : public primitive_t {
     }
 
 private:
+    //To guard the const execute_forward, the mutex must be 'mutable'
+    mutable std::mutex mtx;
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 }; // acl_inner_product_fwd_t

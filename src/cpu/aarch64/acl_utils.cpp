@@ -38,17 +38,11 @@ arm_compute::DataType get_acl_data_t(const dnnl_data_type_t dt) {
     }
 }
 
-arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr) {
-    const auto &post_ops = attr.post_ops_;
-    const int entry_idx = post_ops.find(primitive_kind::eltwise);
-    if (entry_idx == -1) { return arm_compute::ActivationLayerInfo(); }
-
-    const auto eltwise_alg = post_ops.entry_[entry_idx].eltwise.alg;
-    float alpha = post_ops.entry_[entry_idx].eltwise.alpha;
-    float beta = post_ops.entry_[entry_idx].eltwise.beta;
-
+arm_compute::ActivationLayerInfo convert_to_acl_act(
+        const alg_kind_t eltwise_alg, const float alpha, const float beta) {
     using acl_act_t = arm_compute::ActivationLayerInfo::ActivationFunction;
     acl_act_t acl_act_alg;
+
     switch (eltwise_alg) {
         case eltwise_relu:
             // oneDNN defines RELU: f(x) = (x > 0) ? x : a*x
@@ -64,9 +58,7 @@ arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr) {
             // oneDNN defines TANH activation as:          f(x) = tanh(x)
             // Compute Library defines TANH activation as: f(x) = a*tanh(b*x)
             // Setting a=b=1 makes the two equivalent
-            alpha = 1.f;
-            beta = 1.f;
-            acl_act_alg = acl_act_t::TANH;
+            return arm_compute::ActivationLayerInfo(acl_act_t::TANH, 1.f, 1.f);
             break;
         case eltwise_elu: acl_act_alg = acl_act_t::ELU; break;
         case eltwise_square: acl_act_alg = acl_act_t::SQUARE; break;
@@ -82,6 +74,26 @@ arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr) {
     return arm_compute::ActivationLayerInfo(acl_act_alg, alpha, beta);
 }
 
+arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr) {
+    const auto &post_ops = attr.post_ops_;
+    const int entry_idx = post_ops.find(primitive_kind::eltwise);
+    if (entry_idx == -1) { return arm_compute::ActivationLayerInfo(); }
+
+    const auto eltwise_alg = post_ops.entry_[entry_idx].eltwise.alg;
+    float alpha = post_ops.entry_[entry_idx].eltwise.alpha;
+    float beta = post_ops.entry_[entry_idx].eltwise.beta;
+
+    return convert_to_acl_act(eltwise_alg, alpha, beta);
+}
+
+arm_compute::ActivationLayerInfo get_acl_act(const eltwise_desc_t &ed) {
+    const alg_kind_t eltwise_alg = ed.alg_kind;
+    float alpha = ed.alpha;
+    float beta = ed.beta;
+
+    return convert_to_acl_act(eltwise_alg, alpha, beta);
+}
+
 bool acl_act_ok(alg_kind_t eltwise_activation) {
     return utils::one_of(eltwise_activation, eltwise_relu, eltwise_tanh,
             eltwise_elu, eltwise_square, eltwise_abs, eltwise_sqrt,
@@ -90,13 +102,18 @@ bool acl_act_ok(alg_kind_t eltwise_activation) {
 }
 
 void acl_thread_bind() {
+    static std::once_flag flag_once;
     // The threads in Compute Library are bound for the cores 0..max_threads-1
     // dnnl_get_max_threads() returns OMP_NUM_THREADS
     const int max_threads = dnnl_get_max_threads();
     arm_compute::IScheduler::BindFunc linear
             = [](int i, int max_cores) { return i % max_cores; };
-    arm_compute::Scheduler::get().set_num_threads_with_affinity(
-            max_threads, linear);
+    // arm_compute::Scheduler does not support concurrent access thus a
+    // workaround here restricts it to only one call
+    std::call_once(flag_once, [&]() {
+        arm_compute::Scheduler::get().set_num_threads_with_affinity(
+                max_threads, linear);
+    });
 }
 
 } // namespace acl_common_utils
