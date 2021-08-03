@@ -323,6 +323,25 @@ status_t post_ops_t::set_default_formats(const memory_desc_t *dst_md) {
     return status::success;
 }
 
+bool post_ops_t::check_sum_consistent_dt(
+        const data_type_t dst_dt, const bool diverse_sum_dt_allowed) const {
+    int sum_ind = find(dnnl::impl::primitive_kind::sum);
+    if (sum_ind == -1) return true;
+    const auto sum_dt = entry_[sum_ind].sum.dt;
+
+    // sum dt and dst dt must have the same size
+    const bool compatible_dt_size = IMPLICATION(
+            !utils::one_of(dnnl_data_type_undef, sum_dt, dst_dt),
+            types::data_type_size(dst_dt) == types::data_type_size(sum_dt));
+    if (!compatible_dt_size) return false;
+    if (diverse_sum_dt_allowed) return true;
+
+    bool ok = true;
+    while ((sum_ind = find(dnnl::impl::primitive_kind::sum, sum_ind + 1)) != -1)
+        ok = ok && entry_[sum_ind].sum.dt == sum_dt;
+    return ok;
+}
+
 status_t primitive_attr_t::set_scratchpad_mode(
         scratchpad_mode_t scratchpad_mode) {
     using namespace dnnl::impl::scratchpad_mode;

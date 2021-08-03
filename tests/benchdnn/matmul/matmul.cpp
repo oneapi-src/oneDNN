@@ -126,16 +126,29 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 }
 
 int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res) {
+        dnn_mem_t &mem_fp, res_t *res,
+        dnnl_data_type_t sum_dt = dnnl_data_type_undef) {
+
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
 
     assert(mem_dt.nelems() == mem_fp.nelems());
 
     const auto &c = prb->cfg[kind];
-    float c_f_min = c.f_min, c_f_max = c.f_max;
+    float c_f_min = c.f_min, c_f_max = c.f_max, c_f_scale = c.f_scale;
 
     if (kind == BIA && mem_dt.dt() == dnnl_u8) c_f_min = 0;
+
+    const bool dst_with_diff_sum_dt = kind == DST
+            && sum_dt != dnnl_data_type_undef && sum_dt != mem_dt.dt();
+    if (dst_with_diff_sum_dt) {
+        mem_dt.set_dt(sum_dt);
+        if (sum_dt == dnnl_s8 || sum_dt == dnnl_u8) {
+            c_f_min = lowest_dt(sum_dt);
+            c_f_max = max_dt(sum_dt);
+        }
+        if (sum_dt == dnnl_s32) c_f_scale = 1;
+    }
 
     /* Do fixed partitioning to have same filling for any number of threads */
     const int64_t n_chunks = 16;
@@ -158,22 +171,23 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
             float val = 0;
             while (val == 0)
                 val = (float)gen(msr);
-            mem_fp.set_elem(0, val * c.f_scale);
+            mem_fp.set_elem(0, val * c_f_scale);
             idx_start += 1;
         }
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            auto val = (float)gen(msr) * c.f_scale;
+            auto val = (float)gen(msr) * c_f_scale;
             mem_fp.set_elem(idx, val);
         }
     });
 
     // work-around mistrusted when A > 0 && B < 0  && C.dt = u8 (or relu)
     if (kind == WEI && nelems == 1 && prb->cfg[SRC].dt == dnnl_u8) {
-        if (c.f_max >= 1) mem_fp.set_elem(0, c.f_scale);
+        if (c.f_max >= 1) mem_fp.set_elem(0, c_f_scale);
     }
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
+    if (dst_with_diff_sum_dt) mem_dt.set_dt(prb->cfg[DST].dt);
     return OK;
 }
 
@@ -267,7 +281,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     check_known_skipped_case(prb, res);
-    check_sum_post_ops(prb->attr, res);
+    check_sum_post_ops(prb->attr, res, prb->cfg[DST].dt);
     if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
@@ -349,8 +363,11 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(fill_data(SRC, prb, src_dt, src_fp, res), WARN);
     SAFE(fill_data(WEI, prb, wei_dt, wei_fp, res), WARN);
-    if (prb->attr.post_ops.find(attr_t::post_ops_t::SUM) >= 0)
-        SAFE(fill_data(DST, prb, dst_dt, dst_fp, res), WARN);
+    const int sum_idx = prb->attr.post_ops.find(attr_t::post_ops_t::SUM);
+    if (sum_idx >= 0) {
+        const auto sum_dt = prb->attr.post_ops.entry[sum_idx].sum.dt;
+        SAFE(fill_data(DST, prb, dst_dt, dst_fp, res, sum_dt), WARN);
+    }
     if (prb->bia_dt != dnnl_data_type_undef)
         SAFE(fill_data(BIA, prb, bia_dt, bia_fp, res), WARN);
 

@@ -59,8 +59,10 @@ struct ref_matmul_t : public primitive_t {
                                     && IMPLICATION(
                                             src_type == f32, bia_type == f32))
                     && platform::has_data_type_support(src_type)
-                    && attr()->has_default_values(
-                            smask_t::oscale_runtime | smask_t::post_ops)
+                    && attr()->has_default_values(smask_t::oscale_runtime
+                                    | smask_t::post_ops | smask_t::sum_dt,
+                            dst_type)
+                    && attr_.post_ops_.check_sum_consistent_dt(dst_type)
                     && attr_oscale_ok() && set_default_formats()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;

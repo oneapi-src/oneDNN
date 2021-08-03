@@ -64,6 +64,8 @@ struct xe_lp_x8s8x_1x1_convolution_fwd_t : public gpu_primitive_t {
                             compute::device_ext_t::intel_subgroups)
                     && attr()->has_default_values(
                             attr_skip_mask, desc()->dst_desc.data_type)
+                    && attr()->post_ops_.check_sum_consistent_dt(
+                            dst_md()->data_type, true)
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type)
                     && zero_points_ok(attr())
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),

@@ -37,6 +37,14 @@
 --attr-post-ops=,sum+add:s8:per_tensor
 --batch=shapes_3d
 
+--cfg=s8s8f32
+--attr-post-ops=sum:1:0:s32
+--batch=shapes_3d
+--cfg=u8s8s8
+--attr-post-ops=sum:1:0:u8
+--batch=shapes_3d
+
+--cfg=u8s8s8,s8s8f32
 --runtime_dims_masks=2:4,6:6,3:5,7:7
 --attr-oscale=common:2.25
 --attr-post-ops=sum+relu+add:u8

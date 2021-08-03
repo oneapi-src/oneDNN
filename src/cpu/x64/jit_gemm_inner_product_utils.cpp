@@ -62,7 +62,7 @@ private:
     using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
             isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
 
-    enum class arg_t { dst, acc, bias, stack, scale };
+    enum class arg_t { dst, acc, bias, stack, scale, sum };
     enum class data_op_t { load, store };
 
     void apply_postops(const bool apply_mask, const int vmm_idx,
@@ -229,7 +229,8 @@ private:
 
     Xbyak::Address get_address(const arg_t arg_num, const size_t off) {
         switch (arg_num) {
-            case arg_t::dst: return dst_ptr(off);
+            case arg_t::dst:
+            case arg_t::sum: return dst_ptr(off);
             case arg_t::acc: return acc_ptr(off);
             case arg_t::bias: return bias_ptr(off);
             case arg_t::stack: return stack_ptr(off);
@@ -241,7 +242,8 @@ private:
 
     Xbyak::Reg64 get_reg_address(const arg_t arg_num) {
         switch (arg_num) {
-            case arg_t::dst: return reg_dst;
+            case arg_t::dst:
+            case arg_t::sum: return reg_dst;
             case arg_t::acc: return reg_acc;
             case arg_t::bias: return reg_bias;
             case arg_t::stack: return rsp;
@@ -254,6 +256,7 @@ private:
     data_type_t get_data_type(const arg_t arg_num) {
         switch (arg_num) {
             case arg_t::dst: return dst_type;
+            case arg_t::sum: return this->sum_data_type_;
             case arg_t::acc: return acc_type;
             case arg_t::bias: return this->bias_data_type_;
             // default for stack or scale operation
@@ -794,7 +797,7 @@ void jit_pp_kernel_t<isa, acc_type, dst_type>::compute_oc_channel_blk() {
 
         if (this->do_sum_) {
             auto vreg_prev_dst_ = vreg_prev_dst(idx);
-            data_copy(vreg_prev_dst_, arg_t::dst, offset * sizeof(dst_data_t),
+            data_copy(vreg_prev_dst_, arg_t::sum, offset * sizeof(dst_data_t),
                     data_op_t::load, tail, is_needed_runtime_tail_process);
             if (this->sum_zp_ != 0)
                 uni_vsubps(vreg_prev_dst_, vreg_prev_dst_, vreg_sum_zp);

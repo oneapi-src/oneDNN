@@ -10,6 +10,17 @@
                 mul:s8:per_oc+sum:0.25+relu:0.5+add:f32:per_tensor
 --batch=shapes_2d_ci
 --batch=shapes_3d
+
+# Sum with different data type
+--cfg=f32
+--attr-post-ops=mul:s8:per_oc+sum:0.25:0:s32+relu:0.5+add:f32:per_tensor
+--batch=shapes_2d_ci
+--batch=shapes_3d
+--cfg=u8s8s8
+--attr-post-ops=mul:s8:per_oc+sum:0.25:0:u8+relu:0.5+add:f32:per_tensor
+--batch=shapes_2d_ci
+--batch=shapes_3d
+
 --attr-post-ops=
 
 # Output scale check

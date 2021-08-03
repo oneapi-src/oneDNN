@@ -80,8 +80,8 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
     const bool apply_postops
             = this->do_sum_ || this->do_eltwise_ || this->do_binary_;
     auto calculate_dst_value_and_increment_oc
-            = [&](const acc_data_t &acc_value, dst_data_t &dst_value,
-                      size_t &oc_value, const size_t dst_offset) {
+            = [&](const acc_data_t &acc_value, void *dst, size_t &oc_value,
+                      const size_t dst_offset) {
                   float d = (float)acc_value;
                   if (this->do_bias()) {
                       const float b = io::load_float_value(
@@ -91,12 +91,14 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
                   if (this->do_scale_)
                       d *= scales[oc_value * this->scale_idx_mult_];
                   if (apply_postops) {
-                      if (this->do_sum_) args.dst_val = dst_value;
+                      if (this->do_sum_)
+                          args.dst_val = io::load_float_value(
+                                  this->sum_data_type_, dst, 0);
                       args.l_offset = dst_offset;
                       ref_post_ops_->execute(d, args);
                   }
                   if (this->do_dst_zero_points_) d += dst_zero_points[0];
-                  dst_value = qz_a1b0<float, dst_data_t>()(d);
+                  io::store_float_value(dst_type, d, dst, 0);
                   oc_value = (oc_value == OC - 1) ? 0 : oc_value + 1;
               };
 
@@ -106,7 +108,7 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         // keep separate code path to avoid performance degradations
         for (size_t i = start; i < end; i++) {
             calculate_dst_value_and_increment_oc(
-                    acc[i], dst[i], oc, src1_bin_po_offt);
+                    acc[i], &dst[i], oc, src1_bin_po_offt);
             ++src1_bin_po_offt;
         }
     } else {
@@ -118,7 +120,7 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         acc = acc + (acc_is_dst ? offt : start);
         while (start < end) {
             calculate_dst_value_and_increment_oc(
-                    *acc, *dst, oc, src1_bin_po_offt);
+                    *acc, dst, oc, src1_bin_po_offt);
             if (oc == 0) {
                 dst = dst + dst_mb_stride - OC;
                 // if dst and acc point to same address (inplace), then strides
@@ -163,6 +165,8 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC, size_t MB,
     if (do_sum_) {
         sum_scale_ = post_ops_.entry_[sum_ind].sum.scale;
         sum_zp_ = post_ops_.entry_[sum_ind].sum.zero_point;
+        const auto &sum_dt = post_ops_.entry_[sum_ind].sum.dt;
+        sum_data_type_ = sum_dt != data_type::undef ? sum_dt : dst_type;
     }
 
     if (do_bias())

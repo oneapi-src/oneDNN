@@ -100,8 +100,11 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init(
             && dst_md()->data_type == dst_type && check_bias()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
-                    | primitive_attr_t::skip_mask_t::zero_points_runtime
-                    | primitive_attr_t::skip_mask_t::post_ops)
+                            | primitive_attr_t::skip_mask_t::zero_points_runtime
+                            | primitive_attr_t::skip_mask_t::post_ops
+                            | primitive_attr_t::skip_mask_t::sum_dt,
+                    dst_type)
+            && attr_.post_ops_.check_sum_consistent_dt(dst_type)
             && check_attr_oscale() && check_attr_zero_points()
             && check_attr_post_ops() && set_default_formats()
             && gemm_based::check_gemm_compatible_formats(*this)

@@ -52,7 +52,10 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
             && dst_md()->data_type == dst_type && check_bias()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
-                    | primitive_attr_t::skip_mask_t::post_ops)
+                            | primitive_attr_t::skip_mask_t::post_ops
+                            | primitive_attr_t::skip_mask_t::sum_dt,
+                    dst_type)
+            && attr()->post_ops_.check_sum_consistent_dt(dst_type)
             && set_default_formats()
             && gemm_based::check_gemm_compatible_formats(*this);
 
@@ -71,12 +74,14 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
 }
 
 static bool should_gemm_execute_sum_po(
-        const gemm_based::params_t &params) noexcept {
+        const gemm_based::params_t &params, data_type_t dst_dt) noexcept {
     const auto &po = params.pp_attr_.post_ops_;
     static constexpr int sum_idx = 0;
     return po.len() > 0 && po.contain(primitive_kind::sum, sum_idx)
             && params.gemm_applies_output_scales_
-            && po.entry_[sum_idx].sum.zero_point == 0;
+            && po.entry_[sum_idx].sum.zero_point == 0
+            && utils::one_of(
+                    po.entry_[sum_idx].sum.dt, dst_dt, data_type::undef);
 }
 
 status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
@@ -119,7 +124,8 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
 
     // check post-ops
     if (!check_attr_post_ops()) return status::unimplemented;
-    const bool sum_po_via_gemm_beta = should_gemm_execute_sum_po(params_);
+    const bool sum_po_via_gemm_beta
+            = should_gemm_execute_sum_po(params_, dst_md()->data_type);
     // set state
     params_.dst_is_acc_
             = IMPLICATION(attr()->post_ops_.find(primitive_kind::sum) != -1,
@@ -139,8 +145,8 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
     return attr_.set_default_formats(dst_md(0));
 }
 
-bool gemm_f32_matmul_t::should_skip_sum_po() const noexcept {
-    return should_gemm_execute_sum_po(pd()->params());
+bool gemm_f32_matmul_t::should_skip_sum_po(data_type_t dst_dt) const noexcept {
+    return should_gemm_execute_sum_po(pd()->params(), dst_dt);
 }
 
 status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {

@@ -158,6 +158,7 @@ struct brgemm_t {
     bool with_sum = false;
     float sum_scale = 0.0f;
     int32_t sum_zp = 0;
+    impl::data_type_t sum_dt;
     bool with_eltwise = false;
     bool with_binary = false;
     bool with_scales = false;

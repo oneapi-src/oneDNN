@@ -64,6 +64,8 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                     && this->set_default_formats()
                     && attr()->has_default_values(
                             attr_skip_mask, dst_md_.data_type)
+                    && attr()->post_ops_.check_sum_consistent_dt(
+                            dst_md_.data_type, true)
                     && attr_.set_default_formats(dst_md(0)) == status::success
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5)
                     && zero_points_ok(attr())

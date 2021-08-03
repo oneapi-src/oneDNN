@@ -520,12 +520,21 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         return -1;
     }
 
+    dnnl::impl::data_type_t get_sum_dt() const {
+        const int sum_ind = find(dnnl::impl::primitive_kind::sum);
+        if (sum_ind == -1) return dnnl::impl::data_type::undef;
+        return entry_[sum_ind].sum.dt;
+    }
+
     bool defined() const;
     int len() const { return (int)entry_.size(); }
     bool has_default_values() const { return len() == 0; }
 
     dnnl::impl::status_t set_default_formats(
             const dnnl::impl::memory_desc_t *dst_md);
+
+    bool check_sum_consistent_dt(const dnnl::impl::data_type_t dst_dt,
+            const bool diverse_sum_dt_allowed = false) const;
 
     bool sum_with_default_dt(
             dnnl::impl::data_type_t dst_dt = dnnl_data_type_undef) const {
@@ -611,7 +620,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         rnn_data_qparams = 1u << 7,
         rnn_weights_qparams = 1u << 8,
         rnn_tparams = 1u << 9,
-        sum_dt = 1 << 10,
+        sum_dt = 1u << 10,
         rnn_weights_projection_qparams = 1u << 11
     };
 

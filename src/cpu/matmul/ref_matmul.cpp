@@ -100,6 +100,9 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     // output scale section
     const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
 
+    auto sum_dt = pd()->attr()->post_ops_.get_sum_dt();
+    if (sum_dt == data_type::undef) sum_dt = dst_d.data_type();
+
     // computations
     parallel_nd(batch, M, N, [&](dim_t mb, dim_t m, dim_t n) {
         dims_t dst_dims_idx;
@@ -114,8 +117,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             d *= scales[scale_stride * n];
 
             ref_post_ops_t::args_t args;
-            args.dst_val
-                    = io::load_float_value(dst_d.data_type(), dst, dst_off);
+            args.dst_val = io::load_float_value(sum_dt, dst, dst_off);
             args.ctx = &ctx;
             args.l_offset = l_offset;
             args.dst_md = pd()->dst_md();

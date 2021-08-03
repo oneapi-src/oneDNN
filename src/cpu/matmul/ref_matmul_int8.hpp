@@ -53,7 +53,10 @@ struct ref_matmul_int8_t : public primitive_t {
                             utils::one_of(bia_type, f32, bf16, s32, s8, u8))
                     && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
                     && attr()->has_default_values(smask_t::oscale_runtime
-                            | smask_t::zero_points_runtime | smask_t::post_ops)
+                                    | smask_t::zero_points_runtime
+                                    | smask_t::post_ops | smask_t::sum_dt,
+                            dst_type)
+                    && attr_.post_ops_.check_sum_consistent_dt(dst_type)
                     && attr_oscale_ok() && attr_zero_points_ok()
                     && set_default_formats()
                     && attr_.set_default_formats(dst_md(0)) == status::success;

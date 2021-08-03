@@ -219,6 +219,7 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     brg->with_sum = false;
     brg->sum_scale = 0;
     brg->sum_zp = 0;
+    brg->sum_dt = brg->dt_d;
     brg->with_scales = false;
 
     brg->beta = beta;
@@ -473,9 +474,13 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
         return status::unimplemented;
 
     const int sum_idx = post_ops.find(primitive_kind::sum);
-    brg->with_sum = sum_idx != -1;
-    brg->sum_scale = (sum_idx != -1) ? post_ops.entry_[sum_idx].sum.scale : 0;
-    brg->sum_zp = (sum_idx != -1) ? post_ops.entry_[sum_idx].sum.zero_point : 0;
+    const bool with_sum = sum_idx != -1;
+    brg->with_sum = with_sum;
+    brg->sum_scale = with_sum ? post_ops.entry_[sum_idx].sum.scale : 0;
+    brg->sum_zp = with_sum ? post_ops.entry_[sum_idx].sum.zero_point : 0;
+    const auto sum_dt
+            = with_sum ? post_ops.entry_[sum_idx].sum.dt : data_type::undef;
+    brg->sum_dt = sum_dt != data_type::undef ? sum_dt : dt_d;
 
     const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     brg->with_eltwise = eltwise_ind != -1;

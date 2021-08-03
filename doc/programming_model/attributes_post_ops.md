@@ -146,10 +146,8 @@ result, the computation will be:
 \f]
 
 @note
-* Currently only a u8/s8 data type parameter is supported.
-* **CPU**
-    * No support for different destination and sum data type.
 * **GPU**
+    * Currently only a u8/s8 data type parameter is supported.
     * Zero point is not supported.
 
 @anchor dev_guide_attributes_post_ops_depthwise
