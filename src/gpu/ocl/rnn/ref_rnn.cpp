@@ -1125,7 +1125,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             cl_ulong offset_ws_layer, offset_wei_layer, offset_ws_iter;
             // offsets for bwd rnn gemm grid computation
             cl_ulong offset_diff_wei_iter, offset_diff_wei_lay,
-                    offset_diff_ws_lay;
+                    offset_scratch_diff_lay;
 
             set_offsets_fwd_gemm(rnn, dir, lay, src_t, wei_layer_offset_ptr,
                     ws_states_offset_, offset_ws_layer, offset_wei_layer,
@@ -1134,7 +1134,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                 int start_diff_src_iter_idx = 0;
                 set_offsets_bwd_gemm(rnn, start_diff_src_iter_idx, dir, lay,
                         offset_diff_wei_iter, offset_diff_wei_lay,
-                        offset_diff_ws_lay);
+                        offset_scratch_diff_lay);
             }
 
             if (aprop == prop_kind::forward && rnn.merge_gemm_layer) {
@@ -1154,8 +1154,8 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
 
             if (aprop == prop_kind::backward && rnn.merge_gemm_layer) {
                 gemm_primitive(engine, ctx, wei_layer, offset_wei_layer,
-                        scratch_gates, 0, workspace, offset_diff_ws_lay,
-                        gemm_layer_bwd);
+                        scratch_gates, 0, scratch_diff_states,
+                        offset_scratch_diff_lay, gemm_layer_bwd);
                 gemm_primitive(engine, ctx, scratch_gates, 0, workspace,
                         offset_ws_layer, diff_weights_layer,
                         offset_diff_wei_lay, gemm_diff_wei_layer);
