@@ -128,6 +128,15 @@ public:
         impl::graph_t agraph(subgraph);
         BACKEND_DNNL_CHECK(agraph.infer_shape());
         BACKEND_DNNL_CHECK(infer_type(agraph));
+        // do constant propagation here so that we can
+        // prepare constant info for other optimizations.
+        if (enable_constant_cache_) {
+            // TODO(qun): because fwk doesn't set constant from API level at
+            // this momnet, so we hardcode matmul op's weight and bias to be
+            // constant
+            set_weight_bias_constant(subgraph);
+            constant_propagation(subgraph);
+        }
         BACKEND_DNNL_CHECK(
                 layout_propagation(subgraph, p_engine_, prm_attr_mgr_));
 
@@ -143,14 +152,13 @@ public:
             }
         }
 
-        // constant propagation
+        // do constant propagation again since layout propagation may
+        // insert/delete operators
         if (enable_constant_cache_) {
-#if 1
             // TODO(qun): because fwk doesn't set constant from API level at
             // this momnet, so we hardcode matmul op's weight and bias to be
             // constant
             set_weight_bias_constant(subgraph);
-#endif
             constant_propagation(subgraph);
         }
 

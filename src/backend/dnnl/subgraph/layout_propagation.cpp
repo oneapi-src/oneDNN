@@ -99,7 +99,8 @@ static bool layout_propagation_for_conv(op_ptr &op,
 
 static void get_expected_input_layout(
         std::shared_ptr<impl::value_t> &input_value) {
-    if (input_value->has_producer()
+    if (!ltw(input_value->get_logical_tensor()).is_constant()
+            && input_value->has_producer()
             && input_value->get_producer().get_kind() == op_kind::Reorder) {
         op_t &producer = input_value->get_producer();
         std::shared_ptr<value_t> producer_input_value
@@ -108,8 +109,11 @@ static void get_expected_input_layout(
                 = producer_input_value->get_logical_tensor();
         if (producer_input_lt.layout_type != layout_type::any
                 && producer_input_lt.layout_type != layout_type::undef) {
-            input_value->set_logical_tensor(
-                    producer_input_value->get_logical_tensor());
+            impl::logical_tensor_t temp_lt
+                    = producer_input_value->get_logical_tensor();
+            // replace the input with the input of reorder but keep the id
+            temp_lt.id = input_value->get_logical_tensor().id;
+            input_value->set_logical_tensor(temp_lt);
         }
     }
 }
@@ -118,7 +122,7 @@ static bool layout_propagation_for_matmul(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr &prm_attr_mgr) {
     std::shared_ptr<impl::value_t> src, wei, bias, dst;
     src = op->get_input_value(0);
-    // get reorder's input value as matmul's input value
+    // get reorder's input value as matmul's input value if not constant
     get_expected_input_layout(src);
     wei = op->get_input_value(1);
     get_expected_input_layout(wei);

@@ -25,6 +25,7 @@
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 
+#include "backend/dnnl/subgraph/constant_propagation.hpp"
 #include "backend/dnnl/subgraph/infer_type.hpp"
 #include "backend/dnnl/subgraph/layout_propagation.hpp"
 #include "backend/dnnl/subgraph/memory_binding.hpp"
@@ -579,3 +580,157 @@ TEST(pass_test, subgraph_passes) {
         }
     }
 }
+
+struct ut_int8_matmul_params {
+    std::vector<impl::dim_t> src_shape;
+    std::vector<impl::dim_t> weight_shape;
+    std::vector<impl::dim_t> bias_shape;
+    std::vector<impl::dim_t> dst_shape;
+    bool transpose_a;
+    bool transpose_b;
+    bool constant_weight;
+    size_t final_subgraph_size;
+};
+
+class int8_matmul_pass_test
+    : public ::testing::TestWithParam<ut_int8_matmul_params> {};
+
+TEST_P(int8_matmul_pass_test, int8_matmul_layout_propagation) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+            matmul
+             | (f32)
+            relu
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    const auto &params = GetParam();
+
+    graph_t agraph;
+    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    std::vector<int64_t> zps {0};
+    std::vector<float> scales {0.5f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t matmul {2, MatMul, "matmul"};
+    matmul.set_attr<bool>("transpose_a", params.transpose_a);
+    matmul.set_attr<bool>("transpose_b", params.transpose_b);
+    op_t relu {3, ReLU, "relu"};
+    op_t quant {4, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_bias = logical_tensor_init(4, data_type::f32);
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(5, data_type::f32);
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight);
+    matmul.add_input(fp32_bias);
+    matmul.add_output(fp32_matmul_out);
+
+    logical_tensor_t fp32_relu_out = logical_tensor_init(6, data_type::f32);
+    relu.add_input(fp32_matmul_out);
+    relu.add_output(fp32_relu_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(7, data_type::u8);
+    quant.add_input(fp32_relu_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("int8_matmul_bias_relu_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            int8_matmul_bias_relu);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+
+    std::vector<std::shared_ptr<op_t>> subgraph
+            = agraph.get_partitions()[0]->get_ops();
+    ASSERT_EQ(subgraph.size(), 5);
+
+    dnnl_impl::set_all_layout_to_any(subgraph);
+    dnnl_impl::check_with_bias(subgraph);
+
+    int8_data = logical_tensor_init(0, params.src_shape, impl::data_type::u8);
+    s8_weight
+            = logical_tensor_init(2, params.weight_shape, impl::data_type::s8);
+    fp32_bias = logical_tensor_init(4, params.bias_shape, impl::data_type::f32);
+    int8_out = logical_tensor_init(7, params.dst_shape, impl::data_type::u8);
+
+    std::vector<logical_tensor_t> inputs = {int8_data, s8_weight, fp32_bias};
+    std::vector<logical_tensor_t> outputs = {int8_out};
+
+    dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
+
+    dnnl_impl::split_quant_dequant(subgraph);
+    dnnl_impl::fuse_to_int8_matmul(subgraph);
+    dnnl_impl::folding_mul_scales(subgraph);
+    dnnl_impl::primitive_attr_mgr prm_attr_mgr;
+    dnnl_impl::fuse_output_scales(subgraph, prm_attr_mgr);
+    dnnl_impl::fuse_post_ops(subgraph, prm_attr_mgr);
+    dnnl_impl::fuse_zero_points(subgraph, prm_attr_mgr);
+    dnnl_impl::fuse_mul_scales_add_zps(subgraph);
+    ASSERT_EQ(subgraph.size(), 2);
+
+    impl::graph_t(subgraph).infer_shape();
+    dnnl_impl::insert_transpose_for_matmul(subgraph);
+    impl::graph_t(subgraph).infer_shape();
+    dnnl_impl::insert_expand_for_matmul(subgraph);
+    dnnl_impl::insert_reorder(subgraph);
+    ASSERT_EQ(subgraph.size(), 10);
+
+    for (auto &val : impl::graph_t(subgraph).get_input_values()) {
+        auto lt = val->get_logical_tensor();
+        ASSERT_FALSE(impl::logical_tensor_wrapper(lt).is_shape_unknown());
+    }
+
+    for (auto &val : impl::graph_t(subgraph).get_output_values()) {
+        auto lt = val->get_logical_tensor();
+        ASSERT_FALSE(impl::logical_tensor_wrapper(lt).is_shape_unknown());
+    }
+
+    impl::graph_t g(subgraph);
+    ASSERT_EQ(g.infer_shape(), impl::status::success);
+    ASSERT_EQ(dnnl_impl::infer_type(g), impl::status::success);
+
+    if (params.constant_weight) {
+        dnnl_impl::set_weight_bias_constant(subgraph);
+        dnnl_impl::constant_propagation(subgraph);
+    }
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph, p_eng, prm_attr_mgr),
+            impl::status::success);
+    ASSERT_EQ(subgraph.size(), params.final_subgraph_size);
+}
+
+INSTANTIATE_TEST_SUITE_P(int8_matmul_test_instance, int8_matmul_pass_test,
+        testing::Values(ut_int8_matmul_params {{1, 1024}, {1000, 1024}, {1000},
+                                {1, 1000}, false, true, false, 6},
+                ut_int8_matmul_params {{1, 1024}, {1000, 1024}, {1000},
+                        {1, 1000}, false, true, true, 7},
+                ut_int8_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3},
+                        false, true, false, 6},
+                ut_int8_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3},
+                        false, true, true, 7}));
