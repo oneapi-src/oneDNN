@@ -99,7 +99,7 @@ template elemwise_sig(ref_rnn_fwd_t::lstm_elemwise_u8s8);
 template elemwise_sig(ref_rnn_bwd_t::lstm_elemwise_u8s8);
 
 template <prop_kind_t aprop>
-elemwise_sig((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
+elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     auto nd_range = compute::nd_range_t({dhc, batch});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
@@ -116,16 +116,15 @@ elemwise_sig((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     arg_list.set(6, pd()->desc()->alpha);
     // for test mode
     arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.set(8, pd()->rnn_conf.tm_cscale);
-    arg_list.set(9, scratch_cell);
-    if (aprop != dnnl_forward) { arg_list.set(10, scratch_diff_states); }
+    arg_list.set(8, scratch_cell);
+    if (aprop != dnnl_forward) { arg_list.set(9, scratch_diff_states); }
     parallel_for(ctx, nd_range, kernel, arg_list);
 }
-template elemwise_sig(ref_rnn_fwd_t::gru_lbr_elemwise);
-template elemwise_sig(ref_rnn_bwd_t::gru_lbr_elemwise);
+template elemwise_sig_gru_lbr(ref_rnn_fwd_t::gru_lbr_elemwise);
+template elemwise_sig_gru_lbr(ref_rnn_bwd_t::gru_lbr_elemwise);
 
 template <prop_kind_t aprop>
-elemwise_sig((_ref_rnn_common_t<aprop>::gru_elemwise)) {
+elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     auto nd_range = compute::nd_range_t({dhc, batch});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
@@ -141,16 +140,15 @@ elemwise_sig((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     arg_list.set(5, bias);
     arg_list.set(6, pd()->desc()->alpha);
     arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.set(8, pd()->rnn_conf.tm_cscale);
-    arg_list.set(9, part);
+    arg_list.set(8, part);
     if (aprop != dnnl_forward) {
-        arg_list.set(10, scratch_cell);
-        arg_list.set(11, scratch_diff_states);
+        arg_list.set(9, scratch_cell);
+        arg_list.set(10, scratch_diff_states);
     }
     parallel_for(ctx, nd_range, kernel, arg_list);
 }
-template elemwise_sig(ref_rnn_fwd_t::gru_elemwise);
-template elemwise_sig(ref_rnn_bwd_t::gru_elemwise);
+template elemwise_sig_gru(ref_rnn_fwd_t::gru_elemwise);
+template elemwise_sig_gru(ref_rnn_bwd_t::gru_elemwise);
 } // namespace ocl
 } // namespace gpu
 } // namespace impl

@@ -65,6 +65,8 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
     using class_name = _ref_rnn_common_t<aprop>;
 
     typedef elemwise_sig((class_name::*elemwise_f));
+    typedef elemwise_sig_gru((class_name::*elemwise_gru_f));
+    typedef elemwise_sig_gru_lbr((class_name::*elemwise_gru_lbr_f));
     typedef cell_execution_sig((class_name::*cell_execution_f));
     typedef grid_execution_sig((class_name::*grid_execution_f));
     typedef gemm_sig((class_name::*gemm_t));
@@ -197,8 +199,8 @@ private:
     elemwise_sig(rnn_elemwise);
     elemwise_sig(lstm_elemwise);
     elemwise_sig(lstm_elemwise_u8s8);
-    elemwise_sig(gru_lbr_elemwise);
-    elemwise_sig(gru_elemwise);
+    elemwise_sig_gru(gru_elemwise);
+    elemwise_sig_gru_lbr(gru_lbr_elemwise);
 
     gemm_sig(gemm_primitive);
 
@@ -303,7 +305,9 @@ private:
 
     gemm_t gemm_iter_func;
     gemm_t gemm_layer_func;
-    elemwise_f elemwise_func;
+    elemwise_f elemwise_common;
+    elemwise_gru_f elemwise_gru;
+    elemwise_gru_lbr_f elemwise_gru_lbr;
 
     enum { SCALES_ = 0, TM_SCALES_ = 1 };
 };

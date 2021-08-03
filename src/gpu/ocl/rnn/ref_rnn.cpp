@@ -759,22 +759,22 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
     switch (pd()->cell_kind()) {
         case dnnl_vanilla_lstm:
             cell_func = &class_name::cell_execution;
-            elemwise_func = pd()->src_type == data_type::u8
+            elemwise_common = pd()->src_type == data_type::u8
                             && pd()->weights_type == data_type::s8
                     ? &class_name::lstm_elemwise_u8s8
                     : &class_name::lstm_elemwise;
             break;
         case dnnl_vanilla_rnn:
             cell_func = &class_name::cell_execution;
-            elemwise_func = &class_name::rnn_elemwise;
+            elemwise_common = &class_name::rnn_elemwise;
             break;
         case dnnl_vanilla_gru:
             cell_func = &class_name::cell_execution_gru;
-            elemwise_func = &class_name::gru_elemwise;
+            elemwise_gru = &class_name::gru_elemwise;
             break;
         case dnnl_lbr_gru:
             cell_func = &class_name::cell_execution_gru_lbr;
-            elemwise_func = &class_name::gru_lbr_elemwise;
+            elemwise_gru_lbr = &class_name::gru_lbr_elemwise;
             break;
         default: break;
     }
@@ -1629,13 +1629,13 @@ elemwise_sig(ref_rnn_fwd_t::lstm_elemwise_u8s8);
 template <>
 elemwise_sig(ref_rnn_bwd_t::lstm_elemwise_u8s8);
 template <>
-elemwise_sig(ref_rnn_fwd_t::gru_lbr_elemwise);
+elemwise_sig_gru_lbr(ref_rnn_fwd_t::gru_lbr_elemwise);
 template <>
-elemwise_sig(ref_rnn_bwd_t::gru_lbr_elemwise);
+elemwise_sig_gru_lbr(ref_rnn_bwd_t::gru_lbr_elemwise);
 template <>
-elemwise_sig(ref_rnn_fwd_t::gru_elemwise);
+elemwise_sig_gru(ref_rnn_fwd_t::gru_elemwise);
 template <>
-elemwise_sig(ref_rnn_bwd_t::gru_elemwise);
+elemwise_sig_gru(ref_rnn_bwd_t::gru_elemwise);
 
 template struct _ref_rnn_common_t<prop_kind::forward>;
 template struct _ref_rnn_common_t<prop_kind::backward>;

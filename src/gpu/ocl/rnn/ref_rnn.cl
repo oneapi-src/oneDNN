@@ -589,20 +589,16 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
 __kernel void ref_rnn_elemwise_fwd(
         int dir, int lay, int iter, __global char *ws, __global char *scr_gates,
         __global AUX_DATA_T *bias_base, float alpha, __global float *tm_scales,
+#if CELL_KIND == VANILLA_LSTM || CELL_KIND == VANILLA_RNN
         float tm_cscale
-#if CELL_KIND == LBR_GRU
-        ,
+#elif CELL_KIND == LBR_GRU
         __global char *scr_cell
-#endif
-#if CELL_KIND == VANILLA_GRU
-        ,
+#elif CELL_KIND == VANILLA_GRU
         int n_part
 #endif
 ) {
-
     const int i = get_global_id(1); // batch
     const int j = get_global_id(0); // dhc
-
     const __global AUX_DATA_T *c_states_tm1_l
             = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET)
             + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
@@ -742,11 +738,11 @@ __kernel void ref_rnn_elemwise_fwd(
 __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         __global char *ws, __global char *scr_gates,
         __global AUX_DATA_T *bias_base, float alpha, __global float *tm_scales,
+#if CELL_KIND == VANILLA_LSTM || CELL_KIND == VANILLA_RNN
         float tm_cscale,
-#if CELL_KIND == LBR_GRU
+#elif CELL_KIND == LBR_GRU
         __global char *scr_gate_r,
-#endif
-#if CELL_KIND == VANILLA_GRU
+#elif CELL_KIND == VANILLA_GRU
         int n_part, __global char *scr_cell,
 #endif
         __global char *diff_states) {

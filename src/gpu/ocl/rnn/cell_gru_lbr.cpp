@@ -24,7 +24,6 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
-#define PART 1
 
 using namespace dnnl::impl::utils;
 using namespace rnn_utils;
@@ -54,9 +53,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
         gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset, workspace,
                 cell_ws_iter_offset, scratch_cell, 0, gemm_iter_fwd);
 
-        (this->*elemwise_func)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, scales, bias,
-                tm_scales, PART);
+        (this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+                workspace, scratch_gates, scratch_cell, scratch_diff_states,
+                bias, tm_scales);
 
     } else {
         cl_ulong cell_diff_wei_iter_off, cell_diff_wei_lay_off,
@@ -66,9 +65,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                 cell_diff_wei_lay_off, cell_scr_diff_lay_off,
                 cell_scr_diff_iter_off);
 
-        (this->*elemwise_func)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, scales, bias,
-                tm_scales, PART);
+        (this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+                workspace, scratch_gates, scratch_cell, scratch_diff_states,
+                bias, tm_scales);
 
         if (!rnn.merge_gemm_layer) {
             gemm_primitive(engine, ctx, scratch_gates, cell_scratch_offset,

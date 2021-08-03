@@ -37,9 +37,26 @@
     void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
             int batch, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
-            const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
             const memory_storage_t *scales, const memory_storage_t &bias, \
+            const memory_storage_t *tm_scales) const
+
+#define elemwise_sig_gru_lbr(f) \
+    void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
+            int batch, const memory_storage_t &workspace, \
+            const memory_storage_t &scratch_gates, \
+            const memory_storage_t &scratch_cell, \
+            const memory_storage_t &scratch_diff_states, \
+            const memory_storage_t &bias, const memory_storage_t *tm_scales) \
+            const
+
+#define elemwise_sig_gru(f) \
+    void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
+            int batch, const memory_storage_t &workspace, \
+            const memory_storage_t &scratch_gates, \
+            const memory_storage_t &scratch_cell, \
+            const memory_storage_t &scratch_diff_states, \
+            const memory_storage_t &bias, \
             const memory_storage_t *tm_scales, int part) const
 
 #define cell_execution_sig(f) \

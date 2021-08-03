@@ -58,8 +58,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 gemm_iter_fwd);
 
         // 3. activation zt and rt + elemwise multiplication rt,ht-1
-        (this->*elemwise_func)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, scales, bias,
+        (this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
+                scratch_gates, scratch_cell, scratch_diff_states, bias,
                 tm_scales, PART_ONE);
 
         // 4. gemm Wh[2],h~t
@@ -68,8 +68,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 gemm_iter_fwd_2);
 
         // 5. activation h~t + calculate ht
-        (this->*elemwise_func)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, scales, bias,
+        (this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
+                scratch_gates, scratch_cell, scratch_diff_states, bias,
                 tm_scales, PART_TWO);
     } else {
         cl_ulong cell_diff_wei_iter_off, cell_diff_wei_lay_off,
@@ -81,8 +81,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 cell_scr_diff_iter_off, cell_diff_wei_iter_off2);
 
         // 1. calculate dG2, dG1, and part of dht-1
-        (this->*elemwise_func)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, scales, bias,
+        (this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
+                scratch_gates, scratch_cell, scratch_diff_states, bias,
                 tm_scales, PART_ONE);
 
         // 2. calculate intermediate d(hG1)
@@ -93,8 +93,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
 
         // 3. calculate dG1^ and part of dht-1
         // hg1 needs to be bf16 as it is used as gemm output
-        (this->*elemwise_func)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, scales, bias,
+        (this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
+                scratch_gates, scratch_cell, scratch_diff_states, bias,
                 tm_scales, PART_TWO);
 
         // 4. calculate diff weights
