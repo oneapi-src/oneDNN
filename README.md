@@ -1,30 +1,30 @@
 oneAPI Deep Neural Network Library (oneDNN) Graph API
 ===========================================
 
-This branch is to propose a preview for the graph API extension to oneDNN. 
-oneDNN Graph API extends oneDNN with a unified high-level graph API for 
-multiple AI hardware classes (CPU, GPU, accelerators). With a flexible graph 
-interface, it maximizes the optimization opportunity for generating efficient 
-code across a variety of Intel and non-Intel hardwares, and can be closely 
-integrated with ecosystem frameworks and inference engines.
+This branch is to propose a preview for the graph API extension to oneDNN.
+oneDNN Graph API extends oneDNN with a unified high-level graph API for multiple
+AI hardware classes (CPU, GPU, accelerators). With a flexible graph interface,
+it maximizes the optimization opportunity for generating efficient code across a
+variety of Intel and non-Intel hardwares, and can be closely integrated with
+ecosystem frameworks and inference engines.
 
 The goal of the preview branch is to:
+
 * Collect feedbacks on the API design, not the implementation.
 * Demonstrate the programming model of oneDNN Graph API.
 * Show ease of use of the API for framework integration.
+* Provide product-level quality support to early adoption before merged to
+  oneDNN master branch.
 
-The current API version has limited support for direct programming model, as 
-it assumes users maintain their own graphs and use oneDNN Graph API to identify 
-the partitions which could be offloaded to oneDNN Graph. Currently, it aims to 
-work with the framework graph and identify graph partitions to offload. The 
-partition will be further compiled and executed as a fused operation in the 
-framework graph.
+The current API version aims to work with the framework graph and identify graph
+partitions to offload. The partition will be further compiled and executed as a
+fused operation in the framework graph.
 
 ## Documentation
 
-[Public specification](https://spec.oneapi.com/onednn-graph/latest/index.html) 
-on oneAPI SPEC website explains the design, programming model, and operation 
-set of oneDNN Graph API.
+[Public specification](https://spec.oneapi.com/onednn-graph/latest/index.html)
+on oneAPI SPEC website explains the design, programming model, and operation set
+of oneDNN Graph API.
 
 In the doc folder of this branch, [an overview introduction](doc/README.md) to
 oneDNN Graph API is provided along with two tutorials on how to use the API:
@@ -35,13 +35,15 @@ code. Public webpages are still under construction.
 
 ## System Requirements
 
-oneDNN Graph Library will support systems based on
-[Intel 64 or AMD64 architecture](https://en.wikipedia.org/wiki/X86-64).
+oneDNN Graph supports platforms based on the following architectures:
+
+* [Intel 64 or AMD64](https://en.wikipedia.org/wiki/X86-64)
 
 ## Requirements for Building from Source
 
 oneDNN Graph supports systems meeting the following requirements:
-* Operating system with Intel 64 architecture support
+
+* Operating system with Intel 64 and Arm 64 architecture support
 * C++ compiler with C++11 standard support
 * [CMake](https://cmake.org/download/) 2.8.11 or later
 * [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
@@ -52,16 +54,19 @@ dependencies.
 
 ### Validated Configurations
 
-CPU engine was validated on RedHat* Enterprise Linux 7 with
+CPU engine was validated on RedHat* Enterprise Linux 7 with:
+
 * GNU Compiler Collection 4.8
 * GNU Compiler Collection 8.2
 * GNU Compiler Collection 9.3
 
-on Ubuntu* 18.04 with
+on Ubuntu* 18.04 with:
+
 * GNU Compiler Collection 7.5
 * [Intel C++ Compiler Classic](https://software.intel.com/content/www/us/en/develop/tools/oneapi/hpc-toolkit.html)
 
-on macOS* 11.2 (BigSur) with
+on macOS* 11.2 (BigSur) with:
+
 * Apple LLVM version 12.0 (XCode 12.0)
 * [Intel C++ Compiler Classic](https://software.intel.com/content/www/us/en/develop/tools/oneapi/hpc-toolkit.html)
 
@@ -69,7 +74,8 @@ on Windows* with
 
 * Microsoft Visual C++ 16.0 (Visual Studio 2019)
 
-GPU engine was validated on Ubuntu* 18.04 with
+GPU engine was validated on Ubuntu* 18.04 with:
+
 * [Intel Graphics Compute Runtime for OpenCL](https://github.com/intel/compute-runtime/releases)
 * [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
   Beta
@@ -79,7 +85,7 @@ GPU engine was validated on Ubuntu* 18.04 with
 To build the library from source code:
 
 ```bash
-git clone https://github.com/oneapi-src/oneDNN.git --branch dev-graph --recursive
+git clone https://github.com/oneapi-src/oneDNN.git --branch dev-graph-preview2 --recursive
 cd oneDNN
 mkdir build && cd build
 cmake .. -DDNNL_GRAPH_BUILD_TESTS=1 -DDNNL_GRAPH_BUILD_EXAMPLES=1
@@ -118,7 +124,7 @@ at dnnl.maintainers@intel.com.
 
 ## License
 
-oneDNN Graph Library is licensed under [Apache License Version 2.0](LICENSE). 
+oneDNN Graph Library is licensed under [Apache License Version 2.0](LICENSE).
 Refer to the "[LICENSE](LICENSE)" file for the full license text and copyright
 notice.
 
