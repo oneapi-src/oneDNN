@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -299,7 +299,7 @@ gen9_conv_nhwc_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 #endif // WITH_SUM
 
     const int po_mb = (mb) % MB;
-    const int po_oc = (oc * OC_BLOCK) % (OC * G);
+    const int po_oc = (oc * OC_BLOCK + local_id) % (OC * G);
     APPLY_POST_OPS_SERIAL_BINARY_2D(
             blockC00, DATA_T, blockS00, DATA_T, po_mb, 1, po_oc, 1);
 

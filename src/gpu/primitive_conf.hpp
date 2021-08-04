@@ -943,7 +943,6 @@ inline void def_binary_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("BINARY_LT", alg_kind::binary_lt);
     kernel_ctx.define_int("BINARY_EQ", alg_kind::binary_eq);
     kernel_ctx.define_int("BINARY_NE", alg_kind::binary_ne);
-    kernel_ctx.define_int("BINARY_PRELU", alg_kind::binary_prelu);
 }
 
 inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
@@ -982,16 +981,19 @@ inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
 }
 
 inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
-        const data_type_t dst_dt, const int max_ndims_supported = 2) {
+        const data_type_t dst_dt, const int max_ndims_supported = 2,
+        const int prelu_mask_supported = 3) {
     const auto &p = attr->post_ops_;
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(false); };
     auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
+    auto is_prelu = [&](int idx) { return p.entry_[idx].is_prelu(); };
 
     bool is_po_ok = true;
     for (int po_idx = 0; po_idx < p.len(); ++po_idx) {
-        is_po_ok &= is_eltwise(po_idx) | is_sum(po_idx) | is_binary(po_idx);
+        is_po_ok &= is_eltwise(po_idx) | is_sum(po_idx) | is_binary(po_idx)
+                | is_prelu(po_idx);
         if (is_binary(po_idx)) {
             const auto &bin_desc = p.entry_[po_idx].binary.src1_desc;
             if (bin_desc.ndims > max_ndims_supported) {
@@ -1001,6 +1003,10 @@ inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
                     if (bin_desc.dims[dim_idx] != 1) is_po_ok = false;
                 }
             }
+        }
+        if (is_prelu(po_idx)) {
+            if (p.entry_[po_idx].prelu.mask > prelu_mask_supported)
+                is_po_ok = false;
         }
         if (is_sum(po_idx)) {
             if (p.entry_[po_idx].sum.zero_point != 0) return false;
@@ -1016,8 +1022,8 @@ inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
     return is_po_ok;
 }
 
-inline void def_post_ops_cfg(
-        compute::kernel_ctx_t &kernel_ctx, const post_ops_t &post_ops) {
+inline void def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
+        const post_ops_t &post_ops, const dnnl_dims_t *dst_dims) {
     const int po_nop_id = 0;
     const int po_binary_id = 1;
     const int po_eltwise_id = 2;
@@ -1048,6 +1054,53 @@ inline void def_post_ops_cfg(
                 kernel_ctx.define_int(
                         "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF16", 0);
             }
+        } else if (e.is_prelu()) {
+            // binary && eltwise relu = prelu post op
+            kernel_ctx.define_int(
+                    "PO_" + std::to_string(idx) + "_KIND", po_binary_id);
+            kernel_ctx.define_int("PO_" + std::to_string(idx) + "_ALG",
+                    alg_kind_t::dnnl_eltwise_relu);
+
+            assert(dst_dims != nullptr);
+
+            dnnl_memory_desc_t weight_mem_desc;
+            dnnl_dims_t weight_dims;
+            format_tag_t weights_tag;
+            int weight_ndims = 0;
+            if (e.prelu.mask == 0) {
+                weight_ndims = 1;
+                weight_dims[0] = 1;
+                weights_tag = format_tag_t::dnnl_a;
+            } else {
+                // prelu weights are assumed to be upto 5 dims
+                for (int d = 0; d < 5; ++d) {
+                    if (((e.prelu.mask >> d) & 0x1) == 1) {
+                        weight_ndims = d + 1;
+                        weight_dims[d] = (*dst_dims)[d];
+                    } else {
+                        weight_dims[d] = 1;
+                    }
+                }
+                switch (weight_ndims) {
+                    case 1: weights_tag = format_tag_t::dnnl_a; break;
+                    case 2: weights_tag = format_tag_t::dnnl_ab; break;
+                    case 3: weights_tag = format_tag_t::dnnl_acb; break;
+                    case 4: weights_tag = format_tag_t::dnnl_acdb; break;
+                    case 5: weights_tag = format_tag_t::dnnl_acdeb; break;
+                    default:
+                        weights_tag = format_tag_t::dnnl_format_tag_undef;
+                        break;
+                }
+            }
+            dnnl_memory_desc_init_by_tag(&weight_mem_desc, weight_ndims,
+                    weight_dims, data_type_t::dnnl_f32, weights_tag);
+            const memory_desc_wrapper weight_mdw(weight_mem_desc);
+            const auto mdi = memory_desc_info_t::create(weight_mdw);
+            def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
+
+            // prelu weights are assumed to be f32
+            kernel_ctx.define_int(
+                    "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF16", 0);
         } else {
             dnnl_memory_desc_t empty_mem_desc;
             dnnl_dims_t empty_dims = {1, 1, 1, 1};
@@ -1096,7 +1149,8 @@ inline void def_post_ops_cfg(
             kernel_ctx.define_float(
                     ("PO_" + std::to_string(idx) + "_SUM_SCALE").c_str(), 1.0f);
         }
-        if (!(e.is_binary() || e.is_eltwise(false) || e.is_sum(false))) {
+        if (!(e.is_binary() || e.is_eltwise(false) || e.is_sum(false)
+                    || e.is_prelu())) {
             // empty post op
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_KIND", po_nop_id);
@@ -1134,6 +1188,14 @@ inline int append_post_ops_to_arg_list_base(const exec_args_t &args,
                     DNNL_ARG_ATTR_MULTIPLE_POST_OP(po_idx) | DNNL_ARG_SRC_1);
             assert(arg.is_const);
 
+            auto &binary_arg = arg.mem
+                    ? *(arg.mem->memory_storage())
+                    : dnnl::impl::memory_storage_t::empty_storage();
+            arg_list.set(post_op_idx++, binary_arg);
+        } else if (e.is_prelu()) {
+            auto arg = args.at(
+                    DNNL_ARG_ATTR_MULTIPLE_POST_OP(po_idx) | DNNL_ARG_WEIGHTS);
+            assert(arg.is_const);
             auto &binary_arg = arg.mem
                     ? *(arg.mem->memory_storage())
                     : dnnl::impl::memory_storage_t::empty_storage();
@@ -1183,7 +1245,8 @@ inline bool post_ops_preserves_zeroes(
 }
 
 inline void def_attr_info(compute::kernel_ctx_t &kernel_ctx,
-        const attr_info_t &attr_info, const post_ops_t &post_ops) {
+        const attr_info_t &attr_info, const post_ops_t &post_ops,
+        const dnnl_dims_t *dst_dims = nullptr) {
     assert(attr_info.initialized);
 
     kernel_ctx.define_int("WITH_POST_OP", post_ops.len() > 0);
@@ -1217,7 +1280,7 @@ inline void def_attr_info(compute::kernel_ctx_t &kernel_ctx,
     def_binary_alg_kinds(kernel_ctx);
     def_eltwise_alg_kinds(kernel_ctx);
 
-    def_post_ops_cfg(kernel_ctx, post_ops);
+    def_post_ops_cfg(kernel_ctx, post_ops, dst_dims);
 }
 
 inline void def_dispatch(compute::kernel_ctx_t &kernel_ctx,

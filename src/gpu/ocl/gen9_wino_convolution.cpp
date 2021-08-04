@@ -356,7 +356,13 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
 
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
 
-    def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_);
+    dnnl_dims_t dst_dims;
+    dst_dims[0] = conf.mb;
+    dst_dims[1] = conf.oc_without_padding;
+    dst_dims[2] = conf.ndims > 4 ? conf.od : conf.oh;
+    dst_dims[3] = conf.ndims > 4 ? conf.oh : conf.ow;
+    dst_dims[4] = conf.ow;
+    def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_, &dst_dims);
 
     kernel_ctx.print_options();
     return status::success;

@@ -890,8 +890,9 @@ int doit(const prb_t *prb, res_t *res) {
     // testing time
     dnnl_primitive_t prim_ref_ {};
     if (is_bench_mode(CORR) && is_gpu() && fast_ref_gpu &&
-            // TODO: temporary disable cpu as ref for testcases with binary post-ops
-            prb->attr.post_ops.binary_index() == -1) {
+            // TODO: temporary disable cpu as ref for testcases with binary and prelu post-ops
+            prb->attr.post_ops.binary_index() == -1
+            && prb->attr.post_ops.prelu_index() == -1) {
         // Create a new copy of prb to avoid potentially corrupting the test by
         // modifying prb in place. DIRECT algorithm is used to prevent fallback
         // to the slow benchdnn reference implementation.

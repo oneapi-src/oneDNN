@@ -1406,8 +1406,6 @@ typedef enum {
     dnnl_binary_eq = 0x1fffa,
     /// Binary not equal
     dnnl_binary_ne = 0x1fffb,
-    /// Binary prelu
-    dnnl_binary_prelu = 0x1fffc,
     /// Nearest Neighbor Resampling Method
     dnnl_resampling_nearest = 0x2fff0,
     /// Linear Resampling Method
