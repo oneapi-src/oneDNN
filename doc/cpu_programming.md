@@ -227,10 +227,10 @@ results of the graph.
 ## Single Operator Partition
 
 In order to simplify the support of framework imperative execution mode, oneDNN
-Graph starts to feature single op partition. As the name suggests, it's a
-partition which only contains one operator. In addition, a `graph` is a more or
-less useless and confusing concept for imperative execution mode. The demo code
-is like below. The full example code can be found at [cpu_single_op_partition_matmul.cpp](https://github.com/intel-innersource/libraries.performance.math.onednn/blob/dev-graph/examples/cpp/src/cpu_single_op_partition_matmul.cpp).
+Graph API supports single op partition. As the name suggests, it's a partition
+which only contains one operator. There is no need to use graph for imperative
+execution mode. The demo code is like below. The full example code can be found
+at [cpu_single_op_partition_matmul.cpp](https://github.com/intel-innersource/libraries.performance.math.onednn/blob/dev-graph/examples/cpp/src/cpu_single_op_partition_matmul.cpp).
 
 ~~~cpp
 // define input and output logical tensor
@@ -258,32 +258,36 @@ tensor output {lt2, eng, buf2};                                                 
 cp.execute(stream, {data, weight}, {output});                                   // 13
 ~~~
 
-## Fall-back Mechanism
+## Supporting Fall-back Mechanism for Users
 
 Sometimes framework users may want to fall back to default implementation when
 oneDNN Graph fails to compile or execute. At this time users need to reorder
-oneDNN Graph specific tensors to public tensor and then feed into framework
-default implementation kernel. Now oneDNN Graph has already been support
-`reorder` operator for this case. With the help of feature of single operator
-partition, users can easily convert tensors to public layout.
+oneDNN Graph opaque tensors to public tensors and then feed into framework
+default implementation kernel. oneDNN Graph API supports `reorder` operator for
+this case. With the help of feature of single operator partition, users can
+easily convert tensors to public layout.
 
 ## Weight Prepacking
 
-For inference mode, weights are usually constant during iterations. Also for
-some operators like convolution and matmul, the layout of weight tensor may be
-not public. In order to improve inference performance, users may want to convert
-the weight to optimal layout and use this converted weight every iteration. This
+For inference mode, weights are usually constant during iterations. In order to
+improve inference performance, users may want to convert the weight from public
+layout to opaque layout and use this converted weight every iteration. This
 will significantly reduce the overhead of converting weight every iteration.
-With the combination of single operation partition and `reorder` operation,
-users should be able to implement this optimization on their side.
+With the combination of single operator partition and `reorder` operation, users
+are able to implement this optimization on their side. Need to mention that the
+weight's opaque layout can be only queried out from compiled partition, which
+requires the tensor shapes mush be known at the compilation time.
 
 ## Additional Ease-of-Use Features
 
 - Users don't need set tensor's dims assuming NHWC format
 
-  - oneDNN Graph library supports arbitrary orders of shapes passed by users.
-    The library now provides two attributes (`data_format` and `filter_format`)
-    to indicate how to parse the shapes.
+  - oneDNN Graph API removes the format representation from logical tensor, so
+    users don't need to indicate whether the tensor is NHWC tensor or NCHW
+    tensor. Instead, the logical tensor used in oneDNN Graph API only needs to
+    describe the layout using dims and strides. The semantics of axes for
+    tensors are specified by the operator's attributes. For example, the
+    Convolution operator has `data_format` and `filter_format`.
 
      ~~~cpp
      // for example, tensorflow shapes
@@ -305,7 +309,7 @@ users should be able to implement this optimization on their side.
 
 - Users don't need query and convert to the opaque layout for input tensors
 
-  - oneDNN Graph library allows that the output tensor of one partition is
+  - oneDNN Graph API allows that the output tensor of one partition is
     directly passed to another partition, even though this output tensor has
     opaque layout.
 
@@ -328,9 +332,3 @@ users should be able to implement this optimization on their side.
     tensor dst = tensor(cp.query_logical_tensor(2), buf_dst);
     cp.execute(stream, {src_tensor, wei_tensor}, {dst_tensor});
     ~~~
-
-- Users don't need pass opaque layout tensor for compilation.
-
-  - oneDNN Graph library accepts both public layout and opaque layout for
-    compilation. If users pass an tensor with opaque layout, the library will
-    take it as the most reliable hint.
