@@ -324,6 +324,7 @@
 #define POST_OP_DATA_T float
 #define DATA_MIN INT_MIN
 #define DATA_MAX INT_MAX
+#define DATA_ZERO 0
 #define ROUND
 
 #define BLOCK_READ intel_sub_group_block_read
