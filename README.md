@@ -10,10 +10,10 @@ ecosystem frameworks and inference engines.
 
 The goal of the preview branch is to:
 
-* Collect feedbacks on the API design, not the implementation.
+* Collect feedback on the API design, not the implementation.
 * Demonstrate the programming model of oneDNN Graph API.
 * Show ease of use of the API for framework integration.
-* Provide product-level quality support to early adoption before merged to
+* Provide product-level quality support to early adoption before merging to
   oneDNN master branch.
 
 The current API version aims to work with the framework graph and identify graph
