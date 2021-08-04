@@ -35,6 +35,7 @@
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
+#include "gpu/compute/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -279,6 +280,12 @@ cl_mem DNNL_WEAK clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
 cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
         size_t size, void *host_ptr, cl_int *errcode_ret);
 #endif
+
+status_t get_ocl_program_binary(cl_program program, cl_device_id device,
+        std::shared_ptr<compute::binary_t> &binary);
+
+status_t get_ocl_program_binary(cl_kernel kernel, cl_device_id device,
+        std::shared_ptr<compute::binary_t> &binary);
 
 void dump_kernel_binary(cl_kernel ocl_kernel);
 void dump_kernel_binary(

@@ -119,11 +119,6 @@ private:
 public:
     jit_generator() = default;
 
-    std::vector<unsigned char> get_binary(
-            cl_context context, cl_device_id device) override {
-        return ngen::OpenCLCodeGenerator<hw>::getBinary(context, device);
-    }
-
     const char *kernel_name() const override {
         return ngen::OpenCLCodeGenerator<hw>::getExternalName().c_str();
     }

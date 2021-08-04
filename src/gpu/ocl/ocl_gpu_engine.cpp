@@ -84,7 +84,6 @@ status_t ocl_gpu_engine_t::create_stream(
 status_t ocl_gpu_engine_t::create_kernel(
         compute::kernel_t *kernel, jit::jit_generator_base &jitter) const {
 
-    auto binary = jitter.get_binary(context(), device());
     auto kernel_name = jitter.kernel_name();
 
     ocl_wrapper_t<cl_kernel> ocl_kernel
@@ -92,7 +91,8 @@ status_t ocl_gpu_engine_t::create_kernel(
     std::vector<gpu::compute::scalar_type_t> arg_types;
     CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
-    auto shared_binary = std::make_shared<gpu::compute::binary_t>(binary);
+    std::shared_ptr<compute::binary_t> shared_binary;
+    CHECK(get_ocl_program_binary(ocl_kernel, device(), shared_binary));
 
     *kernel = compute::kernel_t(
             new ocl_gpu_kernel_t(shared_binary, kernel_name, arg_types));
@@ -113,28 +113,6 @@ status_t ocl_gpu_engine_t::create_kernels(
     }
 
     return ocl::create_kernels(this, kernel_list, kernel_ctx);
-}
-
-static status_t get_program_binaries(
-        cl_program program, std::shared_ptr<compute::binary_t> &binary) {
-
-    // Get the size of the program binary in bytes.
-    size_t binary_size = 0;
-    cl_int err = clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
-            sizeof(binary_size), &binary_size, nullptr);
-    OCL_CHECK(err);
-
-    // Binary is not available for the device.
-    if (binary_size == 0) return status::runtime_error;
-
-    // Get program binary.
-    binary = std::make_shared<compute::binary_t>(binary_size);
-    unsigned char *binary_buffer = binary->data();
-    err = clGetProgramInfo(
-            program, CL_PROGRAM_BINARIES, binary_size, &binary_buffer, nullptr);
-    OCL_CHECK(err);
-
-    return status::success;
 }
 
 status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
@@ -210,7 +188,7 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
     OCL_CHECK(print_debug_info(err, program, dev));
 
     std::shared_ptr<compute::binary_t> shared_binary;
-    CHECK(get_program_binaries(program, shared_binary));
+    CHECK(get_ocl_program_binary(program, dev, shared_binary));
 
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
     for (size_t i = 0; i < kernel_names.size(); ++i) {

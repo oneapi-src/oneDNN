@@ -141,6 +141,53 @@ cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
     return clCreateBuffer(context, flags, size, host_ptr, errcode_ret);
 }
 
+status_t get_ocl_program_binary(cl_program program, cl_device_id device,
+        std::shared_ptr<compute::binary_t> &binary) {
+
+    size_t n_devices = 0;
+    cl_int err = clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES,
+            sizeof(size_t), &n_devices, nullptr);
+    OCL_CHECK(err);
+
+    std::vector<size_t> binarySize(n_devices);
+    err = clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
+            sizeof(size_t) * n_devices, binarySize.data(), nullptr);
+    OCL_CHECK(err);
+
+    std::vector<cl_device_id> devices(n_devices);
+    err = clGetProgramInfo(program, CL_PROGRAM_DEVICES,
+            sizeof(cl_device_id) * n_devices, devices.data(), nullptr);
+    OCL_CHECK(err);
+
+    size_t device_idx = std::distance(
+            devices.begin(), std::find(devices.begin(), devices.end(), device));
+    std::vector<uint8_t *> binary_pointers(n_devices);
+    std::vector<std::shared_ptr<compute::binary_t>> binaries(n_devices);
+    for (size_t i = 0; i < n_devices; ++i) {
+        binaries[i] = std::make_shared<compute::binary_t>(binarySize[i]);
+        binary_pointers[i] = binaries[i]->data();
+    }
+
+    err = clGetProgramInfo(program, CL_PROGRAM_BINARIES,
+            sizeof(uint8_t *) * n_devices, binary_pointers.data(), nullptr);
+    OCL_CHECK(err);
+    binary = binaries[device_idx];
+
+    return status::success;
+}
+
+status_t get_ocl_program_binary(cl_kernel kernel, cl_device_id device,
+        std::shared_ptr<compute::binary_t> &binary) {
+    cl_int err;
+
+    cl_program program;
+    err = clGetKernelInfo(
+            kernel, CL_KERNEL_PROGRAM, sizeof(program), &program, nullptr);
+    OCL_CHECK(err);
+
+    return get_ocl_program_binary(program, device, binary);
+}
+
 #if DNNL_ENABLE_JIT_DUMP
 
 void dump_kernel_binary(cl_kernel ocl_kernel) {

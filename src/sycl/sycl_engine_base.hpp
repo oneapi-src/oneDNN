@@ -80,8 +80,6 @@ public:
         auto status = create_ocl_engine(&ocl_engine);
         if (status != status::success) return status;
 
-        auto binary = jitter.get_binary(
-                ocl_engine->context(), ocl_engine->device());
         auto kernel_name = jitter.kernel_name();
 
         gpu::ocl::ocl_wrapper_t<cl_kernel> ocl_kernel = jitter.get_kernel(
@@ -92,7 +90,9 @@ public:
         std::vector<gpu::compute::scalar_type_t> arg_types;
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
-        auto shared_binary = std::make_shared<gpu::compute::binary_t>(binary);
+        std::shared_ptr<gpu::compute::binary_t> shared_binary;
+        CHECK(gpu::ocl::get_ocl_program_binary(
+                ocl_kernel.get(), ocl_engine->device(), shared_binary));
 
         *kernel = gpu::compute::kernel_t(new sycl_interop_gpu_kernel_t(
                 shared_binary, kernel_name, arg_types));

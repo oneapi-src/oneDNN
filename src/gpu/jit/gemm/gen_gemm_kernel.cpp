@@ -336,54 +336,29 @@ status_t gen_gemm_kernel_t::init_interface() {
     return status::success;
 }
 
-std::vector<unsigned char> gen_gemm_kernel_t::get_binary(
-        cl_context ctx, cl_device_id dev) {
+cl_kernel gen_gemm_kernel_t::get_kernel(
+        cl_context context, cl_device_id device) {
     using ngen::HW;
 
-    std::vector<unsigned char> program_binary;
+    cl_kernel ocl_kernel = nullptr;
 
     switch (hw_) {
         case HW::Gen9: {
             gemm_kernel_generator_t<HW::Gen9> generator;
             generator.gemm(problem_, strategy_, interface_);
-            program_binary = generator.getBinary(ctx, dev);
+            ocl_kernel = generator.getKernel(context, device);
             break;
         }
         case HW::Xe_LP: {
             gemm_kernel_generator_t<HW::Xe_LP> generator;
             generator.gemm(problem_, strategy_, interface_);
-            program_binary = generator.getBinary(ctx, dev);
+            ocl_kernel = generator.getKernel(context, device);
             break;
         }
         default: assert(!"Unsupported architecture"); break;
     }
 
-    return program_binary;
-}
-
-cl_kernel gen_gemm_kernel_t::get_kernel(
-        cl_context context, cl_device_id device) {
-    cl_int status;
-
-    auto binary = get_binary(context, device);
-
-    const auto *binary_ptr = binary.data();
-    size_t binary_size = binary.size();
-    auto program = gpu::ocl::make_ocl_wrapper(clCreateProgramWithBinary(
-            context, 1, &device, &binary_size, &binary_ptr, nullptr, &status));
-    if (status != CL_SUCCESS) return nullptr;
-    assert(status == CL_SUCCESS);
-
-    status = clBuildProgram(program, 1, &device, nullptr, nullptr, nullptr);
-    if (status != CL_SUCCESS) return nullptr;
-    assert(status == CL_SUCCESS);
-
-    auto kernel = gpu::ocl::make_ocl_wrapper(
-            clCreateKernel(program, kernel_name(), &status));
-    if (status != CL_SUCCESS) return nullptr;
-    assert(status == CL_SUCCESS);
-
-    return kernel.release();
+    return ocl_kernel;
 }
 
 CommonDriverInfo gen_gemm_kernel_t::driver_info() const {
