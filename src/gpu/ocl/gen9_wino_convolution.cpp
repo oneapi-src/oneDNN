@@ -60,9 +60,7 @@ static bool is_impl_optimal(conv_conf_t &conf, const convolution_desc_t &cd,
             score = (float)conf.oc * conf.ic / (oh_blocks * ow_blocks);
             if (score < 32 * 1024 && utilization >= 0.50) return true;
             return false;
-        default:
-            assert(!"Unhandled winograd convolution auto dispatch");
-            return false;
+        default: return false;
     }
 }
 
