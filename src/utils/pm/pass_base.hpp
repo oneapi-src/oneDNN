@@ -29,14 +29,16 @@
 
 #include "interface/graph.hpp"
 #include "utils/json.hpp"
+#include "utils/pm/pbuilder.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace pass {
 
-using graph = ::dnnl_graph_graph;
-using namespace utils;
+using pb_graph = utils::pm::pb_graph;
+using graph = impl::graph_t;
+
 /*! \brief pass type */
 enum class pass_type { kAnalysis = 0, kTransformation = 1 };
 
@@ -48,11 +50,22 @@ using pass_base_ptr = std::shared_ptr<pass_base>;
 // One pass can have several FCreatePattern functions.
 using FCreatePattern = std::function<void(pattern *apattern)>;
 
+// FCreateV2Pattern: a function for defining pattern.
+// One pass can have several FCreateV2Pattern functions.
+using FCreateV2Pattern
+        = std::function<void(std::shared_ptr<pb_graph> pattern_graph)>;
+
 // FCreateOptPattern: a function for defining optimized pattern,
 // which is used in the graph rewriting part to rewrite the pattern
 // to optimized pattern.
 // One pass can only have one FCreateOptPattern function.
 using FCreateOptPattern = std::function<void(pattern *opt_pattern)>;
+
+// FCreateV2FusedOp: a function for defining fused op,
+// which is used in the graph rewriting part to rewrite the pattern
+// to a fused op.
+// One pass can only have one FCreateV2FusedOp function.
+using FCreateV2FusedOp = std::function<std::shared_ptr<op_t>()>;
 
 // FRequirement: a function to check if a graph op can meet the
 // requirement of a pattern op
@@ -107,7 +120,7 @@ public:
     // the criteria of pass execution
     virtual void run(graph &agraph) { UNUSED(agraph); }
     // save pass basic information into json
-    virtual void save(json::json_writer *writer) {
+    virtual void save(utils::json::json_writer *writer) {
         writer->begin_object();
         writer->write_keyvalue("pass_name", name_);
         if (type_ == pass_type::kTransformation) {
@@ -121,8 +134,8 @@ public:
         writer->end_object();
     }
     // load pass basic information from json
-    virtual void load(json::json_reader *reader) {
-        json::read_helper helper;
+    virtual void load(utils::json::json_reader *reader) {
+        utils::json::read_helper helper;
         std::string type;
         helper.declare_field("pass_name", &name_);
         helper.declare_field("pass_type", &type);
@@ -172,7 +185,9 @@ public:
     std::vector<value_type> get_attr(const std::string &attr_name) {
         std::vector<value_type> attr_vec;
         for (auto it = attrs_.begin(); it != attrs_.end(); ++it) {
-            if (it->first == attr_name) { attr_vec.push_back(it->second); }
+            if (it->first == attr_name) {
+                attr_vec.push_back(utils::any_cast<value_type>(it->second));
+            }
         }
         return attr_vec;
     }
@@ -187,7 +202,7 @@ public:
     }
 
 protected:
-    std::unordered_multimap<std::string, std::function<void(pattern *)>> attrs_;
+    std::unordered_multimap<std::string, impl::utils::any> attrs_;
 
 private:
     pass_type type_ {};
