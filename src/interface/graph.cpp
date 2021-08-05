@@ -350,12 +350,13 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
         out.open(filename);
         out << "digraph G {\n";
         topo_order_visit(graph->get_output_ops(), [&](op_t *op) {
-            auto current_op_name = op->get_name();
+            const auto &current_op_name = op->get_name();
             const size_t current_op_id = op->get_id();
             if (op->num_inputs() > 0) {
                 for (size_t i = 0; i < op->num_inputs(); ++i) {
-                    op_t *input_op = op->get_input_op(i);
-                    if (input_op) {
+                    auto input_value = op->get_input_value(i);
+                    if (input_value->has_producer()) {
+                        op_t *input_op = &(input_value->get_producer());
                         const std::string &input_op_name = input_op->get_name();
                         const size_t input_op_id = input_op->get_id();
                         out << "\"" << input_op_name << "_" << input_op_id
