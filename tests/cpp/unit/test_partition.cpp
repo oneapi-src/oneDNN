@@ -101,4 +101,19 @@ TEST(partition_test, fake_partition) {
     ASSERT_TRUE(p.is_initialized());
     ASSERT_TRUE(p.get_assigned_backend()->get_name() == "fake_backend");
     ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Wildcard);
+
+    // copy the partition
+    fake_impl::fake_partition_impl_t p_copy(p);
+    ASSERT_TRUE(p_copy.is_initialized());
+    ASSERT_TRUE(p_copy.get_assigned_backend()->get_name() == "fake_backend");
+    ASSERT_EQ(p_copy.get_fused_op()->get_kind(), op_kind::Wildcard);
+
+    // clone
+    std::shared_ptr<partition_impl_t> p_share = p.clone();
+    fake_impl::fake_partition_impl_t *p_share_raw
+            = dynamic_cast<fake_impl::fake_partition_impl_t *>(p_share.get());
+    ASSERT_TRUE(p_share_raw->is_initialized());
+    ASSERT_TRUE(
+            p_share_raw->get_assigned_backend()->get_name() == "fake_backend");
+    ASSERT_EQ(p_share_raw->get_fused_op()->get_kind(), op_kind::Wildcard);
 }

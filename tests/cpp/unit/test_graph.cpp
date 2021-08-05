@@ -245,9 +245,11 @@ TEST(graph_test, get_partitions) {
     auto p1 = agraph.get_partitions()[0].get();
     ASSERT_NE(p1->get_assigned_backend()->get_name(),
             std::string("fake_backend"));
+    ASSERT_TRUE(p1->is_initialized());
     auto p2 = agraph.get_partitions()[1].get();
     ASSERT_EQ(p2->get_assigned_backend()->get_name(),
             std::string("fake_backend"));
+    ASSERT_TRUE(p2->is_initialized());
 }
 
 TEST(graph_test, get_partitions_fake) {
@@ -280,6 +282,7 @@ TEST(graph_test, get_partitions_fake) {
     auto partition = agraph.get_partitions()[0].get();
     ASSERT_EQ(partition->get_assigned_backend()->get_name(),
             std::string("fake_backend"));
+    ASSERT_TRUE(partition->is_initialized());
 }
 
 TEST(graph_test, wildcard) {
