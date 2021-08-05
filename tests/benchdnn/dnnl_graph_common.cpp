@@ -371,29 +371,31 @@ fill_status_t po_handlers_t::bias_po_handler_t::operator()(graph_prb_t &p,
         const dnnl::graph::logical_tensor::data_type bia_dt) {
     using op = dnnl::graph::op;
 
-    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back()];
+    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
     const auto dst_dims = dst_lt.get_dims();
     const auto dst_dt = dst_lt.get_data_type();
     const dim_t channels = (dst_dataf == "NCX") ? dst_dims[1] : dst_dims.back();
     const dims_t bia_dims = {channels};
 
-    const std::string BIA_SRC {"bias_src"};
-    const std::string BIA_DST {"bias_dst"};
+    const size_t new_op_id = p.ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    p.tensor_id["bias"].push_back(TENSOR_ID);
+    const std::string BIA_SRC {TENSOR_ID + "_SRC"};
+    const std::string BIA_DST {TENSOR_ID + "_DST"};
 
     p.tensor_descs_.emplace(BIA_SRC, bia_dt, bia_dims, lt::strided);
     BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
             p.tensor_descs_, BIA_DST, dst_dt, dst_dims, dst_lt);
 
-    const size_t new_op_id = p.ops_.size();
     op bias(new_op_id, op::kind::BiasAdd,
-            {p.tensor_descs_[p.curr_out_map_ids_.back()],
+            {p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"],
                     p.tensor_descs_[BIA_SRC]},
             {p.tensor_descs_[BIA_DST]}, "bias");
 
     bias.set_attr("data_format", dst_dataf);
 
     p.ops_.emplace_back(bias);
-    p.curr_out_map_ids_.assign({BIA_DST});
+    p.curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
 }
@@ -409,18 +411,20 @@ fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(
     const auto post_op_kind
             = (is_swish) ? op::kind::Sigmoid : requested_post_op_kind;
 
-    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back()];
+    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
     const auto dst_dims = dst_lt.get_dims();
     const auto dst_dt = dst_lt.get_data_type();
 
-    const std::string ELT_DST {"post_elt_dst"};
+    const size_t new_op_id = p.ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    p.tensor_id["eltwise"].push_back(TENSOR_ID);
+    const std::string ELT_DST {TENSOR_ID + "_DST"};
 
     BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
             p.tensor_descs_, ELT_DST, dst_dt, dst_dims, dst_lt);
 
-    const size_t new_op_id = p.ops_.size();
     op eltwise(new_op_id, post_op_kind,
-            {p.tensor_descs_[p.curr_out_map_ids_.back()]},
+            {p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"]},
             {p.tensor_descs_[ELT_DST]}, "eltwise");
 
     const auto attrs = convert_eltw_entry(post_op_kind, po_entry);
@@ -429,18 +433,21 @@ fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(
     }
 
     p.ops_.emplace_back(eltwise);
-    p.curr_out_map_ids_.assign({ELT_DST});
+    p.curr_out_map_ids_.assign({TENSOR_ID});
 
     if (is_swish) {
-        const std::string BIA_DST {"bias_dst"};
-        const std::string BIN_DST {"post_bin_dst"};
         const size_t new_op_id = p.ops_.size();
+        const std::string TENSOR_ID = std::to_string(new_op_id);
+        p.tensor_id["binary"].push_back(TENSOR_ID);
+        const std::string BIN_DST {TENSOR_ID + "_DST"};
+        const std::string BIA_DST = p.tensor_id["bias"].back() + "_DST";
+
         p.tensor_descs_.emplace(BIN_DST, dst_dt, dst_dims, lt::strided);
         op binary(new_op_id, op::kind::Multiply,
                 {p.tensor_descs_[ELT_DST], p.tensor_descs_[BIA_DST]},
                 {p.tensor_descs_[BIN_DST]}, "binary");
         p.ops_.emplace_back(binary);
-        p.curr_out_map_ids_.assign({BIN_DST});
+        p.curr_out_map_ids_.assign({TENSOR_ID});
     }
 
     return fill_status::DONE;
@@ -455,29 +462,31 @@ fill_status_t po_handlers_t::binary_po_handler_t::operator()(graph_prb_t &p,
     if (post_op_kind == op::kind::LastSymbol)
         return fill_status::UNSUPPORTED_OP;
 
-    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back()];
+    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
     const auto dst_dims = dst_lt.get_dims();
     const auto dst_dt = dst_lt.get_data_type();
     const auto bin_src_dims
             = convert_bin_policy(dst_dims, po_entry.binary.policy, dst_dataf);
     const auto bin_src_dt = convert_dt(po_entry.binary.src1_dt);
 
-    const std::string BIN_SRC {"post_bin_src1"};
-    const std::string BIN_DST {"post_bin_dst"};
+    const size_t new_op_id = p.ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    p.tensor_id["binary"].push_back(TENSOR_ID);
+    const std::string BIN_SRC {TENSOR_ID + "_SRC"};
+    const std::string BIN_DST {TENSOR_ID + "_DST"};
 
     BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
             p.tensor_descs_, BIN_SRC, bin_src_dt, bin_src_dims, dst_lt);
     BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
             p.tensor_descs_, BIN_DST, dst_dt, dst_dims, dst_lt);
 
-    const size_t new_op_id = p.ops_.size();
     op binary(new_op_id, post_op_kind,
-            {p.tensor_descs_[p.curr_out_map_ids_.back()],
+            {p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"],
                     p.tensor_descs_[BIN_SRC]},
             {p.tensor_descs_[BIN_DST]}, "binary");
 
     p.ops_.emplace_back(binary);
-    p.curr_out_map_ids_.assign({BIN_DST});
+    p.curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
 }
@@ -485,26 +494,28 @@ fill_status_t po_handlers_t::binary_po_handler_t::operator()(graph_prb_t &p,
 fill_status_t po_handlers_t::sum_po_handler_t::operator()(graph_prb_t &p) {
     using op = dnnl::graph::op;
 
-    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back()];
+    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
     const auto dst_dims = dst_lt.get_dims();
     const auto dst_dt = dst_lt.get_data_type();
 
-    const std::string SUM_SRC {"post_sum_src1"};
-    const std::string SUM_DST {"post_sum_dst"};
+    const size_t new_op_id = p.ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    p.tensor_id["sum"].push_back(TENSOR_ID);
+    const std::string SUM_SRC {TENSOR_ID + "_SRC"};
+    const std::string SUM_DST {TENSOR_ID + "_DST"};
 
     BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
             p.tensor_descs_, SUM_SRC, dst_dt, dst_dims, dst_lt);
     BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
             p.tensor_descs_, SUM_DST, dst_dt, dst_dims, dst_lt);
 
-    const size_t new_op_id = p.ops_.size();
     op sum(new_op_id, op::kind::Add,
-            {p.tensor_descs_[p.curr_out_map_ids_.front()],
+            {p.tensor_descs_[p.curr_out_map_ids_.front() + "_DST"],
                     p.tensor_descs_[SUM_SRC]},
             {p.tensor_descs_[SUM_DST]}, "sum");
 
     p.ops_.emplace_back(sum);
-    p.curr_out_map_ids_.assign({SUM_DST});
+    p.curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
 }

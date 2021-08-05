@@ -92,8 +92,11 @@ pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) noexcept {
 fill_status_t pool_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
-    const std::string SRC {"pool_src"};
-    const std::string DST {"pool_dst"};
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["main"].push_back(TENSOR_ID);
+    const std::string SRC {TENSOR_ID + "_SRC"};
+    const std::string DST {TENSOR_ID + "_DST"};
 
     dt src_dt;
     dt dst_dt;
@@ -108,7 +111,6 @@ fill_status_t pool_graph_prb_t::handle_main_op_() {
     tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, spec_.raw_data_format);
     tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, spec_.raw_data_format);
 
-    const size_t new_op_id = ops_.size();
     const std::string op_name
             = (spec_.op_kind == op::kind::MaxPool) ? "max_pool" : "avg_pool";
     op pool(new_op_id, spec_.op_kind, {tensor_descs_[SRC]},
@@ -129,7 +131,7 @@ fill_status_t pool_graph_prb_t::handle_main_op_() {
     }
 
     ops_.emplace_back(pool);
-    curr_out_map_ids_.assign({DST});
+    curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
 }
@@ -137,10 +139,14 @@ fill_status_t pool_graph_prb_t::handle_main_op_() {
 fill_status_t pool_graph_prb_t::handle_low_precision_() {
     using op = dnnl::graph::op;
 
-    const std::string SRC {"pool_src"};
-    const std::string DST = curr_out_map_ids_.back();
-    const std::string QSRC = "q" + SRC;
-    const std::string QDST = "q" + DST;
+    const std::string SRC = curr_out_map_ids_.back() + "_SRC";
+    const std::string DST = curr_out_map_ids_.back() + "_DST";
+
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["dequant"].push_back(TENSOR_ID);
+    const std::string QSRC {TENSOR_ID + "_SRC"};
+    const std::string QDST {TENSOR_ID + "_DST"};
 
     const std::string qsrc_dtype = spec_.src_dt == dt::u8 ? "uint8" : "int8";
     const std::string qdst_dtype = spec_.dst_dt == dt::u8 ? "uint8" : "int8";
@@ -168,7 +174,7 @@ fill_status_t pool_graph_prb_t::handle_low_precision_() {
             .set_attr("axis", static_cast<int64_t>(0));
     ops_.emplace_back(quant_dst);
 
-    curr_out_map_ids_.assign({QDST});
+    curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status_t::DONE;
 }

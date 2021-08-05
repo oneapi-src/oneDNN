@@ -113,9 +113,13 @@ conv_graph_prb_t::spec_t::spec_t(const ::conv::prb_t *prb) noexcept {
 fill_status_t conv_graph_prb_t::handle_main_op_() {
     using kind = graph::op::kind;
 
-    const std::string SRC {"conv_src"};
-    const std::string WEI {"conv_wei"};
-    const std::string DST {"conv_dst"};
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["main"].push_back(TENSOR_ID);
+
+    const std::string SRC {TENSOR_ID + "_SRC"};
+    const std::string WEI {TENSOR_ID + "_WEI"};
+    const std::string DST {TENSOR_ID + "_DST"};
 
     dims_t wei_dims = spec_.wei_dims;
     if (spec_.has_groups) {
@@ -129,7 +133,6 @@ fill_status_t conv_graph_prb_t::handle_main_op_() {
     tensor_descs_.emplace(WEI, dt::f32, wei_dims, spec_.raw_wei_tag);
     tensor_descs_.emplace(DST, dt::f32, spec_.dst_dims, spec_.raw_dst_tag);
 
-    const size_t new_op_id = ops_.size();
     graph::op conv_op(new_op_id, kind::Convolution,
             {tensor_descs_[SRC], tensor_descs_[WEI]}, {tensor_descs_[DST]},
             "conv");
@@ -144,7 +147,7 @@ fill_status_t conv_graph_prb_t::handle_main_op_() {
             .set_attr("filter_format", spec_.filter_format);
 
     ops_.emplace_back(conv_op);
-    curr_out_map_ids_.assign({DST});
+    curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
 }
@@ -166,8 +169,16 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
         const ::conv::prb_t *prb) {
     if (spec_.src_dt != dt::f32 || spec_.wei_dt != dt::f32
             || spec_.dst_dt != dt::f32) {
-        std::string output_name = curr_out_map_ids_.front();
-        std::string qoutput_name = "q" + output_name;
+        const std::string SRC = curr_out_map_ids_.back() + "_SRC";
+        const std::string WEI = curr_out_map_ids_.back() + "_WEI";
+        const std::string DST = curr_out_map_ids_.back() + "_DST";
+
+        const size_t new_op_id = ops_.size();
+        const std::string TENSOR_ID = std::to_string(new_op_id);
+        tensor_id["dequant"].push_back(TENSOR_ID);
+        const std::string QSRC {TENSOR_ID + "_SRC"};
+        const std::string QWEI {TENSOR_ID + "_WEI"};
+        const std::string QDST {TENSOR_ID + "_DST"};
 
         const std::string qsrc_type = spec_.src_dt == dt::u8 ? "uint8" : "int8";
         const std::string qwei_type = spec_.wei_dt == dt::u8 ? "uint8" : "int8";
@@ -190,15 +201,12 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
             wei_dims[0] *= groups;
         }
 
-        tensor_descs_.emplace(
-                "qconv_src", spec_.src_dt, spec_.src_dims, prb->stag);
-        tensor_descs_.emplace("qconv_wei", spec_.wei_dt, wei_dims, prb->wtag);
-        tensor_descs_.emplace(
-                qoutput_name, spec_.dst_dt, spec_.dst_dims, prb->dtag);
+        tensor_descs_.emplace(QSRC, spec_.src_dt, spec_.src_dims, prb->stag);
+        tensor_descs_.emplace(QWEI, spec_.wei_dt, wei_dims, prb->wtag);
+        tensor_descs_.emplace(QDST, spec_.dst_dt, spec_.dst_dims, prb->dtag);
 
         graph::op dequant_src(ops_.size(), graph::op::kind::Dequantize,
-                {tensor_descs_["qconv_src"]}, {tensor_descs_["conv_src"]},
-                "dequant_src");
+                {tensor_descs_[QSRC]}, {tensor_descs_[SRC]}, "dequant_src");
         dequant_src.set_attr("scales", std::vector<float> {1.f})
                 .set_attr("zps", std::vector<int64_t> {0})
                 .set_attr<std::string>("qtype", "per_tensor")
@@ -207,8 +215,7 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
         ops_.emplace_back(dequant_src);
 
         graph::op dequant_wei(ops_.size(), graph::op::kind::Dequantize,
-                {tensor_descs_["qconv_wei"]}, {tensor_descs_["conv_wei"]},
-                "dequant_wei");
+                {tensor_descs_[QWEI]}, {tensor_descs_[WEI]}, "dequant_wei");
         dequant_wei.set_attr("scales", oscales)
                 .set_attr("zps", std::vector<int64_t>(count, 0L))
                 .set_attr("qtype", qtype)
@@ -217,8 +224,7 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
         ops_.emplace_back(dequant_wei);
 
         graph::op quant_dst(ops_.size(), graph::op::kind::Quantize,
-                {tensor_descs_[output_name]}, {tensor_descs_[qoutput_name]},
-                "quant");
+                {tensor_descs_[DST]}, {tensor_descs_[QDST]}, "quant");
         quant_dst.set_attr("scales", std::vector<float> {1.f})
                 .set_attr("zps", std::vector<int64_t> {0L})
                 .set_attr<std::string>("qtype", "per_tensor")
@@ -226,17 +232,19 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
                 .set_attr("axis", static_cast<int64_t>(0));
         ops_.emplace_back(quant_dst);
 
-        if (has_post_sum_) {
+        if (has_post_sum()) {
+            const std::string QPSUM_SRC {TENSOR_ID + "_SUM_SRC1"};
+            const std::string POST_SUM_SRC = tensor_id["sum"].back() + "_SRC";
             tensor_descs_.emplace(
-                    "qsum_src1", spec_.dst_dt, spec_.dst_dims, prb->stag);
+                    QPSUM_SRC, spec_.dst_dt, spec_.dst_dims, prb->stag);
             graph::op dequant_sum(ops_.size(), graph::op::kind::Dequantize,
-                    {tensor_descs_["qsum_src1"]},
-                    {tensor_descs_["post_sum_src1"]}, "dequant_sum");
+                    {tensor_descs_[QPSUM_SRC]}, {tensor_descs_[POST_SUM_SRC]},
+                    "dequant_sum");
             dequant_sum.set_attr("scales", std::vector<float> {1.f})
                     .set_attr("zps", std::vector<int64_t> {0L});
             ops_.emplace_back(dequant_sum);
         }
-        curr_out_map_ids_.assign({qoutput_name});
+        curr_out_map_ids_.assign({TENSOR_ID});
     }
 
     return fill_status::DONE;

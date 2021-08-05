@@ -87,15 +87,16 @@ void check_known_skipped_case_graph(const ::binary::prb_t *prb, res_t *res) {
 }
 
 fill_status_t binary_graph_prb_t::handle_main_op_() {
-    const std::string SRC0 {"bin_src0"};
-    const std::string SRC1 {"bin_src1"};
-    const std::string DST {"bin_dst"};
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["main"].push_back(TENSOR_ID);
+    const std::string SRC0 {TENSOR_ID + "_SRC"};
+    const std::string SRC1 {TENSOR_ID + "_SRC1"};
+    const std::string DST {TENSOR_ID + "_DST"};
 
     tensor_descs_.emplace(SRC0, spec_.src0_dt, spec_.src0_dims, lt::strided);
     tensor_descs_.emplace(SRC1, spec_.src1_dt, spec_.src1_dims, lt::strided);
     tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, lt::strided);
-
-    const size_t new_op_id = ops_.size();
 
     dnnl::graph::op binary(new_op_id, spec_.op_kind,
             {tensor_descs_[SRC0], tensor_descs_[SRC1]}, {tensor_descs_[DST]},
@@ -105,7 +106,7 @@ fill_status_t binary_graph_prb_t::handle_main_op_() {
     binary.set_attr("backend", spec_.backend);
 
     ops_.emplace_back(binary);
-    curr_out_map_ids_.assign({DST});
+    curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
 }

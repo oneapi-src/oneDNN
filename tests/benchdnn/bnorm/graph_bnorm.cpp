@@ -69,12 +69,15 @@ void check_known_skipped_case_graph(
 fill_status_t bnorm_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
-    const std::string SRC {"bnorm_src"};
-    const std::string SCALE {"bnorm_scale"};
-    const std::string SHIFT {"bnorm_shift"};
-    const std::string MEAN {"bnorm_mean"};
-    const std::string VAR {"bnorm_variance"};
-    const std::string DST {"bnorm_dst"};
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["main"].push_back(TENSOR_ID);
+    const std::string SRC {TENSOR_ID + "_SRC"};
+    const std::string SCALE {TENSOR_ID + "_SCALE"};
+    const std::string SHIFT {TENSOR_ID + "_SHIFT"};
+    const std::string MEAN {TENSOR_ID + "_MEAN"};
+    const std::string VAR {TENSOR_ID + "_VAR"};
+    const std::string DST {TENSOR_ID + "_DST"};
 
     tensor_descs_.emplace(SRC, spec_.bnorm_dt, spec_.dims, lt::strided);
     tensor_descs_.emplace(SCALE, spec_.bnorm_dt, spec_.s_dims, lt::strided);
@@ -83,7 +86,6 @@ fill_status_t bnorm_graph_prb_t::handle_main_op_() {
     tensor_descs_.emplace(VAR, spec_.bnorm_dt, spec_.s_dims, lt::strided);
     tensor_descs_.emplace(DST, spec_.bnorm_dt, spec_.dims, lt::strided);
 
-    const size_t new_op_id = ops_.size();
     op bnorm_op(new_op_id, dnnl::graph::op::kind::BatchNormInference,
             {tensor_descs_[SRC], tensor_descs_[SCALE], tensor_descs_[SHIFT],
                     tensor_descs_[MEAN], tensor_descs_[VAR]},
@@ -93,7 +95,7 @@ fill_status_t bnorm_graph_prb_t::handle_main_op_() {
     bnorm_op.set_attr<std::string>("data_format", convert_tag(spec_.tag));
 
     ops_.emplace_back(bnorm_op);
-    curr_out_map_ids_.assign({DST});
+    curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
 }

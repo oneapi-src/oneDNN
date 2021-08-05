@@ -39,8 +39,11 @@ fill_status_t reorder_graph_prb_t::handle_main_op_(
         std::string tag_in, std::string tag_out) {
     using op = dnnl::graph::op;
 
-    const std::string SRC {"reorder_src"};
-    const std::string DST {"reorder_dst"};
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["main"].push_back(TENSOR_ID);
+    const std::string SRC {TENSOR_ID + "_SRC"};
+    const std::string DST {TENSOR_ID + "_DST"};
 
     //TODO: how to pass layout_id??
     tensor_descs_.emplace(SRC, spec_.src_dt, spec_.dims,
@@ -48,11 +51,11 @@ fill_status_t reorder_graph_prb_t::handle_main_op_(
     tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dims,
             calculate_strides(spec_.dims, spec_.dst_dt, tag_out));
 
-    op reorder_op(ops_.size(), op::kind::Reorder, {tensor_descs_[SRC]},
+    op reorder_op(new_op_id, op::kind::Reorder, {tensor_descs_[SRC]},
             {tensor_descs_[DST]}, "reorder");
 
     ops_.emplace_back(reorder_op);
-    curr_out_map_ids_.assign({"reorder_dst"});
+    curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
 }

@@ -101,12 +101,15 @@ fill_status_t lnorm_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
     using graph_dt = dnnl::graph::logical_tensor::data_type;
 
-    const std::string SRC {"lnorm_src"};
-    const std::string GAMMA {"lnorm_gamma"};
-    const std::string BETA {"lnorm_beta"};
-    const std::string DST {"lnorm_dst"};
-    const std::string MEAN {"lnorm_mean"};
-    const std::string VAR {"lnorm_var"};
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["main"].push_back(TENSOR_ID);
+    const std::string SRC {TENSOR_ID + "_SRC"};
+    const std::string GAMMA {TENSOR_ID + "_GAMMA"};
+    const std::string BETA {TENSOR_ID + "_BETA"};
+    const std::string DST {TENSOR_ID + "_DST"};
+    const std::string MEAN {TENSOR_ID + "_MEAN"};
+    const std::string VAR {TENSOR_ID + "_VAR"};
 
     //NOTE: beta, gamma, mean and variance supports only f32
     tensor_descs_.emplace(SRC, spec_.lnorm_dt, spec_.dims, lt::strided);
@@ -129,8 +132,8 @@ fill_status_t lnorm_graph_prb_t::handle_main_op_() {
         ltensors_out.push_back(tensor_descs_[MEAN]);
         ltensors_out.push_back(tensor_descs_[VAR]);
     }
-    op lnorm_op(1, dnnl::graph::op::kind::LayerNorm, ltensors_in, ltensors_out,
-            "LayerNorm");
+    op lnorm_op(new_op_id, dnnl::graph::op::kind::LayerNorm, ltensors_in,
+            ltensors_out, "LayerNorm");
 
     lnorm_op.set_attr("begin_norm_axis", spec_.begin_norm_axis);
     lnorm_op.set_attr("keep_stats", spec_.keep_stats);
@@ -138,7 +141,7 @@ fill_status_t lnorm_graph_prb_t::handle_main_op_() {
     lnorm_op.set_attr("epsilon", spec_.epsilon);
 
     ops_.emplace_back(lnorm_op);
-    curr_out_map_ids_.assign({"lnorm_dst"});
+    curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
 }

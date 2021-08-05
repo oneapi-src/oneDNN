@@ -36,8 +36,11 @@ eltwise_graph_prb_t::spec_t::spec_t(const ::eltwise::prb_t *prb) noexcept {
 fill_status_t eltwise_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
-    const std::string SRC {"eltwise_src"};
-    const std::string DST {"eltwise_dst"};
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["main"].push_back(TENSOR_ID);
+    const std::string SRC {TENSOR_ID + "_SRC"};
+    const std::string DST {TENSOR_ID + "_DST"};
 
     tensor_descs_.emplace(SRC, spec_.eltwise_dt, spec_.dims, lt::strided);
     tensor_descs_.emplace(DST, spec_.eltwise_dt, spec_.dims, lt::strided);
@@ -49,7 +52,7 @@ fill_status_t eltwise_graph_prb_t::handle_main_op_() {
     ltensors_out.push_back({tensor_descs_[DST]});
 
     op eltwise_op(
-            ops_.size(), spec_.op_kind, ltensors_in, ltensors_out, "eltwise");
+            new_op_id, spec_.op_kind, ltensors_in, ltensors_out, "eltwise");
 
     //Set alpha, beta, min and max for relevant ops
     switch (spec_.op_kind) {
@@ -64,7 +67,7 @@ fill_status_t eltwise_graph_prb_t::handle_main_op_() {
     }
 
     ops_.emplace_back(eltwise_op);
-    curr_out_map_ids_.assign({"eltwise_dst"});
+    curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
 }

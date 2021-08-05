@@ -344,6 +344,7 @@ struct graph_prb_t {
 protected:
     std::vector<dnnl::graph::op> ops_;
     tensor_descs_t tensor_descs_;
+    std::unordered_map<std::string, std::vector<std::string>> tensor_id;
 
     std::vector<std::string> curr_out_map_ids_;
 

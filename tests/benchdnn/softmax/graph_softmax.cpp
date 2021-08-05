@@ -60,20 +60,23 @@ void add_additional_softmax_check(compare::compare_t &cmp) noexcept {
 fill_status_t softmax_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
-    const std::string SRC {"softmax_src"};
-    const std::string DST {"softmax_dst"};
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["main"].push_back(TENSOR_ID);
+    const std::string SRC {TENSOR_ID + "_SRC"};
+    const std::string DST {TENSOR_ID + "_DST"};
 
     tensor_descs_.emplace(SRC, spec_.softmax_dt, spec_.dims, lt::strided);
     tensor_descs_.emplace(DST, spec_.softmax_dt, spec_.dims, lt::strided);
 
     std::string name
             = spec_.op_kind == op::kind::SoftMax ? "Softmax" : "LogSoftMax";
-    op softmax_op(
-            1, spec_.op_kind, {tensor_descs_[SRC]}, {tensor_descs_[DST]}, name);
+    op softmax_op(new_op_id, spec_.op_kind, {tensor_descs_[SRC]},
+            {tensor_descs_[DST]}, name);
     softmax_op.set_attr<int64_t>("axis", spec_.axis);
 
     ops_.emplace_back(softmax_op);
-    curr_out_map_ids_.assign({"softmax_dst"});
+    curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
 }

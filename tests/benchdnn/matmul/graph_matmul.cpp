@@ -49,9 +49,13 @@ matmul_graph_prb_t::spec_t::spec_t(const ::matmul::prb_t *prb) noexcept {
 fill_status_t matmul_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
 
-    const std::string SRC {"matmul_src"};
-    const std::string WEI {"matmul_wei"};
-    const std::string DST {"matmul_dst"};
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["main"].push_back(TENSOR_ID);
+
+    const std::string SRC {TENSOR_ID + "_SRC"};
+    const std::string WEI {TENSOR_ID + "_WEI"};
+    const std::string DST {TENSOR_ID + "_DST"};
 
     const auto is_lprec = is_low_precision(get_dtypes());
     dt src_dt = (is_lprec) ? dt::f32 : spec_.src_dt;
@@ -61,7 +65,6 @@ fill_status_t matmul_graph_prb_t::handle_main_op_() {
     tensor_descs_.emplace(WEI, wei_dt, spec_.wei_dims, spec_.raw_wei_tag);
     tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
 
-    const size_t new_op_id = ops_.size();
     op matmul(new_op_id, op::kind::MatMul,
             {tensor_descs_[SRC], tensor_descs_[WEI]}, {tensor_descs_[DST]},
             "matmul");
@@ -70,7 +73,7 @@ fill_status_t matmul_graph_prb_t::handle_main_op_() {
             .set_attr("transpose_b", spec_.transpose_b);
 
     ops_.emplace_back(matmul);
-    curr_out_map_ids_.assign({DST});
+    curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
 }
@@ -98,12 +101,16 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
         const ::matmul::prb_t *prb_) {
     using op = dnnl::graph::op;
 
-    const std::string SRC {"matmul_src"};
-    const std::string WEI {"matmul_wei"};
-    const std::string DST = curr_out_map_ids_.back();
-    const std::string QSRC = "q" + SRC;
-    const std::string QWEI = "q" + WEI;
-    const std::string QDST = "q" + DST;
+    const std::string SRC = curr_out_map_ids_.back() + "_SRC";
+    const std::string WEI = curr_out_map_ids_.back() + "_WEI";
+    const std::string DST = curr_out_map_ids_.back() + "_DST";
+
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["dequant"].push_back(TENSOR_ID);
+    const std::string QSRC {TENSOR_ID + "_SRC"};
+    const std::string QWEI {TENSOR_ID + "_WEI"};
+    const std::string QDST {TENSOR_ID + "_DST"};
 
     const std::string qsrc_type = spec_.src_dt == dt::u8 ? "uint8" : "int8";
     const std::string qwei_type = spec_.wei_dt == dt::u8 ? "uint8" : "int8";
@@ -155,17 +162,19 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
     ops_.emplace_back(quant_dst);
 
     if (has_post_sum()) {
+        const std::string QPSUM_SRC {TENSOR_ID + "_SUM_SRC1"};
+        const std::string POST_SUM_SRC = tensor_id["sum"].back() + "_SRC";
         tensor_descs_.emplace(
-                "qsum_src1", spec_.dst_dt, spec_.dst_dims, lt::strided);
+                QPSUM_SRC, spec_.dst_dt, spec_.dst_dims, lt::strided);
         op dequant_sum(ops_.size(), op::kind::Dequantize,
-                {tensor_descs_["qsum_src1"]}, {tensor_descs_["post_sum_src1"]},
+                {tensor_descs_[QPSUM_SRC]}, {tensor_descs_[POST_SUM_SRC]},
                 "dequant_sum");
         dequant_sum.set_attr("scales", std::vector<float> {1.f})
                 .set_attr("zps", std::vector<int64_t> {0});
         ops_.emplace_back(dequant_sum);
     }
 
-    curr_out_map_ids_.assign({QDST});
+    curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status_t::DONE;
 }
